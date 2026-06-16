@@ -1,0 +1,453 @@
+// ════════════════════════════════════════════════════════════════════════
+//  ADLYTIC — Ads Intelligence Platform
+//  Phase 1 schema (FROZEN)
+//
+//  Principle: optimize the schema for customer #100, build the code for #1.
+//  Nothing here knows what industry a customer is in. Nothing above the AI
+//  layer depends on any LLM. Meta is connector #1, not a hardcoded assumption.
+//
+//  Pipeline this schema serves:
+//    Connector → raw_insights → daily_stats → Analytics → Rules →
+//    Knowledge → Recommendation → Health Score → (AI narration) → Dashboard
+// ════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  ENUMS
+//  Domain codes are sacred. Issue codes are an enum so they cannot drift
+//  into free-text strings anywhere in the codebase. Human-readable text is
+//  ALWAYS generated from (issue_code + locale) via knowledge_rules.
+// ────────────────────────────────────────────────────────────────────────
+
+enum Platform {
+  META // connector #1. GOOGLE / TIKTOK / SNAPCHAT / LINKEDIN are future values.
+}
+
+enum WorkspaceRole {
+  OWNER
+  MANAGER
+  VIEWER
+}
+
+enum EntityType {
+  ACCOUNT
+  CAMPAIGN
+  AD_SET
+  AD
+}
+
+enum EntityStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  DELETED
+}
+
+// The universal issue vocabulary. Works for every customer in every industry.
+// Recommendations differ by industry (via industry_profiles); the CODE never does.
+enum IssueCode {
+  LOW_CTR
+  HIGH_CPM
+  HIGH_FREQUENCY
+  AUDIENCE_FATIGUE
+  DECLINING_RESULTS
+  BUDGET_BURNING_FAST
+  LOW_REACH
+  RISING_COST_PER_RESULT
+  STALLED_DELIVERY
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Locale {
+  EN
+  AR
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  FOUNDATION — multi-tenant from day one
+//  Everything is rooted at Workspace, never at User. Retrofitting tenancy
+//  means rewriting every query and access check, so it is structural now.
+// ────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  locale       Locale   @default(EN)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships WorkspaceMember[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("free") // billing tier; intentionally a string, not an enum, until plans stabilize
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Industry intelligence is DATA, never code. A workspace points at a profile;
+  // the Recommendation Engine reads that profile. Adding an industry = a new row.
+  industryProfileId String?          @map("industry_profile_id")
+  industryProfile   IndustryProfile? @relation(fields: [industryProfileId], references: [id])
+
+  members    WorkspaceMember[]
+  adAccounts AdAccount[]
+
+  @@index([industryProfileId])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String        @map("workspace_id")
+  userId      String        @map("user_id")
+  role        WorkspaceRole @default(VIEWER)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  ADS HIERARCHY — platform-neutral
+//  No meta_* columns anywhere. `platform` + `external_*` ids mean connector #2
+//  writes into these same tables instead of forcing a migration of every row.
+// ────────────────────────────────────────────────────────────────────────
+
+model AdAccount {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+
+  platform          Platform @default(META)
+  externalAccountId String   @map("external_account_id") // e.g. Meta act_<id>
+
+  name                 String
+  currency             String // ISO 4217, e.g. "IQD", "USD"
+  currencyMinorFactor  Int    @default(100) @map("currency_minor_factor") // IQD has no minor unit → set per account
+  timezone             String   @default("UTC")
+  status               EntityStatus @default(ACTIVE)
+
+  accessTokenEncrypted String?  @map("access_token_encrypted")
+  tokenExpiresAt       DateTime? @map("token_expires_at")
+  lastSyncedAt         DateTime? @map("last_synced_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@unique([platform, externalAccountId])
+  @@index([workspaceId])
+  @@map("ad_accounts")
+}
+
+model Campaign {
+  id          String @id @default(cuid())
+  adAccountId String @map("ad_account_id")
+
+  externalCampaignId String @map("external_campaign_id")
+
+  name          String
+  objective     String?      // raw platform objective, kept as-is
+  status        EntityStatus @default(ACTIVE)
+  dailyBudget   BigInt?      @map("daily_budget")    // minor units, per account currency
+  lifetimeBudget BigInt?     @map("lifetime_budget") // minor units
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  adAccount AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  adSets    AdSet[]
+
+  @@unique([adAccountId, externalCampaignId])
+  @@index([adAccountId])
+  @@map("campaigns")
+}
+
+model AdSet {
+  id         String @id @default(cuid())
+  campaignId String @map("campaign_id")
+
+  externalAdSetId String @map("external_adset_id")
+
+  name             String
+  status           EntityStatus @default(ACTIVE)
+  dailyBudget      BigInt?      @map("daily_budget") // minor units
+  optimizationGoal String?      @map("optimization_goal")
+  targetingJson    Json?        @map("targeting_json")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ads      Ad[]
+
+  @@unique([campaignId, externalAdSetId])
+  @@index([campaignId])
+  @@map("ad_sets")
+}
+
+model Ad {
+  id      String @id @default(cuid())
+  adSetId String @map("ad_set_id")
+
+  externalAdId String @map("external_ad_id")
+
+  name         String
+  status       EntityStatus @default(ACTIVE)
+  creativeJson Json?        @map("creative_json")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  adSet AdSet @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+
+  @@unique([adSetId, externalAdId])
+  @@index([adSetId])
+  @@map("ads")
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  DATA LINEAGE — raw first, processed second
+//  Never trust a third-party API to stay stable. raw_insights preserves the
+//  original response so analytics can be recomputed and sync bugs debugged.
+//  daily_stats is the cleaned, universal metric set every engine reads.
+// ────────────────────────────────────────────────────────────────────────
+
+model RawInsight {
+  id         String     @id @default(cuid())
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id") // polymorphic: account/campaign/adset/ad id
+  date       DateTime   @db.Date
+
+  rawJson   Json     @map("raw_json")
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  @@index([entityType, entityId, date])
+  @@map("raw_insights")
+}
+
+model DailyStat {
+  id         String     @id @default(cuid())
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id")
+  date       DateTime   @db.Date
+
+  // Universal metrics. These exist on virtually every ad platform on earth.
+  spend       BigInt @default(0) // minor units, account currency
+  impressions BigInt @default(0)
+  reach       BigInt @default(0)
+  clicks      BigInt @default(0)
+  messages    BigInt @default(0)
+  purchases   BigInt @default(0)
+  leads       BigInt @default(0)
+  conversions BigInt @default(0)
+
+  // Derived ratios stored for query speed (recomputable from raw_insights).
+  ctr       Float? // %
+  cpc       Float? // minor units
+  cpm       Float? // minor units
+  frequency Float?
+  roas      Float?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([entityType, entityId, date])
+  @@index([entityId, date])
+  @@map("daily_stats")
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  INTELLIGENCE LAYER — four distinct stages, each writing its own table
+//  Analytics → trends, Rules → issue codes, Knowledge → causes/fixes,
+//  Recommendation → prioritized actions. The dashboard renders these directly,
+//  with zero AI involvement.
+// ────────────────────────────────────────────────────────────────────────
+
+// Analytics Engine output: period-over-period movement, no judgment yet.
+model MetricTrend {
+  id         String     @id @default(cuid())
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id")
+  date       DateTime   @db.Date // the "as of" date of this trend computation
+
+  ctrTrend       Float? @map("ctr_trend")       // fractional change, e.g. -0.28 = down 28%
+  cpmTrend       Float? @map("cpm_trend")
+  frequencyTrend Float? @map("frequency_trend")
+  resultsTrend   Float? @map("results_trend")
+  spendTrend     Float? @map("spend_trend")
+
+  windowDays Int      @default(14) @map("window_days") // comparison window used
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([entityType, entityId, date])
+  @@index([entityId, date])
+  @@map("metric_trends")
+}
+
+// Rules Engine output: which issues fired, with the evidence that triggered them.
+model DetectedIssue {
+  id         String     @id @default(cuid())
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id")
+  date       DateTime   @db.Date
+
+  issueCode    IssueCode @map("issue_code")
+  severity     Severity
+  evidenceJson Json      @map("evidence_json") // e.g. {"frequency":6.4,"ctrChange":-0.28}
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, date])
+  @@index([issueCode])
+  @@map("detected_issues")
+}
+
+// Knowledge Engine source: maps an issue code to causes + generic fixes,
+// per locale, optionally specialized per industry. AI-independent and multilingual.
+// (issueCode, locale, industryProfileId = null) is the universal default;
+// a row with an industryProfileId overrides it for that industry.
+model KnowledgeRule {
+  id        String    @id @default(cuid())
+  issueCode IssueCode @map("issue_code")
+  locale    Locale
+
+  industryProfileId String?          @map("industry_profile_id")
+  industryProfile   IndustryProfile? @relation(fields: [industryProfileId], references: [id], onDelete: Cascade)
+
+  title               String  // human label for the issue in this locale
+  causesJson          Json    @map("causes_json")          // string[]
+  recommendationsJson Json    @map("recommendations_json") // string[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([issueCode, locale, industryProfileId])
+  @@index([issueCode])
+  @@map("knowledge_rules")
+}
+
+// Recommendation Engine output: issues COMBINED into a prioritized action.
+// Input conceptually = issue codes + metrics + objective + industry profile.
+// This is where LOW_CTR + HIGH_FREQUENCY + DECLINING_RESULTS becomes a single
+// CRITICAL "pause and relaunch" — and where Phase 7 automation will hook in.
+model Recommendation {
+  id         String     @id @default(cuid())
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id")
+  date       DateTime   @db.Date
+
+  priority         RecommendationPriority
+  actionCode       String   @map("action_code")        // stable code, e.g. "REFRESH_CREATIVES"
+  sourceIssuesJson Json     @map("source_issues_json") // IssueCode[] that produced this
+  detailsJson      Json?    @map("details_json")       // params for rendering / future automation
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, date])
+  @@index([priority])
+  @@map("recommendations")
+}
+
+// Health Score: weighted roll-up. Versioned so v1 and v2 scores never get
+// silently compared after the algorithm changes.
+model HealthScore {
+  id         String     @id @default(cuid())
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id")
+  date       DateTime   @db.Date
+
+  score            Int    // 0–100
+  breakdownJson    Json   @map("breakdown_json") // per-factor contributions
+  algorithmVersion Int    @default(1) @map("algorithm_version")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([entityType, entityId, date, algorithmVersion])
+  @@index([entityId, date])
+  @@map("health_scores")
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  METADATA — industry as configuration
+//  The whole point of point #4: adding "clinics" or "restaurants" is inserting
+//  a row here and its KnowledgeRule overrides, never an `if (industry === ...)`.
+// ────────────────────────────────────────────────────────────────────────
+
+model IndustryProfile {
+  id            String  @id @default(cuid())
+  name          String  @unique // e.g. "furniture", "cosmetics", "real_estate"
+  knowledgeJson Json    @map("knowledge_json") // thresholds / weighting hints for engines
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspaces     Workspace[]
+  knowledgeRules KnowledgeRule[]
+
+  @@map("industry_profiles")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  BELOW THE FREEZE LINE — NOT Phase 1
+//  These models are defined so the schema is forward-shaped, but NO code is
+//  built against them in Phase 1. They are commented-out on purpose: enabling
+//  any of them is a deliberate later decision, not an accident of scaffolding.
+//
+//  Phase 3 (AI narration + chat):  ChatSession, ChatMessage, AiAnalysis
+//  Phase 5 (reports):              Report
+//  Phase 6 (alerts):               AlertRule, AlertEvent
+//
+//  To activate one, uncomment it, add its back-relation on the parent model,
+//  and run a migration. Until then they do not exist in the database.
+// ════════════════════════════════════════════════════════════════════════
+
+// model AiAnalysis {
+//   id         String     @id @default(cuid())
+//   entityType EntityType @map("entity_type")
+//   entityId   String     @map("entity_id")
+//   date       DateTime   @db.Date
+//   narration        String
+//   provider         String // "claude" | "openai" | "gemini" | ... — swappable
+//   sourceIssuesJson Json   @map("source_issues_json")
+//   createdAt DateTime @default(now()) @map("created_at")
+//   @@index([entityType, entityId, date])
+//   @@map("ai_analyses")
+// }
+
+// model ChatSession { ... }   // Phase 3
+// model ChatMessage { ... }   // Phase 3
+// model AlertRule   { ... }   // Phase 6
+// model AlertEvent  { ... }   // Phase 6
+// model Report      { ... }   // Phase 5

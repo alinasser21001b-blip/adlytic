@@ -1,0 +1,262 @@
+// Exercises:
+//   1. The mapper translates real Meta JSON (with all the quirks: strings,
+//      missing keys, actions arrays, zero-value omissions) correctly.
+//   2. The worker is idempotent — running sync twice produces the same final
+//      daily_stats state, not duplicates.
+//   3. The cordon holds — the worker never writes to engine tables.
+//   4. Backfill works — when Meta returns updated numbers for yesterday, the
+//      daily_stats row is overwritten, not duplicated.
+//
+// No DB, no real Meta. Uses fakes/mocks to test logic directly.
+
+import { mapMetaInsight } from "./src/mappers/insightMapper";
+import type { MetaInsightRow } from "./src/services/metaClient";
+
+let pass = 0, fail = 0;
+function check(name: string, cond: boolean, got?: unknown) {
+  if (cond) { pass++; console.log(`  ✓ ${name}`); }
+  else { fail++; console.log(`  ✗ ${name}  — got: ${JSON.stringify(got)}`); }
+}
+
+// ════════════════ MAPPER TESTS ════════════════
+console.log("\n── Mapper: realistic Meta payloads ──");
+
+// Fixture 1: a realistic Meta account-level row, exactly as the API returns it
+// (numbers as strings, results inside actions[], some keys omitted)
+const metaRow1: MetaInsightRow = {
+  date_start: "2026-06-13",
+  date_stop: "2026-06-13",
+  spend: "15.47",           // strings — Meta does this
+  impressions: "2974",
+  reach: "1830",
+  clicks: "87",
+  ctr: "2.926",
+  cpc: "0.1778",
+  cpm: "5.2018",
+  frequency: "1.625",
+  actions: [
+    { action_type: "link_click", value: "87" },
+    { action_type: "onsite_conversion.messaging_conversation_started_7d", value: "12" },
+    { action_type: "page_engagement", value: "143" },
+  ],
+};
+
+// USD account: minorFactor = 100 → spend 15.47 → 1547 cents
+const out1 = mapMetaInsight(metaRow1, { currencyMinorFactor: 100 });
+check("date passed through", out1.date === "2026-06-13", out1.date);
+check("spend → 1547 minor units (USD cents)", out1.spendMinor === 1547, out1.spendMinor);
+check("impressions parsed from string", out1.impressions === 2974, out1.impressions);
+check("clicks parsed", out1.clicks === 87, out1.clicks);
+check("messages extracted from actions[]", out1.messages === 12, out1.messages);
+check("purchases zero when no matching action", out1.purchases === 0, out1.purchases);
+check("conversions falls back to messages (objective-agnostic)", out1.conversions === 12, out1.conversions);
+check("ctr parsed to 2.926", out1.ctr === 2.926, out1.ctr);
+check("frequency parsed", out1.frequency === 1.625, out1.frequency);
+check("roas null when no revenue", out1.roas === null, out1.roas);
+
+// Fixture 2: IQD account (minor factor 1), with missing keys
+const metaRow2: MetaInsightRow = {
+  date_start: "2026-06-12",
+  spend: "13420",          // IQD, factor 1 → already minor
+  impressions: "1500",
+  // reach OMITTED — Meta drops zero/null fields
+  // clicks OMITTED
+  ctr: "0",
+  // actions OMITTED entirely
+};
+const out2 = mapMetaInsight(metaRow2, { currencyMinorFactor: 1 });
+check("IQD: spend 13420 stays 13420 (factor 1)", out2.spendMinor === 13420, out2.spendMinor);
+check("missing reach → 0, not NaN", out2.reach === 0, out2.reach);
+check("missing clicks → 0", out2.clicks === 0, out2.clicks);
+check("missing actions → messages 0", out2.messages === 0, out2.messages);
+check("ctr '0' string → 0 (not null)", out2.ctr === 0, out2.ctr);
+
+// Fixture 3: malformed inputs — must not crash, must produce a sane row
+const metaRow3: MetaInsightRow = {
+  date_start: "2026-06-11",
+  spend: "",                // empty string
+  impressions: null as unknown as string,
+  clicks: "abc",            // garbage
+  ctr: undefined as unknown as string,
+  actions: [
+    { action_type: "purchase", value: "3" },
+    { action_type: "offsite_conversion.fb_pixel_purchase", value: "2" },
+  ],
+  action_values: [
+    { action_type: "purchase", value: "120.50" },
+  ],
+};
+const out3 = mapMetaInsight(metaRow3, { currencyMinorFactor: 100 });
+check("empty spend → 0", out3.spendMinor === 0, out3.spendMinor);
+check("null impressions → 0", out3.impressions === 0, out3.impressions);
+check("garbage clicks → 0", out3.clicks === 0, out3.clicks);
+check("undefined ctr → null", out3.ctr === null, out3.ctr);
+check("multiple purchase action types summed (3+2=5)", out3.purchases === 5, out3.purchases);
+check("conversions falls back to purchases when no messages", out3.conversions === 5, out3.conversions);
+
+// Fixture 4: ROAS — revenue present, spend present
+const metaRow4: MetaInsightRow = {
+  date_start: "2026-06-10",
+  spend: "10.00",
+  impressions: "1000",
+  actions: [{ action_type: "purchase", value: "2" }],
+  action_values: [{ action_type: "purchase", value: "40.00" }],
+};
+const out4 = mapMetaInsight(metaRow4, { currencyMinorFactor: 100 });
+check("ROAS computed: 40/10 = 4x", out4.roas === 4, out4.roas);
+check("purchases 2", out4.purchases === 2, out4.purchases);
+
+// Fixture 5: missing date is an error (Meta would never do this, but verify)
+let threw = false;
+try { mapMetaInsight({ spend: "1.00" } as MetaInsightRow, { currencyMinorFactor: 100 }); }
+catch { threw = true; }
+check("missing date_start throws", threw);
+
+// ════════════════ WORKER ORCHESTRATION TESTS ════════════════
+// Mock the four moving parts: PrismaClient delegates, MetaClient, the two repos.
+// We assert the worker calls them in the right order, with the right data,
+// and NEVER touches engine tables.
+
+console.log("\n── Worker: orchestration + cordon ──");
+
+interface Call { table: string; op: string; key?: unknown; data?: unknown }
+const calls: Call[] = [];
+
+class MockMetaClient {
+  rows: MetaInsightRow[] = [];
+  async getInsights() { return this.rows; }
+}
+
+// In-memory store keyed like the daily_stats unique index would key it.
+const dailyStore = new Map<string, any>();
+
+const mockPrisma: any = {
+  adAccount: {
+    findUniqueOrThrow: async ({ where }: any) => ({
+      id: where.id,
+      externalAccountId: "act_furniture_test",
+      currencyMinorFactor: 1, // IQD
+      lastSyncedAt: null,
+    }),
+    update: async ({ where, data }: any) => {
+      calls.push({ table: "ad_accounts", op: "update", key: where, data });
+      return { id: where.id };
+    },
+  },
+  rawInsight: {
+    create: async ({ data }: any) => { calls.push({ table: "raw_insights", op: "create", data }); return data; },
+    createMany: async ({ data }: any) => { for (const d of data) calls.push({ table: "raw_insights", op: "create", data: d }); return { count: data.length }; },
+  },
+  dailyStat: {
+    upsert: async ({ where, create, update }: any) => {
+      const k = JSON.stringify(where);
+      calls.push({ table: "daily_stats", op: "upsert", key: where, data: create });
+      if (dailyStore.has(k)) {
+        const existing = dailyStore.get(k);
+        dailyStore.set(k, { ...existing, ...update });
+      } else {
+        dailyStore.set(k, { ...create });
+      }
+      return dailyStore.get(k);
+    },
+  },
+  $transaction: async (ops: Promise<any>[]) => Promise.all(ops),
+  // Engine tables — if the worker ever touches these, the test must fail loudly
+  metricTrend: { create: () => { throw new Error("VIOLATION: worker wrote to metric_trends"); } },
+  detectedIssue: { create: () => { throw new Error("VIOLATION: worker wrote to detected_issues"); } },
+  recommendation: { create: () => { throw new Error("VIOLATION: worker wrote to recommendations"); } },
+  healthScore:   { create: () => { throw new Error("VIOLATION: worker wrote to health_scores"); } },
+  knowledgeRule: { create: () => { throw new Error("VIOLATION: worker wrote to knowledge_rules"); } },
+};
+
+// Late import so we get the real worker, then inject the mocks
+import { SyncAccountWorker } from "./src/workers/syncAccount";
+
+async function main() {
+
+const meta = new MockMetaClient();
+const worker = new SyncAccountWorker(mockPrisma, meta as any);
+
+// First sync: 3 days of data
+meta.rows = [
+  { date_start: "2026-06-12", spend: "13000", impressions: "2500", clicks: "60", ctr: "2.4",
+    actions: [{ action_type: "onsite_conversion.messaging_conversation_started_7d", value: "5" }] },
+  { date_start: "2026-06-13", spend: "14000", impressions: "2700", clicks: "70", ctr: "2.6",
+    actions: [{ action_type: "onsite_conversion.messaging_conversation_started_7d", value: "7" }] },
+  { date_start: "2026-06-14", spend: "15000", impressions: "2900", clicks: "75", ctr: "2.6",
+    actions: [{ action_type: "onsite_conversion.messaging_conversation_started_7d", value: "8" }] },
+];
+const r1 = await worker.sync("acc_furn", { now: new Date("2026-06-14T12:00:00Z") });
+check("first sync ok", r1.ok === true, r1);
+check("fetched 3 rows", r1.rowsFetched === 3, r1.rowsFetched);
+check("upserted 3 rows", r1.rowsUpserted === 3, r1.rowsUpserted);
+check("daily_stats has 3 rows after first sync", dailyStore.size === 3, dailyStore.size);
+
+// Verify ordering: raw_insights writes BEFORE daily_stats writes
+const rawIdx = calls.findIndex(c => c.table === "raw_insights");
+const dailyIdx = calls.findIndex(c => c.table === "daily_stats");
+check("raw_insights written before daily_stats", rawIdx < dailyIdx && rawIdx >= 0, { rawIdx, dailyIdx });
+
+// Verify the cordon — only these three tables touched
+const tablesTouched = new Set(calls.map(c => c.table));
+check("only raw_insights, daily_stats, ad_accounts touched",
+  tablesTouched.size === 3 &&
+  tablesTouched.has("raw_insights") &&
+  tablesTouched.has("daily_stats") &&
+  tablesTouched.has("ad_accounts"),
+  [...tablesTouched]);
+check("did NOT touch metric_trends", !tablesTouched.has("metric_trends"));
+check("did NOT touch detected_issues", !tablesTouched.has("detected_issues"));
+check("did NOT touch recommendations", !tablesTouched.has("recommendations"));
+check("did NOT touch health_scores", !tablesTouched.has("health_scores"));
+
+// Verify the mapper actually ran (spend went into daily_stats as BigInt minor units)
+const firstDailyCreate = calls.find(c => c.table === "daily_stats");
+const spendVal = (firstDailyCreate?.data as any)?.spend;
+check("daily_stats spend is a BigInt", typeof spendVal === "bigint", typeof spendVal);
+check("daily_stats spend 13000n for IQD factor-1", spendVal === 13000n, spendVal);
+
+// ════════════════ IDEMPOTENCY TEST ════════════════
+console.log("\n── Worker: idempotency on rerun ──");
+const sizeBeforeRerun = dailyStore.size;
+const r2 = await worker.sync("acc_furn", { now: new Date("2026-06-14T13:00:00Z") });
+check("rerun ok", r2.ok === true);
+check("daily_stats size unchanged after rerun", dailyStore.size === sizeBeforeRerun,
+  { before: sizeBeforeRerun, after: dailyStore.size });
+
+// ════════════════ BACKFILL TEST ════════════════
+console.log("\n── Worker: Meta attribution backfill ──");
+// Same days, but Meta now reports MORE messages for 06-13 (attribution caught up)
+meta.rows = [
+  { date_start: "2026-06-12", spend: "13000", impressions: "2500", clicks: "60", ctr: "2.4",
+    actions: [{ action_type: "onsite_conversion.messaging_conversation_started_7d", value: "5" }] },
+  { date_start: "2026-06-13", spend: "14000", impressions: "2700", clicks: "70", ctr: "2.6",
+    actions: [{ action_type: "onsite_conversion.messaging_conversation_started_7d", value: "12" }] }, // was 7, now 12
+  { date_start: "2026-06-14", spend: "15000", impressions: "2900", clicks: "75", ctr: "2.6",
+    actions: [{ action_type: "onsite_conversion.messaging_conversation_started_7d", value: "8" }] },
+];
+await worker.sync("acc_furn", { now: new Date("2026-06-14T14:00:00Z") });
+check("still 3 daily_stats rows after backfill (no duplicates)", dailyStore.size === 3, dailyStore.size);
+
+// Pull the 06-13 row and confirm messages updated to 12
+const updatedKey = [...dailyStore.keys()].find(k => k.includes("2026-06-13"));
+const updatedRow = updatedKey ? dailyStore.get(updatedKey) : null;
+check("06-13 messages updated to 12n via upsert (backfill works)",
+  updatedRow?.messages === 12n, updatedRow?.messages);
+
+// ════════════════ ERROR HANDLING ════════════════
+console.log("\n── Worker: error handling ──");
+meta.rows = [];
+// Simulate Meta failure
+(meta as any).getInsights = async () => { throw new Error("Meta 500: server gone"); };
+const r3 = await worker.sync("acc_furn", { now: new Date() });
+check("sync returns ok=false on Meta failure (does not throw)", r3.ok === false, r3.ok);
+check("error message preserved", r3.error?.includes("Meta 500") === true, r3.error);
+
+// ════════════════
+console.log(`\n════ ${pass} passed, ${fail} failed ════`);
+if (fail > 0) process.exit(1);
+
+} // end main
+
+main().catch(e => { console.error(e); process.exit(1); });

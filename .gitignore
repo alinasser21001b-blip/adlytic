@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+/prisma/migrations/dev.db*
+prisma_client_stub.d.ts
+debug.ts
+emit_dto.ts
+dtos.json
+dtos_min.json

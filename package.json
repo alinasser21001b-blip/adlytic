@@ -1,0 +1,40 @@
+{
+  "name": "adlytic",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Adlytic — Ads Intelligence Platform (Phase 1)",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:logic": "tsx test_logic.ts",
+    "test:worker": "tsx test_worker.ts",
+    "test:analytics": "tsx test_analytics.ts",
+    "test:rules": "tsx test_rules.ts",
+    "test:knowledge": "tsx test_knowledge.ts",
+    "test:recommendation": "tsx test_recommendation.ts",
+    "test:health": "tsx test_health.ts",
+    "test:dto": "tsx test_dto_shape.ts",
+    "test:all": "npm run test:logic && npm run test:worker && npm run test:analytics && npm run test:rules && npm run test:knowledge && npm run test:recommendation && npm run test:health && npm run test:dto",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "engines:run": "tsx runEngines.ts",
+    "dashboard:run": "tsx runDashboard.ts",
+    "sync:run": "tsx runSync.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "prisma": "^5.20.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

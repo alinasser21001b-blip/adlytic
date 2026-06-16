@@ -1,0 +1,143 @@
+// ════════════════════════════════════════════════════════════════════════
+//  src/services/metaClient.ts
+//
+//  The ONLY file in the system allowed to know Meta API URLs and response
+//  shapes. Returns raw Meta JSON. Does not translate, does not persist.
+//  Translation happens in mappers/insightMapper.ts; persistence happens in
+//  repositories/*Repo.ts. This file is a transport layer, nothing else.
+//
+//  If Meta deprecates v20.0 → v21.0, only this file changes.
+// ════════════════════════════════════════════════════════════════════════
+
+export interface MetaClientConfig {
+  apiVersion: string;          // e.g. "v20.0"
+  accessToken: string;         // long-lived user/system-user token
+  baseUrl?: string;            // override for tests
+  maxRetries?: number;
+  retryBaseMs?: number;
+  fetchImpl?: typeof fetch;    // injectable for tests
+}
+
+/** Raw Meta insight row — kept as-is, never reshaped here. */
+export type MetaInsightRow = Record<string, unknown>;
+
+export class MetaApiError extends Error {
+  constructor(public status: number, public body: unknown, msg: string) {
+    super(msg);
+  }
+}
+
+const DEFAULT_FIELDS = [
+  "date_start", "date_stop",
+  "spend", "impressions", "reach", "clicks",
+  "ctr", "cpc", "cpm", "frequency",
+  "actions", "action_values",
+].join(",");
+
+export class MetaClient {
+  private base: string;
+  private token: string;
+  private maxRetries: number;
+  private retryBaseMs: number;
+  private fetchFn: typeof fetch;
+
+  constructor(cfg: MetaClientConfig) {
+    this.base = `${cfg.baseUrl ?? "https://graph.facebook.com"}/${cfg.apiVersion}`;
+    this.token = cfg.accessToken;
+    this.maxRetries = cfg.maxRetries ?? 5;
+    this.retryBaseMs = cfg.retryBaseMs ?? 500;
+    this.fetchFn = cfg.fetchImpl ?? fetch;
+  }
+
+  /**
+   * Fetch daily insights for an entity (account/campaign/adset/ad) over a
+   * date range. Returns raw Meta rows; the mapper translates them.
+   * Backfill window: callers should pass `since` 3+ days ago to capture
+   * Meta's attribution backfill of recent days.
+   */
+  async getInsights(args: {
+    externalId: string;               // "act_<id>" | "<campaign_id>" | ...
+    level: "account" | "campaign" | "adset" | "ad";
+    since: Date;                      // inclusive
+    until: Date;                      // inclusive
+    fields?: string;
+  }): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      level: args.level,
+      time_increment: "1",            // one row per day
+      fields: args.fields ?? DEFAULT_FIELDS,
+      time_range: JSON.stringify({
+        since: ymd(args.since),
+        until: ymd(args.until),
+      }),
+      access_token: this.token,
+      limit: "500",
+    });
+
+    const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
+    return this.paginated(url);
+  }
+
+  /** List campaigns under an account — used for entity discovery. */
+  async listCampaigns(externalAccountId: string): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      fields: "id,name,status,objective,daily_budget,lifetime_budget",
+      access_token: this.token,
+      limit: "200",
+    });
+    return this.paginated(`${this.base}/${externalAccountId}/campaigns?${params.toString()}`);
+  }
+
+  /** Internal: follow paging.next until exhausted, with retry on transient errors. */
+  private async paginated(initialUrl: string): Promise<MetaInsightRow[]> {
+    const out: MetaInsightRow[] = [];
+    let url: string | null = initialUrl;
+    while (url) {
+      const page = await this.requestWithRetry(url);
+      const data = (page.data ?? []) as MetaInsightRow[];
+      out.push(...data);
+      url = page.paging?.next ?? null;
+    }
+    return out;
+  }
+
+  private async requestWithRetry(url: string): Promise<MetaPage> {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        const res = await this.fetchFn(url);
+        if (res.status === 429 || res.status >= 500) {
+          // retryable: throw to trigger backoff
+          const body = await safeJson(res);
+          throw new MetaApiError(res.status, body, `Meta ${res.status}`);
+        }
+        if (!res.ok) {
+          // non-retryable client error (4xx other than 429)
+          const body = await safeJson(res);
+          throw new MetaApiError(res.status, body, `Meta ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
+        }
+        return (await res.json()) as MetaPage;
+      } catch (e) {
+        lastErr = e;
+        const retryable =
+          e instanceof MetaApiError ? (e.status === 429 || e.status >= 500) : true;
+        if (!retryable || attempt === this.maxRetries) throw e;
+        // exponential backoff with jitter
+        const wait = this.retryBaseMs * 2 ** attempt + Math.random() * 200;
+        await sleep(wait);
+      }
+    }
+    throw lastErr;
+  }
+}
+
+interface MetaPage {
+  data?: MetaInsightRow[];
+  paging?: { next?: string };
+}
+
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const safeJson = async (r: Response) => {
+  try { return await r.json(); } catch { return null; }
+};
