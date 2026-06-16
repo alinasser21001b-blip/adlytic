@@ -9,7 +9,7 @@
 //  by design.
 // ════════════════════════════════════════════════════════════════════════
 
-import { PrismaClient, EntityType, RecommendationPriority, IssueCode } from "@prisma/client";
+import { PrismaClient, EntityType, RecommendationPriority, IssueCode, Prisma } from "@prisma/client";
 
 export interface RecommendationRecord {
   actionCode: string;
@@ -36,7 +36,7 @@ export class RecommendationsRepo {
     const date = dateOnly(args.date);
     const { entityType, entityId, recommendation } = args;
 
-    const ops = [
+    const ops: Prisma.PrismaPromise<unknown>[] = [
       this.prisma.recommendation.deleteMany({
         where: { entityType, entityId, date },
       }),
@@ -48,7 +48,9 @@ export class RecommendationsRepo {
           priority: recommendation.priority,
           actionCode: recommendation.actionCode,
           sourceIssuesJson: recommendation.sourceIssues as unknown as object,
-          detailsJson: recommendation.details as object | null,
+          detailsJson: recommendation.details !== null
+            ? recommendation.details as Prisma.InputJsonValue
+            : Prisma.JsonNull,
         },
       }));
     }

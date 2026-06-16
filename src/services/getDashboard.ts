@@ -288,23 +288,24 @@ if (!h) {
   continue;
 }
 
-cards.push({
-  id: c.id,
-  name: c.name,
-  health: h.score,
-  band: band(h.score),
-  messages: Number(snap.messages),
-  ctr: snap.ctr,
-  cpm: snap.cpm,
-  frequency: snap.frequency,
-});
-if (!cards.length) return { best: null, worst: null };
+    cards.push({
+      id: c.id,
+      name: c.name,
+      health: h.score,
+      band: band(h.score),
+      messages: Number(snap.messages),
+      ctr: snap.ctr,
+      cpm: snap.cpm,
+      frequency: snap.frequency,
+    });
+  }
 
-const sorted = [...cards].sort((a, b) => b.health - a.health);
+  if (!cards.length) return { best: null, worst: null };
 
-return {
-  best: sorted[0],
-  worst: sorted[sorted.length - 1],
-};
-}
+  const sorted = [...cards].sort((a, b) => b.health - a.health);
+
+  return {
+    best: sorted[0],
+    worst: sorted[sorted.length - 1],
+  };
 }
