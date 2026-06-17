@@ -25,15 +25,36 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient, EntityType, Locale, IssueCode } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 
-const prisma = new PrismaClient();
+const _dbUrl = process.env['DATABASE_URL'];
+if (!_dbUrl) {
+  throw new Error(
+    'getDashboard: DATABASE_URL is not set. ' +
+    'Start the server with --env-file=.env or set DATABASE_URL in the environment.'
+  );
+}
+const _parsed  = new URL(_dbUrl);
+const _isInternal = _parsed.hostname.endsWith('.railway.internal');
+const _pool    = new pg.Pool({
+  host:     _parsed.hostname,
+  port:     Number(_parsed.port) || 5432,
+  user:     decodeURIComponent(_parsed.username),
+  password: decodeURIComponent(_parsed.password),
+  database: _parsed.pathname.replace(/^\//, ''),
+  ssl:      _isInternal ? false : { rejectUnauthorized: false },
+});
+const prisma = new PrismaClient({ adapter: new PrismaPg(_pool) });
 const knowledge = new KnowledgeEngine(prisma);
 
 // ── The public shape. This is the contract every consumer codes against. ──
 export interface DashboardDTO {
-  workspace: {
+  /** Present and true only when the workspace has no ad account yet. */
+  empty?: true;
+  workspace?: {
     id: string;
     name: string;
     industry: string | null;
@@ -44,7 +65,7 @@ export interface DashboardDTO {
   };
   health: {
     score: number;
-    band: "excellent" | "good" | "attention" | "poor";
+    band: "excellent" | "good" | "attention" | "poor" | "none";
   };
   kpis: Array<{
     key: string;          // "spend" | "messages" | "ctr" | "cpm" | "frequency" | "reach"
@@ -90,6 +111,18 @@ interface CampaignCard {
   frequency: number | null;
 }
 
+// ── Empty DTO — returned when workspace has no ad account connected yet ───────
+export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
+  empty:          true,
+  health:         { score: 0, band: "none" },
+  kpis:           [],
+  trendSeries:    { dates: [], messages: [], spend: [], ctr: [] },
+  issues:         [],
+  priorityAction: null,
+  bestCampaign:   null,
+  worstCampaign:  null,
+};
+
 // ── helpers ───────────────────────────────────────────────────────────────
 function band(score: number): "excellent" | "good" | "attention" | "poor" {
   if (score >= 90) return "excellent";
@@ -130,7 +163,7 @@ export async function getDashboard(
   });
   const locale = opts.locale ?? Locale.EN;
   const account = ws.adAccounts[0]; // Phase 1: one account per workspace
-  if (!account) throw new Error(`Workspace ${workspaceId} has no ad account`);
+  if (!account) return EMPTY_DASHBOARD_DTO;
 
   const since = new Date(Date.now() - windowDays * 864e5);
   const sinceDate = new Date(since.toISOString().slice(0, 10));

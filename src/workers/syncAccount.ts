@@ -84,8 +84,12 @@ export class SyncAccountWorker {
       ok: false,
     };
 
+    const tag = `[sync:${acct.externalAccountId}]`;
+    console.log(`${tag} SYNC START — window ${ymd(since)} → ${ymd(until)}`);
+
     try {
       // ─ Extract ────────────────────────────────────────────────────────
+      console.log(`${tag} Fetching account-level insights from Meta…`);
       const rows = await this.meta.getInsights({
         externalId: acct.externalAccountId,
         level: "account",
@@ -93,19 +97,21 @@ export class SyncAccountWorker {
         until,
       });
       result.rowsFetched = rows.length;
+      console.log(`${tag} Fetched ${rows.length} insight rows`);
 
       if (rows.length === 0) {
         // Genuinely empty windows are valid (a fresh or paused account).
         // We still mark lastSyncedAt so the operator knows the call succeeded.
+        console.log(`${tag} No insight rows returned — account may be paused or have no spend in window`);
         await this.markSynced(adAccountId, now);
         result.ok = true;
         result.durationMs = Date.now() - start;
+        console.log(`${tag} SYNC COMPLETE (empty window) — ${result.durationMs}ms`);
         return result;
       }
 
       // ─ Transform + Load ──────────────────────────────────────────────
-      // Raw first (append-only audit trail) → daily second (upsert).
-      // If daily_stats write fails for one row, raw still has it for replay.
+      console.log(`${tag} Saving raw insights (audit trail)…`);
       const rawBatch = rows.map((r) => ({
         entityType: EntityType.ACCOUNT,
         entityId: adAccountId,
@@ -113,26 +119,36 @@ export class SyncAccountWorker {
         rawJson: r,
       }));
       await this.rawRepo.appendMany(rawBatch);
+      console.log(`${tag} Saved ${rawBatch.length} raw rows`);
 
+      console.log(`${tag} Saving daily stats (upsert)…`);
       const dailyBatch = rows.map((r) => ({
         entityType: EntityType.ACCOUNT,
         entityId: adAccountId,
         insight: mapMetaInsight(r, { currencyMinorFactor: acct.currencyMinorFactor }),
       }));
       await this.dailyRepo.upsertMany(dailyBatch);
+      console.log(`${tag} Upserted ${dailyBatch.length} daily stat rows`);
 
       result.rowsUpserted = dailyBatch.length;
       await this.markSynced(adAccountId, now);
       result.ok = true;
+      result.durationMs = Date.now() - start;
+      console.log(`${tag} SYNC COMPLETE — ${result.rowsUpserted} rows, ${result.durationMs}ms`);
+      return result;
     } catch (e) {
       result.ok = false;
       result.error = e instanceof MetaApiError
         ? `Meta ${e.status}: ${e.message}`
         : e instanceof Error ? e.message : String(e);
+      result.durationMs = Date.now() - start;
+      console.error(`${tag} SYNC FAILED — ${result.error}`);
+      if (e instanceof MetaApiError) {
+        console.error(`${tag} Meta API error body:`, JSON.stringify(e.body).slice(0, 500));
+      }
       // Intentionally do NOT mark synced on failure.
     }
 
-    result.durationMs = Date.now() - start;
     return result;
   }
 

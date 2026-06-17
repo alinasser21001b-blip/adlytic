@@ -8,4 +8,4 @@ cmds = ["npm install"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npx prisma migrate deploy; node dist/src/api/serve.js"
+cmd = "npx prisma migrate deploy && node dist/src/api/serve.js"

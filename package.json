@@ -6,7 +6,7 @@
   "scripts": {
     "build": "prisma generate && tsc",
     "start": "prisma migrate deploy && node dist/src/api/serve.js",
-    "start:dev": "tsx src/api/serve.ts",
+    "start:dev": "tsx --env-file=.env src/api/serve.ts",
     "typecheck": "tsc --noEmit",
     "test:logic": "tsx test_logic.ts",
     "test:worker": "tsx test_worker.ts",
@@ -24,7 +24,10 @@
     "engines:run": "tsx runEngines.ts",
     "dashboard:run": "tsx runDashboard.ts",
     "sync:run": "tsx runSync.ts",
-    "create-user": "tsx scripts/create-user.ts"
+    "create-user": "tsx --env-file=.env scripts/create-user.ts",
+    "seed-demo": "tsx --env-file=.env scripts/seed-demo.ts",
+    "create-user:auto": "tsx --env-file=.env scripts/create-user-auto.ts",
+    "seed-knowledge": "tsx --env-file=.env scripts/seedKnowledgeUniversal.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -32,9 +35,11 @@
   "dependencies": {
     "@hono/node-server": "^2.0.5",
     "@inquirer/prompts": "^8.5.2",
-    "@prisma/client": "^5.20.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "hono": "^4.12.25",
-    "prisma": "^5.20.0",
+    "pg": "^8.21.0",
+    "prisma": "^7.8.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0"
   },
