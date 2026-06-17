@@ -937,11 +937,11 @@ function renderLogin(errorMsg) {
       <form onsubmit="loginSubmit(event)">
         <div class="field">
           <label>Email</label>
-          <input id="loginEmail" type="email" value="ali@adlytic.app" autocomplete="email" required>
+          <input id="loginEmail" type="email" autocomplete="off" required>
         </div>
         <div class="field">
           <label>Password</label>
-          <input id="loginPassword" type="password" placeholder="demo1234" autocomplete="current-password" required>
+          <input id="loginPassword" type="password" autocomplete="off" required>
         </div>
         <button class="login-btn" type="submit" ${busy ? 'disabled' : ''}>
           ${busy ? '<span class="spinner"></span>Signing in…' : 'Sign in'}

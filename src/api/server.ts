@@ -110,14 +110,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   //  Replace with a real JWT / session strategy before production.
   // ════════════════════════════════════════════════════════════════════════
 
-  /** POST /api/auth/register — create a new user account. */
+  /** POST /api/auth/register — disabled for production. */
   app.post('/api/auth/register', async (c) => {
-    const body = await c.req.json() as { email: string; password: string; name: string };
-    const passwordHash = createHash('sha256').update(body.password).digest('hex');
-    const user = await prisma.user.create({
-      data: { email: body.email, passwordHash, name: body.name },
-    });
-    return c.json({ id: user.id, email: user.email, name: user.name }, 201);
+    return c.json({ error: 'Account creation is disabled. Contact your administrator.' }, 403);
   });
 
   /** POST /api/auth/login — exchange credentials for a token. */
