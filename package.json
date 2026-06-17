@@ -23,7 +23,8 @@
     "db:reset": "prisma migrate reset",
     "engines:run": "tsx runEngines.ts",
     "dashboard:run": "tsx runDashboard.ts",
-    "sync:run": "tsx runSync.ts"
+    "sync:run": "tsx runSync.ts",
+    "create-user": "tsx scripts/create-user.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
