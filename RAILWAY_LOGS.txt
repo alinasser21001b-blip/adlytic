@@ -1,0 +1,100 @@
+║─────────────────────────────────║
+║ build      │ npm run build      ║
+║─────────────────────────────────║
+║ start      │ npm run start      ║
+╚═════════════════════════════════╝
+
+
+Saved output to:
+  snapshot-target-unpack
+[INFO] [internal] load build definition from Dockerfile
+[INFO] [internal] load build definition from Dockerfile
+[INFO] [internal] load build definition from Dockerfile
+[INFO] [internal] load build definition from Dockerfile
+[INFO] [internal] load build definition from Dockerfile
+[INFO] [internal] load metadata for ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
+[INFO] [internal] load metadata for ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
+[INFO] [internal] load .dockerignore
+[INFO] [internal] load .dockerignore
+[INFO] [internal] load .dockerignore
+[INFO] [internal] load .dockerignore
+[WARN] UndefinedVar: Usage of undefined variable '$NIXPACKS_PATH' (line 18)(https://docs.docker.com/go/dockerfile/rule/undefined-var/)
+ details: Variables should be defined before their use
+
+[INFO] [stage-0  5/10] COPY . /app/.
+[INFO] [stage-0  7/10] COPY . /app/.
+[INFO] [stage-0  3/10] COPY .nixpacks/nixpkgs-23f9169c4ccce521379e602cc82ed873a1f1b52b.nix .nixpacks/nixpkgs-23f9169c4ccce521379e602cc82ed873a1f1b52b.nix
+[INFO] [internal] load build context
+[INFO] [stage-0  8/10] RUN --mount=type=cache,id=s/cc7cbf67-d757-4018-bf6d-9cec643222c3-node_modules/cache,target=/app/node_modules/.cache npm run build
+[INFO] [stage-0  9/10] RUN printf '\nPATH=/app/node_modules/.bin:$PATH' >> /root/.profile
+[INFO] [stage-0 10/10] COPY . /app
+[INFO] [stage-0  6/10] RUN --mount=type=cache,id=s/cc7cbf67-d757-4018-bf6d-9cec643222c3-/root/npm,target=/root/.npm npm install
+[INFO] [stage-0  4/10] RUN nix-env -if .nixpacks/nixpkgs-23f9169c4ccce521379e602cc82ed873a1f1b52b.nix && nix-collect-garbage -d
+[INFO] [stage-0 1/9] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+[INFO] [stage-0 1/9] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+[INFO] [stage-0 2/9] WORKDIR /app/
+[INFO] [stage-0 2/9] WORKDIR /app/
+[INFO] [internal] load build context
+[INFO] [internal] load build context
+[INFO] [internal] load build context
+[INFO] [stage-0  3/10] COPY .nixpacks/nixpkgs-23f9169c4ccce521379e602cc82ed873a1f1b52b.nix .nixpacks/nixpkgs-23f9169c4ccce521379e602cc82ed873a1f1b52b.nix
+[INFO] [stage-0  4/10] RUN nix-env -if .nixpacks/nixpkgs-23f9169c4ccce521379e602cc82ed873a1f1b52b.nix && nix-collect-garbage -d
+[INFO] [stage-0  5/10] COPY . /app/.
+[INFO] [stage-0  5/10] COPY . /app/.
+[INFO] [stage-0  6/10] RUN --mount=type=cache,id=s/cc7cbf67-d757-4018-bf6d-9cec643222c3-/root/npm,target=/root/.npm npm install
+[INFO] npm warn config production Use `--omit=dev` instead.
+
+[INFO] 
+added 15 packages, and audited 16 packages in 3s
+
+[INFO] 
+found 0 vulnerabilities
+
+[INFO] [stage-0  6/10] RUN --mount=type=cache,id=s/cc7cbf67-d757-4018-bf6d-9cec643222c3-/root/npm,target=/root/.npm npm install
+[INFO] [stage-0  7/10] COPY . /app/.
+[INFO] [stage-0  7/10] COPY . /app/.
+[INFO] [stage-0  8/10] RUN --mount=type=cache,id=s/cc7cbf67-d757-4018-bf6d-9cec643222c3-node_modules/cache,target=/app/node_modules/.cache npm run build
+[INFO] npm warn config production Use `--omit=dev` instead.
+
+[INFO] 
+> adlytic@0.1.0 build
+> prisma generate && tsc
+
+
+[INFO] Prisma schema loaded from prisma/schema.prisma
+
+[INFO] 
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 177ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+
+[INFO] [stage-0  8/10] RUN --mount=type=cache,id=s/cc7cbf67-d757-4018-bf6d-9cec643222c3-node_modules/cache,target=/app/node_modules/.cache npm run build
+[INFO] [stage-0  9/10] RUN printf '\nPATH=/app/node_modules/.bin:$PATH' >> /root/.profile
+[INFO] [stage-0  9/10] RUN printf '\nPATH=/app/node_modules/.bin:$PATH' >> /root/.profile
+[INFO] [stage-0 10/10] COPY . /app
+[INFO] [stage-0 10/10] COPY . /app
+[INFO] exporting to docker image format
+[INFO] exporting to docker image format
+containerimage.descriptor: eyJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJkaWdlc3QiOiJzaGEyNTY6NzM2ZmRhNzkwOWZlNjU3NTg1MWVkNDc5NDhlZjEzNWMxNThkYjE5ZjU4ZGM5M2YzNTRkYzU2MDY1N2UxNGJiMCIsInNpemUiOjI3NjgsImFubm90YXRpb25zIjp7Im9yZy5vcGVuY29udGFpbmVycy5pbWFnZS5jcmVhdGVkIjoiMjAyNi0wNi0xNlQyMToyMzozM1oifSwicGxhdGZvcm0iOnsiYXJjaGl0ZWN0dXJlIjoiYW1kNjQiLCJvcyI6ImxpbnV4In19
+containerimage.config.digest: sha256:ffa34a807318fe148956386ba6eaa366b37b3e46f234c5ab8baa7381e5dc4cee
+containerimage.digest: sha256:736fda7909fe6575851ed47948ef135c158db19f58dc93f354dc560657e14bb0
+[INFO] image push
+[INFO] image push
+
+[35m====================
+Starting Healthcheck
+====================
+[0m
+[37mPath: /api/health[0m
+[37mRetry window: 1m0s[0m
+
+[93mAttempt #1 failed with service unavailable. Continuing to retry for 49s[0m
+[93mAttempt #2 failed with service unavailable. Continuing to retry for 38s[0m
+[93mAttempt #3 failed with service unavailable. Continuing to retry for 26s[0m
+[93mAttempt #4 failed with service unavailable. Continuing to retry for 12s[0m
+
+[91m1/1 replicas never became healthy![0m
+[91mHealthcheck failed![0m

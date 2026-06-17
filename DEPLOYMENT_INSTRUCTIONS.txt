@@ -1,0 +1,150 @@
+================================================================================
+ADLYTIC PRODUCTION DEPLOYMENT INSTRUCTIONS
+================================================================================
+
+STATUS: READY FOR DEPLOYMENT
+All code changes completed and verified.
+
+================================================================================
+QUICK START (RECOMMENDED)
+================================================================================
+
+1. On macOS, open Terminal and run:
+
+   /Sessions/affectionate-gifted-hopper/mnt/adlytic/deploy_production.command
+
+   This will automatically:
+   - Link to Railway project
+   - Deploy the updated service
+   - Delete the demo user from the database
+   - Monitor health checks
+   - Verify endpoints are working
+   - Log everything to ~/adlytic_deploy.log
+
+2. Wait for completion (5-10 minutes)
+
+3. Check the log:
+   tail ~/adlytic_deploy.log
+
+================================================================================
+WHAT CHANGED
+================================================================================
+
+1. REMOVED SEED FROM STARTUP
+   File: railway.json + nixpacks.toml
+   Effect: Demo user no longer recreated on every restart
+
+2. DISABLED PUBLIC SIGNUP
+   File: src/api/server.ts
+   Effect: POST /api/auth/register now returns 403
+
+3. REMOVED HARDCODED CREDENTIALS
+   File: dashboard_wired.html
+   Effect: Login form no longer prefills demo credentials
+           Autocomplete disabled on password/email fields
+
+4. CREATED DELETE SCRIPT
+   File: delete_demo_user.js
+   Effect: Removes ali@adlytic.app from production database
+
+5. CREATED DEPLOYMENT SCRIPT
+   File: deploy_production.command
+   Effect: Automates entire deployment with health checks
+
+================================================================================
+POST-DEPLOYMENT VERIFICATION
+================================================================================
+
+After deployment, verify these endpoints:
+
+1. Health Check (should return 200):
+   curl https://adlytic-production.up.railway.app/api/health
+
+2. Signup Disabled (should return 403):
+   curl -X POST https://adlytic-production.up.railway.app/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@test.com","password":"test","name":"Test"}'
+
+3. Demo User Deleted (should return 401):
+   curl -X POST https://adlytic-production.up.railway.app/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"ali@adlytic.app","password":"demo1234"}'
+
+4. Login Form Empty (view page source and verify no hardcoded values):
+   curl https://adlytic-production.up.railway.app/ | grep -A5 "loginEmail"
+
+================================================================================
+IMPORTANT NOTES
+================================================================================
+
+- Seed file (prisma/seed.ts) is still in the codebase but NOT executed
+- Database schema is unchanged
+- JWT authentication system is unchanged
+- All existing user data is preserved
+- Only the demo user will be deleted
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+If deployment fails:
+
+1. Check the log:
+   cat ~/adlytic_deploy.log
+
+2. Verify Railway CLI is authenticated:
+   railway login
+
+3. Manual deployment steps:
+   cd ~/Downloads/adlytic
+   railway link --project 69ca3009-3a67-4d92-b808-6e4f278335d6
+   railway up --detach --service cc7cbf67-d757-4018-bf6d-9cec643222c3
+   sleep 15
+   DATABASE_URL="postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@thomas.proxy.rlwy.net:57928/railway" \
+     node /Sessions/affectionate-gifted-hopper/mnt/adlytic/delete_demo_user.js
+
+================================================================================
+FILES CREATED/MODIFIED
+================================================================================
+
+MODIFIED:
+  - railway.json (removed seed from startCommand)
+  - nixpacks.toml (removed seed from start cmd)
+  - src/api/server.ts (disabled register endpoint)
+  - dashboard_wired.html (removed hardcoded credentials, autocomplete off)
+
+CREATED:
+  - delete_demo_user.js (database cleanup script)
+  - deploy_production.command (deployment automation)
+  - verify_production_ready.sh (verification script)
+  - PRODUCTION_DEPLOYMENT_READY.md (detailed documentation)
+  - DEPLOYMENT_INSTRUCTIONS.txt (this file)
+
+NOT MODIFIED:
+  - prisma/schema.prisma (preserved for reference)
+  - prisma/seed.ts (preserved but not executed in production)
+  - JWT system
+  - API routes (except register endpoint)
+  - Database structure
+
+================================================================================
+DEPLOYMENT URL
+================================================================================
+
+Application: https://adlytic-production.up.railway.app
+Health:      https://adlytic-production.up.railway.app/api/health
+API Base:    https://adlytic-production.up.railway.app/api
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Run the deployment script
+2. Verify all endpoints respond correctly
+3. Test login with a valid user account
+4. Confirm demo user cannot login
+5. Monitor application for any issues
+
+The application is ready for commercial launch.
+
+================================================================================

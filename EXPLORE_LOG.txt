@@ -1,0 +1,170 @@
+=== Railway CLI Explore ===
+Wed Jun 17 00:56:53 +03 2026
+
+▶ Railway CLI version:
+railway 5.14.0
+
+
+▶ railway add --help:
+Add a service to your project
+
+Usage: railway add [OPTIONS]
+
+Options:
+  -d, --database <DATABASE>
+          The name of the database to add
+          
+          [possible values: postgres, mysql, redis, mongo]
+
+  -s, --service [<SERVICE>]
+          The name of the service to create (leave blank for randomly generated)
+
+  -r, --repo <REPO>
+          The repo to link to the service
+
+      --branch <BRANCH>
+          Branch to deploy from when creating a service from a GitHub repo
+
+  -i, --image <IMAGE>
+          The docker image to link to the service
+
+  -v, --variables <VARIABLES>
+          The "{key}={value}" environment variable pair to set the service variables. Example:
+          
+          railway add --service --variables "MY_SPECIAL_ENV_VAR=1" --variables "BACKEND_PORT=3000"
+
+      --verbose [<VERBOSE>]
+          Verbose logging
+          
+          [possible values: true, false]
+
+      --json
+          Output in JSON format
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+Examples:
+
+  railway add --service api --json
+  railway add --database postgres --json
+  railway add --repo railwayapp/starters --branch main --service web --json
+  railway add --image nginx:latest --service web --json
+
+Automation notes:
+  Non-interactive runs must pass one of --service, --database, --repo, or --image.
+  Use --json for machine-readable output and read stderr separately for progress or selection echoes.
+
+
+▶ Config token:
+{
+  "projects": {
+    "/Users/aliahhed/Downloads/adlytic": {
+      "projectPath": "/Users/aliahhed/Downloads/adlytic",
+      "name": "adlytic",
+      "project": "69ca3009-3a67-4d92-b808-6e4f278335d6",
+      "environment": "89cdf3cb-15b7-4b92-b1ae-07e812333c37",
+      "environmentName": "production",
+      "service": "cc7cbf67-d757-4018-bf6d-9cec643222c3"
+    }
+  },
+  "user": {
+    "id": "b7a0586f-060e-41e1-b63d-5700304ea24a",
+    "token": null,
+    "accessToken": "zMZ0YijRXZk30TLwOjrlYYxe3KENCHi_dRHW2hR9znw",
+    "refreshToken": "uHVg9fGgoKaM9G0LrR175t99XEPGGB3P573GpH5K9Vi",
+    "tokenExpiresAt": 1781649906
+  },
+  "editor": null,
+  "linkedFunctions": null,
+  "sandboxes": null,
+  "activeSandbox": null,
+  "sandboxTemplates": null
+}
+▶ Test me query with config token:
+  Token (first 20): NOT_FOUND...
+  Me query result: {"errors":[{"message":"Not Authorized","locations":[{"line":1,"column":3}],"path":["me"],"extensions":{"code":"INTERNAL_SERVER_ERROR"},"traceId":"4552142034048041711"}],"data":null}
+
+▶ Test with hardcoded token:
+  Hardcoded token me: {"errors":[{"message":"Not Authorized","locations":[{"line":1,"column":3}],"path":["me"],"extensions":{"code":"INTERNAL_SERVER_ERROR"},"traceId":"1190461045620013250"}],"data":null}
+
+▶ Check current railway variables:
+
+Project adlytic linked successfully! 🎉
+╔═══════════════════════ Variables for adlytic ══════════════════════╗
+║ DATABASE_URL                │                                      ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT         │ production                           ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT_ID      │ 89cdf3cb-15b7-4b92-b1ae-07e812333c37 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT_NAME    │ production                           ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PRIVATE_DOMAIN      │ adlytic.railway.internal             ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PROJECT_ID          │ 69ca3009-3a67-4d92-b808-6e4f278335d6 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PROJECT_NAME        │ adlytic                              ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PUBLIC_DOMAIN       │ adlytic-production.up.railway.app    ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_ADLYTIC_URL │ adlytic-production.up.railway.app    ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_ID          │ cc7cbf67-d757-4018-bf6d-9cec643222c3 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_NAME        │ adlytic                              ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_STATIC_URL          │ adlytic-production.up.railway.app    ║
+╚════════════════════════════════════════════════════════════════════╝
+
+
+▶ Check services in project:
+
+Services in production
+
+adlytic (linked)
+    status:        ● Online
+    url:           https://adlytic-production.up.railway.app
+    region:        sfo
+    deployment ID: 4eadb299-2365-483d-8fd8-2a0cf6121413
+    service ID:    cc7cbf67-d757-4018-bf6d-9cec643222c3
+
+
+▶ Try: railway add --plugin postgresql (pipe newline):
+  Output: /Users/aliahhed/Downloads/adlytic/explore_and_log.command: line 54: timeout: command not found
+
+▶ Try: railway add -d postgresql:
+  Output2: /Users/aliahhed/Downloads/adlytic/explore_and_log.command: line 59: timeout: command not found
+
+▶ Variables after add attempts:
+╔═══════════════════════ Variables for adlytic ══════════════════════╗
+║ DATABASE_URL                │                                      ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT         │ production                           ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT_ID      │ 89cdf3cb-15b7-4b92-b1ae-07e812333c37 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT_NAME    │ production                           ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PRIVATE_DOMAIN      │ adlytic.railway.internal             ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PROJECT_ID          │ 69ca3009-3a67-4d92-b808-6e4f278335d6 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PROJECT_NAME        │ adlytic                              ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PUBLIC_DOMAIN       │ adlytic-production.up.railway.app    ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_ADLYTIC_URL │ adlytic-production.up.railway.app    ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_ID          │ cc7cbf67-d757-4018-bf6d-9cec643222c3 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_NAME        │ adlytic                              ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_STATIC_URL          │ adlytic-production.up.railway.app    ║
+╚════════════════════════════════════════════════════════════════════╝
+
+
+=== DONE ===

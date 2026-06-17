@@ -1,0 +1,23 @@
+=== Deploy with Seed ===
+Wed Jun 17 01:20:43 +03 2026
+
+
+Project adlytic linked successfully! 🎉
+▶ Deploying (start command now includes seed)...
+Indexing...
+Uploading...
+  Build Logs: https://railway.com/project/69ca3009-3a67-4d92-b808-6e4f278335d6/service/cc7cbf67-d757-4018-bf6d-9cec643222c3?id=0177669b-93b2-4aa7-87d8-65930e657e3d&
+
+▶ Monitoring for 15 minutes (build + seed takes ~3-5 min)...
+  [1/60] 01:20:53 health=✅200 login=❌ Invalid credentials
+  [2/60] 01:21:10 health=✅200 login=❌ Invalid credentials
+  [3/60] 01:21:27 health=✅200 login=✅ PASS
+
+╔══════════════════════════════════════════════════════╗
+║          ✅ DEPLOYMENT COMPLETE — PASS!              ║
+╚══════════════════════════════════════════════════════╝
+PUBLIC_URL: https://adlytic-production.up.railway.app
+STATUS: PASS
+Token prefix: Y21xaDdpY3Z3MDAwaXZoZDlkODZveX...
+
+Press Enter to close...

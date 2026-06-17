@@ -278,13 +278,7 @@ async function buildCampaignCards(adAccountId: string): Promise<{ best: Campaign
       orderBy: { date: "desc" },
     });
 
-if (!snap) {
-  console.log("NO SNAP", c.name);
-  continue;
-}
-
-if (!h) {
-  console.log("NO HEALTH", c.name);
+if (!snap || !h) {
   continue;
 }
 

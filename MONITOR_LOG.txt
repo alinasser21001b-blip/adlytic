@@ -1,0 +1,40 @@
+=== Monitor New Deployment ===
+Wed Jun 17 01:16:33 +03 2026
+Waiting for build to complete and new service to start...
+
+▶ Current DATABASE_URL on adlytic service:
+
+Project adlytic linked successfully! 🎉
+  DATABASE_URL: postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@postgres.railway.internal:5432/railway
+
+▶ Latest deployments via API:
+  Deployments: {"data":{"deployments":{"edges":[{"node":{"id":"89a7d30f-383a-42fe-a24e-8f92f073c6c0","status":"SUCCESS","createdAt":"2026-06-16T22:00:05.386Z"}},{"node":{"id":"72c22946-859e-46c3-bcef-ee78fd0a3832","status":"REMOVED","createdAt":"2026-06-16T21:59:50.426Z"}}]}}}
+
+▶ Monitoring for 15 minutes...
+  [1/60] 01:16:46 health=✅200 login=❌ ?
+  [2/60] 01:17:05 health=✅200 login=❌ ?
+  [3/60] 01:17:26 health=✅200 login=❌ ?
+  [4/60] 01:17:42 health=✅200 login=❌ ?
+  [5/60] 01:17:59 health=✅200 login=❌ ?
+  [6/60] 01:18:17 health=✅200 login=❌ ?
+  [7/60] 01:18:34 health=✅200 login=❌ ?
+  [8/60] 01:18:51 health=✅200 login=❌ ?
+  [9/60] 01:19:09 health=✅200 login=❌ ?
+  [10/60] 01:19:28 health=✅200 login=❌ ?
+  [11/60] 01:19:46 health=✅200 login=❌ ?
+  [12/60] 01:20:06 health=✅200 login=❌ ?
+  [13/60] 01:20:22 health=✅200 login=❌ ?
+  [14/60] 01:20:40 health=✅200 login=❌ ?
+  [15/60] 01:20:56 health=✅200 login=❌ ?
+  [16/60] 01:21:13 health=✅200 login=❌ ?
+  [17/60] 01:21:30 health=✅200 login=✅ PASS
+
+▶ Testing if user exists...
+
+╔══════════════════════════════════════════════════════╗
+║          ✅ DEPLOYMENT COMPLETE — PASS!              ║
+╚══════════════════════════════════════════════════════╝
+PUBLIC_URL: https://adlytic-production.up.railway.app
+STATUS: PASS
+
+Press Enter to close...

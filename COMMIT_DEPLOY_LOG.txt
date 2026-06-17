@@ -1,0 +1,36 @@
+════════════════════════════════════════════════════════
+  Adlytic — Commit Security Fixes & Deploy
+════════════════════════════════════════════════════════
+Wed Jun 17 04:10:06 +03 2026
+
+▶ Step 1: Clearing all git lock files...
+  Locks cleared:        0 remaining
+
+▶ Step 2: Committing security fixes...
+[main ab9065e] security: disable register, empty login fields, production start
+ 4 files changed, 7 insertions(+), 12 deletions(-)
+  ✅ Committed: ab9065e
+
+▶ Step 3: Linking to Railway...
+
+Project adlytic linked successfully! 🎉
+
+▶ Step 4: Deploying to Railway...
+Indexing...
+Uploading...
+  Build Logs: https://railway.com/project/69ca3009-3a67-4d92-b808-6e4f278335d6/service/cc7cbf67-d757-4018-bf6d-9cec643222c3?id=3c11a4ec-754e-4303-b361-b35a81a9c168&
+  railway up exit code: 0
+
+▶ Step 5: Waiting for deployment (up to 5 minutes)...
+  [1/20] 04:10:28 health=200
+  ✅ Health OK
+
+▶ Step 6: Final verification...
+  Demo login response: {"error":"Invalid credentials"}
+  Register: HTTP 500 — {"id":"cmqhdjozz0002qr12878drwd3","email":"test@test.com","name":"Test"}
+  Health: 200
+
+  ⚠️  Status: HAS_TOKEN=NO REG_STATUS=500 HEALTH=200
+  ❌ Register not returning 403 (got 500)
+
+Press Enter to close...

@@ -1,0 +1,72 @@
+════════════════════════════════════════════════════════
+  Adlytic Production Setup
+════════════════════════════════════════════════════════
+Wed Jun 17 03:24:52 +03 2026
+
+▶ Step 1: Linked to Railway project
+
+▶ Step 2: Getting Postgres public DATABASE_PUBLIC_URL...
+  ❌ Could not get DATABASE_PUBLIC_URL. Trying alternative...
+  PG_PUBLIC_URL prefix: ...
+
+▶ Step 3: Deleting demo user (ali@adlytic.app) from live database...
+node:internal/modules/cjs/loader:1500
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module '@prisma/client'
+Require stack:
+- /private/tmp/delete_demo.mjs
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1500:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1116:12)
+    at Module._load (node:internal/modules/cjs/loader:1285:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1600:12)
+    at require (node:internal/modules/helpers:153:16)
+    at file:///private/tmp/delete_demo.mjs:3:26
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/private/tmp/delete_demo.mjs' ]
+}
+
+Node.js v24.16.0
+  Exit code: 1
+
+  ⚠️  Deletion script failed — trying psql fallback...
+psql: error: connection to server on socket "/tmp/.s.PGSQL.5432" failed: FATAL:  database "aliahhed" does not exist
+
+▶ Step 4: Confirming start command has NO seed...
+  railway.json startCommand:
+  npx prisma migrate deploy; node dist/src/api/serve.js
+
+▶ Step 5: Deploying (NO seed in start command)...
+Warning: failed to refresh OAuth token: error sending request for url (https://backboard.railway.com/oauth/token)
+Failed to fetch: error sending request for url (https://backboard.railway.com/graphql/v2)
+
+Caused by:
+    0: error sending request for url (https://backboard.railway.com/graphql/v2)
+    1: client error (Connect)
+    2: dns error
+    3: failed to lookup address information: nodename nor servname provided, or not known
+Warning: failed to refresh OAuth token: error sending request for url (https://backboard.railway.com/oauth/token)
+Failed to fetch: error sending request for url (https://backboard.railway.com/graphql/v2)
+
+Caused by:
+    0: error sending request for url (https://backboard.railway.com/graphql/v2)
+    1: client error (Connect)
+    2: dns error
+    3: failed to lookup address information: nodename nor servname provided, or not known
+
+▶ Step 6: Monitoring deployment (10 minutes)...
+  [1/40] 03:24:54 health=000000 — waiting 15s...
+  [2/40] 03:25:09 health=✅200
+
+▶ Step 7: Verify demo login is REJECTED...
+  Demo login response: {"token":"Y21xaDdpY3Z3MDAwaXZoZDlkODZveXU2ejphbGlAYWRseXRpYy5hcHA=","user":{"id":"cmqh7icvw000ivhd9d86oyu6z","email":"ali@adlytic.app","name":"Ali"}}
+  Demo token returned: YES
+  ❌ Demo login returned a token — user was NOT deleted!
+  FAIL
+
+Press Enter to close...

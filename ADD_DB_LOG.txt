@@ -1,0 +1,110 @@
+=== Adlytic: Add PostgreSQL & Deploy ===
+Wed Jun 17 00:58:56 +03 2026
+
+
+Project adlytic linked successfully! 🎉
+▶ Step 1: Test Railway API with real access token...
+  Me: {"data":{"me":{"id":"b7a0586f-060e-41e1-b63d-5700304ea24a","email":"ali.nasser21001b@comed.uobaghdad.edu.iq"}}}
+
+▶ Step 2: Add PostgreSQL via CLI (railway add -d postgres)...
+  Running: railway add -d postgres
+> What do you need? Database
+  Exit code: 0
+
+▶ Step 3: Wait 25s for Postgres to provision...
+
+▶ Step 4: Check services in project...
+Service name required in non-interactive mode. Usage: railway service <name>
+
+▶ Step 5: Check adlytic service variables...
+╔═══════════════════════ Variables for adlytic ══════════════════════╗
+║ DATABASE_URL                │                                      ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT         │ production                           ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT_ID      │ 89cdf3cb-15b7-4b92-b1ae-07e812333c37 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_ENVIRONMENT_NAME    │ production                           ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PRIVATE_DOMAIN      │ adlytic.railway.internal             ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PROJECT_ID          │ 69ca3009-3a67-4d92-b808-6e4f278335d6 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PROJECT_NAME        │ adlytic                              ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_PUBLIC_DOMAIN       │ adlytic-production.up.railway.app    ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_ADLYTIC_URL │ adlytic-production.up.railway.app    ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_ID          │ cc7cbf67-d757-4018-bf6d-9cec643222c3 ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_SERVICE_NAME        │ adlytic                              ║
+║────────────────────────────────────────────────────────────────────║
+║ RAILWAY_STATIC_URL          │ adlytic-production.up.railway.app    ║
+╚════════════════════════════════════════════════════════════════════╝
+
+
+▶ Step 6: Check Postgres service variables (try various names)...
+╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
+║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
+║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
+║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                                     │ railway                                ║
+║──────────────────────────────────────────────────────────────────────────────║
+║ DATABASE_URL                        │ postgresql://                          ║
+║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
+║                                     │ glk@postgres.railway.internal:5432/    ║
+║                                     │ railway                                ║
+║──────────────────────────────────────────────────────────────────────────────║
+║ PGDATA                              │ /var/lib/postgresql/data/pgdata        ║
+║──────────────────────────────────────────────────────────────────────────────║
+║ PGDATABASE                          │ railway                                ║
+║──────────────────────────────────────────────────────────────────────────────║
+╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
+║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
+║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
+║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                                     │ railway                                ║
+║──────────────────────────────────────────────────────────────────────────────║
+║ DATABASE_URL                        │ postgresql://                          ║
+║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
+║                                     │ glk@postgres.railway.internal:5432/    ║
+║                                     │ railway                                ║
+║──────────────────────────────────────────────────────────────────────────────║
+║ PGDATA                              │ /var/lib/postgresql/data/pgdata        ║
+║──────────────────────────────────────────────────────────────────────────────║
+║ PGDATABASE                          │ railway                                ║
+║──────────────────────────────────────────────────────────────────────────────║
+╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
+║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
+║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
+║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                                     │ railway                                ║
+
+▶ Step 7: Get all project variables via Railway API...
+  Adlytic vars via API: {"data":{"variables":{"DATABASE_URL":"","RAILWAY_PUBLIC_DOMAIN":"adlytic-production.up.railway.app","RAILWAY_PRIVATE_DOMAIN":"adlytic.railway.internal","RAILWAY_PROJECT_NAME":"adlytic","RAILWAY_ENVIRONMENT_NAME":"production","RAILWAY_SERVICE_NAME":"adlytic","RAILWAY_PROJECT_ID":"69ca3009-3a67-4d92-b808-6e4f278335d6","RAILWAY_ENVIRONMENT_ID":"89cdf3cb-15b7-4b92-b1ae-07e812333c37","RAILWAY_SERVICE_ID":"cc7cbf67-d757-4018-bf6d-9cec643222c3","RAILWAY_STATIC_URL":"adlytic-production.up.railway.app","RAILWAY_ENVIRONMENT":"production","RAILWAY_SERVICE_ADLYTIC_URL":"adlytic-production.up.railway.app"}}}
+
+▶ Step 8: List all project services via API to find Postgres service ID...
+  Services: {"data":{"project":{"services":{"edges":[{"node":{"id":"6ba9d88c-c431-41d2-80c7-98e4800260be","name":"Postgres"}},{"node":{"id":"cc7cbf67-d757-4018-bf6d-9cec643222c3","name":"adlytic"}}]}}}}
+
+▶ Step 9: DATABASE_URL value: []
+
+▶ Step 10: DATABASE_URL still empty. Setting reference to Postgres service...
+
+▶ Wait 10s more...
+  DATABASE_URL after set: [postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@postgres.railway.internal:5432/railway]
+
+▶ Step 11: Redeploy service...
+Indexing...
+Uploading...
+  Build Logs: https://railway.com/project/69ca3009-3a67-4d92-b808-6e4f278335d6/service/cc7cbf67-d757-4018-bf6d-9cec643222c3?id=89a7d30f-383a-42fe-a24e-8f92f073c6c0&
+
+▶ Step 12: Monitor health endpoint (10 minutes)...
+  [1/40] ✅ HTTP 200 — Service UP
+
+▶ Step 13: Test login...
+  Login: {"error":"Internal server error","message":"\nInvalid `prisma.user.findFirst()` invocation:\n\n\nerror: Error validating datasource `db`: You must provide a nonempty URL. The environment variable `DATABASE_URL` resolved to an empty string.\n  -->  schema.prisma:21\n   | \n20 |   provider = 
+⚠️ Service up but login failed. DB issue may persist.
+  Full login response: {"error":"Internal server error","message":"\nInvalid `prisma.user.findFirst()` invocation:\n\n\nerror: Error validating datasource `db`: You must provide a nonempty URL. The environment variable `DATABASE_URL` resolved to an empty string.\n  -->  schema.prisma:21\n   | \n20 |   provider = \"postgresql\"\n21 |   url      = env(\"DATABASE_URL\")\n   | \n\nValidation Error Count: 1"}
+
+Press Enter to close...

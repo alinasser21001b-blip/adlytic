@@ -1,0 +1,31 @@
+════════════════════════════════════════════════════════
+  Adlytic Production Cleanup v2
+════════════════════════════════════════════════════════
+Wed Jun 17 03:34:25 +03 2026
+
+▶ Step 1: Getting DATABASE_PUBLIC_URL via Railway API...
+  API raw: {"errors":[{"message":"Not Authorized","locations":[{"line":1,"column":9}],"path":["variables"],"extensions":{"code":"INTERNAL_SERVER_ERROR"},"traceId":"8400142757380901317"}],"data":null}
+
+  PG_PUBLIC_URL (first 50): ...
+  ❌ API failed. Trying railway CLI...
+
+Project adlytic linked successfully! 🎉
+  Railway vars raw: ╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
+║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
+║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
+║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                         Parsed from table: postgresql://
+  ✅ Got DATABASE_PUBLIC_URL
+
+▶ Step 2: Deleting ali@adlytic.app from database...
+  (Running from project dir so node_modules/@prisma/client is reachable)
+  ❌ Error: 
+Invalid `prisma.user.findFirst()` invocation:
+
+
+User `` was denied access on the database `postgres.public`
+  Node exit code: 1
+
+  ❌ Deletion failed. Stopping.
+
+Press Enter to close...

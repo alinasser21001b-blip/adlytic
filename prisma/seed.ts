@@ -14,10 +14,15 @@
 //  Run:  npx prisma db seed   (after: npx prisma migrate dev)
 // ════════════════════════════════════════════════════════════════════════
 
+import { createHash } from "crypto";
 import { PrismaClient, Platform, WorkspaceRole, EntityType, EntityStatus,
          IssueCode, Severity, RecommendationPriority, Locale } from "@prisma/client";
 
 const prisma = new PrismaClient();
+
+// ── Algorithm version — must match HealthScoreEngine.ts ─────────────────
+// HEALTH_ALGORITHM_VERSION = 2 in src/engines/health/HealthScoreEngine.ts
+const ALGORITHM_VERSION = 2;
 
 // ── helpers ─────────────────────────────────────────────────────────────
 const today = new Date();
@@ -206,8 +211,10 @@ async function main() {
 
   // ── USERS + WORKSPACES — multi-tenant, rooted at workspace ──────────────
   console.log("⟳ Users, workspaces, members…");
+  // Demo credentials: ali@adlytic.app / demo1234
+  const DEMO_HASH = createHash("sha256").update("demo1234").digest("hex");
   const owner = await prisma.user.create({
-    data: { email: "ali@adlytic.app", passwordHash: "$seed$", name: "Ali", locale: Locale.EN },
+    data: { email: "ali@adlytic.app", passwordHash: DEMO_HASH, name: "Ali", locale: Locale.EN },
   });
 
   const furnitureWs = await prisma.workspace.create({
@@ -278,6 +285,101 @@ async function main() {
     data: { adAccountId: cosmeticsAcct.id, externalCampaignId: "c_c_lipstick",
             name: "Matte Lipstick Set", objective: "MESSAGES", status: EntityStatus.ACTIVE,
             dailyBudget: 12000n },
+  });
+
+  // ── AD SETS + ADS — required for campaign drill-down ────────────────────
+  console.log("⟳ Ad sets and ads…");
+
+  // Furniture → Bedroom Collection
+  const fBedAs1 = await prisma.adSet.create({
+    data: { campaignId: fBedroom.id, externalAdSetId: "as_f_bed_retarget",
+            name: "Bedroom Retargeting", status: EntityStatus.ACTIVE, dailyBudget: 10000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: fBedAs1.id, externalAdId: "ad_f_bed_r1",
+            name: "Bedroom Video — Sofa Focus", status: EntityStatus.ACTIVE },
+  });
+  await prisma.ad.create({
+    data: { adSetId: fBedAs1.id, externalAdId: "ad_f_bed_r2",
+            name: "Bedroom Carousel — Full Set", status: EntityStatus.ACTIVE },
+  });
+
+  const fBedAs2 = await prisma.adSet.create({
+    data: { campaignId: fBedroom.id, externalAdSetId: "as_f_bed_prosp",
+            name: "Bedroom Prospecting", status: EntityStatus.ACTIVE, dailyBudget: 10000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: fBedAs2.id, externalAdId: "ad_f_bed_p1",
+            name: "Bedroom Static — Deal Offer", status: EntityStatus.ACTIVE },
+  });
+
+  // Furniture → Living Room Offer
+  const fLivAs1 = await prisma.adSet.create({
+    data: { campaignId: fLiving.id, externalAdSetId: "as_f_liv_look",
+            name: "Living Room Lookalike", status: EntityStatus.ACTIVE, dailyBudget: 10000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: fLivAs1.id, externalAdId: "ad_f_liv_l1",
+            name: "Living Room Video — Lifestyle", status: EntityStatus.PAUSED },
+  });
+
+  const fLivAs2 = await prisma.adSet.create({
+    data: { campaignId: fLiving.id, externalAdSetId: "as_f_liv_retarget",
+            name: "Living Room Retargeting", status: EntityStatus.PAUSED, dailyBudget: 8000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: fLivAs2.id, externalAdId: "ad_f_liv_r1",
+            name: "Living Room Carousel — Sofas", status: EntityStatus.PAUSED },
+  });
+
+  // Cosmetics → Glow Serum Launch
+  const cSerAs1 = await prisma.adSet.create({
+    data: { campaignId: cSerum.id, externalAdSetId: "as_c_ser_interest",
+            name: "Serum Interest Targeting", status: EntityStatus.ACTIVE, dailyBudget: 8000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: cSerAs1.id, externalAdId: "ad_c_ser_i1",
+            name: "Serum Before/After Reel", status: EntityStatus.ACTIVE },
+  });
+  await prisma.ad.create({
+    data: { adSetId: cSerAs1.id, externalAdId: "ad_c_ser_i2",
+            name: "Serum Testimonial Video", status: EntityStatus.ACTIVE },
+  });
+
+  const cSerAs2 = await prisma.adSet.create({
+    data: { campaignId: cSerum.id, externalAdSetId: "as_c_ser_look",
+            name: "Serum Lookalike 1%", status: EntityStatus.ACTIVE, dailyBudget: 7000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: cSerAs2.id, externalAdId: "ad_c_ser_l1",
+            name: "Serum Product Highlight", status: EntityStatus.ACTIVE },
+  });
+
+  // Cosmetics → Matte Lipstick Set
+  const cLipAs1 = await prisma.adSet.create({
+    data: { campaignId: cLip.id, externalAdSetId: "as_c_lip_interest",
+            name: "Lipstick Interest Targeting", status: EntityStatus.ACTIVE, dailyBudget: 7000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: cLipAs1.id, externalAdId: "ad_c_lip_i1",
+            name: "Lipstick Shade Reel", status: EntityStatus.ACTIVE },
+  });
+
+  const cLipAs2 = await prisma.adSet.create({
+    data: { campaignId: cLip.id, externalAdSetId: "as_c_lip_broad",
+            name: "Lipstick Broad Audience", status: EntityStatus.PAUSED, dailyBudget: 5000n,
+            optimizationGoal: "CONVERSATIONS" },
+  });
+  await prisma.ad.create({
+    data: { adSetId: cLipAs2.id, externalAdId: "ad_c_lip_b1",
+            name: "Lipstick Static Banner", status: EntityStatus.PAUSED },
   });
 
   // ── DAILY STATS — 30 days, account-level, telling each story ────────────
@@ -393,15 +495,17 @@ async function main() {
             detailsJson: { focus: "first-second hook" } },
   });
 
-  // ── HEALTH SCORES (stored, NOT computed by the dashboard) ───────────────
+  // ── HEALTH SCORES (algorithm v2 — must match HEALTH_ALGORITHM_VERSION) ──
+  // NOTE: HEALTH_ALGORITHM_VERSION = 2 in src/engines/health/HealthScoreEngine.ts
+  // getDashboard.ts queries with this version. All seeds must use the same version.
   await prisma.healthScore.create({
     data: { entityType: EntityType.ACCOUNT, entityId: furnitureAcct.id, date: AS_OF,
-            score: 82, algorithmVersion: 1,
+            score: 82, algorithmVersion: ALGORITHM_VERSION,
             breakdownJson: { ctr: 70, frequency: 70, cpm: 80, trend: 60 } },
   });
   await prisma.healthScore.create({
     data: { entityType: EntityType.ACCOUNT, entityId: cosmeticsAcct.id, date: AS_OF,
-            score: 91, algorithmVersion: 1,
+            score: 91, algorithmVersion: ALGORITHM_VERSION,
             breakdownJson: { ctr: 65, frequency: 95, cpm: 95, trend: 90 } },
   });
   // Campaign-level health for best/worst cards
@@ -409,13 +513,16 @@ async function main() {
                              [cSerum.id, 92], [cLip.id, 74]] as [string, number][]) {
     await prisma.healthScore.create({
       data: { entityType: EntityType.CAMPAIGN, entityId: id, date: AS_OF,
-              score, algorithmVersion: 1, breakdownJson: {} },
+              score, algorithmVersion: ALGORITHM_VERSION, breakdownJson: {} },
     });
   }
 
   console.log("✓ Seed complete.");
   console.log("  Furniture: health 82 · AUDIENCE_FATIGUE + DECLINING_RESULTS → REFRESH_CREATIVES");
   console.log("  Cosmetics: health 91 · LOW_CTR → IMPROVE_HOOKS (cosmetics-specific knowledge)");
+  console.log(`  Health scores use algorithmVersion: ${ALGORITHM_VERSION} (matches engine constant)`);
+  console.log("  Ad sets: Bedroom(2) + Living Room(2) + Glow Serum(2) + Matte Lipstick(2) = 8 total");
+  console.log("  Ads: Bedroom(3) + Living Room(2) + Glow Serum(3) + Matte Lipstick(2) = 10 total");
 }
 
 main()

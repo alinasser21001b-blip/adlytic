@@ -1,0 +1,37 @@
+════════════════════════════════════════════════════════
+  Adlytic Production Cleanup v3
+════════════════════════════════════════════════════════
+Wed Jun 17 03:57:52 +03 2026
+
+▶ Linking to Railway project...
+
+Project adlytic linked successfully! 🎉
+
+▶ Step 1: Getting DATABASE_PUBLIC_URL...
+  PG_PUBLIC_URL (first 60): postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@thoma...
+  ✅ Got DATABASE_PUBLIC_URL
+
+▶ Step 2: Deleting ali@adlytic.app from database...
+  (node_modules/@prisma/client from project dir)
+  Found user: cmqh7icvw000ivhd9d86oyu6z (ali@adlytic.app)
+  Workspaces to clean: 2
+  Deleted workspace: cmqh7icw2000kvhd9k074913k
+  Deleted workspace: cmqh7icwm000ovhd9s46h6i0u
+  Deleted user count: 1
+  ✅ Verified: ali@adlytic.app deleted
+  Total users remaining: 0
+  Node exit code: 0
+
+▶ Step 3: Verifying demo login is REJECTED...
+  Response: {"error":"Invalid credentials"}
+  Token returned: NO
+
+▶ Step 4: Verifying register is BLOCKED...
+  Register HTTP status: 500
+
+▶ Step 5: Verifying health endpoint...
+  Health: 200
+
+  ⚠️  HAS_TOKEN=NO REG_STATUS=500 HEALTH=200
+
+Press Enter to close...
