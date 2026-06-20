@@ -284,7 +284,14 @@ export function campaignsPage(): string {
         <div class="no-ad-account" id="no-ad-account-cta" style="display:none;">
           <div class="no-ad-account-title">Connect Your Meta Ad Account</div>
           <div class="no-ad-account-desc">Link your Meta Ads account to start tracking campaign performance, spend, and ROI in real time.</div>
-          <a href="/settings" class="btn-cta" style="display:inline-block;">Connect Meta Account</a>
+          <a href="/workspace" class="btn-cta" style="display:inline-block;">Go to Workspace</a>
+        </div>
+
+        <!-- Paused / expired token CTA -->
+        <div class="no-ad-account" id="paused-account-cta" style="display:none;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.06);">
+          <div class="no-ad-account-title" style="color:var(--warning);">⚠ Ad Account Token Expired</div>
+          <div class="no-ad-account-desc">Your Meta Ads access token has expired. Campaign data shown below is cached and may be outdated. Reconnect your account to resume live syncing.</div>
+          <a href="/workspace" class="btn-cta" style="display:inline-block;background:var(--warning);">Reconnect in Workspace</a>
         </div>
 
         <!-- Page header -->
@@ -637,26 +644,36 @@ export function campaignsPage(): string {
 
       state.workspaceId = workspaceId;
 
-      var [campaigns, insights] = await Promise.all([
+      var [campaigns, insights, wsData] = await Promise.all([
         apiFetch('/api/workspaces/' + workspaceId + '/campaigns'),
         apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
+        apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
       ]);
 
-      // Detect missing ad account (empty campaigns + empty insights)
+      // Detect paused / expired token
+      var allPaused = wsData && Array.isArray(wsData.adAccounts)
+        && wsData.adAccounts.length > 0
+        && wsData.adAccounts.every(function(a) { return a.status !== 'ACTIVE'; });
+
+      if (allPaused) {
+        document.getElementById('paused-account-cta').style.display = 'block';
+      }
+
+      // Detect no ad account connected at all
       var hasData = (Array.isArray(campaigns) && campaigns.length > 0)
         || (Array.isArray(insights) && insights.length > 0);
-      if (!hasData) {
+      if (!hasData && !allPaused) {
         document.getElementById('no-ad-account-cta').style.display = 'block';
       }
 
       state.campaigns = Array.isArray(campaigns) ? campaigns : [];
       state.insights = Array.isArray(insights) ? insights : [];
 
-      var wsName = workspaceId;
+      var wsName = (wsData && wsData.name) || workspaceId;
       try {
         var dashData = await apiFetch('/api/dashboard/' + workspaceId);
         if (dashData && dashData.workspace) {
-          wsName = dashData.workspace.name || dashData.workspace.id || workspaceId;
+          wsName = dashData.workspace.name || dashData.workspace.id || wsName;
         }
       } catch (_) { /* non-critical */ }
 

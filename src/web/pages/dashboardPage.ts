@@ -340,6 +340,18 @@ export function dashboardPage(): string {
         <div class="page-title">Dashboard</div>
         <div class="page-subtitle" id="dash-subtitle">Overview of your ad performance</div>
 
+        <!-- Stale data banner (shown when ad account token is expired/paused) -->
+        <div id="stale-data-banner" style="display:none;margin-bottom:16px;padding:12px 16px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:10px;display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:16px;">⚠</span>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--warning);">Showing cached data — token expired</div>
+              <div style="font-size:12px;color:var(--text-2);margin-top:2px;">Your Meta Ads access token has expired. These metrics are from your last successful sync and may be outdated.</div>
+            </div>
+          </div>
+          <a href="/workspace" style="padding:6px 14px;border-radius:7px;background:var(--warning);color:#000;font-size:12px;font-weight:600;white-space:nowrap;text-decoration:none;">Reconnect Account</a>
+        </div>
+
         <!-- Priority Action -->
         <div class="priority-card" id="priority-card" style="display:none;">
           <div class="priority-icon">⚡</div>
@@ -671,12 +683,22 @@ export function dashboardPage(): string {
         return;
       }
 
-      // Step 3: fetch dashboard + insights + campaigns in parallel
-      var [dashData, insights, campaigns] = await Promise.all([
+      // Step 3: fetch dashboard + insights + campaigns + workspace status in parallel
+      var [dashData, insights, campaigns, wsData] = await Promise.all([
         apiFetch('/api/dashboard/' + workspaceId),
         apiFetch('/api/workspaces/' + workspaceId + '/insights?days=30'),
         apiFetch('/api/workspaces/' + workspaceId + '/campaigns').catch(function() { return []; }),
+        apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
       ]);
+
+      // Show stale-data banner if all ad accounts are paused / token expired
+      var allPaused = wsData && Array.isArray(wsData.adAccounts)
+        && wsData.adAccounts.length > 0
+        && wsData.adAccounts.every(function(a) { return a.status !== 'ACTIVE'; });
+      if (allPaused) {
+        var banner = document.getElementById('stale-data-banner');
+        if (banner) banner.style.display = 'flex';
+      }
 
       // Empty state — no ad account connected yet
       if (dashData.empty) {
