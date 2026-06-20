@@ -440,10 +440,10 @@ export function workspacePage(): string {
         } else if (syncRes.status === 'sync_failed') {
           toast('Sync failed: ' + (syncRes.error || 'Unknown'), 'error');
         }
-      } catch(syncErr) { toast((syncErr as Error).message || 'Sync failed', 'error'); }
+      } catch(syncErr) { toast(syncErr.message || 'Sync failed', 'error'); }
       await loadWorkspace();
     } catch(e) {
-      errEl.textContent = (e as Error).message || 'Failed to connect account';
+      errEl.textContent = e.message || 'Failed to connect account';
       errEl.style.display = 'flex';
     } finally {
       confirmBtn.textContent = 'Connect Account';
@@ -467,14 +467,14 @@ export function workspacePage(): string {
     await Promise.all([loadWorkspace(), loadMembers()]);
     console.log('[WS:14] Promise.all resolved — both loads complete');
   } catch(e) {
-    console.error('[WS:CATCH] Promise.all threw:', (e as Error).message);
+    console.error('[WS:CATCH] Promise.all threw:', e.message);
     document.getElementById('ws-info-loading').style.display = 'none';
     const errHtml = '<div class="empty-state" style="padding:24px;"><div class="empty-title">Failed to load</div></div>';
     const ac = document.getElementById('ad-accounts-container');
     const mc = document.getElementById('members-container');
     if (ac && ac.querySelector('.loading-overlay')) { console.log('[WS:CATCH] clearing ad-accounts-container'); ac.innerHTML = errHtml; }
     if (mc && mc.querySelector('.loading-overlay')) { console.log('[WS:CATCH] clearing members-container'); mc.innerHTML = errHtml; }
-    toast((e as Error).message || 'Failed to load workspace', 'error');
+    toast(e.message || 'Failed to load workspace', 'error');
   }
   console.log('[WS:15] IIFE complete');
 })();
