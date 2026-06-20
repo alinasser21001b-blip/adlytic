@@ -517,7 +517,14 @@ async function apiFetch(path, opts = {}) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
   }
-  return res.json();
+  // Guard against the server returning a non-JSON body (HTML error page,
+  // truncated response, or serialization failure). Throw a readable error
+  // rather than letting "SyntaxError: Unexpected token '<'" bubble up
+  // opaquely through every caller.
+  return res.json().catch(async () => {
+    const preview = (await res.clone().text().catch(() => '')).slice(0, 120);
+    throw new Error('Server returned a non-JSON response: ' + (preview || '(empty body)'));
+  });
 }
 
 function toast(msg, type = 'info') {

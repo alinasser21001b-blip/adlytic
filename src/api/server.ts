@@ -40,6 +40,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { createHash } from 'node:crypto';
 import { EntityType, WorkspaceRole, type Locale } from '@prisma/client';
+import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
 import { getDashboard } from '../services/getDashboard';
@@ -47,6 +48,7 @@ import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { MetaClient } from '../services/metaClient';
 import { loginPage } from '../web/pages/loginPage';
+import { registerPage } from '../web/pages/registerPage';
 import { dashboardPage } from '../web/pages/dashboardPage';
 import { campaignsPage } from '../web/pages/campaignsPage';
 import { recommendationsPage } from '../web/pages/recommendationsPage';
@@ -54,12 +56,79 @@ import { workspacePage } from '../web/pages/workspacePage';
 import { aiPage } from '../web/pages/aiPage';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
+import { buildAiContext } from '../services/aiContextBuilder';
+import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken } from '../services/tokenEncryption';
 import { buildMetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
 
+// ── Country derivation ────────────────────────────────────────────────────
+// Maps IANA timezone names → ISO 3166-1 alpha-2 country codes.
+// Derived silently from Meta's timezone_name at account connection time.
+// Known limitation: timezones that span multiple countries (e.g. Europe/London
+// covers GB and IE) default to the dominant market. Extend as needed.
+const TZ_TO_COUNTRY: Record<string, string> = {
+  'Asia/Baghdad':        'IQ',
+  'Asia/Riyadh':         'SA',
+  'Asia/Dubai':          'AE',
+  'Africa/Cairo':        'EG',
+  'Asia/Amman':          'JO',
+  'Asia/Beirut':         'LB',
+  'Asia/Kuwait':         'KW',
+  'Asia/Qatar':          'QA',
+  'Africa/Casablanca':   'MA',
+  'Africa/Tunis':        'TN',
+  'Africa/Tripoli':      'LY',
+  'Asia/Muscat':         'OM',
+  'Asia/Aden':           'YE',
+  'Africa/Khartoum':     'SD',
+  'Asia/Tehran':         'IR',
+  'Europe/Istanbul':     'TR',
+  'Asia/Karachi':        'PK',
+  'Asia/Kolkata':        'IN',
+  'America/New_York':    'US',
+  'America/Chicago':     'US',
+  'America/Denver':      'US',
+  'America/Los_Angeles': 'US',
+  'Europe/London':       'GB',
+  'Europe/Paris':        'FR',
+  'Europe/Berlin':       'DE',
+  'Asia/Singapore':      'SG',
+  'Australia/Sydney':    'AU',
+};
+
+/** Derive ISO country code from a Meta timezone_name. Returns null when unknown. */
+function tzToCountry(timezone: string | null | undefined): string | null {
+  if (!timezone) return null;
+  return TZ_TO_COUNTRY[timezone] ?? null;
+}
+
 // ── Route count ───────────────────────────────────────────────────────────
 
-export const ROUTE_COUNT = 51;
+export const ROUTE_COUNT = 53;
+
+// ── Rate limiting ─────────────────────────────────────────────────────────
+// In-memory per-IP rate limiter. Single-instance; sufficient for Phase 1.
+
+interface RateEntry { count: number; resetAt: number; }
+const _loginRateMap    = new Map<string, RateEntry>(); // 10 req / 15 min
+const _registerRateMap = new Map<string, RateEntry>(); // 5 req  / 60 min
+
+function checkRateLimit(
+  map: Map<string, RateEntry>,
+  key: string,
+  limit: number,
+  windowMs: number,
+): boolean {
+  const now = Date.now();
+  const entry = map.get(key);
+  if (!entry || entry.resetAt < now) {
+    map.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= limit) return false;
+  entry.count++;
+  return true;
+}
 
 // ── Meta OAuth in-memory state ────────────────────────────────────────────
 // Cleared on server restart — acceptable for Phase 1 (single-server).
@@ -91,188 +160,36 @@ function pruneOAuth(): void {
 
 // ── Utilities ─────────────────────────────────────────────────────────────
 
-/** Replacer that converts BigInt → Number so JSON.stringify never throws. */
+/**
+ * Replacer that converts non-serializable Prisma types to plain JS values:
+ *   BigInt   → Number   (Prisma uses BigInt for Int/BigInt fields with driver adapters)
+ *   Decimal  → Number   (Prisma Decimal inherits from decimal.js — has .toNumber())
+ * Date objects are handled natively by JSON.stringify via .toJSON().
+ */
 function bigintReplacer(_key: string, value: unknown): unknown {
-  return typeof value === 'bigint' ? Number(value) : value;
+  if (typeof value === 'bigint') return Number(value);
+  // Prisma Decimal (decimal.js): any object with a toNumber() method
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    const v = value as Record<string, unknown>;
+    if (typeof v['toNumber'] === 'function') return (v as any).toNumber();
+  }
+  return value;
 }
 
 /**
- * Serialize an object to a JSON-safe plain value, converting any BigInt
- * fields to Number. Call this before passing Prisma rows to c.json().
+ * Serialize a Prisma query result to a JSON-safe plain object.
+ * If serialization itself fails (circular ref, exotic type), returns a
+ * safe error sentinel rather than throwing — the route gets a 200 with
+ * a parseable body instead of an unhandled exception that Hono might
+ * surface as an HTML error page in edge cases.
  */
 function safeJson(obj: unknown): unknown {
-  return JSON.parse(JSON.stringify(obj, bigintReplacer)) as unknown;
-}
-
-// ── AI reply generator ─────────────────────────────────────────────────────
-
-type DashboardDTO = Awaited<ReturnType<typeof getDashboard>>;
-
-function generateAiReply(msg: string, dto: DashboardDTO | null): string {
-  if (!dto || dto.empty || !dto.workspace) {
-    return 'I don\'t have any campaign data to analyze yet. Once you connect a Meta Ads account and run a sync, I\'ll be able to give you data-driven insights about your campaigns.\n\nIn the meantime, here are general tips:\n- **CTR benchmarks**: 1–2% is average for Meta, 2%+ is strong\n- **Frequency**: Keep below 3–4 for cold audiences, below 6 for warm\n- **CPM**: Varies widely by industry — track trends, not absolutes\n- **Budget pacing**: Even daily spend is a positive signal';
+  try {
+    return JSON.parse(JSON.stringify(obj, bigintReplacer)) as unknown;
+  } catch (e) {
+    console.error('[safeJson] serialization failed — returning error sentinel:', e);
+    return { _serializationError: true };
   }
-
-  const ws   = dto.workspace;
-  const h    = dto.health;
-  const kpis = dto.kpis;
-  const issues = dto.issues ?? [];
-  const rec  = dto.priorityAction;
-
-  const kpi = (key: string) => kpis.find(k => k.key === key);
-  const spend    = kpi('spend');
-  const ctr      = kpi('ctr');
-  const cpm      = kpi('cpm');
-  const freq     = kpi('frequency');
-  const msgs     = kpi('messages');
-  const reach    = kpi('reach');
-
-  // CTR-related questions
-  if (/ctr|click.through|clicks dropping|clicks down/.test(msg)) {
-    const ctrVal  = ctr?.value ?? 0;
-    const ctrDisp = ctr?.display ?? '—';
-    const delta   = ctr?.deltaPct != null ? (ctr.deltaPct * 100).toFixed(1) + '%' : null;
-    const hasCtrIssue = issues.some(i => i.code === 'LOW_CTR');
-    let reply = `**CTR Analysis for ${ws.name}**\n\nYour current CTR is **${ctrDisp}**`;
-    if (delta) reply += ` (${ctr!.direction === 'down' ? '↓' : '↑'} ${delta} vs. prior period)`;
-    reply += '.\n\n';
-    if (ctrVal < 0.01) {
-      reply += '⚠️ Your CTR is below 1%, which is a warning sign. ';
-    } else if (ctrVal < 0.02) {
-      reply += 'Your CTR is in the average range (1–2%). There\'s room to improve. ';
-    } else {
-      reply += '✅ Your CTR is strong (above 2%). ';
-    }
-    if (hasCtrIssue) {
-      reply += '\n\n**Root causes detected:**\n';
-      const issue = issues.find(i => i.code === 'LOW_CTR');
-      if (issue?.causes?.length) reply += issue.causes.map(c => `- ${c}`).join('\n');
-      if (issue?.recommendations?.length) {
-        reply += '\n\n**Recommended actions:**\n';
-        reply += issue.recommendations.map(r => `- ${r}`).join('\n');
-      }
-    } else {
-      reply += '\n\n**To maintain or improve CTR:**\n- Test 3–5 creative variants per ad set\n- Narrow audience targeting to improve relevance score\n- Use video or carousel for higher engagement\n- Refresh creatives every 3–4 weeks to avoid fatigue';
-    }
-    return reply;
-  }
-
-  // Frequency / ad fatigue
-  if (/frequenc|fatigue|ad fatigue|seen too many/.test(msg)) {
-    const freqVal  = freq?.value ?? 0;
-    const freqDisp = freq?.display ?? '—';
-    const hasFatigue = issues.some(i => ['HIGH_FREQUENCY','AUDIENCE_FATIGUE'].includes(i.code));
-    let reply = `**Frequency Analysis for ${ws.name}**\n\nCurrent average frequency: **${freqDisp}**\n\n`;
-    if (freqVal >= 6) {
-      reply += '🔴 **Critical**: Frequency is very high (6+). Your audience has seen your ads too many times. This is causing diminishing returns.\n\n**Immediate actions:**\n- Expand your target audience\n- Refresh all creative assets\n- Add new audience segments (lookalikes, interests)\n- Consider pausing high-frequency ad sets for 1–2 weeks';
-    } else if (freqVal >= 4) {
-      reply += '🟡 **Warning**: Frequency is elevated (4–6). Watch for declining CTR and rising CPM.\n\n**Preventive actions:**\n- Rotate creative assets now\n- Test new audience segments\n- Set frequency caps in campaign settings';
-    } else if (freqVal >= 2) {
-      reply += '🟢 **Healthy**: Frequency is in the normal range (2–4). Continue monitoring.\n\n- Schedule creative refresh in 2–3 weeks\n- Monitor CTR trend for early fatigue signals';
-    } else {
-      reply += '✅ Frequency is low — your reach is healthy relative to impressions.';
-    }
-    if (hasFatigue) {
-      const issue = issues.find(i => ['HIGH_FREQUENCY','AUDIENCE_FATIGUE'].includes(i.code));
-      if (issue?.recommendations?.length) {
-        reply += '\n\n**Specific recommendations from your data:**\n' + issue.recommendations.map(r => `- ${r}`).join('\n');
-      }
-    }
-    return reply;
-  }
-
-  // Budget / spend questions
-  if (/budget|spend|cost|money|expensive|cpm|efficient/.test(msg)) {
-    const spendDisp = spend?.display ?? '—';
-    const cpmDisp   = cpm?.display ?? '—';
-    const cpmVal    = cpm?.value ?? 0;
-    const hasBudget = issues.some(i => ['HIGH_CPM','BUDGET_BURNING_FAST'].includes(i.code));
-    let reply = `**Budget & Spend Analysis for ${ws.name}**\n\n`;
-    reply += `- **Total spend** (30d): ${spendDisp}\n- **CPM**: ${cpmDisp}\n- **Active campaigns**: ${ws.activeCampaigns}\n\n`;
-    if (cpmVal > 0 && cpmVal > 1000) {
-      reply += '⚠️ CPM is elevated. This can indicate audience saturation or high competition.\n\n**To reduce CPM:**\n- Broaden targeting — narrow audiences compete more aggressively\n- Test different placements (Reels, Stories tend to have lower CPM)\n- Adjust bidding strategy — switch from cost cap to lowest cost temporarily\n- Schedule ads during off-peak hours';
-    } else {
-      reply += '✅ CPM is within acceptable range.\n\n**Budget efficiency tips:**\n- Allocate 70% to proven campaigns, 30% to tests\n- Use campaign budget optimization (CBO) for automatic allocation\n- Set daily budget caps to prevent overspend\n- Review spend pacing every 3 days';
-    }
-    if (hasBudget) {
-      const issue = issues.find(i => ['HIGH_CPM','BUDGET_BURNING_FAST'].includes(i.code));
-      if (issue?.causes?.length) reply += '\n\n**Detected causes:**\n' + issue.causes.map(c => `- ${c}`).join('\n');
-    }
-    return reply;
-  }
-
-  // Scaling / which campaign to scale
-  if (/scale|best campaign|top campaign|winning|double/.test(msg)) {
-    const best  = dto.bestCampaign;
-    const worst = dto.worstCampaign;
-    let reply = `**Campaign Scaling Recommendation for ${ws.name}**\n\n`;
-    if (best) {
-      reply += `**Best performing campaign:**\n- Name: ${best.name}\n- Health score: **${best.health}/100** (${best.band})\n- Messages: ${best.messages.toLocaleString()}\n`;
-      if (best.ctr != null) reply += `- CTR: ${best.ctr.toFixed(1)}%\n`;
-      if (best.cpm != null) reply += `- CPM: ${best.cpm.toFixed(0)}\n`;
-      reply += '\n**Scaling strategy:**\n- Increase budget by 20–30% every 3–4 days (avoid the learning phase reset)\n- Duplicate the ad set and test with a slightly broader audience\n- Keep original running while testing the scaled version\n- Monitor CPA/CPM for the first 48h after each budget increase';
-    }
-    if (worst && worst.id !== best?.id) {
-      reply += `\n\n**Lowest performing campaign:**\n- Name: ${worst.name}\n- Health score: **${worst.health}/100** (${worst.band})\n\nConsider pausing or reducing budget on this campaign until the creative or targeting is refreshed.`;
-    }
-    if (!best) reply += 'No active campaign data available yet. Run a sync to load campaign performance.';
-    return reply;
-  }
-
-  // What to do next / general recommendation
-  if (/what.*(next|do|should|recommend|action|improve|fix)|next step|priority/.test(msg)) {
-    let reply = `**Priority Action Plan for ${ws.name}**\n\nHealth Score: **${h.score}/100** (${h.band})\n\n`;
-    if (issues.length === 0) {
-      reply += '✅ No issues detected. Your campaigns are performing well.\n\n**Ongoing best practices:**\n- Review creative performance weekly\n- Test new audience segments monthly\n- Monitor frequency and refresh creatives proactively\n- Set up A/B tests for ad copy and visuals';
-    } else {
-      reply += `I've identified **${issues.length} issue${issues.length > 1 ? 's' : ''}** across your campaigns.\n\n`;
-      if (rec) {
-        reply += `**#1 Priority Action: ${rec.actionCode.replace(/_/g, ' ')}** (${rec.priority})\n${rec.text}\n\n`;
-      }
-      reply += '**All detected issues (by severity):**\n';
-      issues.forEach((issue, i) => {
-        reply += `\n${i + 1}. **${issue.code.replace(/_/g, ' ')}** — ${issue.severity}\n`;
-        if (issue.recommendations?.length) {
-          reply += `   → ${issue.recommendations[0]}\n`;
-        }
-      });
-    }
-    return reply;
-  }
-
-  // Health score questions
-  if (/health|score|overall|performance|how.*doing/.test(msg)) {
-    const scoreColor = h.score >= 90 ? '✅' : h.score >= 70 ? '🟢' : h.score >= 50 ? '🟡' : '🔴';
-    let reply = `**Campaign Health for ${ws.name}**\n\n${scoreColor} Health Score: **${h.score}/100** — ${h.band.toUpperCase()}\n\n`;
-    reply += `**Summary:**\n- Active campaigns: ${ws.activeCampaigns}\n- CTR: ${ctr?.display ?? '—'}\n- CPM: ${cpm?.display ?? '—'}\n- Frequency: ${freq?.display ?? '—'}\n- Reach (30d): ${reach?.display ?? '—'}\n\n`;
-    if (h.score < 50) {
-      reply += '🔴 Score is low. Immediate attention required — see the Recommendations page for priority actions.';
-    } else if (h.score < 70) {
-      reply += '🟡 Score is moderate. There are improvement opportunities. Review detected issues.';
-    } else {
-      reply += '🟢 Score is healthy. Continue current strategy and monitor weekly.';
-    }
-    return reply;
-  }
-
-  // Declining results
-  if (/declin|drop|falling|results.*down|getting worse/.test(msg)) {
-    const hasDeclining = issues.some(i => i.code === 'DECLINING_RESULTS');
-    let reply = `**Declining Results Analysis for ${ws.name}**\n\n`;
-    if (hasDeclining) {
-      const issue = issues.find(i => i.code === 'DECLINING_RESULTS');
-      reply += '⚠️ Declining results detected in your campaign data.\n\n';
-      if (issue?.causes?.length) reply += '**Root causes:**\n' + issue.causes.map(c => `- ${c}`).join('\n') + '\n\n';
-      if (issue?.recommendations?.length) reply += '**Recommended actions:**\n' + issue.recommendations.map(r => `- ${r}`).join('\n');
-    } else {
-      reply += 'No actively declining results detected in your current data window.\n\n**Monitoring checklist:**\n- Track 7-day vs 14-day result trends weekly\n- Watch for rising CPR (cost per result) as an early signal\n- Compare current week to same week last month\n- Check if seasonality or competition is a factor';
-    }
-    return reply;
-  }
-
-  // Default / general
-  const healthEmoji = h.score >= 70 ? '🟢' : h.score >= 50 ? '🟡' : '🔴';
-  return `Here's a quick overview of **${ws.name}**:\n\n${healthEmoji} **Health Score**: ${h.score}/100 (${h.band})\n📊 **Active Campaigns**: ${ws.activeCampaigns}\n💰 **Spend (30d)**: ${spend?.display ?? '—'}\n📣 **CTR**: ${ctr?.display ?? '—'}\n🔁 **Frequency**: ${freq?.display ?? '—'}\n${issues.length > 0 ? `⚠️ **Issues detected**: ${issues.length}` : '✅ **No issues detected**'}\n\n${rec ? `**Top priority action:** ${rec.text}` : 'No priority actions at this time.'}\n\n---\nAsk me specific questions like:\n- *"Why is CTR dropping?"*\n- *"Is frequency too high?"*\n- *"Which campaign should I scale?"*\n- *"What should I do next?"*`;
 }
 
 // ── Application factory ───────────────────────────────────────────────────
@@ -282,10 +199,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   // ── Middleware ───────────────────────────────────────────────────────────
 
+  // ── CORS — locked to ALLOWED_ORIGINS in production ────────────────────
+  const _allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+
   app.use(
     '*',
     cors({
-      origin: '*',
+      origin: _allowedOrigins.length
+        ? (origin) => (_allowedOrigins.includes(origin) ? origin : null)
+        : '*',
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'Authorization'],
       credentials: true,
@@ -294,12 +217,41 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   app.use('*', logger());
 
+  // ── Security headers ───────────────────────────────────────────────────
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('X-Content-Type-Options',  'nosniff');
+    c.header('X-Frame-Options',         'DENY');
+    c.header('Referrer-Policy',         'strict-origin-when-cross-origin');
+    c.header('Permissions-Policy',      'camera=(), microphone=(), geolocation=()');
+    c.header('X-XSS-Protection',        '0'); // rely on CSP instead
+    // HSTS: only set over HTTPS (Railway sets X-Forwarded-Proto; check proto header)
+    const proto = c.req.header('x-forwarded-proto') ?? '';
+    if (proto === 'https') {
+      c.header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    }
+    c.header(
+      'Content-Security-Policy',
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "font-src 'self' data:; " +
+      "img-src 'self' data: https:; " +
+      "connect-src 'self'; " +
+      "frame-ancestors 'none'; " +
+      "object-src 'none'; " +
+      "base-uri 'self';"
+    );
+  });
+
   // ════════════════════════════════════════════════════════════════════════
   //  WEB UI — server-rendered HTML pages
   // ════════════════════════════════════════════════════════════════════════
 
   app.get('/',               (c) => c.redirect('/dashboard'));
+  app.get('/favicon.ico',    (c) => c.body(null, 204)); // suppress browser 404 noise
   app.get('/login',          (c) => c.html(loginPage()));
+  app.get('/register',       (c) => c.html(registerPage()));
   app.get('/dashboard',      (c) => c.html(dashboardPage()));
   app.get('/campaigns',      (c) => c.html(campaignsPage()));
   app.get('/recommendations',(c) => c.html(recommendationsPage()));
@@ -307,6 +259,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
+
+  // ── Auth helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Verify a JWT bearer token and confirm tokenVersion matches the DB row.
+   * Returns the userId on success, null on any failure (expired, wrong sig,
+   * revoked by password change or logout-all, user deleted).
+   * The DB lookup is intentional — it is the revocation check.
+   */
+  async function getUserId(bearerToken: string | null): Promise<string | null> {
+    if (!bearerToken) return null;
+    const payload = verifyToken(bearerToken);
+    if (!payload) return null;
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { tokenVersion: true },
+    });
+    if (!user || user.tokenVersion !== payload.ver) return null;
+    return payload.sub;
+  }
+
+  /**
+   * Verify that userId is a member of workspaceId.
+   * Returns the WorkspaceMember row, or null if not a member.
+   * Used by every workspace-scoped route to prevent cross-workspace data leakage.
+   */
+  async function checkMember(userId: string, workspaceId: string) {
+    if (!userId || !workspaceId) return null;
+    return prisma.workspaceMember.findFirst({ where: { userId, workspaceId } });
+  }
 
   // ── Shared helper ────────────────────────────────────────────────────────
 
@@ -320,39 +302,60 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  AUTH — minimal dev-time implementation (no JWT library dependency)
-  //  Token format:  base64( userId : email )
-  //  Replace with a real JWT / session strategy before production.
+  //  AUTH — bcrypt passwords, JWT access tokens (7-day TTL + tokenVersion
+  //  revocation), rate-limited login and registration.
   // ════════════════════════════════════════════════════════════════════════
 
   /** POST /api/auth/register — create a new user account. */
   app.post('/api/auth/register', async (c) => {
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (!checkRateLimit(_registerRateMap, clientIp, 5, 60 * 60_000)) {
+      return c.json({ error: 'Too many registration attempts. Please try again later.' }, 429);
+    }
     const body = await c.req.json() as { email?: string; password?: string; name?: string };
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
-    const existing = await prisma.user.findUnique({ where: { email: body.email } });
+    if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    const email = body.email.toLowerCase().trim();
+    const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return c.json({ error: 'Email already in use' }, 409);
-    const passwordHash = createHash('sha256').update(body.password).digest('hex');
+    const passwordHash = await hashPassword(body.password);
     const user = await prisma.user.create({
-      data: { email: body.email, name: body.name ?? body.email.split('@')[0], passwordHash },
+      data: { email, name: body.name ?? email.split('@')[0], passwordHash },
     });
     // Create a default workspace for the new user
     const workspace = await prisma.workspace.create({
       data: {
-        name: `${body.name ?? body.email.split('@')[0]}'s Workspace`,
+        name: `${body.name ?? email.split('@')[0]}'s Workspace`,
         members: { create: { userId: user.id, role: WorkspaceRole.OWNER } },
       },
     });
-    const token = Buffer.from(`${user.id}:${user.email}`).toString('base64');
+    const token = signToken({ sub: user.id, email: user.email, ver: user.tokenVersion });
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name ?? null }, workspaceId: workspace.id }, 201);
   });
 
-  /** POST /api/auth/login — exchange credentials for a token. */
+  /** POST /api/auth/login — exchange credentials for a JWT. */
   app.post('/api/auth/login', async (c) => {
-    const body = await c.req.json() as { email: string; password: string };
-    const passwordHash = createHash('sha256').update(body.password).digest('hex');
-    const user = await prisma.user.findFirst({ where: { email: body.email, passwordHash } });
-    if (!user) return c.json({ error: 'Invalid credentials' }, 401);
-    const token = Buffer.from(`${user.id}:${user.email}`).toString('base64');
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (!checkRateLimit(_loginRateMap, clientIp, 10, 15 * 60_000)) {
+      return c.json({ error: 'Too many login attempts. Please try again in 15 minutes.' }, 429);
+    }
+    const body = await c.req.json() as { email?: string; password?: string };
+    if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
+    const email = body.email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Spend bcrypt time to prevent user-enumeration via timing oracle
+      await hashPassword('dummy-constant-time-guard');
+      return c.json({ error: 'Invalid credentials' }, 401);
+    }
+    const { ok, needsUpgrade } = await verifyPassword(body.password, user.passwordHash);
+    if (!ok) return c.json({ error: 'Invalid credentials' }, 401);
+    // Transparent SHA-256 → bcrypt upgrade on successful login
+    if (needsUpgrade) {
+      const upgraded = await hashPassword(body.password);
+      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: upgraded } });
+    }
+    const token = signToken({ sub: user.id, email: user.email, ver: user.tokenVersion });
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   });
 
@@ -360,15 +363,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/auth/me', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    let userId: string;
-    try {
-      const decoded = Buffer.from(req.bearerToken, 'base64').toString('utf8');
-      userId = decoded.split(':')[0] ?? '';
-    } catch {
-      return c.json({ error: 'Invalid token' }, 401);
-    }
+    const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
-    const user = await prisma.user.findUniqueOrThrow({
+    // findUnique (not OrThrow) — deleted users return null → 401, not 500
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true, email: true, name: true, locale: true, createdAt: true,
@@ -378,18 +376,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         },
       },
     });
-    return c.json(user);
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+    return c.json(safeJson(user));
   });
 
   /** PATCH /api/auth/profile — update display name. */
   app.patch('/api/auth/profile', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    let userId: string;
-    try {
-      const decoded = Buffer.from(req.bearerToken, 'base64').toString('utf8');
-      userId = decoded.split(':')[0] ?? '';
-    } catch { return c.json({ error: 'Invalid token' }, 401); }
+    const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     const body = req.body as { name?: string };
     if (!body.name?.trim()) return c.json({ error: 'Name is required' }, 400);
@@ -398,40 +393,118 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       data: { name: body.name.trim() },
       select: { id: true, name: true, email: true },
     });
-    return c.json(user);
+    return c.json(safeJson(user));
   });
 
   /** POST /api/auth/password — change password (requires current password). */
   app.post('/api/auth/password', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    let userId: string;
-    try {
-      const decoded = Buffer.from(req.bearerToken, 'base64').toString('utf8');
-      userId = decoded.split(':')[0] ?? '';
-    } catch { return c.json({ error: 'Invalid token' }, 401); }
+    const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     const body = req.body as { currentPassword?: string; newPassword?: string };
     if (!body.currentPassword || !body.newPassword) return c.json({ error: 'Both passwords are required' }, 400);
     if (body.newPassword.length < 8) return c.json({ error: 'New password must be at least 8 characters' }, 400);
-    const currentHash = createHash('sha256').update(body.currentPassword).digest('hex');
-    const user = await prisma.user.findFirst({ where: { id: userId, passwordHash: currentHash } });
-    if (!user) return c.json({ error: 'Current password is incorrect' }, 403);
-    const newHash = createHash('sha256').update(body.newPassword).digest('hex');
-    await prisma.user.update({ where: { id: userId }, data: { passwordHash: newHash } });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+    const { ok } = await verifyPassword(body.currentPassword, user.passwordHash);
+    if (!ok) return c.json({ error: 'Current password is incorrect' }, 403);
+    const newHash = await hashPassword(body.newPassword);
+    // Increment tokenVersion to revoke all existing sessions (logout all devices)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash, tokenVersion: { increment: 1 } },
+    });
     return c.json({ success: true });
+  });
+
+  /** POST /api/auth/logout-all — revoke all sessions by incrementing tokenVersion. */
+  app.post('/api/auth/logout-all', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    return c.json({ success: true });
+  });
+
+  /** GET /api/auth/export — GDPR data export for the authenticated user. */
+  app.get('/api/auth/export', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true, email: true, name: true, locale: true,
+        createdAt: true, updatedAt: true,
+        memberships: {
+          include: {
+            workspace: {
+              select: {
+                id: true, name: true, plan: true, createdAt: true,
+                adAccounts: {
+                  select: { id: true, name: true, platform: true, currency: true, createdAt: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+    c.header('Content-Disposition', `attachment; filename="adlytic-export-${userId}.json"`);
+    return c.json({ exportedAt: new Date().toISOString(), user });
   });
 
   /** DELETE /api/auth/account — permanently delete the authenticated user. */
   app.delete('/api/auth/account', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    let userId: string;
-    try {
-      const decoded = Buffer.from(req.bearerToken, 'base64').toString('utf8');
-      userId = decoded.split(':')[0] ?? '';
-    } catch { return c.json({ error: 'Invalid token' }, 401); }
+    const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    // Find workspaces where this user is the only OWNER — these become orphaned on deletion
+    const ownedMemberships = await prisma.workspaceMember.findMany({
+      where: { userId, role: WorkspaceRole.OWNER },
+      select: { workspaceId: true },
+    });
+
+    for (const m of ownedMemberships) {
+      const ownerCount = await prisma.workspaceMember.count({
+        where: { workspaceId: m.workspaceId, role: WorkspaceRole.OWNER },
+      });
+      if (ownerCount <= 1) {
+        // Clean up analytics data (no FK cascade on entityId-based tables)
+        const accounts = await prisma.adAccount.findMany({
+          where: { workspaceId: m.workspaceId },
+          select: { id: true },
+        });
+        for (const acct of accounts) {
+          const campaignIds = await prisma.campaign.findMany({
+            where: { adAccountId: acct.id },
+            select: { id: true },
+          }).then(cs => cs.map(c => c.id));
+          await prisma.$transaction([
+            prisma.rawInsight.deleteMany({     where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
+            prisma.dailyStat.deleteMany({      where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
+            prisma.metricTrend.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
+            prisma.detectedIssue.deleteMany({  where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
+            prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
+            prisma.healthScore.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
+            ...(campaignIds.length ? [
+              prisma.dailyStat.deleteMany({   where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+              prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+            ] : []),
+          ]);
+        }
+        await prisma.workspace.delete({ where: { id: m.workspaceId } });
+      }
+    }
+
     await prisma.user.delete({ where: { id: userId } });
     return c.json({ success: true });
   });
@@ -440,15 +513,27 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   //  HEALTH
   // ════════════════════════════════════════════════════════════════════════
 
-  /** GET /api/health — process liveness. */
-  app.get('/api/health', (c) =>
-    c.json({
-      status: 'ok',
-      service: 'adlytic',
-      version: '0.1.0',
-      timestamp: new Date().toISOString(),
-    })
-  );
+  /** GET /api/health — process liveness + DB readiness. */
+  app.get('/api/health', async (c) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return c.json({
+        status: 'ok',
+        service: 'adlytic',
+        version: '0.1.0',
+        timestamp: new Date().toISOString(),
+        db: 'ok',
+      });
+    } catch {
+      return c.json({
+        status: 'degraded',
+        service: 'adlytic',
+        version: '0.1.0',
+        timestamp: new Date().toISOString(),
+        db: 'unavailable',
+      }, 503);
+    }
+  });
 
   // ════════════════════════════════════════════════════════════════════════
   //  DASHBOARD — existing getDashboard service
@@ -460,8 +545,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const workspaceId = req.params['workspaceId'];
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
     try {
-      const dto = await getDashboard(workspaceId);
+      const dto = await getDashboard(workspaceId, { prisma });
       return c.json(dto);
     } catch (e: any) {
       if (e?.message?.includes('no ad account') || e?.code === 'P2025') {
@@ -479,6 +568,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const member = await checkMember(userId, req.params['workspaceId']);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
     const ws = await prisma.workspace.findUniqueOrThrow({
       where: { id: req.params['workspaceId'] },
       include: {
@@ -488,13 +581,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         },
       },
     });
-    return c.json(ws);
+    return c.json(safeJson(ws));
   });
 
   /** PATCH /api/workspaces/:workspaceId — update workspace name / industry. */
   app.patch('/api/workspaces/:workspaceId', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const member = await checkMember(userId, req.params['workspaceId']);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
+    if (member.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { name?: string; industryProfileId?: string | null };
     const ws = await prisma.workspace.update({
       where: { id: req.params['workspaceId'] },
@@ -514,17 +612,26 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/members', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const member = await checkMember(userId, req.params['workspaceId']);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
     const members = await prisma.workspaceMember.findMany({
       where: { workspaceId: req.params['workspaceId'] },
       include: { user: { select: { id: true, email: true, name: true } } },
     });
-    return c.json(members);
+    return c.json(safeJson(members));
   });
 
   /** POST /api/workspaces/:workspaceId/members — add a user by userId. */
   app.post('/api/workspaces/:workspaceId/members', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const callerId = await getUserId(req.bearerToken);
+    if (!callerId) return c.json({ error: 'Invalid token' }, 401);
+    const callerMs = await checkMember(callerId, req.params['workspaceId']);
+    if (!callerMs) return c.json({ error: 'Access denied' }, 403);
+    if (callerMs.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { userId: string; role?: string };
     const role: WorkspaceRole =
       body.role === 'OWNER' ? WorkspaceRole.OWNER
@@ -534,13 +641,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       data: { workspaceId: req.params['workspaceId'], userId: body.userId, role },
       include: { user: { select: { id: true, email: true, name: true } } },
     });
-    return c.json(member, 201);
+    return c.json(safeJson(member), 201);
   });
 
   /** POST /api/workspaces/:workspaceId/members/invite — add a user by email. */
   app.post('/api/workspaces/:workspaceId/members/invite', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const callerId = await getUserId(req.bearerToken);
+    if (!callerId) return c.json({ error: 'Invalid token' }, 401);
+    const callerMs = await checkMember(callerId, req.params['workspaceId']);
+    if (!callerMs) return c.json({ error: 'Access denied' }, 403);
+    if (callerMs.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { email: string; role?: string };
     if (!body.email?.trim()) return c.json({ error: 'Email is required' }, 400);
     const user = await prisma.user.findUnique({ where: { email: body.email.toLowerCase().trim() } });
@@ -557,30 +669,62 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       data: { workspaceId: req.params['workspaceId'], userId: user.id, role },
       include: { user: { select: { id: true, email: true, name: true } } },
     });
-    return c.json(member, 201);
+    return c.json(safeJson(member), 201);
   });
 
   /** PATCH /api/workspaces/:workspaceId/members/:memberId — change role. */
   app.patch('/api/workspaces/:workspaceId/members/:memberId', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const callerMembership = await checkMember(userId, req.params['workspaceId']);
+    if (!callerMembership) return c.json({ error: 'Access denied' }, 403);
+    if (callerMembership.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { role?: string };
     const role: WorkspaceRole =
       body.role === 'OWNER' ? WorkspaceRole.OWNER
       : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
       : WorkspaceRole.VIEWER;
+    // Verify the target memberId actually belongs to this workspace (scope check)
+    const target = await prisma.workspaceMember.findFirst({
+      where: { id: req.params['memberId'], workspaceId: req.params['workspaceId'] },
+    });
+    if (!target) return c.json({ error: 'Member not found' }, 404);
     const member = await prisma.workspaceMember.update({
       where: { id: req.params['memberId'] },
       data: { role },
       include: { user: { select: { id: true, email: true, name: true } } },
     });
-    return c.json(member);
+    return c.json(safeJson(member));
   });
 
   /** DELETE /api/workspaces/:workspaceId/members/:memberId — remove member. */
   app.delete('/api/workspaces/:workspaceId/members/:memberId', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const callerMembership = await checkMember(userId, req.params['workspaceId']);
+    if (!callerMembership) return c.json({ error: 'Access denied' }, 403);
+    // Verify the target memberId belongs to this workspace (scope check + self-remove allowed)
+    const target = await prisma.workspaceMember.findFirst({
+      where: { id: req.params['memberId'], workspaceId: req.params['workspaceId'] },
+    });
+    if (!target) return c.json({ error: 'Member not found' }, 404);
+    // Only OWNER/MANAGER can remove others; anyone can remove themselves
+    if (target.userId !== userId && callerMembership.role === 'VIEWER') {
+      return c.json({ error: 'Insufficient permissions' }, 403);
+    }
+    // Prevent removal of the last OWNER — workspace would become unmanageable
+    if (target.role === WorkspaceRole.OWNER) {
+      const ownerCount = await prisma.workspaceMember.count({
+        where: { workspaceId: req.params['workspaceId'], role: WorkspaceRole.OWNER },
+      });
+      if (ownerCount <= 1) {
+        return c.json({ error: 'Cannot remove the last owner of a workspace' }, 400);
+      }
+    }
     await prisma.workspaceMember.delete({ where: { id: req.params['memberId'] } });
     return c.json({ success: true });
   });
@@ -593,6 +737,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/campaigns', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const campaigns = await prisma.campaign.findMany({
@@ -606,8 +753,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/campaigns/:campaignId', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    const campaign = await prisma.campaign.findUniqueOrThrow({
-      where: { id: req.params['campaignId'] },
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
+    const campaign = await prisma.campaign.findFirstOrThrow({
+      where: { id: req.params['campaignId'], adAccountId: account.id },
       include: { adSets: { include: { ads: true } } },
     });
     return c.json(safeJson(campaign));
@@ -621,6 +773,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/campaigns/:campaignId/adsets', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json([]);
+    const ownerCampaign = await prisma.campaign.findFirst({
+      where: { id: req.params['campaignId'], adAccountId: account.id },
+    });
+    if (!ownerCampaign) return c.json([]);
     const adSets = await prisma.adSet.findMany({
       where: { campaignId: req.params['campaignId'] },
       orderBy: { createdAt: 'desc' },
@@ -632,10 +793,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/adsets/:adSetId', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
     const adSet = await prisma.adSet.findUniqueOrThrow({
       where: { id: req.params['adSetId'] },
-      include: { ads: true },
+      include: { campaign: { select: { adAccountId: true } }, ads: true },
     });
+    if (adSet.campaign.adAccountId !== account.id) return c.json({ error: 'Not found' }, 404);
     return c.json(safeJson(adSet));
   });
 
@@ -647,6 +814,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/adsets/:adSetId/ads', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json([]);
+    const ownerAdSet = await prisma.adSet.findUnique({
+      where: { id: req.params['adSetId'] },
+      include: { campaign: { select: { adAccountId: true } } },
+    });
+    if (!ownerAdSet || ownerAdSet.campaign.adAccountId !== account.id) return c.json([]);
     const ads = await prisma.ad.findMany({
       where: { adSetId: req.params['adSetId'] },
       orderBy: { createdAt: 'desc' },
@@ -658,9 +835,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/ads/:adId', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
     const ad = await prisma.ad.findUniqueOrThrow({
       where: { id: req.params['adId'] },
+      include: { adSet: { include: { campaign: { select: { adAccountId: true } } } } },
     });
+    if (ad.adSet.campaign.adAccountId !== account.id) return c.json({ error: 'Not found' }, 404);
     return c.json(safeJson(ad));
   });
 
@@ -672,6 +856,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/insights', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const days = Math.min(Number(req.query['days'] ?? '30'), 90);
@@ -687,6 +874,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/insights/trends', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const trends = await prisma.metricTrend.findMany({
@@ -705,6 +895,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/recommendations', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const recs = await prisma.recommendation.findMany({
@@ -718,6 +911,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/api/workspaces/:workspaceId/issues', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const issues = await prisma.detectedIssue.findMany({
@@ -741,6 +937,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const { workspaceId } = req.params;
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
     const body = req.body as { message?: string };
     const message = (body.message ?? '').trim().toLowerCase();
@@ -748,9 +947,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     // Load live data for context
     let dto: Awaited<ReturnType<typeof getDashboard>> | null = null;
-    try { dto = await getDashboard(workspaceId); } catch { /* no data */ }
+    try { dto = await getDashboard(workspaceId, { prisma }); } catch (err) {
+      console.error('[adlytic:ai-chat] getDashboard error:', err);
+    }
 
-    const reply = generateAiReply(message, dto);
+    let reply: string;
+    try {
+      const context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      reply = await askClaude(context);
+    } catch (err) {
+      console.error('[adlytic:ai-chat] Claude API error:', err);
+      reply = 'Sorry, the AI assistant is temporarily unavailable. Please try again in a moment.';
+    }
     return c.json({ reply });
   });
 
@@ -772,17 +980,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
 
     // Resolve userId from bearer token
-    let userId: string;
-    try {
-      userId = Buffer.from(req.bearerToken, 'base64').toString('utf8').split(':')[0] ?? '';
-    } catch { return c.json({ error: 'Invalid token' }, 401); }
+    const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
 
     const oauth = buildMetaOAuth();
     if (!oauth) return c.json({ configured: false, message: 'Meta OAuth is not configured on this server. Use manual token entry.' });
 
     pruneOAuth();
-    const state = createHash('sha256').update(`${userId}${workspaceId}${Date.now()}${Math.random()}`).digest('hex');
+    const state = (await import('node:crypto')).randomBytes(32).toString('hex');
     oauthStates.set(state, { workspaceId, userId, expiresAt: Date.now() + 10 * 60_000 });
 
     return c.json({ url: oauth.getAuthorizationUrl(state), configured: true });
@@ -824,7 +1030,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       const accounts = await oauth.getAdAccounts(longToken);
 
       // Store in session
-      const sessionId = createHash('sha256').update(`${stored.userId}${Date.now()}${Math.random()}`).digest('hex');
+      const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
       oauthSessions.set(sessionId, {
         workspaceId:  stored.workspaceId,
         userId:       stored.userId,
@@ -846,10 +1052,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    * GET /api/meta/oauth/accounts/:sessionId
    * Returns the ad accounts retrieved during the OAuth flow.
    */
-  app.get('/api/meta/oauth/accounts/:sessionId', (c) => {
+  app.get('/api/meta/oauth/accounts/:sessionId', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
     pruneOAuth();
     const session = oauthSessions.get(c.req.param('sessionId'));
     if (!session) return c.json({ error: 'Session not found or expired. Please reconnect.' }, 404);
+    if (session.userId !== userId) return c.json({ error: 'Forbidden' }, 403);
     return c.json({ accounts: session.accounts, workspaceId: session.workspaceId });
   });
 
@@ -862,6 +1073,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.post('/api/meta/oauth/connect', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const body = req.body as { sessionId?: string; externalAccountId?: string; workspaceId?: string };
     const { sessionId, externalAccountId, workspaceId } = body;
@@ -869,16 +1082,23 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return c.json({ error: 'sessionId, externalAccountId, and workspaceId are required' }, 400);
     }
 
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Forbidden' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Forbidden' }, 403);
+
     pruneOAuth();
     const session = oauthSessions.get(sessionId);
     if (!session) return c.json({ error: 'Session not found or expired. Please reconnect.' }, 404);
     if (session.workspaceId !== workspaceId) return c.json({ error: 'Workspace mismatch' }, 403);
+    if (session.userId !== userId) return c.json({ error: 'Session does not belong to you' }, 403);
 
     const account = session.accounts.find(a => a.id === externalAccountId);
     if (!account) return c.json({ error: 'Account not found in session' }, 404);
 
     const encryptedToken = encryptToken(session.accessToken);
     const apiVersion     = process.env['META_API_VERSION'] ?? 'v20.0';
+    const timezone       = account.timezone_name ?? 'UTC';
+    const countryCode    = tzToCountry(account.timezone_name);
 
     // Upsert the ad account (unique on platform + externalAccountId)
     const existing = await prisma.adAccount.findFirst({
@@ -893,7 +1113,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           tokenExpiresAt:       session.expiresAt,
           name:                 account.name,
           currency:             account.currency,
-          timezone:             account.timezone_name ?? 'UTC',
+          timezone,
+          countryCode,
           workspaceId,
           status:               'ACTIVE',
         },
@@ -906,8 +1127,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           externalAccountId:    account.id,
           name:                 account.name,
           currency:             account.currency,
-          currencyMinorFactor:  1,
-          timezone:             account.timezone_name ?? 'UTC',
+          // IQD has no practical minor unit (1 IQD = 1 IQD minor).
+          // All other major currencies (USD, EUR, GBP, AED, SAR, …) use 100.
+          currencyMinorFactor:  account.currency === 'IQD' ? 1 : 100,
+          timezone,
+          countryCode,
           status:               'ACTIVE',
           accessTokenEncrypted: encryptedToken,
           tokenExpiresAt:       session.expiresAt,
@@ -949,6 +1173,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const workspaceId = req.params['workspaceId'];
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as {
       externalAccountId?: string; name?: string;
       currency?: string; timezone?: string; accessToken?: string;
@@ -961,9 +1190,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       : `act_${body.externalAccountId}`;
 
     // Validate the token against Meta API before saving — fail fast with a clear error.
+    // Also pull timezone_name here so we can derive countryCode without user input.
     const apiVersion = process.env['META_API_VERSION'] ?? 'v20.0';
+    let metaTimezone: string | null = null;
     try {
-      const testUrl = `https://graph.facebook.com/${apiVersion}/${extId}?fields=id,name,currency,account_status&access_token=${encodeURIComponent(body.accessToken)}`;
+      const testUrl = `https://graph.facebook.com/${encodeURIComponent(apiVersion)}/${encodeURIComponent(extId)}?fields=id,name,currency,timezone_name,account_status&access_token=${encodeURIComponent(body.accessToken)}`;
       const testRes = await fetch(testUrl);
       const testData = await testRes.json() as Record<string, unknown>;
       if (testData['error']) {
@@ -973,34 +1204,45 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       if (!testData['id']) {
         return c.json({ error: 'Meta API returned no account data — check your account ID and token' }, 422);
       }
-      // Use the verified name/currency from Meta if user left them blank
+      // Use the verified name/currency/timezone from Meta if user left them blank
       if (!body.name && testData['name']) body.name = String(testData['name']);
       if (!body.currency && testData['currency']) body.currency = String(testData['currency']);
+      if (testData['timezone_name']) metaTimezone = String(testData['timezone_name']);
     } catch (fetchErr) {
       // Network error — don't block connection, just log
       console.warn('[adlytic:manual-connect] Could not verify token with Meta:', fetchErr);
     }
 
-    const encryptedToken = encryptToken(body.accessToken);
+    const resolvedTimezone = metaTimezone ?? body.timezone ?? 'UTC';
+    const countryCode      = tzToCountry(resolvedTimezone);
+    const encryptedToken   = encryptToken(body.accessToken);
     const existing = await prisma.adAccount.findFirst({
       where: { platform: 'META', externalAccountId: extId },
     });
     if (existing) {
       await prisma.adAccount.update({
         where: { id: existing.id },
-        data: { accessTokenEncrypted: encryptedToken, workspaceId, name: body.name ?? existing.name },
+        data: {
+          accessTokenEncrypted: encryptedToken,
+          workspaceId,
+          name:        body.name ?? existing.name,
+          timezone:    resolvedTimezone,
+          countryCode,
+        },
       });
       return c.json({ success: true, id: existing.id });
     }
+    const resolvedCurrency = body.currency ?? 'USD';
     const acct = await prisma.adAccount.create({
       data: {
         workspaceId,
         platform:             'META',
         externalAccountId:    extId,
         name:                 body.name ?? extId,
-        currency:             body.currency ?? 'USD',
-        currencyMinorFactor:  1,
-        timezone:             body.timezone ?? 'UTC',
+        currency:             resolvedCurrency,
+        currencyMinorFactor:  resolvedCurrency === 'IQD' ? 1 : 100,
+        timezone:             resolvedTimezone,
+        countryCode,
         status:               'ACTIVE',
         accessTokenEncrypted: encryptedToken,
       },
@@ -1016,8 +1258,40 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const { workspaceId, accountId } = req.params as Record<string, string>;
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const acct = await prisma.adAccount.findFirst({ where: { id: accountId, workspaceId } });
     if (!acct) return c.json({ error: 'Account not found' }, 404);
+
+    // Collect campaign IDs for analytics cleanup (analytics tables have no FK to campaigns)
+    const campaignRecords = await prisma.campaign.findMany({
+      where: { adAccountId: accountId },
+      select: { id: true },
+    });
+    const campaignIds = campaignRecords.map(c => c.id);
+
+    // Clean up orphaned analytics rows that reference this account by entityId.
+    // raw_insights, daily_stats, metric_trends, detected_issues, recommendations,
+    // and health_scores store entityId as a plain String (no FK) so they are NOT
+    // covered by Prisma's cascade delete. Remove them explicitly before deleting
+    // the account to prevent data leakage and satisfy GDPR right-to-erasure.
+    await prisma.$transaction([
+      prisma.rawInsight.deleteMany({     where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
+      prisma.dailyStat.deleteMany({      where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
+      prisma.metricTrend.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
+      prisma.detectedIssue.deleteMany({  where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
+      prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
+      prisma.healthScore.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
+      // Campaign-level analytics rows (no FK cascade — must delete explicitly)
+      ...(campaignIds.length ? [
+        prisma.dailyStat.deleteMany({   where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+        prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+      ] : []),
+    ]);
+
     await prisma.adAccount.delete({ where: { id: accountId } });
     return c.json({ success: true });
   });
@@ -1034,6 +1308,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.post('/api/workspaces/:workspaceId/sync', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const wsm = await checkMember(userId, req.params['workspaceId']);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions — only Owners and Managers can trigger sync' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json({ error: 'No ad account found for this workspace' }, 404);
     if (!account.accessTokenEncrypted) {
@@ -1084,11 +1363,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   app.onError((err, c) => {
     console.error('[adlytic:error]', err);
+    // Prisma P2025 = record not found (findUniqueOrThrow / updateOrThrow)
+    // Return 404 instead of 500 to avoid leaking internal error details.
+    if ((err as any)?.code === 'P2025') {
+      return c.json({ error: 'Not found' }, 404);
+    }
     return c.json(
-      {
-        error: 'Internal server error',
-        message: err instanceof Error ? err.message : String(err),
-      },
+      { error: 'Internal server error' },
       500
     );
   });

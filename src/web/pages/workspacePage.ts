@@ -145,12 +145,16 @@ export function workspacePage(): string {
 
   const scripts = `<script>
 (async () => {
+  console.log('[WS:1] script started');
   const token = localStorage.getItem('adlytic_token');
-  if (!token) { window.location.href = '/login'; return; }
+  if (!token) { console.log('[WS:1a] no token → redirect /login'); window.location.href = '/login'; return; }
   const wsId = localStorage.getItem('adlytic_workspace_id');
-  if (!wsId) { window.location.href = '/dashboard'; return; }
+  if (!wsId) { console.log('[WS:1b] no wsId → redirect /dashboard'); window.location.href = '/dashboard'; return; }
+  console.log('[WS:2] token OK, wsId =', wsId);
 
+  console.log('[WS:3] fetching /api/auth/me ...');
   const me = await apiFetch('/api/auth/me');
+  console.log('[WS:4] /api/auth/me result:', me ? 'OK (user=' + (me.email||'?') + ')' : 'NULL (401 → logout)');
   if (!me) return;
   document.getElementById('user-name').textContent  = me.name || me.email;
   document.getElementById('user-email').textContent = me.email;
@@ -159,16 +163,24 @@ export function workspacePage(): string {
   document.getElementById('ws-name').textContent = myMembership?.workspace?.name || 'Workspace';
   const myRole = myMembership?.role || 'VIEWER';
   const canManage = myRole === 'OWNER' || myRole === 'MANAGER';
+  console.log('[WS:5] membership found:', !!myMembership, '| role:', myRole);
 
   async function loadWorkspace() {
+    console.log('[WS:6] loadWorkspace() — fetching /api/workspaces/' + wsId + ' ...');
     const ws = await apiFetch('/api/workspaces/' + wsId);
-    if (!ws) return;
-
+    console.log('[WS:7] workspace fetch result:', ws ? 'OK (adAccounts=' + (ws.adAccounts?.length ?? 0) + ')' : 'NULL');
     document.getElementById('ws-info-loading').style.display = 'none';
+    if (!ws) {
+      console.log('[WS:7a] ws null — clearing ad-accounts-container');
+      document.getElementById('ad-accounts-container').innerHTML =
+        '<div class="empty-state" style="padding:24px;"><div class="empty-title">Could not load accounts</div></div>';
+      return;
+    }
     document.getElementById('ws-info-form').style.display = 'block';
     document.getElementById('ws-name-input').value  = ws.name || '';
     document.getElementById('ws-plan-input').value  = ws.plan || 'free';
     document.getElementById('ws-id-input').value    = ws.id || '';
+    console.log('[WS:8] ws-info-form populated');
 
     // Ad accounts
     const accs = ws.adAccounts || [];
@@ -184,7 +196,10 @@ export function workspacePage(): string {
               \${a.lastSyncedAt ? 'Synced ' + new Date(a.lastSyncedAt).toLocaleDateString() : 'Never synced'}
             </div>
             <span class="badge \${a.status==='ACTIVE'?'badge-green':'badge-gray'}" style="margin-right:8px;">\${a.status}</span>
-            <button class="btn btn-ghost btn-sm sync-now-btn" data-aid="\${a.id}" title="Sync now">↻ Sync</button>
+            \${a.status === 'ACTIVE'
+              ? \`<button class="btn btn-ghost btn-sm sync-now-btn" data-aid="\${a.id}" title="Sync now">↻ Sync</button>\`
+              : \`<button class="btn btn-primary btn-sm" style="font-size:12px;" onclick="document.getElementById('connect-meta-btn').click()" title="Token expired — reconnect">⚠ Reconnect</button>\`
+            }
             <button class="btn btn-danger btn-sm disconnect-btn" data-aid="\${a.id}" data-name="\${a.name}" title="Disconnect">✕</button>
           </div>\`).join('')
       : \`<div class="empty-state" style="padding:32px;">
@@ -193,6 +208,8 @@ export function workspacePage(): string {
            <div class="empty-text">Connect your Meta Ads account to start syncing campaign data and get AI-powered insights.</div>
            <button class="btn btn-primary" style="margin-top:16px;" onclick="document.getElementById('connect-meta-btn').click()">Connect Meta Ads</button>
          </div>\`;
+
+    console.log('[WS:9] ad-accounts-container rendered (accs=' + accs.length + ')');
 
     // Sync now buttons
     document.querySelectorAll('.sync-now-btn').forEach(btn => {
@@ -229,13 +246,22 @@ export function workspacePage(): string {
   }
 
   async function loadMembers() {
+    console.log('[WS:10] loadMembers() — fetching /api/workspaces/' + wsId + '/members ...');
     const members = await apiFetch('/api/workspaces/' + wsId + '/members');
-    if (!members) return;
+    console.log('[WS:11] members fetch result:', members ? 'OK (count=' + members.length + ')' : 'NULL');
+    if (!members) {
+      console.log('[WS:11a] members null — clearing members-container');
+      document.getElementById('members-container').innerHTML =
+        '<div class="empty-state" style="padding:24px;"><div class="empty-title">Could not load members</div></div>';
+      return;
+    }
     if (!members.length) {
+      console.log('[WS:11b] members empty array — showing empty state');
       document.getElementById('members-container').innerHTML =
         '<div class="empty-state" style="padding:24px;"><div class="empty-title">No members</div></div>';
       return;
     }
+    console.log('[WS:12] rendering members table (' + members.length + ' rows)');
     document.getElementById('members-container').innerHTML = \`
       <table>
         <thead><tr>
@@ -436,7 +462,21 @@ export function workspacePage(): string {
     window.history.replaceState({}, '', '/workspace');
   }
 
-  await Promise.all([loadWorkspace(), loadMembers()]);
+  console.log('[WS:13] firing Promise.all([loadWorkspace, loadMembers])');
+  try {
+    await Promise.all([loadWorkspace(), loadMembers()]);
+    console.log('[WS:14] Promise.all resolved — both loads complete');
+  } catch(e) {
+    console.error('[WS:CATCH] Promise.all threw:', (e as Error).message);
+    document.getElementById('ws-info-loading').style.display = 'none';
+    const errHtml = '<div class="empty-state" style="padding:24px;"><div class="empty-title">Failed to load</div></div>';
+    const ac = document.getElementById('ad-accounts-container');
+    const mc = document.getElementById('members-container');
+    if (ac && ac.querySelector('.loading-overlay')) { console.log('[WS:CATCH] clearing ad-accounts-container'); ac.innerHTML = errHtml; }
+    if (mc && mc.querySelector('.loading-overlay')) { console.log('[WS:CATCH] clearing members-container'); mc.innerHTML = errHtml; }
+    toast((e as Error).message || 'Failed to load workspace', 'error');
+  }
+  console.log('[WS:15] IIFE complete');
 })();
 </script>`;
 

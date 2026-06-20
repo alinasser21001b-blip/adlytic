@@ -239,9 +239,13 @@ export function settingsPage(): string {
     }
   });
 
-  // Sign out all
-  document.getElementById('signout-all-btn').addEventListener('click', () => {
-    toast('All other sessions have been invalidated.', 'success');
+  // Sign out all — calls logout-all API to invalidate every outstanding JWT
+  document.getElementById('signout-all-btn').addEventListener('click', async () => {
+    if (!confirm('This will sign you out of all other devices. You will stay signed in here.')) return;
+    try {
+      await apiFetch('/api/auth/logout-all', { method: 'POST' });
+      toast('All other sessions have been signed out.', 'success');
+    } catch(e) { toast(e.message || 'Failed to sign out other sessions', 'error'); }
   });
 
   // Notifications save
@@ -249,17 +253,19 @@ export function settingsPage(): string {
     toast('Notification preferences saved.', 'success');
   });
 
-  // Export
+  // Export — calls server-side GDPR export endpoint
   document.getElementById('export-btn').addEventListener('click', async () => {
     try {
-      const data = { user: me, exportedAt: new Date().toISOString() };
-      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const tk = localStorage.getItem('adlytic_token');
+      const res = await fetch('/api/auth/export', { headers: { 'Authorization': 'Bearer ' + tk } });
+      if (!res.ok) throw new Error('Export failed (' + res.status + ')');
+      const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = 'adlytic-export.json'; a.click();
       URL.revokeObjectURL(url);
       toast('Data export downloaded.', 'success');
-    } catch(e) { toast('Export failed', 'error'); }
+    } catch(e) { toast(e.message || 'Export failed', 'error'); }
   });
 
   // Delete account

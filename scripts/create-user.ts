@@ -32,6 +32,8 @@ import { createHash }     from 'node:crypto';
 import { Writable }       from 'node:stream';
 import { createInterface } from 'node:readline/promises';
 import { PrismaClient }   from '@prisma/client';
+import { PrismaPg }       from '@prisma/adapter-pg';
+import pg                 from 'pg';
 
 // ── ANSI colour constants ─────────────────────────────────────────────────────
 
@@ -213,7 +215,17 @@ async function main(): Promise<void> {
 
   step(2, 'Connecting to database …');
 
-  const prisma = new PrismaClient();
+  const parsed  = new URL(dbUrl);
+  const pool    = new pg.Pool({
+    host:     parsed.hostname,
+    port:     Number(parsed.port) || 5432,
+    user:     decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.replace(/^\//, ''),
+    ssl:      { rejectUnauthorized: false },
+  });
+  const adapter = new PrismaPg(pool);
+  const prisma  = new PrismaClient({ adapter });
 
   try {
     await prisma.$connect();

@@ -14,6 +14,7 @@ model User {
   passwordHash String            @map("password_hash")
   name         String
   locale       Locale            @default(EN)
+  tokenVersion Int               @default(0) @map("token_version")
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
   memberships  WorkspaceMember[]
@@ -60,6 +61,7 @@ model AdAccount {
   currencyMinorFactor  Int          @default(100) @map("currency_minor_factor")
   timezone             String       @default("UTC")
   status               EntityStatus @default(ACTIVE)
+  countryCode          String?      @map("country_code") @db.VarChar(2)
   accessTokenEncrypted String?      @map("access_token_encrypted")
   tokenExpiresAt       DateTime?    @map("token_expires_at")
   lastSyncedAt         DateTime?    @map("last_synced_at")
@@ -192,6 +194,7 @@ model DetectedIssue {
   evidenceJson Json       @map("evidence_json")
   createdAt    DateTime   @default(now()) @map("created_at")
 
+  @@unique([entityType, entityId, date, issueCode])
   @@index([entityType, entityId, date])
   @@index([issueCode])
   @@map("detected_issues")
@@ -225,6 +228,7 @@ model Recommendation {
   detailsJson      Json?                  @map("details_json")
   createdAt        DateTime               @default(now()) @map("created_at")
 
+  @@unique([entityType, entityId, date, actionCode])
   @@index([entityType, entityId, date])
   @@index([priority])
   @@map("recommendations")
@@ -243,6 +247,76 @@ model HealthScore {
   @@unique([entityType, entityId, date, algorithmVersion])
   @@index([entityId, date])
   @@map("health_scores")
+}
+
+// ── V5 Intelligence Tables (Strangler Fig Phase 1 — shadow write only) ────
+
+model CampaignIntelligenceReport {
+  id          String   @id @default(uuid())
+  adAccountId String   @map("ad_account_id")
+  date        DateTime @db.Date
+  healthScore Float    @map("health_score")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  signals         CampaignSignal[]
+  issues          CampaignIssue[]
+  recommendations CampaignRecommendation[]
+
+  @@unique([adAccountId, date])
+  @@index([adAccountId, date])
+  @@map("campaign_intelligence_reports")
+}
+
+model CampaignSignal {
+  id           String   @id @default(uuid())
+  reportId     String   @map("report_id")
+  entityId     String   @map("entity_id")
+  signalType   String   @map("signal_type")
+  signalValue  Float    @map("signal_value")
+  signalWeight Float    @map("signal_weight")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  report CampaignIntelligenceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([entityId])
+  @@index([signalType])
+  @@map("campaign_signals")
+}
+
+model CampaignIssue {
+  id        String   @id @default(uuid())
+  reportId  String   @map("report_id")
+  entityId  String   @map("entity_id")
+  issueCode String   @map("issue_code")
+  severity  String
+  strength  Float
+  evidence  String[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  report CampaignIntelligenceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([entityId])
+  @@map("campaign_issues")
+}
+
+model CampaignRecommendation {
+  id         String   @id @default(uuid())
+  reportId   String   @map("report_id")
+  entityId   String   @map("entity_id")
+  actionCode String   @map("action_code")
+  priority   String
+  strength   Float
+  text       String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  report CampaignIntelligenceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([entityId])
+  @@map("campaign_recommendations")
 }
 
 model IndustryProfile {

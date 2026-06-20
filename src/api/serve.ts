@@ -20,14 +20,26 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import { buildRoutes, ROUTE_COUNT } from './server';
 import { SyncAccountWorker } from '../workers/syncAccount';
-import { MetaClient } from '../services/metaClient';
+import { MetaClient, MetaApiError } from '../services/metaClient';
 import { decryptToken } from '../services/tokenEncryption';
 import { runEngines } from '../workers/runEngines';
 
 const PORT = Number(process.env['PORT'] ?? 3001);
 // Background sync interval: default 6 hours (can be overridden via env)
 const SYNC_INTERVAL_MS = Number(process.env['SYNC_INTERVAL_MS'] ?? 6 * 60 * 60 * 1000);
+// Raw insights retention: delete rows older than this many days (default 90)
+const RAW_INSIGHTS_RETAIN_DAYS = Number(process.env['RAW_INSIGHTS_RETAIN_DAYS'] ?? 90);
 const API_VERSION = process.env['META_API_VERSION'] ?? 'v20.0';
+
+// ── Global safety net: log unhandled rejections/exceptions instead of crashing ──
+process.on('unhandledRejection', (reason) => {
+  console.error('[adlytic:unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[adlytic:uncaughtException]', err);
+  // uncaughtException leaves the process in an undefined state — exit after logging
+  process.exit(1);
+});
 
 async function main(): Promise<void> {
   const dbUrl  = process.env['DATABASE_URL'];
@@ -50,6 +62,23 @@ async function main(): Promise<void> {
   });
   const adapter = new PrismaPg(pool);
   const prisma  = new PrismaClient({ adapter });
+
+  // Warn loudly when TOKEN_ENCRYPTION_KEY is absent in non-dev environments.
+  // Without this key, Meta access tokens are stored as plaintext in the database.
+  if (!process.env['TOKEN_ENCRYPTION_KEY'] || process.env['TOKEN_ENCRYPTION_KEY'].length !== 64) {
+    const env = process.env['NODE_ENV'] ?? 'development';
+    if (env !== 'development') {
+      console.error(
+        '[adlytic:SECURITY] TOKEN_ENCRYPTION_KEY is not set or invalid (must be 64 hex chars).\n' +
+        '  Meta access tokens would be stored as PLAINTEXT in the database.\n' +
+        '  Generate a key: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+        '  Set TOKEN_ENCRYPTION_KEY in your Railway environment variables.'
+      );
+      process.exit(1);
+    } else {
+      console.warn('[adlytic] TOKEN_ENCRYPTION_KEY not set — tokens stored as plaintext (dev mode).');
+    }
+  }
 
   // Verify the DB connection is reachable before accepting traffic
   try {
@@ -106,14 +135,68 @@ async function main(): Promise<void> {
           console.log(`[adlytic:auto-sync] ✓ ${acct.externalAccountId} (${syncResult.rowsUpserted} rows, ${syncResult.durationMs}ms)`);
         } else {
           console.warn(`[adlytic:auto-sync] ✗ ${acct.externalAccountId}: ${syncResult.error}`);
+          // Detect expired/invalid OAuth token (Meta error code 190).
+          // Mark the account PAUSED so the sync loop skips it until the owner
+          // reconnects via the Workspace page.
+          if (syncResult.error && /code.*190|190.*code|OAuthException/.test(syncResult.error)) {
+            await prisma.adAccount.update({
+              where: { id: acct.id },
+              data: { status: 'PAUSED', accessTokenEncrypted: null },
+            });
+            console.warn(`[adlytic:auto-sync] Marked ${acct.externalAccountId} PAUSED — token invalid (190). Owner must reconnect.`);
+          }
         }
       } catch (err) {
         console.error(`[adlytic:auto-sync] Error syncing ${acct.externalAccountId}:`, err);
+        // Also catch MetaApiError code 190 thrown before SyncResult is produced
+        if (err instanceof MetaApiError) {
+          const body = err.body as Record<string, any>;
+          if (body?.error?.code === 190) {
+            await prisma.adAccount.update({
+              where: { id: acct.id },
+              data: { status: 'PAUSED', accessTokenEncrypted: null },
+            });
+            console.warn(`[adlytic:auto-sync] Marked ${acct.externalAccountId} PAUSED — token invalid (190). Owner must reconnect.`);
+          }
+        }
       }
     }
   }
 
-  setInterval(() => { void syncAllAccounts(); }, SYNC_INTERVAL_MS);
+  // Recursive setTimeout so the next sync only starts after the previous one
+  // fully completes. setInterval would queue overlapping runs if a sync takes
+  // longer than SYNC_INTERVAL_MS (e.g. many accounts, slow Meta API).
+  function scheduleSyncLoop(): void {
+    setTimeout(async () => {
+      await syncAllAccounts();
+      scheduleSyncLoop();
+    }, SYNC_INTERVAL_MS);
+  }
+  scheduleSyncLoop();
+
+  // ── Raw insights retention job ───────────────────────────────────────
+  // Runs once at startup (after a short delay) and then every 24 hours.
+  // Deletes raw_insight rows older than RAW_INSIGHTS_RETAIN_DAYS to prevent
+  // unbounded table growth. Processed data lives in daily_stats and is kept.
+  async function pruneRawInsights(): Promise<void> {
+    try {
+      const cutoff = new Date(Date.now() - RAW_INSIGHTS_RETAIN_DAYS * 864e5);
+      const result = await prisma.rawInsight.deleteMany({
+        where: { fetchedAt: { lt: cutoff } },
+      });
+      if (result.count > 0) {
+        console.log(`[adlytic:retention] Deleted ${result.count} raw_insight rows older than ${RAW_INSIGHTS_RETAIN_DAYS} days`);
+      }
+    } catch (err) {
+      console.error('[adlytic:retention] Failed to prune raw_insights:', err);
+    }
+  }
+
+  // Delay initial run by 30s so startup traffic settles first
+  setTimeout(() => {
+    void pruneRawInsights();
+    setInterval(() => { void pruneRawInsights(); }, 24 * 60 * 60_000);
+  }, 30_000);
 
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {

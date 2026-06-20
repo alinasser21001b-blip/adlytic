@@ -89,14 +89,19 @@ export class MetaClient {
   }
 
   /** Internal: follow paging.next until exhausted, with retry on transient errors. */
-  private async paginated(initialUrl: string): Promise<MetaInsightRow[]> {
+  private async paginated(initialUrl: string, maxPages = 500): Promise<MetaInsightRow[]> {
     const out: MetaInsightRow[] = [];
     let url: string | null = initialUrl;
-    while (url) {
+    let pages = 0;
+    while (url && pages < maxPages) {
       const page = await this.requestWithRetry(url);
       const data = (page.data ?? []) as MetaInsightRow[];
       out.push(...data);
       url = page.paging?.next ?? null;
+      pages++;
+    }
+    if (url !== null && pages >= maxPages) {
+      console.warn(`[MetaClient] Pagination truncated at ${maxPages} pages — possible runaway cursor`);
     }
     return out;
   }

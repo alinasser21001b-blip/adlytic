@@ -416,7 +416,9 @@ export function campaignsPage(): string {
     var res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
     if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
     if (!res.ok) throw new Error('API error ' + res.status + ' on ' + path);
-    return res.json();
+    return res.json().catch(function() {
+      throw new Error('Server returned a non-JSON response from ' + path);
+    });
   }
 
   function showError(msg) {

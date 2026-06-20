@@ -5,6 +5,7 @@
   "description": "Adlytic — Ads Intelligence Platform (Phase 1)",
   "scripts": {
     "build": "prisma generate && tsc",
+    "postinstall": "prisma generate",
     "start": "prisma migrate deploy && node dist/src/api/serve.js",
     "start:dev": "tsx --env-file=.env src/api/serve.ts",
     "typecheck": "tsc --noEmit",
@@ -33,17 +34,22 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
     "@hono/node-server": "^2.0.5",
     "@inquirer/prompts": "^8.5.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "bcryptjs": "^3.0.3",
     "hono": "^4.12.25",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.21.0",
     "prisma": "^7.8.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.14.0"
   },
   "engines": {

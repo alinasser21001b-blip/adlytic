@@ -1,16 +1,16 @@
 // ════════════════════════════════════════════════════════════════════════
-//  src/web/pages/loginPage.ts  —  Login page
+//  src/web/pages/registerPage.ts  —  Registration page
 // ════════════════════════════════════════════════════════════════════════
 
 import { SHARED_CSS } from '../layout';
 
-export function loginPage(): string {
+export function registerPage(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign in — Adlytic</title>
+  <title>Create account — Adlytic</title>
   <style>
     ${SHARED_CSS}
     body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
@@ -35,46 +35,47 @@ export function loginPage(): string {
       <span class="auth-logo-text">Adlytic</span>
     </div>
     <div class="auth-card">
-      <div class="auth-title">Welcome back</div>
-      <div class="auth-subtitle">Sign in to your Adlytic account</div>
+      <div class="auth-title">Create your account</div>
+      <div class="auth-subtitle">Start analyzing your Meta Ads with AI</div>
 
       <div id="error-msg" class="alert alert-error"></div>
       <div id="success-msg" class="alert alert-success"></div>
 
-      <form id="login-form">
+      <form id="register-form">
+        <div class="form-group">
+          <label class="form-label" for="name">Full name</label>
+          <input type="text" id="name" class="form-input" placeholder="Ali Ahmed" autocomplete="name">
+        </div>
         <div class="form-group">
           <label class="form-label" for="email">Email address</label>
           <input type="email" id="email" class="form-input" placeholder="you@company.com" required autocomplete="email">
         </div>
         <div class="form-group">
-          <label class="form-label" for="password">
-            Password
-          </label>
-          <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" id="password" class="form-input" placeholder="8+ characters" required autocomplete="new-password" minlength="8">
         </div>
         <button type="submit" class="btn btn-primary btn-lg" id="submit-btn" style="width:100%;justify-content:center;margin-top:4px;">
-          <span id="btn-text">Sign in</span>
+          <span id="btn-text">Create account</span>
           <span id="btn-spinner" class="spinner" style="display:none;width:16px;height:16px;border-width:2px;"></span>
         </button>
       </form>
 
       <hr class="auth-divider">
       <div style="font-size:12.5px;color:var(--text-3);text-align:center;">
-        Don't have an account? <a href="/register" style="color:var(--accent);text-decoration:none;">Create one</a>
+        Already have an account? <a href="/login" style="color:var(--accent);text-decoration:none;">Sign in</a>
       </div>
     </div>
     <div class="auth-footer">
-      Adlytic Ads Intelligence Platform &nbsp;·&nbsp; Phase 1
+      Adlytic Ads Intelligence Platform
     </div>
   </div>
 
   <script>
-    // If already logged in, redirect to dashboard
     if (localStorage.getItem('adlytic_token')) {
       window.location.href = '/dashboard';
     }
 
-    const form    = document.getElementById('login-form');
+    const form    = document.getElementById('register-form');
     const errEl   = document.getElementById('error-msg');
     const sucEl   = document.getElementById('success-msg');
     const btnText = document.getElementById('btn-text');
@@ -86,59 +87,43 @@ export function loginPage(): string {
       errEl.style.display = 'flex';
       sucEl.style.display = 'none';
     }
-    function showSuccess(msg) {
-      sucEl.textContent = msg;
-      sucEl.style.display = 'flex';
-      errEl.style.display = 'none';
-    }
     function setLoading(on) {
       btn.disabled = on;
-      btnText.textContent = on ? 'Signing in…' : 'Sign in';
+      btnText.textContent = on ? 'Creating account…' : 'Create account';
       btnSpin.style.display = on ? 'inline-block' : 'none';
     }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const name     = document.getElementById('name').value.trim();
       const email    = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showError('Please fill in all fields.'); return; }
+      if (!email || !password) { showError('Email and password are required.'); return; }
+      if (password.length < 8) { showError('Password must be at least 8 characters.'); return; }
 
       setLoading(true);
       errEl.style.display = 'none';
 
       try {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, name: name || undefined }),
         });
         const data = await res.json();
 
         if (!res.ok) {
-          showError(data.error || 'Login failed. Please check your credentials.');
+          showError(data.error || 'Registration failed. Please try again.');
           setLoading(false);
           return;
         }
 
-        // Store token + workspace
         localStorage.setItem('adlytic_token', data.token);
-        const firstWs = data.user?.memberships?.[0]?.workspaceId;
+        if (data.workspaceId) localStorage.setItem('adlytic_workspace_id', data.workspaceId);
 
-        // Fetch full user to get workspace memberships
-        const meRes = await fetch('/api/auth/me', {
-          headers: { Authorization: 'Bearer ' + data.token }
-        });
-        if (meRes.ok) {
-          const me = await meRes.json();
-          const wsId = me.memberships?.[0]?.workspaceId;
-          if (wsId) localStorage.setItem('adlytic_workspace_id', wsId);
-          else if (firstWs) localStorage.setItem('adlytic_workspace_id', firstWs);
-        } else if (firstWs) {
-          localStorage.setItem('adlytic_workspace_id', firstWs);
-        }
-
-        showSuccess('Signed in successfully! Redirecting…');
-        setTimeout(() => { window.location.href = '/dashboard'; }, 600);
+        sucEl.textContent = 'Account created! Redirecting to dashboard…';
+        sucEl.style.display = 'flex';
+        setTimeout(() => { window.location.href = '/dashboard'; }, 800);
 
       } catch (err) {
         showError('Network error. Please try again.');
@@ -146,8 +131,7 @@ export function loginPage(): string {
       }
     });
 
-    // Focus email field
-    document.getElementById('email').focus();
+    document.getElementById('name').focus();
   </script>
 </body>
 </html>`;

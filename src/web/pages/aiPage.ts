@@ -111,6 +111,7 @@ export function aiPage(): string {
 
   const scripts = `<script>
 (async () => {
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   const token = localStorage.getItem('adlytic_token');
   if (!token) { window.location.href = '/login'; return; }
   const wsId  = localStorage.getItem('adlytic_workspace_id');
@@ -184,9 +185,9 @@ export function aiPage(): string {
   // Welcome message
   const welcomeText = dashData
     ? 'Hello! I\'m your Adlytic AI assistant. I have access to your live campaign data' +
-      (dashData.workspace?.name ? ' for <strong>' + dashData.workspace.name + '</strong>' : '') + '.' +
+      (dashData.workspace?.name ? ' for <strong>' + esc(dashData.workspace.name) + '</strong>' : '') + '.' +
       (dashData.issues?.length
-        ? ' I\'ve detected <strong>' + dashData.issues.length + ' issue' + (dashData.issues.length>1?'s':'') + '</strong> in your campaigns. Ask me about them or anything else related to your ad performance.'
+        ? ' I\'ve detected <strong>' + Number(dashData.issues.length) + ' issue' + (dashData.issues.length>1?'s':'') + '</strong> in your campaigns. Ask me about them or anything else related to your ad performance.'
         : ' Your campaigns look healthy. Ask me anything about performance, budget, or strategy.') +
       '<br><br><em>Try: "What should I do next?" or "Why is CTR dropping?"</em>'
     : 'Hello! I\'m your Adlytic AI assistant. Connect your campaigns to get data-driven insights. In the meantime, ask me anything about Meta Ads strategy.';

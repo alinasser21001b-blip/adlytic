@@ -16,6 +16,7 @@ import { AnalyticsEngine } from '../engines/analytics/AnalyticsEngine';
 import { RulesEngine } from '../engines/rules/RulesEngine';
 import { RecommendationEngine } from '../engines/recommendation/RecommendationEngine';
 import { HealthScoreEngine } from '../engines/health/HealthScoreEngine';
+import { AdlyticIntelligenceSystem } from '../engines/intelligence/AdlyticIntelligenceSystem';
 
 export interface EngineRunResult {
   ok: boolean;
@@ -52,6 +53,16 @@ export async function runEngines(
     const healthEngine = new HealthScoreEngine(prisma);
     const hResult = await healthEngine.run(EntityType.ACCOUNT, adAccountId, { asOf: now });
     console.log(`${tag} Health done — score: ${(hResult as any)?.score ?? '?'}`);
+
+    // V5 Intelligence System — Strangler Fig Phase 1 (shadow write only).
+    // Never throws — failure here must not affect the sync result.
+    try {
+      const v5 = new AdlyticIntelligenceSystem(prisma);
+      await v5.run(adAccountId, now);
+      console.log(`${tag} V5 intelligence done`);
+    } catch (v5err) {
+      console.error(`${tag} V5 intelligence failed (non-fatal) — ${v5err instanceof Error ? v5err.message : String(v5err)}`);
+    }
 
     const durationMs = Date.now() - start;
     console.log(`${tag} ALL ENGINES COMPLETE — ${durationMs}ms`);

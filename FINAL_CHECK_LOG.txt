@@ -1,7 +1,7 @@
 ════════════════════════════════════════════════════════
   Adlytic — Final Production Check
 ════════════════════════════════════════════════════════
-Wed Jun 17 04:14:42 +03 2026
+Wed Jun 17 06:48:12 +03 2026
 
 ▶ Getting DATABASE_PUBLIC_URL...
 
@@ -9,19 +9,16 @@ Project adlytic linked successfully! 🎉
   URL: postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@thoma...
 
 ▶ Cleaning up test users from database...
-  Current users in DB: 1
-    - test@test.com
-  Deleted user: test@test.com
-  Users remaining: 0
-  ✅ Database clean
+  Current users in DB: 0
+  ✅ Database is clean — no users
 
 ▶ Waiting for Railway deployment to settle (90 seconds)...
-  [1/6] 04:15:09 health=200
-  [2/6] 04:15:25 health=200
-  [3/6] 04:15:41 health=200
-  [4/6] 04:15:56 health=200
-  [5/6] 04:16:12 health=200
-  [6/6] 04:16:28 health=200
+  [1/6] 06:48:37 health=200
+  [2/6] 06:48:52 health=200
+  [3/6] 06:49:08 health=200
+  [4/6] 06:49:23 health=200
+  [5/6] 06:49:39 health=200
+  [6/6] 06:49:55 health=200
 
 ▶ Final verification...
   1. Demo login: {"error":"Invalid credentials"}

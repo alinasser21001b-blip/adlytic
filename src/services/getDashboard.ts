@@ -30,6 +30,11 @@ import pg from "pg";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 
+// ── Module-level Prisma client (used when no client is passed in).
+// When getDashboard is called from the HTTP server, the server's own prisma
+// instance is injected via opts.prisma to avoid a duplicate connection pool.
+// This standalone client exists for scripts, tests, and CLI tools that call
+// getDashboard without a server context.
 const _dbUrl = process.env['DATABASE_URL'];
 if (!_dbUrl) {
   throw new Error(
@@ -47,8 +52,7 @@ const _pool    = new pg.Pool({
   database: _parsed.pathname.replace(/^\//, ''),
   ssl:      _isInternal ? false : { rejectUnauthorized: false },
 });
-const prisma = new PrismaClient({ adapter: new PrismaPg(_pool) });
-const knowledge = new KnowledgeEngine(prisma);
+const _standalonePrisma = new PrismaClient({ adapter: new PrismaPg(_pool) });
 
 // ── The public shape. This is the contract every consumer codes against. ──
 export interface DashboardDTO {
@@ -149,8 +153,12 @@ function avg(rows: { [k: string]: any }[], f: string): number | null {
 // ════════════════════════════════════════════════════════════════════════
 export async function getDashboard(
   workspaceId: string,
-  opts: { locale?: Locale; windowDays?: number } = {}
+  opts: { locale?: Locale; windowDays?: number; prisma?: PrismaClient } = {}
 ): Promise<DashboardDTO> {
+  // Use the caller's prisma instance (e.g. from the HTTP server) when provided.
+  // Fallback to the module-level standalone client for scripts and tests.
+  const prisma = opts.prisma ?? _standalonePrisma;
+  const knowledge = new KnowledgeEngine(prisma);
   const windowDays = opts.windowDays ?? 30;
 
   // 1. Workspace + industry + the (single) ad account.
@@ -269,7 +277,7 @@ export async function getDashboard(
     : null;
 
   // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
-  const cards = await buildCampaignCards(account.id);
+  const cards = await buildCampaignCards(account.id, prisma);
 
   return {
     workspace: {
@@ -292,29 +300,41 @@ export async function getDashboard(
 }
 
 // ── Campaign cards: most-recent snapshot per campaign + its health score. ──
-async function buildCampaignCards(adAccountId: string): Promise<{ best: CampaignCard | null; worst: CampaignCard | null }> {
+// Uses two bulk queries instead of 2N individual queries (no N+1).
+async function buildCampaignCards(adAccountId: string, prisma: PrismaClient): Promise<{ best: CampaignCard | null; worst: CampaignCard | null }> {
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId, status: "ACTIVE" },
   });
+  if (!campaigns.length) return { best: null, worst: null };
+
+  const campaignIds = campaigns.map((c) => c.id);
+
+  // Bulk fetch: latest daily stat per campaign
+  const allSnaps = await prisma.dailyStat.findMany({
+    where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } },
+    orderBy: { date: "desc" },
+  });
+  // Bulk fetch: latest health score per campaign
+  const allHealth = await prisma.healthScore.findMany({
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaignIds },
+      algorithmVersion: HEALTH_ALGORITHM_VERSION,
+    },
+    orderBy: { date: "desc" },
+  });
+
+  // Build lookup maps: entityId → most-recent row (already ordered desc)
+  const snapMap = new Map<string, (typeof allSnaps)[number]>();
+  for (const s of allSnaps) if (!snapMap.has(s.entityId)) snapMap.set(s.entityId, s);
+  const healthMap = new Map<string, (typeof allHealth)[number]>();
+  for (const h of allHealth) if (!healthMap.has(h.entityId)) healthMap.set(h.entityId, h);
+
   const cards: CampaignCard[] = [];
   for (const c of campaigns) {
-    const snap = await prisma.dailyStat.findFirst({
-      where: { entityType: EntityType.CAMPAIGN, entityId: c.id },
-      orderBy: { date: "desc" },
-    });
-    const h = await prisma.healthScore.findFirst({
-      where: {
-        entityType: EntityType.CAMPAIGN,
-        entityId: c.id,
-        algorithmVersion: HEALTH_ALGORITHM_VERSION,
-      },
-      orderBy: { date: "desc" },
-    });
-
-if (!snap || !h) {
-  continue;
-}
-
+    const snap = snapMap.get(c.id);
+    const h    = healthMap.get(c.id);
+    if (!snap || !h) continue;
     cards.push({
       id: c.id,
       name: c.name,
