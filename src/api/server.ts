@@ -46,6 +46,7 @@ import { honoToApiRequest } from './adapter';
 import { getDashboard } from '../services/getDashboard';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
+import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
 import { MetaClient } from '../services/metaClient';
 import { loginPage } from '../web/pages/loginPage';
 import { registerPage } from '../web/pages/registerPage';
@@ -1201,7 +1202,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         void (async () => {
           try {
             const syncResult = await worker.sync(acct.id);
-            if (syncResult.ok) await runEngines(prisma, acct.id);
+            if (syncResult.ok) {
+              await runEngines(prisma, acct.id);
+              await runBrainOrchestrator(prisma, metaClient, acct.id);  // 🧠 V6 Brain V2 tick
+            }
           } catch (err: unknown) { console.error('[adlytic:initial-sync]', err); }
         })();
       }
@@ -1385,6 +1389,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
 
     const enginesResult = await runEngines(prisma, account.id);
+    const brainResult = await runBrainOrchestrator(prisma, metaClient, account.id);  // 🧠 V6 Brain V2 tick
     return c.json({
       status: 'sync_complete',
       adAccountId: account.id,
@@ -1395,7 +1400,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       windowUntil: syncResult.windowUntil,
       enginesOk: enginesResult.ok,
       enginesError: enginesResult.error ?? null,
-      durationMs: syncResult.durationMs + enginesResult.durationMs,
+      brainOk: brainResult.ok,
+      brainProcessed: brainResult.campaignsProcessed,
+      brainUpserted: brainResult.upserted,
+      brainError: brainResult.error ?? null,
+      durationMs: syncResult.durationMs + enginesResult.durationMs + brainResult.durationMs,
     });
   });
 
