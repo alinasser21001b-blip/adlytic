@@ -61,6 +61,7 @@ export class MetaClient {
     since: Date;                      // inclusive
     until: Date;                      // inclusive
     fields?: string;
+    breakdowns?: string[];            // optional, e.g. ["age","gender"] | ["publisher_platform","platform_position"]
   }): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       level: args.level,
@@ -73,6 +74,37 @@ export class MetaClient {
       access_token: this.token,
       limit: "500",
     });
+    if (args.breakdowns && args.breakdowns.length > 0) {
+      params.set("breakdowns", args.breakdowns.join(","));
+    }
+
+    const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
+    return this.paginated(url);
+  }
+
+  /**
+   * Fetch *intra-day* insights for an entity using Meta's `date_preset=today`.
+   * Meta evaluates the preset in the ad account's reporting timezone, so the
+   * caller does not need to pass one — the account's timezone is implicit on
+   * Meta's side. Used by Layer 10 (Velocity Tracker) to detect intra-day
+   * bleeding; safe to call multiple times per hour.
+   */
+  async getTodayInsights(args: {
+    externalId: string;
+    level: "account" | "campaign" | "adset" | "ad";
+    fields?: string;
+    breakdowns?: string[];
+  }): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      level: args.level,
+      date_preset: "today",
+      fields: args.fields ?? DEFAULT_FIELDS,
+      access_token: this.token,
+      limit: "500",
+    });
+    if (args.breakdowns && args.breakdowns.length > 0) {
+      params.set("breakdowns", args.breakdowns.join(","));
+    }
 
     const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
     return this.paginated(url);
