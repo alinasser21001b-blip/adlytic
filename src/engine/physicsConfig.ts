@@ -53,5 +53,9 @@ export const PHYSICS_CONFIG = {
       MIN_MATURITY_SCORE: 60,        // ناضجة تاريخياً ولها سجل طويل
       MAX_FINAL_SCORE: 45            // أداؤها الحالي العام سيء أو متراجع
     }
+  },
+  RECOVERY_GATE: {
+    CPM_DROP_THRESHOLD: -15,         // CPM انخفض بنسبة 15% أو أكثر (السوق أصبح أرخص)
+    CTR_JUMP_THRESHOLD: 10           // CTR قفز بنسبة 10% أو أكثر (تجدد اهتمام الجمهور)
   }
 } as const;

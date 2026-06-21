@@ -58,7 +58,11 @@ export function recognizeCampaignPattern(
 
   // 3. نمط: الأداء المستقر العادي (Stable Performer)
   // بيانات موثوقة وأداء متوسط يقع في المنطقة الآمنة
-  if (confidence.gatingStatus === 'TRUSTED' && physics.finalScore > 45 && physics.finalScore < 75) {
+  if (
+    confidence.gatingStatus === 'TRUSTED' &&
+    physics.finalScore > DYING_CREATIVE.MAX_FINAL_SCORE &&
+    physics.finalScore < BEAST.MIN_FINAL_SCORE
+  ) {
     return {
       campaignId: physics.campaignId,
       signature: 'STABLE_PERFORMER',
