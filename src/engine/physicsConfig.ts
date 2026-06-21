@@ -43,5 +43,15 @@ export const PHYSICS_CONFIG = {
     MAX_VOLATILITY_PENALTY: 40,      // أقصى خصم من نقاط الثقة عند اضطراب المزاد
     CTR_PENALTY_WEIGHT: 20,          // وزن العقوبة عند رصد انهيار جاذبية الإعلان
     FREQUENCY_PENALTY_WEIGHT: 20     // وزن العقوبة عند رصد اختناق الجمهور
+  },
+  PATTERN_ENGINE: {
+    BEAST: {
+      MIN_FINAL_SCORE: 75,           // يجب أن تكون التكلفة والأداء العام ممتازين
+      MIN_CONFIDENCE_SCORE: 80       // ثقة حديدية لمنع ضربات الحظ
+    },
+    DYING_CREATIVE: {
+      MIN_MATURITY_SCORE: 60,        // ناضجة تاريخياً ولها سجل طويل
+      MAX_FINAL_SCORE: 45            // أداؤها الحالي العام سيء أو متراجع
+    }
   }
 } as const;
