@@ -57,5 +57,9 @@ export const PHYSICS_CONFIG = {
   RECOVERY_GATE: {
     CPM_DROP_THRESHOLD: -15,         // CPM انخفض بنسبة 15% أو أكثر (السوق أصبح أرخص)
     CTR_JUMP_THRESHOLD: 10           // CTR قفز بنسبة 10% أو أكثر (تجدد اهتمام الجمهور)
+  },
+  DECISION_ENGINE: {
+    KILL_THRESHOLD: 30,              // ما دون هذه الدرجة + ضوضاء = إعدام رأس المال
+    SCALE_MIN_CONFIDENCE: 85         // لا تضخ ميزانية إلا فوق هذه الثقة الحديدية
   }
 } as const;
