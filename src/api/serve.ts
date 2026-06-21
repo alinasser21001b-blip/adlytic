@@ -23,6 +23,7 @@ import { SyncAccountWorker } from '../workers/syncAccount';
 import { MetaClient, MetaApiError } from '../services/metaClient';
 import { decryptToken } from '../services/tokenEncryption';
 import { runEngines } from '../workers/runEngines';
+import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 
 const PORT = Number(process.env['PORT'] ?? 3001);
 // Background sync interval: default 6 hours (can be overridden via env)
@@ -97,6 +98,15 @@ async function main(): Promise<void> {
       console.log(`[adlytic] Health:     GET http://localhost:${info.port}/api/health`);
       console.log(`[adlytic] Dashboard:  GET http://localhost:${info.port}/api/dashboard/:workspaceId`);
       console.log(`[adlytic] Auto-sync:  every ${Math.round(SYNC_INTERVAL_MS / 3600000)}h`);
+
+      // Meta OAuth diagnostic: surface the reason at boot when it is unusable,
+      // so operators see why "Connect Meta Ads" falls back to the manual modal.
+      const metaStatus = getMetaOAuthConfigStatus();
+      if (metaStatus.ok) {
+        console.log(`[adlytic] Meta OAuth configured (redirect ${metaStatus.redirectUri}, api ${metaStatus.apiVersion})`);
+      } else {
+        console.warn(`[adlytic] Meta OAuth unavailable: ${metaStatus.reason}`);
+      }
     }
   );
 

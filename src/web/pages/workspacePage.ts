@@ -59,8 +59,9 @@ export function workspacePage(): string {
 <!-- Manual token modal (shown when OAuth not configured) -->
 <div id="manual-token-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <div class="modal-title">Connect Meta Ads (Manual)</div>
-    <div class="modal-subtitle">Enter your Meta access token and ad account ID. You can get these from <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:var(--accent)">Meta Graph API Explorer</a>.</div>
+    <div class="modal-title">Connect Meta Ads (Manual Fallback)</div>
+    <div class="modal-subtitle">One-click Facebook Login is unavailable on this server, so use this form only as a fallback. Enter your Meta access token and ad account ID — you can generate these in the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:var(--accent)">Meta Graph API Explorer</a>.</div>
+    <div id="manual-reason" class="alert alert-warning" style="display:none;margin-bottom:12px;font-size:12.5px;"></div>
     <div id="manual-error" class="alert alert-error" style="display:none;"></div>
     <div class="form-group">
       <label class="form-label">Access Token</label>
@@ -184,24 +185,42 @@ export function workspacePage(): string {
 
     // Ad accounts
     const accs = ws.adAccounts || [];
+    const now = Date.now();
     document.getElementById('ad-accounts-container').innerHTML = accs.length
-      ? accs.map(a => \`
+      ? accs.map(a => {
+          // Token expiry visibility: an ACTIVE account whose tokenExpiresAt is past
+          // would silently fail at sync time. Surface the state here so users see
+          // it before clicking Sync. Also warn when expiry is within 7 days.
+          const expiresAt = a.tokenExpiresAt ? new Date(a.tokenExpiresAt).getTime() : null;
+          const isExpired = expiresAt !== null && expiresAt <= now;
+          const expiresSoon = expiresAt !== null && !isExpired && (expiresAt - now) < 7 * 86400000;
+          const needsReconnect = a.status !== 'ACTIVE' || isExpired;
+          const expiryNote = isExpired
+            ? 'Access expired — reconnect to restore'
+            : expiresSoon
+              ? 'Access expires ' + new Date(expiresAt).toLocaleDateString()
+              : (a.lastSyncedAt ? 'Synced ' + new Date(a.lastSyncedAt).toLocaleDateString() : 'Never synced');
+          const badgeLabel = isExpired ? 'EXPIRED' : a.status;
+          const badgeClass = (a.status === 'ACTIVE' && !isExpired) ? 'badge-green' : 'badge-gray';
+          const noteColor = (isExpired || expiresSoon) ? 'var(--warning)' : 'var(--text-3)';
+          return \`
           <div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);">
             <div style="width:38px;height:38px;background:var(--accent-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">📣</div>
             <div style="flex:1;min-width:0;">
               <div style="font-size:13.5px;font-weight:600;color:var(--text);">\${a.name}</div>
               <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">\${a.currency} · \${a.externalAccountId}</div>
             </div>
-            <div style="font-size:11.5px;color:var(--text-3);margin-right:8px;">
-              \${a.lastSyncedAt ? 'Synced ' + new Date(a.lastSyncedAt).toLocaleDateString() : 'Never synced'}
+            <div style="font-size:11.5px;color:\${noteColor};margin-right:8px;">
+              \${expiryNote}
             </div>
-            <span class="badge \${a.status==='ACTIVE'?'badge-green':'badge-gray'}" style="margin-right:8px;">\${a.status}</span>
-            \${a.status === 'ACTIVE'
-              ? \`<button class="btn btn-ghost btn-sm sync-now-btn" data-aid="\${a.id}" title="Sync now">↻ Sync</button>\`
-              : \`<button class="btn btn-primary btn-sm" style="font-size:12px;" onclick="document.getElementById('connect-meta-btn').click()" title="Token expired — reconnect">⚠ Reconnect</button>\`
+            <span class="badge \${badgeClass}" style="margin-right:8px;">\${badgeLabel}</span>
+            \${needsReconnect
+              ? \`<button class="btn btn-primary btn-sm" style="font-size:12px;" onclick="document.getElementById('connect-meta-btn').click()" title="Reconnect to restore access">⚠ Reconnect Meta</button>\`
+              : \`<button class="btn btn-ghost btn-sm sync-now-btn" data-aid="\${a.id}" title="Sync now">↻ Sync</button>\`
             }
             <button class="btn btn-danger btn-sm disconnect-btn" data-aid="\${a.id}" data-name="\${a.name}" title="Disconnect">✕</button>
-          </div>\`).join('')
+          </div>\`;
+        }).join('')
       : \`<div class="empty-state" style="padding:32px;">
            <div class="empty-icon">📣</div>
            <div class="empty-title">No ad accounts connected</div>
@@ -387,17 +406,36 @@ export function workspacePage(): string {
   });
 
   // ── Connect Meta Ads button ────────────────────────────────────────────
+  // Translate server-side diagnostic reasons (which may mention env var names
+  // for ops visibility) into plain-language messages for end users.
+  function friendlyConnectReason(reason) {
+    if (!reason) return 'Meta connection is temporarily unavailable.';
+    const r = String(reason).toLowerCase();
+    if (r.includes('meta_app_id') || r.includes('meta_app_secret')) {
+      return 'Meta connection is not set up on this server yet. Please contact your administrator.';
+    }
+    if (r.includes('redirect_uri') || r.includes('api_version')) {
+      return 'Meta connection settings on the server are misconfigured. Please contact your administrator.';
+    }
+    return 'Meta connection is temporarily unavailable.';
+  }
+
   document.getElementById('connect-meta-btn').addEventListener('click', async () => {
     try {
       const res = await apiFetch('/api/meta/oauth/start?workspaceId=' + wsId);
-      if (res?.configured === false) {
-        // OAuth not configured — show manual token modal
+      if (res?.url) {
+        // Primary path: redirect to Facebook consent screen.
+        window.location.href = res.url;
+      } else if (res?.configured === false) {
+        // Emergency fallback. Show a plain-language reason — users should not
+        // see raw env var names or the word "OAuth".
+        const reasonEl = document.getElementById('manual-reason');
+        reasonEl.textContent = friendlyConnectReason(res?.reason);
+        reasonEl.style.display = 'flex';
         document.getElementById('manual-token-modal').style.display = 'flex';
         setTimeout(() => document.getElementById('manual-token').focus(), 50);
-      } else if (res?.url) {
-        window.location.href = res.url;
       } else {
-        toast(res?.message || 'OAuth not available', 'error');
+        toast('Meta connection is temporarily unavailable.', 'error');
       }
     } catch(e) { toast(e.message || 'Failed to start OAuth', 'error'); }
   });
@@ -458,7 +496,17 @@ export function workspacePage(): string {
     window.history.replaceState({}, '', '/workspace');
   }
   if (params.get('oauth_error')) {
-    toast('Meta connection failed: ' + decodeURIComponent(params.get('oauth_error')), 'error');
+    // Map known internal error codes from the callback redirect into
+    // plain-language messages — users never see "state", "session", etc.
+    const code = decodeURIComponent(params.get('oauth_error'));
+    const friendly = (() => {
+      if (code === 'expired_state')  return 'That connection attempt expired. Please try again.';
+      if (code === 'missing_params') return 'Meta did not return the expected information. Please try again.';
+      if (code === 'not_configured') return 'Meta connection is not set up on this server yet.';
+      if (/permissions?|denied|access_denied/i.test(code)) return 'Permission was not granted. Please approve access to connect.';
+      return 'Could not connect to Meta. Please try again.';
+    })();
+    toast(friendly, 'error');
     window.history.replaceState({}, '', '/workspace');
   }
 

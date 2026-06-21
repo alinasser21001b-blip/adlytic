@@ -34,7 +34,7 @@ export class MetaOAuth {
     const params = new URLSearchParams({
       client_id:     this.appId,
       redirect_uri:  this.redirectUri,
-      scope:         'ads_management,ads_read,read_insights',
+      scope:         'ads_read,read_insights',
       state,
       response_type: 'code',
     });
@@ -100,17 +100,58 @@ export class MetaOAuth {
 }
 
 /**
+ * Discriminated diagnostic result for Meta OAuth configuration.
+ *  - ok=true  → all required env vars are present and well-formed.
+ *  - ok=false → reason is a human-readable string suitable for logs and API responses.
+ *
+ * UI callers can rely on `ok` and surface `reason` for diagnostics; existing
+ * callers that only care about the boolean continue to work via `buildMetaOAuth()`.
+ */
+export type MetaOAuthConfigStatus =
+  | { ok: true;  redirectUri: string; apiVersion: string }
+  | { ok: false; reason: string };
+
+/**
+ * Inspect the current Meta OAuth configuration and return an explicit reason
+ * when it is unusable. Pure function — performs no network I/O.
+ */
+export function getMetaOAuthConfigStatus(): MetaOAuthConfigStatus {
+  const appId     = (process.env['META_APP_ID']     ?? '').trim();
+  const appSecret = (process.env['META_APP_SECRET'] ?? '').trim();
+  if (!appId)     return { ok: false, reason: 'Missing META_APP_ID' };
+  if (!appSecret) return { ok: false, reason: 'Missing META_APP_SECRET' };
+
+  const redirectUri = (process.env['META_REDIRECT_URI'] ?? '').trim()
+    || 'http://localhost:3001/api/meta/oauth/callback';
+  try {
+    const parsed = new URL(redirectUri);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { ok: false, reason: `Invalid META_REDIRECT_URI: protocol must be http or https (got "${parsed.protocol}")` };
+    }
+  } catch {
+    return { ok: false, reason: `Invalid META_REDIRECT_URI: "${redirectUri}" is not a valid URL` };
+  }
+
+  const apiVersion = (process.env['META_API_VERSION'] ?? '').trim() || 'v20.0';
+  if (!/^v\d+\.\d+$/.test(apiVersion)) {
+    return { ok: false, reason: `Invalid META_API_VERSION: "${apiVersion}" (expected format like "v20.0")` };
+  }
+
+  return { ok: true, redirectUri, apiVersion };
+}
+
+/**
  * Factory: builds a MetaOAuth instance from env vars.
  * Returns null when META_APP_ID or META_APP_SECRET are not configured.
+ * For diagnostic detail use `getMetaOAuthConfigStatus()`.
  */
 export function buildMetaOAuth(): MetaOAuth | null {
-  const appId      = process.env['META_APP_ID'];
-  const appSecret  = process.env['META_APP_SECRET'];
-  if (!appId || !appSecret) return null;
+  const status = getMetaOAuthConfigStatus();
+  if (!status.ok) return null;
 
-  const redirectUri = process.env['META_REDIRECT_URI']
-    ?? 'http://localhost:3001/api/meta/oauth/callback';
-  const apiVersion  = process.env['META_API_VERSION'] ?? 'v20.0';
+  // Safe to non-null assert: getMetaOAuthConfigStatus guarantees presence above.
+  const appId     = (process.env['META_APP_ID']     ?? '').trim();
+  const appSecret = (process.env['META_APP_SECRET'] ?? '').trim();
 
-  return new MetaOAuth(appId, appSecret, redirectUri, apiVersion);
+  return new MetaOAuth(appId, appSecret, status.redirectUri, status.apiVersion);
 }

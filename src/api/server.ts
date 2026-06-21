@@ -59,7 +59,8 @@ import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken } from '../services/tokenEncryption';
-import { buildMetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
+import { buildMetaOAuth, getMetaOAuthConfigStatus, type MetaAdAccountInfo } from '../services/metaOAuth';
+import { RecommendationService } from '../services/recommendation.service';
 
 // ── Country derivation ────────────────────────────────────────────────────
 // Maps IANA timezone names → ISO 3166-1 alpha-2 country codes.
@@ -196,6 +197,7 @@ function safeJson(obj: unknown): unknown {
 
 export function buildRoutes(prisma: PrismaClient): Hono {
   const app = new Hono();
+  const recService = new RecommendationService(prisma);
 
   // ── Middleware ───────────────────────────────────────────────────────────
 
@@ -897,14 +899,48 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
-    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
-    const { account } = await getAccount(req.params['workspaceId']);
+    const workspaceId = req.params['workspaceId'];
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(workspaceId);
     if (!account) return c.json([]);
     const recs = await prisma.recommendation.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id },
       orderBy: [{ priority: 'desc' }, { date: 'desc' }],
     });
+
+    // Fire-and-forget: log a snapshot for closed-loop learning. One log entry
+    // per recommendations fetch summarising the top recommendation surfaced.
+    if (recs.length > 0) {
+      const top = recs[0]!;
+      recService.logRecommendation({
+        workspaceId,
+        verdict: `${top.actionCode} (${top.priority})`,
+        metricsSnapshot: { actionCode: top.actionCode, priority: top.priority, date: top.date },
+      }).catch((err) => console.error('[RecLog] failed to log recommendation:', err));
+    }
+
     return c.json(safeJson(recs));
+  });
+
+  /** POST /api/workspaces/:workspaceId/recommendations/:logId/action
+   *  Body: { action: "EXECUTED" | "IGNORED" }
+   *  Tracks the user's response to a surfaced recommendation.
+   */
+  app.post('/api/workspaces/:workspaceId/recommendations/:logId/action', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const logId = req.params['logId'];
+    const body = await c.req.json<{ action?: string }>();
+    const action = body?.action;
+    if (action !== 'EXECUTED' && action !== 'IGNORED') {
+      return c.json({ error: 'action must be EXECUTED or IGNORED' }, 400);
+    }
+    const updated = await recService.trackUserAction(logId, action);
+    return c.json(safeJson(updated));
   });
 
   /** GET /api/workspaces/:workspaceId/issues — detected issues (Rules Engine output). */
@@ -984,8 +1020,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
 
-    const oauth = buildMetaOAuth();
-    if (!oauth) return c.json({ configured: false, message: 'Meta OAuth is not configured on this server. Use manual token entry.' });
+    const status = getMetaOAuthConfigStatus();
+    const oauth  = buildMetaOAuth();
+    if (!oauth || !status.ok) {
+      // Backward compat: keep `configured: false` so the existing UI fallback
+      // (manual token modal) continues to trigger. `reason` is additive.
+      const reason = !status.ok ? status.reason : 'Meta OAuth is not configured on this server.';
+      return c.json({
+        configured: false,
+        reason,
+        message: `${reason}. You can still connect by pasting an access token manually.`,
+      });
+    }
 
     pruneOAuth();
     const state = (await import('node:crypto')).randomBytes(32).toString('hex');

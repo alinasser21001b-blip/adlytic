@@ -31,7 +31,8 @@ model Workspace {
   industryProfileId String?           @map("industry_profile_id")
   adAccounts        AdAccount[]
   members           WorkspaceMember[]
-  industryProfile   IndustryProfile?  @relation(fields: [industryProfileId], references: [id])
+  industryProfile   IndustryProfile?          @relation(fields: [industryProfileId], references: [id])
+  executions        RecommendationExecution[]
 
   @@index([industryProfileId])
   @@map("workspaces")
@@ -227,11 +228,33 @@ model Recommendation {
   sourceIssuesJson Json                   @map("source_issues_json")
   detailsJson      Json?                  @map("details_json")
   createdAt        DateTime               @default(now()) @map("created_at")
+  execution        RecommendationExecution?
 
   @@unique([entityType, entityId, date, actionCode])
   @@index([entityType, entityId, date])
   @@index([priority])
   @@map("recommendations")
+}
+
+model RecommendationExecution {
+  id                String           @id @default(cuid())
+  workspaceId       String           @map("workspace_id")
+  recommendationId  String           @unique @map("recommendation_id")
+  /// STRICTLY IMMUTABLE: set once at execution time, never updated.
+  metricsSnapshot   Json             @map("metrics_snapshot")
+  userAction        UserActionStatus @default(PENDING) @map("user_action")
+  executedAt        DateTime?        @map("executed_at")
+  successScore      Float?           @map("success_score")
+  evaluationVersion String?          @map("evaluation_version")
+  evaluatedAt       DateTime?        @map("evaluated_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recommendation Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userAction, evaluatedAt])
+  @@map("recommendation_executions")
 }
 
 model HealthScore {
@@ -319,6 +342,24 @@ model CampaignRecommendation {
   @@map("campaign_recommendations")
 }
 
+model RecommendationLog {
+  id               String                  @id @default(cuid())
+  workspaceId      String                  @map("workspace_id")
+  campaignId       String?                 @map("campaign_id")
+  verdict          String
+  generatedBy      RecommendationSource    @default(V1_RULES) @map("generated_by")
+  metricsSnapshot  Json                    @map("metrics_snapshot")
+  userAction       UserActionStatus        @default(PENDING) @map("user_action")
+  actionAppliedAt  DateTime?               @map("action_applied_at")
+  performanceDelta Float?                  @map("performance_delta")
+  isSuccessful     Boolean?                @map("is_successful")
+  createdAt        DateTime                @default(now()) @map("created_at")
+
+  @@index([workspaceId])
+  @@index([workspaceId, createdAt])
+  @@map("recommendation_logs")
+}
+
 model IndustryProfile {
   id             String          @id @default(cuid())
   name           String          @unique
@@ -384,4 +425,15 @@ enum RecommendationPriority {
 enum Locale {
   EN
   AR
+}
+
+enum RecommendationSource {
+  V1_RULES
+  V5_INTELLIGENCE
+}
+
+enum UserActionStatus {
+  PENDING
+  EXECUTED
+  IGNORED
 }

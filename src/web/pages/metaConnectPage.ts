@@ -51,7 +51,7 @@ export function metaConnectPage(sessionId: string): string {
   const container = document.getElementById('connect-container');
 
   if (!token || !wsId) {
-    container.innerHTML = '<div class="alert alert-error">Session expired. Please <a href="/login">log in</a> again.</div>';
+    container.innerHTML = '<div class="alert alert-error">Your sign-in has expired. Please <a href="/login">log in</a> again.</div>';
     return;
   }
 
@@ -66,7 +66,7 @@ export function metaConnectPage(sessionId: string): string {
   }
 
   if (!sessionId) {
-    container.innerHTML = '<div class="alert alert-error">Invalid session. Please go back and try again.</div>';
+    container.innerHTML = '<div class="alert alert-error">This connection link is no longer valid. <a href="/workspace">Go back and try again.</a></div>';
     return;
   }
 
@@ -76,7 +76,7 @@ export function metaConnectPage(sessionId: string): string {
     const res = await apiFetch('/api/meta/oauth/accounts/' + sessionId);
     accounts = res?.accounts ?? [];
   } catch(e) {
-    container.innerHTML = '<div class="alert alert-error">' + (e.message || 'Failed to load accounts') + ' <a href="/workspace">Go back</a></div>';
+    container.innerHTML = '<div class="alert alert-error">Could not load your ad accounts. <a href="/workspace">Go back and try again.</a></div>';
     return;
   }
 
@@ -93,6 +93,47 @@ export function metaConnectPage(sessionId: string): string {
     return;
   }
 
+  // Shared connect routine — used by both the auto-connect path and the picker.
+  async function performConnect(accountId, onError) {
+    try {
+      const res = await apiFetch('/api/meta/oauth/connect', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, externalAccountId: accountId, workspaceId: wsId }),
+      });
+      if (res?.success) {
+        window.location.href = '/workspace?connected=1';
+        return;
+      }
+      throw new Error(res?.error || 'Connection failed');
+    } catch (e) {
+      onError(e);
+    }
+  }
+
+  // Task 3: if the user has exactly one ad account, skip the picker entirely.
+  if (accounts.length === 1) {
+    const only = accounts[0];
+    container.innerHTML = \`
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:14px;padding:8px 4px 16px;">
+          <div class="account-icon">📣</div>
+          <div style="flex:1;min-width:0;">
+            <div class="account-name">\${only.name}</div>
+            <div class="account-meta">\${only.currency} · \${only.timezone_name || 'UTC'}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;color:var(--text-2);font-size:13px;">
+          <span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
+          Connecting your ad account…
+        </div>
+      </div>\`;
+    await performConnect(only.id, (e) => {
+      container.innerHTML = '<div class="alert alert-error">Could not connect this ad account. <a href="/workspace">Go back and try again.</a></div>';
+      toast(e.message || 'Could not connect this ad account.', 'error');
+    });
+    return;
+  }
+
   let selectedId = null;
   let connecting = false;
 
@@ -105,7 +146,7 @@ export function metaConnectPage(sessionId: string): string {
             <div class="account-icon">📣</div>
             <div style="flex:1;min-width:0;">
               <div class="account-name">\${a.name}</div>
-              <div class="account-meta">\${a.id} &nbsp;·&nbsp; \${a.currency} &nbsp;·&nbsp; \${a.timezone_name || 'UTC'}</div>
+              <div class="account-meta">\${a.currency} &nbsp;·&nbsp; \${a.timezone_name || 'UTC'}</div>
             </div>
             <div class="account-status-badge">
               <span class="badge \${a.account_status === 1 ? 'badge-green' : 'badge-gray'}">\${a.account_status === 1 ? 'Active' : 'Inactive'}</span>
@@ -137,21 +178,11 @@ export function metaConnectPage(sessionId: string): string {
         if (connecting || !selectedId) return;
         connecting = true;
         render();
-        try {
-          const res = await apiFetch('/api/meta/oauth/connect', {
-            method: 'POST',
-            body: JSON.stringify({ sessionId, externalAccountId: selectedId, workspaceId: wsId }),
-          });
-          if (res?.success) {
-            window.location.href = '/workspace?connected=1';
-          } else {
-            throw new Error(res?.error || 'Connection failed');
-          }
-        } catch(e) {
+        await performConnect(selectedId, (e) => {
           connecting = false;
           render();
-          toast(e.message || 'Failed to connect account', 'error');
-        }
+          toast(e.message || 'Could not connect this ad account.', 'error');
+        });
       });
     }
   }

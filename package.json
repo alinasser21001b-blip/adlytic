@@ -28,7 +28,8 @@
     "create-user": "tsx --env-file=.env scripts/create-user.ts",
     "seed-demo": "tsx --env-file=.env scripts/seed-demo.ts",
     "create-user:auto": "tsx --env-file=.env scripts/create-user-auto.ts",
-    "seed-knowledge": "tsx --env-file=.env scripts/seedKnowledgeUniversal.ts"
+    "seed-knowledge": "tsx --env-file=.env scripts/seedKnowledgeUniversal.ts",
+    "execution-report": "tsx --env-file=.env scripts/execution-report.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
