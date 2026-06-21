@@ -34,7 +34,7 @@ export class MetaOAuth {
     const params = new URLSearchParams({
       client_id:     this.appId,
       redirect_uri:  this.redirectUri,
-      scope:         'ads_read,read_insights',
+      scope:         'ads_read',
       state,
       response_type: 'code',
     });
