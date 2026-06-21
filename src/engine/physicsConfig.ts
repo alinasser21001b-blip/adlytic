@@ -38,11 +38,12 @@ export const PHYSICS_CONFIG = {
     THRESHOLD_HIGH: 75               // فوق هذه الدرجة: بيانات موثوقة تماماً ومستقرة
   },
   VOLATILITY_ENGINE: {
-    CTR_CRASH_THRESHOLD: -30,        // إذا هبط الـ CTR بنسبة 30% أو أكثر عن الأساس
-    FREQUENCY_ALERT_THRESHOLD: 20,   // إذا زاد التكرار بنسبة 20% أو أكثر عن الأساس
-    MAX_VOLATILITY_PENALTY: 40,      // أقصى خصم من نقاط الثقة عند اضطراب المزاد
-    CTR_PENALTY_WEIGHT: 20,          // وزن العقوبة عند رصد انهيار جاذبية الإعلان
-    FREQUENCY_PENALTY_WEIGHT: 20     // وزن العقوبة عند رصد اختناق الجمهور
+    CTR_CRASH_THRESHOLD: -30,            // إذا هبط الـ CTR بنسبة 30% أو أكثر عن الأساس
+    FREQUENCY_ALERT_THRESHOLD: 20,       // إذا زاد التكرار بنسبة 20% أو أكثر عن الأساس
+    MAX_VOLATILITY_PENALTY: 40,          // أقصى خصم من نقاط الثقة عند اضطراب المزاد
+    CTR_PENALTY_WEIGHT: 20,              // وزن العقوبة عند رصد انهيار جاذبية الإعلان
+    FREQUENCY_PENALTY_WEIGHT: 20,        // وزن العقوبة عند رصد اختناق الجمهور
+    BROKEN_FUNNEL_DISTRESS_THRESHOLD: 200 // تكلفة الرسالة تضاعفت 3x أو انفجرت لانعدام التحويلات
   },
   PATTERN_ENGINE: {
     BEAST: {

@@ -42,6 +42,13 @@ export function evaluateCampaignConfidence(
     auctionDistressDetected = true;
   }
 
+  // ج) فحص الفانل المكسور (Broken Funnel — تكلفة الرسالة تنفجر = نزيف بلا تحويلات)
+  // العقوبة في الـ Score تمت بالفعل في CostPerMessageEngine. هنا نرفع علم الاضطراب فقط
+  // لكي يصل القرار الاستراتيجي إلى Decision Engine عبر مسار UNSTABLE_NOISE.
+  if (campaignPhysics.costPerMessage.delta >= VOLATILITY_ENGINE.BROKEN_FUNNEL_DISTRESS_THRESHOLD) {
+    auctionDistressDetected = true;
+  }
+
   // حصر العقوبة تحت السقف الأعلى المحدد في الـ Config
   volatilityPenalty = Math.min(VOLATILITY_ENGINE.MAX_VOLATILITY_PENALTY, volatilityPenalty);
 
