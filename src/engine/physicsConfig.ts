@@ -30,5 +30,18 @@ export const PHYSICS_CONFIG = {
   FREQUENCY_ENGINE: {
     BASE_SCORE: 50,
     DELTA_MULTIPLIER: 1.0       // إذا زاد التكرار بنسبة 50% يهبط الـ Score إلى صفر
+  },
+  CONFIDENCE_ENGINE: {
+    MIN_MESSAGES_FOR_TRUST: 20,      // الحد الأدنى من الرسائل لاعتبار القراءة مستقرة
+    MIN_SPEND_FOR_TRUST: 50,         // الحد الأدنى من الصرف بالدولار لضمان تجاوز عشوائية المزاد
+    THRESHOLD_LOW: 35,               // تحت هذه الدرجة: جمع بيانات فقط
+    THRESHOLD_HIGH: 75               // فوق هذه الدرجة: بيانات موثوقة تماماً ومستقرة
+  },
+  VOLATILITY_ENGINE: {
+    CTR_CRASH_THRESHOLD: -30,        // إذا هبط الـ CTR بنسبة 30% أو أكثر عن الأساس
+    FREQUENCY_ALERT_THRESHOLD: 20,   // إذا زاد التكرار بنسبة 20% أو أكثر عن الأساس
+    MAX_VOLATILITY_PENALTY: 40,      // أقصى خصم من نقاط الثقة عند اضطراب المزاد
+    CTR_PENALTY_WEIGHT: 20,          // وزن العقوبة عند رصد انهيار جاذبية الإعلان
+    FREQUENCY_PENALTY_WEIGHT: 20     // وزن العقوبة عند رصد اختناق الجمهور
   }
 } as const;
