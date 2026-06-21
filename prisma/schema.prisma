@@ -372,6 +372,36 @@ model IndustryProfile {
   @@map("industry_profiles")
 }
 
+/// Layer 6 — Persistence for the AdlyticBrain (Layer 5 orchestrator output).
+/// One row per (campaign, day). Upserted by BrainPersistence.persistBrainBatch
+/// on every worker tick. Surface columns are indexed for "Today's Actions"
+/// dashboard filters. Full structured BrainTickResult lives in `payload` JSON
+/// so Claude CMO can read the entire decision tree without DB joins.
+model CampaignBrainSnapshot {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @map("workspace_id")
+  campaignId         String   @map("campaign_id")             // internal Campaign.id
+  externalCampaignId String   @map("external_campaign_id")    // Meta's id (denormalized for fast UI lookups)
+  tickDate           DateTime @db.Date @map("tick_date")
+
+  // Indexed surface columns — what dashboards filter/sort on
+  action             String                                   // DecisionAction string value
+  priority           String                                   // CRITICAL | HIGH | NORMAL
+  patternSignature   String   @map("pattern_signature")       // SCALABLE_BEAST | DYING_CREATIVE | ...
+  finalScore         Int      @map("final_score")             // physics.finalScore, 0–100
+
+  // Full structured payload — the entire BrainTickResult tree for Claude CMO + audits
+  payload            Json
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([campaignId, tickDate])
+  @@index([workspaceId, tickDate])
+  @@index([workspaceId, priority, action])
+  @@map("campaign_brain_snapshots")
+}
+
 enum Platform {
   META
 }
