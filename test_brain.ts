@@ -6,7 +6,7 @@
 // so we can confirm the full 4-layer pipeline routes campaigns correctly
 // and never produces NaN on edge cases (zero clicks, zero messages, broken funnels).
 
-import { runBrainForCampaign, BrainTickResult } from './src/engine/AdlyticBrain';
+import { runBrainForCampaign, BrainTickResult, BrainV2Inputs } from './src/engine/AdlyticBrain';
 import { CampaignRawData, AccountBaseline } from './src/engine/BaselineCalculator';
 
 // ──────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ const baseline: AccountBaseline = {
 // Seven fixtures — one per terminal decision branch + two edge cases.
 // All 10 canonical CampaignRawData fields present.
 // ──────────────────────────────────────────────────────────────────────
-const fixtures: Array<{ expected: string; raw: CampaignRawData }> = [
+const fixtures: Array<{ expected: string; raw: CampaignRawData; v2Inputs?: BrainV2Inputs }> = [
   {
     expected: 'SCALE_BUDGET',
     raw: {
@@ -107,6 +107,46 @@ const fixtures: Array<{ expected: string; raw: CampaignRawData }> = [
       ctr: 2.5, frequency: 1.8, messages: 0,
       cpm: 6.25, cpc: 0.25
     }
+  },
+  // V2 Emergency Override: STABLE_PERFORMER would normally hold,
+  // but Layer 10 Velocity Tracker fires emergencyOverride → EMERGENCY_PAUSE.
+  // Setup: 50% of daily budget burned in 4 hours with zero conversions today.
+  {
+    expected: 'EMERGENCY_PAUSE',
+    raw: {
+      campaignId: 'bleeding_01',
+      campaignName: '🚨 Intra-Day Hemorrhage — Looks Stable Yesterday',
+      spend: 100, impressions: 5000, clicks: 100,
+      ctr: 2.0, frequency: 2.0, messages: 20,
+      cpm: 20.0, cpc: 1.0
+    },
+    v2Inputs: {
+      marketBaseline: {
+        recentAverageCPM: 20.0,
+        recentAverageCPC: 1.0,
+      },
+      goldStandard: {
+        bestHistoricalCpm: 18.0,
+        bestHistoricalCtr: 2.2,
+        bestHistoricalCostPerMessage: 4.5,
+      },
+      hourlyVelocity: {
+        hoursActiveToday: 4,
+        totalSpendToday: 50,     // 50% of daily budget
+        totalMessagesToday: 0,   // zero-conversion bleed
+        dailyBudget: 100,
+      },
+      audienceBreakdowns: {
+        topAgeGroup: '25-34',
+        topGender: 'female',
+        bestPlacement: 'instagram_reels',
+        peakTimeWindow: '21:00-01:00',
+      },
+      visionContext: {
+        productType: 'عطور فاخرة',
+        visualHook: 'SHORT_VIDEO',
+      },
+    }
   }
 ];
 
@@ -124,7 +164,7 @@ console.log(`Baseline: CPM=$${baseline.avgCPM} | CTR=${baseline.avgCTR}% | Freq=
 console.log(SEP);
 
 for (const fx of fixtures) {
-  const result = runBrainForCampaign(fx.raw, baseline);
+  const result = runBrainForCampaign(fx.raw, baseline, fx.v2Inputs);
   all.push(result);
 
   // NaN sweep — anywhere in the output tree
@@ -141,6 +181,12 @@ for (const fx of fixtures) {
   console.log(`    Confidence: maturity=${result.confidence.maturityScore}  |  penalty=${result.confidence.volatilityPenalty}  |  final=${result.confidence.finalConfidenceScore}  |  gating=${result.confidence.gatingStatus}`);
   console.log(`    Pattern:    ${result.pattern.signature}`);
   console.log(`    Recovery:   ${result.recovery.recoverySignalStrength}`);
+  if (result.decision.overriddenAction) {
+    console.log(`    ⚡ Override: ${result.decision.overriddenAction} → ${result.decision.action}`);
+  }
+  if (result.v2) {
+    console.log(`    V2:         market=${result.v2.marketPressure.status}  |  dna=${result.v2.goldStandard.verdict} (${result.v2.goldStandard.dnaMatchPercentage}%)  |  velocity=${result.v2.velocity.status}  |  resonance=${result.v2.resonance.audienceAlignmentScore}`);
+  }
   console.log(`    Reason:     ${result.decision.reason}`);
 }
 

@@ -11,13 +11,18 @@ export type DecisionAction =
   | 'REFRESH_CREATIVE'    // المحتوى أرهق الجمهور
   | 'PAUSE_CAMPAIGN'      // ينزف رأس مال بلا أمل
   | 'KEEP_COLLECTING'     // البيانات لم تنضج
-  | 'RESCUE_WATCH';       // Recovery Gate رصد إشارة حياة → لا تقتل بعد
+  | 'RESCUE_WATCH'        // Recovery Gate رصد إشارة حياة → لا تقتل بعد
+  | 'EMERGENCY_PAUSE';    // V2 Layer 10 (Velocity Tracker) رفع راية النزيف اللحظي
+                          //   → orchestrator-only override، لا تُصدرها decideCampaignAction أبداً
 
 export interface CampaignDecision {
   campaignId: string;
   action: DecisionAction;
   priority: 'CRITICAL' | 'HIGH' | 'NORMAL';
   reason: string;
+  // إذا تم تجاوز قرار Layer 4 بواسطة V2 emergencyOverride،
+  // نحفظ القرار الأصلي هنا للديباغ والشفافية. لا يُضبط داخل decideCampaignAction.
+  overriddenAction?: DecisionAction;
 }
 
 /**
