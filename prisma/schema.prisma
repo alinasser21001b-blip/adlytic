@@ -393,6 +393,11 @@ model CampaignBrainSnapshot {
   // Full structured payload — the entire BrainTickResult tree for Claude CMO + audits
   payload            Json
 
+  // Cron-narrated Claude CMO output — { arabicTitle, arabicNarration, creativeDirective? }.
+  // Null until the narration worker writes it; dashboard reads it as cache, never blocks on an LLM call.
+  narrationJson         Json?     @map("narration_json")
+  narrationGeneratedAt  DateTime? @map("narration_generated_at")
+
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 

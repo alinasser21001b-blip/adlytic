@@ -43,7 +43,7 @@ import { EntityType, WorkspaceRole, type Locale } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
-import { getDashboard } from '../services/getDashboard';
+import { getDashboard, getDashboardPulse } from '../services/getDashboard';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
@@ -561,6 +561,27 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       throw e;
     }
+  });
+
+  /**
+   * GET /api/dashboard/pulse/:workspaceId — lean polling endpoint.
+   *
+   * Returns ONLY the volatile fields the dashboard refreshes every 60s.
+   * Decoupled from the heavy `getDashboard` path so polling stays cheap.
+   * 200 with `{ empty: true }` when no ad account is linked yet.
+   */
+  app.get('/api/dashboard/pulse/:workspaceId', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
+    const pulse = await getDashboardPulse(workspaceId, { prisma });
+    if (!pulse) return c.json({ empty: true, workspaceId }, 200);
+    return c.json(pulse);
   });
 
   // ════════════════════════════════════════════════════════════════════════

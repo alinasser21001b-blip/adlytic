@@ -527,6 +527,55 @@ export function dashboardPage(): string {
           <a href="/workspace" style="padding:6px 14px;border-radius:7px;background:var(--warning);color:#000;font-size:12px;font-weight:600;white-space:nowrap;text-decoration:none;">Reconnect Account</a>
         </div>
 
+        <!-- ═════════════════════════════════════════════════════════════
+             V6 BRAIN — three Strangler-Fig sections (rendered ABOVE V5).
+             Hidden until /api/dashboard returns a brain payload. Polling
+             refreshes only Live Pulse numerics every 60s.
+             ═════════════════════════════════════════════════════════════ -->
+        <section id="brain-cmo-feed-section" class="v2-section" style="display:none;margin-bottom:18px;">
+          <div class="v2-section-head">
+            <div class="v2-section-title">CMO Feed</div>
+            <div class="v2-section-meta" id="brain-cmo-feed-meta">AI-narrated decisions for today</div>
+          </div>
+          <div id="brain-cmo-feed" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </section>
+
+        <section id="brain-pulse-section" class="v2-section" style="display:none;margin-bottom:18px;">
+          <div class="v2-section-head">
+            <div class="v2-section-title">Live Pulse</div>
+            <div class="v2-section-meta">Auto-refreshes every 60s · <span id="brain-pulse-tick">—</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+            <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
+              <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">Burn Rate</div>
+              <div id="brain-pulse-burn" style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">—</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px;"><span id="brain-pulse-burn-n">0</span> campaigns</div>
+            </div>
+            <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
+              <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">Intra-day Spend</div>
+              <div id="brain-pulse-spendpct" style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">—</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px;">of total daily budget</div>
+            </div>
+            <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
+              <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">DNA Match</div>
+              <div id="brain-pulse-dna" style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">—</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px;">vs gold-standard winners</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="brain-ledger-section" class="v2-section" style="display:none;margin-bottom:18px;">
+          <div class="v2-section-head">
+            <div class="v2-section-title">Interventions Ledger</div>
+            <div class="v2-section-meta">Last 7 days</div>
+          </div>
+          <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">Estimated wasted spend prevented</div>
+            <div id="brain-ledger-saved" style="font-size:28px;font-weight:800;color:var(--success,#22c55e);margin-top:6px;">—</div>
+          </div>
+          <div id="brain-ledger-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </section>
+
         <!-- V2 §1 — Account Health -->
         <div class="v2-health-card" id="v2-health">
           <div class="v2-health-score-block">
@@ -1126,6 +1175,104 @@ export function dashboardPage(): string {
     return null;
   }
 
+  // ── V6 Brain section renderers ───────────────────────────────────────────
+  // Strangler Fig: when brain is absent from the dashboard DTO the three V6
+  // sections stay hidden and V5 below is the only thing the user sees.
+  function priorityClass(p) {
+    if (p === 'CRITICAL') return 'v2-verdict-poor';
+    if (p === 'HIGH') return 'v2-verdict-attention';
+    return 'v2-verdict-good';
+  }
+
+  function renderBrainSection(brain) {
+    if (!brain) return;
+    // ── CMO Feed ──
+    var feedHost = document.getElementById('brain-cmo-feed');
+    var feedSection = document.getElementById('brain-cmo-feed-section');
+    var meta = document.getElementById('brain-cmo-feed-meta');
+    var items = (brain.cmoFeed || []);
+    if (items.length === 0) {
+      feedHost.innerHTML = '<div class="v2-action-empty">No active decisions today.</div>';
+    } else {
+      feedHost.innerHTML = items.map(function(it) {
+        var hasNarration = !!it.narration;
+        var title = hasNarration ? escHtml(it.narration.arabicTitle) : escHtml(it.campaignName);
+        var body = hasNarration
+          ? escHtml(it.narration.arabicNarration)
+          : 'AI summary pending — action recommended: ' + escHtml(it.action);
+        var dir = (it.narration && it.narration.creativeDirective)
+          ? '<div style="margin-top:6px;font-size:12px;color:var(--text-3);"><strong>Creative directive:</strong> ' + escHtml(it.narration.creativeDirective) + '</div>'
+          : '';
+        return ''
+          + '<div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">'
+          +   '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
+          +     '<span class="v2-health-verdict ' + priorityClass(it.priority) + '" style="font-size:11px;padding:2px 8px;">' + escHtml(it.priority) + '</span>'
+          +     '<span style="font-size:13px;color:var(--text-3);">' + escHtml(it.campaignName) + ' · ' + escHtml(it.tickDate) + '</span>'
+          +   '</div>'
+          +   '<div style="font-size:15px;font-weight:600;color:var(--text);">' + title + '</div>'
+          +   '<div style="font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5;">' + body + '</div>'
+          +   dir
+          + '</div>';
+      }).join('');
+    }
+    meta.textContent = items.length + ' decision' + (items.length === 1 ? '' : 's') + ' for today';
+    feedSection.style.display = 'block';
+
+    // ── Live Pulse — initial render from full DTO; polling refreshes it ──
+    applyPulse(brain.livePulse);
+    document.getElementById('brain-pulse-section').style.display = 'block';
+
+    // ── Interventions Ledger ──
+    var ledger = brain.ledger;
+    if (ledger) {
+      document.getElementById('brain-ledger-saved').textContent = ledger.savedSpendDisplay || '—';
+      var list = document.getElementById('brain-ledger-list');
+      var rows = ledger.recentActions || [];
+      if (rows.length === 0) {
+        list.innerHTML = '<div class="v2-action-empty">No interventions in the last 7 days.</div>';
+      } else {
+        list.innerHTML = rows.map(function(r) {
+          return ''
+            + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);">'
+            +   '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
+            +     '<span class="v2-health-verdict ' + priorityClass(r.priority) + '" style="font-size:11px;padding:2px 8px;flex-shrink:0;">' + escHtml(r.priority) + '</span>'
+            +     '<span style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(r.campaignName) + '</span>'
+            +   '</div>'
+            +   '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">'
+            +     '<span style="font-size:12px;color:var(--text-2);font-weight:600;">' + escHtml(r.action) + '</span>'
+            +     '<span style="font-size:11px;color:var(--text-3);">' + escHtml(r.tickDate) + '</span>'
+            +   '</div>'
+            + '</div>';
+        }).join('');
+      }
+      document.getElementById('brain-ledger-section').style.display = 'block';
+    }
+  }
+
+  function applyPulse(pulse) {
+    if (!pulse) return;
+    document.getElementById('brain-pulse-burn').textContent = pulse.burnRateDisplay || '—';
+    document.getElementById('brain-pulse-burn-n').textContent = String(pulse.campaignsObserved || 0);
+    document.getElementById('brain-pulse-spendpct').textContent = (pulse.intraDaySpendPct !== null && pulse.intraDaySpendPct !== undefined)
+      ? pulse.intraDaySpendPct.toFixed(1) + '%' : '—';
+    document.getElementById('brain-pulse-dna').textContent = (pulse.dnaMatchPct !== null && pulse.dnaMatchPct !== undefined)
+      ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
+    document.getElementById('brain-pulse-tick').textContent = pulse.tickDate || 'no tick yet today';
+  }
+
+  function startPulsePolling(workspaceId) {
+    var POLL_MS = 60000;
+    async function tick() {
+      try {
+        var r = await apiFetch('/api/dashboard/pulse/' + workspaceId);
+        if (r && !r.empty) applyPulse(r);
+      } catch (e) {
+        // Silent — polling failures shouldn't disrupt the rest of the page.
+      }
+    }
+    setInterval(tick, POLL_MS);
+  }
+
   // ── Main init ─────────────────────────────────────────────────────────────
   async function init() {
     var token = getToken();
@@ -1190,6 +1337,12 @@ export function dashboardPage(): string {
       var wsName = (dashData.workspace && (dashData.workspace.name || dashData.workspace.id)) || workspaceId;
       document.getElementById('ws-name').textContent = wsName;
       document.getElementById('dash-subtitle').textContent = 'Last 30 days · ' + wsName;
+
+      // V6 Brain — three Strangler-Fig sections. Hidden when DTO has no brain.
+      if (dashData.brain) {
+        renderBrainSection(dashData.brain);
+        startPulsePolling(workspaceId);
+      }
 
       // V2 §1 — Health (replaces legacy renderHealth; ring still updated inside)
       var issuesCount = Array.isArray(dashData.issues) ? dashData.issues.length : 0;

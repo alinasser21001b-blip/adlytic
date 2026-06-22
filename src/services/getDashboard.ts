@@ -102,6 +102,61 @@ export interface DashboardDTO {
   } | null;
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
+
+  // ── V6 Brain section (optional — present only when CampaignBrainSnapshot has rows). ──
+  // Strangler Fig: when absent, the page renders V5 sections only. When present, the
+  // V6 sections render *above* the V5 ones and the V5 stays as a fallback below.
+  brain?: BrainSection;
+}
+
+// ── V6 Brain Section types ─────────────────────────────────────────────
+export interface BrainCmoFeedItem {
+  campaignId: string;
+  campaignName: string;
+  priority: string;       // CRITICAL | HIGH | NORMAL
+  action: string;         // DecisionAction string
+  /** Null when the cron narration worker hasn't written this row yet. */
+  narration: {
+    arabicTitle: string;
+    arabicNarration: string;
+    creativeDirective?: string;
+  } | null;
+  generatedAt: string | null;   // ISO timestamp
+  tickDate: string;             // YYYY-MM-DD
+}
+
+export interface LivePulse {
+  /** Aggregate burn rate across today's V2-enabled campaigns, in account-currency major units. */
+  burnRate: number;
+  burnRateDisplay: string;
+  /** sum(today_spend) / sum(daily_budgets) × 100 — null when no budgets known. 0-100. */
+  intraDaySpendPct: number | null;
+  /** Average dnaMatchPercentage across today's V2 campaigns. 0-100. Null when no V2 ran. */
+  dnaMatchPct: number | null;
+  /** Campaigns reflected in today's aggregate. */
+  campaignsObserved: number;
+  /** Last brain tickDate that produced this pulse (YYYY-MM-DD). Null when no tick today. */
+  tickDate: string | null;
+}
+
+export interface InterventionsLedger {
+  /** Hero: estimated wasted spend prevented in last 7d, in account-currency major. */
+  savedSpend: number;
+  savedSpendDisplay: string;
+  /** Recent interventions (auto-pause / refresh-creative) for the table. */
+  recentActions: Array<{
+    campaignId: string;
+    campaignName: string;
+    action: string;
+    priority: string;
+    tickDate: string;
+  }>;
+}
+
+export interface BrainSection {
+  cmoFeed: BrainCmoFeedItem[];
+  livePulse: LivePulse;
+  ledger: InterventionsLedger;
 }
 
 interface CampaignCard {
@@ -279,6 +334,10 @@ export async function getDashboard(
   // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
   const cards = await buildCampaignCards(account.id, prisma);
 
+  // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
+  //     Returns undefined when no snapshots exist for this workspace (V5-only render).
+  const brain = await buildBrainSection(prisma, ws.id, account.id, account.currency, account.currencyMinorFactor);
+
   return {
     workspace: {
       id: ws.id,
@@ -296,6 +355,7 @@ export async function getDashboard(
     priorityAction,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
+    ...(brain && { brain }),
   };
 }
 
@@ -354,5 +414,303 @@ async function buildCampaignCards(adAccountId: string, prisma: PrismaClient): Pr
   return {
     best: sorted[0],
     worst: sorted[sorted.length - 1],
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  V6 Brain Section — assembled from CampaignBrainSnapshot rows.
+// ════════════════════════════════════════════════════════════════════════
+
+/** Dials for derived figures the dashboard surfaces. Tunable, deliberately conservative. */
+const BRAIN_SECTION_CONFIG = {
+  CMO_FEED_LIMIT: 5,
+  LEDGER_TABLE_LIMIT: 10,
+  LEDGER_LOOKBACK_DAYS: 7,
+  /** Conservative "hours of bleed prevented" assumption for the savedSpend hero number.
+   *  Real-world the pause prevents the remainder of the day, but we don't know the local
+   *  pause-hour from payload alone — 4h is a defensible underestimate that grows the
+   *  hero number honestly rather than optimistically. */
+  ASSUMED_HOURS_SAVED_PER_PAUSE: 4,
+} as const;
+
+const PAUSE_ACTIONS = new Set(['PAUSE_CAMPAIGN', 'EMERGENCY_PAUSE']);
+const LEDGER_ACTIONS = new Set(['PAUSE_CAMPAIGN', 'EMERGENCY_PAUSE', 'REFRESH_CREATIVE', 'RESCUE_WATCH']);
+
+interface CmoNarration {
+  arabicTitle: string;
+  arabicNarration: string;
+  creativeDirective?: string;
+}
+
+/** Defensive read of payload.v2.velocity.burnRate — engine major units. */
+function readBurnRate(payload: unknown): number {
+  if (!payload || typeof payload !== 'object') return 0;
+  const v2 = (payload as Record<string, unknown>).v2;
+  if (!v2 || typeof v2 !== 'object') return 0;
+  const velocity = (v2 as Record<string, unknown>).velocity;
+  if (!velocity || typeof velocity !== 'object') return 0;
+  const br = (velocity as Record<string, unknown>).burnRate;
+  return typeof br === 'number' && Number.isFinite(br) ? br : 0;
+}
+
+/** Defensive read of payload.v2.goldStandard.dnaMatchPercentage (0-100). */
+function readDnaMatch(payload: unknown): number | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const v2 = (payload as Record<string, unknown>).v2;
+  if (!v2 || typeof v2 !== 'object') return null;
+  const gold = (v2 as Record<string, unknown>).goldStandard;
+  if (!gold || typeof gold !== 'object') return null;
+  const pct = (gold as Record<string, unknown>).dnaMatchPercentage;
+  return typeof pct === 'number' && Number.isFinite(pct) ? pct : null;
+}
+
+/** Defensive read of narrationJson into the typed CmoNarration shape. */
+function readNarration(json: unknown): CmoNarration | null {
+  if (!json || typeof json !== 'object') return null;
+  const obj = json as Record<string, unknown>;
+  const t = obj['arabicTitle'];
+  const n = obj['arabicNarration'];
+  if (typeof t !== 'string' || typeof n !== 'string') return null;
+  const dir = obj['creativeDirective'];
+  const out: CmoNarration = { arabicTitle: t, arabicNarration: n };
+  if (typeof dir === 'string' && dir.length > 0) out.creativeDirective = dir;
+  return out;
+}
+
+/**
+ * Build the V6 brain section for the workspace. Returns null when no brain
+ * snapshots exist (V5-only render path stays valid).
+ */
+async function buildBrainSection(
+  prisma: PrismaClient,
+  workspaceId: string,
+  adAccountId: string,
+  currency: string,
+  currencyMinorFactor: number,
+): Promise<BrainSection | null> {
+  // Today @ UTC midnight, matching BrainPersistence.toUtcMidnight semantics.
+  const today = new Date();
+  const tickToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+
+  // Ledger window: last 7d.
+  const ledgerSince = new Date(tickToday);
+  ledgerSince.setUTCDate(ledgerSince.getUTCDate() - BRAIN_SECTION_CONFIG.LEDGER_LOOKBACK_DAYS);
+
+  // Pull all relevant snapshots in one query — windowed at the ledger horizon,
+  // wide enough to cover today's pulse + recent CMO feed + ledger. Bounded by workspace.
+  const snapshots = await prisma.campaignBrainSnapshot.findMany({
+    where: { workspaceId, tickDate: { gte: ledgerSince } },
+    orderBy: { tickDate: 'desc' },
+  });
+
+  if (snapshots.length === 0) return null;
+
+  // Resolve campaign names once (avoid per-snapshot N+1).
+  const campaignIds = Array.from(new Set(snapshots.map(s => s.campaignId)));
+  const camps = await prisma.campaign.findMany({
+    where: { id: { in: campaignIds } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(camps.map(c => [c.id, c.name]));
+
+  // ── CMO Feed: top critical/high snapshots from today (or most recent tick). ──
+  const sortedByPriority = [...snapshots].sort((a, b) => {
+    // priority weight: CRITICAL > HIGH > NORMAL
+    const w = (p: string) => (p === 'CRITICAL' ? 2 : p === 'HIGH' ? 1 : 0);
+    const dp = w(b.priority) - w(a.priority);
+    if (dp !== 0) return dp;
+    return b.tickDate.getTime() - a.tickDate.getTime();
+  });
+  const cmoFeed: BrainCmoFeedItem[] = sortedByPriority
+    .slice(0, BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT)
+    .map(s => ({
+      campaignId: s.campaignId,
+      campaignName: nameById.get(s.campaignId) ?? s.externalCampaignId,
+      priority: s.priority,
+      action: s.action,
+      narration: readNarration(s.narrationJson),
+      generatedAt: s.narrationGeneratedAt?.toISOString() ?? null,
+      tickDate: s.tickDate.toISOString().slice(0, 10),
+    }));
+
+  // ── Live Pulse: aggregate across today's tick. ──
+  const todaySnapshots = snapshots.filter(s => s.tickDate.getTime() === tickToday.getTime());
+
+  let burnRate = 0;
+  const dnaSamples: number[] = [];
+  let campaignsObserved = 0;
+  for (const s of todaySnapshots) {
+    const br = readBurnRate(s.payload);
+    if (br > 0) {
+      burnRate += br;
+      campaignsObserved++;
+    }
+    const dna = readDnaMatch(s.payload);
+    if (dna !== null) dnaSamples.push(dna);
+  }
+  const dnaMatchPct = dnaSamples.length
+    ? dnaSamples.reduce((a, b) => a + b, 0) / dnaSamples.length
+    : null;
+
+  // intraDaySpendPct: sum(today's campaign-level spend) / sum(daily budgets) × 100.
+  // Independent of payload — pulls from DailyStat + Campaign.dailyBudget.
+  const campaignsForBudget = await prisma.campaign.findMany({
+    where: { adAccountId, status: 'ACTIVE' },
+    select: { id: true, dailyBudget: true },
+  });
+  const totalDailyBudgetMinor = campaignsForBudget.reduce(
+    (a, c) => a + (c.dailyBudget ? Number(c.dailyBudget) : 0),
+    0,
+  );
+  const todaysCampaignStats = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaignsForBudget.map(c => c.id) },
+      date: tickToday,
+    },
+    select: { spend: true },
+  });
+  const totalSpendTodayMinor = todaysCampaignStats.reduce((a, r) => a + Number(r.spend), 0);
+  const intraDaySpendPct = totalDailyBudgetMinor > 0
+    ? +(totalSpendTodayMinor / totalDailyBudgetMinor * 100).toFixed(1)
+    : null;
+
+  const pulseTickDate = todaySnapshots.length > 0
+    ? todaySnapshots[0]?.tickDate.toISOString().slice(0, 10) ?? null
+    : null;
+
+  const livePulse: LivePulse = {
+    burnRate: +burnRate.toFixed(2),
+    burnRateDisplay: fmtMajor(burnRate, currency),
+    intraDaySpendPct,
+    dnaMatchPct: dnaMatchPct !== null ? +dnaMatchPct.toFixed(1) : null,
+    campaignsObserved,
+    tickDate: pulseTickDate,
+  };
+
+  // ── Interventions Ledger: 7d window. ──
+  const interventionRows = snapshots.filter(s => LEDGER_ACTIONS.has(s.action));
+
+  // savedSpend: sum(burnRate × ASSUMED_HOURS_SAVED_PER_PAUSE) over pause-class actions in 7d.
+  let savedSpend = 0;
+  for (const s of interventionRows) {
+    if (!PAUSE_ACTIONS.has(s.action)) continue;
+    const br = readBurnRate(s.payload);
+    savedSpend += br * BRAIN_SECTION_CONFIG.ASSUMED_HOURS_SAVED_PER_PAUSE;
+  }
+
+  const ledger: InterventionsLedger = {
+    savedSpend: +savedSpend.toFixed(2),
+    savedSpendDisplay: fmtMajor(savedSpend, currency),
+    recentActions: interventionRows
+      .slice(0, BRAIN_SECTION_CONFIG.LEDGER_TABLE_LIMIT)
+      .map(s => ({
+        campaignId: s.campaignId,
+        campaignName: nameById.get(s.campaignId) ?? s.externalCampaignId,
+        action: s.action,
+        priority: s.priority,
+        tickDate: s.tickDate.toISOString().slice(0, 10),
+      })),
+  };
+
+  return { cmoFeed, livePulse, ledger };
+
+  // Helper local to this fn — formats a major-unit number into the account currency.
+  // Mirrors the `money()` minor-unit formatter above but for engine major units.
+  function fmtMajor(v: number, ccy: string): string {
+    if (!Number.isFinite(v)) return `0 ${ccy}`;
+    if (ccy === 'IQD') return `${Math.round(v).toLocaleString()} ${ccy}`;
+    return `${v.toFixed(2)} ${ccy}`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  /api/dashboard/pulse — lean polling DTO
+//
+//  Returns only volatile data the UI refreshes every 60s: aggregate burn rate,
+//  intra-day spend %, dnaMatchPct, observed-campaign count, tickDate. No payload
+//  decode beyond `readBurnRate` and `readDnaMatch`; no cmoFeed; no ledger.
+//  Returns null when the workspace has no ad account (mirrors getDashboard EMPTY).
+// ════════════════════════════════════════════════════════════════════════
+
+export interface DashboardPulseDTO extends LivePulse {
+  workspaceId: string;
+}
+
+export async function getDashboardPulse(
+  workspaceId: string,
+  opts: { prisma?: PrismaClient } = {},
+): Promise<DashboardPulseDTO | null> {
+  const prisma = opts.prisma ?? _standalonePrisma;
+
+  // Account context — same Phase-1 "one account per workspace" assumption.
+  const ws = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { adAccounts: { select: { id: true, currency: true } } },
+  });
+  const account = ws?.adAccounts[0];
+  if (!account) return null;
+
+  const today = new Date();
+  const tickToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+
+  // Today's snapshots (one tick per campaign per UTC day).
+  const todaySnapshots = await prisma.campaignBrainSnapshot.findMany({
+    where: { workspaceId, tickDate: tickToday },
+    select: { payload: true, tickDate: true },
+  });
+
+  let burnRate = 0;
+  let campaignsObserved = 0;
+  const dnaSamples: number[] = [];
+  for (const s of todaySnapshots) {
+    const br = readBurnRate(s.payload);
+    if (br > 0) {
+      burnRate += br;
+      campaignsObserved++;
+    }
+    const dna = readDnaMatch(s.payload);
+    if (dna !== null) dnaSamples.push(dna);
+  }
+  const dnaMatchPct = dnaSamples.length
+    ? +(dnaSamples.reduce((a, b) => a + b, 0) / dnaSamples.length).toFixed(1)
+    : null;
+
+  // intraDaySpendPct — independent of brain payload (DailyStat + dailyBudget).
+  const campaignsForBudget = await prisma.campaign.findMany({
+    where: { adAccountId: account.id, status: 'ACTIVE' },
+    select: { id: true, dailyBudget: true },
+  });
+  const totalDailyBudgetMinor = campaignsForBudget.reduce(
+    (a, c) => a + (c.dailyBudget ? Number(c.dailyBudget) : 0),
+    0,
+  );
+  const todaysCampaignStats = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaignsForBudget.map(c => c.id) },
+      date: tickToday,
+    },
+    select: { spend: true },
+  });
+  const totalSpendTodayMinor = todaysCampaignStats.reduce((a, r) => a + Number(r.spend), 0);
+  const intraDaySpendPct = totalDailyBudgetMinor > 0
+    ? +(totalSpendTodayMinor / totalDailyBudgetMinor * 100).toFixed(1)
+    : null;
+
+  const tickDate = todaySnapshots.length > 0 ? tickToday.toISOString().slice(0, 10) : null;
+  const ccy = account.currency;
+  const burnRateDisplay = ccy === 'IQD'
+    ? `${Math.round(burnRate).toLocaleString()} ${ccy}`
+    : `${burnRate.toFixed(2)} ${ccy}`;
+
+  return {
+    workspaceId,
+    burnRate: +burnRate.toFixed(2),
+    burnRateDisplay,
+    intraDaySpendPct,
+    dnaMatchPct,
+    campaignsObserved,
+    tickDate,
   };
 }
