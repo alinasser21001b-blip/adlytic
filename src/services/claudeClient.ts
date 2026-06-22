@@ -41,3 +41,32 @@ export async function askClaude(context: string): Promise<string> {
   if (block?.type === 'text') return block.text;
   return 'Sorry, I could not generate a response.';
 }
+
+/**
+ * Lower-level variant used when the caller owns the system prompt (e.g. ClaudeCMO's
+ * strict anti-hallucination contract). Mirrors the signature ClaudeCMO expects:
+ *   `(systemPrompt, userPrompt) => Promise<string>`.
+ *
+ * `maxTokens` defaults higher than `askClaude` because narration payloads
+ * (Arabic title + multi-sentence narration + optional creative directive) can
+ * legitimately exceed the conversational-default 512-token budget.
+ */
+export async function askClaudeWithSystem(
+  systemPrompt: string,
+  userPrompt: string,
+  opts: { maxTokens?: number } = {},
+): Promise<string> {
+  const client = getClient();
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: opts.maxTokens ?? 800,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+
+  const block = message.content[0];
+  if (block?.type === 'text') return block.text;
+  // ClaudeCMO's caller is responsible for fallback narration — return empty
+  // string here so its JSON.parse hits the catch path cleanly.
+  return '';
+}
