@@ -59,6 +59,20 @@ export function _resetAdminAllowlistCache(): void {
 }
 
 /**
+ * Pure, no-IO check used by `/api/auth/me` to set `isPlatformAdmin` on the
+ * response. The flag is a UI hint only — the real security boundary lives
+ * inside `requirePlatformAdmin` which is called per admin route.
+ *
+ * Returns false when the env var is missing (fail closed for the UI hint too).
+ */
+export function isPlatformAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const allowlist = getAllowlist();
+  if (!allowlist) return false;
+  return allowlist.has(email.trim().toLowerCase());
+}
+
+/**
  * Verify the request carries a valid bearer token AND the resolved user is on
  * the platform-admin allowlist. Returns a discriminated result so the route
  * stays single-shaped: `if (!gate.ok) return c.json(gate.response.body, gate.response.status)`.

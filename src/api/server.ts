@@ -45,7 +45,8 @@ import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse } from '../services/getDashboard';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
-import { requirePlatformAdmin } from './adminGuard';
+import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
+import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
@@ -263,6 +264,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/workspace',      (c) => c.html(workspacePage()));
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
+  app.get('/admin',          (c) => c.html(adminDashboardPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
@@ -382,7 +384,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       },
     });
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
-    return c.json(safeJson(user));
+    // Surface platform-admin flag for UI hints (sidebar link visibility).
+    // The flag is advisory only — every admin route still calls requirePlatformAdmin.
+    return c.json({ ...(safeJson(user) as object), isPlatformAdmin: isPlatformAdminEmail(user.email) });
   });
 
   /** PATCH /api/auth/profile — update display name. */
