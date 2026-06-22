@@ -44,6 +44,8 @@ import { signToken, verifyToken, verifyPassword, hashPassword } from '../service
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse } from '../services/getDashboard';
+import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
+import { requirePlatformAdmin } from './adminGuard';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
@@ -582,6 +584,38 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const pulse = await getDashboardPulse(workspaceId, { prisma });
     if (!pulse) return c.json({ empty: true, workspaceId }, 200);
     return c.json(pulse);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  ADMIN — platform-wide read-only analytics (gated by PLATFORM_ADMIN_EMAILS)
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * GET /api/admin/platform-stats — aggregate reach + budgets + brain health.
+   *
+   * Gated by `requirePlatformAdmin`. Served from an in-memory 1h TTL cache
+   * (see `getPlatformStats.ts`); the DTO carries `fromCache` so admins can
+   * see whether they're looking at a fresh or cached row.
+   */
+  app.get('/api/admin/platform-stats', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const stats = await getPlatformStats(prisma);
+    return c.json(stats);
+  });
+
+  /**
+   * POST /api/admin/cache/bust — manual invalidation of the platform-stats cache.
+   *
+   * Use after a hot fix to force the next `/api/admin/platform-stats` to recompute.
+   */
+  app.post('/api/admin/cache/bust', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    bustPlatformStatsCache();
+    return c.json({ ok: true, bustedAt: Date.now() });
   });
 
   // ════════════════════════════════════════════════════════════════════════
