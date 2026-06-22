@@ -16,6 +16,7 @@ export function settingsPage(): string {
   <button class="settings-tab active" data-tab="profile" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text);background:none;border:none;border-bottom:2px solid var(--accent);cursor:pointer;margin-bottom:-1px;">Profile</button>
   <button class="settings-tab" data-tab="security" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Security</button>
   <button class="settings-tab" data-tab="notifications" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Notifications</button>
+  <button class="settings-tab" data-tab="billing" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Billing</button>
   <button class="settings-tab" data-tab="danger" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--error);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Danger Zone</button>
 </div>
 
@@ -115,6 +116,35 @@ export function settingsPage(): string {
       </div>`).join('')}
     </div>
     <button class="btn btn-primary" style="margin-top:16px;" id="save-notif-btn">Save Preferences</button>
+  </div>
+</div>
+
+<!-- Billing tab -->
+<div id="tab-billing" class="settings-panel" style="display:none;">
+  <div class="card" style="max-width:560px;">
+    <div class="card-title">Subscription</div>
+    <div id="billing-banner" class="alert" style="display:none;margin-bottom:16px;"></div>
+    <div id="billing-loading" class="loading-overlay" style="min-height:80px;"><div class="spinner"></div></div>
+    <div id="billing-body" style="display:none;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <div style="font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Current plan</div>
+          <span id="billing-tier-badge" class="badge">—</span>
+          <div id="billing-status-line" style="font-size:12.5px;color:var(--text-2);margin-top:8px;"></div>
+          <div id="billing-expiry-line" style="font-size:12.5px;color:var(--text-2);margin-top:2px;display:none;"></div>
+        </div>
+      </div>
+      <div id="billing-owner-actions" style="display:none;margin-top:20px;">
+        <button id="upgrade-premium-btn" class="btn btn-primary" style="width:100%;">Upgrade to Premium &mdash; $10 / month</button>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:8px;">Powered by Stripe. Sandbox: card 4242 4242 4242 4242, any future expiry, any CVC.</div>
+      </div>
+      <div id="billing-non-owner-note" style="display:none;margin-top:16px;font-size:12.5px;color:var(--text-3);">Only the workspace owner can manage billing.</div>
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:10px;">Prefer Zain Cash, Asia Hawala, or bank transfer?</div>
+        <button id="whatsapp-pay-btn" class="btn btn-secondary" style="width:100%;">تواصل عبر واتساب للدفع اليدوي</button>
+      </div>
+    </div>
+    <div id="billing-error" class="alert alert-error" style="display:none;margin-top:12px;"></div>
   </div>
 </div>
 
@@ -266,6 +296,93 @@ export function settingsPage(): string {
       URL.revokeObjectURL(url);
       toast('Data export downloaded.', 'success');
     } catch(e) { toast(e.message || 'Export failed', 'error'); }
+  });
+
+  // ── Billing tab ─────────────────────────────────────────────────────────
+  // Handle Stripe success/cancel redirect (success_url & cancel_url land here
+  // with ?billing=success|cancel — see server.ts checkout route).
+  const _billingResult = new URLSearchParams(window.location.search).get('billing');
+  if (_billingResult === 'success' || _billingResult === 'cancel') {
+    const b = document.getElementById('billing-banner');
+    if (_billingResult === 'success') {
+      b.className = 'alert alert-success';
+      b.textContent = 'تم إرسال طلب الدفع. سيتم تفعيل اشتراك Premium خلال لحظات بمجرد تأكيد Stripe.';
+    } else {
+      b.className = 'alert alert-error';
+      b.textContent = 'تم إلغاء عملية الدفع. يمكنك المحاولة مرة أخرى في أي وقت.';
+    }
+    b.style.display = 'flex';
+    document.querySelector('[data-tab="billing"]').click();
+  }
+
+  // Load subscription status for the active workspace.
+  (async function loadBilling() {
+    if (!wsId) return;
+    const errEl = document.getElementById('billing-error');
+    const loadEl = document.getElementById('billing-loading');
+    const bodyEl = document.getElementById('billing-body');
+    try {
+      const ws = await apiFetch('/api/workspaces/' + wsId);
+      const tier = ws.tier || 'FREE';
+      const status = ws.subscriptionStatus || 'NONE';
+      const expires = ws.subscriptionExpiresAt;
+
+      const badge = document.getElementById('billing-tier-badge');
+      badge.className = 'badge ' + (tier === 'PREMIUM' ? 'badge-green' : 'badge-gray');
+      badge.textContent = tier;
+      document.getElementById('billing-status-line').textContent = 'Status: ' + status;
+      if (expires) {
+        const exp = new Date(expires);
+        const expEl = document.getElementById('billing-expiry-line');
+        expEl.textContent = 'Expires: ' + exp.toLocaleDateString();
+        expEl.style.display = 'block';
+      }
+
+      const isOwner = wsM && wsM.role === 'OWNER';
+      if (isOwner && tier !== 'PREMIUM') {
+        document.getElementById('billing-owner-actions').style.display = 'block';
+      } else if (!isOwner) {
+        document.getElementById('billing-non-owner-note').style.display = 'block';
+      }
+
+      loadEl.style.display = 'none';
+      bodyEl.style.display = 'block';
+    } catch (e) {
+      loadEl.style.display = 'none';
+      errEl.textContent = (e && e.message) || 'Failed to load billing status';
+      errEl.style.display = 'flex';
+    }
+  })();
+
+  // Upgrade → Stripe Checkout redirect.
+  document.getElementById('upgrade-premium-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('upgrade-premium-btn');
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Redirecting to Stripe…';
+    try {
+      const res = await apiFetch('/api/billing/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ workspaceId: wsId, tier: 'PREMIUM' }),
+      });
+      if (!res || !res.url) throw new Error('No checkout URL returned');
+      window.location.href = res.url;
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = original;
+      toast((e && e.message) || 'Failed to start checkout', 'error');
+    }
+  });
+
+  // WhatsApp manual-payment deep link.
+  document.getElementById('whatsapp-pay-btn')?.addEventListener('click', async () => {
+    try {
+      const res = await apiFetch('/api/billing/whatsapp-link?workspaceId=' + encodeURIComponent(wsId));
+      if (!res || !res.url) throw new Error('No WhatsApp link returned');
+      window.open(res.url, '_blank', 'noopener');
+    } catch (e) {
+      toast((e && e.message) || 'Failed to build WhatsApp link', 'error');
+    }
   });
 
   // Delete account
