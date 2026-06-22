@@ -1180,13 +1180,54 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     // Fire-and-forget: log a snapshot for closed-loop learning. One log entry
     // per recommendations fetch summarising the top recommendation surfaced.
+    //
+    // V1.1.5 fix (C-1 — outcome memory): hydrate `metricsSnapshot` with the
+    // real KPI values from the latest DailyStat row for the recommendation's
+    // own entity (could be ACCOUNT / CAMPAIGN / ADSET / AD — we match the rec's
+    // entityType+entityId, not the workspace's account, so campaign-scoped
+    // recs are evaluated against campaign-scoped metrics).
+    //
+    // Fallback contract: if no DailyStat exists yet (entity not yet synced),
+    // emit zeros — never `undefined`. `computePrimaryDelta` in the rec service
+    // treats `b > 0` as the gate, so 0-baselines correctly skip delta scoring
+    // without poisoning the JSON shape.
     if (recs.length > 0) {
       const top = recs[0]!;
-      recService.logRecommendation({
-        workspaceId,
-        verdict: `${top.actionCode} (${top.priority})`,
-        metricsSnapshot: { actionCode: top.actionCode, priority: top.priority, date: top.date },
-      }).catch((err) => console.error('[RecLog] failed to log recommendation:', err));
+      void (async () => {
+        try {
+          const latestStat = await prisma.dailyStat.findFirst({
+            where: {
+              entityType: top.entityType,
+              entityId: top.entityId,
+              date: { lte: top.date },
+            },
+            orderBy: { date: 'desc' },
+          });
+          const snapshot = {
+            // Canonical KPI fields — match MetricsSnapshot interface.
+            ctr: latestStat?.ctr ?? 0,
+            cpm: latestStat?.cpm ?? 0,
+            cpc: latestStat?.cpc ?? 0,
+            roas: latestStat?.roas ?? 0,
+            frequency: latestStat?.frequency ?? 0,
+            spend: latestStat ? Number(latestStat.spend) : 0,
+            impressions: latestStat ? Number(latestStat.impressions) : 0,
+            conversions: latestStat ? Number(latestStat.conversions) : 0,
+            // Provenance — retained for debugging the closed-loop in prod.
+            actionCode: top.actionCode,
+            priority: top.priority,
+            date: top.date,
+            sampledFromDate: latestStat?.date ?? null,
+          };
+          await recService.logRecommendation({
+            workspaceId,
+            verdict: `${top.actionCode} (${top.priority})`,
+            metricsSnapshot: snapshot,
+          });
+        } catch (err) {
+          console.error('[RecLog] failed to log recommendation:', err);
+        }
+      })();
     }
 
     return c.json(safeJson(recs));
