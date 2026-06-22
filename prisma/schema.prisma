@@ -23,18 +23,36 @@ model User {
 }
 
 model Workspace {
-  id                String            @id @default(cuid())
+  id                String   @id @default(cuid())
   name              String
-  plan              String            @default("free")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
-  industryProfileId String?           @map("industry_profile_id")
-  adAccounts        AdAccount[]
-  members           WorkspaceMember[]
-  industryProfile   IndustryProfile?          @relation(fields: [industryProfileId], references: [id])
-  executions        RecommendationExecution[]
+  /// Legacy column — kept for back-compat with pre-V6 callers. The canonical
+  /// subscription state lives in `tier` + `subscriptionStatus` from V6 onward.
+  plan              String   @default("free")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  industryProfileId String?  @map("industry_profile_id")
+
+  // ── V6 Subscription columns (Phase 5.1) ────────────────────────────────
+  /// Canonical plan tier from V6 onward. `plan` (legacy) is no longer authoritative.
+  tier                  SubscriptionTier   @default(FREE)
+  subscriptionStatus    SubscriptionStatus @default(INACTIVE) @map("subscription_status")
+  paymentMethod         PaymentMethod?     @map("payment_method")
+  /// Unique to prevent double-mapping a Stripe customer across workspaces (data-integrity guard for webhooks).
+  stripeCustomerId      String?            @unique @map("stripe_customer_id")
+  /// Unique for the same reason — one active Stripe subscription belongs to exactly one workspace.
+  stripeSubscriptionId  String?            @unique @map("stripe_subscription_id")
+  /// Read by the (future) subscription-expiry cron to flip ACTIVE → PAST_DUE.
+  subscriptionExpiresAt DateTime?          @map("subscription_expires_at")
+
+  adAccounts      AdAccount[]
+  members         WorkspaceMember[]
+  industryProfile IndustryProfile?          @relation(fields: [industryProfileId], references: [id])
+  executions      RecommendationExecution[]
+  paymentEvents   PaymentEvent[]
 
   @@index([industryProfileId])
+  @@index([subscriptionStatus])
+  @@index([subscriptionExpiresAt])
   @@map("workspaces")
 }
 
@@ -219,15 +237,15 @@ model KnowledgeRule {
 }
 
 model Recommendation {
-  id               String                 @id @default(cuid())
-  entityType       EntityType             @map("entity_type")
-  entityId         String                 @map("entity_id")
-  date             DateTime               @db.Date
+  id               String                   @id @default(cuid())
+  entityType       EntityType               @map("entity_type")
+  entityId         String                   @map("entity_id")
+  date             DateTime                 @db.Date
   priority         RecommendationPriority
-  actionCode       String                 @map("action_code")
-  sourceIssuesJson Json                   @map("source_issues_json")
-  detailsJson      Json?                  @map("details_json")
-  createdAt        DateTime               @default(now()) @map("created_at")
+  actionCode       String                   @map("action_code")
+  sourceIssuesJson Json                     @map("source_issues_json")
+  detailsJson      Json?                    @map("details_json")
+  createdAt        DateTime                 @default(now()) @map("created_at")
   execution        RecommendationExecution?
 
   @@unique([entityType, entityId, date, actionCode])
@@ -343,17 +361,17 @@ model CampaignRecommendation {
 }
 
 model RecommendationLog {
-  id               String                  @id @default(cuid())
-  workspaceId      String                  @map("workspace_id")
-  campaignId       String?                 @map("campaign_id")
+  id               String               @id @default(cuid())
+  workspaceId      String               @map("workspace_id")
+  campaignId       String?              @map("campaign_id")
   verdict          String
-  generatedBy      RecommendationSource    @default(V1_RULES) @map("generated_by")
-  metricsSnapshot  Json                    @map("metrics_snapshot")
-  userAction       UserActionStatus        @default(PENDING) @map("user_action")
-  actionAppliedAt  DateTime?               @map("action_applied_at")
-  performanceDelta Float?                  @map("performance_delta")
-  isSuccessful     Boolean?                @map("is_successful")
-  createdAt        DateTime                @default(now()) @map("created_at")
+  generatedBy      RecommendationSource @default(V1_RULES) @map("generated_by")
+  metricsSnapshot  Json                 @map("metrics_snapshot")
+  userAction       UserActionStatus     @default(PENDING) @map("user_action")
+  actionAppliedAt  DateTime?            @map("action_applied_at")
+  performanceDelta Float?               @map("performance_delta")
+  isSuccessful     Boolean?             @map("is_successful")
+  createdAt        DateTime             @default(now()) @map("created_at")
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -380,26 +398,26 @@ model IndustryProfile {
 model CampaignBrainSnapshot {
   id                 String   @id @default(cuid())
   workspaceId        String   @map("workspace_id")
-  campaignId         String   @map("campaign_id")             // internal Campaign.id
-  externalCampaignId String   @map("external_campaign_id")    // Meta's id (denormalized for fast UI lookups)
-  tickDate           DateTime @db.Date @map("tick_date")
+  campaignId         String   @map("campaign_id") // internal Campaign.id
+  externalCampaignId String   @map("external_campaign_id") // Meta's id (denormalized for fast UI lookups)
+  tickDate           DateTime @map("tick_date") @db.Date
 
   // Indexed surface columns — what dashboards filter/sort on
-  action             String                                   // DecisionAction string value
-  priority           String                                   // CRITICAL | HIGH | NORMAL
-  patternSignature   String   @map("pattern_signature")       // SCALABLE_BEAST | DYING_CREATIVE | ...
-  finalScore         Int      @map("final_score")             // physics.finalScore, 0–100
+  action           String // DecisionAction string value
+  priority         String // CRITICAL | HIGH | NORMAL
+  patternSignature String @map("pattern_signature") // SCALABLE_BEAST | DYING_CREATIVE | ...
+  finalScore       Int    @map("final_score") // physics.finalScore, 0–100
 
   // Full structured payload — the entire BrainTickResult tree for Claude CMO + audits
-  payload            Json
+  payload Json
 
   // Cron-narrated Claude CMO output — { arabicTitle, arabicNarration, creativeDirective? }.
   // Null until the narration worker writes it; dashboard reads it as cache, never blocks on an LLM call.
-  narrationJson         Json?     @map("narration_json")
-  narrationGeneratedAt  DateTime? @map("narration_generated_at")
+  narrationJson        Json?     @map("narration_json")
+  narrationGeneratedAt DateTime? @map("narration_generated_at")
 
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([campaignId, tickDate])
   @@index([workspaceId, tickDate])
@@ -471,4 +489,92 @@ enum UserActionStatus {
   PENDING
   EXECUTED
   IGNORED
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  V6 Subscriptions — Phase 5.1
+//
+//  • PaymentEvent       — append-only ledger for every subscription mutation
+//                          (activations, renewals, cancellations, expiries).
+//                          Sources: STRIPE (webhook-driven) or WHATSAPP_MANUAL
+//                          (admin-driven). Gives us a single audit trail
+//                          regardless of payment channel.
+//
+//  • ProcessedStripeEvent — idempotency table. PK = Stripe event.id, so the
+//                          natural unique constraint blocks double-processing
+//                          on webhook retries atomically (INSERT collides).
+// ════════════════════════════════════════════════════════════════════════
+
+/// Append-only ledger row. One write per material subscription change.
+/// Never UPDATE these — write a new row to reflect a new state.
+model PaymentEvent {
+  id          String             @id @default(cuid())
+  workspaceId String             @map("workspace_id")
+  eventType   PaymentEventType   @map("event_type")
+  source      PaymentEventSource
+  /// The tier the workspace ended up on after this event (snapshot, not a join).
+  tierAfter   SubscriptionTier?  @map("tier_after")
+  /// Free-form note — for WHATSAPP_MANUAL, customer-service agent typically writes
+  /// the reason or context here ("paid via Zain Cash, ref #12345").
+  note        String?
+  /// External reference: Stripe event.id for STRIPE events, or transfer ref
+  /// (Zain Cash / Asia Cell wallet / bank wire) for WHATSAPP_MANUAL.
+  externalRef String?            @map("external_ref")
+  /// Amount in minor units (fils, halalas, cents) — null for non-financial events.
+  amountMinor BigInt?            @map("amount_minor")
+  currency    String?
+  /// User.id of the admin/support agent who triggered this row.
+  /// NULL for STRIPE-sourced events (no human in the loop).
+  triggeredBy String?            @map("triggered_by")
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([source])
+  @@map("payment_events")
+}
+
+/// Idempotency guard for Stripe webhook retries. The Stripe event.id is the PK,
+/// so a duplicate delivery causes an INSERT collision the webhook handler can
+/// catch and treat as "already processed, return 200".
+model ProcessedStripeEvent {
+  /// Stripe event.id verbatim (e.g. "evt_1Nx...").
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("processed_stripe_events")
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum PaymentMethod {
+  STRIPE_CARD
+  WHATSAPP_MANUAL
+}
+
+enum PaymentEventType {
+  ACTIVATED
+  RENEWED
+  CANCELED
+  EXPIRED
+  REFUNDED
+  UPGRADED
+  DOWNGRADED
+}
+
+enum PaymentEventSource {
+  STRIPE
+  WHATSAPP_MANUAL
 }

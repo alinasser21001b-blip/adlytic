@@ -46,6 +46,10 @@ import { honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse } from '../services/getDashboard';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
+import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
+import { handleStripeWebhookEvent, activateManual } from '../services/subscriptionService';
+import { buildWhatsappLink } from '../services/whatsappLink';
+import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
@@ -620,6 +624,212 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     bustPlatformStatsCache();
     return c.json({ ok: true, bustedAt: Date.now() });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  BILLING — Stripe checkout, webhook, manual activation, WhatsApp link
+  //
+  //  Two payment paths converge into the same `payment_events` ledger:
+  //    1. Stripe-driven (automated card payments)
+  //    2. WhatsApp/cash-driven (manual activation by support agents)
+  //
+  //  See `src/services/subscriptionService.ts` for the transaction semantics.
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /api/billing/checkout — create a Stripe Checkout Session for the
+   * authenticated user's workspace. The workspaceId + tier are injected into
+   * `session.metadata` so the webhook can link the resulting customer back
+   * to our DB. Frontend redirects the browser to `session.url`.
+   */
+  app.post('/api/billing/checkout', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const body = req.body as { workspaceId?: string; tier?: SubscriptionTier };
+    const workspaceId = body.workspaceId?.trim();
+    const tier: SubscriptionTier = body.tier === 'PREMIUM' ? 'PREMIUM' : 'PREMIUM'; // only PREMIUM today
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+
+    // Membership gate — only members of the workspace may pay for it.
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Forbidden' }, 403);
+    if (member.role !== WorkspaceRole.OWNER) {
+      return c.json({ error: 'Only the workspace owner can manage billing' }, 403);
+    }
+
+    const priceId = process.env['STRIPE_PREMIUM_PRICE_ID'];
+    if (!priceId) return c.json({ error: 'Billing is not configured on this server' }, 503);
+
+    const publicUrl = process.env['PUBLIC_APP_URL']?.replace(/\/$/, '') ?? '';
+    if (!publicUrl) return c.json({ error: 'PUBLIC_APP_URL is not set' }, 503);
+
+    let stripe;
+    try { stripe = getStripe(); }
+    catch (e) {
+      if (e instanceof StripeNotConfiguredError) return c.json({ error: e.message }, 503);
+      throw e;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!user) return c.json({ error: 'User not found' }, 404);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      customer_email: user.email,
+      // Metadata is the link from Stripe back to our workspace identity.
+      // Verified inside the webhook before we mutate anything.
+      metadata: { workspaceId, tier, userId },
+      subscription_data: {
+        metadata: { workspaceId, tier, userId },
+      },
+      success_url: `${publicUrl}/settings?billing=success`,
+      cancel_url:  `${publicUrl}/settings?billing=cancel`,
+    });
+
+    return c.json({ url: session.url, id: session.id });
+  });
+
+  /**
+   * POST /api/webhooks/stripe — receive subscription lifecycle events.
+   *
+   * Three security requirements (non-negotiable):
+   *   1. Read the raw request body BEFORE Hono touches it as JSON, so the
+   *      signature verification has the byte-exact payload Stripe signed.
+   *   2. Verify the signature via `stripe.webhooks.constructEvent`.
+   *   3. Dedupe by Stripe event.id inside the same transaction as the state
+   *      change (see `runDedupedTx` in subscriptionService).
+   */
+  app.post('/api/webhooks/stripe', async (c) => {
+    const signature = c.req.header('stripe-signature');
+    if (!signature) return c.json({ error: 'Missing stripe-signature header' }, 400);
+
+    // CRITICAL: read raw body, NOT c.req.json(). Stripe signed the bytes;
+    // any JSON re-serialisation would break verification.
+    const rawBody = await c.req.raw.text();
+
+    let stripe;
+    let webhookSecret: string;
+    try {
+      stripe = getStripe();
+      webhookSecret = getStripeWebhookSecret();
+    } catch (e) {
+      if (e instanceof StripeNotConfiguredError) {
+        console.error('[stripe-webhook] not configured:', e.message);
+        return c.json({ error: e.message }, 503);
+      }
+      throw e;
+    }
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    } catch (err) {
+      console.error('[stripe-webhook] signature verification failed:', err);
+      return c.json({ error: 'Invalid signature' }, 400);
+    }
+
+    try {
+      const outcome = await handleStripeWebhookEvent(prisma, event);
+      // Stripe stops retrying on any 2xx — that's the contract for processed,
+      // duplicate, AND unhandled event types. We still log internally.
+      if (!outcome.ok) {
+        console.error('[stripe-webhook] handler returned not-ok:', outcome.reason, event.id);
+        return c.json({ received: true, ok: false, reason: outcome.reason }, 200);
+      }
+      if (!outcome.processed) {
+        console.log('[stripe-webhook] no-op:', outcome.reason, event.id);
+      } else {
+        console.log('[stripe-webhook] processed:', outcome.reason, event.id);
+      }
+      return c.json({ received: true, ok: true, processed: outcome.processed });
+    } catch (err) {
+      console.error('[stripe-webhook] handler crashed for event', event.id, err);
+      // Return 500 so Stripe retries — the failure was on our side, not theirs.
+      return c.json({ error: 'Internal error processing webhook' }, 500);
+    }
+  });
+
+  /**
+   * POST /api/admin/subscriptions/activate-manual — platform-admin only.
+   *
+   * Used by support agents after the customer pays via WhatsApp / Zain Cash
+   * / bank wire. Writes the ACTIVE state + a ledger row carrying the
+   * transfer reference and the agent's identity for the audit trail.
+   */
+  app.post('/api/admin/subscriptions/activate-manual', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as {
+      workspaceId?: string;
+      tier?: SubscriptionTier;
+      expiresAt?: string;       // ISO date
+      note?: string;
+      externalRef?: string;
+      amountMinor?: number | string;
+      currency?: string;
+    };
+
+    const workspaceId = body.workspaceId?.trim();
+    const tier: SubscriptionTier = body.tier === 'FREE' ? 'FREE' : 'PREMIUM';
+    if (!workspaceId)     return c.json({ error: 'workspaceId is required' }, 400);
+    if (!body.expiresAt)  return c.json({ error: 'expiresAt is required (ISO date)' }, 400);
+    const expiresAt = new Date(body.expiresAt);
+    if (Number.isNaN(expiresAt.getTime())) {
+      return c.json({ error: 'expiresAt must be a valid ISO date' }, 400);
+    }
+
+    const exists = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+    if (!exists) return c.json({ error: 'Workspace not found' }, 404);
+
+    const result = await activateManual(prisma, {
+      workspaceId,
+      tier,
+      expiresAt,
+      ...(body.note ? { note: body.note } : {}),
+      ...(body.externalRef ? { externalRef: body.externalRef } : {}),
+      ...(body.amountMinor != null ? { amountMinor: BigInt(body.amountMinor) } : {}),
+      ...(body.currency ? { currency: body.currency } : {}),
+      triggeredBy: gate.userId,
+    });
+    return c.json(result);
+  });
+
+  /**
+   * GET /api/billing/whatsapp-link?workspaceId=... — return a pre-filled
+   * wa.me deep link the frontend renders as the "Pay via WhatsApp" CTA.
+   *
+   * Auth: any authenticated workspace member. Agents follow the link the
+   * user opened from their own dashboard, so the message carries the
+   * customer's identity verbatim.
+   */
+  app.get('/api/billing/whatsapp-link', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const workspaceId = c.req.query('workspaceId');
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Forbidden' }, 403);
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!user) return c.json({ error: 'User not found' }, 404);
+
+    try {
+      const link = buildWhatsappLink({ workspaceId, userEmail: user.email });
+      return c.json(link);
+    } catch (e) {
+      console.error('[whatsapp-link] env error:', e);
+      return c.json({ error: 'WhatsApp support channel is not configured' }, 503);
+    }
   });
 
   // ════════════════════════════════════════════════════════════════════════
