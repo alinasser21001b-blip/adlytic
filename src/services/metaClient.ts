@@ -114,16 +114,20 @@ export class MetaClient {
   }
 
   /**
-   * Fetch the *account-level lifetime totals* using Meta's `date_preset=lifetime`.
+   * Fetch the *account-level all-time totals* using Meta's `date_preset=maximum`.
    * Returns a single aggregated row (no time_increment). Used to surface
    * true lifetime spend on the dashboard without backfilling years of
    * DailyStat rows. The mapper is NOT used here — caller reads spend
    * directly from the raw row.
+   *
+   * Note: Meta does NOT accept `date_preset=lifetime` on the insights endpoint
+   * (returns OAuthException #100). `maximum` is the documented preset for the
+   * full available history (typically up to 37 months).
    */
   async getLifetimeTotals(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       level: "account",
-      date_preset: "lifetime",
+      date_preset: "maximum",
       fields: "spend,impressions,clicks,reach,actions,action_values",
       access_token: this.token,
       limit: "1",
