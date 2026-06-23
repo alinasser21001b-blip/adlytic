@@ -1098,17 +1098,29 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     ]);
 
     // ── Summary aggregates over the window ────────────────────────────────
+    //
+    // CRITICAL: ratio metrics (CTR, CPC, CPM, costPerMessage) MUST be derived
+    // from the windowed totals — never averaged from daily rates. A simple
+    // mean of daily ratios is mathematically wrong: each day's ratio has a
+    // different denominator, so the mean over-weights low-volume days. The
+    // correct window-level value is (sum of numerators) / (sum of denominators).
+    //
+    // Concrete bug this replaces: a campaign with 17.86 USD spend and 163
+    // messages over 7 days has a true cost-per-message of $0.11, but the
+    // mean-of-daily-rates produced $24.20 because most days had only one
+    // message and a disproportionately high single-day rate.
+    //
+    // Frequency stays as a simple average — cross-window unique reach is
+    // not additive (a user reached on Mon and Tue is one person, not two),
+    // so there is no clean total-based formula. The mean is the standard
+    // industry fallback for window-level frequency.
     let spendMinor   = 0n;
     let impressions  = 0n;
     let clicks       = 0n;
     let messages     = 0n;
     let purchases    = 0n;
     let revenueMinor = 0n;
-    let ctrSum = 0, ctrCount = 0;
-    let cpmSum = 0, cpmCount = 0;
-    let cpcSum = 0, cpcCount = 0;
     let freqSum = 0, freqCount = 0;
-    let cpMsgSum = 0, cpMsgCount = 0;
     for (const d of dailyStats) {
       spendMinor   += d.spend;
       impressions  += d.impressions;
@@ -1116,44 +1128,80 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       messages     += d.messages;
       purchases    += d.purchases;
       revenueMinor += d.revenueMinor;
-      if (d.ctr            != null) { ctrSum   += d.ctr;            ctrCount++;   }
-      if (d.cpm            != null) { cpmSum   += d.cpm;            cpmCount++;   }
-      if (d.cpc            != null) { cpcSum   += d.cpc;            cpcCount++;   }
-      if (d.frequency      != null) { freqSum  += d.frequency;      freqCount++;  }
-      if (d.costPerMessage != null) { cpMsgSum += d.costPerMessage; cpMsgCount++; }
+      if (d.frequency != null && Number.isFinite(d.frequency)) {
+        freqSum += d.frequency;
+        freqCount++;
+      }
     }
-    const avg = (sum: number, n: number) => n > 0 ? sum / n : null;
+
+    // Convert spend to MAJOR currency units once — the three currency-denominated
+    // ratios below (CPC, CPM, costPerMessage) are returned in major units to
+    // match the frontend formatter, which does `value * currencyMinorFactor`
+    // and then divides by the factor again.
+    const factor = account.currencyMinorFactor || 100;
+    const spendMajor    = Number(spendMinor) / factor;
+    const impressionsN  = Number(impressions);
+    const clicksN       = Number(clicks);
+    const messagesN     = Number(messages);
+
+    /** Safe divide: returns null on zero/non-finite denominator. */
+    const safeDiv = (num: number, den: number): number | null =>
+      den > 0 && Number.isFinite(num) && Number.isFinite(den) ? num / den : null;
+
+    const avgCtr            = safeDiv(clicksN, impressionsN);                   // ratio, not %
+    const avgCtrPct         = avgCtr != null ? avgCtr * 100 : null;             // percentage
+    const avgCpc            = safeDiv(spendMajor, clicksN);                     // major units / click
+    const avgCpm            = safeDiv(spendMajor * 1000, impressionsN);         // major units / 1000 impressions
+    const avgCostPerMessage = safeDiv(spendMajor, messagesN);                   // major units / message
+    const avgFrequency      = freqCount > 0 ? freqSum / freqCount : null;
 
     // ── Positive / negative signals: 7d vs prior 7d ──────────────────────
     // Daily rows are date-desc, so the first ≤7 are "recent", the next ≤7
-    // are "prior". We only emit a signal when both windows have data.
+    // are "prior". Same correctness rule as the window summary: ratios are
+    // derived from each sub-window's totals, NOT averaged from daily rates.
     const recent = dailyStats.slice(0, 7);
     const prior  = dailyStats.slice(7, 14);
     const positive: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
     const negative: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
 
-    function windowAvg(rows: typeof dailyStats, pick: (r: typeof dailyStats[number]) => number | null) {
-      let s = 0, n = 0;
+    /** Window totals → derived ratios. Mirrors the summary block above. */
+    function deriveRatios(rows: typeof dailyStats) {
+      let sM = 0n, imp = 0n, clk = 0n, msg = 0n;
+      let fq = 0, fqN = 0;
       for (const r of rows) {
-        const v = pick(r);
-        if (v != null && Number.isFinite(v)) { s += v; n++; }
+        sM  += r.spend;
+        imp += r.impressions;
+        clk += r.clicks;
+        msg += r.messages;
+        if (r.frequency != null && Number.isFinite(r.frequency)) { fq += r.frequency; fqN++; }
       }
-      return n > 0 ? s / n : null;
+      const spendMajorW = Number(sM) / factor;
+      const ctrRatio = safeDiv(Number(clk), Number(imp));
+      return {
+        ctr:            ctrRatio != null ? ctrRatio * 100 : null,   // %, matches summary + UI
+        cpm:            safeDiv(spendMajorW * 1000, Number(imp)),
+        costPerMessage: safeDiv(spendMajorW,         Number(msg)),
+        frequency:      fqN > 0 ? fq / fqN : null,
+      };
     }
+    const recentR = deriveRatios(recent);
+    const priorR  = deriveRatios(prior);
+
     function pctChange(curr: number | null, base: number | null): number | null {
       if (curr == null || base == null || base === 0) return null;
       return ((curr - base) / base) * 100;
     }
-    // Metric → which-direction-is-good ("up" or "down")
-    const signalSpecs: Array<{ key: string; pick: (r: typeof dailyStats[number]) => number | null; good: 'up' | 'down' }> = [
-      { key: 'ctr',            pick: (r) => r.ctr,            good: 'up'   },
-      { key: 'frequency',      pick: (r) => r.frequency,      good: 'down' },
-      { key: 'cpm',            pick: (r) => r.cpm,            good: 'down' },
-      { key: 'costPerMessage', pick: (r) => r.costPerMessage, good: 'down' },
+    // Metric → which-direction-is-good ("up" or "down"); keys match the
+    // Arabic SIGNAL_LABELS map on the client.
+    const signalSpecs: Array<{ key: 'ctr' | 'frequency' | 'cpm' | 'costPerMessage'; good: 'up' | 'down' }> = [
+      { key: 'ctr',            good: 'up'   },
+      { key: 'frequency',      good: 'down' },
+      { key: 'cpm',            good: 'down' },
+      { key: 'costPerMessage', good: 'down' },
     ];
     for (const spec of signalSpecs) {
-      const curr = windowAvg(recent, spec.pick);
-      const base = windowAvg(prior,  spec.pick);
+      const curr = recentR[spec.key];
+      const base = priorR[spec.key];
       const delta = pctChange(curr, base);
       if (delta == null || Math.abs(delta) < 3) continue;            // ignore noise
       const improved = spec.good === 'up' ? delta > 0 : delta < 0;
@@ -1183,11 +1231,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         clicks,
         messages,
         purchases,
-        avgCtr:            avg(ctrSum,   ctrCount),
-        avgCpm:            avg(cpmSum,   cpmCount),
-        avgCpc:            avg(cpcSum,   cpcCount),
-        avgFrequency:      avg(freqSum,  freqCount),
-        avgCostPerMessage: avg(cpMsgSum, cpMsgCount),
+        // All ratios derived from the windowed totals (see comment above the
+        // aggregation block). avgCtr is a percentage; CPC / CPM / cost-per-
+        // message are in MAJOR currency units, matching the frontend formatter
+        // contract (`value * currencyMinorFactor` then `/ factor`).
+        avgCtr:            avgCtrPct,
+        avgCpm,
+        avgCpc,
+        avgFrequency,
+        avgCostPerMessage,
       },
       timeline: snapshots.map((s) => ({
         tickDate:         s.tickDate,
