@@ -390,9 +390,27 @@ export function campaignsPage(): string {
   'use strict';
 
   // ── helpers ────────────────────────────────────────────────────────────────
-  function fmtCurrency(n) {
-    if (n == null || isNaN(n)) return '—';
-    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Currency-aware formatter. The backend stores monetary amounts as BigInt
+  // minor units (cents for USD/EGP/SAR/EUR…, whole-unit for IQD). The
+  // account's currencyMinorFactor (100 or 1) decides the divisor and the
+  // number of fractional digits to display. Hardcoding "$" would render a
+  // 10.00 USD/day budget as "$1,000.00" — see state.minorFactor below.
+  function fmtCurrencyMinor(amountMinor) {
+    if (amountMinor == null || isNaN(amountMinor)) return '—';
+    var major = Number(amountMinor) / state.minorFactor;
+    var decimals = state.minorFactor === 1 ? 0 : 2;
+    return major.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }) + ' ' + state.currency;
+  }
+
+  // /insights returns DailyStat rows ordered date DESC. Charts and the
+  // "last N days" summary want the newest N rows in chronological order.
+  // slice(-N) on a desc array keeps the OLDEST N rows — silently excluding
+  // recent days. Take the head, then reverse for left-to-right time order.
+  function recentAsc(insights, days) {
+    return insights.slice(0, days).slice().reverse();
   }
   function fmtDate(s) {
     if (!s) return '—';
@@ -442,6 +460,10 @@ export function campaignsPage(): string {
     spendChart: null,
     ctrChart: null,
     workspaceId: null,
+    // Currency context — hydrated from /api/workspaces/:id once it returns.
+    // Defaults are safe for the common case (USD-style 2-decimal currencies).
+    currency: 'USD',
+    minorFactor: 100,
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
@@ -481,9 +503,13 @@ export function campaignsPage(): string {
   }
 
   function updateCharts(insights) {
-    var filtered = insights.slice(-state.days);
+    var filtered = recentAsc(insights, state.days);
     var labels = filtered.map(function(d) { return fmtShortDate(d.date); });
-    var spendData = filtered.map(function(d) { return Number(d.spend) || 0; });
+    // d.spend is BigInt minor units (e.g. cents). We pass the raw minor
+    // number into the chart series here because the y-axis tick formatter
+    // would otherwise need the divisor too — keep it consistent by also
+    // dividing in the dataset. The chart already shows magnitude only.
+    var spendData = filtered.map(function(d) { return (Number(d.spend) || 0) / state.minorFactor; });
     var ctrData = filtered.map(function(d) { return Number(d.ctr) || 0; });
 
     if (state.spendChart) {
@@ -527,13 +553,16 @@ export function campaignsPage(): string {
     var total = campaigns.length;
     var active = campaigns.filter(function(c){ return c.status === 'ACTIVE'; }).length;
     var paused = campaigns.filter(function(c){ return c.status === 'PAUSED'; }).length;
-    var filtered = insights.slice(-state.days);
-    var totalSpend = filtered.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
+    var filtered = recentAsc(insights, state.days);
+    // d.spend is BigInt minor units (cents for USD, EGP, SAR; whole-unit
+    // for IQD). Sum in minor units, format once with the account's
+    // currencyMinorFactor — never assume "$" or 100.
+    var totalSpendMinor = filtered.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
 
     document.getElementById('total-campaigns').textContent = String(total);
     document.getElementById('active-campaigns').textContent = String(active);
     document.getElementById('paused-campaigns').textContent = String(paused);
-    document.getElementById('total-spend').textContent = fmtCurrency(totalSpend);
+    document.getElementById('total-spend').textContent = fmtCurrencyMinor(totalSpendMinor);
     document.getElementById('spend-period').textContent = 'last ' + state.days + ' days';
   }
 
@@ -564,9 +593,12 @@ export function campaignsPage(): string {
     emptyEl.style.display = 'none';
 
     tbody.innerHTML = campaigns.map(function(c) {
+      // Campaign.dailyBudget / lifetimeBudget are BigInt minor units in the
+      // schema. They came through bigintReplacer as plain Numbers but still
+      // in MINOR units — format via the account-aware helper.
       var budget = c.dailyBudget != null
-        ? fmtCurrency(c.dailyBudget)
-        : (c.lifetimeBudget != null ? fmtCurrency(c.lifetimeBudget) + ' (lifetime)' : '—');
+        ? fmtCurrencyMinor(c.dailyBudget)
+        : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' (lifetime)' : '—');
       return '<tr>'
         + '<td><div class="campaign-name-cell">' + escHtml(c.name || '—') + '</div>'
         + '<div class="campaign-id">' + escHtml(c.id || '') + '</div></td>'
@@ -649,6 +681,15 @@ export function campaignsPage(): string {
         apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
         apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
       ]);
+
+      // Hydrate currency context BEFORE rendering so the first paint of
+      // budgets / total spend uses the correct factor. /api/workspaces/:id
+      // returns adAccounts[*].{currency, currencyMinorFactor}.
+      var primary = wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts[0];
+      if (primary) {
+        if (primary.currency) state.currency = primary.currency;
+        if (primary.currencyMinorFactor) state.minorFactor = Number(primary.currencyMinorFactor);
+      }
 
       // Detect paused / expired token
       var allPaused = wsData && Array.isArray(wsData.adAccounts)

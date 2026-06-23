@@ -857,7 +857,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       include: {
         industryProfile: true,
         adAccounts: {
-          select: { id: true, name: true, currency: true, status: true, lastSyncedAt: true, externalAccountId: true, tokenExpiresAt: true },
+          select: { id: true, name: true, currency: true, currencyMinorFactor: true, status: true, lastSyncedAt: true, externalAccountId: true, tokenExpiresAt: true },
         },
       },
     });
