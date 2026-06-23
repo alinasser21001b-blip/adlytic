@@ -1,741 +1,504 @@
+// ════════════════════════════════════════════════════════════════════════
+//  src/web/pages/dashboardPage.ts
+//
+//  Dashboard — the premium overview. Shell is provided by layout(); this
+//  file owns ONLY the page-specific markup and client logic.
+//
+//  Sections (top → bottom):
+//    1. Financial Health row    — 30d / 7d / Lifetime (90d window) spend
+//    2. AI Motion Ticker        — marquee feeding off brain.cmoFeed + issues
+//    3. Active Ads Showcase     — green-blink grid of currently-spending campaigns
+//    4. Split panel             — AI Brain Box (left) + Spend chart (right)
+//    5. V6 Brain detail         — CMO Feed, Live Pulse, Interventions Ledger
+//    6. V2 Decision interface   — Today's Actions, Recovery, Spotlight, Insights
+//    7. Advanced Analytics      — collapsed KPI grid, charts, issues, campaigns
+//
+//  Data-binding contract (verified against schema + server.ts):
+//    /api/dashboard/:wsId                       → brain, health, issues, kpis, ...
+//    /api/workspaces/:wsId/insights?days=90     → DailyStat[] (DESC, spend BigInt MINOR)
+//    /api/workspaces/:wsId/campaigns            → Campaign[] (budgets BigInt MINOR)
+//    /api/workspaces/:wsId                      → adAccounts[currency, currencyMinorFactor]
+//    /api/dashboard/pulse/:wsId  (polled 60s)   → Live Pulse tick
+// ════════════════════════════════════════════════════════════════════════
+
+import { layout } from '../layout';
+
 export function dashboardPage(): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard — Adlytic</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #0a0a0b;
-      --surface: #111113;
-      --surface-2: #18181b;
-      --border: #232326;
-      --text: #f1f0f0;
-      --text-2: #a0a0b0;
-      --text-3: #5a5a6a;
-      --accent: #6366f1;
-      --success: #22c55e;
-      --warning: #f59e0b;
-      --error: #ef4444;
-    }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
-
-    /* Layout */
-    .app { display: flex; height: 100vh; overflow: hidden; }
-
-    /* Sidebar */
-    .sidebar {
-      width: 220px;
-      flex-shrink: 0;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      padding: 0;
-    }
-    .sidebar-logo {
-      padding: 20px 20px 16px;
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--text);
-      border-bottom: 1px solid var(--border);
-      letter-spacing: -0.3px;
-    }
-    .sidebar-logo span { color: var(--accent); }
-    .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 12px;
-      border-radius: 8px;
-      color: var(--text-2);
-      font-size: 13.5px;
-      font-weight: 500;
-      transition: background 0.15s, color 0.15s;
-    }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: rgba(99,102,241,0.15); color: var(--accent); }
-    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
-
-    /* Main area */
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-    /* Topbar */
-    .topbar {
-      height: 56px;
-      flex-shrink: 0;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 24px;
-    }
-    .topbar-left { display: flex; align-items: center; gap: 12px; }
-    .workspace-name { font-weight: 600; font-size: 15px; color: var(--text); }
-    .topbar-right { display: flex; align-items: center; gap: 12px; }
-    .avatar {
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      background: var(--accent);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700; color: #fff;
-    }
-    .btn-logout {
-      padding: 6px 14px;
-      border-radius: 7px;
-      background: var(--surface-2);
+  const extraHead = `<style>
+    /* Premium spend hero cards */
+    .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+    @media (max-width: 800px) { .hero-grid { grid-template-columns: 1fr; } }
+    .hero-card {
+      position: relative;
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
       border: 1px solid var(--border);
-      color: var(--text-2);
-      font-size: 13px;
-      font-weight: 500;
-      transition: background 0.15s, color 0.15s;
-    }
-    .btn-logout:hover { background: var(--border); color: var(--text); }
-
-    /* Content */
-    .content { flex: 1; overflow-y: auto; padding: 24px; }
-    .page-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .page-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 24px; }
-
-    /* Loading / Error / Empty */
-    .state-overlay {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-height: 300px; gap: 16px;
-    }
-    .spinner {
-      width: 36px; height: 36px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.75s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .state-text { color: var(--text-2); font-size: 14px; }
-    .state-title { font-size: 17px; font-weight: 600; color: var(--text); }
-    .error-box {
-      background: rgba(239,68,68,0.1);
-      border: 1px solid rgba(239,68,68,0.3);
-      border-radius: 10px;
-      padding: 16px 20px;
-      color: var(--error);
-      font-size: 13.5px;
-      margin-bottom: 16px;
-    }
-
-    /* Health badge */
-    .health-row { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
-    .health-badge {
-      display: flex; align-items: center; gap: 10px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 20px;
-    }
-    .health-ring {
-      position: relative; width: 52px; height: 52px;
-    }
-    .health-ring svg { width: 52px; height: 52px; transform: rotate(-90deg); }
-    .health-ring-bg { fill: none; stroke: var(--border); stroke-width: 5; }
-    .health-ring-fg { fill: none; stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
-    .health-score-label {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 13px; font-weight: 700; color: var(--text);
-    }
-    .health-info .health-score-num { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; }
-    .health-info .health-band { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-    .health-desc { font-size: 13px; color: var(--text-2); }
-
-    /* KPI grid */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 14px;
-      margin-bottom: 28px;
-    }
-    .kpi-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 18px;
-      transition: border-color 0.15s;
-    }
-    .kpi-card:hover { border-color: var(--accent); }
-    .kpi-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-3); margin-bottom: 6px; }
-    .kpi-value { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
-    .kpi-delta { display: flex; align-items: center; gap: 4px; margin-top: 5px; font-size: 12px; font-weight: 600; }
-    .kpi-delta.up { color: var(--success); }
-    .kpi-delta.down { color: var(--error); }
-    .kpi-delta.neutral { color: var(--text-3); }
-
-    /* Charts grid */
-    .charts-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 28px;
-    }
-    @media (max-width: 1100px) { .charts-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 700px) { .charts-grid { grid-template-columns: 1fr; } }
-    .chart-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 18px 20px;
+      overflow: hidden;
+      transition: border-color var(--transition);
     }
-    .chart-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
-    .chart-wrap { position: relative; height: 180px; }
-
-    /* Bottom grid */
-    .bottom-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
+    .hero-card::before {
+      content: ''; position: absolute; inset: -1px;
+      border-radius: var(--radius-lg);
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.45), rgba(99,102,241,0) 60%);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      opacity: 0.55; pointer-events: none;
     }
-    @media (max-width: 900px) { .bottom-grid { grid-template-columns: 1fr; } }
+    .hero-card:hover { border-color: var(--accent); }
+    .hero-card.success::before { background: linear-gradient(135deg, rgba(34,197,94,0.4), rgba(34,197,94,0) 60%); }
+    .hero-card.warning::before { background: linear-gradient(135deg, rgba(245,158,11,0.4), rgba(245,158,11,0) 60%); }
+    .hero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+    .hero-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -0.8px; margin-top: 6px; line-height: 1.05; }
+    .hero-sub   { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+    .hero-delta {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 10px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11.5px; font-weight: 700;
+    }
+    .hero-delta.up   { color: var(--success); background: var(--success-dim); }
+    .hero-delta.down { color: var(--error);   background: var(--error-dim); }
+    .hero-delta.flat { color: var(--text-3);  background: rgba(255,255,255,0.04); }
 
-    /* Issues */
-    .section-card {
+    /* AI Motion Ticker — marquee */
+    .ticker-wrap {
+      position: relative;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px 20px;
+      border-radius: var(--radius-lg);
+      padding: 10px 0;
+      margin-bottom: 22px;
+      overflow: hidden;
+      mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
     }
-    .section-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px;
+    .ticker-wrap::before {
+      content: 'AI · LIVE'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
+      color: var(--accent-2);
+      background: var(--accent-dim);
+      padding: 3px 8px; border-radius: 4px;
+      z-index: 2;
     }
-    .section-title { font-size: 14px; font-weight: 700; color: var(--text); }
-    .issue-item {
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
+    .ticker-track {
+      display: inline-flex; gap: 38px;
+      padding-left: 80px;
+      white-space: nowrap;
+      animation: ticker-slide 55s linear infinite;
     }
-    .issue-item:last-child { border-bottom: none; }
-    .issue-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-    .issue-title { font-size: 13px; font-weight: 600; color: var(--text); }
-    .badge {
-      display: inline-flex; align-items: center;
-      padding: 2px 9px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      flex-shrink: 0;
-    }
-    .badge-critical { background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
-    .badge-high { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.3); }
-    .badge-medium { background: rgba(99,102,241,0.15); color: var(--accent); border: 1px solid rgba(99,102,241,0.3); }
-    .badge-low { background: rgba(160,160,176,0.1); color: var(--text-2); border: 1px solid var(--border); }
-    .issue-causes { font-size: 12px; color: var(--text-2); margin-top: 3px; }
-    .issue-rec { font-size: 12px; color: var(--text-3); margin-top: 2px; font-style: italic; }
-    .no-issues { color: var(--text-3); font-size: 13px; padding: 12px 0; }
+    .ticker-item { font-size: 13px; color: var(--text); display: inline-flex; align-items: center; gap: 8px; }
+    .ticker-dot  { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .ticker-dot.success  { background: var(--success); }
+    .ticker-dot.warning  { background: var(--warning); }
+    .ticker-dot.critical { background: var(--error); }
+    .ticker-layer { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    @keyframes ticker-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
 
-    /* Campaign table */
-    .campaign-table { width: 100%; border-collapse: collapse; }
-    .campaign-table th {
-      text-align: left; font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.6px;
-      color: var(--text-3); padding: 0 10px 10px; white-space: nowrap;
-    }
-    .campaign-table td {
-      padding: 10px; font-size: 13px; color: var(--text);
-      border-top: 1px solid var(--border);
-    }
-    .campaign-table tr:hover td { background: rgba(255,255,255,0.02); }
-    .highlight-best td:first-child { border-left: 3px solid var(--success); padding-left: 7px; }
-    .highlight-worst td:first-child { border-left: 3px solid var(--error); padding-left: 7px; }
-    .campaign-name { font-weight: 600; }
-    .campaign-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
-
-    /* Priority action */
-    .priority-card {
-      background: linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(99,102,241,0.04) 100%);
-      border: 1px solid rgba(99,102,241,0.25);
-      border-radius: 12px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      display: flex; align-items: flex-start; gap: 14px;
-    }
-    .priority-icon {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: rgba(99,102,241,0.2);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; font-size: 17px;
-    }
-    .priority-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--accent); margin-bottom: 3px; }
-    .priority-text { font-size: 14px; font-weight: 600; color: var(--text); }
-
-    /* ── V2 Decision Interface ──────────────────────────────────────────── */
-    .v2-section { margin-bottom: 24px; }
-    .v2-section-head {
+    /* Active Ads Showcase Grid */
+    .active-section { margin-bottom: 24px; }
+    .active-header {
       display: flex; align-items: baseline; justify-content: space-between;
       margin-bottom: 12px;
     }
-    .v2-section-title {
-      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-      color: var(--text-3);
+    .active-title { font-size: 13px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.08em; }
+    .active-meta  { font-size: 12px; color: var(--text-3); }
+    .active-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
     }
-    .v2-section-meta { font-size: 12px; color: var(--text-3); }
-
-    /* AccountHealth large card */
-    .v2-health-card {
+    .active-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 22px 24px;
-      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      display: flex; flex-direction: column; gap: 6px;
+      transition: border-color var(--transition);
+    }
+    .active-card:hover { border-color: var(--accent); }
+    .active-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .blink-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 0 rgba(34,197,94,0.5);
+      animation: blink-pulse 1.6s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes blink-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+      70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+    .active-name { font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .active-meta-row { font-size: 12px; color: var(--text-3); display: flex; justify-content: space-between; gap: 8px; }
+    .active-meta-row b { color: var(--text-2); font-weight: 600; }
+
+    /* Bottom Split Panel */
+    .split-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 16px;
       margin-bottom: 24px;
     }
-    .v2-health-score-block { display: flex; align-items: center; gap: 16px; }
-    .v2-health-verdict {
-      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-      padding: 3px 10px; border-radius: 6px;
-    }
-    .v2-verdict-excellent { background: rgba(34,197,94,0.15); color: var(--success); }
-    .v2-verdict-good { background: rgba(34,197,94,0.12); color: var(--success); }
-    .v2-verdict-needs-attention { background: rgba(245,158,11,0.15); color: var(--warning); }
-    .v2-verdict-critical { background: rgba(239,68,68,0.15); color: var(--error); }
-    .v2-health-big { font-size: 36px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: -1px; }
-    .v2-health-big small { font-size: 16px; color: var(--text-3); font-weight: 500; }
-    .v2-health-issues { font-size: 13px; color: var(--text-2); margin-top: 4px; }
-    .v2-health-divider { width: 1px; align-self: stretch; background: var(--border); margin: 0 6px; }
-
-    /* Today's Actions */
-    .v2-actions {
+    @media (max-width: 1000px) { .split-grid { grid-template-columns: 1fr; } }
+    .brain-box {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 6px 4px;
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      display: flex; flex-direction: column; gap: 12px;
+      max-height: 460px; overflow-y: auto;
     }
-    .v2-action-row {
-      display: flex; align-items: center; gap: 14px;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--border);
-    }
-    .v2-action-row:last-child { border-bottom: none; }
-    .v2-action-priority {
+    .brain-box-head { display: flex; align-items: center; gap: 8px; }
+    .brain-box-icon {
       width: 28px; height: 28px; border-radius: 8px;
-      background: var(--surface-2); border: 1px solid var(--border);
+      background: var(--accent-dim);
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 800; color: var(--text-2); flex-shrink: 0;
+      color: var(--accent-2); font-weight: 800; font-size: 13px;
     }
-    .v2-action-row[data-pri="1"] .v2-action-priority { background: rgba(99,102,241,0.18); color: var(--accent); border-color: rgba(99,102,241,0.35); }
+    .brain-box-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .brain-box-sub   { font-size: 11.5px; color: var(--text-3); margin-left: auto; }
+    .strategy-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .strategy-card.high     { border-left: 3px solid var(--warning); }
+    .strategy-card.critical { border-left: 3px solid var(--error); }
+    .strategy-card.medium   { border-left: 3px solid var(--accent); }
+    .strategy-card.low      { border-left: 3px solid var(--text-3); }
+    .strategy-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .strategy-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .strategy-body  { font-size: 12px; color: var(--text-2); line-height: 1.55; }
+
+    .chart-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex; flex-direction: column;
+    }
+    .chart-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .chart-panel-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .chart-panel-meta  { font-size: 11.5px; color: var(--text-3); }
+    .chart-panel-canvas { position: relative; flex: 1; height: 380px; min-height: 280px; }
+
+    /* Stale-data banner */
+    #stale-banner { display: none; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+
+    /* Re-used V2 / V6 sections (only what isn't in SHARED_CSS) */
+    .v2-section { margin-bottom: 22px; }
+    .v2-section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+    .v2-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+    .v2-section-meta  { font-size: 12px; color: var(--text-3); }
+
+    .v2-actions, .v2-recovery-card, .v2-spotlight, .v2-insight {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+    .v2-action-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .v2-action-row:last-child { border-bottom: none; }
+    .v2-action-priority { width: 28px; height: 28px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: var(--text-2); flex-shrink: 0; }
+    .v2-action-row[data-pri="1"] .v2-action-priority { background: var(--accent-dim); color: var(--accent-2); border-color: rgba(99,102,241,0.35); }
     .v2-action-body { flex: 1; min-width: 0; }
     .v2-action-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
     .v2-action-decision { font-size: 12.5px; color: var(--text-2); }
     .v2-action-meta { display: flex; gap: 16px; font-size: 11.5px; color: var(--text-3); margin-top: 6px; flex-wrap: wrap; }
     .v2-action-meta b { color: var(--text-2); font-weight: 600; }
     .v2-action-meta .ok { color: var(--success); font-weight: 700; }
-    .v2-action-btn {
-      padding: 8px 14px;
-      border-radius: 8px;
-      background: var(--accent); color: #fff;
-      font-size: 12.5px; font-weight: 600;
-      flex-shrink: 0;
-    }
+    .v2-action-btn { padding: 8px 14px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 12.5px; font-weight: 600; flex-shrink: 0; border: none; cursor: pointer; }
     .v2-action-btn:hover { filter: brightness(1.1); }
-    .v2-action-empty { padding: 30px 18px; text-align: center; color: var(--text-3); font-size: 13px; }
+    .v2-action-empty { padding: 24px 18px; text-align: center; color: var(--text-3); font-size: 13px; }
 
-    /* Recovery Center */
-    .v2-recovery-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 14px;
-    }
-    .v2-recovery-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 18px;
-    }
-    .v2-recovery-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
-    .v2-recovery-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .v2-recovery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .v2-recovery-card { padding: 14px 16px; }
+    .v2-recovery-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+    .v2-recovery-name { font-size: 13px; font-weight: 700; color: var(--text); }
     .v2-recovery-conf { font-size: 11px; color: var(--text-3); margin-top: 2px; }
-    .v2-recovery-steps { display: flex; flex-direction: column; gap: 6px; }
-    .v2-recovery-step {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 12.5px; color: var(--text-2);
-      padding: 6px 8px; border-radius: 6px;
-      background: var(--surface-2);
-    }
+    .v2-recovery-step { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); padding: 6px 8px; border-radius: 6px; background: var(--surface-2); margin-bottom: 5px; }
     .v2-recovery-step b { color: var(--text); font-weight: 600; }
-    .v2-recovery-step .gain { color: var(--success); font-weight: 700; font-size: 11.5px; }
 
-    /* Winner + Opportunity grid */
-    .v2-spotlight-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
+    .v2-spotlight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 800px) { .v2-spotlight-grid { grid-template-columns: 1fr; } }
-    .v2-spotlight {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px 20px;
-      display: flex; flex-direction: column; gap: 10px;
-    }
-    .v2-spotlight-tag {
-      font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-      color: var(--text-3);
-    }
+    .v2-spotlight { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+    .v2-spotlight-tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
     .v2-winner .v2-spotlight-tag { color: var(--success); }
-    .v2-opportunity .v2-spotlight-tag { color: var(--accent); }
-    .v2-spotlight-name { font-size: 16px; font-weight: 700; color: var(--text); }
+    .v2-opportunity .v2-spotlight-tag { color: var(--accent-2); }
+    .v2-spotlight-name { font-size: 15px; font-weight: 700; color: var(--text); }
     .v2-spotlight-reason { font-size: 12.5px; color: var(--text-2); }
-    .v2-spotlight-stat { display: flex; gap: 18px; font-size: 12px; color: var(--text-3); }
+    .v2-spotlight-stat { display: flex; gap: 16px; font-size: 12px; color: var(--text-3); }
     .v2-spotlight-stat b { color: var(--text); font-weight: 700; }
-    .v2-spotlight-btn {
-      align-self: flex-start;
-      padding: 8px 14px;
-      border-radius: 8px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      color: var(--text); font-size: 12.5px; font-weight: 600;
-    }
-    .v2-winner .v2-spotlight-btn { background: var(--success); color: #04190b; border-color: transparent; }
-    .v2-opportunity .v2-spotlight-btn { background: var(--accent); color: #fff; border-color: transparent; }
-    .v2-spotlight-empty { font-size: 12.5px; color: var(--text-3); padding: 6px 0; }
+    .v2-spotlight-empty { font-size: 12.5px; color: var(--text-3); padding: 4px 0; }
 
-    /* AI Insights */
-    .v2-insights {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 12px;
-    }
-    .v2-insight {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 16px;
-    }
-    .v2-insight-icon { font-size: 18px; margin-bottom: 6px; }
-    .v2-insight-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .v2-insight-text { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+    .v2-insights { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .v2-insight { padding: 12px 14px; }
+    .v2-insight-icon  { font-size: 16px; margin-bottom: 4px; }
+    .v2-insight-title { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .v2-insight-text  { font-size: 12px; color: var(--text-2); line-height: 1.5; }
 
-    /* Advanced Analytics accordion */
-    .v2-advanced { margin-top: 8px; }
-    .v2-advanced summary {
-      cursor: pointer;
-      list-style: none;
-      padding: 14px 18px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      display: flex; align-items: center; justify-content: space-between;
-      font-size: 13px; font-weight: 600; color: var(--text);
-    }
+    .v2-advanced summary { cursor: pointer; list-style: none; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--text); }
     .v2-advanced summary::-webkit-details-marker { display: none; }
     .v2-advanced summary::after { content: '▾'; color: var(--text-3); transition: transform 0.2s; }
     .v2-advanced[open] summary::after { transform: rotate(180deg); }
     .v2-advanced summary span { color: var(--text-3); font-weight: 500; font-size: 12px; }
-    .v2-advanced-body { padding: 20px 0 0; }
+    .v2-advanced-body { padding: 16px 0 0; }
+  </style>`;
 
-    /* Mobile */
-    @media (max-width: 700px) {
-      .content { padding: 16px; }
-      .v2-action-row { flex-wrap: wrap; }
-      .v2-action-btn { width: 100%; text-align: center; margin-top: 6px; }
-      .v2-health-card { padding: 18px; }
-      .v2-health-big { font-size: 28px; }
-    }
-  </style>
-</head>
-<body>
-<div class="app">
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">Ad<span>lytic</span></div>
-    <nav class="sidebar-nav">
-      <a class="nav-item active" href="/dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        Dashboard
-      </a>
-      <a class="nav-item" href="/campaigns">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v4H3z"/><path d="M3 11h18v2H3z"/><path d="M3 17h12v4H3z"/></svg>
-        Campaigns
-      </a>
-      <a class="nav-item" href="/recommendations">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-        Recommendations
-      </a>
-      <a class="nav-item" href="/workspace">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        Workspace
-      </a>
-      <a class="nav-item" href="/ai">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-        AI Insights
-      </a>
-      <a class="nav-item" href="/settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        Settings
-      </a>
-      <!-- Platform admin link — hidden by default; revealed when /api/auth/me returns isPlatformAdmin=true -->
-      <a class="nav-item" id="nav-admin" href="/admin" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
-        Admin
-      </a>
-    </nav>
-    <div class="sidebar-bottom">
-      <div class="nav-item" id="sidebar-user" style="pointer-events:none;">
-        <div class="avatar" id="sidebar-avatar">?</div>
-        <span id="sidebar-name" style="font-size:13px;color:var(--text-2);">Loading…</span>
-      </div>
+  const content = `
+    <div class="loading-overlay" id="loading-state">
+      <div class="spinner"></div>
+      <span class="loading-text">Loading dashboard…</span>
     </div>
-  </aside>
 
-  <!-- Main -->
-  <div class="main">
-    <!-- Topbar -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <span class="workspace-name" id="ws-name">Loading…</span>
-      </div>
-      <div class="topbar-right">
-        <div class="avatar" id="top-avatar">?</div>
-        <button class="btn-logout" id="btn-logout">Logout</button>
-      </div>
-    </header>
+    <div id="error-state" style="display:none;">
+      <div class="alert alert-error" id="error-msg">An error occurred.</div>
+    </div>
 
-    <!-- Content -->
-    <main class="content" id="content">
-      <div class="state-overlay" id="loading-state">
-        <div class="spinner"></div>
-        <span class="state-text">Loading dashboard…</span>
-      </div>
-      <div id="error-state" style="display:none;">
-        <div class="error-box" id="error-msg">An error occurred.</div>
-      </div>
-      <div id="dashboard-content" style="display:none;">
+    <div id="dashboard-content" style="display:none;">
+      <div class="page-header">
         <div class="page-title">Dashboard</div>
         <div class="page-subtitle" id="dash-subtitle">Overview of your ad performance</div>
-
-        <!-- Stale data banner (shown when ad account token is expired/paused) -->
-        <div id="stale-data-banner" style="display:none;margin-bottom:16px;padding:12px 16px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:10px;display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:16px;">⚠</span>
-            <div>
-              <div style="font-size:13px;font-weight:600;color:var(--warning);">Showing cached data — token expired</div>
-              <div style="font-size:12px;color:var(--text-2);margin-top:2px;">Your Meta Ads access token has expired. These metrics are from your last successful sync and may be outdated.</div>
-            </div>
-          </div>
-          <a href="/workspace" style="padding:6px 14px;border-radius:7px;background:var(--warning);color:#000;font-size:12px;font-weight:600;white-space:nowrap;text-decoration:none;">Reconnect Account</a>
-        </div>
-
-        <!-- ═════════════════════════════════════════════════════════════
-             V6 BRAIN — three Strangler-Fig sections (rendered ABOVE V5).
-             Hidden until /api/dashboard returns a brain payload. Polling
-             refreshes only Live Pulse numerics every 60s.
-             ═════════════════════════════════════════════════════════════ -->
-        <section id="brain-cmo-feed-section" class="v2-section" style="display:none;margin-bottom:18px;">
-          <div class="v2-section-head">
-            <div class="v2-section-title">CMO Feed</div>
-            <div class="v2-section-meta" id="brain-cmo-feed-meta">AI-narrated decisions for today</div>
-          </div>
-          <div id="brain-cmo-feed" style="display:flex;flex-direction:column;gap:10px;"></div>
-        </section>
-
-        <section id="brain-pulse-section" class="v2-section" style="display:none;margin-bottom:18px;">
-          <div class="v2-section-head">
-            <div class="v2-section-title">Live Pulse</div>
-            <div class="v2-section-meta">Auto-refreshes every 60s · <span id="brain-pulse-tick">—</span></div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-            <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
-              <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">Burn Rate</div>
-              <div id="brain-pulse-burn" style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">—</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:2px;"><span id="brain-pulse-burn-n">0</span> campaigns</div>
-            </div>
-            <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
-              <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">Intra-day Spend</div>
-              <div id="brain-pulse-spendpct" style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">—</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:2px;">of total daily budget</div>
-            </div>
-            <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
-              <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">DNA Match</div>
-              <div id="brain-pulse-dna" style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">—</div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:2px;">vs gold-standard winners</div>
-            </div>
-          </div>
-        </section>
-
-        <section id="brain-ledger-section" class="v2-section" style="display:none;margin-bottom:18px;">
-          <div class="v2-section-head">
-            <div class="v2-section-title">Interventions Ledger</div>
-            <div class="v2-section-meta">Last 7 days</div>
-          </div>
-          <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:12px;">
-            <div style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">Estimated wasted spend prevented</div>
-            <div id="brain-ledger-saved" style="font-size:28px;font-weight:800;color:var(--success,#22c55e);margin-top:6px;">—</div>
-          </div>
-          <div id="brain-ledger-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-        </section>
-
-        <!-- V2 §1 — Account Health -->
-        <div class="v2-health-card" id="v2-health">
-          <div class="v2-health-score-block">
-            <div class="health-ring">
-              <svg viewBox="0 0 52 52">
-                <circle class="health-ring-bg" cx="26" cy="26" r="22"/>
-                <circle class="health-ring-fg" id="health-ring-fg" cx="26" cy="26" r="22"
-                  stroke-dasharray="138.23"
-                  stroke-dashoffset="138.23"
-                  stroke="var(--accent)"/>
-              </svg>
-              <div class="health-score-label" id="health-score-label">—</div>
-            </div>
-            <div>
-              <div class="v2-health-verdict v2-verdict-good" id="v2-health-verdict">Good</div>
-              <div class="v2-health-big" id="v2-health-big">— <small>/ 100</small></div>
-              <div class="v2-health-issues" id="v2-health-issues">Analyzing your account…</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- V2 §2 — Today's Actions (HIGHEST PRIORITY) -->
-        <section class="v2-section">
-          <div class="v2-section-head">
-            <div class="v2-section-title">Today's Actions</div>
-            <div class="v2-section-meta" id="v2-actions-meta">Top decisions for the next 24h</div>
-          </div>
-          <div class="v2-actions" id="v2-actions">
-            <div class="v2-action-empty">Loading actions…</div>
-          </div>
-        </section>
-
-        <!-- V2 §3 — Recovery Center -->
-        <section class="v2-section" id="v2-recovery-section" style="display:none;">
-          <div class="v2-section-head">
-            <div class="v2-section-title">Recovery Center</div>
-            <div class="v2-section-meta">Solutions, not warnings</div>
-          </div>
-          <div class="v2-recovery-grid" id="v2-recovery"></div>
-        </section>
-
-        <!-- V2 §4–5 — Winner + Opportunity -->
-        <section class="v2-section">
-          <div class="v2-spotlight-grid" id="v2-spotlight"></div>
-        </section>
-
-        <!-- V2 §6 — AI Insights -->
-        <section class="v2-section" id="v2-insights-section" style="display:none;">
-          <div class="v2-section-head">
-            <div class="v2-section-title">AI Insights</div>
-            <div class="v2-section-meta">Pattern observations</div>
-          </div>
-          <div class="v2-insights" id="v2-insights"></div>
-        </section>
-
-        <!-- V2 §7 — Advanced Analytics (collapsed) -->
-        <details class="v2-advanced">
-          <summary>
-            Advanced Analytics
-            <span>Charts · KPIs · Issues · Campaigns</span>
-          </summary>
-          <div class="v2-advanced-body">
-            <!-- KPI Cards -->
-            <div class="kpi-grid" id="kpi-grid"></div>
-
-            <!-- Charts -->
-            <div class="charts-grid">
-              <div class="chart-card">
-                <div class="chart-title">Spend Over Time</div>
-                <div class="chart-wrap"><canvas id="chart-spend"></canvas></div>
-              </div>
-              <div class="chart-card">
-                <div class="chart-title">CTR Trend</div>
-                <div class="chart-wrap"><canvas id="chart-ctr"></canvas></div>
-              </div>
-              <div class="chart-card">
-                <div class="chart-title">Impressions Trend</div>
-                <div class="chart-wrap"><canvas id="chart-impressions"></canvas></div>
-              </div>
-            </div>
-
-            <!-- Issues + Campaigns -->
-            <div class="bottom-grid">
-              <div class="section-card">
-                <div class="section-header">
-                  <div class="section-title">Issues &amp; Alerts</div>
-                </div>
-                <div id="issues-list"><div class="no-issues">No issues detected.</div></div>
-              </div>
-              <div class="section-card">
-                <div class="section-header">
-                  <div class="section-title">Campaign Performance</div>
-                </div>
-                <div style="overflow-x:auto;">
-                  <table class="campaign-table">
-                    <thead>
-                      <tr>
-                        <th>Campaign</th>
-                        <th>Status</th>
-                        <th>Budget</th>
-                        <th>Note</th>
-                      </tr>
-                    </thead>
-                    <tbody id="campaigns-tbody">
-                      <tr><td colspan="4" style="color:var(--text-3);text-align:center;padding:20px;">Loading…</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        </details>
       </div>
-    </main>
-  </div>
-</div>
 
+      <!-- Stale-data banner -->
+      <div class="alert alert-warning" id="stale-banner">
+        <div style="flex:1;">
+          <div style="font-weight:600;">Showing cached data — token expired</div>
+          <div style="font-size:12px;margin-top:2px;color:var(--text-2);">Your ad account token expired. These metrics are from your last sync.</div>
+        </div>
+        <a href="/workspace" class="btn btn-primary btn-sm">Reconnect</a>
+      </div>
+
+      <!-- 1 ▸ Financial hero cards -->
+      <section class="hero-grid" id="hero-grid">
+        <div class="hero-card" id="hero-30">
+          <div class="hero-label">30-Day Spend</div>
+          <div class="hero-value" id="hero-30-val">—</div>
+          <div class="hero-sub">Past 30 days</div>
+          <span class="hero-delta flat" id="hero-30-delta">→ —</span>
+        </div>
+        <div class="hero-card success" id="hero-7">
+          <div class="hero-label">7-Day Spend</div>
+          <div class="hero-value" id="hero-7-val">—</div>
+          <div class="hero-sub">Past 7 days</div>
+          <span class="hero-delta flat" id="hero-7-delta">→ —</span>
+        </div>
+        <div class="hero-card warning" id="hero-life">
+          <div class="hero-label">Lifetime Spend</div>
+          <div class="hero-value" id="hero-life-val">—</div>
+          <div class="hero-sub" id="hero-life-sub">Account history (90-day window)</div>
+          <span class="hero-delta flat">Account total</span>
+        </div>
+      </section>
+
+      <!-- 2 ▸ AI Motion Ticker -->
+      <section class="ticker-wrap" id="ticker-wrap" style="display:none;">
+        <div class="ticker-track" id="ticker-track"></div>
+      </section>
+
+      <!-- 3 ▸ Active Ads Showcase -->
+      <section class="active-section" id="active-section" style="display:none;">
+        <div class="active-header">
+          <div class="active-title">Active Ads · Now Spending</div>
+          <div class="active-meta" id="active-meta">—</div>
+        </div>
+        <div class="active-grid" id="active-grid"></div>
+      </section>
+
+      <!-- 4 ▸ Bottom Split Panel — AI Brain Box (left) + Spend chart (right) -->
+      <section class="split-grid">
+        <div class="brain-box">
+          <div class="brain-box-head">
+            <div class="brain-box-icon">AI</div>
+            <div class="brain-box-title">صندوق نصائح العقل الـ AI</div>
+            <div class="brain-box-sub" id="brain-box-sub">—</div>
+          </div>
+          <div id="strategy-list">
+            <div class="v2-action-empty">Analyzing…</div>
+          </div>
+        </div>
+        <div class="chart-panel">
+          <div class="chart-panel-head">
+            <div class="chart-panel-title">Performance · Spend Over Time</div>
+            <div class="chart-panel-meta" id="chart-panel-meta">—</div>
+          </div>
+          <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas></div>
+        </div>
+      </section>
+
+      <!-- 5 ▸ V6 Brain detail (CMO Feed, Live Pulse, Ledger) -->
+      <section id="brain-cmo-feed-section" class="v2-section" style="display:none;">
+        <div class="v2-section-head">
+          <div class="v2-section-title">CMO Feed</div>
+          <div class="v2-section-meta" id="brain-cmo-feed-meta">AI-narrated decisions for today</div>
+        </div>
+        <div id="brain-cmo-feed" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </section>
+
+      <section id="brain-pulse-section" class="v2-section" style="display:none;">
+        <div class="v2-section-head">
+          <div class="v2-section-title">Live Pulse</div>
+          <div class="v2-section-meta">Auto-refresh 60s · <span id="brain-pulse-tick">—</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+          <div class="card" style="padding:14px;">
+            <div class="kpi-label">Burn Rate</div>
+            <div id="brain-pulse-burn" class="kpi-value" style="font-size:20px;">—</div>
+            <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> campaigns</div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div class="kpi-label">Intra-day Spend</div>
+            <div id="brain-pulse-spendpct" class="kpi-value" style="font-size:20px;">—</div>
+            <div class="text-xs text-3">of total daily budget</div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div class="kpi-label">DNA Match</div>
+            <div id="brain-pulse-dna" class="kpi-value" style="font-size:20px;">—</div>
+            <div class="text-xs text-3">vs gold-standard winners</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="brain-ledger-section" class="v2-section" style="display:none;">
+        <div class="v2-section-head">
+          <div class="v2-section-title">Interventions Ledger</div>
+          <div class="v2-section-meta">Last 7 days</div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="kpi-label">Estimated wasted spend prevented</div>
+          <div id="brain-ledger-saved" style="font-size:26px;font-weight:800;color:var(--success);margin-top:4px;">—</div>
+        </div>
+        <div id="brain-ledger-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </section>
+
+      <!-- 6 ▸ V2 — Today's Actions + Recovery + Spotlight + Insights -->
+      <section class="v2-section">
+        <div class="v2-section-head">
+          <div class="v2-section-title">Today's Actions</div>
+          <div class="v2-section-meta" id="v2-actions-meta">Top decisions for the next 24h</div>
+        </div>
+        <div class="v2-actions" id="v2-actions">
+          <div class="v2-action-empty">Loading actions…</div>
+        </div>
+      </section>
+
+      <section class="v2-section" id="v2-recovery-section" style="display:none;">
+        <div class="v2-section-head">
+          <div class="v2-section-title">Recovery Center</div>
+          <div class="v2-section-meta">Solutions, not warnings</div>
+        </div>
+        <div class="v2-recovery-grid" id="v2-recovery"></div>
+      </section>
+
+      <section class="v2-section">
+        <div class="v2-spotlight-grid" id="v2-spotlight"></div>
+      </section>
+
+      <section class="v2-section" id="v2-insights-section" style="display:none;">
+        <div class="v2-section-head">
+          <div class="v2-section-title">AI Insights</div>
+          <div class="v2-section-meta">Pattern observations</div>
+        </div>
+        <div class="v2-insights" id="v2-insights"></div>
+      </section>
+
+      <!-- 7 ▸ Advanced Analytics (collapsed) -->
+      <details class="v2-advanced">
+        <summary>
+          Advanced Analytics
+          <span>KPIs · CTR · Impressions · Issues · Campaigns</span>
+        </summary>
+        <div class="v2-advanced-body">
+          <div class="kpi-grid" id="kpi-grid"></div>
+
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-card-header"><div class="chart-card-title">CTR Trend</div></div>
+              <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-header"><div class="chart-card-title">Impressions / Messages Trend</div></div>
+              <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
+            </div>
+          </div>
+
+          <div class="card section-gap">
+            <div class="card-title">Issues &amp; Alerts</div>
+            <div id="issues-list"><div class="text-3 text-sm">No issues detected.</div></div>
+          </div>
+
+          <div class="table-wrap">
+            <div class="table-header"><div class="table-title">Campaign Performance</div></div>
+            <table>
+              <thead><tr><th>Campaign</th><th>Status</th><th>Budget</th><th>Note</th></tr></thead>
+              <tbody id="campaigns-tbody">
+                <tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </div>
+  `;
+
+  const scripts = `
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 (function () {
   'use strict';
 
-  // ── helpers ────────────────────────────────────────────────────────────────
-  function fmt(n, decimals) {
+  // ── State ───────────────────────────────────────────────────────────────
+  var state = {
+    currency: 'USD',
+    minorFactor: 100,
+    workspaceId: null,
+  };
+
+  // ── helpers ─────────────────────────────────────────────────────────────
+  function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtNum(n, d) {
     if (n == null || isNaN(n)) return '—';
     if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
     if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-    return decimals != null ? n.toFixed(decimals) : String(n);
+    return d != null ? n.toFixed(d) : String(n);
   }
-  function fmtCurrency(n) {
-    if (n == null || isNaN(n)) return '—';
-    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  function fmtPct(n) {
+  function fmtPctLocal(n) {
     if (n == null || isNaN(n)) return '—';
     return Number(n).toFixed(2) + '%';
   }
-  function initials(name) {
+  // Convert a BigInt-or-Number minor-unit value to a human currency string
+  // honouring the connected ad-account's currency + minorFactor.
+  function fmtCurrencyMinor(minorVal) {
+    if (minorVal == null || isNaN(Number(minorVal))) return '—';
+    var major = Number(minorVal) / state.minorFactor;
+    return major.toLocaleString('en-US', { minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
+  }
+  function fmtCurrencyMajor(n) {
+    if (n == null || isNaN(n)) return '—';
+    return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
+  }
+  // Sum BigInt-or-Number spend over an insights slice (already in minor units).
+  function sumMinor(rows) {
+    var s = 0;
+    for (var i = 0; i < rows.length; i++) s += Number(rows[i].spend) || 0;
+    return s;
+  }
+  // recentAsc: DailyStats arrive date-DESC. Take the first N (= most recent N),
+  // then reverse so charts render oldest → newest left-to-right.
+  function recentAsc(arr, n) {
+    if (!Array.isArray(arr)) return [];
+    var head = arr.slice(0, n);
+    return head.slice().reverse();
+  }
+  function initialsOf(name) {
     if (!name) return '?';
     return name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0, 2);
-  }
-  function getToken() { return localStorage.getItem('adlytic_token'); }
-  function getWorkspaceId() { return localStorage.getItem('adlytic_workspace_id'); }
-  function setWorkspaceId(id) { localStorage.setItem('adlytic_workspace_id', id); }
-  function logout() {
-    localStorage.removeItem('adlytic_token');
-    localStorage.removeItem('adlytic_workspace_id');
-    window.location.href = '/login';
-  }
-
-  async function apiFetch(path) {
-    var token = getToken();
-    var res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
-    if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
-    if (!res.ok) throw new Error('API error ' + res.status + ' on ' + path);
-    return res.json();
   }
 
   function showError(msg) {
@@ -744,8 +507,8 @@ export function dashboardPage(): string {
     document.getElementById('error-msg').textContent = msg;
   }
 
-  // ── Chart.js defaults ─────────────────────────────────────────────────────
-  function makeLineChart(canvasId, labels, datasets) {
+  // ── Chart.js wrapper ────────────────────────────────────────────────────
+  function makeLineChart(canvasId, labels, datasets, opts) {
     var ctx = document.getElementById(canvasId).getContext('2d');
     return new Chart(ctx, {
       type: 'line',
@@ -766,197 +529,259 @@ export function dashboardPage(): string {
           }
         },
         scales: {
-          x: {
-            grid: { color: '#232326' },
-            ticks: { color: '#5a5a6a', maxTicksLimit: 7, font: { size: 11 } }
-          },
-          y: {
-            grid: { color: '#232326' },
-            ticks: { color: '#5a5a6a', font: { size: 11 } }
-          }
+          x: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
+          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', font: { size: 11 } } }
         },
         elements: { point: { radius: 0, hoverRadius: 4 } }
       }
     });
   }
 
-  // ── KPI rendering ─────────────────────────────────────────────────────────
-  function renderKpis(kpis) {
-    var grid = document.getElementById('kpi-grid');
-    if (!kpis || kpis.length === 0) {
-      grid.innerHTML = '<div class="state-text" style="padding:12px 0;">No KPI data available.</div>';
+  // ── Hero cards ──────────────────────────────────────────────────────────
+  function renderHero(insights90) {
+    var arr = Array.isArray(insights90) ? insights90 : [];
+    var spend7  = sumMinor(arr.slice(0, 7));
+    var spend30 = sumMinor(arr.slice(0, 30));
+    var spend90 = sumMinor(arr);
+
+    // 7d-vs-prior-7d delta
+    var prior7 = sumMinor(arr.slice(7, 14));
+    var d7 = prior7 > 0 ? ((spend7 - prior7) / prior7) * 100 : null;
+    // 30d-vs-prior-30d delta
+    var prior30 = sumMinor(arr.slice(30, 60));
+    var d30 = prior30 > 0 ? ((spend30 - prior30) / prior30) * 100 : null;
+
+    document.getElementById('hero-30-val').textContent  = fmtCurrencyMinor(spend30);
+    document.getElementById('hero-7-val').textContent   = fmtCurrencyMinor(spend7);
+    document.getElementById('hero-life-val').textContent = fmtCurrencyMinor(spend90);
+
+    function applyDelta(el, pct, goodWhenUp) {
+      if (pct == null) { el.className = 'hero-delta flat'; el.textContent = '→ —'; return; }
+      var up = pct >= 0;
+      var arrow = up ? '↑' : '↓';
+      var cls = (up === !!goodWhenUp) ? 'up' : 'down';
+      // Spend going up is bad for cost-control; goodWhenUp = false
+      el.className = 'hero-delta ' + cls;
+      el.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '% vs prior';
+    }
+    applyDelta(document.getElementById('hero-30-delta'), d30, false);
+    applyDelta(document.getElementById('hero-7-delta'),  d7,  false);
+
+    // Lifetime sub: show actual window length so the label is honest.
+    var days = Math.min(arr.length, 90);
+    document.getElementById('hero-life-sub').textContent =
+      'Account history (' + days + '-day window)';
+  }
+
+  // ── AI Motion Ticker ─────────────────────────────────────────────────────
+  function buildTickerItems(dashData) {
+    var items = [];
+    // From V6 brain.cmoFeed: Arabic narration is the gold standard
+    var cmoFeed = (dashData.brain && Array.isArray(dashData.brain.cmoFeed)) ? dashData.brain.cmoFeed : [];
+    cmoFeed.slice(0, 6).forEach(function (it) {
+      if (it.narration && it.narration.arabicTitle) {
+        items.push({
+          layer: 'BRAIN',
+          severity: it.priority === 'CRITICAL' ? 'critical' : it.priority === 'HIGH' ? 'warning' : 'success',
+          text: it.narration.arabicTitle + ' — ' + (it.campaignName || ''),
+        });
+      }
+    });
+    // From issues: synthesize layer labels by severity-bucket
+    var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
+    issues.slice(0, 5).forEach(function (iss, idx) {
+      var sev = (iss.severity || 'low').toLowerCase();
+      items.push({
+        layer: 'L' + (3 + idx),
+        severity: sev === 'critical' ? 'critical' : sev === 'high' ? 'warning' : sev === 'medium' ? 'warning' : 'success',
+        text: (iss.title || iss.code || 'observation') + (iss.recommendations ? ' — ' + (Array.isArray(iss.recommendations) ? iss.recommendations[0] : iss.recommendations) : ''),
+      });
+    });
+    // From KPIs: a CTR / spend movement summary
+    var kpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
+    kpis.slice(0, 4).forEach(function (k) {
+      if (k.deltaPct == null) return;
+      var dir = k.direction === 'up' ? 'صعود' : 'هبوط';
+      items.push({
+        layer: 'L7',
+        severity: k.direction === 'up' ? (k.goodWhenUp === false ? 'warning' : 'success') : (k.goodWhenUp === false ? 'success' : 'warning'),
+        text: (k.label || k.key) + ' ' + dir + ' ' + Math.abs(Number(k.deltaPct)).toFixed(1) + '% — رصد تلقائي للطبقة السابعة',
+      });
+    });
+    // Always include at least one steady-state insight if nothing else fired
+    if (items.length === 0) {
+      items.push({ layer: 'AI', severity: 'success', text: 'الذكاء الاصطناعي يراقب حسابك · لم تُرصد تنبيهات نشطة' });
+    }
+    return items;
+  }
+  function renderTicker(items) {
+    if (!items || items.length === 0) return;
+    var wrap = document.getElementById('ticker-wrap');
+    var track = document.getElementById('ticker-track');
+    // Duplicate the items so the CSS translate(-50%) wraps seamlessly
+    var html = items.concat(items).map(function (it) {
+      return '<span class="ticker-item">'
+        + '<span class="ticker-dot ' + it.severity + '"></span>'
+        + '<span class="ticker-layer">' + escHtml(it.layer) + '</span>'
+        + '<span>' + escHtml(it.text) + '</span>'
+      + '</span>';
+    }).join('');
+    track.innerHTML = html;
+    wrap.style.display = 'block';
+  }
+
+  // ── Active Ads Showcase ─────────────────────────────────────────────────
+  function renderActiveAds(campaigns) {
+    var active = (campaigns || []).filter(function (c) { return c.status === 'ACTIVE'; });
+    var sec = document.getElementById('active-section');
+    var grid = document.getElementById('active-grid');
+    var meta = document.getElementById('active-meta');
+    if (active.length === 0) { sec.style.display = 'none'; return; }
+    sec.style.display = 'block';
+    meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' currently spending';
+    grid.innerHTML = active.slice(0, 12).map(function (c) {
+      var budget = c.dailyBudget
+        ? fmtCurrencyMinor(c.dailyBudget) + '/day'
+        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' total' : 'No budget set');
+      return '<div class="active-card">'
+        + '<div class="active-top">'
+          + '<span class="blink-dot"></span>'
+          + '<span class="active-name" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</span>'
+        + '</div>'
+        + '<div class="active-meta-row"><span>' + escHtml(c.objective || 'OBJECTIVE') + '</span><b>' + escHtml(budget) + '</b></div>'
+      + '</div>';
+    }).join('');
+  }
+
+  // ── AI Brain Box (strategy cards) ───────────────────────────────────────
+  function renderBrainBox(dashData) {
+    var list = document.getElementById('strategy-list');
+    var sub  = document.getElementById('brain-box-sub');
+    var cards = [];
+
+    // 1) Priority action (always first if present)
+    if (dashData.priorityAction) {
+      var paText = typeof dashData.priorityAction === 'string'
+        ? dashData.priorityAction
+        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
+      if (paText) cards.push({ sev: 'critical', title: '⚡ الأولوية القصوى', body: paText });
+    }
+
+    // 2) Brain narrated decisions → strategy cards
+    var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeed)) ? dashData.brain.cmoFeed : [];
+    feed.slice(0, 3).forEach(function (it) {
+      var sev = it.priority === 'CRITICAL' ? 'critical' : it.priority === 'HIGH' ? 'high' : 'medium';
+      var title = (it.narration && it.narration.arabicTitle) || it.campaignName || 'AI decision';
+      var body = (it.narration && it.narration.arabicNarration) || ('Action recommended: ' + (it.action || ''));
+      cards.push({ sev: sev, title: title, body: body });
+    });
+
+    // 3) Top issues → actionable cards
+    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
+    issues.sort(function (a, b) {
+      var order = { critical: 0, high: 1, medium: 2, low: 3 };
+      return (order[(a.severity || 'low').toLowerCase()] || 9) - (order[(b.severity || 'low').toLowerCase()] || 9);
+    });
+    issues.slice(0, 4).forEach(function (iss) {
+      var sev = (iss.severity || 'medium').toLowerCase();
+      var rec = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
+      cards.push({
+        sev: sev,
+        title: iss.title || iss.code || 'Observation',
+        body: rec || 'Review affected campaigns and adjust strategy.',
+      });
+    });
+
+    if (cards.length === 0) {
+      list.innerHTML = '<div class="v2-action-empty">Account is steady — no strategic actions needed right now.</div>';
+      sub.textContent = 'All clear';
       return;
     }
-    grid.innerHTML = kpis.map(function(k) {
-      var deltaClass = 'neutral';
-      var arrow = '';
+    list.innerHTML = cards.slice(0, 8).map(function (c) {
+      return '<div class="strategy-card ' + c.sev + '">'
+        + '<div class="strategy-head"><div class="strategy-title">' + escHtml(c.title) + '</div></div>'
+        + '<div class="strategy-body">' + escHtml(c.body) + '</div>'
+      + '</div>';
+    }).join('');
+    sub.textContent = cards.length + ' insight' + (cards.length === 1 ? '' : 's');
+  }
+
+  // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
+  function renderKpis(kpis) {
+    var grid = document.getElementById('kpi-grid');
+    if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">No KPI data available.</div>'; return; }
+    grid.innerHTML = kpis.map(function (k) {
+      var deltaClass = 'flat', arrow = '→';
       if (k.deltaPct != null) {
         var good = k.goodWhenUp !== false;
         var up = k.direction === 'up';
-        if (up) { deltaClass = good ? 'up' : 'down'; arrow = '↑ '; }
-        else { deltaClass = good ? 'down' : 'up'; arrow = '↓ '; }
+        if (up)   { deltaClass = good ? 'up-good' : 'up-bad'; arrow = '↑'; }
+        else      { deltaClass = good ? 'down-bad' : 'down-good'; arrow = '↓'; }
       }
       var deltaHtml = k.deltaPct != null
-        ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + Math.abs(Number(k.deltaPct)).toFixed(1) + '%</div>'
+        ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.abs(Number(k.deltaPct)).toFixed(1) + '%</div>'
         : '';
       return '<div class="kpi-card">'
         + '<div class="kpi-label">' + escHtml(k.label || k.key) + '</div>'
         + '<div class="kpi-value">' + escHtml(String(k.display || k.value || '—')) + '</div>'
         + deltaHtml
-        + '</div>';
+      + '</div>';
     }).join('');
   }
 
-  function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  // ── Issues rendering ──────────────────────────────────────────────────────
   function renderIssues(issues) {
     var el = document.getElementById('issues-list');
     if (!issues || issues.length === 0) {
-      el.innerHTML = '<div class="no-issues">No issues detected. Your account looks healthy!</div>';
+      el.innerHTML = '<div class="text-3 text-sm">No issues detected. Your account looks healthy.</div>';
       return;
     }
-    el.innerHTML = issues.map(function(issue) {
-      var sev = (issue.severity || 'low').toLowerCase();
-      var badgeClass = 'badge-' + (sev === 'critical' ? 'critical' : sev === 'high' ? 'high' : sev === 'medium' ? 'medium' : 'low');
-      var causes = Array.isArray(issue.causes) ? issue.causes.join(', ') : (issue.causes || '');
-      var recs = Array.isArray(issue.recommendations) ? issue.recommendations[0] : (issue.recommendations || '');
-      return '<div class="issue-item">'
-        + '<div class="issue-top">'
-        + '<div class="issue-title">' + escHtml(issue.title || issue.code) + '</div>'
-        + '<span class="badge ' + badgeClass + '">' + escHtml(sev) + '</span>'
+    el.innerHTML = issues.map(function (iss) {
+      var sev = (iss.severity || 'low').toUpperCase();
+      var causes = Array.isArray(iss.causes) ? iss.causes.join(', ') : (iss.causes || '');
+      var recs = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
+      return '<div style="padding:10px 0;border-top:1px solid var(--border);">'
+        + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">'
+          + '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escHtml(iss.title || iss.code) + '</div>'
+          + severityBadge(sev)
         + '</div>'
-        + (causes ? '<div class="issue-causes">' + escHtml(causes) + '</div>' : '')
-        + (recs ? '<div class="issue-rec">' + escHtml(recs) + '</div>' : '')
-        + '</div>';
+        + (causes ? '<div class="text-sm text-2" style="margin-top:3px;">' + escHtml(causes) + '</div>' : '')
+        + (recs ? '<div class="text-xs text-3" style="margin-top:2px;font-style:italic;">' + escHtml(recs) + '</div>' : '')
+      + '</div>';
     }).join('');
   }
 
-  // ── Campaign table ────────────────────────────────────────────────────────
-  function renderCampaigns(best, worst, allCampaigns) {
+  function renderCampaignsTable(best, worst, allCampaigns) {
     var tbody = document.getElementById('campaigns-tbody');
     var rows = [];
-
-    function statusBadge(s) {
-      var cls = s === 'ACTIVE' ? 'badge-low' : s === 'PAUSED' ? 'badge-high' : 'badge-low';
-      if (s === 'ACTIVE') cls = 'badge';
-      return '<span class="badge ' + cls + '" style="' + (s === 'ACTIVE' ? 'background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);' : '') + '">' + escHtml(s || '—') + '</span>';
-    }
-
-    function campaignRow(c, cssClass, note) {
-      var budget = c.dailyBudget ? fmtCurrency(c.dailyBudget) + '/day' : (c.lifetimeBudget ? fmtCurrency(c.lifetimeBudget) + ' total' : '—');
-      return '<tr class="' + cssClass + '">'
-        + '<td><div class="campaign-name">' + escHtml(c.name || '—') + '</div>'
-        + '<div class="campaign-sub">' + escHtml(c.objective || '') + '</div></td>'
-        + '<td>' + statusBadge(c.status) + '</td>'
+    function row(c, note) {
+      var budget = c.dailyBudget
+        ? fmtCurrencyMinor(c.dailyBudget) + '/day'
+        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' total' : '—');
+      return '<tr>'
+        + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div>'
+          + '<div class="text-xs text-3">' + escHtml(c.objective || '') + '</div></td>'
+        + '<td>' + statusBadge(c.status || 'UNKNOWN') + '</td>'
         + '<td>' + escHtml(budget) + '</td>'
-        + '<td style="font-size:11px;color:var(--text-3);">' + escHtml(note) + '</td>'
-        + '</tr>';
+        + '<td class="text-xs text-3">' + escHtml(note || '') + '</td>'
+      + '</tr>';
     }
-
-    if (best) rows.push(campaignRow(best, 'highlight-best', '⭐ Best'));
-    if (worst) rows.push(campaignRow(worst, 'highlight-worst', '⚠ Worst'));
-
-    if (Array.isArray(allCampaigns)) {
-      var listed = new Set([best && best.id, worst && worst.id].filter(Boolean));
-      allCampaigns.forEach(function(c) {
-        if (!listed.has(c.id)) rows.push(campaignRow(c, '', ''));
-      });
-    }
-
-    if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-3);text-align:center;padding:20px;">No campaigns found.</td></tr>';
-    } else {
-      tbody.innerHTML = rows.join('');
-    }
+    if (best)  rows.push(row(best,  '⭐ Best'));
+    if (worst) rows.push(row(worst, '⚠ Worst'));
+    var seen = new Set([best && best.id, worst && worst.id].filter(Boolean));
+    (allCampaigns || []).forEach(function (c) { if (!seen.has(c.id)) rows.push(row(c, '')); });
+    tbody.innerHTML = rows.length
+      ? rows.join('')
+      : '<tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">No campaigns found.</td></tr>';
   }
 
-  // ── Health ring ───────────────────────────────────────────────────────────
-  function renderHealth(score, band) {
-    var s = Number(score) || 0;
-    var circumference = 2 * Math.PI * 22; // ~138.23
-    var offset = circumference - (s / 100) * circumference;
-    var fg = document.getElementById('health-ring-fg');
-    var color = s >= 80 ? 'var(--success)' : s >= 60 ? 'var(--accent)' : s >= 40 ? 'var(--warning)' : 'var(--error)';
-    fg.style.stroke = color;
-    fg.style.strokeDashoffset = String(offset);
-    document.getElementById('health-score-label').textContent = String(s);
-    document.getElementById('health-score-num').textContent = String(s);
-    document.getElementById('health-band').textContent = band || 'Health Score';
-    document.getElementById('health-desc').textContent =
-      s >= 80 ? 'Your account is performing well.' :
-      s >= 60 ? 'Some improvements recommended.' :
-      s >= 40 ? 'Several issues need attention.' :
-      'Critical issues detected. Take action now.';
-  }
-
-  // ── Insights KPIs fallback ────────────────────────────────────────────────
-  function buildKpisFromInsights(insights) {
-    var totals = { spend: 0, impressions: 0, reach: 0, clicks: 0, messages: 0 };
-    insights.forEach(function(d) {
-      totals.spend += Number(d.spend) || 0;
-      totals.impressions += Number(d.impressions) || 0;
-      totals.reach += Number(d.reach) || 0;
-      totals.clicks += Number(d.clicks) || 0;
-      totals.messages += Number(d.messages) || 0;
-    });
-    var ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0;
-    var cpc = totals.clicks ? totals.spend / totals.clicks : 0;
-    var cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : 0;
-    return [
-      { key: 'spend', label: 'Spend', value: totals.spend, display: fmtCurrency(totals.spend), goodWhenUp: false },
-      { key: 'impressions', label: 'Impressions', value: totals.impressions, display: fmt(totals.impressions), goodWhenUp: true },
-      { key: 'reach', label: 'Reach', value: totals.reach, display: fmt(totals.reach), goodWhenUp: true },
-      { key: 'clicks', label: 'Clicks', value: totals.clicks, display: fmt(totals.clicks), goodWhenUp: true },
-      { key: 'ctr', label: 'CTR', value: ctr, display: fmtPct(ctr), goodWhenUp: true },
-      { key: 'cpc', label: 'CPC', value: cpc, display: fmtCurrency(cpc), goodWhenUp: false },
-      { key: 'cpm', label: 'CPM', value: cpm, display: fmtCurrency(cpm), goodWhenUp: false },
-      { key: 'messages', label: 'Messages', value: totals.messages, display: fmt(totals.messages), goodWhenUp: true },
-    ];
-  }
-
-  // ── V2 Decision Interface ─────────────────────────────────────────────────
+  // ── V2: Today's Actions / Recovery / Spotlight / AI Insights ────────────
   function severityToVerdict(s) {
     s = (s || 'good').toLowerCase();
-    if (s === 'critical') return { cls: 'v2-verdict-critical', text: 'Critical' };
-    if (s === 'high' || s === 'needs_attention') return { cls: 'v2-verdict-needs-attention', text: 'Needs Attention' };
-    if (s === 'excellent') return { cls: 'v2-verdict-excellent', text: 'Excellent' };
-    return { cls: 'v2-verdict-good', text: 'Good' };
+    if (s === 'critical') return { cls: 'badge-red', text: 'Critical' };
+    if (s === 'high' || s === 'needs_attention') return { cls: 'badge-yellow', text: 'Needs Attention' };
+    if (s === 'excellent') return { cls: 'badge-green', text: 'Excellent' };
+    return { cls: 'badge-green', text: 'Good' };
   }
-  function scoreToVerdict(score, band) {
-    var s = Number(score) || 0;
-    if (s >= 85) return { cls: 'v2-verdict-excellent', text: 'Excellent' };
-    if (s >= 70) return { cls: 'v2-verdict-good', text: 'Good' };
-    if (s >= 50) return { cls: 'v2-verdict-needs-attention', text: 'Needs Attention' };
-    return { cls: 'v2-verdict-critical', text: 'Critical' };
-  }
-
-  function renderV2Health(health, issuesCount, oppsCount) {
-    var s = Number(health && health.score) || 0;
-    var v = scoreToVerdict(s, health && health.band);
-    var ring = document.getElementById('health-ring-fg');
-    var circumference = 2 * Math.PI * 22;
-    var offset = circumference - (s / 100) * circumference;
-    var color = s >= 80 ? 'var(--success)' : s >= 60 ? 'var(--accent)' : s >= 40 ? 'var(--warning)' : 'var(--error)';
-    ring.style.stroke = color;
-    ring.style.strokeDashoffset = String(offset);
-    document.getElementById('health-score-label').textContent = String(s);
-
-    var verdictEl = document.getElementById('v2-health-verdict');
-    verdictEl.textContent = v.text;
-    verdictEl.className = 'v2-health-verdict ' + v.cls;
-
-    document.getElementById('v2-health-big').innerHTML = s + ' <small>/ 100</small>';
-    var parts = [];
-    if (issuesCount > 0) parts.push(issuesCount + ' issue' + (issuesCount === 1 ? '' : 's') + ' detected');
-    if (oppsCount > 0) parts.push(oppsCount + ' opportunit' + (oppsCount === 1 ? 'y' : 'ies') + ' found');
-    if (parts.length === 0) parts.push('No issues detected');
-    document.getElementById('v2-health-issues').textContent = parts.join(' · ');
-  }
-
-  // Map a backend issue → an actionable card
   function issueToAction(issue, priority) {
     var sev = (issue.severity || 'medium').toLowerCase();
     var rec = Array.isArray(issue.recommendations) ? issue.recommendations[0] : issue.recommendations;
@@ -970,7 +795,6 @@ export function dashboardPage(): string {
       buttonText: sev === 'critical' ? 'Fix Now' : 'Review',
     };
   }
-
   function renderTodayActions(actions) {
     var el = document.getElementById('v2-actions');
     if (!actions || actions.length === 0) {
@@ -988,7 +812,7 @@ export function dashboardPage(): string {
           + '<div class="v2-action-title">' + escHtml(a.title) + '</div>'
           + '<div class="v2-action-decision">' + escHtml(a.decision) + '</div>'
           + '<div class="v2-action-meta">'
-            + '<span>Expected impact: <b>' + escHtml(a.expectedImpact) + '</b></span>'
+            + '<span>Impact: <b>' + escHtml(a.expectedImpact) + '</b></span>'
             + '<span>Confidence: <b>' + escHtml(String(a.confidence)) + '%</b></span>'
             + '<span>Risk: <b class="' + (a.risk === 'low' ? 'ok' : '') + '">' + escHtml(a.risk) + '</b></span>'
           + '</div>'
@@ -997,20 +821,32 @@ export function dashboardPage(): string {
       + '</div>';
     }).join('');
   }
-
-  function issueToRecovery(issue) {
-    var recs = Array.isArray(issue.recommendations)
-      ? issue.recommendations
-      : (issue.recommendations ? [issue.recommendations] : []);
-    if (recs.length === 0) recs = ['Review affected campaigns', 'Adjust budget or creative', 'Pause if degradation continues'];
-    return {
-      patternName: issue.title || issue.code || 'Detected pattern',
-      severity: (issue.severity || 'medium').toLowerCase(),
-      confidence: issue.confidence || 85,
-      steps: recs.slice(0, 4),
-    };
+  function buildTodayActions(dashData) {
+    var actions = [];
+    if (dashData.priorityAction) {
+      var paText = typeof dashData.priorityAction === 'string'
+        ? dashData.priorityAction
+        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
+      if (paText) actions.push({ priority: 1, title: 'Priority Action', decision: paText, confidence: 92, expectedImpact: 'High', risk: 'low', buttonText: 'Act' });
+    }
+    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
+    issues.sort(function (a, b) {
+      var order = { critical: 0, high: 1, medium: 2, low: 3 };
+      return (order[(a.severity || 'low').toLowerCase()] || 9) - (order[(b.severity || 'low').toLowerCase()] || 9);
+    });
+    for (var i = 0; i < issues.length && actions.length < 3; i++) {
+      actions.push(issueToAction(issues[i], actions.length + 1));
+    }
+    return actions;
   }
-
+  function buildRecoveryPlans(issues) {
+    if (!Array.isArray(issues)) return [];
+    return issues.slice(0, 6).map(function (iss) {
+      var recs = Array.isArray(iss.recommendations) ? iss.recommendations : (iss.recommendations ? [iss.recommendations] : []);
+      if (recs.length === 0) recs = ['Review affected campaigns', 'Adjust budget or creative', 'Pause if degradation continues'];
+      return { patternName: iss.title || iss.code || 'Detected pattern', severity: (iss.severity || 'medium').toLowerCase(), confidence: iss.confidence || 85, steps: recs.slice(0, 4) };
+    });
+  }
   function renderRecoveryCenter(plans) {
     var sec = document.getElementById('v2-recovery-section');
     var grid = document.getElementById('v2-recovery');
@@ -1020,21 +856,21 @@ export function dashboardPage(): string {
       var v = severityToVerdict(p.severity);
       return '<div class="v2-recovery-card">'
         + '<div class="v2-recovery-top">'
-          + '<div>'
-            + '<div class="v2-recovery-name">' + escHtml(p.patternName) + '</div>'
-            + '<div class="v2-recovery-conf">Confidence ' + escHtml(String(p.confidence)) + '%</div>'
-          + '</div>'
-          + '<span class="v2-health-verdict ' + v.cls + '">' + escHtml(v.text) + '</span>'
+          + '<div><div class="v2-recovery-name">' + escHtml(p.patternName) + '</div>'
+          + '<div class="v2-recovery-conf">Confidence ' + escHtml(String(p.confidence)) + '%</div></div>'
+          + '<span class="badge ' + v.cls + '">' + escHtml(v.text) + '</span>'
         + '</div>'
-        + '<div class="v2-recovery-steps">'
-          + p.steps.map(function (step, i) {
-              return '<div class="v2-recovery-step"><b>' + (i + 1) + '.</b> ' + escHtml(step) + '</div>';
-            }).join('')
-        + '</div>'
+        + p.steps.map(function (step, i) { return '<div class="v2-recovery-step"><b>' + (i + 1) + '.</b> ' + escHtml(step) + '</div>'; }).join('')
       + '</div>';
     }).join('');
   }
-
+  function deriveOpportunity(dashData) {
+    if (dashData.opportunity) return dashData.opportunity;
+    if (dashData.bestCampaign) {
+      return { title: 'Audience Expansion', reason: 'Top campaign performing well — broaden audience to scale safely.', expectedGain: '+12 messages/day', confidence: 85 };
+    }
+    return null;
+  }
   function renderSpotlight(winner, opportunity) {
     var el = document.getElementById('v2-spotlight');
     var parts = [];
@@ -1051,16 +887,11 @@ export function dashboardPage(): string {
             + '<span>Score <b>' + escHtml(String(score)) + '</b></span>'
             + '<span>Confidence <b>' + escHtml(String(conf)) + '%</b></span>'
           + '</div>'
-          + '<button class="v2-spotlight-btn" type="button">Scale Safely</button>'
+          + '<button class="btn btn-primary btn-sm" type="button" style="align-self:flex-start;">Scale Safely</button>'
         + '</div>'
       );
     } else {
-      parts.push(
-        '<div class="v2-spotlight v2-winner">'
-          + '<div class="v2-spotlight-tag">Best Campaign</div>'
-          + '<div class="v2-spotlight-empty">No clear winner yet — let campaigns gather more data.</div>'
-        + '</div>'
-      );
+      parts.push('<div class="v2-spotlight v2-winner"><div class="v2-spotlight-tag">Best Campaign</div><div class="v2-spotlight-empty">No clear winner yet — let campaigns gather more data.</div></div>');
     }
     if (opportunity) {
       parts.push(
@@ -1072,20 +903,34 @@ export function dashboardPage(): string {
             + '<span>Expected gain <b>' + escHtml(opportunity.expectedGain || '+0%') + '</b></span>'
             + '<span>Confidence <b>' + escHtml(String(opportunity.confidence || 80)) + '%</b></span>'
           + '</div>'
-          + '<button class="v2-spotlight-btn" type="button">Explore</button>'
+          + '<button class="btn btn-primary btn-sm" type="button" style="align-self:flex-start;">Explore</button>'
         + '</div>'
       );
     } else {
-      parts.push(
-        '<div class="v2-spotlight v2-opportunity">'
-          + '<div class="v2-spotlight-tag">Opportunity</div>'
-          + '<div class="v2-spotlight-empty">No new opportunity detected today.</div>'
-        + '</div>'
-      );
+      parts.push('<div class="v2-spotlight v2-opportunity"><div class="v2-spotlight-tag">Opportunity</div><div class="v2-spotlight-empty">No new opportunity detected today.</div></div>');
     }
     el.innerHTML = parts.join('');
   }
-
+  function buildInsights(dashData, kpis) {
+    var out = [];
+    if (dashData.priorityAction) {
+      var paText = typeof dashData.priorityAction === 'string'
+        ? dashData.priorityAction
+        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
+      if (paText) out.push({ icon: '⚡', title: 'Priority focus', text: paText });
+    }
+    function findKpi(key) { return (kpis || []).find(function (k) { return (k.key || '').toLowerCase() === key; }); }
+    var ctr = findKpi('ctr');
+    if (ctr && ctr.deltaPct != null) {
+      var up = ctr.direction === 'up';
+      out.push({ icon: up ? '↑' : '↓', title: 'CTR ' + (up ? 'improving' : 'softening'), text: 'CTR moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct)).toFixed(1) + '% vs prior period.' });
+    }
+    var spend = findKpi('spend');
+    if (spend && spend.deltaPct != null) {
+      out.push({ icon: '$', title: 'Spend trend', text: 'Total spend changed ' + (spend.direction === 'up' ? '+' : '-') + Math.abs(Number(spend.deltaPct)).toFixed(1) + '% vs prior period.' });
+    }
+    return out;
+  }
   function renderInsights(insights) {
     var sec = document.getElementById('v2-insights-section');
     var el = document.getElementById('v2-insights');
@@ -1100,98 +945,15 @@ export function dashboardPage(): string {
     }).join('');
   }
 
-  // Derive a few static insights from the dashboard payload
-  function buildInsights(dashData, kpis) {
-    var out = [];
-    if (dashData.priorityAction) {
-      var paText = typeof dashData.priorityAction === 'string'
-        ? dashData.priorityAction
-        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
-      if (paText) out.push({ icon: '⚡', title: 'Priority focus', text: paText });
-    }
-    function findKpi(key) { return (kpis || []).find(function (k) { return (k.key || '').toLowerCase() === key; }); }
-    var ctr = findKpi('ctr');
-    if (ctr && ctr.deltaPct != null) {
-      var up = ctr.direction === 'up';
-      out.push({
-        icon: up ? '↑' : '↓',
-        title: 'CTR ' + (up ? 'improving' : 'softening'),
-        text: 'Click-through rate moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct)).toFixed(1) + '% vs prior period.',
-      });
-    }
-    var spend = findKpi('spend');
-    if (spend && spend.deltaPct != null) {
-      out.push({
-        icon: '$',
-        title: 'Spend trend',
-        text: 'Total spend changed ' + (spend.direction === 'up' ? '+' : '-') + Math.abs(Number(spend.deltaPct)).toFixed(1) + '% vs prior period.',
-      });
-    }
-    return out;
+  // ── V6 Brain sections (CMO Feed / Live Pulse / Ledger) ──────────────────
+  function priorityBadgeClass(p) {
+    if (p === 'CRITICAL') return 'badge-red';
+    if (p === 'HIGH') return 'badge-yellow';
+    return 'badge-green';
   }
-
-  // Build top-3 actions from priorityAction + issues
-  function buildTodayActions(dashData) {
-    var actions = [];
-    if (dashData.priorityAction) {
-      var paText = typeof dashData.priorityAction === 'string'
-        ? dashData.priorityAction
-        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
-      if (paText) {
-        actions.push({
-          priority: 1,
-          title: 'Priority Action',
-          decision: paText,
-          confidence: 92,
-          expectedImpact: 'High',
-          risk: 'low',
-          buttonText: 'Act',
-        });
-      }
-    }
-    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
-    issues.sort(function (a, b) {
-      var order = { critical: 0, high: 1, medium: 2, low: 3 };
-      return (order[(a.severity || 'low').toLowerCase()] || 9) - (order[(b.severity || 'low').toLowerCase()] || 9);
-    });
-    for (var i = 0; i < issues.length && actions.length < 3; i++) {
-      actions.push(issueToAction(issues[i], actions.length + 1));
-    }
-    return actions;
-  }
-
-  // Build recovery plans from issues
-  function buildRecoveryPlans(issues) {
-    if (!Array.isArray(issues)) return [];
-    return issues.slice(0, 6).map(issueToRecovery);
-  }
-
-  // Derive opportunity from data if backend doesn't supply one
-  function deriveOpportunity(dashData) {
-    if (dashData.opportunity) return dashData.opportunity;
-    if (dashData.bestCampaign) {
-      return {
-        title: 'Audience Expansion',
-        reason: 'Top campaign performing well — broaden audience to scale safely.',
-        expectedGain: '+12 messages/day',
-        confidence: 85,
-      };
-    }
-    return null;
-  }
-
-  // ── V6 Brain section renderers ───────────────────────────────────────────
-  // Strangler Fig: when brain is absent from the dashboard DTO the three V6
-  // sections stay hidden and V5 below is the only thing the user sees.
-  function priorityClass(p) {
-    if (p === 'CRITICAL') return 'v2-verdict-poor';
-    if (p === 'HIGH') return 'v2-verdict-attention';
-    return 'v2-verdict-good';
-  }
-
   function renderBrainSection(brain) {
     if (!brain) return;
-    // ── CMO Feed ──
+    // CMO Feed
     var feedHost = document.getElementById('brain-cmo-feed');
     var feedSection = document.getElementById('brain-cmo-feed-section');
     var meta = document.getElementById('brain-cmo-feed-meta');
@@ -1199,7 +961,7 @@ export function dashboardPage(): string {
     if (items.length === 0) {
       feedHost.innerHTML = '<div class="v2-action-empty">No active decisions today.</div>';
     } else {
-      feedHost.innerHTML = items.map(function(it) {
+      feedHost.innerHTML = items.map(function (it) {
         var hasNarration = !!it.narration;
         var title = hasNarration ? escHtml(it.narration.arabicTitle) : escHtml(it.campaignName);
         var body = hasNarration
@@ -1208,26 +970,23 @@ export function dashboardPage(): string {
         var dir = (it.narration && it.narration.creativeDirective)
           ? '<div style="margin-top:6px;font-size:12px;color:var(--text-3);"><strong>Creative directive:</strong> ' + escHtml(it.narration.creativeDirective) + '</div>'
           : '';
-        return ''
-          + '<div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">'
-          +   '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
-          +     '<span class="v2-health-verdict ' + priorityClass(it.priority) + '" style="font-size:11px;padding:2px 8px;">' + escHtml(it.priority) + '</span>'
-          +     '<span style="font-size:13px;color:var(--text-3);">' + escHtml(it.campaignName) + ' · ' + escHtml(it.tickDate) + '</span>'
-          +   '</div>'
-          +   '<div style="font-size:15px;font-weight:600;color:var(--text);">' + title + '</div>'
-          +   '<div style="font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5;">' + body + '</div>'
-          +   dir
-          + '</div>';
+        return '<div class="card" style="padding:14px;">'
+          + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
+          +   '<span class="badge ' + priorityBadgeClass(it.priority) + '">' + escHtml(it.priority) + '</span>'
+          +   '<span class="text-xs text-3">' + escHtml(it.campaignName) + ' · ' + escHtml(it.tickDate) + '</span>'
+          + '</div>'
+          + '<div style="font-size:15px;font-weight:600;color:var(--text);">' + title + '</div>'
+          + '<div style="font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5;">' + body + '</div>'
+          + dir
+        + '</div>';
       }).join('');
     }
     meta.textContent = items.length + ' decision' + (items.length === 1 ? '' : 's') + ' for today';
     feedSection.style.display = 'block';
 
-    // ── Live Pulse — initial render from full DTO; polling refreshes it ──
     applyPulse(brain.livePulse);
     document.getElementById('brain-pulse-section').style.display = 'block';
 
-    // ── Interventions Ledger ──
     var ledger = brain.ledger;
     if (ledger) {
       document.getElementById('brain-ledger-saved').textContent = ledger.savedSpendDisplay || '—';
@@ -1236,183 +995,197 @@ export function dashboardPage(): string {
       if (rows.length === 0) {
         list.innerHTML = '<div class="v2-action-empty">No interventions in the last 7 days.</div>';
       } else {
-        list.innerHTML = rows.map(function(r) {
-          return ''
-            + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);">'
-            +   '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
-            +     '<span class="v2-health-verdict ' + priorityClass(r.priority) + '" style="font-size:11px;padding:2px 8px;flex-shrink:0;">' + escHtml(r.priority) + '</span>'
-            +     '<span style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(r.campaignName) + '</span>'
-            +   '</div>'
-            +   '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">'
-            +     '<span style="font-size:12px;color:var(--text-2);font-weight:600;">' + escHtml(r.action) + '</span>'
-            +     '<span style="font-size:11px;color:var(--text-3);">' + escHtml(r.tickDate) + '</span>'
-            +   '</div>'
-            + '</div>';
+        list.innerHTML = rows.map(function (r) {
+          return '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;">'
+            + '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
+            +   '<span class="badge ' + priorityBadgeClass(r.priority) + '">' + escHtml(r.priority) + '</span>'
+            +   '<span style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(r.campaignName) + '</span>'
+            + '</div>'
+            + '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">'
+            +   '<span class="text-sm font-semibold text-2">' + escHtml(r.action) + '</span>'
+            +   '<span class="text-xs text-3">' + escHtml(r.tickDate) + '</span>'
+            + '</div>'
+          + '</div>';
         }).join('');
       }
       document.getElementById('brain-ledger-section').style.display = 'block';
     }
   }
-
   function applyPulse(pulse) {
     if (!pulse) return;
     document.getElementById('brain-pulse-burn').textContent = pulse.burnRateDisplay || '—';
     document.getElementById('brain-pulse-burn-n').textContent = String(pulse.campaignsObserved || 0);
-    document.getElementById('brain-pulse-spendpct').textContent = (pulse.intraDaySpendPct !== null && pulse.intraDaySpendPct !== undefined)
-      ? pulse.intraDaySpendPct.toFixed(1) + '%' : '—';
-    document.getElementById('brain-pulse-dna').textContent = (pulse.dnaMatchPct !== null && pulse.dnaMatchPct !== undefined)
-      ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
+    document.getElementById('brain-pulse-spendpct').textContent = (pulse.intraDaySpendPct != null) ? pulse.intraDaySpendPct.toFixed(1) + '%' : '—';
+    document.getElementById('brain-pulse-dna').textContent = (pulse.dnaMatchPct != null) ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
     document.getElementById('brain-pulse-tick').textContent = pulse.tickDate || 'no tick yet today';
   }
-
   function startPulsePolling(workspaceId) {
     var POLL_MS = 60000;
     async function tick() {
       try {
         var r = await apiFetch('/api/dashboard/pulse/' + workspaceId);
         if (r && !r.empty) applyPulse(r);
-      } catch (e) {
-        // Silent — polling failures shouldn't disrupt the rest of the page.
-      }
+      } catch (e) { /* silent */ }
     }
     setInterval(tick, POLL_MS);
   }
 
-  // ── Main init ─────────────────────────────────────────────────────────────
+  // ── Insights → KPIs fallback (uses minor-unit-aware spend totals) ───────
+  function buildKpisFromInsights(insights) {
+    var totals = { spendMinor: 0, impressions: 0, reach: 0, clicks: 0, messages: 0 };
+    insights.forEach(function (d) {
+      totals.spendMinor += Number(d.spend) || 0;
+      totals.impressions += Number(d.impressions) || 0;
+      totals.reach += Number(d.reach) || 0;
+      totals.clicks += Number(d.clicks) || 0;
+      totals.messages += Number(d.messages) || 0;
+    });
+    var spendMajor = totals.spendMinor / state.minorFactor;
+    var ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0;
+    var cpc = totals.clicks ? spendMajor / totals.clicks : 0;
+    var cpm = totals.impressions ? (spendMajor / totals.impressions) * 1000 : 0;
+    return [
+      { key: 'spend', label: 'Spend', value: spendMajor, display: fmtCurrencyMinor(totals.spendMinor), goodWhenUp: false },
+      { key: 'impressions', label: 'Impressions', value: totals.impressions, display: fmtNum(totals.impressions), goodWhenUp: true },
+      { key: 'reach', label: 'Reach', value: totals.reach, display: fmtNum(totals.reach), goodWhenUp: true },
+      { key: 'clicks', label: 'Clicks', value: totals.clicks, display: fmtNum(totals.clicks), goodWhenUp: true },
+      { key: 'ctr', label: 'CTR', value: ctr, display: fmtPctLocal(ctr), goodWhenUp: true },
+      { key: 'cpc', label: 'CPC', value: cpc, display: fmtCurrencyMajor(cpc), goodWhenUp: false },
+      { key: 'cpm', label: 'CPM', value: cpm, display: fmtCurrencyMajor(cpm), goodWhenUp: false },
+      { key: 'messages', label: 'Messages', value: totals.messages, display: fmtNum(totals.messages), goodWhenUp: true },
+    ];
+  }
+
+  // ── Main init ───────────────────────────────────────────────────────────
   async function init() {
     var token = getToken();
     if (!token) { window.location.href = '/login'; return; }
 
-    document.getElementById('btn-logout').addEventListener('click', logout);
-
     try {
-      // Step 1: get user
+      // 1) Identify user — populates shared sidebar avatar/name/email
       var me = await apiFetch('/api/auth/me');
+      if (!me) return;
       var userName = me.name || me.email || 'User';
-      var userInitials = initials(userName);
-      document.getElementById('sidebar-avatar').textContent = userInitials;
-      document.getElementById('top-avatar').textContent = userInitials;
-      document.getElementById('sidebar-name').textContent = userName;
+      var userInitials = initialsOf(userName);
+      var avEl = document.getElementById('user-avatar');     if (avEl) avEl.textContent = userInitials;
+      var nameEl = document.getElementById('user-name');     if (nameEl) nameEl.textContent = userName;
+      var emailEl = document.getElementById('user-email');   if (emailEl) emailEl.textContent = me.email || '';
 
-      // Platform admin: reveal sidebar link when the server flagged us.
-      // UI hint only — /api/admin/* routes are independently gated server-side.
-      if (me.isPlatformAdmin === true) {
-        var navAdmin = document.getElementById('nav-admin');
-        if (navAdmin) navAdmin.style.display = 'flex';
-      }
-
-      // Step 2: resolve workspace
-      var workspaceId = getWorkspaceId();
+      // 2) Resolve workspace
+      var workspaceId = getWsId();
       if (!workspaceId && me.memberships && me.memberships.length > 0) {
-        workspaceId = me.memberships[0].workspaceId || me.memberships[0].workspace?.id;
-        if (workspaceId) setWorkspaceId(workspaceId);
+        workspaceId = me.memberships[0].workspaceId || (me.memberships[0].workspace && me.memberships[0].workspace.id);
+        if (workspaceId) setWsId(workspaceId);
       }
       if (!workspaceId) {
         document.getElementById('loading-state').style.display = 'none';
         document.getElementById('dashboard-content').style.display = 'block';
-        document.getElementById('kpi-grid').innerHTML = '<div class="state-overlay"><div class="state-title">No workspace found</div><div class="state-text">Create or join a workspace to see your dashboard.</div></div>';
+        document.getElementById('kpi-grid').innerHTML = '<div class="empty-state"><div class="empty-title">No workspace found</div><div class="empty-text">Create or join a workspace to see your dashboard.</div></div>';
         return;
       }
+      state.workspaceId = workspaceId;
 
-      // Step 3: fetch dashboard + insights + campaigns + workspace status in parallel
-      var [dashData, insights, campaigns, wsData] = await Promise.all([
+      // 3) Parallel data fetch
+      //    Insights: request 90 days (server-side cap) so we can compute
+      //    7d/30d/lifetime hero totals + prior-period deltas from one payload.
+      var results = await Promise.all([
         apiFetch('/api/dashboard/' + workspaceId),
-        apiFetch('/api/workspaces/' + workspaceId + '/insights?days=30'),
-        apiFetch('/api/workspaces/' + workspaceId + '/campaigns').catch(function() { return []; }),
-        apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
+        apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
+        apiFetch('/api/workspaces/' + workspaceId + '/campaigns').catch(function () { return []; }),
+        apiFetch('/api/workspaces/' + workspaceId).catch(function () { return null; }),
       ]);
+      var dashData = results[0] || {};
+      var insights = results[1] || [];
+      var campaigns = results[2] || [];
+      var wsData = results[3];
 
-      // Show stale-data banner if all ad accounts are paused / token expired
-      var allPaused = wsData && Array.isArray(wsData.adAccounts)
-        && wsData.adAccounts.length > 0
-        && wsData.adAccounts.every(function(a) { return a.status !== 'ACTIVE'; });
-      if (allPaused) {
-        var banner = document.getElementById('stale-data-banner');
-        if (banner) banner.style.display = 'flex';
+      // 4) Hydrate currency state from the primary ad account
+      if (wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts.length > 0) {
+        var primary = wsData.adAccounts[0];
+        if (primary.currency) state.currency = primary.currency;
+        if (primary.currencyMinorFactor) state.minorFactor = primary.currencyMinorFactor;
       }
 
-      // Empty state — no ad account connected yet
+      // 5) Stale data banner — all ad accounts non-ACTIVE
+      var allStale = wsData && Array.isArray(wsData.adAccounts)
+        && wsData.adAccounts.length > 0
+        && wsData.adAccounts.every(function (a) { return a.status !== 'ACTIVE'; });
+      if (allStale) document.getElementById('stale-banner').style.display = 'flex';
+
+      // 6) Empty state — no ad account connected
       if (dashData.empty) {
         document.getElementById('loading-state').style.display = 'none';
         document.getElementById('dashboard-content').style.display = 'block';
-        document.getElementById('kpi-grid').innerHTML =
-          '<div class="state-overlay">' +
-          '<div class="state-icon">📊</div>' +
-          '<div class="state-title">Connect your Meta Ads account</div>' +
-          '<div class="state-text">Link your ad account to see spend, CTR, reach, and AI-powered recommendations.</div>' +
-          '<a href="/workspace" class="btn btn-primary" style="margin-top:16px;">Go to Workspace</a>' +
-          '</div>';
+        document.getElementById('hero-grid').innerHTML =
+          '<div class="empty-state" style="grid-column:1/-1;">'
+          + '<div class="empty-icon">📊</div>'
+          + '<div class="empty-title">Connect your Meta Ads account</div>'
+          + '<div class="empty-text">Link your ad account to see spend, CTR, reach, and AI-powered recommendations.</div>'
+          + '<a href="/workspace" class="btn btn-primary" style="margin-top:14px;">Go to Workspace</a>'
+        + '</div>';
         return;
       }
 
-      // Workspace name
+      // 7) Workspace name in topbar (provided by shared layout)
       var wsName = (dashData.workspace && (dashData.workspace.name || dashData.workspace.id)) || workspaceId;
-      document.getElementById('ws-name').textContent = wsName;
-      document.getElementById('dash-subtitle').textContent = 'Last 30 days · ' + wsName;
+      var wsNameEl = document.getElementById('ws-name'); if (wsNameEl) wsNameEl.textContent = wsName;
+      document.getElementById('dash-subtitle').textContent = 'Past 30 days · ' + wsName;
+      document.getElementById('chart-panel-meta').textContent = state.currency;
 
-      // V6 Brain — three Strangler-Fig sections. Hidden when DTO has no brain.
+      // 8) Hero cards (spend totals from insights)
+      renderHero(insights);
+
+      // 9) AI Motion Ticker
+      renderTicker(buildTickerItems(dashData));
+
+      // 10) Active Ads Showcase
+      renderActiveAds(campaigns);
+
+      // 11) AI Brain Box (left of split panel)
+      renderBrainBox(dashData);
+
+      // 12) V6 Brain sections + start polling
       if (dashData.brain) {
         renderBrainSection(dashData.brain);
         startPulsePolling(workspaceId);
       }
 
-      // V2 §1 — Health (replaces legacy renderHealth; ring still updated inside)
-      var issuesCount = Array.isArray(dashData.issues) ? dashData.issues.length : 0;
-      var oppCount = deriveOpportunity(dashData) ? 1 : 0;
-      renderV2Health(dashData.health || { score: 0 }, issuesCount, oppCount);
-
-      // V2 §2 — Today's Actions (top 3 derived from priorityAction + issues)
-      var todayActions = buildTodayActions(dashData);
-      renderTodayActions(todayActions);
-
-      // V2 §3 — Recovery Center (one card per issue)
+      // 13) V2 Decision interface — Today's Actions, Recovery, Spotlight, Insights
+      renderTodayActions(buildTodayActions(dashData));
       renderRecoveryCenter(buildRecoveryPlans(dashData.issues));
-
-      // V2 §4–5 — Winner + Opportunity
       renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
 
-      // KPIs — prefer dashboard KPIs, fallback to insights
-      var kpis = (dashData.kpis && dashData.kpis.length > 0)
-        ? dashData.kpis
-        : buildKpisFromInsights(insights || []);
+      // 14) KPIs (advanced) — prefer dashboard KPIs, else compute from insights
+      var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
       renderKpis(kpis);
-
-      // V2 §6 — AI Insights (derived from KPIs + priorityAction)
       renderInsights(buildInsights(dashData, kpis));
 
-      // Charts from insights
-      var dates = (insights || []).map(function(d) {
-        return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      });
-      var spendData = (insights || []).map(function(d) { return Number(d.spend) || 0; });
-      var ctrData = (insights || []).map(function(d) { return Number(d.ctr) || 0; });
-      var impData = (insights || []).map(function(d) { return Number(d.impressions) || 0; });
+      // 15) Charts — main panel + advanced
+      var last30 = recentAsc(insights, 30);
+      var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+      var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
+      var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
+      var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
 
-      // If trendSeries from dashboard overrides
+      // Trend-series override (server-supplied) — keep as raw numbers; server already pre-renders.
       if (dashData.trendSeries && dashData.trendSeries.dates) {
         var ts = dashData.trendSeries;
-        var tsDates = ts.dates.map(function(d) {
-          return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        });
-        if (ts.spend) spendData = ts.spend.map(Number);
-        if (ts.ctr) ctrData = ts.ctr.map(Number);
-        if (ts.messages) impData = ts.messages.map(Number);
-        makeLineChart('chart-spend', tsDates, [{ label: 'Spend', data: spendData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.08)', fill: true, tension: 0.4 }]);
-        makeLineChart('chart-ctr', tsDates, [{ label: 'CTR', data: ctrData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-        makeLineChart('chart-impressions', tsDates, [{ label: 'Messages', data: impData, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
-      } else {
-        makeLineChart('chart-spend', dates, [{ label: 'Spend', data: spendData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.08)', fill: true, tension: 0.4 }]);
-        makeLineChart('chart-ctr', dates, [{ label: 'CTR (%)', data: ctrData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-        makeLineChart('chart-impressions', dates, [{ label: 'Impressions', data: impData, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+        var tsLabels = ts.dates.map(function (d) { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+        if (ts.spend)    spendSeriesMajor = ts.spend.map(Number);
+        if (ts.ctr)      ctrSeries        = ts.ctr.map(Number);
+        if (ts.messages) impSeries        = ts.messages.map(Number);
+        labels = tsLabels;
       }
 
-      // Issues
+      makeLineChart('chart-spend-main', labels, [{ label: 'Spend', data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
+      makeLineChart('chart-ctr',        labels, [{ label: 'CTR (%)',  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
+      makeLineChart('chart-impressions', labels, [{ label: 'Impressions', data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+
+      // 16) Issues + Campaign table (advanced)
       renderIssues(dashData.issues || []);
+      renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
 
-      // Campaigns
-      renderCampaigns(dashData.bestCampaign, dashData.worstCampaign, campaigns);
-
-      // Show
+      // 17) Reveal
       document.getElementById('loading-state').style.display = 'none';
       document.getElementById('dashboard-content').style.display = 'block';
 
@@ -1423,7 +1196,7 @@ export function dashboardPage(): string {
 
   document.addEventListener('DOMContentLoaded', init);
 })();
-</script>
-</body>
-</html>`;
+</script>`;
+
+  return layout({ title: 'Dashboard', active: 'dashboard', content, scripts, extraHead });
 }
