@@ -125,6 +125,21 @@ export function campaignsPage(): string {
       </div>
     </div>
   </div>
+
+  <!-- Campaign Inspector Modal — populated on-demand from
+       /api/workspaces/:wsId/campaigns/:cid/inspector. Hidden by default. -->
+  <div id="campaign-inspector-modal" class="modal-overlay" style="display:none;">
+    <div class="modal" style="max-width:760px;max-height:88vh;overflow-y:auto;">
+      <div class="modal-title" id="inspector-title">Campaign Inspector</div>
+      <div class="modal-subtitle" id="inspector-subtitle">—</div>
+      <div id="inspector-body">
+        <div style="text-align:center;color:var(--text-3);padding:24px;">Loading…</div>
+      </div>
+      <div class="modal-footer">
+        <button id="inspector-close" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
 </div>`;
 
   const scripts = `
@@ -341,7 +356,7 @@ export function campaignsPage(): string {
         + '<td style="color:var(--text-2);">' + escHtml(c.objective || '—') + '</td>'
         + '<td>' + escHtml(budget) + '</td>'
         + '<td style="color:var(--text-2);">' + escHtml(fmtDate(c.createdAt)) + '</td>'
-        + '<td><a class="btn btn-secondary btn-sm" href="/campaigns/' + escHtml(c.id) + '">View</a></td>'
+        + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">View</button></td>'
         + '</tr>';
     }).join('');
   }
@@ -372,6 +387,159 @@ export function campaignsPage(): string {
     updateCharts(state.insights);
   }
 
+  // ── Campaign Inspector (drawer-style modal) ───────────────────────────────
+  // Opens when the user clicks the "View" button on a campaign row. Fetches
+  // /api/workspaces/:wsId/campaigns/:cid/inspector and renders three blocks:
+  // Financial Summary, AI Timeline (CampaignBrainSnapshot rows), and
+  // Positive/Negative Signals (7d-vs-prior-7d deltas).
+  function fmtPct(v) {
+    if (v == null || !isFinite(v)) return '—';
+    return (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(1) + '%';
+  }
+  function fmtNum(v, digits) {
+    if (v == null || !isFinite(v)) return '—';
+    return Number(v).toLocaleString('en-US', {
+      minimumFractionDigits: digits || 0,
+      maximumFractionDigits: digits || 0,
+    });
+  }
+  // Same shape as fmtCurrencyMinor but parameterized by an arbitrary minor factor
+  // so the inspector can use the value returned in the inspector payload — which
+  // is the source of truth even if the page-level state hasn't hydrated yet.
+  function fmtMinor(amountMinor, factor, currency) {
+    if (amountMinor == null || isNaN(amountMinor)) return '—';
+    var f = factor || state.minorFactor || 100;
+    var ccy = currency || state.currency || '';
+    var major = Number(amountMinor) / f;
+    var decimals = f === 1 ? 0 : 2;
+    return major.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }) + (ccy ? ' ' + ccy : '');
+  }
+
+  // Friendly labels for signal keys — kept on the client to avoid forcing the
+  // API to make i18n decisions. Add Arabic mirrors later if needed.
+  var SIGNAL_LABELS = {
+    ctr:            'CTR',
+    frequency:      'Frequency',
+    cpm:            'CPM',
+    costPerMessage: 'Cost per Message',
+  };
+  function signalLine(s, isPositive) {
+    var label   = SIGNAL_LABELS[s.key] || s.key;
+    var arrow   = (s.deltaPct >= 0 ? '▲' : '▼');
+    var color   = isPositive ? 'var(--success)' : 'var(--danger, #ef4444)';
+    var current = s.key === 'ctr' ? fmtNum(s.current, 2) + '%' : fmtNum(s.current, 2);
+    var prior   = s.key === 'ctr' ? fmtNum(s.prior,   2) + '%' : fmtNum(s.prior,   2);
+    return '<li style="margin:6px 0;color:var(--text-2);">'
+      +    '<span style="color:' + color + ';font-weight:700;">' + arrow + ' ' + fmtPct(s.deltaPct) + '</span>'
+      +    ' <span style="color:var(--text);">' + escHtml(label) + '</span>'
+      +    ' <span style="color:var(--text-3);font-size:12px;">(now ' + escHtml(current) + ' · was ' + escHtml(prior) + ')</span>'
+      +    '</li>';
+  }
+
+  function priorityBadgeClass(p) {
+    if (p === 'CRITICAL') return 'badge-red';
+    if (p === 'HIGH')     return 'badge-yellow';
+    return 'badge-gray';
+  }
+
+  function renderInspector(data) {
+    var c = data.campaign || {};
+    var a = data.account  || {};
+    var s = data.summary  || {};
+    var sig = data.signals || { positive: [], negative: [] };
+    var timeline = Array.isArray(data.timeline) ? data.timeline : [];
+
+    document.getElementById('inspector-title').textContent = c.name || 'Campaign';
+    document.getElementById('inspector-subtitle').textContent =
+      (c.objective || '—') + ' · ' + (c.status || '—') + ' · last ' + (s.windowDays || 30) + ' days';
+
+    // ── Financial summary block ────────────────────────────────────────────
+    var budgetLine =
+      c.dailyBudgetMinor    != null ? fmtMinor(c.dailyBudgetMinor,    a.currencyMinorFactor, a.currency) + ' / day'
+    : c.lifetimeBudgetMinor != null ? fmtMinor(c.lifetimeBudgetMinor, a.currencyMinorFactor, a.currency) + ' (lifetime)'
+    : '—';
+
+    var kpiHtml =
+      '<div class="kpi-grid" style="grid-template-columns:repeat(3, 1fr);gap:12px;margin-bottom:20px;">'
+    +   '<div class="kpi-card"><div class="kpi-label">Spend</div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">Budget</div>'
+    +     '<div class="kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">Avg CTR</div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCtr != null ? fmtNum(s.avgCtr, 2) + '%' : '—') + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">Cost / Message</div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCostPerMessage != null ? fmtMinor(s.avgCostPerMessage * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">Frequency</div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.avgFrequency, 2)) + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">Messages · Purchases</div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + ' · ' + escHtml(fmtNum(s.purchases, 0)) + '</div></div>'
+    + '</div>';
+
+    // ── Signals block ──────────────────────────────────────────────────────
+    var posHtml = sig.positive.length === 0
+      ? '<div style="color:var(--text-3);font-size:13px;">No notable wins in this window.</div>'
+      : '<ul style="list-style:none;padding:0;margin:0;">' + sig.positive.map(function(x){ return signalLine(x, true); }).join('') + '</ul>';
+    var negHtml = sig.negative.length === 0
+      ? '<div style="color:var(--text-3);font-size:13px;">No regressions detected.</div>'
+      : '<ul style="list-style:none;padding:0;margin:0;">' + sig.negative.map(function(x){ return signalLine(x, false); }).join('') + '</ul>';
+
+    var signalsHtml =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">'
+    +   '<div><div style="font-weight:700;color:var(--success);margin-bottom:8px;">The Good</div>' + posHtml + '</div>'
+    +   '<div><div style="font-weight:700;color:var(--danger, #ef4444);margin-bottom:8px;">The Bad</div>'  + negHtml + '</div>'
+    + '</div>';
+
+    // ── AI timeline ────────────────────────────────────────────────────────
+    var timelineHtml;
+    if (timeline.length === 0) {
+      timelineHtml = '<div style="color:var(--text-3);font-size:13px;padding:8px 0;">No brain snapshots in this window. The orchestrator may not have ticked over this campaign yet.</div>';
+    } else {
+      timelineHtml = timeline.map(function(t) {
+        var narration = t.narration || {};
+        var arabicTitle     = narration.arabicTitle     ? '<div style="font-weight:700;color:var(--text);margin-bottom:4px;direction:rtl;text-align:right;">' + escHtml(narration.arabicTitle) + '</div>' : '';
+        var arabicBody      = narration.arabicNarration ? '<div style="color:var(--text-2);font-size:13px;line-height:1.6;direction:rtl;text-align:right;">' + escHtml(narration.arabicNarration) + '</div>' : '';
+        return '<div style="border-left:2px solid var(--border-2);padding:10px 14px;margin-bottom:10px;border-radius:6px;background:var(--surface-2, rgba(255,255,255,0.02));">'
+          +    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px;color:var(--text-3);">'
+          +      '<span>' + escHtml(fmtDate(t.tickDate)) + ' · score ' + escHtml(String(t.finalScore ?? '—')) + '</span>'
+          +      '<span class="badge ' + priorityBadgeClass(t.priority) + '">' + escHtml(t.priority || 'NORMAL') + '</span>'
+          +    '</div>'
+          +    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;">' + escHtml(t.action || '—') + ' · ' + escHtml(t.patternSignature || '—') + '</div>'
+          +    arabicTitle + arabicBody
+          +  '</div>';
+      }).join('');
+    }
+
+    document.getElementById('inspector-body').innerHTML =
+      '<div style="font-weight:700;color:var(--text);margin-bottom:8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Financial Summary</div>'
+    + kpiHtml
+    + '<div style="font-weight:700;color:var(--text);margin-bottom:8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Signals (7d vs prior 7d)</div>'
+    + signalsHtml
+    + '<div style="font-weight:700;color:var(--text);margin-bottom:8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">AI Recommendation Timeline</div>'
+    + timelineHtml;
+  }
+
+  function showInspectorModal() { document.getElementById('campaign-inspector-modal').style.display = 'flex'; }
+  function hideInspectorModal() { document.getElementById('campaign-inspector-modal').style.display = 'none'; }
+
+  async function openInspector(campaignId) {
+    if (!state.workspaceId || !campaignId) return;
+    document.getElementById('inspector-title').textContent = 'Campaign Inspector';
+    document.getElementById('inspector-subtitle').textContent = 'Loading…';
+    document.getElementById('inspector-body').innerHTML =
+      '<div style="text-align:center;color:var(--text-3);padding:24px;">Loading…</div>';
+    showInspectorModal();
+    try {
+      var data = await apiFetch('/api/workspaces/' + state.workspaceId + '/campaigns/' + encodeURIComponent(campaignId) + '/inspector?days=30');
+      renderInspector(data);
+    } catch (err) {
+      document.getElementById('inspector-body').innerHTML =
+        '<div class="alert alert-error">Failed to load inspector: ' + escHtml(err.message || String(err)) + '</div>';
+    }
+  }
+
   // ── Main init ─────────────────────────────────────────────────────────────
   async function init() {
     var token = getToken();
@@ -386,6 +554,27 @@ export function campaignsPage(): string {
 
     document.getElementById('search-input').addEventListener('input', function(e) {
       applyFilter(e.target.value);
+    });
+
+    // Delegated click for inspector — tbody is re-rendered on every search,
+    // so listen on the stable container instead of the row buttons.
+    document.getElementById('campaigns-tbody').addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest && e.target.closest('.js-inspect-btn');
+      if (!btn) return;
+      e.preventDefault();
+      openInspector(btn.getAttribute('data-campaign-id'));
+    });
+
+    // Close handlers: explicit button, backdrop click, and Escape key.
+    document.getElementById('inspector-close').addEventListener('click', hideInspectorModal);
+    document.getElementById('campaign-inspector-modal').addEventListener('click', function(e) {
+      if (e.target === this) hideInspectorModal();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var m = document.getElementById('campaign-inspector-modal');
+        if (m && m.style.display !== 'none') hideInspectorModal();
+      }
     });
 
     try {

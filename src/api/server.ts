@@ -1045,6 +1045,162 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json(safeJson(campaign));
   });
 
+  /**
+   * GET /api/workspaces/:workspaceId/campaigns/:campaignId/inspector
+   *
+   * Deep-dive payload for the campaign inspector drawer. Returns three blocks:
+   *
+   *   • summary   — financial + KPI totals over the requested window
+   *                 (default 30d), plus current daily/lifetime budget.
+   *                 Spend & revenue stay in BigInt MINOR units; the client
+   *                 formats via account.currencyMinorFactor.
+   *
+   *   • timeline  — chronological CampaignBrainSnapshot rows (newest first),
+   *                 surface columns + narration_json. Read-only history; no
+   *                 payload decoding here — the dashboard already has helpers
+   *                 for that and we keep this endpoint narrow on purpose.
+   *
+   *   • signals   — positive / negative deltas derived by comparing the
+   *                 most recent 7d window against the prior 7d for CTR,
+   *                 frequency, costPerMessage and finalScore. Pure data,
+   *                 no LLM call (UI labels are added on the client to keep
+   *                 i18n decisions out of the API).
+   *
+   * No new schema, no new repo — direct Prisma reads scoped to the account.
+   */
+  app.get('/api/workspaces/:workspaceId/campaigns/:campaignId/inspector', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
+
+    const days = Math.max(7, Math.min(90, Number(c.req.query('days') ?? 30)));
+
+    const campaign = await prisma.campaign.findFirst({
+      where: { id: req.params['campaignId'], adAccountId: account.id },
+    });
+    if (!campaign) return c.json({ error: 'Not found' }, 404);
+
+    const since = new Date(Date.now() - days * 86400 * 1000);
+
+    const [dailyStats, snapshots] = await Promise.all([
+      prisma.dailyStat.findMany({
+        where: { entityType: EntityType.CAMPAIGN, entityId: campaign.id, date: { gte: since } },
+        orderBy: { date: 'desc' },
+      }),
+      prisma.campaignBrainSnapshot.findMany({
+        where: { campaignId: campaign.id, tickDate: { gte: since } },
+        orderBy: { tickDate: 'desc' },
+      }),
+    ]);
+
+    // ── Summary aggregates over the window ────────────────────────────────
+    let spendMinor   = 0n;
+    let impressions  = 0n;
+    let clicks       = 0n;
+    let messages     = 0n;
+    let purchases    = 0n;
+    let revenueMinor = 0n;
+    let ctrSum = 0, ctrCount = 0;
+    let cpmSum = 0, cpmCount = 0;
+    let cpcSum = 0, cpcCount = 0;
+    let freqSum = 0, freqCount = 0;
+    let cpMsgSum = 0, cpMsgCount = 0;
+    for (const d of dailyStats) {
+      spendMinor   += d.spend;
+      impressions  += d.impressions;
+      clicks       += d.clicks;
+      messages     += d.messages;
+      purchases    += d.purchases;
+      revenueMinor += d.revenueMinor;
+      if (d.ctr            != null) { ctrSum   += d.ctr;            ctrCount++;   }
+      if (d.cpm            != null) { cpmSum   += d.cpm;            cpmCount++;   }
+      if (d.cpc            != null) { cpcSum   += d.cpc;            cpcCount++;   }
+      if (d.frequency      != null) { freqSum  += d.frequency;      freqCount++;  }
+      if (d.costPerMessage != null) { cpMsgSum += d.costPerMessage; cpMsgCount++; }
+    }
+    const avg = (sum: number, n: number) => n > 0 ? sum / n : null;
+
+    // ── Positive / negative signals: 7d vs prior 7d ──────────────────────
+    // Daily rows are date-desc, so the first ≤7 are "recent", the next ≤7
+    // are "prior". We only emit a signal when both windows have data.
+    const recent = dailyStats.slice(0, 7);
+    const prior  = dailyStats.slice(7, 14);
+    const positive: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
+    const negative: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
+
+    function windowAvg(rows: typeof dailyStats, pick: (r: typeof dailyStats[number]) => number | null) {
+      let s = 0, n = 0;
+      for (const r of rows) {
+        const v = pick(r);
+        if (v != null && Number.isFinite(v)) { s += v; n++; }
+      }
+      return n > 0 ? s / n : null;
+    }
+    function pctChange(curr: number | null, base: number | null): number | null {
+      if (curr == null || base == null || base === 0) return null;
+      return ((curr - base) / base) * 100;
+    }
+    // Metric → which-direction-is-good ("up" or "down")
+    const signalSpecs: Array<{ key: string; pick: (r: typeof dailyStats[number]) => number | null; good: 'up' | 'down' }> = [
+      { key: 'ctr',            pick: (r) => r.ctr,            good: 'up'   },
+      { key: 'frequency',      pick: (r) => r.frequency,      good: 'down' },
+      { key: 'cpm',            pick: (r) => r.cpm,            good: 'down' },
+      { key: 'costPerMessage', pick: (r) => r.costPerMessage, good: 'down' },
+    ];
+    for (const spec of signalSpecs) {
+      const curr = windowAvg(recent, spec.pick);
+      const base = windowAvg(prior,  spec.pick);
+      const delta = pctChange(curr, base);
+      if (delta == null || Math.abs(delta) < 3) continue;            // ignore noise
+      const improved = spec.good === 'up' ? delta > 0 : delta < 0;
+      (improved ? positive : negative).push({ key: spec.key, current: curr, prior: base, deltaPct: delta });
+    }
+
+    return c.json(safeJson({
+      campaign: {
+        id: campaign.id,
+        externalCampaignId: campaign.externalCampaignId,
+        name: campaign.name,
+        status: campaign.status,
+        objective: campaign.objective,
+        dailyBudgetMinor: campaign.dailyBudget,
+        lifetimeBudgetMinor: campaign.lifetimeBudget,
+        createdAt: campaign.createdAt,
+      },
+      account: {
+        currency: account.currency,
+        currencyMinorFactor: account.currencyMinorFactor,
+      },
+      summary: {
+        windowDays: days,
+        spendMinor,
+        revenueMinor,
+        impressions,
+        clicks,
+        messages,
+        purchases,
+        avgCtr:            avg(ctrSum,   ctrCount),
+        avgCpm:            avg(cpmSum,   cpmCount),
+        avgCpc:            avg(cpcSum,   cpcCount),
+        avgFrequency:      avg(freqSum,  freqCount),
+        avgCostPerMessage: avg(cpMsgSum, cpMsgCount),
+      },
+      timeline: snapshots.map((s) => ({
+        tickDate:         s.tickDate,
+        action:           s.action,
+        priority:         s.priority,
+        patternSignature: s.patternSignature,
+        finalScore:       s.finalScore,
+        narration:        s.narrationJson,
+      })),
+      signals: { positive, negative },
+    }));
+  });
+
   // ════════════════════════════════════════════════════════════════════════
   //  AD SETS
   // ════════════════════════════════════════════════════════════════════════
