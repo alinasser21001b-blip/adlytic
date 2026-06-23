@@ -1086,7 +1086,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const since = new Date(Date.now() - days * 86400 * 1000);
 
-    const [dailyStats, snapshots, ads, breakdownRows] = await Promise.all([
+    const [dailyStats, snapshots, campaignWithAds, breakdownRows] = await Promise.all([
       prisma.dailyStat.findMany({
         where: { entityType: EntityType.CAMPAIGN, entityId: campaign.id, date: { gte: since } },
         orderBy: { date: 'desc' },
@@ -1095,18 +1095,29 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         where: { campaignId: campaign.id, tickDate: { gte: since } },
         orderBy: { tickDate: 'desc' },
       }),
-      // Phase 5 — Creatives tab. Walks ad_sets → ads → ad_creatives for this
-      // campaign. Capped at 50 rows: enough for a busy account's creative grid
-      // without bloating the payload. Sort order keeps the most recently added
-      // ads first so a brand-new creative shows up at the top of the grid.
-      prisma.ad.findMany({
-        where: { adSet: { campaignId: campaign.id } },
-        include: {
-          creative: true,
-          adSet: { select: { id: true, name: true } },
+      // Phase 5 — Creatives tab. Walk the relation graph from the CAMPAIGN
+      // root: Campaign → AdSets → Ads → AdCreative. We previously filtered
+      // ads with `where: { adSet: { campaignId } }`, which is syntactically
+      // valid but harder to reason about — flattening from the campaign root
+      // makes it explicit which ad_sets we're traversing and surfaces a NULL
+      // adSets array immediately if the relation is somehow broken. We do the
+      // 50-row cap after flatten so a single huge ad set can't crowd out
+      // smaller ones.
+      prisma.campaign.findUnique({
+        where: { id: campaign.id },
+        select: {
+          adSets: {
+            select: {
+              id: true,
+              name: true,
+              createdAt: true,
+              ads: {
+                include: { creative: true },
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+          },
         },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
       }),
       // Phase 5 Pass C — Audience tab. Pull every BreakdownStat row for this
       // campaign over the same window the summary uses. Aggregation happens
@@ -1115,6 +1126,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         where: { entityType: EntityType.CAMPAIGN, entityId: campaign.id, date: { gte: since } },
       }),
     ]);
+
+    // Flatten Campaign → AdSets → Ads, preserving the parent AdSet name on
+    // each ad. Sort desc by createdAt so a brand-new ad lands first, then
+    // cap at 50 — a busy account's grid stays useful, the wire stays lean.
+    const flatAds = (campaignWithAds?.adSets ?? []).flatMap((aset) =>
+      aset.ads.map((ad) => ({
+        ...ad,
+        adSet: { id: aset.id, name: aset.name },
+      }))
+    );
+    flatAds.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const ads = flatAds.slice(0, 50);
 
     // ── Summary aggregates over the window ────────────────────────────────
     //
@@ -1249,6 +1272,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       clicks: bigint;
       messages: bigint;
       costPerMessage: number | null;
+      /** CTR as a percentage (clicks / impressions × 100). */
+      ctrPct: number | null;
+      /** True for the segment with the LOWEST cost-per-message in this
+       *  dimension (messages ≥ 1 required so we never crown a 0-message row).
+       *  At most one row per dimension is flagged. */
+      isWinner: boolean;
     };
     const breakdowns: Record<BreakdownKey, BreakdownRow[]> = {
       age: [], gender: [], publisher_platform: [], platform_position: [],
@@ -1272,7 +1301,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       for (const [value, t] of bucket) {
         const spendMajorW = Number(t.spend) / factor;
         const msgN = Number(t.msg);
+        const impN = Number(t.imp);
+        const clkN = Number(t.clk);
         const cpm = msgN > 0 && Number.isFinite(spendMajorW) ? spendMajorW / msgN : null;
+        // CTR is a ratio sliced by the same segment-level totals — same rule
+        // as everywhere else: numerator/denominator of WINDOW TOTALS, never
+        // a mean of per-day rates.
+        const ctrPct = impN > 0 ? (clkN / impN) * 100 : null;
         rows.push({
           value,
           spendMinor: t.spend,
@@ -1280,10 +1315,33 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           clicks: t.clk,
           messages: t.msg,
           costPerMessage: cpm,
+          ctrPct,
+          isWinner: false,
         });
       }
       // Heaviest segment first — gives the UI a stable visual anchor.
       rows.sort((a, b) => (b.spendMinor > a.spendMinor ? 1 : b.spendMinor < a.spendMinor ? -1 : 0));
+
+      // ── Winner: cheapest cost-per-message with ≥1 message ──────────────
+      // Why the message-floor: a segment with 0 messages would have a null
+      // costPerMessage, but even one with 1 message can hit an unrealistic
+      // low (e.g. 1¢) on tiny windows. We accept that risk because the
+      // alternative — requiring a sample-size threshold — would silently
+      // skip new audiences the owner needs to discover. The Pass D feedback
+      // loop will tighten this once we have baselines.
+      let winnerIdx = -1;
+      let winnerCpm = Infinity;
+      for (let idx = 0; idx < rows.length; idx++) {
+        const row = rows[idx]!;
+        if (row.costPerMessage == null) continue;
+        if (Number(row.messages) < 1) continue;
+        if (row.costPerMessage < winnerCpm) {
+          winnerCpm = row.costPerMessage;
+          winnerIdx = idx;
+        }
+      }
+      if (winnerIdx >= 0) rows[winnerIdx]!.isWinner = true;
+
       breakdowns[k] = rows.slice(0, 12);
     }
 

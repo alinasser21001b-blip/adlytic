@@ -799,19 +799,37 @@ export function campaignsPage(): string {
         var cpm       = r.costPerMessage != null
           ? fmtMinor(Number(r.costPerMessage) * account.currencyMinorFactor, account.currencyMinorFactor, account.currency)
           : '—';
+        var ctrText   = r.ctrPct != null ? fmtNum(r.ctrPct, 2) + '%' : '—';
         var widthPct  = maxSpend > 0 ? Math.max(2, Math.round((Number(r.spendMinor) / maxSpend) * 100)) : 2;
 
+        // Winning segment styling: emerald gradient + small Arabic badge.
+        // The bar fill swaps; the row container also gets a subtle green
+        // tint so the highlight reads even on very short bars. We keep the
+        // text colors unchanged so contrast stays accessible.
+        var isWinner   = !!r.isWinner;
+        var barFill    = isWinner
+          ? 'linear-gradient(90deg, #10b981, #34d399)'
+          : 'linear-gradient(90deg, var(--accent, #6366f1), var(--accent-2, #8b5cf6))';
+        var rowBg      = isWinner
+          ? 'background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:8px 10px;'
+          : '';
+        var winnerBadge = isWinner
+          ? '<span style="display:inline-block;background:#10b981;color:#fff;font-size:10px;font-weight:700;'
+            + 'padding:1px 6px;border-radius:10px;margin-inline-start:6px;">الأفضل</span>'
+          : '';
+
         return ''
-          + '<div style="margin:10px 0;direction:rtl;text-align:right;">'
-          +   '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text);margin-bottom:4px;">'
-          +     '<span style="font-weight:600;">' + escHtml(labelAr) + '</span>'
+          + '<div style="margin:10px 0;direction:rtl;text-align:right;' + rowBg + '">'
+          +   '<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text);margin-bottom:4px;gap:8px;flex-wrap:wrap;">'
+          +     '<span style="font-weight:600;">' + escHtml(labelAr) + winnerBadge + '</span>'
           +     '<span style="color:var(--text-3);font-size:12px;">'
           +       'الرسائل: <span style="color:var(--text-2);">' + escHtml(msgText) + '</span>'
           +       ' · تكلفة الرسالة: <span style="color:var(--text-2);">' + escHtml(cpm) + '</span>'
+          +       ' · نسبة النقر: <span style="color:var(--text-2);">' + escHtml(ctrText) + '</span>'
           +     '</span>'
           +   '</div>'
           +   '<div style="background:var(--surface-2, rgba(255,255,255,0.04));border-radius:6px;height:18px;overflow:hidden;position:relative;">'
-          +     '<div style="background:linear-gradient(90deg, var(--accent, #6366f1), var(--accent-2, #8b5cf6));height:100%;width:' + widthPct + '%;border-radius:6px;"></div>'
+          +     '<div style="background:' + barFill + ';height:100%;width:' + widthPct + '%;border-radius:6px;"></div>'
           +     '<div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--text);font-weight:600;">'
           +       escHtml(spendText)
           +     '</div>'
