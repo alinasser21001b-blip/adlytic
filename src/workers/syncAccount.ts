@@ -19,7 +19,7 @@
 //  numbers overwrite stale daily_stats. This is a FEATURE of upsert, not a bug.
 // ════════════════════════════════════════════════════════════════════════
 
-import { PrismaClient, EntityType, SyncJobStatus } from "@prisma/client";
+import { PrismaClient, EntityType, EntityStatus, SyncJobStatus } from "@prisma/client";
 import { MetaClient, MetaApiError } from "../services/metaClient";
 import { mapMetaInsight } from "../mappers/insightMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
@@ -30,6 +30,26 @@ import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
 const CHUNK_SIZE_DAYS = 7;
 /** Politeness pause between chunks to keep Meta happy. */
 const INTER_CHUNK_DELAY_MS = 300;
+/** Parallel campaign-insight fetches. 3 balances throughput vs Meta rate limits. */
+const CAMPAIGN_CONCURRENCY = 3;
+
+/**
+ * Defensive map: Meta's campaign status strings → our EntityStatus enum.
+ * Meta returns lowercase variants and occasional review states that aren't
+ * in our enum. Unknown values fall back to ARCHIVED so an unexpected string
+ * never throws inside an upsert (and never silently masquerades as ACTIVE).
+ */
+function mapMetaCampaignStatus(raw: unknown): EntityStatus {
+  const s = String(raw ?? "").toUpperCase();
+  switch (s) {
+    case "ACTIVE":   return EntityStatus.ACTIVE;
+    case "PAUSED":   return EntityStatus.PAUSED;
+    case "DELETED":  return EntityStatus.DELETED;
+    case "ARCHIVED": return EntityStatus.ARCHIVED;
+    // Review/limbo states: treat as ARCHIVED so they don't pretend to be live.
+    default:         return EntityStatus.ARCHIVED;
+  }
+}
 
 export interface SyncResult {
   adAccountId: string;
@@ -252,6 +272,126 @@ export class SyncAccountWorker {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  CAMPAIGN DISCOVERY + CAMPAIGN-LEVEL DAILY STATS
+  //
+  //  Without Campaign rows, the brain orchestrator returns "no campaigns
+  //  under account — nothing to do" and the V2 cognitive layer can't build
+  //  market baselines (both query prisma.campaign by adAccountId).
+  //
+  //  This method:
+  //    1. Lists campaigns from Meta and upserts the Campaign table on
+  //       (adAccountId, externalCampaignId) — idempotent.
+  //    2. For each campaign, pulls campaign-level daily insights over the
+  //       supplied window, maps them, and upserts DailyStat with
+  //       entityType=CAMPAIGN, entityId=internal Campaign.id (NOT Meta id —
+  //       the brain joins on the internal cuid).
+  //
+  //  Concurrency=3 balances throughput against Meta's per-account rate
+  //  limits; raw_insights is intentionally NOT written here (audit trail
+  //  for accounts is sufficient for now; revisit if attribution disputes
+  //  require per-campaign provenance).
+  // ════════════════════════════════════════════════════════════════════════
+  async syncCampaigns(
+    adAccountId: string,
+    opts: { since: Date; until: Date }
+  ): Promise<{ campaignsUpserted: number; dailyRowsUpserted: number }> {
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const tag = `[syncCampaigns:${acct.externalAccountId}]`;
+    console.log(`${tag} listing campaigns…`);
+
+    const metaCampaigns = await this.meta.listCampaigns(acct.externalAccountId);
+    console.log(`${tag} fetched ${metaCampaigns.length} campaign(s) from Meta`);
+
+    // ── Upsert Campaign rows in a single transaction ──────────────────────
+    await this.prisma.$transaction(
+      metaCampaigns.map((mc) => {
+        const externalId = String(mc['id']);
+        const name = String(mc['name'] ?? '(unnamed)');
+        const objective = mc['objective'] != null ? String(mc['objective']) : null;
+        const status = mapMetaCampaignStatus(mc['status']);
+        const dailyBudget = mc['daily_budget'] != null
+          ? BigInt(String(mc['daily_budget']))
+          : null;
+        const lifetimeBudget = mc['lifetime_budget'] != null
+          ? BigInt(String(mc['lifetime_budget']))
+          : null;
+
+        return this.prisma.campaign.upsert({
+          where: { adAccountId_externalCampaignId: { adAccountId, externalCampaignId: externalId } },
+          create: {
+            adAccountId,
+            externalCampaignId: externalId,
+            name,
+            objective,
+            status,
+            dailyBudget,
+            lifetimeBudget,
+          },
+          update: {
+            name,
+            objective,
+            status,
+            dailyBudget,
+            lifetimeBudget,
+          },
+        });
+      })
+    );
+
+    // Re-read with internal IDs so we can write DailyStat rows.
+    const campaigns = await this.prisma.campaign.findMany({ where: { adAccountId } });
+    console.log(`${tag} upserted ${campaigns.length} campaign row(s) — now pulling daily insights…`);
+
+    let totalDailyUpserted = 0;
+
+    // ── Bounded-concurrency loop over campaigns ───────────────────────────
+    for (let i = 0; i < campaigns.length; i += CAMPAIGN_CONCURRENCY) {
+      const slice = campaigns.slice(i, i + CAMPAIGN_CONCURRENCY);
+      const results = await Promise.allSettled(
+        slice.map(async (camp) => {
+          const rows = await this.meta.getInsights({
+            externalId: camp.externalCampaignId,
+            level: 'campaign',
+            since: opts.since,
+            until: opts.until,
+          });
+          if (rows.length === 0) return 0;
+
+          const dailyBatch = rows.map((r) => ({
+            entityType: EntityType.CAMPAIGN,
+            entityId: camp.id,
+            insight: mapMetaInsight(r, { currencyMinorFactor: acct.currencyMinorFactor }),
+          }));
+          await this.dailyRepo.upsertMany(dailyBatch);
+          return dailyBatch.length;
+        })
+      );
+
+      for (let j = 0; j < results.length; j++) {
+        const r = results[j]!;
+        const camp = slice[j]!;
+        if (r.status === 'fulfilled') {
+          totalDailyUpserted += r.value;
+        } else {
+          const err = r.reason;
+          const msg = err instanceof MetaApiError
+            ? `Meta ${err.status}: ${err.message}`
+            : err instanceof Error ? err.message : String(err);
+          console.error(`${tag} campaign=${camp.externalCampaignId} insights FAILED — ${msg}`);
+          // Continue with other campaigns; partial success is better than abort.
+        }
+      }
+
+      if (i + CAMPAIGN_CONCURRENCY < campaigns.length) {
+        await sleep(INTER_CHUNK_DELAY_MS);
+      }
+    }
+
+    console.log(`${tag} done — ${campaigns.length} campaigns, ${totalDailyUpserted} daily rows`);
+    return { campaignsUpserted: campaigns.length, dailyRowsUpserted: totalDailyUpserted };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  CHUNKED SYNC — drives a SyncJob row over a configurable window.
   //
   //  Reads SyncJob.windowSince/until/windowDays from the DB (the route only
@@ -359,6 +499,20 @@ export class SyncAccountWorker {
         });
 
         if (i < chunks.length - 1) await sleep(INTER_CHUNK_DELAY_MS);
+      }
+
+      // Campaign discovery + campaign-level daily stats. Same window as the
+      // account-level sync so the brain orchestrator has matching data when
+      // it joins on Campaign.id → DailyStat.entityId. Non-fatal: failures
+      // here don't roll back the account-level rows already written.
+      try {
+        const campResult = await this.syncCampaigns(adAccountId, { since, until });
+        console.log(`${tag} campaigns: ${campResult.campaignsUpserted} upserted, ${campResult.dailyRowsUpserted} daily rows`);
+      } catch (e) {
+        const msg = e instanceof MetaApiError
+          ? `Meta ${e.status}: ${e.message}`
+          : e instanceof Error ? e.message : String(e);
+        console.error(`${tag} syncCampaigns FAILED (non-fatal) — ${msg}`);
       }
 
       await this.markSynced(adAccountId, new Date());
