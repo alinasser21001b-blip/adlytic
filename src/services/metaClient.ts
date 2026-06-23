@@ -30,8 +30,11 @@ export class MetaApiError extends Error {
 const DEFAULT_FIELDS = [
   "date_start", "date_stop",
   "spend", "impressions", "reach", "clicks",
-  "ctr", "cpc", "cpm", "frequency",
+  "inline_link_clicks", "unique_clicks",
+  "ctr", "unique_ctr", "cpc", "cpm", "frequency",
   "actions", "action_values",
+  "cost_per_action_type", "cost_per_unique_action_type",
+  "purchase_roas",
 ].join(",");
 
 export class MetaClient {
@@ -108,6 +111,25 @@ export class MetaClient {
 
     const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
     return this.paginated(url);
+  }
+
+  /**
+   * Fetch the *account-level lifetime totals* using Meta's `date_preset=lifetime`.
+   * Returns a single aggregated row (no time_increment). Used to surface
+   * true lifetime spend on the dashboard without backfilling years of
+   * DailyStat rows. The mapper is NOT used here — caller reads spend
+   * directly from the raw row.
+   */
+  async getLifetimeTotals(externalAccountId: string): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      level: "account",
+      date_preset: "lifetime",
+      fields: "spend,impressions,clicks,reach,actions,action_values",
+      access_token: this.token,
+      limit: "1",
+    });
+    const url = `${this.base}/${externalAccountId}/insights?${params.toString()}`;
+    return this.paginated(url, 1);
   }
 
   /** List campaigns under an account — used for entity discovery. */

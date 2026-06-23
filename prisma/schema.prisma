@@ -84,6 +84,8 @@ model AdAccount {
   accessTokenEncrypted String?      @map("access_token_encrypted")
   tokenExpiresAt       DateTime?    @map("token_expires_at")
   lastSyncedAt         DateTime?    @map("last_synced_at")
+  lifetimeSpendMinor   BigInt       @default(0) @map("lifetime_spend_minor")
+  lifetimeSyncedAt     DateTime?    @map("lifetime_synced_at")
   createdAt            DateTime     @default(now()) @map("created_at")
   updatedAt            DateTime     @updatedAt @map("updated_at")
   workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -166,20 +168,24 @@ model DailyStat {
   entityType  EntityType @map("entity_type")
   entityId    String     @map("entity_id")
   date        DateTime   @db.Date
-  spend       BigInt     @default(0)
-  impressions BigInt     @default(0)
-  reach       BigInt     @default(0)
-  clicks      BigInt     @default(0)
-  messages    BigInt     @default(0)
-  purchases   BigInt     @default(0)
-  leads       BigInt     @default(0)
-  conversions BigInt     @default(0)
-  ctr         Float?
-  cpc         Float?
-  cpm         Float?
-  frequency   Float?
-  roas        Float?
-  createdAt   DateTime   @default(now()) @map("created_at")
+  spend          BigInt     @default(0)
+  impressions    BigInt     @default(0)
+  reach          BigInt     @default(0)
+  clicks         BigInt     @default(0)
+  uniqueClicks   BigInt     @default(0) @map("unique_clicks")
+  messages       BigInt     @default(0)
+  purchases      BigInt     @default(0)
+  leads          BigInt     @default(0)
+  conversions    BigInt     @default(0)
+  revenueMinor   BigInt     @default(0) @map("revenue_minor")
+  ctr            Float?
+  uniqueCtr      Float?     @map("unique_ctr")
+  cpc            Float?
+  cpm            Float?
+  costPerMessage Float?     @map("cost_per_message")
+  frequency      Float?
+  roas           Float?
+  createdAt      DateTime   @default(now()) @map("created_at")
 
   @@unique([entityType, entityId, date])
   @@index([entityId, date])

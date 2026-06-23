@@ -214,6 +214,44 @@ export class SyncAccountWorker {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  LIFETIME TOTALS — one-shot account-level lifetime spend.
+  //
+  //  Bypasses the chunked DailyStat pipeline: Meta returns a single aggregated
+  //  row for `date_preset=lifetime`, which we sum and write straight onto
+  //  AdAccount. Cheap, idempotent, safe to call from OAuth callback as a
+  //  fire-and-forget. Does NOT touch DailyStat or raw_insights.
+  // ════════════════════════════════════════════════════════════════════════
+  async syncLifetimeTotals(adAccountId: string): Promise<void> {
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const tag = `[syncLifetime:${acct.externalAccountId}]`;
+    try {
+      console.log(`${tag} Fetching lifetime totals from Meta…`);
+      const rows = await this.meta.getLifetimeTotals(acct.externalAccountId);
+      let spendMajor = 0;
+      for (const r of rows) {
+        const v = r.spend;
+        const n = typeof v === 'number' ? v : parseFloat(String(v ?? 0));
+        if (Number.isFinite(n)) spendMajor += n;
+      }
+      const spendMinor = BigInt(Math.round(spendMajor * acct.currencyMinorFactor));
+      await this.prisma.adAccount.update({
+        where: { id: adAccountId },
+        data: {
+          lifetimeSpendMinor: spendMinor,
+          lifetimeSyncedAt: new Date(),
+        },
+      });
+      console.log(`${tag} Lifetime spend updated — ${spendMinor.toString()} minor units (${rows.length} row${rows.length === 1 ? '' : 's'} aggregated)`);
+    } catch (e) {
+      const msg = e instanceof MetaApiError
+        ? `Meta ${e.status}: ${e.message}`
+        : e instanceof Error ? e.message : String(e);
+      console.error(`${tag} FAILED — ${msg}`);
+      // Non-fatal: lifetime is best-effort; the chunked sync still runs.
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  CHUNKED SYNC — drives a SyncJob row over a configurable window.
   //
   //  Reads SyncJob.windowSince/until/windowDays from the DB (the route only

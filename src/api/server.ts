@@ -74,9 +74,9 @@ import { RecommendationService } from '../services/recommendation.service';
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
 const DEFAULT_INCREMENTAL_BACKFILL_DAYS = 3;
 /** Hard cap on backfill window; Meta's reporting window of relevance fits in here. */
-const MAX_BACKFILL_DAYS = 90;
+const MAX_BACKFILL_DAYS = 365;
 /** First-time backfill on Meta account connect. */
-const INITIAL_BACKFILL_DAYS = 60;
+const INITIAL_BACKFILL_DAYS = 180;
 
 // ── Country derivation ────────────────────────────────────────────────────
 // Maps IANA timezone names → ISO 3166-1 alpha-2 country codes.
@@ -1541,6 +1541,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               }
             } catch (err: unknown) { console.error('[adlytic:initial-sync]', err); }
           })();
+        });
+        // Fire-and-forget: surface true lifetime spend immediately (one Meta
+        // request, no DailyStat rows). Independent of the chunked window above.
+        setImmediate(() => {
+          void worker.syncLifetimeTotals(acct.id).catch((err: unknown) => {
+            console.error('[adlytic:lifetime-sync]', err);
+          });
         });
       }
     } catch { /* non-fatal */ }
