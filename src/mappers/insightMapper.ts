@@ -142,6 +142,42 @@ function pickCostPerAction(raw: unknown, allowed: Set<string>, scale: number): n
   return null;
 }
 
+/** Per-segment metrics for a single breakdown dimension (age, gender, etc.). */
+export interface NormalizedBreakdown {
+  date: string;
+  breakdownKey: string;
+  breakdownValue: string;
+  spendMinor: number;
+  impressions: number;
+  clicks: number;
+  messages: number;
+}
+
+/**
+ * Translate ONE Meta insight row sliced by a breakdown dimension into a
+ * NormalizedBreakdown. Reuses the main cordon for metric extraction so the
+ * messaging-count rules stay in lock-step. Returns null when the row has no
+ * value for the requested breakdown key (Meta sometimes omits it).
+ */
+export function mapMetaBreakdownInsight(
+  row: MetaInsightRow,
+  breakdownKey: string,
+  opts: MapOptions,
+): NormalizedBreakdown | null {
+  const raw = (row as Record<string, unknown>)[breakdownKey];
+  if (raw === undefined || raw === null || raw === "") return null;
+  const base = mapMetaInsight(row, opts);
+  return {
+    date: base.date,
+    breakdownKey,
+    breakdownValue: String(raw),
+    spendMinor: base.spendMinor,
+    impressions: base.impressions,
+    clicks: base.clicks,
+    messages: base.messages,
+  };
+}
+
 // ── action-type mappings ─────────────────────────────────────────────────
 // These constants are the ONLY place Meta's action-type vocabulary lives.
 // Each future platform supplies its own equivalent list; consumers see the

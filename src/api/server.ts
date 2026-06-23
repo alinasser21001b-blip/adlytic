@@ -1086,7 +1086,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const since = new Date(Date.now() - days * 86400 * 1000);
 
-    const [dailyStats, snapshots, ads] = await Promise.all([
+    const [dailyStats, snapshots, ads, breakdownRows] = await Promise.all([
       prisma.dailyStat.findMany({
         where: { entityType: EntityType.CAMPAIGN, entityId: campaign.id, date: { gte: since } },
         orderBy: { date: 'desc' },
@@ -1107,6 +1107,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         },
         orderBy: { createdAt: 'desc' },
         take: 50,
+      }),
+      // Phase 5 Pass C — Audience tab. Pull every BreakdownStat row for this
+      // campaign over the same window the summary uses. Aggregation happens
+      // below in JS (small N: ~30 days × 4 dimensions × ≤10 segments).
+      prisma.breakdownStat.findMany({
+        where: { entityType: EntityType.CAMPAIGN, entityId: campaign.id, date: { gte: since } },
       }),
     ]);
 
@@ -1221,6 +1227,66 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       (improved ? positive : negative).push({ key: spec.key, current: curr, prior: base, deltaPct: delta });
     }
 
+    // ── Audience breakdowns (Phase 5 Pass C) ──────────────────────────────
+    //
+    // Group BreakdownStat rows by (breakdownKey, breakdownValue) and derive
+    // cost-per-message from the WINDOW TOTALS — same correctness rule as the
+    // top-level summary block (Σspend / Σmessages, never a mean of daily
+    // rates). Raw Meta vocabulary (`male`/`female`/`facebook`/…) is preserved
+    // verbatim in the payload; the Arabic translation happens on the client
+    // so the cordon discipline stays intact.
+    //
+    // Output is keyed by dimension and pre-sorted: spend-desc within each
+    // dimension so the heaviest segment is index 0. Top 12 per dimension —
+    // enough headroom for `platform_position` (the long-tail dimension)
+    // without flooding the wire.
+    const BREAKDOWN_KEYS = ['age', 'gender', 'publisher_platform', 'platform_position'] as const;
+    type BreakdownKey = typeof BREAKDOWN_KEYS[number];
+    type BreakdownRow = {
+      value: string;
+      spendMinor: bigint;
+      impressions: bigint;
+      clicks: bigint;
+      messages: bigint;
+      costPerMessage: number | null;
+    };
+    const breakdowns: Record<BreakdownKey, BreakdownRow[]> = {
+      age: [], gender: [], publisher_platform: [], platform_position: [],
+    };
+    // Accumulator: key → value → totals.
+    const acc = new Map<string, Map<string, { spend: bigint; imp: bigint; clk: bigint; msg: bigint }>>();
+    for (const k of BREAKDOWN_KEYS) acc.set(k, new Map());
+    for (const r of breakdownRows) {
+      const bucket = acc.get(r.breakdownKey);
+      if (!bucket) continue;                        // unknown dim — ignore
+      const cur = bucket.get(r.breakdownValue) ?? { spend: 0n, imp: 0n, clk: 0n, msg: 0n };
+      cur.spend += r.spend;
+      cur.imp   += r.impressions;
+      cur.clk   += r.clicks;
+      cur.msg   += r.messages;
+      bucket.set(r.breakdownValue, cur);
+    }
+    for (const k of BREAKDOWN_KEYS) {
+      const bucket = acc.get(k)!;
+      const rows: BreakdownRow[] = [];
+      for (const [value, t] of bucket) {
+        const spendMajorW = Number(t.spend) / factor;
+        const msgN = Number(t.msg);
+        const cpm = msgN > 0 && Number.isFinite(spendMajorW) ? spendMajorW / msgN : null;
+        rows.push({
+          value,
+          spendMinor: t.spend,
+          impressions: t.imp,
+          clicks: t.clk,
+          messages: t.msg,
+          costPerMessage: cpm,
+        });
+      }
+      // Heaviest segment first — gives the UI a stable visual anchor.
+      rows.sort((a, b) => (b.spendMinor > a.spendMinor ? 1 : b.spendMinor < a.spendMinor ? -1 : 0));
+      breakdowns[k] = rows.slice(0, 12);
+    }
+
     return c.json(safeJson({
       campaign: {
         id: campaign.id,
@@ -1288,6 +1354,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             }
           : null,
       })),
+      // Phase 5 Pass C — Audience tab. One sub-block per dimension; rows are
+      // pre-sorted by spend-desc (heaviest segment first), top 12 each. Raw
+      // Meta values (`male`, `facebook`, `feed`, …) are returned verbatim; the
+      // client maps them to Arabic at render time.
+      breakdowns,
     }));
   });
 

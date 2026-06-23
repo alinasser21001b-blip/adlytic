@@ -21,7 +21,7 @@
 
 import { PrismaClient, EntityType, EntityStatus, SyncJobStatus, Prisma } from "@prisma/client";
 import { MetaClient, MetaApiError } from "../services/metaClient";
-import { mapMetaInsight } from "../mappers/insightMapper";
+import { mapMetaInsight, mapMetaBreakdownInsight } from "../mappers/insightMapper";
 import { mapMetaAdSet, mapMetaAd } from "../mappers/creativeMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
@@ -603,6 +603,151 @@ export class SyncAccountWorker {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  BREAKDOWN SYNC (Phase 5 — Pass C)
+  //
+  //  Pulls campaign-level daily insights sliced by ONE breakdown dimension
+  //  at a time, mapping each row into the wide BreakdownStat table keyed on
+  //  (entityType, entityId, date, breakdownKey, breakdownValue).
+  //
+  //  Why one dimension per request:
+  //  ────────────────────────────────
+  //  Meta's `breakdowns` parameter accepts only certain combinations; many
+  //  pairs are mutually exclusive (e.g. `age`+`publisher_platform` returns
+  //  an empty / errored set). Issuing FOUR separate calls per campaign — one
+  //  per dimension — sidesteps the entire compatibility matrix at the cost
+  //  of N× requests. With CAMPAIGN_CONCURRENCY=3 and a small inter-dim
+  //  delay, total RPS stays inside Meta's per-account ceiling.
+  //
+  //  Idempotency:
+  //  ────────────
+  //  BreakdownStat has a unique constraint on
+  //  (entityType, entityId, date, breakdownKey, breakdownValue), so re-runs
+  //  over an overlapping window converge via upsert — same guarantee as
+  //  DailyStat.
+  // ════════════════════════════════════════════════════════════════════════
+  async syncBreakdowns(
+    adAccountId: string,
+    opts: { since: Date; until: Date }
+  ): Promise<{ campaignsProcessed: number; rowsUpserted: number }> {
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const tag = `[syncBreakdowns:${acct.externalAccountId}]`;
+
+    const campaigns = await this.prisma.campaign.findMany({
+      where: { adAccountId },
+      select: { id: true, externalCampaignId: true },
+    });
+    if (campaigns.length === 0) {
+      console.log(`${tag} no campaigns — nothing to break down`);
+      return { campaignsProcessed: 0, rowsUpserted: 0 };
+    }
+
+    // Each dimension is fetched separately — see header for why.
+    const DIMENSIONS = ['age', 'gender', 'publisher_platform', 'platform_position'] as const;
+    const INTER_DIM_DELAY_MS = 200;
+
+    let rowsUpserted = 0;
+    let campaignsProcessed = 0;
+
+    for (let i = 0; i < campaigns.length; i += CAMPAIGN_CONCURRENCY) {
+      const slice = campaigns.slice(i, i + CAMPAIGN_CONCURRENCY);
+
+      const settled = await Promise.allSettled(
+        slice.map(async (camp) => {
+          let localRows = 0;
+          for (let d = 0; d < DIMENSIONS.length; d++) {
+            const dim = DIMENSIONS[d]!;
+            try {
+              const rows = await this.meta.getInsights({
+                externalId: camp.externalCampaignId,
+                level: 'campaign',
+                since: opts.since,
+                until: opts.until,
+                breakdowns: [dim],
+              });
+
+              if (rows.length === 0) {
+                if (d < DIMENSIONS.length - 1) await sleep(INTER_DIM_DELAY_MS);
+                continue;
+              }
+
+              // Upsert each row individually — counts per dimension are small
+              // (≤ ~30 days × ~10 segments) so a per-row upsert keeps the
+              // logic simple and the unique-constraint guarantee intact.
+              for (const r of rows) {
+                const norm = mapMetaBreakdownInsight(r, dim, {
+                  currencyMinorFactor: acct.currencyMinorFactor,
+                });
+                if (!norm) continue;
+
+                await this.prisma.breakdownStat.upsert({
+                  where: {
+                    entityType_entityId_date_breakdownKey_breakdownValue: {
+                      entityType: EntityType.CAMPAIGN,
+                      entityId: camp.id,
+                      date: new Date(norm.date),
+                      breakdownKey: norm.breakdownKey,
+                      breakdownValue: norm.breakdownValue,
+                    },
+                  },
+                  create: {
+                    entityType: EntityType.CAMPAIGN,
+                    entityId: camp.id,
+                    date: new Date(norm.date),
+                    breakdownKey: norm.breakdownKey,
+                    breakdownValue: norm.breakdownValue,
+                    spend: BigInt(norm.spendMinor),
+                    impressions: BigInt(norm.impressions),
+                    clicks: BigInt(norm.clicks),
+                    messages: BigInt(norm.messages),
+                  },
+                  update: {
+                    spend: BigInt(norm.spendMinor),
+                    impressions: BigInt(norm.impressions),
+                    clicks: BigInt(norm.clicks),
+                    messages: BigInt(norm.messages),
+                  },
+                });
+                localRows++;
+              }
+            } catch (err) {
+              const msg = err instanceof MetaApiError
+                ? `Meta ${err.status}: ${err.message}`
+                : err instanceof Error ? err.message : String(err);
+              console.error(`${tag} campaign=${camp.externalCampaignId} dim=${dim} FAILED — ${msg}`);
+              // Continue to next dimension; partial coverage > total abort.
+            }
+
+            if (d < DIMENSIONS.length - 1) await sleep(INTER_DIM_DELAY_MS);
+          }
+          return localRows;
+        })
+      );
+
+      for (let j = 0; j < settled.length; j++) {
+        const r = settled[j]!;
+        const camp = slice[j]!;
+        if (r.status === 'fulfilled') {
+          rowsUpserted += r.value;
+          campaignsProcessed++;
+        } else {
+          const err = r.reason;
+          const msg = err instanceof MetaApiError
+            ? `Meta ${err.status}: ${err.message}`
+            : err instanceof Error ? err.message : String(err);
+          console.error(`${tag} campaign=${camp.externalCampaignId} breakdown sync FAILED — ${msg}`);
+        }
+      }
+
+      if (i + CAMPAIGN_CONCURRENCY < campaigns.length) {
+        await sleep(INTER_CHUNK_DELAY_MS);
+      }
+    }
+
+    console.log(`${tag} done — ${campaignsProcessed}/${campaigns.length} campaigns, ${rowsUpserted} breakdown rows`);
+    return { campaignsProcessed, rowsUpserted };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  CHUNKED SYNC — drives a SyncJob row over a configurable window.
   //
   //  Reads SyncJob.windowSince/until/windowDays from the DB (the route only
@@ -741,6 +886,22 @@ export class SyncAccountWorker {
           ? `Meta ${e.status}: ${e.message}`
           : e instanceof Error ? e.message : String(e);
         console.error(`${tag} syncAdSetsAndAds FAILED (non-fatal) — ${msg}`);
+      }
+
+      // Phase 5 Pass C — campaign-level breakdowns (age/gender/platform/position).
+      // Non-fatal: feeds the Audience tab but is not load-bearing for the
+      // numbers shown elsewhere. Runs last so all required Campaign rows exist.
+      try {
+        const bdResult = await this.syncBreakdowns(adAccountId, { since, until });
+        console.log(
+          `${tag} breakdowns: ${bdResult.campaignsProcessed} campaigns, ` +
+          `${bdResult.rowsUpserted} segment rows`
+        );
+      } catch (e) {
+        const msg = e instanceof MetaApiError
+          ? `Meta ${e.status}: ${e.message}`
+          : e instanceof Error ? e.message : String(e);
+        console.error(`${tag} syncBreakdowns FAILED (non-fatal) — ${msg}`);
       }
 
       await this.markSynced(adAccountId, new Date());

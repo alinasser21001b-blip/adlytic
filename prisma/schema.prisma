@@ -242,6 +242,41 @@ model DailyStat {
   @@map("daily_stats")
 }
 
+/// Phase 5 Pass C — Per-day metrics sliced by a single Meta breakdown
+/// dimension (age, gender, publisher_platform, platform_position, …).
+///
+/// One row per (entity, date, breakdownKey, breakdownValue). Sparse: only
+/// the dimensions we've explicitly synced exist as rows. The query side
+/// aggregates by (breakdownKey, breakdownValue) over the requested window
+/// and derives ratios from totals — same correctness discipline as the
+/// inspector summary aggregation (Σnum / Σden, never mean-of-rates).
+///
+/// Storage choice: ONE wide table keyed by `breakdownKey` rather than a
+/// table per dimension. Adding `region` / `device_platform` later costs
+/// zero schema change — just a new string key.
+model BreakdownStat {
+  id             String     @id @default(cuid())
+  entityType     EntityType @map("entity_type")
+  entityId       String     @map("entity_id")
+  date           DateTime   @db.Date
+  /// Meta dimension name verbatim: 'age' | 'gender' | 'publisher_platform' | 'platform_position'
+  breakdownKey   String     @map("breakdown_key")
+  /// Raw Meta value verbatim (e.g. '25-34', 'male', 'instagram', 'feed').
+  /// Translation to Arabic happens at presentation time, not storage.
+  breakdownValue String     @map("breakdown_value")
+
+  spend       BigInt @default(0)
+  impressions BigInt @default(0)
+  clicks      BigInt @default(0)
+  messages    BigInt @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([entityType, entityId, date, breakdownKey, breakdownValue])
+  @@index([entityType, entityId, breakdownKey, date])
+  @@map("breakdown_stats")
+}
+
 model MetricTrend {
   id             String     @id @default(cuid())
   entityType     EntityType @map("entity_type")

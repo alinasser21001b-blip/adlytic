@@ -630,13 +630,10 @@ export function campaignsPage(): string {
 
     var creativesHtml = renderCreativesTab(Array.isArray(data.creatives) ? data.creatives : []);
 
-    // Audience tab — placeholder until Pass C (breakdowns) ships.
-    var audienceHtml =
-        '<div style="border:1px dashed var(--border-2);border-radius:10px;padding:32px;text-align:center;direction:rtl;color:var(--text-3);">'
-      +   '<div style="font-size:32px;margin-bottom:8px;">👥</div>'
-      +   '<div style="font-weight:700;color:var(--text);font-size:14px;margin-bottom:6px;">تحليل الجمهور قادم قريباً</div>'
-      +   '<div style="font-size:13px;line-height:1.7;">سنعرض هنا أداء الحملة بحسب العمر والجنس والمنصة والموضع، مع تحديد الشرائح الأقل تكلفة لكل رسالة.</div>'
-      + '</div>';
+    // Audience tab (Pass C) — accepts the breakdowns block emitted by the
+    // /inspector endpoint and renders four sections (age, gender, platform,
+    // position). The renderer owns all Arabic translation of Meta vocabulary.
+    var audienceHtml = renderAudienceTab(data.breakdowns || {}, a);
 
     document.getElementById('inspector-body').innerHTML =
         '<div data-tab-panel="overview">'  + overviewHtml  + '</div>'
@@ -705,6 +702,142 @@ export function campaignsPage(): string {
       + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;direction:rtl;">'
       +   cardsHtml
       + '</div>';
+  }
+
+  // ── Arabic translation maps for Meta breakdown vocabulary ────────────────
+  //
+  // The API returns raw Meta values ("male", "facebook", "feed", …) verbatim
+  // — that is the cordon discipline: translation is a presentation concern,
+  // not a data concern. These maps run only at render time. Unknown values
+  // fall through to the raw string so a new Meta enum value never produces
+  // a blank UI label — the operator sees the raw enum and can extend the
+  // map in a follow-up.
+  var BREAKDOWN_LABEL_AR = {
+    age:                'حسب العمر',
+    gender:             'حسب الجنس',
+    publisher_platform: 'حسب المنصة',
+    platform_position:  'حسب الموضع',
+  };
+  // age values like "18-24" / "25-34" are already universal — pass through.
+  var GENDER_AR = {
+    male:    'ذكر',
+    female:  'أنثى',
+    unknown: 'غير محدد',
+  };
+  var PLATFORM_AR = {
+    facebook:         'فيسبوك',
+    instagram:        'إنستغرام',
+    messenger:        'ماسنجر',
+    audience_network: 'شبكة الجمهور',
+    threads:          'ثريدز',
+    whatsapp:         'واتساب',
+  };
+  var POSITION_AR = {
+    feed:                  'آخر الأخبار',
+    facebook_stories:      'ستوريز فيسبوك',
+    instagram_stories:     'ستوريز إنستغرام',
+    instagram_explore:     'استكشاف إنستغرام',
+    instagram_reels:       'ريلز إنستغرام',
+    facebook_reels:        'ريلز فيسبوك',
+    reels:                 'ريلز',
+    instream_video:        'فيديو ضمن المحتوى',
+    marketplace:           'ماركت بليس',
+    right_hand_column:     'العمود الأيمن',
+    video_feeds:           'موجز الفيديو',
+    search:                'البحث',
+    messenger_inbox:       'صندوق ماسنجر',
+    messenger_stories:     'ستوريز ماسنجر',
+    biz_disco_feed:        'موجز الاستكشاف التجاري',
+    rewarded_video:        'الفيديو المُكافأ',
+  };
+  function translateBreakdownValue(key, value) {
+    if (value == null) return '—';
+    var raw = String(value);
+    if (key === 'gender')             return GENDER_AR[raw]   || raw;
+    if (key === 'publisher_platform') return PLATFORM_AR[raw] || raw;
+    if (key === 'platform_position')  return POSITION_AR[raw] || raw;
+    return raw;                       // age, and unknown dimensions
+  }
+
+  /**
+   * Render the Audience tab — four stacked sections, one per breakdown
+   * dimension. Each section is a list of segments sorted by spend-desc (the
+   * heaviest first), with a horizontal proportional bar and three numbers:
+   * spend, messages, and cost-per-message. Cost-per-message comes from
+   * window totals (Σspend / Σmessages), not from a mean of daily rates —
+   * the API already enforces that contract.
+   *
+   * Empty-state handling: each dimension can be empty independently (Meta
+   * sometimes refuses certain breakdowns on certain objectives). We render
+   * only the dimensions that returned data; if none did, a single friendly
+   * placeholder explains that the breakdown sync is still warming up.
+   */
+  function renderAudienceTab(breakdowns, account) {
+    var ORDER = ['age', 'gender', 'publisher_platform', 'platform_position'];
+    var sections = [];
+
+    for (var i = 0; i < ORDER.length; i++) {
+      var key = ORDER[i];
+      var rows = Array.isArray(breakdowns[key]) ? breakdowns[key] : [];
+      if (!rows.length) continue;
+
+      // Bar widths are proportional to spend within THIS dimension only —
+      // cross-dimension comparison would be misleading because Meta returns
+      // the same totals sliced different ways.
+      var maxSpend = 0;
+      for (var k = 0; k < rows.length; k++) {
+        var sN = Number(rows[k].spendMinor || 0);
+        if (sN > maxSpend) maxSpend = sN;
+      }
+
+      var rowsHtml = rows.map(function(r) {
+        var labelAr   = translateBreakdownValue(key, r.value);
+        var spendText = fmtMinor(r.spendMinor, account.currencyMinorFactor, account.currency);
+        var msgText   = fmtNum(Number(r.messages || 0), 0);
+        // costPerMessage is in MAJOR units (see /inspector contract); multiply
+        // back into minor units so fmtMinor can do its division consistently.
+        var cpm       = r.costPerMessage != null
+          ? fmtMinor(Number(r.costPerMessage) * account.currencyMinorFactor, account.currencyMinorFactor, account.currency)
+          : '—';
+        var widthPct  = maxSpend > 0 ? Math.max(2, Math.round((Number(r.spendMinor) / maxSpend) * 100)) : 2;
+
+        return ''
+          + '<div style="margin:10px 0;direction:rtl;text-align:right;">'
+          +   '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text);margin-bottom:4px;">'
+          +     '<span style="font-weight:600;">' + escHtml(labelAr) + '</span>'
+          +     '<span style="color:var(--text-3);font-size:12px;">'
+          +       'الرسائل: <span style="color:var(--text-2);">' + escHtml(msgText) + '</span>'
+          +       ' · تكلفة الرسالة: <span style="color:var(--text-2);">' + escHtml(cpm) + '</span>'
+          +     '</span>'
+          +   '</div>'
+          +   '<div style="background:var(--surface-2, rgba(255,255,255,0.04));border-radius:6px;height:18px;overflow:hidden;position:relative;">'
+          +     '<div style="background:linear-gradient(90deg, var(--accent, #6366f1), var(--accent-2, #8b5cf6));height:100%;width:' + widthPct + '%;border-radius:6px;"></div>'
+          +     '<div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--text);font-weight:600;">'
+          +       escHtml(spendText)
+          +     '</div>'
+          +   '</div>'
+          + '</div>';
+      }).join('');
+
+      sections.push(''
+        + '<div style="margin-bottom:18px;">'
+        +   '<div style="font-weight:700;color:var(--text);margin-bottom:8px;font-size:13px;direction:rtl;text-align:right;">'
+        +     escHtml(BREAKDOWN_LABEL_AR[key] || key)
+        +   '</div>'
+        +   rowsHtml
+        + '</div>');
+    }
+
+    if (!sections.length) {
+      return ''
+        + '<div style="border:1px dashed var(--border-2);border-radius:10px;padding:32px;text-align:center;direction:rtl;color:var(--text-3);">'
+        +   '<div style="font-size:32px;margin-bottom:8px;">👥</div>'
+        +   '<div style="font-weight:700;color:var(--text);font-size:14px;margin-bottom:6px;">لا تتوفر بيانات الجمهور بعد</div>'
+        +   '<div style="font-size:13px;line-height:1.7;">تكتمل بيانات الفئات بعد أول مزامنة كاملة. حاول العودة بعد قليل.</div>'
+        + '</div>';
+    }
+
+    return '<div style="direction:rtl;text-align:right;">' + sections.join('') + '</div>';
   }
 
   /**
