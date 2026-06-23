@@ -146,6 +146,36 @@ export class MetaClient {
     return this.paginated(`${this.base}/${externalAccountId}/campaigns?${params.toString()}`);
   }
 
+  /** List ad sets under a campaign — used for AdSet discovery (Phase 5 Pass A). */
+  async listAdSets(externalCampaignId: string): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      fields: "id,name,status,daily_budget,optimization_goal,targeting",
+      access_token: this.token,
+      limit: "200",
+    });
+    return this.paginated(`${this.base}/${externalCampaignId}/adsets?${params.toString()}`);
+  }
+
+  /**
+   * List ads under an ad set, with the creative expanded inline so we get
+   * the creative's id + media + copy in one round-trip (instead of N+1
+   * follow-up calls). Used by Phase 5 Pass B. The full creative blob is
+   * preserved on the row under the `creative` key so the mapper can
+   * normalize it into AdCreative.
+   */
+  async listAds(externalAdSetId: string): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      fields: [
+        "id", "name", "status",
+        // Field expansion: pull the related creative inline.
+        "creative{id,name,thumbnail_url,image_hash,video_id,object_story_spec,asset_feed_spec,call_to_action_type,body,title}",
+      ].join(","),
+      access_token: this.token,
+      limit: "200",
+    });
+    return this.paginated(`${this.base}/${externalAdSetId}/ads?${params.toString()}`);
+  }
+
   /** Internal: follow paging.next until exhausted, with retry on transient errors. */
   private async paginated(initialUrl: string, maxPages = 500): Promise<MetaInsightRow[]> {
     const out: MetaInsightRow[] = [];

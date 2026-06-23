@@ -91,6 +91,7 @@ model AdAccount {
   workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   campaigns            Campaign[]
   syncJobs             SyncJob[]
+  adCreatives          AdCreative[]
 
   @@unique([platform, externalAccountId])
   @@index([workspaceId])
@@ -141,14 +142,63 @@ model Ad {
   externalAdId String       @map("external_ad_id")
   name         String
   status       EntityStatus @default(ACTIVE)
+  /// Legacy denormalized blob — kept for back-compat with any prior sync runs.
+  /// New code should read creative metadata from the related `AdCreative` row.
   creativeJson Json?        @map("creative_json")
+  /// FK into normalized + deduped AdCreative table. Many ads can share one
+  /// creative (Meta's `object_story_id`), so this is N:1, NOT 1:1.
+  creativeId   String?      @map("creative_id")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   adSet        AdSet        @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  creative     AdCreative?  @relation(fields: [creativeId], references: [id], onDelete: SetNull)
 
   @@unique([adSetId, externalAdId])
   @@index([adSetId])
+  @@index([creativeId])
   @@map("ads")
+}
+
+/// Phase 5 — Normalized, deduped creative metadata.
+///
+/// One row per Meta creative (a creative is identified by its `id` /
+/// `object_story_id` on Meta's side). Many Ads in the same account often
+/// share a single creative — we store the creative ONCE and the Ad rows
+/// reference it via `Ad.creativeId`. The dedupe key is
+/// (adAccountId, externalCreativeId): creatives are scoped to the account
+/// that owns them, never shared across accounts.
+///
+/// `raw` is the full Meta creative blob (object_story_spec, asset_feed_spec,
+/// etc.) so we can introspect new fields without re-pulling the API. The
+/// flat surface columns above are convenience caches for the dashboard +
+/// the upcoming CreativeFatigueEngine.
+model AdCreative {
+  id                 String @id @default(cuid())
+  adAccountId        String @map("ad_account_id")
+  externalCreativeId String @map("external_creative_id")
+
+  // Surface columns commonly read by the dashboard + brain
+  name             String?
+  thumbnailUrl     String? @map("thumbnail_url")
+  imageHash        String? @map("image_hash")
+  videoId          String? @map("video_id")
+  primaryText      String? @map("primary_text")
+  headline         String?
+  description      String?
+  callToActionType String? @map("call_to_action_type")
+
+  // Forensic — full Meta creative payload (object_story_spec, etc.)
+  raw Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  adAccount AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  ads       Ad[]
+
+  @@unique([adAccountId, externalCreativeId])
+  @@index([adAccountId])
+  @@map("ad_creatives")
 }
 
 model RawInsight {
@@ -164,10 +214,10 @@ model RawInsight {
 }
 
 model DailyStat {
-  id          String     @id @default(cuid())
-  entityType  EntityType @map("entity_type")
-  entityId    String     @map("entity_id")
-  date        DateTime   @db.Date
+  id             String     @id @default(cuid())
+  entityType     EntityType @map("entity_type")
+  entityId       String     @map("entity_id")
+  date           DateTime   @db.Date
   spend          BigInt     @default(0)
   impressions    BigInt     @default(0)
   reach          BigInt     @default(0)
@@ -594,24 +644,24 @@ enum PaymentEventSource {
 //  chunks in the background and updates progress/chunksDone/cursorDate.
 // ════════════════════════════════════════════════════════════════════════
 model SyncJob {
-  id            String         @id @default(cuid())
-  adAccountId   String         @map("ad_account_id")
-  status        SyncJobStatus  @default(PENDING)
-  windowDays    Int            @map("window_days")
-  windowSince   DateTime       @map("window_since") @db.Date
-  windowUntil   DateTime       @map("window_until") @db.Date
-  progress      Int            @default(0)
-  chunksTotal   Int            @default(0) @map("chunks_total")
-  chunksDone    Int            @default(0) @map("chunks_done")
-  cursorDate    DateTime?      @map("cursor_date") @db.Date
-  rowsFetched   Int            @default(0) @map("rows_fetched")
-  rowsUpserted  Int            @default(0) @map("rows_upserted")
-  error         String?
-  triggeredBy   String?        @map("triggered_by")
-  startedAt     DateTime?      @map("started_at")
-  completedAt   DateTime?      @map("completed_at")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  adAccount     AdAccount      @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  adAccountId  String        @map("ad_account_id")
+  status       SyncJobStatus @default(PENDING)
+  windowDays   Int           @map("window_days")
+  windowSince  DateTime      @map("window_since") @db.Date
+  windowUntil  DateTime      @map("window_until") @db.Date
+  progress     Int           @default(0)
+  chunksTotal  Int           @default(0) @map("chunks_total")
+  chunksDone   Int           @default(0) @map("chunks_done")
+  cursorDate   DateTime?     @map("cursor_date") @db.Date
+  rowsFetched  Int           @default(0) @map("rows_fetched")
+  rowsUpserted Int           @default(0) @map("rows_upserted")
+  error        String?
+  triggeredBy  String?       @map("triggered_by")
+  startedAt    DateTime?     @map("started_at")
+  completedAt  DateTime?     @map("completed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  adAccount    AdAccount     @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
 
   @@index([adAccountId, status])
   @@index([status])
