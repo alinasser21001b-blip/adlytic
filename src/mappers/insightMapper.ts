@@ -67,7 +67,13 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
 
   // Meta packs results inside actions: [{ action_type: "...", value: "..." }]
   const actions = Array.isArray(row.actions) ? (row.actions as ActionRow[]) : [];
-  const messages = sumActions(actions, MESSAGE_ACTION_TYPES);
+  // STRICT MESSAGES — see pickMessages() below. Do NOT sum the action set:
+  // `onsite_conversion.messaging_conversation_started_7d` and
+  // `onsite_conversion.messaging_first_reply` are two distinct events
+  // (a started conversation, then any reply within it). Adding them
+  // double-counts and produced a 163 vs Meta-Ads-Manager-reported 87 in
+  // production. We pick exactly ONE canonical action_type per row.
+  const messages = pickMessages(actions);
   const purchases = sumActions(actions, PURCHASE_ACTION_TYPES);
   const leads = sumActions(actions, LEAD_ACTION_TYPES);
   // "conversions" is intentionally objective-agnostic: whichever result the
@@ -141,12 +147,36 @@ function pickCostPerAction(raw: unknown, allowed: Set<string>, scale: number): n
 // Each future platform supplies its own equivalent list; consumers see the
 // neutral fields above (messages / purchases / leads / conversions).
 
+// Canonical "a conversation was started" events ONLY. Used both by
+// pickMessages() (count) and pickCostPerAction() (cost/message). We
+// intentionally OMIT `onsite_conversion.messaging_first_reply` — that's a
+// different funnel stage and summing it with conversation-started inflated
+// the count ~1.9× in production (163 reported vs 87 in Meta Ads Manager).
 const MESSAGE_ACTION_TYPES = new Set([
   "onsite_conversion.messaging_conversation_started_7d",
-  "onsite_conversion.messaging_first_reply",
   // legacy:
   "messaging_conversation_started",
 ]);
+
+// Strict preference order for pickMessages — NEVER summed. The first
+// action_type present on the row wins; this guarantees parity with what Meta
+// Ads Manager itself reports as "Messaging conversations started".
+const MESSAGE_ACTION_PREFERENCE: readonly string[] = [
+  "onsite_conversion.messaging_conversation_started_7d",
+  "messaging_conversation_started",
+];
+
+function pickMessages(actions: ActionRow[]): number {
+  for (const preferred of MESSAGE_ACTION_PREFERENCE) {
+    for (const a of actions) {
+      if (a.action_type === preferred) {
+        const n = num(a.value);
+        if (Number.isFinite(n) && n >= 0) return Math.round(n);
+      }
+    }
+  }
+  return 0;
+}
 const PURCHASE_ACTION_TYPES = new Set([
   "purchase",
   "offsite_conversion.fb_pixel_purchase",

@@ -486,20 +486,24 @@ export function campaignsPage(): string {
     : c.lifetimeBudgetMinor != null ? fmtMinor(c.lifetimeBudgetMinor, a.currencyMinorFactor, a.currency) + ' (إجمالي)'
     : '—';
 
+    // STANDARDIZED FINANCIAL SUMMARY — exactly 4 KPI cards, in this order:
+    //   1. الإنفاق         (window spend)
+    //   2. الميزانية       (daily or lifetime budget, whichever Meta returned)
+    //   3. إجمالي الرسائل   (window total — INTEGER, no decimals)
+    //   4. تكلفة الرسالة   (spend ÷ messages, in account currency)
+    // We deliberately dropped Avg CTR, Frequency, and the combined
+    // "Messages · Purchases" card: the client found them noisy and they
+    // weren't tied to the Phase 1 messaging KPI.
     var kpiHtml =
-      '<div class="kpi-grid" style="grid-template-columns:repeat(3, 1fr);gap:12px;margin-bottom:20px;direction:rtl;text-align:right;">'
+      '<div class="kpi-grid" style="grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:20px;direction:rtl;text-align:right;">'
     +   '<div class="kpi-card"><div class="kpi-label">الإنفاق</div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">الميزانية</div>'
     +     '<div class="kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">متوسط نسبة النقر</div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCtr != null ? fmtNum(s.avgCtr, 2) + '%' : '—') + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">إجمالي الرسائل</div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">تكلفة الرسالة</div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCostPerMessage != null ? fmtMinor(s.avgCostPerMessage * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">معدل التكرار</div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.avgFrequency, 2)) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">الرسائل · الشراء</div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + ' · ' + escHtml(fmtNum(s.purchases, 0)) + '</div></div>'
     + '</div>';
 
     // ── Signals block ──────────────────────────────────────────────────────

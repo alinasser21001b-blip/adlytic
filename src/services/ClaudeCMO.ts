@@ -54,6 +54,12 @@ interface CmoPayload {
 
   recoverySignal: 'NONE' | 'MODERATE' | 'STRONG';
 
+  // Cold-start flag — true when the campaign has no statistically meaningful
+  // baseline yet, so delta-based comparisons are meaningless. The LLM is
+  // expected to switch into "absolute-only" mode when this is set (see
+  // SYSTEM_PROMPT § COLD-START MODE).
+  coldStart: boolean;
+
   scores: {
     physicsFinalScore: number;
     confidenceFinalScore: number;
@@ -99,6 +105,19 @@ interface CmoPayload {
 // All Arabic text inside `deviations` and `directive` flows through unchanged.
 // ════════════════════════════════════════════════════════════════════════
 function buildPayload(b: BrainTickResult): CmoPayload {
+  // Cold-start is universal — derived purely from engine state, no per-user
+  // tuning. Two independent signals must agree:
+  //   (a) ConfidenceEngine gated us into COLLECTING_DATA (insufficient
+  //       statistical maturity for trustable comparisons), OR
+  //   (b) Every baseline is zero/missing (no prior window to compare against).
+  // Either condition means delta-based narration would mislead the merchant.
+  const baselinesAllZero =
+    (b.physics.costPerMessage.baseline || 0) === 0 &&
+    (b.physics.ctr.baseline || 0) === 0 &&
+    (b.physics.frequency.baseline || 0) === 0;
+  const coldStart =
+    b.confidence.gatingStatus === 'COLLECTING_DATA' || baselinesAllZero;
+
   const payload: CmoPayload = {
     campaignName: b.campaignName,
     decision: {
@@ -109,6 +128,7 @@ function buildPayload(b: BrainTickResult): CmoPayload {
     },
     pattern: b.pattern.signature,
     recoverySignal: b.recovery.recoverySignalStrength,
+    coldStart,
     scores: {
       physicsFinalScore: b.physics.finalScore,
       confidenceFinalScore: b.confidence.finalConfidenceScore,
@@ -231,6 +251,23 @@ TONE MATRIX (driven by decision.action)
 - KEEP_COLLECTING  → صبور ومطمئن، الحملة لم تنضج بعد إحصائياً
 - HOLD_AND_MONITOR → هادئ تقليدي، الأداء طبيعي ولا تدخل مطلوب
 - EMERGENCY_PAUSE  → (هذا الفرع يُعالَج خارج LLM. لن يصلك أبداً.)
+
+═══════════════════════════════════════════════════════════════
+COLD-START MODE (applies when payload.coldStart === true)
+═══════════════════════════════════════════════════════════════
+The campaign has no statistically meaningful history yet — baselines are
+zero/missing or the confidence layer is still collecting data. In this mode:
+- DO NOT cite any "deltas.*" percentage. They are arithmetically meaningless
+  against a zero baseline and would mislead the merchant.
+- DO NOT use comparative phrasing such as "ارتفع", "انخفض", "مقارنة بالسابق".
+- DO quote raw values from "absolutes.*current" as the *current* reading
+  (without a "baseline" or "vs" comparison).
+- Frame the narration as an early-collection update. A safe template:
+  title:     "حملة جديدة: جاري جمع البيانات الأولية"
+  narration: explain that the campaign is still in its learning phase, the
+             system is gathering enough impressions to issue trustworthy
+             recommendations, and the current absolute readings so far.
+- Tone: مطمئن، صبور، شفّاف. لا توصِ بتغييرات جذرية في هذه المرحلة.
 
 ═══════════════════════════════════════════════════════════════
 V2 CONTEXTUAL RULES (apply only if v2 exists)
