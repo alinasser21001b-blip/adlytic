@@ -19,11 +19,17 @@
 //  numbers overwrite stale daily_stats. This is a FEATURE of upsert, not a bug.
 // ════════════════════════════════════════════════════════════════════════
 
-import { PrismaClient, EntityType } from "@prisma/client";
+import { PrismaClient, EntityType, SyncJobStatus } from "@prisma/client";
 import { MetaClient, MetaApiError } from "../services/metaClient";
 import { mapMetaInsight } from "../mappers/insightMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
+
+// ── Chunked sync constants ──────────────────────────────────────────────
+/** Days per chunk. 7 keeps each Meta call small enough to dodge rate limits. */
+const CHUNK_SIZE_DAYS = 7;
+/** Politeness pause between chunks to keep Meta happy. */
+const INTER_CHUNK_DELAY_MS = 300;
 
 export interface SyncResult {
   adAccountId: string;
@@ -206,6 +212,145 @@ export class SyncAccountWorker {
       data: { lastSyncedAt: when },
     });
   }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  CHUNKED SYNC — drives a SyncJob row over a configurable window.
+  //
+  //  Reads SyncJob.windowSince/until/windowDays from the DB (the route only
+  //  persists intent — never passes args). Loops most-recent-first in
+  //  7-day chunks; updates progress/chunksDone/cursorDate after each chunk.
+  //
+  //  Same idempotency guarantees as `sync()` — daily_stats upserts on the
+  //  composite unique key, so partial completions converge on retry.
+  // ════════════════════════════════════════════════════════════════════════
+  async syncChunked(jobId: string): Promise<void> {
+    const job = await this.prisma.syncJob.findUniqueOrThrow({ where: { id: jobId } });
+    const adAccountId = job.adAccountId;
+    const lockId = advisoryLockId(adAccountId);
+    const tag = `[syncChunked:${jobId.slice(0, 8)}]`;
+
+    // Advisory lock — belt-and-suspenders alongside the SyncJob status row.
+    const [{ pg_try_advisory_lock: acquired }] = await this.prisma.$queryRawUnsafe<
+      [{ pg_try_advisory_lock: boolean }]
+    >(`SELECT pg_try_advisory_lock($1)`, lockId);
+
+    if (!acquired) {
+      console.warn(`${tag} Advisory lock held — another sync running. Marking FAILED.`);
+      await this.prisma.syncJob.update({
+        where: { id: jobId },
+        data: {
+          status: SyncJobStatus.FAILED,
+          error: 'Another sync is already in progress for this account',
+          completedAt: new Date(),
+        },
+      });
+      return;
+    }
+
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const since = job.windowSince;
+    const until = job.windowUntil;
+
+    // Build chunks: most-recent-first, CHUNK_SIZE_DAYS each, last chunk may be short.
+    const chunks: Array<{ since: Date; until: Date }> = [];
+    let cursor = new Date(until);
+    while (cursor.getTime() >= since.getTime()) {
+      const chunkUntil = new Date(cursor);
+      const chunkSince = new Date(cursor.getTime() - (CHUNK_SIZE_DAYS - 1) * 86400 * 1000);
+      const clampedSince = chunkSince.getTime() < since.getTime() ? new Date(since) : chunkSince;
+      chunks.push({ since: clampedSince, until: chunkUntil });
+      cursor = new Date(clampedSince.getTime() - 86400 * 1000);
+    }
+
+    await this.prisma.syncJob.update({
+      where: { id: jobId },
+      data: {
+        status: SyncJobStatus.PROCESSING,
+        startedAt: new Date(),
+        chunksTotal: chunks.length,
+      },
+    });
+
+    console.log(`${tag} START — ${chunks.length} chunks over ${ymd(since)} → ${ymd(until)}`);
+
+    let totalFetched = 0;
+    let totalUpserted = 0;
+
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]!;
+        console.log(`${tag} chunk ${i + 1}/${chunks.length} — ${ymd(chunk.since)} → ${ymd(chunk.until)}`);
+
+        const rows = await this.meta.getInsights({
+          externalId: acct.externalAccountId,
+          level: 'account',
+          since: chunk.since,
+          until: chunk.until,
+        });
+        totalFetched += rows.length;
+
+        if (rows.length > 0) {
+          const rawBatch = rows.map((r) => ({
+            entityType: EntityType.ACCOUNT,
+            entityId: adAccountId,
+            date: new Date(String(r.date_start)),
+            rawJson: r,
+          }));
+          await this.rawRepo.appendMany(rawBatch);
+
+          const dailyBatch = rows.map((r) => ({
+            entityType: EntityType.ACCOUNT,
+            entityId: adAccountId,
+            insight: mapMetaInsight(r, { currencyMinorFactor: acct.currencyMinorFactor }),
+          }));
+          await this.dailyRepo.upsertMany(dailyBatch);
+          totalUpserted += dailyBatch.length;
+        }
+
+        const chunksDone = i + 1;
+        const progress = Math.round((chunksDone / chunks.length) * 100);
+        await this.prisma.syncJob.update({
+          where: { id: jobId },
+          data: {
+            chunksDone,
+            progress,
+            cursorDate: chunk.since,
+            rowsFetched: totalFetched,
+            rowsUpserted: totalUpserted,
+          },
+        });
+
+        if (i < chunks.length - 1) await sleep(INTER_CHUNK_DELAY_MS);
+      }
+
+      await this.markSynced(adAccountId, new Date());
+      await this.prisma.syncJob.update({
+        where: { id: jobId },
+        data: {
+          status: SyncJobStatus.COMPLETED,
+          progress: 100,
+          completedAt: new Date(),
+        },
+      });
+      console.log(`${tag} COMPLETE — ${totalUpserted} rows upserted across ${chunks.length} chunks`);
+    } catch (e) {
+      const error = e instanceof MetaApiError
+        ? `Meta ${e.status}: ${e.message}`
+        : e instanceof Error ? e.message : String(e);
+      console.error(`${tag} FAILED — ${error}`);
+      await this.prisma.syncJob.update({
+        where: { id: jobId },
+        data: {
+          status: SyncJobStatus.FAILED,
+          error,
+          completedAt: new Date(),
+        },
+      });
+    } finally {
+      await this.prisma.$executeRawUnsafe(`SELECT pg_advisory_unlock($1)`, lockId);
+    }
+  }
 }
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

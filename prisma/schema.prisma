@@ -88,6 +88,7 @@ model AdAccount {
   updatedAt            DateTime     @updatedAt @map("updated_at")
   workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   campaigns            Campaign[]
+  syncJobs             SyncJob[]
 
   @@unique([platform, externalAccountId])
   @@index([workspaceId])
@@ -577,4 +578,43 @@ enum PaymentEventType {
 enum PaymentEventSource {
   STRIPE
   WHATSAPP_MANUAL
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Background Sync Pipeline — SyncJob
+//
+//  Tracks an async ETL run for one ad account over a configurable window.
+//  The HTTP route returns immediately with a jobId; the worker processes
+//  chunks in the background and updates progress/chunksDone/cursorDate.
+// ════════════════════════════════════════════════════════════════════════
+model SyncJob {
+  id            String         @id @default(cuid())
+  adAccountId   String         @map("ad_account_id")
+  status        SyncJobStatus  @default(PENDING)
+  windowDays    Int            @map("window_days")
+  windowSince   DateTime       @map("window_since") @db.Date
+  windowUntil   DateTime       @map("window_until") @db.Date
+  progress      Int            @default(0)
+  chunksTotal   Int            @default(0) @map("chunks_total")
+  chunksDone    Int            @default(0) @map("chunks_done")
+  cursorDate    DateTime?      @map("cursor_date") @db.Date
+  rowsFetched   Int            @default(0) @map("rows_fetched")
+  rowsUpserted  Int            @default(0) @map("rows_upserted")
+  error         String?
+  triggeredBy   String?        @map("triggered_by")
+  startedAt     DateTime?      @map("started_at")
+  completedAt   DateTime?      @map("completed_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  adAccount     AdAccount      @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+
+  @@index([adAccountId, status])
+  @@index([status])
+  @@map("sync_jobs")
+}
+
+enum SyncJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }

@@ -39,7 +39,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { createHash } from 'node:crypto';
-import { EntityType, WorkspaceRole, type Locale } from '@prisma/client';
+import { EntityType, WorkspaceRole, SyncJobStatus, type Locale } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
@@ -69,6 +69,14 @@ import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken } from '../services/tokenEncryption';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { RecommendationService } from '../services/recommendation.service';
+
+// ── Background sync window policy ─────────────────────────────────────────
+/** Default window when a user triggers a "refresh" sync from the dashboard. */
+const DEFAULT_INCREMENTAL_BACKFILL_DAYS = 3;
+/** Hard cap on backfill window; Meta's reporting window of relevance fits in here. */
+const MAX_BACKFILL_DAYS = 90;
+/** First-time backfill on Meta account connect. */
+const INITIAL_BACKFILL_DAYS = 60;
 
 // ── Country derivation ────────────────────────────────────────────────────
 // Maps IANA timezone names → ISO 3166-1 alpha-2 country codes.
@@ -1499,7 +1507,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // Invalidate session — one-time use
     oauthSessions.delete(sessionId);
 
-    // Kick off initial sync in background
+    // Kick off initial INITIAL_BACKFILL_DAYS-day chunked sync in the background.
+    // We persist a SyncJob so the frontend can poll progress on first connect.
     try {
       const ws = await prisma.workspace.findUnique({
         where: { id: workspaceId },
@@ -1509,15 +1518,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       if (acct?.accessTokenEncrypted) {
         const metaClient = new MetaClient({ apiVersion, accessToken: decryptToken(acct.accessTokenEncrypted) });
         const worker = new SyncAccountWorker(prisma, metaClient);
-        void (async () => {
-          try {
-            const syncResult = await worker.sync(acct.id);
-            if (syncResult.ok) {
-              await runEngines(prisma, acct.id);
-              await runBrainOrchestrator(prisma, metaClient, acct.id);  // 🧠 V6 Brain V2 tick
-            }
-          } catch (err: unknown) { console.error('[adlytic:initial-sync]', err); }
-        })();
+        const now = new Date();
+        const since = new Date(now.getTime() - (INITIAL_BACKFILL_DAYS - 1) * 86400 * 1000);
+        const job = await prisma.syncJob.create({
+          data: {
+            adAccountId: acct.id,
+            status: SyncJobStatus.PENDING,
+            windowDays: INITIAL_BACKFILL_DAYS,
+            windowSince: since,
+            windowUntil: now,
+            triggeredBy: 'oauth-callback',
+          },
+        });
+        setImmediate(() => {
+          void (async () => {
+            try {
+              await worker.syncChunked(job.id);
+              const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+              if (final?.status === SyncJobStatus.COMPLETED) {
+                await runEngines(prisma, acct.id);
+                await runBrainOrchestrator(prisma, metaClient, acct.id);  // 🧠 V6 Brain V2 tick
+              }
+            } catch (err: unknown) { console.error('[adlytic:initial-sync]', err); }
+          })();
+        });
       }
     } catch { /* non-fatal */ }
 
@@ -1661,9 +1685,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // ════════════════════════════════════════════════════════════════════════
 
   /**
-   * POST /api/workspaces/:workspaceId/sync — trigger ETL sync for the account.
-   * Requires accessTokenEncrypted to be set on the ad account.
-   * Returns immediately; sync runs in the background.
+   * POST /api/workspaces/:workspaceId/sync — enqueue a background ETL sync.
+   *
+   * Body: { windowDays?: number }  (default 3, min 1, max 90)
+   *
+   * Creates a SyncJob row (status=PENDING), fires the chunked worker via
+   * setImmediate, and returns 202 with the jobId. Clients poll
+   * GET /api/sync-jobs/:jobId for progress; engines + Brain run once at
+   * the end of a successful job, not per chunk.
    */
   app.post('/api/workspaces/:workspaceId/sync', async (c) => {
     const req = await honoToApiRequest(c);
@@ -1681,40 +1710,100 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (account.tokenExpiresAt && account.tokenExpiresAt < new Date()) {
       return c.json({ error: 'Meta access token has expired — please reconnect your account' }, 422);
     }
+
+    // ── Validate windowDays (1..MAX_BACKFILL_DAYS, default DEFAULT_INCREMENTAL_BACKFILL_DAYS)
+    const body = (req.body ?? {}) as { windowDays?: number };
+    const rawDays = body.windowDays;
+    const windowDays = typeof rawDays === 'number' && Number.isFinite(rawDays)
+      ? Math.trunc(rawDays)
+      : DEFAULT_INCREMENTAL_BACKFILL_DAYS;
+    if (windowDays < 1 || windowDays > MAX_BACKFILL_DAYS) {
+      return c.json({ error: `windowDays must be between 1 and ${MAX_BACKFILL_DAYS}` }, 422);
+    }
+
+    const now = new Date();
+    const since = new Date(now.getTime() - (windowDays - 1) * 86400 * 1000);
+    const job = await prisma.syncJob.create({
+      data: {
+        adAccountId: account.id,
+        status: SyncJobStatus.PENDING,
+        windowDays,
+        windowSince: since,
+        windowUntil: now,
+        triggeredBy: userId,
+      },
+    });
+
     const apiVersion = process.env['META_API_VERSION'] ?? 'v20.0';
     const accessToken = decryptToken(account.accessTokenEncrypted);
     const metaClient = new MetaClient({ apiVersion, accessToken });
     const worker = new SyncAccountWorker(prisma, metaClient);
 
-    // Await the full pipeline synchronously so errors surface to the caller.
-    const syncResult = await worker.sync(account.id);
-    if (!syncResult.ok) {
-      return c.json({
-        status: 'sync_failed',
-        error: syncResult.error ?? 'Unknown sync error',
-        adAccountId: account.id,
-        externalAccountId: account.externalAccountId,
-        durationMs: syncResult.durationMs,
-      }, 422);
-    }
+    // Fire-and-forget: setImmediate yields control back to the event loop so
+    // we can return 202 immediately. The worker updates SyncJob status as it
+    // progresses; engines + Brain run only on COMPLETED.
+    setImmediate(() => {
+      void (async () => {
+        try {
+          await worker.syncChunked(job.id);
+          const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+          if (final?.status === SyncJobStatus.COMPLETED) {
+            await runEngines(prisma, account.id);
+            await runBrainOrchestrator(prisma, metaClient, account.id);
+          }
+        } catch (err: unknown) {
+          console.error('[adlytic:syncChunked]', err);
+        }
+      })();
+    });
 
-    const enginesResult = await runEngines(prisma, account.id);
-    const brainResult = await runBrainOrchestrator(prisma, metaClient, account.id);  // 🧠 V6 Brain V2 tick
     return c.json({
-      status: 'sync_complete',
+      jobId: job.id,
+      status: job.status,
+      windowDays,
       adAccountId: account.id,
-      externalAccountId: account.externalAccountId,
-      rowsFetched: syncResult.rowsFetched,
-      rowsUpserted: syncResult.rowsUpserted,
-      windowSince: syncResult.windowSince,
-      windowUntil: syncResult.windowUntil,
-      enginesOk: enginesResult.ok,
-      enginesError: enginesResult.error ?? null,
-      brainOk: brainResult.ok,
-      brainProcessed: brainResult.campaignsProcessed,
-      brainUpserted: brainResult.upserted,
-      brainError: brainResult.error ?? null,
-      durationMs: syncResult.durationMs + enginesResult.durationMs + brainResult.durationMs,
+    }, 202);
+  });
+
+  /**
+   * GET /api/sync-jobs/:jobId — poll a SyncJob for progress.
+   * Auth: the caller must be a member of the workspace that owns the
+   * underlying AdAccount.
+   */
+  app.get('/api/sync-jobs/:jobId', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const jobId = req.params['jobId'];
+    const job = await prisma.syncJob.findUnique({
+      where: { id: jobId },
+      include: { adAccount: { select: { workspaceId: true, externalAccountId: true } } },
+    });
+    if (!job) return c.json({ error: 'Sync job not found' }, 404);
+
+    const wsm = await checkMember(userId, job.adAccount.workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+
+    return c.json({
+      jobId: job.id,
+      status: job.status,
+      progress: job.progress,
+      chunksDone: job.chunksDone,
+      chunksTotal: job.chunksTotal,
+      windowDays: job.windowDays,
+      windowSince: job.windowSince,
+      windowUntil: job.windowUntil,
+      cursorDate: job.cursorDate,
+      rowsFetched: job.rowsFetched,
+      rowsUpserted: job.rowsUpserted,
+      error: job.error,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+      createdAt: job.createdAt,
+      adAccountId: job.adAccountId,
+      externalAccountId: job.adAccount.externalAccountId,
     });
   });
 
