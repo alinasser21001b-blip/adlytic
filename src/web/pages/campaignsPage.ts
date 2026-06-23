@@ -126,13 +126,67 @@ export function campaignsPage(): string {
     </div>
   </div>
 
+  <!-- Inspector-local styles. Kept inline (not in layout()) so the
+       tab styling lives next to the markup that uses it and we avoid
+       polluting the global stylesheet for a single modal. -->
+  <style>
+    .inspector-tab {
+      background: transparent;
+      color: var(--text-3);
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+      font-family: inherit;
+    }
+    .inspector-tab:hover { color: var(--text-2); }
+    .inspector-tab.is-active {
+      color: var(--text);
+      border-bottom-color: var(--primary, #6366f1);
+    }
+    .inspector-creative-card {
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      border: 1px solid var(--border-2);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .inspector-creative-thumb {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: var(--surface-1, #0f0f12);
+      background-size: cover;
+      background-position: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-3);
+      font-size: 28px;
+    }
+  </style>
+
   <!-- Campaign Inspector Modal — populated on-demand from
        /api/workspaces/:wsId/campaigns/:cid/inspector. Hidden by default.
-       Inner content is fully RTL/Arabic; rendered by renderInspector(). -->
+       Inner content is fully RTL/Arabic; rendered by renderInspector().
+
+       Phase 5: the body is now tabbed (Overview / Creatives / Audience).
+       Tab buttons live INSIDE the modal so the header stays clean. -->
   <div id="campaign-inspector-modal" class="modal-overlay" style="display:none;">
-    <div class="modal" style="max-width:760px;max-height:88vh;overflow-y:auto;">
+    <div class="modal" style="max-width:840px;max-height:88vh;overflow-y:auto;">
       <div class="modal-title" id="inspector-title" style="direction:rtl;text-align:right;">تفاصيل الحملة</div>
       <div class="modal-subtitle" id="inspector-subtitle" style="direction:rtl;text-align:right;">—</div>
+
+      <!-- Tab bar (RTL). data-tab values drive switchInspectorTab(). -->
+      <div id="inspector-tabs" role="tablist" style="display:flex;gap:4px;border-bottom:1px solid var(--border-2);margin:16px 0 14px;direction:rtl;">
+        <button class="inspector-tab is-active" data-tab="overview"  role="tab" type="button">النظرة العامة</button>
+        <button class="inspector-tab"           data-tab="creatives" role="tab" type="button">الإبداعات</button>
+        <button class="inspector-tab"           data-tab="audience"  role="tab" type="button">الجمهور</button>
+      </div>
+
       <div id="inspector-body">
         <div style="text-align:center;color:var(--text-3);padding:24px;direction:rtl;">جارٍ تحميل البيانات…</div>
       </div>
@@ -565,10 +619,110 @@ export function campaignsPage(): string {
       return '<div style="font-weight:700;color:var(--text);margin-bottom:10px;font-size:13px;direction:rtl;text-align:right;">' + escHtml(text) + '</div>';
     };
 
-    document.getElementById('inspector-body').innerHTML =
+    // ── Tab payloads ─────────────────────────────────────────────────────
+    // Each tab is a self-contained HTML string. We render them all up-front
+    // and use CSS display toggles to switch — no re-render on tab change,
+    // so the user can flip between Overview/Creatives/Audience instantly.
+    var overviewHtml =
       sectionHeader('الملخص المالي') + kpiHtml
     + sectionHeader('مؤشرات الأداء (مقارنة بآخر 7 أيام)') + signalsHtml
     + sectionHeader('سجل نصائح الذكاء الاصطناعي 🧠') + timelineHtml;
+
+    var creativesHtml = renderCreativesTab(Array.isArray(data.creatives) ? data.creatives : []);
+
+    // Audience tab — placeholder until Pass C (breakdowns) ships.
+    var audienceHtml =
+        '<div style="border:1px dashed var(--border-2);border-radius:10px;padding:32px;text-align:center;direction:rtl;color:var(--text-3);">'
+      +   '<div style="font-size:32px;margin-bottom:8px;">👥</div>'
+      +   '<div style="font-weight:700;color:var(--text);font-size:14px;margin-bottom:6px;">تحليل الجمهور قادم قريباً</div>'
+      +   '<div style="font-size:13px;line-height:1.7;">سنعرض هنا أداء الحملة بحسب العمر والجنس والمنصة والموضع، مع تحديد الشرائح الأقل تكلفة لكل رسالة.</div>'
+      + '</div>';
+
+    document.getElementById('inspector-body').innerHTML =
+        '<div data-tab-panel="overview">'  + overviewHtml  + '</div>'
+      + '<div data-tab-panel="creatives" style="display:none;">' + creativesHtml + '</div>'
+      + '<div data-tab-panel="audience"  style="display:none;">' + audienceHtml  + '</div>';
+
+    // Reset the active tab to Overview every time we render new data.
+    switchInspectorTab('overview');
+  }
+
+  /**
+   * Render the Creatives tab — a responsive grid of Ad cards. Each card
+   * shows the thumbnail (or a 🎨 fallback), the Ad name + status badge,
+   * and the first non-empty copy field (headline → primaryText → description).
+   * Cards are tied to the AD, not the creative, so when many ads share one
+   * creative the user sees each ad individually (which is what they read
+   * on Meta Ads Manager too).
+   */
+  function renderCreativesTab(creatives) {
+    if (!creatives.length) {
+      return ''
+        + '<div style="border:1px dashed var(--border-2);border-radius:10px;padding:32px;text-align:center;direction:rtl;color:var(--text-3);">'
+        +   '<div style="font-size:32px;margin-bottom:8px;">🎨</div>'
+        +   '<div style="font-weight:700;color:var(--text);font-size:14px;margin-bottom:6px;">لا توجد إبداعات بعد</div>'
+        +   '<div style="font-size:13px;line-height:1.7;">ستظهر هنا صور وفيديوهات الإعلانات بمجرد اكتمال مزامنة بيانات الحملة من Meta.</div>'
+        + '</div>';
+    }
+
+    var cardsHtml = creatives.map(function(item) {
+      var creative = item.creative || {};
+      var copy = creative.headline || creative.primaryText || creative.description || '';
+      var thumbStyle = creative.thumbnailUrl
+        ? 'background-image:url(' + JSON.stringify(creative.thumbnailUrl) + ');'
+        : '';
+      var fallbackIcon = creative.thumbnailUrl ? '' : (creative.videoId ? '🎬' : '🖼️');
+
+      var statusBadge =
+          '<span class="badge ' + statusBadgeClass(item.status) + '" style="font-size:11px;">'
+        +   escHtml(statusArabic(item.status))
+        + '</span>';
+
+      var copyHtml = copy
+        ? '<div style="color:var(--text-3);font-size:12px;line-height:1.6;direction:rtl;text-align:right;'
+          + 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">'
+          +   escHtml(copy)
+          + '</div>'
+        : '<div style="color:var(--text-3);font-size:12px;direction:rtl;text-align:right;font-style:italic;">—</div>';
+
+      return ''
+        + '<div class="inspector-creative-card">'
+        +   '<div class="inspector-creative-thumb" style="' + thumbStyle + '">' + fallbackIcon + '</div>'
+        +   '<div style="padding:12px;display:flex;flex-direction:column;gap:8px;">'
+        +     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;direction:rtl;">'
+        +       '<div style="font-weight:700;color:var(--text);font-size:13px;direction:rtl;text-align:right;'
+        +         'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;">'
+        +         escHtml(item.adName || '(بدون اسم)')
+        +       '</div>'
+        +       statusBadge
+        +     '</div>'
+        +     copyHtml
+        +   '</div>'
+        + '</div>';
+    }).join('');
+
+    return ''
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;direction:rtl;">'
+      +   cardsHtml
+      + '</div>';
+  }
+
+  /**
+   * Show one tab panel, hide the rest, and update the active styling on
+   * the tab buttons. Cheap: queries inside the modal only, no API calls.
+   */
+  function switchInspectorTab(name) {
+    var tabs = document.querySelectorAll('#inspector-tabs .inspector-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      var t = tabs[i];
+      if (t.dataset.tab === name) t.classList.add('is-active');
+      else t.classList.remove('is-active');
+    }
+    var panels = document.querySelectorAll('#inspector-body [data-tab-panel]');
+    for (var j = 0; j < panels.length; j++) {
+      var p = panels[j];
+      p.style.display = (p.getAttribute('data-tab-panel') === name) ? '' : 'none';
+    }
   }
 
   function showInspectorModal() { document.getElementById('campaign-inspector-modal').style.display = 'flex'; }
@@ -583,6 +737,9 @@ export function campaignsPage(): string {
     subtitleEl.textContent = 'جارٍ التحميل…';
     document.getElementById('inspector-body').innerHTML =
       '<div style="text-align:center;color:var(--text-3);padding:24px;direction:rtl;">جارٍ تحميل البيانات…</div>';
+    // Always start a fresh open on the Overview tab so the user lands on
+    // the financial summary they expect, not whatever tab they left open.
+    switchInspectorTab('overview');
     showInspectorModal();
     try {
       var data = await apiFetch('/api/workspaces/' + state.workspaceId + '/campaigns/' + encodeURIComponent(campaignId) + '/inspector?days=30');
@@ -616,6 +773,16 @@ export function campaignsPage(): string {
       if (!btn) return;
       e.preventDefault();
       openInspector(btn.getAttribute('data-campaign-id'));
+    });
+
+    // Tab switching — delegated so the listener survives renderInspector()
+    // overwriting #inspector-body. Idempotent: a re-render replaces panels,
+    // not buttons, so the original handler stays bound.
+    document.getElementById('inspector-tabs').addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest && e.target.closest('.inspector-tab');
+      if (!btn) return;
+      var name = btn.getAttribute('data-tab');
+      if (name) switchInspectorTab(name);
     });
 
     // Close handlers: explicit button, backdrop click, and Escape key.

@@ -1086,7 +1086,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const since = new Date(Date.now() - days * 86400 * 1000);
 
-    const [dailyStats, snapshots] = await Promise.all([
+    const [dailyStats, snapshots, ads] = await Promise.all([
       prisma.dailyStat.findMany({
         where: { entityType: EntityType.CAMPAIGN, entityId: campaign.id, date: { gte: since } },
         orderBy: { date: 'desc' },
@@ -1094,6 +1094,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       prisma.campaignBrainSnapshot.findMany({
         where: { campaignId: campaign.id, tickDate: { gte: since } },
         orderBy: { tickDate: 'desc' },
+      }),
+      // Phase 5 — Creatives tab. Walks ad_sets → ads → ad_creatives for this
+      // campaign. Capped at 50 rows: enough for a busy account's creative grid
+      // without bloating the payload. Sort order keeps the most recently added
+      // ads first so a brand-new creative shows up at the top of the grid.
+      prisma.ad.findMany({
+        where: { adSet: { campaignId: campaign.id } },
+        include: {
+          creative: true,
+          adSet: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
       }),
     ]);
 
@@ -1250,6 +1263,31 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         narration:        s.narrationJson,
       })),
       signals: { positive, negative },
+      // Phase 5 Creatives tab. Each entry = one Ad with its (optionally
+      // shared) creative joined. The cordon discipline from creativeMapper
+      // already normalized Meta's vocabulary into the AdCreative columns
+      // we expose here — the client never sees raw `object_story_spec` etc.
+      creatives: ads.map((ad) => ({
+        adId:         ad.id,
+        externalAdId: ad.externalAdId,
+        adName:       ad.name,
+        status:       ad.status,
+        adSet:        ad.adSet ? { id: ad.adSet.id, name: ad.adSet.name } : null,
+        creative: ad.creative
+          ? {
+              id:                 ad.creative.id,
+              externalCreativeId: ad.creative.externalCreativeId,
+              name:               ad.creative.name,
+              thumbnailUrl:       ad.creative.thumbnailUrl,
+              imageHash:          ad.creative.imageHash,
+              videoId:            ad.creative.videoId,
+              primaryText:        ad.creative.primaryText,
+              headline:           ad.creative.headline,
+              description:        ad.creative.description,
+              callToActionType:   ad.creative.callToActionType,
+            }
+          : null,
+      })),
     }));
   });
 
