@@ -64,6 +64,14 @@ interface CmoPayload {
     ctrPercent: number;
   };
 
+  // Authorized for quoting in narration. All numbers in account-major units
+  // (currency for costPerMessage; raw % for ctr; ratio for frequency).
+  absolutes: {
+    costPerMessage: { current: number; baseline: number };
+    ctr:            { current: number; baseline: number };
+    frequency:      { current: number; baseline: number };
+  };
+
   v2?: {
     marketPressure: {
       status: 'CHEAP_AUCTION' | 'NORMAL' | 'BLOODBATH';
@@ -108,6 +116,20 @@ function buildPayload(b: BrainTickResult): CmoPayload {
     deltas: {
       costPerMessagePercent: b.physics.costPerMessage.delta,
       ctrPercent: b.physics.ctr.delta,
+    },
+    absolutes: {
+      costPerMessage: {
+        current:  b.physics.costPerMessage.value,
+        baseline: b.physics.costPerMessage.baseline,
+      },
+      ctr: {
+        current:  b.physics.ctr.value,
+        baseline: b.physics.ctr.baseline,
+      },
+      frequency: {
+        current:  b.physics.frequency.value,
+        baseline: b.physics.frequency.baseline,
+      },
     },
   };
 
@@ -181,6 +203,14 @@ ABSOLUTE RULES (violating any of these = system failure)
 1. ZERO HALLUCINATION. Use ONLY numbers, statuses, and text present in the JSON payload.
    - Never invent metrics, dates, audiences, or product attributes.
    - If a number is not in the payload, do NOT mention it.
+
+1b. ABSOLUTE METRIC QUOTING — the "absolutes" block contains the canonical
+   engine output. You ARE authorized to quote these exact values verbatim
+   inside the narration to make advice specific (e.g. "تكلفة الرسالة الحالية
+   1.45 مقابل متوسط الحساب 1.10، بزيادة 31%"). Round to at most 2 decimals.
+   Do NOT append currency symbols or units — quote the bare number.
+   "deltas.*" remain the source of truth for percent changes; "absolutes.*"
+   are for the underlying values that produced those deltas.
 
 2. PRE-TRANSLATED ARABIC IS SACRED.
    - Strings inside "v2.dna.deviations[]" are already written in correct Arabic by the engine. Use them verbatim or rephrase with surgical care; do NOT contradict them.
