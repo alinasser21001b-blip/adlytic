@@ -71,10 +71,18 @@ export async function runBrainNarrationCron(
     // ── 1. Targeted fetch: NULL narration OR (HIGH/CRITICAL AND stale). ──
     const staleCutoff = new Date(now.getTime() - NARRATION_CRON_CONFIG.STALE_HOURS_FOR_REGEN * 3600_000);
 
+    // BUG FIX 2026-06-24: BrainPersistence.persistBrainBatch creates rows
+    // without setting `narrationJson`, so the column defaults to DATABASE
+    // NULL. The previous filter `equals: Prisma.JsonNull` only matches rows
+    // whose stored JSON value is the literal `null` — it does NOT match DB
+    // NULL. Net effect: brand-new (cold-start) snapshots were never picked
+    // up, and the cron logged "no rows pending narration — exiting" forever.
+    // `Prisma.AnyNull` matches BOTH DB NULL and JSON null, covering newly
+    // created rows and any legacy rows that may have been explicitly nulled.
     const rows = await prisma.campaignBrainSnapshot.findMany({
       where: {
         OR: [
-          { narrationJson: { equals: Prisma.JsonNull } },
+          { narrationJson: { equals: Prisma.AnyNull } },
           {
             priority: { in: ['CRITICAL', 'HIGH'] },
             narrationGeneratedAt: { lt: staleCutoff },
