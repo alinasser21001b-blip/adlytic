@@ -81,6 +81,72 @@ export interface SyncOptions {
   now?: Date;
 }
 
+// ── Meta rate-limit + breakdown-error helpers ───────────────────────────
+//
+// Meta surfaces "user request limit reached" as HTTP 400 with body
+// `{ error: { code: 17, error_subcode: 2446079, ... } }`. Code 17 is distinct
+// from HTTP 429 (which our metaClient already retries with exp backoff); it
+// fires per-AD-ACCOUNT and per-user, NOT per-IP, so spinning up parallel
+// workers does NOT route around it. The only effective remedies are
+// (a) reducing the work we ask for and (b) backing off when we hit it.
+//
+// `extractMetaErrorCode` pulls `error.code` out of a MetaApiError body so
+// callers can branch on the specific failure class without parsing strings.
+function extractMetaErrorCode(err: unknown): number | null {
+  if (!(err instanceof MetaApiError)) return null;
+  const body = err.body as { error?: { code?: unknown } } | null | undefined;
+  const code = body?.error?.code;
+  return typeof code === "number" ? code : null;
+}
+
+// True for any Meta error indicating the breakdown combination is rejected
+// at the platform layer. We currently only see this for
+// `platform_position` × the messaging-action set, but the matcher is broad
+// enough to catch the analogous "(#100) Invalid parameter" surface for any
+// future incompatible breakdown rather than crashing the whole sync.
+function isInvalidBreakdownCombination(err: unknown): boolean {
+  if (!(err instanceof MetaApiError)) return false;
+  if (err.status !== 400) return false;
+  const body = err.body as { error?: { code?: unknown; message?: unknown } } | null | undefined;
+  const code = body?.error?.code;
+  const msg = String(body?.error?.message ?? "").toLowerCase();
+  // OAuthException #100 == "Invalid parameter" — Meta's catch-all for
+  // breakdown/field combinations they refuse to compute.
+  if (code === 100) return true;
+  if (msg.includes("invalid") && (msg.includes("breakdown") || msg.includes("combination"))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Run an async Meta call once, and if it fails with `error.code = 17`
+ * (user request limit reached), sleep CODE_17_COOLDOWN_MS and try again
+ * exactly once. Any other error — and a second code-17 hit — propagates
+ * untouched so the caller's existing fault-isolation paths still fire.
+ *
+ * We intentionally retry ONCE, not in a loop: code 17 typically lasts for
+ * minutes once tripped; a tight retry loop would just burn the budget
+ * faster. One retry covers transient spikes without becoming the problem.
+ */
+const CODE_17_COOLDOWN_MS = 2000;
+async function withCode17Retry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (extractMetaErrorCode(e) !== 17) throw e;
+    console.warn(`[meta-throttle] ${label} hit Meta code 17 — sleeping ${CODE_17_COOLDOWN_MS}ms and retrying once…`);
+    await new Promise<void>((r) => setTimeout(r, CODE_17_COOLDOWN_MS));
+    return await fn();
+  }
+}
+
+/** Politeness spacing between campaigns inside ad/creative discovery —
+ *  separate from INTER_CHUNK_DELAY_MS (which gates *batches* of 3). This
+ *  delay sits BETWEEN individual campaign processing blocks to spread
+ *  Meta call volume more evenly over time. */
+const INTER_CAMPAIGN_DELAY_MS = 500;
+
 /**
  * Stable 32-bit integer hash of a string — safe as a Postgres advisory lock key.
  * Advisory locks take a bigint; we keep it positive and under 2^31 to stay within
@@ -360,12 +426,15 @@ export class SyncAccountWorker {
       const slice = campaigns.slice(i, i + CAMPAIGN_CONCURRENCY);
       const results = await Promise.allSettled(
         slice.map(async (camp) => {
-          const rows = await this.meta.getInsights({
-            externalId: camp.externalCampaignId,
-            level: 'campaign',
-            since: opts.since,
-            until: opts.until,
-          });
+          const rows = await withCode17Retry(
+            `getInsights(${camp.externalCampaignId})`,
+            () => this.meta.getInsights({
+              externalId: camp.externalCampaignId,
+              level: 'campaign',
+              since: opts.since,
+              until: opts.until,
+            }),
+          );
           if (rows.length === 0) return 0;
 
           const dailyBatch = rows.map((r) => ({
@@ -429,21 +498,71 @@ export class SyncAccountWorker {
   //       abort the whole pass. Errors are logged with context.
   // ════════════════════════════════════════════════════════════════════════
   async syncAdSetsAndAds(
-    adAccountId: string
+    adAccountId: string,
+    opts: { since?: Date } = {}
   ): Promise<{ adSetsUpserted: number; adsUpserted: number; creativesUpserted: number }> {
     const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
     const tag = `[syncAdsAndCreatives:${acct.externalAccountId}]`;
 
-    const campaigns = await this.prisma.campaign.findMany({
+    // Default to a 30-day spend lookback when the caller doesn't pass one —
+    // matches the dashboard's default inspector window so "campaigns the
+    // operator sees" and "campaigns we walk for creatives" are the same set.
+    const since = opts.since ?? new Date(Date.now() - 30 * 86400 * 1000);
+
+    const allCampaigns = await this.prisma.campaign.findMany({
       where: { adAccountId },
-      select: { id: true, externalCampaignId: true, name: true },
+      select: { id: true, externalCampaignId: true, name: true, status: true },
     });
-    if (campaigns.length === 0) {
+    if (allCampaigns.length === 0) {
       console.log(`${tag} no campaigns under account — nothing to discover`);
       return { adSetsUpserted: 0, adsUpserted: 0, creativesUpserted: 0 };
     }
 
-    console.log(`${tag} walking ${campaigns.length} campaign(s) for ad-sets, ads, and creatives…`);
+    // ── Optimization: filter to ACTIVE OR recently-spent campaigns ─────────
+    //
+    // Meta enforces a per-ad-account call-volume ceiling (error code 17).
+    // On accounts with 70+ historical campaigns, walking every one to fetch
+    // ad-sets + ads instantly burns the entire budget — and ~90% of those
+    // calls return data for paused campaigns the operator can no longer
+    // act on. We restrict to:
+    //
+    //   • status = ACTIVE             — currently delivering, always worth refresh
+    //   • any campaign with non-zero spend inside the sync window
+    //
+    // A paused campaign that spent yesterday still belongs in the set: the
+    // operator may want to inspect why it paused. A campaign last active in
+    // 2024 does NOT — fetching its dead creatives wastes the API budget that
+    // the live ones need.
+    //
+    // Pulling spend totals: ONE aggregate query over DailyStat keyed by the
+    // campaign IDs we just listed. Cheap (small N, indexed columns) and
+    // happens BEFORE any Meta call, so the budget is unaffected by it.
+    const campaignIds = allCampaigns.map((c) => c.id);
+    const spentRows = await this.prisma.dailyStat.groupBy({
+      by: ['entityId'],
+      where: {
+        entityType: EntityType.CAMPAIGN,
+        entityId: { in: campaignIds },
+        date: { gte: since },
+        spend: { gt: 0n },
+      },
+      _sum: { spend: true },
+    });
+    const recentlySpentIds = new Set(spentRows.map((r) => r.entityId));
+
+    const campaigns = allCampaigns.filter(
+      (c) => c.status === EntityStatus.ACTIVE || recentlySpentIds.has(c.id),
+    );
+    const skipped = allCampaigns.length - campaigns.length;
+    console.log(
+      `${tag} walking ${campaigns.length}/${allCampaigns.length} campaign(s) for ad-sets, ads, creatives ` +
+      `(skipped ${skipped} inactive+no-spend; window since ${ymd(since)})`
+    );
+
+    if (campaigns.length === 0) {
+      console.log(`${tag} no eligible campaigns after filter — nothing to discover`);
+      return { adSetsUpserted: 0, adsUpserted: 0, creativesUpserted: 0 };
+    }
 
     let adSetsUpserted = 0;
     let adsUpserted = 0;
@@ -456,9 +575,17 @@ export class SyncAccountWorker {
       const slice = campaigns.slice(i, i + CAMPAIGN_CONCURRENCY);
 
       const settled = await Promise.allSettled(
-        slice.map(async (camp) => {
+        slice.map(async (camp, sliceIdx) => {
+          // Stagger the start of each campaign inside the slice — keeps the
+          // burst into Meta from being three simultaneous calls when this
+          // promise.allSettled fires. Cheap, big budget savings on hot accounts.
+          if (sliceIdx > 0) await sleep(INTER_CAMPAIGN_DELAY_MS);
+
           // ── Pass A: AdSets ─────────────────────────────────────────────
-          const metaAdSets = await this.meta.listAdSets(camp.externalCampaignId);
+          const metaAdSets = await withCode17Retry(
+            `listAdSets(${camp.externalCampaignId})`,
+            () => this.meta.listAdSets(camp.externalCampaignId),
+          );
           let localAdSets = 0;
           let localAds = 0;
           let localCreatives = 0;
@@ -493,7 +620,10 @@ export class SyncAccountWorker {
             localAdSets++;
 
             // ── Pass B: Ads under this ad-set (+ inline creatives) ──────
-            const metaAds = await this.meta.listAds(norm.externalAdSetId);
+            const metaAds = await withCode17Retry(
+              `listAds(${norm.externalAdSetId})`,
+              () => this.meta.listAds(norm.externalAdSetId),
+            );
 
             for (const rawAd of metaAds) {
               const adNorm = mapMetaAd(rawAd);
@@ -657,13 +787,16 @@ export class SyncAccountWorker {
           for (let d = 0; d < DIMENSIONS.length; d++) {
             const dim = DIMENSIONS[d]!;
             try {
-              const rows = await this.meta.getInsights({
-                externalId: camp.externalCampaignId,
-                level: 'campaign',
-                since: opts.since,
-                until: opts.until,
-                breakdowns: [dim],
-              });
+              const rows = await withCode17Retry(
+                `getInsights(${camp.externalCampaignId}, breakdown=${dim})`,
+                () => this.meta.getInsights({
+                  externalId: camp.externalCampaignId,
+                  level: 'campaign',
+                  since: opts.since,
+                  until: opts.until,
+                  breakdowns: [dim],
+                }),
+              );
 
               if (rows.length === 0) {
                 if (d < DIMENSIONS.length - 1) await sleep(INTER_DIM_DELAY_MS);
@@ -710,10 +843,23 @@ export class SyncAccountWorker {
                 localRows++;
               }
             } catch (err) {
-              const msg = err instanceof MetaApiError
-                ? `Meta ${err.status}: ${err.message}`
-                : err instanceof Error ? err.message : String(err);
-              console.error(`${tag} campaign=${camp.externalCampaignId} dim=${dim} FAILED — ${msg}`);
+              // Meta rejects some breakdown combinations at the platform layer
+              // (most consistently: `platform_position` paired with the
+              // messaging-action insight fields). When that happens the right
+              // move is a one-line warning and skip — it is a permanent shape
+              // mismatch, not a transient outage, so escalating it as an
+              // error spams the log and obscures real issues.
+              if (isInvalidBreakdownCombination(err)) {
+                console.warn(
+                  `${tag} campaign=${camp.externalCampaignId} dim=${dim} skipped — ` +
+                  `Meta rejects this breakdown combination`,
+                );
+              } else {
+                const msg = err instanceof MetaApiError
+                  ? `Meta ${err.status}: ${err.message}`
+                  : err instanceof Error ? err.message : String(err);
+                console.error(`${tag} campaign=${camp.externalCampaignId} dim=${dim} FAILED — ${msg}`);
+              }
               // Continue to next dimension; partial coverage > total abort.
             }
 
@@ -876,7 +1022,7 @@ export class SyncAccountWorker {
       // already-working account/campaign sync. Runs AFTER syncCampaigns so the
       // Campaign rows it walks are guaranteed to exist.
       try {
-        const adsResult = await this.syncAdSetsAndAds(adAccountId);
+        const adsResult = await this.syncAdSetsAndAds(adAccountId, { since });
         console.log(
           `${tag} ads/creatives: ${adsResult.adSetsUpserted} ad-sets, ` +
           `${adsResult.adsUpserted} ads, ${adsResult.creativesUpserted} creatives`
