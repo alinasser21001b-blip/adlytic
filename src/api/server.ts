@@ -68,6 +68,7 @@ import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken } from '../services/tokenEncryption';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, type MetaAdAccountInfo } from '../services/metaOAuth';
+import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 
 // ── Background sync window policy ─────────────────────────────────────────
@@ -1714,6 +1715,23 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
 
+    // ── Mock-auth escape hatch ──────────────────────────────────────────
+    // When META_MOCK_AUTH=true, bypass Facebook entirely: hand the UI a URL
+    // that points back at our own mock-callback endpoint, which will
+    // synthesize a session keyed to MOCK_ACCOUNTS. This is the only way to
+    // exercise the dashboard end-to-end while Meta App Review is pending.
+    if (isMockAuthEnabled()) {
+      console.warn('[adlytic:meta-oauth] MOCK MODE — bypassing Facebook OAuth dialog');
+      pruneOAuth();
+      const state = (await import('node:crypto')).randomBytes(32).toString('hex');
+      oauthStates.set(state, { workspaceId, userId, expiresAt: Date.now() + 10 * 60_000 });
+      return c.json({
+        url: `/api/meta/oauth/mock-callback?state=${state}`,
+        configured: true,
+        mock: true,
+      });
+    }
+
     const status = getMetaOAuthConfigStatus();
     const oauth  = buildMetaOAuth();
     if (!oauth || !status.ok) {
@@ -1732,6 +1750,43 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     oauthStates.set(state, { workspaceId, userId, expiresAt: Date.now() + 10 * 60_000 });
 
     return c.json({ url: oauth.getAuthorizationUrl(state), configured: true });
+  });
+
+  /**
+   * GET /api/meta/oauth/mock-callback?state=xxx
+   * Mock-auth equivalent of the real /callback endpoint. Validates the
+   * state token, synthesizes a session with MOCK_ACCOUNTS and the
+   * MOCK_ACCESS_TOKEN sentinel, then redirects to /meta/connect.
+   * Refuses to run unless META_MOCK_AUTH is enabled — defence in depth.
+   */
+  app.get('/api/meta/oauth/mock-callback', async (c) => {
+    if (!isMockAuthEnabled()) {
+      return c.redirect('/workspace?oauth_error=mock_mode_disabled');
+    }
+    const state = c.req.query('state');
+    if (!state) return c.redirect('/workspace?oauth_error=missing_state');
+
+    pruneOAuth();
+    const stored = oauthStates.get(state);
+    if (!stored || stored.expiresAt < Date.now()) {
+      return c.redirect('/workspace?oauth_error=expired_state');
+    }
+    oauthStates.delete(state);
+
+    const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
+    oauthSessions.set(sessionId, {
+      workspaceId:  stored.workspaceId,
+      userId:       stored.userId,
+      accessToken:  MOCK_ACCESS_TOKEN,
+      // Mock "tokens" never expire in practice; pick a far-future stamp
+      // so token-refresh code paths treat them as healthy.
+      expiresAt:    new Date(Date.now() + 365 * 86400 * 1000),
+      accounts:     MOCK_ACCOUNTS.slice(),
+      createdAt:    Date.now(),
+    });
+
+    console.warn('[adlytic:meta-oauth] MOCK MODE — synthesized session', sessionId);
+    return c.redirect(`/meta/connect?session=${sessionId}`);
   });
 
   /**
@@ -1881,6 +1936,31 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     // Invalidate session — one-time use
     oauthSessions.delete(sessionId);
+
+    // ── Mock-auth seeding ────────────────────────────────────────────────
+    // If this connect was driven by the mock OAuth flow, the stored token is
+    // the MOCK_ACCESS_TOKEN sentinel. Skip the real Meta sync chain (which
+    // would inevitably fail with auth errors) and instead seed a realistic
+    // dataset so the dashboard renders end-to-end.
+    if (isMockAuthEnabled() && session.accessToken === MOCK_ACCESS_TOKEN) {
+      try {
+        const ws = await prisma.workspace.findUnique({
+          where: { id: workspaceId },
+          include: { adAccounts: true },
+        });
+        const acct = ws?.adAccounts.find(a => a.externalAccountId === account.id);
+        if (acct) {
+          setImmediate(() => {
+            void seedMockAdAccountData(prisma, acct.id).catch((err: unknown) => {
+              console.error('[adlytic:mock-seed]', err);
+            });
+          });
+        }
+      } catch (e) {
+        console.error('[adlytic:mock-seed-setup]', e);
+      }
+      return c.json({ success: true, mock: true });
+    }
 
     // Kick off initial INITIAL_BACKFILL_DAYS-day chunked sync in the background.
     // We persist a SyncJob so the frontend can poll progress on first connect.
