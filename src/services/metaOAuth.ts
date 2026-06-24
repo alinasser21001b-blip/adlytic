@@ -25,6 +25,11 @@ export class MetaOAuth {
     private appSecret:   string,
     private redirectUri: string,
     private apiVersion = 'v20.0',
+    /** OAuth scope string sent in the authorization dialog. Defaults to
+     *  `ads_read` (the production scope). Operators can downgrade via
+     *  env to e.g. `public_profile` to validate the redirect handshake
+     *  before Meta's App Review has approved `ads_read`. */
+    private scope = 'ads_read',
   ) {
     this.base = `https://graph.facebook.com/${this.apiVersion}`;
   }
@@ -34,7 +39,7 @@ export class MetaOAuth {
     const params = new URLSearchParams({
       client_id:     this.appId,
       redirect_uri:  this.redirectUri,
-      scope:         'ads_read',
+      scope:         this.scope,
       state,
       response_type: 'code',
     });
@@ -108,7 +113,7 @@ export class MetaOAuth {
  * callers that only care about the boolean continue to work via `buildMetaOAuth()`.
  */
 export type MetaOAuthConfigStatus =
-  | { ok: true;  redirectUri: string; apiVersion: string }
+  | { ok: true;  redirectUri: string; apiVersion: string; scope: string }
   | { ok: false; reason: string };
 
 /**
@@ -137,7 +142,15 @@ export function getMetaOAuthConfigStatus(): MetaOAuthConfigStatus {
     return { ok: false, reason: `Invalid META_API_VERSION: "${apiVersion}" (expected format like "v20.0")` };
   }
 
-  return { ok: true, redirectUri, apiVersion };
+  // OAuth scope is intentionally permissive: any whitespace-separated list of
+  // Meta scope tokens is accepted. We do NOT pin a closed allowlist because
+  // Meta evolves the available scopes faster than we ship; rejecting an
+  // unknown scope here would lock operators out of a valid future permission.
+  // Empty / whitespace-only values fall back to the production default
+  // `ads_read` so an accidentally-blanked env var never sends `scope=`.
+  const scope = (process.env['META_OAUTH_SCOPE'] ?? '').trim() || 'ads_read';
+
+  return { ok: true, redirectUri, apiVersion, scope };
 }
 
 /**
@@ -153,5 +166,5 @@ export function buildMetaOAuth(): MetaOAuth | null {
   const appId     = (process.env['META_APP_ID']     ?? '').trim();
   const appSecret = (process.env['META_APP_SECRET'] ?? '').trim();
 
-  return new MetaOAuth(appId, appSecret, status.redirectUri, status.apiVersion);
+  return new MetaOAuth(appId, appSecret, status.redirectUri, status.apiVersion, status.scope);
 }
