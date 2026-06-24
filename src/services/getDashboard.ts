@@ -64,6 +64,10 @@ export interface DashboardDTO {
     industry: string | null;
     locale: Locale;
     currency: string;
+    /** Minor-unit factor for the account currency (100 for USD/EUR/…, 1 for IQD).
+     *  Clients use this to render BigInt minor values without hard-coding the
+     *  IQD-vs-everything-else rule. */
+    currencyMinorFactor: number;
     lastSyncedAt: string | null;
     activeCampaigns: number;
   };
@@ -256,26 +260,59 @@ export async function getDashboard(
   });
 
   // 5. KPIs — current-window aggregates + deltas from the trend row.
-  const totalSpend = sum(daily, "spend");
-  const totalMsgs = sum(daily, "messages");
-  const totalReach = daily.length ? Number(daily[daily.length - 1].reach) : 0;
-  const ctrAvg = avg(daily, "ctr");
-  const cpmAvg = avg(daily, "cpm");
+  // ── Math audit note ──────────────────────────────────────────────────
+  // CTR and CPM are RATIOS. Window-aggregated ratios must be computed from
+  // window totals (Σnum / Σden), NOT as the arithmetic mean of per-day rates.
+  // The mean-of-rates form treats every day equally regardless of impressions,
+  // and overweights low-traffic days. This is the codebase's stated convention.
+  const totalSpendMinor = sum(daily, "spend");
+  const totalMsgs       = sum(daily, "messages");
+  const totalReach      = daily.length ? Number(daily[daily.length - 1]!.reach) : 0;
+  const totalImpr       = sum(daily, "impressions");
+  const totalClicks     = sum(daily, "clicks");
+  const curr            = account.currency;
+  const factor          = account.currencyMinorFactor;
+
+  /** Format a minor-unit value into account-currency major units. */
+  const money = (minor: number): string => {
+    if (!Number.isFinite(minor)) return `0 ${curr}`;
+    // IQD has no practical minor unit; render the integer directly. For all
+    // other currencies divide by their declared factor (not a hardcoded 100).
+    if (factor === 1) return `${Math.round(minor).toLocaleString()} ${curr}`;
+    return `${(minor / factor).toFixed(2)} ${curr}`;
+  };
+  /** Format an already-major-unit value (e.g. computed CPM) into currency. */
+  const moneyMajor = (major: number): string => {
+    if (!Number.isFinite(major)) return `0 ${curr}`;
+    if (factor === 1) return `${Math.round(major).toLocaleString()} ${curr}`;
+    return `${major.toFixed(2)} ${curr}`;
+  };
+
+  // Window-total CTR = Σclicks / Σimpressions × 100. Returns null when there
+  // are zero impressions — silent zero would be a lie.
+  const ctrWindow: number | null = totalImpr > 0 ? (totalClicks / totalImpr) * 100 : null;
+  // Window-total CPM = (Σspend_major / Σimpressions) × 1000.
+  const totalSpendMajor = factor === 1 ? totalSpendMinor : totalSpendMinor / factor;
+  const cpmWindow: number | null = totalImpr > 0 ? (totalSpendMajor / totalImpr) * 1000 : null;
+  // Frequency: the true windowed value would need unique reach over the whole
+  // window (Meta returns daily reach, not lifetime). Without that we keep the
+  // daily-mean form but mark the limitation. Engines that need exact values
+  // should pull from MetricTrend, not from this aggregate.
   const freqAvg = avg(daily, "frequency");
-  const curr = account.currency;
-  const money = (minor: number) =>
-    `${curr === "IQD" ? Math.round(minor).toLocaleString() : (minor / 100).toFixed(2)} ${curr}`;
 
   const kpis: DashboardDTO["kpis"] = [
-    { key: "spend", label: "Spend", value: totalSpend, display: money(totalSpend),
+    { key: "spend", label: "Spend", value: totalSpendMinor, display: money(totalSpendMinor),
       deltaPct: trend?.spendTrend ?? null, direction: dir(trend?.spendTrend ?? null), goodWhenUp: true },
-    { key: "messages", label: "Messages", value: totalMsgs, display: String(totalMsgs),
+    { key: "messages", label: "Messages", value: totalMsgs, display: totalMsgs.toLocaleString(),
       deltaPct: trend?.resultsTrend ?? null, direction: dir(trend?.resultsTrend ?? null), goodWhenUp: true },
-    { key: "ctr", label: "CTR", value: ctrAvg ?? 0, display: ctrAvg ? `${ctrAvg.toFixed(1)}%` : "—",
+    { key: "ctr", label: "CTR", value: ctrWindow ?? 0,
+      display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
       deltaPct: trend?.ctrTrend ?? null, direction: dir(trend?.ctrTrend ?? null), goodWhenUp: true },
-    { key: "cpm", label: "CPM", value: cpmAvg ?? 0, display: cpmAvg ? money(cpmAvg) : "—",
+    { key: "cpm", label: "CPM", value: cpmWindow ?? 0,
+      display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
       deltaPct: trend?.cpmTrend ?? null, direction: dir(trend?.cpmTrend ?? null), goodWhenUp: false },
-    { key: "frequency", label: "Frequency", value: freqAvg ?? 0, display: freqAvg ? freqAvg.toFixed(1) : "—",
+    { key: "frequency", label: "Frequency", value: freqAvg ?? 0,
+      display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
       deltaPct: trend?.frequencyTrend ?? null, direction: dir(trend?.frequencyTrend ?? null), goodWhenUp: false },
     { key: "reach", label: "Reach", value: totalReach, display: totalReach.toLocaleString(),
       deltaPct: null, direction: "flat", goodWhenUp: true },
@@ -345,6 +382,7 @@ export async function getDashboard(
       industry: ws.industryProfile?.name ?? null,
       locale,
       currency: curr,
+      currencyMinorFactor: factor,
       lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
       activeCampaigns: account.campaigns.length,
     },

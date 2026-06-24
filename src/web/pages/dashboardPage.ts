@@ -602,10 +602,11 @@ export function dashboardPage(): string {
     kpis.slice(0, 4).forEach(function (k) {
       if (k.deltaPct == null) return;
       var dir = k.direction === 'up' ? 'صعود' : 'هبوط';
+      // deltaPct is stored as a ratio (0.05 = 5%) — multiply before display.
       items.push({
         layer: 'L7',
         severity: k.direction === 'up' ? (k.goodWhenUp === false ? 'warning' : 'success') : (k.goodWhenUp === false ? 'success' : 'warning'),
-        text: (k.label || k.key) + ' ' + dir + ' ' + Math.abs(Number(k.deltaPct)).toFixed(1) + '% — رصد تلقائي للطبقة السابعة',
+        text: (k.label || k.key) + ' ' + dir + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '% — رصد تلقائي للطبقة السابعة',
       });
     });
     // Always include at least one steady-state insight if nothing else fired
@@ -718,8 +719,9 @@ export function dashboardPage(): string {
         if (up)   { deltaClass = good ? 'up-good' : 'up-bad'; arrow = '↑'; }
         else      { deltaClass = good ? 'down-bad' : 'down-good'; arrow = '↓'; }
       }
+      // deltaPct is stored as a ratio (0.05 = 5%) — multiply before display.
       var deltaHtml = k.deltaPct != null
-        ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.abs(Number(k.deltaPct)).toFixed(1) + '%</div>'
+        ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '%</div>'
         : '';
       return '<div class="kpi-card">'
         + '<div class="kpi-label">' + escHtml(k.label || k.key) + '</div>'
@@ -1198,5 +1200,5 @@ export function dashboardPage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'Dashboard', active: 'dashboard', content, scripts, extraHead });
+  return layout({ title: 'Dashboard', active: 'dashboard', content, scripts, extraHead, mode: 'pro' });
 }

@@ -468,6 +468,28 @@ select.form-input { cursor: pointer; }
   .mobile-menu-btn { display: flex !important; }
 }
 .mobile-menu-btn { display: none; }
+
+/* ── Dashboard mode toggle (Pro / Beginner) ──────────────────────────── */
+.mode-toggle {
+  display: inline-flex; align-items: center;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  margin-right: 8px;
+}
+.mode-toggle-btn {
+  padding: 5px 12px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text-3);
+  background: transparent;
+  border: none; border-radius: 999px;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+.mode-toggle-btn:hover { color: var(--text); }
+.mode-toggle-btn.active { background: var(--accent); color: #fff; }
 `;
 
 // ── Sidebar icons (SVG) ─────────────────────────────────────────────────
@@ -540,10 +562,15 @@ function fmt(n, decimals = 0) {
   return Number(n).toLocaleString(undefined, {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
 }
 function fmtPct(n) { if (n == null) return '—'; return Number(n).toFixed(1) + '%'; }
-function fmtMoney(n, currency) {
+// factor: minor-unit factor for the currency (100 for USD/EUR/…, 1 for IQD).
+// Defaults to currency === 'IQD' ? 1 : 100 so legacy callers that don't pass
+// a factor still produce the same output as before this change.
+function fmtMoney(n, currency, factor) {
   if (n == null) return '—';
-  const major = currency === 'IQD' ? Math.round(n) : (n / 100).toFixed(2);
-  return major.toLocaleString ? Number(major).toLocaleString() + ' ' + (currency||'') : major + ' ' + (currency||'');
+  if (factor == null) factor = currency === 'IQD' ? 1 : 100;
+  var major = Number(n) / factor;
+  if (factor === 1) return Math.round(major).toLocaleString() + ' ' + (currency || '');
+  return major.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (currency || '');
 }
 
 function deltaClass(dir, goodWhenUp) {
@@ -572,10 +599,39 @@ function statusBadge(s) {
   return '<span class="badge ' + (map[s]||'badge-gray') + '">' + s + '</span>';
 }
 
+/**
+ * Switch dashboard mode (pro / beginner) by POSTing the chosen mode to the
+ * backend, which writes a Set-Cookie response. We then hard-reload so the
+ * next /dashboard render picks the right page renderer. We do NOT optimistically
+ * swap CSS — the two views are entirely different markup served by different
+ * Hono routes; only a server-side render can produce the right page.
+ */
+async function setDashboardMode(mode) {
+  try {
+    await fetch('/api/dashboard-mode', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: mode }),
+    });
+  } catch (err) {
+    console.warn('[mode-toggle] failed to persist mode:', err);
+  }
+  window.location.reload();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
     document.querySelector('.sidebar')?.classList.toggle('open');
+  });
+  // Mode toggle — both buttons are wired; clicking the already-active one is
+  // a no-op (the server will reload the same page).
+  document.querySelectorAll('.mode-toggle-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var m = btn.getAttribute('data-mode');
+      if (m === 'pro' || m === 'beginner') setDashboardMode(m);
+    });
   });
 });
 `;
@@ -622,13 +678,23 @@ export function sidebar(active: string): string {
 }
 
 // ── Topbar HTML ─────────────────────────────────────────────────────────
-export function topbar(pageTitle: string): string {
+// `currentMode` selects which segment of the dashboard mode toggle is
+// highlighted. When undefined, the toggle is not rendered (used for pages
+// where the toggle is irrelevant — settings, login, register, etc.).
+export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): string {
+  const toggle = currentMode
+    ? `<div class="mode-toggle" role="group" aria-label="Dashboard mode">
+        <button class="mode-toggle-btn ${currentMode === 'pro' ? 'active' : ''}" data-mode="pro" id="mode-btn-pro">احترافي</button>
+        <button class="mode-toggle-btn ${currentMode === 'beginner' ? 'active' : ''}" data-mode="beginner" id="mode-btn-beginner">مبتدئ</button>
+      </div>`
+    : '';
   return `
 <header class="topbar">
   <button class="topbar-btn mobile-menu-btn" id="mobile-menu-btn" style="margin-right:8px;">
     ${ICONS['menu']}
   </button>
   <span class="topbar-title">${pageTitle}</span>
+  ${toggle}
   <div class="topbar-ws" id="ws-selector" title="Switch workspace">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
     <span class="topbar-ws-name" id="ws-name">Loading…</span>
@@ -639,14 +705,18 @@ export function topbar(pageTitle: string): string {
 }
 
 // ── Full page layout ────────────────────────────────────────────────────
+// `mode` is set ONLY by the dashboard page renderers; other pages omit it and
+// the toggle is hidden. The server is the source of truth for current mode
+// (via cookie) — the rendered page already reflects the choice.
 export function layout(opts: {
   title: string;
   active: string;
   content: string;
   scripts?: string;
   extraHead?: string;
+  mode?: 'pro' | 'beginner';
 }): string {
-  const { title, active, content, scripts = '', extraHead = '' } = opts;
+  const { title, active, content, scripts = '', extraHead = '', mode } = opts;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -661,7 +731,7 @@ export function layout(opts: {
   <div class="app-shell">
     ${sidebar(active)}
     <div class="main">
-      ${topbar(title)}
+      ${topbar(title, mode)}
       <div class="page-content">
         ${content}
       </div>

@@ -58,6 +58,7 @@ import { MetaClient } from '../services/metaClient';
 import { loginPage } from '../web/pages/loginPage';
 import { registerPage } from '../web/pages/registerPage';
 import { dashboardPage } from '../web/pages/dashboardPage';
+import { beginnerDashboardPage } from '../web/pages/beginnerDashboardPage';
 import { campaignsPage } from '../web/pages/campaignsPage';
 import { recommendationsPage } from '../web/pages/recommendationsPage';
 import { workspacePage } from '../web/pages/workspacePage';
@@ -271,7 +272,33 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/favicon.ico',    (c) => c.body(null, 204)); // suppress browser 404 noise
   app.get('/login',          (c) => c.html(loginPage()));
   app.get('/register',       (c) => c.html(registerPage()));
-  app.get('/dashboard',      (c) => c.html(dashboardPage()));
+  // /dashboard switches between the Pro view and the Beginner view based on a
+  // dashboard_mode cookie. The cookie is per-user-agent (httpOnly=false so the
+  // toggle JS can read it for the active-pill state on first load). Default is
+  // 'pro' to preserve the existing experience for everyone who hasn't opted in.
+  app.get('/dashboard', (c) => {
+    const cookieHeader = c.req.header('cookie') ?? '';
+    const m = /(?:^|;\s*)dashboard_mode=([^;]+)/.exec(cookieHeader);
+    const mode = m && m[1] === 'beginner' ? 'beginner' : 'pro';
+    return c.html(mode === 'beginner' ? beginnerDashboardPage() : dashboardPage());
+  });
+  // POST /api/dashboard-mode { mode: 'pro' | 'beginner' } — sets the cookie.
+  // We accept the body via raw JSON parse since this is one of the few
+  // endpoints that doesn't require a bearer token (the choice is presentation-
+  // only and not tied to any workspace data). Cookie scope: site-wide, 1y TTL.
+  app.post('/api/dashboard-mode', async (c) => {
+    let body: { mode?: string } = {};
+    try { body = await c.req.json(); } catch { /* no body / bad json */ }
+    const mode = body.mode === 'beginner' ? 'beginner' : 'pro';
+    // 1-year persistence; SameSite=Lax is sufficient (no cross-site POSTs need
+    // this cookie). Not HttpOnly so the SHARED_JS toggle can read it for the
+    // active-pill state without a round trip.
+    c.header(
+      'Set-Cookie',
+      `dashboard_mode=${mode}; Path=/; Max-Age=31536000; SameSite=Lax`,
+    );
+    return c.json({ ok: true, mode });
+  });
   app.get('/campaigns',      (c) => c.html(campaignsPage()));
   app.get('/recommendations',(c) => c.html(recommendationsPage()));
   app.get('/workspace',      (c) => c.html(workspacePage()));
