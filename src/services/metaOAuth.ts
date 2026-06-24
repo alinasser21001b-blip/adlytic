@@ -154,6 +154,34 @@ export function getMetaOAuthConfigStatus(): MetaOAuthConfigStatus {
 }
 
 /**
+ * Standalone Graph API call to list ad accounts using only a raw access
+ * token + apiVersion — no App ID / App Secret needed.
+ *
+ * Exists for the `META_DIRECT_TOKEN` bypass: when an operator pastes a
+ * Graph-API-Explorer or long-lived user token directly into env, we can
+ * fetch the accounts without ever invoking the OAuth dialog. This is the
+ * sibling of `MetaOAuth.getAdAccounts` but free of constructor coupling.
+ */
+export async function fetchMetaAdAccountsByToken(
+  token: string,
+  apiVersion = 'v20.0',
+): Promise<MetaAdAccountInfo[]> {
+  const params = new URLSearchParams({
+    fields:       'id,name,currency,timezone_name,account_status',
+    access_token: token,
+    limit:        '50',
+  });
+  const url = `https://graph.facebook.com/${apiVersion}/me/adaccounts?${params}`;
+  const res  = await fetch(url);
+  const data = await res.json() as Record<string, unknown>;
+  if (data['error']) {
+    const e = data['error'] as Record<string, unknown>;
+    throw new Error(`[Meta] Direct token list-accounts failed: ${String(e['message'] ?? e['type'] ?? 'unknown error')}`);
+  }
+  return (data['data'] ?? []) as MetaAdAccountInfo[];
+}
+
+/**
  * Factory: builds a MetaOAuth instance from env vars.
  * Returns null when META_APP_ID or META_APP_SECRET are not configured.
  * For diagnostic detail use `getMetaOAuthConfigStatus()`.

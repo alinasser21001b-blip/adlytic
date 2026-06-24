@@ -67,7 +67,7 @@ import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken } from '../services/tokenEncryption';
-import { buildMetaOAuth, getMetaOAuthConfigStatus, type MetaAdAccountInfo } from '../services/metaOAuth';
+import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 
@@ -1732,6 +1732,54 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       });
     }
 
+    // ── Direct-token escape hatch ───────────────────────────────────────
+    // When META_DIRECT_TOKEN is set, bypass the OAuth dialog entirely:
+    // use the token to call Graph API directly, fetch the operator's
+    // REAL ad accounts, and skip straight to /meta/connect. This is the
+    // production-data equivalent of mock mode — for when the App ID /
+    // App Secret handshake is misconfigured but the operator already has
+    // a working user token (e.g. from Graph API Explorer or a previous
+    // long-lived exchange).
+    const directToken = (process.env['META_DIRECT_TOKEN'] ?? '').trim();
+    if (directToken) {
+      console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE — bypassing OAuth dialog, calling Graph API with env token');
+      try {
+        const apiVersion = (process.env['META_API_VERSION'] ?? '').trim() || 'v20.0';
+        const accounts   = await fetchMetaAdAccountsByToken(directToken, apiVersion);
+        if (accounts.length === 0) {
+          console.error('[META_AUTH_FAILURE] direct-token: token is valid but returned 0 ad accounts');
+          return c.json({
+            configured: false,
+            reason: 'META_DIRECT_TOKEN returned 0 ad accounts — the token has no ads_read access on any ad account.',
+          });
+        }
+        pruneOAuth();
+        const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
+        oauthSessions.set(sessionId, {
+          workspaceId,
+          userId,
+          accessToken: directToken,
+          // Direct-token TTL is unknowable — operator owns rotation. Pick a
+          // far-future stamp so refresh code paths treat it as healthy.
+          expiresAt: new Date(Date.now() + 60 * 86400 * 1000),
+          accounts,
+          createdAt: Date.now(),
+        });
+        return c.json({
+          url: `/meta/connect?session=${sessionId}`,
+          configured: true,
+          directToken: true,
+        });
+      } catch (err: unknown) {
+        console.error('[META_AUTH_FAILURE] direct-token start failed:', err);
+        const msg = err instanceof Error ? err.message : String(err);
+        return c.json({
+          configured: false,
+          reason: `META_DIRECT_TOKEN rejected by Meta: ${msg}`,
+        });
+      }
+    }
+
     const status = getMetaOAuthConfigStatus();
     const oauth  = buildMetaOAuth();
     if (!oauth || !status.ok) {
@@ -1838,6 +1886,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return c.redirect(`/meta/connect?session=${sessionId}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // Aggressive logging: full error object first (stack + cause), then a
+      // separate line with just the string so log greps for [META_AUTH_FAILURE]
+      // pick it up even when the error has no `.message`.
+      console.error('[META_AUTH_FAILURE] callback exception object:', e);
+      console.error('[META_AUTH_FAILURE] callback message:', msg);
       console.error('[adlytic:meta-oauth]', msg);
       return c.redirect(`/workspace?oauth_error=${encodeURIComponent(msg)}`);
     }
@@ -2005,7 +2058,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           });
         });
       }
-    } catch { /* non-fatal */ }
+    } catch (kickoffErr: unknown) {
+      // Non-fatal: the AdAccount is already persisted; sync can be retried
+      // from the UI. Log loudly so Railway captures the exact failure.
+      console.error('[META_AUTH_FAILURE] post-connect sync kickoff failed:', kickoffErr);
+    }
 
     return c.json({ success: true });
   });
