@@ -17,6 +17,39 @@ export interface MetaAdAccountInfo {
   currency:        string;
   timezone_name:   string;
   account_status:  number;   // 1 = ACTIVE
+  /** Owning Business, when the field is requested + available (Phase 2). */
+  business?:       { id: string; name?: string };
+}
+
+/**
+ * Phase 2 — normalized result of inspecting a token via Graph `/debug_token`.
+ * Used to validate a System User token and discover its identity + scopes.
+ */
+export interface MetaTokenDebugInfo {
+  isValid:   boolean;
+  /** Meta token type, e.g. "USER", "SYSTEM_USER", "PAGE". */
+  type:      string | undefined;
+  /** System user / user id behind the token (user_id or profile_id). */
+  userId:    string | undefined;
+  scopes:    string[];
+  /** Expiry, or null when the token never expires (typical for System Users). */
+  expiresAt: Date | null;
+  appId:     string | undefined;
+  raw:       Record<string, unknown>;
+}
+
+/**
+ * Phase 2 — normalized System User connection snapshot, ready to persist as a
+ * MetaConnection row. Pure transport result; no DB writes happen here.
+ */
+export interface MetaSystemUserConnection {
+  systemUserId: string | undefined;
+  businessId:   string | undefined;
+  businessName: string | undefined;
+  scopes:       string[];
+  /** Expiry of the token, or null when it never expires. */
+  expiresAt:    Date | null;
+  accounts:     MetaAdAccountInfo[];
 }
 
 export class MetaOAuth {
@@ -44,6 +77,25 @@ export class MetaOAuth {
       scope:         this.scope,
       state,
       response_type: 'code',
+    });
+    return `https://www.facebook.com/${this.apiVersion}/dialog/oauth?${params}`;
+  }
+
+  /**
+   * Phase 2 — Build the FB Login for Business "configuration" authorization
+   * URL. Instead of the classic `scope` dialog, this references a pre-built
+   * Login configuration by `config_id`; Meta then presents the business asset
+   * selection flow (System User provisioning, ad-account/page grants, etc.)
+   * defined by that configuration. The redirect/callback contract (code+state)
+   * is identical to the classic flow.
+   */
+  getBusinessLoginUrl(state: string, configId: string): string {
+    const params = new URLSearchParams({
+      client_id:     this.appId,
+      redirect_uri:  this.redirectUri,
+      config_id:     configId,
+      response_type: 'code',
+      state,
     });
     return `https://www.facebook.com/${this.apiVersion}/dialog/oauth?${params}`;
   }
@@ -88,7 +140,9 @@ export class MetaOAuth {
   /** List all ad accounts accessible to the token holder. */
   async getAdAccounts(accessToken: string): Promise<MetaAdAccountInfo[]> {
     const params = new URLSearchParams({
-      fields:       'id,name,currency,timezone_name,account_status',
+      // `business{id,name}` is additive — legacy callers ignore the extra field,
+      // while the Phase 2 System User flow uses it to discover the BM id.
+      fields:       'id,name,currency,timezone_name,account_status,business{id,name}',
       access_token: accessToken,
       limit:        '50',
     });
@@ -96,6 +150,116 @@ export class MetaOAuth {
     const data = await res.json() as Record<string, unknown>;
     this.throwIfError(data, 'Failed to list ad accounts');
     return (data['data'] ?? []) as MetaAdAccountInfo[];
+  }
+
+  /**
+   * Phase 2 — Inspect a token via Graph `/debug_token` using the app access
+   * token (`{appId}|{appSecret}`). Returns validity, type, owning id, granted
+   * scopes, and expiry. Used to validate + identify a System User token.
+   */
+  async inspectToken(inputToken: string): Promise<MetaTokenDebugInfo> {
+    const appToken = `${this.appId}|${this.appSecret}`;
+    const params = new URLSearchParams({ input_token: inputToken, access_token: appToken });
+    const res  = await fetch(`${this.base}/debug_token?${params}`);
+    const data = await res.json() as Record<string, unknown>;
+    this.throwIfError(data, 'Token inspection failed');
+    const d = (data['data'] ?? {}) as Record<string, unknown>;
+    const expRaw = Number(d['expires_at'] ?? 0);
+    return {
+      isValid:   Boolean(d['is_valid']),
+      type:      d['type'] ? String(d['type']) : undefined,
+      // System User tokens expose the system user via `profile_id`; classic
+      // user tokens use `user_id`. Prefer whichever is present.
+      userId:    d['user_id'] ? String(d['user_id'])
+               : d['profile_id'] ? String(d['profile_id'])
+               : undefined,
+      scopes:    Array.isArray(d['scopes']) ? (d['scopes'] as string[]) : [],
+      // expires_at = 0 means the token never expires (System User tokens).
+      expiresAt: expRaw > 0 ? new Date(expRaw * 1000) : null,
+      appId:     d['app_id'] ? String(d['app_id']) : undefined,
+      raw:       d,
+    };
+  }
+
+  /**
+   * Phase 2 — List the ad accounts owned by a specific Business, using a
+   * System User token scoped to that Business. Complements `getAdAccounts`
+   * (which is token-holder centric via `/me/adaccounts`).
+   */
+  async getBusinessAdAccounts(businessId: string, token: string): Promise<MetaAdAccountInfo[]> {
+    const params = new URLSearchParams({
+      fields:       'id,name,currency,timezone_name,account_status,business{id,name}',
+      access_token: token,
+      limit:        '100',
+    });
+    const res  = await fetch(`${this.base}/${encodeURIComponent(businessId)}/owned_ad_accounts?${params}`);
+    const data = await res.json() as Record<string, unknown>;
+    this.throwIfError(data, 'Failed to list business ad accounts');
+    return (data['data'] ?? []) as MetaAdAccountInfo[];
+  }
+
+  /**
+   * Phase 2 — List the Business Managers (BMs) the token holder belongs to /
+   * owns, via Graph `/me/businesses`. For a System User token this returns the
+   * business(es) that provisioned the system user — the authoritative source
+   * for the owning BM id + name when an ad account doesn't expose
+   * `business{id,name}`. Returns [] (not an error) when the token has no
+   * business_management grant or owns no businesses.
+   */
+  async getOwnedBusinesses(token: string): Promise<Array<{ id: string; name?: string }>> {
+    const params = new URLSearchParams({
+      fields:       'id,name',
+      access_token: token,
+      limit:        '50',
+    });
+    const res  = await fetch(`${this.base}/me/businesses?${params}`);
+    const data = await res.json() as Record<string, unknown>;
+    this.throwIfError(data, 'Failed to list businesses');
+    return (data['data'] ?? []) as Array<{ id: string; name?: string }>;
+  }
+
+  /**
+   * Phase 2 — Validate a System User token and resolve everything needed to
+   * persist a MetaConnection: the system user id, owning Business, granted
+   * scopes, expiry, and the granted ad accounts. Network I/O only.
+   *
+   * Business discovery strategy (best → fallback):
+   *   1. `/me/adaccounts` yields the owning `business{id,name}` per account —
+   *      preferred because it's the BM that actually owns the ad assets.
+   *   2. If no account exposes a business (missing grant on the account), fall
+   *      back to `/me/businesses` (the BM(s) that own the System User itself)
+   *      and take the first. A final `su_<id>`/'unknown' fallback lives in the
+   *      caller for when even this returns nothing.
+   */
+  async resolveSystemUserConnection(token: string): Promise<MetaSystemUserConnection> {
+    const debug = await this.inspectToken(token);
+    if (!debug.isValid) {
+      throw new Error('[Meta] System User token is not valid (debug_token is_valid=false)');
+    }
+
+    const accounts = await this.getAdAccounts(token);
+    let biz: { id: string; name?: string } | undefined = accounts.find(a => a.business?.id)?.business;
+
+    // Fallback: derive the owning BM from the system user's own businesses.
+    if (!biz?.id) {
+      try {
+        const businesses = await this.getOwnedBusinesses(token);
+        if (businesses.length > 0) biz = businesses[0];
+      } catch (err) {
+        // Non-fatal: the caller has a final string fallback. Log and continue.
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[Meta] /me/businesses lookup failed during System User resolution: ${msg}`);
+      }
+    }
+
+    return {
+      systemUserId: debug.userId,
+      businessId:   biz?.id,
+      businessName: biz?.name,
+      scopes:       debug.scopes,
+      expiresAt:    debug.expiresAt,
+      accounts,
+    };
   }
 
   private throwIfError(data: Record<string, unknown>, context: string): void {

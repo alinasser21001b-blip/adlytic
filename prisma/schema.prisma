@@ -151,6 +151,33 @@ model MetaConnection {
   @@map("meta_connections")
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  Phase 2 — OAuthState (ADDITIVE, non-destructive)
+//
+//  Persists the short-lived CSRF `state` token generated at /meta/oauth/start
+//  and consumed (one-time) at /meta/oauth/callback. Previously held in an
+//  in-memory Map, which broke the handshake across Railway redeploys and
+//  multi-instance deploys. Rows are written with a ~10-minute TTL, deleted on
+//  consumption, and opportunistically pruned when expired. Works for BOTH the
+//  legacy user-OAuth flow and the System User / FB Login for Business flow.
+// ════════════════════════════════════════════════════════════════════════
+model OAuthState {
+  /// The random CSRF state value echoed back by Meta. Primary key.
+  state       String   @id
+  workspaceId String   @map("workspace_id")
+  userId      String   @map("user_id")
+  /// Which flow created this state: 'legacy' or 'system_user'. Informational —
+  /// the callback still branches on the META_SYSTEM_USER_ENABLED flag.
+  kind        String   @default("legacy")
+  /// Reserved for future per-flow data; unused today.
+  payload     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  expiresAt   DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("oauth_states")
+}
+
 model Campaign {
   id                 String       @id @default(cuid())
   adAccountId        String       @map("ad_account_id")

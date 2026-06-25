@@ -54,7 +54,7 @@ import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
-import { MetaClient } from '../services/metaClient';
+import { MetaClient, MetaApiError } from '../services/metaClient';
 import { loginPage } from '../web/pages/loginPage';
 import { registerPage } from '../web/pages/registerPage';
 import { dashboardPage } from '../web/pages/dashboardPage';
@@ -67,9 +67,10 @@ import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
-import { encryptToken, decryptToken } from '../services/tokenEncryption';
+import { encryptToken, decryptToken, TokenDecryptError } from '../services/tokenEncryption';
+import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { config } from '../config';
-import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, type MetaAdAccountInfo } from '../services/metaOAuth';
+import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 
@@ -150,15 +151,12 @@ function checkRateLimit(
   return true;
 }
 
-// ── Meta OAuth in-memory state ────────────────────────────────────────────
-// Cleared on server restart — acceptable for Phase 1 (single-server).
-// TTL: state tokens expire after 10 min; sessions after 30 min.
+// ── Meta OAuth state + session ────────────────────────────────────────────
+// OAuth `state` (CSRF token) is persisted in the DB (model OAuthState) with a
+// ~10-min TTL so the start→callback handshake survives Railway redeploys and
+// multi-instance deploys. Sessions remain in-memory (short-lived, consumed on
+// the same instance immediately after the redirect) — see follow-up note.
 
-interface OAuthState {
-  workspaceId: string;
-  userId:      string;
-  expiresAt:   number; // ms epoch
-}
 interface OAuthSession {
   workspaceId:  string;
   userId:       string;
@@ -166,15 +164,22 @@ interface OAuthSession {
   expiresAt:    Date;
   accounts:     MetaAdAccountInfo[];
   createdAt:    number; // ms epoch
+  // ── Phase 2 (System User / FB Login for Business) ──────────────────────
+  // Present ONLY when the META_SYSTEM_USER_ENABLED flag drove this flow.
+  // Legacy sessions omit these and behave exactly as before.
+  kind?:        'legacy' | 'system_user';
+  /** Id of the MetaConnection row created at callback time (system_user only). */
+  connectionId?: string;
 }
 
-const oauthStates   = new Map<string, OAuthState>();
 const oauthSessions = new Map<string, OAuthSession>();
 
-/** Remove expired entries to prevent unbounded growth. */
+/** TTL for a persisted OAuth state row (start → callback window). */
+const OAUTH_STATE_TTL_MS = 10 * 60_000;
+
+/** Remove expired in-memory sessions to prevent unbounded growth. */
 function pruneOAuth(): void {
   const now = Date.now();
-  for (const [k, v] of oauthStates)   if (v.expiresAt < now) oauthStates.delete(k);
   for (const [k, v] of oauthSessions) if (v.createdAt + 30 * 60_000 < now) oauthSessions.delete(k);
 }
 
@@ -347,6 +352,128 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       include: { adAccounts: true },
     });
     return { workspace: ws, account: ws.adAccounts[0] ?? null };
+  }
+
+  // ── Phase 2: System User / FB Login for Business helpers ──────────────────
+  // These run only on the flag-gated System User code paths. They are no-ops
+  // for the legacy OAuth flow, which never calls them.
+
+  /**
+   * Resolve the owning Business Manager (id + name) for a MetaConnection.
+   * MetaConnection requires a non-null businessId. Resolution order:
+   *   1. An already-known businessId (typically from the ad account's
+   *      `business{id,name}` field) is authoritative — use it as-is.
+   *   2. Otherwise call Graph `/me/businesses` with the System User token to
+   *      discover the owning BM (id + name).
+   *   3. Only when both yield nothing do we fall back to a stable,
+   *      system-user-derived id (`su_<id>`) or 'unknown', logging a warning so
+   *      operators know the BM could not be resolved.
+   */
+  async function resolveBusinessId(params: {
+    businessId?:   string | null;
+    businessName?: string | null;
+    systemUserId?: string | null;
+    token:         string;
+    oauth:         MetaOAuth | null;
+  }): Promise<{ id: string; name: string | null }> {
+    if (params.businessId) {
+      return { id: params.businessId, name: params.businessName ?? null };
+    }
+    if (params.oauth) {
+      try {
+        const businesses = await params.oauth.getOwnedBusinesses(params.token);
+        if (businesses.length > 0 && businesses[0]?.id) {
+          return { id: businesses[0].id, name: businesses[0].name ?? params.businessName ?? null };
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[adlytic:meta-oauth] Business Manager lookup (/me/businesses) failed: ${msg}`);
+      }
+    }
+    const fallback = params.systemUserId ? `su_${params.systemUserId}` : 'unknown';
+    console.warn(`[adlytic:meta-oauth] Could not resolve a Business Manager id from Meta — falling back to "${fallback}". The MetaConnection will use this placeholder business id.`);
+    return { id: fallback, name: params.businessName ?? null };
+  }
+
+  /**
+   * Create or update the MetaConnection row for a workspace+business. Encrypts
+   * the System User token, records granted scopes/assets, and marks it ACTIVE
+   * with a null expiry (System User tokens do not expire). Returns the row id.
+   */
+  async function upsertMetaConnection(params: {
+    workspaceId:     string;
+    businessId:      string;
+    businessName?:   string | null;
+    systemUserId?:   string | null;
+    token:           string;
+    scopes:          string[];
+    grantedAssetIds: string[];
+    configId?:       string | null;
+  }): Promise<string> {
+    const encrypted = encryptToken(params.token);
+    const data = {
+      businessName:         params.businessName ?? undefined,
+      systemUserId:         params.systemUserId ?? undefined,
+      accessTokenEncrypted: encrypted,
+      tokenType:            'SYSTEM_USER' as const,
+      tokenExpiresAt:       null,
+      grantedScopes:        params.scopes,
+      grantedAssetIds:      params.grantedAssetIds,
+      configId:             params.configId ?? undefined,
+      status:               'ACTIVE' as const,
+      lastValidatedAt:      new Date(),
+    };
+    const existing = await prisma.metaConnection.findUnique({
+      where: { workspaceId_businessId: { workspaceId: params.workspaceId, businessId: params.businessId } },
+    });
+    if (existing) {
+      await prisma.metaConnection.update({ where: { id: existing.id }, data });
+      return existing.id;
+    }
+    const created = await prisma.metaConnection.create({
+      data: { workspaceId: params.workspaceId, businessId: params.businessId, ...data },
+    });
+    return created.id;
+  }
+
+  // ── Persistent OAuth state (replaces the in-memory Map) ───────────────────
+  // Survives redeploys / multiple instances by storing the CSRF `state` in the
+  // DB with a short TTL. Used by BOTH the legacy and System User flows.
+
+  /** Generate + persist a one-time OAuth state row. Returns the state token. */
+  async function createOAuthState(params: {
+    workspaceId: string;
+    userId:      string;
+    kind:        'legacy' | 'system_user';
+  }): Promise<string> {
+    const state = (await import('node:crypto')).randomBytes(32).toString('hex');
+    await prisma.oAuthState.create({
+      data: {
+        state,
+        workspaceId: params.workspaceId,
+        userId:      params.userId,
+        kind:        params.kind,
+        expiresAt:   new Date(Date.now() + OAUTH_STATE_TTL_MS),
+      },
+    });
+    // Opportunistic cleanup of expired rows so the table never grows unbounded.
+    prisma.oAuthState.deleteMany({ where: { expiresAt: { lt: new Date() } } })
+      .catch((err: unknown) => console.warn('[adlytic:meta-oauth] oauth_states prune failed:', err));
+    return state;
+  }
+
+  /**
+   * Look up a state row and delete it (one-time use). Returns the stored
+   * workspace/user/kind, or null when the state is unknown or expired.
+   */
+  async function consumeOAuthState(state: string): Promise<{ workspaceId: string; userId: string; kind: string } | null> {
+    const row = await prisma.oAuthState.findUnique({ where: { state } });
+    if (!row) return null;
+    // One-time use: delete regardless of expiry so a replay can't reuse it.
+    await prisma.oAuthState.delete({ where: { state } })
+      .catch((err: unknown) => console.warn('[adlytic:meta-oauth] oauth_state delete failed:', err));
+    if (row.expiresAt < new Date()) return null;
+    return { workspaceId: row.workspaceId, userId: row.userId, kind: row.kind };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1751,8 +1878,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (isMockAuthEnabled()) {
       console.warn('[adlytic:meta-oauth] MOCK MODE — bypassing Facebook OAuth dialog');
       pruneOAuth();
-      const state = (await import('node:crypto')).randomBytes(32).toString('hex');
-      oauthStates.set(state, { workspaceId, userId, expiresAt: Date.now() + 10 * 60_000 });
+      const state = await createOAuthState({ workspaceId, userId, kind: 'legacy' });
       return c.json({
         url: `/api/meta/oauth/mock-callback?state=${state}`,
         configured: true,
@@ -1808,6 +1934,106 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
     }
 
+    // ── Phase 2: System User / FB Login for Business (flag-gated) ─────────
+    // Active ONLY when META_SYSTEM_USER_ENABLED is true. Two sub-paths:
+    //   (a) META_SYSTEM_USER_TOKEN present → bypass the dialog entirely:
+    //       validate the token, create the MetaConnection now, and jump
+    //       straight to /meta/connect (pre-App-Review testing against your
+    //       own Business).
+    //   (b) otherwise → build the config_id-based FB Login for Business URL.
+    // When the flag is OFF this whole block is skipped and the classic
+    // scope-dialog path below runs byte-for-byte as before.
+    if (config.meta.systemUserEnabled) {
+      const sysToken = config.meta.systemUserToken ?? '';
+
+      if (sysToken) {
+        console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE — bypassing OAuth dialog, using META_SYSTEM_USER_TOKEN');
+        try {
+          const apiVersion = config.meta.apiVersion;
+          const oauth = buildMetaOAuth();
+          // Prefer full validation (debug_token) when app creds are present;
+          // otherwise fall back to a raw account listing with the token alone.
+          let resolved;
+          if (oauth) {
+            resolved = await oauth.resolveSystemUserConnection(sysToken);
+          } else {
+            const accounts = await fetchMetaAdAccountsByToken(sysToken, apiVersion);
+            const biz = accounts.find(a => a.business?.id)?.business;
+            resolved = {
+              systemUserId: undefined,
+              businessId:   biz?.id,
+              businessName: biz?.name,
+              scopes:       [] as string[],
+              expiresAt:    null,
+              accounts,
+            };
+          }
+          if (resolved.accounts.length === 0) {
+            console.error('[META_AUTH_FAILURE] system-user: token valid but returned 0 ad accounts');
+            return c.json({
+              configured: false,
+              reason: 'META_SYSTEM_USER_TOKEN returned 0 ad accounts — the System User has no ad-account access.',
+            });
+          }
+          const business = await resolveBusinessId({
+            businessId:   resolved.businessId,
+            businessName: resolved.businessName,
+            systemUserId: resolved.systemUserId,
+            token:        sysToken,
+            oauth,
+          });
+          const connectionId = await upsertMetaConnection({
+            workspaceId,
+            businessId:      business.id,
+            businessName:    business.name,
+            systemUserId:    resolved.systemUserId,
+            token:           sysToken,
+            scopes:          resolved.scopes,
+            grantedAssetIds: resolved.accounts.map(a => a.id),
+            configId:        config.meta.systemUserConfigId,
+          });
+          pruneOAuth();
+          const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
+          oauthSessions.set(sessionId, {
+            workspaceId,
+            userId,
+            accessToken: sysToken,
+            // System User tokens do not expire; pick a far-future stamp.
+            expiresAt:   new Date(Date.now() + 365 * 86400 * 1000),
+            accounts:    resolved.accounts,
+            createdAt:   Date.now(),
+            kind:        'system_user',
+            connectionId,
+          });
+          return c.json({ url: `/meta/connect?session=${sessionId}`, configured: true, systemUser: true });
+        } catch (err: unknown) {
+          console.error('[META_AUTH_FAILURE] system-user token start failed:', err);
+          const msg = err instanceof Error ? err.message : String(err);
+          return c.json({ configured: false, reason: `META_SYSTEM_USER_TOKEN rejected by Meta: ${msg}` });
+        }
+      }
+
+      // (b) config_id-based FB Login for Business dialog.
+      const configId = config.meta.systemUserConfigId ?? '';
+      const sysStatus = getMetaOAuthConfigStatus();
+      const sysOauth  = buildMetaOAuth();
+      if (!sysOauth || !sysStatus.ok || !configId) {
+        const reason = !configId
+          ? 'META_LOGIN_CONFIG_ID is not set — cannot build the FB Login for Business dialog.'
+          : !sysStatus.ok ? sysStatus.reason : 'Meta OAuth is not configured on this server.';
+        return c.json({
+          configured: false,
+          reason,
+          message: `${reason}. You can still connect by pasting an access token manually.`,
+        });
+      }
+      pruneOAuth();
+      // `state` is persisted in the DB (oauth_states) with a short TTL so the
+      // handshake survives redeploys / multi-instance deploys.
+      const state = await createOAuthState({ workspaceId, userId, kind: 'system_user' });
+      return c.json({ url: sysOauth.getBusinessLoginUrl(state, configId), configured: true, systemUser: true });
+    }
+
     const status = getMetaOAuthConfigStatus();
     const oauth  = buildMetaOAuth();
     if (!oauth || !status.ok) {
@@ -1822,8 +2048,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
 
     pruneOAuth();
-    const state = (await import('node:crypto')).randomBytes(32).toString('hex');
-    oauthStates.set(state, { workspaceId, userId, expiresAt: Date.now() + 10 * 60_000 });
+    const state = await createOAuthState({ workspaceId, userId, kind: 'legacy' });
 
     return c.json({ url: oauth.getAuthorizationUrl(state), configured: true });
   });
@@ -1843,11 +2068,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!state) return c.redirect('/workspace?oauth_error=missing_state');
 
     pruneOAuth();
-    const stored = oauthStates.get(state);
-    if (!stored || stored.expiresAt < Date.now()) {
+    const stored = await consumeOAuthState(state);
+    if (!stored) {
       return c.redirect('/workspace?oauth_error=expired_state');
     }
-    oauthStates.delete(state);
 
     const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
     oauthSessions.set(sessionId, {
@@ -1882,14 +2106,69 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!code || !state) return c.redirect('/workspace?oauth_error=missing_params');
 
     pruneOAuth();
-    const stored = oauthStates.get(state);
-    if (!stored || stored.expiresAt < Date.now()) {
+    const stored = await consumeOAuthState(state); // one-time use
+    if (!stored) {
       return c.redirect('/workspace?oauth_error=expired_state');
     }
-    oauthStates.delete(state); // one-time use
 
     const oauth = buildMetaOAuth();
     if (!oauth) return c.redirect('/workspace?oauth_error=not_configured');
+
+    // ── Phase 2: System User / FB Login for Business callback (flag-gated) ──
+    // Active ONLY when META_SYSTEM_USER_ENABLED is true. Creates/updates the
+    // MetaConnection from the granted System User token, then hands off to
+    // /meta/connect where the chosen AdAccount(s) are linked. Legacy flow
+    // below is untouched when the flag is off.
+    if (config.meta.systemUserEnabled) {
+      try {
+        // Prefer an operator-provided System User token for pre-App-Review
+        // testing; otherwise exchange the dialog code for a long-lived token.
+        let token = config.meta.systemUserToken ?? '';
+        if (!token) {
+          const shortToken = await oauth.exchangeCode(code);
+          const { token: longToken } = await oauth.getLongLivedToken(shortToken);
+          token = longToken;
+        }
+        const resolved = await oauth.resolveSystemUserConnection(token);
+        if (resolved.accounts.length === 0) {
+          return c.redirect('/workspace?oauth_error=' + encodeURIComponent('System User token returned 0 ad accounts'));
+        }
+        const business = await resolveBusinessId({
+          businessId:   resolved.businessId,
+          businessName: resolved.businessName,
+          systemUserId: resolved.systemUserId,
+          token,
+          oauth,
+        });
+        const connectionId = await upsertMetaConnection({
+          workspaceId:     stored.workspaceId,
+          businessId:      business.id,
+          businessName:    business.name,
+          systemUserId:    resolved.systemUserId,
+          token,
+          scopes:          resolved.scopes,
+          grantedAssetIds: resolved.accounts.map(a => a.id),
+          configId:        config.meta.systemUserConfigId,
+        });
+        const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
+        oauthSessions.set(sessionId, {
+          workspaceId: stored.workspaceId,
+          userId:      stored.userId,
+          accessToken: token,
+          expiresAt:   new Date(Date.now() + 365 * 86400 * 1000),
+          accounts:    resolved.accounts,
+          createdAt:   Date.now(),
+          kind:        'system_user',
+          connectionId,
+        });
+        return c.redirect(`/meta/connect?session=${sessionId}`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[META_AUTH_FAILURE] system-user callback exception object:', e);
+        console.error('[META_AUTH_FAILURE] system-user callback message:', msg);
+        return c.redirect(`/workspace?oauth_error=${encodeURIComponent(msg)}`);
+      }
+    }
 
     try {
       // Exchange code → short-lived token → long-lived token
@@ -1970,6 +2249,117 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const account = session.accounts.find(a => a.id === externalAccountId);
     if (!account) return c.json({ error: 'Account not found in session' }, 404);
+
+    // ── Phase 2: System User linking (flag-gated) ────────────────────────
+    // When the session was produced by the System User flow, the token lives
+    // on the MetaConnection (created at start/callback). Here we link the
+    // chosen AdAccount to that connection via connectionId + tokenSource, and
+    // clear any stale per-account token so the sync read path uses the
+    // connection token. Legacy per-account behavior below is untouched.
+    if (session.kind === 'system_user' && session.connectionId) {
+      const connection = await prisma.metaConnection.findUnique({ where: { id: session.connectionId } });
+      if (!connection || connection.workspaceId !== workspaceId) {
+        return c.json({ error: 'Connection not found for this workspace' }, 404);
+      }
+      const timezone    = account.timezone_name ?? 'UTC';
+      const countryCode = tzToCountry(account.timezone_name);
+      const existing = await prisma.adAccount.findFirst({
+        where: { platform: 'META', externalAccountId: account.id },
+      });
+      if (existing) {
+        await prisma.adAccount.update({
+          where: { id: existing.id },
+          data: {
+            connectionId:         connection.id,
+            tokenSource:          'SYSTEM_USER',
+            accessTokenEncrypted: null,   // token lives on the connection now
+            tokenExpiresAt:       null,   // System User tokens do not expire
+            name:                 account.name,
+            currency:             account.currency,
+            timezone,
+            countryCode,
+            workspaceId,
+            status:               'ACTIVE',
+          },
+        });
+      } else {
+        await prisma.adAccount.create({
+          data: {
+            workspaceId,
+            platform:             'META',
+            externalAccountId:    account.id,
+            name:                 account.name,
+            currency:             account.currency,
+            currencyMinorFactor:  account.currency === 'IQD' ? 1 : 100,
+            timezone,
+            countryCode,
+            status:               'ACTIVE',
+            connectionId:         connection.id,
+            tokenSource:          'SYSTEM_USER',
+            accessTokenEncrypted: null,
+            tokenExpiresAt:       null,
+          },
+        });
+      }
+      oauthSessions.delete(sessionId);
+
+      // Kick off the initial backfill using the connection token.
+      try {
+        const apiVersion = config.meta.apiVersion;
+        const ws = await prisma.workspace.findUnique({
+          where: { id: workspaceId },
+          include: { adAccounts: true },
+        });
+        const acct = ws?.adAccounts.find(a => a.externalAccountId === account.id);
+        if (acct && connection.accessTokenEncrypted) {
+          let connToken: string;
+          try {
+            connToken = decryptToken(connection.accessTokenEncrypted);
+          } catch (decErr) {
+            if (decErr instanceof TokenDecryptError) {
+              console.error('[META_AUTH_FAILURE] system-user connect: connection token decrypt failed:', decErr.message);
+              return c.json({ success: true, warning: 'Connected, but the stored token could not be decrypted — check TOKEN_ENCRYPTION_KEY.' });
+            }
+            throw decErr;
+          }
+          const metaClient = new MetaClient({ apiVersion, accessToken: connToken });
+          const worker = new SyncAccountWorker(prisma, metaClient);
+          const now = new Date();
+          const since = new Date(now.getTime() - (INITIAL_BACKFILL_DAYS - 1) * 86400 * 1000);
+          const job = await prisma.syncJob.create({
+            data: {
+              adAccountId: acct.id,
+              status:      SyncJobStatus.PENDING,
+              windowDays:  INITIAL_BACKFILL_DAYS,
+              windowSince: since,
+              windowUntil: now,
+              triggeredBy: 'oauth-callback-system-user',
+            },
+          });
+          setImmediate(() => {
+            void (async () => {
+              try {
+                await worker.syncChunked(job.id);
+                const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+                if (final?.status === SyncJobStatus.COMPLETED) {
+                  await runEngines(prisma, acct.id);
+                  await runBrainOrchestrator(prisma, metaClient, acct.id);
+                }
+              } catch (err: unknown) { console.error('[adlytic:initial-sync:system-user]', err); }
+            })();
+          });
+          setImmediate(() => {
+            void worker.syncLifetimeTotals(acct.id).catch((err: unknown) => {
+              console.error('[adlytic:lifetime-sync]', err);
+            });
+          });
+        }
+      } catch (kickoffErr: unknown) {
+        console.error('[META_AUTH_FAILURE] system-user post-connect sync kickoff failed:', kickoffErr);
+      }
+
+      return c.json({ success: true, systemUser: true });
+    }
 
     const encryptedToken = encryptToken(session.accessToken);
     const apiVersion     = config.meta.apiVersion;
@@ -2251,10 +2641,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions — only Owners and Managers can trigger sync' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json({ error: 'No ad account found for this workspace' }, 404);
-    if (!account.accessTokenEncrypted) {
+
+    // Phase 2 — resolve the authoritative token. SYSTEM_USER accounts read the
+    // (non-expiring) token from their MetaConnection; everyone else uses the
+    // per-account token. getAccount does not include the connection, so the
+    // helper loads it when needed.
+    const resolvedToken = await resolveAccountToken(prisma, account);
+    if (!resolvedToken.encrypted) {
       return c.json({ error: 'No access token configured — connect a Meta account first' }, 422);
     }
-    if (account.tokenExpiresAt && account.tokenExpiresAt < new Date()) {
+    // System User tokens do not expire and the expiry lives on the connection
+    // (kept null), so the per-account expiry gate applies to legacy tokens only.
+    if (!resolvedToken.isSystemUser && account.tokenExpiresAt && account.tokenExpiresAt < new Date()) {
       return c.json({ error: 'Meta access token has expired — please reconnect your account' }, 422);
     }
 
@@ -2282,9 +2680,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
 
     const apiVersion = config.meta.apiVersion;
-    const accessToken = decryptToken(account.accessTokenEncrypted);
+    // Decrypt up front so a TOKEN_ENCRYPTION_KEY mismatch is surfaced to the
+    // caller instead of being mistaken for an expired/invalid Meta token (190).
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(resolvedToken.encrypted);
+    } catch (decErr) {
+      if (decErr instanceof TokenDecryptError) {
+        console.error(`[adlytic:sync] ${account.externalAccountId} — token decrypt failed (key mismatch, not a 190): ${decErr.message}`);
+        return c.json({ error: 'Stored access token could not be decrypted — check TOKEN_ENCRYPTION_KEY.' }, 500);
+      }
+      throw decErr;
+    }
     const metaClient = new MetaClient({ apiVersion, accessToken });
     const worker = new SyncAccountWorker(prisma, metaClient);
+
+    // On a Meta 190 (expired/invalid token): SYSTEM_USER accounts flag the
+    // MetaConnection NEEDS_REGRANT; everyone else is PAUSED. Shared with
+    // auto-sync via handleMeta190.
+    const handle190 = (): Promise<void> => handleMeta190(prisma, {
+      accountId: account.id,
+      externalAccountId: account.externalAccountId,
+      isSystemUser: resolvedToken.isSystemUser,
+      connectionId: resolvedToken.connectionId,
+    });
 
     // Fire-and-forget: setImmediate yields control back to the event loop so
     // we can return 202 immediately. The worker updates SyncJob status as it
@@ -2297,9 +2716,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           if (final?.status === SyncJobStatus.COMPLETED) {
             await runEngines(prisma, account.id);
             await runBrainOrchestrator(prisma, metaClient, account.id);
+          } else if (final?.error && /code.*190|190.*code|OAuthException/.test(final.error)) {
+            await handle190();
           }
         } catch (err: unknown) {
           console.error('[adlytic:syncChunked]', err);
+          if (err instanceof MetaApiError) {
+            const body = err.body as Record<string, any>;
+            if (body?.error?.code === 190) await handle190();
+          }
         }
       })();
     });

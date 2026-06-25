@@ -21,7 +21,8 @@ import pg from 'pg';
 import { buildRoutes, ROUTE_COUNT } from './server';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { MetaClient, MetaApiError } from '../services/metaClient';
-import { decryptToken } from '../services/tokenEncryption';
+import { decryptToken, TokenDecryptError } from '../services/tokenEncryption';
+import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { runEngines } from '../workers/runEngines';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 import { config, reportConfig } from '../config';
@@ -111,14 +112,39 @@ async function main(): Promise<void> {
     try {
       accounts = await prisma.adAccount.findMany({
         where: {
-          accessTokenEncrypted: { not: null },
           status: 'ACTIVE',
           OR: [
-            { tokenExpiresAt: null },
-            { tokenExpiresAt: { gt: now } },
+            // Legacy / user-OAuth / manual / direct-token accounts: token lives
+            // on the account and may expire. Excludes SYSTEM_USER so behavior
+            // here is byte-for-byte identical to before when the flag is off
+            // (no SYSTEM_USER rows exist) and unchanged for existing rows
+            // (all default to USER_OAUTH).
+            {
+              tokenSource: { not: 'SYSTEM_USER' },
+              accessTokenEncrypted: { not: null },
+              OR: [
+                { tokenExpiresAt: null },
+                { tokenExpiresAt: { gt: now } },
+              ],
+            },
+            // Phase 2 — System User accounts: token lives on the MetaConnection
+            // and never expires. Only sync while the connection is ACTIVE so a
+            // NEEDS_REGRANT/REVOKED connection is skipped (no retry storm).
+            {
+              tokenSource: 'SYSTEM_USER',
+              connectionId: { not: null },
+              connection: { is: { status: 'ACTIVE', accessTokenEncrypted: { not: null } } },
+            },
           ],
         },
-        select: { id: true, externalAccountId: true, accessTokenEncrypted: true },
+        select: {
+          id: true,
+          externalAccountId: true,
+          accessTokenEncrypted: true,
+          tokenSource: true,
+          connectionId: true,
+          connection: { select: { id: true, status: true, accessTokenEncrypted: true } },
+        },
       });
     } catch (err) {
       console.error('[adlytic:auto-sync] Failed to list accounts:', err);
@@ -129,9 +155,41 @@ async function main(): Promise<void> {
     console.log(`[adlytic:auto-sync] Syncing ${accounts.length} account(s)…`);
 
     for (const acct of accounts) {
-      if (!acct.accessTokenEncrypted) continue;
+      // Phase 2 — resolve the authoritative token via the shared helper.
+      // SYSTEM_USER accounts read the (non-expiring) token from their
+      // MetaConnection (selected inline above, so no extra query); everyone
+      // else uses the per-account token exactly as before.
+      const { encrypted, isSystemUser, connectionId } = await resolveAccountToken(prisma, acct);
+      if (!encrypted) continue;
+
+      // Decrypt up front so a TOKEN_ENCRYPTION_KEY mismatch is never mistaken
+      // for an expired/invalid Meta token (190). On decrypt failure, skip this
+      // account this cycle without touching its status/token.
+      let accessToken: string;
       try {
-        const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken: decryptToken(acct.accessTokenEncrypted) });
+        accessToken = decryptToken(encrypted);
+      } catch (decErr) {
+        if (decErr instanceof TokenDecryptError) {
+          console.error(`[adlytic:auto-sync] Skipping ${acct.externalAccountId} — token decrypt failed (key mismatch, not a 190): ${decErr.message}`);
+          continue;
+        }
+        throw decErr;
+      }
+
+      // On a Meta 190 (expired/invalid token): legacy accounts are PAUSED and
+      // their token nulled (owner must reconnect). SYSTEM_USER accounts instead
+      // flag the MetaConnection NEEDS_REGRANT — the token is not "expired", the
+      // business must re-grant assets — and are left ACTIVE/untouched otherwise.
+      // Shared with the manual "Sync now" route via handleMeta190.
+      const handle190 = (): Promise<void> => handleMeta190(prisma, {
+        accountId: acct.id,
+        externalAccountId: acct.externalAccountId,
+        isSystemUser,
+        connectionId,
+      });
+
+      try {
+        const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken });
         const worker = new SyncAccountWorker(prisma, metaClient);
         const syncResult = await worker.sync(acct.id);
         if (syncResult.ok) {
@@ -139,15 +197,8 @@ async function main(): Promise<void> {
           console.log(`[adlytic:auto-sync] ✓ ${acct.externalAccountId} (${syncResult.rowsUpserted} rows, ${syncResult.durationMs}ms)`);
         } else {
           console.warn(`[adlytic:auto-sync] ✗ ${acct.externalAccountId}: ${syncResult.error}`);
-          // Detect expired/invalid OAuth token (Meta error code 190).
-          // Mark the account PAUSED so the sync loop skips it until the owner
-          // reconnects via the Workspace page.
           if (syncResult.error && /code.*190|190.*code|OAuthException/.test(syncResult.error)) {
-            await prisma.adAccount.update({
-              where: { id: acct.id },
-              data: { status: 'PAUSED', accessTokenEncrypted: null },
-            });
-            console.warn(`[adlytic:auto-sync] Marked ${acct.externalAccountId} PAUSED — token invalid (190). Owner must reconnect.`);
+            await handle190();
           }
         }
       } catch (err) {
@@ -156,11 +207,7 @@ async function main(): Promise<void> {
         if (err instanceof MetaApiError) {
           const body = err.body as Record<string, any>;
           if (body?.error?.code === 190) {
-            await prisma.adAccount.update({
-              where: { id: acct.id },
-              data: { status: 'PAUSED', accessTokenEncrypted: null },
-            });
-            console.warn(`[adlytic:auto-sync] Marked ${acct.externalAccountId} PAUSED — token invalid (190). Owner must reconnect.`);
+            await handle190();
           }
         }
       }

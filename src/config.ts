@@ -146,6 +146,37 @@ record({
     ? 'enabled — System User / FB Login for Business plumbing active'
     : 'disabled (default) — legacy OAuth flow only',
 });
+/**
+ * Phase 2 — FB Login for Business "configuration" id. Identifies the Meta
+ * Login configuration that defines which assets/permissions the business login
+ * dialog requests. Required (when the flag is on) to build the config_id-based
+ * authorization URL. Absent → the System User start endpoint falls back to the
+ * manual-token modal with a clear reason.
+ */
+const metaSystemUserConfigId = env('META_LOGIN_CONFIG_ID');
+/**
+ * Phase 2 — optional pre-minted System User token. Lets an operator validate
+ * the System User connection flow against their OWN Business before Meta App
+ * Review approves FB Login for Business. When set (and the flag is on), the
+ * OAuth dialog is bypassed and this token drives the MetaConnection directly.
+ */
+const metaSystemUserToken = env('META_SYSTEM_USER_TOKEN');
+if (metaSystemUserEnabled) {
+  record({
+    key: 'META_LOGIN_CONFIG_ID',
+    status: metaSystemUserConfigId ? 'ok' : 'warn',
+    detail: metaSystemUserConfigId
+      ? 'present — FB Login for Business config_id available'
+      : 'absent — System User start will fall back to manual token entry',
+  });
+  if (metaSystemUserToken) {
+    record({
+      key: 'META_SYSTEM_USER_TOKEN',
+      status: 'ok',
+      detail: 'present — OAuth dialog bypassed; token drives MetaConnection directly (pre-App-Review testing)',
+    });
+  }
+}
 
 // ── misc operational vars ────────────────────────────────────────────────────
 
@@ -180,6 +211,10 @@ export interface AppConfig {
     directToken: string | undefined;
     /** Phase 1 flag — gates System User / FB Login for Business plumbing. */
     systemUserEnabled: boolean;
+    /** Phase 2 — FB Login for Business config_id (env META_LOGIN_CONFIG_ID). */
+    systemUserConfigId: string | undefined;
+    /** Phase 2 — optional pre-minted System User token (env META_SYSTEM_USER_TOKEN). */
+    systemUserToken: string | undefined;
   };
 
   sync: {
@@ -206,6 +241,8 @@ export const config: Readonly<AppConfig> = Object.freeze({
     oauthScope: metaOAuthScope,
     directToken: metaDirectToken,
     systemUserEnabled: metaSystemUserEnabled,
+    systemUserConfigId: metaSystemUserConfigId,
+    systemUserToken: metaSystemUserToken,
   }),
   sync: Object.freeze({
     intervalMs: syncIntervalMs,
