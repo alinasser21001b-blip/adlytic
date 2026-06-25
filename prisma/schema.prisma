@@ -49,6 +49,7 @@ model Workspace {
   industryProfile IndustryProfile?          @relation(fields: [industryProfileId], references: [id])
   executions      RecommendationExecution[]
   paymentEvents   PaymentEvent[]
+  metaConnections MetaConnection[]
 
   @@index([industryProfileId])
   @@index([subscriptionStatus])
@@ -86,16 +87,68 @@ model AdAccount {
   lastSyncedAt         DateTime?    @map("last_synced_at")
   lifetimeSpendMinor   BigInt       @default(0) @map("lifetime_spend_minor")
   lifetimeSyncedAt     DateTime?    @map("lifetime_synced_at")
+  // ── Phase 1 (additive, non-destructive) — System User / FB Login groundwork ──
+  // Nullable FK into the new MetaConnection. When set, the connection is the
+  // authoritative token source; the legacy token columns above remain for
+  // back-compat until the migration to connection-based auth completes.
+  connectionId         String?         @map("connection_id")
+  /// Where this account's token came from. Defaults to USER_OAUTH so existing
+  /// rows and the current legacy OAuth flow behave exactly as before.
+  tokenSource          MetaTokenSource @default(USER_OAUTH) @map("token_source")
   createdAt            DateTime     @default(now()) @map("created_at")
   updatedAt            DateTime     @updatedAt @map("updated_at")
   workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection           MetaConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   campaigns            Campaign[]
   syncJobs             SyncJob[]
   adCreatives          AdCreative[]
 
   @@unique([platform, externalAccountId])
   @@index([workspaceId])
+  @@index([connectionId])
   @@map("ad_accounts")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Phase 1 — MetaConnection (ADDITIVE, non-destructive groundwork)
+//
+//  Represents a single authenticated link to a Meta Business: either a
+//  long-lived user token (FB Login for Business), a System User token, or a
+//  manually-pasted direct token. This table is the future authoritative home
+//  for Meta credentials + granted assets/scopes. It is introduced behind the
+//  META_SYSTEM_USER_ENABLED feature flag — LEGACY OAuth on AdAccount remains
+//  the default, so production behavior is unchanged until the flag flips.
+// ════════════════════════════════════════════════════════════════════════
+model MetaConnection {
+  id                   String               @id @default(cuid())
+  workspaceId          String               @map("workspace_id")
+  /// Meta Business (BM) id this connection is scoped to.
+  businessId           String               @map("business_id")
+  businessName         String?              @map("business_name")
+  /// System User id when tokenType = SYSTEM_USER; null otherwise.
+  systemUserId         String?              @map("system_user_id")
+  /// Encrypted access token (same envelope as AdAccount.accessTokenEncrypted).
+  accessTokenEncrypted String?              @map("access_token_encrypted")
+  tokenType            MetaTokenType        @default(LONG_LIVED_USER) @map("token_type")
+  tokenExpiresAt       DateTime?            @map("token_expires_at")
+  /// Scopes Meta actually granted (may be a subset of what was requested).
+  grantedScopes        String[]             @map("granted_scopes")
+  /// Asset ids (ad accounts, pages, etc.) the user granted access to.
+  grantedAssetIds      String[]             @map("granted_asset_ids")
+  /// FB Login for Business configuration id used to obtain this connection.
+  configId             String?              @map("config_id")
+  status               MetaConnectionStatus @default(ACTIVE)
+  lastValidatedAt      DateTime?            @map("last_validated_at")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  adAccounts AdAccount[]
+
+  @@unique([workspaceId, businessId])
+  @@index([workspaceId])
+  @@index([status])
+  @@map("meta_connections")
 }
 
 model Campaign {
@@ -519,6 +572,27 @@ model CampaignBrainSnapshot {
 
 enum Platform {
   META
+}
+
+// ── Phase 1 — Meta connection enums (additive) ──────────────────────────────
+
+enum MetaTokenType {
+  LONG_LIVED_USER
+  SYSTEM_USER
+  DIRECT
+}
+
+enum MetaConnectionStatus {
+  ACTIVE
+  REVOKED
+  NEEDS_REGRANT
+}
+
+enum MetaTokenSource {
+  USER_OAUTH
+  SYSTEM_USER
+  DIRECT_TOKEN
+  MANUAL
 }
 
 enum WorkspaceRole {

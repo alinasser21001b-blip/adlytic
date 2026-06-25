@@ -38,6 +38,13 @@ function envNumber(key: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** Read a boolean env var. Accepts 1/true/yes/on (case-insensitive) as true. */
+function envBoolean(key: string, fallback: boolean): boolean {
+  const raw = env(key);
+  if (raw === undefined) return fallback;
+  return /^(1|true|yes|on)$/i.test(raw);
+}
+
 const NODE_ENV = env('NODE_ENV') ?? 'development';
 const IS_PRODUCTION = NODE_ENV !== 'development' && NODE_ENV !== 'test';
 
@@ -126,6 +133,19 @@ const metaAppSecret = env('META_APP_SECRET');
 const metaRedirectUri = env('META_REDIRECT_URI') ?? 'http://localhost:3001/api/meta/oauth/callback';
 const metaOAuthScope = env('META_OAUTH_SCOPE') ?? 'ads_read';
 const metaDirectToken = env('META_DIRECT_TOKEN');
+/**
+ * Phase 1 feature flag. When false (default), the legacy user-OAuth flow is the
+ * only active path and production behavior is unchanged. When true, the new
+ * System User / FB Login for Business plumbing (MetaConnection) is enabled.
+ */
+const metaSystemUserEnabled = envBoolean('META_SYSTEM_USER_ENABLED', false);
+record({
+  key: 'META_SYSTEM_USER_ENABLED',
+  status: 'ok',
+  detail: metaSystemUserEnabled
+    ? 'enabled — System User / FB Login for Business plumbing active'
+    : 'disabled (default) — legacy OAuth flow only',
+});
 
 // ── misc operational vars ────────────────────────────────────────────────────
 
@@ -158,6 +178,8 @@ export interface AppConfig {
     redirectUri: string;
     oauthScope: string;
     directToken: string | undefined;
+    /** Phase 1 flag — gates System User / FB Login for Business plumbing. */
+    systemUserEnabled: boolean;
   };
 
   sync: {
@@ -183,6 +205,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
     redirectUri: metaRedirectUri,
     oauthScope: metaOAuthScope,
     directToken: metaDirectToken,
+    systemUserEnabled: metaSystemUserEnabled,
   }),
   sync: Object.freeze({
     intervalMs: syncIntervalMs,
