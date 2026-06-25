@@ -411,6 +411,9 @@ export function workspacePage(): string {
   function friendlyConnectReason(reason) {
     if (!reason) return 'Meta connection is temporarily unavailable.';
     const r = String(reason).toLowerCase();
+    if (r.includes('fb login for business') || r.includes('meta_login_config_id')) {
+      return 'Meta business login is not fully configured on this server yet. Please contact your administrator.';
+    }
     if (r.includes('meta_app_id') || r.includes('meta_app_secret')) {
       return 'Meta connection is not set up on this server yet. Please contact your administrator.';
     }

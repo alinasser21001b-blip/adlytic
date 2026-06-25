@@ -217,6 +217,32 @@ function safeJson(obj: unknown): unknown {
   }
 }
 
+/**
+ * Normalize operator-provided env tokens to reduce common formatting mistakes:
+ * - trims surrounding whitespace/newlines
+ * - strips wrapping single/double quotes
+ * - strips optional "Bearer " prefix
+ */
+function normalizeEnvAccessToken(rawToken: string | null | undefined): string {
+  if (!rawToken) return '';
+  let token = rawToken.trim().replace(/[\r\n]+/g, '');
+  if (!token) return '';
+  if (
+    (token.startsWith('"') && token.endsWith('"')) ||
+    (token.startsWith("'") && token.endsWith("'"))
+  ) {
+    token = token.slice(1, -1).trim();
+  }
+  token = token.replace(/^bearer\s+/i, '').trim();
+  return token;
+}
+
+/** Keep Meta auth diagnostics readable and single-line in logs. */
+function summarizeMetaAuthError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.replace(/\s+/g, ' ').trim().slice(0, 280);
+}
+
 // ── Application factory ───────────────────────────────────────────────────
 
 export function buildRoutes(prisma: PrismaClient): Hono {
@@ -1894,43 +1920,53 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // App Secret handshake is misconfigured but the operator already has
     // a working user token (e.g. from Graph API Explorer or a previous
     // long-lived exchange).
-    const directToken = config.meta.directToken ?? '';
+    const directToken = normalizeEnvAccessToken(config.meta.directToken);
     if (directToken) {
       console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE — bypassing OAuth dialog, calling Graph API with env token');
       try {
         const apiVersion = config.meta.apiVersion;
         const accounts   = await fetchMetaAdAccountsByToken(directToken, apiVersion);
         if (accounts.length === 0) {
-          console.error('[META_AUTH_FAILURE] direct-token: token is valid but returned 0 ad accounts');
+          console.error('[META_AUTH_FAILURE] direct-token: token valid but returned 0 ad accounts');
+          // In System User mode, keep DIRECT_TOKEN as a best-effort bypass only;
+          // if it is unusable, continue to the FB Login for Business config_id path.
+          if (!config.meta.systemUserEnabled) {
+            return c.json({
+              configured: false,
+              reason: 'META_DIRECT_TOKEN returned 0 ad accounts — the token has no ads_read access on any ad account.',
+            });
+          }
+          console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE unavailable; falling through to System User flow');
+        } else {
+          pruneOAuth();
+          const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
+          oauthSessions.set(sessionId, {
+            workspaceId,
+            userId,
+            accessToken: directToken,
+            // Direct-token TTL is unknowable — operator owns rotation. Pick a
+            // far-future stamp so refresh code paths treat it as healthy.
+            expiresAt: new Date(Date.now() + 60 * 86400 * 1000),
+            accounts,
+            createdAt: Date.now(),
+          });
           return c.json({
-            configured: false,
-            reason: 'META_DIRECT_TOKEN returned 0 ad accounts — the token has no ads_read access on any ad account.',
+            url: `/meta/connect?session=${sessionId}`,
+            configured: true,
+            directToken: true,
           });
         }
-        pruneOAuth();
-        const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
-        oauthSessions.set(sessionId, {
-          workspaceId,
-          userId,
-          accessToken: directToken,
-          // Direct-token TTL is unknowable — operator owns rotation. Pick a
-          // far-future stamp so refresh code paths treat it as healthy.
-          expiresAt: new Date(Date.now() + 60 * 86400 * 1000),
-          accounts,
-          createdAt: Date.now(),
-        });
-        return c.json({
-          url: `/meta/connect?session=${sessionId}`,
-          configured: true,
-          directToken: true,
-        });
       } catch (err: unknown) {
-        console.error('[META_AUTH_FAILURE] direct-token start failed:', err);
-        const msg = err instanceof Error ? err.message : String(err);
-        return c.json({
-          configured: false,
-          reason: `META_DIRECT_TOKEN rejected by Meta: ${msg}`,
-        });
+        // Never log token values. Keep only sanitized upstream error text.
+        const msg = summarizeMetaAuthError(err);
+        console.error('[META_AUTH_FAILURE] direct-token start failed:', msg);
+        if (!config.meta.systemUserEnabled) {
+          return c.json({
+            configured: false,
+            reason: `META_DIRECT_TOKEN rejected by Meta: ${msg}`,
+          });
+        }
+        console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE unavailable; falling through to System User flow');
       }
     }
 
@@ -1944,7 +1980,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // When the flag is OFF this whole block is skipped and the classic
     // scope-dialog path below runs byte-for-byte as before.
     if (config.meta.systemUserEnabled) {
-      const sysToken = config.meta.systemUserToken ?? '';
+      const sysToken = normalizeEnvAccessToken(config.meta.systemUserToken);
 
       if (sysToken) {
         console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE — bypassing OAuth dialog, using META_SYSTEM_USER_TOKEN');
@@ -1970,46 +2006,45 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           }
           if (resolved.accounts.length === 0) {
             console.error('[META_AUTH_FAILURE] system-user: token valid but returned 0 ad accounts');
-            return c.json({
-              configured: false,
-              reason: 'META_SYSTEM_USER_TOKEN returned 0 ad accounts — the System User has no ad-account access.',
+            console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE unavailable; falling back to FB Login for Business config_id flow');
+          } else {
+            const business = await resolveBusinessId({
+              businessId:   resolved.businessId,
+              businessName: resolved.businessName,
+              systemUserId: resolved.systemUserId,
+              token:        sysToken,
+              oauth,
             });
+            const connectionId = await upsertMetaConnection({
+              workspaceId,
+              businessId:      business.id,
+              businessName:    business.name,
+              systemUserId:    resolved.systemUserId,
+              token:           sysToken,
+              scopes:          resolved.scopes,
+              grantedAssetIds: resolved.accounts.map(a => a.id),
+              configId:        config.meta.systemUserConfigId,
+            });
+            pruneOAuth();
+            const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
+            oauthSessions.set(sessionId, {
+              workspaceId,
+              userId,
+              accessToken: sysToken,
+              // System User tokens do not expire; pick a far-future stamp.
+              expiresAt:   new Date(Date.now() + 365 * 86400 * 1000),
+              accounts:    resolved.accounts,
+              createdAt:   Date.now(),
+              kind:        'system_user',
+              connectionId,
+            });
+            return c.json({ url: `/meta/connect?session=${sessionId}`, configured: true, systemUser: true });
           }
-          const business = await resolveBusinessId({
-            businessId:   resolved.businessId,
-            businessName: resolved.businessName,
-            systemUserId: resolved.systemUserId,
-            token:        sysToken,
-            oauth,
-          });
-          const connectionId = await upsertMetaConnection({
-            workspaceId,
-            businessId:      business.id,
-            businessName:    business.name,
-            systemUserId:    resolved.systemUserId,
-            token:           sysToken,
-            scopes:          resolved.scopes,
-            grantedAssetIds: resolved.accounts.map(a => a.id),
-            configId:        config.meta.systemUserConfigId,
-          });
-          pruneOAuth();
-          const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
-          oauthSessions.set(sessionId, {
-            workspaceId,
-            userId,
-            accessToken: sysToken,
-            // System User tokens do not expire; pick a far-future stamp.
-            expiresAt:   new Date(Date.now() + 365 * 86400 * 1000),
-            accounts:    resolved.accounts,
-            createdAt:   Date.now(),
-            kind:        'system_user',
-            connectionId,
-          });
-          return c.json({ url: `/meta/connect?session=${sessionId}`, configured: true, systemUser: true });
         } catch (err: unknown) {
-          console.error('[META_AUTH_FAILURE] system-user token start failed:', err);
-          const msg = err instanceof Error ? err.message : String(err);
-          return c.json({ configured: false, reason: `META_SYSTEM_USER_TOKEN rejected by Meta: ${msg}` });
+          // Never log token values. Keep only sanitized upstream error text.
+          const msg = summarizeMetaAuthError(err);
+          console.error('[META_AUTH_FAILURE] system-user token start failed:', msg);
+          console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE unavailable; falling back to FB Login for Business config_id flow');
         }
       }
 
@@ -2019,12 +2054,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       const sysOauth  = buildMetaOAuth();
       if (!sysOauth || !sysStatus.ok || !configId) {
         const reason = !configId
-          ? 'META_LOGIN_CONFIG_ID is not set — cannot build the FB Login for Business dialog.'
-          : !sysStatus.ok ? sysStatus.reason : 'Meta OAuth is not configured on this server.';
+          ? 'FB Login for Business is unavailable because META_LOGIN_CONFIG_ID is not set.'
+          : !sysStatus.ok ? `FB Login for Business is unavailable: ${sysStatus.reason}` : 'FB Login for Business is unavailable on this server.';
         return c.json({
           configured: false,
           reason,
-          message: `${reason}. You can still connect by pasting an access token manually.`,
+          message: 'Meta business login is currently unavailable on this server. You can still connect by pasting an access token manually.',
         });
       }
       pruneOAuth();
@@ -2123,7 +2158,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       try {
         // Prefer an operator-provided System User token for pre-App-Review
         // testing; otherwise exchange the dialog code for a long-lived token.
-        let token = config.meta.systemUserToken ?? '';
+        let token = normalizeEnvAccessToken(config.meta.systemUserToken);
         if (!token) {
           const shortToken = await oauth.exchangeCode(code);
           const { token: longToken } = await oauth.getLongLivedToken(shortToken);
