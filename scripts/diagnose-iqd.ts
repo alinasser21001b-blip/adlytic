@@ -29,23 +29,27 @@ async function main() {
     select: {
       id: true,
       email: true,
-      workspaces: {
+      memberships: {
         select: {
-          id: true,
-          name: true,
-          adAccounts: {
+          workspace: {
             select: {
               id: true,
               name: true,
-              currency: true,
-              currencyMinorFactor: true,
-              status: true,
-              lastSyncedAt: true,
-              externalAccountId: true,
-              campaigns: {
-                where: { status: "ACTIVE" },
-                select: { id: true, name: true, dailyBudget: true },
-                take: 3,
+              adAccounts: {
+                select: {
+                  id: true,
+                  name: true,
+                  currency: true,
+                  currencyMinorFactor: true,
+                  status: true,
+                  lastSyncedAt: true,
+                  externalAccountId: true,
+                  campaigns: {
+                    where: { status: "ACTIVE" },
+                    select: { id: true, name: true, dailyBudget: true },
+                    take: 3,
+                  },
+                },
               },
             },
           },
@@ -57,7 +61,8 @@ async function main() {
   console.log("=== USERS & AD ACCOUNTS ===");
   for (const u of users) {
     console.log(`\nUser: ${u.email}`);
-    for (const ws of u.workspaces) {
+    for (const m of u.memberships) {
+      const ws = m.workspace;
       console.log(`  Workspace: ${ws.name} (${ws.id})`);
       for (const acct of ws.adAccounts) {
         console.log(
@@ -88,6 +93,18 @@ async function main() {
         for (const s of stats) {
           console.log(
             `      ${s.date.toISOString().slice(0, 10)} spend=${s.spend.toString()} msgs=${s.messages}`,
+          );
+        }
+
+        const raw = await prisma.rawInsight.findFirst({
+          where: { entityType: "ACCOUNT", entityId: acct.id },
+          orderBy: { date: "desc" },
+          select: { date: true, rawJson: true },
+        });
+        if (raw) {
+          const j = raw.rawJson as Record<string, unknown>;
+          console.log(
+            `    Latest raw Meta spend: ${String(j.spend ?? "?")} (${raw.date.toISOString().slice(0, 10)})`,
           );
         }
       }

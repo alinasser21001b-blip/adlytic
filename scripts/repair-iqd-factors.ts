@@ -1,10 +1,14 @@
 /**
- * One-time repair: set currency_minor_factor=1 for all IQD ad accounts.
- * Run: railway run npx tsx scripts/repair-iqd-factors.ts
+ * One-time repair: heal IQD currencyMinorFactor and rescale daily_stats.spend
+ * from raw Meta insight majors when sync used factor=100.
+ *
+ * Run: DATABASE_URL=<public-url> npx tsx scripts/repair-iqd-factors.ts
+ * Or:  railway run npx tsx scripts/repair-iqd-factors.ts  (from service with DB access)
  */
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from "../src/lib/iqdRepair";
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -22,35 +26,19 @@ async function main() {
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
-  const wrong = await prisma.adAccount.findMany({
-    where: { currency: "IQD", currencyMinorFactor: { not: 1 } },
-    select: {
-      id: true,
-      name: true,
-      currencyMinorFactor: true,
-      workspace: { select: { name: true, members: { select: { user: { select: { email: true } } } } } },
-    },
-  });
+  const factorsHealed = await healIqdAccountFactors(prisma);
+  console.log(`Healed currencyMinorFactor on ${factorsHealed} IQD account(s).`);
 
-  console.log(`Found ${wrong.length} IQD account(s) with wrong factor`);
-  for (const a of wrong) {
-    console.log(
-      `  ${a.id} factor=${a.currencyMinorFactor} ws=${a.workspace.name} users=${a.workspace.members.map((m) => m.user.email).join(",")}`,
-    );
-  }
+  const rescale = await rescaleIqdSpendFromRaw(prisma);
+  console.log(
+    `Rescaled ${rescale.rowsRescaled} daily_stat row(s) across ${rescale.accountsChecked} IQD account(s); ${rescale.rowsVerified} already correct.`,
+  );
 
-  if (wrong.length === 0) {
+  if (rescale.rowsRescaled > 0 || factorsHealed > 0) {
+    console.log("Trigger a 90-day sync from the workspace UI or POST /api/workspaces/:id/repair-iqd.");
+  } else {
     console.log("Nothing to repair.");
-    await prisma.$disconnect();
-    await pool.end();
-    return;
   }
-
-  const result = await prisma.adAccount.updateMany({
-    where: { currency: "IQD", currencyMinorFactor: { not: 1 } },
-    data: { currencyMinorFactor: 1 },
-  });
-  console.log(`Repaired ${result.count} ad account(s). Trigger a sync to refresh spend from Meta.`);
 
   await prisma.$disconnect();
   await pool.end();

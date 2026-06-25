@@ -74,6 +74,7 @@ import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, M
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
+import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -388,6 +389,67 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       account.currencyMinorFactor = healed;
     }
     return { workspace: ws, account };
+  }
+
+  /** Fire-and-forget initial backfill after account connect (OAuth or manual). */
+  async function kickoffInitialSync(
+    adAccountId: string,
+    triggeredBy: string,
+  ): Promise<void> {
+    const account = await prisma.adAccount.findUnique({ where: { id: adAccountId } });
+    if (!account) return;
+
+    const resolvedToken = await resolveAccountToken(prisma, account);
+    if (!resolvedToken.encrypted) {
+      console.warn(`[adlytic:initial-sync] ${account.externalAccountId} — no token, skipping backfill`);
+      return;
+    }
+
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(resolvedToken.encrypted);
+    } catch (decErr) {
+      const msg = decErr instanceof Error ? decErr.message : String(decErr);
+      console.error(`[adlytic:initial-sync] ${account.externalAccountId} — token decrypt failed: ${msg}`);
+      return;
+    }
+
+    const apiVersion = config.meta.apiVersion;
+    const metaClient = new MetaClient({ apiVersion, accessToken });
+    const worker = new SyncAccountWorker(prisma, metaClient);
+    const now = new Date();
+    const since = new Date(now.getTime() - (INITIAL_BACKFILL_DAYS - 1) * 86400 * 1000);
+    const job = await prisma.syncJob.create({
+      data: {
+        adAccountId: account.id,
+        status: SyncJobStatus.PENDING,
+        windowDays: INITIAL_BACKFILL_DAYS,
+        windowSince: since,
+        windowUntil: now,
+        triggeredBy,
+      },
+    });
+
+    setImmediate(() => {
+      void (async () => {
+        try {
+          await worker.syncChunked(job.id);
+          const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+          if (final?.status === SyncJobStatus.COMPLETED) {
+            await runEngines(prisma, account.id);
+            await runBrainOrchestrator(prisma, metaClient, account.id);
+          }
+        } catch (err: unknown) {
+          console.error('[adlytic:initial-sync]', err);
+        }
+      })();
+    });
+
+    setImmediate(() => {
+      void worker.syncLifetimeTotals(account.id).catch((err: unknown) => {
+        console.error('[adlytic:lifetime-sync]', err);
+      });
+    });
   }
 
   // ── Phase 2: System User / FB Login for Business helpers ──────────────────
@@ -1560,7 +1622,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       },
       account: {
         currency: account.currency,
-        currencyMinorFactor: account.currencyMinorFactor,
+        currencyMinorFactor: resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor),
       },
       summary: {
         windowDays: days,
@@ -2570,6 +2632,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const extId = body.externalAccountId.startsWith('act_')
       ? body.externalAccountId
       : `act_${body.externalAccountId}`;
+    if (!/^act_\d+$/.test(extId)) {
+      return c.json({
+        error: 'Invalid Meta ad account ID — expected numeric form like act_1234567890',
+      }, 422);
+    }
 
     // Validate the token against Meta API before saving — fail fast with a clear error.
     // Also pull timezone_name here so we can derive countryCode without user input.
@@ -2614,7 +2681,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           currencyMinorFactor,
           timezone:             resolvedTimezone,
           countryCode,
+          status:               'ACTIVE',
         },
+      });
+      setImmediate(() => {
+        void kickoffInitialSync(existing.id, 'manual-connect').catch((err: unknown) => {
+          console.error('[adlytic:manual-connect] initial sync kickoff failed:', err);
+        });
       });
       return c.json({ success: true, id: existing.id });
     }
@@ -2631,6 +2704,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         status:               'ACTIVE',
         accessTokenEncrypted: encryptedToken,
       },
+    });
+    setImmediate(() => {
+      void kickoffInitialSync(acct.id, 'manual-connect').catch((err: unknown) => {
+        console.error('[adlytic:manual-connect] initial sync kickoff failed:', err);
+      });
     });
     return c.json({ success: true, id: acct.id });
   });
@@ -2679,6 +2757,94 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     await prisma.adAccount.delete({ where: { id: accountId } });
     return c.json({ success: true });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  IQD REPAIR — heal factor + rescale spend + re-sync
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /api/workspaces/:workspaceId/repair-iqd
+   * Heal currencyMinorFactor, rescale daily_stats from raw Meta spend, then
+   * enqueue a 90-day backfill. Owner/Manager only; IQD account required.
+   */
+  app.post('/api/workspaces/:workspaceId/repair-iqd', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
+
+    const { account } = await getAccount(workspaceId);
+    if (!account) return c.json({ error: 'No ad account found for this workspace' }, 404);
+    if (account.currency !== 'IQD') {
+      return c.json({ error: 'Repair endpoint applies to IQD accounts only' }, 422);
+    }
+
+    const factorsHealed = await healIqdAccountFactors(prisma);
+    const rescale = await rescaleIqdSpendFromRaw(prisma);
+
+    const resolvedToken = await resolveAccountToken(prisma, account);
+    if (!resolvedToken.encrypted) {
+      return c.json({
+        success: true,
+        factorsHealed,
+        rescale,
+        syncJobId: null,
+        warning: 'Factor and spend repaired, but no access token — reconnect Meta to re-sync.',
+      });
+    }
+
+    const windowDays = 90;
+    const now = new Date();
+    const since = new Date(now.getTime() - (windowDays - 1) * 86400 * 1000);
+    const job = await prisma.syncJob.create({
+      data: {
+        adAccountId: account.id,
+        status: SyncJobStatus.PENDING,
+        windowDays,
+        windowSince: since,
+        windowUntil: now,
+        triggeredBy: `repair-iqd:${userId}`,
+      },
+    });
+
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(resolvedToken.encrypted);
+    } catch (decErr) {
+      if (decErr instanceof TokenDecryptError) {
+        return c.json({ error: 'Stored access token could not be decrypted' }, 500);
+      }
+      throw decErr;
+    }
+
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const worker = new SyncAccountWorker(prisma, metaClient);
+    setImmediate(() => {
+      void (async () => {
+        try {
+          await worker.syncChunked(job.id);
+          const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+          if (final?.status === SyncJobStatus.COMPLETED) {
+            await runEngines(prisma, account.id);
+            await runBrainOrchestrator(prisma, metaClient, account.id);
+          }
+        } catch (err: unknown) {
+          console.error('[adlytic:repair-iqd] sync failed:', err);
+        }
+      })();
+    });
+
+    return c.json({
+      success: true,
+      factorsHealed,
+      rescale,
+      syncJobId: job.id,
+    }, 202);
   });
 
   // ════════════════════════════════════════════════════════════════════════

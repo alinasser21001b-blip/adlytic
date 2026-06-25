@@ -284,7 +284,9 @@ export class SyncAccountWorker {
         const dailyBatch = rows.map((r) => ({
           entityType: EntityType.ACCOUNT,
           entityId: adAccountId,
-          insight: mapMetaInsight(r, { currencyMinorFactor: acct.currencyMinorFactor }),
+          insight: mapMetaInsight(r, {
+            currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+          }),
         }));
         await this.dailyRepo.upsertMany(dailyBatch);
         console.log(`${tag} Upserted ${dailyBatch.length} daily stat rows`);
@@ -342,7 +344,9 @@ export class SyncAccountWorker {
         const n = typeof v === 'number' ? v : parseFloat(String(v ?? 0));
         if (Number.isFinite(n)) spendMajor += n;
       }
-      const spendMinor = BigInt(Math.round(spendMajor * acct.currencyMinorFactor));
+      const spendMinor = BigInt(Math.round(
+        spendMajor * resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+      ));
       await this.prisma.adAccount.update({
         where: { id: adAccountId },
         data: {
@@ -452,7 +456,9 @@ export class SyncAccountWorker {
           const dailyBatch = rows.map((r) => ({
             entityType: EntityType.CAMPAIGN,
             entityId: camp.id,
-            insight: mapMetaInsight(r, { currencyMinorFactor: acct.currencyMinorFactor }),
+            insight: mapMetaInsight(r, {
+              currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+            }),
           }));
           await this.dailyRepo.upsertMany(dailyBatch);
           return dailyBatch.length;
@@ -820,7 +826,7 @@ export class SyncAccountWorker {
               // logic simple and the unique-constraint guarantee intact.
               for (const r of rows) {
                 const norm = mapMetaBreakdownInsight(r, dim, {
-                  currencyMinorFactor: acct.currencyMinorFactor,
+                  currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
                 });
                 if (!norm) continue;
 
@@ -1003,7 +1009,9 @@ export class SyncAccountWorker {
           const dailyBatch = rows.map((r) => ({
             entityType: EntityType.ACCOUNT,
             entityId: adAccountId,
-            insight: mapMetaInsight(r, { currencyMinorFactor: acct.currencyMinorFactor }),
+            insight: mapMetaInsight(r, {
+              currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+            }),
           }));
           await this.dailyRepo.upsertMany(dailyBatch);
           totalUpserted += dailyBatch.length;
