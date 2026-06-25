@@ -442,9 +442,10 @@ export function beginnerDashboardPage(): string {
       document.getElementById('bgn-main').style.display = 'block';
 
       var currency = dash.workspace.currency || 'USD';
-      var factor   = dash.workspace.currencyMinorFactor != null && dash.workspace.currencyMinorFactor > 0
-        ? dash.workspace.currencyMinorFactor
-        : (currency === 'IQD' ? 1 : 100);
+      var factor   = currency === 'IQD' ? 1
+        : (dash.workspace.currencyMinorFactor != null && dash.workspace.currencyMinorFactor > 0
+          ? dash.workspace.currencyMinorFactor
+          : 100);
 
       renderGreeting(dash);
       renderStatus(dash);

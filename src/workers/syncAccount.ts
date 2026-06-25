@@ -25,6 +25,7 @@ import { mapMetaInsight, mapMetaBreakdownInsight } from "../mappers/insightMappe
 import { mapMetaAdSet, mapMetaAd } from "../mappers/creativeMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
+import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 
 // ── Chunked sync constants ──────────────────────────────────────────────
 /** Days per chunk. 7 keeps each Meta call small enough to dodge rate limits. */
@@ -215,9 +216,20 @@ export class SyncAccountWorker {
     const since = new Date(now.getTime() - backfillDays * 86400 * 1000);
     const until = now;
 
-    const acct = await this.prisma.adAccount.findUniqueOrThrow({
+    let acct = await this.prisma.adAccount.findUniqueOrThrow({
       where: { id: adAccountId },
     });
+
+    if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
+      const healed = resolveCurrencyMinorFactor(acct.currency, null);
+      acct = await this.prisma.adAccount.update({
+        where: { id: adAccountId },
+        data: { currencyMinorFactor: healed },
+      });
+      console.log(
+        `[currency-heal] sync ${acct.externalAccountId} ${acct.currency} factor → ${healed}`,
+      );
+    }
 
     const result: SyncResult = {
       adAccountId,
@@ -927,7 +939,17 @@ export class SyncAccountWorker {
       return;
     }
 
-    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    let acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
+      const healed = resolveCurrencyMinorFactor(acct.currency, null);
+      acct = await this.prisma.adAccount.update({
+        where: { id: adAccountId },
+        data: { currencyMinorFactor: healed },
+      });
+      console.log(
+        `[currency-heal] syncChunked ${acct.externalAccountId} ${acct.currency} factor → ${healed}`,
+      );
+    }
     const since = job.windowSince;
     const until = job.windowUntil;
 

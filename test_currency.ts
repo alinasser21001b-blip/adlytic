@@ -11,7 +11,9 @@ console.log("\n── currencyMinorFactorFor ──");
 check("IQD → 1", currencyMinorFactorFor("IQD") === 1);
 check("USD → 100", currencyMinorFactorFor("USD") === 100);
 check("resolve IQD null → 1", resolveCurrencyMinorFactor("IQD", null) === 1);
+check("resolve IQD stale 100 → 1", resolveCurrencyMinorFactor("IQD", 100) === 1);
 check("resolve USD 0 → 100", resolveCurrencyMinorFactor("USD", 0) === 100);
+check("resolve USD stored 100 → 100", resolveCurrencyMinorFactor("USD", 100) === 100);
 
 console.log("\n── IQD spend round-trip (Meta major → minor → display) ──");
 const iqdFactor = currencyMinorFactorFor("IQD");

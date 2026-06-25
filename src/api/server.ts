@@ -73,7 +73,7 @@ import { config } from '../config';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
-import { currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
+import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -378,7 +378,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       where: { id: workspaceId },
       include: { adAccounts: true },
     });
-    return { workspace: ws, account: ws.adAccounts[0] ?? null };
+    const account = ws.adAccounts[0] ?? null;
+    if (account && currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
+      const healed = resolveCurrencyMinorFactor(account.currency, null);
+      await prisma.adAccount.update({
+        where: { id: account.id },
+        data: { currencyMinorFactor: healed },
+      });
+      account.currencyMinorFactor = healed;
+    }
+    return { workspace: ws, account };
   }
 
   // ── Phase 2: System User / FB Login for Business helpers ──────────────────
@@ -1044,6 +1053,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         },
       },
     });
+    for (const acct of ws.adAccounts) {
+      if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
+        const healed = resolveCurrencyMinorFactor(acct.currency, null);
+        await prisma.adAccount.update({
+          where: { id: acct.id },
+          data: { currencyMinorFactor: healed },
+        });
+        acct.currencyMinorFactor = healed;
+      }
+    }
     return c.json(safeJson(ws));
   });
 

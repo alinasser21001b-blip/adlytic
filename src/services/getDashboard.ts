@@ -29,7 +29,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
-import { resolveCurrencyMinorFactor } from "../lib/currency";
+import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 
 // ── Module-level Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
@@ -232,6 +232,19 @@ export async function getDashboard(
   const locale = opts.locale ?? Locale.EN;
   const account = ws.adAccounts[0]; // Phase 1: one account per workspace
   if (!account) return EMPTY_DASHBOARD_DTO;
+
+  // Auto-heal stale IQD rows that still carry the schema default factor=100.
+  if (currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
+    const healed = resolveCurrencyMinorFactor(account.currency, null);
+    await prisma.adAccount.update({
+      where: { id: account.id },
+      data: { currencyMinorFactor: healed },
+    });
+    account.currencyMinorFactor = healed;
+    console.log(
+      `[currency-heal] dashboard ${account.id.slice(0, 8)}… ${account.currency} factor → ${healed}`,
+    );
+  }
 
   const since = new Date(Date.now() - windowDays * 864e5);
   const sinceDate = new Date(since.toISOString().slice(0, 10));

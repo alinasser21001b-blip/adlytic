@@ -15,11 +15,20 @@ export function currencyMinorFactorFor(currency: string): number {
   return 100;
 }
 
-/** Resolve factor from DB row, falling back to currency when unset/invalid. */
+/** Resolve factor from DB row, falling back to currency when unset/invalid.
+ *  Zero-decimal currencies (IQD) always return 1 — the schema default of 100
+ *  must never win over the currency code. */
 export function resolveCurrencyMinorFactor(
   currency: string,
   storedFactor: number | null | undefined,
 ): number {
+  const canonical = currencyMinorFactorFor(currency);
+  if (canonical === 1) return 1;
   if (storedFactor != null && storedFactor > 0) return storedFactor;
-  return currencyMinorFactorFor(currency);
+  return canonical;
+}
+
+/** True when the persisted factor disagrees with the currency's canonical factor. */
+export function currencyFactorNeedsHeal(currency: string, storedFactor: number): boolean {
+  return currencyMinorFactorFor(currency) !== storedFactor;
 }

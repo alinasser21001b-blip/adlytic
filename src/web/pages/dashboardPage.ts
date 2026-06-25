@@ -501,8 +501,9 @@ export function dashboardPage(): string {
       }
     }
     if (currency) state.currency = currency;
-    if (factor != null && factor > 0) state.minorFactor = factor;
-    else if (currency === 'IQD') state.minorFactor = 1;
+    // IQD has no minor unit — never divide by a stale factor=100 from DB.
+    if (currency === 'IQD') state.minorFactor = 1;
+    else if (factor != null && factor > 0) state.minorFactor = factor;
   }
   // Sum BigInt-or-Number spend over an insights slice (already in minor units).
   function sumMinor(rows) {

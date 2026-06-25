@@ -988,10 +988,10 @@ export function campaignsPage(): string {
       var primary = wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts[0];
       if (primary) {
         if (primary.currency) state.currency = primary.currency;
-        if (primary.currencyMinorFactor != null && Number(primary.currencyMinorFactor) > 0) {
-          state.minorFactor = Number(primary.currencyMinorFactor);
-        } else if (primary.currency === 'IQD') {
+        if (primary.currency === 'IQD') {
           state.minorFactor = 1;
+        } else if (primary.currencyMinorFactor != null && Number(primary.currencyMinorFactor) > 0) {
+          state.minorFactor = Number(primary.currencyMinorFactor);
         }
       }
 
