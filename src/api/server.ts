@@ -68,6 +68,7 @@ import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken } from '../services/tokenEncryption';
+import { config } from '../config';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
@@ -1767,11 +1768,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // App Secret handshake is misconfigured but the operator already has
     // a working user token (e.g. from Graph API Explorer or a previous
     // long-lived exchange).
-    const directToken = (process.env['META_DIRECT_TOKEN'] ?? '').trim();
+    const directToken = config.meta.directToken ?? '';
     if (directToken) {
       console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE — bypassing OAuth dialog, calling Graph API with env token');
       try {
-        const apiVersion = (process.env['META_API_VERSION'] ?? '').trim() || 'v20.0';
+        const apiVersion = config.meta.apiVersion;
         const accounts   = await fetchMetaAdAccountsByToken(directToken, apiVersion);
         if (accounts.length === 0) {
           console.error('[META_AUTH_FAILURE] direct-token: token is valid but returned 0 ad accounts');
@@ -1971,7 +1972,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!account) return c.json({ error: 'Account not found in session' }, 404);
 
     const encryptedToken = encryptToken(session.accessToken);
-    const apiVersion     = process.env['META_API_VERSION'] ?? 'v20.0';
+    const apiVersion     = config.meta.apiVersion;
     const timezone       = account.timezone_name ?? 'UTC';
     const countryCode    = tzToCountry(account.timezone_name);
 
@@ -2121,7 +2122,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     // Validate the token against Meta API before saving — fail fast with a clear error.
     // Also pull timezone_name here so we can derive countryCode without user input.
-    const apiVersion = process.env['META_API_VERSION'] ?? 'v20.0';
+    const apiVersion = config.meta.apiVersion;
     let metaTimezone: string | null = null;
     try {
       const testUrl = `https://graph.facebook.com/${encodeURIComponent(apiVersion)}/${encodeURIComponent(extId)}?fields=id,name,currency,timezone_name,account_status&access_token=${encodeURIComponent(body.accessToken)}`;
@@ -2280,7 +2281,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       },
     });
 
-    const apiVersion = process.env['META_API_VERSION'] ?? 'v20.0';
+    const apiVersion = config.meta.apiVersion;
     const accessToken = decryptToken(account.accessTokenEncrypted);
     const metaClient = new MetaClient({ apiVersion, accessToken });
     const worker = new SyncAccountWorker(prisma, metaClient);

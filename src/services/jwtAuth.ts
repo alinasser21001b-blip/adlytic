@@ -21,11 +21,13 @@
 //
 //  JWT_SECRET MUST be set in production. If absent in development, a
 //  hard-coded insecure default is used with a loud console warning.
+//  Validation + production fail-fast is centralized in `src/config.ts`.
 // ════════════════════════════════════════════════════════════════════════
 
 import { createHash } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { config } from '../config';
 
 // ── constants ─────────────────────────────────────────────────────────────
 
@@ -38,28 +40,12 @@ const JWT_EXPIRES_IN = '7d';
 const SHA256_RE = /^[a-f0-9]{64}$/;
 
 // ── secret resolution ─────────────────────────────────────────────────────
-
-let _secret: string | null = null;
+//
+// The secret (and its production fail-fast / dev-fallback policy) is resolved
+// centrally in `src/config.ts`. We just read the already-validated value here.
 
 function getJwtSecret(): string {
-  if (_secret) return _secret;
-  const s = process.env['JWT_SECRET'] ?? '';
-  if (s.length < 32) {
-    if ((process.env['NODE_ENV'] ?? 'development') !== 'development') {
-      // Fatal in production — don't start with an insecure key.
-      console.error(
-        '[adlytic:SECURITY] JWT_SECRET is missing or too short (must be ≥32 chars).\n' +
-        '  Generate one: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"\n' +
-        '  Set JWT_SECRET in your Railway environment variables.'
-      );
-      process.exit(1);
-    }
-    console.warn('[adlytic] JWT_SECRET not configured — using insecure dev default. DO NOT USE IN PRODUCTION.');
-    _secret = 'adlytic-insecure-dev-secret-do-not-use-in-production-ever';
-  } else {
-    _secret = s;
-  }
-  return _secret;
+  return config.jwt.secret;
 }
 
 // ── passwords ─────────────────────────────────────────────────────────────

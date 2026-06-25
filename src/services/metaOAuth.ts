@@ -8,6 +8,8 @@
 //  and returns raw data. No database writes happen here.
 // ════════════════════════════════════════════════════════════════════════
 
+import { config } from '../config';
+
 /** Shape returned by Meta's /me/adaccounts endpoint. */
 export interface MetaAdAccountInfo {
   id:              string;   // "act_123456"
@@ -24,7 +26,7 @@ export class MetaOAuth {
     private appId:       string,
     private appSecret:   string,
     private redirectUri: string,
-    private apiVersion = 'v20.0',
+    private apiVersion = config.meta.apiVersion,
     /** OAuth scope string sent in the authorization dialog. Defaults to
      *  `ads_read` (the production scope). Operators can downgrade via
      *  env to e.g. `public_profile` to validate the redirect handshake
@@ -121,13 +123,14 @@ export type MetaOAuthConfigStatus =
  * when it is unusable. Pure function — performs no network I/O.
  */
 export function getMetaOAuthConfigStatus(): MetaOAuthConfigStatus {
-  const appId     = (process.env['META_APP_ID']     ?? '').trim();
-  const appSecret = (process.env['META_APP_SECRET'] ?? '').trim();
+  const appId     = config.meta.appId;
+  const appSecret = config.meta.appSecret;
   if (!appId)     return { ok: false, reason: 'Missing META_APP_ID' };
   if (!appSecret) return { ok: false, reason: 'Missing META_APP_SECRET' };
 
-  const redirectUri = (process.env['META_REDIRECT_URI'] ?? '').trim()
-    || 'http://localhost:3001/api/meta/oauth/callback';
+  // redirectUri carries a localhost default from config; still validate it
+  // here so a malformed override surfaces an explicit reason.
+  const redirectUri = config.meta.redirectUri;
   try {
     const parsed = new URL(redirectUri);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -137,10 +140,9 @@ export function getMetaOAuthConfigStatus(): MetaOAuthConfigStatus {
     return { ok: false, reason: `Invalid META_REDIRECT_URI: "${redirectUri}" is not a valid URL` };
   }
 
-  const apiVersion = (process.env['META_API_VERSION'] ?? '').trim() || 'v20.0';
-  if (!/^v\d+\.\d+$/.test(apiVersion)) {
-    return { ok: false, reason: `Invalid META_API_VERSION: "${apiVersion}" (expected format like "v20.0")` };
-  }
+  // apiVersion is already validated + normalized in config (falls back to the
+  // default on a malformed value), so no re-check is needed here.
+  const apiVersion = config.meta.apiVersion;
 
   // OAuth scope is intentionally permissive: any whitespace-separated list of
   // Meta scope tokens is accepted. We do NOT pin a closed allowlist because
@@ -148,7 +150,7 @@ export function getMetaOAuthConfigStatus(): MetaOAuthConfigStatus {
   // unknown scope here would lock operators out of a valid future permission.
   // Empty / whitespace-only values fall back to the production default
   // `ads_read` so an accidentally-blanked env var never sends `scope=`.
-  const scope = (process.env['META_OAUTH_SCOPE'] ?? '').trim() || 'ads_read';
+  const scope = config.meta.oauthScope;
 
   return { ok: true, redirectUri, apiVersion, scope };
 }
@@ -164,7 +166,7 @@ export function getMetaOAuthConfigStatus(): MetaOAuthConfigStatus {
  */
 export async function fetchMetaAdAccountsByToken(
   token: string,
-  apiVersion = 'v20.0',
+  apiVersion = config.meta.apiVersion,
 ): Promise<MetaAdAccountInfo[]> {
   const params = new URLSearchParams({
     fields:       'id,name,currency,timezone_name,account_status',
@@ -191,8 +193,8 @@ export function buildMetaOAuth(): MetaOAuth | null {
   if (!status.ok) return null;
 
   // Safe to non-null assert: getMetaOAuthConfigStatus guarantees presence above.
-  const appId     = (process.env['META_APP_ID']     ?? '').trim();
-  const appSecret = (process.env['META_APP_SECRET'] ?? '').trim();
+  const appId     = config.meta.appId as string;
+  const appSecret = config.meta.appSecret as string;
 
   return new MetaOAuth(appId, appSecret, status.redirectUri, status.apiVersion, status.scope);
 }

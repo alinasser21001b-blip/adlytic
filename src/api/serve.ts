@@ -24,13 +24,14 @@ import { MetaClient, MetaApiError } from '../services/metaClient';
 import { decryptToken } from '../services/tokenEncryption';
 import { runEngines } from '../workers/runEngines';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
+import { config, reportConfig } from '../config';
 
-const PORT = Number(process.env['PORT'] ?? 3001);
+const PORT = config.port;
 // Background sync interval: default 6 hours (can be overridden via env)
-const SYNC_INTERVAL_MS = Number(process.env['SYNC_INTERVAL_MS'] ?? 6 * 60 * 60 * 1000);
+const SYNC_INTERVAL_MS = config.sync.intervalMs;
 // Raw insights retention: delete rows older than this many days (default 90)
-const RAW_INSIGHTS_RETAIN_DAYS = Number(process.env['RAW_INSIGHTS_RETAIN_DAYS'] ?? 90);
-const API_VERSION = process.env['META_API_VERSION'] ?? 'v20.0';
+const RAW_INSIGHTS_RETAIN_DAYS = config.sync.rawInsightsRetainDays;
+const API_VERSION = config.meta.apiVersion;
 
 // ── Global safety net: log unhandled rejections/exceptions instead of crashing ──
 process.on('unhandledRejection', (reason) => {
@@ -43,8 +44,15 @@ process.on('uncaughtException', (err) => {
 });
 
 async function main(): Promise<void> {
-  const dbUrl  = process.env['DATABASE_URL'];
+  // Single validated-config checklist. In production this exits(1) when a
+  // required var (JWT_SECRET / TOKEN_ENCRYPTION_KEY / DATABASE_URL) is
+  // missing or invalid; in development it warns and continues.
+  reportConfig();
+
+  const dbUrl = config.database.url;
   if (!dbUrl) {
+    // In development reportConfig only warns, but we still cannot construct a
+    // DB pool without a URL — fail clearly here rather than crash on parse.
     console.error('[adlytic:fatal] DATABASE_URL is not set. Run with --env-file=.env or set the variable in the environment.');
     process.exit(1);
   }
@@ -64,22 +72,8 @@ async function main(): Promise<void> {
   const adapter = new PrismaPg(pool);
   const prisma  = new PrismaClient({ adapter });
 
-  // Warn loudly when TOKEN_ENCRYPTION_KEY is absent in non-dev environments.
-  // Without this key, Meta access tokens are stored as plaintext in the database.
-  if (!process.env['TOKEN_ENCRYPTION_KEY'] || process.env['TOKEN_ENCRYPTION_KEY'].length !== 64) {
-    const env = process.env['NODE_ENV'] ?? 'development';
-    if (env !== 'development') {
-      console.error(
-        '[adlytic:SECURITY] TOKEN_ENCRYPTION_KEY is not set or invalid (must be 64 hex chars).\n' +
-        '  Meta access tokens would be stored as PLAINTEXT in the database.\n' +
-        '  Generate a key: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
-        '  Set TOKEN_ENCRYPTION_KEY in your Railway environment variables.'
-      );
-      process.exit(1);
-    } else {
-      console.warn('[adlytic] TOKEN_ENCRYPTION_KEY not set — tokens stored as plaintext (dev mode).');
-    }
-  }
+  // TOKEN_ENCRYPTION_KEY validation (prod-fatal / dev-warn) + key fingerprint
+  // are handled by reportConfig() above — see src/config.ts.
 
   // Verify the DB connection is reachable before accepting traffic
   try {
