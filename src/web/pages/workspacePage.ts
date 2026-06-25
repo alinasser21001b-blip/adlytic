@@ -46,10 +46,13 @@ export function workspacePage(): string {
 <div class="card section-gap">
   <div class="flex items-center justify-between" style="margin-bottom:16px;">
     <div class="card-title" style="margin-bottom:0;">Connected Ad Accounts</div>
-    <button class="btn btn-primary btn-sm" id="connect-meta-btn">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Connect Meta Ads
-    </button>
+    <div class="flex items-center" style="gap:10px;">
+      <button type="button" class="btn btn-ghost btn-sm" id="connect-manual-btn" style="font-size:12px;">Connect manually (paste token)</button>
+      <button class="btn btn-primary btn-sm" id="connect-meta-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Connect Meta Ads
+      </button>
+    </div>
   </div>
   <div id="ad-accounts-container">
     <div class="loading-overlay" style="min-height:80px;"><div class="spinner"></div></div>
@@ -59,8 +62,8 @@ export function workspacePage(): string {
 <!-- Manual token modal (shown when OAuth not configured) -->
 <div id="manual-token-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <div class="modal-title">Connect Meta Ads (Manual Fallback)</div>
-    <div class="modal-subtitle">One-click Facebook Login is unavailable on this server, so use this form only as a fallback. Enter your Meta access token and ad account ID — you can generate these in the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:var(--accent)">Meta Graph API Explorer</a>.</div>
+    <div class="modal-title">Connect Meta Ads (Manual)</div>
+    <div class="modal-subtitle">Enter your Meta access token and ad account ID from the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:var(--accent)">Meta Graph API Explorer</a>. Prefer one-click Connect Meta Ads when available; this path is for agencies and operators using short-lived Graph API tokens.</div>
     <div id="manual-reason" class="alert alert-warning" style="display:none;margin-bottom:12px;font-size:12.5px;"></div>
     <div id="manual-error" class="alert alert-error" style="display:none;"></div>
     <div class="form-group">
@@ -226,6 +229,7 @@ export function workspacePage(): string {
            <div class="empty-title">No ad accounts connected</div>
            <div class="empty-text">Connect your Meta Ads account to start syncing campaign data and get AI-powered insights.</div>
            <button class="btn btn-primary" style="margin-top:16px;" onclick="document.getElementById('connect-meta-btn').click()">Connect Meta Ads</button>
+           <button type="button" class="btn btn-ghost btn-sm connect-manual-btn" style="margin-top:10px;">Connect manually (paste token)</button>
          </div>\`;
 
     console.log('[WS:9] ad-accounts-container rendered (accs=' + accs.length + ')');
@@ -249,6 +253,11 @@ export function workspacePage(): string {
         } catch(e) { toast(e.message || 'Sync failed', 'error'); }
         finally { btn.textContent = '↻ Sync'; btn.disabled = false; }
       });
+    });
+
+    // Manual connect (empty state)
+    document.querySelectorAll('.connect-manual-btn').forEach(btn => {
+      btn.addEventListener('click', () => openManualTokenModal());
     });
 
     // Disconnect buttons
@@ -408,6 +417,20 @@ export function workspacePage(): string {
   // ── Connect Meta Ads button ────────────────────────────────────────────
   // Translate server-side diagnostic reasons (which may mention env var names
   // for ops visibility) into plain-language messages for end users.
+  function openManualTokenModal(opts) {
+    const reasonEl = document.getElementById('manual-reason');
+    if (opts && opts.reason) {
+      reasonEl.textContent = friendlyConnectReason(opts.reason);
+      reasonEl.style.display = 'flex';
+    } else {
+      reasonEl.textContent = '';
+      reasonEl.style.display = 'none';
+    }
+    document.getElementById('manual-error').style.display = 'none';
+    document.getElementById('manual-token-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('manual-token').focus(), 50);
+  }
+
   function friendlyConnectReason(reason) {
     if (!reason) return 'Meta connection is temporarily unavailable.';
     const r = String(reason).toLowerCase();
@@ -432,15 +455,15 @@ export function workspacePage(): string {
       } else if (res?.configured === false) {
         // Emergency fallback. Show a plain-language reason — users should not
         // see raw env var names or the word "OAuth".
-        const reasonEl = document.getElementById('manual-reason');
-        reasonEl.textContent = friendlyConnectReason(res?.reason);
-        reasonEl.style.display = 'flex';
-        document.getElementById('manual-token-modal').style.display = 'flex';
-        setTimeout(() => document.getElementById('manual-token').focus(), 50);
+        openManualTokenModal({ reason: res?.reason });
       } else {
         toast('Meta connection is temporarily unavailable.', 'error');
       }
     } catch(e) { toast(e.message || 'Failed to start OAuth', 'error'); }
+  });
+
+  document.getElementById('connect-manual-btn').addEventListener('click', () => {
+    openManualTokenModal();
   });
 
   // ── Manual token modal ─────────────────────────────────────────────────
