@@ -2154,20 +2154,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // MetaConnection from the granted System User token, then hands off to
     // /meta/connect where the chosen AdAccount(s) are linked. Legacy flow
     // below is untouched when the flag is off.
-    if (config.meta.systemUserEnabled) {
+    if (config.meta.systemUserEnabled && stored.kind === 'system_user') {
       try {
-        // Prefer an operator-provided System User token for pre-App-Review
-        // testing; otherwise exchange the dialog code for a long-lived token.
-        let token = normalizeEnvAccessToken(config.meta.systemUserToken);
-        if (!token) {
-          const shortToken = await oauth.exchangeCode(code);
-          const { token: longToken } = await oauth.getLongLivedToken(shortToken);
-          token = longToken;
-        }
+        // This callback follows a completed FB Login for Business dialog, so
+        // always use the returned auth code's token. Reusing an env token here
+        // can falsely fail when that env token is stale or scoped differently.
+        const shortToken = await oauth.exchangeCode(code);
+        const { token } = await oauth.getLongLivedToken(shortToken);
         const resolved = await oauth.resolveSystemUserConnection(token);
-        if (resolved.accounts.length === 0) {
-          return c.redirect('/workspace?oauth_error=' + encodeURIComponent('System User token returned 0 ad accounts'));
-        }
         const business = await resolveBusinessId({
           businessId:   resolved.businessId,
           businessName: resolved.businessName,
@@ -2175,6 +2169,22 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           token,
           oauth,
         });
+        let grantedAccounts = resolved.accounts;
+        // Some System User grants expose assets on the Business edge even when
+        // /me/adaccounts is empty. Try that edge before failing the callback.
+        if (grantedAccounts.length === 0 && business.id !== 'unknown' && !business.id.startsWith('su_')) {
+          try {
+            const businessAccounts = await oauth.getBusinessAdAccounts(business.id, token);
+            if (businessAccounts.length > 0) grantedAccounts = businessAccounts;
+          } catch (bizErr: unknown) {
+            const bizMsg = bizErr instanceof Error ? bizErr.message : String(bizErr);
+            console.warn('[META_AUTH_FAILURE] system-user callback business account fallback failed:', bizMsg);
+          }
+        }
+        if (grantedAccounts.length === 0) {
+          console.error('[META_AUTH_FAILURE] system-user callback resolved 0 ad accounts');
+          return c.redirect('/workspace?oauth_error=' + encodeURIComponent('No ad accounts were granted to this business login.'));
+        }
         const connectionId = await upsertMetaConnection({
           workspaceId:     stored.workspaceId,
           businessId:      business.id,
@@ -2182,7 +2192,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           systemUserId:    resolved.systemUserId,
           token,
           scopes:          resolved.scopes,
-          grantedAssetIds: resolved.accounts.map(a => a.id),
+          grantedAssetIds: grantedAccounts.map(a => a.id),
           configId:        config.meta.systemUserConfigId,
         });
         const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
@@ -2191,7 +2201,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           userId:      stored.userId,
           accessToken: token,
           expiresAt:   new Date(Date.now() + 365 * 86400 * 1000),
-          accounts:    resolved.accounts,
+          accounts:    grantedAccounts,
           createdAt:   Date.now(),
           kind:        'system_user',
           connectionId,
@@ -2284,6 +2294,17 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const account = session.accounts.find(a => a.id === externalAccountId);
     if (!account) return c.json({ error: 'Account not found in session' }, 404);
+    const accountName = (typeof account.name === 'string' && account.name.trim().length > 0)
+      ? account.name
+      : `Meta Ad Account ${account.id}`;
+    const accountCurrency = (typeof account.currency === 'string' && account.currency.trim().length > 0)
+      ? account.currency.toUpperCase()
+      : 'USD';
+    const timezone = (typeof account.timezone_name === 'string' && account.timezone_name.trim().length > 0)
+      ? account.timezone_name
+      : 'UTC';
+    const countryCode = tzToCountry(timezone);
+    const currencyMinorFactor = accountCurrency === 'IQD' ? 1 : 100;
 
     // ── Phase 2: System User linking (flag-gated) ────────────────────────
     // When the session was produced by the System User flow, the token lives
@@ -2296,8 +2317,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       if (!connection || connection.workspaceId !== workspaceId) {
         return c.json({ error: 'Connection not found for this workspace' }, 404);
       }
-      const timezone    = account.timezone_name ?? 'UTC';
-      const countryCode = tzToCountry(account.timezone_name);
       const existing = await prisma.adAccount.findFirst({
         where: { platform: 'META', externalAccountId: account.id },
       });
@@ -2309,8 +2328,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             tokenSource:          'SYSTEM_USER',
             accessTokenEncrypted: null,   // token lives on the connection now
             tokenExpiresAt:       null,   // System User tokens do not expire
-            name:                 account.name,
-            currency:             account.currency,
+            name:                 accountName,
+            currency:             accountCurrency,
             timezone,
             countryCode,
             workspaceId,
@@ -2323,9 +2342,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             workspaceId,
             platform:             'META',
             externalAccountId:    account.id,
-            name:                 account.name,
-            currency:             account.currency,
-            currencyMinorFactor:  account.currency === 'IQD' ? 1 : 100,
+            name:                 accountName,
+            currency:             accountCurrency,
+            currencyMinorFactor,
             timezone,
             countryCode,
             status:               'ACTIVE',
@@ -2398,8 +2417,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const encryptedToken = encryptToken(session.accessToken);
     const apiVersion     = config.meta.apiVersion;
-    const timezone       = account.timezone_name ?? 'UTC';
-    const countryCode    = tzToCountry(account.timezone_name);
 
     // Upsert the ad account (unique on platform + externalAccountId)
     const existing = await prisma.adAccount.findFirst({
@@ -2412,8 +2429,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         data: {
           accessTokenEncrypted: encryptedToken,
           tokenExpiresAt:       session.expiresAt,
-          name:                 account.name,
-          currency:             account.currency,
+          name:                 accountName,
+          currency:             accountCurrency,
           timezone,
           countryCode,
           workspaceId,
@@ -2426,11 +2443,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           workspaceId,
           platform:             'META',
           externalAccountId:    account.id,
-          name:                 account.name,
-          currency:             account.currency,
+          name:                 accountName,
+          currency:             accountCurrency,
           // IQD has no practical minor unit (1 IQD = 1 IQD minor).
           // All other major currencies (USD, EUR, GBP, AED, SAR, …) use 100.
-          currencyMinorFactor:  account.currency === 'IQD' ? 1 : 100,
+          currencyMinorFactor,
           timezone,
           countryCode,
           status:               'ACTIVE',

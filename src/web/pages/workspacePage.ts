@@ -506,6 +506,7 @@ export function workspacePage(): string {
       if (code === 'expired_state')  return 'That connection attempt expired. Please try again.';
       if (code === 'missing_params') return 'Meta did not return the expected information. Please try again.';
       if (code === 'not_configured') return 'Meta connection is not set up on this server yet.';
+      if (/0 ad accounts|No ad accounts were granted/i.test(code)) return 'Meta login succeeded, but no ad account was granted. Reconnect and select at least one ad account.';
       if (/permissions?|denied|access_denied/i.test(code)) return 'Permission was not granted. Please approve access to connect.';
       return 'Could not connect to Meta. Please try again.';
     })();
