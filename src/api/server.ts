@@ -2172,12 +2172,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const grantedAccounts = resolved.accounts;
         if (grantedAccounts.length === 0) {
           console.error('[META_AUTH_FAILURE] system-user callback resolved 0 ad accounts');
-          return c.redirect(
-            '/workspace?oauth_error='
-              + encodeURIComponent(
-                'Meta login succeeded, but no ad account was granted. In Meta Business Settings, assign at least one Ad Account asset to the selected system user, then reconnect.',
-              ),
-          );
+          return c.redirect('/workspace?oauth_error=no_ad_accounts_granted');
         }
         const connectionId = await upsertMetaConnection({
           workspaceId:     stored.workspaceId,
