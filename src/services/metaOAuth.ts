@@ -52,6 +52,30 @@ export interface MetaSystemUserConnection {
   accounts:     MetaAdAccountInfo[];
 }
 
+const META_AD_ACCOUNT_FIELDS = 'id,name,currency,timezone_name,account_status,business{id,name}';
+
+function normalizeMetaAdAccountId(rawId: string): string {
+  const id = rawId.trim();
+  if (!id) return id;
+  if (id.startsWith('act_')) return id;
+  // Some Graph edges return bare numeric ids; normalize for consistent linking.
+  if (/^\d+$/.test(id)) return `act_${id}`;
+  return id;
+}
+
+function normalizeAndDedupeMetaAdAccounts(accounts: MetaAdAccountInfo[]): MetaAdAccountInfo[] {
+  const out: MetaAdAccountInfo[] = [];
+  const seen = new Set<string>();
+  for (const account of accounts) {
+    if (!account?.id) continue;
+    const normalizedId = normalizeMetaAdAccountId(String(account.id));
+    if (!normalizedId || seen.has(normalizedId)) continue;
+    seen.add(normalizedId);
+    out.push({ ...account, id: normalizedId });
+  }
+  return out;
+}
+
 export class MetaOAuth {
   private base: string;
 
@@ -142,14 +166,14 @@ export class MetaOAuth {
     const params = new URLSearchParams({
       // `business{id,name}` is additive — legacy callers ignore the extra field,
       // while the Phase 2 System User flow uses it to discover the BM id.
-      fields:       'id,name,currency,timezone_name,account_status,business{id,name}',
+      fields:       META_AD_ACCOUNT_FIELDS,
       access_token: accessToken,
       limit:        '50',
     });
     const res  = await fetch(`${this.base}/me/adaccounts?${params}`);
     const data = await res.json() as Record<string, unknown>;
     this.throwIfError(data, 'Failed to list ad accounts');
-    return (data['data'] ?? []) as MetaAdAccountInfo[];
+    return normalizeAndDedupeMetaAdAccounts((data['data'] ?? []) as MetaAdAccountInfo[]);
   }
 
   /**
@@ -188,14 +212,31 @@ export class MetaOAuth {
    */
   async getBusinessAdAccounts(businessId: string, token: string): Promise<MetaAdAccountInfo[]> {
     const params = new URLSearchParams({
-      fields:       'id,name,currency,timezone_name,account_status,business{id,name}',
+      fields:       META_AD_ACCOUNT_FIELDS,
       access_token: token,
       limit:        '100',
     });
     const res  = await fetch(`${this.base}/${encodeURIComponent(businessId)}/owned_ad_accounts?${params}`);
     const data = await res.json() as Record<string, unknown>;
-    this.throwIfError(data, 'Failed to list business ad accounts');
-    return (data['data'] ?? []) as MetaAdAccountInfo[];
+    this.throwIfError(data, 'Failed to list business owned ad accounts');
+    return normalizeAndDedupeMetaAdAccounts((data['data'] ?? []) as MetaAdAccountInfo[]);
+  }
+
+  /**
+   * Phase 2 — List ad accounts assigned to this business as client accounts.
+   * Some FB Login for Business grants expose assets here instead of
+   * `owned_ad_accounts`, so System User discovery must check both.
+   */
+  async getBusinessClientAdAccounts(businessId: string, token: string): Promise<MetaAdAccountInfo[]> {
+    const params = new URLSearchParams({
+      fields:       META_AD_ACCOUNT_FIELDS,
+      access_token: token,
+      limit:        '100',
+    });
+    const res  = await fetch(`${this.base}/${encodeURIComponent(businessId)}/client_ad_accounts?${params}`);
+    const data = await res.json() as Record<string, unknown>;
+    this.throwIfError(data, 'Failed to list business client ad accounts');
+    return normalizeAndDedupeMetaAdAccounts((data['data'] ?? []) as MetaAdAccountInfo[]);
   }
 
   /**
@@ -237,20 +278,51 @@ export class MetaOAuth {
       throw new Error('[Meta] System User token is not valid (debug_token is_valid=false)');
     }
 
-    const accounts = await this.getAdAccounts(token);
-    let biz: { id: string; name?: string } | undefined = accounts.find(a => a.business?.id)?.business;
+    const meAccounts = await this.getAdAccounts(token);
+    let businesses: Array<{ id: string; name?: string }> = [];
+    try {
+      businesses = await this.getOwnedBusinesses(token);
+    } catch (err) {
+      // Non-fatal: account discovery can still continue via /me/adaccounts.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Meta] /me/businesses lookup failed during System User resolution: ${msg}`);
+    }
 
-    // Fallback: derive the owning BM from the system user's own businesses.
-    if (!biz?.id) {
+    const businessIds = new Set<string>();
+    for (const account of meAccounts) {
+      if (account.business?.id) businessIds.add(account.business.id);
+    }
+    for (const business of businesses) {
+      if (business.id) businessIds.add(business.id);
+    }
+
+    const discovered: MetaAdAccountInfo[] = [...meAccounts];
+    const meAccountsCount = meAccounts.length;
+    let ownedAccountsCount = 0;
+    let clientAccountsCount = 0;
+    for (const businessId of businessIds) {
       try {
-        const businesses = await this.getOwnedBusinesses(token);
-        if (businesses.length > 0) biz = businesses[0];
+        const ownedAccounts = await this.getBusinessAdAccounts(businessId, token);
+        ownedAccountsCount += ownedAccounts.length;
+        discovered.push(...ownedAccounts);
       } catch (err) {
-        // Non-fatal: the caller has a final string fallback. Log and continue.
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[Meta] /me/businesses lookup failed during System User resolution: ${msg}`);
+        console.warn(`[Meta] owned_ad_accounts lookup failed for business ${businessId}: ${msg}`);
+      }
+      try {
+        const clientAccounts = await this.getBusinessClientAdAccounts(businessId, token);
+        clientAccountsCount += clientAccounts.length;
+        discovered.push(...clientAccounts);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[Meta] client_ad_accounts lookup failed for business ${businessId}: ${msg}`);
       }
     }
+    const accounts = normalizeAndDedupeMetaAdAccounts(discovered);
+    console.info(
+      `[Meta] System User account discovery counts: /me/adaccounts=${meAccountsCount}, owned_ad_accounts=${ownedAccountsCount}, client_ad_accounts=${clientAccountsCount}, businesses=${businessIds.size}, unique_total=${accounts.length}`,
+    );
+    const biz = accounts.find(a => a.business?.id)?.business ?? businesses[0];
 
     return {
       systemUserId: debug.userId,
@@ -333,7 +405,7 @@ export async function fetchMetaAdAccountsByToken(
   apiVersion = config.meta.apiVersion,
 ): Promise<MetaAdAccountInfo[]> {
   const params = new URLSearchParams({
-    fields:       'id,name,currency,timezone_name,account_status',
+    fields:       META_AD_ACCOUNT_FIELDS,
     access_token: token,
     limit:        '50',
   });
@@ -344,7 +416,7 @@ export async function fetchMetaAdAccountsByToken(
     const e = data['error'] as Record<string, unknown>;
     throw new Error(`[Meta] Direct token list-accounts failed: ${String(e['message'] ?? e['type'] ?? 'unknown error')}`);
   }
-  return (data['data'] ?? []) as MetaAdAccountInfo[];
+  return normalizeAndDedupeMetaAdAccounts((data['data'] ?? []) as MetaAdAccountInfo[]);
 }
 
 /**

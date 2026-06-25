@@ -2169,21 +2169,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           token,
           oauth,
         });
-        let grantedAccounts = resolved.accounts;
-        // Some System User grants expose assets on the Business edge even when
-        // /me/adaccounts is empty. Try that edge before failing the callback.
-        if (grantedAccounts.length === 0 && business.id !== 'unknown' && !business.id.startsWith('su_')) {
-          try {
-            const businessAccounts = await oauth.getBusinessAdAccounts(business.id, token);
-            if (businessAccounts.length > 0) grantedAccounts = businessAccounts;
-          } catch (bizErr: unknown) {
-            const bizMsg = bizErr instanceof Error ? bizErr.message : String(bizErr);
-            console.warn('[META_AUTH_FAILURE] system-user callback business account fallback failed:', bizMsg);
-          }
-        }
+        const grantedAccounts = resolved.accounts;
         if (grantedAccounts.length === 0) {
           console.error('[META_AUTH_FAILURE] system-user callback resolved 0 ad accounts');
-          return c.redirect('/workspace?oauth_error=' + encodeURIComponent('No ad accounts were granted to this business login.'));
+          return c.redirect(
+            '/workspace?oauth_error='
+              + encodeURIComponent(
+                'Meta login succeeded, but no ad account was granted. In Meta Business Settings, assign at least one Ad Account asset to the selected system user, then reconnect.',
+              ),
+          );
         }
         const connectionId = await upsertMetaConnection({
           workspaceId:     stored.workspaceId,
