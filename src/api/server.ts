@@ -73,6 +73,7 @@ import { config } from '../config';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
+import { currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -1362,7 +1363,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // ratios below (CPC, CPM, costPerMessage) are returned in major units to
     // match the frontend formatter, which does `value * currencyMinorFactor`
     // and then divides by the factor again.
-    const factor = account.currencyMinorFactor || 100;
+    const factor = resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor);
     const spendMajor    = Number(spendMinor) / factor;
     const impressionsN  = Number(impressions);
     const clicksN       = Number(clicks);
@@ -2293,7 +2294,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       ? account.timezone_name
       : 'UTC';
     const countryCode = tzToCountry(timezone);
-    const currencyMinorFactor = accountCurrency === 'IQD' ? 1 : 100;
+    const currencyMinorFactor = currencyMinorFactorFor(accountCurrency);
 
     // ── Phase 2: System User linking (flag-gated) ────────────────────────
     // When the session was produced by the System User flow, the token lives
@@ -2319,6 +2320,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             tokenExpiresAt:       null,   // System User tokens do not expire
             name:                 accountName,
             currency:             accountCurrency,
+            currencyMinorFactor,
             timezone,
             countryCode,
             workspaceId,
@@ -2420,6 +2422,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           tokenExpiresAt:       session.expiresAt,
           name:                 accountName,
           currency:             accountCurrency,
+          currencyMinorFactor,
           timezone,
           countryCode,
           workspaceId,
@@ -2434,8 +2437,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           externalAccountId:    account.id,
           name:                 accountName,
           currency:             accountCurrency,
-          // IQD has no practical minor unit (1 IQD = 1 IQD minor).
-          // All other major currencies (USD, EUR, GBP, AED, SAR, …) use 100.
           currencyMinorFactor,
           timezone,
           countryCode,
@@ -2568,7 +2569,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       // Use the verified name/currency/timezone from Meta if user left them blank
       if (!body.name && testData['name']) body.name = String(testData['name']);
-      if (!body.currency && testData['currency']) body.currency = String(testData['currency']);
+      if (!body.currency && testData['currency']) body.currency = String(testData['currency']).toUpperCase();
       if (testData['timezone_name']) metaTimezone = String(testData['timezone_name']);
     } catch (fetchErr) {
       // Network error — don't block connection, just log
@@ -2578,6 +2579,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const resolvedTimezone = metaTimezone ?? body.timezone ?? 'UTC';
     const countryCode      = tzToCountry(resolvedTimezone);
     const encryptedToken   = encryptToken(body.accessToken);
+    const resolvedCurrency = (body.currency ?? 'USD').trim().toUpperCase();
+    const currencyMinorFactor = currencyMinorFactorFor(resolvedCurrency);
     const existing = await prisma.adAccount.findFirst({
       where: { platform: 'META', externalAccountId: extId },
     });
@@ -2587,14 +2590,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         data: {
           accessTokenEncrypted: encryptedToken,
           workspaceId,
-          name:        body.name ?? existing.name,
-          timezone:    resolvedTimezone,
+          name:                 body.name ?? existing.name,
+          currency:             resolvedCurrency,
+          currencyMinorFactor,
+          timezone:             resolvedTimezone,
           countryCode,
         },
       });
       return c.json({ success: true, id: existing.id });
     }
-    const resolvedCurrency = body.currency ?? 'USD';
     const acct = await prisma.adAccount.create({
       data: {
         workspaceId,
@@ -2602,7 +2606,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         externalAccountId:    extId,
         name:                 body.name ?? extId,
         currency:             resolvedCurrency,
-        currencyMinorFactor:  resolvedCurrency === 'IQD' ? 1 : 100,
+        currencyMinorFactor,
         timezone:             resolvedTimezone,
         countryCode,
         status:               'ACTIVE',

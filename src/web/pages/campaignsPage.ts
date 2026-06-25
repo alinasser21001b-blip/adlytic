@@ -463,7 +463,11 @@ export function campaignsPage(): string {
   // is the source of truth even if the page-level state hasn't hydrated yet.
   function fmtMinor(amountMinor, factor, currency) {
     if (amountMinor == null || isNaN(amountMinor)) return '—';
-    var f = factor || state.minorFactor || 100;
+    var f = factor != null && factor > 0
+      ? factor
+      : (state.minorFactor != null && state.minorFactor > 0
+        ? state.minorFactor
+        : (currency === 'IQD' || state.currency === 'IQD' ? 1 : 100));
     var ccy = currency || state.currency || '';
     var major = Number(amountMinor) / f;
     var decimals = f === 1 ? 0 : 2;
@@ -984,7 +988,11 @@ export function campaignsPage(): string {
       var primary = wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts[0];
       if (primary) {
         if (primary.currency) state.currency = primary.currency;
-        if (primary.currencyMinorFactor) state.minorFactor = Number(primary.currencyMinorFactor);
+        if (primary.currencyMinorFactor != null && Number(primary.currencyMinorFactor) > 0) {
+          state.minorFactor = Number(primary.currencyMinorFactor);
+        } else if (primary.currency === 'IQD') {
+          state.minorFactor = 1;
+        }
       }
 
       // Detect paused / expired token

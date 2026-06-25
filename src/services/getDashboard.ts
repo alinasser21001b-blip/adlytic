@@ -29,6 +29,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
+import { resolveCurrencyMinorFactor } from "../lib/currency";
 
 // ── Module-level Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
@@ -271,7 +272,7 @@ export async function getDashboard(
   const totalImpr       = sum(daily, "impressions");
   const totalClicks     = sum(daily, "clicks");
   const curr            = account.currency;
-  const factor          = account.currencyMinorFactor;
+  const factor          = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
 
   /** Format a minor-unit value into account-currency major units. */
   const money = (minor: number): string => {

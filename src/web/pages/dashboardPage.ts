@@ -483,6 +483,27 @@ export function dashboardPage(): string {
     if (n == null || isNaN(n)) return '—';
     return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
   }
+  // Prefer dashboard DTO (authoritative) then workspace adAccounts for currency state.
+  function hydrateCurrencyState(dashData, wsData) {
+    var currency = null;
+    var factor = null;
+    if (dashData && dashData.workspace) {
+      if (dashData.workspace.currency) currency = dashData.workspace.currency;
+      if (dashData.workspace.currencyMinorFactor != null) {
+        factor = Number(dashData.workspace.currencyMinorFactor);
+      }
+    }
+    if (wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts.length > 0) {
+      var primary = wsData.adAccounts[0];
+      if (!currency && primary.currency) currency = primary.currency;
+      if (factor == null && primary.currencyMinorFactor != null) {
+        factor = Number(primary.currencyMinorFactor);
+      }
+    }
+    if (currency) state.currency = currency;
+    if (factor != null && factor > 0) state.minorFactor = factor;
+    else if (currency === 'IQD') state.minorFactor = 1;
+  }
   // Sum BigInt-or-Number spend over an insights slice (already in minor units).
   function sumMinor(rows) {
     var s = 0;
@@ -1101,12 +1122,8 @@ export function dashboardPage(): string {
       var campaigns = results[2] || [];
       var wsData = results[3];
 
-      // 4) Hydrate currency state from the primary ad account
-      if (wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts.length > 0) {
-        var primary = wsData.adAccounts[0];
-        if (primary.currency) state.currency = primary.currency;
-        if (primary.currencyMinorFactor) state.minorFactor = primary.currencyMinorFactor;
-      }
+      // 4) Hydrate currency state (DTO first — survives ws fetch failures)
+      hydrateCurrencyState(dashData, wsData);
 
       // 5) Stale data banner — all ad accounts non-ACTIVE
       var allStale = wsData && Array.isArray(wsData.adAccounts)
@@ -1173,7 +1190,7 @@ export function dashboardPage(): string {
       if (dashData.trendSeries && dashData.trendSeries.dates) {
         var ts = dashData.trendSeries;
         var tsLabels = ts.dates.map(function (d) { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
-        if (ts.spend)    spendSeriesMajor = ts.spend.map(Number);
+        if (ts.spend)    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
         if (ts.ctr)      ctrSeries        = ts.ctr.map(Number);
         if (ts.messages) impSeries        = ts.messages.map(Number);
         labels = tsLabels;
