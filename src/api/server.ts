@@ -2635,6 +2635,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // Also pull timezone_name here so we can derive countryCode without user input.
     const apiVersion = config.meta.apiVersion;
     let metaTimezone: string | null = null;
+    let metaCurrency: string | null = null;
     try {
       const testUrl = `https://graph.facebook.com/${encodeURIComponent(apiVersion)}/${encodeURIComponent(extId)}?fields=id,name,currency,timezone_name,account_status&access_token=${encodeURIComponent(body.accessToken)}`;
       const testRes = await fetch(testUrl);
@@ -2646,9 +2647,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       if (!testData['id']) {
         return c.json({ error: 'Meta API returned no account data — check your account ID and token' }, 422);
       }
-      // Use the verified name/currency/timezone from Meta if user left them blank
-      if (!body.name && testData['name']) body.name = String(testData['name']);
-      if (!body.currency && testData['currency']) body.currency = String(testData['currency']).toUpperCase();
+      // Always trust Meta for name/currency/timezone — account billing currency cannot be overridden.
+      if (testData['name']) body.name = String(testData['name']);
+      if (testData['currency']) metaCurrency = String(testData['currency']).toUpperCase();
       if (testData['timezone_name']) metaTimezone = String(testData['timezone_name']);
     } catch (fetchErr) {
       // Network error — don't block connection, just log
@@ -2658,7 +2659,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const resolvedTimezone = metaTimezone ?? body.timezone ?? 'UTC';
     const countryCode      = tzToCountry(resolvedTimezone);
     const encryptedToken   = encryptToken(body.accessToken);
-    const resolvedCurrency = (body.currency ?? 'USD').trim().toUpperCase();
+    const resolvedCurrency = (metaCurrency ?? body.currency ?? 'USD').trim().toUpperCase();
     const currencyMinorFactor = currencyMinorFactorFor(resolvedCurrency);
     const existing = await prisma.adAccount.findFirst({
       where: { platform: 'META', externalAccountId: extId },

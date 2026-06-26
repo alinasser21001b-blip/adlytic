@@ -78,17 +78,9 @@ export function workspacePage(): string {
       <label class="form-label">Account Name (optional)</label>
       <input type="text" id="manual-account-name" class="form-input" placeholder="My Business Account">
     </div>
-    <div class="form-group">
-      <label class="form-label">Currency</label>
-      <select id="manual-currency" class="form-input">
-        <option value="IQD">IQD — Iraqi Dinar</option>
-        <option value="USD">USD — US Dollar</option>
-        <option value="EUR">EUR — Euro</option>
-        <option value="GBP">GBP — British Pound</option>
-        <option value="AED">AED — UAE Dirham</option>
-        <option value="SAR">SAR — Saudi Riyal</option>
-      </select>
-    </div>
+    <p style="font-size:12.5px;color:var(--text-2);margin:0 0 12px;">
+      Currency is detected automatically from your Meta ad account (e.g. USD, IQD).
+    </p>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="manual-cancel">Cancel</button>
       <button class="btn btn-primary" id="manual-confirm">Connect Account</button>
@@ -478,7 +470,6 @@ export function workspacePage(): string {
     const accessToken = document.getElementById('manual-token').value.trim();
     const externalAccountId = document.getElementById('manual-account-id').value.trim();
     const name     = document.getElementById('manual-account-name').value.trim();
-    const currency = document.getElementById('manual-currency').value;
     const errEl = document.getElementById('manual-error');
     errEl.style.display = 'none';
     if (!accessToken || !externalAccountId) {
@@ -492,7 +483,7 @@ export function workspacePage(): string {
     try {
       await apiFetch('/api/workspaces/' + wsId + '/ad-accounts', {
         method: 'POST',
-        body: JSON.stringify({ accessToken, externalAccountId, name, currency }),
+        body: JSON.stringify({ accessToken, externalAccountId, name }),
       });
       document.getElementById('manual-token-modal').style.display = 'none';
       toast('Meta Ads account connected! Running initial sync…', 'success');

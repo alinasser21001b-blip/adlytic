@@ -25,9 +25,11 @@ import { layout } from '../layout';
 
 export function dashboardPage(): string {
   const extraHead = `<style>
-    /* Premium spend hero cards */
-    .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
-    @media (max-width: 800px) { .hero-grid { grid-template-columns: 1fr; } }
+    /* Primary KPI hero cards — 4-5 essentials only */
+    .hero-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+    @media (max-width: 1100px) { .hero-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 700px)  { .hero-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px)  { .hero-grid { grid-template-columns: 1fr; } }
     .hero-card {
       position: relative;
       background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
@@ -49,9 +51,9 @@ export function dashboardPage(): string {
     .hero-card:hover { border-color: var(--accent); }
     .hero-card.success::before { background: linear-gradient(135deg, rgba(34,197,94,0.4), rgba(34,197,94,0) 60%); }
     .hero-card.warning::before { background: linear-gradient(135deg, rgba(245,158,11,0.4), rgba(245,158,11,0) 60%); }
-    .hero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
-    .hero-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -0.8px; margin-top: 6px; line-height: 1.05; }
-    .hero-sub   { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+    .hero-label { font-size: 11px; font-weight: 600; color: var(--text-3); margin-bottom: 6px; }
+    .hero-value { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.1; }
+    .hero-sub   { font-size: 11px; color: var(--text-3); margin-top: 4px; }
     .hero-delta {
       display: inline-flex; align-items: center; gap: 4px;
       margin-top: 10px;
@@ -248,6 +250,46 @@ export function dashboardPage(): string {
     .v2-advanced[open] summary::after { transform: rotate(180deg); }
     .v2-advanced summary span { color: var(--text-3); font-weight: 500; font-size: 12px; }
     .v2-advanced-body { padding: 16px 0 0; }
+
+    /* Main chart + summary sidebar */
+    .dash-main {
+      display: grid; grid-template-columns: 1fr 280px; gap: 16px; margin-bottom: 20px;
+    }
+    @media (max-width: 900px) { .dash-main { grid-template-columns: 1fr; } }
+    .dash-summary {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 18px 20px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .dash-summary-title { font-size: 12px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+    .dash-summary-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .dash-summary-label { font-size: 13px; color: var(--text-2); }
+    .dash-summary-val   { font-size: 15px; font-weight: 700; color: var(--text); }
+
+    /* Simple campaign list */
+    .campaign-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 20px; overflow: hidden; }
+    .campaign-list-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .campaign-list-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .campaign-list-meta  { font-size: 12px; color: var(--text-3); }
+    .campaign-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 18px; border-bottom: 1px solid var(--border);
+    }
+    .campaign-row:last-child { border-bottom: none; }
+    .campaign-row:hover { background: var(--surface-hover); }
+    .campaign-name { font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+    .campaign-spend { font-size: 13px; font-weight: 600; color: var(--text-2); flex-shrink: 0; }
+
+    .dash-compact-actions { margin-bottom: 20px; }
+    .dash-tip {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 14px 18px; margin-bottom: 8px;
+    }
+    .dash-tip-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .dash-tip-body  { font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+    .dash-expand-btn { background: none; border: none; color: var(--accent-2); font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-top: 4px; }
+
+    .text-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   </style>`;
 
   const content = `
@@ -275,34 +317,53 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">Reconnect</a>
       </div>
 
-      <!-- 1 ▸ Financial hero cards -->
-      <section class="hero-grid" id="hero-grid">
-        <div class="hero-card" id="hero-30">
-          <div class="hero-label">30-Day Spend</div>
-          <div class="hero-value" id="hero-30-val">—</div>
-          <div class="hero-sub">Past 30 days</div>
-          <span class="hero-delta flat" id="hero-30-delta">→ —</span>
+      <!-- 1 ▸ Primary KPI cards (filled by JS) -->
+      <section class="hero-grid" id="primary-kpi-grid"></section>
+
+      <!-- 2 ▸ Main chart + summary sidebar -->
+      <section class="dash-main">
+        <div class="chart-panel">
+          <div class="chart-panel-head">
+            <div class="chart-panel-title">Spend trend</div>
+            <div class="chart-panel-meta" id="chart-panel-meta">Last 30 days</div>
+          </div>
+          <div class="chart-panel-canvas" style="height:300px;min-height:240px;"><canvas id="chart-spend-main"></canvas></div>
         </div>
-        <div class="hero-card success" id="hero-7">
-          <div class="hero-label">7-Day Spend</div>
-          <div class="hero-value" id="hero-7-val">—</div>
-          <div class="hero-sub">Past 7 days</div>
-          <span class="hero-delta flat" id="hero-7-delta">→ —</span>
-        </div>
-        <div class="hero-card warning" id="hero-life">
-          <div class="hero-label">Lifetime Spend</div>
-          <div class="hero-value" id="hero-life-val">—</div>
-          <div class="hero-sub" id="hero-life-sub">Account history (90-day window)</div>
-          <span class="hero-delta flat">Account total</span>
-        </div>
+        <aside class="dash-summary" id="dash-summary">
+          <div class="dash-summary-title">Summary</div>
+          <div class="dash-summary-row"><span class="dash-summary-label">Health</span><span class="dash-summary-val" id="sum-health">—</span></div>
+          <div class="dash-summary-row"><span class="dash-summary-label">Active campaigns</span><span class="dash-summary-val" id="sum-active">—</span></div>
+          <div class="dash-summary-row"><span class="dash-summary-label">Open issues</span><span class="dash-summary-val" id="sum-issues">—</span></div>
+          <div class="dash-summary-row"><span class="dash-summary-label">Currency</span><span class="dash-summary-val" id="sum-currency">—</span></div>
+        </aside>
       </section>
 
-      <!-- 2 ▸ AI Motion Ticker -->
+      <!-- 3 ▸ Simple campaign list -->
+      <section class="campaign-list">
+        <div class="campaign-list-head">
+          <div class="campaign-list-title">Campaigns</div>
+          <div class="campaign-list-meta" id="campaign-list-meta">—</div>
+        </div>
+        <div id="campaign-list-body"></div>
+      </section>
+
+      <!-- 4 ▸ Top tips (compact) -->
+      <section class="dash-compact-actions" id="dash-compact-actions"></section>
+
+      <!-- 5 ▸ More details (AI, advanced metrics, issues) -->
+      <details class="v2-advanced" id="more-details">
+        <summary>
+          More details
+          <span>AI insights · extra metrics · issues</span>
+        </summary>
+        <div class="v2-advanced-body">
+
+      <!-- AI Motion Ticker -->
       <section class="ticker-wrap" id="ticker-wrap" style="display:none;">
         <div class="ticker-track" id="ticker-track"></div>
       </section>
 
-      <!-- 3 ▸ Active Ads Showcase -->
+      <!-- Active Ads Showcase -->
       <section class="active-section" id="active-section" style="display:none;">
         <div class="active-header">
           <div class="active-title">Active Ads · Now Spending</div>
@@ -311,12 +372,12 @@ export function dashboardPage(): string {
         <div class="active-grid" id="active-grid"></div>
       </section>
 
-      <!-- 4 ▸ Bottom Split Panel — AI Brain Box (left) + Spend chart (right) -->
+      <!-- Split panel — AI Brain Box + secondary chart -->
       <section class="split-grid">
         <div class="brain-box">
           <div class="brain-box-head">
             <div class="brain-box-icon">AI</div>
-            <div class="brain-box-title">صندوق نصائح العقل الـ AI</div>
+            <div class="brain-box-title">AI Tips</div>
             <div class="brain-box-sub" id="brain-box-sub">—</div>
           </div>
           <div id="strategy-list">
@@ -325,10 +386,10 @@ export function dashboardPage(): string {
         </div>
         <div class="chart-panel">
           <div class="chart-panel-head">
-            <div class="chart-panel-title">Performance · Spend Over Time</div>
-            <div class="chart-panel-meta" id="chart-panel-meta">—</div>
+            <div class="chart-panel-title">Results trend</div>
+            <div class="chart-panel-meta">Messages</div>
           </div>
-          <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas></div>
+          <div class="chart-panel-canvas" style="height:220px;"><canvas id="chart-results-secondary"></canvas></div>
         </div>
       </section>
 
@@ -408,11 +469,11 @@ export function dashboardPage(): string {
         <div class="v2-insights" id="v2-insights"></div>
       </section>
 
-      <!-- 7 ▸ Advanced Analytics (collapsed) -->
-      <details class="v2-advanced">
+      <!-- Advanced Analytics (nested) -->
+      <details class="v2-advanced" style="margin-top:16px;">
         <summary>
           Advanced Analytics
-          <span>KPIs · CTR · Impressions · Issues · Campaigns</span>
+          <span>All KPIs · CTR chart · issues table</span>
         </summary>
         <div class="v2-advanced-body">
           <div class="kpi-grid" id="kpi-grid"></div>
@@ -422,26 +483,15 @@ export function dashboardPage(): string {
               <div class="chart-card-header"><div class="chart-card-title">CTR Trend</div></div>
               <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
             </div>
-            <div class="chart-card">
-              <div class="chart-card-header"><div class="chart-card-title">Impressions / Messages Trend</div></div>
-              <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
-            </div>
           </div>
 
           <div class="card section-gap">
             <div class="card-title">Issues &amp; Alerts</div>
             <div id="issues-list"><div class="text-3 text-sm">No issues detected.</div></div>
           </div>
+        </div>
+      </details>
 
-          <div class="table-wrap">
-            <div class="table-header"><div class="table-title">Campaign Performance</div></div>
-            <table>
-              <thead><tr><th>Campaign</th><th>Status</th><th>Budget</th><th>Note</th></tr></thead>
-              <tbody id="campaigns-tbody">
-                <tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">Loading…</td></tr>
-              </tbody>
-            </table>
-          </div>
         </div>
       </details>
     </div>
@@ -460,27 +510,46 @@ export function dashboardPage(): string {
     workspaceId: null,
   };
 
+  var TRUNC_LEN = 140;
+  var PRIMARY_KPI_KEYS = ['spend', 'messages', 'ctr', 'cpm'];
+
   // ── helpers ─────────────────────────────────────────────────────────────
   function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function truncText(text, max) {
+    if (!text) return { short: '', full: '', truncated: false };
+    if (text.length <= max) return { short: text, full: text, truncated: false };
+    return { short: text.slice(0, max).trim() + '…', full: text, truncated: true };
+  }
   function fmtNum(n, d) {
     if (n == null || isNaN(n)) return '—';
     if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
     if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-    return d != null ? n.toFixed(d) : String(n);
+    return d != null ? n.toFixed(d) : String(Math.round(n));
   }
   function fmtPctLocal(n) {
     if (n == null || isNaN(n)) return '—';
-    return Number(n).toFixed(2) + '%';
+    return Math.round(Number(n)) + '%';
   }
-  // Convert a BigInt-or-Number minor-unit value to a human currency string
-  // honouring the connected ad-account's currency + minorFactor.
   function fmtCurrencyMinor(minorVal) {
     if (minorVal == null || isNaN(Number(minorVal))) return '—';
     var major = Number(minorVal) / state.minorFactor;
-    return major.toLocaleString('en-US', { minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
+    if (state.currency === 'USD') {
+      return '$' + major.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    if (state.currency === 'IQD') {
+      return Math.round(major).toLocaleString('en-US') + ' IQD';
+    }
+    var dec = state.minorFactor === 1 ? 0 : 2;
+    return major.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) + ' ' + state.currency;
   }
   function fmtCurrencyMajor(n) {
     if (n == null || isNaN(n)) return '—';
+    if (state.currency === 'USD') {
+      return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    if (state.currency === 'IQD') {
+      return Math.round(Number(n)).toLocaleString('en-US') + ' IQD';
+    }
     return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
   }
   // Prefer dashboard DTO (authoritative) then workspace adAccounts for currency state.
@@ -551,48 +620,118 @@ export function dashboardPage(): string {
           }
         },
         scales: {
-          x: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
-          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', font: { size: 11 } } }
+          x: { grid: { display: false }, ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 6, font: { size: 11 } } },
+          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: 5, font: { size: 11 } } }
         },
         elements: { point: { radius: 0, hoverRadius: 4 } }
       }
     });
   }
 
-  // ── Hero cards ──────────────────────────────────────────────────────────
-  function renderHero(insights90) {
-    var arr = Array.isArray(insights90) ? insights90 : [];
-    var spend7  = sumMinor(arr.slice(0, 7));
-    var spend30 = sumMinor(arr.slice(0, 30));
-    var spend90 = sumMinor(arr);
+  // ── Primary KPI cards ───────────────────────────────────────────────────
+  function renderPrimaryKpis(kpis, health) {
+    var grid = document.getElementById('primary-kpi-grid');
+    var cards = [];
 
-    // 7d-vs-prior-7d delta
-    var prior7 = sumMinor(arr.slice(7, 14));
-    var d7 = prior7 > 0 ? ((spend7 - prior7) / prior7) * 100 : null;
-    // 30d-vs-prior-30d delta
-    var prior30 = sumMinor(arr.slice(30, 60));
-    var d30 = prior30 > 0 ? ((spend30 - prior30) / prior30) * 100 : null;
+    function findKpi(key) { return (kpis || []).find(function (k) { return k.key === key; }); }
 
-    document.getElementById('hero-30-val').textContent  = fmtCurrencyMinor(spend30);
-    document.getElementById('hero-7-val').textContent   = fmtCurrencyMinor(spend7);
-    document.getElementById('hero-life-val').textContent = fmtCurrencyMinor(spend90);
+    PRIMARY_KPI_KEYS.forEach(function (key) {
+      var k = findKpi(key);
+      if (!k) return;
+      var deltaHtml = '';
+      if (k.deltaPct != null && k.direction !== 'flat') {
+        var good = k.goodWhenUp !== false;
+        var up = k.direction === 'up';
+        var cls = (up === good) ? 'up' : 'down';
+        var arrow = up ? '↑' : '↓';
+        deltaHtml = '<span class="hero-delta ' + cls + '">' + arrow + ' ' + Math.round(Math.abs(Number(k.deltaPct) * 100)) + '%</span>';
+      }
+      var label = key === 'spend' ? 'Spend' : key === 'messages' ? 'Results' : key === 'ctr' ? 'CTR' : 'CPM';
+      var display = k.display || String(k.value || '—');
+      if (key === 'ctr' && k.value != null) display = fmtPctLocal(k.value);
+      cards.push('<div class="hero-card">'
+        + '<div class="hero-label">' + label + '</div>'
+        + '<div class="hero-value">' + escHtml(display) + '</div>'
+        + '<div class="hero-sub">Last 30 days</div>'
+        + deltaHtml
+      + '</div>');
+    });
 
-    function applyDelta(el, pct, goodWhenUp) {
-      if (pct == null) { el.className = 'hero-delta flat'; el.textContent = '→ —'; return; }
-      var up = pct >= 0;
-      var arrow = up ? '↑' : '↓';
-      var cls = (up === !!goodWhenUp) ? 'up' : 'down';
-      // Spend going up is bad for cost-control; goodWhenUp = false
-      el.className = 'hero-delta ' + cls;
-      el.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '% vs prior';
+    if (health) {
+      var bandLabel = { excellent: 'Excellent', good: 'Good', attention: 'Needs attention', poor: 'Poor', none: '—' };
+      var bandCls = health.band === 'poor' ? 'warning' : health.band === 'attention' ? 'warning' : 'success';
+      cards.push('<div class="hero-card ' + bandCls + '">'
+        + '<div class="hero-label">Health</div>'
+        + '<div class="hero-value">' + Math.round(health.score || 0) + '</div>'
+        + '<div class="hero-sub">' + (bandLabel[health.band] || '—') + '</div>'
+      + '</div>');
     }
-    applyDelta(document.getElementById('hero-30-delta'), d30, false);
-    applyDelta(document.getElementById('hero-7-delta'),  d7,  false);
 
-    // Lifetime sub: show actual window length so the label is honest.
-    var days = Math.min(arr.length, 90);
-    document.getElementById('hero-life-sub').textContent =
-      'Account history (' + days + '-day window)';
+    grid.innerHTML = cards.length ? cards.join('') : '<div class="text-3 text-sm">No metrics yet.</div>';
+  }
+
+  function renderSummarySidebar(dashData) {
+    var health = dashData.health || { score: 0, band: 'none' };
+    var bandLabel = { excellent: 'Excellent', good: 'Good', attention: 'Needs attention', poor: 'Poor', none: '—' };
+    document.getElementById('sum-health').textContent = Math.round(health.score || 0) + ' · ' + (bandLabel[health.band] || '—');
+    document.getElementById('sum-active').textContent = String((dashData.workspace && dashData.workspace.activeCampaigns) || 0);
+    document.getElementById('sum-issues').textContent = String((dashData.issues || []).length);
+    document.getElementById('sum-currency').textContent = state.currency;
+  }
+
+  function renderCampaignListSimple(campaigns) {
+    var body = document.getElementById('campaign-list-body');
+    var meta = document.getElementById('campaign-list-meta');
+    if (!campaigns || campaigns.length === 0) {
+      body.innerHTML = '<div class="campaign-row"><span class="text-3 text-sm">No campaigns found.</span></div>';
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = campaigns.length + ' total';
+    body.innerHTML = campaigns.slice(0, 10).map(function (c) {
+      var amt = c.dailyBudget
+        ? fmtCurrencyMinor(c.dailyBudget) + '/day'
+        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) : '—');
+      return '<div class="campaign-row">'
+        + '<span class="campaign-name" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</span>'
+        + '<span class="campaign-spend">' + escHtml(amt) + '</span>'
+        + statusBadge(c.status || 'UNKNOWN')
+      + '</div>';
+    }).join('');
+  }
+
+  function renderCompactTips(dashData) {
+    var host = document.getElementById('dash-compact-actions');
+    var tips = [];
+    if (dashData.priorityAction) {
+      var paText = typeof dashData.priorityAction === 'string'
+        ? dashData.priorityAction
+        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
+      if (paText) tips.push({ title: 'Top priority', body: paText });
+    }
+    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice(0, 2) : [];
+    issues.forEach(function (iss) {
+      var rec = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
+      tips.push({ title: iss.title || iss.code || 'Note', body: rec || 'Review this campaign.' });
+    });
+    if (tips.length === 0) { host.innerHTML = ''; return; }
+    host.innerHTML = tips.slice(0, 2).map(function (t, idx) {
+      var tr = truncText(t.body, TRUNC_LEN);
+      var expandId = 'tip-expand-' + idx;
+      return '<div class="dash-tip">'
+        + '<div class="dash-tip-title">' + escHtml(t.title) + '</div>'
+        + '<div class="dash-tip-body" id="tip-body-' + idx + '">' + escHtml(tr.short) + '</div>'
+        + (tr.truncated ? '<button type="button" class="dash-expand-btn" id="' + expandId + '">Read more</button>' : '')
+      + '</div>';
+    }).join('');
+    tips.slice(0, 2).forEach(function (t, idx) {
+      var tr = truncText(t.body, TRUNC_LEN);
+      if (!tr.truncated) return;
+      document.getElementById('tip-expand-' + idx).addEventListener('click', function () {
+        document.getElementById('tip-body-' + idx).textContent = tr.full;
+        this.style.display = 'none';
+      });
+    });
   }
 
   // ── AI Motion Ticker ─────────────────────────────────────────────────────
@@ -720,20 +859,34 @@ export function dashboardPage(): string {
       sub.textContent = 'All clear';
       return;
     }
-    list.innerHTML = cards.slice(0, 8).map(function (c) {
+    list.innerHTML = cards.slice(0, 5).map(function (c, idx) {
+      var tr = truncText(c.body, TRUNC_LEN);
       return '<div class="strategy-card ' + c.sev + '">'
         + '<div class="strategy-head"><div class="strategy-title">' + escHtml(c.title) + '</div></div>'
-        + '<div class="strategy-body">' + escHtml(c.body) + '</div>'
+        + '<div class="strategy-body" id="strat-body-' + idx + '">' + escHtml(tr.short) + '</div>'
+        + (tr.truncated ? '<button type="button" class="dash-expand-btn strat-expand" data-idx="' + idx + '">Read more</button>' : '')
       + '</div>';
     }).join('');
+    cards.slice(0, 5).forEach(function (c, idx) {
+      var tr = truncText(c.body, TRUNC_LEN);
+      if (!tr.truncated) return;
+      var btn = document.querySelector('.strat-expand[data-idx="' + idx + '"]');
+      if (btn) btn.addEventListener('click', function () {
+        document.getElementById('strat-body-' + idx).textContent = tr.full;
+        this.style.display = 'none';
+      });
+    });
     sub.textContent = cards.length + ' insight' + (cards.length === 1 ? '' : 's');
   }
 
   // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
   function renderKpis(kpis) {
     var grid = document.getElementById('kpi-grid');
-    if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">No KPI data available.</div>'; return; }
-    grid.innerHTML = kpis.map(function (k) {
+    var secondary = (kpis || []).filter(function (k) {
+      return PRIMARY_KPI_KEYS.indexOf(k.key) === -1;
+    });
+    if (secondary.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">No additional KPI data.</div>'; return; }
+    grid.innerHTML = secondary.map(function (k) {
       var deltaClass = 'flat', arrow = '→';
       if (k.deltaPct != null) {
         var good = k.goodWhenUp !== false;
@@ -743,7 +896,7 @@ export function dashboardPage(): string {
       }
       // deltaPct is stored as a ratio (0.05 = 5%) — multiply before display.
       var deltaHtml = k.deltaPct != null
-        ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '%</div>'
+        ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.round(Math.abs(Number(k.deltaPct) * 100)) + '%</div>'
         : '';
       return '<div class="kpi-card">'
         + '<div class="kpi-label">' + escHtml(k.label || k.key) + '</div>'
@@ -759,43 +912,29 @@ export function dashboardPage(): string {
       el.innerHTML = '<div class="text-3 text-sm">No issues detected. Your account looks healthy.</div>';
       return;
     }
-    el.innerHTML = issues.map(function (iss) {
+    el.innerHTML = issues.map(function (iss, idx) {
       var sev = (iss.severity || 'low').toUpperCase();
-      var causes = Array.isArray(iss.causes) ? iss.causes.join(', ') : (iss.causes || '');
       var recs = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
+      var tr = truncText(recs, TRUNC_LEN);
       return '<div style="padding:10px 0;border-top:1px solid var(--border);">'
         + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">'
           + '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escHtml(iss.title || iss.code) + '</div>'
           + severityBadge(sev)
         + '</div>'
-        + (causes ? '<div class="text-sm text-2" style="margin-top:3px;">' + escHtml(causes) + '</div>' : '')
-        + (recs ? '<div class="text-xs text-3" style="margin-top:2px;font-style:italic;">' + escHtml(recs) + '</div>' : '')
+        + (recs ? '<div class="text-sm text-2" style="margin-top:3px;" id="iss-rec-' + idx + '">' + escHtml(tr.short) + '</div>' : '')
+        + (tr.truncated ? '<button type="button" class="dash-expand-btn iss-expand" data-idx="' + idx + '">Read more</button>' : '')
       + '</div>';
     }).join('');
-  }
-
-  function renderCampaignsTable(best, worst, allCampaigns) {
-    var tbody = document.getElementById('campaigns-tbody');
-    var rows = [];
-    function row(c, note) {
-      var budget = c.dailyBudget
-        ? fmtCurrencyMinor(c.dailyBudget) + '/day'
-        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' total' : '—');
-      return '<tr>'
-        + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div>'
-          + '<div class="text-xs text-3">' + escHtml(c.objective || '') + '</div></td>'
-        + '<td>' + statusBadge(c.status || 'UNKNOWN') + '</td>'
-        + '<td>' + escHtml(budget) + '</td>'
-        + '<td class="text-xs text-3">' + escHtml(note || '') + '</td>'
-      + '</tr>';
-    }
-    if (best)  rows.push(row(best,  '⭐ Best'));
-    if (worst) rows.push(row(worst, '⚠ Worst'));
-    var seen = new Set([best && best.id, worst && worst.id].filter(Boolean));
-    (allCampaigns || []).forEach(function (c) { if (!seen.has(c.id)) rows.push(row(c, '')); });
-    tbody.innerHTML = rows.length
-      ? rows.join('')
-      : '<tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">No campaigns found.</td></tr>';
+    issues.forEach(function (iss, idx) {
+      var recs = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
+      var tr = truncText(recs, TRUNC_LEN);
+      if (!tr.truncated) return;
+      var btn = document.querySelector('.iss-expand[data-idx="' + idx + '"]');
+      if (btn) btn.addEventListener('click', function () {
+        document.getElementById('iss-rec-' + idx).textContent = tr.full;
+        this.style.display = 'none';
+      });
+    });
   }
 
   // ── V2: Today's Actions / Recovery / Spotlight / AI Insights ────────────
@@ -1138,7 +1277,7 @@ export function dashboardPage(): string {
       if (dashData.empty) {
         document.getElementById('loading-state').style.display = 'none';
         document.getElementById('dashboard-content').style.display = 'block';
-        document.getElementById('hero-grid').innerHTML =
+        document.getElementById('primary-kpi-grid').innerHTML =
           '<div class="empty-state" style="grid-column:1/-1;">'
           + '<div class="empty-icon">📊</div>'
           + '<div class="empty-title">Connect your Meta Ads account</div>'
@@ -1151,13 +1290,17 @@ export function dashboardPage(): string {
       // 7) Workspace name in topbar (provided by shared layout)
       var wsName = (dashData.workspace && (dashData.workspace.name || dashData.workspace.id)) || workspaceId;
       var wsNameEl = document.getElementById('ws-name'); if (wsNameEl) wsNameEl.textContent = wsName;
-      document.getElementById('dash-subtitle').textContent = 'Past 30 days · ' + wsName;
-      document.getElementById('chart-panel-meta').textContent = state.currency;
+      document.getElementById('dash-subtitle').textContent = 'Last 30 days · ' + wsName;
+      document.getElementById('chart-panel-meta').textContent = state.currency + ' · 30 days';
 
-      // 8) Hero cards (spend totals from insights)
-      renderHero(insights);
+      // 8) KPIs — prefer dashboard KPIs, else compute from insights
+      var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
+      renderPrimaryKpis(kpis, dashData.health);
+      renderSummarySidebar(dashData);
+      renderCampaignListSimple(campaigns);
+      renderCompactTips(dashData);
 
-      // 9) AI Motion Ticker
+      // 9) AI Motion Ticker (inside More details)
       renderTicker(buildTickerItems(dashData));
 
       // 10) Active Ads Showcase
@@ -1177,35 +1320,31 @@ export function dashboardPage(): string {
       renderRecoveryCenter(buildRecoveryPlans(dashData.issues));
       renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
 
-      // 14) KPIs (advanced) — prefer dashboard KPIs, else compute from insights
-      var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
+      // 14) KPIs (advanced secondary only)
       renderKpis(kpis);
       renderInsights(buildInsights(dashData, kpis));
 
-      // 15) Charts — main panel + advanced
+      // 15) Charts — main spend + secondary results (inside More details)
       var last30 = recentAsc(insights, 30);
       var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
       var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
+      var msgSeries        = last30.map(function (d) { return Number(d.messages) || 0; });
       var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
-      var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
 
-      // Trend-series override (server-supplied) — keep as raw numbers; server already pre-renders.
-      if (dashData.trendSeries && dashData.trendSeries.dates) {
+      if (dashData.trendSeries && dashData.trendSeries.dates && dashData.trendSeries.dates.length > 0) {
         var ts = dashData.trendSeries;
-        var tsLabels = ts.dates.map(function (d) { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+        labels = ts.dates.map(function (d) { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
         if (ts.spend)    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
+        if (ts.messages) msgSeries        = ts.messages.map(Number);
         if (ts.ctr)      ctrSeries        = ts.ctr.map(Number);
-        if (ts.messages) impSeries        = ts.messages.map(Number);
-        labels = tsLabels;
       }
 
-      makeLineChart('chart-spend-main', labels, [{ label: 'Spend', data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
-      makeLineChart('chart-ctr',        labels, [{ label: 'CTR (%)',  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-      makeLineChart('chart-impressions', labels, [{ label: 'Impressions', data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+      makeLineChart('chart-spend-main', labels, [{ label: 'Spend', data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.10)', fill: true, tension: 0.35, borderWidth: 2 }], { maxTicks: 6 });
+      makeLineChart('chart-results-secondary', labels, [{ label: 'Messages', data: msgSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.35 }]);
+      makeLineChart('chart-ctr', labels, [{ label: 'CTR (%)', data: ctrSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.35 }]);
 
-      // 16) Issues + Campaign table (advanced)
+      // 16) Issues (advanced)
       renderIssues(dashData.issues || []);
-      renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
 
       // 17) Reveal
       document.getElementById('loading-state').style.display = 'none';

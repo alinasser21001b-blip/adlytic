@@ -2,179 +2,122 @@
 //  src/web/pages/beginnerDashboardPage.ts
 //
 //  Dashboard — Beginner Mode (وضع المبتدئ).
+//  Clean, minimal first view: 4 hero KPIs, one trend chart, simple campaign
+//  list. Secondary metrics live behind "تفاصيل أكثر".
 //
-//  Visual contract:
-//    • Icon-heavy metric cards (💰 الإنفاق · 👥 الوصول · 📩 الرسائل · …)
-//    • Simple horizontal progress bars (الميزانية المستخدمة · الحملات النشطة)
-//    • Traffic-light status pill on the account-health score
-//    • Big trend arrows (⬆️/⬇️/➡️) instead of dense charts
-//    • Ample whitespace, soft palette, 100% Arabic, RTL layout.
-//
-//  Data contract:
-//    Identical to the Pro dashboard — calls /api/dashboard/:wsId and
-//    /api/workspaces/:wsId. No new DTO, no new endpoint, no new DB query.
-//
-//  Number formatting:
-//    • All currency renders as whole units (no decimals) + Arabic currency
-//      word: "٢٬٩٩٢ دولار" (instead of "2,992.41 USD"). See ARABIC_CURRENCY.
-//    • Counts/money use toLocaleString('ar-EG', { useGrouping: true }).
-//    • Percentages round to whole numbers with useGrouping: false.
+//  Data contract: /api/dashboard/:wsId + /api/workspaces/:wsId/campaigns
 // ════════════════════════════════════════════════════════════════════════
 
 import { layout } from '../layout';
 
 export function beginnerDashboardPage(): string {
   const extraHead = `<style>
-    /* ── Beginner mode palette + RTL ───────────────────────────────── */
-    .bgn-shell { direction: rtl; text-align: right; max-width: 980px; margin: 0 auto; }
+    .bgn-shell { direction: rtl; text-align: right; max-width: 960px; margin: 0 auto; }
     .bgn-shell *, .bgn-shell *::before, .bgn-shell *::after { box-sizing: border-box; }
 
-    /* Greeting */
-    .bgn-greeting {
-      display: flex; align-items: center; gap: 14px;
-      padding: 22px 26px; margin-bottom: 22px;
-      background: linear-gradient(135deg, #1a2332 0%, #111113 70%);
-      border: 1px solid #2a3a52;
-      border-radius: 18px;
+    .bgn-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      margin-bottom: 20px; flex-wrap: wrap;
     }
-    .bgn-greeting-emoji { font-size: 38px; line-height: 1; }
-    .bgn-greeting-text-wrap { flex: 1; }
-    .bgn-greeting-title { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.3; }
-    .bgn-greeting-sub { font-size: 13.5px; color: var(--text-2); margin-top: 4px; }
+    .bgn-greeting-title { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.3; }
+    .bgn-greeting-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
 
-    /* Status pill (traffic-light) */
     .bgn-status-pill {
       display: inline-flex; align-items: center; gap: 8px;
-      padding: 7px 14px;
-      border-radius: 999px;
-      font-size: 13px; font-weight: 700;
+      padding: 8px 16px; border-radius: 999px;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
     }
-    .bgn-status-pill .bgn-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.06);
-    }
-    .bgn-status-pill.green  { background: rgba(34,197,94,0.14);  color: #4ade80; }
+    .bgn-status-pill .bgn-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .bgn-status-pill.green  { background: rgba(34,197,94,0.14); color: #4ade80; }
     .bgn-status-pill.green  .bgn-dot { background: #22c55e; }
     .bgn-status-pill.yellow { background: rgba(245,158,11,0.14); color: #fbbf24; }
     .bgn-status-pill.yellow .bgn-dot { background: #f59e0b; }
-    .bgn-status-pill.red    { background: rgba(239,68,68,0.14);  color: #f87171; }
+    .bgn-status-pill.red    { background: rgba(239,68,68,0.14); color: #f87171; }
     .bgn-status-pill.red    .bgn-dot { background: #ef4444; }
     .bgn-status-pill.gray   { background: rgba(255,255,255,0.05); color: var(--text-3); }
     .bgn-status-pill.gray   .bgn-dot { background: var(--text-3); }
 
-    /* Big metric cards */
-    .bgn-metric-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 22px;
+    .bgn-kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px;
     }
-    @media (max-width: 760px) { .bgn-metric-grid { grid-template-columns: 1fr; } }
-    .bgn-metric-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 22px 20px;
-      display: flex; align-items: center; gap: 18px;
-      transition: transform var(--transition), border-color var(--transition);
-    }
-    .bgn-metric-card:hover { transform: translateY(-2px); border-color: #3a3a4a; }
-    .bgn-metric-icon {
-      font-size: 40px; line-height: 1;
-      width: 64px; height: 64px;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(99,102,241,0.10);
-      border-radius: 16px; flex-shrink: 0;
-    }
-    .bgn-metric-card.green  .bgn-metric-icon { background: rgba(34,197,94,0.12); }
-    .bgn-metric-card.blue   .bgn-metric-icon { background: rgba(59,130,246,0.12); }
-    .bgn-metric-card.purple .bgn-metric-icon { background: rgba(168,85,247,0.12); }
-    .bgn-metric-body { flex: 1; min-width: 0; }
-    .bgn-metric-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
-    .bgn-metric-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bgn-metric-trend { margin-top: 6px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
-    .bgn-metric-trend.up   { color: #4ade80; }
-    .bgn-metric-trend.down { color: #f87171; }
-    .bgn-metric-trend.flat { color: var(--text-3); }
+    @media (max-width: 860px) { .bgn-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .bgn-kpi-grid { grid-template-columns: 1fr; } }
 
-    /* Section title */
-    .bgn-section { margin-bottom: 22px; }
-    .bgn-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .bgn-section-emoji { font-size: 22px; line-height: 1; }
-    .bgn-section-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .bgn-kpi {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px 16px;
+    }
+    .bgn-kpi-label { font-size: 12px; font-weight: 600; color: var(--text-3); margin-bottom: 8px; }
+    .bgn-kpi-value { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1.1; }
+    .bgn-kpi-trend { margin-top: 8px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+    .bgn-kpi-trend.up   { color: #4ade80; }
+    .bgn-kpi-trend.down { color: #f87171; }
+    .bgn-kpi-trend.flat { color: var(--text-3); }
 
-    /* Progress bar */
-    .bgn-bar-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px 22px 22px;
+    .bgn-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px 20px; margin-bottom: 18px;
     }
-    .bgn-bar-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
-    .bgn-bar-label { font-size: 14px; font-weight: 600; color: var(--text); }
-    .bgn-bar-value { font-size: 13px; color: var(--text-2); font-weight: 600; }
-    .bgn-bar-track {
-      width: 100%; height: 14px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 999px; overflow: hidden;
+    .bgn-panel-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 14px; gap: 10px;
     }
-    .bgn-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #22c55e, #4ade80);
-      transition: width 0.6s ease;
+    .bgn-panel-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .bgn-panel-meta  { font-size: 12px; color: var(--text-3); }
+    .bgn-chart-wrap  { position: relative; height: 240px; }
+
+    .bgn-campaign-list { display: flex; flex-direction: column; gap: 0; }
+    .bgn-campaign-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
     }
+    .bgn-campaign-row:last-child { border-bottom: none; }
+    .bgn-campaign-name { font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+    .bgn-campaign-spend { font-size: 13px; font-weight: 600; color: var(--text-2); flex-shrink: 0; }
+
+    .bgn-action-box {
+      background: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, var(--surface) 100%);
+      border: 1px solid rgba(99,102,241,0.25); border-radius: 14px;
+      padding: 16px 18px; margin-bottom: 18px;
+    }
+    .bgn-action-label { font-size: 12px; font-weight: 700; color: var(--accent-2); margin-bottom: 6px; }
+    .bgn-action-text  { font-size: 14px; color: var(--text); line-height: 1.6; }
+    .bgn-expand-btn {
+      background: none; border: none; color: var(--accent-2);
+      font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-top: 6px;
+    }
+
+    .bgn-details summary {
+      cursor: pointer; list-style: none;
+      padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; font-size: 13px; font-weight: 600; color: var(--text);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .bgn-details summary::-webkit-details-marker { display: none; }
+    .bgn-details summary::after { content: '▾'; color: var(--text-3); transition: transform 0.2s; }
+    .bgn-details[open] summary::after { transform: rotate(180deg); }
+    .bgn-details summary span { color: var(--text-3); font-weight: 500; font-size: 12px; }
+    .bgn-details-body { padding: 16px 0 0; }
+    .bgn-secondary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 640px) { .bgn-secondary-grid { grid-template-columns: 1fr; } }
+    .bgn-secondary-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px;
+    }
+    .bgn-secondary-label { font-size: 11px; color: var(--text-3); font-weight: 600; margin-bottom: 6px; }
+    .bgn-secondary-value { font-size: 20px; font-weight: 700; color: var(--text); }
+
+    .bgn-bar-track { width: 100%; height: 10px; background: rgba(255,255,255,0.05); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+    .bgn-bar-fill  { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e, #4ade80); }
     .bgn-bar-fill.warning { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
     .bgn-bar-fill.danger  { background: linear-gradient(90deg, #ef4444, #f87171); }
-    .bgn-bar-fill.blue    { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-    .bgn-bar-hint { font-size: 12px; color: var(--text-3); margin-top: 8px; }
 
-    /* Priority action card */
-    .bgn-action-card {
-      background: linear-gradient(135deg, rgba(99,102,241,0.10) 0%, var(--surface) 100%);
-      border: 1px solid rgba(99,102,241,0.30);
-      border-radius: 16px;
-      padding: 20px 22px;
-      display: flex; align-items: flex-start; gap: 14px;
-    }
-    .bgn-action-emoji { font-size: 32px; line-height: 1; flex-shrink: 0; }
-    .bgn-action-title { font-size: 14px; font-weight: 700; color: var(--accent-2); margin-bottom: 5px; }
-    .bgn-action-text { font-size: 14px; color: var(--text); line-height: 1.6; }
-
-    /* Active campaigns count */
-    .bgn-mini-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 22px; }
-    @media (max-width: 760px) { .bgn-mini-cards { grid-template-columns: 1fr; } }
-    .bgn-mini-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 18px;
-      display: flex; align-items: center; gap: 14px;
-    }
-    .bgn-mini-emoji { font-size: 28px; line-height: 1; }
-    .bgn-mini-label { font-size: 13px; color: var(--text-2); }
-    .bgn-mini-value { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; margin-top: 2px; }
-
-    /* Empty / loading states */
-    .bgn-empty {
-      text-align: center;
-      padding: 64px 24px;
-      background: var(--surface);
-      border: 1px dashed var(--border-2);
-      border-radius: 18px;
-    }
-    .bgn-empty-emoji { font-size: 54px; opacity: 0.6; margin-bottom: 12px; }
+    .bgn-empty { text-align: center; padding: 64px 24px; background: var(--surface); border: 1px dashed var(--border-2); border-radius: 18px; }
+    .bgn-empty-emoji { font-size: 48px; opacity: 0.6; margin-bottom: 12px; }
     .bgn-empty-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
-    .bgn-empty-text { font-size: 14px; color: var(--text-2); max-width: 360px; margin: 0 auto; line-height: 1.6; }
-    .bgn-empty-btn {
-      display: inline-block; margin-top: 18px;
-      padding: 10px 20px; border-radius: 10px;
-      background: var(--accent); color: #fff;
-      font-size: 14px; font-weight: 600;
-      text-decoration: none;
-    }
-
-    .bgn-loading { text-align: center; padding: 80px 24px; color: var(--text-3); font-size: 14px; }
+    .bgn-empty-text  { font-size: 14px; color: var(--text-2); max-width: 360px; margin: 0 auto; line-height: 1.6; }
+    .bgn-empty-btn   { display: inline-block; margin-top: 18px; padding: 10px 20px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
+    .bgn-loading     { text-align: center; padding: 80px 24px; color: var(--text-3); font-size: 14px; }
   </style>`;
 
   const content = `
@@ -184,18 +127,16 @@ export function beginnerDashboardPage(): string {
         <div class="bgn-empty">
           <div class="bgn-empty-emoji">📡</div>
           <div class="bgn-empty-title">لم يتم ربط حساب إعلانات بعد</div>
-          <div class="bgn-empty-text">للبدء، اربط حساب فيسبوك الإعلاني الخاص بك لرؤية أداء حملاتك.</div>
-          <a href="/workspace" class="bgn-empty-btn">ربط حساب فيسبوك</a>
+          <div class="bgn-empty-text">اربط حساب فيسبوك الإعلاني لرؤية أداء حملاتك.</div>
+          <a href="/workspace" class="bgn-empty-btn">ربط الحساب</a>
         </div>
       </div>
 
       <div id="bgn-main" style="display:none;">
-        <!-- Greeting + status pill -->
-        <div class="bgn-greeting">
-          <div class="bgn-greeting-emoji">👋</div>
-          <div class="bgn-greeting-text-wrap">
-            <div class="bgn-greeting-title" id="bgn-greeting-title">مرحباً بك!</div>
-            <div class="bgn-greeting-sub" id="bgn-greeting-sub">ها هي نظرة سريعة على حملاتك.</div>
+        <div class="bgn-top">
+          <div>
+            <div class="bgn-greeting-title" id="bgn-greeting-title">مرحباً!</div>
+            <div class="bgn-greeting-sub" id="bgn-greeting-sub">نظرة سريعة على آخر ٣٠ يوماً</div>
           </div>
           <span id="bgn-status-pill" class="bgn-status-pill gray">
             <span class="bgn-dot"></span>
@@ -203,206 +144,227 @@ export function beginnerDashboardPage(): string {
           </span>
         </div>
 
-        <!-- Top metrics: spend, reach, messages -->
-        <div class="bgn-metric-grid" id="bgn-metric-grid"></div>
+        <div class="bgn-kpi-grid" id="bgn-kpi-grid"></div>
 
-        <!-- Two mini cards: active campaigns + CTR -->
-        <div class="bgn-mini-cards" id="bgn-mini-cards"></div>
-
-        <!-- Progress: budget used + health score -->
-        <div class="bgn-section">
-          <div class="bgn-section-head">
-            <span class="bgn-section-emoji">📊</span>
-            <h2 class="bgn-section-title">تقدم اليوم</h2>
+        <div class="bgn-panel">
+          <div class="bgn-panel-head">
+            <div class="bgn-panel-title">📈 الإنفاق عبر الزمن</div>
+            <div class="bgn-panel-meta" id="bgn-chart-meta">—</div>
           </div>
-          <div class="bgn-bar-card" id="bgn-progress-card"></div>
+          <div class="bgn-chart-wrap"><canvas id="bgn-chart"></canvas></div>
         </div>
 
-        <!-- Priority action -->
-        <div class="bgn-section" id="bgn-action-section" style="display:none;">
-          <div class="bgn-section-head">
-            <span class="bgn-section-emoji">✨</span>
-            <h2 class="bgn-section-title">الاقتراح الأهم</h2>
+        <div class="bgn-panel">
+          <div class="bgn-panel-head">
+            <div class="bgn-panel-title">📣 الحملات</div>
+            <div class="bgn-panel-meta" id="bgn-campaign-meta">—</div>
           </div>
-          <div class="bgn-action-card">
-            <div class="bgn-action-emoji">💡</div>
-            <div style="flex:1;">
-              <div class="bgn-action-title">ننصحك بـ:</div>
-              <div class="bgn-action-text" id="bgn-action-text">—</div>
-            </div>
-          </div>
+          <div class="bgn-campaign-list" id="bgn-campaign-list"></div>
         </div>
+
+        <div id="bgn-action-box" class="bgn-action-box" style="display:none;">
+          <div class="bgn-action-label">💡 اقتراح اليوم</div>
+          <div class="bgn-action-text" id="bgn-action-text"></div>
+          <button type="button" class="bgn-expand-btn" id="bgn-action-expand" style="display:none;">اقرأ المزيد</button>
+        </div>
+
+        <details class="bgn-details">
+          <summary>تفاصيل أكثر <span>الوصول · CPM · التكرار</span></summary>
+          <div class="bgn-details-body">
+            <div class="bgn-secondary-grid" id="bgn-secondary-grid"></div>
+          </div>
+        </details>
       </div>
     </div>
   `;
 
-  const scripts = `<script>
-  // ── Arabic currency word table ─────────────────────────────────────
-  // Keys are ISO codes; the value is the singular noun in Arabic. We
-  // intentionally avoid pluralization rules — keeping the word singular
-  // matches conversational Arabic on dashboards ("٢٬٩٩٢ دولار").
+  const scripts = `
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
   var ARABIC_CURRENCY = {
-    USD: 'دولار', EUR: 'يورو', GBP: 'جنيه إسترليني',
-    SAR: 'ريال', AED: 'درهم', IQD: 'دينار',
-    EGP: 'جنيه', JOD: 'دينار', KWD: 'دينار',
-    QAR: 'ريال', OMR: 'ريال', BHD: 'دينار',
+    USD: 'دولار', EUR: 'يورو', GBP: 'جنيه', SAR: 'ريال', AED: 'درهم',
+    IQD: 'دينار', EGP: 'جنيه', JOD: 'دينار', KWD: 'دينار', QAR: 'ريال',
   };
-  function arabicCurrencyWord(code) {
-    return ARABIC_CURRENCY[code] || code || '';
-  }
-
   var AR_LOCALE = 'ar-EG';
-  var AR_NUM_GROUPED = { useGrouping: true };
-  var AR_NUM_PLAIN   = { useGrouping: false };
+  var TRUNC_LEN = 120;
 
-  /** Strip decimals, group with Arabic thousands separators, append currency word. */
-  function fmtSimpleMoney(minor, currency, factor) {
+  function arabicCurrencyWord(code) { return ARABIC_CURRENCY[code] || code || ''; }
+
+  function fmtMoney(minor, currency, factor) {
     if (minor == null || !isFinite(Number(minor))) return '—';
     var f = factor == null ? (currency === 'IQD' ? 1 : 100) : factor;
     var whole = Math.round(Number(minor) / f);
-    // Arabic numerals with Arabic thousands separator (U+066C). The browser's
-    // built-in 'ar-EG' locale produces "٢٬٩٩٢" which matches design intent.
-    var nf = whole.toLocaleString(AR_LOCALE, AR_NUM_GROUPED);
-    return nf + ' ' + arabicCurrencyWord(currency);
+    if (currency === 'USD') return '$' + whole.toLocaleString('en-US');
+    if (currency === 'IQD') return whole.toLocaleString('ar-EG') + ' IQD';
+    return whole.toLocaleString(AR_LOCALE) + ' ' + arabicCurrencyWord(currency);
   }
 
-  /** Round a count to a whole number and group with Arabic separators. */
-  function fmtSimpleCount(n) {
+  function fmtCount(n) {
     if (n == null || !isFinite(Number(n))) return '—';
-    return Math.round(Number(n)).toLocaleString(AR_LOCALE, AR_NUM_GROUPED);
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+    return Math.round(Number(n)).toLocaleString(AR_LOCALE);
   }
 
-  /** Round a percent (0–100) to a whole number and append %. No grouping. */
-  function fmtSimplePct(n) {
+  function fmtPct(n) {
     if (n == null || !isFinite(Number(n))) return '—';
-    return Math.round(Number(n)).toLocaleString(AR_LOCALE, AR_NUM_PLAIN) + '٪';
+    return Math.round(Number(n)).toLocaleString(AR_LOCALE, { useGrouping: false }) + '٪';
   }
 
-  function trendArrow(dir, goodWhenUp) {
-    if (dir === 'flat' || dir == null) return { sym: '➡️', cls: 'flat' };
-    var good = goodWhenUp !== false;
-    if (dir === 'up')   return { sym: '⬆️', cls: good ? 'up' : 'down' };
-    /* down */          return { sym: '⬇️', cls: good ? 'down' : 'up' };
+  function trendHtml(kpi) {
+    if (!kpi || kpi.direction === 'flat' || kpi.deltaPct == null) {
+      return '<div class="bgn-kpi-trend flat">➡️</div>';
+    }
+    var good = kpi.goodWhenUp !== false;
+    var up = kpi.direction === 'up';
+    var cls = (up === good) ? 'up' : 'down';
+    var sym = up ? '↑' : '↓';
+    var pct = Math.round(Math.abs(Number(kpi.deltaPct) * 100));
+    return '<div class="bgn-kpi-trend ' + cls + '">' + sym + ' ' + pct + '٪</div>';
+  }
+
+  function getKpi(dash, key) {
+    return (dash.kpis || []).find(function (x) { return x.key === key; }) || null;
   }
 
   function healthBandPill(band) {
-    // Map DTO health.band → traffic-light pill class + Arabic label.
     var map = {
       excellent: { cls: 'green',  label: 'ممتاز' },
       good:      { cls: 'green',  label: 'جيد' },
       attention: { cls: 'yellow', label: 'يحتاج انتباه' },
       poor:      { cls: 'red',    label: 'ضعيف' },
-      none:      { cls: 'gray',   label: 'لا توجد بيانات بعد' },
+      none:      { cls: 'gray',   label: 'لا بيانات' },
     };
     return map[band] || map.none;
   }
 
-  function getKpi(dash, key) {
-    var k = (dash.kpis || []).find(function (x) { return x.key === key; });
-    return k || null;
-  }
-
-  function renderMetricCards(dash, currency, factor) {
-    var grid = document.getElementById('bgn-metric-grid');
+  function renderKpis(dash, currency, factor) {
+    var grid = document.getElementById('bgn-kpi-grid');
     var spend = getKpi(dash, 'spend');
-    var reach = getKpi(dash, 'reach');
     var msgs  = getKpi(dash, 'messages');
+    var ctr   = getKpi(dash, 'ctr');
+    var score = (dash.health && typeof dash.health.score === 'number') ? Math.round(dash.health.score) : 0;
 
     var cards = [
-      { emoji: '💰', label: 'الإنفاق (٣٠ يوماً)', tone: 'green',
-        value: spend ? fmtSimpleMoney(spend.value, currency, factor) : '—',
-        delta: spend ? trendArrow(spend.direction, spend.goodWhenUp !== false) : null,
-        deltaPct: spend && spend.deltaPct != null ? spend.deltaPct : null },
-      { emoji: '👥', label: 'الأشخاص الذين شاهدوا إعلاناتك', tone: 'blue',
-        value: reach ? fmtSimpleCount(reach.value) : '—',
-        delta: reach ? trendArrow(reach.direction, true) : null,
-        deltaPct: null },
-      { emoji: '📩', label: 'الرسائل (المحادثات)', tone: 'purple',
-        value: msgs ? fmtSimpleCount(msgs.value) : '—',
-        delta: msgs ? trendArrow(msgs.direction, true) : null,
-        deltaPct: msgs && msgs.deltaPct != null ? msgs.deltaPct : null },
+      { label: 'الإنفاق', value: spend ? fmtMoney(spend.value, currency, factor) : '—', trend: spend },
+      { label: 'الرسائل', value: msgs ? fmtCount(msgs.value) : '—', trend: msgs },
+      { label: 'نسبة النقر', value: ctr && ctr.value != null ? fmtPct(ctr.value) : '—', trend: ctr },
+      { label: 'صحة الحساب', value: fmtCount(score) + ' / ١٠٠', trend: null },
     ];
 
     grid.innerHTML = cards.map(function (c) {
-      var trendHtml = '';
-      if (c.delta) {
-        // deltaPct is stored as a ratio (0.05 = 5%) — multiply before display.
-        var pctText = c.deltaPct != null
-          ? (' ' + Math.round(Math.abs(Number(c.deltaPct) * 100)) + '٪')
-          : '';
-        trendHtml = '<div class="bgn-metric-trend ' + c.delta.cls + '">' + c.delta.sym + pctText + '</div>';
-      }
-      return '<div class="bgn-metric-card ' + c.tone + '">'
-        + '<div class="bgn-metric-icon">' + c.emoji + '</div>'
-        + '<div class="bgn-metric-body">'
-          + '<div class="bgn-metric-label">' + c.label + '</div>'
-          + '<div class="bgn-metric-value">' + c.value + '</div>'
-          + trendHtml
-        + '</div>'
+      return '<div class="bgn-kpi">'
+        + '<div class="bgn-kpi-label">' + c.label + '</div>'
+        + '<div class="bgn-kpi-value">' + c.value + '</div>'
+        + (c.trend ? trendHtml(c.trend) : '')
       + '</div>';
     }).join('');
   }
 
-  function renderMiniCards(dash) {
-    var mini = document.getElementById('bgn-mini-cards');
-    var ctr = getKpi(dash, 'ctr');
-    var activeCampaigns = (dash.workspace && dash.workspace.activeCampaigns) || 0;
+  function renderChart(dash, currency, factor) {
+    var ts = dash.trendSeries || { dates: [], spend: [] };
+    if (!ts.dates || ts.dates.length === 0) return;
 
-    var cards = [
-      { emoji: '📣', label: 'الحملات النشطة', value: fmtSimpleCount(activeCampaigns) },
-      { emoji: '🎯', label: 'نسبة النقر (CTR)', value: ctr && ctr.value != null && isFinite(Number(ctr.value)) ? fmtSimplePct(ctr.value) : '—' },
-    ];
-    mini.innerHTML = cards.map(function (c) {
-      return '<div class="bgn-mini-card">'
-        + '<div class="bgn-mini-emoji">' + c.emoji + '</div>'
-        + '<div>'
-          + '<div class="bgn-mini-label">' + c.label + '</div>'
-          + '<div class="bgn-mini-value">' + c.value + '</div>'
-        + '</div>'
-      + '</div>';
-    }).join('');
+    var labels = ts.dates.map(function (d) {
+      return new Date(d).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+    });
+    var spendMajor = ts.spend.map(function (s) { return Number(s) / factor; });
+
+    document.getElementById('bgn-chart-meta').textContent = 'آخر ' + ts.dates.length + ' يوم';
+
+    var ctx = document.getElementById('bgn-chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'الإنفاق',
+          data: spendMajor,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.10)',
+          fill: true, tension: 0.35, borderWidth: 2, pointRadius: 0,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#5a5a6a', maxTicksLimit: 6, font: { size: 11 } } },
+          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: 5, font: { size: 11 } } },
+        },
+      },
+    });
   }
 
-  function renderProgressCard(dash) {
-    // Two stacked bars:
-    //   1) Health score (0-100) — colored by band.
-    //   2) Active campaigns ratio (active / max(3, active)) — never below 0.
-    var el = document.getElementById('bgn-progress-card');
-    var score = (dash.health && typeof dash.health.score === 'number') ? dash.health.score : 0;
-    var band  = (dash.health && dash.health.band) || 'none';
-    var scoreCls = band === 'poor' ? 'danger' : band === 'attention' ? 'warning' : (band === 'none' ? 'blue' : '');
-
-    var active = (dash.workspace && dash.workspace.activeCampaigns) || 0;
-    // Target: 3 active campaigns is a "healthy" beginner baseline. The bar
-    // visualizes progress toward that informal goal, capped at 100%.
-    var target = 3;
-    var pct = Math.min(100, Math.round((active / target) * 100));
-
-    el.innerHTML =
-      '<div class="bgn-bar-row">'
-        + '<span class="bgn-bar-label">🩺 صحة حسابك</span>'
-        + '<span class="bgn-bar-value">' + Math.round(score) + ' من ١٠٠</span>'
-      + '</div>'
-      + '<div class="bgn-bar-track"><div class="bgn-bar-fill ' + scoreCls + '" style="width:' + Math.max(0, Math.min(100, Math.round(score))) + '%;"></div></div>'
-      + '<div class="bgn-bar-hint">كلما زاد الرقم، كان أداء حسابك أفضل.</div>'
-      + '<div style="height:14px;"></div>'
-      + '<div class="bgn-bar-row">'
-        + '<span class="bgn-bar-label">📣 الحملات النشطة</span>'
-        + '<span class="bgn-bar-value">' + fmtSimpleCount(active) + ' / ' + fmtSimpleCount(target) + '</span>'
-      + '</div>'
-      + '<div class="bgn-bar-track"><div class="bgn-bar-fill blue" style="width:' + pct + '%;"></div></div>'
-      + '<div class="bgn-bar-hint">يُنصح بتشغيل ٣ حملات على الأقل في نفس الوقت لرؤية نتائج أفضل.</div>';
+  function renderCampaigns(campaigns, currency, factor) {
+    var list = document.getElementById('bgn-campaign-list');
+    var meta = document.getElementById('bgn-campaign-meta');
+    if (!campaigns || campaigns.length === 0) {
+      list.innerHTML = '<div style="color:var(--text-3);font-size:13px;padding:8px 0;">لا توجد حملات بعد.</div>';
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = campaigns.length + ' حملة';
+    list.innerHTML = campaigns.slice(0, 8).map(function (c) {
+      var amt = c.dailyBudget
+        ? fmtMoney(c.dailyBudget, currency, factor) + '/يوم'
+        : (c.lifetimeBudget ? fmtMoney(c.lifetimeBudget, currency, factor) : '—');
+      return '<div class="bgn-campaign-row">'
+        + '<span class="bgn-campaign-name" title="' + String(c.name || '').replace(/"/g, '&quot;') + '">' + (c.name || '—') + '</span>'
+        + '<span class="bgn-campaign-spend">' + amt + '</span>'
+        + statusBadge(c.status || 'UNKNOWN')
+      + '</div>';
+    }).join('');
   }
 
   function renderAction(dash) {
-    var sec = document.getElementById('bgn-action-section');
-    var text = document.getElementById('bgn-action-text');
+    var box = document.getElementById('bgn-action-box');
+    var textEl = document.getElementById('bgn-action-text');
+    var expandBtn = document.getElementById('bgn-action-expand');
     var pa = dash.priorityAction;
-    if (!pa) { sec.style.display = 'none'; return; }
-    var t = (typeof pa === 'string') ? pa : (pa.text || pa.actionCode || '');
-    if (!t) { sec.style.display = 'none'; return; }
-    text.textContent = t;
-    sec.style.display = 'block';
+    if (!pa) { box.style.display = 'none'; return; }
+    var full = (typeof pa === 'string') ? pa : (pa.text || pa.actionCode || '');
+    if (!full) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    if (full.length <= TRUNC_LEN) {
+      textEl.textContent = full;
+      expandBtn.style.display = 'none';
+    } else {
+      textEl.textContent = full.slice(0, TRUNC_LEN).trim() + '…';
+      expandBtn.style.display = 'block';
+      expandBtn.onclick = function () {
+        textEl.textContent = full;
+        expandBtn.style.display = 'none';
+      };
+    }
+  }
+
+  function renderSecondary(dash, currency, factor) {
+    var grid = document.getElementById('bgn-secondary-grid');
+    var reach = getKpi(dash, 'reach');
+    var cpm   = getKpi(dash, 'cpm');
+    var freq  = getKpi(dash, 'frequency');
+    var active = (dash.workspace && dash.workspace.activeCampaigns) || 0;
+    var score = (dash.health && dash.health.score) || 0;
+    var band  = (dash.health && dash.health.band) || 'none';
+    var barCls = band === 'poor' ? 'danger' : band === 'attention' ? 'warning' : '';
+
+    var items = [
+      { label: 'الوصول', value: reach ? fmtCount(reach.value) : '—' },
+      { label: 'تكلفة الألف ظهور', value: cpm && cpm.display ? cpm.display : '—' },
+      { label: 'التكرار', value: freq && freq.display ? freq.display : '—' },
+    ];
+
+    grid.innerHTML = items.map(function (it) {
+      return '<div class="bgn-secondary-card">'
+        + '<div class="bgn-secondary-label">' + it.label + '</div>'
+        + '<div class="bgn-secondary-value">' + it.value + '</div>'
+      + '</div>';
+    }).join('')
+      + '<div class="bgn-secondary-card" style="grid-column:1/-1;">'
+        + '<div class="bgn-secondary-label">📣 حملات نشطة · ' + fmtCount(active) + '</div>'
+        + '<div class="bgn-bar-track"><div class="bgn-bar-fill ' + barCls + '" style="width:' + Math.max(0, Math.min(100, Math.round(score))) + '%;"></div></div>'
+      + '</div>';
   }
 
   function renderStatus(dash) {
@@ -414,27 +376,24 @@ export function beginnerDashboardPage(): string {
   }
 
   function renderGreeting(dash) {
-    var titleEl = document.getElementById('bgn-greeting-title');
-    var subEl   = document.getElementById('bgn-greeting-sub');
-    var wsName = (dash.workspace && dash.workspace.name) || 'مساحة العمل';
-    titleEl.textContent = 'أهلاً بك في ' + wsName + ' 👋';
-    var msgs  = getKpi(dash, 'messages');
-    var count = msgs ? Math.round(Number(msgs.value || 0)) : 0;
-    if (count > 0) {
-      subEl.textContent = 'وصلتك ' + fmtSimpleCount(count) + ' رسالة جديدة خلال آخر ٣٠ يوماً.';
-    } else {
-      subEl.textContent = 'ها هي نظرة سريعة على حملاتك.';
-    }
+    document.getElementById('bgn-greeting-title').textContent =
+      'أهلاً · ' + ((dash.workspace && dash.workspace.name) || 'مساحة العمل');
+    document.getElementById('bgn-greeting-sub').textContent = 'آخر ٣٠ يوماً';
   }
 
   async function loadBeginnerDashboard() {
     var wsId = getWsId();
     if (!wsId) { window.location.href = '/workspace'; return; }
     try {
-      var dash = await apiFetch('/api/dashboard/' + wsId);
-      if (!dash) return; // 401 already handled by apiFetch (logout redirect)
-      document.getElementById('bgn-loading').style.display = 'none';
+      var results = await Promise.all([
+        apiFetch('/api/dashboard/' + wsId),
+        apiFetch('/api/workspaces/' + wsId + '/campaigns').catch(function () { return []; }),
+      ]);
+      var dash = results[0];
+      var campaigns = results[1] || [];
+      if (!dash) return;
 
+      document.getElementById('bgn-loading').style.display = 'none';
       if (dash.empty || !dash.workspace) {
         document.getElementById('bgn-empty').style.display = 'block';
         return;
@@ -442,25 +401,24 @@ export function beginnerDashboardPage(): string {
       document.getElementById('bgn-main').style.display = 'block';
 
       var currency = dash.workspace.currency || 'USD';
-      var factor   = currency === 'IQD' ? 1
-        : (dash.workspace.currencyMinorFactor != null && dash.workspace.currencyMinorFactor > 0
-          ? dash.workspace.currencyMinorFactor
-          : 100);
+      var factor = currency === 'IQD' ? 1
+        : (dash.workspace.currencyMinorFactor > 0 ? dash.workspace.currencyMinorFactor : 100);
 
       renderGreeting(dash);
       renderStatus(dash);
-      renderMetricCards(dash, currency, factor);
-      renderMiniCards(dash);
-      renderProgressCard(dash);
+      renderKpis(dash, currency, factor);
+      renderChart(dash, currency, factor);
+      renderCampaigns(campaigns, currency, factor);
       renderAction(dash);
+      renderSecondary(dash, currency, factor);
     } catch (err) {
-      document.getElementById('bgn-loading').textContent = 'حدث خطأ أثناء تحميل البيانات.';
+      document.getElementById('bgn-loading').textContent = 'حدث خطأ أثناء التحميل.';
       console.error('[beginner-dashboard]', err);
     }
   }
 
   document.addEventListener('DOMContentLoaded', loadBeginnerDashboard);
-  </script>`;
+</script>`;
 
   return layout({
     title: 'لوحة التحكم — وضع المبتدئ',
