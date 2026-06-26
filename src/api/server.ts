@@ -67,7 +67,7 @@ import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
-import { encryptToken, decryptToken, TokenDecryptError } from '../services/tokenEncryption';
+import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { config } from '../config';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
@@ -2437,7 +2437,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           } catch (decErr) {
             if (decErr instanceof TokenDecryptError) {
               console.error('[META_AUTH_FAILURE] system-user connect: connection token decrypt failed:', decErr.message);
-              return c.json({ success: true, warning: 'Connected, but the stored token could not be decrypted — check TOKEN_ENCRYPTION_KEY.' });
+              return c.json({ success: true, warning: tokenDecryptErrorJson().error });
             }
             throw decErr;
           }
@@ -2810,7 +2810,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       accessToken = decryptToken(resolvedToken.encrypted);
     } catch (decErr) {
       if (decErr instanceof TokenDecryptError) {
-        return c.json({ error: 'Stored access token could not be decrypted' }, 500);
+        return c.json(tokenDecryptErrorJson(), 500);
       }
       throw decErr;
     }
@@ -2911,7 +2911,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     } catch (decErr) {
       if (decErr instanceof TokenDecryptError) {
         console.error(`[adlytic:sync] ${account.externalAccountId} — token decrypt failed (key mismatch, not a 190): ${decErr.message}`);
-        return c.json({ error: 'Stored access token could not be decrypted — check TOKEN_ENCRYPTION_KEY.' }, 500);
+        return c.json(tokenDecryptErrorJson(), 500);
       }
       throw decErr;
     }

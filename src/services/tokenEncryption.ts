@@ -36,6 +36,15 @@ export class TokenDecryptError extends Error {
   }
 }
 
+/** User-facing message when decrypt fails — key changed or token encrypted with a different key. */
+export const TOKEN_DECRYPT_USER_MESSAGE =
+  'Stored access token could not be decrypted — the encryption key changed. Reconnect manually with a fresh Meta token.';
+
+/** JSON body for HTTP routes that surface decrypt failures to the client. */
+export function tokenDecryptErrorJson(): { error: string; code: 'TOKEN_DECRYPT_FAILED' } {
+  return { error: TOKEN_DECRYPT_USER_MESSAGE, code: 'TOKEN_DECRYPT_FAILED' };
+}
+
 function getKey(): Buffer | null {
   return config.tokenEncryption.key;
 }
