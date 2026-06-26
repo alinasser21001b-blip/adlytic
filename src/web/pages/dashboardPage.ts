@@ -560,7 +560,7 @@ export function dashboardPage(): string {
   }
 
   // ── Hero cards ──────────────────────────────────────────────────────────
-  function renderHero(insights90) {
+  function renderHero(dashData, insights90) {
     var arr = Array.isArray(insights90) ? insights90 : [];
     var spend7  = sumMinor(arr.slice(0, 7));
     var spend30 = sumMinor(arr.slice(0, 30));
@@ -575,7 +575,10 @@ export function dashboardPage(): string {
 
     document.getElementById('hero-30-val').textContent  = fmtCurrencyMinor(spend30);
     document.getElementById('hero-7-val').textContent   = fmtCurrencyMinor(spend7);
-    document.getElementById('hero-life-val').textContent = fmtCurrencyMinor(spend90);
+    var lifeMinor = (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt != null)
+      ? dashData.lifetimeSpend.minor
+      : spend90; // fallback if lifetime sync pending
+    document.getElementById('hero-life-val').textContent = fmtCurrencyMinor(lifeMinor);
 
     function applyDelta(el, pct, goodWhenUp) {
       if (pct == null) { el.className = 'hero-delta flat'; el.textContent = '→ —'; return; }
@@ -589,10 +592,12 @@ export function dashboardPage(): string {
     applyDelta(document.getElementById('hero-30-delta'), d30, false);
     applyDelta(document.getElementById('hero-7-delta'),  d7,  false);
 
-    // Lifetime sub: show actual window length so the label is honest.
+    // Lifetime sub: authoritative Meta lifetime when synced, else honest window label.
     var days = Math.min(arr.length, 90);
     document.getElementById('hero-life-sub').textContent =
-      'Account history (' + days + '-day window)';
+      (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt)
+        ? 'Meta account lifetime total'
+        : ('Account history (' + days + '-day window)');
   }
 
   // ── AI Motion Ticker ─────────────────────────────────────────────────────
@@ -1154,8 +1159,8 @@ export function dashboardPage(): string {
       document.getElementById('dash-subtitle').textContent = 'Past 30 days · ' + wsName;
       document.getElementById('chart-panel-meta').textContent = state.currency;
 
-      // 8) Hero cards (spend totals from insights)
-      renderHero(insights);
+      // 8) Hero cards (30d/7d from insights; lifetime from DTO when synced)
+      renderHero(dashData, insights);
 
       // 9) AI Motion Ticker
       renderTicker(buildTickerItems(dashData));

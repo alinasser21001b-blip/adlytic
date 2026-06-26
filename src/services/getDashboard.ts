@@ -108,6 +108,8 @@ export interface DashboardDTO {
   } | null;
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
+  /** Meta account lifetime spend from ad_accounts.lifetime_spend_minor (syncLifetimeTotals). */
+  lifetimeSpend?: { minor: number; display: string; syncedAt: string | null };
 
   // ── V6 Brain section (optional — present only when CampaignBrainSnapshot has rows). ──
   // Strangler Fig: when absent, the page renders V5 sections only. When present, the
@@ -311,6 +313,13 @@ export async function getDashboard(
   // should pull from MetricTrend, not from this aggregate.
   const freqAvg = avg(daily, "frequency");
 
+  const lifetimeMinor = Number(account.lifetimeSpendMinor ?? 0);
+  const lifetimeSpend = {
+    minor: lifetimeMinor,
+    display: money(lifetimeMinor),
+    syncedAt: account.lifetimeSyncedAt?.toISOString() ?? null,
+  };
+
   const kpis: DashboardDTO["kpis"] = [
     { key: "spend", label: "Spend", value: totalSpendMinor, display: money(totalSpendMinor),
       deltaPct: trend?.spendTrend ?? null, direction: dir(trend?.spendTrend ?? null), goodWhenUp: true },
@@ -404,6 +413,7 @@ export async function getDashboard(
     priorityAction,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
+    lifetimeSpend,
     ...(brain && { brain }),
   };
 }

@@ -40,11 +40,12 @@ const fake: DashboardDTO = {
     id: "c2", name: "Living Room", health: 57, band: "attention",
     messages: 8, ctr: 1.6, cpm: 6.1, frequency: 6.4,
   },
+  lifetimeSpend: { minor: 128294, display: "1282.94 USD", syncedAt: "2026-06-26T00:00:00.000Z" },
 };
 
 // Top-level keys
 const topKeys = Object.keys(fake).sort();
-const expectedTopKeys = ["bestCampaign", "health", "issues", "kpis", "priorityAction", "trendSeries", "workspace", "worstCampaign"];
+const expectedTopKeys = ["bestCampaign", "health", "issues", "kpis", "lifetimeSpend", "priorityAction", "trendSeries", "workspace", "worstCampaign"];
 check("DTO top-level keys exact match (no additions, no removals)",
   JSON.stringify(topKeys) === JSON.stringify(expectedTopKeys), topKeys);
 
@@ -81,6 +82,11 @@ const paKeys = Object.keys(fake.priorityAction!).sort();
 const expectedPaKeys = ["actionCode", "details", "priority", "text"];
 check("priorityAction shape: 4 fields — actionCode + text together (code from Recommendation, text from Knowledge)",
   JSON.stringify(paKeys) === JSON.stringify(expectedPaKeys), paKeys);
+
+// lifetimeSpend shape
+const lsKeys = Object.keys(fake.lifetimeSpend!).sort();
+check("lifetimeSpend shape: {minor, display, syncedAt}",
+  JSON.stringify(lsKeys) === JSON.stringify(["display", "minor", "syncedAt"]), lsKeys);
 
 // campaign card shape
 const ccKeys = Object.keys(fake.bestCampaign!).sort();
