@@ -93,9 +93,27 @@ interface CmoPayload {
       directive: string;
     };
   };
+
+  history?: {
+    topPerformers: Array<{
+      name: string;
+      objective: string;
+      finalRoas: number | null;
+      costPerMessage: number | null;
+      keyTrait: string;
+    }>;
+    recentFailures: Array<{
+      name: string;
+      finalRoas: number | null;
+      lessonArabic: string;
+    }>;
+  };
 }
 
-function buildPayload(b: BrainTickResult): CmoPayload {
+/** Closed-set historical context block — assembled by the narration cron caller. */
+export type CmoHistoryBlock = NonNullable<CmoPayload['history']>;
+
+export function buildPayload(b: BrainTickResult): CmoPayload {
   const baselinesAllZero =
     (b.physics.costPerMessage.baseline || 0) === 0 &&
     (b.physics.ctr.baseline || 0) === 0 &&
@@ -259,6 +277,20 @@ V2 CONTEXTUAL RULES (apply only if v2 exists)
     ضع نصه (أو إعادة صياغة لباقة جداً لمضمونه) في حقل "creativeDirective" المنفصل.
 
 ═══════════════════════════════════════════════════════════════
+HISTORICAL CONTEXT (apply only if "history" is present)
+═══════════════════════════════════════════════════════════════
+When the payload includes a "history" block, you MAY weave at most ONE
+comparative sentence into arabicNarration — for example:
+"حملتك الحالية تشبه «<name>» التي حققت أفضل أداء سابق…"
+- Use ONLY names, finalRoas, costPerMessage, keyTrait, and lessonArabic
+  values present in history.*. Never invent a comparison or trait.
+- Quote keyTrait and lessonArabic verbatim or with minimal rephrasing —
+  they are engine-pre-translated Arabic, same as v2.dna.deviations[].
+- Do NOT cite any number not explicitly in the history block.
+- Keep the total arabicNarration within the 2–4 sentence budget above;
+  the historical sentence replaces one generic sentence, not an addition.
+
+═══════════════════════════════════════════════════════════════
 LENGTH
 ═══════════════════════════════════════════════════════════════
 - arabicTitle: 3–7 كلمات عربية واضحة
@@ -329,12 +361,15 @@ function attachCreativeDirective(
 export async function generateMerchantNarration(
   brainResult: BrainTickResult,
   llmClientCall: (systemPrompt: string, userPrompt: string) => Promise<string>,
+  history?: CmoHistoryBlock,
 ): Promise<CmoNarration> {
   if (brainResult.decision.action === 'EMERGENCY_PAUSE') {
     return buildEmergencyNarration(brainResult);
   }
 
-  const payload = buildPayload(brainResult);
+  const payload = history
+    ? { ...buildPayload(brainResult), history }
+    : buildPayload(brainResult);
   const userPrompt = JSON.stringify(payload, null, 2);
 
   try {

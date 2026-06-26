@@ -125,21 +125,36 @@ export class MetaClient {
    * full available history (typically up to 37 months).
    */
   async getLifetimeTotals(externalAccountId: string): Promise<MetaInsightRow[]> {
-    const params = new URLSearchParams({
+    return this.getLifetimeTotalsForEntity({
+      externalId: externalAccountId,
       level: "account",
+    });
+  }
+
+  /**
+   * Fetch all-time totals for any entity (account/campaign/adset/ad) using
+   * Meta's `date_preset=maximum`. Returns a single aggregated row.
+   */
+  async getLifetimeTotalsForEntity(args: {
+    externalId: string;
+    level: "account" | "campaign" | "adset" | "ad";
+    fields?: string;
+  }): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      level: args.level,
       date_preset: "maximum",
-      fields: "spend,impressions,clicks,reach,actions,action_values",
+      fields: args.fields ?? "spend,impressions,clicks,reach,actions,action_values,purchase_roas,cost_per_action_type",
       access_token: this.token,
       limit: "1",
     });
-    const url = `${this.base}/${externalAccountId}/insights?${params.toString()}`;
+    const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
     return this.paginated(url, 1);
   }
 
   /** List campaigns under an account — used for entity discovery. */
   async listCampaigns(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
-      fields: "id,name,status,objective,daily_budget,lifetime_budget",
+      fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time",
       access_token: this.token,
       limit: "200",
     });

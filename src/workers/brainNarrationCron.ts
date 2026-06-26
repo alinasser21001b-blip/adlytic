@@ -30,6 +30,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { BrainTickResult } from '../engine/AdlyticBrain';
 import { generateMerchantNarration, CmoNarration } from '../services/ClaudeCMO';
 import { askClaudeWithSystem } from '../services/claudeClient';
+import { buildCmoHistoricalContext } from '../services/getCampaignHistory';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 export const NARRATION_CRON_CONFIG = {
@@ -121,7 +122,20 @@ export async function runBrainNarrationCron(
 
       try {
         const brainResult = parseSnapshotPayload(row.payload, row.externalCampaignId);
-        const narration = await generateMerchantNarration(brainResult, askClaudeWithSystem);
+        const campaign = await prisma.campaign.findUnique({
+          where: { id: row.campaignId },
+          select: { objective: true },
+        });
+        const history = await buildCmoHistoricalContext(
+          prisma,
+          row.workspaceId,
+          campaign?.objective,
+        );
+        const narration = await generateMerchantNarration(
+          brainResult,
+          askClaudeWithSystem,
+          history,
+        );
 
         await prisma.campaignBrainSnapshot.update({
           where: { id: row.id },

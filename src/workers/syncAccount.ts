@@ -28,6 +28,7 @@ import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { advisoryLockId } from "../lib/advisoryLock";
+import { freezeCampaign } from "../lib/campaignFreeze";
 
 /** Defense-in-depth (G2): IQD must always map with factor=1 — never 100. */
 function currencyFactorForMapper(
@@ -78,6 +79,35 @@ function mapMetaEntityStatus(raw: unknown): EntityStatus {
     case "ARCHIVED": return EntityStatus.ARCHIVED;
     default:         return EntityStatus.ARCHIVED;
   }
+}
+
+function parseMetaDateTime(raw: unknown): Date | null {
+  if (raw == null || raw === "") return null;
+  const d = new Date(String(raw));
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+function isTerminalStatus(status: EntityStatus): boolean {
+  return status === EntityStatus.PAUSED || status === EntityStatus.ARCHIVED;
+}
+
+/**
+ * Final-freeze trigger (H-1): branch inside sync write only.
+ * Fires on ACTIVE→terminal transition OR when endedAt has elapsed on a terminal campaign.
+ */
+export function shouldTriggerCampaignFreeze(args: {
+  priorStatus: EntityStatus | null;
+  newStatus: EntityStatus;
+  endedAt: Date | null;
+  now: Date;
+}): boolean {
+  const statusTransition =
+    args.priorStatus === EntityStatus.ACTIVE && isTerminalStatus(args.newStatus);
+  const endDateElapsed =
+    args.endedAt != null &&
+    args.endedAt.getTime() <= args.now.getTime() &&
+    isTerminalStatus(args.newStatus);
+  return statusTransition || endDateElapsed;
 }
 
 export interface SyncResult {
@@ -393,14 +423,25 @@ export class SyncAccountWorker {
   // ════════════════════════════════════════════════════════════════════════
   async syncCampaigns(
     adAccountId: string,
-    opts: { since: Date; until: Date }
-  ): Promise<{ campaignsUpserted: number; dailyRowsUpserted: number }> {
+    opts: { since: Date; until: Date; now?: Date }
+  ): Promise<{ campaignsUpserted: number; dailyRowsUpserted: number; frozen: number }> {
     const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
     const tag = `[syncCampaigns:${acct.externalAccountId}]`;
+    const now = opts.now ?? new Date();
     console.log(`${tag} listing campaigns…`);
 
     const metaCampaigns = await this.meta.listCampaigns(acct.externalAccountId);
     console.log(`${tag} fetched ${metaCampaigns.length} campaign(s) from Meta`);
+
+    const existingCampaigns = await this.prisma.campaign.findMany({
+      where: { adAccountId },
+      select: { id: true, externalCampaignId: true, status: true, endedAt: true },
+    });
+    const priorByExternal = new Map(
+      existingCampaigns.map((c) => [c.externalCampaignId, c]),
+    );
+
+    const freezeCandidateIds: string[] = [];
 
     // ── Upsert Campaign rows in a single transaction ──────────────────────
     await this.prisma.$transaction(
@@ -409,12 +450,23 @@ export class SyncAccountWorker {
         const name = String(mc['name'] ?? '(unnamed)');
         const objective = mc['objective'] != null ? String(mc['objective']) : null;
         const status = mapMetaCampaignStatus(mc['status']);
+        const endedAt = parseMetaDateTime(mc['stop_time']);
         const dailyBudget = mc['daily_budget'] != null
           ? BigInt(String(mc['daily_budget']))
           : null;
         const lifetimeBudget = mc['lifetime_budget'] != null
           ? BigInt(String(mc['lifetime_budget']))
           : null;
+
+        const prior = priorByExternal.get(externalId);
+        if (shouldTriggerCampaignFreeze({
+          priorStatus: prior?.status ?? null,
+          newStatus: status,
+          endedAt,
+          now,
+        })) {
+          freezeCandidateIds.push(externalId);
+        }
 
         return this.prisma.campaign.upsert({
           where: { adAccountId_externalCampaignId: { adAccountId, externalCampaignId: externalId } },
@@ -426,6 +478,7 @@ export class SyncAccountWorker {
             status,
             dailyBudget,
             lifetimeBudget,
+            endedAt,
           },
           update: {
             name,
@@ -433,6 +486,7 @@ export class SyncAccountWorker {
             status,
             dailyBudget,
             lifetimeBudget,
+            endedAt,
           },
         });
       })
@@ -497,7 +551,29 @@ export class SyncAccountWorker {
     }
 
     console.log(`${tag} done — ${campaigns.length} campaigns, ${totalDailyUpserted} daily rows`);
-    return { campaignsUpserted: campaigns.length, dailyRowsUpserted: totalDailyUpserted };
+
+    // One-shot Final Freeze for campaigns that left active delivery (H-1).
+    // Non-fatal: a freeze failure must not roll back the sync write.
+    let frozen = 0;
+    if (freezeCandidateIds.length > 0) {
+      const campaignByExternal = new Map(campaigns.map((c) => [c.externalCampaignId, c.id]));
+      for (const externalId of freezeCandidateIds) {
+        const internalId = campaignByExternal.get(externalId);
+        if (!internalId) continue;
+        try {
+          const result = await freezeCampaign(this.prisma, this.meta, internalId, { now });
+          if (result.ok && !result.skipped) frozen++;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`${tag} freeze campaign=${externalId} FAILED — ${msg}`);
+        }
+      }
+      if (frozen > 0) {
+        console.log(`${tag} frozen ${frozen} campaign snapshot(s)`);
+      }
+    }
+
+    return { campaignsUpserted: campaigns.length, dailyRowsUpserted: totalDailyUpserted, frozen };
   }
 
   // ════════════════════════════════════════════════════════════════════════

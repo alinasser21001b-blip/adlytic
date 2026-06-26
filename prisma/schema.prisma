@@ -187,10 +187,13 @@ model Campaign {
   status             EntityStatus @default(ACTIVE)
   dailyBudget        BigInt?      @map("daily_budget")
   lifetimeBudget     BigInt?      @map("lifetime_budget")
+  /// Meta stop_time / end schedule — persisted for date-elapsed freeze triggers.
+  endedAt            DateTime?    @map("ended_at")
   createdAt          DateTime     @default(now()) @map("created_at")
   updatedAt          DateTime     @updatedAt @map("updated_at")
   adSets             AdSet[]
   adAccount          AdAccount    @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  historySnapshot    CampaignHistorySnapshot?
 
   @@unique([adAccountId, externalCampaignId])
   @@index([adAccountId])
@@ -809,4 +812,50 @@ enum SyncJobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Historical Data — immutable post-mortem snapshot (Final Freeze)
+//
+//  Written exactly once when a campaign leaves active delivery. Pre-aggregated
+//  lifetime totals + forensic blobs for AI historical context queries.
+//  Exempt from raw_insights pruning — outlives the audit trail.
+// ════════════════════════════════════════════════════════════════════════
+model CampaignHistorySnapshot {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @map("workspace_id")
+  campaignId         String   @unique @map("campaign_id")
+  externalCampaignId String   @map("external_campaign_id")
+  adAccountId        String   @map("ad_account_id")
+
+  name        String
+  objective   String?
+  finalStatus String  @map("final_status")
+  startedAt   DateTime? @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+
+  lifetimeSpendMinor BigInt @map("lifetime_spend_minor")
+  impressions        BigInt
+  reach              BigInt
+  clicks             BigInt
+  messages           BigInt
+  purchases          BigInt
+  leads              BigInt
+  revenueMinor       BigInt @map("revenue_minor")
+  finalRoas          Float? @map("final_roas")
+
+  currency            String
+  currencyMinorFactor Int    @map("currency_minor_factor")
+
+  breakdownJson  Json? @map("breakdown_json")
+  creativeJson   Json? @map("creative_json")
+  finalBrainJson Json? @map("final_brain_json")
+
+  frozenAt DateTime @default(now()) @map("frozen_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, endedAt])
+  @@index([workspaceId, objective, finalRoas])
+  @@map("campaign_history_snapshots")
 }
