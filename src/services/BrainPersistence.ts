@@ -15,7 +15,7 @@
 //  to getDashboard.
 // ════════════════════════════════════════════════════════════════════════
 
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import type { BrainTickResult } from '../engine/AdlyticBrain';
 
 /**
@@ -69,6 +69,19 @@ export async function persistBrainBatch(
       finalScore: result.physics.finalScore,
     };
 
+    const existing = await prisma.campaignBrainSnapshot.findUnique({
+      where: {
+        campaignId_tickDate: {
+          campaignId: internalCampaignId,
+          tickDate: day,
+        },
+      },
+      select: { action: true },
+    });
+    // Only invalidate narration when the decision action changes — keeps
+    // learning-phase messages from re-entering the narration queue every sync.
+    const clearNarration = existing != null && existing.action !== surface.action;
+
     await prisma.campaignBrainSnapshot.upsert({
       where: {
         campaignId_tickDate: {
@@ -89,6 +102,9 @@ export async function persistBrainBatch(
         externalCampaignId,                       // tolerate the (rare) Meta id reassign
         ...surface,
         payload: result as unknown as object,
+        ...(clearNarration
+          ? { narrationJson: Prisma.DbNull, narrationGeneratedAt: null }
+          : {}),
       },
     });
 

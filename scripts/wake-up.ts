@@ -103,7 +103,7 @@ async function main(): Promise<void> {
   //    null or stale, regardless of which account it came from.
   console.log(`[wake-up] (4/4) narration cron tick…`);
   const narr = await runBrainNarrationCron(prisma);
-  console.log(`[wake-up] narration: considered=${narr.considered} narrated=${narr.narrated} sentinels=${narr.sentinels} durationMs=${narr.durationMs}`);
+  console.log(`[wake-up] narration: considered=${narr.considered} narrated=${narr.narrated} reused=${narr.reused} sentinels=${narr.sentinels} durationMs=${narr.durationMs}`);
 
   await prisma.$disconnect();
   console.log(`[wake-up] done`);

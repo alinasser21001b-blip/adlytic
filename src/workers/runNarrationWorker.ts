@@ -62,7 +62,7 @@ async function main(): Promise<void> {
     }
     console.log(
       `[narration-cron] OK considered=${result.considered} ` +
-      `narrated=${result.narrated} sentinels=${result.sentinels} ` +
+      `narrated=${result.narrated} reused=${result.reused} sentinels=${result.sentinels} ` +
       `durationMs=${result.durationMs}`
     );
   } finally {

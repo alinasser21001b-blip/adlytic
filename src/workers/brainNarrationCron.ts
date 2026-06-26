@@ -31,6 +31,7 @@ import { BrainTickResult } from '../engine/AdlyticBrain';
 import { generateMerchantNarration, CmoNarration } from '../services/ClaudeCMO';
 import { askClaudeWithSystem } from '../services/claudeClient';
 import { buildCmoHistoricalContext } from '../services/getCampaignHistory';
+import { findReusableLearningNarration, isLearningPhaseNarration, isLearningPhaseSnapshot } from '../lib/cmoInsightDedupe';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 export const NARRATION_CRON_CONFIG = {
@@ -49,6 +50,7 @@ export interface NarrationCronResult {
   durationMs: number;
   considered: number;     // rows selected by the targeted query
   narrated: number;       // successful LLM-backed narrations written
+  reused: number;         // learning-phase rows that reused an existing narration
   sentinels: number;      // failed rows that got a fallback narration
   error?: string;         // only set when ok === false (catastrophic loop failure)
 }
@@ -105,6 +107,7 @@ export async function runBrainNarrationCron(
         durationMs: Date.now() - start,
         considered: 0,
         narrated: 0,
+        reused: 0,
         sentinels: 0,
       };
     }
@@ -113,6 +116,7 @@ export async function runBrainNarrationCron(
 
     // ── 2. Sequential LLM calls with rate-limit-friendly delay. ──
     let narrated = 0;
+    let reused = 0;
     let sentinels = 0;
 
     for (let i = 0; i < rows.length; i++) {
@@ -121,6 +125,42 @@ export async function runBrainNarrationCron(
       const label = `${row.externalCampaignId}@${row.tickDate.toISOString().slice(0, 10)}`;
 
       try {
+        // Stale-regen queue can re-select CRITICAL/HIGH rows that already have a
+        // learning-phase narration. Skip LLM until the decision action changes.
+        if (
+          row.narrationJson != null &&
+          isLearningPhaseSnapshot(row) &&
+          isLearningPhaseNarration(row.narrationJson)
+        ) {
+          await prisma.campaignBrainSnapshot.update({
+            where: { id: row.id },
+            data: { narrationGeneratedAt: new Date() },
+          });
+          reused++;
+          console.log(`${tag} ${label} learning-phase narration held (stale-regen skip)`);
+          if (i < rows.length - 1) {
+            await delay(NARRATION_CRON_CONFIG.DELAY_MS_BETWEEN_LLM_CALLS);
+          }
+          continue;
+        }
+
+        const reusable = await findReusableLearningNarration(prisma, row);
+        if (reusable) {
+          await prisma.campaignBrainSnapshot.update({
+            where: { id: row.id },
+            data: {
+              narrationJson: reusable.narrationJson,
+              narrationGeneratedAt: reusable.narrationGeneratedAt ?? new Date(),
+            },
+          });
+          reused++;
+          console.log(`${tag} ${label} learning-phase narration reused (dedupe)`);
+          if (i < rows.length - 1) {
+            await delay(NARRATION_CRON_CONFIG.DELAY_MS_BETWEEN_LLM_CALLS);
+          }
+          continue;
+        }
+
         const brainResult = parseSnapshotPayload(row.payload, row.externalCampaignId);
         const campaign = await prisma.campaign.findUnique({
           where: { id: row.campaignId },
@@ -175,13 +215,14 @@ export async function runBrainNarrationCron(
     }
 
     const durationMs = Date.now() - start;
-    console.log(`${tag} DONE — narrated=${narrated} sentinels=${sentinels} (${durationMs}ms)`);
+    console.log(`${tag} DONE — narrated=${narrated} reused=${reused} sentinels=${sentinels} (${durationMs}ms)`);
 
     return {
       ok: true,
       durationMs,
       considered: rows.length,
       narrated,
+      reused,
       sentinels,
     };
   } catch (e) {
@@ -192,6 +233,7 @@ export async function runBrainNarrationCron(
       durationMs: Date.now() - start,
       considered: 0,
       narrated: 0,
+      reused: 0,
       sentinels: 0,
       error,
     };
