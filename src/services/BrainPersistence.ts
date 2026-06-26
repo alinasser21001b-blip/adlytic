@@ -17,6 +17,7 @@
 
 import { Prisma, type PrismaClient } from '@prisma/client';
 import type { BrainTickResult } from '../engine/AdlyticBrain';
+import { isSameLearningPhaseTransition } from '../lib/cmoInsightDedupe';
 
 /**
  * Input for one campaign snapshot.
@@ -76,11 +77,18 @@ export async function persistBrainBatch(
           tickDate: day,
         },
       },
-      select: { action: true },
+      select: { action: true, payload: true },
     });
-    // Only invalidate narration when the decision action changes — keeps
-    // learning-phase messages from re-entering the narration queue every sync.
-    const clearNarration = existing != null && existing.action !== surface.action;
+    // Only invalidate narration when the decision materially changes. Staying
+    // in the learning / cold-start phase (even if action string flips) must
+    // NOT clear narration — otherwise every sync re-queues the cron LLM path.
+    const clearNarration =
+      existing != null &&
+      existing.action !== surface.action &&
+      !isSameLearningPhaseTransition(
+        { action: existing.action, payload: existing.payload },
+        { action: surface.action, payload: result },
+      );
 
     await prisma.campaignBrainSnapshot.upsert({
       where: {

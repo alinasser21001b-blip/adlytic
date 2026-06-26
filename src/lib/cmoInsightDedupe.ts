@@ -55,48 +55,68 @@ export function isLearningPhaseNarration(narrationJson: unknown): boolean {
   return title === LEARNING_PHASE_TITLE || title.includes('جاري جمع');
 }
 
-export function learningInsightDedupeKey(
-  campaignId: string,
-  insightType: string,
-  tickDate: Date,
-): string {
-  return `${campaignId}:${insightType}:${toUtcMidnight(tickDate).toISOString().slice(0, 10)}`;
+export function learningInsightDedupeKey(campaignId: string, insightType: string): string {
+  return `${campaignId}:${insightType}:learning`;
 }
 
 /**
- * Another narrated learning-phase row for the same campaign + UTC day + action.
- * Handles rare duplicate DB rows (pre-unique-index data or manual inserts).
+ * True when both snapshots are in the learning / cold-start phase — used to
+ * preserve narration across action-string churn (e.g. KEEP_COLLECTING ↔ payload
+ * gating flips) without re-entering the narration queue.
  */
-export async function findExistingLearningInsightToday(
+export function isSameLearningPhaseTransition(
+  before: { action: string; payload: unknown },
+  after: { action: string; payload: unknown },
+): boolean {
+  return isLearningPhaseSnapshot(before) && isLearningPhaseSnapshot(after);
+}
+
+/**
+ * Any narrated learning-phase row for this campaign — NO date or action filter.
+ * This is the authoritative guard against cron/sync re-generating "gathering
+ * initial data" on every tick.
+ */
+export async function findExistingLearningInsightForCampaign(
   prisma: PrismaClient,
   campaignId: string,
-  tickDate: Date,
-  action: string,
   excludeId?: string,
 ): Promise<(ReusableNarration & { id: string }) | null> {
-  const day = toUtcMidnight(tickDate);
-  const row = await prisma.campaignBrainSnapshot.findFirst({
+  const rows = await prisma.campaignBrainSnapshot.findMany({
     where: {
       campaignId,
-      tickDate: day,
-      action,
       narrationJson: { not: Prisma.AnyNull },
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
-    orderBy: [{ narrationGeneratedAt: 'desc' }, { createdAt: 'desc' }],
-    select: { id: true, narrationJson: true, narrationGeneratedAt: true },
+    orderBy: [{ narrationGeneratedAt: 'desc' }, { tickDate: 'desc' }, { createdAt: 'desc' }],
+    select: {
+      id: true,
+      action: true,
+      payload: true,
+      narrationJson: true,
+      narrationGeneratedAt: true,
+    },
+    take: 30,
   });
-  if (!row?.narrationJson || !isLearningPhaseNarration(row.narrationJson)) return null;
-  return {
-    id: row.id,
-    narrationJson: row.narrationJson as Prisma.InputJsonValue,
-    narrationGeneratedAt: row.narrationGeneratedAt,
-  };
+
+  for (const row of rows) {
+    if (!row.narrationJson) continue;
+    const narratedLearning = isLearningPhaseNarration(row.narrationJson);
+    const snapshotLearning = isLearningPhaseSnapshot(row);
+    if (narratedLearning || snapshotLearning) {
+      return {
+        id: row.id,
+        narrationJson: row.narrationJson as Prisma.InputJsonValue,
+        narrationGeneratedAt: row.narrationGeneratedAt,
+      };
+    }
+  }
+
+  return null;
 }
 
 /**
  * Rate-limit learning-phase narrations: reuse an existing narration when the
- * campaign is still in the same statistical state (action unchanged).
+ * campaign is still in the same statistical state (learning / cold-start).
  */
 export async function findReusableLearningNarration(
   prisma: PrismaClient,
@@ -104,41 +124,25 @@ export async function findReusableLearningNarration(
 ): Promise<ReusableNarration | null> {
   if (!isLearningPhaseSnapshot(row)) return null;
 
-  const sameDay = await findExistingLearningInsightToday(
+  const existing = await findExistingLearningInsightForCampaign(
     prisma,
     row.campaignId,
-    row.tickDate,
-    row.action,
     row.id,
   );
-  if (sameDay) {
+  if (existing) {
     return {
-      narrationJson: sameDay.narrationJson,
-      narrationGeneratedAt: sameDay.narrationGeneratedAt,
-    };
-  }
-
-  const day = toUtcMidnight(row.tickDate);
-  const prior = await prisma.campaignBrainSnapshot.findFirst({
-    where: {
-      campaignId: row.campaignId,
-      action: row.action,
-      tickDate: { lt: day },
-      narrationJson: { not: Prisma.AnyNull },
-    },
-    orderBy: { tickDate: 'desc' },
-    select: { narrationJson: true, narrationGeneratedAt: true, action: true, payload: true },
-  });
-  if (
-    prior?.narrationJson &&
-    isLearningPhaseSnapshot(prior) &&
-    isLearningPhaseNarration(prior.narrationJson)
-  ) {
-    return {
-      narrationJson: prior.narrationJson as Prisma.InputJsonValue,
-      narrationGeneratedAt: prior.narrationGeneratedAt,
+      narrationJson: existing.narrationJson,
+      narrationGeneratedAt: existing.narrationGeneratedAt,
     };
   }
 
   return null;
+}
+
+/** Pure helper for tests — block LLM when campaign already has learning narration. */
+export function shouldBlockLearningGeneration(
+  row: { action: string; payload: unknown },
+  existing: ReusableNarration | null,
+): boolean {
+  return isLearningPhaseSnapshot(row) && existing != null;
 }

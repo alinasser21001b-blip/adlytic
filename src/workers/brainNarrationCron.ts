@@ -31,7 +31,13 @@ import { BrainTickResult } from '../engine/AdlyticBrain';
 import { generateMerchantNarration, CmoNarration } from '../services/ClaudeCMO';
 import { askClaudeWithSystem } from '../services/claudeClient';
 import { buildCmoHistoricalContext } from '../services/getCampaignHistory';
-import { findReusableLearningNarration, isLearningPhaseNarration, isLearningPhaseSnapshot } from '../lib/cmoInsightDedupe';
+import {
+  findExistingLearningInsightForCampaign,
+  findReusableLearningNarration,
+  isLearningPhaseNarration,
+  isLearningPhaseSnapshot,
+  shouldBlockLearningGeneration,
+} from '../lib/cmoInsightDedupe';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 export const NARRATION_CRON_CONFIG = {
@@ -125,6 +131,10 @@ export async function runBrainNarrationCron(
       const label = `${row.externalCampaignId}@${row.tickDate.toISOString().slice(0, 10)}`;
 
       try {
+        const campaignLearning = isLearningPhaseSnapshot(row)
+          ? await findExistingLearningInsightForCampaign(prisma, row.campaignId, row.id)
+          : null;
+
         // Stale-regen queue can re-select CRITICAL/HIGH rows that already have a
         // learning-phase narration. Skip LLM until the decision action changes.
         if (
@@ -138,6 +148,22 @@ export async function runBrainNarrationCron(
           });
           reused++;
           console.log(`${tag} ${label} learning-phase narration held (stale-regen skip)`);
+          if (i < rows.length - 1) {
+            await delay(NARRATION_CRON_CONFIG.DELAY_MS_BETWEEN_LLM_CALLS);
+          }
+          continue;
+        }
+
+        if (shouldBlockLearningGeneration(row, campaignLearning)) {
+          await prisma.campaignBrainSnapshot.update({
+            where: { id: row.id },
+            data: {
+              narrationJson: campaignLearning!.narrationJson,
+              narrationGeneratedAt: campaignLearning!.narrationGeneratedAt ?? new Date(),
+            },
+          });
+          reused++;
+          console.log(`${tag} ${label} learning-phase blocked — reused campaign canonical`);
           if (i < rows.length - 1) {
             await delay(NARRATION_CRON_CONFIG.DELAY_MS_BETWEEN_LLM_CALLS);
           }
@@ -162,6 +188,34 @@ export async function runBrainNarrationCron(
         }
 
         const brainResult = parseSnapshotPayload(row.payload, row.externalCampaignId);
+
+        // Last guard before LLM: payload gating implies ClaudeCMO will emit learning copy.
+        const payloadRecord = row.payload && typeof row.payload === 'object'
+          ? (row.payload as Record<string, unknown>)
+          : null;
+        const payloadColdStart = payloadRecord?.['coldStart'] === true;
+        const payloadGating = payloadRecord?.['confidence'] &&
+          typeof payloadRecord['confidence'] === 'object'
+          ? (payloadRecord['confidence'] as Record<string, unknown>)['gatingStatus']
+          : null;
+        if (payloadColdStart || payloadGating === 'COLLECTING_DATA') {
+          const canonical = await findExistingLearningInsightForCampaign(prisma, row.campaignId, row.id);
+          if (canonical) {
+            await prisma.campaignBrainSnapshot.update({
+              where: { id: row.id },
+              data: {
+                narrationJson: canonical.narrationJson,
+                narrationGeneratedAt: canonical.narrationGeneratedAt ?? new Date(),
+              },
+            });
+            reused++;
+            console.log(`${tag} ${label} cold-start blocked — reused campaign canonical`);
+            if (i < rows.length - 1) {
+              await delay(NARRATION_CRON_CONFIG.DELAY_MS_BETWEEN_LLM_CALLS);
+            }
+            continue;
+          }
+        }
         const campaign = await prisma.campaign.findUnique({
           where: { id: row.campaignId },
           select: { objective: true },

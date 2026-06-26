@@ -2,8 +2,9 @@
  * Prune duplicate campaign_brain_snapshots that spam the CMO feed with
  * identical learning-phase messages.
  *
- * Keeps one row per (campaign_id, tick_date) — preferring narrated rows,
- * then highest priority, then latest narrationGeneratedAt.
+ * Keeps one learning-phase row per campaign (across all tick dates).
+ * Also collapses same-day duplicate rows when the unique index was violated
+ * by legacy data.
  *
  * Run:
  *   npx tsx --env-file=.env scripts/pruneDuplicateBrainInsights.ts
@@ -15,7 +16,11 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
-import { isLearningPhaseNarration, readNarrationTitle } from '../src/lib/cmoInsightDedupe';
+import {
+  isLearningPhaseNarration,
+  isLearningPhaseSnapshot,
+  readNarrationTitle,
+} from '../src/lib/cmoInsightDedupe';
 
 const DRY_RUN = process.env['DRY_RUN'] !== '0';
 
@@ -25,6 +30,7 @@ type SnapshotRow = {
   tickDate: Date;
   action: string;
   priority: string;
+  payload: unknown;
   narrationJson: unknown;
   narrationGeneratedAt: Date | null;
   createdAt: Date;
@@ -36,6 +42,11 @@ function priorityWeight(p: string): number {
   return 1;
 }
 
+function isLearningSpamRow(row: SnapshotRow): boolean {
+  if (row.narrationJson != null && isLearningPhaseNarration(row.narrationJson)) return true;
+  return isLearningPhaseSnapshot({ action: row.action, payload: row.payload });
+}
+
 function pickWinner(a: SnapshotRow, b: SnapshotRow): SnapshotRow {
   const aN = a.narrationJson != null;
   const bN = b.narrationJson != null;
@@ -43,7 +54,7 @@ function pickWinner(a: SnapshotRow, b: SnapshotRow): SnapshotRow {
 
   const aLearn = aN && isLearningPhaseNarration(a.narrationJson);
   const bLearn = bN && isLearningPhaseNarration(b.narrationJson);
-  if (aLearn !== bLearn) return aLearn ? b : a;
+  if (aLearn !== bLearn) return aLearn ? a : b;
 
   const pw = priorityWeight(a.priority) - priorityWeight(b.priority);
   if (pw !== 0) return pw > 0 ? a : b;
@@ -55,8 +66,12 @@ function pickWinner(a: SnapshotRow, b: SnapshotRow): SnapshotRow {
   return a.createdAt <= b.createdAt ? a : b;
 }
 
-function groupKey(campaignId: string, tickDate: Date): string {
+function sameDayKey(campaignId: string, tickDate: Date): string {
   return `${campaignId}:${tickDate.toISOString().slice(0, 10)}`;
+}
+
+function learningCampaignKey(campaignId: string): string {
+  return `${campaignId}:learning`;
 }
 
 async function main(): Promise<void> {
@@ -83,6 +98,7 @@ async function main(): Promise<void> {
       tickDate: true,
       action: true,
       priority: true,
+      payload: true,
       narrationJson: true,
       narrationGeneratedAt: true,
       createdAt: true,
@@ -90,39 +106,65 @@ async function main(): Promise<void> {
     orderBy: [{ campaignId: 'asc' }, { tickDate: 'asc' }, { createdAt: 'asc' }],
   });
 
-  const groups = new Map<string, SnapshotRow[]>();
+  const sameDayGroups = new Map<string, SnapshotRow[]>();
+  const learningGroups = new Map<string, SnapshotRow[]>();
+
   for (const row of rows) {
-    const key = groupKey(row.campaignId, row.tickDate);
-    const bucket = groups.get(key) ?? [];
-    bucket.push(row);
-    groups.set(key, bucket);
+    const dayKey = sameDayKey(row.campaignId, row.tickDate);
+    const dayBucket = sameDayGroups.get(dayKey) ?? [];
+    dayBucket.push(row);
+    sameDayGroups.set(dayKey, dayBucket);
+
+    if (isLearningSpamRow(row)) {
+      const learnKey = learningCampaignKey(row.campaignId);
+      const learnBucket = learningGroups.get(learnKey) ?? [];
+      learnBucket.push(row);
+      learningGroups.set(learnKey, learnBucket);
+    }
   }
 
-  const toDelete: string[] = [];
-  let duplicateGroups = 0;
+  const toDelete = new Set<string>();
+  let duplicateDayGroups = 0;
+  let learningCampaignGroups = 0;
   let learningSpamRows = 0;
 
-  for (const [, bucket] of groups) {
+  for (const [, bucket] of sameDayGroups) {
     if (bucket.length <= 1) continue;
-    duplicateGroups++;
+    duplicateDayGroups++;
     let winner = bucket[0]!;
     for (let i = 1; i < bucket.length; i++) {
       winner = pickWinner(winner, bucket[i]!);
     }
     for (const row of bucket) {
       if (row.id === winner.id) continue;
-      toDelete.push(row.id);
+      toDelete.add(row.id);
+    }
+  }
+
+  for (const [, bucket] of learningGroups) {
+    if (bucket.length <= 1) continue;
+    learningCampaignGroups++;
+    let winner = bucket[0]!;
+    for (let i = 1; i < bucket.length; i++) {
+      winner = pickWinner(winner, bucket[i]!);
+    }
+    for (const row of bucket) {
+      if (row.id === winner.id) continue;
+      toDelete.add(row.id);
       const title = readNarrationTitle(row.narrationJson);
       if (title && isLearningPhaseNarration(row.narrationJson)) learningSpamRows++;
     }
   }
 
+  const toDeleteList = Array.from(toDelete);
+
   console.log(
-    `[prune-brain-insights] scanned=${rows.length} duplicateGroups=${duplicateGroups} ` +
-    `toDelete=${toDelete.length} learningSpam=${learningSpamRows} dryRun=${DRY_RUN}`,
+    `[prune-brain-insights] scanned=${rows.length} duplicateDayGroups=${duplicateDayGroups} ` +
+    `learningCampaignGroups=${learningCampaignGroups} toDelete=${toDeleteList.length} ` +
+    `learningSpam=${learningSpamRows} dryRun=${DRY_RUN}`,
   );
 
-  if (toDelete.length === 0) {
+  if (toDeleteList.length === 0) {
     console.log('[prune-brain-insights] nothing to prune.');
     await prisma.$disconnect();
     await pool.end();
@@ -130,13 +172,13 @@ async function main(): Promise<void> {
   }
 
   if (DRY_RUN) {
-    console.log('[prune-brain-insights] sample ids:', toDelete.slice(0, 10).join(', '));
+    console.log('[prune-brain-insights] sample ids:', toDeleteList.slice(0, 10).join(', '));
     console.log('[prune-brain-insights] re-run with DRY_RUN=0 to delete.');
   } else {
     const CHUNK = 100;
     let deleted = 0;
-    for (let i = 0; i < toDelete.length; i += CHUNK) {
-      const slice = toDelete.slice(i, i + CHUNK);
+    for (let i = 0; i < toDeleteList.length; i += CHUNK) {
+      const slice = toDeleteList.slice(i, i + CHUNK);
       const result = await prisma.campaignBrainSnapshot.deleteMany({
         where: { id: { in: slice } },
       });

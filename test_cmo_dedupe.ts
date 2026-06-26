@@ -7,8 +7,10 @@ import {
   isLearningPhaseAction,
   isLearningPhaseNarration,
   isLearningPhaseSnapshot,
+  isSameLearningPhaseTransition,
   learningInsightDedupeKey,
   readNarrationTitle,
+  shouldBlockLearningGeneration,
   toUtcMidnight,
 } from './src/lib/cmoInsightDedupe';
 
@@ -17,6 +19,11 @@ function check(name: string, cond: boolean, got?: unknown) {
   if (cond) { pass++; console.log(`  ✓ ${name}`); }
   else { fail++; console.log(`  ✗ ${name} — got: ${JSON.stringify(got)}`); }
 }
+
+const learningNarration = {
+  arabicTitle: LEARNING_PHASE_TITLE,
+  arabicNarration: 'جاري جمع البيانات',
+};
 
 console.log('\n── Learning phase detection ──');
 check('KEEP_COLLECTING is learning action', isLearningPhaseAction('KEEP_COLLECTING'));
@@ -53,14 +60,59 @@ check(
 );
 
 console.log('\n── Dedupe key ──');
-const day = new Date('2026-06-27T15:30:00Z');
 check(
-  'dedupe key uses UTC date + action',
-  learningInsightDedupeKey('camp_1', 'KEEP_COLLECTING', day) === 'camp_1:KEEP_COLLECTING:2026-06-27',
+  'dedupe key is campaign-scoped (no date)',
+  learningInsightDedupeKey('camp_1', 'KEEP_COLLECTING') === 'camp_1:KEEP_COLLECTING:learning',
 );
 check(
   'toUtcMidnight normalizes',
-  toUtcMidnight(day).toISOString() === '2026-06-27T00:00:00.000Z',
+  toUtcMidnight(new Date('2026-06-27T15:30:00Z')).toISOString() === '2026-06-27T00:00:00.000Z',
+);
+
+console.log('\n── Learning phase transition ──');
+check(
+  'KEEP_COLLECTING → coldStart payload stays learning',
+  isSameLearningPhaseTransition(
+    { action: 'KEEP_COLLECTING', payload: {} },
+    { action: 'HOLD_AND_MONITOR', payload: { coldStart: true } },
+  ),
+);
+check(
+  'KEEP_COLLECTING → SCALE_BUDGET exits learning',
+  !isSameLearningPhaseTransition(
+    { action: 'KEEP_COLLECTING', payload: {} },
+    { action: 'SCALE_BUDGET', payload: {} },
+  ),
+);
+
+console.log('\n── Generation guard ──');
+check(
+  'blocks when learning row + existing narration',
+  shouldBlockLearningGeneration(
+    { action: 'KEEP_COLLECTING', payload: {} },
+    { narrationJson: learningNarration, narrationGeneratedAt: new Date('2026-06-20T11:36:00Z') },
+  ),
+);
+check(
+  'allows when no existing narration',
+  !shouldBlockLearningGeneration(
+    { action: 'KEEP_COLLECTING', payload: {} },
+    null,
+  ),
+);
+check(
+  'allows non-learning row even with existing narration',
+  !shouldBlockLearningGeneration(
+    { action: 'SCALE_BUDGET', payload: {} },
+    { narrationJson: learningNarration, narrationGeneratedAt: new Date() },
+  ),
+);
+check(
+  'blocks cross-day learning (5-min cron scenario)',
+  shouldBlockLearningGeneration(
+    { action: 'KEEP_COLLECTING', payload: { confidence: { gatingStatus: 'COLLECTING_DATA' } } },
+    { narrationJson: learningNarration, narrationGeneratedAt: new Date('2026-06-26T11:41:00Z') },
+  ),
 );
 
 console.log(`\n════ ${pass} passed, ${fail} failed ════`);
