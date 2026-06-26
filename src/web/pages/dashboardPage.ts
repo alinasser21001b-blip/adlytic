@@ -1056,14 +1056,16 @@ export function dashboardPage(): string {
 
   // ── Insights → KPIs fallback (uses minor-unit-aware spend totals) ───────
   function buildKpisFromInsights(insights) {
-    var totals = { spendMinor: 0, impressions: 0, reach: 0, clicks: 0, messages: 0 };
+    var totals = { spendMinor: 0, impressions: 0, clicks: 0, messages: 0 };
     insights.forEach(function (d) {
       totals.spendMinor += Number(d.spend) || 0;
       totals.impressions += Number(d.impressions) || 0;
-      totals.reach += Number(d.reach) || 0;
       totals.clicks += Number(d.clicks) || 0;
       totals.messages += Number(d.messages) || 0;
     });
+    // Reach is daily unique users — NOT additive across days. Insights arrive
+    // date-DESC; use the most recent day (matches getDashboard.ts convention).
+    var latestReach = insights.length ? (Number(insights[0].reach) || 0) : 0;
     var spendMajor = totals.spendMinor / state.minorFactor;
     var ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0;
     var cpc = totals.clicks ? spendMajor / totals.clicks : 0;
@@ -1071,7 +1073,7 @@ export function dashboardPage(): string {
     return [
       { key: 'spend', label: 'Spend', value: spendMajor, display: fmtCurrencyMinor(totals.spendMinor), goodWhenUp: false },
       { key: 'impressions', label: 'Impressions', value: totals.impressions, display: fmtNum(totals.impressions), goodWhenUp: true },
-      { key: 'reach', label: 'Reach', value: totals.reach, display: fmtNum(totals.reach), goodWhenUp: true },
+      { key: 'reach', label: 'Reach (latest day)', value: latestReach, display: fmtNum(latestReach), goodWhenUp: true },
       { key: 'clicks', label: 'Clicks', value: totals.clicks, display: fmtNum(totals.clicks), goodWhenUp: true },
       { key: 'ctr', label: 'CTR', value: ctr, display: fmtPctLocal(ctr), goodWhenUp: true },
       { key: 'cpc', label: 'CPC', value: cpc, display: fmtCurrencyMajor(cpc), goodWhenUp: false },

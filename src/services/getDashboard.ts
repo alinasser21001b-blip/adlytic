@@ -29,6 +29,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
+import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 
 // ── Module-level Prisma client (used when no client is passed in).
@@ -235,11 +236,7 @@ export async function getDashboard(
 
   // Auto-heal stale IQD rows that still carry the schema default factor=100.
   if (currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
-    const healed = resolveCurrencyMinorFactor(account.currency, null);
-    await prisma.adAccount.update({
-      where: { id: account.id },
-      data: { currencyMinorFactor: healed },
-    });
+    const healed = await healAccountCurrencyAndSpend(prisma, account);
     account.currencyMinorFactor = healed;
     console.log(
       `[currency-heal] dashboard ${account.id.slice(0, 8)}… ${account.currency} factor → ${healed}`,
@@ -328,7 +325,7 @@ export async function getDashboard(
     { key: "frequency", label: "Frequency", value: freqAvg ?? 0,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
       deltaPct: trend?.frequencyTrend ?? null, direction: dir(trend?.frequencyTrend ?? null), goodWhenUp: false },
-    { key: "reach", label: "Reach", value: totalReach, display: totalReach.toLocaleString(),
+    { key: "reach", label: "Reach (latest day)", value: totalReach, display: totalReach.toLocaleString(),
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
 

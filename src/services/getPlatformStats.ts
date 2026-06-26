@@ -27,6 +27,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { PrismaClient } from '@prisma/client';
+import { resolveCurrencyMinorFactor } from '../lib/currency';
 
 const PLATFORM_STATS_TTL_MS = 60 * 60_000;       // 1 hour
 const NARRATION_COVERAGE_LOOKBACK_DAYS = 7;
@@ -150,7 +151,7 @@ async function computeFreshStats(prisma: PrismaClient): Promise<Omit<PlatformSta
   // Multiple AdAccounts may share a currency; we aggregate them.
   const byCurrency = new Map<string, PlatformBudgetByCurrency>();
   for (const acct of accountsForBudget) {
-    const factor = acct.currencyMinorFactor > 0 ? acct.currencyMinorFactor : 1;
+    const factor = resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor);
     for (const c of acct.campaigns) {
       const minor = c.dailyBudget ? Number(c.dailyBudget) : 0;
       if (minor <= 0) continue;

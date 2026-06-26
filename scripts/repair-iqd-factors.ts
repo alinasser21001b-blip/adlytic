@@ -31,7 +31,7 @@ async function main() {
 
   const rescale = await rescaleIqdSpendFromRaw(prisma);
   console.log(
-    `Rescaled ${rescale.rowsRescaled} daily_stat row(s) across ${rescale.accountsChecked} IQD account(s); ${rescale.rowsVerified} already correct.`,
+    `Rescaled ${rescale.rowsRescaled} account daily_stat row(s) + ${rescale.campaignRowsRescaled} campaign row(s) across ${rescale.accountsChecked} IQD account(s); ${rescale.rowsVerified} already correct.`,
   );
 
   if (rescale.rowsRescaled > 0 || factorsHealed > 0) {

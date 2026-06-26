@@ -25,6 +25,7 @@ import { mapMetaInsight, mapMetaBreakdownInsight } from "../mappers/insightMappe
 import { mapMetaAdSet, mapMetaAd } from "../mappers/creativeMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
+import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 
 // ── Chunked sync constants ──────────────────────────────────────────────
@@ -221,11 +222,8 @@ export class SyncAccountWorker {
     });
 
     if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
-      const healed = resolveCurrencyMinorFactor(acct.currency, null);
-      acct = await this.prisma.adAccount.update({
-        where: { id: adAccountId },
-        data: { currencyMinorFactor: healed },
-      });
+      const healed = await healAccountCurrencyAndSpend(this.prisma, acct);
+      acct = { ...acct, currencyMinorFactor: healed };
       console.log(
         `[currency-heal] sync ${acct.externalAccountId} ${acct.currency} factor → ${healed}`,
       );
@@ -947,11 +945,8 @@ export class SyncAccountWorker {
 
     let acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
     if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
-      const healed = resolveCurrencyMinorFactor(acct.currency, null);
-      acct = await this.prisma.adAccount.update({
-        where: { id: adAccountId },
-        data: { currencyMinorFactor: healed },
-      });
+      const healed = await healAccountCurrencyAndSpend(this.prisma, acct);
+      acct = { ...acct, currencyMinorFactor: healed };
       console.log(
         `[currency-heal] syncChunked ${acct.externalAccountId} ${acct.currency} factor → ${healed}`,
       );

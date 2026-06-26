@@ -74,6 +74,7 @@ import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, M
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
+import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 
 // ── Background sync window policy ─────────────────────────────────────────
@@ -381,11 +382,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
     const account = ws.adAccounts[0] ?? null;
     if (account && currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
-      const healed = resolveCurrencyMinorFactor(account.currency, null);
-      await prisma.adAccount.update({
-        where: { id: account.id },
-        data: { currencyMinorFactor: healed },
-      });
+      const healed = await healAccountCurrencyAndSpend(prisma, account);
       account.currencyMinorFactor = healed;
     }
     return { workspace: ws, account };
@@ -1117,11 +1114,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
     for (const acct of ws.adAccounts) {
       if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
-        const healed = resolveCurrencyMinorFactor(acct.currency, null);
-        await prisma.adAccount.update({
-          where: { id: acct.id },
-          data: { currencyMinorFactor: healed },
-        });
+        const healed = await healAccountCurrencyAndSpend(prisma, acct);
         acct.currencyMinorFactor = healed;
       }
     }
