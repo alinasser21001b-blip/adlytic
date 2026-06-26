@@ -27,6 +27,7 @@ import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
+import { advisoryLockId } from "../lib/advisoryLock";
 
 // ── Chunked sync constants ──────────────────────────────────────────────
 /** Days per chunk. 7 keeps each Meta call small enough to dodge rate limits. */
@@ -148,21 +149,6 @@ async function withCode17Retry<T>(label: string, fn: () => Promise<T>): Promise<
  *  delay sits BETWEEN individual campaign processing blocks to spread
  *  Meta call volume more evenly over time. */
 const INTER_CAMPAIGN_DELAY_MS = 500;
-
-/**
- * Stable 32-bit integer hash of a string — safe as a Postgres advisory lock key.
- * Advisory locks take a bigint; we keep it positive and under 2^31 to stay within
- * the signed 32-bit range that pg_try_advisory_lock accepts as an int4 pair.
- */
-function advisoryLockId(id: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = (Math.imul(h, 0x01000193) >>> 0);
-  }
-  // Force positive signed 32-bit integer
-  return h >>> 1;
-}
 
 export class SyncAccountWorker {
   private rawRepo: RawInsightsRepo;

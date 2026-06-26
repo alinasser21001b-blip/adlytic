@@ -26,6 +26,8 @@ import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { runEngines } from '../workers/runEngines';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 import { config, reportConfig } from '../config';
+import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
+import { refreshExpiringMetaTokens } from '../workers/refreshMetaTokens';
 
 const PORT = config.port;
 // Background sync interval: default 6 hours (can be overridden via env)
@@ -214,12 +216,26 @@ async function main(): Promise<void> {
     }
   }
 
-  // Recursive setTimeout so the next sync only starts after the previous one
+  // Recursive setTimeout so the next pass only starts after the previous one
   // fully completes. setInterval would queue overlapping runs if a sync takes
   // longer than SYNC_INTERVAL_MS (e.g. many accounts, slow Meta API).
+  async function runBackgroundPass(): Promise<void> {
+    const { acquired, lockId } = await tryAcquireAdvisoryLock(prisma, 'adlytic:auto-sync');
+    if (!acquired) {
+      console.log('[adlytic:auto-sync] Another instance holds the auto-sync lock — skipping this tick');
+      return;
+    }
+    try {
+      await refreshExpiringMetaTokens(prisma);
+      await syncAllAccounts();
+    } finally {
+      await releaseAdvisoryLock(prisma, lockId);
+    }
+  }
+
   function scheduleSyncLoop(): void {
     setTimeout(async () => {
-      await syncAllAccounts();
+      await runBackgroundPass();
       scheduleSyncLoop();
     }, SYNC_INTERVAL_MS);
   }

@@ -111,19 +111,31 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   };
 }
 
+// Prefer omni_purchase first — Meta often returns overlapping purchase_roas
+// entries (purchase + omni_purchase); summing them double-counts ROAS.
+const PURCHASE_ROAS_PREFERENCE: readonly string[] = [
+  "omni_purchase",
+  "purchase",
+  "offsite_conversion.fb_pixel_purchase",
+];
+
 /**
- * Meta returns `purchase_roas` as an array keyed by action_type. Sum only the
- * action_types we recognize as purchases so we don't double-count overlapping
- * attribution windows.
+ * Meta returns `purchase_roas` as an array keyed by action_type. Pick the
+ * first recognized purchase type (preference order) so overlapping entries
+ * are not summed.
  */
 function pickPurchaseRoas(row: MetaInsightRow): number | null {
   const raw = row.purchase_roas;
   if (!Array.isArray(raw) || raw.length === 0) return null;
-  let total = 0;
-  for (const r of raw as ActionRow[]) {
-    if (r.action_type && PURCHASE_ACTION_TYPES.has(r.action_type)) total += num(r.value);
+  for (const preferred of PURCHASE_ROAS_PREFERENCE) {
+    for (const r of raw as ActionRow[]) {
+      if (r.action_type === preferred) {
+        const n = num(r.value);
+        if (Number.isFinite(n) && n > 0) return +n.toFixed(4);
+      }
+    }
   }
-  return total > 0 ? +total.toFixed(4) : null;
+  return null;
 }
 
 /**
