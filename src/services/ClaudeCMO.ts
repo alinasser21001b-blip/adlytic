@@ -1,39 +1,40 @@
 // src/services/ClaudeCMO.ts
 //
-// الطبقة السابعة: المدير التسويقي (Claude CMO)
-// Brain-to-Mouth Pipeline: ترجمة قرار الدماغ الرياضي إلى رسالة عربية للتاجر.
+// Layer 7 — Claude CMO (Brain-to-Mouth)
+// Translates BrainTickResult into Arabic narration stored in narrationJson.
 //
-// Architecture:
-//   1. Build a strict, anti-hallucination JSON payload (CmoPayload) from BrainTickResult
-//   2. If decision is EMERGENCY_PAUSE → short-circuit to a deterministic template (no LLM call)
-//   3. Otherwise → call LLM with strict system prompt + JSON payload
-//   4. Strip markdown fences, parse, fallback safely on any error
+// Pipeline:
+//   1. Build anti-hallucination JSON payload (CmoPayload) from BrainTickResult
+//   2. EMERGENCY_PAUSE → deterministic template (no LLM)
+//   3. Otherwise → LLM with strict system prompt + payload
+//   4. Parse V2 narration JSON; fallback safely on error
 //
-// Output shape stays backward-compatible:
-//   { campaignId, arabicTitle, arabicNarration, creativeDirective? }
+// narrationJson contract (severity/insightType come from snapshot columns, not LLM):
+//   { arabicTitle, arabicNarration, creativeDirective? }
 
 import { BrainTickResult } from '../engine/AdlyticBrain';
 import { DecisionAction } from '../engine/DecisionEngine';
 
 // ════════════════════════════════════════════════════════════════════════
-// Public output contract
+// Public output contract — persisted to narrationJson (campaignId omitted at write)
 // ════════════════════════════════════════════════════════════════════════
 export interface CmoNarration {
   campaignId: string;
   arabicTitle: string;
   arabicNarration: string;
-  /**
-   * التوجيه الإبداعي من Layer 11 — معروض في بطاقة UI منفصلة مع أيقونة 💡.
-   * يظهر فقط عند توفر بيانات V2 (Resonance Engine).
-   */
+  /** Layer 11 creative directive — optional UI sub-line. */
+  creativeDirective?: string;
+}
+
+/** Strict LLM JSON output — keys match narrationJson field names. */
+interface LlmNarrationOutput {
+  arabicTitle: string;
+  arabicNarration: string;
   creativeDirective?: string;
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// LLM-facing payload contract — the only data Claude is allowed to see.
-// Every field is either a closed-set string, a number, or pre-translated Arabic
-// text that came out of a deterministic engine. No raw metrics that could
-// tempt invented comparisons.
+// LLM-facing payload — closed-set strings, numbers, pre-translated Arabic only.
 // ════════════════════════════════════════════════════════════════════════
 interface CmoPayload {
   campaignName: string;
@@ -54,10 +55,6 @@ interface CmoPayload {
 
   recoverySignal: 'NONE' | 'MODERATE' | 'STRONG';
 
-  // Cold-start flag — true when the campaign has no statistically meaningful
-  // baseline yet, so delta-based comparisons are meaningless. The LLM is
-  // expected to switch into "absolute-only" mode when this is set (see
-  // SYSTEM_PROMPT § COLD-START MODE).
   coldStart: boolean;
 
   scores: {
@@ -70,8 +67,6 @@ interface CmoPayload {
     ctrPercent: number;
   };
 
-  // Authorized for quoting in narration. All numbers in account-major units
-  // (currency for costPerMessage; raw % for ctr; ratio for frequency).
   absolutes: {
     costPerMessage: { current: number; baseline: number };
     ctr:            { current: number; baseline: number };
@@ -100,17 +95,7 @@ interface CmoPayload {
   };
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// Payload builder — pure transformation from BrainTickResult → CmoPayload.
-// All Arabic text inside `deviations` and `directive` flows through unchanged.
-// ════════════════════════════════════════════════════════════════════════
 function buildPayload(b: BrainTickResult): CmoPayload {
-  // Cold-start is universal — derived purely from engine state, no per-user
-  // tuning. Two independent signals must agree:
-  //   (a) ConfidenceEngine gated us into COLLECTING_DATA (insufficient
-  //       statistical maturity for trustable comparisons), OR
-  //   (b) Every baseline is zero/missing (no prior window to compare against).
-  // Either condition means delta-based narration would mislead the merchant.
   const baselinesAllZero =
     (b.physics.costPerMessage.baseline || 0) === 0 &&
     (b.physics.ctr.baseline || 0) === 0 &&
@@ -179,12 +164,7 @@ function buildPayload(b: BrainTickResult): CmoPayload {
   return payload;
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// Emergency template — deterministic, zero LLM round-trip.
-// Used when capital is bleeding and the merchant cannot wait for tokens.
-// ════════════════════════════════════════════════════════════════════════
 function buildEmergencyNarration(b: BrainTickResult): CmoNarration {
-  // Read from the engine's canonical field name (`burnRate`), not the payload's renamed field.
   const burnRate = b.v2?.velocity.burnRate ?? 0;
   const overridden = b.decision.overriddenAction
     ? ` تجاوزنا التوصية الأولية (${b.decision.overriddenAction}) بسبب خطورة النزيف.`
@@ -210,9 +190,6 @@ function buildEmergencyNarration(b: BrainTickResult): CmoNarration {
   return result;
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// System prompt — engineered to make Claude a translator, not an inventor.
-// ════════════════════════════════════════════════════════════════════════
 const SYSTEM_PROMPT = `
 You are an elite Arabic Chief Marketing Officer (CMO) speaking directly to a business owner (merchant).
 Your single job: translate the structured JSON decision below into a clear, professional Arabic report.
@@ -234,11 +211,12 @@ ABSOLUTE RULES (violating any of these = system failure)
 
 2. PRE-TRANSLATED ARABIC IS SACRED.
    - Strings inside "v2.dna.deviations[]" are already written in correct Arabic by the engine. Use them verbatim or rephrase with surgical care; do NOT contradict them.
-   - The string inside "v2.resonance.directive" is the canonical creative directive. Quote it faithfully in the "creativeDirective" output field.
+   - The string inside "v2.resonance.directive" is the canonical creative directive. Quote it faithfully in "creativeDirective" when present.
 
 3. STRICT JSON OUTPUT. Output a raw JSON object with EXACTLY these keys:
-   { "title": string, "narration": string, "creativeDirective"?: string }
+   { "arabicTitle": string, "arabicNarration": string, "creativeDirective"?: string }
    - No markdown fences. No commentary. No leading/trailing text.
+   - Do NOT emit severity, insightType, tickDate, campaignId, or any other keys.
    - "creativeDirective" appears ONLY if v2.resonance is present in the payload.
 
 ═══════════════════════════════════════════════════════════════
@@ -250,7 +228,6 @@ TONE MATRIX (driven by decision.action)
 - PAUSE_CAMPAIGN   → حازم لكن متعاطف، نوضح أن المال يحترق دون نتائج
 - KEEP_COLLECTING  → صبور ومطمئن، الحملة لم تنضج بعد إحصائياً
 - HOLD_AND_MONITOR → هادئ تقليدي، الأداء طبيعي ولا تدخل مطلوب
-- EMERGENCY_PAUSE  → (هذا الفرع يُعالَج خارج LLM. لن يصلك أبداً.)
 
 ═══════════════════════════════════════════════════════════════
 COLD-START MODE (applies when payload.coldStart === true)
@@ -263,8 +240,8 @@ zero/missing or the confidence layer is still collecting data. In this mode:
 - DO quote raw values from "absolutes.*current" as the *current* reading
   (without a "baseline" or "vs" comparison).
 - Frame the narration as an early-collection update. A safe template:
-  title:     "حملة جديدة: جاري جمع البيانات الأولية"
-  narration: explain that the campaign is still in its learning phase, the
+  arabicTitle:     "حملة جديدة: جاري جمع البيانات الأولية"
+  arabicNarration: explain that the campaign is still in its learning phase, the
              system is gathering enough impressions to issue trustworthy
              recommendations, and the current absolute readings so far.
 - Tone: مطمئن، صبور، شفّاف. لا توصِ بتغييرات جذرية في هذه المرحلة.
@@ -284,66 +261,99 @@ V2 CONTEXTUAL RULES (apply only if v2 exists)
 ═══════════════════════════════════════════════════════════════
 LENGTH
 ═══════════════════════════════════════════════════════════════
-- title: 3–7 كلمات عربية واضحة
-- narration: 2–4 جمل عربية متماسكة
+- arabicTitle: 3–7 كلمات عربية واضحة
+- arabicNarration: 2–4 جمل عربية متماسكة
 - creativeDirective (إن وُجد): جملة أو جملتان قابلتان للتنفيذ مباشرة
 `.trim();
 
-// ════════════════════════════════════════════════════════════════════════
-// Public entry — backward compatible signature.
-// ════════════════════════════════════════════════════════════════════════
+function stripMarkdownFences(text: string): string {
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
+}
+
+function parseLlmNarrationOutput(raw: unknown): LlmNarrationOutput {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('LLM output is not a JSON object');
+  }
+  const obj = raw as Record<string, unknown>;
+
+  const arabicTitle = obj['arabicTitle'];
+  const arabicNarration = obj['arabicNarration'];
+  if (typeof arabicTitle !== 'string' || arabicTitle.trim().length === 0) {
+    throw new Error('LLM output missing non-empty arabicTitle');
+  }
+  if (typeof arabicNarration !== 'string' || arabicNarration.trim().length === 0) {
+    throw new Error('LLM output missing non-empty arabicNarration');
+  }
+
+  const out: LlmNarrationOutput = {
+    arabicTitle: arabicTitle.trim(),
+    arabicNarration: arabicNarration.trim(),
+  };
+
+  const directive = obj['creativeDirective'];
+  if (typeof directive === 'string' && directive.trim().length > 0) {
+    out.creativeDirective = directive.trim();
+  }
+
+  return out;
+}
+
+function buildFallbackNarration(b: BrainTickResult): CmoNarration {
+  const fallback: CmoNarration = {
+    campaignId: b.campaignId,
+    arabicTitle: 'إشعار استراتيجي آلي',
+    arabicNarration:
+      `قام النظام الآلي باتخاذ إجراء (${b.decision.action}) استناداً إلى أداء المزاد ومؤشرات الثقة الحالية. ` +
+      'يرجى مراجعة تفاصيل الحملة في لوحة التحكم.',
+  };
+
+  if (b.v2?.resonance.creativeDirective) {
+    fallback.creativeDirective = b.v2.resonance.creativeDirective;
+  }
+
+  return fallback;
+}
+
+function attachCreativeDirective(
+  out: CmoNarration,
+  brainResult: BrainTickResult,
+  llmDirective?: string,
+): void {
+  if (llmDirective) {
+    out.creativeDirective = llmDirective;
+  } else if (brainResult.v2?.resonance.creativeDirective) {
+    out.creativeDirective = brainResult.v2.resonance.creativeDirective;
+  }
+}
+
 export async function generateMerchantNarration(
   brainResult: BrainTickResult,
-  llmClientCall: (systemPrompt: string, userPrompt: string) => Promise<string>
+  llmClientCall: (systemPrompt: string, userPrompt: string) => Promise<string>,
 ): Promise<CmoNarration> {
-
-  // 1. SHORT-CIRCUIT: capital-bleed emergency bypasses the LLM entirely.
   if (brainResult.decision.action === 'EMERGENCY_PAUSE') {
     return buildEmergencyNarration(brainResult);
   }
 
-  // 2. Build the strict, anti-hallucination payload.
   const payload = buildPayload(brainResult);
   const userPrompt = JSON.stringify(payload, null, 2);
 
   try {
-    // 3. Call the language model.
     const responseText = await llmClientCall(SYSTEM_PROMPT, userPrompt);
-
-    // 4. Strip any stray markdown fences and parse strict JSON.
-    const cleanJsonText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleanJsonText);
+    const parsed = parseLlmNarrationOutput(JSON.parse(stripMarkdownFences(responseText)));
 
     const out: CmoNarration = {
       campaignId: brainResult.campaignId,
-      arabicTitle: parsed.title || 'تحديث استراتيجي للحملة',
-      arabicNarration: parsed.narration || responseText,
+      arabicTitle: parsed.arabicTitle,
+      arabicNarration: parsed.arabicNarration,
     };
-
-    // Only surface creativeDirective if the model actually produced one
-    // OR if we have a deterministic directive available from Layer 11.
-    if (typeof parsed.creativeDirective === 'string' && parsed.creativeDirective.length > 0) {
-      out.creativeDirective = parsed.creativeDirective;
-    } else if (brainResult.v2?.resonance.creativeDirective) {
-      out.creativeDirective = brainResult.v2.resonance.creativeDirective;
-    }
+    attachCreativeDirective(out, brainResult, parsed.creativeDirective);
 
     return out;
-
   } catch (error) {
-    // 5. Production-safe fallback — degrades gracefully if LLM fails or returns malformed JSON.
-    console.error(`[Claude CMO] LLM Generation failed for campaign ${brainResult.campaignId}`, error);
-
-    const fallback: CmoNarration = {
-      campaignId: brainResult.campaignId,
-      arabicTitle: 'إشعار استراتيجي آلي',
-      arabicNarration: `قام النظام الآلي باتخاذ إجراء (${brainResult.decision.action}) استناداً إلى أداء المزاد ومؤشرات الثقة الحالية. يرجى مراجعة تفاصيل الحملة في لوحة التحكم.`,
-    };
-
-    if (brainResult.v2?.resonance.creativeDirective) {
-      fallback.creativeDirective = brainResult.v2.resonance.creativeDirective;
-    }
-
-    return fallback;
+    console.error(
+      `[Claude CMO] LLM Generation failed for campaign ${brainResult.campaignId}`,
+      error,
+    );
+    return buildFallbackNarration(brainResult);
   }
 }

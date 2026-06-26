@@ -48,8 +48,8 @@ function makeMockLlm(label: string) {
 
     // Fake well-formed JSON the parser can ingest.
     return JSON.stringify({
-      title: '[mock] عنوان تجريبي',
-      narration: '[mock] هذا نص تجريبي يحاكي ما سيُرجعه النموذج اللغوي.',
+      arabicTitle: '[mock] عنوان تجريبي',
+      arabicNarration: '[mock] هذا نص تجريبي يحاكي ما سيُرجعه النموذج اللغوي.',
       creativeDirective: '[mock] توجيه إبداعي وهمي للتأكد من استلام الحقل.',
     });
   };
