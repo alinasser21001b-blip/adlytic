@@ -21,7 +21,7 @@ const fake: DashboardDTO = {
   },
   health: { score: 51, band: "attention" },
   kpis: [
-    { key: "spend", label: "Spend", value: 100, display: "100", deltaPct: 0.1, direction: "up", goodWhenUp: true },
+    { key: "spend", label: "Spend", value: 100, display: "100", deltaPct: 0.1, direction: "up", goodWhenUp: false },
   ],
   trendSeries: { dates: ["2026-06-14"], messages: [4], spend: [13000], ctr: [2.0] },
   issues: [

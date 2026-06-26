@@ -1774,9 +1774,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const days = Math.min(Number(req.query['days'] ?? '30'), 90);
-    const since = new Date(Date.now() - days * 864e5);
+    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
     const stats = await prisma.dailyStat.findMany({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: since } },
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       orderBy: { date: 'desc' },
     });
     return c.json(safeJson(stats));

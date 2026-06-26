@@ -31,6 +31,7 @@ import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
+import { trend as pctTrend } from "../engines/analytics/trend";
 
 // ── Module-level Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
@@ -213,6 +214,52 @@ function avg(rows: { [k: string]: any }[], f: string): number | null {
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
 
+/** UTC date floor aligned with getDashboard / insights route window math. */
+function utcDateFloor(daysAgo: number): Date {
+  const since = new Date(Date.now() - daysAgo * 864e5);
+  return new Date(since.toISOString().slice(0, 10));
+}
+
+/** Window-total CTR = Σclicks / Σimpressions × 100 (matches KPI aggregate math). */
+function windowCtr(rows: { [k: string]: any }[]): number | null {
+  const impr = sum(rows, "impressions");
+  const clicks = sum(rows, "clicks");
+  return impr > 0 ? (clicks / impr) * 100 : null;
+}
+
+/** Window-total CPM = (Σspend_major / Σimpressions) × 1000. */
+function windowCpm(rows: { [k: string]: any }[], factor: number): number | null {
+  const impr = sum(rows, "impressions");
+  if (impr <= 0) return null;
+  const spendMinor = sum(rows, "spend");
+  const spendMajor = factor === 1 ? spendMinor : spendMinor / factor;
+  return (spendMajor / impr) * 1000;
+}
+
+/**
+ * KPI badge deltas: current N-day window vs the prior N-day window from daily_stats.
+ * metric_trends (AnalyticsEngine, default 7d + 2d lag) remains for Rules Engine only.
+ */
+function computeWindowTrendDeltas(
+  current: { [k: string]: any }[],
+  prior: { [k: string]: any }[],
+  factor: number,
+): {
+  spendTrend: number | null;
+  resultsTrend: number | null;
+  ctrTrend: number | null;
+  cpmTrend: number | null;
+  frequencyTrend: number | null;
+} {
+  return {
+    spendTrend: pctTrend(sum(current, "spend"), sum(prior, "spend")),
+    resultsTrend: pctTrend(sum(current, "messages"), sum(prior, "messages"), { minSignal: 3 }),
+    ctrTrend: pctTrend(windowCtr(current), windowCtr(prior), { noiseFloor: 0.02 }),
+    cpmTrend: pctTrend(windowCpm(current, factor), windowCpm(prior, factor), { noiseFloor: 0.02 }),
+    frequencyTrend: pctTrend(avg(current, "frequency"), avg(prior, "frequency"), { noiseFloor: 0.02 }),
+  };
+}
+
 // ════════════════════════════════════════════════════════════════════════
 export async function getDashboard(
   workspaceId: string,
@@ -245,14 +292,19 @@ export async function getDashboard(
     );
   }
 
-  const since = new Date(Date.now() - windowDays * 864e5);
-  const sinceDate = new Date(since.toISOString().slice(0, 10));
+  const curr = account.currency;
+  const factor = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
+  const sinceDate = utcDateFloor(windowDays);
+  const priorSinceDate = utcDateFloor(windowDays * 2);
 
-  // 2. Account-level daily stats over the window (the trend + KPI source).
-  const daily = await prisma.dailyStat.findMany({
-    where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
+  // 2. Account-level daily stats — current + prior window for KPI deltas and charts.
+  const allDaily = await prisma.dailyStat.findMany({
+    where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
     orderBy: { date: "asc" },
   });
+  const sinceMs = sinceDate.getTime();
+  const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
+  const priorDaily = allDaily.filter((d) => d.date.getTime() < sinceMs);
 
   // 3. Latest stored health score for the CURRENT algorithm version only.
   //    v1 rows may coexist for the same date; we explicitly pick v2.
@@ -266,13 +318,10 @@ export async function getDashboard(
   });
   const score = healthRow?.score ?? 0;
 
-  // 4. Trends (Analytics Engine output) for KPI deltas.
-  const trend = await prisma.metricTrend.findFirst({
-    where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-    orderBy: { date: "desc" },
-  });
+  // 4. KPI badge deltas — 30d window totals vs prior 30d (not metric_trends 7d).
+  const windowTrends = computeWindowTrendDeltas(daily, priorDaily, factor);
 
-  // 5. KPIs — current-window aggregates + deltas from the trend row.
+  // 5. KPIs — current-window aggregates + aligned window-total deltas.
   // ── Math audit note ──────────────────────────────────────────────────
   // CTR and CPM are RATIOS. Window-aggregated ratios must be computed from
   // window totals (Σnum / Σden), NOT as the arithmetic mean of per-day rates.
@@ -283,8 +332,6 @@ export async function getDashboard(
   const totalReach      = daily.length ? Number(daily[daily.length - 1]!.reach) : 0;
   const totalImpr       = sum(daily, "impressions");
   const totalClicks     = sum(daily, "clicks");
-  const curr            = account.currency;
-  const factor          = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
 
   /** Format a minor-unit value into account-currency major units. */
   const money = (minor: number): string => {
@@ -322,18 +369,18 @@ export async function getDashboard(
 
   const kpis: DashboardDTO["kpis"] = [
     { key: "spend", label: "Spend", value: totalSpendMinor, display: money(totalSpendMinor),
-      deltaPct: trend?.spendTrend ?? null, direction: dir(trend?.spendTrend ?? null), goodWhenUp: true },
+      deltaPct: windowTrends.spendTrend, direction: dir(windowTrends.spendTrend), goodWhenUp: false },
     { key: "messages", label: "Messages", value: totalMsgs, display: totalMsgs.toLocaleString(),
-      deltaPct: trend?.resultsTrend ?? null, direction: dir(trend?.resultsTrend ?? null), goodWhenUp: true },
+      deltaPct: windowTrends.resultsTrend, direction: dir(windowTrends.resultsTrend), goodWhenUp: true },
     { key: "ctr", label: "CTR", value: ctrWindow ?? 0,
       display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
-      deltaPct: trend?.ctrTrend ?? null, direction: dir(trend?.ctrTrend ?? null), goodWhenUp: true },
+      deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true },
     { key: "cpm", label: "CPM", value: cpmWindow ?? 0,
       display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
-      deltaPct: trend?.cpmTrend ?? null, direction: dir(trend?.cpmTrend ?? null), goodWhenUp: false },
-    { key: "frequency", label: "Frequency", value: freqAvg ?? 0,
+      deltaPct: windowTrends.cpmTrend, direction: dir(windowTrends.cpmTrend), goodWhenUp: false },
+    { key: "frequency", label: "Frequency (daily avg)", value: freqAvg ?? 0,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
-      deltaPct: trend?.frequencyTrend ?? null, direction: dir(trend?.frequencyTrend ?? null), goodWhenUp: false },
+      deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false },
     { key: "reach", label: "Reach (latest day)", value: totalReach, display: totalReach.toLocaleString(),
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
@@ -389,7 +436,7 @@ export async function getDashboard(
     : null;
 
   // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
-  const cards = await buildCampaignCards(account.id, prisma);
+  const cards = await buildCampaignCards(account.id, prisma, sinceDate, factor);
 
   // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
   //     Returns undefined when no snapshots exist for this workspace (V5-only render).
@@ -418,9 +465,14 @@ export async function getDashboard(
   };
 }
 
-// ── Campaign cards: most-recent snapshot per campaign + its health score. ──
-// Uses two bulk queries instead of 2N individual queries (no N+1).
-async function buildCampaignCards(adAccountId: string, prisma: PrismaClient): Promise<{ best: CampaignCard | null; worst: CampaignCard | null }> {
+// ── Campaign cards: 30d window aggregates + latest health score. ──
+// Uses bulk queries instead of N+1. Budget stays on campaigns table (not shown here).
+async function buildCampaignCards(
+  adAccountId: string,
+  prisma: PrismaClient,
+  sinceDate: Date,
+  factor: number,
+): Promise<{ best: CampaignCard | null; worst: CampaignCard | null }> {
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId, status: "ACTIVE" },
   });
@@ -428,11 +480,22 @@ async function buildCampaignCards(adAccountId: string, prisma: PrismaClient): Pr
 
   const campaignIds = campaigns.map((c) => c.id);
 
-  // Bulk fetch: latest daily stat per campaign
-  const allSnaps = await prisma.dailyStat.findMany({
-    where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } },
-    orderBy: { date: "desc" },
+  // Bulk fetch: all daily stats in the dashboard window per campaign
+  const windowSnaps = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaignIds },
+      date: { gte: sinceDate },
+    },
+    orderBy: { date: "asc" },
   });
+  const snapsByCampaign = new Map<string, typeof windowSnaps>();
+  for (const s of windowSnaps) {
+    const rows = snapsByCampaign.get(s.entityId) ?? [];
+    rows.push(s);
+    snapsByCampaign.set(s.entityId, rows);
+  }
+
   // Bulk fetch: latest health score per campaign
   const allHealth = await prisma.healthScore.findMany({
     where: {
@@ -442,27 +505,23 @@ async function buildCampaignCards(adAccountId: string, prisma: PrismaClient): Pr
     },
     orderBy: { date: "desc" },
   });
-
-  // Build lookup maps: entityId → most-recent row (already ordered desc)
-  const snapMap = new Map<string, (typeof allSnaps)[number]>();
-  for (const s of allSnaps) if (!snapMap.has(s.entityId)) snapMap.set(s.entityId, s);
   const healthMap = new Map<string, (typeof allHealth)[number]>();
   for (const h of allHealth) if (!healthMap.has(h.entityId)) healthMap.set(h.entityId, h);
 
   const cards: CampaignCard[] = [];
   for (const c of campaigns) {
-    const snap = snapMap.get(c.id);
-    const h    = healthMap.get(c.id);
-    if (!snap || !h) continue;
+    const rows = snapsByCampaign.get(c.id);
+    const h = healthMap.get(c.id);
+    if (!rows?.length || !h) continue;
     cards.push({
       id: c.id,
       name: c.name,
       health: h.score,
       band: band(h.score),
-      messages: Number(snap.messages),
-      ctr: snap.ctr,
-      cpm: snap.cpm,
-      frequency: snap.frequency,
+      messages: sum(rows, "messages"),
+      ctr: windowCtr(rows),
+      cpm: windowCpm(rows, factor),
+      frequency: avg(rows, "frequency"),
     });
   }
 

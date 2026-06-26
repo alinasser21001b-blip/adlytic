@@ -191,7 +191,7 @@ async function main(): Promise<void> {
       try {
         const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken });
         const worker = new SyncAccountWorker(prisma, metaClient);
-        const syncResult = await worker.sync(acct.id);
+        const syncResult = await worker.sync(acct.id, { backfillDays: 7 });
         if (syncResult.ok) {
           await runEngines(prisma, acct.id);
           console.log(`[adlytic:auto-sync] ✓ ${acct.externalAccountId} (${syncResult.rowsUpserted} rows, ${syncResult.durationMs}ms)`);

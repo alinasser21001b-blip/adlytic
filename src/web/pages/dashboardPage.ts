@@ -423,7 +423,7 @@ export function dashboardPage(): string {
               <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
             </div>
             <div class="chart-card">
-              <div class="chart-card-header"><div class="chart-card-title">Impressions / Messages Trend</div></div>
+              <div class="chart-card-header"><div class="chart-card-title">Messages Trend</div></div>
               <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
             </div>
           </div>
@@ -560,21 +560,23 @@ export function dashboardPage(): string {
   }
 
   // ── Hero cards ──────────────────────────────────────────────────────────
+  function findKpi(dashData, key) {
+    return (dashData.kpis || []).find(function (k) { return k.key === key; });
+  }
   function renderHero(dashData, insights90) {
     var arr = Array.isArray(insights90) ? insights90 : [];
-    var spend7  = sumMinor(arr.slice(0, 7));
-    var spend30 = sumMinor(arr.slice(0, 30));
+    var spendKpi = findKpi(dashData, 'spend');
+    var spend7 = sumMinor(arr.slice(0, 7));
     var spend90 = sumMinor(arr);
 
-    // 7d-vs-prior-7d delta
-    var prior7 = sumMinor(arr.slice(7, 14));
-    var d7 = prior7 > 0 ? ((spend7 - prior7) / prior7) * 100 : null;
-    // 30d-vs-prior-30d delta
-    var prior30 = sumMinor(arr.slice(30, 60));
-    var d30 = prior30 > 0 ? ((spend30 - prior30) / prior30) * 100 : null;
+    // 30d hero: authoritative KPI from getDashboard DTO (single source of truth).
+    if (spendKpi && spendKpi.display) {
+      document.getElementById('hero-30-val').textContent = spendKpi.display;
+    } else {
+      document.getElementById('hero-30-val').textContent = fmtCurrencyMinor(sumMinor(arr.slice(0, 30)));
+    }
 
-    document.getElementById('hero-30-val').textContent  = fmtCurrencyMinor(spend30);
-    document.getElementById('hero-7-val').textContent   = fmtCurrencyMinor(spend7);
+    document.getElementById('hero-7-val').textContent = fmtCurrencyMinor(spend7);
     var lifeMinor = (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt != null)
       ? dashData.lifetimeSpend.minor
       : spend90; // fallback if lifetime sync pending
@@ -589,8 +591,21 @@ export function dashboardPage(): string {
       el.className = 'hero-delta ' + cls;
       el.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '% vs prior';
     }
+
+    // 30d delta: align with KPI DTO when present (30d vs prior-30d server math).
+    var d30 = (spendKpi && spendKpi.deltaPct != null)
+      ? Number(spendKpi.deltaPct) * 100
+      : (function () {
+          var spend30 = sumMinor(arr.slice(0, 30));
+          var prior30 = sumMinor(arr.slice(30, 60));
+          return prior30 > 0 ? ((spend30 - prior30) / prior30) * 100 : null;
+        })();
     applyDelta(document.getElementById('hero-30-delta'), d30, false);
-    applyDelta(document.getElementById('hero-7-delta'),  d7,  false);
+
+    // 7d delta: insights fallback only (no 7d KPI in DTO).
+    var prior7 = sumMinor(arr.slice(7, 14));
+    var d7 = prior7 > 0 ? ((spend7 - prior7) / prior7) * 100 : null;
+    applyDelta(document.getElementById('hero-7-delta'), d7, false);
 
     // Lifetime sub: authoritative Meta lifetime when synced, else honest window label.
     var days = Math.min(arr.length, 90);
@@ -1206,7 +1221,7 @@ export function dashboardPage(): string {
 
       makeLineChart('chart-spend-main', labels, [{ label: 'Spend', data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
       makeLineChart('chart-ctr',        labels, [{ label: 'CTR (%)',  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-      makeLineChart('chart-impressions', labels, [{ label: 'Impressions', data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+      makeLineChart('chart-impressions', labels, [{ label: 'Messages', data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
 
       // 16) Issues + Campaign table (advanced)
       renderIssues(dashData.issues || []);

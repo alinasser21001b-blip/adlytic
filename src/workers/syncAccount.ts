@@ -15,7 +15,7 @@
 //  by design — re-runs accumulate raw rows, which is correct (an audit trail).
 //
 //  Backfill window: Meta's attribution updates results for ~72 hours. The
-//  worker re-pulls the last `backfillDays` (default 3) every run so updated
+//  worker re-pulls the last `backfillDays` (default 7) every run so updated
 //  numbers overwrite stale daily_stats. This is a FEATURE of upsert, not a bug.
 // ════════════════════════════════════════════════════════════════════════
 
@@ -212,7 +212,7 @@ export class SyncAccountWorker {
 
     const start = Date.now();
     const now = opts.now ?? new Date();
-    const backfillDays = Math.max(1, opts.backfillDays ?? 3);
+    const backfillDays = Math.max(1, opts.backfillDays ?? 7);
 
     const since = new Date(now.getTime() - backfillDays * 86400 * 1000);
     const until = now;
