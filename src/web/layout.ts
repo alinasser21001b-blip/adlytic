@@ -490,82 +490,6 @@ select.form-input { cursor: pointer; }
 }
 .mode-toggle-btn:hover { color: var(--text); }
 .mode-toggle-btn.active { background: var(--accent); color: #fff; }
-
-/* ── Light theme (dashboard) ───────────────────────────────────── */
-body.theme-light {
-  --bg: #F5F7FA;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-hover: #f1f5f9;
-  --border: #e8ecf1;
-  --border-2: #dde3ea;
-  --text: #1a1d26;
-  --text-2: #64748b;
-  --text-3: #94a3b8;
-  --accent: #6366f1;
-  --accent-2: #4f46e5;
-  --accent-dim: rgba(99,102,241,0.10);
-  --success: #16a34a;
-  --success-dim: rgba(22,163,74,0.10);
-  --warning: #d97706;
-  --warning-dim: rgba(217,119,6,0.10);
-  --error: #dc2626;
-  --error-dim: rgba(220,38,38,0.10);
-  --shadow: 0 1px 2px rgba(15,23,42,0.04);
-  --shadow-lg: 0 4px 16px rgba(15,23,42,0.06);
-  --radius-lg: 18px;
-}
-body.theme-light .sidebar { background: #fff; box-shadow: 1px 0 0 var(--border); border-right: none; }
-body.theme-light .topbar { background: #fff; border-bottom: 1px solid var(--border); box-shadow: none; }
-body.theme-light .sidebar.compact { --sidebar-w: 76px; width: 76px; min-width: 76px; }
-body.theme-light .sidebar.compact + .main { margin-left: 76px; }
-body.theme-light .sidebar.compact .sidebar-logo-text,
-body.theme-light .sidebar.compact .sidebar-logo-badge,
-body.theme-light .sidebar.compact .nav-section-label,
-body.theme-light .sidebar.compact .nav-item span,
-body.theme-light .sidebar.compact .sidebar-user-info,
-body.theme-light .sidebar.compact .sidebar-footer .nav-item { font-size: 0; }
-body.theme-light .sidebar.compact .nav-item { justify-content: center; padding: 12px; border-radius: 12px; }
-body.theme-light .sidebar.compact .nav-item svg { width: 20px; height: 20px; opacity: 1; }
-body.theme-light .sidebar.compact .sidebar-logo { justify-content: center; padding: 20px 12px 16px; }
-body.theme-light .sidebar.compact .sidebar-logo-mark { margin: 0; }
-body.theme-light .sidebar.compact .sidebar-footer { padding: 12px 10px; }
-body.theme-light .sidebar.compact .sidebar-user { justify-content: center; padding: 8px; }
-body.theme-light .sidebar.compact .sidebar-user .avatar { width: 36px; height: 36px; font-size: 12px; }
-body.theme-light .topbar.dashboard-topbar { height: auto; min-height: 64px; padding: 12px 28px; flex-wrap: wrap; gap: 12px; }
-body.theme-light .topbar-greeting { flex: 1; min-width: 180px; }
-body.theme-light .topbar-greeting-title { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; line-height: 1.2; }
-body.theme-light .topbar-greeting-sub { font-size: 13px; color: var(--text-2); margin-top: 2px; }
-body.theme-light .topbar-search {
-  flex: 1; max-width: 320px; min-width: 160px;
-  display: flex; align-items: center; gap: 8px;
-  background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: 12px; padding: 8px 14px;
-}
-body.theme-light .topbar-search svg { width: 16px; height: 16px; color: var(--text-3); flex-shrink: 0; }
-body.theme-light .topbar-search input {
-  border: none; background: transparent; outline: none;
-  font-size: 13px; color: var(--text); width: 100%;
-}
-body.theme-light .topbar-search input::placeholder { color: var(--text-3); }
-body.theme-light .topbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-body.theme-light .topbar-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #818cf8);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
-}
-@media (max-width: 768px) {
-  body.theme-light .sidebar.compact + .main { margin-left: 0; }
-  body.theme-light .topbar-search { display: none; }
-}
-html[dir="rtl"] body.theme-light .sidebar { left: auto; right: 0; border-right: none; box-shadow: -1px 0 0 var(--border); }
-html[dir="rtl"] body.theme-light .sidebar.compact + .main { margin-left: 0; margin-right: 76px; }
-html[dir="rtl"] body.theme-light .topbar-greeting { text-align: right; }
-html[dir="rtl"] body.theme-light .topbar-actions { margin-left: 0; margin-right: auto; }
-@media (max-width: 768px) {
-  html[dir="rtl"] body.theme-light .sidebar.compact + .main { margin-right: 0; }
-}
 `;
 
 // ── Sidebar icons (SVG) ─────────────────────────────────────────────────
@@ -713,8 +637,8 @@ document.addEventListener('DOMContentLoaded', () => {
 `;
 
 // ── Sidebar HTML ────────────────────────────────────────────────────────
-export function sidebar(active: string, compact = false): string {
-  const fullNav = [
+export function sidebar(active: string): string {
+  const nav = [
     { id: 'dashboard',       label: 'Dashboard',       href: '/dashboard' },
     { id: 'campaigns',       label: 'Campaigns',        href: '/campaigns' },
     { id: 'recommendations', label: 'Recommendations',  href: '/recommendations' },
@@ -722,20 +646,13 @@ export function sidebar(active: string, compact = false): string {
     { id: 'ai',              label: 'AI Assistant',     href: '/ai' },
     { id: 'settings',        label: 'Settings',         href: '/settings' },
   ];
-  const compactNav = [
-    { id: 'dashboard', label: 'Dashboard', href: '/dashboard' },
-    { id: 'campaigns', label: 'Campaigns', href: '/campaigns' },
-    { id: 'workspace', label: 'Workspace', href: '/workspace' },
-    { id: 'settings',  label: 'Settings',  href: '/settings' },
-  ];
-  const nav = compact ? compactNav : fullNav;
   const links = nav.map(n => `
-    <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}" title="${n.label}">
-      ${ICONS[n.id] ?? ''}<span>${n.label}</span>
+    <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}">
+      ${ICONS[n.id] ?? ''} ${n.label}
     </a>`).join('');
 
   return `
-<aside class="sidebar${compact ? ' compact' : ''}" id="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="sidebar-logo-mark">A</div>
     <span class="sidebar-logo-text">Adlytic</span>
@@ -764,36 +681,13 @@ export function sidebar(active: string, compact = false): string {
 // `currentMode` selects which segment of the dashboard mode toggle is
 // highlighted. When undefined, the toggle is not rendered (used for pages
 // where the toggle is irrelevant — settings, login, register, etc.).
-export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner', variant?: 'dashboard', lang = 'en'): string {
+export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): string {
   const toggle = currentMode
     ? `<div class="mode-toggle" role="group" aria-label="Dashboard mode">
         <button class="mode-toggle-btn ${currentMode === 'pro' ? 'active' : ''}" data-mode="pro" id="mode-btn-pro">احترافي</button>
         <button class="mode-toggle-btn ${currentMode === 'beginner' ? 'active' : ''}" data-mode="beginner" id="mode-btn-beginner">مبتدئ</button>
       </div>`
     : '';
-  if (variant === 'dashboard') {
-    const searchPh = lang === 'ar' ? 'بحث في الحملات…' : 'Search campaigns…';
-    return `
-<header class="topbar dashboard-topbar">
-  <button class="topbar-btn mobile-menu-btn" id="mobile-menu-btn">${ICONS['menu']}</button>
-  <div class="topbar-greeting">
-    <div class="topbar-greeting-title" id="dash-greeting">Hello!</div>
-    <div class="topbar-greeting-sub" id="dash-subtitle">Overview of your ad performance</div>
-  </div>
-  <div class="topbar-search">
-    ${ICONS['search']}
-    <input type="search" placeholder="${searchPh}" aria-label="Search campaigns">
-  </div>
-  <div class="topbar-actions">
-    ${toggle}
-    <div class="topbar-ws" id="ws-selector" title="Switch workspace">
-      <span class="topbar-ws-name" id="ws-name">Loading…</span>
-      ${ICONS['chevron']}
-    </div>
-    <div class="topbar-avatar" id="topbar-avatar">?</div>
-  </div>
-</header>`;
-  }
   return `
 <header class="topbar">
   <button class="topbar-btn mobile-menu-btn" id="mobile-menu-btn" style="margin-right:8px;">
@@ -821,20 +715,10 @@ export function layout(opts: {
   scripts?: string;
   extraHead?: string;
   mode?: 'pro' | 'beginner';
-  theme?: 'light';
-  sidebarCompact?: boolean;
-  topbarVariant?: 'dashboard';
-  lang?: string;
-  dir?: 'rtl' | 'ltr';
 }): string {
-  const {
-    title, active, content, scripts = '', extraHead = '', mode,
-    theme, sidebarCompact, topbarVariant, lang = 'en', dir,
-  } = opts;
-  const bodyClass = theme === 'light' ? ' class="theme-light"' : '';
-  const htmlDir = dir ? ` dir="${dir}"` : '';
+  const { title, active, content, scripts = '', extraHead = '', mode } = opts;
   return `<!DOCTYPE html>
-<html lang="${lang}"${htmlDir}>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -842,12 +726,12 @@ export function layout(opts: {
   <style>${SHARED_CSS}</style>
   ${extraHead}
 </head>
-<body${bodyClass}>
+<body>
   <div id="toast-container"></div>
   <div class="app-shell">
-    ${sidebar(active, sidebarCompact)}
+    ${sidebar(active)}
     <div class="main">
-      ${topbar(title, mode, topbarVariant, lang)}
+      ${topbar(title, mode)}
       <div class="page-content">
         ${content}
       </div>

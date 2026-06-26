@@ -2,7 +2,8 @@
 //  src/web/pages/beginnerDashboardPage.ts
 //
 //  Dashboard — Beginner Mode (وضع المبتدئ).
-//  Figma-inspired light theme, Arabic RTL. Same visual language as Pro dashboard.
+//  Clean, minimal first view: 4 hero KPIs, one trend chart, simple campaign
+//  list. Secondary metrics live behind "تفاصيل أكثر".
 //
 //  Data contract: /api/dashboard/:wsId + /api/workspaces/:wsId/campaigns
 // ════════════════════════════════════════════════════════════════════════
@@ -11,119 +12,89 @@ import { layout } from '../layout';
 
 export function beginnerDashboardPage(): string {
   const extraHead = `<style>
-    body.theme-light .page-content { direction: rtl; text-align: right; max-width: 1280px; }
+    .bgn-shell { direction: rtl; text-align: right; max-width: 960px; margin: 0 auto; }
+    .bgn-shell *, .bgn-shell *::before, .bgn-shell *::after { box-sizing: border-box; }
+
+    .bgn-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .bgn-greeting-title { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.3; }
+    .bgn-greeting-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+
+    .bgn-status-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-radius: 999px;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .bgn-status-pill .bgn-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .bgn-status-pill.green  { background: rgba(34,197,94,0.14); color: #4ade80; }
+    .bgn-status-pill.green  .bgn-dot { background: #22c55e; }
+    .bgn-status-pill.yellow { background: rgba(245,158,11,0.14); color: #fbbf24; }
+    .bgn-status-pill.yellow .bgn-dot { background: #f59e0b; }
+    .bgn-status-pill.red    { background: rgba(239,68,68,0.14); color: #f87171; }
+    .bgn-status-pill.red    .bgn-dot { background: #ef4444; }
+    .bgn-status-pill.gray   { background: rgba(255,255,255,0.05); color: var(--text-3); }
+    .bgn-status-pill.gray   .bgn-dot { background: var(--text-3); }
 
     .bgn-kpi-grid {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px;
     }
     @media (max-width: 860px) { .bgn-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 480px) { .bgn-kpi-grid { grid-template-columns: 1fr; } }
 
     .bgn-kpi {
-      position: relative;
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 18px; padding: 20px 18px; overflow: hidden;
+      border-radius: 16px; padding: 18px 16px;
     }
-    .bgn-kpi::after {
-      content: ''; position: absolute; top: 0; left: 0;
-      width: 72px; height: 72px; border-radius: 50%; opacity: 0.12;
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      transform: translate(-30%, -30%); pointer-events: none;
-    }
-    .bgn-kpi.accent-2::after { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
-    .bgn-kpi.accent-3::after { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
-    .bgn-kpi.accent-4::after { background: linear-gradient(135deg, #16a34a, #4ade80); }
     .bgn-kpi-label { font-size: 12px; font-weight: 600; color: var(--text-3); margin-bottom: 8px; }
     .bgn-kpi-value { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1.1; }
-    .bgn-kpi-trend { margin-top: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; }
-    .bgn-kpi-trend.up   { color: var(--success); background: var(--success-dim); }
-    .bgn-kpi-trend.down { color: var(--error); background: var(--error-dim); }
-    .bgn-kpi-trend.flat { color: var(--text-3); background: var(--surface-2); }
-
-    .bgn-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; margin-bottom: 24px; }
-    @media (max-width: 960px) { .bgn-layout { grid-template-columns: 1fr; } }
-    .bgn-main-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    .bgn-kpi-trend { margin-top: 8px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+    .bgn-kpi-trend.up   { color: #4ade80; }
+    .bgn-kpi-trend.down { color: #f87171; }
+    .bgn-kpi-trend.flat { color: var(--text-3); }
 
     .bgn-panel {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 18px; padding: 22px 24px;
+      border-radius: 16px; padding: 18px 20px; margin-bottom: 18px;
     }
     .bgn-panel-head {
       display: flex; align-items: baseline; justify-content: space-between;
       margin-bottom: 14px; gap: 10px;
     }
-    .bgn-panel-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .bgn-panel-title { font-size: 14px; font-weight: 700; color: var(--text); }
     .bgn-panel-meta  { font-size: 12px; color: var(--text-3); }
-    .bgn-chart-wrap  { position: relative; height: 260px; }
+    .bgn-chart-wrap  { position: relative; height: 240px; }
 
-    .bgn-txn-row {
-      display: flex; align-items: center; gap: 14px;
-      padding: 14px 0; border-bottom: 1px solid var(--border);
+    .bgn-campaign-list { display: flex; flex-direction: column; gap: 0; }
+    .bgn-campaign-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
     }
-    .bgn-txn-row:last-child { border-bottom: none; }
-    .bgn-txn-icon {
-      width: 42px; height: 42px; border-radius: 12px;
-      background: var(--accent-dim); color: var(--accent);
-      display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
-    }
-    .bgn-txn-icon.active { background: var(--success-dim); color: var(--success); }
-    .bgn-txn-icon.paused { background: var(--warning-dim); color: var(--warning); }
-    .bgn-txn-info { flex: 1; min-width: 0; }
-    .bgn-txn-name { font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bgn-txn-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
-    .bgn-txn-amount { font-size: 14px; font-weight: 700; flex-shrink: 0; }
-    .bgn-txn-amount.positive { color: var(--success); }
-    .bgn-txn-amount.negative { color: var(--error); }
-
-    .bgn-widget {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 18px; padding: 20px 22px; margin-bottom: 16px;
-    }
-    .bgn-widget-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
-    .bgn-status-pill {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 10px 16px; border-radius: 999px;
-      font-size: 13px; font-weight: 700;
-    }
-    .bgn-status-pill .bgn-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .bgn-status-pill.green  { background: var(--success-dim); color: var(--success); }
-    .bgn-status-pill.green  .bgn-dot { background: var(--success); }
-    .bgn-status-pill.yellow { background: var(--warning-dim); color: var(--warning); }
-    .bgn-status-pill.yellow .bgn-dot { background: var(--warning); }
-    .bgn-status-pill.red    { background: var(--error-dim); color: var(--error); }
-    .bgn-status-pill.red    .bgn-dot { background: var(--error); }
-    .bgn-status-pill.gray   { background: var(--surface-2); color: var(--text-3); }
-    .bgn-status-pill.gray   .bgn-dot { background: var(--text-3); }
-    .bgn-widget-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .bgn-widget-row:last-child { border-bottom: none; }
-    .bgn-widget-row span:first-child { color: var(--text-2); }
-    .bgn-widget-row span:last-child { font-weight: 700; color: var(--text); }
-    .bgn-action-link {
-      display: block; text-align: center; padding: 10px 16px; border-radius: 12px;
-      background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none;
-    }
-    .bgn-action-link:hover { background: #4f46e5; color: #fff; }
+    .bgn-campaign-row:last-child { border-bottom: none; }
+    .bgn-campaign-name { font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+    .bgn-campaign-spend { font-size: 13px; font-weight: 600; color: var(--text-2); flex-shrink: 0; }
 
     .bgn-action-box {
-      background: var(--surface); border: 1px solid var(--border);
-      border-left: 3px solid var(--accent); border-radius: 18px;
-      padding: 18px 22px; margin-bottom: 20px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, var(--surface) 100%);
+      border: 1px solid rgba(99,102,241,0.25); border-radius: 14px;
+      padding: 16px 18px; margin-bottom: 18px;
     }
-    .bgn-action-label { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+    .bgn-action-label { font-size: 12px; font-weight: 700; color: var(--accent-2); margin-bottom: 6px; }
     .bgn-action-text  { font-size: 14px; color: var(--text); line-height: 1.6; }
     .bgn-expand-btn {
-      background: none; border: none; color: var(--accent);
+      background: none; border: none; color: var(--accent-2);
       font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-top: 6px;
     }
 
     .bgn-details summary {
       cursor: pointer; list-style: none;
-      padding: 14px 18px; background: var(--surface); border: 1px solid var(--border);
-      border-radius: 18px; font-size: 13px; font-weight: 600; color: var(--text);
+      padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; font-size: 13px; font-weight: 600; color: var(--text);
       display: flex; align-items: center; justify-content: space-between;
     }
     .bgn-details summary::-webkit-details-marker { display: none; }
-    .bgn-details summary::after { content: '▾'; color: var(--text-3); }
+    .bgn-details summary::after { content: '▾'; color: var(--text-3); transition: transform 0.2s; }
     .bgn-details[open] summary::after { transform: rotate(180deg); }
     .bgn-details summary span { color: var(--text-3); font-weight: 500; font-size: 12px; }
     .bgn-details-body { padding: 16px 0 0; }
@@ -131,89 +102,79 @@ export function beginnerDashboardPage(): string {
     @media (max-width: 640px) { .bgn-secondary-grid { grid-template-columns: 1fr; } }
     .bgn-secondary-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 14px 16px;
+      border-radius: 12px; padding: 14px 16px;
     }
     .bgn-secondary-label { font-size: 11px; color: var(--text-3); font-weight: 600; margin-bottom: 6px; }
     .bgn-secondary-value { font-size: 20px; font-weight: 700; color: var(--text); }
-    .bgn-bar-track { width: 100%; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 8px; }
-    .bgn-bar-fill  { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #16a34a, #4ade80); }
-    .bgn-bar-fill.warning { background: linear-gradient(90deg, #d97706, #fbbf24); }
-    .bgn-bar-fill.danger  { background: linear-gradient(90deg, #dc2626, #f87171); }
+
+    .bgn-bar-track { width: 100%; height: 10px; background: rgba(255,255,255,0.05); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+    .bgn-bar-fill  { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .bgn-bar-fill.warning { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .bgn-bar-fill.danger  { background: linear-gradient(90deg, #ef4444, #f87171); }
 
     .bgn-empty { text-align: center; padding: 64px 24px; background: var(--surface); border: 1px dashed var(--border-2); border-radius: 18px; }
     .bgn-empty-emoji { font-size: 48px; opacity: 0.6; margin-bottom: 12px; }
     .bgn-empty-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
     .bgn-empty-text  { font-size: 14px; color: var(--text-2); max-width: 360px; margin: 0 auto; line-height: 1.6; }
-    .bgn-empty-btn   { display: inline-block; margin-top: 18px; padding: 10px 20px; border-radius: 12px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
+    .bgn-empty-btn   { display: inline-block; margin-top: 18px; padding: 10px 20px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
     .bgn-loading     { text-align: center; padding: 80px 24px; color: var(--text-3); font-size: 14px; }
   </style>`;
 
   const content = `
-    <div id="bgn-loading" class="bgn-loading">جاري تحميل لوحة التحكم…</div>
-    <div id="bgn-empty" style="display:none;">
-      <div class="bgn-empty">
-        <div class="bgn-empty-emoji">📡</div>
-        <div class="bgn-empty-title">لم يتم ربط حساب إعلانات بعد</div>
-        <div class="bgn-empty-text">اربط حساب فيسبوك الإعلاني لرؤية أداء حملاتك.</div>
-        <a href="/workspace" class="bgn-empty-btn">ربط الحساب</a>
+    <div class="bgn-shell">
+      <div id="bgn-loading" class="bgn-loading">جاري تحميل لوحة التحكم…</div>
+      <div id="bgn-empty" style="display:none;">
+        <div class="bgn-empty">
+          <div class="bgn-empty-emoji">📡</div>
+          <div class="bgn-empty-title">لم يتم ربط حساب إعلانات بعد</div>
+          <div class="bgn-empty-text">اربط حساب فيسبوك الإعلاني لرؤية أداء حملاتك.</div>
+          <a href="/workspace" class="bgn-empty-btn">ربط الحساب</a>
+        </div>
       </div>
-    </div>
 
-    <div id="bgn-main" style="display:none;">
-      <div class="bgn-kpi-grid" id="bgn-kpi-grid"></div>
-
-      <div class="bgn-layout">
-        <div class="bgn-main-col">
-          <div class="bgn-panel">
-            <div class="bgn-panel-head">
-              <div class="bgn-panel-title">📈 الإحصائيات</div>
-              <div class="bgn-panel-meta" id="bgn-chart-meta">—</div>
-            </div>
-            <div class="bgn-chart-wrap"><canvas id="bgn-chart"></canvas></div>
+      <div id="bgn-main" style="display:none;">
+        <div class="bgn-top">
+          <div>
+            <div class="bgn-greeting-title" id="bgn-greeting-title">مرحباً!</div>
+            <div class="bgn-greeting-sub" id="bgn-greeting-sub">نظرة سريعة على آخر ٣٠ يوماً</div>
           </div>
-
-          <div class="bgn-panel">
-            <div class="bgn-panel-head">
-              <div class="bgn-panel-title">📣 الحملات الأخيرة</div>
-              <div class="bgn-panel-meta" id="bgn-campaign-meta">—</div>
-            </div>
-            <div id="bgn-campaign-list"></div>
-          </div>
+          <span id="bgn-status-pill" class="bgn-status-pill gray">
+            <span class="bgn-dot"></span>
+            <span id="bgn-status-text">—</span>
+          </span>
         </div>
 
-        <aside class="bgn-sidebar-widgets">
-          <div class="bgn-widget">
-            <div class="bgn-widget-title">صحة الحساب</div>
-            <span id="bgn-status-pill" class="bgn-status-pill gray">
-              <span class="bgn-dot"></span>
-              <span id="bgn-status-text">—</span>
-            </span>
-          </div>
-          <div class="bgn-widget">
-            <div class="bgn-widget-title">ملخص الشهر</div>
-            <div class="bgn-widget-row"><span>الإنفاق</span><span id="bgn-sum-spend">—</span></div>
-            <div class="bgn-widget-row"><span>حملات نشطة</span><span id="bgn-sum-active">—</span></div>
-            <div class="bgn-widget-row"><span>العملة</span><span id="bgn-sum-currency">—</span></div>
-          </div>
-          <div class="bgn-widget">
-            <div class="bgn-widget-title">إجراءات سريعة</div>
-            <a href="/workspace" class="bgn-action-link">+ ربط حساب</a>
-          </div>
-        </aside>
-      </div>
+        <div class="bgn-kpi-grid" id="bgn-kpi-grid"></div>
 
-      <div id="bgn-action-box" class="bgn-action-box" style="display:none;">
-        <div class="bgn-action-label">💡 اقتراح اليوم</div>
-        <div class="bgn-action-text" id="bgn-action-text"></div>
-        <button type="button" class="bgn-expand-btn" id="bgn-action-expand" style="display:none;">اقرأ المزيد</button>
-      </div>
-
-      <details class="bgn-details">
-        <summary>تفاصيل أكثر <span>الوصول · CPM · التكرار</span></summary>
-        <div class="bgn-details-body">
-          <div class="bgn-secondary-grid" id="bgn-secondary-grid"></div>
+        <div class="bgn-panel">
+          <div class="bgn-panel-head">
+            <div class="bgn-panel-title">📈 الإنفاق عبر الزمن</div>
+            <div class="bgn-panel-meta" id="bgn-chart-meta">—</div>
+          </div>
+          <div class="bgn-chart-wrap"><canvas id="bgn-chart"></canvas></div>
         </div>
-      </details>
+
+        <div class="bgn-panel">
+          <div class="bgn-panel-head">
+            <div class="bgn-panel-title">📣 الحملات</div>
+            <div class="bgn-panel-meta" id="bgn-campaign-meta">—</div>
+          </div>
+          <div class="bgn-campaign-list" id="bgn-campaign-list"></div>
+        </div>
+
+        <div id="bgn-action-box" class="bgn-action-box" style="display:none;">
+          <div class="bgn-action-label">💡 اقتراح اليوم</div>
+          <div class="bgn-action-text" id="bgn-action-text"></div>
+          <button type="button" class="bgn-expand-btn" id="bgn-action-expand" style="display:none;">اقرأ المزيد</button>
+        </div>
+
+        <details class="bgn-details">
+          <summary>تفاصيل أكثر <span>الوصول · CPM · التكرار</span></summary>
+          <div class="bgn-details-body">
+            <div class="bgn-secondary-grid" id="bgn-secondary-grid"></div>
+          </div>
+        </details>
+      </div>
     </div>
   `;
 
@@ -277,12 +238,6 @@ export function beginnerDashboardPage(): string {
     return map[band] || map.none;
   }
 
-  function campaignIcon(status) {
-    if (status === 'ACTIVE') return '▶';
-    if (status === 'PAUSED') return '⏸';
-    return '📣';
-  }
-
   function renderKpis(dash, currency, factor) {
     var grid = document.getElementById('bgn-kpi-grid');
     var spend = getKpi(dash, 'spend');
@@ -291,14 +246,14 @@ export function beginnerDashboardPage(): string {
     var score = (dash.health && typeof dash.health.score === 'number') ? Math.round(dash.health.score) : 0;
 
     var cards = [
-      { label: 'الإنفاق', value: spend ? (spend.display || fmtMoney(spend.value, currency, factor)) : '—', trend: spend, accent: 'accent-1' },
-      { label: 'الرسائل', value: msgs ? fmtCount(msgs.value) : '—', trend: msgs, accent: 'accent-2' },
-      { label: 'نسبة النقر', value: ctr && ctr.value != null ? fmtPct(ctr.value) : '—', trend: ctr, accent: 'accent-3' },
-      { label: 'صحة الحساب', value: fmtCount(score) + ' / ١٠٠', trend: null, accent: 'accent-4' },
+      { label: 'الإنفاق', value: spend ? fmtMoney(spend.value, currency, factor) : '—', trend: spend },
+      { label: 'الرسائل', value: msgs ? fmtCount(msgs.value) : '—', trend: msgs },
+      { label: 'نسبة النقر', value: ctr && ctr.value != null ? fmtPct(ctr.value) : '—', trend: ctr },
+      { label: 'صحة الحساب', value: fmtCount(score) + ' / ١٠٠', trend: null },
     ];
 
     grid.innerHTML = cards.map(function (c) {
-      return '<div class="bgn-kpi ' + c.accent + '">'
+      return '<div class="bgn-kpi">'
         + '<div class="bgn-kpi-label">' + c.label + '</div>'
         + '<div class="bgn-kpi-value">' + c.value + '</div>'
         + (c.trend ? trendHtml(c.trend) : '')
@@ -334,8 +289,8 @@ export function beginnerDashboardPage(): string {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#94a3b8', maxTicksLimit: 6, font: { size: 11 } } },
-          y: { grid: { color: '#e8ecf1' }, ticks: { color: '#94a3b8', maxTicksLimit: 5, font: { size: 11 } } },
+          x: { grid: { display: false }, ticks: { color: '#5a5a6a', maxTicksLimit: 6, font: { size: 11 } } },
+          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: 5, font: { size: 11 } } },
         },
       },
     });
@@ -354,25 +309,12 @@ export function beginnerDashboardPage(): string {
       var amt = c.dailyBudget
         ? fmtMoney(c.dailyBudget, currency, factor) + '/يوم'
         : (c.lifetimeBudget ? fmtMoney(c.lifetimeBudget, currency, factor) : '—');
-      var st = (c.status || 'UNKNOWN').toUpperCase();
-      var iconCls = st === 'ACTIVE' ? 'active' : st === 'PAUSED' ? 'paused' : '';
-      var amtCls = st === 'ACTIVE' ? 'positive' : st === 'PAUSED' ? 'negative' : '';
-      return '<div class="bgn-txn-row">'
-        + '<div class="bgn-txn-icon ' + iconCls + '">' + campaignIcon(st) + '</div>'
-        + '<div class="bgn-txn-info">'
-          + '<div class="bgn-txn-name" title="' + String(c.name || '').replace(/"/g, '&quot;') + '">' + (c.name || '—') + '</div>'
-          + '<div class="bgn-txn-meta">' + st + '</div>'
-        + '</div>'
-        + '<div class="bgn-txn-amount ' + amtCls + '">' + amt + '</div>'
+      return '<div class="bgn-campaign-row">'
+        + '<span class="bgn-campaign-name" title="' + String(c.name || '').replace(/"/g, '&quot;') + '">' + (c.name || '—') + '</span>'
+        + '<span class="bgn-campaign-spend">' + amt + '</span>'
+        + statusBadge(c.status || 'UNKNOWN')
       + '</div>';
     }).join('');
-  }
-
-  function renderWidgets(dash, currency) {
-    var spend = getKpi(dash, 'spend');
-    document.getElementById('bgn-sum-spend').textContent = spend ? (spend.display || '—') : '—';
-    document.getElementById('bgn-sum-active').textContent = fmtCount((dash.workspace && dash.workspace.activeCampaigns) || 0);
-    document.getElementById('bgn-sum-currency').textContent = currency;
   }
 
   function renderAction(dash) {
@@ -434,26 +376,15 @@ export function beginnerDashboardPage(): string {
   }
 
   function renderGreeting(dash) {
-    var greetEl = document.getElementById('dash-greeting');
-    var subEl = document.getElementById('dash-subtitle');
-    var wsName = (dash.workspace && dash.workspace.name) || 'مساحة العمل';
-    if (greetEl) greetEl.textContent = 'أهلاً · ' + wsName;
-    if (subEl) subEl.textContent = 'آخر ٣٠ يوماً';
+    document.getElementById('bgn-greeting-title').textContent =
+      'أهلاً · ' + ((dash.workspace && dash.workspace.name) || 'مساحة العمل');
+    document.getElementById('bgn-greeting-sub').textContent = 'آخر ٣٠ يوماً';
   }
 
   async function loadBeginnerDashboard() {
     var wsId = getWsId();
     if (!wsId) { window.location.href = '/workspace'; return; }
     try {
-      var me = await apiFetch('/api/auth/me');
-      if (me) {
-        var name = me.name || me.email || 'مستخدم';
-        var initials = name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0, 2);
-        var av = document.getElementById('user-avatar'); if (av) av.textContent = initials;
-        var topAv = document.getElementById('topbar-avatar'); if (topAv) topAv.textContent = initials;
-        var nameEl = document.getElementById('user-name'); if (nameEl) nameEl.textContent = name;
-      }
-
       var results = await Promise.all([
         apiFetch('/api/dashboard/' + wsId),
         apiFetch('/api/workspaces/' + wsId + '/campaigns').catch(function () { return []; }),
@@ -473,15 +404,11 @@ export function beginnerDashboardPage(): string {
       var factor = currency === 'IQD' ? 1
         : (dash.workspace.currencyMinorFactor > 0 ? dash.workspace.currencyMinorFactor : 100);
 
-      var wsNameEl = document.getElementById('ws-name');
-      if (wsNameEl) wsNameEl.textContent = dash.workspace.name || wsId;
-
       renderGreeting(dash);
       renderStatus(dash);
       renderKpis(dash, currency, factor);
       renderChart(dash, currency, factor);
       renderCampaigns(campaigns, currency, factor);
-      renderWidgets(dash, currency);
       renderAction(dash);
       renderSecondary(dash, currency, factor);
     } catch (err) {
@@ -494,16 +421,11 @@ export function beginnerDashboardPage(): string {
 </script>`;
 
   return layout({
-    title: 'لوحة التحكم',
+    title: 'لوحة التحكم — وضع المبتدئ',
     active: 'dashboard',
     content,
     scripts,
     extraHead,
     mode: 'beginner',
-    theme: 'light',
-    sidebarCompact: true,
-    topbarVariant: 'dashboard',
-    lang: 'ar',
-    dir: 'rtl',
   });
 }
