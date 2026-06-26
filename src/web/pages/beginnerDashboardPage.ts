@@ -26,7 +26,7 @@ import { layout } from '../layout';
 export function beginnerDashboardPage(): string {
   const extraHead = `<style>
     /* ── Beginner mode palette + RTL ───────────────────────────────── */
-    .bgn-shell { direction: rtl; text-align: right; max-width: 980px; margin: 0 auto; }
+    .bgn-shell { direction: rtl; text-align: right; max-width: 980px; margin: 0 auto; letter-spacing: normal; line-height: 1.6; }
     .bgn-shell *, .bgn-shell *::before, .bgn-shell *::after { box-sizing: border-box; }
 
     /* Greeting */
@@ -39,8 +39,8 @@ export function beginnerDashboardPage(): string {
     }
     .bgn-greeting-emoji { font-size: 38px; line-height: 1; }
     .bgn-greeting-text-wrap { flex: 1; }
-    .bgn-greeting-title { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.3; }
-    .bgn-greeting-sub { font-size: 13.5px; color: var(--text-2); margin-top: 4px; }
+    .bgn-greeting-title { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.6; letter-spacing: normal; }
+    .bgn-greeting-sub { font-size: 13.5px; color: var(--text-2); margin-top: 4px; line-height: 1.6; letter-spacing: normal; }
 
     /* Status pill (traffic-light) */
     .bgn-status-pill {
@@ -90,9 +90,9 @@ export function beginnerDashboardPage(): string {
     .bgn-metric-card.blue   .bgn-metric-icon { background: rgba(59,130,246,0.12); }
     .bgn-metric-card.purple .bgn-metric-icon { background: rgba(168,85,247,0.12); }
     .bgn-metric-body { flex: 1; min-width: 0; }
-    .bgn-metric-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
-    .bgn-metric-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bgn-metric-trend { margin-top: 6px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+    .bgn-metric-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; line-height: 1.6; letter-spacing: normal; }
+    .bgn-metric-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: normal; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bgn-metric-trend { margin-top: 6px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; line-height: 1.6; letter-spacing: normal; }
     .bgn-metric-trend.up   { color: #4ade80; }
     .bgn-metric-trend.down { color: #f87171; }
     .bgn-metric-trend.flat { color: var(--text-3); }
@@ -101,7 +101,7 @@ export function beginnerDashboardPage(): string {
     .bgn-section { margin-bottom: 22px; }
     .bgn-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
     .bgn-section-emoji { font-size: 22px; line-height: 1; }
-    .bgn-section-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .bgn-section-title { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.6; letter-spacing: normal; }
 
     /* Progress bar */
     .bgn-bar-card {
@@ -111,7 +111,7 @@ export function beginnerDashboardPage(): string {
       padding: 18px 22px 22px;
     }
     .bgn-bar-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
-    .bgn-bar-label { font-size: 14px; font-weight: 600; color: var(--text); }
+    .bgn-bar-label { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.6; letter-spacing: normal; }
     .bgn-bar-value { font-size: 13px; color: var(--text-2); font-weight: 600; }
     .bgn-bar-track {
       width: 100%; height: 14px;
@@ -139,7 +139,7 @@ export function beginnerDashboardPage(): string {
     }
     .bgn-action-emoji { font-size: 32px; line-height: 1; flex-shrink: 0; }
     .bgn-action-title { font-size: 14px; font-weight: 700; color: var(--accent-2); margin-bottom: 5px; }
-    .bgn-action-text { font-size: 14px; color: var(--text); line-height: 1.6; }
+    .bgn-action-text { font-size: 14px; color: var(--text); line-height: 1.6; letter-spacing: normal; }
 
     /* Active campaigns count */
     .bgn-mini-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 22px; }
@@ -278,10 +278,10 @@ export function beginnerDashboardPage(): string {
   }
 
   function trendArrow(dir, goodWhenUp) {
-    if (dir === 'flat' || dir == null) return { sym: '➡️', cls: 'flat' };
+    if (dir === 'flat' || dir == null) return { sym: '➡️', cls: 'flat', label: '' };
     var good = goodWhenUp !== false;
-    if (dir === 'up')   return { sym: '⬆️', cls: good ? 'up' : 'down' };
-    /* down */          return { sym: '⬇️', cls: good ? 'down' : 'up' };
+    if (dir === 'up')   return { sym: '⬆️', cls: good ? 'up' : 'down', label: 'ارتفاع' };
+    /* down */          return { sym: '⬇️', cls: good ? 'down' : 'up', label: 'انخفاض' };
   }
 
   function healthBandPill(band) {
@@ -329,7 +329,7 @@ export function beginnerDashboardPage(): string {
         var pctText = c.deltaPct != null
           ? (' ' + Math.round(Math.abs(Number(c.deltaPct) * 100)) + '٪')
           : '';
-        trendHtml = '<div class="bgn-metric-trend ' + c.delta.cls + '">' + c.delta.sym + pctText + '</div>';
+        trendHtml = '<div class="bgn-metric-trend ' + c.delta.cls + '">' + c.delta.sym + ' ' + c.delta.label + pctText + '</div>';
       }
       return '<div class="bgn-metric-card ' + c.tone + '">'
         + '<div class="bgn-metric-icon">' + c.emoji + '</div>'

@@ -75,8 +75,8 @@ export function dashboardPage(): string {
       mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
     }
     .ticker-wrap::before {
-      content: 'AI · LIVE'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-      font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
+      content: 'مباشر'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      font-size: 10px; font-weight: 800; letter-spacing: normal;
       color: var(--accent-2);
       background: var(--accent-dim);
       padding: 3px 8px; border-radius: 4px;
@@ -88,12 +88,13 @@ export function dashboardPage(): string {
       white-space: nowrap;
       animation: ticker-slide 55s linear infinite;
     }
-    .ticker-item { font-size: 13px; color: var(--text); display: inline-flex; align-items: center; gap: 8px; }
-    .ticker-dot  { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .ticker-item { font-size: 13px; color: var(--text); display: inline-flex; align-items: center; gap: 8px; line-height: 1.6; letter-spacing: normal; }
+    .ticker-dot  { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
     .ticker-dot.success  { background: var(--success); }
     .ticker-dot.warning  { background: var(--warning); }
     .ticker-dot.critical { background: var(--error); }
-    .ticker-layer { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    .ticker-badge { font-size: 11px; font-weight: 700; color: var(--text-2); letter-spacing: normal; padding: 2px 7px; border-radius: 4px; background: rgba(255,255,255,0.05); }
+    .ticker-text { letter-spacing: normal; line-height: 1.6; }
     @keyframes ticker-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
 
@@ -132,7 +133,7 @@ export function dashboardPage(): string {
       70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
       100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
     }
-    .active-name { font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .active-name { font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.6; letter-spacing: normal; }
     .active-meta-row { font-size: 12px; color: var(--text-3); display: flex; justify-content: space-between; gap: 8px; }
     .active-meta-row b { color: var(--text-2); font-weight: 600; }
 
@@ -174,7 +175,7 @@ export function dashboardPage(): string {
     .strategy-card.low      { border-left: 3px solid var(--text-3); }
     .strategy-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
     .strategy-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
-    .strategy-body  { font-size: 12px; color: var(--text-2); line-height: 1.55; }
+    .strategy-body  { font-size: 12px; color: var(--text-2); line-height: 1.6; letter-spacing: normal; }
 
     .chart-panel {
       background: var(--surface);
@@ -264,24 +265,6 @@ export function dashboardPage(): string {
     .skeleton-chart { height: 300px; }
     @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-    /* Keyboard shortcuts help overlay */
-    .dash-shortcuts-help {
-      position: fixed; inset: 0; z-index: 200;
-      background: rgba(0,0,0,0.55);
-      display: none; align-items: center; justify-content: center;
-      padding: 24px;
-    }
-    .dash-shortcuts-panel {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 22px 24px;
-      max-width: 360px; width: 100%;
-      box-shadow: var(--shadow-lg);
-    }
-    .dash-shortcuts-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: var(--text); }
-    .dash-shortcuts-panel dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 13px; }
-    .dash-shortcuts-panel dt { font-weight: 700; color: var(--accent-2); font-family: ui-monospace, monospace; }
-    .dash-shortcuts-panel dd { color: var(--text-2); margin: 0; }
-    .dash-shortcuts-hint { margin-top: 14px; font-size: 12px; color: var(--text-3); text-align: center; }
   </style>`;
 
   const content = `
@@ -293,18 +276,6 @@ export function dashboardPage(): string {
           <div class="skeleton-block skeleton-hero"></div>
         </div>
         <div class="skeleton-block skeleton-chart"></div>
-      </div>
-    </div>
-
-    <div id="dash-shortcuts-help" class="dash-shortcuts-help" role="dialog" aria-label="Keyboard shortcuts">
-      <div class="dash-shortcuts-panel">
-        <h3>Keyboard shortcuts</h3>
-        <dl>
-          <dt>r</dt><dd>Refresh dashboard</dd>
-          <dt>/</dt><dd>Focus search (when available)</dd>
-          <dt>?</dt><dd>Toggle this help</dd>
-        </dl>
-        <div class="dash-shortcuts-hint">Press ? or Esc to close</div>
       </div>
     </div>
 
@@ -350,8 +321,8 @@ export function dashboardPage(): string {
       </section>
 
       <!-- 2 ▸ AI Motion Ticker -->
-      <section class="ticker-wrap" id="ticker-wrap" style="display:none;">
-        <div class="ticker-track" id="ticker-track"></div>
+      <section class="ticker-wrap" id="ticker-wrap" style="display:none;" dir="auto">
+        <div class="ticker-track" id="ticker-track" dir="auto"></div>
       </section>
 
       <!-- 3 ▸ Active Ads Showcase -->
@@ -368,10 +339,10 @@ export function dashboardPage(): string {
         <div class="brain-box">
           <div class="brain-box-head">
             <div class="brain-box-icon">AI</div>
-            <div class="brain-box-title">صندوق نصائح العقل الـ AI</div>
+            <div class="brain-box-title">مساعدك الذكي</div>
             <div class="brain-box-sub" id="brain-box-sub">—</div>
           </div>
-          <div id="strategy-list">
+          <div id="strategy-list" dir="auto">
             <div class="v2-action-empty">Analyzing…</div>
           </div>
         </div>
@@ -390,7 +361,7 @@ export function dashboardPage(): string {
           <div class="v2-section-title">CMO Feed</div>
           <div class="v2-section-meta" id="brain-cmo-feed-meta">AI-narrated decisions for today</div>
         </div>
-        <div id="brain-cmo-feed" style="display:flex;flex-direction:column;gap:10px;"></div>
+        <div id="brain-cmo-feed" dir="auto" style="display:flex;flex-direction:column;gap:10px;"></div>
       </section>
 
       <section id="brain-pulse-section" class="v2-section" style="display:none;">
@@ -672,43 +643,45 @@ export function dashboardPage(): string {
   }
 
   // ── AI Motion Ticker ─────────────────────────────────────────────────────
+  function tickerBadge(severity, kind) {
+    if (kind === 'kpi') return 'تحسين';
+    if (severity === 'critical' || severity === 'warning') return 'تنبيه';
+    return 'تحسين';
+  }
   function buildTickerItems(dashData) {
     var items = [];
     var cmoFeedV2 = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
     cmoFeedV2.slice(0, 6).forEach(function (it) {
       if (it.title) {
+        var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'warning' : 'success';
         items.push({
-          layer: 'BRAIN',
-          severity: it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'warning' : 'success',
+          badge: tickerBadge(sev, 'feed'),
+          severity: sev,
           text: it.title + ' — ' + (it.campaignName || ''),
         });
       }
     });
-    // From issues: synthesize layer labels by severity-bucket
     var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
-    issues.slice(0, 5).forEach(function (iss, idx) {
+    issues.slice(0, 5).forEach(function (iss) {
       var sev = (iss.severity || 'low').toLowerCase();
       items.push({
-        layer: 'L' + (3 + idx),
+        badge: 'تنبيه',
         severity: sev === 'critical' ? 'critical' : sev === 'high' ? 'warning' : sev === 'medium' ? 'warning' : 'success',
         text: (iss.title || iss.code || 'observation') + (iss.recommendations ? ' — ' + (Array.isArray(iss.recommendations) ? iss.recommendations[0] : iss.recommendations) : ''),
       });
     });
-    // From KPIs: a CTR / spend movement summary
     var kpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
     kpis.slice(0, 4).forEach(function (k) {
       if (k.deltaPct == null) return;
-      var dir = k.direction === 'up' ? 'صعود' : 'هبوط';
-      // deltaPct is stored as a ratio (0.05 = 5%) — multiply before display.
+      var dir = k.direction === 'up' ? 'ارتفاع' : 'انخفاض';
       items.push({
-        layer: 'L7',
+        badge: 'تحسين',
         severity: k.direction === 'up' ? (k.goodWhenUp === false ? 'warning' : 'success') : (k.goodWhenUp === false ? 'success' : 'warning'),
-        text: (k.label || k.key) + ' ' + dir + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '% — رصد تلقائي للطبقة السابعة',
+        text: (k.label || k.key) + ' ' + dir + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '% — مراقبة وتحسين تلقائي',
       });
     });
-    // Always include at least one steady-state insight if nothing else fired
     if (items.length === 0) {
-      items.push({ layer: 'AI', severity: 'success', text: 'الذكاء الاصطناعي يراقب حسابك · لم تُرصد تنبيهات نشطة' });
+      items.push({ badge: 'تحسين', severity: 'success', text: 'يراقب الذكاء الاصطناعي حسابك · لا توجد تنبيهات نشطة' });
     }
     return items;
   }
@@ -716,12 +689,14 @@ export function dashboardPage(): string {
     if (!items || items.length === 0) return;
     var wrap = document.getElementById('ticker-wrap');
     var track = document.getElementById('ticker-track');
-    // Duplicate the items so the CSS translate(-50%) wraps seamlessly
     var html = items.concat(items).map(function (it) {
+      var badgeHtml = it.badge
+        ? '<span class="ticker-badge">' + escHtml(it.badge) + '</span>'
+        : '';
       return '<span class="ticker-item">'
         + '<span class="ticker-dot ' + it.severity + '"></span>'
-        + '<span class="ticker-layer">' + escHtml(it.layer) + '</span>'
-        + '<span>' + escHtml(it.text) + '</span>'
+        + badgeHtml
+        + '<span class="ticker-text" dir="auto">' + escHtml(it.text) + '</span>'
       + '</span>';
     }).join('');
     track.innerHTML = html;
@@ -744,7 +719,7 @@ export function dashboardPage(): string {
       return '<div class="active-card">'
         + '<div class="active-top">'
           + '<span class="blink-dot"></span>'
-          + '<span class="active-name" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</span>'
+          + '<span class="active-name" dir="auto" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</span>'
         + '</div>'
         + '<div class="active-meta-row"><span>' + escHtml(c.objective || 'OBJECTIVE') + '</span><b>' + escHtml(budget) + '</b></div>'
       + '</div>';
@@ -1330,36 +1305,6 @@ export function dashboardPage(): string {
       showError('Failed to load dashboard: ' + (err.message || String(err)));
     }
   }
-
-  function isTypingTarget(el) {
-    if (!el) return false;
-    var tag = el.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
-  }
-  function toggleShortcutsHelp(force) {
-    var el = document.getElementById('dash-shortcuts-help');
-    if (!el) return;
-    if (force === true) el.style.display = 'flex';
-    else if (force === false) el.style.display = 'none';
-    else el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
-  }
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { toggleShortcutsHelp(false); return; }
-    if (isTypingTarget(document.activeElement)) return;
-    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      init();
-    } else if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
-      var search = document.getElementById('search-input');
-      if (search) { e.preventDefault(); search.focus(); }
-    } else if ((e.key === '?' || (e.shiftKey && e.key === '/')) && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      toggleShortcutsHelp();
-    }
-  });
-  document.getElementById('dash-shortcuts-help').addEventListener('click', function (e) {
-    if (e.target === this) toggleShortcutsHelp(false);
-  });
 
   document.addEventListener('DOMContentLoaded', init);
 })();

@@ -41,10 +41,11 @@ html { font-size: 14px; -webkit-font-smoothing: antialiased; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Geeza Pro', 'SF Arabic', 'Inter', Roboto, sans-serif;
   line-height: 1.5;
   min-height: 100vh;
 }
+[dir="auto"] { letter-spacing: normal; line-height: 1.6; }
 a { color: var(--accent-2); text-decoration: none; }
 a:hover { color: var(--text); }
 button { cursor: pointer; font-family: inherit; }
