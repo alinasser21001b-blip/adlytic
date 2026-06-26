@@ -120,21 +120,6 @@ export interface DashboardDTO {
 }
 
 // ── V6 Brain Section types ─────────────────────────────────────────────
-export interface BrainCmoFeedItem {
-  campaignId: string;
-  campaignName: string;
-  priority: string;       // CRITICAL | HIGH | NORMAL
-  action: string;         // DecisionAction string
-  /** Null when the cron narration worker hasn't written this row yet. */
-  narration: {
-    arabicTitle: string;
-    arabicNarration: string;
-    creativeDirective?: string;
-  } | null;
-  generatedAt: string | null;   // ISO timestamp
-  tickDate: string;             // YYYY-MM-DD
-}
-
 export interface LivePulse {
   /** Aggregate burn rate across today's V2-enabled campaigns, in account-currency major units. */
   burnRate: number;
@@ -164,8 +149,7 @@ export interface InterventionsLedger {
 }
 
 export interface BrainSection {
-  cmoFeed: BrainCmoFeedItem[];
-  /** Phase 2 deduplicated feed projection (narrationJson-only, truncated). */
+  /** Deduplicated feed projection (narrationJson-only, truncated). */
   cmoFeedV2: CmoFeedItemDTO[];
   cmoFeedMeta: CmoFeedMeta;
   livePulse: LivePulse;
@@ -812,26 +796,6 @@ async function buildBrainSection(
   });
   const nameById = new Map(camps.map(c => [c.id, c.name]));
 
-  // ── CMO Feed: top critical/high snapshots from today (or most recent tick). ──
-  const sortedByPriority = [...snapshots].sort((a, b) => {
-    // priority weight: CRITICAL > HIGH > NORMAL
-    const w = (p: string) => (p === 'CRITICAL' ? 2 : p === 'HIGH' ? 1 : 0);
-    const dp = w(b.priority) - w(a.priority);
-    if (dp !== 0) return dp;
-    return b.tickDate.getTime() - a.tickDate.getTime();
-  });
-  const cmoFeed: BrainCmoFeedItem[] = sortedByPriority
-    .slice(0, BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT)
-    .map(s => ({
-      campaignId: s.campaignId,
-      campaignName: nameById.get(s.campaignId) ?? s.externalCampaignId,
-      priority: s.priority,
-      action: s.action,
-      narration: readNarration(s.narrationJson),
-      generatedAt: s.narrationGeneratedAt?.toISOString() ?? null,
-      tickDate: s.tickDate.toISOString().slice(0, 10),
-    }));
-
   const { items: cmoFeedV2, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
 
   // ── Live Pulse: aggregate across today's tick. ──
@@ -914,7 +878,7 @@ async function buildBrainSection(
       })),
   };
 
-  return { cmoFeed, cmoFeedV2, cmoFeedMeta, livePulse, ledger };
+  return { cmoFeedV2, cmoFeedMeta, livePulse, ledger };
 
   // Helper local to this fn — formats a major-unit number into the account currency.
   // Mirrors the `money()` minor-unit formatter above but for engine major units.
