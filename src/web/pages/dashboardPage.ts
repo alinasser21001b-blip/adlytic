@@ -25,45 +25,54 @@ import { layout } from '../layout';
 
 export function dashboardPage(): string {
   const extraHead = `<style>
-    /* Primary KPI hero cards — 4-5 essentials only */
-    .hero-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
-    @media (max-width: 1100px) { .hero-grid { grid-template-columns: repeat(3, 1fr); } }
-    @media (max-width: 700px)  { .hero-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 480px)  { .hero-grid { grid-template-columns: 1fr; } }
+    body.theme-light .page-content { padding: 24px 28px 48px; max-width: 1280px; }
+
+    /* Ad Account / KPI cards — "My Cards" style */
+    .hero-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 1100px) { .hero-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px)  { .hero-grid { grid-template-columns: 1fr; } }
     .hero-card {
       position: relative;
-      background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 18px 20px;
+      border-radius: 18px;
+      padding: 20px 22px;
       overflow: hidden;
-      transition: border-color var(--transition);
+      transition: box-shadow var(--transition), border-color var(--transition);
     }
-    .hero-card::before {
-      content: ''; position: absolute; inset: -1px;
-      border-radius: var(--radius-lg);
-      padding: 1px;
-      background: linear-gradient(135deg, rgba(99,102,241,0.45), rgba(99,102,241,0) 60%);
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor; mask-composite: exclude;
-      opacity: 0.55; pointer-events: none;
+    .hero-card:hover { box-shadow: var(--shadow-lg); border-color: var(--border-2); }
+    .hero-card::after {
+      content: ''; position: absolute; top: 0; right: 0;
+      width: 80px; height: 80px; border-radius: 50%;
+      opacity: 0.12; pointer-events: none;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      transform: translate(30%, -30%);
     }
-    .hero-card:hover { border-color: var(--accent); }
-    .hero-card.success::before { background: linear-gradient(135deg, rgba(34,197,94,0.4), rgba(34,197,94,0) 60%); }
-    .hero-card.warning::before { background: linear-gradient(135deg, rgba(245,158,11,0.4), rgba(245,158,11,0) 60%); }
-    .hero-label { font-size: 11px; font-weight: 600; color: var(--text-3); margin-bottom: 6px; }
-    .hero-value { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.1; }
-    .hero-sub   { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+    .hero-card.accent-1::after { background: linear-gradient(135deg, #6366f1, #818cf8); }
+    .hero-card.accent-2::after { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+    .hero-card.accent-3::after { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+    .hero-card.success::after { background: linear-gradient(135deg, #16a34a, #4ade80); opacity: 0.15; }
+    .hero-card.warning::after { background: linear-gradient(135deg, #d97706, #fbbf24); opacity: 0.15; }
+    .hero-label { font-size: 12px; font-weight: 600; color: var(--text-3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .hero-value { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -0.8px; line-height: 1.1; }
+    .hero-sub   { font-size: 12px; color: var(--text-2); margin-top: 4px; }
     .hero-delta {
       display: inline-flex; align-items: center; gap: 4px;
       margin-top: 10px;
-      padding: 3px 9px;
+      padding: 4px 10px;
       border-radius: 999px;
-      font-size: 11.5px; font-weight: 700;
+      font-size: 12px; font-weight: 700;
     }
     .hero-delta.up   { color: var(--success); background: var(--success-dim); }
     .hero-delta.down { color: var(--error);   background: var(--error-dim); }
-    .hero-delta.flat { color: var(--text-3);  background: rgba(255,255,255,0.04); }
+    .hero-delta.flat { color: var(--text-3);  background: var(--surface-2); }
+
+    /* Main layout — chart + list | right widgets */
+    .dash-layout {
+      display: grid; grid-template-columns: 1fr 300px; gap: 20px; margin-bottom: 24px;
+    }
+    @media (max-width: 960px) { .dash-layout { grid-template-columns: 1fr; } }
+    .dash-main-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
     /* AI Motion Ticker — marquee */
     .ticker-wrap {
@@ -251,34 +260,83 @@ export function dashboardPage(): string {
     .v2-advanced summary span { color: var(--text-3); font-weight: 500; font-size: 12px; }
     .v2-advanced-body { padding: 16px 0 0; }
 
-    /* Main chart + summary sidebar */
-    .dash-main {
-      display: grid; grid-template-columns: 1fr 280px; gap: 16px; margin-bottom: 20px;
+    .chart-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 24px;
+      display: flex; flex-direction: column;
     }
-    @media (max-width: 900px) { .dash-main { grid-template-columns: 1fr; } }
-    .dash-summary {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 18px 20px;
-      display: flex; flex-direction: column; gap: 16px;
-    }
-    .dash-summary-title { font-size: 12px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
-    .dash-summary-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-    .dash-summary-label { font-size: 13px; color: var(--text-2); }
-    .dash-summary-val   { font-size: 15px; font-weight: 700; color: var(--text); }
+    .chart-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .chart-panel-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .chart-panel-meta  { font-size: 12px; color: var(--text-3); }
+    .chart-panel-canvas { position: relative; flex: 1; height: 280px; min-height: 220px; }
 
-    /* Simple campaign list */
-    .campaign-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 20px; overflow: hidden; }
-    .campaign-list-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-    .campaign-list-title { font-size: 14px; font-weight: 600; color: var(--text); }
-    .campaign-list-meta  { font-size: 12px; color: var(--text-3); }
-    .campaign-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 12px 18px; border-bottom: 1px solid var(--border);
+    /* Right column widgets */
+    .dash-right-col { display: flex; flex-direction: column; gap: 16px; }
+    .widget-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 18px; padding: 20px 22px;
     }
-    .campaign-row:last-child { border-bottom: none; }
-    .campaign-row:hover { background: var(--surface-hover); }
-    .campaign-name { font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-    .campaign-spend { font-size: 13px; font-weight: 600; color: var(--text-2); flex-shrink: 0; }
+    .widget-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+    .widget-health-ring {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .widget-health-circle {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: conic-gradient(var(--accent) calc(var(--pct, 0) * 1%), var(--surface-2) 0);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .widget-health-inner {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--surface); display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800; color: var(--text);
+    }
+    .widget-health-band { font-size: 13px; font-weight: 600; color: var(--text-2); }
+    .widget-health-sub  { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+    .widget-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .widget-row:last-child { border-bottom: none; }
+    .widget-row-label { font-size: 13px; color: var(--text-2); }
+    .widget-row-val   { font-size: 14px; font-weight: 700; color: var(--text); }
+    .widget-actions { display: flex; flex-direction: column; gap: 8px; }
+    .widget-action-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 16px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; text-decoration: none;
+      transition: all var(--transition); border: none; cursor: pointer; font-family: inherit;
+    }
+    .widget-action-btn.primary { background: var(--accent); color: #fff; }
+    .widget-action-btn.primary:hover { background: #4f46e5; }
+    .widget-action-btn.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+    .widget-action-btn.secondary:hover { border-color: var(--border-2); background: var(--surface-hover); }
+
+    /* Recent campaigns — transaction style */
+    .campaign-list { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; }
+    .campaign-list-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+    .campaign-list-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .campaign-list-meta  { font-size: 12px; color: var(--text-3); }
+    .txn-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 22px; border-bottom: 1px solid var(--border);
+      transition: background var(--transition);
+    }
+    .txn-row:last-child { border-bottom: none; }
+    .txn-row:hover { background: var(--surface-hover); }
+    .txn-icon {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: var(--accent-dim); color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .txn-icon.active { background: var(--success-dim); color: var(--success); }
+    .txn-icon.paused { background: var(--warning-dim); color: var(--warning); }
+    .txn-info { flex: 1; min-width: 0; }
+    .txn-name { font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .txn-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+    .txn-amount { font-size: 14px; font-weight: 700; flex-shrink: 0; text-align: right; }
+    .txn-amount.positive { color: var(--success); }
+    .txn-amount.negative { color: var(--error); }
+    .txn-amount.neutral  { color: var(--text-2); }
 
     .dash-compact-actions { margin-bottom: 20px; }
     .dash-tip {
@@ -303,10 +361,6 @@ export function dashboardPage(): string {
     </div>
 
     <div id="dashboard-content" style="display:none;">
-      <div class="page-header">
-        <div class="page-title">Dashboard</div>
-        <div class="page-subtitle" id="dash-subtitle">Overview of your ad performance</div>
-      </div>
 
       <!-- Stale-data banner -->
       <div class="alert alert-warning" id="stale-banner">
@@ -317,37 +371,60 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">Reconnect</a>
       </div>
 
-      <!-- 1 ▸ Primary KPI cards (filled by JS) -->
+      <!-- KPI / Ad Account cards -->
       <section class="hero-grid" id="primary-kpi-grid"></section>
 
-      <!-- 2 ▸ Main chart + summary sidebar -->
-      <section class="dash-main">
-        <div class="chart-panel">
-          <div class="chart-panel-head">
-            <div class="chart-panel-title">Spend trend</div>
-            <div class="chart-panel-meta" id="chart-panel-meta">Last 30 days</div>
+      <!-- Main layout: chart + campaigns | right widgets -->
+      <div class="dash-layout">
+        <div class="dash-main-col">
+          <div class="chart-panel">
+            <div class="chart-panel-head">
+              <div class="chart-panel-title">Statistics</div>
+              <div class="chart-panel-meta" id="chart-panel-meta">Last 30 days</div>
+            </div>
+            <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas></div>
           </div>
-          <div class="chart-panel-canvas" style="height:300px;min-height:240px;"><canvas id="chart-spend-main"></canvas></div>
+
+          <section class="campaign-list">
+            <div class="campaign-list-head">
+              <div class="campaign-list-title">Recent Campaigns</div>
+              <div class="campaign-list-meta" id="campaign-list-meta">—</div>
+            </div>
+            <div id="campaign-list-body"></div>
+          </section>
         </div>
-        <aside class="dash-summary" id="dash-summary">
-          <div class="dash-summary-title">Summary</div>
-          <div class="dash-summary-row"><span class="dash-summary-label">Health</span><span class="dash-summary-val" id="sum-health">—</span></div>
-          <div class="dash-summary-row"><span class="dash-summary-label">Active campaigns</span><span class="dash-summary-val" id="sum-active">—</span></div>
-          <div class="dash-summary-row"><span class="dash-summary-label">Open issues</span><span class="dash-summary-val" id="sum-issues">—</span></div>
-          <div class="dash-summary-row"><span class="dash-summary-label">Currency</span><span class="dash-summary-val" id="sum-currency">—</span></div>
+
+        <aside class="dash-right-col" id="dash-right-col">
+          <div class="widget-card" id="widget-health">
+            <div class="widget-title">Health Score</div>
+            <div class="widget-health-ring">
+              <div class="widget-health-circle" id="health-circle" style="--pct:0;">
+                <div class="widget-health-inner" id="sum-health">—</div>
+              </div>
+              <div>
+                <div class="widget-health-band" id="sum-health-band">—</div>
+                <div class="widget-health-sub" id="sum-health-sub">Account performance</div>
+              </div>
+            </div>
+          </div>
+          <div class="widget-card">
+            <div class="widget-title">Monthly Summary</div>
+            <div class="widget-row"><span class="widget-row-label">Total spend</span><span class="widget-row-val" id="sum-spend">—</span></div>
+            <div class="widget-row"><span class="widget-row-label">Active campaigns</span><span class="widget-row-val" id="sum-active">—</span></div>
+            <div class="widget-row"><span class="widget-row-label">Open issues</span><span class="widget-row-val" id="sum-issues">—</span></div>
+            <div class="widget-row"><span class="widget-row-label">Currency</span><span class="widget-row-val" id="sum-currency">—</span></div>
+          </div>
+          <div class="widget-card">
+            <div class="widget-title">Quick Actions</div>
+            <div class="widget-actions">
+              <button type="button" class="widget-action-btn secondary" id="btn-sync">↻ Sync Data</button>
+              <a href="/workspace" class="widget-action-btn primary">+ Connect Account</a>
+            </div>
+          </div>
         </aside>
-      </section>
+      </div>
 
-      <!-- 3 ▸ Simple campaign list -->
-      <section class="campaign-list">
-        <div class="campaign-list-head">
-          <div class="campaign-list-title">Campaigns</div>
-          <div class="campaign-list-meta" id="campaign-list-meta">—</div>
-        </div>
-        <div id="campaign-list-body"></div>
-      </section>
-
-      <!-- 4 ▸ Top tips (compact) -->
+      <!-- Top tips -->
       <section class="dash-compact-actions" id="dash-compact-actions"></section>
 
       <!-- 5 ▸ More details (AI, advanced metrics, issues) -->
@@ -611,17 +688,17 @@ export function dashboardPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#18181b',
-            borderColor: '#232326',
+            backgroundColor: '#1a1d26',
+            borderColor: '#e8ecf1',
             borderWidth: 1,
-            titleColor: '#f1f0f0',
-            bodyColor: '#a0a0b0',
+            titleColor: '#f8fafc',
+            bodyColor: '#94a3b8',
             padding: 10,
           }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 6, font: { size: 11 } } },
-          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: 5, font: { size: 11 } } }
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', maxTicksLimit: (opts && opts.maxTicks) || 6, font: { size: 11 } } },
+          y: { grid: { color: '#e8ecf1' }, ticks: { color: '#94a3b8', maxTicksLimit: 5, font: { size: 11 } } }
         },
         elements: { point: { radius: 0, hoverRadius: 4 } }
       }
@@ -635,7 +712,7 @@ export function dashboardPage(): string {
 
     function findKpi(key) { return (kpis || []).find(function (k) { return k.key === key; }); }
 
-    PRIMARY_KPI_KEYS.forEach(function (key) {
+    PRIMARY_KPI_KEYS.forEach(function (key, idx) {
       var k = findKpi(key);
       if (!k) return;
       var deltaHtml = '';
@@ -649,7 +726,8 @@ export function dashboardPage(): string {
       var label = key === 'spend' ? 'Spend' : key === 'messages' ? 'Results' : key === 'ctr' ? 'CTR' : 'CPM';
       var display = k.display || String(k.value || '—');
       if (key === 'ctr' && k.value != null) display = fmtPctLocal(k.value);
-      cards.push('<div class="hero-card">'
+      var accentCls = 'accent-' + ((idx % 3) + 1);
+      cards.push('<div class="hero-card ' + accentCls + '">'
         + '<div class="hero-label">' + label + '</div>'
         + '<div class="hero-value">' + escHtml(display) + '</div>'
         + '<div class="hero-sub">Last 30 days</div>'
@@ -670,20 +748,39 @@ export function dashboardPage(): string {
     grid.innerHTML = cards.length ? cards.join('') : '<div class="text-3 text-sm">No metrics yet.</div>';
   }
 
-  function renderSummarySidebar(dashData) {
+  function renderRightWidgets(dashData, kpis) {
     var health = dashData.health || { score: 0, band: 'none' };
     var bandLabel = { excellent: 'Excellent', good: 'Good', attention: 'Needs attention', poor: 'Poor', none: '—' };
-    document.getElementById('sum-health').textContent = Math.round(health.score || 0) + ' · ' + (bandLabel[health.band] || '—');
+    var score = Math.round(health.score || 0);
+    var healthEl = document.getElementById('sum-health');
+    var circleEl = document.getElementById('health-circle');
+    if (healthEl) healthEl.textContent = String(score);
+    if (circleEl) circleEl.style.setProperty('--pct', String(score));
+    var bandEl = document.getElementById('sum-health-band');
+    if (bandEl) bandEl.textContent = bandLabel[health.band] || '—';
     document.getElementById('sum-active').textContent = String((dashData.workspace && dashData.workspace.activeCampaigns) || 0);
     document.getElementById('sum-issues').textContent = String((dashData.issues || []).length);
     document.getElementById('sum-currency').textContent = state.currency;
+    var spendKpi = (kpis || []).find(function (k) { return k.key === 'spend'; });
+    document.getElementById('sum-spend').textContent = spendKpi ? (spendKpi.display || '—') : '—';
+  }
+
+  function campaignIcon(status) {
+    if (status === 'ACTIVE') return '▶';
+    if (status === 'PAUSED') return '⏸';
+    return '📣';
+  }
+  function amountClass(status) {
+    if (status === 'ACTIVE') return 'positive';
+    if (status === 'PAUSED') return 'negative';
+    return 'neutral';
   }
 
   function renderCampaignListSimple(campaigns) {
     var body = document.getElementById('campaign-list-body');
     var meta = document.getElementById('campaign-list-meta');
     if (!campaigns || campaigns.length === 0) {
-      body.innerHTML = '<div class="campaign-row"><span class="text-3 text-sm">No campaigns found.</span></div>';
+      body.innerHTML = '<div class="txn-row"><span class="text-3 text-sm">No campaigns found.</span></div>';
       meta.textContent = '';
       return;
     }
@@ -692,10 +789,15 @@ export function dashboardPage(): string {
       var amt = c.dailyBudget
         ? fmtCurrencyMinor(c.dailyBudget) + '/day'
         : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) : '—');
-      return '<div class="campaign-row">'
-        + '<span class="campaign-name" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</span>'
-        + '<span class="campaign-spend">' + escHtml(amt) + '</span>'
-        + statusBadge(c.status || 'UNKNOWN')
+      var st = (c.status || 'UNKNOWN').toUpperCase();
+      var iconCls = st === 'ACTIVE' ? 'active' : st === 'PAUSED' ? 'paused' : '';
+      return '<div class="txn-row">'
+        + '<div class="txn-icon ' + iconCls + '">' + campaignIcon(st) + '</div>'
+        + '<div class="txn-info">'
+          + '<div class="txn-name" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</div>'
+          + '<div class="txn-meta">' + escHtml(st) + (c.objective ? ' · ' + escHtml(c.objective) : '') + '</div>'
+        + '</div>'
+        + '<div class="txn-amount ' + amountClass(st) + '">' + escHtml(amt) + '</div>'
       + '</div>';
     }).join('');
   }
@@ -1233,8 +1335,15 @@ export function dashboardPage(): string {
       var userName = me.name || me.email || 'User';
       var userInitials = initialsOf(userName);
       var avEl = document.getElementById('user-avatar');     if (avEl) avEl.textContent = userInitials;
+      var topAv = document.getElementById('topbar-avatar');  if (topAv) topAv.textContent = userInitials;
       var nameEl = document.getElementById('user-name');     if (nameEl) nameEl.textContent = userName;
       var emailEl = document.getElementById('user-email');   if (emailEl) emailEl.textContent = me.email || '';
+      var greetEl = document.getElementById('dash-greeting');
+      if (greetEl) {
+        var hr = new Date().getHours();
+        var greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+        greetEl.textContent = greet + ', ' + userName.split(' ')[0];
+      }
 
       // 2) Resolve workspace
       var workspaceId = getWsId();
@@ -1293,10 +1402,14 @@ export function dashboardPage(): string {
       document.getElementById('dash-subtitle').textContent = 'Last 30 days · ' + wsName;
       document.getElementById('chart-panel-meta').textContent = state.currency + ' · 30 days';
 
+      // Sync button — reload dashboard data
+      var syncBtn = document.getElementById('btn-sync');
+      if (syncBtn) syncBtn.addEventListener('click', function () { window.location.reload(); });
+
       // 8) KPIs — prefer dashboard KPIs, else compute from insights
       var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
       renderPrimaryKpis(kpis, dashData.health);
-      renderSummarySidebar(dashData);
+      renderRightWidgets(dashData, kpis);
       renderCampaignListSimple(campaigns);
       renderCompactTips(dashData);
 
@@ -1359,5 +1472,15 @@ export function dashboardPage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'Dashboard', active: 'dashboard', content, scripts, extraHead, mode: 'pro' });
+  return layout({
+    title: 'Dashboard',
+    active: 'dashboard',
+    content,
+    scripts,
+    extraHead,
+    mode: 'pro',
+    theme: 'light',
+    sidebarCompact: true,
+    topbarVariant: 'dashboard',
+  });
 }
