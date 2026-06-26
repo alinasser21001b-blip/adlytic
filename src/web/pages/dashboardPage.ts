@@ -6,7 +6,7 @@
 //
 //  Sections (top → bottom):
 //    1. Financial Health row    — 30d / 7d / Lifetime (90d window) spend
-//    2. AI Motion Ticker        — marquee feeding off brain.cmoFeed + issues
+//    2. AI Motion Ticker        — marquee feeding off brain.cmoFeedV2 + issues
 //    3. Active Ads Showcase     — green-blink grid of currently-spending campaigns
 //    4. Split panel             — AI Brain Box (left) + Spend chart (right)
 //    5. V6 Brain detail         — CMO Feed, Live Pulse, Interventions Ledger
@@ -618,14 +618,13 @@ export function dashboardPage(): string {
   // ── AI Motion Ticker ─────────────────────────────────────────────────────
   function buildTickerItems(dashData) {
     var items = [];
-    // From V6 brain.cmoFeed: Arabic narration is the gold standard
-    var cmoFeed = (dashData.brain && Array.isArray(dashData.brain.cmoFeed)) ? dashData.brain.cmoFeed : [];
-    cmoFeed.slice(0, 6).forEach(function (it) {
-      if (it.narration && it.narration.arabicTitle) {
+    var cmoFeedV2 = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
+    cmoFeedV2.slice(0, 6).forEach(function (it) {
+      if (it.title) {
         items.push({
           layer: 'BRAIN',
-          severity: it.priority === 'CRITICAL' ? 'critical' : it.priority === 'HIGH' ? 'warning' : 'success',
-          text: it.narration.arabicTitle + ' — ' + (it.campaignName || ''),
+          severity: it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'warning' : 'success',
+          text: it.title + ' — ' + (it.campaignName || ''),
         });
       }
     });
@@ -711,11 +710,11 @@ export function dashboardPage(): string {
     }
 
     // 2) Brain narrated decisions → strategy cards
-    var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeed)) ? dashData.brain.cmoFeed : [];
+    var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
     feed.slice(0, 3).forEach(function (it) {
-      var sev = it.priority === 'CRITICAL' ? 'critical' : it.priority === 'HIGH' ? 'high' : 'medium';
-      var title = (it.narration && it.narration.arabicTitle) || it.campaignName || 'AI decision';
-      var body = (it.narration && it.narration.arabicNarration) || ('Action recommended: ' + (it.action || ''));
+      var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
+      var title = it.title || it.campaignName || 'AI decision';
+      var body = !it.generatedAt ? 'AI summary pending…' : (it.body || ('Action recommended: ' + (it.insightType || '')));
       cards.push({ sev: sev, title: title, body: body });
     });
 
@@ -1001,31 +1000,70 @@ export function dashboardPage(): string {
     var feedHost = document.getElementById('brain-cmo-feed');
     var feedSection = document.getElementById('brain-cmo-feed-section');
     var meta = document.getElementById('brain-cmo-feed-meta');
-    var items = (brain.cmoFeed || []);
+    var items = brain.cmoFeedV2 || [];
+    var feedMeta = brain.cmoFeedMeta || {};
+    var windowKey = feedMeta.window || 'today';
+    var windowLabel = windowKey === 'rolling' ? 'most recent' : 'today';
+    var shown = items.length;
+    var total = feedMeta.total != null ? feedMeta.total : shown;
     if (items.length === 0) {
-      feedHost.innerHTML = '<div class="v2-action-empty">No active decisions today.</div>';
+      feedHost.innerHTML = '<div class="v2-action-empty">'
+        + (windowKey === 'rolling' ? 'No recent decisions.' : 'No active decisions today.')
+        + '</div>';
     } else {
-      feedHost.innerHTML = items.map(function (it) {
-        var hasNarration = !!it.narration;
-        var title = hasNarration ? escHtml(it.narration.arabicTitle) : escHtml(it.campaignName);
-        var body = hasNarration
-          ? escHtml(it.narration.arabicNarration)
-          : 'AI summary pending — action recommended: ' + escHtml(it.action);
-        var dir = (it.narration && it.narration.creativeDirective)
-          ? '<div style="margin-top:6px;font-size:12px;color:var(--text-3);"><strong>Creative directive:</strong> ' + escHtml(it.narration.creativeDirective) + '</div>'
+      feedHost.innerHTML = items.map(function (it, idx) {
+        var isPending = !it.generatedAt;
+        var title = escHtml(it.title || it.campaignName || 'AI decision');
+        var bodyInner;
+        var expandBtn = '';
+        if (isPending) {
+          bodyInner = escHtml('AI summary pending…');
+        } else {
+          bodyInner = '<span class="cmo-feed-body-text">' + escHtml(it.body) + '</span>';
+          if (it.bodyFull) {
+            expandBtn = ' <button type="button" class="cmo-feed-expand" data-expanded="0" style="background:none;border:none;padding:0;font-size:13px;color:var(--accent);cursor:pointer;">عرض المزيد</button>';
+          }
+        }
+        var dir = it.creativeDirective
+          ? '<div style="margin-top:6px;font-size:12px;color:var(--text-3);"><strong>Creative directive:</strong> ' + escHtml(it.creativeDirective) + '</div>'
           : '';
-        return '<div class="card" style="padding:14px;">'
+        return '<div class="card" style="padding:14px;" data-key="' + escHtml(it.dedupeKey) + '" data-idx="' + idx + '">'
           + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
-          +   '<span class="badge ' + priorityBadgeClass(it.priority) + '">' + escHtml(it.priority) + '</span>'
-          +   '<span class="text-xs text-3">' + escHtml(it.campaignName) + ' · ' + escHtml(it.tickDate) + '</span>'
+          +   '<span class="badge ' + priorityBadgeClass(it.severity) + '">' + escHtml(it.severity) + '</span>'
+          +   '<span class="text-xs text-3">' + escHtml(it.campaignName) + ' · ' + escHtml(it.date) + '</span>'
           + '</div>'
           + '<div style="font-size:15px;font-weight:600;color:var(--text);">' + title + '</div>'
-          + '<div style="font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5;">' + body + '</div>'
+          + '<div class="cmo-feed-body" style="font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5;">' + bodyInner + expandBtn + '</div>'
           + dir
         + '</div>';
       }).join('');
+      feedHost.onclick = function (e) {
+        var btn = e.target.closest('.cmo-feed-expand');
+        if (!btn) return;
+        var card = btn.closest('[data-key]');
+        if (!card) return;
+        var idx = parseInt(card.getAttribute('data-idx'), 10);
+        var it = items[idx];
+        if (!it || !it.bodyFull) return;
+        var textEl = card.querySelector('.cmo-feed-body-text');
+        if (!textEl) return;
+        var expanded = btn.getAttribute('data-expanded') === '1';
+        if (expanded) {
+          textEl.innerHTML = escHtml(it.body);
+          btn.textContent = 'عرض المزيد';
+          btn.setAttribute('data-expanded', '0');
+        } else {
+          textEl.innerHTML = escHtml(it.bodyFull);
+          btn.textContent = 'عرض أقل';
+          btn.setAttribute('data-expanded', '1');
+        }
+      };
     }
-    meta.textContent = items.length + ' decision' + (items.length === 1 ? '' : 's') + ' for today';
+    if (total > shown) {
+      meta.textContent = 'Showing ' + shown + ' of ' + total + ' decisions · ' + windowLabel;
+    } else {
+      meta.textContent = shown + ' decision' + (shown === 1 ? '' : 's') + ' · ' + windowLabel;
+    }
     feedSection.style.display = 'block';
 
     applyPulse(brain.livePulse);
