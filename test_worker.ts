@@ -106,6 +106,31 @@ const out4 = mapMetaInsight(metaRow4, { currencyMinorFactor: 100 });
 check("ROAS computed: 40/10 = 4x", out4.roas === 4, out4.roas);
 check("purchases 2", out4.purchases === 2, out4.purchases);
 
+// Fixture 6: ROAS factor-invariance — ratio cancels currency scale (C-3 guard)
+const metaRowRoas: MetaInsightRow = {
+  date_start: "2026-06-09",
+  spend: "100.00",
+  impressions: "5000",
+  actions: [{ action_type: "purchase", value: "1" }],
+  action_values: [{ action_type: "purchase", value: "350.00" }],
+};
+const roasFactor1 = mapMetaInsight(metaRowRoas, { currencyMinorFactor: 1 });
+const roasFactor100 = mapMetaInsight(metaRowRoas, { currencyMinorFactor: 100 });
+check("ROAS identical under factor=1 and factor=100", roasFactor1.roas === roasFactor100.roas, { f1: roasFactor1.roas, f100: roasFactor100.roas });
+check("ROAS factor-invariance value is 3.5x", roasFactor1.roas === 3.5, roasFactor1.roas);
+
+// Meta purchase_roas path is also factor-invariant (never scaled)
+const metaRowMetaRoas: MetaInsightRow = {
+  date_start: "2026-06-08",
+  spend: "50.00",
+  impressions: "1000",
+  purchase_roas: [{ action_type: "omni_purchase", value: "2.75" }],
+  action_values: [{ action_type: "purchase", value: "999.00" }],
+};
+const metaRoas1 = mapMetaInsight(metaRowMetaRoas, { currencyMinorFactor: 1 });
+const metaRoas100 = mapMetaInsight(metaRowMetaRoas, { currencyMinorFactor: 100 });
+check("Meta purchase_roas identical under factor=1 and factor=100", metaRoas1.roas === metaRoas100.roas, { f1: metaRoas1.roas, f100: metaRoas100.roas });
+
 // Fixture 5: missing date is an error (Meta would never do this, but verify)
 let threw = false;
 try { mapMetaInsight({ spend: "1.00" } as MetaInsightRow, { currencyMinorFactor: 100 }); }
@@ -135,6 +160,7 @@ const mockPrisma: any = {
     findUniqueOrThrow: async ({ where }: any) => ({
       id: where.id,
       externalAccountId: "act_furniture_test",
+      currency: "IQD",
       currencyMinorFactor: 1, // IQD
       lastSyncedAt: null,
     }),
@@ -161,6 +187,12 @@ const mockPrisma: any = {
     },
   },
   $transaction: async (ops: Promise<any>[]) => Promise.all(ops),
+  $queryRawUnsafe: async (sql: string) => {
+    if (sql.includes("pg_try_advisory_lock")) return [{ pg_try_advisory_lock: true }];
+    if (sql.includes("pg_advisory_unlock")) return [];
+    return [];
+  },
+  $executeRawUnsafe: async () => undefined,
   // Engine tables — if the worker ever touches these, the test must fail loudly
   metricTrend: { create: () => { throw new Error("VIOLATION: worker wrote to metric_trends"); } },
   detectedIssue: { create: () => { throw new Error("VIOLATION: worker wrote to detected_issues"); } },

@@ -26,6 +26,8 @@ type MonetaryStatRow = {
   revenueMinor?: bigint;
 };
 
+type RawInsightRow = { date: Date; rawJson: unknown };
+
 /** Divide all mapper-scaled monetary fields by 100 (sync used factor=100 on IQD). */
 function rescaleMonetaryFields(row: MonetaryStatRow, divisor = OVERSCALE_DIVISOR) {
   const data: {
@@ -48,21 +50,112 @@ function rescaleMonetaryFields(row: MonetaryStatRow, divisor = OVERSCALE_DIVISOR
   return data;
 }
 
+/** Spend magnitude suggests ×100 overscale (heuristic signal 1). */
+function campaignSpendMagnitudeSignal(row: MonetaryStatRow): boolean {
+  return Number(row.spend) >= 10_000;
+}
+
+/** Stored CPM vs rescaled CPM ratio suggests ×100 overscale (heuristic signal 2). */
+function campaignCpmRatioSignal(row: MonetaryStatRow): boolean {
+  const spend = Number(row.spend);
+  const impr = Number(row.impressions ?? 0);
+  const cpmStored = row.cpm;
+  if (cpmStored != null && cpmStored > 200_000) return true;
+  if (impr <= 0) return false;
+  const rescaledCpm = (spend / OVERSCALE_DIVISOR) / impr * 1000;
+  if (cpmStored != null) {
+    return rescaledCpm >= 50 && rescaledCpm <= 500_000 && cpmStored > rescaledCpm * 50;
+  }
+  const storedImpliedCpm = spend / impr * 1000;
+  return storedImpliedCpm > rescaledCpm * 50 && rescaledCpm >= 50 && rescaledCpm <= 500_000;
+}
+
 /**
- * Detect campaign rows synced with factor=100 (no raw_insights backup).
- * spend and cpm were both multiplied by 100 in insightMapper.
+ * Detect campaign rows synced with factor=100 when no raw_insights backup exists.
+ * Both spend-magnitude AND cpm-ratio must agree before dividing (cuts false positives).
  */
 function campaignRowOverscaled(row: MonetaryStatRow): boolean {
   const spend = Number(row.spend);
   if (spend < OVERSCALE_DIVISOR) return false;
-  const impr = Number(row.impressions ?? 0);
-  if (impr <= 0) return row.cpm != null && row.cpm > 200_000;
-  const rescaledCpm = (spend / OVERSCALE_DIVISOR) / impr * 1000;
-  const cpmStored = row.cpm;
-  if (cpmStored == null) return spend >= 10_000;
-  if (cpmStored > 200_000) return true;
-  if (rescaledCpm >= 50 && rescaledCpm <= 500_000 && cpmStored > rescaledCpm * 50) return true;
-  return false;
+  return campaignSpendMagnitudeSignal(row) && campaignCpmRatioSignal(row);
+}
+
+async function rescaleDailyStatFromRawRows(
+  prisma: PrismaClient,
+  entityType: EntityType,
+  entityId: string,
+  raws: RawInsightRow[],
+  factor: number,
+): Promise<{ rowsRescaled: number; rowsVerified: number }> {
+  let rowsRescaled = 0;
+  let rowsVerified = 0;
+
+  for (const raw of raws) {
+    const metaMajor = parseMetaSpend(raw.rawJson);
+    if (metaMajor == null) continue;
+
+    const expectedMinor = Math.round(metaMajor * factor);
+    const stat = await prisma.dailyStat.findFirst({
+      where: { entityType, entityId, date: raw.date },
+      select: {
+        id: true,
+        spend: true,
+        cpc: true,
+        cpm: true,
+        costPerMessage: true,
+        revenueMinor: true,
+      },
+    });
+    if (!stat) continue;
+
+    const stored = Number(stat.spend);
+    const overScaled =
+      metaMajor > 0 &&
+      Math.abs(stored / (metaMajor * OVERSCALE_DIVISOR) - 1) < OVERSCALE_TOLERANCE &&
+      Math.abs(stored - expectedMinor) > 1;
+
+    if (overScaled) {
+      await prisma.dailyStat.update({
+        where: { id: stat.id },
+        data: rescaleMonetaryFields(stat),
+      });
+      rowsRescaled++;
+    } else if (Math.abs(stored - expectedMinor) <= 1) {
+      rowsVerified++;
+    }
+  }
+  return { rowsRescaled, rowsVerified };
+}
+
+async function rescaleCampaignRowsHeuristic(
+  prisma: PrismaClient,
+  campaignId: string,
+): Promise<number> {
+  const stats = await prisma.dailyStat.findMany({
+    where: { entityType: EntityType.CAMPAIGN, entityId: campaignId },
+    select: {
+      id: true,
+      spend: true,
+      impressions: true,
+      cpc: true,
+      cpm: true,
+      costPerMessage: true,
+      revenueMinor: true,
+    },
+  });
+
+  let rowsRescaled = 0;
+  for (const stat of stats) {
+    if (!campaignRowOverscaled(stat)) continue;
+    const beforeSpend = Number(stat.spend);
+    const data = rescaleMonetaryFields(stat);
+    await prisma.dailyStat.update({ where: { id: stat.id }, data });
+    console.info(
+      `[iqd-heal] heuristic campaign rescale campaignId=${campaignId} statId=${stat.id} spend=${beforeSpend}→${Number(data.spend)} cpm=${stat.cpm ?? "null"}→${data.cpm ?? "null"}`,
+    );
+    rowsRescaled++;
+  }
+  return rowsRescaled;
 }
 
 /** Set currencyMinorFactor=1 for all IQD ad accounts that still carry 100. */
@@ -122,57 +215,17 @@ async function rescaleIqdAccountRows(
   prisma: PrismaClient,
   acct: { id: string; currencyMinorFactor: number },
 ): Promise<{ rowsRescaled: number; rowsVerified: number }> {
-  let rowsRescaled = 0;
-  let rowsVerified = 0;
   const factor = resolveCurrencyMinorFactor("IQD", acct.currencyMinorFactor);
   const raws = await prisma.rawInsight.findMany({
     where: { entityType: EntityType.ACCOUNT, entityId: acct.id },
     select: { date: true, rawJson: true },
   });
-  if (!raws.length) return { rowsRescaled, rowsVerified };
-
-  for (const raw of raws) {
-    const metaMajor = parseMetaSpend(raw.rawJson);
-    if (metaMajor == null) continue;
-
-    const expectedMinor = Math.round(metaMajor * factor);
-    const stat = await prisma.dailyStat.findFirst({
-      where: {
-        entityType: EntityType.ACCOUNT,
-        entityId: acct.id,
-        date: raw.date,
-      },
-      select: {
-        id: true,
-        spend: true,
-        cpc: true,
-        cpm: true,
-        costPerMessage: true,
-        revenueMinor: true,
-      },
-    });
-    if (!stat) continue;
-
-    const stored = Number(stat.spend);
-    const overScaled =
-      metaMajor > 0 &&
-      Math.abs(stored / (metaMajor * OVERSCALE_DIVISOR) - 1) < OVERSCALE_TOLERANCE &&
-      Math.abs(stored - expectedMinor) > 1;
-
-    if (overScaled) {
-      await prisma.dailyStat.update({
-        where: { id: stat.id },
-        data: rescaleMonetaryFields(stat),
-      });
-      rowsRescaled++;
-    } else if (Math.abs(stored - expectedMinor) <= 1) {
-      rowsVerified++;
-    }
-  }
-  return { rowsRescaled, rowsVerified };
+  if (!raws.length) return { rowsRescaled: 0, rowsVerified: 0 };
+  return rescaleDailyStatFromRawRows(prisma, EntityType.ACCOUNT, acct.id, raws, factor);
 }
 
 async function rescaleIqdCampaignRows(prisma: PrismaClient, accountId: string): Promise<number> {
+  const factor = resolveCurrencyMinorFactor("IQD", 1);
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId: accountId },
     select: { id: true },
@@ -181,25 +234,21 @@ async function rescaleIqdCampaignRows(prisma: PrismaClient, accountId: string): 
 
   let rowsRescaled = 0;
   for (const camp of campaigns) {
-    const stats = await prisma.dailyStat.findMany({
+    const raws = await prisma.rawInsight.findMany({
       where: { entityType: EntityType.CAMPAIGN, entityId: camp.id },
-      select: {
-        id: true,
-        spend: true,
-        impressions: true,
-        cpc: true,
-        cpm: true,
-        costPerMessage: true,
-        revenueMinor: true,
-      },
+      select: { date: true, rawJson: true },
     });
-    for (const stat of stats) {
-      if (!campaignRowOverscaled(stat)) continue;
-      await prisma.dailyStat.update({
-        where: { id: stat.id },
-        data: rescaleMonetaryFields(stat),
-      });
-      rowsRescaled++;
+    if (raws.length > 0) {
+      const result = await rescaleDailyStatFromRawRows(
+        prisma,
+        EntityType.CAMPAIGN,
+        camp.id,
+        raws,
+        factor,
+      );
+      rowsRescaled += result.rowsRescaled;
+    } else {
+      rowsRescaled += await rescaleCampaignRowsHeuristic(prisma, camp.id);
     }
   }
   return rowsRescaled;

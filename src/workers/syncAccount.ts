@@ -29,6 +29,21 @@ import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { advisoryLockId } from "../lib/advisoryLock";
 
+/** Defense-in-depth (G2): IQD must always map with factor=1 — never 100. */
+function currencyFactorForMapper(
+  currency: string,
+  storedFactor: number,
+  context: string,
+): number {
+  const factor = resolveCurrencyMinorFactor(currency, storedFactor);
+  if (currency === "IQD" && factor !== 1) {
+    throw new Error(
+      `[currency-assert] ${context}: IQD account passed factor=${factor}, expected 1`,
+    );
+  }
+  return factor;
+}
+
 // ── Chunked sync constants ──────────────────────────────────────────────
 /** Days per chunk. 7 keeps each Meta call small enough to dodge rate limits. */
 const CHUNK_SIZE_DAYS = 7;
@@ -269,7 +284,11 @@ export class SyncAccountWorker {
           entityType: EntityType.ACCOUNT,
           entityId: adAccountId,
           insight: mapMetaInsight(r, {
-            currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+            currencyMinorFactor: currencyFactorForMapper(
+              acct.currency,
+              acct.currencyMinorFactor,
+              `${tag} account insights`,
+            ),
           }),
         }));
         await this.dailyRepo.upsertMany(dailyBatch);
@@ -329,7 +348,11 @@ export class SyncAccountWorker {
         if (Number.isFinite(n)) spendMajor += n;
       }
       const spendMinor = BigInt(Math.round(
-        spendMajor * resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+        spendMajor * currencyFactorForMapper(
+          acct.currency,
+          acct.currencyMinorFactor,
+          `${tag} lifetime totals`,
+        ),
       ));
       await this.prisma.adAccount.update({
         where: { id: adAccountId },
@@ -441,7 +464,11 @@ export class SyncAccountWorker {
             entityType: EntityType.CAMPAIGN,
             entityId: camp.id,
             insight: mapMetaInsight(r, {
-              currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+              currencyMinorFactor: currencyFactorForMapper(
+                acct.currency,
+                acct.currencyMinorFactor,
+                `${tag} campaign insights`,
+              ),
             }),
           }));
           await this.dailyRepo.upsertMany(dailyBatch);
@@ -810,7 +837,11 @@ export class SyncAccountWorker {
               // logic simple and the unique-constraint guarantee intact.
               for (const r of rows) {
                 const norm = mapMetaBreakdownInsight(r, dim, {
-                  currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+                  currencyMinorFactor: currencyFactorForMapper(
+                    acct.currency,
+                    acct.currencyMinorFactor,
+                    `${tag} breakdown ${dim}`,
+                  ),
                 });
                 if (!norm) continue;
 
@@ -991,7 +1022,11 @@ export class SyncAccountWorker {
             entityType: EntityType.ACCOUNT,
             entityId: adAccountId,
             insight: mapMetaInsight(r, {
-              currencyMinorFactor: resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor),
+              currencyMinorFactor: currencyFactorForMapper(
+                acct.currency,
+                acct.currencyMinorFactor,
+                `${tag} chunked account insights`,
+              ),
             }),
           }));
           await this.dailyRepo.upsertMany(dailyBatch);

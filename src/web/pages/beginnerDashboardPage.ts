@@ -17,7 +17,7 @@
 //  Number formatting:
 //    • All currency renders as whole units (no decimals) + Arabic currency
 //      word: "٢٬٩٩٢ دولار" (instead of "2,992.41 USD"). See ARABIC_CURRENCY.
-//    • Counts/money use toLocaleString('ar-EG', { useGrouping: true }).
+//    • Counts/money use toLocaleString('ar-EG', { useGrouping: false }) — plain digits.
 //    • Percentages round to whole numbers with useGrouping: false.
 // ════════════════════════════════════════════════════════════════════════
 
@@ -252,8 +252,7 @@ export function beginnerDashboardPage(): string {
   }
 
   var AR_LOCALE = 'ar-EG';
-  var AR_NUM_GROUPED = { useGrouping: true };
-  var AR_NUM_PLAIN   = { useGrouping: false };
+  var AR_NUM_PLAIN = { useGrouping: false };
 
   /** Strip decimals, group with Arabic thousands separators, append currency word. */
   function fmtSimpleMoney(minor, currency, factor) {
@@ -262,14 +261,14 @@ export function beginnerDashboardPage(): string {
     var whole = Math.round(Number(minor) / f);
     // Arabic numerals with Arabic thousands separator (U+066C). The browser's
     // built-in 'ar-EG' locale produces "٢٬٩٩٢" which matches design intent.
-    var nf = whole.toLocaleString(AR_LOCALE, AR_NUM_GROUPED);
+    var nf = whole.toLocaleString(AR_LOCALE, AR_NUM_PLAIN);
     return nf + ' ' + arabicCurrencyWord(currency);
   }
 
   /** Round a count to a whole number and group with Arabic separators. */
   function fmtSimpleCount(n) {
     if (n == null || !isFinite(Number(n))) return '—';
-    return Math.round(Number(n)).toLocaleString(AR_LOCALE, AR_NUM_GROUPED);
+    return Math.round(Number(n)).toLocaleString(AR_LOCALE, AR_NUM_PLAIN);
   }
 
   /** Round a percent (0–100) to a whole number and append %. No grouping. */

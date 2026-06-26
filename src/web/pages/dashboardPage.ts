@@ -26,16 +26,16 @@ import { layout } from '../layout';
 export function dashboardPage(): string {
   const extraHead = `<style>
     /* Premium spend hero cards */
-    .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+    .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 22px; }
     @media (max-width: 800px) { .hero-grid { grid-template-columns: 1fr; } }
     .hero-card {
       position: relative;
       background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 18px 20px;
+      padding: 20px 22px;
       overflow: hidden;
-      transition: border-color var(--transition);
+      transition: border-color var(--transition), box-shadow var(--transition);
     }
     .hero-card::before {
       content: ''; position: absolute; inset: -1px;
@@ -46,12 +46,12 @@ export function dashboardPage(): string {
       -webkit-mask-composite: xor; mask-composite: exclude;
       opacity: 0.55; pointer-events: none;
     }
-    .hero-card:hover { border-color: var(--accent); }
+    .hero-card:hover { border-color: var(--accent); box-shadow: var(--shadow-lg); transform: translateY(-1px); }
     .hero-card.success::before { background: linear-gradient(135deg, rgba(34,197,94,0.4), rgba(34,197,94,0) 60%); }
     .hero-card.warning::before { background: linear-gradient(135deg, rgba(245,158,11,0.4), rgba(245,158,11,0) 60%); }
     .hero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
-    .hero-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -0.8px; margin-top: 6px; line-height: 1.05; }
-    .hero-sub   { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+    .hero-value { font-size: 32px; font-weight: 850; color: var(--text); letter-spacing: -0.9px; margin-top: 8px; line-height: 1.05; }
+    .hero-sub   { font-size: 12px; color: var(--text-2); margin-top: 6px; }
     .hero-delta {
       display: inline-flex; align-items: center; gap: 4px;
       margin-top: 10px;
@@ -192,7 +192,7 @@ export function dashboardPage(): string {
     #stale-banner { display: none; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 
     /* Re-used V2 / V6 sections (only what isn't in SHARED_CSS) */
-    .v2-section { margin-bottom: 22px; }
+    .v2-section { margin-bottom: 26px; }
     .v2-section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
     .v2-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
     .v2-section-meta  { font-size: 12px; color: var(--text-3); }
@@ -247,13 +247,65 @@ export function dashboardPage(): string {
     .v2-advanced summary::after { content: '▾'; color: var(--text-3); transition: transform 0.2s; }
     .v2-advanced[open] summary::after { transform: rotate(180deg); }
     .v2-advanced summary span { color: var(--text-3); font-weight: 500; font-size: 12px; }
-    .v2-advanced-body { padding: 16px 0 0; }
+    .v2-advanced-body { padding: 18px 0 0; }
+
+    /* Loading skeleton (presentational — no data bindings) */
+    .dash-skeleton { width: 100%; padding: 4px 0; }
+    .skeleton-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 800px) { .skeleton-hero-grid { grid-template-columns: 1fr; } }
+    .skeleton-block {
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-hover) 50%, var(--surface-2) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.2s ease-in-out infinite;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+    }
+    .skeleton-hero { height: 112px; }
+    .skeleton-chart { height: 300px; }
+    @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* Keyboard shortcuts help overlay */
+    .dash-shortcuts-help {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.55);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .dash-shortcuts-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 22px 24px;
+      max-width: 360px; width: 100%;
+      box-shadow: var(--shadow-lg);
+    }
+    .dash-shortcuts-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: var(--text); }
+    .dash-shortcuts-panel dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 13px; }
+    .dash-shortcuts-panel dt { font-weight: 700; color: var(--accent-2); font-family: ui-monospace, monospace; }
+    .dash-shortcuts-panel dd { color: var(--text-2); margin: 0; }
+    .dash-shortcuts-hint { margin-top: 14px; font-size: 12px; color: var(--text-3); text-align: center; }
   </style>`;
 
   const content = `
     <div class="loading-overlay" id="loading-state">
-      <div class="spinner"></div>
-      <span class="loading-text">Loading dashboard…</span>
+      <div class="dash-skeleton" aria-hidden="true">
+        <div class="skeleton-hero-grid">
+          <div class="skeleton-block skeleton-hero"></div>
+          <div class="skeleton-block skeleton-hero"></div>
+          <div class="skeleton-block skeleton-hero"></div>
+        </div>
+        <div class="skeleton-block skeleton-chart"></div>
+      </div>
+    </div>
+
+    <div id="dash-shortcuts-help" class="dash-shortcuts-help" role="dialog" aria-label="Keyboard shortcuts">
+      <div class="dash-shortcuts-panel">
+        <h3>Keyboard shortcuts</h3>
+        <dl>
+          <dt>r</dt><dd>Refresh dashboard</dd>
+          <dt>/</dt><dd>Focus search (when available)</dd>
+          <dt>?</dt><dd>Toggle this help</dd>
+        </dl>
+        <div class="dash-shortcuts-hint">Press ? or Esc to close</div>
+      </div>
     </div>
 
     <div id="error-state" style="display:none;">
@@ -477,11 +529,15 @@ export function dashboardPage(): string {
   function fmtCurrencyMinor(minorVal) {
     if (minorVal == null || isNaN(Number(minorVal))) return '—';
     var major = Number(minorVal) / state.minorFactor;
-    return major.toLocaleString('en-US', { minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
+    if (state.minorFactor === 1) major = Math.round(major);
+    return major.toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
   }
   function fmtCurrencyMajor(n) {
     if (n == null || isNaN(n)) return '—';
-    return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
+    if (state.minorFactor === 1) {
+      return Math.round(Number(n)).toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ' + state.currency;
+    }
+    return Number(n).toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
   }
   // Prefer dashboard DTO (authoritative) then workspace adAccounts for currency state.
   function hydrateCurrencyState(dashData, wsData) {
@@ -1007,9 +1063,10 @@ export function dashboardPage(): string {
     var shown = items.length;
     var total = feedMeta.total != null ? feedMeta.total : shown;
     if (items.length === 0) {
-      feedHost.innerHTML = '<div class="v2-action-empty">'
+      feedHost.innerHTML = '<div class="empty-state" style="padding:24px 18px;">'
+        + '<div class="empty-text">'
         + (windowKey === 'rolling' ? 'No recent decisions.' : 'No active decisions today.')
-        + '</div>';
+        + '</div></div>';
     } else {
       feedHost.innerHTML = items.map(function (it, idx) {
         var isPending = !it.generatedAt;
@@ -1164,7 +1221,7 @@ export function dashboardPage(): string {
       if (!workspaceId) {
         document.getElementById('loading-state').style.display = 'none';
         document.getElementById('dashboard-content').style.display = 'block';
-        document.getElementById('kpi-grid').innerHTML = '<div class="empty-state"><div class="empty-title">No workspace found</div><div class="empty-text">Create or join a workspace to see your dashboard.</div></div>';
+        document.getElementById('kpi-grid').innerHTML = '<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">No workspace found</div><div class="empty-text">Create or join a workspace to see your dashboard.</div></div>';
         return;
       }
       state.workspaceId = workspaceId;
@@ -1273,6 +1330,36 @@ export function dashboardPage(): string {
       showError('Failed to load dashboard: ' + (err.message || String(err)));
     }
   }
+
+  function isTypingTarget(el) {
+    if (!el) return false;
+    var tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+  function toggleShortcutsHelp(force) {
+    var el = document.getElementById('dash-shortcuts-help');
+    if (!el) return;
+    if (force === true) el.style.display = 'flex';
+    else if (force === false) el.style.display = 'none';
+    else el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { toggleShortcutsHelp(false); return; }
+    if (isTypingTarget(document.activeElement)) return;
+    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      init();
+    } else if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+      var search = document.getElementById('search-input');
+      if (search) { e.preventDefault(); search.focus(); }
+    } else if ((e.key === '?' || (e.shiftKey && e.key === '/')) && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      toggleShortcutsHelp();
+    }
+  });
+  document.getElementById('dash-shortcuts-help').addEventListener('click', function (e) {
+    if (e.target === this) toggleShortcutsHelp(false);
+  });
 
   document.addEventListener('DOMContentLoaded', init);
 })();

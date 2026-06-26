@@ -559,7 +559,7 @@ function toast(msg, type = 'info') {
 
 function fmt(n, decimals = 0) {
   if (n == null) return '—';
-  return Number(n).toLocaleString(undefined, {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+  return Number(n).toLocaleString(undefined, { useGrouping: false, minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 function fmtPct(n) { if (n == null) return '—'; return Number(n).toFixed(1) + '%'; }
 // factor: minor-unit factor for the currency (100 for USD/EUR/…, 1 for IQD).
@@ -569,8 +569,8 @@ function fmtMoney(n, currency, factor) {
   if (n == null) return '—';
   if (factor == null) factor = currency === 'IQD' ? 1 : 100;
   var major = Number(n) / factor;
-  if (factor === 1) return Math.round(major).toLocaleString() + ' ' + (currency || '');
-  return major.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (currency || '');
+  if (factor === 1) return Math.round(major).toLocaleString(undefined, { useGrouping: false }) + ' ' + (currency || '');
+  return major.toLocaleString(undefined, { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (currency || '');
 }
 
 function deltaClass(dir, goodWhenUp) {

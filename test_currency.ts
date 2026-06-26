@@ -20,6 +20,7 @@ const iqdFactor = currencyMinorFactorFor("IQD");
 const iqdMinor = Math.round(1200 * iqdFactor);
 check("1200 IQD Meta spend stays 1200 minor", iqdMinor === 1200, iqdMinor);
 check("display divides back to 1200", iqdMinor / iqdFactor === 1200);
+check("fractional IQD major rounds to integer minor", Math.round(1200.6 * iqdFactor) === 1201);
 
 console.log("\n── USD spend round-trip ──");
 const usdFactor = currencyMinorFactorFor("USD");
