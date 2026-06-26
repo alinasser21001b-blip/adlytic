@@ -32,6 +32,7 @@ import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { trend as pctTrend } from "../engines/analytics/trend";
+import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 
 // ── Module-level Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
@@ -164,6 +165,9 @@ export interface InterventionsLedger {
 
 export interface BrainSection {
   cmoFeed: BrainCmoFeedItem[];
+  /** Phase 2 deduplicated feed projection (narrationJson-only, truncated). */
+  cmoFeedV2: CmoFeedItemDTO[];
+  cmoFeedMeta: CmoFeedMeta;
   livePulse: LivePulse;
   ledger: InterventionsLedger;
 }
@@ -560,6 +564,183 @@ interface CmoNarration {
   creativeDirective?: string;
 }
 
+const CMO_FEED_PREVIEW_CHARS = 150 as const;
+const CMO_FEED_CREATIVE_DIRECTIVE_MAX = 200;
+
+/** Collapse internal whitespace to a single space; trim edges. */
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/** Preview truncation: word-break when feasible, ellipsis U+2026 when over max. */
+function truncatePreview(text: string, max: number): string {
+  const cleaned = normalizeWhitespace(text);
+  if (cleaned.length <= max) return cleaned;
+  const cutLen = max - 1;
+  const slice = cleaned.slice(0, cutLen);
+  const searchStart = Math.floor(max * 0.6);
+  let breakAt = -1;
+  for (let i = cutLen - 1; i >= searchStart; i--) {
+    if (slice[i] === ' ') {
+      breakAt = i;
+      break;
+    }
+  }
+  const base = breakAt >= 0 ? slice.slice(0, breakAt) : slice;
+  return `${base}\u2026`;
+}
+
+function severityWeight(priority: string): number {
+  if (priority === 'CRITICAL') return 2;
+  if (priority === 'HIGH') return 1;
+  return 0;
+}
+
+function toCmoFeedSeverity(priority: string): CmoFeedSeverity {
+  if (priority === 'CRITICAL' || priority === 'HIGH' || priority === 'NORMAL') {
+    return priority;
+  }
+  return 'NORMAL';
+}
+
+function formatUtcDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+interface BrainSnapshotRow {
+  id: string;
+  campaignId: string;
+  externalCampaignId: string;
+  tickDate: Date;
+  action: string;
+  priority: string;
+  narrationJson: unknown;
+  narrationGeneratedAt: Date | null;
+}
+
+interface CmoFeedCandidate {
+  item: CmoFeedItemDTO;
+  severityW: number;
+  truncated: boolean;
+}
+
+function pickFeedWinner(a: CmoFeedCandidate, b: CmoFeedCandidate): CmoFeedCandidate {
+  if (a.severityW !== b.severityW) return a.severityW > b.severityW ? a : b;
+  const aGen = a.item.generatedAt;
+  const bGen = b.item.generatedAt;
+  if (aGen !== bGen) {
+    if (aGen === null) return b;
+    if (bGen === null) return a;
+    return aGen > bGen ? a : b;
+  }
+  return a.item.id <= b.item.id ? a : b;
+}
+
+function sortFeedCandidates(candidates: CmoFeedCandidate[]): CmoFeedCandidate[] {
+  return [...candidates].sort((a, b) => {
+    if (a.severityW !== b.severityW) return b.severityW - a.severityW;
+    const aGen = a.item.generatedAt;
+    const bGen = b.item.generatedAt;
+    if (aGen !== bGen) {
+      if (aGen === null) return 1;
+      if (bGen === null) return -1;
+      return bGen.localeCompare(aGen);
+    }
+    return a.item.id.localeCompare(b.item.id);
+  });
+}
+
+function mapSnapshotToFeedCandidate(
+  s: BrainSnapshotRow,
+  nameById: Map<string, string>,
+): CmoFeedCandidate {
+  const campaignName = nameById.get(s.campaignId) ?? s.externalCampaignId;
+  const narration = readNarration(s.narrationJson);
+  const date = formatUtcDate(s.tickDate);
+  const insightType = s.action;
+  const dedupeKey = `${s.campaignId}:${insightType}:${date}`;
+
+  const rawTitle = narration?.arabicTitle ?? campaignName;
+  const rawBody = normalizeWhitespace(narration?.arabicNarration ?? '');
+  const title = truncatePreview(rawTitle, CMO_FEED_PREVIEW_CHARS);
+  const body = truncatePreview(rawBody, CMO_FEED_PREVIEW_CHARS);
+
+  const item: CmoFeedItemDTO = {
+    id: s.id,
+    campaignId: s.campaignId,
+    campaignName,
+    insightType,
+    date,
+    title,
+    body,
+    severity: toCmoFeedSeverity(s.priority),
+    dedupeKey,
+    generatedAt: s.narrationGeneratedAt?.toISOString() ?? null,
+  };
+
+  if (rawBody.length > CMO_FEED_PREVIEW_CHARS) {
+    item.bodyFull = rawBody;
+  }
+  if (narration?.creativeDirective) {
+    item.creativeDirective = truncatePreview(
+      narration.creativeDirective,
+      CMO_FEED_CREATIVE_DIRECTIVE_MAX,
+    );
+  }
+
+  const truncated =
+    normalizeWhitespace(rawTitle).length > CMO_FEED_PREVIEW_CHARS ||
+    rawBody.length > CMO_FEED_PREVIEW_CHARS;
+
+  return { item, severityW: severityWeight(s.priority), truncated };
+}
+
+function buildCmoFeedV2(
+  snapshots: BrainSnapshotRow[],
+  tickToday: Date,
+  nameById: Map<string, string>,
+): { items: CmoFeedItemDTO[]; meta: CmoFeedMeta } {
+  let feedSnapshots = snapshots.filter(s => s.tickDate.getTime() === tickToday.getTime());
+  let window: 'today' | 'rolling' = 'today';
+
+  if (feedSnapshots.length === 0) {
+    const maxTick = snapshots.reduce(
+      (max, s) => Math.max(max, s.tickDate.getTime()),
+      0,
+    );
+    feedSnapshots = snapshots.filter(s => s.tickDate.getTime() === maxTick);
+    window = 'rolling';
+  }
+
+  const candidates = feedSnapshots.map(s => mapSnapshotToFeedCandidate(s, nameById));
+
+  const byDedupeKey = new Map<string, CmoFeedCandidate>();
+  for (const c of candidates) {
+    const existing = byDedupeKey.get(c.item.dedupeKey);
+    byDedupeKey.set(c.item.dedupeKey, existing ? pickFeedWinner(existing, c) : c);
+  }
+
+  const byCampaign = new Map<string, CmoFeedCandidate>();
+  for (const c of byDedupeKey.values()) {
+    const existing = byCampaign.get(c.item.campaignId);
+    byCampaign.set(c.item.campaignId, existing ? pickFeedWinner(existing, c) : c);
+  }
+
+  const deduped = Array.from(byCampaign.values());
+  const total = deduped.length;
+  const limited = sortFeedCandidates(deduped).slice(0, BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT);
+
+  return {
+    items: limited.map(c => c.item),
+    meta: {
+      total,
+      window,
+      maxPreviewChars: CMO_FEED_PREVIEW_CHARS,
+      truncated: limited.some(c => c.truncated),
+    },
+  };
+}
+
 /** Defensive read of payload.v2.velocity.burnRate — engine major units. */
 function readBurnRate(payload: unknown): number {
   if (!payload || typeof payload !== 'object') return 0;
@@ -651,6 +832,8 @@ async function buildBrainSection(
       tickDate: s.tickDate.toISOString().slice(0, 10),
     }));
 
+  const { items: cmoFeedV2, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
+
   // ── Live Pulse: aggregate across today's tick. ──
   const todaySnapshots = snapshots.filter(s => s.tickDate.getTime() === tickToday.getTime());
 
@@ -731,7 +914,7 @@ async function buildBrainSection(
       })),
   };
 
-  return { cmoFeed, livePulse, ledger };
+  return { cmoFeed, cmoFeedV2, cmoFeedMeta, livePulse, ledger };
 
   // Helper local to this fn — formats a major-unit number into the account currency.
   // Mirrors the `money()` minor-unit formatter above but for engine major units.
