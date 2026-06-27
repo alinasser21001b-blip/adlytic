@@ -253,7 +253,7 @@ export async function freezeCampaign(
       (r) => String(r["id"]) === campaign.externalCampaignId,
     );
     const startedAt = parseMetaDateTime(metaCamp?.["start_time"]) ?? campaign.createdAt;
-    const endedAt = campaign.endedAt ?? parseMetaDateTime(metaCamp?.["stop_time"]) ?? now;
+    const endedAt = parseMetaDateTime(metaCamp?.["stop_time"]) ?? now;
 
     const finalBrainJson = latestBrain
       ? {

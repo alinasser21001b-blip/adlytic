@@ -44,17 +44,12 @@ check("ROAS never re-scaled in snapshot", usdSnap.finalRoas === iqdSnap.finalRoa
 });
 
 console.log("\n── Freeze trigger detection (H-1) ──");
-const now = new Date("2026-06-26T12:00:00Z");
-const past = new Date("2026-06-20T12:00:00Z");
-const future = new Date("2026-07-01T12:00:00Z");
 
 check(
   "ACTIVE→PAUSED triggers freeze",
   shouldTriggerCampaignFreeze({
     priorStatus: EntityStatus.ACTIVE,
     newStatus: EntityStatus.PAUSED,
-    endedAt: null,
-    now,
   }),
 );
 check(
@@ -62,17 +57,6 @@ check(
   shouldTriggerCampaignFreeze({
     priorStatus: EntityStatus.ACTIVE,
     newStatus: EntityStatus.ARCHIVED,
-    endedAt: null,
-    now,
-  }),
-);
-check(
-  "PAUSED→PAUSED with elapsed endedAt triggers freeze",
-  shouldTriggerCampaignFreeze({
-    priorStatus: EntityStatus.PAUSED,
-    newStatus: EntityStatus.PAUSED,
-    endedAt: past,
-    now,
   }),
 );
 check(
@@ -80,17 +64,20 @@ check(
   !shouldTriggerCampaignFreeze({
     priorStatus: EntityStatus.ACTIVE,
     newStatus: EntityStatus.ACTIVE,
-    endedAt: future,
-    now,
   }),
 );
 check(
-  "terminal but future endedAt — no date-elapsed freeze",
+  "PAUSED stays PAUSED — no freeze (Q1: date-elapsed deferred)",
   !shouldTriggerCampaignFreeze({
     priorStatus: EntityStatus.PAUSED,
     newStatus: EntityStatus.PAUSED,
-    endedAt: future,
-    now,
+  }),
+);
+check(
+  "terminal without prior ACTIVE — no freeze",
+  !shouldTriggerCampaignFreeze({
+    priorStatus: EntityStatus.PAUSED,
+    newStatus: EntityStatus.ARCHIVED,
   }),
 );
 
@@ -106,6 +93,7 @@ check(
 );
 
 console.log("\n── History trait / lesson derivation ──");
+const past = new Date("2026-06-20T12:00:00Z");
 const topRow = {
   id: "1",
   campaignId: "c1",

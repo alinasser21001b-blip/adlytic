@@ -93,21 +93,13 @@ function isTerminalStatus(status: EntityStatus): boolean {
 
 /**
  * Final-freeze trigger (H-1): branch inside sync write only.
- * Fires on ACTIVE→terminal transition OR when endedAt has elapsed on a terminal campaign.
+ * Fires on ACTIVE→terminal status transition (Q1: date-elapsed is deferred).
  */
 export function shouldTriggerCampaignFreeze(args: {
   priorStatus: EntityStatus | null;
   newStatus: EntityStatus;
-  endedAt: Date | null;
-  now: Date;
 }): boolean {
-  const statusTransition =
-    args.priorStatus === EntityStatus.ACTIVE && isTerminalStatus(args.newStatus);
-  const endDateElapsed =
-    args.endedAt != null &&
-    args.endedAt.getTime() <= args.now.getTime() &&
-    isTerminalStatus(args.newStatus);
-  return statusTransition || endDateElapsed;
+  return args.priorStatus === EntityStatus.ACTIVE && isTerminalStatus(args.newStatus);
 }
 
 export interface SyncResult {
@@ -435,7 +427,7 @@ export class SyncAccountWorker {
 
     const existingCampaigns = await this.prisma.campaign.findMany({
       where: { adAccountId },
-      select: { id: true, externalCampaignId: true, status: true, endedAt: true },
+      select: { id: true, externalCampaignId: true, status: true },
     });
     const priorByExternal = new Map(
       existingCampaigns.map((c) => [c.externalCampaignId, c]),
@@ -450,7 +442,6 @@ export class SyncAccountWorker {
         const name = String(mc['name'] ?? '(unnamed)');
         const objective = mc['objective'] != null ? String(mc['objective']) : null;
         const status = mapMetaCampaignStatus(mc['status']);
-        const endedAt = parseMetaDateTime(mc['stop_time']);
         const dailyBudget = mc['daily_budget'] != null
           ? BigInt(String(mc['daily_budget']))
           : null;
@@ -462,8 +453,6 @@ export class SyncAccountWorker {
         if (shouldTriggerCampaignFreeze({
           priorStatus: prior?.status ?? null,
           newStatus: status,
-          endedAt,
-          now,
         })) {
           freezeCandidateIds.push(externalId);
         }
@@ -478,7 +467,6 @@ export class SyncAccountWorker {
             status,
             dailyBudget,
             lifetimeBudget,
-            endedAt,
           },
           update: {
             name,
@@ -486,7 +474,6 @@ export class SyncAccountWorker {
             status,
             dailyBudget,
             lifetimeBudget,
-            endedAt,
           },
         });
       })

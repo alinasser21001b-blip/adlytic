@@ -187,8 +187,6 @@ model Campaign {
   status             EntityStatus @default(ACTIVE)
   dailyBudget        BigInt?      @map("daily_budget")
   lifetimeBudget     BigInt?      @map("lifetime_budget")
-  /// Meta stop_time / end schedule — persisted for date-elapsed freeze triggers.
-  endedAt            DateTime?    @map("ended_at")
   createdAt          DateTime     @default(now()) @map("created_at")
   updatedAt          DateTime     @updatedAt @map("updated_at")
   adSets             AdSet[]
@@ -858,4 +856,41 @@ model CampaignHistorySnapshot {
   @@index([workspaceId, endedAt])
   @@index([workspaceId, objective, finalRoas])
   @@map("campaign_history_snapshots")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Historical Data — materialized account-wide rollup (low-frequency refresh)
+//
+//  One row per (workspaceId, objective, windowKey). Upserted by background job;
+//  never computed on user/AI request paths (H-10).
+// ════════════════════════════════════════════════════════════════════════
+enum CampaignHistoryWindowKey {
+  ALL_TIME
+  LAST_90D
+  LAST_30D
+}
+
+model CampaignHistoryRollup {
+  id                  String                   @id @default(cuid())
+  workspaceId         String                   @map("workspace_id")
+  objective           String?                  // null = all-objectives aggregate
+  windowKey           CampaignHistoryWindowKey @map("window_key")
+
+  campaignCount       Int                      @map("campaign_count")
+  avgRoas             Float?                   @map("avg_roas")
+  weightedRoas        Float?                   @map("weighted_roas")
+  avgCostPerMsgMinor  BigInt?                  @map("avg_cost_per_msg_minor")
+  totalSpendMinor     BigInt                   @map("total_spend_minor")
+  totalRevenueMinor   BigInt                   @map("total_revenue_minor")
+  totalMessages       BigInt                   @map("total_messages")
+  totalPurchases      BigInt                   @map("total_purchases")
+
+  currency            String?
+  currencyMinorFactor Int?                     @map("currency_minor_factor")
+
+  computedAt          DateTime                 @default(now()) @map("computed_at")
+
+  @@unique([workspaceId, objective, windowKey])
+  @@index([workspaceId, windowKey])
+  @@map("campaign_history_rollups")
 }
