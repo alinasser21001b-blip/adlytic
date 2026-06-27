@@ -12,6 +12,7 @@ import {
   type CampaignHistoryRollupRow,
   type HistoryWindowKey,
 } from "../types/campaignHistory";
+import { windowCutoff } from "../workers/rollupHistory";
 
 export interface HistorySnapshotRow {
   id: string;
@@ -198,10 +199,10 @@ export async function getRecentFailures(
   workspaceId: string,
   objective: string,
   limit: number,
-  days = 90,
   now: Date = new Date(),
 ): Promise<RecentFailureEntry[]> {
-  const endedAtGte = new Date(now.getTime() - days * 86400_000);
+  const endedAtGte = windowCutoff("LAST_90D", now);
+  if (endedAtGte == null) return [];
 
   const rows = await prisma.campaignHistorySnapshot.findMany({
     where: {
@@ -209,6 +210,8 @@ export async function getRecentFailures(
       objective,
       endedAt: { gte: endedAtGte },
     },
+    orderBy: { finalRoas: "asc" },
+    take: Math.max(limit * 5, 10),
     select: {
       name: true,
       finalRoas: true,
@@ -244,7 +247,24 @@ export async function getRecentFailures(
 }
 
 /**
+ * Rollup-gated fetch plan — pure helper for tests (H-4/H-10).
+ * topPerformers ↔ ALL_TIME rollup; recentFailures ↔ LAST_90D rollup (Q4).
+ */
+export function historyFetchPlanFromRollups(
+  allTimeRollup: CampaignHistoryRollupRow | null,
+  last90dRollup: CampaignHistoryRollupRow | null,
+): { fetchTopPerformers: boolean; fetchRecentFailures: boolean } | undefined {
+  const fetchTopPerformers =
+    allTimeRollup != null && allTimeRollup.campaignCount > 0;
+  const fetchRecentFailures =
+    last90dRollup != null && last90dRollup.campaignCount > 0;
+  if (!fetchTopPerformers && !fetchRecentFailures) return undefined;
+  return { fetchTopPerformers, fetchRecentFailures };
+}
+
+/**
  * Assemble the closed-set history block for Claude CMO narration.
+ * Gates on pre-aggregated rollup rows (H-10); snapshot reads are indexed top-N only.
  */
 export async function buildCmoHistoricalContext(
   prisma: PrismaClient,
@@ -254,9 +274,23 @@ export async function buildCmoHistoricalContext(
 ): Promise<CmoHistoricalContext | undefined> {
   if (!objective) return undefined;
 
+  const now = opts?.now ?? new Date();
+
+  const [allTimeRollup, last90dRollup] = await Promise.all([
+    getHistoryRollup(prisma, workspaceId, objective, "ALL_TIME"),
+    getHistoryRollup(prisma, workspaceId, objective, "LAST_90D"),
+  ]);
+
+  const plan = historyFetchPlanFromRollups(allTimeRollup, last90dRollup);
+  if (plan == null) return undefined;
+
   const [topPerformers, recentFailures] = await Promise.all([
-    getTopPerformers(prisma, workspaceId, objective, 3),
-    getRecentFailures(prisma, workspaceId, objective, 2, 90, opts?.now),
+    plan.fetchTopPerformers
+      ? getTopPerformers(prisma, workspaceId, objective, 3)
+      : Promise.resolve([]),
+    plan.fetchRecentFailures
+      ? getRecentFailures(prisma, workspaceId, objective, 2, now)
+      : Promise.resolve([]),
   ]);
 
   if (topPerformers.length === 0 && recentFailures.length === 0) {

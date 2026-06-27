@@ -8,7 +8,7 @@ import {
   costPerMessageFromTotals,
 } from "./src/lib/campaignFreeze";
 import { shouldTriggerCampaignFreeze } from "./src/workers/syncAccount";
-import { deriveKeyTrait, deriveLessonArabic } from "./src/services/getCampaignHistory";
+import { deriveKeyTrait, deriveLessonArabic, historyFetchPlanFromRollups } from "./src/services/getCampaignHistory";
 import {
   aggregateSnapshots,
   buildCohortObjectives,
@@ -17,7 +17,7 @@ import {
   windowCutoff,
   type SnapshotForRollup,
 } from "./src/workers/rollupHistory";
-import { HISTORY_OBJECTIVE_ALL } from "./src/types/campaignHistory";
+import { HISTORY_OBJECTIVE_ALL, type CampaignHistoryRollupRow } from "./src/types/campaignHistory";
 import { EntityStatus } from "@prisma/client";
 import { buildPayload, generateMerchantNarration } from "./src/services/ClaudeCMO";
 import type { BrainTickResult } from "./src/engine/AdlyticBrain";
@@ -212,6 +212,44 @@ check(
   "cohorts include distinct objectives + __ALL__",
   cohorts.includes("MESSAGES") && cohorts.includes("REACH") && cohorts.includes(HISTORY_OBJECTIVE_ALL),
   cohorts,
+);
+
+console.log("\n── Rollup-gated history fetch plan (H-4/H-10, Q4) ──");
+const rollupBase: CampaignHistoryRollupRow = {
+  workspaceId: "ws1",
+  objective: "MESSAGES",
+  windowKey: "ALL_TIME",
+  campaignCount: 0,
+  avgRoas: null,
+  weightedRoas: null,
+  avgCostPerMsgMinor: null,
+  totalSpendMinor: 0n,
+  totalRevenueMinor: 0n,
+  totalMessages: 0n,
+  totalPurchases: 0n,
+  currency: null,
+  currencyMinorFactor: null,
+  computedAt: now,
+};
+check(
+  "no rollups → undefined plan",
+  historyFetchPlanFromRollups(null, null) === undefined,
+);
+check(
+  "ALL_TIME only → topPerformers",
+  historyFetchPlanFromRollups({ ...rollupBase, campaignCount: 3 }, null)?.fetchTopPerformers === true,
+);
+check(
+  "LAST_90D only → recentFailures",
+  historyFetchPlanFromRollups(null, {
+    ...rollupBase,
+    windowKey: "LAST_90D",
+    campaignCount: 2,
+  })?.fetchRecentFailures === true,
+);
+check(
+  "zero campaignCount rollups → undefined",
+  historyFetchPlanFromRollups(rollupBase, { ...rollupBase, windowKey: "LAST_90D" }) === undefined,
 );
 
 console.log("\n── CmoPayload byte-identical without history (H-5) ──");
