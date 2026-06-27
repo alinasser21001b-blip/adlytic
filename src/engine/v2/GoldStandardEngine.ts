@@ -25,7 +25,7 @@ export function evaluateGoldStandard(
     return {
       dnaMatchPercentage: 0,
       verdict: 'POOR_MATCH',
-      deviations: ['بيانات المعيار الذهبي غير مكتملة أو صفرية.'],
+      deviations: ['بيانات المعيار المرجعي غير مكتملة.'],
     };
   }
 
@@ -33,21 +33,21 @@ export function evaluateGoldStandard(
   const cpaDelta = ((current.costPerMessage - gold.bestHistoricalCostPerMessage) / gold.bestHistoricalCostPerMessage) * 100;
   const cpaScore = cpaDelta <= 0 ? 100 : Math.max(0, 100 - cpaDelta);
   if (cpaDelta > GOLD_CONFIG.DEVIATION_TOLERANCE_PERCENT) {
-    deviations.push(`تكلفة الرسالة أعلى بـ ${Math.round(cpaDelta)}% من أفضل حملاتنا.`);
+    deviations.push(`تكلفة الرسالة أعلى بـ ${Math.round(cpaDelta)}% من أفضل حملاتك السابقة.`);
   }
 
   // 2. CTR Score (أعلى = أفضل، فالمعادلة معكوسة)
   const ctrDelta = ((gold.bestHistoricalCtr - current.ctr) / gold.bestHistoricalCtr) * 100;
   const ctrScore = ctrDelta <= 0 ? 100 : Math.max(0, 100 - ctrDelta);
   if (ctrDelta > GOLD_CONFIG.DEVIATION_TOLERANCE_PERCENT) {
-    deviations.push(`نسبة النقر (CTR) أقل بـ ${Math.round(ctrDelta)}% من المعيار الذهبي.`);
+    deviations.push(`نسبة النقر (CTR) أقل بـ ${Math.round(ctrDelta)}% من المعيار المرجعي.`);
   }
 
   // 3. CPM Score (أقل = أفضل)
   const cpmDelta = ((current.cpm - gold.bestHistoricalCpm) / gold.bestHistoricalCpm) * 100;
   const cpmScore = cpmDelta <= 0 ? 100 : Math.max(0, 100 - cpmDelta);
   if (cpmDelta > GOLD_CONFIG.DEVIATION_TOLERANCE_PERCENT) {
-    deviations.push(`تكلفة الألف ظهور (CPM) أعلى بـ ${Math.round(cpmDelta)}% من أفضل حملاتنا.`);
+    deviations.push(`تكلفة الألف ظهور (CPM) أعلى بـ ${Math.round(cpmDelta)}% من أفضل حملاتك السابقة.`);
   }
 
   // Weighted blend — weights sum to 100 by contract (50 + 30 + 20)
@@ -66,7 +66,7 @@ export function evaluateGoldStandard(
   }
 
   if (deviations.length === 0) {
-    deviations.push('تتطابق بشكل مثالي مع الحمض النووي للنجاح.');
+    deviations.push('الأداء متوافق مع أفضل حملاتك السابقة.');
   }
 
   return { dnaMatchPercentage, verdict, deviations };

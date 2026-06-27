@@ -86,7 +86,7 @@ function deriveLessonArabic(row: HistorySnapshotRow): string {
     return "توقفت الحملة لأن الإنفاق لم يُترجم إلى رسائل كافية — راجع الإبداع والاستهداف";
   }
   if (brain?.patternSignature === "DYING_CREATIVE") {
-    return "الإبداع فقد جاذبيته — جرّب صوراً أو نصوصاً جديدة قبل إعادة التشغيل";
+    return "الإبداع لم يعد يجذب الجمهور — جرّب صوراً أو نصوصاً جديدة قبل إعادة التشغيل";
   }
   if (row.finalRoas != null && row.finalRoas < 1) {
     return "عائد الإعلان كان ضعيفاً — قلّل الإنفاق أو حسّن عرض المنتج قبل التكرار";

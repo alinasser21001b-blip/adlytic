@@ -167,6 +167,13 @@ export function campaignsPage(): string {
       color: var(--text-3);
       font-size: 28px;
     }
+    /* Blur financial KPIs + audience metrics in campaign inspector */
+    .inspector-kpi-value,
+    .inspector-signal-metric,
+    .inspector-audience-metric {
+      filter: blur(6px);
+      user-select: none;
+    }
   </style>
 
   <!-- Campaign Inspector Modal — populated on-demand from
@@ -510,9 +517,9 @@ export function campaignsPage(): string {
     var current = s.key === 'ctr' ? fmtNum(s.current, 2) + '%' : fmtNum(s.current, 2);
     var prior   = s.key === 'ctr' ? fmtNum(s.prior,   2) + '%' : fmtNum(s.prior,   2);
     return '<li style="margin:6px 0;color:var(--text-2);direction:rtl;text-align:right;">'
-      +    '<span style="color:' + color + ';font-weight:700;">' + arrow + ' ' + fmtPct(s.deltaPct) + '</span>'
+      +    '<span style="color:' + color + ';font-weight:700;" class="inspector-signal-metric">' + arrow + ' ' + fmtPct(s.deltaPct) + '</span>'
       +    ' <span style="color:var(--text);">' + escHtml(label) + '</span>'
-      +    ' <span style="color:var(--text-3);font-size:12px;">(الآن ' + escHtml(current) + ' · سابقاً ' + escHtml(prior) + ')</span>'
+      +    ' <span style="color:var(--text-3);font-size:12px;" class="inspector-signal-metric">(الآن ' + escHtml(current) + ' · سابقاً ' + escHtml(prior) + ')</span>'
       +    '</li>';
   }
 
@@ -555,13 +562,13 @@ export function campaignsPage(): string {
     var kpiHtml =
       '<div class="kpi-grid" style="grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:20px;direction:rtl;text-align:right;">'
     +   '<div class="kpi-card"><div class="kpi-label">الإنفاق</div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
+    +     '<div class="kpi-value inspector-kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">الميزانية</div>'
-    +     '<div class="kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
+    +     '<div class="kpi-value inspector-kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">إجمالي الرسائل</div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + '</div></div>'
+    +     '<div class="kpi-value inspector-kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">تكلفة الرسالة</div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCostPerMessage != null ? fmtMinor(s.avgCostPerMessage * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
+    +     '<div class="kpi-value inspector-kpi-value" style="font-size:18px;">' + escHtml(s.avgCostPerMessage != null ? fmtMinor(s.avgCostPerMessage * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
     + '</div>';
 
     // ── Signals block ──────────────────────────────────────────────────────
@@ -601,10 +608,10 @@ export function campaignsPage(): string {
         var bodyHtml;
         if (hasArabic) {
           var titleHtml = narration.arabicTitle
-            ? '<div style="font-weight:700;color:var(--text);margin-bottom:6px;">' + escHtml(narration.arabicTitle) + '</div>'
+            ? '<div style="font-weight:700;color:var(--text);margin-bottom:6px;" class="inspector-kpi-value">' + escHtml(narration.arabicTitle) + '</div>'
             : '';
           var narrHtml  = narration.arabicNarration
-            ? '<div style="color:var(--text-2);font-size:13px;line-height:1.7;">' + escHtml(narration.arabicNarration) + '</div>'
+            ? '<div style="color:var(--text-2);font-size:13px;line-height:1.7;" class="inspector-kpi-value">' + escHtml(narration.arabicNarration) + '</div>'
             : '';
           bodyHtml = titleHtml + narrHtml;
         } else {
@@ -826,7 +833,7 @@ export function campaignsPage(): string {
           + '<div style="margin:10px 0;direction:rtl;text-align:right;' + rowBg + '">'
           +   '<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text);margin-bottom:4px;gap:8px;flex-wrap:wrap;">'
           +     '<span style="font-weight:600;">' + escHtml(labelAr) + winnerBadge + '</span>'
-          +     '<span style="color:var(--text-3);font-size:12px;">'
+          +     '<span style="color:var(--text-3);font-size:12px;" class="inspector-audience-metric">'
           +       'الرسائل: <span style="color:var(--text-2);">' + escHtml(msgText) + '</span>'
           +       ' · تكلفة الرسالة: <span style="color:var(--text-2);">' + escHtml(cpm) + '</span>'
           +       ' · نسبة النقر: <span style="color:var(--text-2);">' + escHtml(ctrText) + '</span>'
@@ -834,7 +841,7 @@ export function campaignsPage(): string {
           +   '</div>'
           +   '<div style="background:var(--surface-2, rgba(255,255,255,0.04));border-radius:6px;height:18px;overflow:hidden;position:relative;">'
           +     '<div style="background:' + barFill + ';height:100%;width:' + widthPct + '%;border-radius:6px;"></div>'
-          +     '<div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--text);font-weight:600;">'
+          +     '<div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--text);font-weight:600;" class="inspector-audience-metric">'
           +       escHtml(spendText)
           +     '</div>'
           +   '</div>'

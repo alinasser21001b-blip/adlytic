@@ -183,21 +183,21 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
 }
 
 function buildEmergencyNarration(b: BrainTickResult): CmoNarration {
-  const burnRate = b.v2?.velocity.burnRate ?? 0;
+  const spendRate = b.v2?.velocity.burnRate ?? 0;
   const overridden = b.decision.overriddenAction
-    ? ` تجاوزنا التوصية الأولية (${b.decision.overriddenAction}) بسبب خطورة النزيف.`
+    ? ` تجاوزنا التوصية الأولية (${b.decision.overriddenAction}) لأن الإنفاق كان مرتفعاً دون نتائج كافية.`
     : '';
 
   const narration =
-    `🚨 إيقاف طوارئ فوري لحملة "${b.campaignName}". ` +
-    `رصدنا نزيفاً مالياً لحظياً بمعدل حرق ${burnRate} لكل ساعة دون نتائج كافية تبرر هذا الإنفاق.` +
+    `إيقاف فوري لحملة «${b.campaignName}». ` +
+    `رصدنا استهلاكاً سريعاً للميزانية بمعدل ${spendRate} في الساعة دون رسائل كافية تبرّر هذا الإنفاق.` +
     overridden +
-    ` لقد أوقفنا الحملة لحماية رأس مالك قبل أن يتفاقم الضرر. ` +
-    `يرجى مراجعة الإبداع البصري والاستهداف قبل إعادة التشغيل.`;
+    ` أوقفنا الحملة لحماية ميزانيتك. ` +
+    `راجع الإبداع والاستهداف قبل إعادة التشغيل.`;
 
   const result: CmoNarration = {
     campaignId: b.campaignId,
-    arabicTitle: '🚨 إيقاف طوارئ — نزيف لحظي',
+    arabicTitle: 'إيقاف فوري — إنفاق مرتفع',
     arabicNarration: narration,
   };
 
@@ -209,8 +209,27 @@ function buildEmergencyNarration(b: BrainTickResult): CmoNarration {
 }
 
 const SYSTEM_PROMPT = `
-You are an elite Arabic Chief Marketing Officer (CMO) speaking directly to a business owner (merchant).
-Your single job: translate the structured JSON decision below into a clear, professional Arabic report.
+You are an Arabic marketing advisor speaking directly to an e-commerce merchant
+(صاحب متجر إلكتروني). Your single job: translate the structured JSON decision
+below into a clear, professional Arabic report.
+
+═══════════════════════════════════════════════════════════════
+ARABIC TONE OF VOICE (mandatory — applies to every output field)
+═══════════════════════════════════════════════════════════════
+- Tone: professional, encouraging, and commercially familiar to Arab merchants.
+  Write as a trusted consultant who respects the merchant's business, not as
+  alarmist tech jargon.
+- Vocabulary: use simple, direct Arabic business terms. NEVER translate English
+  idioms literally. Forbidden examples and their replacements:
+    • "نزيف الميزانية" / "نزيف مالي" → "استهلاك غير فعال للميزانية"
+    • "حرق المال" / "حرق الميزانية" → "إنفاق مرتفع دون نتائج"
+    • "DNA" / "حمض نووي" / "حمض تسويقي" → "معيار أداء مرجعي" / "أفضل حملاتك السابقة"
+    • "bleeding" / "hemorrhage" → "ارتفاع غير مبرر في التكلفة"
+    • "beast" / "legendary" → "أداء ممتاز" / "حملة ناجحة"
+    • "إعدام الحملة" → "إيقاف الحملة" / "مراجعة الأداء"
+- Clarity: avoid dramatic, medical, or overly technical jargon. Prefer terms
+  merchants already use daily: ميزانية، رسائل، نقرات، إنفاق، حملة، إبداع، استهداف.
+- Numbers stay bare (no currency symbols). Percent deltas come from deltas.* only.
 
 ═══════════════════════════════════════════════════════════════
 ABSOLUTE RULES (violating any of these = system failure)
@@ -240,12 +259,12 @@ ABSOLUTE RULES (violating any of these = system failure)
 ═══════════════════════════════════════════════════════════════
 TONE MATRIX (driven by decision.action)
 ═══════════════════════════════════════════════════════════════
-- SCALE_BUDGET     → احتفالي + يحفّز على مضاعفة الميزانية وإنتاج variations
-- RESCUE_WATCH     → متفائل حذر، نطلب الصبر بضع أيام قبل أي قرار إعدام
-- REFRESH_CREATIVE → بنّاء + يقترح تجديد الإبداع (انسج التوجيه من v2.resonance.directive إن وُجد)
-- PAUSE_CAMPAIGN   → حازم لكن متعاطف، نوضح أن المال يحترق دون نتائج
-- KEEP_COLLECTING  → صبور ومطمئن، الحملة لم تنضج بعد إحصائياً
-- HOLD_AND_MONITOR → هادئ تقليدي، الأداء طبيعي ولا تدخل مطلوب
+- SCALE_BUDGET     → إيجابي، يحفّز على زيادة الميزانية تدريجياً وتجربة إبداعات جديدة
+- RESCUE_WATCH     → متفائل بحذر، نطلب الصبر بضع أيام قبل أي قرار إيقاف
+- REFRESH_CREATIVE → بنّاء، يقترح تجديد الإبداع (انسج التوجيه من v2.resonance.directive إن وُجد)
+- PAUSE_CAMPAIGN   → حازم لكن متعاطف، نوضح أن الإنفاق مرتفع دون نتائج كافية
+- KEEP_COLLECTING  → صبور ومطمئن، الحملة لم تجمع بيانات كافية بعد
+- HOLD_AND_MONITOR → هادئ، الأداء ضمن المعدل الطبيعي ولا تدخل مطلوب
 
 ═══════════════════════════════════════════════════════════════
 COLD-START MODE (applies when payload.coldStart === true)
@@ -263,14 +282,15 @@ zero/missing or the confidence layer is still collecting data. In this mode:
              system is gathering enough impressions to issue trustworthy
              recommendations, and the current absolute readings so far.
 - Tone: مطمئن، صبور، شفّاف. لا توصِ بتغييرات جذرية في هذه المرحلة.
+- arabicTitle example: "حملة جديدة: جاري جمع البيانات"
 
 ═══════════════════════════════════════════════════════════════
 V2 CONTEXTUAL RULES (apply only if v2 exists)
 ═══════════════════════════════════════════════════════════════
 - v2.marketPressure.isAuctionBleeding === true:
-    ليّن أي إنذار سلبي بإضافة جملة مثل "السوق ككل يمر بضغط مزاد مرتفع اليوم، وهذا يفسر جزءاً من الأرقام."
+    ليّن أي تنبيه سلبي بجملة مثل: "تكلفة الظهور في السوق مرتفعة اليوم، وهذا يؤثر جزئياً على الأرقام."
 - v2.dna.verdict === 'LEGENDARY_DNA' (matchPercent ≥ 85):
-    استشهد بالنسبة كنقطة فخر، مثلاً: "حملتك تتطابق بنسبة <matchPercent>% مع حمضك التسويقي الذهبي."
+    استشهد بالنسبة بإيجابية، مثلاً: "حملتك تتوافق بنسبة <matchPercent>% مع أفضل حملاتك السابقة."
 - v2.dna.deviations.length > 0:
     انسج أهم انحراف واحد أو اثنين داخل السرد بلباقة (لا تُسرد قائمة جافة).
 - v2.resonance.directive موجود:
@@ -333,10 +353,10 @@ function parseLlmNarrationOutput(raw: unknown): LlmNarrationOutput {
 function buildFallbackNarration(b: BrainTickResult): CmoNarration {
   const fallback: CmoNarration = {
     campaignId: b.campaignId,
-    arabicTitle: 'إشعار استراتيجي آلي',
+    arabicTitle: 'تحديث أداء الحملة',
     arabicNarration:
-      `قام النظام الآلي باتخاذ إجراء (${b.decision.action}) استناداً إلى أداء المزاد ومؤشرات الثقة الحالية. ` +
-      'يرجى مراجعة تفاصيل الحملة في لوحة التحكم.',
+      `النظام أوصى بإجراء (${b.decision.action}) بناءً على أداء الحملة ومؤشرات الثقة الحالية. ` +
+      'راجع تفاصيل الحملة في لوحة التحكم.',
   };
 
   if (b.v2?.resonance.creativeDirective) {

@@ -114,7 +114,7 @@ export function runBrainForCampaign(
         campaignId: decision.campaignId,
         action: 'EMERGENCY_PAUSE',
         priority: 'CRITICAL',
-        reason: `[تجاوز طوارئ — نزيف لحظي]: ${decision.reason} | سرعة الحرق: ${velocity.burnRate}/ساعة.`,
+        reason: `[تجاوز طوارئ — إنفاق مرتفع]: ${decision.reason} | معدل الإنفاق: ${velocity.burnRate}/ساعة.`,
         overriddenAction: decision.action,
       };
     }

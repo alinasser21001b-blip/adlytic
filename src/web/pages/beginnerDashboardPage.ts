@@ -175,6 +175,11 @@ export function beginnerDashboardPage(): string {
     }
 
     .bgn-loading { text-align: center; padding: 80px 24px; color: var(--text-3); font-size: 14px; }
+
+    /* Blur sensitive metric values (see layout .data-blur) */
+    .bgn-metric-value, .bgn-mini-value, .bgn-bar-value, .bgn-action-text {
+      filter: blur(6px); user-select: none;
+    }
   </style>`;
 
   const content = `

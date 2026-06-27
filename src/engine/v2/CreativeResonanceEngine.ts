@@ -46,15 +46,15 @@ export function evaluateCreativeResonance(
   if (score >= RESONANCE_CONFIG.THRESHOLDS.PERFECT_ALIGNMENT) {
     directive =
       `${audienceSummary} الإعلان الحالي متوافق بصرياً بشكل ممتاز. ` +
-      `التوجيه: ضاعف الميزانية واطلب من التاجر إنتاج نسخ مشابهة (Variations) بنفس الطابع.`;
+      `التوجيه: زِد الميزانية تدريجياً واطلب من التاجر إنتاج نسخ مشابهة بنفس الطابع.`;
   } else if (score < RESONANCE_CONFIG.THRESHOLDS.MISALIGNED) {
     directive =
-      `${audienceSummary} **تحذير عدم توافق:** رصدنا (${mismatchReasons.join(' و ')}). ` +
-      `التوجيه: اطلب من التاجر إيقاف هدر المال على هذا التنسيق، وتصميم محتوى مخصص يتناسب مع طبيعة المنصة الناجحة.`;
+      `${audienceSummary} ملاحظة: رصدنا (${mismatchReasons.join(' و ')}). ` +
+      `التوجيه: أوقف الإنفاق على هذا التنسيق، وصمّم محتوى يناسب المنصة الأكثر نجاحاً.`;
   } else {
     directive =
       `${audienceSummary} التوافق البصري متوسط. ` +
-      `التوجيه: اختبر طابعاً بصرياً مختلفاً لتحسين نسبة النقر.`;
+      `التوجيه: جرّب طابعاً بصرياً مختلفاً لتحسين نسبة النقر.`;
   }
 
   return {

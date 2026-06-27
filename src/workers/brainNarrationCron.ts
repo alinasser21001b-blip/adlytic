@@ -368,7 +368,7 @@ function serializeNarration(n: CmoNarration): Prisma.InputJsonValue {
  */
 function buildSentinelNarration(action: string): Prisma.InputJsonValue {
   return {
-    arabicTitle: 'إشعار استراتيجي آلي',
-    arabicNarration: `قام النظام الآلي باتخاذ إجراء (${action}) استناداً إلى أداء المزاد ومؤشرات الثقة الحالية. تعذّر توليد السرد التفصيلي هذه المرة — سيُعاد المحاولة لاحقاً.`,
+    arabicTitle: 'تحديث أداء الحملة',
+    arabicNarration: `النظام أوصى بإجراء (${action}) بناءً على أداء الحملة ومؤشرات الثقة الحالية. تعذّر توليد التفاصيل هذه المرة — سيُعاد المحاولة لاحقاً.`,
   };
 }
