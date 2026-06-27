@@ -196,6 +196,7 @@ export function beginnerDashboardPage(): string {
           <div class="bgn-greeting-text-wrap">
             <div class="bgn-greeting-title" id="bgn-greeting-title">مرحباً بك!</div>
             <div class="bgn-greeting-sub" id="bgn-greeting-sub">ها هي نظرة سريعة على حملاتك.</div>
+            <div class="bgn-bar-hint" id="bgn-last-updated" style="margin-top:6px;"></div>
           </div>
           <span id="bgn-status-pill" class="bgn-status-pill gray">
             <span class="bgn-dot"></span>
@@ -426,6 +427,66 @@ export function beginnerDashboardPage(): string {
     }
   }
 
+  var BGN_REFRESH_MS = 90000;
+  var bgnRefreshTimer = null;
+
+  function bgnFormatLastUpdated(isoOrDate) {
+    if (!isoOrDate) return '';
+    try {
+      return new Date(isoOrDate).toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function updateBgnLastUpdated(dash) {
+    var el = document.getElementById('bgn-last-updated');
+    if (!el) return;
+    var synced = dash.workspace && dash.workspace.lastSyncedAt;
+    el.textContent = synced
+      ? ('آخر مزامنة: ' + bgnFormatLastUpdated(synced))
+      : ('تم التحديث: ' + bgnFormatLastUpdated(new Date()));
+  }
+
+  function renderBeginnerDashboard(dash) {
+    var currency = dash.workspace.currency || 'USD';
+    var factor   = currency === 'IQD' ? 1
+      : (dash.workspace.currencyMinorFactor != null && dash.workspace.currencyMinorFactor > 0
+        ? dash.workspace.currencyMinorFactor
+        : 100);
+
+    renderGreeting(dash);
+    renderStatus(dash);
+    renderMetricCards(dash, currency, factor);
+    renderMiniCards(dash);
+    renderProgressCard(dash);
+    renderAction(dash);
+    updateBgnLastUpdated(dash);
+  }
+
+  function startBgnAutoRefresh(wsId) {
+    async function refresh() {
+      if (document.hidden) return;
+      try {
+        var dash = await apiFetch('/api/dashboard/' + wsId);
+        if (!dash || dash.empty || !dash.workspace) return;
+        renderBeginnerDashboard(dash);
+      } catch (e) { /* silent background refresh */ }
+    }
+    function armTimer() {
+      if (bgnRefreshTimer) clearInterval(bgnRefreshTimer);
+      bgnRefreshTimer = setInterval(refresh, BGN_REFRESH_MS);
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) {
+        refresh();
+        armTimer();
+      } else if (bgnRefreshTimer) {
+        clearInterval(bgnRefreshTimer);
+        bgnRefreshTimer = null;
+      }
+    });
+    armTimer();
+  }
+
   async function loadBeginnerDashboard() {
     var wsId = getWsId();
     if (!wsId) { window.location.href = '/workspace'; return; }
@@ -440,18 +501,8 @@ export function beginnerDashboardPage(): string {
       }
       document.getElementById('bgn-main').style.display = 'block';
 
-      var currency = dash.workspace.currency || 'USD';
-      var factor   = currency === 'IQD' ? 1
-        : (dash.workspace.currencyMinorFactor != null && dash.workspace.currencyMinorFactor > 0
-          ? dash.workspace.currencyMinorFactor
-          : 100);
-
-      renderGreeting(dash);
-      renderStatus(dash);
-      renderMetricCards(dash, currency, factor);
-      renderMiniCards(dash);
-      renderProgressCard(dash);
-      renderAction(dash);
+      renderBeginnerDashboard(dash);
+      startBgnAutoRefresh(wsId);
     } catch (err) {
       document.getElementById('bgn-loading').textContent = 'حدث خطأ أثناء تحميل البيانات.';
       console.error('[beginner-dashboard]', err);

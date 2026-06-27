@@ -18,7 +18,8 @@
 //    /api/workspaces/:wsId/insights?days=90     → DailyStat[] (DESC, spend BigInt MINOR)
 //    /api/workspaces/:wsId/campaigns            → Campaign[] (budgets BigInt MINOR)
 //    /api/workspaces/:wsId                      → adAccounts[currency, currencyMinorFactor]
-//    /api/dashboard/pulse/:wsId  (polled 60s)   → Live Pulse tick
+//    Full auto-refresh (90s, tab visible)         → dashboard + insights + campaigns
+//    Live Pulse comes from dashboard DTO brain.livePulse (no separate pulse poll)
 // ════════════════════════════════════════════════════════════════════════
 
 import { layout } from '../layout';
@@ -286,7 +287,7 @@ export function dashboardPage(): string {
     <div id="dashboard-content" style="display:none;">
       <div class="page-header">
         <div class="page-title">Dashboard</div>
-        <div class="page-subtitle" id="dash-subtitle">Overview of your ad performance</div>
+        <div class="page-subtitle" id="dash-subtitle">Overview of your ad performance · <span id="dash-last-updated" class="text-3">—</span></div>
       </div>
 
       <!-- Stale-data banner -->
@@ -367,7 +368,7 @@ export function dashboardPage(): string {
       <section id="brain-pulse-section" class="v2-section" style="display:none;">
         <div class="v2-section-head">
           <div class="v2-section-title">Live Pulse</div>
-          <div class="v2-section-meta">Auto-refresh 60s · <span id="brain-pulse-tick">—</span></div>
+          <div class="v2-section-meta">Refreshes every 90s · <span id="brain-pulse-tick">—</span></div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
           <div class="card" style="padding:14px;">
@@ -477,6 +478,9 @@ export function dashboardPage(): string {
   'use strict';
 
   // ── State ───────────────────────────────────────────────────────────────
+  var REFRESH_MS = 90000;
+  var refreshTimer = null;
+  var chartInstances = {};
   var state = {
     currency: 'USD',
     minorFactor: 100,
@@ -556,10 +560,33 @@ export function dashboardPage(): string {
     document.getElementById('error-msg').textContent = msg;
   }
 
+  function formatLastUpdated(isoOrDate) {
+    if (!isoOrDate) return '—';
+    try {
+      return new Date(isoOrDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return '—'; }
+  }
+  function updateLastUpdatedLabel(dashData) {
+    var el = document.getElementById('dash-last-updated');
+    if (!el) return;
+    var synced = dashData.workspace && dashData.workspace.lastSyncedAt;
+    el.textContent = synced
+      ? ('Synced ' + formatLastUpdated(synced))
+      : ('Updated ' + formatLastUpdated(new Date()));
+  }
+
   // ── Chart.js wrapper ────────────────────────────────────────────────────
   function makeLineChart(canvasId, labels, datasets, opts) {
-    var ctx = document.getElementById(canvasId).getContext('2d');
-    return new Chart(ctx, {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+    if (chartInstances[canvasId]) {
+      chartInstances[canvasId].data.labels = labels;
+      chartInstances[canvasId].data.datasets = datasets;
+      chartInstances[canvasId].update('none');
+      return chartInstances[canvasId];
+    }
+    var ctx = canvas.getContext('2d');
+    chartInstances[canvasId] = new Chart(ctx, {
       type: 'line',
       data: { labels: labels, datasets: datasets },
       options: {
@@ -584,6 +611,7 @@ export function dashboardPage(): string {
         elements: { point: { radius: 0, hoverRadius: 4 } }
       }
     });
+    return chartInstances[canvasId];
   }
 
   // ── Hero cards ──────────────────────────────────────────────────────────
@@ -1133,15 +1161,34 @@ export function dashboardPage(): string {
     document.getElementById('brain-pulse-dna').textContent = (pulse.dnaMatchPct != null) ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
     document.getElementById('brain-pulse-tick').textContent = pulse.tickDate || 'no tick yet today';
   }
-  function startPulsePolling(workspaceId) {
-    var POLL_MS = 60000;
-    async function tick() {
+  function startAutoRefresh(workspaceId) {
+    async function refreshDashboard() {
+      if (document.hidden) return;
       try {
-        var r = await apiFetch('/api/dashboard/pulse/' + workspaceId);
-        if (r && !r.empty) applyPulse(r);
-      } catch (e) { /* silent */ }
+        var results = await Promise.all([
+          apiFetch('/api/dashboard/' + workspaceId),
+          apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
+          apiFetch('/api/workspaces/' + workspaceId + '/campaigns').catch(function () { return []; }),
+        ]);
+        var dashData = results[0] || {};
+        if (dashData.empty) return;
+        applyDashboardData(dashData, results[1] || [], results[2] || [], null, false);
+      } catch (e) { /* silent background refresh */ }
     }
-    setInterval(tick, POLL_MS);
+    function armTimer() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(refreshDashboard, REFRESH_MS);
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) {
+        refreshDashboard();
+        armTimer();
+      } else if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+    });
+    armTimer();
   }
 
   // ── Insights → KPIs fallback (uses minor-unit-aware spend totals) ───────
@@ -1170,6 +1217,67 @@ export function dashboardPage(): string {
       { key: 'cpm', label: 'CPM', value: cpm, display: fmtCurrencyMajor(cpm), goodWhenUp: false },
       { key: 'messages', label: 'Messages', value: totals.messages, display: fmtNum(totals.messages), goodWhenUp: true },
     ];
+  }
+
+  // ── Render / refresh dashboard sections ─────────────────────────────────
+  function applyDashboardData(dashData, insights, campaigns, wsData, isInitial) {
+    hydrateCurrencyState(dashData, wsData);
+
+    if (isInitial && wsData) {
+      var allStale = Array.isArray(wsData.adAccounts)
+        && wsData.adAccounts.length > 0
+        && wsData.adAccounts.every(function (a) { return a.status !== 'ACTIVE'; });
+      if (allStale) document.getElementById('stale-banner').style.display = 'flex';
+    }
+
+    var workspaceId = state.workspaceId;
+    var wsName = (dashData.workspace && (dashData.workspace.name || dashData.workspace.id)) || workspaceId;
+    var wsNameEl = document.getElementById('ws-name'); if (wsNameEl) wsNameEl.textContent = wsName;
+    var subtitleEl = document.getElementById('dash-subtitle');
+    if (subtitleEl) {
+      subtitleEl.innerHTML = 'Past 30 days · ' + escHtml(wsName) + ' · <span id="dash-last-updated" class="text-3">—</span>';
+    }
+    document.getElementById('chart-panel-meta').textContent = state.currency;
+    updateLastUpdatedLabel(dashData);
+
+    renderHero(dashData, insights);
+    renderTicker(buildTickerItems(dashData));
+    renderActiveAds(campaigns);
+    renderBrainBox(dashData);
+
+    if (dashData.brain) {
+      renderBrainSection(dashData.brain);
+    }
+
+    renderTodayActions(buildTodayActions(dashData));
+    renderRecoveryCenter(buildRecoveryPlans(dashData.issues));
+    renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
+
+    var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
+    renderKpis(kpis);
+    renderInsights(buildInsights(dashData, kpis));
+
+    var last30 = recentAsc(insights, 30);
+    var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+    var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
+    var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
+    var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
+
+    if (dashData.trendSeries && dashData.trendSeries.dates) {
+      var ts = dashData.trendSeries;
+      var tsLabels = ts.dates.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+      if (ts.spend)    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
+      if (ts.ctr)      ctrSeries        = ts.ctr.map(Number);
+      if (ts.messages) impSeries        = ts.messages.map(Number);
+      labels = tsLabels;
+    }
+
+    makeLineChart('chart-spend-main', labels, [{ label: 'Spend', data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
+    makeLineChart('chart-ctr',        labels, [{ label: 'CTR (%)',  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
+    makeLineChart('chart-impressions', labels, [{ label: 'Messages', data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+
+    renderIssues(dashData.issues || []);
+    renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
   }
 
   // ── Main init ───────────────────────────────────────────────────────────
@@ -1215,16 +1323,7 @@ export function dashboardPage(): string {
       var campaigns = results[2] || [];
       var wsData = results[3];
 
-      // 4) Hydrate currency state (DTO first — survives ws fetch failures)
-      hydrateCurrencyState(dashData, wsData);
-
-      // 5) Stale data banner — all ad accounts non-ACTIVE
-      var allStale = wsData && Array.isArray(wsData.adAccounts)
-        && wsData.adAccounts.length > 0
-        && wsData.adAccounts.every(function (a) { return a.status !== 'ACTIVE'; });
-      if (allStale) document.getElementById('stale-banner').style.display = 'flex';
-
-      // 6) Empty state — no ad account connected
+      // 4) Empty state — no ad account connected
       if (dashData.empty) {
         document.getElementById('loading-state').style.display = 'none';
         document.getElementById('dashboard-content').style.display = 'block';
@@ -1238,66 +1337,9 @@ export function dashboardPage(): string {
         return;
       }
 
-      // 7) Workspace name in topbar (provided by shared layout)
-      var wsName = (dashData.workspace && (dashData.workspace.name || dashData.workspace.id)) || workspaceId;
-      var wsNameEl = document.getElementById('ws-name'); if (wsNameEl) wsNameEl.textContent = wsName;
-      document.getElementById('dash-subtitle').textContent = 'Past 30 days · ' + wsName;
-      document.getElementById('chart-panel-meta').textContent = state.currency;
+      applyDashboardData(dashData, insights, campaigns, wsData, true);
+      startAutoRefresh(workspaceId);
 
-      // 8) Hero cards (30d/7d from insights; lifetime from DTO when synced)
-      renderHero(dashData, insights);
-
-      // 9) AI Motion Ticker
-      renderTicker(buildTickerItems(dashData));
-
-      // 10) Active Ads Showcase
-      renderActiveAds(campaigns);
-
-      // 11) AI Brain Box (left of split panel)
-      renderBrainBox(dashData);
-
-      // 12) V6 Brain sections + start polling
-      if (dashData.brain) {
-        renderBrainSection(dashData.brain);
-        startPulsePolling(workspaceId);
-      }
-
-      // 13) V2 Decision interface — Today's Actions, Recovery, Spotlight, Insights
-      renderTodayActions(buildTodayActions(dashData));
-      renderRecoveryCenter(buildRecoveryPlans(dashData.issues));
-      renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
-
-      // 14) KPIs (advanced) — prefer dashboard KPIs, else compute from insights
-      var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
-      renderKpis(kpis);
-      renderInsights(buildInsights(dashData, kpis));
-
-      // 15) Charts — main panel + advanced
-      var last30 = recentAsc(insights, 30);
-      var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
-      var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
-      var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
-      var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
-
-      // Trend-series override (server-supplied) — keep as raw numbers; server already pre-renders.
-      if (dashData.trendSeries && dashData.trendSeries.dates) {
-        var ts = dashData.trendSeries;
-        var tsLabels = ts.dates.map(function (d) { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
-        if (ts.spend)    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
-        if (ts.ctr)      ctrSeries        = ts.ctr.map(Number);
-        if (ts.messages) impSeries        = ts.messages.map(Number);
-        labels = tsLabels;
-      }
-
-      makeLineChart('chart-spend-main', labels, [{ label: 'Spend', data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
-      makeLineChart('chart-ctr',        labels, [{ label: 'CTR (%)',  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-      makeLineChart('chart-impressions', labels, [{ label: 'Messages', data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
-
-      // 16) Issues + Campaign table (advanced)
-      renderIssues(dashData.issues || []);
-      renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
-
-      // 17) Reveal
       document.getElementById('loading-state').style.display = 'none';
       document.getElementById('dashboard-content').style.display = 'block';
 
