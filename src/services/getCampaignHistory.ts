@@ -7,6 +7,11 @@
 
 import { PrismaClient } from "@prisma/client";
 import { costPerMessageFromTotals } from "../lib/campaignFreeze";
+import {
+  HISTORY_OBJECTIVE_ALL,
+  type CampaignHistoryRollupRow,
+  type HistoryWindowKey,
+} from "../types/campaignHistory";
 
 export interface HistorySnapshotRow {
   id: string;
@@ -185,7 +190,7 @@ export async function getTopPerformers(
 }
 
 /**
- * Recently ended under-performers within `days` of endedAt (default 60).
+ * Recently ended under-performers within `days` of endedAt (default 90, Q4).
  * Sorted by lowest finalRoas first; prefers PAUSE verdicts from finalBrainJson.
  */
 export async function getRecentFailures(
@@ -193,7 +198,7 @@ export async function getRecentFailures(
   workspaceId: string,
   objective: string,
   limit: number,
-  days = 60,
+  days = 90,
   now: Date = new Date(),
 ): Promise<RecentFailureEntry[]> {
   const endedAtGte = new Date(now.getTime() - days * 86400_000);
@@ -251,7 +256,7 @@ export async function buildCmoHistoricalContext(
 
   const [topPerformers, recentFailures] = await Promise.all([
     getTopPerformers(prisma, workspaceId, objective, 3),
-    getRecentFailures(prisma, workspaceId, objective, 2, 60, opts?.now),
+    getRecentFailures(prisma, workspaceId, objective, 2, 90, opts?.now),
   ]);
 
   if (topPerformers.length === 0 && recentFailures.length === 0) {
@@ -261,4 +266,42 @@ export async function buildCmoHistoricalContext(
   return { topPerformers, recentFailures };
 }
 
-export { deriveKeyTrait, deriveLessonArabic };
+/**
+ * Read one pre-aggregated rollup row — indexed lookup, no snapshot scan (H-4/H-10).
+ */
+export async function getHistoryRollup(
+  prisma: PrismaClient,
+  workspaceId: string,
+  objective: string,
+  windowKey: HistoryWindowKey,
+): Promise<CampaignHistoryRollupRow | null> {
+  const row = await prisma.campaignHistoryRollup.findUnique({
+    where: {
+      workspaceId_objective_windowKey: {
+        workspaceId,
+        objective,
+        windowKey,
+      },
+    },
+  });
+  if (row == null) return null;
+
+  return {
+    workspaceId: row.workspaceId,
+    objective: row.objective,
+    windowKey: row.windowKey,
+    campaignCount: row.campaignCount,
+    avgRoas: row.avgRoas,
+    weightedRoas: row.weightedRoas,
+    avgCostPerMsgMinor: row.avgCostPerMsgMinor,
+    totalSpendMinor: row.totalSpendMinor,
+    totalRevenueMinor: row.totalRevenueMinor,
+    totalMessages: row.totalMessages,
+    totalPurchases: row.totalPurchases,
+    currency: row.currency,
+    currencyMinorFactor: row.currencyMinorFactor,
+    computedAt: row.computedAt,
+  };
+}
+
+export { deriveKeyTrait, deriveLessonArabic, HISTORY_OBJECTIVE_ALL };

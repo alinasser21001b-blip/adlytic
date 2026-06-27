@@ -28,6 +28,7 @@ import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 import { config, reportConfig } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
 import { refreshExpiringMetaTokens } from '../workers/refreshMetaTokens';
+import { refreshCampaignHistoryRollups } from '../workers/rollupHistory';
 
 const PORT = config.port;
 // Background sync interval: default 6 hours (can be overridden via env)
@@ -259,10 +260,28 @@ async function main(): Promise<void> {
     }
   }
 
+  async function refreshHistoryRollups(): Promise<void> {
+    try {
+      const result = await refreshCampaignHistoryRollups(prisma);
+      if (result.upserted > 0) {
+        console.log(
+          `[adlytic:rollup] Refreshed ${result.upserted} rollup row(s) across ${result.workspaces} workspace(s)`,
+        );
+      }
+    } catch (err) {
+      console.error('[adlytic:rollup] Failed to refresh campaign history rollups:', err);
+    }
+  }
+
+  async function runDailyMaintenance(): Promise<void> {
+    await pruneRawInsights();
+    await refreshHistoryRollups();
+  }
+
   // Delay initial run by 30s so startup traffic settles first
   setTimeout(() => {
-    void pruneRawInsights();
-    setInterval(() => { void pruneRawInsights(); }, 24 * 60 * 60_000);
+    void runDailyMaintenance();
+    setInterval(() => { void runDailyMaintenance(); }, 24 * 60 * 60_000);
   }, 30_000);
 
   // Graceful shutdown

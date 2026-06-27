@@ -873,7 +873,7 @@ enum CampaignHistoryWindowKey {
 model CampaignHistoryRollup {
   id                  String                   @id @default(cuid())
   workspaceId         String                   @map("workspace_id")
-  objective           String?                  // null = all-objectives aggregate
+  objective           String                   // real objective, or sentinel "__ALL__" (NOT NULL)
   windowKey           CampaignHistoryWindowKey @map("window_key")
 
   campaignCount       Int                      @map("campaign_count")

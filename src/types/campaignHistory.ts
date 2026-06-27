@@ -6,6 +6,9 @@
 
 import type { CampaignHistoryWindowKey } from '@prisma/client';
 
+/** Sentinel for account-wide rollup rows (all objectives); never a real Meta objective. */
+export const HISTORY_OBJECTIVE_ALL = '__ALL__' as const;
+
 /** Named rollup windows — advisor never passes free-form date ranges (§2.4). */
 export const HISTORY_WINDOW_KEYS = ['ALL_TIME', 'LAST_90D', 'LAST_30D'] as const satisfies readonly CampaignHistoryWindowKey[];
 
@@ -14,7 +17,7 @@ export type HistoryWindowKey = (typeof HISTORY_WINDOW_KEYS)[number];
 /** Rollup row shape for read paths (Part 2+). */
 export interface CampaignHistoryRollupRow {
   workspaceId: string;
-  objective: string | null;
+  objective: string;
   windowKey: HistoryWindowKey;
   campaignCount: number;
   avgRoas: number | null;
