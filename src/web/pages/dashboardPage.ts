@@ -266,14 +266,6 @@ export function dashboardPage(): string {
     .skeleton-chart { height: 300px; }
     @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-    /* Blur sensitive financial + AI insight values (see layout .data-blur) */
-    .hero-value, .hero-delta,
-    .active-meta-row b,
-    #brain-pulse-burn, #brain-pulse-spendpct, #brain-pulse-dna,
-    #brain-ledger-saved,
-    .strategy-body, .cmo-feed-body,
-    .ticker-text { filter: blur(6px); user-select: none; }
-
   </style>`;
 
   const content = `

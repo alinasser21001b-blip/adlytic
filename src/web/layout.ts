@@ -436,13 +436,6 @@ select.form-input { cursor: pointer; }
 .toast.info    { border-left: 3px solid var(--accent); }
 @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-/* ── Sensitive data blur (demo / privacy) ─────────────────────────── */
-.data-blur {
-  filter: blur(6px);
-  user-select: none;
-  pointer-events: none;
-}
-
 /* ── Modal ───────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.7);
