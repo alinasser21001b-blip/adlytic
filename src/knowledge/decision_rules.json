@@ -1,0 +1,231 @@
+{
+  "module": "decision_rules",
+  "description": "Machine-readable diagnostic rules. Each rule maps an observable metric signature to a verdict, a root-cause hypothesis, and a prioritised action. Adlytic AI uses these to ground every recommendation. Conditions reference metric keys defined in the metric modules. `severity` aligns with threshold_semantics; `pattern` aligns with Adlytic PatternEngine signatures where applicable.",
+  "evaluation_notes": [
+    "Prefer per-account relative baselines over absolute benchmark thresholds when a baseline exists.",
+    "Never fire a single-metric verdict when a multi-signal rule covers the case (multi-signal cuts false positives).",
+    "Cold-start guard: if the campaign lacks statistically meaningful history (zero/near-zero baselines), suppress delta-based rules and report collection status only."
+  ],
+  "rules": [
+    {
+      "id": "R001",
+      "name": "Healthy scalable winner",
+      "pattern": "SCALABLE_BEAST",
+      "severity": "healthy",
+      "when": "ROAS >= strong AND CPA <= target AND frequency within range AND CTR stable-or-rising",
+      "diagnosis": "Creative and audience are converting efficiently with headroom.",
+      "action": "Scale budget 20-30% per step; duplicate into new audiences; produce creative variations to sustain.",
+      "do_not": "Do not raise budget >30% in one step (resets learning).",
+      "related_metrics": ["ROAS", "CPA", "frequency", "CTR"]
+    },
+    {
+      "id": "R002",
+      "name": "Dying creative (fatigue)",
+      "pattern": "DYING_CREATIVE",
+      "severity": "critical",
+      "when": "frequency rising AND CTR down >20-30% from baseline AND (CPA up OR CPM up)",
+      "diagnosis": "Audience saturated; the ad has fatigued.",
+      "action": "Introduce fresh creative; expand audience; exclude recent converters; reduce budget on the fatigued ad.",
+      "do_not": "Do not increase budget on the fatigued ad.",
+      "related_metrics": ["frequency", "CTR", "CPA", "CPM", "creative_fatigue"]
+    },
+    {
+      "id": "R003",
+      "name": "Post-click leak",
+      "pattern": null,
+      "severity": "warning",
+      "when": "CTR healthy AND CVR below average AND CPA rising",
+      "diagnosis": "Front-end is fine; the leak is post-click (landing page, offer, checkout).",
+      "action": "Audit landing page speed/UX, message match, pricing, and checkout friction. Do not touch the creative first.",
+      "do_not": "Do not blame or kill the creative.",
+      "related_metrics": ["CTR", "CVR", "CPA", "landing_page_view"]
+    },
+    {
+      "id": "R004",
+      "name": "Weak hook",
+      "pattern": null,
+      "severity": "warning",
+      "when": "hook_rate < 15% (video)",
+      "diagnosis": "Opening 3 seconds fail to stop the scroll.",
+      "action": "Rework the first 3 seconds: lead with motion/face/claim; remove intro branding.",
+      "do_not": "Do not scale spend before the hook is fixed.",
+      "related_metrics": ["hook_rate", "CTR"]
+    },
+    {
+      "id": "R005",
+      "name": "Good hook, weak hold",
+      "pattern": null,
+      "severity": "warning",
+      "when": "hook_rate >= 25% AND hold_rate < 20%",
+      "diagnosis": "Hook over-promises; the body does not pay it off.",
+      "action": "Pay off the hook immediately; tighten pacing; move message/CTA earlier; shorten to 15-30s.",
+      "do_not": "Do not lengthen the video.",
+      "related_metrics": ["hook_rate", "hold_rate", "thruplay_rate"]
+    },
+    {
+      "id": "R006",
+      "name": "Auction cost spike",
+      "pattern": null,
+      "severity": "warning",
+      "when": "CPM up >20% week-over-week AND CTR stable AND CVR stable",
+      "diagnosis": "External auction competition/seasonality, not a creative problem.",
+      "action": "Broaden placements/audience to access cheaper inventory; accept seasonal inflation; protect ROAS via AOV levers.",
+      "do_not": "Do not kill creative that is still converting.",
+      "related_metrics": ["CPM", "CTR", "CVR", "ROAS"]
+    },
+    {
+      "id": "R007",
+      "name": "Frequency saturation on small audience",
+      "pattern": null,
+      "severity": "warning",
+      "when": "frequency > 4 (cold) AND reach plateaued AND spend rising",
+      "diagnosis": "Budget is over-saturating a small audience.",
+      "action": "Expand audience or add lookalikes before adding budget; rotate creative; cap frequency.",
+      "do_not": "Do not keep scaling budget on a fixed small pool.",
+      "related_metrics": ["frequency", "reach", "impressions", "CTR"]
+    },
+    {
+      "id": "R008",
+      "name": "Learning Limited",
+      "pattern": null,
+      "severity": "warning",
+      "when": "purchases/ad set/week < 50 AND status = Learning Limited",
+      "diagnosis": "Too few optimisation events to stabilise delivery.",
+      "action": "Consolidate ad sets, raise budget, or switch to a higher-volume optimisation event to reach ~50 events/week.",
+      "do_not": "Do not fragment budget across many tiny ad sets.",
+      "related_metrics": ["purchase", "CPA"]
+    },
+    {
+      "id": "R009",
+      "name": "Checkout friction",
+      "pattern": null,
+      "severity": "critical",
+      "when": "checkout_initiated strong AND IC->Purchase < 50%",
+      "diagnosis": "High intent is leaking at payment/checkout.",
+      "action": "Guest checkout, wallets, transparent fees, trust badges; test checkout end-to-end; retarget IC non-purchasers.",
+      "do_not": "Do not increase top-funnel spend to mask a broken checkout.",
+      "related_metrics": ["checkout_initiated", "purchase", "cart_abandonment_rate"]
+    },
+    {
+      "id": "R010",
+      "name": "Tracking loss suspected",
+      "pattern": null,
+      "severity": "critical",
+      "when": "platform ROAS down sharply AND MER stable",
+      "diagnosis": "Attribution/tracking loss, not real performance loss.",
+      "action": "Verify pixel + Conversions API parity; check event dedup; steer by MER until restored.",
+      "do_not": "Do not cut budget on a falsely-low platform ROAS.",
+      "related_metrics": ["ROAS", "purchase_roas", "MER"]
+    },
+    {
+      "id": "R011",
+      "name": "Unprofitable despite conversions",
+      "pattern": null,
+      "severity": "critical",
+      "when": "CPA > break-even OR ROAS < 1/margin",
+      "diagnosis": "Spending above sustainable acquisition economics.",
+      "action": "Pause or restructure; lift AOV; fix the dominant cost driver (CPC/CPM/CVR); re-target max-sustainable-CPA.",
+      "do_not": "Do not scale a converting-but-unprofitable campaign.",
+      "related_metrics": ["CPA", "ROAS", "AOV", "break_even_ROAS"]
+    },
+    {
+      "id": "R012",
+      "name": "Low-quality lead flood",
+      "pattern": null,
+      "severity": "warning",
+      "when": "CPL at/below target AND qualified-lead rate falling",
+      "diagnosis": "Cheap leads of poor quality (often instant-form, low intent).",
+      "action": "Add qualifying questions; pre-qualify in creative; optimise to offline QUALIFIED-lead event.",
+      "do_not": "Do not celebrate low raw CPL while sales quality drops.",
+      "related_metrics": ["cost_per_lead", "CVR"]
+    },
+    {
+      "id": "R013",
+      "name": "Messaging cost drift",
+      "pattern": null,
+      "severity": "warning",
+      "when": "cost_per_message > account baseline by >25%",
+      "diagnosis": "Conversations getting more expensive vs the account's own baseline.",
+      "action": "Test message-led creative and clearer CTA; refine greeting/qualifier; refresh creative on fatigue; reduce CPM.",
+      "do_not": "Do not sum overlapping messaging events (inflates the count).",
+      "related_metrics": ["cost_per_message", "CTR", "CPM", "frequency"]
+    },
+    {
+      "id": "R014",
+      "name": "Cold start — insufficient data",
+      "pattern": "UNDER_OBSERVATION",
+      "severity": "healthy",
+      "when": "baselines zero/near-zero OR confidence still collecting",
+      "diagnosis": "Not enough history for trustworthy deltas.",
+      "action": "Report current absolute readings only; gather more impressions; avoid drastic changes.",
+      "do_not": "Do not cite delta percentages against a zero baseline.",
+      "related_metrics": ["CTR", "CVR", "CPA"]
+    },
+    {
+      "id": "R015",
+      "name": "Stable performer — hold",
+      "pattern": "STABLE_PERFORMER",
+      "severity": "healthy",
+      "when": "ROAS at target AND CPA at target AND metrics flat within tolerance",
+      "diagnosis": "Performance is normal; no intervention required.",
+      "action": "Hold and monitor; queue creative for the eventual fatigue cycle.",
+      "do_not": "Do not make changes that reset learning without cause.",
+      "related_metrics": ["ROAS", "CPA", "CTR", "frequency"]
+    },
+    {
+      "id": "R016",
+      "name": "Unstable noise",
+      "pattern": "UNSTABLE_NOISE",
+      "severity": "warning",
+      "when": "metrics swinging widely day-to-day with low volume",
+      "diagnosis": "Volatility from low statistical volume, not a real trend.",
+      "action": "Aggregate over a longer window; avoid reacting to single days; consolidate for volume.",
+      "do_not": "Do not make decisions on one noisy day.",
+      "related_metrics": ["CPA", "ROAS", "CVR"]
+    },
+    {
+      "id": "R017",
+      "name": "Emergency budget bleed",
+      "pattern": "DYING_CREATIVE",
+      "severity": "critical",
+      "when": "rapid spend with near-zero conversions in a short live window (velocity hemorrhage)",
+      "diagnosis": "Money burning intra-day without results.",
+      "action": "Emergency pause to protect capital; review creative and targeting before relaunch.",
+      "do_not": "Do not wait a full day if the bleed rate is severe.",
+      "related_metrics": ["CPA", "purchase", "cost_per_message"]
+    },
+    {
+      "id": "R018",
+      "name": "Relevance-driven cost",
+      "pattern": null,
+      "severity": "warning",
+      "when": "CPM high AND any relevance ranking Below Average",
+      "diagnosis": "Low relevance is inflating delivery cost.",
+      "action": "Fix the specific weak ranking (quality->creative, engagement->resonance, conversion->landing page).",
+      "do_not": "Do not treat the three rankings as one score.",
+      "related_metrics": ["CPM", "relevance_ranking", "CTR", "CVR"]
+    },
+    {
+      "id": "R019",
+      "name": "Cart abandonment recovery",
+      "pattern": null,
+      "severity": "warning",
+      "when": "cart_abandonment_rate > 80%",
+      "diagnosis": "Large recoverable late-funnel audience.",
+      "action": "Abandoned-cart retargeting + email; reduce checkout friction; add urgency/reassurance.",
+      "do_not": "Do not treat abandonment as unrecoverable.",
+      "related_metrics": ["cart_abandonment_rate", "checkout_initiated", "purchase"]
+    },
+    {
+      "id": "R020",
+      "name": "AOV erosion",
+      "pattern": null,
+      "severity": "warning",
+      "when": "ROAS down AND CPA flat AND AOV falling",
+      "diagnosis": "ROAS decline is driven by smaller orders, not higher cost.",
+      "action": "Bundles, upsells, free-shipping thresholds; feature higher-margin SKUs; cut blanket discounts.",
+      "do_not": "Do not cut spend before addressing the AOV cause.",
+      "related_metrics": ["AOV", "ROAS", "CPA"]
+    }
+  ]
+}

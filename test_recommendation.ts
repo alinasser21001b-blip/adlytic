@@ -1,7 +1,7 @@
 // Exercises:
 //   1. Matcher correctness — subset semantics, specificity, priority, file order
 //   2. Edge cases — empty issues, single issue, no matching rule
-//   3. Cordon — engine reads ONLY detected_issues, writes ONLY recommendations
+//   3. Cordon — engine reads detected_issues + daily_stats (KB metrics), writes ONLY recommendations
 //   4. Idempotency — rerun replaces atomically
 //   5. SANITY — full furniture story → PAUSE_AND_RELAUNCH; cosmetics → IMPROVE_HOOKS
 //   6. No-match → no recommendation written (the engine never invents)
@@ -128,6 +128,13 @@ async function main() {
         return currentFixture;
       },
     },
+    dailyStat: {
+      findMany: async ({ where }: any) => {
+        calls.push({ table: "daily_stats", op: "read", where });
+        return [];
+      },
+      create: () => { throw new Error("VIOLATION: rec wrote daily_stats"); },
+    },
     recommendation: {
       deleteMany: async ({ where }: any) => {
         calls.push({ table: "recommendations", op: "deleteMany", where });
@@ -144,7 +151,6 @@ async function main() {
     $transaction: async (ops: Promise<any>[]) => Promise.all(ops),
     // Cordon sentinels
     rawInsight:   { create: () => { throw new Error("VIOLATION: rec wrote raw_insights"); } },
-    dailyStat:    { create: () => { throw new Error("VIOLATION: rec wrote daily_stats"); } },
     metricTrend:  { upsert: () => { throw new Error("VIOLATION: rec wrote metric_trends"); } },
     detectedIssue_write: { create: () => { throw new Error("VIOLATION: rec wrote detected_issues"); } },
     healthScore:  { create: () => { throw new Error("VIOLATION: rec wrote health_scores"); } },
@@ -192,8 +198,11 @@ async function main() {
   // ── CORDON ──
   console.log("\n── Cordon ──");
   const tables = new Set(calls.map(c => c.table));
-  check("only detected_issues (read) + recommendations (write) touched",
-    tables.size === 2 && tables.has("detected_issues") && tables.has("recommendations"),
+  check("reads detected_issues + daily_stats (KB); writes recommendations only",
+    tables.size === 3 &&
+    tables.has("detected_issues") &&
+    tables.has("daily_stats") &&
+    tables.has("recommendations"),
     [...tables]);
   // Verify no human-readable leakage in the recommendation record
   const rec = cosm.recommendation!;

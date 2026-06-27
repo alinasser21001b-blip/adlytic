@@ -1,0 +1,97 @@
+{
+  "module": "industry_benchmarks_2026",
+  "description": "Industry-average Meta Ads benchmarks for 2026. These are INDUSTRY AVERAGES for orientation, NOT official Meta standards or guarantees. Always prefer a per-account baseline (Adlytic's relative scoring) over a static benchmark when one exists. Currencies are as published by the source (GBP for Pengwing, USD for US averages).",
+  "disclaimer": "Benchmarks drift with seasonality, geography, auction competition, and privacy/attribution changes. Treat ranges as guardrails, not targets.",
+  "global_averages": {
+    "CTR": { "below_average": "<0.7%", "average": "0.9-1.5%", "good": "1.5-2.5%", "excellent": ">2.5%", "source": "pengwing" },
+    "CVR": { "below_average": "<1%", "average": "1-3%", "good": "3-5%", "excellent": ">5%", "source": "pengwing" },
+    "CPC": { "average": "£0.80-£1.80", "competitive_narrow": "£2.00-£4.00+", "source": "pengwing" },
+    "CPM": { "broad_low_competition": "£6-£10", "typical": "£10-£18", "competitive_narrow": "£18-£35+", "us_all_industry_avg": "$14.19", "source": "pengwing" },
+    "ROAS_ecommerce": { "typical": "2-4x", "strong": "4x+", "source": "pengwing" },
+    "ROAS_high_AOV": { "typical": "1.5-3x", "strong": "3x+", "source": "pengwing" },
+    "frequency": { "cold": "2.5-3.5", "warm": "4-6", "fatigue_line": "3-4", "source": "goodmorning" },
+    "video_hook_rate": { "weak": "<15%", "acceptable": "15-25%", "strong": ">25%", "source": "ryze_video" },
+    "video_hold_rate": { "acceptable": "20-25%", "strong": ">25%", "source": "ryze_video" },
+    "video_thruplay_rate": { "typical": "18-28%", "source": "ryze_video" },
+    "cost_per_thruplay": { "typical": "$0.01-$0.10", "source": "ryze_video" }
+  },
+  "industries": {
+    "fashion_apparel": {
+      "label": "Fashion & Apparel",
+      "CTR": "1.2-2.0%",
+      "CPM": "£12-£22",
+      "ROAS": "2.5-4.5x",
+      "notes": "Strong creative-led vertical; high CTR expectation, moderate CPM, healthy ROAS. Creative refresh cadence is critical due to fast fatigue.",
+      "source": "pengwing"
+    },
+    "homewares_furniture_interiors": {
+      "label": "Homewares / Furniture / Interiors",
+      "CTR": "0.8-1.5%",
+      "CPM": "£10-£18",
+      "ROAS": "2-4x",
+      "notes": "Higher AOV, longer consideration; lower CTR is acceptable. Lean on retargeting and considered-purchase nurture.",
+      "source": "pengwing"
+    },
+    "beauty_cosmetics": {
+      "label": "Beauty & Cosmetics",
+      "CTR": "1.0-2.0%",
+      "CPM": "£12-£22",
+      "ROAS": "2.5-4.5x",
+      "notes": "Similar profile to fashion; UGC and demo video perform well.",
+      "source": "pengwing"
+    },
+    "high_aov_tech_luxury": {
+      "label": "High-AOV (Tech / Furniture / Luxury)",
+      "CTR": "0.7-1.3%",
+      "CPM": "£15-£30",
+      "ROAS": "1.5-3x typical, 3x+ strong",
+      "notes": "Lower ROAS multiples are healthy because each order is large; judge on contribution margin, not multiple.",
+      "source": "pengwing"
+    },
+    "lead_gen_home_services": {
+      "label": "Lead Gen — Home Services (B2C)",
+      "CPL": "£15-£40",
+      "notes": "Optimise cost per QUALIFIED lead; feed CRM outcomes back via offline conversions.",
+      "source": "pengwing"
+    },
+    "lead_gen_finance_insurance": {
+      "label": "Lead Gen — Finance / Insurance",
+      "CPL": "£25-£80",
+      "notes": "Higher CPL tolerated due to high deal value; lead quality dominates.",
+      "source": "pengwing"
+    },
+    "lead_gen_health_wellness": {
+      "label": "Lead Gen — Health / Wellness",
+      "CPL": "£10-£30",
+      "notes": "Watch policy/compliance constraints on targeting and claims.",
+      "source": "pengwing"
+    },
+    "b2b_saas": {
+      "label": "B2B — SaaS",
+      "CPL": "£50-£200 per qualified lead",
+      "notes": "Long sales cycle; optimise to MQL/SQL via offline events, not raw form fills.",
+      "source": "pengwing"
+    },
+    "b2b_professional_services": {
+      "label": "B2B — Professional Services",
+      "CPL": "£40-£120",
+      "notes": "Account-based retargeting and content offers work best.",
+      "source": "pengwing"
+    },
+    "b2b_recruitment_hrtech": {
+      "label": "B2B — Recruitment / HR Tech",
+      "CPL": "£30-£90 per application",
+      "notes": "Application completion rate is the key downstream gate.",
+      "source": "pengwing"
+    }
+  },
+  "seasonality": {
+    "q4_holidays": "CPM and CPC inflate materially (Black Friday/Cyclical peaks). Expect 20-50%+ CPM rises; plan budget and ROAS targets accordingly.",
+    "post_holiday_jan": "CPMs typically fall; efficient window for prospecting.",
+    "source": "pengwing"
+  },
+  "messaging_objective": {
+    "note": "Cost per messaging conversation started lacks broad public benchmarks and is region/vertical sensitive. Establish a per-account baseline and use relative deviation (Adlytic CostPerMessageEngine) rather than a fixed threshold.",
+    "source": "metaglossary_messaging"
+  }
+}

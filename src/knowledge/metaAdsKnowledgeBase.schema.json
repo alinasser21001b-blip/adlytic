@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://adlytic.local/schemas/metaAdsKnowledgeBase.schema.json",
+  "title": "MetaAdsKnowledgeBase",
+  "description": "Drop-in knowledge base for Meta Ads metric thresholds and optimization actions.",
+  "type": "object",
+  "required": ["version", "platform", "metrics"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string" },
+    "platform": { "const": "meta_ads" },
+    "updatedAt": { "type": "string", "format": "date" },
+    "metrics": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/metric" }
+    }
+  },
+  "$defs": {
+    "optimizationAction": {
+      "type": "object",
+      "required": ["id", "title", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Stable action code (SCREAMING_SNAKE_CASE)." },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "required": [
+        "key",
+        "label",
+        "direction",
+        "warning_threshold",
+        "critical_threshold",
+        "recommended_optimization_actions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "description": "Live metric key (ctr, cpm, frequency, cost_per_message, …)." },
+        "label": { "type": "string" },
+        "unit": { "type": "string" },
+        "description": { "type": "string" },
+        "direction": { "enum": ["above", "below"], "description": "below = lower values are worse; above = higher values are worse." },
+        "warning_threshold": { "type": "number" },
+        "critical_threshold": { "type": "number" },
+        "recommended_optimization_actions": {
+          "type": "object",
+          "required": ["warning", "critical"],
+          "additionalProperties": false,
+          "properties": {
+            "warning": { "type": "array", "items": { "$ref": "#/$defs/optimizationAction" } },
+            "critical": { "type": "array", "items": { "$ref": "#/$defs/optimizationAction" } }
+          }
+        }
+      }
+    }
+  }
+}

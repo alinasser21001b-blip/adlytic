@@ -1,0 +1,247 @@
+{
+  "$schema": "./metaAdsKnowledgeBase.schema.json",
+  "version": "1.0.0",
+  "platform": "meta_ads",
+  "updatedAt": "2026-06-27",
+  "metrics": [
+    {
+      "key": "ctr",
+      "label": "Click-Through Rate",
+      "unit": "percent",
+      "description": "Window CTR (clicks / impressions × 100). Earliest creative-quality signal. Benchmark (Pengwing 2026): avg 0.9–1.5%, good 1.5–2.5%, below-avg <0.7%. Tune per account/audience temperature.",
+      "direction": "below",
+      "warning_threshold": 1.5,
+      "critical_threshold": 1.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "CTR_TEST_NEW_HOOKS", "title": "Test new ad hooks", "description": "CTR is below the 1.5% healthy line. Launch 2–3 creative variants with stronger first-frame hooks and clearer value propositions.", "priority": "HIGH" }
+        ],
+        "critical": [
+          { "id": "CTR_REFRESH_CREATIVES", "title": "Refresh creatives immediately", "description": "CTR is below 1.0%. Pause the weakest ads and replace visuals and headlines this week; check for creative fatigue (rising frequency + falling CTR).", "priority": "CRITICAL" },
+          { "id": "CTR_REVIEW_PLACEMENTS", "title": "Review placements", "description": "Exclude underperforming placements and ensure creative aspect ratios match Feed/Reels/Stories.", "priority": "HIGH" }
+        ]
+      }
+    },
+    {
+      "key": "link_ctr",
+      "label": "Link Click-Through Rate",
+      "unit": "percent",
+      "description": "Outbound link clicks / impressions × 100. Cleaner intent signal than all-CTR. Benchmark: avg 0.5–1.2%. Optimise conversion campaigns on this, not all-CTR.",
+      "direction": "below",
+      "warning_threshold": 1.0,
+      "critical_threshold": 0.5,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "LINKCTR_CLARIFY_CTA", "title": "Clarify destination and CTA", "description": "Link CTR is soft while engagement may be fine. Make the destination value explicit in copy and test a more direct CTA button.", "priority": "MEDIUM" }
+        ],
+        "critical": [
+          { "id": "LINKCTR_FIX_INTENT_GAP", "title": "Close the intent gap", "description": "Very low link CTR on a conversion goal. Align creative promise with the offer and verify the landing page loads fast on mobile.", "priority": "HIGH" }
+        ]
+      }
+    },
+    {
+      "key": "cvr",
+      "label": "Conversion Rate",
+      "unit": "percent",
+      "description": "Conversions / link clicks × 100. Post-click health (landing page, offer, checkout). Benchmark (Pengwing 2026): avg 1–3%, good 3–5%, below-avg <1%.",
+      "direction": "below",
+      "warning_threshold": 1.5,
+      "critical_threshold": 1.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "CVR_AUDIT_LANDING_PAGE", "title": "Audit landing page", "description": "CVR is below the healthy band with traffic arriving. Check page speed, mobile UX, and ad-to-page message match (scent).", "priority": "HIGH" }
+        ],
+        "critical": [
+          { "id": "CVR_FIX_CHECKOUT_FRICTION", "title": "Remove checkout friction", "description": "CVR critically low. Enable guest checkout and wallets, surface all costs early, and confirm inventory/pricing are correct.", "priority": "CRITICAL" }
+        ]
+      }
+    },
+    {
+      "key": "roas",
+      "label": "Return on Ad Spend",
+      "unit": "ratio",
+      "description": "Purchase revenue / spend. Factor-invariant ratio. Benchmark (Pengwing 2026): ecommerce 2–4x typical, 4x+ strong; high-AOV 1.5–3x. Compare against break-even ROAS (= 1 / margin).",
+      "direction": "below",
+      "warning_threshold": 2.0,
+      "critical_threshold": 1.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "ROAS_LIFT_AOV", "title": "Lift average order value", "description": "ROAS below target. Add bundles, upsells, and free-shipping thresholds to raise AOV without increasing cost; validate against blended MER.", "priority": "HIGH" }
+        ],
+        "critical": [
+          { "id": "ROAS_RESTRUCTURE_OR_PAUSE", "title": "Restructure or pause", "description": "ROAS below 1.0 — spend exceeds returned revenue. Pause or restructure the worst ad sets and fix the dominant cost driver (CPC/CPM/CVR). Check for tracking loss if MER is stable.", "priority": "CRITICAL" }
+        ]
+      }
+    },
+    {
+      "key": "frequency",
+      "label": "Frequency",
+      "unit": "count",
+      "description": "Impressions / reach in the window. Saturation/fatigue indicator. Benchmark (Good Morning): cold 2.5–3.5, warm 4–6; fatigue line ~3–4 for cold audiences.",
+      "direction": "above",
+      "warning_threshold": 4.0,
+      "critical_threshold": 6.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "FREQ_EXPAND_AUDIENCE", "title": "Expand audience", "description": "Frequency exceeded 4. Add lookalike or broad segments to reduce overlap fatigue, and rotate in fresh creative.", "priority": "HIGH" }
+        ],
+        "critical": [
+          { "id": "FREQ_REFRESH_AND_CAP", "title": "Refresh creatives and cap frequency", "description": "Frequency exceeded 6. Introduce new creatives, exclude recent converters, and set a frequency cap (e.g. 3 per 7 days) where the objective allows.", "priority": "CRITICAL" }
+        ]
+      }
+    },
+    {
+      "key": "cpm",
+      "label": "Cost Per Mille",
+      "unit": "currency_major",
+      "description": "Spend / impressions × 1000. Auction-cost signal; read with CTR/CVR. Pengwing 2026 (GBP): broad £6–10, typical £10–18, competitive £18–35+. Thresholds below are representative major-currency defaults — tune per account currency.",
+      "direction": "above",
+      "warning_threshold": 8.0,
+      "critical_threshold": 12.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "CPM_REVIEW_BIDS", "title": "Review bid strategy and relevance", "description": "CPM is elevated. Improve relevance (creative quality/engagement) to lower delivery cost and shift budget to better-performing ad sets.", "priority": "MEDIUM" }
+        ],
+        "critical": [
+          { "id": "CPM_REDUCE_AUCTION_PRESSURE", "title": "Reduce auction pressure", "description": "CPM critically high. Broaden placements/audience for cheaper inventory; if the spike is seasonal (Q4), protect ROAS via AOV rather than cutting converting creative.", "priority": "CRITICAL" }
+        ]
+      }
+    },
+    {
+      "key": "cpc",
+      "label": "Cost Per Click",
+      "unit": "currency_major",
+      "description": "Spend / clicks. Derived from CPM and CTR (CPC = CPM / (CTR×10)). Pengwing 2026 (GBP): avg £0.80–1.80, competitive £2.00–4.00+. Fix CTR or CPM rather than CPC directly. Tune to account currency.",
+      "direction": "above",
+      "warning_threshold": 1.8,
+      "critical_threshold": 4.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "CPC_IMPROVE_CTR", "title": "Improve CTR to lower CPC", "description": "CPC drifting high. The fastest lever is a stronger hook to raise CTR; also check whether CPM (auction) is the real driver.", "priority": "MEDIUM" }
+        ],
+        "critical": [
+          { "id": "CPC_BROADEN_AND_REFRESH", "title": "Broaden audience and refresh creative", "description": "CPC very high with no conversion offset. Broaden targeting to cut CPM and refresh creative to lift relevance and CTR.", "priority": "HIGH" }
+        ]
+      }
+    },
+    {
+      "key": "cost_per_message",
+      "label": "Cost Per Messaging Conversation",
+      "unit": "currency_major",
+      "description": "Spend / messaging conversations started. Adlytic's Phase-1 primary KPI. Count exactly one canonical 'conversation started' event — never sum overlapping messaging types. Prefer the per-account relative baseline (CostPerMessageEngine) over the static defaults below.",
+      "direction": "above",
+      "warning_threshold": 5.0,
+      "critical_threshold": 8.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "CPMSG_OPTIMIZE_FUNNEL", "title": "Optimize message funnel", "description": "Cost per conversation above target. Tighten audience to responders, test click-to-message copy, and refine the automated greeting/qualifier.", "priority": "HIGH" }
+        ],
+        "critical": [
+          { "id": "CPMSG_PAUSE_BLEEDERS", "title": "Pause bleeding ad sets", "description": "Cost per conversation critically high. Pause ad sets above ~2× account median and reallocate to winners; refresh creative if frequency is climbing.", "priority": "CRITICAL" }
+        ]
+      }
+    },
+    {
+      "key": "hook_rate",
+      "label": "Hook Rate (Thumbstop)",
+      "unit": "percent",
+      "description": "3-second video plays / impressions × 100. Strongest early signal for short-form video. Benchmark (Ryze 2026): strong >25%, acceptable 15–25%, weak <15%.",
+      "direction": "below",
+      "warning_threshold": 20.0,
+      "critical_threshold": 15.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "HOOK_TEST_OPENINGS", "title": "Test new opening 3 seconds", "description": "Hook rate below 20%. Lead with motion, a face, or a bold claim in the first second; remove any intro/branding before the hook.", "priority": "HIGH" }
+        ],
+        "critical": [
+          { "id": "HOOK_REWORK_BEFORE_SCALING", "title": "Rework hook before spending more", "description": "Hook rate below 15%. The opening fails to stop the scroll — do not scale spend until a new hook tests above 20%.", "priority": "CRITICAL" }
+        ]
+      }
+    },
+    {
+      "key": "hold_rate",
+      "label": "Hold Rate",
+      "unit": "percent",
+      "description": "Sustained viewers after the hook (15s/ThruPlay views / 3-second plays × 100). Benchmark (Ryze 2026): strong >25%, acceptable 20–25%.",
+      "direction": "below",
+      "warning_threshold": 20.0,
+      "critical_threshold": 15.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "HOLD_PAYOFF_HOOK", "title": "Pay off the hook sooner", "description": "Hold rate below 20%. Deliver on the hook's promise immediately, tighten pacing, and move the key message/CTA earlier.", "priority": "MEDIUM" }
+        ],
+        "critical": [
+          { "id": "HOLD_SHORTEN_AND_REPACE", "title": "Shorten and re-pace", "description": "Hold rate below 15% despite views. Cut dead frames and shorten to 15–30s, which retains best.", "priority": "HIGH" }
+        ]
+      }
+    },
+    {
+      "key": "thruplay_rate",
+      "label": "ThruPlay Rate",
+      "unit": "percent",
+      "description": "ThruPlays / impressions × 100 (15s or completion). Benchmark (Ryze 2026): typical 18–28%; 15s videos average ~28% vs ~19% for 60s+.",
+      "direction": "below",
+      "warning_threshold": 18.0,
+      "critical_threshold": 12.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "THRUPLAY_STRENGTHEN_HOOK_HOLD", "title": "Strengthen hook and hold", "description": "ThruPlay rate below 18%. Hook and hold drive ThruPlay — improve both and trim length to 15–30s.", "priority": "MEDIUM" }
+        ],
+        "critical": [
+          { "id": "THRUPLAY_REBUILD_CREATIVE", "title": "Rebuild the creative", "description": "ThruPlay rate below 12% on a video goal. Rebuild around a tighter narrative and a faster payoff.", "priority": "HIGH" }
+        ]
+      }
+    },
+    {
+      "key": "cost_per_thruplay",
+      "label": "Cost Per ThruPlay",
+      "unit": "currency_major",
+      "description": "Spend / ThruPlays. Headline cost metric for video-views objectives. Benchmark (Ryze 2026): typical $0.01–$0.10. Use only for awareness/views, never as a conversion proxy.",
+      "direction": "above",
+      "warning_threshold": 0.10,
+      "critical_threshold": 0.20,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "CPTP_LIFT_THRUPLAY", "title": "Lift ThruPlay rate", "description": "Cost per ThruPlay above the typical range. Improve hook/hold to raise ThruPlay rate and broaden placements to cut CPM.", "priority": "LOW" }
+        ],
+        "critical": [
+          { "id": "CPTP_REVISIT_AUDIENCE", "title": "Revisit audience and creative fit", "description": "Cost per ThruPlay well above range. Re-check creative-audience fit and placement quality.", "priority": "MEDIUM" }
+        ]
+      }
+    },
+    {
+      "key": "cart_abandonment_rate",
+      "label": "Cart Abandonment Rate",
+      "unit": "percent",
+      "description": "(1 − purchases/add-to-carts) × 100. Late-funnel leakage and the recoverable retargeting audience. Typical ecommerce 65–80%.",
+      "direction": "above",
+      "warning_threshold": 80.0,
+      "critical_threshold": 90.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "CART_RETARGET_ABANDONERS", "title": "Retarget abandoners", "description": "Abandonment above 80%. Launch abandoned-cart retargeting and email with reassurance/urgency; show shipping costs earlier.", "priority": "HIGH" }
+        ],
+        "critical": [
+          { "id": "CART_FIX_CHECKOUT", "title": "Fix the checkout", "description": "Abandonment above 90% — checkout is likely broken or distrusted. Test end-to-end, add guest checkout, wallets, and trust badges.", "priority": "CRITICAL" }
+        ]
+      }
+    },
+    {
+      "key": "fill_rate",
+      "label": "Fill Rate",
+      "unit": "percent",
+      "description": "Filled ad requests / total ad requests × 100 (publisher/monetization). Healthy >90%. Balance against eCPM — very high fill at low eCPM can underperform.",
+      "direction": "below",
+      "warning_threshold": 90.0,
+      "critical_threshold": 70.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          { "id": "FILL_ADD_DEMAND", "title": "Add demand sources", "description": "Fill below 90%. Add demand via mediation and review price floors and geo/format mix.", "priority": "MEDIUM" }
+        ],
+        "critical": [
+          { "id": "FILL_FIX_MEDIATION", "title": "Fix mediation configuration", "description": "Fill below 70% — significant unmonetised inventory. Audit mediation setup and lower over-aggressive price floors.", "priority": "HIGH" }
+        ]
+      }
+    }
+  ]
+}

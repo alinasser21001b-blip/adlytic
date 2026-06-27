@@ -14,6 +14,7 @@
     "test:analytics": "tsx test_analytics.ts",
     "test:rules": "tsx test_rules.ts",
     "test:knowledge": "tsx test_knowledge.ts",
+    "test:knowledge-base": "tsx test_knowledge_base.ts",
     "test:recommendation": "tsx test_recommendation.ts",
     "test:health": "tsx test_health.ts",
     "test:dto": "tsx test_dto_shape.ts",

@@ -1,0 +1,122 @@
+{
+  "$schema": "./metaAdsKnowledgeBase.schema.json",
+  "version": "1.0.0",
+  "platform": "meta_ads",
+  "updatedAt": "2026-06-27",
+  "metrics": [
+    {
+      "key": "ctr",
+      "label": "Click-Through Rate",
+      "unit": "percent",
+      "description": "Window-aggregated CTR (clicks / impressions × 100). Lower engagement signals creative or audience mismatch.",
+      "direction": "below",
+      "warning_threshold": 1.5,
+      "critical_threshold": 1.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          {
+            "id": "CTR_TEST_NEW_HOOKS",
+            "title": "Test new ad hooks",
+            "description": "CTR is below 1.5%. Launch 2–3 creative variants with stronger first-frame hooks and clearer value props.",
+            "priority": "HIGH"
+          }
+        ],
+        "critical": [
+          {
+            "id": "CTR_REFRESH_CREATIVES",
+            "title": "Refresh creatives immediately",
+            "description": "CTR is below 1.0%. Pause lowest-performing ads and replace with new visuals and headlines this week.",
+            "priority": "CRITICAL"
+          },
+          {
+            "id": "CTR_REVIEW_PLACEMENTS",
+            "title": "Review placements",
+            "description": "Exclude underperforming placements and reallocate budget to Feed/Reels where CTR historically recovers.",
+            "priority": "HIGH"
+          }
+        ]
+      }
+    },
+    {
+      "key": "frequency",
+      "label": "Frequency",
+      "unit": "count",
+      "description": "Average times each person saw ads in the window. High frequency often indicates audience saturation.",
+      "direction": "above",
+      "warning_threshold": 4.0,
+      "critical_threshold": 6.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          {
+            "id": "FREQ_EXPAND_AUDIENCE",
+            "title": "Expand audience",
+            "description": "Frequency exceeded 4. Add lookalike or broad interest segments to reduce overlap fatigue.",
+            "priority": "HIGH"
+          }
+        ],
+        "critical": [
+          {
+            "id": "FREQ_REFRESH_AND_CAP",
+            "title": "Refresh creatives and cap frequency",
+            "description": "Frequency exceeded 6. Introduce new creatives and set a frequency cap of 3 per 7 days where objective allows.",
+            "priority": "CRITICAL"
+          }
+        ]
+      }
+    },
+    {
+      "key": "cpm",
+      "label": "Cost Per Mille",
+      "unit": "currency_major",
+      "description": "Auction CPM for the window. Rising CPM with flat results increases cost per outcome.",
+      "direction": "above",
+      "warning_threshold": 8.0,
+      "critical_threshold": 12.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          {
+            "id": "CPM_REVIEW_BIDS",
+            "title": "Review bid strategy",
+            "description": "CPM is elevated. Test cost-cap or bid-cap adjustments and shift budget to better-performing ad sets.",
+            "priority": "MEDIUM"
+          }
+        ],
+        "critical": [
+          {
+            "id": "CPM_REDUCE_AUCTION_PRESSURE",
+            "title": "Reduce auction pressure",
+            "description": "CPM is critically high. Narrow to top-performing audiences, pause broad targeting, and test lower-competition dayparts.",
+            "priority": "CRITICAL"
+          }
+        ]
+      }
+    },
+    {
+      "key": "cost_per_message",
+      "label": "Cost Per Message",
+      "unit": "currency_major",
+      "description": "Spend divided by messages in the window. Primary efficiency metric for MESSAGES campaigns.",
+      "direction": "above",
+      "warning_threshold": 5.0,
+      "critical_threshold": 8.0,
+      "recommended_optimization_actions": {
+        "warning": [
+          {
+            "id": "CPM_MSG_OPTIMIZE_FUNNEL",
+            "title": "Optimize message funnel",
+            "description": "Cost per message is above target. Tighten audience to responders and test click-to-message copy.",
+            "priority": "HIGH"
+          }
+        ],
+        "critical": [
+          {
+            "id": "CPM_MSG_PAUSE_BLEEDERS",
+            "title": "Pause bleeding ad sets",
+            "description": "Cost per message is critically high. Pause ad sets above 2× account median and reallocate to winners.",
+            "priority": "CRITICAL"
+          }
+        ]
+      }
+    }
+  ]
+}

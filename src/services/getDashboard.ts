@@ -28,6 +28,12 @@ import { PrismaClient, EntityType, Locale, IssueCode } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
+import {
+  evaluateCampaign,
+  findActionsForBreaches,
+  formatActionsForDisplay,
+  type CampaignMetrics,
+} from "../knowledge";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
@@ -407,6 +413,47 @@ export async function getDashboard(
     };
   });
 
+  // Meta Ads KB — query live KPI metrics FIRST; merge verbatim actions into issues.
+  const kbMetrics: CampaignMetrics = {
+    ctr: ctrWindow,
+    cpm: cpmWindow,
+    frequency: freqAvg,
+    cost_per_message: totalMsgs > 0 ? totalSpendMinor / totalMsgs : null,
+  };
+  const kbBreaches = evaluateCampaign(kbMetrics);
+  const kbActionTexts = formatActionsForDisplay(findActionsForBreaches(kbBreaches));
+
+  const METRIC_ISSUE_CODE: Record<string, IssueCode> = {
+    ctr: IssueCode.LOW_CTR,
+    frequency: IssueCode.HIGH_FREQUENCY,
+    cpm: IssueCode.HIGH_CPM,
+    cost_per_message: IssueCode.RISING_COST_PER_RESULT,
+  };
+
+  for (const breach of kbBreaches) {
+    const code = METRIC_ISSUE_CODE[breach.metricKey] ?? IssueCode.LOW_CTR;
+    const texts = formatActionsForDisplay(breach.recommended_optimization_actions);
+    const existing = issues.find(i => i.code === code);
+    if (existing) {
+      existing.recommendations = [...texts, ...existing.recommendations];
+      existing.evidence = {
+        ...existing.evidence,
+        knowledgeBase: breach,
+      };
+    } else {
+      issues.push({
+        code,
+        title: breach.metricLabel,
+        severity: breach.severity === "critical" ? "CRITICAL" : "HIGH",
+        causes: [
+          `${breach.metricLabel} is ${breach.value} (${breach.direction} threshold ${breach.threshold})`,
+        ],
+        recommendations: texts,
+        evidence: { source: "meta_ads_knowledge_base", knowledgeBase: breach },
+      });
+    }
+  }
+
   // 8. Priority action — highest-priority recommendation, rendered to text.
   const rec = await prisma.recommendation.findFirst({
     where: { entityType: EntityType.ACCOUNT, entityId: account.id },
@@ -414,7 +461,7 @@ export async function getDashboard(
   });
   // The recommendation's action text comes from the top issue's localized recs.
   const topIssue = issues[0];
-  const priorityAction = rec
+  let priorityAction = rec
     ? {
         actionCode: rec.actionCode,
         priority: rec.priority,
@@ -422,6 +469,34 @@ export async function getDashboard(
         details: (rec.detailsJson as Record<string, unknown>) ?? null,
       }
     : null;
+
+  // KB-first priority text when thresholds breached and no stored recommendation.
+  if (kbActionTexts.length > 0) {
+    const kbActions = findActionsForBreaches(kbBreaches);
+    const kbTop = kbBreaches[0]!;
+    if (priorityAction) {
+      priorityAction = {
+        ...priorityAction,
+        text: kbActionTexts[0]!,
+        details: {
+          ...(priorityAction.details ?? {}),
+          recommended_optimization_actions: kbActions,
+          metricBreaches: kbBreaches,
+        },
+      };
+    } else {
+      priorityAction = {
+        actionCode: kbActions[0]!.id,
+        priority: kbTop.severity === "critical" ? "CRITICAL" : "HIGH",
+        text: kbActionTexts[0]!,
+        details: {
+          source: "meta_ads_knowledge_base",
+          recommended_optimization_actions: kbActions,
+          metricBreaches: kbBreaches,
+        },
+      };
+    }
+  }
 
   // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
   const cards = await buildCampaignCards(account.id, prisma, sinceDate, factor);

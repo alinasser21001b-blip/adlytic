@@ -37,6 +37,8 @@ import { calculateFrequencyTrend } from "../analytics/calculateFrequencyTrend";
 import { calculateResultsTrend } from "../analytics/calculateResultsTrend";
 import { calculateSpendTrend } from "../analytics/calculateSpendTrend";
 import { confidenceFromCorroboration } from "../rules/severity";
+import { metaKnowledgeInsightEngine } from "../../knowledge/MetaKnowledgeInsightEngine";
+import type { CampaignMetrics } from "../../knowledge/types";
 
 // ── types ────────────────────────────────────────────────────────────────
 
@@ -224,6 +226,23 @@ function ruleRisingCostPerResult(
 
 // ── recommendation derivation ─────────────────────────────────────────────
 
+function buildCampaignMetrics(cur: DailyPoint[]): CampaignMetrics {
+  const curCtr = avgRate(cur, "ctr");
+  const curCpm = avgRate(cur, "cpm");
+  const curFreq = avgRate(cur, "frequency");
+  const curSpend = sumCount(cur, "spend");
+  const curMessages = sumCount(cur, "messages");
+  const costPerMessage =
+    curMessages > 0 ? +(curSpend / curMessages).toFixed(4) : null;
+
+  return {
+    ctr: curCtr,
+    cpm: curCpm,
+    frequency: curFreq,
+    cost_per_message: costPerMessage,
+  };
+}
+
 function deriveRecommendations(issues: IssueRow[], entityId: string): RecommendationRow[] {
   const recs: RecommendationRow[] = [];
 
@@ -320,7 +339,19 @@ export class AdlyticIntelligenceSystem {
     ].filter((r): r is IssueRow => r !== null);
 
     const healthScore = deriveHealthScore(issues);
-    const recs = deriveRecommendations(issues, adAccountId);
+
+    // KB FIRST — verbatim recommended_optimization_actions when thresholds breach.
+    const metrics = buildCampaignMetrics(cur);
+    const kbRecs = metaKnowledgeInsightEngine.deriveRecommendations(metrics, adAccountId);
+    const recs: RecommendationRow[] = kbRecs.length > 0
+      ? kbRecs.map(r => ({
+          entityId: r.entityId,
+          actionCode: r.actionCode,
+          priority: r.priority,
+          strength: r.strength,
+          text: r.text,
+        }))
+      : deriveRecommendations(issues, adAccountId);
 
     // ── Phase 3: atomic upsert ──────────────────────────────────────────
     await this.upsert(adAccountId, now, healthScore, signals, issues, recs);

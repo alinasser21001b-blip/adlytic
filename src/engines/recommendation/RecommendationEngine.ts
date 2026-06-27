@@ -22,10 +22,15 @@
 //  the answer is "add a CompositionRule".
 // ════════════════════════════════════════════════════════════════════════
 
-import { PrismaClient, EntityType, IssueCode } from "@prisma/client";
+import { PrismaClient, EntityType, IssueCode, RecommendationPriority } from "@prisma/client";
 import { RecommendationsRepo, type RecommendationRecord } from "../../repositories/recommendationsRepo";
 import { COMPOSITION_RULES, type CompositionRule } from "./compositionRules";
 import { matchCompositionRule } from "./matchCompositionRule";
+import {
+  evaluateCampaign,
+  findActionsForBreaches,
+  type CampaignMetrics,
+} from "../../knowledge";
 
 export interface RecommendationOptions {
   /** "as of" date for the run. Matches what Rules wrote. */
@@ -72,14 +77,35 @@ export class RecommendationEngine {
       const codes = (issues as any[]).map(i => i.issueCode as IssueCode);
       const chosen = matchCompositionRule(codes, rules);
 
-      const recommendation: RecommendationRecord | null = chosen
-        ? {
-            actionCode: chosen.actionCode,
-            priority: chosen.priority,
-            sourceIssues: chosen.requiredIssues,
-            details: null, // Phase 1: no per-recommendation parameters
-          }
-        : null;
+      // Meta Ads KB FIRST — attach verbatim actions when live metrics breach thresholds.
+      const metrics = await this.loadCampaignMetrics(entityType, entityId, asOf);
+      const kbBreaches = evaluateCampaign(metrics);
+      const kbActions = findActionsForBreaches(kbBreaches);
+
+      let recommendation: RecommendationRecord | null = null;
+
+      if (kbActions.length > 0) {
+        const top = kbBreaches[0]!;
+        recommendation = {
+          actionCode: kbActions[0]!.id,
+          priority: top.severity === "critical"
+            ? RecommendationPriority.CRITICAL
+            : RecommendationPriority.HIGH,
+          sourceIssues: chosen?.requiredIssues ?? [],
+          details: {
+            source: "meta_ads_knowledge_base",
+            metricBreaches: kbBreaches,
+            recommended_optimization_actions: kbActions,
+          },
+        };
+      } else if (chosen) {
+        recommendation = {
+          actionCode: chosen.actionCode,
+          priority: chosen.priority,
+          sourceIssues: chosen.requiredIssues,
+          details: null,
+        };
+      }
 
       await this.repo.replaceForDate({
         entityType, entityId, date: asOf, recommendation,
@@ -94,7 +120,54 @@ export class RecommendationEngine {
 
     return result;
   }
+
+  /** Window aggregates aligned with RulesEngine signal math (7d + 2d lag). */
+  private async loadCampaignMetrics(
+    entityType: EntityType,
+    entityId: string,
+    asOf: Date,
+  ): Promise<CampaignMetrics> {
+    const windowDays = 7;
+    const lag = 2;
+    const currentUntil = addDays(asOf, -lag);
+    const currentSince = addDays(currentUntil, -(windowDays - 1));
+
+    const daily = await this.prisma.dailyStat.findMany({
+      where: {
+        entityType,
+        entityId,
+        date: { gte: dateOnly(currentSince), lte: dateOnly(currentUntil) },
+      },
+    });
+
+    let impTotal = 0;
+    let ctrNum = 0;
+    let cpmNum = 0;
+    const freqVals: number[] = [];
+    let resultsSum = 0;
+    let spendSum = 0;
+
+    for (const r of daily as any[]) {
+      const imp = Number(r.impressions);
+      impTotal += imp;
+      if (r.ctr != null && imp > 0) ctrNum += r.ctr * imp;
+      if (r.cpm != null && imp > 0) cpmNum += r.cpm * imp;
+      if (r.frequency != null) freqVals.push(r.frequency);
+      resultsSum += Number(r.messages ?? r.conversions ?? 0);
+      spendSum += Number(r.spend);
+    }
+
+    return {
+      ctr: impTotal > 0 ? +(ctrNum / impTotal).toFixed(4) : null,
+      cpm: impTotal > 0 ? +(cpmNum / impTotal).toFixed(4) : null,
+      frequency: freqVals.length
+        ? +(freqVals.reduce((a, b) => a + b, 0) / freqVals.length).toFixed(4)
+        : null,
+      cost_per_message: resultsSum > 0 ? +(spendSum / resultsSum).toFixed(4) : null,
+    };
+  }
 }
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const dateOnly = (d: Date) => new Date(d.toISOString().slice(0, 10));
+const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400_000);

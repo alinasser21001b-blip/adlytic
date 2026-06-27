@@ -1,0 +1,45 @@
+{
+  "knowledge_base": "Adlytic Meta Ads Knowledge Base",
+  "version": "1.0.0",
+  "generated": "2026-06-27",
+  "purpose": "Primary grounding reference for Adlytic AI when analysing Meta Ads performance. Every recommendation should cite a metric definition, threshold, or decision rule from these modules rather than relying on general model knowledge.",
+  "usage_contract": [
+    "Resolve a metric by key (e.g. 'ROAS', 'cost_per_message') across the metric modules.",
+    "Use `better_when` to read thresholds in the correct direction.",
+    "Prefer per-account relative baselines (Adlytic engine) over absolute benchmarks when a baseline exists; benchmarks are industry averages, not Meta guarantees.",
+    "Apply decision_rules.json for multi-signal verdicts; honour the cold-start guard before citing delta percentages.",
+    "Normalise currency to a common major-unit basis before comparing a stored value to a benchmark."
+  ],
+  "layers": {
+    "engine_dropin": "metaAdsKnowledgeBase.json — schema-conformant flat metrics[] loaded by loadKnowledgeBase.ts; actions returned verbatim on threshold breach. This is the file the runtime consumes.",
+    "reasoning_reference": "reference_core_metrics.json + metrics_*.json + benchmarks_by_industry.json + decision_rules.json — rich human/AI grounding layer (definitions, causes, multi-signal rules). Not loaded by the threshold engine; used to ground AI narration."
+  },
+  "modules": [
+    { "file": "metaAdsKnowledgeBase.json", "title": "Engine drop-in (schema-conformant)", "covers": ["ctr", "link_ctr", "cvr", "roas", "frequency", "cpm", "cpc", "cost_per_message", "hook_rate", "hold_rate", "thruplay_rate", "cost_per_thruplay", "cart_abandonment_rate", "fill_rate"] },
+    { "file": "reference_core_metrics.json", "title": "Core metrics (rich reference)", "covers": ["CTR", "link_CTR", "CPC", "CPM", "CPA", "ROAS", "frequency", "reach", "impressions", "CVR", "cost_per_message"] },
+    { "file": "metrics_video_engagement.json", "title": "Video & engagement", "covers": ["hook_rate", "hold_rate", "thruplay_rate", "cost_per_thruplay", "video_avg_watch_time", "engagement_rate", "creative_fatigue", "relevance_ranking"] },
+    { "file": "metrics_funnel_value.json", "title": "Funnel events & business value", "covers": ["landing_page_view", "view_content", "add_to_cart", "checkout_initiated", "purchase", "purchase_roas", "AOV", "LTV", "CAC", "MER", "cart_abandonment_rate", "cost_per_lead", "retention_rate"] },
+    { "file": "metrics_platform_supporting.json", "title": "App/monetization & supporting", "covers": ["ARPPU", "ARPU", "ARPDAU", "DAU", "MAU", "IMPDAU", "eCPM", "fill_rate", "CPI", "attribution_window", "view_through_conversion", "incrementality", "bid_strategy", "optimization_event", "learning_phase", "spend", "placement"] },
+    { "file": "benchmarks_by_industry.json", "title": "Industry benchmarks 2026", "covers": ["global_averages", "industries", "seasonality", "messaging_objective"] },
+    { "file": "decision_rules.json", "title": "Decision rules", "covers": ["R001..R020 diagnostic signature -> verdict -> action"] }
+  ],
+  "metric_count": 49,
+  "decision_rule_count": 20,
+  "category_legend": {
+    "engagement": "Attention/interaction signals (CTR, engagement rate, DAU/MAU).",
+    "cost": "Per-unit cost metrics (CPC, CPM, CPA, CPL, CPI, cost_per_message, spend).",
+    "efficiency": "Return/efficiency ratios (ROAS, CVR, MER, purchase_roas).",
+    "delivery": "Auction/delivery mechanics (frequency, reach, impressions, bid_strategy, learning_phase, placement, optimization_event).",
+    "video": "Video creative metrics (hook/hold/thruplay/watch time).",
+    "funnel": "Conversion-funnel events (LPV, ViewContent, ATC, IC, purchase, abandonment).",
+    "value": "Business value (AOV, LTV, CAC, retention, ARPU family).",
+    "monetization": "Publisher/app monetization (eCPM, fill_rate, IMPDAU).",
+    "measurement": "Attribution/measurement (attribution_window, VTC, incrementality).",
+    "diagnostic": "Composite diagnostics (creative_fatigue, relevance_ranking)."
+  },
+  "integrity_notes": [
+    "Benchmarks are INDUSTRY AVERAGES from the cited 2026 sources, not official Meta standards.",
+    "ROAS is currency-factor-invariant and is never re-scaled in Adlytic currency repair.",
+    "cost_per_message must count exactly one canonical 'conversation started' event; never sum overlapping messaging action types."
+  ]
+}
