@@ -1021,6 +1021,9 @@ export function dashboardPage(): string {
     return /BUDGET|WASTE|BURN|OVERSPEND|BLEED|SPEND/.test(blob);
   }
   function deriveBusinessHealth(dashData) {
+    if (!dashData) {
+      return { level: 'healthy', text: lbl('Status: Healthy. Your ads are converting efficiently.', 'الحالة: جيد. إعلاناتك تحقق نتائج بكفاءة.') };
+    }
     var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
     var hasCritical = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'critical'; });
     var hasHigh = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'high'; });
@@ -1085,6 +1088,7 @@ export function dashboardPage(): string {
     return null;
   }
   function buildAllMoveItems(dashData) {
+    if (!dashData) return [];
     var items = [];
     var seen = [];
 
@@ -1162,6 +1166,7 @@ export function dashboardPage(): string {
     return items;
   }
   function pickMainMoveNarrative(primary, dashData, kpis) {
+    if (!primary) return '';
     if (primary.narrative && primary.narrative !== primary.decision && primary.narrative !== primary.title) {
       return primary.narrative;
     }
@@ -1239,6 +1244,8 @@ export function dashboardPage(): string {
   }
 
   // ── V2: Spotlight ───────────────────────────────────────────────────────
+  function deriveOpportunity(dashData) {
+    if (!dashData) return null;
     if (dashData.opportunity) return dashData.opportunity;
     if (dashData.bestCampaign) {
       return { title: 'Audience Expansion', reason: 'Top campaign performing well — broaden audience to scale safely.', expectedGain: '+12 messages/day', confidence: 85 };
@@ -1285,7 +1292,6 @@ export function dashboardPage(): string {
     }
     el.innerHTML = parts.join('');
   }
-  function deriveOpportunity(dashData) {
   function priorityBadgeClass(p) {
     if (p === 'CRITICAL') return 'badge-red';
     if (p === 'HIGH') return 'badge-yellow';
