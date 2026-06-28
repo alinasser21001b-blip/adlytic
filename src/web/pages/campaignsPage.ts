@@ -50,11 +50,14 @@ export function campaignsPage(): string {
       <div class="page-title">Campaigns</div>
       <div class="page-subtitle" id="page-subtitle">All campaigns across your Meta ad account</div>
     </div>
-    <div class="tabs" id="date-tabs">
-      <button class="tab" data-days="7">7d</button>
-      <button class="tab" data-days="14">14d</button>
-      <button class="tab active" data-days="30">30d</button>
-      <button class="tab" data-days="90">90d</button>
+    <div class="flex items-center gap-2">
+      <button type="button" class="btn btn-ghost btn-sm" id="force-sync-btn" title="Sync latest data from Meta">↻ Refresh Data</button>
+      <div class="tabs" id="date-tabs">
+        <button class="tab" data-days="7">7d</button>
+        <button class="tab" data-days="14">14d</button>
+        <button class="tab active" data-days="30">30d</button>
+        <button class="tab" data-days="90">90d</button>
+      </div>
     </div>
   </div>
 
@@ -250,14 +253,41 @@ export function campaignsPage(): string {
     window.location.href = '/login';
   }
 
-  async function apiFetch(path) {
+  async function apiFetch(path, opts) {
+    opts = opts || {};
     var token = getToken();
-    var res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
+    var res = await fetch(path, {
+      method: opts.method || 'GET',
+      body: opts.body,
+      headers: Object.assign(
+        { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        opts.headers || {}
+      ),
+      signal: opts.signal,
+    });
     if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
-    if (!res.ok) throw new Error('API error ' + res.status + ' on ' + path);
+    if (!res.ok) {
+      var errBody = await res.json().catch(function() { return { error: 'API error ' + res.status }; });
+      throw new Error(errBody.error || ('API error ' + res.status + ' on ' + path));
+    }
     return res.json().catch(function() {
       throw new Error('Server returned a non-JSON response from ' + path);
     });
+  }
+
+  function sleep(ms) {
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
+  }
+
+  async function pollSyncJob(jobId) {
+    var maxAttempts = 120;
+    for (var i = 0; i < maxAttempts; i++) {
+      var job = await apiFetch('/api/sync-jobs/' + encodeURIComponent(jobId));
+      if (job.status === 'COMPLETED') return job;
+      if (job.status === 'FAILED') throw new Error(job.error || 'Sync failed');
+      await sleep(1000);
+    }
+    throw new Error('Sync timed out — try again in a moment');
   }
 
   function showError(msg) {
@@ -905,6 +935,72 @@ export function campaignsPage(): string {
     }
   }
 
+  // ── Data refresh (after sync or manual reload) ────────────────────────────
+  async function loadCampaignData() {
+    var workspaceId = state.workspaceId;
+    if (!workspaceId) return;
+
+    var results = await Promise.all([
+      apiFetch('/api/workspaces/' + workspaceId + '/campaigns'),
+      apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
+      apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
+    ]);
+    var campaigns = results[0];
+    var insights = results[1];
+    var wsData = results[2];
+
+    var primary = wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts[0];
+    if (primary) {
+      if (primary.currency) state.currency = primary.currency;
+      if (primary.currency === 'IQD') {
+        state.minorFactor = 1;
+      } else if (primary.currencyMinorFactor != null && Number(primary.currencyMinorFactor) > 0) {
+        state.minorFactor = Number(primary.currencyMinorFactor);
+      }
+    }
+
+    state.campaigns = Array.isArray(campaigns) ? campaigns : [];
+    state.insights = Array.isArray(insights) ? insights : [];
+
+    var searchInput = document.getElementById('search-input');
+    var searchVal = searchInput && searchInput.value;
+    if (searchVal) applyFilter(searchVal);
+    else renderTable(state.campaigns);
+    updateSummary(state.campaigns, state.insights);
+    updateCharts(state.insights);
+  }
+
+  var syncing = false;
+
+  async function forceSync() {
+    if (syncing || !state.workspaceId) return;
+    var btn = document.getElementById('force-sync-btn');
+    if (!btn) return;
+    syncing = true;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>Syncing…';
+
+    try {
+      var res = await apiFetch('/api/workspaces/' + state.workspaceId + '/sync', {
+        method: 'POST',
+        body: JSON.stringify({ windowDays: 3 }),
+      });
+      if (res && res.jobId) {
+        var job = await pollSyncJob(res.jobId);
+        toast('Sync complete — ' + (job.rowsUpserted || 0) + ' rows updated', 'success');
+      } else {
+        toast('Sync complete', 'success');
+      }
+      await loadCampaignData();
+    } catch (err) {
+      toast(err.message || 'Sync failed', 'error');
+    } finally {
+      syncing = false;
+      btn.disabled = false;
+      btn.textContent = '↻ Refresh Data';
+    }
+  }
+
   // ── Main init ─────────────────────────────────────────────────────────────
   async function init() {
     var token = getToken();
@@ -919,6 +1015,10 @@ export function campaignsPage(): string {
 
     document.getElementById('search-input').addEventListener('input', function(e) {
       applyFilter(e.target.value);
+    });
+
+    document.getElementById('force-sync-btn').addEventListener('click', function() {
+      forceSync();
     });
 
     // Delegated click for inspector — tbody is re-rendered on every search,
