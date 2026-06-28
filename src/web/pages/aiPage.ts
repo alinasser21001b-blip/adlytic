@@ -188,7 +188,7 @@ export function aiPage(): string {
     const initial = role === 'user' ? userInitial : 'AI';
     div.innerHTML =
       '<div class="msg-avatar">' + initial + '</div>' +
-      '<div class="msg-bubble">' + html + '</div>';
+      '<div class="msg-bubble" dir="auto">' + html + '</div>';
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return div;
