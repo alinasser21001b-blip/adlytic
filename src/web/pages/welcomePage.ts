@@ -78,6 +78,17 @@ export function welcomePage(): string {
     }
     .meta-connect-btn:hover { background: #166fe5; }
     .meta-connect-btn svg { flex-shrink: 0; }
+    .welcome-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .welcome-auth-footer {
+      font-size: 12.5px; color: var(--text-3); text-align: center;
+    }
+    .welcome-auth-footer a { color: var(--accent); text-decoration: none; }
+    .welcome-auth-footer a:hover { color: var(--accent-2); }
+    .welcome-email-btn {
+      width: 100%; justify-content: center;
+      padding: 12px 18px; font-size: 14px; font-weight: 600;
+      margin-top: 12px;
+    }
     .welcome-footer {
       text-align: center; margin-top: 20px;
       font-size: 12px; color: var(--text-3);
@@ -86,7 +97,7 @@ export function welcomePage(): string {
       display: block; text-align: center; margin-top: 14px;
       font-size: 12.5px; color: var(--text-3);
     }
-    .welcome-skip a { color: var(--text-2); }
+    .welcome-skip a { color: var(--text-2); text-decoration: none; }
     .welcome-skip a:hover { color: var(--text); }
     #error-msg { display: none; margin-bottom: 16px; }
     #connect-loading {
@@ -146,13 +157,21 @@ export function welcomePage(): string {
         <span id="connect-btn-label">Connect with Meta</span>
       </button>
 
+      <a href="/login" class="btn btn-secondary welcome-email-btn" id="manual-login-btn">Sign in with email</a>
+
       <div id="connect-loading">
         <span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>
         <span id="connect-loading-text">Redirecting to Meta…</span>
       </div>
 
+      <hr class="welcome-divider" id="welcome-auth-divider">
+      <div class="welcome-auth-footer" id="welcome-auth-footer">
+        <span id="login-prompt">Already have an account?</span>
+        <a href="/login" id="login-link">Log in</a>
+      </div>
+
       <div class="welcome-skip">
-        <a href="/dashboard" id="skip-link">Skip for now</a>
+        <a href="/register" id="skip-link">Skip for now</a>
       </div>
     </div>
     <div class="welcome-footer">Adlytic Ads Intelligence Platform</div>
@@ -170,8 +189,13 @@ export function welcomePage(): string {
         b3Title: 'Secure connection',
         b3Text: 'Your tokens are encrypted. We only read ad performance data.',
         connect: 'Connect with Meta',
+        signInEmail: 'Sign in with email',
+        loginPrompt: 'Already have an account?',
+        loginLink: 'Log in',
         connecting: 'Redirecting to Meta…',
-        skip: 'Skip for now',
+        skip: 'Skip for now — create account',
+        skipDashboard: 'Skip for now',
+        signInRequired: 'Please sign in first to connect Meta.',
         oauthExpired: 'That connection attempt expired. Please try again.',
         oauthMissing: 'Meta did not return the expected information. Please try again.',
         oauthNotConfigured: 'Meta connection is not set up on this server yet.',
@@ -190,8 +214,13 @@ export function welcomePage(): string {
         b3Title: 'اتصال آمن',
         b3Text: 'بيانات الدخول مشفّرة — نقرأ أداء الإعلانات فقط.',
         connect: 'الربط مع Meta',
+        signInEmail: 'تسجيل الدخول بالبريد',
+        loginPrompt: 'لديك حساب بالفعل؟',
+        loginLink: 'تسجيل الدخول',
         connecting: 'جاري التحويل إلى Meta…',
-        skip: 'تخطي الآن',
+        skip: 'تخطي الآن — إنشاء حساب',
+        skipDashboard: 'تخطي الآن',
+        signInRequired: 'سجّل الدخول أولاً لربط Meta.',
         oauthExpired: 'انتهت صلاحية محاولة الربط. حاول مرة أخرى.',
         oauthMissing: 'لم يُرجع Meta المعلومات المتوقعة. حاول مرة أخرى.',
         oauthNotConfigured: 'ربط Meta غير مُعدّ على هذا الخادم بعد.',
@@ -203,6 +232,7 @@ export function welcomePage(): string {
     };
 
     let locale = 'EN';
+    let isAuthenticated = false;
 
     function t(key) {
       const pack = I18N[locale] || I18N.EN;
@@ -217,7 +247,12 @@ export function welcomePage(): string {
       document.getElementById('welcome-subtitle').textContent = t('subtitle');
       document.getElementById('connect-btn-label').textContent = t('connect');
       document.getElementById('connect-loading-text').textContent = t('connecting');
-      document.getElementById('skip-link').textContent = t('skip');
+      document.getElementById('manual-login-btn').textContent = t('signInEmail');
+      document.getElementById('login-prompt').textContent = t('loginPrompt') + ' ';
+      document.getElementById('login-link').textContent = t('loginLink');
+      const skipEl = document.getElementById('skip-link');
+      skipEl.textContent = isAuthenticated ? t('skipDashboard') : t('skip');
+      skipEl.href = isAuthenticated ? '/dashboard' : '/register';
       const map = [
         ['b1-title', 'b1Title'], ['b1-text', 'b1Text'],
         ['b2-title', 'b2Title'], ['b2-text', 'b2Text'],
@@ -227,6 +262,19 @@ export function welcomePage(): string {
         const el = document.querySelector('[data-i18n="' + attr + '"]');
         if (el) el.textContent = t(key);
       });
+    }
+
+    function setGuestMode() {
+      isAuthenticated = false;
+      applyLocale();
+    }
+
+    function setAuthenticatedMode() {
+      isAuthenticated = true;
+      document.getElementById('manual-login-btn').style.display = 'none';
+      document.getElementById('welcome-auth-divider').style.display = 'none';
+      document.getElementById('welcome-auth-footer').style.display = 'none';
+      applyLocale();
     }
 
     function showError(msg) {
@@ -247,47 +295,52 @@ export function welcomePage(): string {
     }
 
   (async () => {
-    const token = localStorage.getItem('adlytic_token');
-    if (!token) {
-      window.location.href = '/login';
-      return;
-    }
+    let token = localStorage.getItem('adlytic_token');
+    let wsId = localStorage.getItem('adlytic_workspace_id');
 
-    const wsId = localStorage.getItem('adlytic_workspace_id');
-    if (!wsId) {
-      window.location.href = '/login';
-      return;
-    }
+    if (token) {
+      try {
+        const meRes = await fetch('/api/auth/me', {
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        if (!meRes.ok) {
+          localStorage.removeItem('adlytic_token');
+          localStorage.removeItem('adlytic_workspace_id');
+          token = null;
+          wsId = null;
+          setGuestMode();
+        } else {
+          const me = await meRes.json();
+          if (me.isActive === false) {
+            window.location.href = '/pending-activation';
+            return;
+          }
+          locale = (me.locale || 'EN').toUpperCase();
+          if (!wsId) {
+            wsId = me.memberships?.[0]?.workspaceId || null;
+            if (wsId) localStorage.setItem('adlytic_workspace_id', wsId);
+          }
 
-    try {
-      const meRes = await fetch('/api/auth/me', {
-        headers: { Authorization: 'Bearer ' + token },
-      });
-      if (!meRes.ok) {
-        localStorage.removeItem('adlytic_token');
-        window.location.href = '/login';
-        return;
-      }
-      const me = await meRes.json();
-      if (me.isActive === false) {
-        window.location.href = '/pending-activation';
-        return;
-      }
-      locale = (me.locale || 'EN').toUpperCase();
-      applyLocale();
-
-      const wsRes = await fetch('/api/workspaces/' + wsId, {
-        headers: { Authorization: 'Bearer ' + token },
-      });
-      if (wsRes.ok) {
-        const ws = await wsRes.json();
-        if (ws.adAccounts && ws.adAccounts.length > 0) {
-          window.location.href = '/dashboard';
-          return;
+          if (wsId) {
+            const wsRes = await fetch('/api/workspaces/' + wsId, {
+              headers: { Authorization: 'Bearer ' + token },
+            });
+            if (wsRes.ok) {
+              const ws = await wsRes.json();
+              if (ws.adAccounts && ws.adAccounts.length > 0) {
+                window.location.href = '/dashboard';
+                return;
+              }
+            }
+          }
+          setAuthenticatedMode();
         }
+      } catch (e) {
+        console.warn('[welcome] init check failed:', e);
+        setGuestMode();
       }
-    } catch (e) {
-      console.warn('[welcome] init check failed:', e);
+    } else {
+      setGuestMode();
     }
 
     const params = new URLSearchParams(window.location.search);
@@ -301,12 +354,20 @@ export function welcomePage(): string {
       const btn = document.getElementById('connect-meta-btn');
       const loading = document.getElementById('connect-loading');
       document.getElementById('error-msg').style.display = 'none';
+
+      const activeToken = localStorage.getItem('adlytic_token');
+      const activeWsId = localStorage.getItem('adlytic_workspace_id');
+      if (!activeToken || !activeWsId) {
+        showError(t('signInRequired'));
+        return;
+      }
+
       btn.disabled = true;
       loading.style.display = 'flex';
 
       try {
-        const res = await fetch('/api/meta/oauth/start?workspaceId=' + encodeURIComponent(wsId), {
-          headers: { Authorization: 'Bearer ' + token },
+        const res = await fetch('/api/meta/oauth/start?workspaceId=' + encodeURIComponent(activeWsId), {
+          headers: { Authorization: 'Bearer ' + activeToken },
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
