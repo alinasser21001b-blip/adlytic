@@ -534,6 +534,10 @@ export function workspacePage(): string {
   try {
     await Promise.all([loadWorkspace(), loadMembers()]);
     console.log('[WS:14] Promise.all resolved — both loads complete');
+    if (params.get('connect') === 'manual') {
+      openManualTokenModal();
+      window.history.replaceState({}, '', '/workspace');
+    }
   } catch(e) {
     console.error('[WS:CATCH] Promise.all threw:', e.message);
     document.getElementById('ws-info-loading').style.display = 'none';

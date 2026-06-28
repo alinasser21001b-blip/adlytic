@@ -118,6 +118,11 @@ export function welcomePage(): string {
     }
     .meta-connect-btn:hover { background: #166fe5; }
     .meta-connect-btn svg { flex-shrink: 0; }
+    .welcome-manual-btn {
+      width: 100%; justify-content: center;
+      padding: 10px 18px; font-size: 13px; font-weight: 500;
+      margin-top: 4px;
+    }
     .welcome-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
     .welcome-footer {
       text-align: center; margin-top: 20px;
@@ -178,6 +183,9 @@ export function welcomePage(): string {
           <span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>
           <span id="connect-loading-text">Redirecting to Meta…</span>
         </div>
+        <a href="/workspace?connect=manual" class="btn btn-ghost welcome-manual-btn" id="manual-connect-link" style="display:none;">
+          <span id="manual-connect-label">Connect manually (access token)</span>
+        </a>
       </div>
 
       <hr class="welcome-divider">
@@ -239,6 +247,7 @@ export function welcomePage(): string {
         oauthDenied: 'Permission was not granted. Please approve access to connect.',
         oauthGeneric: 'Could not connect to Meta. Please try again.',
         metaUnavailable: 'Meta connection is temporarily unavailable.',
+        manualConnect: 'Connect manually (access token)',
       },
       AR: {
         title: 'مرحباً بك في Adlytic',
@@ -268,6 +277,7 @@ export function welcomePage(): string {
         oauthDenied: 'لم تتم الموافقة على الأذونات. وافق على الوصول للمتابعة.',
         oauthGeneric: 'تعذّر الربط مع Meta. حاول مرة أخرى.',
         metaUnavailable: 'ربط Meta غير متاح مؤقتاً.',
+        manualConnect: 'الربط اليدوي بميتا',
       },
     };
 
@@ -303,6 +313,7 @@ export function welcomePage(): string {
       document.getElementById('meta-hint').textContent = t('metaHint');
       document.getElementById('signed-in-label').textContent = t('signedInAs') + ' ';
       document.getElementById('switch-account-link').textContent = t('switchAccount');
+      document.getElementById('manual-connect-label').textContent = t('manualConnect');
       const map = [
         ['b1-title', 'b1Title'], ['b1-text', 'b1Text'],
         ['b2-title', 'b2Title'], ['b2-text', 'b2Text'],
@@ -322,6 +333,7 @@ export function welcomePage(): string {
       document.getElementById('welcome-or').style.display = 'flex';
       document.getElementById('meta-hint').style.display = 'block';
       document.getElementById('welcome-signed-in').style.display = 'none';
+      document.getElementById('manual-connect-link').style.display = 'none';
       applyLocale();
     }
 
@@ -334,6 +346,7 @@ export function welcomePage(): string {
       document.getElementById('meta-hint').style.display = 'none';
       document.getElementById('welcome-signed-in').style.display = 'block';
       document.getElementById('signed-in-email').textContent = userEmail;
+      document.getElementById('manual-connect-link').style.display = 'flex';
       applyLocale();
     }
 
