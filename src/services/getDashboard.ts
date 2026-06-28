@@ -125,6 +125,45 @@ export interface DashboardDTO {
   // Strangler Fig: when absent, the page renders V5 sections only. When present, the
   // V6 sections render *above* the V5 ones and the V5 stays as a fallback below.
   brain?: BrainSection;
+
+  /** Rich steady-state content when no critical actions remain (optional). */
+  steadyState?: SteadyStateSummary;
+}
+
+/** Stable-account snapshot for Main Move + AI Assistant when no actions are pending. */
+export interface SteadyStateCampaign {
+  id: string;
+  name: string;
+  health: number;
+  band: string;
+  ctr: number | null;
+  ctrDisplay: string;
+  cpm: number | null;
+  cpmDisplay: string;
+  messages: number;
+}
+
+export interface SteadyStateBenchmark {
+  key: string;
+  label: string;
+  valueDisplay: string;
+  benchmarkLabel: string;
+  verdict: string;
+  positive: boolean;
+}
+
+export interface SteadyStateInsight {
+  title: string;
+  body: string;
+}
+
+export interface SteadyStateSummary {
+  stableCampaigns: SteadyStateCampaign[];
+  benchmarks: SteadyStateBenchmark[];
+  backgroundSummary: string;
+  mainMoveTitle: string;
+  mainMoveNarrative: string;
+  insights: SteadyStateInsight[];
 }
 
 // ── V6 Brain Section types ─────────────────────────────────────────────
@@ -644,6 +683,34 @@ export async function getDashboard(
     ),
   );
 
+  const hasActionItems =
+    filteredIssues.length > 0 ||
+    priorityAction != null ||
+    (brain?.cmoFeedV2 ?? []).some((it) => it.generatedAt);
+
+  const roasAvg = avg(daily, "roas");
+  const steadyState = !hasActionItems
+    ? buildSteadyStateSummary({
+        locale,
+        currency: curr,
+        factor,
+        ctr: ctrWindow,
+        cpm: cpmWindow,
+        costPerMessage:
+          totalMsgs > 0
+            ? (factor === 1 ? totalSpendMinor : totalSpendMinor / factor) / totalMsgs
+            : null,
+        roas: roasAvg,
+        healthScore: score,
+        healthBand: band(score),
+        activeCampaigns: account.campaigns.length,
+        stableCampaigns: cards.stable,
+        brain,
+        money,
+        moneyMajor,
+      })
+    : undefined;
+
   return {
     workspace: {
       id: ws.id,
@@ -664,6 +731,213 @@ export async function getDashboard(
     worstCampaign: cards.worst,
     lifetimeSpend,
     ...(brain && { brain }),
+    ...(steadyState && { steadyState }),
+  };
+}
+
+// ── Steady-state enrichment (no pending actions) ─────────────────────────
+
+const CTR_GOOD_BENCHMARK = 1.5;
+const ROAS_GOOD_BENCHMARK = 2.0;
+const CPA_GOOD_BENCHMARK = 5.0;
+
+function buildSteadyStateSummary(input: {
+  locale: Locale;
+  currency: string;
+  factor: number;
+  ctr: number | null;
+  cpm: number | null;
+  costPerMessage: number | null;
+  roas: number | null;
+  healthScore: number;
+  healthBand: ReturnType<typeof band>;
+  activeCampaigns: number;
+  stableCampaigns: CampaignCard[];
+  brain: BrainSection | null | undefined;
+  money: (minor: number) => string;
+  moneyMajor: (major: number) => string;
+}): SteadyStateSummary {
+  const loc = normalizeLocale(input.locale);
+  const t = (en: string, ar: string) => (loc === "AR" ? ar : en);
+
+  const stableCampaigns: SteadyStateCampaign[] = input.stableCampaigns.slice(0, 6).map((c) => ({
+    id: c.id,
+    name: c.name,
+    health: c.health,
+    band: c.band,
+    ctr: c.ctr,
+    ctrDisplay: c.ctr != null ? `${c.ctr.toFixed(2)}%` : "—",
+    cpm: c.cpm,
+    cpmDisplay: c.cpm != null ? input.moneyMajor(c.cpm) : "—",
+    messages: c.messages,
+  }));
+
+  const benchmarks: SteadyStateBenchmark[] = [];
+
+  if (input.ctr != null) {
+    const positive = input.ctr >= CTR_GOOD_BENCHMARK;
+    benchmarks.push({
+      key: "ctr",
+      label: kpiLabel("ctr", input.locale),
+      valueDisplay: `${input.ctr.toFixed(2)}%`,
+      benchmarkLabel: t("Industry good: 1.5%+", "المعيار الجيد: ١.٥٪+"),
+      verdict: positive
+        ? t(`Above benchmark (${CTR_GOOD_BENCHMARK}%+)`, `فوق المعيار (${CTR_GOOD_BENCHMARK}٪+)`)
+        : t(`Below benchmark (${CTR_GOOD_BENCHMARK}%)`, `تحت المعيار (${CTR_GOOD_BENCHMARK}٪)`),
+      positive,
+    });
+  }
+
+  if (input.costPerMessage != null && Number.isFinite(input.costPerMessage)) {
+    const positive = input.costPerMessage <= CPA_GOOD_BENCHMARK;
+    benchmarks.push({
+      key: "cpa",
+      label: t("Cost per result", "تكلفة النتيجة"),
+      valueDisplay: input.moneyMajor(input.costPerMessage),
+      benchmarkLabel: t(`Healthy: ≤ ${CPA_GOOD_BENCHMARK}`, `الصحي: ≤ ${CPA_GOOD_BENCHMARK}`),
+      verdict: positive
+        ? t("Within healthy CPA range", "ضمن نطاق CPA الصحي")
+        : t("Above CPA target — monitor", "فوق هدف CPA — راقب"),
+      positive,
+    });
+  }
+
+  if (input.roas != null && Number.isFinite(input.roas)) {
+    const positive = input.roas >= ROAS_GOOD_BENCHMARK;
+    benchmarks.push({
+      key: "roas",
+      label: "ROAS",
+      valueDisplay: `${input.roas.toFixed(2)}x`,
+      benchmarkLabel: t(`Ecommerce typical: ${ROAS_GOOD_BENCHMARK}x+`, `التجارة: ${ROAS_GOOD_BENCHMARK}x+`),
+      verdict: positive
+        ? t("At or above ROAS target", "عند أو فوق هدف ROAS")
+        : t("Below ROAS target — watch spend", "تحت هدف ROAS — راقب الإنفاق"),
+      positive,
+    });
+  }
+
+  if (input.cpm != null) {
+    const positive = input.cpm <= 8.0;
+    benchmarks.push({
+      key: "cpm",
+      label: kpiLabel("cpm", input.locale),
+      valueDisplay: input.moneyMajor(input.cpm),
+      benchmarkLabel: t("Typical: ≤ 8", "النموذجي: ≤ 8"),
+      verdict: positive
+        ? t("CPM within normal range", "CPM ضمن النطاق الطبيعي")
+        : t("CPM elevated — auction pressure", "CPM مرتفع — ضغط مزاد"),
+      positive,
+    });
+  }
+
+  const pulse = input.brain?.livePulse;
+  const pulseParts: string[] = [];
+  if (pulse?.campaignsObserved) {
+    pulseParts.push(
+      t(
+        `Monitoring ${pulse.campaignsObserved} active campaign${pulse.campaignsObserved === 1 ? "" : "s"}`,
+        `مراقبة ${pulse.campaignsObserved} حملة نشطة`,
+      ),
+    );
+  }
+  if (pulse?.intraDaySpendPct != null) {
+    pulseParts.push(
+      t(
+        `today's spend at ${pulse.intraDaySpendPct.toFixed(1)}% of daily budget`,
+        `إنفاق اليوم ${pulse.intraDaySpendPct.toFixed(1)}٪ من الميزانية`,
+      ),
+    );
+  }
+  if (pulse?.dnaMatchPct != null) {
+    pulseParts.push(
+      t(
+        `creative DNA match ${pulse.dnaMatchPct.toFixed(1)}% vs top performers`,
+        `تطابق DNA الإبداعي ${pulse.dnaMatchPct.toFixed(1)}٪ مع الأفضل`,
+      ),
+    );
+  }
+
+  const backgroundSummary =
+    pulseParts.length > 0
+      ? pulseParts.join(" · ")
+      : t(
+          `AI is watching ${input.activeCampaigns} campaign${input.activeCampaigns === 1 ? "" : "s"} — health score ${input.healthScore} (${input.healthBand}).`,
+          `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
+        );
+
+  const stableCount = stableCampaigns.length || input.activeCampaigns;
+  const namesPreview = stableCampaigns
+    .slice(0, 3)
+    .map((c) => c.name)
+    .join(loc === "AR" ? "، " : ", ");
+
+  const mainMoveTitle =
+    stableCount > 0
+      ? t(
+          `${stableCount} campaign${stableCount === 1 ? "" : "s"} running stable`,
+          `${stableCount} حملة تعمل باستقرار`,
+        )
+      : t("Account is steady — ads running normally", "الحساب مستقر — الإعلانات تعمل بشكل طبيعي");
+
+  const metricLines = benchmarks
+    .slice(0, 3)
+    .map((b) => `${b.label}: ${b.valueDisplay} (${b.verdict})`)
+    .join(loc === "AR" ? " · " : " · ");
+
+  const mainMoveNarrative = [
+    namesPreview
+      ? t(`Active: ${namesPreview}`, `النشطة: ${namesPreview}`)
+      : null,
+    metricLines || null,
+    backgroundSummary,
+  ]
+    .filter(Boolean)
+    .join(loc === "AR" ? " — " : " — ");
+
+  const insights: SteadyStateInsight[] = [];
+
+  if (stableCampaigns.length > 0) {
+    const top = stableCampaigns[0]!;
+    insights.push({
+      title: t("Top stable performer", "أفضل حملة مستقرة"),
+      body: t(
+        `${top.name} — health ${top.health}, CTR ${top.ctrDisplay}, ${top.messages} results this period.`,
+        `${top.name} — صحة ${top.health}، تفاعل ${top.ctrDisplay}، ${top.messages} نتيجة هذه الفترة.`,
+      ),
+    });
+  }
+
+  benchmarks.slice(0, 2).forEach((b) => {
+    insights.push({
+      title: b.label,
+      body: `${b.valueDisplay} · ${b.benchmarkLabel} · ${b.verdict}`,
+    });
+  });
+
+  if (pulse) {
+    insights.push({
+      title: t("Background monitoring", "المراقبة في الخلفية"),
+      body: backgroundSummary,
+    });
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      title: t("All clear", "كل شيء مستقر"),
+      body: t(
+        "No critical actions needed. Your account metrics are within normal ranges.",
+        "لا توجد إجراءات حرجة. مؤشرات حسابك ضمن النطاقات الطبيعية.",
+      ),
+    });
+  }
+
+  return {
+    stableCampaigns,
+    benchmarks,
+    backgroundSummary,
+    mainMoveTitle,
+    mainMoveNarrative,
+    insights,
   };
 }
 
@@ -674,11 +948,11 @@ async function buildCampaignCards(
   prisma: PrismaClient,
   sinceDate: Date,
   factor: number,
-): Promise<{ best: CampaignCard | null; worst: CampaignCard | null }> {
+): Promise<{ best: CampaignCard | null; worst: CampaignCard | null; stable: CampaignCard[] }> {
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId, status: "ACTIVE" },
   });
-  if (!campaigns.length) return { best: null, worst: null };
+  if (!campaigns.length) return { best: null, worst: null, stable: [] };
 
   const campaignIds = campaigns.map((c) => c.id);
 
@@ -727,13 +1001,15 @@ async function buildCampaignCards(
     });
   }
 
-  if (!cards.length) return { best: null, worst: null };
+  if (!cards.length) return { best: null, worst: null, stable: [] };
 
   const sorted = [...cards].sort((a, b) => b.health - a.health);
+  const stable = sorted.filter((c) => c.health >= 70);
 
   return {
     best: sorted[0],
     worst: sorted[sorted.length - 1],
+    stable,
   };
 }
 

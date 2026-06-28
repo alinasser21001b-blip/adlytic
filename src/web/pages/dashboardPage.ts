@@ -20,7 +20,7 @@
 //    /api/workspaces/:wsId/insights?days=90     → DailyStat[] (DESC, spend BigInt MINOR)
 //    /api/workspaces/:wsId/campaigns            → Campaign[] (budgets BigInt MINOR)
 //    /api/workspaces/:wsId                      → adAccounts[currency, currencyMinorFactor]
-//    Full auto-refresh (90s, tab visible)         → dashboard + insights + campaigns
+//    Full auto-refresh (30s, tab visible)         → dashboard + insights + campaigns
 //    Live Pulse comes from dashboard DTO brain.livePulse (no separate pulse poll)
 // ════════════════════════════════════════════════════════════════════════
 
@@ -353,6 +353,20 @@ export function dashboardPage(): string {
     .main-move-cta:hover { filter: brightness(1.1); }
     .main-move-cta.critical { background: var(--error); }
     .main-move-empty { padding: 28px 24px; text-align: center; color: var(--text-3); font-size: 14px; }
+    .main-move-primary.steady { border-left: 4px solid var(--success); }
+    .main-move-steady-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+    .main-move-steady-item {
+      font-size: 12.5px; color: var(--text-2); line-height: 1.55;
+      padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border);
+    }
+    .main-move-steady-item b { color: var(--text); font-weight: 600; }
+    .main-move-benchmarks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .main-move-benchmark {
+      font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+      background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+    }
+    .main-move-benchmark.positive { color: var(--success); background: var(--success-dim); border-color: rgba(34,197,94,0.25); }
+    .main-move-benchmark.negative { color: var(--warning); background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.25); }
     .main-move-more { border-top: 1px solid var(--border); }
     .main-move-more summary {
       cursor: pointer;
@@ -541,7 +555,7 @@ export function dashboardPage(): string {
           <div class="v2-section" id="brain-pulse-section" style="display:none;margin-bottom:18px;">
             <div class="v2-section-head">
               <div class="v2-section-title">Live Pulse</div>
-              <div class="v2-section-meta">Refreshes every 90s · <span id="brain-pulse-tick">—</span></div>
+              <div class="v2-section-meta">Refreshes every 30s · <span id="brain-pulse-tick">—</span></div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
               <div class="card" style="padding:14px;">
@@ -601,7 +615,7 @@ export function dashboardPage(): string {
   'use strict';
 
   // ── State ───────────────────────────────────────────────────────────────
-  var REFRESH_MS = 90000;
+  var REFRESH_MS = 30000;
   var refreshTimer = null;
   var chartInstances = {};
   var state = {
@@ -896,6 +910,102 @@ export function dashboardPage(): string {
     }).join('');
   }
 
+  // ── Steady-state helpers (rich content when no actions pending) ─────────
+  function getSteadyState(dashData) {
+    return dashData && dashData.steadyState ? dashData.steadyState : null;
+  }
+  function buildClientSteadyFallback(dashData, kpis) {
+    var kp = Array.isArray(kpis) ? kpis : [];
+    var ctr = kp.find(function (k) { return k && k.key === 'ctr'; });
+    var best = dashData && dashData.bestCampaign;
+    var insights = [];
+    if (best && best.name) {
+      insights.push({
+        title: lbl('Top performer holding steady', 'أفضل حملة مستقرة'),
+        body: best.name + ' · ' + lbl('Score', 'النتيجة') + ' ' + (best.health != null ? best.health : '—')
+          + (best.ctr != null ? ' · CTR ' + Number(best.ctr).toFixed(2) + '%' : ''),
+      });
+    }
+    if (ctr && ctr.display) {
+      insights.push({
+        title: lbl('Engagement trend', 'اتجاه التفاعل'),
+        body: lbl('CTR', 'تفاعل الإعلان') + ' ' + ctr.display
+          + (ctr.deltaPct != null ? ' (' + (ctr.direction === 'up' ? '+' : '-') + Math.abs(Number(ctr.deltaPct) * 100).toFixed(1) + '%)' : ''),
+      });
+    }
+    var pulse = dashData && dashData.brain && dashData.brain.livePulse;
+    if (pulse && pulse.campaignsObserved) {
+      insights.push({
+        title: lbl('Background monitoring', 'المراقبة في الخلفية'),
+        body: lbl('Watching', 'يراقب') + ' ' + pulse.campaignsObserved + ' ' + lbl('active campaigns', 'حملات نشطة')
+          + (pulse.intraDaySpendPct != null ? ' · ' + pulse.intraDaySpendPct.toFixed(1) + '% ' + lbl("of today's budget", 'من ميزانية اليوم') : ''),
+      });
+    }
+    if (insights.length === 0) {
+      insights.push({
+        title: lbl('Account overview', 'نظرة على الحساب'),
+        body: lbl('Metrics are within normal ranges — AI continues monitoring in the background.', 'المؤشرات ضمن النطاقات الطبيعية — الذكاء الاصطناعي يتابع في الخلفية.'),
+      });
+    }
+    return {
+      mainMoveTitle: lbl('Campaigns running stable', 'الحملات تعمل باستقرار'),
+      mainMoveNarrative: insights[0] ? insights[0].body : '',
+      stableCampaigns: best ? [{ name: best.name, health: best.health, ctrDisplay: best.ctr != null ? Number(best.ctr).toFixed(2) + '%' : '—', messages: best.messages || 0 }] : [],
+      benchmarks: ctr ? [{ label: lbl('CTR', 'تفاعل الإعلان'), valueDisplay: ctr.display, verdict: lbl('Monitoring', 'مراقبة'), positive: true }] : [],
+      backgroundSummary: insights[insights.length - 1] ? insights[insights.length - 1].body : '',
+      insights: insights,
+    };
+  }
+  function renderSteadyMainMove(steady) {
+    var card = document.getElementById('main-move-card');
+    var meta = document.getElementById('main-move-meta');
+    if (!card || !steady) return false;
+    state.mainMovePrimary = null;
+    if (meta) meta.textContent = lbl('Steady state · no action needed', 'مستقر · لا إجراء مطلوب');
+    var stableList = Array.isArray(steady.stableCampaigns) ? steady.stableCampaigns : [];
+    var stableHtml = stableList.length > 0
+      ? '<div class="main-move-steady-list">' + stableList.slice(0, 4).map(function (c) {
+          return '<div class="main-move-steady-item" dir="auto"><b>' + escHtml(c.name || '—') + '</b> · '
+            + escHtml(lbl('Health', 'الصحة')) + ' ' + escHtml(String(c.health != null ? c.health : '—'))
+            + ' · CTR ' + escHtml(c.ctrDisplay || '—')
+            + (c.messages ? ' · ' + escHtml(String(c.messages)) + ' ' + escHtml(lbl('results', 'نتائج')) : '')
+            + '</div>';
+        }).join('') + '</div>'
+      : '';
+    var benchHtml = Array.isArray(steady.benchmarks) && steady.benchmarks.length > 0
+      ? '<div class="main-move-benchmarks">' + steady.benchmarks.slice(0, 4).map(function (b) {
+          var cls = b.positive ? ' positive' : ' negative';
+          return '<span class="main-move-benchmark' + cls + '">' + escHtml(b.label + ': ' + b.valueDisplay + ' — ' + b.verdict) + '</span>';
+        }).join('') + '</div>'
+      : '';
+    card.innerHTML = '<div class="main-move-primary steady" dir="auto">'
+      + '<div class="main-move-tag">' + escHtml(lbl('Steady performance', 'أداء مستقر')) + '</div>'
+      + '<div class="main-move-title">' + escHtml(steady.mainMoveTitle || lbl('Account is steady', 'الحساب مستقر')) + '</div>'
+      + stableHtml
+      + benchHtml
+      + '<div class="main-move-why">' + escHtml(steady.mainMoveNarrative || steady.backgroundSummary || '') + '</div>'
+      + (steady.backgroundSummary && steady.backgroundSummary !== steady.mainMoveNarrative
+        ? '<div class="main-move-why" style="border-top:none;margin-top:0;padding-top:0;font-size:12.5px;color:var(--text-3);">' + escHtml(steady.backgroundSummary) + '</div>'
+        : '')
+    + '</div>';
+    return true;
+  }
+  function renderSteadyBrainBox(steady) {
+    var list = document.getElementById('strategy-list');
+    var sub = document.getElementById('brain-box-sub');
+    if (!list || !steady) return false;
+    var cards = Array.isArray(steady.insights) ? steady.insights : [];
+    if (cards.length === 0) return false;
+    list.innerHTML = cards.slice(0, 6).map(function (c) {
+      return '<div class="strategy-card low">'
+        + '<div class="strategy-head"><div class="strategy-title">' + escHtml(c.title) + '</div></div>'
+        + '<div class="strategy-body">' + escHtml(c.body) + '</div>'
+      + '</div>';
+    }).join('');
+    if (sub) sub.textContent = cards.length + ' ' + lbl(cards.length === 1 ? 'insight' : 'insights', cards.length === 1 ? 'رؤية' : 'رؤى');
+    return true;
+  }
+
   // ── AI Brain Box (strategy cards — skips Main Move #1 to avoid duplication) ─
   function renderBrainBox(dashData) {
     var list = document.getElementById('strategy-list');
@@ -933,6 +1043,10 @@ export function dashboardPage(): string {
     });
 
     if (cards.length === 0) {
+      var steadyForBrain = getSteadyState(dashData);
+      if (steadyForBrain && renderSteadyBrainBox(steadyForBrain)) return;
+      var fallbackBrain = buildClientSteadyFallback(dashData, []);
+      if (renderSteadyBrainBox(fallbackBrain)) return;
       list.innerHTML = '<div class="v2-action-empty">' + escHtml(lbl(
         'Account is steady — no strategic actions needed right now.',
         'الحساب مستقر — لا توجد إجراءات استراتيجية الآن.'
@@ -1235,6 +1349,8 @@ export function dashboardPage(): string {
     if (label) label.textContent = lbl('Main Move', 'الخطوة الأهم');
     var items = buildAllMoveItems(dashData);
     if (items.length === 0) {
+      var steady = getSteadyState(dashData) || buildClientSteadyFallback(dashData, kpis);
+      if (renderSteadyMainMove(steady)) return;
       if (meta) meta.textContent = lbl('All clear', 'كل شيء مستقر');
       state.mainMovePrimary = null;
       card.innerHTML = '<div class="main-move-empty">' + escHtml(lbl(
@@ -1507,19 +1623,25 @@ export function dashboardPage(): string {
         applyDashboardData(dashData, results[1] || [], results[2] || [], null, false);
       } catch (e) { /* silent background refresh */ }
     }
+    function stopTimer() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+    }
     function armTimer() {
-      if (refreshTimer) clearInterval(refreshTimer);
+      stopTimer();
       refreshTimer = setInterval(refreshDashboard, REFRESH_MS);
     }
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) {
         refreshDashboard();
         armTimer();
-      } else if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
+      } else {
+        stopTimer();
       }
     });
+    window.addEventListener('pagehide', stopTimer);
     armTimer();
   }
 
