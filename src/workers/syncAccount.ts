@@ -434,11 +434,12 @@ export class SyncAccountWorker {
     );
 
     const freezeCandidateIds: string[] = [];
+    const returnedExternalIds: string[] = [];
 
     // ── Upsert Campaign rows in a single transaction ──────────────────────
-    await this.prisma.$transaction(
-      metaCampaigns.map((mc) => {
+    const upserts = metaCampaigns.map((mc) => {
         const externalId = String(mc['id']);
+        returnedExternalIds.push(externalId);
         const name = String(mc['name'] ?? '(unnamed)');
         const objective = mc['objective'] != null ? String(mc['objective']) : null;
         const status = mapMetaCampaignStatus(mc['status']);
@@ -476,8 +477,38 @@ export class SyncAccountWorker {
             lifetimeBudget,
           },
         });
-      })
-    );
+    });
+
+    // ── Reconcile vanished campaigns (stale-ACTIVE fix) ───────────────────
+    //
+    // Meta's /campaigns edge returns ACTIVE and PAUSED campaigns but DROPS
+    // those archived/deleted on Meta. The upsert loop above only touches
+    // campaigns Meta still returns, so a campaign that left the listing keeps
+    // its last-synced status forever — a stale ACTIVE row that inflates the
+    // "Active" count on the dashboard/campaigns page. We close that gap in the
+    // SAME transaction by down-converting any locally-live campaign that Meta
+    // no longer lists to ARCHIVED. No extra Meta call: this reuses the set we
+    // already fetched.
+    //
+    // GUARD: only reconcile when Meta returned a non-empty set. A transient
+    // empty/failed list must NEVER mass-archive every live campaign. (A list
+    // call that errors mid-pagination throws and is caught upstream as
+    // non-fatal, so we never reach here with a partial set.)
+    const txOps = returnedExternalIds.length > 0
+      ? [
+          ...upserts,
+          this.prisma.campaign.updateMany({
+            where: {
+              adAccountId,
+              externalCampaignId: { notIn: returnedExternalIds },
+              status: { in: [EntityStatus.ACTIVE, EntityStatus.PAUSED] },
+            },
+            data: { status: EntityStatus.ARCHIVED },
+          }),
+        ]
+      : upserts;
+
+    await this.prisma.$transaction(txOps);
 
     // Re-read with internal IDs so we can write DailyStat rows.
     const campaigns = await this.prisma.campaign.findMany({ where: { adAccountId } });
