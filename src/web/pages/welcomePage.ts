@@ -22,6 +22,46 @@ export function welcomePage(): string {
       padding: 24px 16px;
     }
     .welcome-wrap { width: 100%; max-width: 520px; }
+    .welcome-topbar {
+      display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+      margin-bottom: 20px; font-size: 13px;
+    }
+    .welcome-topbar a {
+      color: var(--text-2); text-decoration: none; font-weight: 500;
+      padding: 6px 12px; border-radius: var(--radius-sm);
+      transition: color var(--transition), background var(--transition);
+    }
+    .welcome-topbar a:hover { color: var(--text); background: var(--surface-2); }
+    .welcome-topbar a.welcome-topbar-primary {
+      color: #fff; background: var(--accent);
+    }
+    .welcome-topbar a.welcome-topbar-primary:hover { background: #4f46e5; color: #fff; }
+    .welcome-signed-in {
+      display: none; font-size: 12.5px; color: var(--text-2); text-align: center;
+      margin-bottom: 16px; line-height: 1.5;
+    }
+    .welcome-signed-in a { color: var(--accent); text-decoration: none; }
+    .welcome-signed-in a:hover { color: var(--accent-2); }
+    .welcome-actions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .welcome-email-btn {
+      width: 100%; justify-content: center;
+      padding: 12px 18px; font-size: 14px; font-weight: 600;
+    }
+    .welcome-register-btn {
+      width: 100%; justify-content: center;
+      padding: 12px 18px; font-size: 14px; font-weight: 600;
+    }
+    .welcome-or {
+      display: flex; align-items: center; gap: 12px;
+      margin: 4px 0 16px; font-size: 12px; color: var(--text-3); text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .welcome-or::before, .welcome-or::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .welcome-meta-hint {
+      font-size: 12px; color: var(--text-3); text-align: center; margin-top: 8px;
+    }
     .welcome-logo {
       display: flex; align-items: center; gap: 10px;
       margin-bottom: 32px; justify-content: center;
@@ -79,26 +119,10 @@ export function welcomePage(): string {
     .meta-connect-btn:hover { background: #166fe5; }
     .meta-connect-btn svg { flex-shrink: 0; }
     .welcome-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-    .welcome-auth-footer {
-      font-size: 12.5px; color: var(--text-3); text-align: center;
-    }
-    .welcome-auth-footer a { color: var(--accent); text-decoration: none; }
-    .welcome-auth-footer a:hover { color: var(--accent-2); }
-    .welcome-email-btn {
-      width: 100%; justify-content: center;
-      padding: 12px 18px; font-size: 14px; font-weight: 600;
-      margin-top: 12px;
-    }
     .welcome-footer {
       text-align: center; margin-top: 20px;
       font-size: 12px; color: var(--text-3);
     }
-    .welcome-skip {
-      display: block; text-align: center; margin-top: 14px;
-      font-size: 12.5px; color: var(--text-3);
-    }
-    .welcome-skip a { color: var(--text-2); text-decoration: none; }
-    .welcome-skip a:hover { color: var(--text); }
     #error-msg { display: none; margin-bottom: 16px; }
     #connect-loading {
       display: none; align-items: center; justify-content: center;
@@ -111,6 +135,10 @@ export function welcomePage(): string {
 <body>
   <div id="toast-container"></div>
   <div class="welcome-wrap">
+    <div class="welcome-topbar" id="welcome-topbar">
+      <a href="/login" id="topbar-login">Log in</a>
+      <a href="/register" class="welcome-topbar-primary" id="topbar-register">Sign up</a>
+    </div>
     <div class="welcome-logo">
       <div class="welcome-logo-mark">A</div>
       <span class="welcome-logo-text">Adlytic</span>
@@ -120,11 +148,39 @@ export function welcomePage(): string {
         <div class="welcome-emoji">📊</div>
         <div class="welcome-title" id="welcome-title">Welcome to Adlytic</div>
         <div class="welcome-subtitle" id="welcome-subtitle">
-          Connect your Meta Ads account to unlock AI-powered insights in minutes.
+          Sign in to connect your Meta Ads account and unlock AI-powered insights.
         </div>
       </div>
 
       <div id="error-msg" class="alert alert-error"></div>
+
+      <div class="welcome-signed-in" id="welcome-signed-in">
+        <span id="signed-in-label">Signed in as</span>
+        <strong id="signed-in-email"></strong>.
+        <a href="#" id="switch-account-link">Use a different account</a>
+      </div>
+
+      <div class="welcome-actions" id="guest-actions">
+        <a href="/login" class="btn btn-primary welcome-email-btn" id="manual-login-btn">Sign in with email</a>
+        <a href="/register" class="btn btn-secondary welcome-register-btn" id="register-btn">Create account</a>
+      </div>
+
+      <div id="meta-section">
+        <div class="welcome-or" id="welcome-or">or</div>
+        <button type="button" class="btn btn-primary meta-connect-btn" id="connect-meta-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          <span id="connect-btn-label">Connect with Meta</span>
+        </button>
+        <div class="welcome-meta-hint" id="meta-hint">Sign in first, then connect your ad account.</div>
+        <div id="connect-loading">
+          <span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>
+          <span id="connect-loading-text">Redirecting to Meta…</span>
+        </div>
+      </div>
+
+      <hr class="welcome-divider">
 
       <div class="welcome-benefits" id="welcome-benefits">
         <div class="welcome-benefit">
@@ -149,30 +205,6 @@ export function welcomePage(): string {
           </div>
         </div>
       </div>
-
-      <button type="button" class="btn btn-primary meta-connect-btn" id="connect-meta-btn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-        </svg>
-        <span id="connect-btn-label">Connect with Meta</span>
-      </button>
-
-      <a href="/login" class="btn btn-secondary welcome-email-btn" id="manual-login-btn">Sign in with email</a>
-
-      <div id="connect-loading">
-        <span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>
-        <span id="connect-loading-text">Redirecting to Meta…</span>
-      </div>
-
-      <hr class="welcome-divider" id="welcome-auth-divider">
-      <div class="welcome-auth-footer" id="welcome-auth-footer">
-        <span id="login-prompt">Already have an account?</span>
-        <a href="/login" id="login-link">Log in</a>
-      </div>
-
-      <div class="welcome-skip">
-        <a href="/register" id="skip-link">Skip for now</a>
-      </div>
     </div>
     <div class="welcome-footer">Adlytic Ads Intelligence Platform</div>
   </div>
@@ -181,7 +213,8 @@ export function welcomePage(): string {
     const I18N = {
       EN: {
         title: 'Welcome to Adlytic',
-        subtitle: 'Connect your Meta Ads account to unlock AI-powered insights in minutes.',
+        subtitleGuest: 'Sign in to connect your Meta Ads account and unlock AI-powered insights.',
+        subtitleAuth: 'Connect your Meta Ads account to unlock AI-powered insights.',
         b1Title: 'Instant performance overview',
         b1Text: 'See spend, reach, and engagement across all campaigns.',
         b2Title: 'AI recommendations',
@@ -190,11 +223,14 @@ export function welcomePage(): string {
         b3Text: 'Your tokens are encrypted. We only read ad performance data.',
         connect: 'Connect with Meta',
         signInEmail: 'Sign in with email',
-        loginPrompt: 'Already have an account?',
-        loginLink: 'Log in',
+        createAccount: 'Create account',
+        topbarLogin: 'Log in',
+        topbarRegister: 'Sign up',
+        orDivider: 'or',
+        metaHint: 'Sign in first, then connect your ad account.',
+        signedInAs: 'Signed in as',
+        switchAccount: 'Use a different account',
         connecting: 'Redirecting to Meta…',
-        skip: 'Skip for now — create account',
-        skipDashboard: 'Skip for now',
         signInRequired: 'Please sign in first to connect Meta.',
         oauthExpired: 'That connection attempt expired. Please try again.',
         oauthMissing: 'Meta did not return the expected information. Please try again.',
@@ -206,7 +242,8 @@ export function welcomePage(): string {
       },
       AR: {
         title: 'مرحباً بك في Adlytic',
-        subtitle: 'اربط حساب إعلانات Meta لتحصل على رؤى ذكية خلال دقائق.',
+        subtitleGuest: 'سجّل الدخول لربط حساب إعلانات Meta والحصول على رؤى ذكية.',
+        subtitleAuth: 'اربط حساب إعلانات Meta لتحصل على رؤى ذكية خلال دقائق.',
         b1Title: 'نظرة فورية على الأداء',
         b1Text: 'تابع الإنفاق والوصول والتفاعل لكل الحملات.',
         b2Title: 'توصيات ذكية',
@@ -215,11 +252,14 @@ export function welcomePage(): string {
         b3Text: 'بيانات الدخول مشفّرة — نقرأ أداء الإعلانات فقط.',
         connect: 'الربط مع Meta',
         signInEmail: 'تسجيل الدخول بالبريد',
-        loginPrompt: 'لديك حساب بالفعل؟',
-        loginLink: 'تسجيل الدخول',
+        createAccount: 'إنشاء حساب',
+        topbarLogin: 'تسجيل الدخول',
+        topbarRegister: 'إنشاء حساب',
+        orDivider: 'أو',
+        metaHint: 'سجّل الدخول أولاً، ثم اربط حسابك الإعلاني.',
+        signedInAs: 'مسجّل الدخول كـ',
+        switchAccount: 'استخدام حساب آخر',
         connecting: 'جاري التحويل إلى Meta…',
-        skip: 'تخطي الآن — إنشاء حساب',
-        skipDashboard: 'تخطي الآن',
         signInRequired: 'سجّل الدخول أولاً لربط Meta.',
         oauthExpired: 'انتهت صلاحية محاولة الربط. حاول مرة أخرى.',
         oauthMissing: 'لم يُرجع Meta المعلومات المتوقعة. حاول مرة أخرى.',
@@ -233,10 +273,18 @@ export function welcomePage(): string {
 
     let locale = 'EN';
     let isAuthenticated = false;
+    let userEmail = '';
 
     function t(key) {
       const pack = I18N[locale] || I18N.EN;
       return pack[key] || I18N.EN[key] || key;
+    }
+
+    function switchAccount(e) {
+      if (e) e.preventDefault();
+      localStorage.removeItem('adlytic_token');
+      localStorage.removeItem('adlytic_workspace_id');
+      window.location.href = '/login';
     }
 
     function applyLocale() {
@@ -244,15 +292,17 @@ export function welcomePage(): string {
       document.documentElement.lang = isAr ? 'ar' : 'en';
       document.documentElement.dir = isAr ? 'rtl' : 'ltr';
       document.getElementById('welcome-title').textContent = t('title');
-      document.getElementById('welcome-subtitle').textContent = t('subtitle');
+      document.getElementById('welcome-subtitle').textContent = isAuthenticated ? t('subtitleAuth') : t('subtitleGuest');
       document.getElementById('connect-btn-label').textContent = t('connect');
       document.getElementById('connect-loading-text').textContent = t('connecting');
       document.getElementById('manual-login-btn').textContent = t('signInEmail');
-      document.getElementById('login-prompt').textContent = t('loginPrompt') + ' ';
-      document.getElementById('login-link').textContent = t('loginLink');
-      const skipEl = document.getElementById('skip-link');
-      skipEl.textContent = isAuthenticated ? t('skipDashboard') : t('skip');
-      skipEl.href = isAuthenticated ? '/dashboard' : '/register';
+      document.getElementById('register-btn').textContent = t('createAccount');
+      document.getElementById('topbar-login').textContent = t('topbarLogin');
+      document.getElementById('topbar-register').textContent = t('topbarRegister');
+      document.getElementById('welcome-or').textContent = t('orDivider');
+      document.getElementById('meta-hint').textContent = t('metaHint');
+      document.getElementById('signed-in-label').textContent = t('signedInAs') + ' ';
+      document.getElementById('switch-account-link').textContent = t('switchAccount');
       const map = [
         ['b1-title', 'b1Title'], ['b1-text', 'b1Text'],
         ['b2-title', 'b2Title'], ['b2-text', 'b2Text'],
@@ -266,14 +316,24 @@ export function welcomePage(): string {
 
     function setGuestMode() {
       isAuthenticated = false;
+      userEmail = '';
+      document.getElementById('guest-actions').style.display = 'flex';
+      document.getElementById('welcome-topbar').style.display = 'flex';
+      document.getElementById('welcome-or').style.display = 'flex';
+      document.getElementById('meta-hint').style.display = 'block';
+      document.getElementById('welcome-signed-in').style.display = 'none';
       applyLocale();
     }
 
-    function setAuthenticatedMode() {
+    function setAuthenticatedMode(email) {
       isAuthenticated = true;
-      document.getElementById('manual-login-btn').style.display = 'none';
-      document.getElementById('welcome-auth-divider').style.display = 'none';
-      document.getElementById('welcome-auth-footer').style.display = 'none';
+      userEmail = email || '';
+      document.getElementById('guest-actions').style.display = 'none';
+      document.getElementById('welcome-topbar').style.display = 'none';
+      document.getElementById('welcome-or').style.display = 'none';
+      document.getElementById('meta-hint').style.display = 'none';
+      document.getElementById('welcome-signed-in').style.display = 'block';
+      document.getElementById('signed-in-email').textContent = userEmail;
       applyLocale();
     }
 
@@ -333,7 +393,7 @@ export function welcomePage(): string {
               }
             }
           }
-          setAuthenticatedMode();
+          setAuthenticatedMode(me.email || '');
         }
       } catch (e) {
         console.warn('[welcome] init check failed:', e);
@@ -342,6 +402,8 @@ export function welcomePage(): string {
     } else {
       setGuestMode();
     }
+
+    document.getElementById('switch-account-link').addEventListener('click', switchAccount);
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('oauth_error')) {
@@ -358,7 +420,7 @@ export function welcomePage(): string {
       const activeToken = localStorage.getItem('adlytic_token');
       const activeWsId = localStorage.getItem('adlytic_workspace_id');
       if (!activeToken || !activeWsId) {
-        showError(t('signInRequired'));
+        window.location.href = '/login';
         return;
       }
 
