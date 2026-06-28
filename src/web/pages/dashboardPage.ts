@@ -6,12 +6,14 @@
 //
 //  Sections (top → bottom):
 //    1. Financial Health row    — 30d / 7d / Lifetime (90d window) spend
-//    2. AI Motion Ticker        — marquee feeding off brain.cmoFeedV2 + issues
-//    3. Active Ads Showcase     — green-blink grid of currently-spending campaigns
-//    4. Split panel             — AI Brain Box (left) + Spend chart (right)
-//    5. V6 Brain detail         — CMO Feed, Live Pulse, Interventions Ledger
-//    6. V2 Decision interface   — Today's Actions, Recovery, Spotlight, Insights
-//    7. Advanced Analytics      — collapsed KPI grid, charts, issues, campaigns
+//    2. Executive Pulse Banner  — single human-readable business health statement
+//    3. AI Motion Ticker        — marquee feeding off brain.cmoFeedV2 + issues
+//    4. Active Ads Showcase     — green-blink grid of currently-spending campaigns
+//    5. Split panel             — AI Brain Box (left) + Spend chart (right)
+//    6. Main Move card          — unified #1 priority + narrative + lower-priority expand
+//    7. Spotlight               — best campaign + opportunity
+//    8. V6 Brain detail         — CMO Feed, Interventions Ledger
+//    9. Advanced Analytics      — collapsed KPI grid, Live Pulse metrics, charts, issues
 //
 //  Data-binding contract (verified against schema + server.ts):
 //    /api/dashboard/:wsId                       → brain, health, issues, kpis, ...
@@ -266,6 +268,127 @@ export function dashboardPage(): string {
     .skeleton-chart { height: 300px; }
     @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+    /* Tier 1 — Executive Pulse Banner */
+    .exec-pulse-banner {
+      margin-bottom: 22px;
+      padding: 18px 24px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .exec-pulse-banner::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .exec-pulse-banner.healthy { border-left: 4px solid var(--success); }
+    .exec-pulse-banner.healthy::before { background: var(--success); box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+    .exec-pulse-banner.warning { border-left: 4px solid var(--warning); background: rgba(245,158,11,0.06); }
+    .exec-pulse-banner.warning::before { background: var(--warning); }
+    .exec-pulse-banner.critical { border-left: 4px solid var(--error); background: var(--error-dim); }
+    .exec-pulse-banner.critical::before { background: var(--error); animation: blink-pulse 1.6s infinite; }
+    .exec-pulse-text { font-size: 15px; font-weight: 650; color: var(--text); line-height: 1.55; letter-spacing: normal; }
+
+    /* Tier 2 — Main Move unified focus card */
+    .main-move-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .main-move-primary {
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .main-move-primary.has-critical { border-left: 4px solid var(--error); }
+    .main-move-primary.has-warning { border-left: 4px solid var(--warning); }
+    .main-move-tag {
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-2);
+    }
+    .main-move-title { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.35; letter-spacing: -0.3px; }
+    .main-move-impact {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--success);
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--success-dim);
+      align-self: flex-start;
+    }
+    .main-move-why {
+      font-size: 13.5px;
+      color: var(--text-2);
+      line-height: 1.65;
+      letter-spacing: normal;
+      padding-top: 4px;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+    .main-move-cta-row { display: flex; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+    .main-move-cta {
+      padding: 11px 22px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .main-move-cta:hover { filter: brightness(1.1); }
+    .main-move-cta.critical { background: var(--error); }
+    .main-move-empty { padding: 28px 24px; text-align: center; color: var(--text-3); font-size: 14px; }
+    .main-move-more { border-top: 1px solid var(--border); }
+    .main-move-more summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 12px 24px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .main-move-more summary::-webkit-details-marker { display: none; }
+    .main-move-more summary::after { content: '▾'; color: var(--text-3); transition: transform 0.2s; }
+    .main-move-more[open] summary::after { transform: rotate(180deg); }
+    .main-move-secondary { padding: 0 24px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .main-move-secondary-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+    }
+    .main-move-secondary-pri {
+      width: 24px; height: 24px; border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; color: var(--text-3); flex-shrink: 0;
+    }
+    .main-move-secondary-body { flex: 1; min-width: 0; }
+    .main-move-secondary-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .main-move-secondary-decision { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
   </style>`;
 
   const content = `
@@ -321,7 +444,12 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 2 ▸ AI Motion Ticker -->
+      <!-- 2 ▸ Executive Pulse Banner (Tier 1) -->
+      <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
+        <div class="exec-pulse-text" id="exec-pulse-text">—</div>
+      </section>
+
+      <!-- 3 ▸ AI Motion Ticker -->
       <section class="ticker-wrap" id="ticker-wrap" style="display:none;" dir="auto">
         <div class="ticker-track" id="ticker-track" dir="auto"></div>
       </section>
@@ -356,37 +484,13 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 5 ▸ V6 Brain detail (CMO Feed, Live Pulse, Ledger) -->
+      <!-- 5 ▸ V6 Brain detail (CMO Feed, Ledger) -->
       <section id="brain-cmo-feed-section" class="v2-section" style="display:none;">
         <div class="v2-section-head">
           <div class="v2-section-title">CMO Feed</div>
           <div class="v2-section-meta" id="brain-cmo-feed-meta">AI-narrated decisions for today</div>
         </div>
         <div id="brain-cmo-feed" dir="auto" style="display:flex;flex-direction:column;gap:10px;"></div>
-      </section>
-
-      <section id="brain-pulse-section" class="v2-section" style="display:none;">
-        <div class="v2-section-head">
-          <div class="v2-section-title">Live Pulse</div>
-          <div class="v2-section-meta">Refreshes every 90s · <span id="brain-pulse-tick">—</span></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-          <div class="card" style="padding:14px;">
-            <div id="brain-pulse-burn-label" class="kpi-label">Spend pace</div>
-            <div id="brain-pulse-burn" class="kpi-value" style="font-size:20px;">—</div>
-            <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> <span id="brain-pulse-burn-meta">campaigns</span></div>
-          </div>
-          <div class="card" style="padding:14px;">
-            <div id="brain-pulse-spend-label" class="kpi-label">Today's spend share</div>
-            <div id="brain-pulse-spendpct" class="kpi-value" style="font-size:20px;">—</div>
-            <div id="brain-pulse-spend-meta" class="text-xs text-3">of total daily budget</div>
-          </div>
-          <div class="card" style="padding:14px;">
-            <div id="brain-pulse-dna-label" class="kpi-label">Match to your top campaigns</div>
-            <div id="brain-pulse-dna" class="kpi-value" style="font-size:20px;">—</div>
-            <div id="brain-pulse-dna-meta" class="text-xs text-3">compared to your top past campaigns</div>
-          </div>
-        </div>
       </section>
 
       <section id="brain-ledger-section" class="v2-section" style="display:none;">
@@ -401,35 +505,19 @@ export function dashboardPage(): string {
         <div id="brain-ledger-list" style="display:flex;flex-direction:column;gap:6px;"></div>
       </section>
 
-      <!-- 6 ▸ V2 — Today's Actions + Recovery + Spotlight + Insights -->
-      <section class="v2-section">
+      <!-- 6 ▸ Main Move — unified focus (Tier 2 + Tier 3 narrative) -->
+      <section class="v2-section" id="main-move-section">
         <div class="v2-section-head">
-          <div class="v2-section-title">Today's Actions</div>
-          <div class="v2-section-meta" id="v2-actions-meta">Top decisions for the next 24h</div>
+          <div class="v2-section-title" id="main-move-label">Main Move</div>
+          <div class="v2-section-meta" id="main-move-meta">—</div>
         </div>
-        <div class="v2-actions" id="v2-actions">
-          <div class="v2-action-empty">Loading actions…</div>
+        <div class="main-move-card" id="main-move-card">
+          <div class="main-move-empty" id="main-move-empty">Loading…</div>
         </div>
-      </section>
-
-      <section class="v2-section" id="v2-recovery-section" style="display:none;">
-        <div class="v2-section-head">
-          <div class="v2-section-title">Recovery Center</div>
-          <div class="v2-section-meta">Solutions, not warnings</div>
-        </div>
-        <div class="v2-recovery-grid" id="v2-recovery"></div>
       </section>
 
       <section class="v2-section">
         <div class="v2-spotlight-grid" id="v2-spotlight"></div>
-      </section>
-
-      <section class="v2-section" id="v2-insights-section" style="display:none;">
-        <div class="v2-section-head">
-          <div class="v2-section-title">AI Insights</div>
-          <div class="v2-section-meta">Pattern observations</div>
-        </div>
-        <div class="v2-insights" id="v2-insights"></div>
       </section>
 
       <!-- 7 ▸ Advanced Analytics (collapsed) -->
@@ -439,6 +527,30 @@ export function dashboardPage(): string {
           <span>مؤشرات الأداء · تفاعل الإعلان · مرات الظهور · التنبيهات · الحملات</span>
         </summary>
         <div class="v2-advanced-body">
+          <div class="v2-section" id="brain-pulse-section" style="display:none;margin-bottom:18px;">
+            <div class="v2-section-head">
+              <div class="v2-section-title">Live Pulse</div>
+              <div class="v2-section-meta">Refreshes every 90s · <span id="brain-pulse-tick">—</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+              <div class="card" style="padding:14px;">
+                <div id="brain-pulse-burn-label" class="kpi-label">Spend pace</div>
+                <div id="brain-pulse-burn" class="kpi-value" style="font-size:20px;">—</div>
+                <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> <span id="brain-pulse-burn-meta">campaigns</span></div>
+              </div>
+              <div class="card" style="padding:14px;">
+                <div id="brain-pulse-spend-label" class="kpi-label">Today's spend share</div>
+                <div id="brain-pulse-spendpct" class="kpi-value" style="font-size:20px;">—</div>
+                <div id="brain-pulse-spend-meta" class="text-xs text-3">of total daily budget</div>
+              </div>
+              <div class="card" style="padding:14px;">
+                <div id="brain-pulse-dna-label" class="kpi-label">Match to your top campaigns</div>
+                <div id="brain-pulse-dna" class="kpi-value" style="font-size:20px;">—</div>
+                <div id="brain-pulse-dna-meta" class="text-xs text-3">compared to your top past campaigns</div>
+              </div>
+            </div>
+          </div>
+
           <div class="kpi-grid" id="kpi-grid"></div>
 
           <div class="chart-grid">
@@ -770,57 +882,57 @@ export function dashboardPage(): string {
     }).join('');
   }
 
-  // ── AI Brain Box (strategy cards) ───────────────────────────────────────
+  // ── AI Brain Box (strategy cards — skips Main Move #1 to avoid duplication) ─
   function renderBrainBox(dashData) {
     var list = document.getElementById('strategy-list');
     var sub  = document.getElementById('brain-box-sub');
     var cards = [];
+    var mainPrimary = buildAllMoveItems(dashData)[0];
+    var skipTitle = mainPrimary ? mainPrimary.title : '';
 
-    // 1) Priority action (always first if present)
-    if (dashData.priorityAction) {
-      var paText = typeof dashData.priorityAction === 'string'
-        ? dashData.priorityAction
-        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
-      if (paText) cards.push({ sev: 'critical', title: '⚡ الأولوية القصوى', body: paText });
+    function shouldSkip(title, body) {
+      if (!skipTitle) return false;
+      return textsOverlap(title, skipTitle) || textsOverlap(body, skipTitle);
     }
 
-    // 2) Brain narrated decisions → strategy cards
     var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
-    feed.slice(0, 3).forEach(function (it) {
+    feed.slice(0, 4).forEach(function (it) {
+      if (shouldSkip(it.title, it.body)) return;
       var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
-      var title = it.title || it.campaignName || 'AI decision';
-      var body = !it.generatedAt ? 'AI summary pending…' : (it.body || ('Action recommended: ' + (it.insightType || '')));
+      var title = it.title || it.campaignName || lbl('AI decision', 'قرار ذكي');
+      var body = !it.generatedAt ? lbl('AI summary pending…', 'جاري تجهيز الملخص…') : (it.body || lbl('Action recommended', 'إجراء مقترح'));
+      if (shouldSkip(title, body)) return;
       cards.push({ sev: sev, title: title, body: body });
     });
 
-    // 3) Top issues → actionable cards
     var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
     issues.sort(function (a, b) {
-      var order = { critical: 0, high: 1, medium: 2, low: 3 };
-      return (order[(a.severity || 'low').toLowerCase()] || 9) - (order[(b.severity || 'low').toLowerCase()] || 9);
+      return severityRank(a.severity) - severityRank(b.severity);
     });
     issues.slice(0, 4).forEach(function (iss) {
       var sev = (iss.severity || 'medium').toLowerCase();
       var rec = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
-      cards.push({
-        sev: sev,
-        title: iss.title || iss.code || 'Observation',
-        body: rec || 'Review affected campaigns and adjust strategy.',
-      });
+      var title = iss.title || iss.code || lbl('Observation', 'ملاحظة');
+      var body = rec || lbl('Review affected campaigns and adjust strategy.', 'راجع الحملات المتأثرة وعدّل الاستراتيجية.');
+      if (shouldSkip(title, body)) return;
+      cards.push({ sev: sev, title: title, body: body });
     });
 
     if (cards.length === 0) {
-      list.innerHTML = '<div class="v2-action-empty">Account is steady — no strategic actions needed right now.</div>';
-      sub.textContent = 'All clear';
+      list.innerHTML = '<div class="v2-action-empty">' + escHtml(lbl(
+        'Account is steady — no strategic actions needed right now.',
+        'الحساب مستقر — لا توجد إجراءات استراتيجية الآن.'
+      )) + '</div>';
+      sub.textContent = lbl('All clear', 'كل شيء مستقر');
       return;
     }
-    list.innerHTML = cards.slice(0, 8).map(function (c) {
+    list.innerHTML = cards.slice(0, 6).map(function (c) {
       return '<div class="strategy-card ' + c.sev + '">'
         + '<div class="strategy-head"><div class="strategy-title">' + escHtml(c.title) + '</div></div>'
         + '<div class="strategy-body">' + escHtml(c.body) + '</div>'
       + '</div>';
     }).join('');
-    sub.textContent = cards.length + ' insight' + (cards.length === 1 ? '' : 's');
+    sub.textContent = cards.length + ' ' + lbl(cards.length === 1 ? 'insight' : 'insights', cards.length === 1 ? 'رؤية' : 'رؤى');
   }
 
   // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
@@ -892,97 +1004,241 @@ export function dashboardPage(): string {
       : '<tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">No campaigns found.</td></tr>';
   }
 
-  // ── V2: Today's Actions / Recovery / Spotlight / AI Insights ────────────
-  function severityToVerdict(s) {
-    s = (s || 'good').toLowerCase();
-    if (s === 'critical') return { cls: 'badge-red', text: 'Critical' };
-    if (s === 'high' || s === 'needs_attention') return { cls: 'badge-yellow', text: 'Needs Attention' };
-    if (s === 'excellent') return { cls: 'badge-green', text: 'Excellent' };
-    return { cls: 'badge-green', text: 'Good' };
+  // ── Tier 1: Executive Pulse Banner ──────────────────────────────────────
+  function normalizeForDedupe(s) {
+    return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   }
-  function issueToAction(issue, priority) {
-    var sev = (issue.severity || 'medium').toLowerCase();
-    var rec = Array.isArray(issue.recommendations) ? issue.recommendations[0] : issue.recommendations;
+  function textsOverlap(a, b) {
+    var na = normalizeForDedupe(a);
+    var nb = normalizeForDedupe(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    if (na.length >= 12 && nb.length >= 12 && (na.indexOf(nb) >= 0 || nb.indexOf(na) >= 0)) return true;
+    return false;
+  }
+  function issueIndicatesBudgetWaste(iss) {
+    var blob = ((iss.code || '') + ' ' + (iss.title || '') + ' ' + (Array.isArray(iss.causes) ? iss.causes.join(' ') : '')).toUpperCase();
+    return /BUDGET|WASTE|BURN|OVERSPEND|BLEED|SPEND/.test(blob);
+  }
+  function deriveBusinessHealth(dashData) {
+    var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
+    var hasCritical = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'critical'; });
+    var hasHigh = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'high'; });
+    var budgetWaste = issues.some(issueIndicatesBudgetWaste);
+    var band = (dashData.health && dashData.health.band) || 'none';
+    var pulse = dashData.brain && dashData.brain.livePulse;
+    if (pulse && pulse.intraDaySpendPct != null && pulse.intraDaySpendPct >= 85) budgetWaste = true;
+    var feed = (dashData.brain && dashData.brain.cmoFeedV2) || [];
+    if (feed.some(function (it) { return it.severity === 'CRITICAL'; })) hasCritical = true;
+
+    if (hasCritical || band === 'poor' || (hasHigh && budgetWaste)) {
+      return {
+        level: 'critical',
+        text: lbl(
+          'Status: Immediate Action Required. We detected budget waste.',
+          'الحالة: انتبه، توجد حملات تهدر الميزانية حالياً'
+        ),
+      };
+    }
+    if (hasHigh || band === 'attention' || budgetWaste) {
+      return {
+        level: 'warning',
+        text: lbl(
+          'Status: Needs Attention. Some campaigns need a quick review.',
+          'الحالة: يحتاج انتباه. بعض الحملات تحتاج مراجعة سريعة.'
+        ),
+      };
+    }
     return {
-      priority: priority,
-      title: issue.title || issue.code || 'Action needed',
-      decision: rec || 'Review and resolve',
-      confidence: issue.confidence || (sev === 'critical' ? 92 : sev === 'high' ? 86 : 78),
-      expectedImpact: issue.expectedImpact || (sev === 'critical' ? 'High' : sev === 'high' ? 'Medium-High' : 'Medium'),
-      risk: sev === 'critical' ? 'low' : sev === 'high' ? 'low' : 'medium',
-      buttonText: sev === 'critical' ? 'Fix Now' : 'Review',
+      level: 'healthy',
+      text: lbl(
+        'Status: Healthy. Your ads are converting efficiently.',
+        'الحالة: جيد. إعلاناتك تحقق نتائج بكفاءة.'
+      ),
     };
   }
-  function renderTodayActions(actions) {
-    var el = document.getElementById('v2-actions');
-    if (!actions || actions.length === 0) {
-      el.innerHTML = '<div class="v2-action-empty">No actions for today. Account is steady.</div>';
-      document.getElementById('v2-actions-meta').textContent = 'All clear';
+  function renderExecutivePulse(dashData) {
+    var sec = document.getElementById('exec-pulse-section');
+    var el = document.getElementById('exec-pulse-text');
+    if (!sec || !el) return;
+    var health = deriveBusinessHealth(dashData);
+    sec.className = 'exec-pulse-banner ' + health.level;
+    el.textContent = health.text;
+    sec.style.display = 'flex';
+  }
+
+  // ── Tier 2+3: Main Move (unified focus + narrative) ─────────────────────
+  function severityRank(s) {
+    var order = { critical: 0, high: 1, medium: 2, low: 3 };
+    return order[(s || 'medium').toLowerCase()] != null ? order[(s || 'medium').toLowerCase()] : 9;
+  }
+  function feedSeverityRank(s) {
+    if (s === 'CRITICAL') return 0;
+    if (s === 'HIGH') return 1;
+    return 2;
+  }
+  function savedSpendLabel(dashData) {
+    var ledger = dashData.brain && dashData.brain.ledger;
+    if (ledger && ledger.savedSpendDisplay && ledger.savedSpend > 0) {
+      return lbl('Save ' + ledger.savedSpendDisplay, 'وفّر ' + ledger.savedSpendDisplay);
+    }
+    return null;
+  }
+  function buildAllMoveItems(dashData) {
+    var items = [];
+    var seen = [];
+
+    function pushItem(item) {
+      if (!item || !item.title) return;
+      for (var i = 0; i < seen.length; i++) {
+        if (textsOverlap(seen[i], item.title) || (item.narrative && textsOverlap(seen[i], item.narrative))) return;
+      }
+      seen.push(item.title);
+      if (item.narrative) seen.push(item.narrative);
+      items.push(item);
+    }
+
+    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
+    issues.sort(function (a, b) { return severityRank(a.severity) - severityRank(b.severity); });
+
+    issues.forEach(function (iss) {
+      var sev = (iss.severity || 'medium').toLowerCase();
+      var recs = Array.isArray(iss.recommendations) ? iss.recommendations : (iss.recommendations ? [iss.recommendations] : []);
+      var decision = recs[0] || lbl('Review and resolve', 'راجع الحملة وطبّق التوصية');
+      var causes = Array.isArray(iss.causes) ? iss.causes.join(' · ') : (iss.causes || '');
+      pushItem({
+        kind: 'issue',
+        rank: severityRank(sev),
+        severity: sev,
+        title: iss.title || iss.code || lbl('Action needed', 'إجراء مطلوب'),
+        decision: decision,
+        steps: recs.slice(0, 4),
+        narrative: causes || decision,
+        impact: savedSpendLabel(dashData),
+        buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
+        confidence: iss.confidence || (sev === 'critical' ? 92 : sev === 'high' ? 86 : 78),
+      });
+    });
+
+    if (dashData.priorityAction) {
+      var pa = dashData.priorityAction;
+      var paText = typeof pa === 'string' ? pa : (pa.text || pa.actionCode || '');
+      if (paText) {
+        pushItem({
+          kind: 'priority',
+          rank: 0.5,
+          severity: 'high',
+          title: paText,
+          decision: paText,
+          steps: [paText],
+          narrative: paText,
+          impact: savedSpendLabel(dashData),
+          buttonText: lbl('Fix Now', 'تطبيق الحل فوراً'),
+          confidence: 92,
+        });
+      }
+    }
+
+    var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2.slice() : [];
+    feed.sort(function (a, b) { return feedSeverityRank(a.severity) - feedSeverityRank(b.severity); });
+    feed.forEach(function (it) {
+      if (!it.generatedAt) return;
+      var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
+      pushItem({
+        kind: 'feed',
+        rank: feedSeverityRank(it.severity) + 0.1,
+        severity: sev,
+        title: it.title || it.campaignName || lbl('AI decision', 'قرار ذكي'),
+        decision: it.body || lbl('Review AI recommendation', 'راجع توصية الذكاء الاصطناعي'),
+        steps: it.body ? [it.body] : [],
+        narrative: it.bodyFull || it.body || '',
+        impact: savedSpendLabel(dashData),
+        buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
+        confidence: sev === 'critical' ? 90 : 82,
+      });
+    });
+
+    items.sort(function (a, b) { return a.rank - b.rank; });
+    return items;
+  }
+  function pickMainMoveNarrative(primary, dashData, kpis) {
+    if (primary.narrative && primary.narrative !== primary.decision && primary.narrative !== primary.title) {
+      return primary.narrative;
+    }
+    var ctr = (kpis || []).find(function (k) { return (k.key || '').toLowerCase() === 'ctr'; });
+    if (ctr && ctr.deltaPct != null) {
+      var up = ctr.direction === 'up';
+      return lbl(
+        'Engagement moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct) * 100).toFixed(1) + '% vs prior period.',
+        'تفاعل الإعلان ' + (up ? 'ارتفع' : 'انخفض') + ' مقارنة بالفترة السابقة.'
+      );
+    }
+    return primary.decision || '';
+  }
+  function renderMainMove(dashData, kpis) {
+    var card = document.getElementById('main-move-card');
+    var meta = document.getElementById('main-move-meta');
+    var label = document.getElementById('main-move-label');
+    if (!card) return;
+    if (label) label.textContent = lbl('Main Move', 'الخطوة الأهم');
+    var items = buildAllMoveItems(dashData);
+    if (items.length === 0) {
+      if (meta) meta.textContent = lbl('All clear', 'كل شيء مستقر');
+      card.innerHTML = '<div class="main-move-empty">' + escHtml(lbl(
+        'No actions for today. Account is steady.',
+        'لا توجد إجراءات اليوم. حسابك مستقر.'
+      )) + '</div>';
       return;
     }
-    var top3 = actions.slice(0, 3);
-    document.getElementById('v2-actions-meta').textContent =
-      top3.length + ' decision' + (top3.length === 1 ? '' : 's') + ' for the next 24h';
-    el.innerHTML = top3.map(function (a) {
-      return '<div class="v2-action-row" data-pri="' + a.priority + '">'
-        + '<div class="v2-action-priority">#' + a.priority + '</div>'
-        + '<div class="v2-action-body">'
-          + '<div class="v2-action-title">' + escHtml(a.title) + '</div>'
-          + '<div class="v2-action-decision">' + escHtml(a.decision) + '</div>'
-          + '<div class="v2-action-meta">'
-            + '<span>Impact: <b>' + escHtml(a.expectedImpact) + '</b></span>'
-            + '<span>Confidence: <b>' + escHtml(String(a.confidence)) + '%</b></span>'
-            + '<span>Risk: <b class="' + (a.risk === 'low' ? 'ok' : '') + '">' + escHtml(a.risk) + '</b></span>'
-          + '</div>'
-        + '</div>'
-        + '<button class="v2-action-btn" type="button">' + escHtml(a.buttonText) + '</button>'
-      + '</div>';
-    }).join('');
-  }
-  function buildTodayActions(dashData) {
-    var actions = [];
-    if (dashData.priorityAction) {
-      var paText = typeof dashData.priorityAction === 'string'
-        ? dashData.priorityAction
-        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
-      if (paText) actions.push({ priority: 1, title: 'Priority Action', decision: paText, confidence: 92, expectedImpact: 'High', risk: 'low', buttonText: 'Act' });
+    var primary = items[0];
+    var secondary = items.slice(1, 6);
+    var why = pickMainMoveNarrative(primary, dashData, kpis);
+    if (textsOverlap(why, primary.title)) why = primary.decision && !textsOverlap(primary.decision, primary.title) ? primary.decision : '';
+    if (textsOverlap(why, primary.decision)) why = '';
+
+    if (meta) {
+      meta.textContent = secondary.length > 0
+        ? lbl(secondary.length + ' more item' + (secondary.length === 1 ? '' : 's') + ' below', secondary.length + ' عناصر إضافية بالأسفل')
+        : lbl('Top priority for the next 24h', 'الأولوية للـ ٢٤ ساعة القادمة');
     }
-    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
-    issues.sort(function (a, b) {
-      var order = { critical: 0, high: 1, medium: 2, low: 3 };
-      return (order[(a.severity || 'low').toLowerCase()] || 9) - (order[(b.severity || 'low').toLowerCase()] || 9);
-    });
-    for (var i = 0; i < issues.length && actions.length < 3; i++) {
-      actions.push(issueToAction(issues[i], actions.length + 1));
-    }
-    return actions;
-  }
-  function buildRecoveryPlans(issues) {
-    if (!Array.isArray(issues)) return [];
-    return issues.slice(0, 6).map(function (iss) {
-      var recs = Array.isArray(iss.recommendations) ? iss.recommendations : (iss.recommendations ? [iss.recommendations] : []);
-      if (recs.length === 0) recs = ['Review affected campaigns', 'Adjust budget or creative', 'Pause if degradation continues'];
-      return { patternName: iss.title || iss.code || 'Detected pattern', severity: (iss.severity || 'medium').toLowerCase(), confidence: iss.confidence || 85, steps: recs.slice(0, 4) };
-    });
-  }
-  function renderRecoveryCenter(plans) {
-    var sec = document.getElementById('v2-recovery-section');
-    var grid = document.getElementById('v2-recovery');
-    if (!plans || plans.length === 0) { sec.style.display = 'none'; return; }
-    sec.style.display = 'block';
-    grid.innerHTML = plans.map(function (p) {
-      var v = severityToVerdict(p.severity);
-      return '<div class="v2-recovery-card">'
-        + '<div class="v2-recovery-top">'
-          + '<div><div class="v2-recovery-name">' + escHtml(p.patternName) + '</div>'
-          + '<div class="v2-recovery-conf">Confidence ' + escHtml(String(p.confidence)) + '%</div></div>'
-          + '<span class="badge ' + v.cls + '">' + escHtml(v.text) + '</span>'
+
+    var sevCls = primary.severity === 'critical' ? 'has-critical' : primary.severity === 'high' ? 'has-warning' : '';
+    var ctaCls = primary.severity === 'critical' ? ' critical' : '';
+    var impactHtml = primary.impact
+      ? '<div class="main-move-impact">' + escHtml(primary.impact) + '</div>'
+      : '';
+
+    var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
+      + '<div class="main-move-tag">' + escHtml(lbl('Today\'s #1 priority', 'الأولوية الأولى اليوم')) + '</div>'
+      + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
+      + impactHtml
+      + (why ? '<div class="main-move-why">' + escHtml(why) + '</div>' : '')
+      + '<div class="main-move-cta-row">'
+        + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText) + '</button>'
+        + '<span class="text-xs text-3">' + escHtml(lbl('Confidence', 'الثقة')) + ' ' + escHtml(String(primary.confidence)) + '%</span>'
+      + '</div>'
+    + '</div>';
+
+    if (secondary.length > 0) {
+      html += '<details class="main-move-more">'
+        + '<summary>' + escHtml(lbl('Other priorities (' + secondary.length + ')', 'أولويات أخرى (' + secondary.length + ')')) + '</summary>'
+        + '<div class="main-move-secondary">'
+        + secondary.map(function (a, idx) {
+          return '<div class="main-move-secondary-item" dir="auto">'
+            + '<div class="main-move-secondary-pri">#' + (idx + 2) + '</div>'
+            + '<div class="main-move-secondary-body">'
+              + '<div class="main-move-secondary-title">' + escHtml(a.title) + '</div>'
+              + '<div class="main-move-secondary-decision">' + escHtml(a.decision) + '</div>'
+            + '</div>'
+          + '</div>';
+        }).join('')
         + '</div>'
-        + p.steps.map(function (step, i) { return '<div class="v2-recovery-step"><b>' + (i + 1) + '.</b> ' + escHtml(step) + '</div>'; }).join('')
-      + '</div>';
-    }).join('');
+      + '</details>';
+    }
+    card.innerHTML = html;
   }
-  function deriveOpportunity(dashData) {
+
+  // ── V2: Spotlight ───────────────────────────────────────────────────────
     if (dashData.opportunity) return dashData.opportunity;
     if (dashData.bestCampaign) {
       return { title: 'Audience Expansion', reason: 'Top campaign performing well — broaden audience to scale safely.', expectedGain: '+12 messages/day', confidence: 85 };
@@ -1029,53 +1285,23 @@ export function dashboardPage(): string {
     }
     el.innerHTML = parts.join('');
   }
-  function buildInsights(dashData, kpis) {
-    var out = [];
-    if (dashData.priorityAction) {
-      var paText = typeof dashData.priorityAction === 'string'
-        ? dashData.priorityAction
-        : (dashData.priorityAction.text || dashData.priorityAction.actionCode || '');
-      if (paText) out.push({ icon: '⚡', title: 'Priority focus', text: paText });
-    }
-    function findKpi(key) { return (kpis || []).find(function (k) { return (k.key || '').toLowerCase() === key; }); }
-    var ctr = findKpi('ctr');
-    if (ctr && ctr.deltaPct != null) {
-      var up = ctr.direction === 'up';
-      out.push({ icon: up ? '↑' : '↓', title: lbl('Ad engagement ' + (up ? 'improving' : 'softening'), 'تفاعل الإعلان ' + (up ? 'في تحسّن' : 'في تراجع')), text: lbl('Engagement moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct)).toFixed(1) + '% vs prior period.', 'تفاعل الإعلان ' + (up ? 'ارتفع' : 'انخفض') + ' مقارنة بالفترة السابقة.') });
-    }
-    var spend = findKpi('spend');
-    if (spend && spend.deltaPct != null) {
-      out.push({ icon: '$', title: 'Spend trend', text: 'Total spend changed ' + (spend.direction === 'up' ? '+' : '-') + Math.abs(Number(spend.deltaPct)).toFixed(1) + '% vs prior period.' });
-    }
-    return out;
-  }
-  function renderInsights(insights) {
-    var sec = document.getElementById('v2-insights-section');
-    var el = document.getElementById('v2-insights');
-    if (!insights || insights.length === 0) { sec.style.display = 'none'; return; }
-    sec.style.display = 'block';
-    el.innerHTML = insights.map(function (i) {
-      return '<div class="v2-insight">'
-        + '<div class="v2-insight-icon">' + (i.icon || '◆') + '</div>'
-        + '<div class="v2-insight-title">' + escHtml(i.title) + '</div>'
-        + '<div class="v2-insight-text">' + escHtml(i.text) + '</div>'
-      + '</div>';
-    }).join('');
-  }
-
-  // ── V6 Brain sections (CMO Feed / Live Pulse / Ledger) ──────────────────
+  function deriveOpportunity(dashData) {
   function priorityBadgeClass(p) {
     if (p === 'CRITICAL') return 'badge-red';
     if (p === 'HIGH') return 'badge-yellow';
     return 'badge-green';
   }
-  function renderBrainSection(brain) {
+  function renderBrainSection(brain, dashData) {
     if (!brain) return;
+    var mainPrimary = dashData ? buildAllMoveItems(dashData)[0] : null;
+    var skipTitle = mainPrimary ? mainPrimary.title : '';
     // CMO Feed
     var feedHost = document.getElementById('brain-cmo-feed');
     var feedSection = document.getElementById('brain-cmo-feed-section');
     var meta = document.getElementById('brain-cmo-feed-meta');
-    var items = brain.cmoFeedV2 || [];
+    var items = (brain.cmoFeedV2 || []).filter(function (it) {
+      return !skipTitle || !textsOverlap(it.title, skipTitle);
+    });
     var feedMeta = brain.cmoFeedMeta || {};
     var windowKey = feedMeta.window || 'today';
     var windowLabel = windowKey === 'rolling' ? 'most recent' : 'today';
@@ -1276,21 +1502,20 @@ export function dashboardPage(): string {
     updateLastUpdatedLabel(dashData);
 
     renderHero(dashData, insights);
+    renderExecutivePulse(dashData);
     renderTicker(buildTickerItems(dashData));
     renderActiveAds(campaigns);
     renderBrainBox(dashData);
 
     if (dashData.brain) {
-      renderBrainSection(dashData.brain);
+      renderBrainSection(dashData.brain, dashData);
     }
 
-    renderTodayActions(buildTodayActions(dashData));
-    renderRecoveryCenter(buildRecoveryPlans(dashData.issues));
+    var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
+    renderMainMove(dashData, kpis);
     renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
 
-    var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
     renderKpis(kpis);
-    renderInsights(buildInsights(dashData, kpis));
 
     var last30 = recentAsc(insights, 30);
     var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
