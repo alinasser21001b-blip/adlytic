@@ -11,8 +11,8 @@ import { layout } from '../layout';
 export function metaConnectPage(sessionId: string): string {
   const content = `
 <div class="page-header">
-  <div class="page-title">Connect Meta Ads</div>
-  <div class="page-subtitle">Select the ad account you want to connect to this workspace</div>
+  <div class="page-title" id="page-title">Choose your ad account</div>
+  <div class="page-subtitle" id="page-subtitle">Select the Meta ad account you want to analyze</div>
 </div>
 
 <div id="connect-container" style="max-width:600px;">
@@ -45,19 +45,28 @@ export function metaConnectPage(sessionId: string): string {
 
   const scripts = `<script>
 (async () => {
+  function lbl(en, ar) {
+    return (window.__locale || 'EN') === 'AR' ? ar : en;
+  }
+
   const token  = localStorage.getItem('adlytic_token');
   const wsId   = localStorage.getItem('adlytic_workspace_id');
   const sessionId = ${JSON.stringify(sessionId)};
   const container = document.getElementById('connect-container');
 
   if (!token || !wsId) {
-    container.innerHTML = '<div class="alert alert-error">Your sign-in has expired. Please <a href="/login">log in</a> again.</div>';
+    container.innerHTML = '<div class="alert alert-error">' + lbl('Your sign-in has expired. Please <a href="/login">log in</a> again.', 'انتهت جلستك. يرجى <a href="/login">تسجيل الدخول</a> مرة أخرى.') + '</div>';
     return;
   }
 
-  // Populate topbar user info
+  // Populate topbar user info + locale
   const me = await apiFetch('/api/auth/me');
   if (me) {
+    window.__locale = (me.locale || 'EN').toUpperCase();
+    if (window.__locale === 'AR') {
+      document.getElementById('page-title').textContent = 'اختر حساب الإعلانات';
+      document.getElementById('page-subtitle').textContent = 'حدد حساب Meta الإعلاني الذي تريد تحليله';
+    }
     document.getElementById('user-name').textContent  = me.name || me.email;
     document.getElementById('user-email').textContent = me.email;
     document.getElementById('user-avatar').textContent = (me.name || me.email || '?')[0].toUpperCase();
@@ -66,7 +75,7 @@ export function metaConnectPage(sessionId: string): string {
   }
 
   if (!sessionId) {
-    container.innerHTML = '<div class="alert alert-error">This connection link is no longer valid. <a href="/workspace">Go back and try again.</a></div>';
+    container.innerHTML = '<div class="alert alert-error">' + lbl('This connection link is no longer valid. <a href="/welcome">Go back and try again.</a>', 'رابط الربط لم يعد صالحاً. <a href="/welcome">ارجع وحاول مرة أخرى.</a>') + '</div>';
     return;
   }
 
@@ -76,7 +85,7 @@ export function metaConnectPage(sessionId: string): string {
     const res = await apiFetch('/api/meta/oauth/accounts/' + sessionId);
     accounts = res?.accounts ?? [];
   } catch(e) {
-    container.innerHTML = '<div class="alert alert-error">Could not load your ad accounts. <a href="/workspace">Go back and try again.</a></div>';
+    container.innerHTML = '<div class="alert alert-error">' + lbl('Could not load your ad accounts. <a href="/welcome">Go back and try again.</a>', 'تعذر تحميل حسابات الإعلانات. <a href="/welcome">ارجع وحاول مرة أخرى.</a>') + '</div>';
     return;
   }
 
@@ -85,12 +94,18 @@ export function metaConnectPage(sessionId: string): string {
       <div class="card">
         <div class="empty-state">
           <div class="empty-icon">📣</div>
-          <div class="empty-title">No ad accounts found</div>
-          <div class="empty-text">Your Meta user doesn't have access to any ad accounts. Make sure you have a Business Manager account with at least one ad account.</div>
-          <a href="/workspace" class="btn btn-secondary" style="margin-top:16px;">Back to Workspace</a>
+          <div class="empty-title">\${lbl('No ad accounts found', 'لم يتم العثور على حسابات إعلانات')}</div>
+          <div class="empty-text">\${lbl('Your Meta user doesn\\'t have access to any ad accounts. Make sure you have a Business Manager account with at least one ad account.', 'لا يملك مستخدم Meta لديك وصولاً إلى أي حسابات إعلانات. تأكد من وجود Business Manager بحساب إعلانات واحد على الأقل.')}</div>
+          <a href="/welcome" class="btn btn-secondary" style="margin-top:16px;">\${lbl('Back', 'رجوع')}</a>
         </div>
       </div>\`;
     return;
+  }
+
+  function redirectAfterConnect(res) {
+    var url = '/dashboard?connected=1';
+    if (res && res.syncJobId) url += '&syncJob=' + encodeURIComponent(res.syncJobId);
+    window.location.href = url;
   }
 
   // Shared connect routine — used by both the auto-connect path and the picker.
@@ -101,7 +116,7 @@ export function metaConnectPage(sessionId: string): string {
         body: JSON.stringify({ sessionId, externalAccountId: accountId, workspaceId: wsId }),
       });
       if (res?.success) {
-        window.location.href = '/workspace?connected=1';
+        redirectAfterConnect(res);
         return;
       }
       throw new Error(res?.error || 'Connection failed');
@@ -124,12 +139,12 @@ export function metaConnectPage(sessionId: string): string {
         </div>
         <div style="display:flex;align-items:center;gap:10px;color:var(--text-2);font-size:13px;">
           <span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
-          Connecting your ad account…
+          \${lbl('Connecting your ad account…', 'جارٍ ربط حساب الإعلانات…')}
         </div>
       </div>\`;
     await performConnect(only.id, (e) => {
-      container.innerHTML = '<div class="alert alert-error">Could not connect this ad account. <a href="/workspace">Go back and try again.</a></div>';
-      toast(e.message || 'Could not connect this ad account.', 'error');
+      container.innerHTML = '<div class="alert alert-error">' + lbl('Could not connect this ad account. <a href="/welcome">Go back and try again.</a>', 'تعذر ربط حساب الإعلانات. <a href="/welcome">ارجع وحاول مرة أخرى.</a>') + '</div>';
+      toast(e.message || lbl('Could not connect this ad account.', 'تعذر ربط حساب الإعلانات.'), 'error');
     });
     return;
   }
@@ -140,7 +155,7 @@ export function metaConnectPage(sessionId: string): string {
   function render() {
     container.innerHTML = \`
       <div class="card">
-        <div class="card-title" style="margin-bottom:16px;">Your Ad Accounts (\${accounts.length})</div>
+        <div class="card-title" style="margin-bottom:16px;">\${lbl('Your Ad Accounts', 'حسابات الإعلانات')} (\${accounts.length})</div>
         \${accounts.map(a => \`
           <div class="account-card \${selectedId === a.id ? 'selected' : ''}" data-id="\${a.id}">
             <div class="account-icon">📣</div>
@@ -155,10 +170,10 @@ export function metaConnectPage(sessionId: string): string {
         \`).join('')}
         <div style="margin-top:20px;display:flex;gap:12px;align-items:center;">
           <button class="btn btn-primary" id="connect-btn" \${!selectedId ? 'disabled' : ''}>
-            \${connecting ? '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> Connecting…' : 'Connect Selected Account'}
+            \${connecting ? '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> ' + lbl('Connecting…', 'جارٍ الربط…') : lbl('Connect Selected Account', 'ربط الحساب المحدد')}
           </button>
-          <a href="/workspace" class="btn btn-ghost">Cancel</a>
-          \${!selectedId ? '<span style="font-size:12px;color:var(--text-3);">Select an account above</span>' : ''}
+          <a href="/welcome" class="btn btn-ghost">\${lbl('Cancel', 'إلغاء')}</a>
+          \${!selectedId ? '<span style="font-size:12px;color:var(--text-3);">' + lbl('Select an account above', 'اختر حساباً أعلاه') + '</span>' : ''}
         </div>
       </div>
     \`;
@@ -191,5 +206,5 @@ export function metaConnectPage(sessionId: string): string {
 })();
 </script>`;
 
-  return layout({ title: 'Connect Meta Ads', active: 'workspace', content, scripts });
+  return layout({ title: 'Connect Meta Ads', active: 'dashboard', content, scripts });
 }

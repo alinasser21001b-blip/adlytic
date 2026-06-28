@@ -72,7 +72,7 @@ export function registerPage(): string {
 
   <script>
     if (localStorage.getItem('adlytic_token')) {
-      window.location.href = '/dashboard';
+      window.location.href = '/welcome';
     }
 
     const form    = document.getElementById('register-form');
@@ -121,9 +121,9 @@ export function registerPage(): string {
         localStorage.setItem('adlytic_token', data.token);
         if (data.workspaceId) localStorage.setItem('adlytic_workspace_id', data.workspaceId);
 
-        sucEl.textContent = 'Account created! Redirecting to dashboard…';
+        sucEl.textContent = 'Account created! Setting up your workspace…';
         sucEl.style.display = 'flex';
-        setTimeout(() => { window.location.href = '/dashboard'; }, 800);
+        setTimeout(() => { window.location.href = '/welcome'; }, 800);
 
       } catch (err) {
         showError('Network error. Please try again.');

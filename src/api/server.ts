@@ -65,6 +65,7 @@ import { workspacePage } from '../web/pages/workspacePage';
 import { aiPage } from '../web/pages/aiPage';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
+import { welcomePage } from '../web/pages/welcomePage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
@@ -309,6 +310,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/favicon.ico',    (c) => c.body(null, 204)); // suppress browser 404 noise
   app.get('/login',          (c) => c.html(loginPage()));
   app.get('/register',       (c) => c.html(registerPage()));
+  app.get('/welcome',        (c) => c.html(welcomePage()));
   // /dashboard switches between the Pro view and the Beginner view based on a
   // dashboard_mode cookie. The cookie is per-user-agent (httpOnly=false so the
   // toggle JS can read it for the active-pill state on first load). Default is
@@ -2275,15 +2277,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    */
   app.get('/api/meta/oauth/mock-callback', async (c) => {
     if (!isMockAuthEnabled()) {
-      return c.redirect('/workspace?oauth_error=mock_mode_disabled');
+      return c.redirect('/welcome?oauth_error=mock_mode_disabled');
     }
     const state = c.req.query('state');
-    if (!state) return c.redirect('/workspace?oauth_error=missing_state');
+    if (!state) return c.redirect('/welcome?oauth_error=missing_state');
 
     pruneOAuth();
     const stored = await consumeOAuthState(state);
     if (!stored) {
-      return c.redirect('/workspace?oauth_error=expired_state');
+      return c.redirect('/welcome?oauth_error=expired_state');
     }
 
     const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
@@ -2314,18 +2316,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     if (error) {
       const desc = c.req.query('error_description') ?? error;
-      return c.redirect(`/workspace?oauth_error=${encodeURIComponent(desc)}`);
+      return c.redirect(`/welcome?oauth_error=${encodeURIComponent(desc)}`);
     }
-    if (!code || !state) return c.redirect('/workspace?oauth_error=missing_params');
+    if (!code || !state) return c.redirect('/welcome?oauth_error=missing_params');
 
     pruneOAuth();
     const stored = await consumeOAuthState(state); // one-time use
     if (!stored) {
-      return c.redirect('/workspace?oauth_error=expired_state');
+      return c.redirect('/welcome?oauth_error=expired_state');
     }
 
     const oauth = buildMetaOAuth();
-    if (!oauth) return c.redirect('/workspace?oauth_error=not_configured');
+    if (!oauth) return c.redirect('/welcome?oauth_error=not_configured');
 
     // ── Phase 2: System User / FB Login for Business callback (flag-gated) ──
     // Active ONLY when META_SYSTEM_USER_ENABLED is true. Creates/updates the
@@ -2350,7 +2352,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const grantedAccounts = resolved.accounts;
         if (grantedAccounts.length === 0) {
           console.error('[META_AUTH_FAILURE] system-user callback resolved 0 ad accounts');
-          return c.redirect('/workspace?oauth_error=no_ad_accounts_granted');
+          return c.redirect('/welcome?oauth_error=no_ad_accounts_granted');
         }
         const connectionId = await upsertMetaConnection({
           workspaceId:     stored.workspaceId,
@@ -2378,7 +2380,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const msg = e instanceof Error ? e.message : String(e);
         console.error('[META_AUTH_FAILURE] system-user callback exception object:', e);
         console.error('[META_AUTH_FAILURE] system-user callback message:', msg);
-        return c.redirect(`/workspace?oauth_error=${encodeURIComponent(msg)}`);
+        return c.redirect(`/welcome?oauth_error=${encodeURIComponent(msg)}`);
       }
     }
 
@@ -2411,7 +2413,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       console.error('[META_AUTH_FAILURE] callback exception object:', e);
       console.error('[META_AUTH_FAILURE] callback message:', msg);
       console.error('[adlytic:meta-oauth]', msg);
-      return c.redirect(`/workspace?oauth_error=${encodeURIComponent(msg)}`);
+      return c.redirect(`/welcome?oauth_error=${encodeURIComponent(msg)}`);
     }
   });
 
@@ -2435,7 +2437,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    * POST /api/meta/oauth/connect
    * Body: { sessionId, externalAccountId, workspaceId }
    * Creates (or updates) the AdAccount row with the encrypted token.
-   * Responds with { success: true } — the client then navigates to /workspace?connected=1.
+   * Responds with { success: true, syncJobId? } — client navigates to /dashboard?connected=1.
    */
   app.post('/api/meta/oauth/connect', async (c) => {
     const req = await honoToApiRequest(c);
@@ -2575,6 +2577,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               console.error('[adlytic:lifetime-sync]', err);
             });
           });
+          return c.json({ success: true, systemUser: true, syncJobId: job.id });
         }
       } catch (kickoffErr: unknown) {
         console.error('[META_AUTH_FAILURE] system-user post-connect sync kickoff failed:', kickoffErr);
@@ -2694,6 +2697,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             console.error('[adlytic:lifetime-sync]', err);
           });
         });
+        return c.json({ success: true, syncJobId: job.id });
       }
     } catch (kickoffErr: unknown) {
       // Non-fatal: the AdAccount is already persisted; sync can be retried

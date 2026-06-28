@@ -138,7 +138,24 @@ export function loginPage(): string {
         }
 
         showSuccess('Signed in successfully! Redirecting…');
-        setTimeout(() => { window.location.href = '/dashboard'; }, 600);
+        setTimeout(async () => {
+          try {
+            const wsId = localStorage.getItem('adlytic_workspace_id');
+            if (wsId) {
+              const wsRes = await fetch('/api/workspaces/' + wsId, {
+                headers: { Authorization: 'Bearer ' + data.token }
+              });
+              if (wsRes.ok) {
+                const ws = await wsRes.json();
+                if (!ws.adAccounts || ws.adAccounts.length === 0) {
+                  window.location.href = '/welcome';
+                  return;
+                }
+              }
+            }
+          } catch (_) { /* fall through to dashboard */ }
+          window.location.href = '/dashboard';
+        }, 600);
 
       } catch (err) {
         showError('Network error. Please try again.');

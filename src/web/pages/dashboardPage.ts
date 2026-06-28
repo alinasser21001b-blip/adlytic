@@ -268,6 +268,42 @@ export function dashboardPage(): string {
     .skeleton-chart { height: 300px; }
     @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+    /* Onboarding sync overlay */
+    .onboarding-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(10,10,11,0.92);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .onboarding-card {
+      width: 100%; max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px 32px;
+      text-align: center;
+    }
+    .onboarding-icon {
+      width: 56px; height: 56px; margin: 0 auto 18px;
+      background: var(--accent-dim);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+    }
+    .onboarding-title { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    .onboarding-msg { font-size: 14px; color: var(--text-2); line-height: 1.6; min-height: 44px; margin-bottom: 20px; }
+    .onboarding-progress {
+      height: 6px; background: var(--surface-2);
+      border-radius: 999px; overflow: hidden; margin-bottom: 10px;
+    }
+    .onboarding-progress-bar {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border-radius: 999px;
+      transition: width 0.6s ease;
+    }
+    .onboarding-meta { font-size: 12px; color: var(--text-3); }
+
     /* Tier 1 — Executive Pulse Banner */
     .exec-pulse-banner {
       margin-bottom: 22px;
@@ -426,13 +462,23 @@ export function dashboardPage(): string {
 
   const content = `
     <div class="loading-overlay" id="loading-state">
-      <div class="dash-skeleton" aria-hidden="true">
+      <div class="dash-skeleton" id="dash-skeleton" aria-hidden="true">
         <div class="skeleton-hero-grid">
           <div class="skeleton-block skeleton-hero"></div>
           <div class="skeleton-block skeleton-hero"></div>
           <div class="skeleton-block skeleton-hero"></div>
         </div>
         <div class="skeleton-block skeleton-chart"></div>
+      </div>
+    </div>
+
+    <div class="onboarding-overlay" id="onboarding-overlay" style="display:none;">
+      <div class="onboarding-card">
+        <div class="onboarding-icon">⚡</div>
+        <div class="onboarding-title" id="onboarding-title">Setting up your dashboard</div>
+        <div class="onboarding-msg" id="onboarding-msg">Analyzing your last 30 days of campaigns…</div>
+        <div class="onboarding-progress"><div class="onboarding-progress-bar" id="onboarding-bar"></div></div>
+        <div class="onboarding-meta" id="onboarding-meta">This usually takes a minute</div>
       </div>
     </div>
 
@@ -1680,6 +1726,109 @@ export function dashboardPage(): string {
     if (contentEl) contentEl.style.display = 'block';
   }
 
+  function sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  function onboardingMessageFromJob(job, tick) {
+    if (job.status === 'COMPLETED') {
+      return lbl('Building your AI insights…', 'جارٍ بناء رؤى الذكاء الاصطناعي…');
+    }
+    if (job.chunksTotal > 0 && job.chunksDone > 0) {
+      var pct = Math.round((job.chunksDone / job.chunksTotal) * 100);
+      return lbl(
+        'Analyzing your last 30 days of campaigns… (' + pct + '%)',
+        'جارٍ تحليل حملاتك خلال آخر 30 يوماً… (' + pct + '%)'
+      );
+    }
+    var msgs = [
+      lbl('Connecting to your Meta ad account…', 'جارٍ الاتصال بحساب Meta الإعلاني…'),
+      lbl('Analyzing your last 30 days of campaigns…', 'جارٍ تحليل حملاتك خلال آخر 30 يوماً…'),
+      lbl('Pulling spend, reach, and engagement data…', 'جارٍ جلب بيانات الإنفاق والوصول والتفاعل…'),
+      lbl('Syncing campaign performance history…', 'جارٍ مزامنة سجل أداء الحملات…'),
+      lbl('Preparing your dashboard…', 'جارٍ تجهيز لوحة التحكم…'),
+    ];
+    return msgs[tick % msgs.length];
+  }
+
+  function showOnboardingOverlay(show) {
+    var el = document.getElementById('onboarding-overlay');
+    if (el) el.style.display = show ? 'flex' : 'none';
+    var loadingEl = document.getElementById('loading-state');
+    if (loadingEl && show) loadingEl.style.display = 'none';
+  }
+
+  function updateOnboardingUI(job, tick) {
+    var msgEl = document.getElementById('onboarding-msg');
+    var barEl = document.getElementById('onboarding-bar');
+    var metaEl = document.getElementById('onboarding-meta');
+    if (msgEl) msgEl.textContent = onboardingMessageFromJob(job, tick);
+    if (barEl) {
+      var pct = 8;
+      if (job.chunksTotal > 0) pct = Math.max(8, Math.round((job.chunksDone / job.chunksTotal) * 92));
+      else if (job.status === 'RUNNING' || job.status === 'IN_PROGRESS') pct = 20 + (tick % 4) * 12;
+      else if (job.status === 'COMPLETED') pct = 100;
+      barEl.style.width = pct + '%';
+    }
+    if (metaEl && job.rowsUpserted > 0) {
+      metaEl.textContent = lbl(
+        job.rowsUpserted + ' data points loaded',
+        'تم تحميل ' + job.rowsUpserted + ' نقطة بيانات'
+      );
+    }
+  }
+
+  async function pollSyncJob(jobId) {
+    var maxAttempts = 180;
+    for (var i = 0; i < maxAttempts; i++) {
+      var job = await apiFetch('/api/sync-jobs/' + encodeURIComponent(jobId));
+      updateOnboardingUI(job, i);
+      if (job.status === 'COMPLETED') return job;
+      if (job.status === 'FAILED') throw new Error(job.error || lbl('Sync failed', 'فشلت المزامنة'));
+      await sleep(1500);
+    }
+    throw new Error(lbl('Sync is taking longer than expected — your dashboard will update shortly.',
+      'المزامنة تستغرق وقتاً أطول من المتوقع — ستُحدَّث لوحة التحكم قريباً.'));
+  }
+
+  async function runOnboardingSync(syncJobId) {
+    showOnboardingOverlay(true);
+    var titleEl = document.getElementById('onboarding-title');
+    if (titleEl) titleEl.textContent = lbl('Setting up your dashboard', 'جارٍ إعداد لوحة التحكم');
+    try {
+      await pollSyncJob(syncJobId);
+      var msgEl = document.getElementById('onboarding-msg');
+      if (msgEl) msgEl.textContent = lbl('Almost ready…', 'على وشك الانتهاء…');
+      var barEl = document.getElementById('onboarding-bar');
+      if (barEl) barEl.style.width = '100%';
+      await sleep(600);
+    } catch (e) {
+      console.warn('[dashboard] onboarding sync poll:', e);
+      toast(e.message || lbl('Initial sync is still running in the background.', 'المزامنة الأولية لا تزال قيد التشغيل في الخلفية.'), 'warning');
+    } finally {
+      showOnboardingOverlay(false);
+    }
+  }
+
+  async function waitForInitialSync(syncJobId, workspaceId) {
+    if (syncJobId) {
+      await runOnboardingSync(syncJobId);
+      return;
+    }
+    showOnboardingOverlay(true);
+    var msgEl = document.getElementById('onboarding-msg');
+    if (msgEl) msgEl.textContent = lbl('Analyzing your last 30 days of campaigns…', 'جارٍ تحليل حملاتك خلال آخر 30 يوماً…');
+    try {
+      for (var j = 0; j < 90; j++) {
+        var ws = await apiFetch('/api/workspaces/' + workspaceId);
+        if (ws && ws.adAccounts && ws.adAccounts.some(function (a) { return a.lastSyncedAt; })) break;
+        await sleep(2000);
+      }
+    } finally {
+      showOnboardingOverlay(false);
+    }
+  }
+
   // ── Render / refresh dashboard sections ─────────────────────────────────
   function applyDashboardData(dashData, insights, campaigns, wsData, isInitial) {
     dashData = dashData || {};
@@ -1789,6 +1938,14 @@ export function dashboardPage(): string {
       }
       state.workspaceId = workspaceId;
 
+      var urlParams = new URLSearchParams(window.location.search);
+      var isPostConnect = urlParams.get('connected') === '1';
+      var syncJobId = urlParams.get('syncJob') || null;
+      if (isPostConnect || syncJobId) {
+        await waitForInitialSync(syncJobId, workspaceId);
+        window.history.replaceState({}, '', '/dashboard');
+      }
+
       // 3) Parallel data fetch (each call bounded; failures degrade gracefully)
       var results = await Promise.all([
         apiFetchWithTimeout('/api/dashboard/' + workspaceId, {}, 15000).catch(function (e) { console.warn('[dashboard] dashboard fetch failed:', e); return {}; }),
@@ -1806,13 +1963,17 @@ export function dashboardPage(): string {
 
       // 4) Empty state — no ad account connected
       if (dashData.empty) {
+        if (!isPostConnect) {
+          window.location.href = '/welcome';
+          return;
+        }
         hideLoadingShowDashboard();
         document.getElementById('hero-grid').innerHTML =
           '<div class="empty-state" style="grid-column:1/-1;">'
           + '<div class="empty-icon">📊</div>'
           + '<div class="empty-title">' + lbl('Connect your Meta Ads account', 'اربط حساب إعلانات Meta') + '</div>'
           + '<div class="empty-text">' + lbl('Link your ad account to see spend, engagement, reach, and AI-powered recommendations.', 'اربط حسابك الإعلاني لرؤية الإنفاق وتفاعل الإعلان والوصول والتوصيات الذكية.') + '</div>'
-          + '<a href="/workspace" class="btn btn-primary" style="margin-top:14px;">Go to Workspace</a>'
+          + '<a href="/welcome" class="btn btn-primary" style="margin-top:14px;">' + lbl('Connect with Meta', 'الربط مع Meta') + '</a>'
         + '</div>';
         return;
       }
