@@ -6,9 +6,12 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import Anthropic from '@anthropic-ai/sdk';
+import { getExpertSystemPrompt } from './aiKnowledgeContext';
 
 const MODEL   = 'claude-sonnet-4-6';
-const MAX_TOKENS = 512;
+// Detailed, evidence-based analysis (live value vs benchmark + a fix) needs more
+// room than a one-line answer — especially in Arabic, which runs longer per idea.
+const MAX_TOKENS = 1024;
 
 let _client: Anthropic | null = null;
 
@@ -23,17 +26,12 @@ function getClient(): Anthropic {
   return _client;
 }
 
-const SYSTEM_PROMPT = `You are Adlytic AI, a Meta Ads performance analyst embedded in the Adlytic dashboard.
-You receive structured campaign data and answer the user's question with concise, actionable analysis.
-Keep replies under 150 words. Use plain language — no markdown headers, minimal bullet points.
-If data is missing or the workspace has no account, tell the user what they need to do to connect one.`;
-
 export async function askClaude(context: string): Promise<string> {
   const client = getClient();
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
-    system: SYSTEM_PROMPT,
+    system: getExpertSystemPrompt(),
     messages: [{ role: 'user', content: context }],
   });
 
