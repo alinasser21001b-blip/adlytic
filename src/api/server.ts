@@ -43,7 +43,7 @@ import { EntityType, WorkspaceRole, SyncJobStatus, type Locale } from '@prisma/c
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
-import { getDashboard, getDashboardPulse } from '../services/getDashboard';
+import { getDashboard, getDashboardPulse, DashboardStageTimeoutError } from '../services/getDashboard';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
@@ -833,6 +833,21 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     } catch (e: any) {
       if (e?.message?.includes('no ad account') || e?.code === 'P2025') {
         return c.json({ empty: true, workspace: { id: workspaceId } }, 200);
+      }
+      // Circuit breaker tripped: a getDashboard stage stalled past its budget.
+      // Return 504 with the offending stage so the client stops spinning and
+      // can show an error state, and so logs pinpoint the bottleneck.
+      if (e instanceof DashboardStageTimeoutError) {
+        console.error(`[api:dashboard] timeout serving ${workspaceId}: ${e.message}`);
+        return c.json(
+          {
+            error: 'Dashboard timed out while loading live data.',
+            code: 'DASHBOARD_TIMEOUT',
+            stage: e.stage,
+            timeoutMs: e.timeoutMs,
+          },
+          504,
+        );
       }
       throw e;
     }

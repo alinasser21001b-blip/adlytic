@@ -27,6 +27,7 @@
 import { PrismaClient, EntityType, Locale, IssueCode } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import { performance } from "node:perf_hooks";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import {
   evaluateCampaign,
@@ -288,6 +289,63 @@ function kpiLabel(key: string, locale: Locale | undefined): string {
 }
 
 // ════════════════════════════════════════════════════════════════════════
+//  Stage instrumentation + timeout circuit breaker.
+//
+//  getDashboard is a pure DB reader; any indefinite hang is a stalled query
+//  (pool exhaustion, row lock, runaway plan). Each major await is wrapped in
+//  `timedStage`, which (a) logs the wall-clock duration of the stage and
+//  (b) races it against STAGE_TIMEOUT_MS. If a stage overruns, it throws a
+//  DashboardStageTimeoutError naming EXACTLY which stage stalled, so the HTTP
+//  layer can return 504 instead of leaving the client spinning forever.
+// ════════════════════════════════════════════════════════════════════════
+
+/** Per-stage budget. Tunable via env; defaults to 9s (under typical 30s LB cap). */
+const STAGE_TIMEOUT_MS = Number(process.env['DASHBOARD_STAGE_TIMEOUT_MS'] ?? 9000);
+
+/** Thrown when a single getDashboard stage exceeds STAGE_TIMEOUT_MS. */
+export class DashboardStageTimeoutError extends Error {
+  constructor(
+    public readonly stage: string,
+    public readonly timeoutMs: number,
+  ) {
+    super(`getDashboard stage "${stage}" exceeded ${timeoutMs}ms`);
+    this.name = 'DashboardStageTimeoutError';
+  }
+}
+
+/**
+ * Run an async stage with timing telemetry and a hard timeout. On overrun the
+ * underlying query is NOT cancelled (Prisma has no cancel token) but the race
+ * unblocks the request and surfaces the exact stall site. The dangling query
+ * settles later harmlessly.
+ */
+async function timedStage<T>(stage: string, work: () => Promise<T>): Promise<T> {
+  const start = performance.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new DashboardStageTimeoutError(stage, STAGE_TIMEOUT_MS)),
+      STAGE_TIMEOUT_MS,
+    );
+  });
+  try {
+    const result = await Promise.race([work(), timeout]);
+    console.log(`[dashboard:timing] ${stage} ${Math.round(performance.now() - start)}ms`);
+    return result;
+  } catch (err) {
+    const ms = Math.round(performance.now() - start);
+    if (err instanceof DashboardStageTimeoutError) {
+      console.error(`[dashboard:timeout] STALLED at "${stage}" after ${ms}ms (limit ${STAGE_TIMEOUT_MS}ms)`);
+    } else {
+      console.error(`[dashboard:error] stage "${stage}" failed after ${ms}ms:`, err);
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
 export async function getDashboard(
   workspaceId: string,
   opts: { locale?: Locale; windowDays?: number; prisma?: PrismaClient } = {}
@@ -297,24 +355,30 @@ export async function getDashboard(
   const prisma = opts.prisma ?? _standalonePrisma;
   const knowledge = new KnowledgeEngine(prisma);
   const recService = new RecommendationService(prisma);
-  const appliedItemKeys = await recService.getAppliedItemKeys(workspaceId);
+  const appliedItemKeys = await timedStage('appliedItemKeys', () =>
+    recService.getAppliedItemKeys(workspaceId),
+  );
   const windowDays = opts.windowDays ?? 30;
 
   // 1. Workspace + industry + the (single) ad account.
-  const ws = await prisma.workspace.findUniqueOrThrow({
-    where: { id: workspaceId },
-    include: {
-      industryProfile: true,
-      adAccounts: { include: { campaigns: { where: { status: "ACTIVE" } } } },
-    },
-  });
+  const ws = await timedStage('workspace+account', () =>
+    prisma.workspace.findUniqueOrThrow({
+      where: { id: workspaceId },
+      include: {
+        industryProfile: true,
+        adAccounts: { include: { campaigns: { where: { status: "ACTIVE" } } } },
+      },
+    }),
+  );
   const locale = opts.locale ?? Locale.EN;
   const account = ws.adAccounts[0]; // Phase 1: one account per workspace
   if (!account) return EMPTY_DASHBOARD_DTO;
 
   // Auto-heal stale IQD rows that still carry the schema default factor=100.
   if (currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
-    const healed = await healAccountCurrencyAndSpend(prisma, account);
+    const healed = await timedStage('currencyHeal', () =>
+      healAccountCurrencyAndSpend(prisma, account),
+    );
     account.currencyMinorFactor = healed;
     console.log(
       `[currency-heal] dashboard ${account.id.slice(0, 8)}… ${account.currency} factor → ${healed}`,
@@ -327,24 +391,28 @@ export async function getDashboard(
   const priorSinceDate = utcDateFloor(windowDays * 2);
 
   // 2. Account-level daily stats — current + prior window for KPI deltas and charts.
-  const allDaily = await prisma.dailyStat.findMany({
-    where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
-    orderBy: { date: "asc" },
-  });
+  const allDaily = await timedStage('accountDailyStats', () =>
+    prisma.dailyStat.findMany({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
+      orderBy: { date: "asc" },
+    }),
+  );
   const sinceMs = sinceDate.getTime();
   const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
   const priorDaily = allDaily.filter((d) => d.date.getTime() < sinceMs);
 
   // 3. Latest stored health score for the CURRENT algorithm version only.
   //    v1 rows may coexist for the same date; we explicitly pick v2.
-  const healthRow = await prisma.healthScore.findFirst({
-    where: {
-      entityType: EntityType.ACCOUNT,
-      entityId: account.id,
-      algorithmVersion: HEALTH_ALGORITHM_VERSION,
-    },
-    orderBy: { date: "desc" },
-  });
+  const healthRow = await timedStage('accountHealthScore', () =>
+    prisma.healthScore.findFirst({
+      where: {
+        entityType: EntityType.ACCOUNT,
+        entityId: account.id,
+        algorithmVersion: HEALTH_ALGORITHM_VERSION,
+      },
+      orderBy: { date: "desc" },
+    }),
+  );
   const score = healthRow?.score ?? 0;
 
   // 4. KPI badge deltas — 30d window totals vs prior 30d (not metric_trends 7d).
@@ -425,16 +493,20 @@ export async function getDashboard(
   // 7. Issues — join detected_issues → knowledge_rules, localized AND
   //    industry-specialized. The fallback rule (industry → universal) lives
   //    inside KnowledgeEngine; this function only consumes the result.
-  const detected = await prisma.detectedIssue.findMany({
-    where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-    orderBy: { severity: "desc" },
-  });
+  const detected = await timedStage('detectedIssues', () =>
+    prisma.detectedIssue.findMany({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+      orderBy: { severity: "desc" },
+    }),
+  );
 
-  const knowledgeMap = await knowledge.lookupMany({
-    issueCodes: (detected as any[]).map(d => d.issueCode as IssueCode),
-    locale,
-    industryProfileId: ws.industryProfileId,
-  });
+  const knowledgeMap = await timedStage('knowledgeLookup', () =>
+    knowledge.lookupMany({
+      issueCodes: (detected as any[]).map(d => d.issueCode as IssueCode),
+      locale,
+      industryProfileId: ws.industryProfileId,
+    }),
+  );
 
   const issues: DashboardDTO["issues"] = (detected as any[]).map(di => {
     const entry = knowledgeMap.get(di.issueCode as IssueCode);
@@ -491,10 +563,12 @@ export async function getDashboard(
   }
 
   // 8. Priority action — highest-priority recommendation, rendered to text.
-  const rec = await prisma.recommendation.findFirst({
-    where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-    orderBy: [{ priority: "desc" }, { date: "desc" }],
-  });
+  const rec = await timedStage('recommendation', () =>
+    prisma.recommendation.findFirst({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+      orderBy: [{ priority: "desc" }, { date: "desc" }],
+    }),
+  );
   // The recommendation's action text comes from the top issue's localized recs.
   const activeIssues = issues.filter(
     (i) => !appliedItemKeys.has(`issue:${i.code}`),
@@ -553,17 +627,21 @@ export async function getDashboard(
   );
 
   // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
-  const cards = await buildCampaignCards(account.id, prisma, sinceDate, factor);
+  const cards = await timedStage('campaignCards', () =>
+    buildCampaignCards(account.id, prisma, sinceDate, factor),
+  );
 
   // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
   //     Returns undefined when no snapshots exist for this workspace (V5-only render).
-  const brain = await buildBrainSection(
-    prisma,
-    ws.id,
-    account.id,
-    account.currency,
-    account.currencyMinorFactor,
-    appliedItemKeys,
+  const brain = await timedStage('brainSection', () =>
+    buildBrainSection(
+      prisma,
+      ws.id,
+      account.id,
+      account.currency,
+      account.currencyMinorFactor,
+      appliedItemKeys,
+    ),
   );
 
   return {
