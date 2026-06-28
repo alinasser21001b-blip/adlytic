@@ -14,6 +14,7 @@
 
 import { BrainTickResult } from '../engine/AdlyticBrain';
 import { DecisionAction } from '../engine/DecisionEngine';
+import { sanitizeObjectForLlm, scrubString } from '../lib/dataSanitizer';
 
 // ════════════════════════════════════════════════════════════════════════
 // Public output contract — persisted to narrationJson (campaignId omitted at write)
@@ -423,9 +424,13 @@ export async function generateMerchantNarration(
     return buildEmergencyNarration(brainResult);
   }
 
-  const payload = history
+  const rawPayload = history
     ? { ...buildPayload(brainResult), history }
     : buildPayload(brainResult);
+  const payload = sanitizeObjectForLlm({
+    ...rawPayload,
+    campaignName: scrubString(rawPayload.campaignName),
+  });
   const userPrompt = JSON.stringify(payload, null, 2);
 
   try {

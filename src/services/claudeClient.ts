@@ -7,6 +7,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getExpertSystemPrompt } from './aiKnowledgeContext';
+import { sanitizeLlmUserContent } from '../lib/dataSanitizer';
 
 const MODEL   = 'claude-sonnet-4-6';
 // Detailed, evidence-based analysis (live value vs benchmark + a fix) needs more
@@ -32,7 +33,7 @@ export async function askClaude(context: string): Promise<string> {
     model: MODEL,
     max_tokens: MAX_TOKENS,
     system: getExpertSystemPrompt(),
-    messages: [{ role: 'user', content: context }],
+    messages: [{ role: 'user', content: sanitizeLlmUserContent(context) }],
   });
 
   const block = message.content[0];
@@ -59,7 +60,7 @@ export async function askClaudeWithSystem(
     model: MODEL,
     max_tokens: opts.maxTokens ?? 800,
     system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+    messages: [{ role: 'user', content: sanitizeLlmUserContent(userPrompt) }],
   });
 
   const block = message.content[0];

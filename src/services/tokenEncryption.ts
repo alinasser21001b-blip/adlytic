@@ -49,6 +49,24 @@ function getKey(): Buffer | null {
   return config.tokenEncryption.key;
 }
 
+/** True when `stored` matches the AES-256-GCM envelope (iv:tag:ciphertext hex). */
+export function isEncryptedToken(stored: string): boolean {
+  if (!stored || !stored.includes(SEP)) return false;
+  const parts = stored.split(SEP);
+  if (parts.length !== 3) return false;
+  return parts.every((part) => /^[0-9a-f]+$/i.test(part) && part.length > 0);
+}
+
+/**
+ * Re-encrypt legacy plaintext tokens on the next persistence write.
+ * Already-encrypted values are returned unchanged.
+ */
+export function ensureTokenEncrypted(stored: string): string {
+  if (!stored) return stored;
+  if (isEncryptedToken(stored)) return stored;
+  return encryptToken(stored);
+}
+
 /**
  * Encrypt a plaintext token.
  * Returns the ciphertext string, or the original plaintext when no key is set.

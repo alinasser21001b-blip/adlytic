@@ -17,6 +17,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient } from "@prisma/client";
+import { sanitizeLlmUserContent, scrubString } from "../lib/dataSanitizer";
 
 // ── types ─────────────────────────────────────────────────────────────────
 
@@ -102,7 +103,8 @@ export async function buildAiContextV5(
   opts: V5ContextOpts = {}
 ): Promise<string> {
   const currency = opts.currency ?? "USD";
-  const wsName = opts.workspaceName ?? "—";
+  const wsName = scrubString(opts.workspaceName ?? "—");
+  const safeMessage = scrubString(message);
   const today = opts.asOf ?? new Date();
   const todayStr = today.toISOString().slice(0, 10);
 
@@ -123,7 +125,7 @@ export async function buildAiContextV5(
       `## Status: Intelligence data not yet available for this account.`,
       `## Note: The V5 engine runs after each sync. If the account was just connected, wait for the next sync cycle (~15 min).`,
       "",
-      `## Question: ${message}`,
+      `## Question: ${safeMessage}`,
     ].join("\n");
   }
 
@@ -183,6 +185,6 @@ export async function buildAiContextV5(
     lines.push("## Recommended Actions: none at this time");
   }
 
-  lines.push("", `## Question: ${message}`);
-  return lines.join("\n");
+  lines.push("", `## Question: ${safeMessage}`);
+  return sanitizeLlmUserContent(lines.join("\n"));
 }

@@ -12,6 +12,7 @@ import {
   type CampaignHistoryRollupRow,
   type HistoryWindowKey,
 } from "../types/campaignHistory";
+import { sanitizeCmoHistoricalContext } from "../lib/dataSanitizer";
 import { windowCutoff } from "../workers/rollupHistory";
 
 export interface HistorySnapshotRow {
@@ -297,7 +298,7 @@ export async function buildCmoHistoricalContext(
     return undefined;
   }
 
-  return { topPerformers, recentFailures };
+  return sanitizeCmoHistoricalContext({ topPerformers, recentFailures });
 }
 
 /**

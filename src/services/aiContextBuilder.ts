@@ -7,39 +7,43 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { DashboardDTO } from './getDashboard';
+import { sanitizeDashboardForLlm, scrubString } from '../lib/dataSanitizer';
 
 export function buildAiContext(dto: DashboardDTO, message: string): string {
-  if (dto.empty) {
+  const safeDto = sanitizeDashboardForLlm(dto);
+  const safeMessage = scrubString(message);
+
+  if (safeDto.empty) {
     return [
       '## Workspace: (no ad account connected)',
       '## Status: No data available — user has not linked a Meta Ad Account yet.',
       '',
-      `## Question: ${message}`,
+      `## Question: ${safeMessage}`,
     ].join('\n');
   }
 
-  const ws = dto.workspace;
+  const ws = safeDto.workspace;
   const lines: string[] = [];
 
   // ── Header ──────────────────────────────────────────────────────────
   lines.push(
     `## Workspace: ${ws?.name ?? '—'} | Industry: ${ws?.industry ?? '—'} | Currency: ${ws?.currency ?? 'USD'}`,
-    `## Period: last 30d | Last sync: ${ws?.lastSyncedAt ?? 'never'} | Health: ${dto.health.score}/100 (${dto.health.band}) | Active campaigns: ${ws?.activeCampaigns ?? 0}`,
+    `## Period: last 30d | Last sync: ${ws?.lastSyncedAt ?? 'never'} | Health: ${safeDto.health.score}/100 (${safeDto.health.band}) | Active campaigns: ${ws?.activeCampaigns ?? 0}`,
   );
 
   // ── KPIs ────────────────────────────────────────────────────────────
-  if (dto.kpis.length > 0) {
+  if (safeDto.kpis.length > 0) {
     lines.push('## KPIs', '| Metric | Value | Δ% | Dir |', '|--------|-------|-----|-----|');
-    for (const k of dto.kpis) {
+    for (const k of safeDto.kpis) {
       const delta = k.deltaPct !== null ? `${k.deltaPct > 0 ? '+' : ''}${k.deltaPct.toFixed(1)}%` : '—';
       lines.push(`| ${k.label} | ${k.display} | ${delta} | ${k.direction} |`);
     }
   }
 
   // ── Issues ──────────────────────────────────────────────────────────
-  if (dto.issues.length > 0) {
-    lines.push(`## Issues (${dto.issues.length})`, '| Code | Severity | Evidence |', '|------|----------|----------|');
-    for (const iss of dto.issues) {
+  if (safeDto.issues.length > 0) {
+    lines.push(`## Issues (${safeDto.issues.length})`, '| Code | Severity | Evidence |', '|------|----------|----------|');
+    for (const iss of safeDto.issues) {
       const ev = Object.entries(iss.evidence)
         .map(([k, v]) => `${k}:${v}`)
         .join(', ');
@@ -50,22 +54,22 @@ export function buildAiContext(dto: DashboardDTO, message: string): string {
   }
 
   // ── Priority action ─────────────────────────────────────────────────
-  if (dto.priorityAction) {
-    lines.push(`## Priority Action: ${dto.priorityAction.actionCode} (${dto.priorityAction.priority}): ${dto.priorityAction.text}`);
+  if (safeDto.priorityAction) {
+    lines.push(`## Priority Action: ${safeDto.priorityAction.actionCode} (${safeDto.priorityAction.priority}): ${safeDto.priorityAction.text}`);
   }
 
   // ── Campaign cards ───────────────────────────────────────────────────
-  if (dto.bestCampaign) {
-    const b = dto.bestCampaign;
+  if (safeDto.bestCampaign) {
+    const b = safeDto.bestCampaign;
     lines.push(`## Best campaign: "${b.name}" | health:${b.health}/100 | CTR:${b.ctr?.toFixed(2) ?? '—'}% | CPM:${b.cpm?.toFixed(2) ?? '—'} | freq:${b.frequency?.toFixed(2) ?? '—'}`);
   }
-  if (dto.worstCampaign) {
-    const w = dto.worstCampaign;
+  if (safeDto.worstCampaign) {
+    const w = safeDto.worstCampaign;
     lines.push(`## Worst campaign: "${w.name}" | health:${w.health}/100 | CTR:${w.ctr?.toFixed(2) ?? '—'}% | CPM:${w.cpm?.toFixed(2) ?? '—'}`);
   }
 
   // ── Trend summary (last 3 data points to stay token-lean) ────────────
-  const td = dto.trendSeries;
+  const td = safeDto.trendSeries;
   if (td.dates.length > 0) {
     const last3 = Math.max(0, td.dates.length - 3);
     const dates    = td.dates.slice(last3);
@@ -77,6 +81,6 @@ export function buildAiContext(dto: DashboardDTO, message: string): string {
     }
   }
 
-  lines.push('', `## Question: ${message}`);
+  lines.push('', `## Question: ${safeMessage}`);
   return lines.join('\n');
 }
