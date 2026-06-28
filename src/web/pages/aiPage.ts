@@ -117,6 +117,7 @@ export function aiPage(): string {
   const wsId  = localStorage.getItem('adlytic_workspace_id');
   if (!wsId)  { window.location.href = '/dashboard'; return; }
 
+  try {
   const me = await apiFetch('/api/auth/me');
   if (!me) return;
   // Guarded DOM write: getElementById(id).textContent throws if the element is
@@ -214,15 +215,15 @@ export function aiPage(): string {
 
   // Welcome message
   const welcomeText = dashData
-    ? 'Hello! I\'m your Adlytic AI assistant. I have access to your live campaign data' +
+    ? 'Hello! I\\'m your Adlytic AI assistant. I have access to your live campaign data' +
       (dashData.workspace?.name ? ' for <strong>' + esc(dashData.workspace.name) + '</strong>' : '') + '.' +
       (dashData.issues?.length
-        ? ' I\'ve detected <strong>' + Number(dashData.issues.length) + ' issue' + (dashData.issues.length>1?'s':'') + '</strong> in your campaigns. Ask me about them or anything else related to your ad performance.'
+        ? ' I\\'ve detected <strong>' + Number(dashData.issues.length) + ' issue' + (dashData.issues.length>1?'s':'') + '</strong> in your campaigns. Ask me about them or anything else related to your ad performance.'
         : ' Your campaigns look healthy. Ask me anything about performance, budget, or strategy.') +
       '<br><br><em>' + (userLocale === 'AR'
         ? 'جرّب: "ما الذي أنصح به الآن؟" أو "لماذا انخفض تفاعل إعلاناتي؟"'
         : 'Try: "What should I do next?" or "Why is ad engagement dropping?"') + '</em>'
-    : 'Hello! I\'m your Adlytic AI assistant. Connect your campaigns to get data-driven insights. In the meantime, ask me anything about Meta Ads strategy.';
+    : 'Hello! I\\'m your Adlytic AI assistant. Connect your campaigns to get data-driven insights. In the meantime, ask me anything about Meta Ads strategy.';
   addMsg('assistant', welcomeText);
 
   async function sendMessage(question) {
@@ -293,6 +294,14 @@ export function aiPage(): string {
   });
 
   inputEl.focus();
+  } catch (err) {
+    // Last-resort guard: ANY uncaught init failure must surface visibly rather
+    // than leaving the Live Context loader spinning forever in a dead state.
+    // The message is also printed to the console with a [ai-init] tag.
+    console.error('[ai-init] fatal init error:', err);
+    var __cc = document.getElementById('context-chips');
+    if (__cc) __cc.innerHTML = '<span style="font-size:12px;color:var(--error);">Init error: ' + String((err && err.message) || err) + '</span>';
+  }
 })();
 </script>`;
 
