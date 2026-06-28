@@ -51,6 +51,13 @@ check(
   isLearningPhaseNarration({ arabicTitle: LEARNING_PHASE_TITLE, arabicNarration: 'x' }),
 );
 check(
+  'legacy passive cold-start title still matches (backward compat)',
+  isLearningPhaseNarration({
+    arabicTitle: 'حملة جديدة: جاري جمع البيانات الأولية',
+    arabicNarration: 'x',
+  }),
+);
+check(
   'generic title does not match',
   !isLearningPhaseNarration({ arabicTitle: 'إشعار استراتيجي آلي', arabicNarration: 'x' }),
 );

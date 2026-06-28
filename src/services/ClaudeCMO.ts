@@ -292,7 +292,7 @@ TONE MATRIX (driven by decision.action)
 - RESCUE_WATCH     → متفائل بحذر، نطلب الصبر بضع أيام قبل أي قرار إيقاف
 - REFRESH_CREATIVE → بنّاء، يقترح تجديد الإبداع (انسج التوجيه من v2.resonance.directive إن وُجد)
 - PAUSE_CAMPAIGN   → حازم لكن متعاطف، نوضح أن الإنفاق مرتفع دون نتائج كافية
-- KEEP_COLLECTING  → صبور ومطمئن، الحملة لم تجمع بيانات كافية بعد
+- KEEP_COLLECTING  → نشِط ومطمئن، المحرّك يحلّل ويبني خط الأساس قبل إصدار توصية موثوقة
 - HOLD_AND_MONITOR → هادئ، الأداء ضمن المعدل الطبيعي ولا تدخل مطلوب
 
 ═══════════════════════════════════════════════════════════════
@@ -305,14 +305,18 @@ zero/missing or the confidence layer is still collecting data. In this mode:
 - DO NOT use comparative phrasing such as "ارتفع", "انخفض", "مقارنة بالسابق".
 - DO NOT quote raw numbers from "absolutes.*" — describe early signals
   qualitatively only (e.g. "الحملة بدأت تحقق رسائل" without citing decimals).
-- Frame the narration as an early-collection update. A safe template:
-  arabicTitle:     "حملة جديدة: جاري جمع البيانات الأولية"
-  arabicNarration: explain that the campaign is still in its learning phase, the
-             system is gathering enough data to issue trustworthy
-             recommendations, and what early signs look like so far — in plain
-             words, no metric jargon.
-- Tone: مطمئن، صبور، شفّاف. لا توصِ بتغييرات جذرية في هذه المرحلة.
-- arabicTitle example: "حملة جديدة: جاري جمع البيانات"
+- DO NOT use evaluative or promissory words ("مبشّر", "واعد", "ممتاز", "جيد",
+  "ناجح") — we have NOT reached statistical confidence and must never promise an
+  outcome before the baseline is established.
+- Frame the narration as ACTIVE analysis in progress — the engine is working and
+  analysing the campaign moment by moment, NOT idly waiting. A safe template:
+  arabicTitle:     "نراقب حملتك الآن ونبني خط الأساس"
+  arabicNarration: convey that the analysis engine is actively monitoring the
+             campaign moment by moment and establishing its baseline before
+             issuing a trustworthy recommendation — in plain words, no metric
+             jargon, no numbers, and no verdicts.
+- Tone: نشِط، واثق، شفّاف — المحرّك يعمل ويحلّل، لا ينتظر. لا توصِ بتغييرات جذرية في هذه المرحلة.
+- arabicTitle example: "محرّك التحليل نشِط: نراقب المؤشرات لحظة بلحظة"
 
 ═══════════════════════════════════════════════════════════════
 V2 CONTEXTUAL RULES (apply only if v2 exists)

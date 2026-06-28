@@ -8,8 +8,19 @@
 
 import { Prisma, PrismaClient } from '@prisma/client';
 
-/** Canonical cold-start title from ClaudeCMO system prompt. */
-export const LEARNING_PHASE_TITLE = 'حملة جديدة: جاري جمع البيانات الأولية';
+/** Canonical cold-start title from ClaudeCMO system prompt (active-tone). */
+export const LEARNING_PHASE_TITLE = 'نراقب حملتك الآن ونبني خط الأساس';
+
+/**
+ * Distinctive substrings that mark a cold-start / learning-phase title.
+ * Includes the legacy passive title still persisted in older DB rows so that
+ * dedupe keeps recognising them after the active-tone copy revamp.
+ */
+const LEARNING_PHASE_TITLE_MARKERS: readonly string[] = [
+  'نبني خط الأساس', // active-tone canonical title
+  'نراقب المؤشرات', // active-tone alternate example
+  'جاري جمع',       // legacy passive cold-start titles already in the feed
+];
 
 export const LEARNING_PHASE_ACTIONS: ReadonlySet<string> = new Set(['KEEP_COLLECTING']);
 
@@ -52,7 +63,8 @@ export function isLearningPhaseSnapshot(row: { action: string; payload: unknown 
 export function isLearningPhaseNarration(narrationJson: unknown): boolean {
   const title = readNarrationTitle(narrationJson);
   if (!title) return false;
-  return title === LEARNING_PHASE_TITLE || title.includes('جاري جمع');
+  if (title === LEARNING_PHASE_TITLE) return true;
+  return LEARNING_PHASE_TITLE_MARKERS.some((marker) => title.includes(marker));
 }
 
 export function learningInsightDedupeKey(campaignId: string, insightType: string): string {
