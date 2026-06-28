@@ -389,6 +389,21 @@ export function dashboardPage(): string {
     .main-move-secondary-title { font-size: 13px; font-weight: 600; color: var(--text); }
     .main-move-secondary-decision { font-size: 12px; color: var(--text-3); margin-top: 2px; }
 
+    .main-move-cta:disabled { opacity: 0.55; cursor: default; filter: none; }
+    .action-modal-steps { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .action-modal-step {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 12px; border-radius: 8px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      font-size: 13px; color: var(--text-2); line-height: 1.55;
+    }
+    .action-modal-step b {
+      width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+      background: var(--accent-dim); color: var(--accent-2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800;
+    }
+
   </style>`;
 
   const content = `
@@ -520,6 +535,19 @@ export function dashboardPage(): string {
         <div class="v2-spotlight-grid" id="v2-spotlight"></div>
       </section>
 
+      <!-- Main Move action modal (remediation workflow) -->
+      <div id="main-move-action-modal" class="modal-overlay" style="display:none;">
+        <div class="modal" role="dialog" aria-labelledby="action-modal-title" style="max-width:520px;width:92%;">
+          <div class="modal-title" id="action-modal-title">—</div>
+          <div class="modal-subtitle" id="action-modal-subtitle">—</div>
+          <div class="action-modal-steps" id="action-modal-steps"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary btn-sm" id="action-modal-cancel">Cancel</button>
+            <button type="button" class="btn btn-primary btn-sm" id="action-modal-confirm">I've applied this</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 7 ▸ Advanced Analytics (collapsed) -->
       <details class="v2-advanced">
         <summary>
@@ -598,6 +626,7 @@ export function dashboardPage(): string {
     minorFactor: 100,
     workspaceId: null,
     locale: 'EN',
+    mainMovePrimary: null,
   };
 
   function isArabic() { return state.locale === 'AR'; }
@@ -1088,6 +1117,15 @@ export function dashboardPage(): string {
     }
     return null;
   }
+  function issueActionCode(iss, dashData) {
+    var kb = iss && iss.evidence && iss.evidence.knowledgeBase;
+    var kbActions = kb && kb.recommended_optimization_actions;
+    if (Array.isArray(kbActions) && kbActions[0] && kbActions[0].id) return kbActions[0].id;
+    if (dashData && dashData.priorityAction && dashData.priorityAction.actionCode) {
+      return dashData.priorityAction.actionCode;
+    }
+    return iss && iss.code ? String(iss.code) : null;
+  }
   function buildAllMoveItems(dashData) {
     try {
       if (!dashData) return [];
@@ -1115,6 +1153,9 @@ export function dashboardPage(): string {
         var causes = Array.isArray(iss.causes) ? iss.causes.join(' · ') : (iss.causes || '');
         pushItem({
           kind: 'issue',
+          itemId: 'issue:' + (iss.code || iss.title || 'unknown'),
+          issueCode: iss.code || null,
+          actionCode: issueActionCode(iss, dashData),
           rank: severityRank(sev),
           severity: sev,
           title: iss.title || iss.code || lbl('Action needed', 'إجراء مطلوب'),
@@ -1133,6 +1174,8 @@ export function dashboardPage(): string {
         if (paText) {
           pushItem({
             kind: 'priority',
+            itemId: 'priority:' + (pa.actionCode || 'top'),
+            actionCode: pa.actionCode || null,
             rank: 0.5,
             severity: 'high',
             title: paText,
@@ -1153,6 +1196,11 @@ export function dashboardPage(): string {
         var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
         pushItem({
           kind: 'feed',
+          itemId: 'feed:' + (it.dedupeKey || it.campaignName || it.title || 'unknown'),
+          actionCode: dashData.priorityAction && dashData.priorityAction.actionCode ? dashData.priorityAction.actionCode : null,
+          campaignId: it.campaignId || null,
+          campaignName: it.campaignName || null,
+          feedKey: it.dedupeKey || null,
           rank: feedSeverityRank(it.severity) + 0.1,
           severity: sev,
           title: it.title || it.campaignName || lbl('AI decision', 'قرار ذكي'),
@@ -1203,6 +1251,7 @@ export function dashboardPage(): string {
     var items = buildAllMoveItems(dashData);
     if (items.length === 0) {
       if (meta) meta.textContent = lbl('All clear', 'كل شيء مستقر');
+      state.mainMovePrimary = null;
       card.innerHTML = '<div class="main-move-empty">' + escHtml(lbl(
         'No actions for today. Account is steady.',
         'لا توجد إجراءات اليوم. حسابك مستقر.'
@@ -1255,13 +1304,124 @@ export function dashboardPage(): string {
       + '</details>';
     }
     card.innerHTML = html;
+    state.mainMovePrimary = primary;
     } catch (e) {
       console.error('[dashboard] renderMainMove failed:', e);
+      state.mainMovePrimary = null;
       card.innerHTML = '<div class="main-move-empty">' + escHtml(lbl(
         'No actions for today. Account is steady.',
         'لا توجد إجراءات اليوم. حسابك مستقر.'
       )) + '</div>';
     }
+  }
+
+  // ── Main Move action workflow (Today's Actions + Recovery Center flow) ───
+  function actionStepsForItem(item) {
+    if (!item) return [];
+    var steps = Array.isArray(item.steps) ? item.steps.filter(Boolean) : [];
+    if (steps.length > 0) return steps;
+    if (item.decision) return [item.decision];
+    return [lbl('Review affected campaigns and apply the recommended fix.', 'راجع الحملات المتأثرة وطبّق الإصلاح الموصى به.')];
+  }
+  function closeActionModal() {
+    var modal = document.getElementById('main-move-action-modal');
+    if (modal) modal.style.display = 'none';
+  }
+  function openActionModal(item) {
+    var modal = document.getElementById('main-move-action-modal');
+    var titleEl = document.getElementById('action-modal-title');
+    var subEl = document.getElementById('action-modal-subtitle');
+    var stepsEl = document.getElementById('action-modal-steps');
+    if (!modal || !titleEl || !subEl || !stepsEl) return;
+    var steps = actionStepsForItem(item);
+    titleEl.textContent = item.title || lbl('Recommended action', 'الإجراء الموصى به');
+    var subtitleParts = [];
+    if (item.campaignName) subtitleParts.push(item.campaignName);
+    if (item.actionCode) subtitleParts.push(String(item.actionCode).replace(/_/g, ' '));
+    subEl.textContent = subtitleParts.length > 0
+      ? subtitleParts.join(' · ')
+      : lbl('Follow these steps in Meta Ads Manager.', 'اتبع هذه الخطوات في مدير إعلانات Meta.');
+    stepsEl.innerHTML = steps.map(function (step, idx) {
+      return '<div class="action-modal-step" dir="auto"><b>' + (idx + 1) + '</b><span>' + escHtml(step) + '</span></div>';
+    }).join('');
+    var cancelBtn = document.getElementById('action-modal-cancel');
+    var confirmBtn = document.getElementById('action-modal-confirm');
+    if (cancelBtn) cancelBtn.textContent = lbl('Cancel', 'إلغاء');
+    if (confirmBtn) confirmBtn.textContent = lbl("I've applied this", 'طبّقت الإجراء');
+    modal.style.display = 'flex';
+  }
+  async function fetchRecommendationLogId(workspaceId) {
+    var token = getToken();
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    var res = await fetch('/api/workspaces/' + encodeURIComponent(workspaceId) + '/recommendations', {
+      headers: headers,
+    });
+    if (res.status === 401) { logout(); return null; }
+    if (!res.ok) {
+      var err = await res.json().catch(function () { return { error: res.statusText }; });
+      throw new Error(err.error || res.statusText);
+    }
+    await res.json().catch(function () { return []; });
+    return res.headers.get('X-Recommendation-Log-Id');
+  }
+  async function confirmExecuteAction() {
+    var item = state.mainMovePrimary;
+    var confirmBtn = document.getElementById('action-modal-confirm');
+    if (!item || !state.workspaceId) return;
+    if (confirmBtn) confirmBtn.disabled = true;
+    try {
+      var logId = await fetchRecommendationLogId(state.workspaceId);
+      if (logId) {
+        await apiFetch('/api/workspaces/' + encodeURIComponent(state.workspaceId) + '/recommendations/' + encodeURIComponent(logId) + '/action', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'EXECUTED' }),
+        });
+        toast(lbl('Action recorded — we’ll track results over the next 7 days.', 'تم تسجيل الإجراء — سنراقب النتائج خلال ٧ أيام.'), 'success');
+      } else {
+        toast(lbl('Steps noted. Apply these changes in Meta Ads Manager.', 'تم عرض الخطوات. طبّقها في مدير إعلانات Meta.'), 'info');
+      }
+      closeActionModal();
+      var cta = document.querySelector('.main-move-cta');
+      if (cta) {
+        cta.disabled = true;
+        cta.textContent = lbl('Applied', 'تم التطبيق');
+      }
+    } catch (e) {
+      console.error('[dashboard] confirmExecuteAction failed:', e);
+      toast(lbl('Could not record action. Try again.', 'تعذّر تسجيل الإجراء. حاول مرة أخرى.'), 'error');
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
+    }
+  }
+  function handleExecuteAction(item) {
+    if (!item) return;
+    openActionModal(item);
+  }
+  function wireMainMoveActions() {
+    var section = document.getElementById('main-move-section');
+    if (!section || section.getAttribute('data-action-wired') === '1') return;
+    section.setAttribute('data-action-wired', '1');
+    section.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('.main-move-cta');
+      if (!btn || btn.disabled) return;
+      handleExecuteAction(state.mainMovePrimary);
+    });
+    var modal = document.getElementById('main-move-action-modal');
+    var cancelBtn = document.getElementById('action-modal-cancel');
+    var confirmBtn = document.getElementById('action-modal-confirm');
+    if (cancelBtn) cancelBtn.addEventListener('click', closeActionModal);
+    if (confirmBtn) confirmBtn.addEventListener('click', confirmExecuteAction);
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeActionModal();
+      });
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var m = document.getElementById('main-move-action-modal');
+      if (m && m.style.display !== 'none') closeActionModal();
+    });
   }
 
   // ── V2: Spotlight ───────────────────────────────────────────────────────
@@ -1589,6 +1749,7 @@ export function dashboardPage(): string {
   // ── Main init ───────────────────────────────────────────────────────────
   async function init() {
     try {
+      wireMainMoveActions();
       forceRevealAfterTimeout('loading-state', 'dashboard-content', 5000);
 
       var token = getToken();
