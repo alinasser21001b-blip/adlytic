@@ -119,12 +119,19 @@ export function aiPage(): string {
 
   const me = await apiFetch('/api/auth/me');
   if (!me) return;
-  document.getElementById('user-name').textContent  = me.name || me.email;
-  document.getElementById('user-email').textContent = me.email;
-  document.getElementById('user-avatar').textContent = (me.name||me.email||'?')[0].toUpperCase();
+  // Guarded DOM write: getElementById(id).textContent throws if the element is
+  // absent in any render path. A single missing node must never abort init and
+  // leave the Live Context loader spinning in a dead state.
+  function setText(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+  setText('user-name', me.name || me.email);
+  setText('user-email', me.email);
+  setText('user-avatar', (me.name || me.email || '?')[0].toUpperCase());
   const wsM = me.memberships?.find(m => m.workspaceId === wsId) || me.memberships?.[0];
-  document.getElementById('ws-name').textContent = wsM?.workspace?.name || 'Workspace';
-  const userInitial = (me.name||me.email||'?')[0].toUpperCase();
+  setText('ws-name', wsM?.workspace?.name || 'Workspace');
+  const userInitial = (me.name || me.email || '?')[0].toUpperCase();
   const userLocale = (me.locale || 'EN').toUpperCase();
 
   var SUGGESTIONS_AR = [
