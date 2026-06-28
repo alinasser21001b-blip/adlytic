@@ -1021,44 +1021,45 @@ export function dashboardPage(): string {
     return /BUDGET|WASTE|BURN|OVERSPEND|BLEED|SPEND/.test(blob);
   }
   function deriveBusinessHealth(dashData) {
-    if (!dashData) {
-      return { level: 'healthy', text: lbl('Status: Healthy. Your ads are converting efficiently.', 'الحالة: جيد. إعلاناتك تحقق نتائج بكفاءة.') };
-    }
-    var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
-    var hasCritical = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'critical'; });
-    var hasHigh = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'high'; });
-    var budgetWaste = issues.some(issueIndicatesBudgetWaste);
-    var band = (dashData.health && dashData.health.band) || 'none';
-    var pulse = dashData.brain && dashData.brain.livePulse;
-    if (pulse && pulse.intraDaySpendPct != null && pulse.intraDaySpendPct >= 85) budgetWaste = true;
-    var feed = (dashData.brain && dashData.brain.cmoFeedV2) || [];
-    if (feed.some(function (it) { return it.severity === 'CRITICAL'; })) hasCritical = true;
-
-    if (hasCritical || band === 'poor' || (hasHigh && budgetWaste)) {
-      return {
-        level: 'critical',
-        text: lbl(
-          'Status: Immediate Action Required. We detected budget waste.',
-          'الحالة: انتبه، توجد حملات تهدر الميزانية حالياً'
-        ),
-      };
-    }
-    if (hasHigh || band === 'attention' || budgetWaste) {
-      return {
-        level: 'warning',
-        text: lbl(
-          'Status: Needs Attention. Some campaigns need a quick review.',
-          'الحالة: يحتاج انتباه. بعض الحملات تحتاج مراجعة سريعة.'
-        ),
-      };
-    }
-    return {
+    var healthyFallback = {
       level: 'healthy',
-      text: lbl(
-        'Status: Healthy. Your ads are converting efficiently.',
-        'الحالة: جيد. إعلاناتك تحقق نتائج بكفاءة.'
-      ),
+      text: lbl('Status: Healthy. Your ads are converting efficiently.', 'الحالة: جيد. إعلاناتك تحقق نتائج بكفاءة.'),
     };
+    try {
+      if (!dashData) return healthyFallback;
+      var issues = Array.isArray(dashData.issues) ? dashData.issues.filter(Boolean) : [];
+      var hasCritical = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'critical'; });
+      var hasHigh = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'high'; });
+      var budgetWaste = issues.some(issueIndicatesBudgetWaste);
+      var band = (dashData.health && dashData.health.band) || 'none';
+      var pulse = dashData.brain && dashData.brain.livePulse;
+      if (pulse && pulse.intraDaySpendPct != null && pulse.intraDaySpendPct >= 85) budgetWaste = true;
+      var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
+      if (feed.some(function (it) { return it && it.severity === 'CRITICAL'; })) hasCritical = true;
+
+      if (hasCritical || band === 'poor' || (hasHigh && budgetWaste)) {
+        return {
+          level: 'critical',
+          text: lbl(
+            'Status: Immediate Action Required. We detected budget waste.',
+            'الحالة: انتبه، توجد حملات تهدر الميزانية حالياً'
+          ),
+        };
+      }
+      if (hasHigh || band === 'attention' || budgetWaste) {
+        return {
+          level: 'warning',
+          text: lbl(
+            'Status: Needs Attention. Some campaigns need a quick review.',
+            'الحالة: يحتاج انتباه. بعض الحملات تحتاج مراجعة سريعة.'
+          ),
+        };
+      }
+      return healthyFallback;
+    } catch (e) {
+      console.error('[dashboard] deriveBusinessHealth failed:', e);
+      return healthyFallback;
+    }
   }
   function renderExecutivePulse(dashData) {
     var sec = document.getElementById('exec-pulse-section');
@@ -1088,103 +1089,116 @@ export function dashboardPage(): string {
     return null;
   }
   function buildAllMoveItems(dashData) {
-    if (!dashData) return [];
-    var items = [];
-    var seen = [];
+    try {
+      if (!dashData) return [];
+      var items = [];
+      var seen = [];
 
-    function pushItem(item) {
-      if (!item || !item.title) return;
-      for (var i = 0; i < seen.length; i++) {
-        if (textsOverlap(seen[i], item.title) || (item.narrative && textsOverlap(seen[i], item.narrative))) return;
+      function pushItem(item) {
+        if (!item || !item.title) return;
+        for (var i = 0; i < seen.length; i++) {
+          if (textsOverlap(seen[i], item.title) || (item.narrative && textsOverlap(seen[i], item.narrative))) return;
+        }
+        seen.push(item.title);
+        if (item.narrative) seen.push(item.narrative);
+        items.push(item);
       }
-      seen.push(item.title);
-      if (item.narrative) seen.push(item.narrative);
-      items.push(item);
-    }
 
-    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
-    issues.sort(function (a, b) { return severityRank(a.severity) - severityRank(b.severity); });
+      var issues = Array.isArray(dashData.issues) ? dashData.issues.filter(Boolean).slice() : [];
+      issues.sort(function (a, b) { return severityRank(a.severity) - severityRank(b.severity); });
 
-    issues.forEach(function (iss) {
-      var sev = (iss.severity || 'medium').toLowerCase();
-      var recs = Array.isArray(iss.recommendations) ? iss.recommendations : (iss.recommendations ? [iss.recommendations] : []);
-      var decision = recs[0] || lbl('Review and resolve', 'راجع الحملة وطبّق التوصية');
-      var causes = Array.isArray(iss.causes) ? iss.causes.join(' · ') : (iss.causes || '');
-      pushItem({
-        kind: 'issue',
-        rank: severityRank(sev),
-        severity: sev,
-        title: iss.title || iss.code || lbl('Action needed', 'إجراء مطلوب'),
-        decision: decision,
-        steps: recs.slice(0, 4),
-        narrative: causes || decision,
-        impact: savedSpendLabel(dashData),
-        buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
-        confidence: iss.confidence || (sev === 'critical' ? 92 : sev === 'high' ? 86 : 78),
-      });
-    });
-
-    if (dashData.priorityAction) {
-      var pa = dashData.priorityAction;
-      var paText = typeof pa === 'string' ? pa : (pa.text || pa.actionCode || '');
-      if (paText) {
+      issues.forEach(function (iss) {
+        if (!iss) return;
+        var sev = (iss.severity || 'medium').toLowerCase();
+        var recs = Array.isArray(iss.recommendations) ? iss.recommendations : (iss.recommendations ? [iss.recommendations] : []);
+        var decision = recs[0] || lbl('Review and resolve', 'راجع الحملة وطبّق التوصية');
+        var causes = Array.isArray(iss.causes) ? iss.causes.join(' · ') : (iss.causes || '');
         pushItem({
-          kind: 'priority',
-          rank: 0.5,
-          severity: 'high',
-          title: paText,
-          decision: paText,
-          steps: [paText],
-          narrative: paText,
+          kind: 'issue',
+          rank: severityRank(sev),
+          severity: sev,
+          title: iss.title || iss.code || lbl('Action needed', 'إجراء مطلوب'),
+          decision: decision,
+          steps: recs.slice(0, 4),
+          narrative: causes || decision,
           impact: savedSpendLabel(dashData),
-          buttonText: lbl('Fix Now', 'تطبيق الحل فوراً'),
-          confidence: 92,
+          buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
+          confidence: iss.confidence || (sev === 'critical' ? 92 : sev === 'high' ? 86 : 78),
         });
-      }
-    }
-
-    var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2.slice() : [];
-    feed.sort(function (a, b) { return feedSeverityRank(a.severity) - feedSeverityRank(b.severity); });
-    feed.forEach(function (it) {
-      if (!it.generatedAt) return;
-      var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
-      pushItem({
-        kind: 'feed',
-        rank: feedSeverityRank(it.severity) + 0.1,
-        severity: sev,
-        title: it.title || it.campaignName || lbl('AI decision', 'قرار ذكي'),
-        decision: it.body || lbl('Review AI recommendation', 'راجع توصية الذكاء الاصطناعي'),
-        steps: it.body ? [it.body] : [],
-        narrative: it.bodyFull || it.body || '',
-        impact: savedSpendLabel(dashData),
-        buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
-        confidence: sev === 'critical' ? 90 : 82,
       });
-    });
 
-    items.sort(function (a, b) { return a.rank - b.rank; });
-    return items;
+      if (dashData.priorityAction) {
+        var pa = dashData.priorityAction;
+        var paText = typeof pa === 'string' ? pa : (pa.text || pa.actionCode || '');
+        if (paText) {
+          pushItem({
+            kind: 'priority',
+            rank: 0.5,
+            severity: 'high',
+            title: paText,
+            decision: paText,
+            steps: [paText],
+            narrative: paText,
+            impact: savedSpendLabel(dashData),
+            buttonText: lbl('Fix Now', 'تطبيق الحل فوراً'),
+            confidence: 92,
+          });
+        }
+      }
+
+      var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2.filter(Boolean).slice() : [];
+      feed.sort(function (a, b) { return feedSeverityRank(a.severity) - feedSeverityRank(b.severity); });
+      feed.forEach(function (it) {
+        if (!it || !it.generatedAt) return;
+        var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
+        pushItem({
+          kind: 'feed',
+          rank: feedSeverityRank(it.severity) + 0.1,
+          severity: sev,
+          title: it.title || it.campaignName || lbl('AI decision', 'قرار ذكي'),
+          decision: it.body || lbl('Review AI recommendation', 'راجع توصية الذكاء الاصطناعي'),
+          steps: it.body ? [it.body] : [],
+          narrative: it.bodyFull || it.body || '',
+          impact: savedSpendLabel(dashData),
+          buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
+          confidence: sev === 'critical' ? 90 : 82,
+        });
+      });
+
+      items.sort(function (a, b) { return a.rank - b.rank; });
+      return items;
+    } catch (e) {
+      console.error('[dashboard] buildAllMoveItems failed:', e);
+      return [];
+    }
   }
   function pickMainMoveNarrative(primary, dashData, kpis) {
-    if (!primary) return '';
-    if (primary.narrative && primary.narrative !== primary.decision && primary.narrative !== primary.title) {
-      return primary.narrative;
+    try {
+      if (!primary) return '';
+      if (primary.narrative && primary.narrative !== primary.decision && primary.narrative !== primary.title) {
+        return primary.narrative;
+      }
+      var kpiList = Array.isArray(kpis) ? kpis : [];
+      var ctr = kpiList.find(function (k) { return k && (k.key || '').toLowerCase() === 'ctr'; });
+      if (ctr && ctr.deltaPct != null) {
+        var up = ctr.direction === 'up';
+        return lbl(
+          'Engagement moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct) * 100).toFixed(1) + '% vs prior period.',
+          'تفاعل الإعلان ' + (up ? 'ارتفع' : 'انخفض') + ' مقارنة بالفترة السابقة.'
+        );
+      }
+      return primary.decision || '';
+    } catch (e) {
+      console.error('[dashboard] pickMainMoveNarrative failed:', e);
+      return (primary && primary.decision) || '';
     }
-    var ctr = (kpis || []).find(function (k) { return (k.key || '').toLowerCase() === 'ctr'; });
-    if (ctr && ctr.deltaPct != null) {
-      var up = ctr.direction === 'up';
-      return lbl(
-        'Engagement moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct) * 100).toFixed(1) + '% vs prior period.',
-        'تفاعل الإعلان ' + (up ? 'ارتفع' : 'انخفض') + ' مقارنة بالفترة السابقة.'
-      );
-    }
-    return primary.decision || '';
   }
   function renderMainMove(dashData, kpis) {
     var card = document.getElementById('main-move-card');
     var meta = document.getElementById('main-move-meta');
     var label = document.getElementById('main-move-label');
     if (!card) return;
+    try {
     if (label) label.textContent = lbl('Main Move', 'الخطوة الأهم');
     var items = buildAllMoveItems(dashData);
     if (items.length === 0) {
@@ -1241,6 +1255,13 @@ export function dashboardPage(): string {
       + '</details>';
     }
     card.innerHTML = html;
+    } catch (e) {
+      console.error('[dashboard] renderMainMove failed:', e);
+      card.innerHTML = '<div class="main-move-empty">' + escHtml(lbl(
+        'No actions for today. Account is steady.',
+        'لا توجد إجراءات اليوم. حسابك مستقر.'
+      )) + '</div>';
+    }
   }
 
   // ── V2: Spotlight ───────────────────────────────────────────────────────
@@ -1483,67 +1504,86 @@ export function dashboardPage(): string {
     ];
   }
 
+  function hideLoadingShowDashboard() {
+    var loadingEl = document.getElementById('loading-state');
+    var contentEl = document.getElementById('dashboard-content');
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) contentEl.style.display = 'block';
+  }
+
   // ── Render / refresh dashboard sections ─────────────────────────────────
   function applyDashboardData(dashData, insights, campaigns, wsData, isInitial) {
-    if (dashData.workspace && dashData.workspace.locale) {
-      state.locale = String(dashData.workspace.locale).toUpperCase();
+    dashData = dashData || {};
+    insights = Array.isArray(insights) ? insights : [];
+    campaigns = Array.isArray(campaigns) ? campaigns : [];
+    try {
+      if (dashData.workspace && dashData.workspace.locale) {
+        state.locale = String(dashData.workspace.locale).toUpperCase();
+      }
+      hydrateCurrencyState(dashData, wsData);
+
+      if (isInitial && wsData) {
+        var allStale = Array.isArray(wsData.adAccounts)
+          && wsData.adAccounts.length > 0
+          && wsData.adAccounts.every(function (a) { return a.status !== 'ACTIVE'; });
+        if (allStale) document.getElementById('stale-banner').style.display = 'flex';
+      }
+
+      var workspaceId = state.workspaceId;
+      var wsName = (dashData.workspace && (dashData.workspace.name || dashData.workspace.id)) || workspaceId;
+      var wsNameEl = document.getElementById('ws-name'); if (wsNameEl) wsNameEl.textContent = wsName;
+      var subtitleEl = document.getElementById('dash-subtitle');
+      if (subtitleEl) {
+        subtitleEl.innerHTML = 'Past 30 days · ' + escHtml(wsName) + ' · <span id="dash-last-updated" class="text-3">—</span>';
+      }
+      document.getElementById('chart-panel-meta').textContent = state.currency;
+      updateLastUpdatedLabel(dashData);
+
+      renderHero(dashData, insights);
+      renderExecutivePulse(dashData);
+      renderTicker(buildTickerItems(dashData));
+      renderActiveAds(campaigns);
+      renderBrainBox(dashData);
+
+      if (dashData.brain) {
+        renderBrainSection(dashData.brain, dashData);
+      }
+
+      var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
+      var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
+      renderMainMove(dashData, kpis);
+      renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
+
+      renderKpis(kpis);
+
+      var last30 = recentAsc(insights, 30);
+      var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+      var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
+      var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
+      var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
+
+      if (dashData.trendSeries && Array.isArray(dashData.trendSeries.dates)) {
+        var ts = dashData.trendSeries;
+        var tsLabels = ts.dates.map(function (d) {
+          var dateVal = d && typeof d === 'object' ? d.date : d;
+          return new Date(dateVal).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+        if (Array.isArray(ts.spend))    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
+        if (Array.isArray(ts.ctr))      ctrSeries        = ts.ctr.map(Number);
+        if (Array.isArray(ts.messages)) impSeries        = ts.messages.map(Number);
+        labels = tsLabels;
+      }
+
+      makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
+      makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
+      makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+
+      renderIssues(Array.isArray(dashData.issues) ? dashData.issues : []);
+      renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
+    } catch (e) {
+      console.error('[dashboard] applyDashboardData failed:', e);
+      if (isInitial) throw e;
     }
-    hydrateCurrencyState(dashData, wsData);
-
-    if (isInitial && wsData) {
-      var allStale = Array.isArray(wsData.adAccounts)
-        && wsData.adAccounts.length > 0
-        && wsData.adAccounts.every(function (a) { return a.status !== 'ACTIVE'; });
-      if (allStale) document.getElementById('stale-banner').style.display = 'flex';
-    }
-
-    var workspaceId = state.workspaceId;
-    var wsName = (dashData.workspace && (dashData.workspace.name || dashData.workspace.id)) || workspaceId;
-    var wsNameEl = document.getElementById('ws-name'); if (wsNameEl) wsNameEl.textContent = wsName;
-    var subtitleEl = document.getElementById('dash-subtitle');
-    if (subtitleEl) {
-      subtitleEl.innerHTML = 'Past 30 days · ' + escHtml(wsName) + ' · <span id="dash-last-updated" class="text-3">—</span>';
-    }
-    document.getElementById('chart-panel-meta').textContent = state.currency;
-    updateLastUpdatedLabel(dashData);
-
-    renderHero(dashData, insights);
-    renderExecutivePulse(dashData);
-    renderTicker(buildTickerItems(dashData));
-    renderActiveAds(campaigns);
-    renderBrainBox(dashData);
-
-    if (dashData.brain) {
-      renderBrainSection(dashData.brain, dashData);
-    }
-
-    var kpis = (dashData.kpis && dashData.kpis.length > 0) ? dashData.kpis : buildKpisFromInsights(insights);
-    renderMainMove(dashData, kpis);
-    renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
-
-    renderKpis(kpis);
-
-    var last30 = recentAsc(insights, 30);
-    var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
-    var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
-    var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
-    var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
-
-    if (dashData.trendSeries && dashData.trendSeries.dates) {
-      var ts = dashData.trendSeries;
-      var tsLabels = ts.dates.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
-      if (ts.spend)    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
-      if (ts.ctr)      ctrSeries        = ts.ctr.map(Number);
-      if (ts.messages) impSeries        = ts.messages.map(Number);
-      labels = tsLabels;
-    }
-
-    makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
-    makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-    makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
-
-    renderIssues(dashData.issues || []);
-    renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
   }
 
   // ── Main init ───────────────────────────────────────────────────────────
@@ -1607,13 +1647,16 @@ export function dashboardPage(): string {
         return;
       }
 
-      applyDashboardData(dashData, insights, campaigns, wsData, true);
-      startAutoRefresh(workspaceId);
-
-      document.getElementById('loading-state').style.display = 'none';
-      document.getElementById('dashboard-content').style.display = 'block';
+      try {
+        applyDashboardData(dashData, insights, campaigns, wsData, true);
+        startAutoRefresh(workspaceId);
+      } catch (renderErr) {
+        console.error('[dashboard] init render failed:', renderErr);
+      }
+      hideLoadingShowDashboard();
 
     } catch (err) {
+      console.error('[dashboard] init failed:', err);
       showError('Failed to load dashboard: ' + (err.message || String(err)));
     }
   }
