@@ -1228,7 +1228,7 @@ export function dashboardPage(): string {
       : '';
 
     var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
-      + '<div class="main-move-tag">' + escHtml(lbl('Today\'s #1 priority', 'الأولوية الأولى اليوم')) + '</div>'
+      + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 priority", 'الأولوية الأولى اليوم')) + '</div>'
       + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
       + impactHtml
       + (why ? '<div class="main-move-why">' + escHtml(why) + '</div>' : '')
@@ -1588,12 +1588,14 @@ export function dashboardPage(): string {
 
   // ── Main init ───────────────────────────────────────────────────────────
   async function init() {
-    var token = getToken();
-    if (!token) { window.location.href = '/login'; return; }
-
     try {
-      // 1) Identify user — populates shared sidebar avatar/name/email
-      var me = await apiFetch('/api/auth/me');
+      forceRevealAfterTimeout('loading-state', 'dashboard-content', 5000);
+
+      var token = getToken();
+      if (!token) { window.location.href = '/login'; return; }
+
+      // 1) Identify user — shared shell init (timeout-bounded)
+      var me = await initAppShell();
       if (!me) return;
       state.locale = (me.locale || 'EN').toUpperCase();
       var userName = me.name || me.email || 'User';
@@ -1609,21 +1611,18 @@ export function dashboardPage(): string {
         if (workspaceId) setWsId(workspaceId);
       }
       if (!workspaceId) {
-        document.getElementById('loading-state').style.display = 'none';
-        document.getElementById('dashboard-content').style.display = 'block';
+        hideLoadingShowDashboard();
         document.getElementById('kpi-grid').innerHTML = '<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">No workspace found</div><div class="empty-text">Create or join a workspace to see your dashboard.</div></div>';
         return;
       }
       state.workspaceId = workspaceId;
 
-      // 3) Parallel data fetch
-      //    Insights: request 90 days (server-side cap) so we can compute
-      //    7d/30d/lifetime hero totals + prior-period deltas from one payload.
+      // 3) Parallel data fetch (each call bounded; failures degrade gracefully)
       var results = await Promise.all([
-        apiFetch('/api/dashboard/' + workspaceId),
-        apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
-        apiFetch('/api/workspaces/' + workspaceId + '/campaigns').catch(function () { return []; }),
-        apiFetch('/api/workspaces/' + workspaceId).catch(function () { return null; }),
+        apiFetchWithTimeout('/api/dashboard/' + workspaceId, {}, 15000).catch(function (e) { console.warn('[dashboard] dashboard fetch failed:', e); return {}; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 15000).catch(function () { return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 15000).catch(function () { return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 15000).catch(function () { return null; }),
       ]);
       var dashData = results[0] || {};
       if (dashData.workspace && dashData.workspace.locale) {
@@ -1635,8 +1634,7 @@ export function dashboardPage(): string {
 
       // 4) Empty state — no ad account connected
       if (dashData.empty) {
-        document.getElementById('loading-state').style.display = 'none';
-        document.getElementById('dashboard-content').style.display = 'block';
+        hideLoadingShowDashboard();
         document.getElementById('hero-grid').innerHTML =
           '<div class="empty-state" style="grid-column:1/-1;">'
           + '<div class="empty-icon">📊</div>'
@@ -1657,6 +1655,7 @@ export function dashboardPage(): string {
 
     } catch (err) {
       console.error('[dashboard] init failed:', err);
+      hideLoadingShowDashboard();
       showError('Failed to load dashboard: ' + (err.message || String(err)));
     }
   }

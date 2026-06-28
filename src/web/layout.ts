@@ -550,6 +550,99 @@ async function apiFetch(path, opts = {}) {
   });
 }
 
+async function apiFetchWithTimeout(path, opts, timeoutMs) {
+  timeoutMs = timeoutMs || 12000;
+  if (typeof AbortController === 'undefined') return apiFetch(path, opts);
+  var controller = new AbortController();
+  var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+  try {
+    return await apiFetch(path, Object.assign({}, opts || {}, { signal: controller.signal }));
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw new Error('Request timed out: ' + path);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+var shellState = { me: null, ready: false, initPromise: null };
+var SHELL_LOADING = 'Loading…';
+
+function shellInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(function (w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
+}
+
+function populateAppShell(me) {
+  var nameEl = document.getElementById('user-name');
+  var emailEl = document.getElementById('user-email');
+  var avEl = document.getElementById('user-avatar');
+  var wsEl = document.getElementById('ws-name');
+  if (!me) {
+    if (nameEl && nameEl.textContent === SHELL_LOADING) nameEl.textContent = 'User';
+    if (emailEl && !emailEl.textContent) emailEl.textContent = '';
+    if (avEl && avEl.textContent === '?') avEl.textContent = '?';
+    if (wsEl && wsEl.textContent === SHELL_LOADING) wsEl.textContent = 'Workspace';
+    return;
+  }
+  var userName = me.name || me.email || 'User';
+  if (avEl) avEl.textContent = shellInitials(userName);
+  if (nameEl) nameEl.textContent = userName;
+  if (emailEl) emailEl.textContent = me.email || '';
+  if (wsEl) {
+    var wsId = getWsId();
+    var membership = Array.isArray(me.memberships)
+      ? me.memberships.find(function (m) {
+          return m.workspaceId === wsId || (m.workspace && m.workspace.id === wsId);
+        }) || me.memberships[0]
+      : null;
+    var wsName = membership && membership.workspace && membership.workspace.name;
+    if (!wsName && wsId) wsName = wsId;
+    wsEl.textContent = wsName || 'Workspace';
+  }
+}
+
+function initAppShell() {
+  if (!getToken()) return Promise.resolve(null);
+  if (shellState.initPromise) return shellState.initPromise;
+  shellState.initPromise = (async function () {
+    try {
+      var me = await apiFetchWithTimeout('/api/auth/me', {}, 8000);
+      shellState.me = me;
+      populateAppShell(me);
+      return me;
+    } catch (err) {
+      console.warn('[shell] user init failed:', err);
+      populateAppShell(null);
+      return null;
+    } finally {
+      shellState.ready = true;
+    }
+  })();
+  return shellState.initPromise;
+}
+
+function startShellLoadingFallback(ms) {
+  setTimeout(function () {
+    var nameEl = document.getElementById('user-name');
+    if (nameEl && nameEl.textContent === SHELL_LOADING) populateAppShell(shellState.me);
+  }, ms || 5000);
+}
+
+/** Force-hide a page loading overlay after timeout (id pairs: loading + content). */
+function forceRevealAfterTimeout(loadingId, contentId, ms) {
+  setTimeout(function () {
+    var loadingEl = loadingId ? document.getElementById(loadingId) : null;
+    if (!loadingEl || loadingEl.style.display === 'none') return;
+    console.warn('[shell] loading safety timeout — revealing', loadingId || 'page');
+    loadingEl.style.display = 'none';
+    if (contentId) {
+      var contentEl = document.getElementById(contentId);
+      if (contentEl) contentEl.style.display = 'block';
+    }
+  }, ms || 5000);
+}
+
 function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = 'toast ' + type;
@@ -634,6 +727,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (m === 'pro' || m === 'beginner') setDashboardMode(m);
     });
   });
+  if (getToken()) {
+    initAppShell();
+    startShellLoadingFallback(5000);
+  }
 });
 `;
 
