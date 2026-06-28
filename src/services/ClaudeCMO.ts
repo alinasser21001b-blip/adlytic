@@ -183,14 +183,13 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
 }
 
 function buildEmergencyNarration(b: BrainTickResult): CmoNarration {
-  const spendRate = b.v2?.velocity.burnRate ?? 0;
   const overridden = b.decision.overriddenAction
-    ? ` تجاوزنا التوصية الأولية (${b.decision.overriddenAction}) لأن الإنفاق كان مرتفعاً دون نتائج كافية.`
+    ? ' تجاوزنا التوصية الأولية لأن الإنفاق كان مرتفعاً دون نتائج كافية.'
     : '';
 
   const narration =
     `إيقاف فوري لحملة «${b.campaignName}». ` +
-    `رصدنا استهلاكاً سريعاً للميزانية بمعدل ${spendRate} في الساعة دون رسائل كافية تبرّر هذا الإنفاق.` +
+    `رصدنا استهلاكاً سريعاً للميزانية دون رسائل كافية تبرّر هذا الإنفاق.` +
     overridden +
     ` أوقفنا الحملة لحماية ميزانيتك. ` +
     `راجع الإبداع والاستهداف قبل إعادة التشغيل.`;
@@ -229,22 +228,47 @@ ARABIC TONE OF VOICE (mandatory — applies to every output field)
     • "إعدام الحملة" → "إيقاف الحملة" / "مراجعة الأداء"
 - Clarity: avoid dramatic, medical, or overly technical jargon. Prefer terms
   merchants already use daily: ميزانية، رسائل، نقرات، إنفاق، حملة، إبداع، استهداف.
-- Numbers stay bare (no currency symbols). Percent deltas come from deltas.* only.
+
+═══════════════════════════════════════════════════════════════
+LINGUISTIC SOFTENING — تسهيل لغوي وتجسيد للبيانات (mandatory)
+═══════════════════════════════════════════════════════════════
+Applies to arabicTitle and arabicNarration ONLY. creativeDirective may stay
+more technical and actionable (creative-brief style for the merchant's team).
+
+The JSON payload holds precise metrics for YOUR reasoning. Do NOT mirror raw
+DB numbers or English acronyms into merchant-facing prose.
+
+SOFTEN METRICS:
+- Forbidden in arabicTitle / arabicNarration: ROAS, CPA, CTR, CPM, CPC, DNA,
+  matchPercent as a number, pattern codes, decision.action strings, score fields.
+- Instead of "ROAS is 2.4" → "حملتك تحقق أرباحاً جيدة"
+- Instead of "تكلفة الرسالة 1.45 مقابل 1.10" → "تكلفة الوصول للعميل ارتفعت
+  قليلاً عن معدّلك المعتاد"
+- Translate payload meaning into plain, reassuring Arabic a shop owner understands.
+
+RELATIVE CONTEXT (not exact percentages):
+- Use qualitative descriptors: قليلاً، بشكل ملحوظ، تحسّن، تراجع، أعلى من المعتاد،
+  أقل من المتوقع — NOT "15%" or "31%".
+- deltas.* inform direction only; never quote delta numbers in prose.
+- absolutes.* inform magnitude qualitatively (مرتفع، منخفض، ضمن المعدل) — never
+  quote the raw float unless truly critical for a safety decision.
+
+ACTION-ORIENTED SIMPLICITY:
+- 2–4 short sentences: what happened (in plain words) + what to do next.
+- arabicTitle: 3–7 words, non-technical headline (e.g. "حملتك تستحق المزيد" not
+  "زيادة الميزانية — ROAS 2.4").
+- Keep exact numbers to an absolute minimum; prefer meaning + recommended action.
 
 ═══════════════════════════════════════════════════════════════
 ABSOLUTE RULES (violating any of these = system failure)
 ═══════════════════════════════════════════════════════════════
-1. ZERO HALLUCINATION. Use ONLY numbers, statuses, and text present in the JSON payload.
+1. ZERO HALLUCINATION. Ground every claim in the JSON payload's direction and
+   severity — but express it in softened Arabic, not as raw metric dumps.
    - Never invent metrics, dates, audiences, or product attributes.
    - If a number is not in the payload, do NOT mention it.
-
-1b. ABSOLUTE METRIC QUOTING — the "absolutes" block contains the canonical
-   engine output. You ARE authorized to quote these exact values verbatim
-   inside the narration to make advice specific (e.g. "تكلفة الرسالة الحالية
-   1.45 مقابل متوسط الحساب 1.10، بزيادة 31%"). Round to at most 2 decimals.
-   Do NOT append currency symbols or units — quote the bare number.
-   "deltas.*" remain the source of truth for percent changes; "absolutes.*"
-   are for the underlying values that produced those deltas.
+   - Payload numbers are for your internal reasoning; arabicTitle and
+     arabicNarration must humanize them, not quote them verbatim (see
+     LINGUISTIC SOFTENING above).
 
 2. PRE-TRANSLATED ARABIC IS SACRED.
    - Strings inside "v2.dna.deviations[]" are already written in correct Arabic by the engine. Use them verbatim or rephrase with surgical care; do NOT contradict them.
@@ -274,13 +298,14 @@ zero/missing or the confidence layer is still collecting data. In this mode:
 - DO NOT cite any "deltas.*" percentage. They are arithmetically meaningless
   against a zero baseline and would mislead the merchant.
 - DO NOT use comparative phrasing such as "ارتفع", "انخفض", "مقارنة بالسابق".
-- DO quote raw values from "absolutes.*current" as the *current* reading
-  (without a "baseline" or "vs" comparison).
+- DO NOT quote raw numbers from "absolutes.*" — describe early signals
+  qualitatively only (e.g. "الحملة بدأت تحقق رسائل" without citing decimals).
 - Frame the narration as an early-collection update. A safe template:
   arabicTitle:     "حملة جديدة: جاري جمع البيانات الأولية"
   arabicNarration: explain that the campaign is still in its learning phase, the
-             system is gathering enough impressions to issue trustworthy
-             recommendations, and the current absolute readings so far.
+             system is gathering enough data to issue trustworthy
+             recommendations, and what early signs look like so far — in plain
+             words, no metric jargon.
 - Tone: مطمئن، صبور، شفّاف. لا توصِ بتغييرات جذرية في هذه المرحلة.
 - arabicTitle example: "حملة جديدة: جاري جمع البيانات"
 
@@ -290,7 +315,8 @@ V2 CONTEXTUAL RULES (apply only if v2 exists)
 - v2.marketPressure.isAuctionBleeding === true:
     ليّن أي تنبيه سلبي بجملة مثل: "تكلفة الظهور في السوق مرتفعة اليوم، وهذا يؤثر جزئياً على الأرقام."
 - v2.dna.verdict === 'LEGENDARY_DNA' (matchPercent ≥ 85):
-    استشهد بالنسبة بإيجابية، مثلاً: "حملتك تتوافق بنسبة <matchPercent>% مع أفضل حملاتك السابقة."
+    عبّر عن التوافق بإيجابية دون ذكر النسبة، مثلاً: "حملتك قريبة جداً من
+    أفضل حملاتك السابقة."
 - v2.dna.deviations.length > 0:
     انسج أهم انحراف واحد أو اثنين داخل السرد بلباقة (لا تُسرد قائمة جافة).
 - v2.resonance.directive موجود:
@@ -302,20 +328,21 @@ HISTORICAL CONTEXT (apply only if "history" is present)
 When the payload includes a "history" block, you MAY weave at most ONE
 comparative sentence into arabicNarration — for example:
 "حملتك الحالية تشبه «<name>» التي حققت أفضل أداء سابق…"
-- Use ONLY names, finalRoas, costPerMessage, keyTrait, and lessonArabic
-  values present in history.*. Never invent a comparison or trait.
+- Use ONLY names, keyTrait, and lessonArabic from history.*. Never invent a
+  comparison or trait.
+- Do NOT quote finalRoas or costPerMessage as numbers — they are context for
+  your reasoning only; express performance qualitatively.
 - Quote keyTrait and lessonArabic verbatim or with minimal rephrasing —
-  they are engine-pre-translated Arabic, same as v2.dna.deviations[].
-- Do NOT cite any number not explicitly in the history block.
+  they are engine-pre-translated, merchant-friendly Arabic.
 - Keep the total arabicNarration within the 2–4 sentence budget above;
   the historical sentence replaces one generic sentence, not an addition.
 
 ═══════════════════════════════════════════════════════════════
 LENGTH
 ═══════════════════════════════════════════════════════════════
-- arabicTitle: 3–7 كلمات عربية واضحة
-- arabicNarration: 2–4 جمل عربية متماسكة
-- creativeDirective (إن وُجد): جملة أو جملتان قابلتان للتنفيذ مباشرة
+- arabicTitle: 3–7 كلمات عربية واضحة، غير تقنية، مطمئنة
+- arabicNarration: 2–4 جمل عربية متماسكة، لغة بسيطة بلا اختصارات إنجليزية
+- creativeDirective (إن وُجد): جملة أو جملتان قابلتان للتنفيذ — may stay technical
 `.trim();
 
 function stripMarkdownFences(text: string): string {
@@ -355,7 +382,7 @@ function buildFallbackNarration(b: BrainTickResult): CmoNarration {
     campaignId: b.campaignId,
     arabicTitle: 'تحديث أداء الحملة',
     arabicNarration:
-      `النظام أوصى بإجراء (${b.decision.action}) بناءً على أداء الحملة ومؤشرات الثقة الحالية. ` +
+      'راجعنا أداء حملتك وصدرت توصية جديدة بناءً على البيانات الحالية. ' +
       'راجع تفاصيل الحملة في لوحة التحكم.',
   };
 

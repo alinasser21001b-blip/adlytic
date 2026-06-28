@@ -53,7 +53,7 @@ const PAUSE_ACTIONS = new Set(["PAUSE_CAMPAIGN", "EMERGENCY_PAUSE"]);
 function deriveKeyTrait(row: HistorySnapshotRow): string {
   const brain = row.finalBrainJson as { patternSignature?: string; action?: string } | null;
   if (brain?.patternSignature === "SCALABLE_BEAST") {
-    return "أداء قابل للتوسع مع تكلفة رسالة منخفضة";
+    return "أداء ممتاز قابل للتوسع بتكلفة منخفضة";
   }
   if (brain?.patternSignature === "STABLE_PERFORMER") {
     return "استقرار في الأداء على مدى الحملة";
@@ -89,7 +89,7 @@ function deriveLessonArabic(row: HistorySnapshotRow): string {
     return "الإبداع لم يعد يجذب الجمهور — جرّب صوراً أو نصوصاً جديدة قبل إعادة التشغيل";
   }
   if (row.finalRoas != null && row.finalRoas < 1) {
-    return "عائد الإعلان كان ضعيفاً — قلّل الإنفاق أو حسّن عرض المنتج قبل التكرار";
+    return "الحملة لم تحقق أرباحاً كافية — قلّل الإنفاق أو حسّن عرض المنتج قبل التكرار";
   }
   return "الأداء كان دون المتوقع — قارن الاستهداف مع حملاتك الناجحة";
 }

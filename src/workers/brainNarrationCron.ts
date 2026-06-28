@@ -367,8 +367,11 @@ function serializeNarration(n: CmoNarration): Prisma.InputJsonValue {
  * production-safe fallback.
  */
 function buildSentinelNarration(action: string): Prisma.InputJsonValue {
+  void action;
   return {
     arabicTitle: 'تحديث أداء الحملة',
-    arabicNarration: `النظام أوصى بإجراء (${action}) بناءً على أداء الحملة ومؤشرات الثقة الحالية. تعذّر توليد التفاصيل هذه المرة — سيُعاد المحاولة لاحقاً.`,
+    arabicNarration:
+      'راجعنا أداء حملتك وصدرت توصية جديدة بناءً على البيانات الحالية. ' +
+      'تعذّر توليد التفاصيل هذه المرة — سيُعاد المحاولة لاحقاً.',
   };
 }
