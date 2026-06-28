@@ -254,6 +254,38 @@ function computeWindowTrendDeltas(
   };
 }
 
+type KpiLocale = "EN" | "AR";
+
+/** Strict EN/AR — any other or missing locale falls back to EN. */
+function normalizeLocale(locale: Locale | string | undefined | null): KpiLocale {
+  const s = locale == null ? "" : String(locale);
+  return s === "AR" ? "AR" : "EN";
+}
+
+/** Localized KPI labels — keys match DashboardDTO.kpis[].key */
+function kpiLabel(key: string, locale: Locale | undefined): string {
+  const normalized = normalizeLocale(locale);
+  const labels: Record<KpiLocale, Record<string, string>> = {
+    EN: {
+      spend: "Spend",
+      messages: "Messages",
+      ctr: "CTR",
+      cpm: "CPM",
+      frequency: "Frequency (daily avg)",
+      reach: "Reach (latest day)",
+    },
+    AR: {
+      spend: "الإنفاق",
+      messages: "الرسائل",
+      ctr: "تفاعل الإعلان",
+      cpm: "تكلفة الوصول لألف شخص",
+      frequency: "تكرار ظهور الإعلان",
+      reach: "الأشخاص الذين شاهدوا إعلاناتك",
+    },
+  };
+  return labels[normalized]?.[key] ?? labels.EN[key] ?? key;
+}
+
 // ════════════════════════════════════════════════════════════════════════
 export async function getDashboard(
   workspaceId: string,
@@ -362,20 +394,20 @@ export async function getDashboard(
   };
 
   const kpis: DashboardDTO["kpis"] = [
-    { key: "spend", label: "Spend", value: totalSpendMinor, display: money(totalSpendMinor),
+    { key: "spend", label: kpiLabel("spend", locale), value: totalSpendMinor, display: money(totalSpendMinor),
       deltaPct: windowTrends.spendTrend, direction: dir(windowTrends.spendTrend), goodWhenUp: false },
-    { key: "messages", label: "Messages", value: totalMsgs, display: totalMsgs.toLocaleString(),
+    { key: "messages", label: kpiLabel("messages", locale), value: totalMsgs, display: totalMsgs.toLocaleString(),
       deltaPct: windowTrends.resultsTrend, direction: dir(windowTrends.resultsTrend), goodWhenUp: true },
-    { key: "ctr", label: "CTR", value: ctrWindow ?? 0,
+    { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? 0,
       display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
       deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true },
-    { key: "cpm", label: "CPM", value: cpmWindow ?? 0,
+    { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? 0,
       display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
       deltaPct: windowTrends.cpmTrend, direction: dir(windowTrends.cpmTrend), goodWhenUp: false },
-    { key: "frequency", label: "Frequency (daily avg)", value: freqAvg ?? 0,
+    { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? 0,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
       deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false },
-    { key: "reach", label: "Reach (latest day)", value: totalReach, display: totalReach.toLocaleString(),
+    { key: "reach", label: kpiLabel("reach", locale), value: totalReach, display: totalReach.toLocaleString(),
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
 
