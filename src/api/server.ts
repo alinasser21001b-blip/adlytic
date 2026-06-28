@@ -73,6 +73,7 @@ import { config } from '../config';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
+import { ExecutionService } from '../services/execution.service';
 import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
@@ -251,6 +252,7 @@ function summarizeMetaAuthError(err: unknown): string {
 export function buildRoutes(prisma: PrismaClient): Hono {
   const app = new Hono();
   const recService = new RecommendationService(prisma);
+  const execService = new ExecutionService(prisma);
 
   // ── Middleware ───────────────────────────────────────────────────────────
 
@@ -1878,6 +1880,83 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json(safeJson(recs));
   });
 
+  /** POST /api/workspaces/:workspaceId/recommendations/action
+   *  Body: { action, itemKey, itemKind?, actionCode?, campaignId?, feedKey?, title? }
+   *  Records a dashboard Main Move action with stable itemKey for closed-loop filtering.
+   */
+  app.post('/api/workspaces/:workspaceId/recommendations/action', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+
+    const body = await c.req.json<{
+      action?: string;
+      itemKey?: string;
+      itemKind?: string;
+      actionCode?: string | null;
+      campaignId?: string | null;
+      feedKey?: string | null;
+      title?: string | null;
+    }>();
+    const action = body?.action;
+    if (action !== 'EXECUTED' && action !== 'IGNORED') {
+      return c.json({ error: 'action must be EXECUTED or IGNORED' }, 400);
+    }
+    if (!body?.itemKey || typeof body.itemKey !== 'string') {
+      return c.json({ error: 'itemKey is required' }, 400);
+    }
+
+    const { account } = await getAccount(workspaceId);
+    let metricsSnapshot: Record<string, unknown> = {};
+    if (account && action === 'EXECUTED') {
+      const latestStat = await prisma.dailyStat.findFirst({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+        orderBy: { date: 'desc' },
+      });
+      metricsSnapshot = {
+        ctr: latestStat?.ctr ?? 0,
+        cpm: latestStat?.cpm ?? 0,
+        spend: latestStat ? Number(latestStat.spend) : 0,
+        impressions: latestStat ? Number(latestStat.impressions) : 0,
+        conversions: latestStat ? Number(latestStat.conversions) : 0,
+      };
+
+      if (body.actionCode) {
+        const rec = await prisma.recommendation.findFirst({
+          where: {
+            entityType: EntityType.ACCOUNT,
+            entityId: account.id,
+            actionCode: body.actionCode,
+          },
+          orderBy: [{ priority: 'desc' }, { date: 'desc' }],
+        });
+        if (rec) {
+          try {
+            await execService.recordExecution(rec.id, metricsSnapshot);
+          } catch (err) {
+            console.error('[RecAction] recordExecution failed:', err);
+          }
+        }
+      }
+    }
+
+    const log = await recService.recordDashboardAction({
+      workspaceId,
+      action,
+      itemKey: body.itemKey,
+      itemKind: body.itemKind,
+      actionCode: body.actionCode ?? null,
+      campaignId: body.campaignId ?? null,
+      feedKey: body.feedKey ?? null,
+      title: body.title ?? null,
+      metricsSnapshot,
+    });
+    return c.json(safeJson(log));
+  });
+
   /** POST /api/workspaces/:workspaceId/recommendations/:logId/action
    *  Body: { action: "EXECUTED" | "IGNORED" }
    *  Tracks the user's response to a surfaced recommendation.
@@ -1890,6 +1969,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const workspaceId = req.params['workspaceId'];
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
     const logId = req.params['logId'];
+    const existing = await prisma.recommendationLog.findUnique({ where: { id: logId } });
+    if (!existing || existing.workspaceId !== workspaceId) {
+      return c.json({ error: 'Recommendation log not found' }, 404);
+    }
     const body = await c.req.json<{ action?: string }>();
     const action = body?.action;
     if (action !== 'EXECUTED' && action !== 'IGNORED') {

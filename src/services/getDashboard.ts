@@ -39,6 +39,7 @@ import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
+import { RecommendationService } from "./recommendation.service";
 
 // ── Module-level Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
@@ -295,6 +296,8 @@ export async function getDashboard(
   // Fallback to the module-level standalone client for scripts and tests.
   const prisma = opts.prisma ?? _standalonePrisma;
   const knowledge = new KnowledgeEngine(prisma);
+  const recService = new RecommendationService(prisma);
+  const appliedItemKeys = await recService.getAppliedItemKeys(workspaceId);
   const windowDays = opts.windowDays ?? 30;
 
   // 1. Workspace + industry + the (single) ad account.
@@ -464,6 +467,7 @@ export async function getDashboard(
 
   for (const breach of kbBreaches) {
     const code = METRIC_ISSUE_CODE[breach.metricKey] ?? IssueCode.LOW_CTR;
+    if (appliedItemKeys.has(`issue:${code}`)) continue;
     const texts = formatActionsForDisplay(breach.recommended_optimization_actions);
     const existing = issues.find(i => i.code === code);
     if (existing) {
@@ -492,7 +496,10 @@ export async function getDashboard(
     orderBy: [{ priority: "desc" }, { date: "desc" }],
   });
   // The recommendation's action text comes from the top issue's localized recs.
-  const topIssue = issues[0];
+  const activeIssues = issues.filter(
+    (i) => !appliedItemKeys.has(`issue:${i.code}`),
+  );
+  const topIssue = activeIssues[0];
   let priorityAction = rec
     ? {
         actionCode: rec.actionCode,
@@ -502,40 +509,62 @@ export async function getDashboard(
       }
     : null;
 
+  if (priorityAction && appliedItemKeys.has(`priority:${priorityAction.actionCode}`)) {
+    priorityAction = null;
+  }
+
   // KB-first priority text when thresholds breached and no stored recommendation.
   if (kbActionTexts.length > 0) {
     const kbActions = findActionsForBreaches(kbBreaches);
     const kbTop = kbBreaches[0]!;
-    if (priorityAction) {
-      priorityAction = {
-        ...priorityAction,
-        text: kbActionTexts[0]!,
-        details: {
-          ...(priorityAction.details ?? {}),
-          recommended_optimization_actions: kbActions,
-          metricBreaches: kbBreaches,
-        },
-      };
-    } else {
-      priorityAction = {
-        actionCode: kbActions[0]!.id,
-        priority: kbTop.severity === "critical" ? "CRITICAL" : "HIGH",
-        text: kbActionTexts[0]!,
-        details: {
-          source: "meta_ads_knowledge_base",
-          recommended_optimization_actions: kbActions,
-          metricBreaches: kbBreaches,
-        },
-      };
+    const kbIssueCode = METRIC_ISSUE_CODE[kbTop.metricKey] ?? IssueCode.LOW_CTR;
+    const kbActionId = kbActions[0]!.id;
+    const kbApplied =
+      appliedItemKeys.has(`issue:${kbIssueCode}`) ||
+      appliedItemKeys.has(`priority:${kbActionId}`);
+    if (!kbApplied) {
+      if (priorityAction) {
+        priorityAction = {
+          ...priorityAction,
+          text: kbActionTexts[0]!,
+          details: {
+            ...(priorityAction.details ?? {}),
+            recommended_optimization_actions: kbActions,
+            metricBreaches: kbBreaches,
+          },
+        };
+      } else {
+        priorityAction = {
+          actionCode: kbActions[0]!.id,
+          priority: kbTop.severity === "critical" ? "CRITICAL" : "HIGH",
+          text: kbActionTexts[0]!,
+          details: {
+            source: "meta_ads_knowledge_base",
+            recommended_optimization_actions: kbActions,
+            metricBreaches: kbBreaches,
+          },
+        };
+      }
     }
   }
+
+  const filteredIssues = issues.filter(
+    (i) => !appliedItemKeys.has(`issue:${i.code}`),
+  );
 
   // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
   const cards = await buildCampaignCards(account.id, prisma, sinceDate, factor);
 
   // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
   //     Returns undefined when no snapshots exist for this workspace (V5-only render).
-  const brain = await buildBrainSection(prisma, ws.id, account.id, account.currency, account.currencyMinorFactor);
+  const brain = await buildBrainSection(
+    prisma,
+    ws.id,
+    account.id,
+    account.currency,
+    account.currencyMinorFactor,
+    appliedItemKeys,
+  );
 
   return {
     workspace: {
@@ -551,7 +580,7 @@ export async function getDashboard(
     health: { score, band: band(score) },
     kpis,
     trendSeries,
-    issues,
+    issues: filteredIssues,
     priorityAction,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
@@ -877,6 +906,7 @@ async function buildBrainSection(
   adAccountId: string,
   currency: string,
   currencyMinorFactor: number,
+  appliedItemKeys: Set<string> = new Set(),
 ): Promise<BrainSection | null> {
   // Today @ UTC midnight, matching BrainPersistence.toUtcMidnight semantics.
   const today = new Date();
@@ -903,7 +933,14 @@ async function buildBrainSection(
   });
   const nameById = new Map(camps.map(c => [c.id, c.name]));
 
-  const { items: cmoFeedV2, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
+  const { items: cmoFeedV2Raw, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
+  const cmoFeedV2 = cmoFeedV2Raw.filter(
+    (item) => !appliedItemKeys.has(`feed:${item.dedupeKey}`),
+  );
+  const cmoFeedMetaAdjusted: CmoFeedMeta = {
+    ...cmoFeedMeta,
+    total: cmoFeedV2.length,
+  };
 
   // ── Live Pulse: aggregate across today's tick. ──
   const todaySnapshots = snapshots.filter(s => s.tickDate.getTime() === tickToday.getTime());
@@ -985,7 +1022,7 @@ async function buildBrainSection(
       })),
   };
 
-  return { cmoFeedV2, cmoFeedMeta, livePulse, ledger };
+  return { cmoFeedV2, cmoFeedMeta: cmoFeedMetaAdjusted, livePulse, ledger };
 
   // Helper local to this fn — formats a major-unit number into the account currency.
   // Mirrors the `money()` minor-unit formatter above but for engine major units.

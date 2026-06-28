@@ -17,7 +17,23 @@ export interface MetricsSnapshot {
   impressions?: number | null;
   conversions?: number | null;
   frequency?: number | null;
+  /** Stable dashboard item id (issue:CODE, priority:ACTION, feed:DEDUPE_KEY). */
+  itemKey?: string;
+  itemKind?: string;
+  actionCode?: string | null;
+  campaignId?: string | null;
+  feedKey?: string | null;
+  title?: string | null;
   [key: string]: unknown;
+}
+
+/** Days to suppress EXECUTED/IGNORED dashboard items from active priorities. */
+export const APPLIED_ACTION_LOOKBACK_DAYS = 7;
+
+export function extractItemKey(snapshot: unknown): string | null {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const key = (snapshot as MetricsSnapshot).itemKey;
+  return typeof key === 'string' && key.length > 0 ? key : null;
 }
 
 export class RecommendationService {
@@ -57,6 +73,69 @@ export class RecommendationService {
         actionAppliedAt: action === 'EXECUTED' ? new Date() : null,
       },
     });
+  }
+
+  /**
+   * Log a dashboard Main Move action with a stable itemKey for closed-loop filtering.
+   */
+  async recordDashboardAction(params: {
+    workspaceId: string;
+    action: 'EXECUTED' | 'IGNORED';
+    itemKey: string;
+    itemKind?: string;
+    actionCode?: string | null;
+    campaignId?: string | null;
+    feedKey?: string | null;
+    title?: string | null;
+    metricsSnapshot?: MetricsSnapshot;
+  }) {
+    const snapshot: MetricsSnapshot = {
+      ...(params.metricsSnapshot ?? {}),
+      itemKey: params.itemKey,
+      itemKind: params.itemKind,
+      actionCode: params.actionCode ?? null,
+      campaignId: params.campaignId ?? null,
+      feedKey: params.feedKey ?? null,
+      title: params.title ?? null,
+    };
+    return this.prisma.recommendationLog.create({
+      data: {
+        workspaceId: params.workspaceId,
+        campaignId: params.campaignId ?? null,
+        verdict: `${params.action}:${params.itemKey}`,
+        generatedBy: RecommendationSource.V1_RULES,
+        metricsSnapshot: snapshot as object,
+        userAction: params.action === 'EXECUTED' ? UserActionStatus.EXECUTED : UserActionStatus.IGNORED,
+        actionAppliedAt: params.action === 'EXECUTED' ? new Date() : null,
+      },
+    });
+  }
+
+  /**
+   * Item keys the user marked EXECUTED or IGNORED within the lookback window.
+   */
+  async getAppliedItemKeys(
+    workspaceId: string,
+    lookbackDays = APPLIED_ACTION_LOOKBACK_DAYS,
+  ): Promise<Set<string>> {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - lookbackDays);
+
+    const logs = await this.prisma.recommendationLog.findMany({
+      where: {
+        workspaceId,
+        userAction: { in: [UserActionStatus.EXECUTED, UserActionStatus.IGNORED] },
+        createdAt: { gte: since },
+      },
+      select: { metricsSnapshot: true },
+    });
+
+    const keys = new Set<string>();
+    for (const log of logs) {
+      const key = extractItemKey(log.metricsSnapshot);
+      if (key) keys.add(key);
+    }
+    return keys;
   }
 
   /**

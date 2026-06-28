@@ -390,6 +390,10 @@ export function dashboardPage(): string {
     .main-move-secondary-decision { font-size: 12px; color: var(--text-3); margin-top: 2px; }
 
     .main-move-cta:disabled { opacity: 0.55; cursor: default; filter: none; }
+
+    .below-chart-section { margin-top: 4px; }
+    .below-chart-section + .below-chart-section { margin-top: 18px; }
+    #main-move-section { margin-top: 18px; }
     .action-modal-steps { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
     .action-modal-step {
       display: flex; align-items: flex-start; gap: 10px;
@@ -499,28 +503,7 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 5 ▸ V6 Brain detail (CMO Feed, Ledger) -->
-      <section id="brain-cmo-feed-section" class="v2-section" style="display:none;">
-        <div class="v2-section-head">
-          <div class="v2-section-title">CMO Feed</div>
-          <div class="v2-section-meta" id="brain-cmo-feed-meta">AI-narrated decisions for today</div>
-        </div>
-        <div id="brain-cmo-feed" dir="auto" style="display:flex;flex-direction:column;gap:10px;"></div>
-      </section>
-
-      <section id="brain-ledger-section" class="v2-section" style="display:none;">
-        <div class="v2-section-head">
-          <div class="v2-section-title">Interventions Ledger</div>
-          <div class="v2-section-meta">Last 7 days</div>
-        </div>
-        <div class="card" style="margin-bottom:12px;">
-          <div class="kpi-label">Estimated wasted spend prevented</div>
-          <div id="brain-ledger-saved" style="font-size:26px;font-weight:800;color:var(--success);margin-top:4px;">—</div>
-        </div>
-        <div id="brain-ledger-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-      </section>
-
-      <!-- 6 ▸ Main Move — unified focus (Tier 2 + Tier 3 narrative) -->
+      <!-- 5 ▸ Main Move — unified focus (Tier 2 + Tier 3 narrative) -->
       <section class="v2-section" id="main-move-section">
         <div class="v2-section-head">
           <div class="v2-section-title" id="main-move-label">Main Move</div>
@@ -531,7 +514,7 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <section class="v2-section">
+      <section class="v2-section below-chart-section" id="v2-spotlight-section" style="display:none;">
         <div class="v2-spotlight-grid" id="v2-spotlight"></div>
       </section>
 
@@ -627,6 +610,8 @@ export function dashboardPage(): string {
     workspaceId: null,
     locale: 'EN',
     mainMovePrimary: null,
+    lastInsights: [],
+    lastCampaigns: [],
   };
 
   function isArabic() { return state.locale === 'AR'; }
@@ -1196,7 +1181,7 @@ export function dashboardPage(): string {
         var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
         pushItem({
           kind: 'feed',
-          itemId: 'feed:' + (it.dedupeKey || it.campaignName || it.title || 'unknown'),
+          itemId: 'feed:' + (it.dedupeKey || it.id || it.campaignName || it.title || 'unknown'),
           actionCode: dashData.priorityAction && dashData.priorityAction.actionCode ? dashData.priorityAction.actionCode : null,
           campaignId: it.campaignId || null,
           campaignName: it.campaignName || null,
@@ -1315,7 +1300,7 @@ export function dashboardPage(): string {
     }
   }
 
-  // ── Main Move action workflow (Today's Actions + Recovery Center flow) ───
+  // ── Main Move action workflow ───────────────────────────────────────────
   function actionStepsForItem(item) {
     if (!item) return [];
     var steps = Array.isArray(item.steps) ? item.steps.filter(Boolean) : [];
@@ -1350,45 +1335,50 @@ export function dashboardPage(): string {
     if (confirmBtn) confirmBtn.textContent = lbl("I've applied this", 'طبّقت الإجراء');
     modal.style.display = 'flex';
   }
-  async function fetchRecommendationLogId(workspaceId) {
-    var token = getToken();
-    var headers = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = 'Bearer ' + token;
-    var res = await fetch('/api/workspaces/' + encodeURIComponent(workspaceId) + '/recommendations', {
-      headers: headers,
-    });
-    if (res.status === 401) { logout(); return null; }
-    if (!res.ok) {
-      var err = await res.json().catch(function () { return { error: res.statusText }; });
-      throw new Error(err.error || res.statusText);
-    }
-    await res.json().catch(function () { return []; });
-    return res.headers.get('X-Recommendation-Log-Id');
-  }
   async function confirmExecuteAction() {
     var item = state.mainMovePrimary;
     var confirmBtn = document.getElementById('action-modal-confirm');
+    var cta = document.querySelector('.main-move-cta');
     if (!item || !state.workspaceId) return;
+    if (!item.itemId) {
+      toast(lbl('Cannot record this action — missing item id.', 'تعذّر تسجيل الإجراء — معرف مفقود.'), 'error');
+      return;
+    }
     if (confirmBtn) confirmBtn.disabled = true;
+    var priorCtaText = cta ? cta.textContent : '';
     try {
-      var logId = await fetchRecommendationLogId(state.workspaceId);
-      if (logId) {
-        await apiFetch('/api/workspaces/' + encodeURIComponent(state.workspaceId) + '/recommendations/' + encodeURIComponent(logId) + '/action', {
-          method: 'POST',
-          body: JSON.stringify({ action: 'EXECUTED' }),
-        });
-        toast(lbl('Action recorded — we’ll track results over the next 7 days.', 'تم تسجيل الإجراء — سنراقب النتائج خلال ٧ أيام.'), 'success');
-      } else {
-        toast(lbl('Steps noted. Apply these changes in Meta Ads Manager.', 'تم عرض الخطوات. طبّقها في مدير إعلانات Meta.'), 'info');
-      }
+      await apiFetch('/api/workspaces/' + encodeURIComponent(state.workspaceId) + '/recommendations/action', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'EXECUTED',
+          itemKey: item.itemId,
+          itemKind: item.kind || null,
+          actionCode: item.actionCode || null,
+          campaignId: item.campaignId || null,
+          feedKey: item.feedKey || null,
+          title: item.title || null,
+        }),
+      });
+      toast(lbl('Action recorded — we’ll track results over the next 7 days.', 'تم تسجيل الإجراء — سنراقب النتائج خلال ٧ أيام.'), 'success');
       closeActionModal();
-      var cta = document.querySelector('.main-move-cta');
       if (cta) {
         cta.disabled = true;
         cta.textContent = lbl('Applied', 'تم التطبيق');
       }
+      try {
+        var refreshed = await apiFetch('/api/dashboard/' + encodeURIComponent(state.workspaceId));
+        if (refreshed && !refreshed.empty) {
+          applyDashboardData(refreshed, state.lastInsights || [], state.lastCampaigns || [], null, false);
+        }
+      } catch (refreshErr) {
+        console.warn('[dashboard] post-action refresh failed:', refreshErr);
+      }
     } catch (e) {
       console.error('[dashboard] confirmExecuteAction failed:', e);
+      if (cta) {
+        cta.disabled = false;
+        cta.textContent = priorCtaText || item.buttonText || lbl('Fix Now', 'تطبيق الحل فوراً');
+      }
       toast(lbl('Could not record action. Try again.', 'تعذّر تسجيل الإجراء. حاول مرة أخرى.'), 'error');
     } finally {
       if (confirmBtn) confirmBtn.disabled = false;
@@ -1426,161 +1416,58 @@ export function dashboardPage(): string {
 
   // ── V2: Spotlight ───────────────────────────────────────────────────────
   function deriveOpportunity(dashData) {
-    if (!dashData) return null;
-    if (dashData.opportunity) return dashData.opportunity;
-    if (dashData.bestCampaign) {
-      return { title: 'Audience Expansion', reason: 'Top campaign performing well — broaden audience to scale safely.', expectedGain: '+12 messages/day', confidence: 85 };
-    }
-    return null;
+    if (!dashData || !dashData.opportunity) return null;
+    return dashData.opportunity;
   }
   function renderSpotlight(winner, opportunity) {
+    var section = document.getElementById('v2-spotlight-section');
     var el = document.getElementById('v2-spotlight');
+    if (!el) return;
+    var hasWinner = !!(winner && (winner.name || winner.campaignName));
+    var hasOpportunity = !!(opportunity && opportunity.title);
+    if (!hasWinner && !hasOpportunity) {
+      if (section) section.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+    if (section) section.style.display = 'block';
     var parts = [];
-    if (winner) {
+    if (hasWinner) {
       var reason = winner.reason || ('Top performer · ' + (winner.objective || 'this period'));
       var conf = winner.confidence || 90;
-      var score = winner.score != null ? winner.score : '—';
+      var score = winner.score != null ? winner.score : (winner.health != null ? winner.health : '—');
       parts.push(
         '<div class="v2-spotlight v2-winner">'
-          + '<div class="v2-spotlight-tag">Best Campaign</div>'
+          + '<div class="v2-spotlight-tag">' + escHtml(lbl('Best Campaign', 'أفضل حملة')) + '</div>'
           + '<div class="v2-spotlight-name">' + escHtml(winner.name || winner.campaignName || '—') + '</div>'
           + '<div class="v2-spotlight-reason">' + escHtml(reason) + '</div>'
           + '<div class="v2-spotlight-stat">'
-            + '<span>Score <b>' + escHtml(String(score)) + '</b></span>'
-            + '<span>Confidence <b>' + escHtml(String(conf)) + '%</b></span>'
+            + '<span>' + escHtml(lbl('Score', 'النتيجة')) + ' <b>' + escHtml(String(score)) + '</b></span>'
+            + '<span>' + escHtml(lbl('Confidence', 'الثقة')) + ' <b>' + escHtml(String(conf)) + '%</b></span>'
           + '</div>'
-          + '<button class="btn btn-primary btn-sm" type="button" style="align-self:flex-start;">Scale Safely</button>'
         + '</div>'
       );
-    } else {
-      parts.push('<div class="v2-spotlight v2-winner"><div class="v2-spotlight-tag">Best Campaign</div><div class="v2-spotlight-empty">No clear winner yet — let campaigns gather more data.</div></div>');
     }
-    if (opportunity) {
+    if (hasOpportunity) {
       parts.push(
         '<div class="v2-spotlight v2-opportunity">'
-          + '<div class="v2-spotlight-tag">Opportunity</div>'
+          + '<div class="v2-spotlight-tag">' + escHtml(lbl('Opportunity', 'فرصة')) + '</div>'
           + '<div class="v2-spotlight-name">' + escHtml(opportunity.title) + '</div>'
           + '<div class="v2-spotlight-reason">' + escHtml(opportunity.reason || '') + '</div>'
           + '<div class="v2-spotlight-stat">'
-            + '<span>Expected gain <b>' + escHtml(opportunity.expectedGain || '+0%') + '</b></span>'
-            + '<span>Confidence <b>' + escHtml(String(opportunity.confidence || 80)) + '%</b></span>'
+            + '<span>' + escHtml(lbl('Expected gain', 'الربح المتوقع')) + ' <b>' + escHtml(opportunity.expectedGain || '+0%') + '</b></span>'
+            + '<span>' + escHtml(lbl('Confidence', 'الثقة')) + ' <b>' + escHtml(String(opportunity.confidence || 80)) + '%</b></span>'
           + '</div>'
-          + '<button class="btn btn-primary btn-sm" type="button" style="align-self:flex-start;">Explore</button>'
         + '</div>'
       );
-    } else {
-      parts.push('<div class="v2-spotlight v2-opportunity"><div class="v2-spotlight-tag">Opportunity</div><div class="v2-spotlight-empty">No new opportunity detected today.</div></div>');
     }
     el.innerHTML = parts.join('');
   }
-  function priorityBadgeClass(p) {
-    if (p === 'CRITICAL') return 'badge-red';
-    if (p === 'HIGH') return 'badge-yellow';
-    return 'badge-green';
-  }
   function renderBrainSection(brain, dashData) {
     if (!brain) return;
-    var mainPrimary = dashData ? buildAllMoveItems(dashData)[0] : null;
-    var skipTitle = mainPrimary ? mainPrimary.title : '';
-    // CMO Feed
-    var feedHost = document.getElementById('brain-cmo-feed');
-    var feedSection = document.getElementById('brain-cmo-feed-section');
-    var meta = document.getElementById('brain-cmo-feed-meta');
-    var items = (brain.cmoFeedV2 || []).filter(function (it) {
-      return !skipTitle || !textsOverlap(it.title, skipTitle);
-    });
-    var feedMeta = brain.cmoFeedMeta || {};
-    var windowKey = feedMeta.window || 'today';
-    var windowLabel = windowKey === 'rolling' ? 'most recent' : 'today';
-    var shown = items.length;
-    var total = feedMeta.total != null ? feedMeta.total : shown;
-    if (items.length === 0) {
-      feedHost.innerHTML = '<div class="empty-state" style="padding:24px 18px;">'
-        + '<div class="empty-text">'
-        + (windowKey === 'rolling' ? 'No recent decisions.' : 'No active decisions today.')
-        + '</div></div>';
-    } else {
-      feedHost.innerHTML = items.map(function (it, idx) {
-        var isPending = !it.generatedAt;
-        var title = escHtml(it.title || it.campaignName || 'AI decision');
-        var bodyInner;
-        var expandBtn = '';
-        if (isPending) {
-          bodyInner = escHtml('AI summary pending…');
-        } else {
-          bodyInner = '<span class="cmo-feed-body-text">' + escHtml(it.body) + '</span>';
-          if (it.bodyFull) {
-            expandBtn = ' <button type="button" class="cmo-feed-expand" data-expanded="0" style="background:none;border:none;padding:0;font-size:13px;color:var(--accent);cursor:pointer;">عرض المزيد</button>';
-          }
-        }
-        var dir = it.creativeDirective
-          ? '<div style="margin-top:6px;font-size:12px;color:var(--text-3);"><strong>Creative directive:</strong> ' + escHtml(it.creativeDirective) + '</div>'
-          : '';
-        return '<div class="card" style="padding:14px;" data-key="' + escHtml(it.dedupeKey) + '" data-idx="' + idx + '">'
-          + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
-          +   '<span class="badge ' + priorityBadgeClass(it.severity) + '">' + escHtml(it.severity) + '</span>'
-          +   '<span class="text-xs text-3">' + escHtml(it.campaignName) + ' · ' + escHtml(it.date) + '</span>'
-          + '</div>'
-          + '<div style="font-size:15px;font-weight:600;color:var(--text);">' + title + '</div>'
-          + '<div class="cmo-feed-body" style="font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5;">' + bodyInner + expandBtn + '</div>'
-          + dir
-        + '</div>';
-      }).join('');
-      feedHost.onclick = function (e) {
-        var btn = e.target.closest('.cmo-feed-expand');
-        if (!btn) return;
-        var card = btn.closest('[data-key]');
-        if (!card) return;
-        var idx = parseInt(card.getAttribute('data-idx'), 10);
-        var it = items[idx];
-        if (!it || !it.bodyFull) return;
-        var textEl = card.querySelector('.cmo-feed-body-text');
-        if (!textEl) return;
-        var expanded = btn.getAttribute('data-expanded') === '1';
-        if (expanded) {
-          textEl.innerHTML = escHtml(it.body);
-          btn.textContent = 'عرض المزيد';
-          btn.setAttribute('data-expanded', '0');
-        } else {
-          textEl.innerHTML = escHtml(it.bodyFull);
-          btn.textContent = 'عرض أقل';
-          btn.setAttribute('data-expanded', '1');
-        }
-      };
-    }
-    if (total > shown) {
-      meta.textContent = 'Showing ' + shown + ' of ' + total + ' decisions · ' + windowLabel;
-    } else {
-      meta.textContent = shown + ' decision' + (shown === 1 ? '' : 's') + ' · ' + windowLabel;
-    }
-    feedSection.style.display = 'block';
-
     applyPulse(brain.livePulse);
-    document.getElementById('brain-pulse-section').style.display = 'block';
-
-    var ledger = brain.ledger;
-    if (ledger) {
-      document.getElementById('brain-ledger-saved').textContent = ledger.savedSpendDisplay || '—';
-      var list = document.getElementById('brain-ledger-list');
-      var rows = ledger.recentActions || [];
-      if (rows.length === 0) {
-        list.innerHTML = '<div class="v2-action-empty">No interventions in the last 7 days.</div>';
-      } else {
-        list.innerHTML = rows.map(function (r) {
-          return '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;">'
-            + '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
-            +   '<span class="badge ' + priorityBadgeClass(r.priority) + '">' + escHtml(r.priority) + '</span>'
-            +   '<span style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(r.campaignName) + '</span>'
-            + '</div>'
-            + '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">'
-            +   '<span class="text-sm font-semibold text-2">' + escHtml(r.action) + '</span>'
-            +   '<span class="text-xs text-3">' + escHtml(r.tickDate) + '</span>'
-            + '</div>'
-          + '</div>';
-        }).join('');
-      }
-      document.getElementById('brain-ledger-section').style.display = 'block';
-    }
+    var pulseSection = document.getElementById('brain-pulse-section');
+    if (pulseSection && brain.livePulse) pulseSection.style.display = 'block';
   }
   function updatePulseLabels() {
     var el;
@@ -1676,6 +1563,8 @@ export function dashboardPage(): string {
     dashData = dashData || {};
     insights = Array.isArray(insights) ? insights : [];
     campaigns = Array.isArray(campaigns) ? campaigns : [];
+    state.lastInsights = insights;
+    state.lastCampaigns = campaigns;
     try {
       if (dashData.workspace && dashData.workspace.locale) {
         state.locale = String(dashData.workspace.locale).toUpperCase();
