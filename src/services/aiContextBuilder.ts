@@ -58,14 +58,36 @@ export function buildAiContext(dto: DashboardDTO, message: string): string {
     lines.push(`## Priority Action: ${safeDto.priorityAction.actionCode} (${safeDto.priorityAction.priority}): ${safeDto.priorityAction.text}`);
   }
 
-  // ── Campaign cards ───────────────────────────────────────────────────
-  if (safeDto.bestCampaign) {
-    const b = safeDto.bestCampaign;
-    lines.push(`## Best campaign: "${b.name}" | health:${b.health}/100 | CTR:${b.ctr?.toFixed(2) ?? '—'}% | CPM:${b.cpm?.toFixed(2) ?? '—'} | freq:${b.frequency?.toFixed(2) ?? '—'}`);
-  }
-  if (safeDto.worstCampaign) {
-    const w = safeDto.worstCampaign;
-    lines.push(`## Worst campaign: "${w.name}" | health:${w.health}/100 | CTR:${w.ctr?.toFixed(2) ?? '—'}% | CPM:${w.cpm?.toFixed(2) ?? '—'}`);
+  // ── Per-campaign breakdown ───────────────────────────────────────────
+  // Full active-campaign list (sorted by health desc) so the assistant can
+  // answer about a specific campaign by name instead of only best/worst.
+  // Capped to stay token-lean on large accounts.
+  const CAMPAIGN_ROW_CAP = 25;
+  const campaigns = safeDto.campaigns ?? [];
+  if (campaigns.length > 0) {
+    lines.push(
+      `## Campaigns (${campaigns.length} active, sorted by health desc)`,
+      '| Campaign | Health | CTR% | CPM | Freq | Messages |',
+      '|----------|--------|------|-----|------|----------|',
+    );
+    for (const c of campaigns.slice(0, CAMPAIGN_ROW_CAP)) {
+      lines.push(
+        `| ${c.name} | ${c.health}/100 (${c.band}) | ${c.ctr?.toFixed(2) ?? '—'} | ${c.cpm?.toFixed(2) ?? '—'} | ${c.frequency?.toFixed(2) ?? '—'} | ${c.messages} |`,
+      );
+    }
+    if (campaigns.length > CAMPAIGN_ROW_CAP) {
+      lines.push(`_(+${campaigns.length - CAMPAIGN_ROW_CAP} more lower-health campaigns omitted)_`);
+    }
+  } else {
+    // Fallback for render paths that only carry best/worst (e.g. legacy/empty DTO).
+    if (safeDto.bestCampaign) {
+      const b = safeDto.bestCampaign;
+      lines.push(`## Best campaign: "${b.name}" | health:${b.health}/100 | CTR:${b.ctr?.toFixed(2) ?? '—'}% | CPM:${b.cpm?.toFixed(2) ?? '—'} | freq:${b.frequency?.toFixed(2) ?? '—'}`);
+    }
+    if (safeDto.worstCampaign) {
+      const w = safeDto.worstCampaign;
+      lines.push(`## Worst campaign: "${w.name}" | health:${w.health}/100 | CTR:${w.ctr?.toFixed(2) ?? '—'}% | CPM:${w.cpm?.toFixed(2) ?? '—'}`);
+    }
   }
 
   // ── Trend summary (last 3 data points to stay token-lean) ────────────

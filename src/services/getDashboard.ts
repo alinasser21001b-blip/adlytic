@@ -118,6 +118,10 @@ export interface DashboardDTO {
   } | null;
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
+  /** Every active campaign with its window metrics, sorted by health desc. Powers
+   *  per-campaign answers in the AI assistant ("tell me about campaign X"). Optional
+   *  so older/empty render paths stay valid. */
+  campaigns?: CampaignCard[];
   /** Meta account lifetime spend from ad_accounts.lifetime_spend_minor (syncLifetimeTotals). */
   lifetimeSpend?: { minor: number; display: string; syncedAt: string | null };
 
@@ -729,6 +733,7 @@ export async function getDashboard(
     priorityAction,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
+    campaigns: cards.all,
     lifetimeSpend,
     ...(brain && { brain }),
     ...(steadyState && { steadyState }),
@@ -948,11 +953,11 @@ async function buildCampaignCards(
   prisma: PrismaClient,
   sinceDate: Date,
   factor: number,
-): Promise<{ best: CampaignCard | null; worst: CampaignCard | null; stable: CampaignCard[] }> {
+): Promise<{ best: CampaignCard | null; worst: CampaignCard | null; stable: CampaignCard[]; all: CampaignCard[] }> {
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId, status: "ACTIVE" },
   });
-  if (!campaigns.length) return { best: null, worst: null, stable: [] };
+  if (!campaigns.length) return { best: null, worst: null, stable: [], all: [] };
 
   const campaignIds = campaigns.map((c) => c.id);
 
@@ -1001,7 +1006,7 @@ async function buildCampaignCards(
     });
   }
 
-  if (!cards.length) return { best: null, worst: null, stable: [] };
+  if (!cards.length) return { best: null, worst: null, stable: [], all: [] };
 
   const sorted = [...cards].sort((a, b) => b.health - a.health);
   const stable = sorted.filter((c) => c.health >= 70);
@@ -1010,6 +1015,7 @@ async function buildCampaignCards(
     best: sorted[0],
     worst: sorted[sorted.length - 1],
     stable,
+    all: sorted,
   };
 }
 
