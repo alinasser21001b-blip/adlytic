@@ -40,7 +40,7 @@ const EN_RULES: Record<IssueCode, { title: string; causes: string[]; recommendat
 const AR_RULES: Record<IssueCode, { title: string; causes: string[]; recommendations: string[] }> = {
   HIGH_FREQUENCY: {
     title: "تكرار الإعلان مرتفع",
-    causes: ["جمهورك يرى نفس الإعلانات بشكل متكرر جداً", "ارتفاع التكرار فوق 4 يشير إلى إرهاق الإبداع", "تنخفض نسبة التذكر ويرتفع CPM عند زيادة التكرار"],
+    causes: ["جمهورك يرى نفس الإعلانات بشكل متكرر جداً", "ارتفاع التكرار فوق 4 يشير إلى إرهاق الإبداع", "تنخفض نسبة التذكر وترتفع تكلفة الوصول عند زيادة التكرار"],
     recommendations: ["أضف 2-3 تصاميم إعلانية جديدة هذا الأسبوع", "وسّع جمهورك أو أضف اهتماماً جديداً", "دوّر الإعلانات الأكثر أداءً كل 7-10 أيام"],
   },
   LOW_CTR: {

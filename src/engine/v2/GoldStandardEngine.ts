@@ -40,14 +40,14 @@ export function evaluateGoldStandard(
   const ctrDelta = ((gold.bestHistoricalCtr - current.ctr) / gold.bestHistoricalCtr) * 100;
   const ctrScore = ctrDelta <= 0 ? 100 : Math.max(0, 100 - ctrDelta);
   if (ctrDelta > GOLD_CONFIG.DEVIATION_TOLERANCE_PERCENT) {
-    deviations.push(`نسبة النقر (CTR) أقل بـ ${Math.round(ctrDelta)}% من المعيار المرجعي.`);
+    deviations.push(`تفاعل الإعلان أقل بـ ${Math.round(ctrDelta)}% من المعيار المرجعي.`);
   }
 
   // 3. CPM Score (أقل = أفضل)
   const cpmDelta = ((current.cpm - gold.bestHistoricalCpm) / gold.bestHistoricalCpm) * 100;
   const cpmScore = cpmDelta <= 0 ? 100 : Math.max(0, 100 - cpmDelta);
   if (cpmDelta > GOLD_CONFIG.DEVIATION_TOLERANCE_PERCENT) {
-    deviations.push(`تكلفة الألف ظهور (CPM) أعلى بـ ${Math.round(cpmDelta)}% من أفضل حملاتك السابقة.`);
+    deviations.push(`تكلفة الوصول لألف شخص أعلى بـ ${Math.round(cpmDelta)}% من أفضل حملاتك السابقة.`);
   }
 
   // Weighted blend — weights sum to 100 by contract (50 + 30 + 20)

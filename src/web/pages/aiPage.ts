@@ -72,9 +72,9 @@ export function aiPage(): string {
     <div>
       <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding:0 2px;">Suggested Questions</div>
       <div style="display:flex;flex-direction:column;gap:7px;" id="suggestions">
-        <div class="suggested-card"><div class="suggested-label">Performance</div><div class="suggested-text">Why is my CTR dropping?</div></div>
+        <div class="suggested-card"><div class="suggested-label">Performance</div><div class="suggested-text">Why is my ad engagement dropping?</div></div>
         <div class="suggested-card"><div class="suggested-label">Budget</div><div class="suggested-text">Is my budget being spent efficiently?</div></div>
-        <div class="suggested-card"><div class="suggested-label">Audience</div><div class="suggested-text">Is frequency too high on my campaigns?</div></div>
+        <div class="suggested-card"><div class="suggested-label">Audience</div><div class="suggested-text">Is ad repetition too high on my campaigns?</div></div>
         <div class="suggested-card"><div class="suggested-label">Strategy</div><div class="suggested-text">Which campaign should I scale?</div></div>
         <div class="suggested-card"><div class="suggested-label">Action</div><div class="suggested-text">What should I do next?</div></div>
         <div class="suggested-card"><div class="suggested-label">Health</div><div class="suggested-text">What's causing declining results?</div></div>
@@ -125,6 +125,29 @@ export function aiPage(): string {
   const wsM = me.memberships?.find(m => m.workspaceId === wsId) || me.memberships?.[0];
   document.getElementById('ws-name').textContent = wsM?.workspace?.name || 'Workspace';
   const userInitial = (me.name||me.email||'?')[0].toUpperCase();
+  const userLocale = (me.locale || 'EN').toUpperCase();
+
+  var SUGGESTIONS_AR = [
+    { label: 'الأداء', text: 'لماذا انخفض تفاعل إعلاناتي؟' },
+    { label: 'الميزانية', text: 'هل تُنفَق ميزانيتي بشكل فعّال؟' },
+    { label: 'الجمهور', text: 'هل يرى جمهوري نفس الإعلانات كثيراً؟' },
+    { label: 'الاستراتيجية', text: 'أي حملة أستحق أن أوسّعها؟' },
+    { label: 'الإجراء', text: 'ما الذي أنصح به الآن؟' },
+    { label: 'الصحة', text: 'ما سبب تراجع النتائج؟' },
+  ];
+  var SUGGESTIONS_EN = [
+    { label: 'Performance', text: 'Why is my ad engagement dropping?' },
+    { label: 'Budget', text: 'Is my budget being spent efficiently?' },
+    { label: 'Audience', text: 'Is ad repetition too high on my campaigns?' },
+    { label: 'Strategy', text: 'Which campaign should I scale?' },
+    { label: 'Action', text: 'What should I do next?' },
+    { label: 'Health', text: "What's causing declining results?" },
+  ];
+  if (userLocale === 'AR') {
+    document.getElementById('suggestions').innerHTML = SUGGESTIONS_AR.map(function (s) {
+      return '<div class="suggested-card"><div class="suggested-label">' + s.label + '</div><div class="suggested-text">' + s.text + '</div></div>';
+    }).join('');
+  }
 
   let dashData = null;
   let sending  = false;
@@ -189,7 +212,9 @@ export function aiPage(): string {
       (dashData.issues?.length
         ? ' I\'ve detected <strong>' + Number(dashData.issues.length) + ' issue' + (dashData.issues.length>1?'s':'') + '</strong> in your campaigns. Ask me about them or anything else related to your ad performance.'
         : ' Your campaigns look healthy. Ask me anything about performance, budget, or strategy.') +
-      '<br><br><em>Try: "What should I do next?" or "Why is CTR dropping?"</em>'
+      '<br><br><em>' + (userLocale === 'AR'
+        ? 'جرّب: "ما الذي أنصح به الآن؟" أو "لماذا انخفض تفاعل إعلاناتي؟"'
+        : 'Try: "What should I do next?" or "Why is ad engagement dropping?"') + '</em>'
     : 'Hello! I\'m your Adlytic AI assistant. Connect your campaigns to get data-driven insights. In the meantime, ask me anything about Meta Ads strategy.';
   addMsg('assistant', welcomeText);
 

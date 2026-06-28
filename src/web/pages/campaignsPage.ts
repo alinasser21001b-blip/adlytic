@@ -481,9 +481,9 @@ export function campaignsPage(): string {
   // The API returns raw keys; i18n stays on the client so the API doesn't
   // have to decide a locale.
   var SIGNAL_LABELS_AR = {
-    ctr:            'نسبة النقر (CTR)',
-    frequency:      'معدل التكرار',
-    cpm:            'تكلفة الألف ظهور',
+    ctr:            'تفاعل الإعلان',
+    frequency:      'تكرار ظهور الإعلان',
+    cpm:            'تكلفة الوصول لألف شخص',
     costPerMessage: 'تكلفة الرسالة',
   };
 
@@ -629,7 +629,7 @@ export function campaignsPage(): string {
     // so the user can flip between Overview/Creatives/Audience instantly.
     var overviewHtml =
       sectionHeader('الملخص المالي') + kpiHtml
-    + sectionHeader('مؤشرات الأداء (مقارنة بآخر 7 أيام)') + signalsHtml
+    + sectionHeader('كيف تغيّر الأداء · مقارنة بآخر 7 أيام') + signalsHtml
     + sectionHeader('سجل نصائح الذكاء الاصطناعي 🧠') + timelineHtml;
 
     var creativesHtml = renderCreativesTab(Array.isArray(data.creatives) ? data.creatives : []);
@@ -829,7 +829,7 @@ export function campaignsPage(): string {
           +     '<span style="color:var(--text-3);font-size:12px;">'
           +       'الرسائل: <span style="color:var(--text-2);">' + escHtml(msgText) + '</span>'
           +       ' · تكلفة الرسالة: <span style="color:var(--text-2);">' + escHtml(cpm) + '</span>'
-          +       ' · نسبة النقر: <span style="color:var(--text-2);">' + escHtml(ctrText) + '</span>'
+          +       ' · تفاعل الإعلان: <span style="color:var(--text-2);">' + escHtml(ctrText) + '</span>'
           +     '</span>'
           +   '</div>'
           +   '<div style="background:var(--surface-2, rgba(255,255,255,0.04));border-radius:6px;height:18px;overflow:hidden;position:relative;">'

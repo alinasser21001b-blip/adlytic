@@ -62,6 +62,7 @@ export function recommendationsPage(): string {
   let allIssues = [];
   let recs = [];
   let activeFilter = 'all';
+  let userLocale = (me.locale || 'EN').toUpperCase();
 
   async function loadData() {
     document.getElementById('issues-container').innerHTML =
@@ -88,12 +89,12 @@ export function recommendationsPage(): string {
     document.getElementById('stat-high').textContent     = issues.filter(i => i.severity==='HIGH').length;
     document.getElementById('stat-medium').textContent   = issues.filter(i => i.severity==='MEDIUM').length;
     const topRec = recs?.[0];
-    document.getElementById('stat-action').textContent   = topRec ? topRec.actionCode.replace(/_/g,' ') : '—';
+    document.getElementById('stat-action').textContent   = topRec ? (userLocale === 'AR' ? actionLabel(topRec.actionCode) : topRec.actionCode.replace(/_/g,' ')) : '—';
 
     // Filter
     if (activeFilter !== 'all') issues = issues.filter(i => i.severity === activeFilter);
     if (q) issues = issues.filter(i =>
-      (i.issueCode||'').toLowerCase().includes(q) ||
+      issueTitle(i.issueCode).toLowerCase().includes(q) ||
       (i.severity||'').toLowerCase().includes(q)
     );
 
@@ -122,7 +123,7 @@ export function recommendationsPage(): string {
 <div class="card section-gap" style="border-left:3px solid \${sevColor};" data-severity="\${sev}" data-idx="\${idx}">
   <div class="flex items-center gap-2" style="margin-bottom:12px;">
     <span class="badge" style="background:\${sevBg};color:\${sevColor};">\${sev}</span>
-    <span style="font-size:13px;font-weight:700;color:var(--text);">\${(issue.issueCode||'').replace(/_/g,' ')}</span>
+    <span style="font-size:13px;font-weight:700;color:var(--text);">\${escHtml(issueTitle(issue.issueCode))}</span>
     <span style="margin-left:auto;font-size:11px;color:var(--text-3);">\${issue.date ? new Date(issue.date).toLocaleDateString() : ''}</span>
   </div>
 
@@ -131,7 +132,7 @@ export function recommendationsPage(): string {
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
     <div>
       <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Recommended Action</div>
-      <div style="font-size:13px;color:var(--accent-2);font-weight:500;">\${rec ? rec.actionCode.replace(/_/g,' ') : '—'}</div>
+      <div style="font-size:13px;color:var(--accent-2);font-weight:500;">\${rec ? (userLocale === 'AR' ? actionLabel(rec.actionCode) : rec.actionCode.replace(/_/g,' ')) : '—'}</div>
       \${rec ? '<div style="font-size:11.5px;color:var(--text-3);margin-top:3px;">Priority: ' + rec.priority + '</div>' : ''}
     </div>
     <div>
@@ -145,8 +146,49 @@ export function recommendationsPage(): string {
     document.getElementById('issues-container').innerHTML = cards.join('');
   }
 
-  function categoryLabel(code) {
+  function issueTitle(code) {
+    const titles = {
+      EN: {
+        LOW_CTR: 'Low ad engagement',
+        HIGH_CPM: 'High reach cost',
+        HIGH_FREQUENCY: 'High ad repetition',
+        AUDIENCE_FATIGUE: 'Audience fatigue',
+        DECLINING_RESULTS: 'Declining results',
+        BUDGET_BURNING_FAST: 'Budget spending fast',
+        LOW_REACH: 'Low reach',
+        RISING_COST_PER_RESULT: 'Rising cost per result',
+        STALLED_DELIVERY: 'Stalled delivery',
+      },
+      AR: {
+        LOW_CTR: 'تفاعل الإعلان منخفض',
+        HIGH_CPM: 'تكلفة الوصول مرتفعة',
+        HIGH_FREQUENCY: 'تكرار الإعلان مرتفع',
+        AUDIENCE_FATIGUE: 'إرهاق الجمهور',
+        DECLINING_RESULTS: 'تراجع النتائج',
+        BUDGET_BURNING_FAST: 'إنفاق الميزانية بسرعة',
+        LOW_REACH: 'وصول محدود',
+        RISING_COST_PER_RESULT: 'ارتفاع تكلفة النتيجة',
+        STALLED_DELIVERY: 'توقف التسليم',
+      },
+    };
+    const map = userLocale === 'AR' ? titles.AR : titles.EN;
+    return map[code] || (userLocale === 'AR' ? 'ملاحظة أداء' : String(code || '').replace(/_/g, ' '));
+  }
+
+  function actionLabel(code) {
     const map = {
+      IMPROVE_HOOKS: 'تحسين بداية الإعلان',
+      REFRESH_CREATIVES: 'تجديد التصاميم',
+      EXPAND_AUDIENCE: 'توسيع الجمهور',
+      PAUSE_CAMPAIGN: 'إيقاف الحملة',
+      REDUCE_BUDGET: 'تقليل الميزانية',
+      SCALE_BUDGET: 'زيادة الميزانية',
+    };
+    return map[code] || String(code || '').replace(/_/g, ' ');
+  }
+
+  function categoryLabel(code) {
+    const mapEn = {
       LOW_CTR: 'Creative / Audience',
       HIGH_CPM: 'Budget / Bidding',
       HIGH_FREQUENCY: 'Frequency / Ad Fatigue',
@@ -157,7 +199,19 @@ export function recommendationsPage(): string {
       RISING_COST_PER_RESULT: 'Budget / Optimization',
       STALLED_DELIVERY: 'Delivery',
     };
-    return map[code] || 'General';
+    const mapAr = {
+      LOW_CTR: 'الإبداع / الجمهور',
+      HIGH_CPM: 'الميزانية / المزايدة',
+      HIGH_FREQUENCY: 'التكرار / إرهاق الإعلان',
+      AUDIENCE_FATIGUE: 'الجمهور',
+      DECLINING_RESULTS: 'التحسين',
+      BUDGET_BURNING_FAST: 'الميزانية',
+      LOW_REACH: 'الجمهور / المزايدة',
+      RISING_COST_PER_RESULT: 'الميزانية / التحسين',
+      STALLED_DELIVERY: 'التسليم',
+    };
+    const map = userLocale === 'AR' ? mapAr : mapEn;
+    return map[code] || (userLocale === 'AR' ? 'عام' : 'General');
   }
 
   // Severity tabs

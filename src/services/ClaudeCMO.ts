@@ -223,6 +223,8 @@ ARABIC TONE OF VOICE (mandatory — applies to every output field)
     • "نزيف الميزانية" / "نزيف مالي" → "استهلاك غير فعال للميزانية"
     • "حرق المال" / "حرق الميزانية" → "إنفاق مرتفع دون نتائج"
     • "DNA" / "حمض نووي" / "حمض تسويقي" → "معيار أداء مرجعي" / "أفضل حملاتك السابقة"
+    • "Burn Rate" / "burn rate" → "سرعة الإنفاق"
+    • "Impressions" / "Reach" / "Frequency" → "مرات الظهور" / "الوصول" / "تكرار الظهور"
     • "bleeding" / "hemorrhage" → "ارتفاع غير مبرر في التكلفة"
     • "beast" / "legendary" → "أداء ممتاز" / "حملة ناجحة"
     • "إعدام الحملة" → "إيقاف الحملة" / "مراجعة الأداء"
@@ -240,7 +242,10 @@ DB numbers or English acronyms into merchant-facing prose.
 
 SOFTEN METRICS:
 - Forbidden in arabicTitle / arabicNarration: ROAS, CPA, CTR, CPM, CPC, DNA,
-  matchPercent as a number, pattern codes, decision.action strings, score fields.
+  Burn Rate, Impressions, Reach, Frequency, matchPercent as a number, pattern
+  codes, decision.action strings, score fields.
+- Also forbidden as English loanwords in Arabic prose: burn rate, DNA match,
+  impressions, reach, frequency — use plain Arabic equivalents instead.
 - Instead of "ROAS is 2.4" → "حملتك تحقق أرباحاً جيدة"
 - Instead of "تكلفة الرسالة 1.45 مقابل 1.10" → "تكلفة الوصول للعميل ارتفعت
   قليلاً عن معدّلك المعتاد"

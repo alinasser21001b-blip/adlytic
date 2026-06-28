@@ -281,8 +281,8 @@ export function beginnerDashboardPage(): string {
   function trendArrow(dir, goodWhenUp) {
     if (dir === 'flat' || dir == null) return { sym: '➡️', cls: 'flat', label: '' };
     var good = goodWhenUp !== false;
-    if (dir === 'up')   return { sym: '⬆️', cls: good ? 'up' : 'down', label: 'ارتفاع' };
-    /* down */          return { sym: '⬇️', cls: good ? 'down' : 'up', label: 'انخفاض' };
+    if (dir === 'up')   return { sym: '⬆️', cls: good ? 'up' : 'down', label: 'تحسّن' };
+    /* down */          return { sym: '⬇️', cls: good ? 'down' : 'up', label: 'تراجع' };
   }
 
   function healthBandPill(band) {
@@ -350,7 +350,7 @@ export function beginnerDashboardPage(): string {
 
     var cards = [
       { emoji: '📣', label: 'الحملات النشطة', value: fmtSimpleCount(activeCampaigns) },
-      { emoji: '🎯', label: 'نسبة النقر (CTR)', value: ctr && ctr.value != null && isFinite(Number(ctr.value)) ? fmtSimplePct(ctr.value) : '—' },
+      { emoji: '🎯', label: 'تفاعل الإعلان', value: ctr && ctr.value != null && isFinite(Number(ctr.value)) ? fmtSimplePct(ctr.value) : '—' },
     ];
     mini.innerHTML = cards.map(function (c) {
       return '<div class="bgn-mini-card">'

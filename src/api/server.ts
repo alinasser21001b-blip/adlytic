@@ -821,8 +821,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     const member = await checkMember(userId, workspaceId);
     if (!member) return c.json({ error: 'Access denied' }, 403);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { locale: true },
+    });
     try {
-      const dto = await getDashboard(workspaceId, { prisma });
+      const dto = await getDashboard(workspaceId, { prisma, locale: user?.locale });
       return c.json(dto);
     } catch (e: any) {
       if (e?.message?.includes('no ad account') || e?.code === 'P2025') {

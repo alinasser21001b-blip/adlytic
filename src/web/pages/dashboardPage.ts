@@ -372,19 +372,19 @@ export function dashboardPage(): string {
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
           <div class="card" style="padding:14px;">
-            <div class="kpi-label">Burn Rate</div>
+            <div id="brain-pulse-burn-label" class="kpi-label">Spend pace</div>
             <div id="brain-pulse-burn" class="kpi-value" style="font-size:20px;">—</div>
-            <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> campaigns</div>
+            <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> <span id="brain-pulse-burn-meta">campaigns</span></div>
           </div>
           <div class="card" style="padding:14px;">
-            <div class="kpi-label">Intra-day Spend</div>
+            <div id="brain-pulse-spend-label" class="kpi-label">Today's spend share</div>
             <div id="brain-pulse-spendpct" class="kpi-value" style="font-size:20px;">—</div>
-            <div class="text-xs text-3">of total daily budget</div>
+            <div id="brain-pulse-spend-meta" class="text-xs text-3">of total daily budget</div>
           </div>
           <div class="card" style="padding:14px;">
-            <div class="kpi-label">DNA Match</div>
+            <div id="brain-pulse-dna-label" class="kpi-label">Match to your top campaigns</div>
             <div id="brain-pulse-dna" class="kpi-value" style="font-size:20px;">—</div>
-            <div class="text-xs text-3">vs gold-standard winners</div>
+            <div id="brain-pulse-dna-meta" class="text-xs text-3">compared to your top past campaigns</div>
           </div>
         </div>
       </section>
@@ -436,14 +436,14 @@ export function dashboardPage(): string {
       <details class="v2-advanced">
         <summary>
           Advanced Analytics
-          <span>KPIs · CTR · Impressions · Issues · Campaigns</span>
+          <span>مؤشرات الأداء · تفاعل الإعلان · مرات الظهور · التنبيهات · الحملات</span>
         </summary>
         <div class="v2-advanced-body">
           <div class="kpi-grid" id="kpi-grid"></div>
 
           <div class="chart-grid">
             <div class="chart-card">
-              <div class="chart-card-header"><div class="chart-card-title">CTR Trend</div></div>
+              <div class="chart-card-header"><div class="chart-card-title" id="chart-ctr-title">اتجاه تفاعل الإعلان</div></div>
               <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
             </div>
             <div class="chart-card">
@@ -485,7 +485,23 @@ export function dashboardPage(): string {
     currency: 'USD',
     minorFactor: 100,
     workspaceId: null,
+    locale: 'EN',
   };
+
+  function isArabic() { return state.locale === 'AR'; }
+  function lbl(en, ar) { return isArabic() ? ar : en; }
+  var KPI_LABELS_EN = {
+    spend: 'Spend', impressions: 'Impressions', reach: 'Reach (latest day)',
+    clicks: 'Clicks', ctr: 'CTR', cpc: 'CPC', cpm: 'CPM', messages: 'Messages',
+  };
+  var KPI_LABELS_AR = {
+    spend: 'الإنفاق', impressions: 'مرات الظهور', reach: 'الوصول (آخر يوم)',
+    clicks: 'النقرات', ctr: 'تفاعل الإعلان', cpc: 'تكلفة النقرة', cpm: 'تكلفة الوصول لألف شخص', messages: 'الرسائل',
+  };
+  function kpiLabel(key) {
+    var map = isArabic() ? KPI_LABELS_AR : KPI_LABELS_EN;
+    return map[key] || key;
+  }
 
   // ── helpers ─────────────────────────────────────────────────────────────
   function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -1025,7 +1041,7 @@ export function dashboardPage(): string {
     var ctr = findKpi('ctr');
     if (ctr && ctr.deltaPct != null) {
       var up = ctr.direction === 'up';
-      out.push({ icon: up ? '↑' : '↓', title: 'CTR ' + (up ? 'improving' : 'softening'), text: 'CTR moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct)).toFixed(1) + '% vs prior period.' });
+      out.push({ icon: up ? '↑' : '↓', title: lbl('Ad engagement ' + (up ? 'improving' : 'softening'), 'تفاعل الإعلان ' + (up ? 'في تحسّن' : 'في تراجع')), text: lbl('Engagement moved ' + (up ? '+' : '-') + Math.abs(Number(ctr.deltaPct)).toFixed(1) + '% vs prior period.', 'تفاعل الإعلان ' + (up ? 'ارتفع' : 'انخفض') + ' مقارنة بالفترة السابقة.') });
     }
     var spend = findKpi('spend');
     if (spend && spend.deltaPct != null) {
@@ -1153,13 +1169,29 @@ export function dashboardPage(): string {
       document.getElementById('brain-ledger-section').style.display = 'block';
     }
   }
+  function updatePulseLabels() {
+    var el;
+    el = document.getElementById('brain-pulse-burn-label');
+    if (el) el.textContent = lbl('Spend pace', 'سرعة الإنفاق');
+    el = document.getElementById('brain-pulse-burn-meta');
+    if (el) el.textContent = lbl('campaigns', 'حملات');
+    el = document.getElementById('brain-pulse-spend-label');
+    if (el) el.textContent = lbl("Today's spend share", 'حصة الإنفاق اليوم');
+    el = document.getElementById('brain-pulse-spend-meta');
+    if (el) el.textContent = lbl('of total daily budget', 'من إجمالي الميزانية اليومية');
+    el = document.getElementById('brain-pulse-dna-label');
+    if (el) el.textContent = lbl('Match to your top campaigns', 'مدى تشابه الإعلان مع الأفضل');
+    el = document.getElementById('brain-pulse-dna-meta');
+    if (el) el.textContent = lbl('compared to your top past campaigns', 'مقارنة بأفضل حملاتك السابقة');
+  }
   function applyPulse(pulse) {
+    updatePulseLabels();
     if (!pulse) return;
     document.getElementById('brain-pulse-burn').textContent = pulse.burnRateDisplay || '—';
     document.getElementById('brain-pulse-burn-n').textContent = String(pulse.campaignsObserved || 0);
     document.getElementById('brain-pulse-spendpct').textContent = (pulse.intraDaySpendPct != null) ? pulse.intraDaySpendPct.toFixed(1) + '%' : '—';
     document.getElementById('brain-pulse-dna').textContent = (pulse.dnaMatchPct != null) ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
-    document.getElementById('brain-pulse-tick').textContent = pulse.tickDate || 'no tick yet today';
+    document.getElementById('brain-pulse-tick').textContent = pulse.tickDate || lbl('no tick yet today', 'لا يوجد تحديث اليوم');
   }
   function startAutoRefresh(workspaceId) {
     async function refreshDashboard() {
@@ -1208,19 +1240,22 @@ export function dashboardPage(): string {
     var cpc = totals.clicks ? spendMajor / totals.clicks : 0;
     var cpm = totals.impressions ? (spendMajor / totals.impressions) * 1000 : 0;
     return [
-      { key: 'spend', label: 'Spend', value: spendMajor, display: fmtCurrencyMinor(totals.spendMinor), goodWhenUp: false },
-      { key: 'impressions', label: 'Impressions', value: totals.impressions, display: fmtNum(totals.impressions), goodWhenUp: true },
-      { key: 'reach', label: 'Reach (latest day)', value: latestReach, display: fmtNum(latestReach), goodWhenUp: true },
-      { key: 'clicks', label: 'Clicks', value: totals.clicks, display: fmtNum(totals.clicks), goodWhenUp: true },
-      { key: 'ctr', label: 'CTR', value: ctr, display: fmtPctLocal(ctr), goodWhenUp: true },
-      { key: 'cpc', label: 'CPC', value: cpc, display: fmtCurrencyMajor(cpc), goodWhenUp: false },
-      { key: 'cpm', label: 'CPM', value: cpm, display: fmtCurrencyMajor(cpm), goodWhenUp: false },
-      { key: 'messages', label: 'Messages', value: totals.messages, display: fmtNum(totals.messages), goodWhenUp: true },
+      { key: 'spend', label: kpiLabel('spend'), value: spendMajor, display: fmtCurrencyMinor(totals.spendMinor), goodWhenUp: false },
+      { key: 'impressions', label: kpiLabel('impressions'), value: totals.impressions, display: fmtNum(totals.impressions), goodWhenUp: true },
+      { key: 'reach', label: kpiLabel('reach'), value: latestReach, display: fmtNum(latestReach), goodWhenUp: true },
+      { key: 'clicks', label: kpiLabel('clicks'), value: totals.clicks, display: fmtNum(totals.clicks), goodWhenUp: true },
+      { key: 'ctr', label: kpiLabel('ctr'), value: ctr, display: fmtPctLocal(ctr), goodWhenUp: true },
+      { key: 'cpc', label: kpiLabel('cpc'), value: cpc, display: fmtCurrencyMajor(cpc), goodWhenUp: false },
+      { key: 'cpm', label: kpiLabel('cpm'), value: cpm, display: fmtCurrencyMajor(cpm), goodWhenUp: false },
+      { key: 'messages', label: kpiLabel('messages'), value: totals.messages, display: fmtNum(totals.messages), goodWhenUp: true },
     ];
   }
 
   // ── Render / refresh dashboard sections ─────────────────────────────────
   function applyDashboardData(dashData, insights, campaigns, wsData, isInitial) {
+    if (dashData.workspace && dashData.workspace.locale) {
+      state.locale = String(dashData.workspace.locale).toUpperCase();
+    }
     hydrateCurrencyState(dashData, wsData);
 
     if (isInitial && wsData) {
@@ -1272,9 +1307,9 @@ export function dashboardPage(): string {
       labels = tsLabels;
     }
 
-    makeLineChart('chart-spend-main', labels, [{ label: 'Spend', data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
-    makeLineChart('chart-ctr',        labels, [{ label: 'CTR (%)',  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-    makeLineChart('chart-impressions', labels, [{ label: 'Messages', data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+    makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
+    makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
+    makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
 
     renderIssues(dashData.issues || []);
     renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
@@ -1289,6 +1324,7 @@ export function dashboardPage(): string {
       // 1) Identify user — populates shared sidebar avatar/name/email
       var me = await apiFetch('/api/auth/me');
       if (!me) return;
+      state.locale = (me.locale || 'EN').toUpperCase();
       var userName = me.name || me.email || 'User';
       var userInitials = initialsOf(userName);
       var avEl = document.getElementById('user-avatar');     if (avEl) avEl.textContent = userInitials;
@@ -1319,6 +1355,9 @@ export function dashboardPage(): string {
         apiFetch('/api/workspaces/' + workspaceId).catch(function () { return null; }),
       ]);
       var dashData = results[0] || {};
+      if (dashData.workspace && dashData.workspace.locale) {
+        state.locale = String(dashData.workspace.locale).toUpperCase();
+      }
       var insights = results[1] || [];
       var campaigns = results[2] || [];
       var wsData = results[3];
@@ -1330,8 +1369,8 @@ export function dashboardPage(): string {
         document.getElementById('hero-grid').innerHTML =
           '<div class="empty-state" style="grid-column:1/-1;">'
           + '<div class="empty-icon">📊</div>'
-          + '<div class="empty-title">Connect your Meta Ads account</div>'
-          + '<div class="empty-text">Link your ad account to see spend, CTR, reach, and AI-powered recommendations.</div>'
+          + '<div class="empty-title">' + lbl('Connect your Meta Ads account', 'اربط حساب إعلانات Meta') + '</div>'
+          + '<div class="empty-text">' + lbl('Link your ad account to see spend, engagement, reach, and AI-powered recommendations.', 'اربط حسابك الإعلاني لرؤية الإنفاق وتفاعل الإعلان والوصول والتوصيات الذكية.') + '</div>'
           + '<a href="/workspace" class="btn btn-primary" style="margin-top:14px;">Go to Workspace</a>'
         + '</div>';
         return;
