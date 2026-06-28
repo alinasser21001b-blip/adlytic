@@ -285,6 +285,134 @@ const r3 = await worker.sync("acc_furn", { now: new Date() });
 check("sync returns ok=false on Meta failure (does not throw)", r3.ok === false, r3.ok);
 check("error message preserved", r3.error?.includes("Meta 500") === true, r3.error);
 
+// ════════════════ RECONCILE: vanished-campaign archiving ════════════════
+// syncCampaigns() must down-convert campaigns Meta no longer lists (archived/
+// deleted on Meta) from ACTIVE/PAUSED → ARCHIVED, so a stale-ACTIVE row can't
+// inflate the dashboard's "Active" count. AND it must NEVER mass-archive when
+// Meta returns a transient empty list. These two cases are the whole contract
+// of the fix, so we test them directly against the real syncCampaigns.
+console.log("\n── Worker: reconcile vanished campaigns ──");
+
+// Minimal in-memory Campaign delegate — implements only the ops syncCampaigns
+// touches: findMany, upsert (on the composite key), updateMany (the reconcile).
+function makeCampaignStore(seed: any[]) {
+  const store = seed.map((c) => ({ ...c }));
+  return {
+    store,
+    delegate: {
+      findMany: async ({ where }: any) =>
+        store
+          .filter((c) => c.adAccountId === where.adAccountId)
+          .map((c) => ({ ...c })),
+      upsert: async ({ where, create, update }: any) => {
+        const { adAccountId: acc, externalCampaignId: ext } =
+          where.adAccountId_externalCampaignId;
+        const existing = store.find(
+          (c) => c.adAccountId === acc && c.externalCampaignId === ext,
+        );
+        if (existing) {
+          Object.assign(existing, update);
+          return { ...existing };
+        }
+        const row = { id: "camp_" + ext, adAccountId: acc, externalCampaignId: ext, ...create };
+        store.push(row);
+        return { ...row };
+      },
+      updateMany: async ({ where, data }: any) => {
+        const notIn: string[] = where.externalCampaignId?.notIn ?? [];
+        const inStatuses: string[] | null = where.status?.in ?? null;
+        let count = 0;
+        for (const c of store) {
+          if (c.adAccountId !== where.adAccountId) continue;
+          if (notIn.includes(c.externalCampaignId)) continue;
+          if (inStatuses && !inStatuses.includes(c.status)) continue;
+          c.status = data.status;
+          count++;
+        }
+        return { count };
+      },
+    },
+  };
+}
+
+// A Meta client stub exposing exactly the two methods syncCampaigns calls.
+// listCampaigns drives the "what Meta still returns" set; getInsights returns
+// [] so the test stays on the reconcile path (no daily-stat/freeze machinery).
+function makeReconcileMeta(listed: any[]) {
+  return {
+    listCampaigns: async () => listed,
+    getInsights: async () => [],
+  };
+}
+
+function makeReconcilePrisma(campaignDelegate: any) {
+  return {
+    adAccount: {
+      findUniqueOrThrow: async ({ where }: any) => ({
+        id: where.id,
+        externalAccountId: "act_reconcile_test",
+        currency: "IQD",
+        currencyMinorFactor: 1,
+      }),
+    },
+    campaign: campaignDelegate,
+    dailyStat: { upsert: async () => ({}) },
+    // syncCampaigns prepares ops then awaits them; our delegate ops already
+    // execute on call, so Promise.all just settles them — same net effect.
+    $transaction: async (ops: Promise<any>[]) => Promise.all(ops),
+  };
+}
+
+const WINDOW = { since: new Date("2026-06-01"), until: new Date("2026-06-14") };
+
+// ── Case A: a vanished ACTIVE campaign gets archived, the listed one survives.
+{
+  const cs = makeCampaignStore([
+    { id: "camp_A", adAccountId: "acc_rec", externalCampaignId: "A", name: "Alpha", status: "ACTIVE", objective: null, dailyBudget: null, lifetimeBudget: null },
+    { id: "camp_B", adAccountId: "acc_rec", externalCampaignId: "B", name: "Bravo", status: "ACTIVE", objective: null, dailyBudget: null, lifetimeBudget: null },
+  ]);
+  // Meta now only returns A (still ACTIVE). B vanished from the listing.
+  const metaStub = makeReconcileMeta([{ id: "A", name: "Alpha", status: "ACTIVE", objective: null }]);
+  const w = new SyncAccountWorker(makeReconcilePrisma(cs.delegate) as any, metaStub as any);
+  await w.syncCampaigns("acc_rec", WINDOW);
+
+  const a = cs.store.find((c) => c.externalCampaignId === "A");
+  const b = cs.store.find((c) => c.externalCampaignId === "B");
+  check("listed campaign A stays ACTIVE", a?.status === "ACTIVE", a?.status);
+  check("vanished campaign B reconciled to ARCHIVED", b?.status === "ARCHIVED", b?.status);
+}
+
+// ── Case B: transient EMPTY list must NOT archive anything (the safety guard).
+{
+  const cs = makeCampaignStore([
+    { id: "camp_A", adAccountId: "acc_rec", externalCampaignId: "A", name: "Alpha", status: "ACTIVE", objective: null, dailyBudget: null, lifetimeBudget: null },
+    { id: "camp_B", adAccountId: "acc_rec", externalCampaignId: "B", name: "Bravo", status: "PAUSED", objective: null, dailyBudget: null, lifetimeBudget: null },
+  ]);
+  const metaStub = makeReconcileMeta([]); // Meta returns nothing this run.
+  const w = new SyncAccountWorker(makeReconcilePrisma(cs.delegate) as any, metaStub as any);
+  await w.syncCampaigns("acc_rec", WINDOW);
+
+  const a = cs.store.find((c) => c.externalCampaignId === "A");
+  const b = cs.store.find((c) => c.externalCampaignId === "B");
+  check("empty list leaves ACTIVE campaign untouched (no mass-archive)", a?.status === "ACTIVE", a?.status);
+  check("empty list leaves PAUSED campaign untouched", b?.status === "PAUSED", b?.status);
+}
+
+// ── Case C: a PAUSED campaign that vanishes is also archived (covers both
+// reconciled source states, since the guard's `in` set is [ACTIVE, PAUSED]).
+{
+  const cs = makeCampaignStore([
+    { id: "camp_A", adAccountId: "acc_rec", externalCampaignId: "A", name: "Alpha", status: "ACTIVE", objective: null, dailyBudget: null, lifetimeBudget: null },
+    { id: "camp_C", adAccountId: "acc_rec", externalCampaignId: "C", name: "Charlie", status: "PAUSED", objective: null, dailyBudget: null, lifetimeBudget: null },
+  ]);
+  const metaStub = makeReconcileMeta([{ id: "A", name: "Alpha", status: "ACTIVE", objective: null }]);
+  const w = new SyncAccountWorker(makeReconcilePrisma(cs.delegate) as any, metaStub as any);
+  await w.syncCampaigns("acc_rec", WINDOW);
+
+  const c = cs.store.find((x) => x.externalCampaignId === "C");
+  check("vanished PAUSED campaign C reconciled to ARCHIVED", c?.status === "ARCHIVED", c?.status);
+}
+
 // ════════════════
 console.log(`\n════ ${pass} passed, ${fail} failed ════`);
 if (fail > 0) process.exit(1);
