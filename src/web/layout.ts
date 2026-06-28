@@ -536,6 +536,13 @@ async function apiFetch(path, opts = {}) {
     },
   });
   if (res.status === 401) { logout(); return null; }
+  if (res.status === 403) {
+    const err = await res.json().catch(() => ({}));
+    if (err.code === 'ACCOUNT_INACTIVE') {
+      window.location.href = err.redirect || '/pending-activation';
+      return null;
+    }
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
@@ -608,6 +615,10 @@ function initAppShell() {
   shellState.initPromise = (async function () {
     try {
       var me = await apiFetchWithTimeout('/api/auth/me', {}, 8000);
+      if (me && me.isActive === false) {
+        window.location.href = '/pending-activation';
+        return null;
+      }
       shellState.me = me;
       populateAppShell(me);
       return me;
@@ -620,6 +631,23 @@ function initAppShell() {
     }
   })();
   return shellState.initPromise;
+}
+
+/** Redirect inactive users to the pending-activation page. Returns false when blocked. */
+async function ensureAccountActive() {
+  if (!getToken()) { window.location.href = '/login'; return false; }
+  try {
+    var me = await apiFetch('/api/auth/me');
+    if (!me) return false;
+    if (me.isActive === false) {
+      window.location.href = '/pending-activation';
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[shell] ensureAccountActive failed:', err);
+    return false;
+  }
 }
 
 function startShellLoadingFallback(ms) {

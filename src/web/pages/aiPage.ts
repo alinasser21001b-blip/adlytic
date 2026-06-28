@@ -114,6 +114,7 @@ export function aiPage(): string {
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   const token = localStorage.getItem('adlytic_token');
   if (!token) { window.location.href = '/login'; return; }
+  if (!(await ensureAccountActive())) return;
   const wsId  = localStorage.getItem('adlytic_workspace_id');
   if (!wsId)  { window.location.href = '/dashboard'; return; }
 

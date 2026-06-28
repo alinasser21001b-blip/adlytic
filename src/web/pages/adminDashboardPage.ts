@@ -101,6 +101,11 @@ export function adminDashboardPage(): string {
     .btn-refresh { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
     .btn-refresh:hover { opacity: 0.9; }
     .btn-refresh[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .btn-activate { padding: 6px 12px; border-radius: 6px; background: var(--success); color: #fff; font-size: 12px; font-weight: 600; }
+    .btn-activate:hover { opacity: 0.9; }
+    .btn-activate[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .badge-active { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.35); }
+    .badge-inactive { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.35); }
 
     .error-box { padding: 16px; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.08); border-radius: 10px; color: var(--error); font-size: 13px; }
   </style>
@@ -218,6 +223,28 @@ export function adminDashboardPage(): string {
             <span>Computed <span id="cache-age">just now</span></span>
           </div>
           <button class="btn-refresh" id="btn-refresh">Refresh Now</button>
+        </div>
+
+        <!-- User activation -->
+        <div class="card" style="margin-top:18px;">
+          <div class="card-head">
+            <div class="card-title">User activation</div>
+            <div class="card-meta">Manual WhatsApp onboarding</div>
+          </div>
+          <div id="users-loading" class="state-text" style="padding:12px 0;">Loading users…</div>
+          <div id="users-error" class="error-box" style="display:none;margin-bottom:12px;"></div>
+          <table class="money" id="users-table" style="display:none;">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
         </div>
 
       </div>
@@ -348,6 +375,69 @@ export function adminDashboardPage(): string {
       .replace(/'/g, '&#39;');
   }
 
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString(); } catch (e) { return '—'; }
+  }
+
+  async function loadUsers() {
+    var loadingEl = document.getElementById('users-loading');
+    var errorEl = document.getElementById('users-error');
+    var tableEl = document.getElementById('users-table');
+    var tbody = document.getElementById('users-tbody');
+    loadingEl.style.display = 'block';
+    errorEl.style.display = 'none';
+    tableEl.style.display = 'none';
+    try {
+      var data = await apiFetch('/api/admin/users');
+      var users = data.users || [];
+      loadingEl.style.display = 'none';
+      tableEl.style.display = 'table';
+      tbody.innerHTML = users.map(function (u) {
+        var statusBadge = u.isActive
+          ? '<span class="badge badge-active">Active</span>'
+          : '<span class="badge badge-inactive">Pending</span>';
+        var action = u.isActive
+          ? '<span style="color:var(--text-3);font-size:12px;">—</span>'
+          : '<button class="btn-activate" data-user-id="' + escHtml(u.id) + '">Activate</button>';
+        return ''
+          + '<tr>'
+          +   '<td>' + escHtml(u.email) + '</td>'
+          +   '<td>' + escHtml(u.name || '—') + '</td>'
+          +   '<td>' + statusBadge + '</td>'
+          +   '<td>' + escHtml(fmtDate(u.createdAt)) + '</td>'
+          +   '<td>' + action + '</td>'
+          + '</tr>';
+      }).join('');
+      tbody.querySelectorAll('.btn-activate').forEach(function (btn) {
+        btn.addEventListener('click', function () { activateUser(btn); });
+      });
+    } catch (err) {
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorEl.textContent = 'Failed to load users: ' + (err.message || String(err));
+    }
+  }
+
+  async function activateUser(btn) {
+    var userId = btn.getAttribute('data-user-id');
+    if (!userId) return;
+    btn.disabled = true;
+    var orig = btn.textContent;
+    btn.textContent = 'Activating…';
+    try {
+      await apiFetch('/api/admin/users/activate', {
+        method: 'POST',
+        body: JSON.stringify({ userId: userId }),
+      });
+      await loadUsers();
+    } catch (err) {
+      alert('Activation failed: ' + (err.message || String(err)));
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  }
+
   async function loadStats() {
     var stats = await apiFetch('/api/admin/platform-stats');
     renderStats(stats);
@@ -393,6 +483,7 @@ export function adminDashboardPage(): string {
       document.getElementById('sidebar-name').textContent = userName;
 
       await loadStats();
+      await loadUsers();
     } catch (err) {
       showError('Failed to load admin stats: ' + (err.message || String(err)));
     }

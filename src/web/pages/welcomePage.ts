@@ -269,6 +269,10 @@ export function welcomePage(): string {
         return;
       }
       const me = await meRes.json();
+      if (me.isActive === false) {
+        window.location.href = '/pending-activation';
+        return;
+      }
       locale = (me.locale || 'EN').toUpperCase();
       applyLocale();
 

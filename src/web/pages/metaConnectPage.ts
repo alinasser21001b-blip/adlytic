@@ -59,6 +59,8 @@ export function metaConnectPage(sessionId: string): string {
     return;
   }
 
+  if (!(await ensureAccountActive())) return;
+
   // Populate topbar user info + locale
   const me = await apiFetch('/api/auth/me');
   if (me) {

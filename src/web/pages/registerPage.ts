@@ -71,9 +71,18 @@ export function registerPage(): string {
   </div>
 
   <script>
-    if (localStorage.getItem('adlytic_token')) {
-      window.location.href = '/welcome';
+    async function redirectIfLoggedIn() {
+      if (!localStorage.getItem('adlytic_token')) return;
+      try {
+        const meRes = await fetch('/api/auth/me', {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('adlytic_token') },
+        });
+        if (!meRes.ok) return;
+        const me = await meRes.json();
+        window.location.href = me.isActive === false ? '/pending-activation' : '/welcome';
+      } catch (_) { /* stay on register */ }
     }
+    redirectIfLoggedIn();
 
     const form    = document.getElementById('register-form');
     const errEl   = document.getElementById('error-msg');
@@ -121,9 +130,9 @@ export function registerPage(): string {
         localStorage.setItem('adlytic_token', data.token);
         if (data.workspaceId) localStorage.setItem('adlytic_workspace_id', data.workspaceId);
 
-        sucEl.textContent = 'Account created! Setting up your workspace…';
+        sucEl.textContent = 'Account created! One more step…';
         sucEl.style.display = 'flex';
-        setTimeout(() => { window.location.href = '/welcome'; }, 800);
+        setTimeout(() => { window.location.href = '/pending-activation'; }, 800);
 
       } catch (err) {
         showError('Network error. Please try again.');

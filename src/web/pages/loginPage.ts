@@ -69,10 +69,18 @@ export function loginPage(): string {
   </div>
 
   <script>
-    // If already logged in, redirect to dashboard
-    if (localStorage.getItem('adlytic_token')) {
-      window.location.href = '/dashboard';
+    async function redirectIfLoggedIn() {
+      if (!localStorage.getItem('adlytic_token')) return;
+      try {
+        const meRes = await fetch('/api/auth/me', {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('adlytic_token') },
+        });
+        if (!meRes.ok) return;
+        const me = await meRes.json();
+        window.location.href = me.isActive === false ? '/pending-activation' : '/dashboard';
+      } catch (_) { /* stay on login */ }
     }
+    redirectIfLoggedIn();
 
     const form    = document.getElementById('login-form');
     const errEl   = document.getElementById('error-msg');
@@ -130,6 +138,11 @@ export function loginPage(): string {
         });
         if (meRes.ok) {
           const me = await meRes.json();
+          if (me.isActive === false) {
+            showSuccess('Signed in! Redirecting…');
+            setTimeout(() => { window.location.href = '/pending-activation'; }, 400);
+            return;
+          }
           const wsId = me.memberships?.[0]?.workspaceId;
           if (wsId) localStorage.setItem('adlytic_workspace_id', wsId);
           else if (firstWs) localStorage.setItem('adlytic_workspace_id', firstWs);

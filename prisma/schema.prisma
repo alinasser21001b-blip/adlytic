@@ -15,10 +15,17 @@ model User {
   name         String
   locale       Locale            @default(EN)
   tokenVersion Int               @default(0) @map("token_version")
+  /// Manual WhatsApp activation gate — new signups default inactive; existing
+  /// users were backfilled to active at migration time.
+  isActive     Boolean           @default(false) @map("is_active")
+  activatedAt  DateTime?         @map("activated_at")
+  /// User.id of the platform admin who activated this account (WHATSAPP_MANUAL).
+  activatedBy  String?           @map("activated_by")
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
   memberships  WorkspaceMember[]
 
+  @@index([isActive])
   @@map("users")
 }
 

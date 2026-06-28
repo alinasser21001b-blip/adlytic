@@ -46,9 +46,11 @@ import { honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse, DashboardStageTimeoutError } from '../services/getDashboard';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
+import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
 import { handleStripeWebhookEvent, activateManual } from '../services/subscriptionService';
 import { buildWhatsappLink } from '../services/whatsappLink';
+import { buildActivationWhatsappLink } from '../services/activationWhatsappLink';
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { SyncAccountWorker } from '../workers/syncAccount';
@@ -66,6 +68,7 @@ import { aiPage } from '../web/pages/aiPage';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { welcomePage } from '../web/pages/welcomePage';
+import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
@@ -130,7 +133,7 @@ function tzToCountry(timezone: string | null | undefined): string | null {
 
 // ── Route count ───────────────────────────────────────────────────────────
 
-export const ROUTE_COUNT = 53;
+export const ROUTE_COUNT = 57;
 
 // ── Rate limiting ─────────────────────────────────────────────────────────
 // In-memory per-IP rate limiter. Single-instance; sufficient for Phase 1.
@@ -310,6 +313,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/favicon.ico',    (c) => c.body(null, 204)); // suppress browser 404 noise
   app.get('/login',          (c) => c.html(loginPage()));
   app.get('/register',       (c) => c.html(registerPage()));
+  app.get('/pending-activation', (c) => c.html(pendingActivationPage()));
   app.get('/welcome',        (c) => c.html(welcomePage()));
   // /dashboard switches between the Pro view and the Beginner view based on a
   // dashboard_mode cookie. The cookie is per-user-agent (httpOnly=false so the
@@ -375,6 +379,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!userId || !workspaceId) return null;
     return prisma.workspaceMember.findFirst({ where: { userId, workspaceId } });
   }
+
+  /** Paths inactive (pending-activation) users may call with a bearer token. */
+  const INACTIVE_ALLOWED_API = new Set([
+    '/api/auth/me',
+    '/api/activation/whatsapp-link',
+  ]);
+
+  // Block inactive accounts from all authenticated APIs except the allowlist above.
+  app.use('/api/*', async (c, next) => {
+    const path = c.req.path;
+    if (
+      path === '/api/auth/register' ||
+      path === '/api/auth/login' ||
+      path === '/api/health' ||
+      path.startsWith('/api/admin/') ||
+      INACTIVE_ALLOWED_API.has(path)
+    ) {
+      return next();
+    }
+
+    const authHeader = c.req.header('authorization') ?? c.req.header('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) return next();
+
+    const userId = await getUserId(authHeader.slice(7));
+    if (!userId) return next();
+
+    const gate = await requireActiveUser(prisma, userId);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403);
+    return next();
+  });
 
   // ── Shared helper ────────────────────────────────────────────────────────
 
@@ -643,7 +677,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true, email: true, name: true, locale: true, createdAt: true,
+        id: true, email: true, name: true, locale: true, createdAt: true, isActive: true,
         memberships: {
           include: { workspace: { select: { id: true, name: true } } },
           orderBy: { createdAt: 'asc' },
@@ -653,7 +687,34 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
     // Surface platform-admin flag for UI hints (sidebar link visibility).
     // The flag is advisory only — every admin route still calls requirePlatformAdmin.
-    return c.json({ ...(safeJson(user) as object), isPlatformAdmin: isPlatformAdminEmail(user.email) });
+    return c.json({
+      ...(safeJson(user) as object),
+      isPlatformAdmin: isPlatformAdminEmail(user.email),
+    });
+  });
+
+  /**
+   * GET /api/activation/whatsapp-link — pre-filled wa.me link for manual account
+   * activation. Auth required; available to inactive users (pending page).
+   */
+  app.get('/api/activation/whatsapp-link', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, isActive: true },
+    });
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+    if (user.isActive) return c.json({ error: 'Account is already active' }, 400);
+    try {
+      const link = buildActivationWhatsappLink(user.email);
+      return c.json(link);
+    } catch (err) {
+      console.error('[activation] SUPPORT_WHATSAPP_NUMBER misconfigured:', err);
+      return c.json({ error: 'WhatsApp support is not configured on this server' }, 503);
+    }
   });
 
   /** PATCH /api/auth/profile — update display name. */
@@ -906,6 +967,68 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     bustPlatformStatsCache();
     return c.json({ ok: true, bustedAt: Date.now() });
+  });
+
+  /**
+   * GET /api/admin/users — list users with activation status for manual review.
+   */
+  app.get('/api/admin/users', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isActive: true,
+        activatedAt: true,
+        createdAt: true,
+      },
+    });
+    return c.json({ users: safeJson(users) });
+  });
+
+  /**
+   * POST /api/admin/users/activate — manually activate a pending user account.
+   */
+  app.post('/api/admin/users/activate', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as { userId?: string };
+    const targetUserId = body.userId?.trim();
+    if (!targetUserId) return c.json({ error: 'userId is required' }, 400);
+
+    const existing = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, email: true, isActive: true },
+    });
+    if (!existing) return c.json({ error: 'User not found' }, 404);
+    if (existing.isActive) {
+      return c.json({ ok: true, alreadyActive: true, user: existing });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: targetUserId },
+      data: {
+        isActive: true,
+        activatedAt: new Date(),
+        activatedBy: gate.userId,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isActive: true,
+        activatedAt: true,
+      },
+    });
+    return c.json({ ok: true, user: safeJson(user) });
   });
 
   // ════════════════════════════════════════════════════════════════════════
