@@ -238,6 +238,22 @@ record({
     : 'disabled (default) — in-process Map debounce only',
 });
 
+/** Phase 3 — route fire-and-forget background work (post-OAuth initial sync,
+ *  manual /sync triggers, webhook reconciles, lifetime-totals backfills, mock
+ *  seed) through BullMQ instead of in-process setImmediate. Workers run inside
+ *  the API process for Phase 3-a (zero-regression rollout); a follow-up phase
+ *  splits workers into their own dynos. When the flag is off, or when Redis
+ *  is unhealthy, every enqueue site falls back to its original setImmediate
+ *  body so behavior is identical to pre-Phase-3. */
+const bullmqEnabled = envBoolean('BULLMQ_ENABLED', false);
+record({
+  key: 'BULLMQ_ENABLED',
+  status: 'ok',
+  detail: bullmqEnabled
+    ? 'enabled — fire-and-forget background work routed through BullMQ (with in-process fallback)'
+    : 'disabled (default) — fire-and-forget runs via in-process setImmediate only',
+});
+
 // ── misc operational vars ────────────────────────────────────────────────────
 
 const port = envNumber('PORT', 3001);
@@ -292,6 +308,10 @@ export interface AppConfig {
     /** When true, Meta webhook debounce uses Redis SET NX EX (with in-process
      *  Map fallback if Redis is unhealthy). */
     webhookRedisDebounceEnabled: boolean;
+    /** When true, fire-and-forget background work is enqueued into BullMQ
+     *  (with in-process setImmediate fallback if Redis is unhealthy or the
+     *  enqueue throws). */
+    bullmqEnabled: boolean;
   };
 }
 
@@ -324,6 +344,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
   }),
   features: Object.freeze({
     webhookRedisDebounceEnabled,
+    bullmqEnabled,
   }),
 }) as Readonly<AppConfig>;
 

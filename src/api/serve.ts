@@ -29,6 +29,7 @@ import { config, reportConfig } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
 import { refreshExpiringMetaTokens } from '../workers/refreshMetaTokens';
 import { refreshCampaignHistoryRollups } from '../workers/rollupHistory';
+import { bootQueueWorkers, shutdownQueueWorkers } from '../workers/queue';
 
 const PORT = config.port;
 // Background sync interval: default 6 hours (can be overridden via env)
@@ -87,6 +88,12 @@ async function main(): Promise<void> {
   }
 
   const app = buildRoutes(prisma);
+
+  // Phase 3-a: boot BullMQ workers IN-PROCESS. When BULLMQ_ENABLED is off,
+  // this is a no-op and the API behaves exactly as before. When on, the same
+  // process now drains the 4 queues (sync-account, maintenance,
+  // engines-and-brain, reconcile-campaigns) alongside serving HTTP traffic.
+  bootQueueWorkers(prisma);
 
   serve(
     { fetch: app.fetch, port: PORT },
@@ -287,6 +294,13 @@ async function main(): Promise<void> {
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`\n[adlytic] ${signal} received — shutting down…`);
+    // Drain in-flight BullMQ jobs first so a deploy never kills a sync mid-flight.
+    // When BULLMQ_ENABLED is off this resolves immediately.
+    try {
+      await shutdownQueueWorkers();
+    } catch (err) {
+      console.error('[adlytic] queue worker shutdown error:', err);
+    }
     await prisma.$disconnect();
     process.exit(0);
   };

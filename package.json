@@ -49,6 +49,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.14.0",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^5.79.2",
     "hono": "^4.12.25",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
@@ -64,5 +65,8 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "overrides": {
+    "ioredis": "^5.11.1"
   }
 }
