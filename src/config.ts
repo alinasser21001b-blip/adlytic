@@ -130,6 +130,7 @@ if (!/^v\d+\.\d+$/.test(rawApiVersion)) {
 
 const metaAppId = env('META_APP_ID');
 const metaAppSecret = env('META_APP_SECRET');
+const metaVerifyToken = env('META_VERIFY_TOKEN');
 const metaRedirectUri = env('META_REDIRECT_URI') ?? 'http://localhost:3001/api/meta/oauth/callback';
 const metaOAuthScope = env('META_OAUTH_SCOPE') ?? 'ads_read';
 const metaDirectToken = env('META_DIRECT_TOKEN');
@@ -206,6 +207,8 @@ export interface AppConfig {
     apiVersion: string;
     appId: string | undefined;
     appSecret: string | undefined;
+    /** Webhook subscription verify token (env META_VERIFY_TOKEN). */
+    verifyToken: string | undefined;
     redirectUri: string;
     oauthScope: string;
     directToken: string | undefined;
@@ -237,6 +240,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
     apiVersion: metaApiVersion,
     appId: metaAppId,
     appSecret: metaAppSecret,
+    verifyToken: metaVerifyToken,
     redirectUri: metaRedirectUri,
     oauthScope: metaOAuthScope,
     directToken: metaDirectToken,

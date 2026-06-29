@@ -74,6 +74,7 @@ import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
+import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWebhook';
 import { config } from '../config';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
@@ -1158,6 +1159,67 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // Return 500 so Stripe retries — the failure was on our side, not theirs.
       return c.json({ error: 'Internal error processing webhook' }, 500);
     }
+  });
+
+  /**
+   * GET /api/webhooks/meta — subscription handshake.
+   * Meta calls this once when you (re)subscribe the callback URL: echo back
+   * hub.challenge iff hub.verify_token matches META_VERIFY_TOKEN.
+   */
+  app.get('/api/webhooks/meta', (c) => {
+    const mode = c.req.query('hub.mode');
+    const token = c.req.query('hub.verify_token');
+    const challenge = c.req.query('hub.challenge');
+    const expected = config.meta.verifyToken;
+    if (!expected) {
+      console.error('[meta-webhook] META_VERIFY_TOKEN not set — cannot verify subscription');
+      return c.text('Forbidden', 403);
+    }
+    if (mode === 'subscribe' && token === expected) {
+      console.log('[meta-webhook] subscription handshake OK');
+      return c.text(challenge ?? '');
+    }
+    console.error('[meta-webhook] handshake failed — mode/token mismatch');
+    return c.text('Forbidden', 403);
+  });
+
+  /**
+   * POST /api/webhooks/meta — receive ad-account/campaign change notifications.
+   *
+   * Mirrors the Stripe webhook contract:
+   *   1. Read the RAW body (c.req.raw.text()) — Meta signed the bytes; any
+   *      JSON re-serialisation would break HMAC verification.
+   *   2. Verify X-Hub-Signature-256 (constant-time, length-guarded).
+   *   3. Ack 200 within Meta's ~3s budget, then process in the background.
+   *      Processing is debounced per account (see metaWebhook.ts).
+   */
+  app.post('/api/webhooks/meta', async (c) => {
+    const appSecret = config.meta.appSecret;
+    if (!appSecret) {
+      console.error('[meta-webhook] META_APP_SECRET not configured');
+      return c.text('Forbidden', 403);
+    }
+    const signature = c.req.header('x-hub-signature-256');
+    const rawBody = await c.req.raw.text();
+    if (!verifyMetaSignature(rawBody, signature, appSecret)) {
+      console.error('[meta-webhook] signature verification failed');
+      return c.text('Invalid signature', 401);
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return c.text('Bad Request', 400);
+    }
+
+    // Ack immediately; never block Meta on our processing.
+    setImmediate(() => {
+      void processMetaWebhookEvent(prisma, payload).catch((err) => {
+        console.error('[meta-webhook] background processing error:', err);
+      });
+    });
+    return c.text('OK', 200);
   });
 
   /**
