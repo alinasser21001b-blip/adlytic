@@ -758,7 +758,9 @@ function toast(msg, type = 'info') {
 var TOKEN_DECRYPT_PAGES = ['/dashboard', '/campaigns', '/workspace'];
 
 function shouldShowTokenDecryptBanner() {
-  var path = window.location.pathname.replace(/\/$/, '') || '/';
+  var path = window.location.pathname;
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+  if (!path) path = '/';
   return TOKEN_DECRYPT_PAGES.indexOf(path) >= 0;
 }
 
@@ -880,6 +882,18 @@ async function setDashboardMode(mode) {
   }
   window.location.reload();
 }
+
+// Expose shared helpers on window for page-specific inline scripts (strict IIFEs).
+window.getToken = getToken;
+window.getWsId = getWsId;
+window.setWsId = setWsId;
+window.logout = logout;
+window.apiFetch = apiFetch;
+window.apiFetchWithTimeout = apiFetchWithTimeout;
+window.initAppShell = initAppShell;
+window.toast = toast;
+window.severityBadge = severityBadge;
+window.statusBadge = statusBadge;
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logout-btn')?.addEventListener('click', logout);
