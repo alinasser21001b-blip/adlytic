@@ -33,7 +33,8 @@
     "seed-demo": "tsx --env-file=.env scripts/seed-demo.ts",
     "create-user:auto": "tsx --env-file=.env scripts/create-user-auto.ts",
     "seed-knowledge": "tsx --env-file=.env scripts/seedKnowledgeUniversal.ts",
-    "execution-report": "tsx --env-file=.env scripts/execution-report.ts"
+    "execution-report": "tsx --env-file=.env scripts/execution-report.ts",
+    "audit:pdf": "tsx scripts/compileMasterAuditPdf.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -55,6 +56,10 @@
     "stripe": "^22.2.2",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/pdfkit": "^0.13.9",
+    "pdfkit": "^0.17.2"
   },
   "engines": {
     "node": ">=20.0.0"
