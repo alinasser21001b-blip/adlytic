@@ -91,6 +91,7 @@ export function createSyncAccountProcessor(prisma: PrismaClient) {
         externalAccountId: account.externalAccountId,
         isSystemUser: resolved.isSystemUser,
         connectionId: resolved.connectionId,
+        workspaceId: account.workspaceId,
       });
 
     try {

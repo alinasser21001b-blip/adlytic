@@ -152,6 +152,7 @@ async function main(): Promise<void> {
         },
         select: {
           id: true,
+          workspaceId: true,
           externalAccountId: true,
           accessTokenEncrypted: true,
           tokenSource: true,
@@ -199,6 +200,7 @@ async function main(): Promise<void> {
         externalAccountId: acct.externalAccountId,
         isSystemUser,
         connectionId,
+        workspaceId: acct.workspaceId,
       });
 
       try {

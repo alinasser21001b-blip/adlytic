@@ -18,6 +18,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { PrismaClient } from '@prisma/client';
+import { invalidateCachedTokenHealth } from './cachedTokenHealth';
 
 /** Minimal shape needed to resolve which encrypted token an account uses. */
 export interface AccountTokenInput {
@@ -90,6 +91,7 @@ export async function handleMeta190(
     externalAccountId: string;
     isSystemUser: boolean;
     connectionId: string | null;
+    workspaceId: string;
   },
 ): Promise<void> {
   if (params.isSystemUser && params.connectionId) {
@@ -109,4 +111,8 @@ export async function handleMeta190(
       `[adlytic:sync] Marked ${params.externalAccountId} PAUSED — token invalid (190). Owner must reconnect.`,
     );
   }
+
+  // P3-13 — bust the read-through token-health cache so the next probe
+  // returns the new PAUSED/NEEDS_REGRANT state without waiting for TTL.
+  await invalidateCachedTokenHealth(params.workspaceId);
 }

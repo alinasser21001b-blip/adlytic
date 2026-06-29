@@ -3366,6 +3366,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       externalAccountId: account.externalAccountId,
       isSystemUser: resolvedToken.isSystemUser,
       connectionId: resolvedToken.connectionId,
+      workspaceId: account.workspaceId,
     });
 
     // Fire-and-forget: yields control back to the event loop so we can return

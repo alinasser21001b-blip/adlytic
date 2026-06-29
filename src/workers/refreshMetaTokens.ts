@@ -8,6 +8,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { PrismaClient } from '@prisma/client';
+import { invalidateCachedTokenHealth } from '../services/cachedTokenHealth';
 import { buildMetaOAuth } from '../services/metaOAuth';
 import { decryptToken, encryptToken, TokenDecryptError } from '../services/tokenEncryption';
 
@@ -26,6 +27,7 @@ async function flagAccountNeedsRegrant(
     where: { id: accountId },
     data: { status: 'PAUSED', accessTokenEncrypted: null },
   });
+  await invalidateCachedTokenHealth(workspaceId);
   console.warn(
     `[adlytic:token-refresh] workspaceId=${workspaceId} adAccountId=${accountId} ` +
     `externalAccountId=${externalAccountId} — marked PAUSED (token expired); owner must reconnect.`,
@@ -44,6 +46,7 @@ async function flagAccountDecryptFailed(
     where: { id: accountId },
     data: { status: 'PAUSED' },
   });
+  await invalidateCachedTokenHealth(workspaceId);
   console.error(
     `[adlytic:TOKEN_DECRYPT_FAILED][token-refresh] workspaceId=${workspaceId} ` +
     `adAccountId=${accountId} externalAccountId=${externalAccountId} — ${detail}`,
@@ -139,6 +142,7 @@ export async function refreshExpiringMetaTokens(prisma: PrismaClient): Promise<v
           tokenExpiresAt,
         },
       });
+      await invalidateCachedTokenHealth(acct.workspaceId);
       console.log(
         `[adlytic:token-refresh] ✓ ${acct.externalAccountId} refreshed — expires ${tokenExpiresAt.toISOString()}`,
       );
