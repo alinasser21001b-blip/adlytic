@@ -73,7 +73,10 @@ import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
-import { getCachedWorkspaceTokenHealth } from '../services/cachedTokenHealth';
+import {
+  getCachedWorkspaceTokenHealth,
+  invalidateCachedTokenHealth,
+} from '../services/cachedTokenHealth';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWebhook';
 import { config } from '../config';
@@ -2761,6 +2764,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           },
         });
       }
+      await invalidateCachedTokenHealth(workspaceId);
       oauthSessions.delete(sessionId);
 
       // Kick off the initial backfill using the connection token.
@@ -2881,6 +2885,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         },
       });
     }
+    await invalidateCachedTokenHealth(workspaceId);
 
     // Invalidate session — one-time use
     oauthSessions.delete(sessionId);
@@ -3063,6 +3068,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           status:               'ACTIVE',
         },
       });
+      await invalidateCachedTokenHealth(workspaceId);
       enqueueOrFallback(
         () =>
           getQueues()!.maintenance.add('initial-sync-kickoff', {
@@ -3093,6 +3099,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         accessTokenEncrypted: encryptedToken,
       },
     });
+    await invalidateCachedTokenHealth(workspaceId);
     enqueueOrFallback(
       () =>
         getQueues()!.maintenance.add('initial-sync-kickoff', {
