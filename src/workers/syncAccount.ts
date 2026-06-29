@@ -188,11 +188,20 @@ export class SyncAccountWorker {
   async sync(adAccountId: string, opts: SyncOptions = {}): Promise<SyncResult> {
     const lockId = advisoryLockId(adAccountId);
 
-    // Try to acquire a Postgres advisory lock — non-blocking (try_ variant).
-    // Returns false immediately if another instance already holds it.
-    const [{ pg_try_advisory_lock: acquired }] = await this.prisma.$queryRawUnsafe<
-      [{ pg_try_advisory_lock: boolean }]
-    >(`SELECT pg_try_advisory_lock($1)`, lockId);
+    // Fix C-1 (mirrored from syncChunked) — defensive cleanup of leaked
+    // session-level locks. See lines 1044-1060 for full rationale.
+    // The auto-sync loop in serve.ts calls sync() directly; without this
+    // preflight a crashed prior sync can leave a stale advisory lock on a
+    // pooled connection, causing subsequent auto-sync passes to skip the
+    // account with a misleading "already in progress" warning.
+    const [, lockRows] = await this.prisma.$transaction([
+      this.prisma.$queryRawUnsafe<unknown[]>(`SELECT pg_advisory_unlock_all()`),
+      this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
+        `SELECT pg_try_advisory_lock($1)`,
+        lockId,
+      ),
+    ]);
+    const acquired = lockRows[0]!.pg_try_advisory_lock;
 
     if (!acquired) {
       console.warn(`[sync:${adAccountId.slice(0, 8)}] Sync already in progress (advisory lock held) — skipping`);
