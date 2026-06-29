@@ -37,7 +37,7 @@ export function mapMetaAdSet(row: MetaInsightRow): NormalizedAdSet {
   return {
     externalAdSetId,
     name: String(row['name'] ?? '(unnamed)'),
-    status: String(row['status'] ?? ''),
+    status: String(row['effective_status'] ?? row['status'] ?? ''),
     dailyBudgetMinor,
     optimizationGoal: row['optimization_goal'] != null ? String(row['optimization_goal']) : null,
     targeting: row['targeting'] ?? null,
@@ -80,7 +80,7 @@ export function mapMetaAd(row: MetaInsightRow): NormalizedAd {
   return {
     externalAdId,
     name: String(row['name'] ?? '(unnamed)'),
-    status: String(row['status'] ?? ''),
+    status: String(row['effective_status'] ?? row['status'] ?? ''),
     creative,
   };
 }

@@ -29,6 +29,10 @@ import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { advisoryLockId } from "../lib/advisoryLock";
 import { freezeCampaign } from "../lib/campaignFreeze";
+import {
+  mapMetaEntityStatus,
+  resolveCampaignStatusFromMeta,
+} from "../lib/metaEntityStatus";
 
 /** Defense-in-depth (G2): IQD must always map with factor=1 — never 100. */
 function currencyFactorForMapper(
@@ -52,34 +56,6 @@ const CHUNK_SIZE_DAYS = 7;
 const INTER_CHUNK_DELAY_MS = 300;
 /** Parallel campaign-insight fetches. 3 balances throughput vs Meta rate limits. */
 const CAMPAIGN_CONCURRENCY = 3;
-
-/**
- * Defensive map: Meta's campaign status strings → our EntityStatus enum.
- * Meta returns lowercase variants and occasional review states that aren't
- * in our enum. Unknown values fall back to ARCHIVED so an unexpected string
- * never throws inside an upsert (and never silently masquerades as ACTIVE).
- */
-function mapMetaCampaignStatus(raw: unknown): EntityStatus {
-  return mapMetaEntityStatus(raw);
-}
-
-/**
- * Same rules as campaign-status, shared with ad-sets and ads in Phase 5.
- * Meta's `effective_status` enum has many transient states (DISAPPROVED,
- * PENDING_REVIEW, IN_PROCESS, WITH_ISSUES, …) that aren't actionable to us;
- * we collapse them to ARCHIVED so a sync run never silently surfaces them
- * as ACTIVE.
- */
-function mapMetaEntityStatus(raw: unknown): EntityStatus {
-  const s = String(raw ?? "").toUpperCase();
-  switch (s) {
-    case "ACTIVE":   return EntityStatus.ACTIVE;
-    case "PAUSED":   return EntityStatus.PAUSED;
-    case "DELETED":  return EntityStatus.DELETED;
-    case "ARCHIVED": return EntityStatus.ARCHIVED;
-    default:         return EntityStatus.ARCHIVED;
-  }
-}
 
 function parseMetaDateTime(raw: unknown): Date | null {
   if (raw == null || raw === "") return null;
@@ -442,7 +418,7 @@ export class SyncAccountWorker {
         returnedExternalIds.push(externalId);
         const name = String(mc['name'] ?? '(unnamed)');
         const objective = mc['objective'] != null ? String(mc['objective']) : null;
-        const status = mapMetaCampaignStatus(mc['status']);
+        const status = resolveCampaignStatusFromMeta(mc, { now });
         const dailyBudget = mc['daily_budget'] != null
           ? BigInt(String(mc['daily_budget']))
           : null;
@@ -1090,6 +1066,21 @@ export class SyncAccountWorker {
     let totalFetched = 0;
     let totalUpserted = 0;
 
+    // Reconcile campaign statuses from Meta FIRST so the dashboard reflects
+    // reality while the (potentially long) account-level backfill runs.
+    try {
+      const campResult = await this.syncCampaigns(adAccountId, { since, until });
+      console.log(
+        `${tag} campaigns (early reconcile): ${campResult.campaignsUpserted} upserted, ` +
+        `${campResult.dailyRowsUpserted} daily rows`,
+      );
+    } catch (e) {
+      const msg = e instanceof MetaApiError
+        ? `Meta ${e.status}: ${e.message}`
+        : e instanceof Error ? e.message : String(e);
+      console.error(`${tag} syncCampaigns FAILED (non-fatal) — ${msg}`);
+    }
+
     try {
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i]!;
@@ -1141,20 +1132,6 @@ export class SyncAccountWorker {
         });
 
         if (i < chunks.length - 1) await sleep(INTER_CHUNK_DELAY_MS);
-      }
-
-      // Campaign discovery + campaign-level daily stats. Same window as the
-      // account-level sync so the brain orchestrator has matching data when
-      // it joins on Campaign.id → DailyStat.entityId. Non-fatal: failures
-      // here don't roll back the account-level rows already written.
-      try {
-        const campResult = await this.syncCampaigns(adAccountId, { since, until });
-        console.log(`${tag} campaigns: ${campResult.campaignsUpserted} upserted, ${campResult.dailyRowsUpserted} daily rows`);
-      } catch (e) {
-        const msg = e instanceof MetaApiError
-          ? `Meta ${e.status}: ${e.message}`
-          : e instanceof Error ? e.message : String(e);
-        console.error(`${tag} syncCampaigns FAILED (non-fatal) — ${msg}`);
       }
 
       // Phase 5 Pass A + B — discover ad-sets, ads, and dedupe creatives.

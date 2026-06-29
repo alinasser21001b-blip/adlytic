@@ -38,6 +38,7 @@ import {
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
+import { isCurrentlySpending, utcTodayFloor } from "../lib/campaignSpending";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
@@ -409,7 +410,7 @@ export async function getDashboard(
       where: { id: workspaceId },
       include: {
         industryProfile: true,
-        adAccounts: { include: { campaigns: { where: { status: "ACTIVE" } } } },
+        adAccounts: true,
       },
     }),
   );
@@ -430,6 +431,9 @@ export async function getDashboard(
 
   const curr = account.currency;
   const factor = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
+  const activeCampaigns = await timedStage('activeSpendingCount', () =>
+    countCurrentlySpendingCampaigns(prisma, account.id),
+  );
   const sinceDate = utcDateFloor(windowDays);
   const priorSinceDate = utcDateFloor(windowDays * 2);
 
@@ -707,7 +711,7 @@ export async function getDashboard(
         roas: roasAvg,
         healthScore: score,
         healthBand: band(score),
-        activeCampaigns: account.campaigns.length,
+        activeCampaigns,
         stableCampaigns: cards.stable,
         brain,
         money,
@@ -724,7 +728,7 @@ export async function getDashboard(
       currency: curr,
       currencyMinorFactor: factor,
       lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
-      activeCampaigns: account.campaigns.length,
+      activeCampaigns,
     },
     health: { score, band: band(score) },
     kpis,
@@ -947,6 +951,37 @@ function buildSteadyStateSummary(input: {
 }
 
 // ── Campaign cards: 30d window aggregates + latest health score. ──
+async function countCurrentlySpendingCampaigns(
+  prisma: PrismaClient,
+  adAccountId: string,
+): Promise<number> {
+  const campaigns = await prisma.campaign.findMany({
+    where: { adAccountId, status: "ACTIVE" },
+    select: { id: true, status: true },
+  });
+  if (!campaigns.length) return 0;
+
+  const tickToday = utcTodayFloor();
+  const todayStats = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaigns.map((c) => c.id) },
+      date: tickToday,
+    },
+    select: { entityId: true, spend: true },
+  });
+  const spendTodayByCampaign = new Map(
+    todayStats.map((s) => [s.entityId, Number(s.spend)]),
+  );
+
+  return campaigns.filter((c) =>
+    isCurrentlySpending({
+      status: c.status,
+      spendTodayMinor: spendTodayByCampaign.get(c.id) ?? 0,
+    }),
+  ).length;
+}
+
 // Uses bulk queries instead of N+1. Budget stays on campaigns table (not shown here).
 async function buildCampaignCards(
   adAccountId: string,

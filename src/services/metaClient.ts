@@ -154,7 +154,7 @@ export class MetaClient {
   /** List campaigns under an account — used for entity discovery. */
   async listCampaigns(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
-      fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time",
+      fields: "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time",
       access_token: this.token,
       limit: "200",
     });
@@ -164,7 +164,7 @@ export class MetaClient {
   /** List ad sets under a campaign — used for AdSet discovery (Phase 5 Pass A). */
   async listAdSets(externalCampaignId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
-      fields: "id,name,status,daily_budget,optimization_goal,targeting",
+      fields: "id,name,status,effective_status,daily_budget,optimization_goal,targeting",
       access_token: this.token,
       limit: "200",
     });
@@ -181,7 +181,7 @@ export class MetaClient {
   async listAds(externalAdSetId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       fields: [
-        "id", "name", "status",
+        "id", "name", "status", "effective_status",
         // Field expansion: pull the related creative inline.
         "creative{id,name,thumbnail_url,image_hash,video_id,object_story_spec,asset_feed_spec,call_to_action_type,body,title}",
       ].join(","),

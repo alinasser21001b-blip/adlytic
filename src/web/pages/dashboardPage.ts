@@ -935,13 +935,13 @@ export function dashboardPage(): string {
 
   // ── Active Ads Showcase ─────────────────────────────────────────────────
   function renderActiveAds(campaigns) {
-    var active = (campaigns || []).filter(function (c) { return c.status === 'ACTIVE'; });
+    var active = (campaigns || []).filter(function (c) { return c.isCurrentlySpending === true; });
     var sec = document.getElementById('active-section');
     var grid = document.getElementById('active-grid');
     var meta = document.getElementById('active-meta');
     if (active.length === 0) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
-    meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' currently spending';
+    meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' spending today';
     grid.innerHTML = active.slice(0, 12).map(function (c) {
       var budget = c.dailyBudget
         ? fmtCurrencyMinor(c.dailyBudget) + '/day'

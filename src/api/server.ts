@@ -81,6 +81,7 @@ import { ExecutionService } from '../services/execution.service';
 import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
+import { isCurrentlySpending, utcTodayFloor } from '../lib/campaignSpending';
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -1429,7 +1430,32 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       where: { adAccountId: account.id },
       orderBy: { createdAt: 'desc' },
     });
-    return c.json(safeJson(campaigns));
+    const tickToday = utcTodayFloor();
+    const todayStats = campaigns.length
+      ? await prisma.dailyStat.findMany({
+          where: {
+            entityType: EntityType.CAMPAIGN,
+            entityId: { in: campaigns.map((c) => c.id) },
+            date: tickToday,
+          },
+          select: { entityId: true, spend: true },
+        })
+      : [];
+    const spendTodayByCampaign = new Map(
+      todayStats.map((s) => [s.entityId, Number(s.spend)]),
+    );
+    return c.json(
+      campaigns.map((camp) => {
+        const row = safeJson(camp) as Record<string, unknown>;
+        return {
+          ...row,
+          isCurrentlySpending: isCurrentlySpending({
+            status: camp.status,
+            spendTodayMinor: spendTodayByCampaign.get(camp.id) ?? 0,
+          }),
+        };
+      }),
+    );
   });
 
   /** GET /api/workspaces/:workspaceId/campaigns/:campaignId — single campaign. */

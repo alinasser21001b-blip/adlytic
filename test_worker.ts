@@ -413,6 +413,43 @@ const WINDOW = { since: new Date("2026-06-01"), until: new Date("2026-06-14") };
   check("vanished PAUSED campaign C reconciled to ARCHIVED", c?.status === "ARCHIVED", c?.status);
 }
 
+// ── Case D: configured ACTIVE but effective_status PAUSED → PAUSED in DB.
+{
+  const cs = makeCampaignStore([
+    { id: "camp_A", adAccountId: "acc_rec", externalCampaignId: "A", name: "Alpha", status: "ACTIVE", objective: null, dailyBudget: null, lifetimeBudget: null },
+  ]);
+  const metaStub = makeReconcileMeta([
+    { id: "A", name: "Alpha", status: "ACTIVE", effective_status: "PAUSED", objective: null },
+  ]);
+  const w = new SyncAccountWorker(makeReconcilePrisma(cs.delegate) as any, metaStub as any);
+  await w.syncCampaigns("acc_rec", WINDOW);
+
+  const a = cs.store.find((c) => c.externalCampaignId === "A");
+  check("effective_status PAUSED downgrades configured ACTIVE → PAUSED", a?.status === "PAUSED", a?.status);
+}
+
+// ── Case E: past stop_time downgrades ACTIVE → PAUSED.
+{
+  const cs = makeCampaignStore([
+    { id: "camp_A", adAccountId: "acc_rec", externalCampaignId: "A", name: "Alpha", status: "ACTIVE", objective: null, dailyBudget: null, lifetimeBudget: null },
+  ]);
+  const metaStub = makeReconcileMeta([
+    {
+      id: "A",
+      name: "Alpha",
+      status: "ACTIVE",
+      effective_status: "ACTIVE",
+      stop_time: "2020-01-01T00:00:00+0000",
+      objective: null,
+    },
+  ]);
+  const w = new SyncAccountWorker(makeReconcilePrisma(cs.delegate) as any, metaStub as any);
+  await w.syncCampaigns("acc_rec", WINDOW);
+
+  const a = cs.store.find((c) => c.externalCampaignId === "A");
+  check("past stop_time downgrades ACTIVE → PAUSED", a?.status === "PAUSED", a?.status);
+}
+
 // ════════════════
 console.log(`\n════ ${pass} passed, ${fail} failed ════`);
 if (fail > 0) process.exit(1);
