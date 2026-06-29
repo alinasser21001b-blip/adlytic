@@ -73,6 +73,7 @@ import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
+import { getCachedWorkspaceTokenHealth } from '../services/cachedTokenHealth';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWebhook';
 import { config } from '../config';
@@ -1320,7 +1321,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
     const member = await checkMember(userId, workspaceId);
     if (!member) return c.json({ error: 'Access denied' }, 403);
-    const health = await checkWorkspaceTokenHealth(prisma, workspaceId);
+    // Phase 2 — Redis-backed read-through cache (60s TTL). Falls back to a
+    // live probe transparently when Redis is unavailable; semantics are
+    // identical to the unwrapped path either way.
+    const health = await getCachedWorkspaceTokenHealth(prisma, workspaceId);
     return c.json(health, health.ok ? 200 : 503);
   });
 

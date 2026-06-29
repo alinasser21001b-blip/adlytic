@@ -221,6 +221,23 @@ if (rawRedisUrl === undefined) {
   }
 }
 
+// ── feature flags (horizontal-scaling rollout) ───────────────────────────────
+//
+// Each flag here gates a Phase 2+ feature whose Redis path is being rolled out
+// in stages. Off by default until the staging drill confirms graceful
+// fallback behavior under simulated Redis outages.
+
+/** Phase 2 — route Meta webhook reconcile debounce through Redis so multi-
+ *  instance deploys coalesce bursts cluster-wide instead of per-process. */
+const webhookRedisDebounceEnabled = envBoolean('WEBHOOK_REDIS_DEBOUNCE_ENABLED', false);
+record({
+  key: 'WEBHOOK_REDIS_DEBOUNCE_ENABLED',
+  status: 'ok',
+  detail: webhookRedisDebounceEnabled
+    ? 'enabled — Meta webhook debounce uses Redis SET NX EX (with in-process fallback)'
+    : 'disabled (default) — in-process Map debounce only',
+});
+
 // ── misc operational vars ────────────────────────────────────────────────────
 
 const port = envNumber('PORT', 3001);
@@ -269,6 +286,13 @@ export interface AppConfig {
     intervalMs: number;
     rawInsightsRetainDays: number;
   };
+
+  /** Phase 2+ feature flags. Each must default to the pre-flag behavior. */
+  features: {
+    /** When true, Meta webhook debounce uses Redis SET NX EX (with in-process
+     *  Map fallback if Redis is unhealthy). */
+    webhookRedisDebounceEnabled: boolean;
+  };
 }
 
 export const config: Readonly<AppConfig> = Object.freeze({
@@ -297,6 +321,9 @@ export const config: Readonly<AppConfig> = Object.freeze({
   sync: Object.freeze({
     intervalMs: syncIntervalMs,
     rawInsightsRetainDays: rawInsightsRetainDays,
+  }),
+  features: Object.freeze({
+    webhookRedisDebounceEnabled,
   }),
 }) as Readonly<AppConfig>;
 
