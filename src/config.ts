@@ -179,6 +179,48 @@ if (metaSystemUserEnabled) {
   }
 }
 
+// ── Redis (optional — gates horizontal-scaling features) ─────────────────────
+//
+// Phase 1 of the horizontal-scaling roadmap. Redis is OPTIONAL: when unset,
+// the Redis-backed modules (webhook debounce, distributed locks, queues)
+// fall back to in-process implementations. We validate the URL here so the
+// boot log makes the deploy state obvious; runtime errors are surfaced by
+// src/lib/redis.ts via ioredis event listeners.
+
+const rawRedisUrl = env('REDIS_URL');
+let redisUrl: string | undefined;
+if (rawRedisUrl === undefined) {
+  record({
+    key: 'REDIS_URL',
+    status: 'warn',
+    detail: 'not set — Redis-backed features disabled; using in-process fallbacks',
+  });
+} else {
+  try {
+    const u = new URL(rawRedisUrl);
+    if (u.protocol !== 'redis:' && u.protocol !== 'rediss:') {
+      record({
+        key: 'REDIS_URL',
+        status: 'warn',
+        detail: `protocol must be redis:// or rediss:// (got ${u.protocol}) — feature disabled`,
+      });
+    } else {
+      redisUrl = rawRedisUrl;
+      record({
+        key: 'REDIS_URL',
+        status: 'ok',
+        detail: `${u.protocol}//${u.hostname}:${u.port || '6379'}`,
+      });
+    }
+  } catch {
+    record({
+      key: 'REDIS_URL',
+      status: 'warn',
+      detail: 'is not a valid URL — Redis-backed features disabled',
+    });
+  }
+}
+
 // ── misc operational vars ────────────────────────────────────────────────────
 
 const port = envNumber('PORT', 3001);
@@ -193,6 +235,9 @@ export interface AppConfig {
   port: number;
 
   database: { url: string | undefined };
+
+  /** Redis is optional; absent → consumers fall back to in-process behavior. */
+  redis: { url: string | undefined };
 
   jwt: { secret: string };
 
@@ -231,6 +276,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
   isProduction: IS_PRODUCTION,
   port,
   database: Object.freeze({ url: rawDbUrl }),
+  redis: Object.freeze({ url: redisUrl }),
   jwt: Object.freeze({ secret: jwtSecret }),
   tokenEncryption: Object.freeze({
     key: tokenEncryptionKey,
