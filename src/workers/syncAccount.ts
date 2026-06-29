@@ -332,18 +332,23 @@ export class SyncAccountWorker {
     adAccountId: string,
     now: Date,
     tag: string,
-  ): Promise<void> {
+  ): Promise<{ ok: boolean; campaignsUpserted?: number; frozen?: number; error?: string }> {
     try {
       const r = await this.reconcileCampaignStatuses(adAccountId, { now });
       console.log(
         `${tag} campaigns reconciled: ${r.campaignsUpserted} row(s)` +
         (r.frozen > 0 ? `, ${r.frozen} frozen` : ""),
       );
+      return { ok: true, campaignsUpserted: r.campaignsUpserted, frozen: r.frozen };
     } catch (e) {
       const msg = e instanceof MetaApiError
         ? `Meta ${e.status}: ${e.message}`
         : e instanceof Error ? e.message : String(e);
       console.error(`${tag} reconcileCampaignStatuses FAILED (non-fatal) — ${msg}`);
+      if (!(e instanceof MetaApiError)) {
+        console.error(`${tag} reconcileCampaignStatuses unexpected error —`, e);
+      }
+      return { ok: false, error: msg };
     }
   }
 
@@ -1089,20 +1094,26 @@ export class SyncAccountWorker {
 
     let totalFetched = 0;
     let totalUpserted = 0;
+    const reconcileNow = new Date();
 
     // Reconcile campaign statuses from Meta FIRST so the dashboard reflects
     // reality while the (potentially long) account-level backfill runs.
+    const earlyReconcile = await this.reconcileCampaignStatusesSafe(adAccountId, reconcileNow, tag);
+    if (!earlyReconcile.ok) {
+      console.warn(`${tag} early reconcile failed — continuing sync; will retry at completion`);
+    }
+
     try {
-      const campResult = await this.syncCampaigns(adAccountId, { since, until });
+      const campResult = await this.syncCampaigns(adAccountId, { since, until, now: reconcileNow });
       console.log(
-        `${tag} campaigns (early reconcile): ${campResult.campaignsUpserted} upserted, ` +
+        `${tag} campaigns (daily insights): ${campResult.campaignsUpserted} upserted, ` +
         `${campResult.dailyRowsUpserted} daily rows`,
       );
     } catch (e) {
       const msg = e instanceof MetaApiError
         ? `Meta ${e.status}: ${e.message}`
         : e instanceof Error ? e.message : String(e);
-      console.error(`${tag} syncCampaigns FAILED (non-fatal) — ${msg}`);
+      console.error(`${tag} syncCampaigns daily insights FAILED (non-fatal) — ${msg}`);
     }
 
     try {
@@ -1192,6 +1203,10 @@ export class SyncAccountWorker {
       }
 
       await this.markSynced(adAccountId, new Date());
+      const finalReconcile = await this.reconcileCampaignStatusesSafe(adAccountId, new Date(), tag);
+      if (!finalReconcile.ok) {
+        console.warn(`${tag} final reconcile failed after sync — ${finalReconcile.error}`);
+      }
       await this.prisma.syncJob.update({
         where: { id: jobId },
         data: {

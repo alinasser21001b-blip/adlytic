@@ -18,6 +18,7 @@ async function flagAccountNeedsRegrant(
   prisma: PrismaClient,
   accountId: string,
   externalAccountId: string,
+  workspaceId: string,
 ): Promise<void> {
   // AdAccount has no NEEDS_REGRANT enum — PAUSE + clear token matches the
   // existing 190-handling contract and surfaces reconnect in the workspace UI.
@@ -26,7 +27,26 @@ async function flagAccountNeedsRegrant(
     data: { status: 'PAUSED', accessTokenEncrypted: null },
   });
   console.warn(
-    `[adlytic:token-refresh] Marked ${externalAccountId} PAUSED — token expired; owner must reconnect.`,
+    `[adlytic:token-refresh] workspaceId=${workspaceId} adAccountId=${accountId} ` +
+    `externalAccountId=${externalAccountId} — marked PAUSED (token expired); owner must reconnect.`,
+  );
+}
+
+/** Decrypt failure — key mismatch; PAUSE so UI prompts reconnect (keep ciphertext for ops). */
+async function flagAccountDecryptFailed(
+  prisma: PrismaClient,
+  accountId: string,
+  externalAccountId: string,
+  workspaceId: string,
+  detail: string,
+): Promise<void> {
+  await prisma.adAccount.update({
+    where: { id: accountId },
+    data: { status: 'PAUSED' },
+  });
+  console.error(
+    `[adlytic:TOKEN_DECRYPT_FAILED][token-refresh] workspaceId=${workspaceId} ` +
+    `adAccountId=${accountId} externalAccountId=${externalAccountId} — ${detail}`,
   );
 }
 
@@ -59,7 +79,7 @@ export async function refreshExpiringMetaTokens(prisma: PrismaClient): Promise<v
           tokenExpiresAt: { not: null, lte: now },
           status: 'ACTIVE',
         },
-        select: { id: true, externalAccountId: true },
+        select: { id: true, workspaceId: true, externalAccountId: true },
       }),
       prisma.adAccount.findMany({
         where: {
@@ -68,7 +88,12 @@ export async function refreshExpiringMetaTokens(prisma: PrismaClient): Promise<v
           tokenExpiresAt: { gt: now, lte: threshold },
           status: 'ACTIVE',
         },
-        select: { id: true, externalAccountId: true, accessTokenEncrypted: true },
+        select: {
+          id: true,
+          workspaceId: true,
+          externalAccountId: true,
+          accessTokenEncrypted: true,
+        },
       }),
     ]);
   } catch (err) {
@@ -83,7 +108,7 @@ export async function refreshExpiringMetaTokens(prisma: PrismaClient): Promise<v
   );
 
   for (const acct of expired) {
-    await flagAccountNeedsRegrant(prisma, acct.id, acct.externalAccountId);
+    await flagAccountNeedsRegrant(prisma, acct.id, acct.externalAccountId, acct.workspaceId);
   }
 
   for (const acct of expiring) {
@@ -92,8 +117,12 @@ export async function refreshExpiringMetaTokens(prisma: PrismaClient): Promise<v
       currentToken = decryptToken(acct.accessTokenEncrypted as string);
     } catch (decErr) {
       if (decErr instanceof TokenDecryptError) {
-        console.error(
-          `[adlytic:token-refresh] Skipping ${acct.externalAccountId} — decrypt failed (key mismatch): ${decErr.message}`,
+        await flagAccountDecryptFailed(
+          prisma,
+          acct.id,
+          acct.externalAccountId,
+          acct.workspaceId,
+          decErr.message,
         );
         continue;
       }
@@ -117,7 +146,7 @@ export async function refreshExpiringMetaTokens(prisma: PrismaClient): Promise<v
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[adlytic:token-refresh] ✗ ${acct.externalAccountId}: ${msg}`);
       if (isTokenRefreshError(msg)) {
-        await flagAccountNeedsRegrant(prisma, acct.id, acct.externalAccountId);
+        await flagAccountNeedsRegrant(prisma, acct.id, acct.externalAccountId, acct.workspaceId);
       }
     }
   }

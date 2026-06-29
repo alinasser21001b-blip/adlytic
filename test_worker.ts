@@ -450,6 +450,68 @@ const WINDOW = { since: new Date("2026-06-01"), until: new Date("2026-06-14") };
   check("past stop_time downgrades ACTIVE → PAUSED", a?.status === "PAUSED", a?.status);
 }
 
+// ── Case F: reconcileCampaignStatuses directly (not via syncCampaigns).
+{
+  const cs = makeCampaignStore([
+    { id: 'camp_A', adAccountId: 'acc_rec', externalCampaignId: 'A', name: 'Alpha', status: 'ACTIVE', objective: null, dailyBudget: null, lifetimeBudget: null },
+  ]);
+  const metaStub = makeReconcileMeta([{ id: 'A', name: 'Alpha', status: 'ACTIVE', objective: null }]);
+  const w = new SyncAccountWorker(makeReconcilePrisma(cs.delegate) as any, metaStub as any);
+  const r = await w.reconcileCampaignStatuses('acc_rec', { now: new Date('2026-06-14T12:00:00Z') });
+  check('reconcileCampaignStatuses returns upsert count', r.campaignsUpserted === 1, r);
+  check('reconcileCampaignStatuses leaves listed campaign ACTIVE',
+    cs.store.find((c) => c.externalCampaignId === 'A')?.status === 'ACTIVE');
+}
+
+// ── Case G: reconcileCampaignStatuses surfaces Meta API failures (does not swallow).
+{
+  const cs = makeCampaignStore([]);
+  const metaStub = {
+    listCampaigns: async () => { throw new Error('Meta 403: (#200) Permissions error'); },
+    getInsights: async () => [],
+  };
+  const w = new SyncAccountWorker(makeReconcilePrisma(cs.delegate) as any, metaStub as any);
+  let reconcileThrew = false;
+  try {
+    await w.reconcileCampaignStatuses('acc_rec');
+  } catch (e) {
+    reconcileThrew = true;
+    check('reconcileCampaignStatuses throws on Meta failure',
+      e instanceof Error && e.message.includes('Meta 403'), e);
+  }
+  check('reconcileCampaignStatuses did not swallow Meta error', reconcileThrew);
+}
+
+// ── Case H: sync() invokes reconcile (campaign delegate touched).
+{
+  const reconcileCalls: string[] = [];
+  const campaignDelegate = {
+    findMany: async () => [],
+    upsert: async () => ({}),
+    updateMany: async () => ({ count: 0 }),
+  };
+  const syncPrisma: any = {
+    ...mockPrisma,
+    campaign: {
+      findMany: async (...args: any[]) => {
+        reconcileCalls.push('findMany');
+        return campaignDelegate.findMany(...args);
+      },
+      upsert: async (...args: any[]) => campaignDelegate.upsert(...args),
+      updateMany: async (...args: any[]) => campaignDelegate.updateMany(...args),
+    },
+  };
+  const metaWithCampaigns = new MockMetaClient();
+  metaWithCampaigns.rows = [
+    { date_start: '2026-06-14', spend: '1000', impressions: '100', clicks: '5', ctr: '5.0',
+      actions: [{ action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '1' }] },
+  ];
+  (metaWithCampaigns as any).listCampaigns = async () => [];
+  const syncWorker = new SyncAccountWorker(syncPrisma, metaWithCampaigns as any);
+  await syncWorker.sync('acc_furn', { now: new Date('2026-06-14T12:00:00Z') });
+  check('sync() calls reconcileCampaignStatuses (campaign findMany)', reconcileCalls.includes('findMany'), reconcileCalls);
+}
+
 // ════════════════
 console.log(`\n════ ${pass} passed, ${fail} failed ════`);
 if (fail > 0) process.exit(1);

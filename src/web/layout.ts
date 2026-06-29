@@ -348,6 +348,78 @@ select.form-input { cursor: pointer; }
 .alert-warning { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
 .alert-info { background: var(--accent-dim); color: var(--accent-2); border: 1px solid rgba(99,102,241,0.2); }
 
+/* ── Global token-decrypt failure banner ─────────────────────────── */
+.token-decrypt-banner {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 24px;
+  background: linear-gradient(90deg, rgba(220,38,38,0.22), rgba(239,68,68,0.12));
+  border-bottom: 2px solid var(--critical);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 85;
+}
+.token-decrypt-banner.visible { display: flex; }
+.token-decrypt-banner-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  color: var(--critical);
+}
+.token-decrypt-banner-body { flex: 1; min-width: 0; }
+.token-decrypt-banner-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fecaca;
+  letter-spacing: -0.2px;
+  margin-bottom: 2px;
+}
+.token-decrypt-banner-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.token-decrypt-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.token-decrypt-banner .btn-reconnect {
+  background: var(--critical);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+.token-decrypt-banner .btn-reconnect:hover { background: #b91c1c; color: #fff; }
+.token-decrypt-banner-dismiss {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-2);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.token-decrypt-banner-dismiss:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+@media (max-width: 768px) {
+  .token-decrypt-banner { flex-wrap: wrap; padding: 12px 16px; }
+  .token-decrypt-banner-actions { width: 100%; justify-content: flex-end; }
+}
+
 /* ── Empty state ─────────────────────────────────────────────────── */
 .empty-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -545,7 +617,11 @@ async function apiFetch(path, opts = {}) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
+    const e = new Error(err.error || res.statusText);
+    if (err.code) e.code = err.code;
+    if (err.reconnectUrl) e.reconnectUrl = err.reconnectUrl;
+    if (err.reconnectLabel) e.reconnectLabel = err.reconnectLabel;
+    throw e;
   }
   // Guard against the server returning a non-JSON body (HTML error page,
   // truncated response, or serialization failure). Throw a readable error
@@ -679,6 +755,69 @@ function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3500);
 }
 
+var TOKEN_DECRYPT_PAGES = ['/dashboard', '/campaigns', '/workspace'];
+
+function shouldShowTokenDecryptBanner() {
+  var path = window.location.pathname.replace(/\/$/, '') || '/';
+  return TOKEN_DECRYPT_PAGES.indexOf(path) >= 0;
+}
+
+function showTokenDecryptBanner(payload) {
+  var banner = document.getElementById('token-decrypt-banner');
+  if (!banner) return;
+  var msgEl = document.getElementById('token-decrypt-banner-msg');
+  var linkEl = document.getElementById('token-decrypt-banner-cta');
+  if (msgEl) msgEl.textContent = payload.error || payload.message || 'Stored Meta token could not be decrypted.';
+  if (linkEl) {
+    linkEl.href = payload.reconnectUrl || '/workspace?connect=manual';
+    linkEl.textContent = payload.reconnectLabel || 'Reconnect Meta';
+  }
+  banner.classList.add('visible');
+  banner.setAttribute('aria-hidden', 'false');
+}
+
+function hideTokenDecryptBanner() {
+  var banner = document.getElementById('token-decrypt-banner');
+  if (!banner) return;
+  banner.classList.remove('visible');
+  banner.setAttribute('aria-hidden', 'true');
+}
+
+async function checkTokenDecryptBanner() {
+  if (!getToken() || !shouldShowTokenDecryptBanner()) return;
+  var wsId = getWsId();
+  if (!wsId) return;
+  try {
+    var res = await fetch('/api/workspaces/' + wsId + '/token-health', {
+      headers: { Authorization: 'Bearer ' + getToken() },
+    });
+    if (res.status === 503) {
+      var body = await res.json().catch(function () { return {}; });
+      if (body && body.code === 'TOKEN_DECRYPT_FAILED') {
+        showTokenDecryptBanner(body);
+        return;
+      }
+    }
+    if (res.ok) hideTokenDecryptBanner();
+  } catch (err) {
+    console.warn('[shell] token-health check failed:', err);
+  }
+}
+
+function initTokenDecryptBanner() {
+  var dismiss = document.getElementById('token-decrypt-banner-dismiss');
+  if (dismiss) {
+    dismiss.addEventListener('click', function () {
+      hideTokenDecryptBanner();
+      try { sessionStorage.setItem('adlytic_token_decrypt_banner_dismissed', getWsId() || '1'); } catch (e) {}
+    });
+  }
+  var wsId = getWsId();
+  var dismissed = false;
+  try { dismissed = sessionStorage.getItem('adlytic_token_decrypt_banner_dismissed') === wsId; } catch (e) {}
+  if (!dismissed) checkTokenDecryptBanner();
+}
+
 function fmt(n, decimals = 0) {
   if (n == null) return '—';
   return Number(n).toLocaleString(undefined, { useGrouping: false, minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -757,6 +896,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   if (getToken()) {
     initAppShell();
+    initTokenDecryptBanner();
     startShellLoadingFallback(5000);
   }
 });
@@ -858,6 +998,20 @@ export function layout(opts: {
     ${sidebar(active)}
     <div class="main">
       ${topbar(title, mode)}
+      <div id="token-decrypt-banner" class="token-decrypt-banner" role="alert" aria-hidden="true">
+        <svg class="token-decrypt-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div class="token-decrypt-banner-body">
+          <div class="token-decrypt-banner-title">Meta token cannot be read</div>
+          <div class="token-decrypt-banner-text" id="token-decrypt-banner-msg">Stored access token could not be decrypted — the encryption key changed.</div>
+        </div>
+        <div class="token-decrypt-banner-actions">
+          <a id="token-decrypt-banner-cta" href="/workspace?connect=manual" class="btn-reconnect">Reconnect Meta</a>
+          <button type="button" class="token-decrypt-banner-dismiss" id="token-decrypt-banner-dismiss" title="Dismiss">×</button>
+        </div>
+      </div>
       <div class="page-content">
         ${content}
       </div>

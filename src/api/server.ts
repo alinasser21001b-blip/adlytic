@@ -72,6 +72,7 @@ import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
+import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { config } from '../config';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
@@ -1241,6 +1242,25 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // ════════════════════════════════════════════════════════════════════════
   //  SETTINGS — workspace read / update
   // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * GET /api/workspaces/:workspaceId/token-health — probe stored Meta tokens.
+   *
+   * Returns `{ ok: true }` when every account token decrypts with the current
+   * key, or `{ ok: false, code: 'TOKEN_DECRYPT_FAILED', ... }` when any fail.
+   */
+  app.get('/api/workspaces/:workspaceId/token-health', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
+    const health = await checkWorkspaceTokenHealth(prisma, workspaceId);
+    return c.json(health, health.ok ? 200 : 503);
+  });
 
   /** GET /api/workspaces/:workspaceId — workspace settings. */
   app.get('/api/workspaces/:workspaceId', async (c) => {
