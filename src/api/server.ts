@@ -3230,6 +3230,31 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const now = new Date();
     const since = new Date(now.getTime() - (windowDays - 1) * 86400 * 1000);
+
+    // ── Fix A — Reuse an already-active job for the same account.
+    // Without this, a second click (or a quick re-poll race) creates a SECOND
+    // SyncJob that immediately fails on the Postgres advisory lock held by the
+    // first, surfacing a misleading "Another sync is already in progress" error
+    // in the UI even though the user's original sync is healthy. Returning the
+    // existing jobId lets the frontend poll the REAL ongoing job seamlessly.
+    const existingActive = await prisma.syncJob.findFirst({
+      where: {
+        adAccountId: account.id,
+        status: { in: [SyncJobStatus.PENDING, SyncJobStatus.PROCESSING] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true, windowDays: true, windowSince: true, windowUntil: true },
+    });
+    if (existingActive) {
+      return c.json({
+        jobId: existingActive.id,
+        status: existingActive.status,
+        windowDays: existingActive.windowDays,
+        adAccountId: account.id,
+        reused: true,
+      }, 200);
+    }
+
     const job = await prisma.syncJob.create({
       data: {
         adAccountId: account.id,
