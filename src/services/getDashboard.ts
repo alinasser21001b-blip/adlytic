@@ -64,6 +64,9 @@ const _pool    = new pg.Pool({
   password: decodeURIComponent(_parsed.password),
   database: _parsed.pathname.replace(/^\//, ''),
   ssl:      _isInternal ? false : { rejectUnauthorized: false },
+  max: Number(process.env['PG_POOL_MAX'] ?? 20),
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
 });
 const _standalonePrisma = new PrismaClient({ adapter: new PrismaPg(_pool) });
 

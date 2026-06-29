@@ -73,6 +73,9 @@ async function main(): Promise<void> {
     password: decodeURIComponent(parsed.password),
     database: parsed.pathname.replace(/^\//, ''),
     ssl:      sslConfig,
+    max: Number(process.env['PG_POOL_MAX'] ?? 20),
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
   });
   const adapter = new PrismaPg(pool);
   const prisma  = new PrismaClient({ adapter });

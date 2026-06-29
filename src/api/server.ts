@@ -267,8 +267,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // ── Middleware ───────────────────────────────────────────────────────────
 
   // ── CORS — locked to ALLOWED_ORIGINS in production ────────────────────
-  const _allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? '')
-    .split(',').map(s => s.trim()).filter(Boolean);
+  const _allowedOrigins = config.cors.allowedOrigins;
 
   app.use(
     '*',
@@ -462,7 +461,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   async function getAccount(workspaceId: string) {
     const ws = await prisma.workspace.findUniqueOrThrow({
       where: { id: workspaceId },
-      include: { adAccounts: true },
+      include: { adAccounts: { orderBy: { createdAt: 'asc' } } },
     });
     const account = ws.adAccounts[0] ?? null;
     if (account && currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {

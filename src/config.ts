@@ -260,6 +260,29 @@ const port = envNumber('PORT', 3001);
 const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 6 * 60 * 60 * 1000);
 const rawInsightsRetainDays = envNumber('RAW_INSIGHTS_RETAIN_DAYS', 90);
 
+// ── CORS ─────────────────────────────────────────────────────────────────────
+
+const rawAllowedOrigins = env('ALLOWED_ORIGINS');
+const allowedOrigins = (rawAllowedOrigins ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (IS_PRODUCTION && allowedOrigins.length === 0) {
+  record({
+    key: 'ALLOWED_ORIGINS',
+    status: 'fail',
+    detail: 'ALLOWED_ORIGINS must be set to a comma-separated list of origins in production',
+  });
+} else if (allowedOrigins.length === 0) {
+  record({
+    key: 'ALLOWED_ORIGINS',
+    status: 'warn',
+    detail: 'not set — CORS allows all origins (development only)',
+  });
+} else {
+  record({ key: 'ALLOWED_ORIGINS', status: 'ok', detail: allowedOrigins.join(', ') });
+}
+
 // ── public, frozen config ────────────────────────────────────────────────────
 
 export interface AppConfig {
@@ -303,6 +326,8 @@ export interface AppConfig {
     rawInsightsRetainDays: number;
   };
 
+  cors: { allowedOrigins: string[] };
+
   /** Phase 2+ feature flags. Each must default to the pre-flag behavior. */
   features: {
     /** When true, Meta webhook debounce uses Redis SET NX EX (with in-process
@@ -342,6 +367,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
     intervalMs: syncIntervalMs,
     rawInsightsRetainDays: rawInsightsRetainDays,
   }),
+  cors: Object.freeze({ allowedOrigins }),
   features: Object.freeze({
     webhookRedisDebounceEnabled,
     bullmqEnabled,
