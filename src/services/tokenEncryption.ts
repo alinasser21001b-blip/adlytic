@@ -36,13 +36,32 @@ export class TokenDecryptError extends Error {
   }
 }
 
+/** Path to paste a fresh System User / long-lived token after a key rotation. */
+export const TOKEN_DECRYPT_RECONNECT_URL = '/workspace?connect=manual';
+
 /** User-facing message when decrypt fails — key changed or token encrypted with a different key. */
 export const TOKEN_DECRYPT_USER_MESSAGE =
-  'Stored access token could not be decrypted — the encryption key changed. Reconnect manually with a fresh Meta token.';
+  'Stored access token could not be decrypted — the encryption key changed. Reconnect with a fresh Meta token in Workspace.';
 
 /** JSON body for HTTP routes that surface decrypt failures to the client. */
-export function tokenDecryptErrorJson(): { error: string; code: 'TOKEN_DECRYPT_FAILED' } {
-  return { error: TOKEN_DECRYPT_USER_MESSAGE, code: 'TOKEN_DECRYPT_FAILED' };
+export function tokenDecryptErrorJson(): {
+  error: string;
+  code: 'TOKEN_DECRYPT_FAILED';
+  reconnectUrl: string;
+  reconnectLabel: string;
+} {
+  return {
+    error: TOKEN_DECRYPT_USER_MESSAGE,
+    code: 'TOKEN_DECRYPT_FAILED',
+    reconnectUrl: TOKEN_DECRYPT_RECONNECT_URL,
+    reconnectLabel: 'Reconnect Meta',
+  };
+}
+
+/** Meta long-lived / System User tokens are alphanumeric and typically start with EA. */
+export function isLikelyMetaAccessToken(stored: string): boolean {
+  if (!stored || stored.length < 32) return false;
+  return /^EA[A-Za-z0-9]+$/.test(stored);
 }
 
 function getKey(): Buffer | null {
@@ -95,11 +114,10 @@ export function decryptToken(stored: string): string {
   const key = getKey();
   if (!key) return stored;
 
-  // Plaintext stored before encryption was configured
-  if (!stored.includes(SEP)) return stored;
+  // Plaintext stored before encryption was configured (no valid iv:tag:ciphertext envelope)
+  if (!isEncryptedToken(stored)) return stored;
 
   const parts = stored.split(SEP);
-  if (parts.length !== 3) return stored; // malformed — return as-is
 
   try {
     const [ivHex, tagHex, dataHex] = parts as [string, string, string];

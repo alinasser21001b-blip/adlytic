@@ -41,7 +41,7 @@ export function campaignsPage(): string {
        style="display:none;flex-direction:column;align-items:center;text-align:center;padding:24px;">
     <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Ad Account Token Expired</div>
     <div style="margin-bottom:14px;max-width:480px;">Your Meta Ads access token has expired. Data shown below is cached and may be outdated. Reconnect your account to resume live syncing.</div>
-    <a href="/workspace" class="btn btn-primary">Reconnect in Workspace</a>
+    <a href="/workspace?connect=manual" class="btn btn-primary">Reconnect Meta (paste token)</a>
   </div>
 
   <!-- Page header -->
@@ -68,7 +68,7 @@ export function campaignsPage(): string {
       <div class="kpi-value" id="total-campaigns">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Active</div>
+      <div class="kpi-label" title="Campaigns with spend today (matches dashboard)">Spending Today</div>
       <div class="kpi-value" id="active-campaigns" style="color:var(--success);">—</div>
     </div>
     <div class="kpi-card">
@@ -268,7 +268,11 @@ export function campaignsPage(): string {
     if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
     if (!res.ok) {
       var errBody = await res.json().catch(function() { return { error: 'API error ' + res.status }; });
-      throw new Error(errBody.error || ('API error ' + res.status + ' on ' + path));
+      var err = new Error(errBody.error || ('API error ' + res.status + ' on ' + path));
+      if (errBody.code) err.code = errBody.code;
+      if (errBody.reconnectUrl) err.reconnectUrl = errBody.reconnectUrl;
+      if (errBody.reconnectLabel) err.reconnectLabel = errBody.reconnectLabel;
+      throw err;
     }
     return res.json().catch(function() {
       throw new Error('Server returned a non-JSON response from ' + path);
@@ -395,7 +399,9 @@ export function campaignsPage(): string {
   // ── Summary cards ─────────────────────────────────────────────────────────
   function updateSummary(campaigns, insights) {
     var total = campaigns.length;
-    var active = campaigns.filter(function(c){ return c.status === 'ACTIVE'; }).length;
+    // Match dashboard "Active Ads · Now Spending" — DB status alone can stay
+    // stale ACTIVE when sync is blocked (e.g. TOKEN_ENCRYPTION_KEY rotation).
+    var active = campaigns.filter(function(c){ return c.isCurrentlySpending === true; }).length;
     var paused = campaigns.filter(function(c){ return c.status === 'PAUSED'; }).length;
     var filtered = recentAsc(insights, state.days);
     // d.spend is BigInt minor units (cents for USD, EGP, SAR; whole-unit
@@ -970,6 +976,23 @@ export function campaignsPage(): string {
     updateCharts(state.insights);
   }
 
+  function toastWithReconnect(err) {
+    var container = document.getElementById('toast-container');
+    if (!container) {
+      toast(err.message || 'Sync failed', 'error');
+      return;
+    }
+    var el = document.createElement('div');
+    el.className = 'toast error';
+    var link = err.reconnectUrl || '/workspace?connect=manual';
+    var label = err.reconnectLabel || 'Reconnect Meta';
+    el.innerHTML = escHtml(err.message || 'Sync failed')
+      + ' <a href="' + escHtml(link) + '" style="color:var(--accent);font-weight:600;margin-left:8px;white-space:nowrap;">'
+      + escHtml(label) + ' →</a>';
+    container.appendChild(el);
+    setTimeout(function() { el.remove(); }, 8000);
+  }
+
   var syncing = false;
 
   async function forceSync() {
@@ -993,7 +1016,11 @@ export function campaignsPage(): string {
       }
       await loadCampaignData();
     } catch (err) {
-      toast(err.message || 'Sync failed', 'error');
+      if (err && err.code === 'TOKEN_DECRYPT_FAILED') {
+        toastWithReconnect(err);
+      } else {
+        toast(err.message || 'Sync failed', 'error');
+      }
     } finally {
       syncing = false;
       btn.disabled = false;
