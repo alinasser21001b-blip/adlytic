@@ -1726,6 +1726,16 @@ export function dashboardPage(): string {
     if (contentEl) contentEl.style.display = 'block';
   }
 
+  /** Safety net if init hangs — do not rely on layout SHARED_JS globals. */
+  function startLoadingSafetyTimeout(ms) {
+    setTimeout(function () {
+      var loadingEl = document.getElementById('loading-state');
+      if (!loadingEl || loadingEl.style.display === 'none') return;
+      console.warn('[dashboard] loading safety timeout — revealing page');
+      hideLoadingShowDashboard();
+    }, ms || 5000);
+  }
+
   function sleep(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
@@ -1910,7 +1920,7 @@ export function dashboardPage(): string {
   async function init() {
     try {
       wireMainMoveActions();
-      forceRevealAfterTimeout('loading-state', 'dashboard-content', 5000);
+      startLoadingSafetyTimeout(5000);
 
       var token = getToken();
       if (!token) { window.location.href = '/login'; return; }
