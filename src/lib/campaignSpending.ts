@@ -21,8 +21,27 @@ export function isCurrentlySpending(args: {
   return false;
 }
 
-/** UTC midnight for "today" aligned with getDashboard / DailyStat.date storage. */
+/** UTC midnight for "today" — legacy; prefer accountLocalTodayFloor for spend gates. */
 export function utcTodayFloor(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** YYYY-MM-DD for "today" in the ad account's Meta reporting timezone. */
+export function getAccountLocalDateString(timezone: string, now: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+  } catch {
+    return now.toISOString().slice(0, 10);
+  }
+}
+
+/** UTC midnight Date for the account's local calendar day (matches DailyStat.date). */
+export function accountLocalTodayFloor(timezone: string, now: Date = new Date()): Date {
+  return new Date(getAccountLocalDateString(timezone, now));
 }

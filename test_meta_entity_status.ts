@@ -3,7 +3,7 @@ import {
   mapMetaEntityStatus,
   resolveCampaignStatusFromMeta,
 } from "./src/lib/metaEntityStatus";
-import { isCurrentlySpending } from "./src/lib/campaignSpending";
+import { isCurrentlySpending, getAccountLocalDateString, accountLocalTodayFloor } from "./src/lib/campaignSpending";
 
 let pass = 0;
 let fail = 0;
@@ -46,6 +46,16 @@ check(
 check(
   "PAUSED → not spending",
   !isCurrentlySpending({ status: EntityStatus.PAUSED, spendTodayMinor: 100 }),
+);
+
+console.log("\n── accountLocalTodayFloor ──");
+check(
+  "Asia/Baghdad local date before UTC midnight",
+  getAccountLocalDateString("Asia/Baghdad", new Date("2026-06-28T21:00:00Z")) === "2026-06-29",
+);
+check(
+  "accountLocalTodayFloor matches local YYYY-MM-DD",
+  accountLocalTodayFloor("Asia/Baghdad", new Date("2026-06-28T21:00:00Z")).toISOString().slice(0, 10) === "2026-06-29",
 );
 
 console.log(`\n════ ${pass} passed, ${fail} failed ════`);

@@ -259,6 +259,7 @@ export class SyncAccountWorker {
           // Genuinely empty windows are valid (a fresh or paused account).
           // We still mark lastSyncedAt so the operator knows the call succeeded.
           console.log(`${tag} No insight rows returned — account may be paused or have no spend in window`);
+          await this.reconcileCampaignStatusesSafe(adAccountId, now, tag);
           await this.markSynced(adAccountId, now);
           result.ok = true;
           result.durationMs = Date.now() - start;
@@ -293,6 +294,7 @@ export class SyncAccountWorker {
         console.log(`${tag} Upserted ${dailyBatch.length} daily stat rows`);
 
         result.rowsUpserted = dailyBatch.length;
+        await this.reconcileCampaignStatusesSafe(adAccountId, now, tag);
         await this.markSynced(adAccountId, now);
         result.ok = true;
         result.durationMs = Date.now() - start;
@@ -323,6 +325,26 @@ export class SyncAccountWorker {
       where: { id: adAccountId },
       data: { lastSyncedAt: when },
     });
+  }
+
+  /** Non-fatal wrapper — campaign status drift must not fail account sync. */
+  private async reconcileCampaignStatusesSafe(
+    adAccountId: string,
+    now: Date,
+    tag: string,
+  ): Promise<void> {
+    try {
+      const r = await this.reconcileCampaignStatuses(adAccountId, { now });
+      console.log(
+        `${tag} campaigns reconciled: ${r.campaignsUpserted} row(s)` +
+        (r.frozen > 0 ? `, ${r.frozen} frozen` : ""),
+      );
+    } catch (e) {
+      const msg = e instanceof MetaApiError
+        ? `Meta ${e.status}: ${e.message}`
+        : e instanceof Error ? e.message : String(e);
+      console.error(`${tag} reconcileCampaignStatuses FAILED (non-fatal) — ${msg}`);
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -369,6 +391,117 @@ export class SyncAccountWorker {
     }
   }
 
+  /**
+   * Reconcile Campaign rows from Meta (effective_status, vanished campaigns,
+   * freeze triggers). Does NOT pull campaign-level daily insights — cheap
+   * enough for the 6-hour auto-sync path alongside account-level sync().
+   */
+  async reconcileCampaignStatuses(
+    adAccountId: string,
+    opts: { now?: Date } = {},
+  ): Promise<{ campaignsUpserted: number; frozen: number }> {
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const tag = `[reconcileCampaigns:${acct.externalAccountId}]`;
+    const now = opts.now ?? new Date();
+    console.log(`${tag} listing campaigns…`);
+
+    const metaCampaigns = await this.meta.listCampaigns(acct.externalAccountId);
+    console.log(`${tag} fetched ${metaCampaigns.length} campaign(s) from Meta`);
+
+    const existingCampaigns = await this.prisma.campaign.findMany({
+      where: { adAccountId },
+      select: { id: true, externalCampaignId: true, status: true },
+    });
+    const priorByExternal = new Map(
+      existingCampaigns.map((c) => [c.externalCampaignId, c]),
+    );
+
+    const freezeCandidateIds: string[] = [];
+    const returnedExternalIds: string[] = [];
+
+    const upserts = metaCampaigns.map((mc) => {
+      const externalId = String(mc["id"]);
+      returnedExternalIds.push(externalId);
+      const name = String(mc["name"] ?? "(unnamed)");
+      const objective = mc["objective"] != null ? String(mc["objective"]) : null;
+      const status = resolveCampaignStatusFromMeta(mc, { now });
+      const dailyBudget = mc["daily_budget"] != null
+        ? BigInt(String(mc["daily_budget"]))
+        : null;
+      const lifetimeBudget = mc["lifetime_budget"] != null
+        ? BigInt(String(mc["lifetime_budget"]))
+        : null;
+
+      const prior = priorByExternal.get(externalId);
+      if (shouldTriggerCampaignFreeze({
+        priorStatus: prior?.status ?? null,
+        newStatus: status,
+      })) {
+        freezeCandidateIds.push(externalId);
+      }
+
+      return this.prisma.campaign.upsert({
+        where: { adAccountId_externalCampaignId: { adAccountId, externalCampaignId: externalId } },
+        create: {
+          adAccountId,
+          externalCampaignId: externalId,
+          name,
+          objective,
+          status,
+          dailyBudget,
+          lifetimeBudget,
+        },
+        update: {
+          name,
+          objective,
+          status,
+          dailyBudget,
+          lifetimeBudget,
+        },
+      });
+    });
+
+    const txOps = returnedExternalIds.length > 0
+      ? [
+          ...upserts,
+          this.prisma.campaign.updateMany({
+            where: {
+              adAccountId,
+              externalCampaignId: { notIn: returnedExternalIds },
+              status: { in: [EntityStatus.ACTIVE, EntityStatus.PAUSED] },
+            },
+            data: { status: EntityStatus.ARCHIVED },
+          }),
+        ]
+      : upserts;
+
+    await this.prisma.$transaction(txOps);
+
+    const campaigns = await this.prisma.campaign.findMany({ where: { adAccountId } });
+    console.log(`${tag} reconciled ${campaigns.length} campaign row(s)`);
+
+    let frozen = 0;
+    if (freezeCandidateIds.length > 0) {
+      const campaignByExternal = new Map(campaigns.map((c) => [c.externalCampaignId, c.id]));
+      for (const externalId of freezeCandidateIds) {
+        const internalId = campaignByExternal.get(externalId);
+        if (!internalId) continue;
+        try {
+          const result = await freezeCampaign(this.prisma, this.meta, internalId, { now });
+          if (result.ok && !result.skipped) frozen++;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`${tag} freeze campaign=${externalId} FAILED — ${msg}`);
+        }
+      }
+      if (frozen > 0) {
+        console.log(`${tag} frozen ${frozen} campaign snapshot(s)`);
+      }
+    }
+
+    return { campaignsUpserted: campaigns.length, frozen };
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  CAMPAIGN DISCOVERY + CAMPAIGN-LEVEL DAILY STATS
   //
@@ -396,99 +529,11 @@ export class SyncAccountWorker {
     const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
     const tag = `[syncCampaigns:${acct.externalAccountId}]`;
     const now = opts.now ?? new Date();
-    console.log(`${tag} listing campaigns…`);
 
-    const metaCampaigns = await this.meta.listCampaigns(acct.externalAccountId);
-    console.log(`${tag} fetched ${metaCampaigns.length} campaign(s) from Meta`);
+    const { campaignsUpserted, frozen } = await this.reconcileCampaignStatuses(adAccountId, { now });
 
-    const existingCampaigns = await this.prisma.campaign.findMany({
-      where: { adAccountId },
-      select: { id: true, externalCampaignId: true, status: true },
-    });
-    const priorByExternal = new Map(
-      existingCampaigns.map((c) => [c.externalCampaignId, c]),
-    );
-
-    const freezeCandidateIds: string[] = [];
-    const returnedExternalIds: string[] = [];
-
-    // ── Upsert Campaign rows in a single transaction ──────────────────────
-    const upserts = metaCampaigns.map((mc) => {
-        const externalId = String(mc['id']);
-        returnedExternalIds.push(externalId);
-        const name = String(mc['name'] ?? '(unnamed)');
-        const objective = mc['objective'] != null ? String(mc['objective']) : null;
-        const status = resolveCampaignStatusFromMeta(mc, { now });
-        const dailyBudget = mc['daily_budget'] != null
-          ? BigInt(String(mc['daily_budget']))
-          : null;
-        const lifetimeBudget = mc['lifetime_budget'] != null
-          ? BigInt(String(mc['lifetime_budget']))
-          : null;
-
-        const prior = priorByExternal.get(externalId);
-        if (shouldTriggerCampaignFreeze({
-          priorStatus: prior?.status ?? null,
-          newStatus: status,
-        })) {
-          freezeCandidateIds.push(externalId);
-        }
-
-        return this.prisma.campaign.upsert({
-          where: { adAccountId_externalCampaignId: { adAccountId, externalCampaignId: externalId } },
-          create: {
-            adAccountId,
-            externalCampaignId: externalId,
-            name,
-            objective,
-            status,
-            dailyBudget,
-            lifetimeBudget,
-          },
-          update: {
-            name,
-            objective,
-            status,
-            dailyBudget,
-            lifetimeBudget,
-          },
-        });
-    });
-
-    // ── Reconcile vanished campaigns (stale-ACTIVE fix) ───────────────────
-    //
-    // Meta's /campaigns edge returns ACTIVE and PAUSED campaigns but DROPS
-    // those archived/deleted on Meta. The upsert loop above only touches
-    // campaigns Meta still returns, so a campaign that left the listing keeps
-    // its last-synced status forever — a stale ACTIVE row that inflates the
-    // "Active" count on the dashboard/campaigns page. We close that gap in the
-    // SAME transaction by down-converting any locally-live campaign that Meta
-    // no longer lists to ARCHIVED. No extra Meta call: this reuses the set we
-    // already fetched.
-    //
-    // GUARD: only reconcile when Meta returned a non-empty set. A transient
-    // empty/failed list must NEVER mass-archive every live campaign. (A list
-    // call that errors mid-pagination throws and is caught upstream as
-    // non-fatal, so we never reach here with a partial set.)
-    const txOps = returnedExternalIds.length > 0
-      ? [
-          ...upserts,
-          this.prisma.campaign.updateMany({
-            where: {
-              adAccountId,
-              externalCampaignId: { notIn: returnedExternalIds },
-              status: { in: [EntityStatus.ACTIVE, EntityStatus.PAUSED] },
-            },
-            data: { status: EntityStatus.ARCHIVED },
-          }),
-        ]
-      : upserts;
-
-    await this.prisma.$transaction(txOps);
-
-    // Re-read with internal IDs so we can write DailyStat rows.
     const campaigns = await this.prisma.campaign.findMany({ where: { adAccountId } });
-    console.log(`${tag} upserted ${campaigns.length} campaign row(s) — now pulling daily insights…`);
+    console.log(`${tag} ${campaigns.length} campaign row(s) — now pulling daily insights…`);
 
     let totalDailyUpserted = 0;
 
@@ -546,28 +591,7 @@ export class SyncAccountWorker {
 
     console.log(`${tag} done — ${campaigns.length} campaigns, ${totalDailyUpserted} daily rows`);
 
-    // One-shot Final Freeze for campaigns that left active delivery (H-1).
-    // Non-fatal: a freeze failure must not roll back the sync write.
-    let frozen = 0;
-    if (freezeCandidateIds.length > 0) {
-      const campaignByExternal = new Map(campaigns.map((c) => [c.externalCampaignId, c.id]));
-      for (const externalId of freezeCandidateIds) {
-        const internalId = campaignByExternal.get(externalId);
-        if (!internalId) continue;
-        try {
-          const result = await freezeCampaign(this.prisma, this.meta, internalId, { now });
-          if (result.ok && !result.skipped) frozen++;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.error(`${tag} freeze campaign=${externalId} FAILED — ${msg}`);
-        }
-      }
-      if (frozen > 0) {
-        console.log(`${tag} frozen ${frozen} campaign snapshot(s)`);
-      }
-    }
-
-    return { campaignsUpserted: campaigns.length, dailyRowsUpserted: totalDailyUpserted, frozen };
+    return { campaignsUpserted, dailyRowsUpserted: totalDailyUpserted, frozen };
   }
 
   // ════════════════════════════════════════════════════════════════════════

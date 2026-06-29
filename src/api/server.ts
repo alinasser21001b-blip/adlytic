@@ -81,7 +81,7 @@ import { ExecutionService } from '../services/execution.service';
 import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
-import { isCurrentlySpending, utcTodayFloor } from '../lib/campaignSpending';
+import { isCurrentlySpending, accountLocalTodayFloor } from '../lib/campaignSpending';
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -1430,7 +1430,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       where: { adAccountId: account.id },
       orderBy: { createdAt: 'desc' },
     });
-    const tickToday = utcTodayFloor();
+    const tickToday = accountLocalTodayFloor(account.timezone);
     const todayStats = campaigns.length
       ? await prisma.dailyStat.findMany({
           where: {

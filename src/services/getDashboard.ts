@@ -38,7 +38,7 @@ import {
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
-import { isCurrentlySpending, utcTodayFloor } from "../lib/campaignSpending";
+import { isCurrentlySpending, accountLocalTodayFloor } from "../lib/campaignSpending";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
@@ -432,7 +432,7 @@ export async function getDashboard(
   const curr = account.currency;
   const factor = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
   const activeCampaigns = await timedStage('activeSpendingCount', () =>
-    countCurrentlySpendingCampaigns(prisma, account.id),
+    countCurrentlySpendingCampaigns(prisma, account.id, account.timezone),
   );
   const sinceDate = utcDateFloor(windowDays);
   const priorSinceDate = utcDateFloor(windowDays * 2);
@@ -954,6 +954,7 @@ function buildSteadyStateSummary(input: {
 async function countCurrentlySpendingCampaigns(
   prisma: PrismaClient,
   adAccountId: string,
+  timezone: string,
 ): Promise<number> {
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId, status: "ACTIVE" },
@@ -961,7 +962,7 @@ async function countCurrentlySpendingCampaigns(
   });
   if (!campaigns.length) return 0;
 
-  const tickToday = utcTodayFloor();
+  const tickToday = accountLocalTodayFloor(timezone);
   const todayStats = await prisma.dailyStat.findMany({
     where: {
       entityType: EntityType.CAMPAIGN,
