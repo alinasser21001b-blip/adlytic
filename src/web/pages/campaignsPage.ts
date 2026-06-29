@@ -51,7 +51,7 @@ export function campaignsPage(): string {
       <div class="page-subtitle" id="page-subtitle">All campaigns across your Meta ad account</div>
     </div>
     <div class="flex items-center gap-2">
-      <button type="button" class="btn btn-ghost btn-sm" id="force-sync-btn" title="Sync latest data from Meta">↻ Refresh Data</button>
+      <button type="button" class="btn btn-ghost btn-sm js-sync-trigger" id="force-sync-btn" title="Sync latest data from Meta">↻ Refresh Data</button>
       <div class="tabs" id="date-tabs">
         <button class="tab" data-days="7">7d</button>
         <button class="tab" data-days="14">14d</button>
@@ -278,15 +278,7 @@ export function campaignsPage(): string {
   function escAttr(s) {
     return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
-  // onerror handler for creative thumbnails. Meta CDN links expire; when the
-  // image 404s we hide it and reveal the sibling fallback box instead of
-  // leaving a broken-image icon. Named (not inline) to avoid nested quotes in
-  // the attribute — those would trip the template-literal apostrophe footgun.
-  function creativeImgFailed(img) {
-    img.style.display = 'none';
-    var box = img.parentNode && img.parentNode.querySelector('.inspector-creative-fallback');
-    if (box) box.style.display = 'flex';
-  }
+  // creativeImgFailed / creativeImgLoaded — provided by SHARED_JS (layout.ts, C-2 CDN fallbacks).
   function getToken() { return localStorage.getItem('adlytic_token'); }
   function getWorkspaceId() { return localStorage.getItem('adlytic_workspace_id'); }
   function setWorkspaceId(id) { localStorage.setItem('adlytic_workspace_id', id); }
@@ -381,6 +373,7 @@ export function campaignsPage(): string {
   }
 
   function updateCharts(insights) {
+    try {
     var filtered = recentAsc(insights, state.days);
     var labels = filtered.map(function(d) { return fmtShortDate(d.date); });
     // d.spend is BigInt minor units (e.g. cents). We pass the raw minor
@@ -424,6 +417,11 @@ export function campaignsPage(): string {
         }]);
       }
     }
+    } catch (chartErr) {
+      console.error('[campaigns] chart render failed:', chartErr);
+      var ctrCard = document.getElementById('ctr-chart-card');
+      if (ctrCard) ctrCard.style.display = 'none';
+    }
   }
 
   // ── Summary cards ─────────────────────────────────────────────────────────
@@ -453,6 +451,8 @@ export function campaignsPage(): string {
     var tbody = document.getElementById('campaigns-tbody');
     var emptyEl = document.getElementById('empty-campaigns');
     var tableContainer = document.getElementById('table-container');
+    try {
+    if (!campaigns || !Array.isArray(campaigns)) campaigns = [];
 
     if (campaigns.length === 0) {
       tableContainer.style.display = 'none';
@@ -480,6 +480,10 @@ export function campaignsPage(): string {
         + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">View</button></td>'
         + '</tr>';
     }).join('');
+    } catch (tableErr) {
+      console.error('[campaigns] table render failed:', tableErr);
+      tbody.innerHTML = '<tr><td colspan="6" class="section-fallback">Could not display campaigns — try refreshing.</td></tr>';
+    }
   }
 
   // ── Search filter ─────────────────────────────────────────────────────────
@@ -740,11 +744,12 @@ export function campaignsPage(): string {
       // Real <img> (lazy + no-referrer) so we can fall back gracefully when the
       // (expiring) Meta CDN link 404s; CSS background-image had no error hook.
       var thumbInner = creative.thumbnailUrl
-        ? '<img class="inspector-creative-img" src="' + escAttr(creative.thumbnailUrl) + '"'
+        ? '<div class="meta-img-placeholder"></div>'
+          + '<img class="inspector-creative-img meta-img-loading" src="' + escAttr(creative.thumbnailUrl) + '"'
           + ' alt="' + escAttr(item.adName || '') + '" loading="lazy" referrerpolicy="no-referrer"'
-          + ' onerror="creativeImgFailed(this)">'
-          + '<div class="inspector-creative-fallback" style="display:none;">' + fallbackEmoji + '</div>'
-        : '<div class="inspector-creative-fallback">' + fallbackEmoji + '</div>';
+          + ' onload="creativeImgLoaded(this)" onerror="creativeImgFailed(this)">'
+          + '<div class="inspector-creative-fallback meta-img-fallback" style="display:none;">' + fallbackEmoji + '</div>'
+        : '<div class="inspector-creative-fallback meta-img-fallback">' + fallbackEmoji + '</div>';
       var videoBadge = creative.videoId
         ? '<span class="inspector-creative-video-badge">▶ فيديو</span>'
         : '';
@@ -973,10 +978,16 @@ export function campaignsPage(): string {
     showInspectorModal();
     try {
       var data = await apiFetch('/api/workspaces/' + state.workspaceId + '/campaigns/' + encodeURIComponent(campaignId) + '/inspector?days=30');
-      renderInspector(data);
+      try {
+        renderInspector(data);
+      } catch (renderErr) {
+        console.error('[campaigns] inspector render failed:', renderErr);
+        document.getElementById('inspector-body').innerHTML =
+          '<div class="section-fallback" style="direction:rtl;">تعذّر عرض تفاصيل الحملة — حاول مرة أخرى.</div>';
+      }
     } catch (err) {
       document.getElementById('inspector-body').innerHTML =
-        '<div class="alert alert-error" style="direction:rtl;text-align:right;">تعذّر تحميل البيانات: ' + escHtml(err.message || String(err)) + '</div>';
+        '<div class="alert alert-error" style="direction:rtl;text-align:right;">تعذّر تحميل البيانات: ' + escHtml(friendlyApiError(err)) + '</div>';
     }
   }
 
@@ -1017,53 +1028,42 @@ export function campaignsPage(): string {
 
   function toastWithReconnect(err) {
     var container = document.getElementById('toast-container');
+    var msg = friendlyApiError(err);
     if (!container) {
-      toast(err.message || 'Sync failed', 'error');
+      toast(msg, 'error');
       return;
     }
     var el = document.createElement('div');
     el.className = 'toast error';
     var link = err.reconnectUrl || '/workspace?connect=manual';
     var label = err.reconnectLabel || 'Reconnect Meta';
-    el.innerHTML = escHtml(err.message || 'Sync failed')
+    el.innerHTML = escHtml(msg)
       + ' <a href="' + escHtml(link) + '" style="color:var(--accent);font-weight:600;margin-left:8px;white-space:nowrap;">'
       + escHtml(label) + ' →</a>';
     container.appendChild(el);
     setTimeout(function() { el.remove(); }, 8000);
   }
 
-  var syncing = false;
-
   async function forceSync() {
-    if (syncing || !state.workspaceId) return;
-    var btn = document.getElementById('force-sync-btn');
-    if (!btn) return;
-    syncing = true;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>Syncing…';
-
+    if (!state.workspaceId) return;
     try {
-      var res = await apiFetch('/api/workspaces/' + state.workspaceId + '/sync', {
-        method: 'POST',
-        body: JSON.stringify({ windowDays: 3 }),
+      var job = await runWorkspaceSync(state.workspaceId, {
+        statusContainerId: 'main-content',
+        buttonSelector: '#force-sync-btn',
+        body: { windowDays: 3 },
       });
-      if (res && res.jobId) {
-        var job = await pollSyncJob(res.jobId);
+      if (job) {
         toast('Sync complete — ' + (job.rowsUpserted || 0) + ' rows updated', 'success');
-      } else {
-        toast('Sync complete', 'success');
+        await loadCampaignData();
       }
-      await loadCampaignData();
     } catch (err) {
       if (err && err.code === 'TOKEN_DECRYPT_FAILED') {
         toastWithReconnect(err);
+      } else if (err && err.message && err.message.indexOf('finish in the background') >= 0) {
+        toast(friendlyApiError(err), 'warning');
       } else {
-        toast(err.message || 'Sync failed', 'error');
+        toast(friendlyApiError(err), 'error');
       }
-    } finally {
-      syncing = false;
-      btn.disabled = false;
-      btn.textContent = '↻ Refresh Data';
     }
   }
 
@@ -1142,6 +1142,12 @@ export function campaignsPage(): string {
 
       state.workspaceId = workspaceId;
 
+      await resumeActiveSyncIfAny(workspaceId, {
+        statusContainerId: 'main-content',
+        buttonSelector: '#force-sync-btn',
+        onComplete: function() { loadCampaignData(); },
+      });
+
       var [campaigns, insights, wsData] = await Promise.all([
         apiFetch('/api/workspaces/' + workspaceId + '/campaigns'),
         apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
@@ -1200,7 +1206,7 @@ export function campaignsPage(): string {
       document.getElementById('main-content').style.display = 'block';
 
     } catch (err) {
-      showError('Failed to load campaigns: ' + (err.message || String(err)));
+      showError(friendlyApiError(err));
     }
   }
 

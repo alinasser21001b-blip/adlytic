@@ -35,8 +35,12 @@ export async function checkWorkspaceTokenHealth(
   prisma: PrismaClient,
   workspaceId: string,
 ): Promise<WorkspaceTokenHealth> {
-  const accounts = await prisma.adAccount.findMany({
+  // Match getAccount() in server.ts: probe only the operational primary row.
+  // Orphan/stale AdAccount rows from past reconnects must not trip the banner
+  // when the live account syncs successfully (lastSyncedAt recent).
+  const primary = await prisma.adAccount.findFirst({
     where: { workspaceId },
+    orderBy: { createdAt: 'asc' },
     select: {
       id: true,
       name: true,
@@ -47,20 +51,19 @@ export async function checkWorkspaceTokenHealth(
     },
   });
 
+  if (!primary) return { ok: true };
+
   const failed: TokenHealthAccountFailure[] = [];
-
-  for (const acct of accounts) {
-    const resolved = await resolveAccountToken(prisma, acct);
-    if (!resolved.encrypted) continue;
-
+  const resolved = await resolveAccountToken(prisma, primary);
+  if (resolved.encrypted) {
     try {
       decryptToken(resolved.encrypted);
     } catch (err) {
       if (err instanceof TokenDecryptError) {
         failed.push({
-          adAccountId: acct.id,
-          externalAccountId: acct.externalAccountId,
-          name: acct.name,
+          adAccountId: primary.id,
+          externalAccountId: primary.externalAccountId,
+          name: primary.name,
         });
       } else {
         throw err;

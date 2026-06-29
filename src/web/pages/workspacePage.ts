@@ -211,7 +211,7 @@ export function workspacePage(): string {
             <span class="badge \${badgeClass}" style="margin-right:8px;">\${badgeLabel}</span>
             \${needsReconnect
               ? \`<button class="btn btn-primary btn-sm" style="font-size:12px;" onclick="document.getElementById('connect-meta-btn').click()" title="Reconnect to restore access">⚠ Reconnect Meta</button>\`
-              : \`<button class="btn btn-ghost btn-sm sync-now-btn" data-aid="\${a.id}" title="Sync now">↻ Sync</button>\`
+              : \`<button class="btn btn-ghost btn-sm sync-now-btn js-sync-trigger" data-aid="\${a.id}" title="Sync now">↻ Sync</button>\`
             }
             <button class="btn btn-danger btn-sm disconnect-btn" data-aid="\${a.id}" data-name="\${a.name}" title="Disconnect">✕</button>
           </div>\`;
@@ -229,19 +229,12 @@ export function workspacePage(): string {
     // Sync now buttons
     document.querySelectorAll('.sync-now-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        btn.textContent = '⏳ Syncing…';
-        btn.disabled = true;
         try {
-          // POST only ENQUEUES the job (202 + jobId). The real outcome lives in
-          // the SyncJob — never toast success on this response.
-          const res = await apiFetch('/api/workspaces/' + wsId + '/sync', { method: 'POST' });
-          if (!res || !res.jobId) {
-            toast('Sync started', 'info');
-            return;
-          }
-          toast('Syncing… updating your data', 'info');
-          const job = await pollSyncJob(res.jobId);
-          toast('Sync complete — ' + (job.rowsUpserted ?? 0) + ' rows updated', 'success');
+          var job = await runWorkspaceSync(wsId, {
+            buttonSelector: '.sync-now-btn',
+            statusContainerId: 'ad-accounts-container',
+          });
+          if (job) toast('Sync complete — ' + (job.rowsUpserted ?? 0) + ' rows updated', 'success');
           await loadWorkspace();
         } catch(e) {
           const isDecrypt = e && (e.code === 'TOKEN_DECRYPT_FAILED' ||
@@ -252,12 +245,13 @@ export function workspacePage(): string {
               reconnectUrl: e.reconnectUrl,
               reconnectLabel: e.reconnectLabel,
             });
-            toast('Sync failed — stored Meta token could not be decrypted. Please reconnect.', 'error');
+            toast(friendlyApiError(e), 'error');
+          } else if (e && e.message && e.message.indexOf('finish in the background') >= 0) {
+            toast(friendlyApiError(e), 'warning');
           } else {
-            toast((e && e.message) || 'Sync failed', 'error');
+            toast(friendlyApiError(e), 'error');
           }
         }
-        finally { btn.textContent = '↻ Sync'; btn.disabled = false; }
       });
     });
 
@@ -500,19 +494,25 @@ export function workspacePage(): string {
         body: JSON.stringify({ accessToken, externalAccountId, name }),
       });
       document.getElementById('manual-token-modal').style.display = 'none';
+      try { sessionStorage.removeItem('adlytic_token_decrypt_banner_dismissed'); } catch (e) {}
+      if (typeof checkTokenDecryptBanner === 'function') await checkTokenDecryptBanner();
       toast('Meta Ads account connected! Running initial sync…', 'success');
-      // Trigger initial sync and show result
       try {
-        const syncRes = await apiFetch('/api/workspaces/' + wsId + '/sync', { method: 'POST' });
-        if (syncRes.status === 'sync_complete') {
-          toast('Initial sync complete — ' + (syncRes.rowsUpserted ?? 0) + ' rows loaded', 'success');
-        } else if (syncRes.status === 'sync_failed') {
-          toast('Sync failed: ' + (syncRes.error || 'Unknown'), 'error');
+        var job = await runWorkspaceSync(wsId, {
+          buttonSelector: '#manual-confirm',
+          statusContainerId: 'ad-accounts-container',
+        });
+        if (job) toast('Initial sync complete — ' + (job.rowsUpserted ?? 0) + ' rows loaded', 'success');
+      } catch(syncErr) {
+        if (syncErr && syncErr.message && syncErr.message.indexOf('finish in the background') >= 0) {
+          toast(friendlyApiError(syncErr), 'warning');
+        } else {
+          toast(friendlyApiError(syncErr), 'error');
         }
-      } catch(syncErr) { toast(syncErr.message || 'Sync failed', 'error'); }
+      }
       await loadWorkspace();
     } catch(e) {
-      errEl.textContent = e.message || 'Failed to connect account';
+      errEl.textContent = friendlyApiError(e);
       errEl.style.display = 'flex';
     } finally {
       confirmBtn.textContent = 'Connect Account';
@@ -546,6 +546,11 @@ export function workspacePage(): string {
 
   console.log('[WS:13] firing Promise.all([loadWorkspace, loadMembers])');
   try {
+    await resumeActiveSyncIfAny(wsId, {
+      statusContainerId: 'ad-accounts-container',
+      buttonSelector: '.sync-now-btn',
+      onComplete: function () { loadWorkspace(); },
+    });
     await Promise.all([loadWorkspace(), loadMembers()]);
     console.log('[WS:14] Promise.all resolved — both loads complete');
     if (params.get('connect') === 'manual') {

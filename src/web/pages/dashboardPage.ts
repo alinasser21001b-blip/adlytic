@@ -821,6 +821,11 @@ export function dashboardPage(): string {
     return (dashData.kpis || []).find(function (k) { return k.key === key; });
   }
   function renderHero(dashData, insights90) {
+    var h30 = document.getElementById('hero-30-val');
+    var h7 = document.getElementById('hero-7-val');
+    var hLife = document.getElementById('hero-life-val');
+    var hLifeSub = document.getElementById('hero-life-sub');
+    if (!h30 || !h7 || !hLife) return;
     var arr = Array.isArray(insights90) ? insights90 : [];
     var spendKpi = findKpi(dashData, 'spend');
     var spend7 = sumMinor(arr.slice(0, 7));
@@ -828,16 +833,16 @@ export function dashboardPage(): string {
 
     // 30d hero: authoritative KPI from getDashboard DTO (single source of truth).
     if (spendKpi && spendKpi.display) {
-      document.getElementById('hero-30-val').textContent = spendKpi.display;
+      h30.textContent = spendKpi.display;
     } else {
-      document.getElementById('hero-30-val').textContent = fmtCurrencyMinor(sumMinor(arr.slice(0, 30)));
+      h30.textContent = fmtCurrencyMinor(sumMinor(arr.slice(0, 30)));
     }
 
-    document.getElementById('hero-7-val').textContent = fmtCurrencyMinor(spend7);
+    h7.textContent = fmtCurrencyMinor(spend7);
     var lifeMinor = (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt != null)
       ? dashData.lifetimeSpend.minor
       : spend90; // fallback if lifetime sync pending
-    document.getElementById('hero-life-val').textContent = fmtCurrencyMinor(lifeMinor);
+    hLife.textContent = fmtCurrencyMinor(lifeMinor);
 
     function applyDelta(el, pct, goodWhenUp) {
       if (pct == null) { el.className = 'hero-delta flat'; el.textContent = '→ —'; return; }
@@ -866,10 +871,12 @@ export function dashboardPage(): string {
 
     // Lifetime sub: authoritative Meta lifetime when synced, else honest window label.
     var days = Math.min(arr.length, 90);
-    document.getElementById('hero-life-sub').textContent =
-      (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt)
-        ? 'Meta account lifetime total'
-        : ('Account history (' + days + '-day window)');
+    if (hLifeSub) {
+      hLifeSub.textContent =
+        (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt)
+          ? 'Meta account lifetime total'
+          : ('Account history (' + days + '-day window)');
+    }
   }
 
   // ── AI Motion Ticker ─────────────────────────────────────────────────────
@@ -939,9 +946,10 @@ export function dashboardPage(): string {
     var sec = document.getElementById('active-section');
     var grid = document.getElementById('active-grid');
     var meta = document.getElementById('active-meta');
+    if (!sec || !grid) return;
     if (active.length === 0) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
-    meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' spending today';
+    if (meta) meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' spending today';
     grid.innerHTML = active.slice(0, 12).map(function (c) {
       var budget = c.dailyBudget
         ? fmtCurrencyMinor(c.dailyBudget) + '/day'
@@ -1112,6 +1120,7 @@ export function dashboardPage(): string {
   // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
   function renderKpis(kpis) {
     var grid = document.getElementById('kpi-grid');
+    if (!grid) return;
     if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">No KPI data available.</div>'; return; }
     grid.innerHTML = kpis.map(function (k) {
       var deltaClass = 'flat', arrow = '→';
@@ -1814,7 +1823,7 @@ export function dashboardPage(): string {
       await sleep(600);
     } catch (e) {
       console.warn('[dashboard] onboarding sync poll:', e);
-      toast(e.message || lbl('Initial sync is still running in the background.', 'المزامنة الأولية لا تزال قيد التشغيل في الخلفية.'), 'warning');
+      toast(friendlyApiError(e), 'warning');
     } finally {
       showOnboardingOverlay(false);
     }
@@ -1840,6 +1849,12 @@ export function dashboardPage(): string {
   }
 
   // ── Render / refresh dashboard sections ─────────────────────────────────
+  function safeRender(sectionName, fn) {
+    try { fn(); } catch (e) {
+      console.error('[dashboard] ' + sectionName + ' render failed:', e);
+    }
+  }
+
   function applyDashboardData(dashData, insights, campaigns, wsData, isInitial) {
     dashData = dashData || {};
     insights = Array.isArray(insights) ? insights : [];
@@ -1856,7 +1871,10 @@ export function dashboardPage(): string {
         var allStale = Array.isArray(wsData.adAccounts)
           && wsData.adAccounts.length > 0
           && wsData.adAccounts.every(function (a) { return a.status !== 'ACTIVE'; });
-        if (allStale) document.getElementById('stale-banner').style.display = 'flex';
+        if (allStale) {
+          var staleBanner = document.getElementById('stale-banner');
+          if (staleBanner) staleBanner.style.display = 'flex';
+        }
       }
 
       var workspaceId = state.workspaceId;
@@ -1866,25 +1884,25 @@ export function dashboardPage(): string {
       if (subtitleEl) {
         subtitleEl.innerHTML = 'Past 30 days · ' + escHtml(wsName) + ' · <span id="dash-last-updated" class="text-3">—</span>';
       }
-      document.getElementById('chart-panel-meta').textContent = state.currency;
+      var chartMeta = document.getElementById('chart-panel-meta');
+      if (chartMeta) chartMeta.textContent = state.currency;
       updateLastUpdatedLabel(dashData);
 
-      renderHero(dashData, insights);
-      renderExecutivePulse(dashData);
-      renderTicker(buildTickerItems(dashData));
-      renderActiveAds(campaigns);
-      renderBrainBox(dashData);
+      safeRender('hero', function () { renderHero(dashData, insights); });
+      safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
+      safeRender('ticker', function () { renderTicker(buildTickerItems(dashData)); });
+      safeRender('activeAds', function () { renderActiveAds(campaigns); });
+      safeRender('brainBox', function () { renderBrainBox(dashData); });
 
       if (dashData.brain) {
-        renderBrainSection(dashData.brain, dashData);
+        safeRender('brainSection', function () { renderBrainSection(dashData.brain, dashData); });
       }
 
       var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
       var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
-      renderMainMove(dashData, kpis);
-      renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData));
-
-      renderKpis(kpis);
+      safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
+      safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
+      safeRender('kpis', function () { renderKpis(kpis); });
 
       var last30 = recentAsc(insights, 30);
       var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
@@ -1904,12 +1922,14 @@ export function dashboardPage(): string {
         labels = tsLabels;
       }
 
-      makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
-      makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-      makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+      safeRender('charts', function () {
+        makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
+        makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
+        makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+      });
 
-      renderIssues(Array.isArray(dashData.issues) ? dashData.issues : []);
-      renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns);
+      safeRender('issues', function () { renderIssues(Array.isArray(dashData.issues) ? dashData.issues : []); });
+      safeRender('campaignsTable', function () { renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns); });
     } catch (e) {
       console.error('[dashboard] applyDashboardData failed:', e);
       if (isInitial) throw e;
@@ -1947,6 +1967,11 @@ export function dashboardPage(): string {
         return;
       }
       state.workspaceId = workspaceId;
+
+      await resumeActiveSyncIfAny(workspaceId, {
+        statusContainerId: 'dashboard-content',
+        onComplete: function () { refreshDashboard(); },
+      });
 
       var urlParams = new URLSearchParams(window.location.search);
       var isPostConnect = urlParams.get('connected') === '1';
@@ -1999,7 +2024,7 @@ export function dashboardPage(): string {
     } catch (err) {
       console.error('[dashboard] init failed:', err);
       hideLoadingShowDashboard();
-      showError('Failed to load dashboard: ' + (err.message || String(err)));
+      showError(friendlyApiError(err));
     }
   }
 

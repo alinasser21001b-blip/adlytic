@@ -506,7 +506,75 @@ select.form-input { cursor: pointer; }
 .toast.success { border-left: 3px solid var(--success); }
 .toast.error   { border-left: 3px solid var(--error); }
 .toast.info    { border-left: 3px solid var(--accent); }
+.toast.warning { border-left: 3px solid var(--warning); }
 @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Background sync status bar (B-0) ─────────────────────────────── */
+.sync-status-bar {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(99,102,241,0.35);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  color: var(--text);
+}
+.sync-status-inner { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.sync-status-spinner {
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: 2px solid rgba(99,102,241,0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.sync-status-text { font-weight: 600; color: var(--text); }
+.sync-status-progress {
+  flex: 1; min-width: 80px; max-width: 200px; height: 5px;
+  background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden;
+}
+.sync-status-progress-bar {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+.sync-status-meta { font-size: 11.5px; color: var(--text-3); margin-left: auto; }
+
+/* ── Meta CDN image fallbacks (C-2) ─────────────────────────────── */
+.meta-img-wrap, .inspector-creative-thumb {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.meta-img-wrap img, .inspector-creative-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.meta-img-wrap img.meta-img-loading {
+  opacity: 0;
+}
+.meta-img-fallback, .inspector-creative-fallback {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+  background: linear-gradient(135deg, var(--surface-2) 0%, var(--surface) 100%);
+  color: var(--text-3);
+}
+.meta-img-fallback.visible, .inspector-creative-fallback.visible { display: flex; }
+.meta-img-placeholder {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-hover) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: meta-img-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes meta-img-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.section-fallback {
+  padding: 16px; border: 1px dashed var(--border);
+  border-radius: var(--radius); color: var(--text-3); font-size: 13px; text-align: center;
+}
 
 /* ── Modal ───────────────────────────────────────────────────────── */
 .modal-overlay {
@@ -672,6 +740,178 @@ async function pollSyncJob(jobId, opts) {
   throw new Error('Sync is taking longer than expected — it will finish in the background.');
 }
 
+function friendlyApiError(err) {
+  if (!err) return 'Something went wrong. Please try again.';
+  if (err.code === 'TOKEN_DECRYPT_FAILED') {
+    return 'Your stored Meta token could not be read. Reconnect your account in Workspace settings.';
+  }
+  var msg = err.message || String(err);
+  if (/Another sync is already in progress/i.test(msg)) {
+    return 'A sync is already running — your data will update automatically when it finishes.';
+  }
+  if (/timed out/i.test(msg)) return 'Request timed out — check your connection and try again.';
+  if (/non-JSON response/i.test(msg)) return 'Unexpected server response — please refresh the page.';
+  if (/token has expired|please reconnect/i.test(msg)) {
+    return 'Your Meta access token expired. Reconnect in Workspace settings.';
+  }
+  if (/finish in the background|still running in the background/i.test(msg)) {
+    return 'Sync is still running in the background — your dashboard will update shortly.';
+  }
+  if (/Insufficient permissions/i.test(msg)) return 'You need Manager or Owner access to sync data.';
+  if (/No ad account/i.test(msg)) return 'Connect a Meta ad account in Workspace settings first.';
+  return msg;
+}
+
+function creativeImgFailed(img) {
+  if (!img) return;
+  img.classList.add('meta-img-failed');
+  img.style.display = 'none';
+  var ph = img.parentNode && img.parentNode.querySelector('.meta-img-placeholder');
+  if (ph) ph.remove();
+  var box = img.parentNode && img.parentNode.querySelector('.meta-img-fallback, .inspector-creative-fallback');
+  if (box) { box.style.display = 'flex'; box.classList.add('visible'); }
+}
+function creativeImgLoaded(img) {
+  if (!img) return;
+  img.classList.remove('meta-img-loading');
+  var ph = img.parentNode && img.parentNode.querySelector('.meta-img-placeholder');
+  if (ph) ph.remove();
+}
+
+var syncUiState = { polling: false, activeJobId: null };
+function syncStorageKey(wsId) { return 'adlytic_active_sync_' + (wsId || ''); }
+function rememberActiveSyncJob(wsId, jobId) {
+  try { sessionStorage.setItem(syncStorageKey(wsId), jobId); } catch (e) {}
+}
+function clearActiveSyncJob(wsId) {
+  try { sessionStorage.removeItem(syncStorageKey(wsId)); } catch (e) {}
+}
+function getRememberedSyncJob(wsId) {
+  try { return sessionStorage.getItem(syncStorageKey(wsId)); } catch (e) { return null; }
+}
+
+function ensureSyncStatusBar(containerId) {
+  var host = document.getElementById(containerId);
+  if (!host) return null;
+  var bar = document.getElementById('sync-status-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'sync-status-bar';
+    bar.className = 'sync-status-bar';
+    bar.setAttribute('role', 'status');
+    bar.setAttribute('aria-live', 'polite');
+    bar.innerHTML = '<div class="sync-status-inner">'
+      + '<span class="sync-status-spinner" aria-hidden="true"></span>'
+      + '<span class="sync-status-text" id="sync-status-text">Syncing data…</span>'
+      + '<div class="sync-status-progress" aria-hidden="true"><div class="sync-status-progress-bar" id="sync-status-progress-bar"></div></div>'
+      + '<span class="sync-status-meta" id="sync-status-meta"></span>'
+      + '</div>';
+    host.insertBefore(bar, host.firstChild);
+  }
+  return bar;
+}
+function updateSyncStatusBar(job, reused) {
+  var bar = document.getElementById('sync-status-bar');
+  if (!bar) return;
+  bar.style.display = 'flex';
+  var text = document.getElementById('sync-status-text');
+  var progBar = document.getElementById('sync-status-progress-bar');
+  var meta = document.getElementById('sync-status-meta');
+  var pct = (job && job.progress != null) ? Number(job.progress) : 0;
+  if (job && job.chunksTotal > 0) {
+    pct = Math.max(pct, Math.round((job.chunksDone / job.chunksTotal) * 100));
+  }
+  if (text) {
+    text.textContent = (reused && pct < 5)
+      ? 'System auto-syncing in background…'
+      : ('Syncing data…' + (pct > 0 ? ' (' + pct + '%)' : ''));
+  }
+  if (progBar) progBar.style.width = Math.max(4, Math.min(100, pct)) + '%';
+  if (meta) meta.textContent = (job && job.rowsUpserted > 0) ? (job.rowsUpserted + ' rows loaded') : '';
+}
+function hideSyncStatusBar() {
+  var bar = document.getElementById('sync-status-bar');
+  if (bar) bar.style.display = 'none';
+}
+function setSyncButtonsDisabled(disabled, selector) {
+  var sel = selector || '.js-sync-trigger, #force-sync-btn, .sync-now-btn';
+  document.querySelectorAll(sel).forEach(function (btn) {
+    btn.disabled = !!disabled;
+    if (disabled && btn.id === 'force-sync-btn') {
+      btn.dataset.prevLabel = btn.dataset.prevLabel || btn.textContent;
+      btn.innerHTML = '<span class="sync-status-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>Syncing…';
+    } else if (!disabled && btn.id === 'force-sync-btn' && btn.dataset.prevLabel) {
+      btn.textContent = btn.dataset.prevLabel;
+    }
+  });
+}
+
+async function runWorkspaceSync(workspaceId, opts) {
+  opts = opts || {};
+  if (syncUiState.polling && !opts.force) return null;
+  var statusContainerId = opts.statusContainerId || 'main-content';
+  ensureSyncStatusBar(statusContainerId);
+  setSyncButtonsDisabled(true, opts.buttonSelector);
+  syncUiState.polling = true;
+  try {
+    var res = await apiFetch('/api/workspaces/' + workspaceId + '/sync', {
+      method: 'POST',
+      body: JSON.stringify(opts.body || {}),
+    });
+    if (!res || !res.jobId) {
+      toast('Sync started', 'info');
+      return res;
+    }
+    if (res.reused) toast('System auto-syncing in background…', 'info');
+    rememberActiveSyncJob(workspaceId, res.jobId);
+    syncUiState.activeJobId = res.jobId;
+    updateSyncStatusBar({ progress: 0, chunksDone: 0, chunksTotal: 0 }, !!res.reused);
+    var job = await pollSyncJob(res.jobId, {
+      onProgress: function (j) {
+        updateSyncStatusBar(j, !!res.reused);
+        if (opts.onProgress) try { opts.onProgress(j); } catch (e) {}
+      },
+    });
+    clearActiveSyncJob(workspaceId);
+    if (opts.onComplete) try { opts.onComplete(job); } catch (e) {}
+    return job;
+  } finally {
+    syncUiState.polling = false;
+    syncUiState.activeJobId = null;
+    hideSyncStatusBar();
+    setSyncButtonsDisabled(false, opts.buttonSelector);
+  }
+}
+
+async function resumeActiveSyncIfAny(workspaceId, opts) {
+  opts = opts || {};
+  var jobId = getRememberedSyncJob(workspaceId);
+  if (!jobId || syncUiState.polling) return null;
+  try {
+    var job = await apiFetch('/api/sync-jobs/' + encodeURIComponent(jobId));
+    var active = job && (job.status === 'PENDING' || job.status === 'PROCESSING' || job.status === 'RUNNING' || job.status === 'IN_PROGRESS');
+    if (!active) { clearActiveSyncJob(workspaceId); return null; }
+    ensureSyncStatusBar(opts.statusContainerId || 'main-content');
+    setSyncButtonsDisabled(true, opts.buttonSelector);
+    syncUiState.polling = true;
+    updateSyncStatusBar(job, true);
+    toast('System auto-syncing in background…', 'info');
+    var completed = await pollSyncJob(jobId, {
+      onProgress: function (j) { updateSyncStatusBar(j, true); if (opts.onProgress) try { opts.onProgress(j); } catch (e) {} },
+    });
+    clearActiveSyncJob(workspaceId);
+    if (opts.onComplete) try { opts.onComplete(completed); } catch (e) {}
+    return completed;
+  } catch (err) {
+    console.warn('[sync] resume failed:', err);
+    return null;
+  } finally {
+    syncUiState.polling = false;
+    hideSyncStatusBar();
+    setSyncButtonsDisabled(false, opts.buttonSelector);
+  }
+}
+
 var shellState = { me: null, ready: false, initPromise: null };
 var SHELL_LOADING = 'Loading…';
 
@@ -824,7 +1064,10 @@ async function checkTokenDecryptBanner() {
         return;
       }
     }
-    if (res.ok) hideTokenDecryptBanner();
+    if (res.ok) {
+      hideTokenDecryptBanner();
+      try { sessionStorage.removeItem('adlytic_token_decrypt_banner_dismissed'); } catch (e) {}
+    }
   } catch (err) {
     console.warn('[shell] token-health check failed:', err);
   }
@@ -916,6 +1159,13 @@ window.apiFetch = apiFetch;
 window.apiFetchWithTimeout = apiFetchWithTimeout;
 window.initAppShell = initAppShell;
 window.toast = toast;
+window.friendlyApiError = friendlyApiError;
+window.creativeImgFailed = creativeImgFailed;
+window.creativeImgLoaded = creativeImgLoaded;
+window.runWorkspaceSync = runWorkspaceSync;
+window.resumeActiveSyncIfAny = resumeActiveSyncIfAny;
+window.checkTokenDecryptBanner = checkTokenDecryptBanner;
+window.pollSyncJob = pollSyncJob;
 window.severityBadge = severityBadge;
 window.statusBadge = statusBadge;
 
