@@ -232,17 +232,31 @@ export function workspacePage(): string {
         btn.textContent = '⏳ Syncing…';
         btn.disabled = true;
         try {
+          // POST only ENQUEUES the job (202 + jobId). The real outcome lives in
+          // the SyncJob — never toast success on this response.
           const res = await apiFetch('/api/workspaces/' + wsId + '/sync', { method: 'POST' });
-          if (res.status === 'sync_complete') {
-            toast('Sync complete — ' + (res.rowsUpserted ?? 0) + ' rows updated', 'success');
-            await loadWorkspace();
-          } else if (res.status === 'sync_failed') {
-            toast('Sync failed: ' + (res.error || 'Unknown error'), 'error');
-          } else {
-            toast('Sync complete', 'success');
-            await loadWorkspace();
+          if (!res || !res.jobId) {
+            toast('Sync started', 'info');
+            return;
           }
-        } catch(e) { toast(e.message || 'Sync failed', 'error'); }
+          toast('Syncing… updating your data', 'info');
+          const job = await pollSyncJob(res.jobId);
+          toast('Sync complete — ' + (job.rowsUpserted ?? 0) + ' rows updated', 'success');
+          await loadWorkspace();
+        } catch(e) {
+          const isDecrypt = e && (e.code === 'TOKEN_DECRYPT_FAILED' ||
+            (e.message && e.message.indexOf('TOKEN_DECRYPT_FAILED') >= 0));
+          if (isDecrypt) {
+            showTokenDecryptBanner({
+              error: e.message,
+              reconnectUrl: e.reconnectUrl,
+              reconnectLabel: e.reconnectLabel,
+            });
+            toast('Sync failed — stored Meta token could not be decrypted. Please reconnect.', 'error');
+          } else {
+            toast((e && e.message) || 'Sync failed', 'error');
+          }
+        }
         finally { btn.textContent = '↻ Sync'; btn.disabled = false; }
       });
     });

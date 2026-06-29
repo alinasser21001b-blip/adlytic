@@ -161,14 +161,43 @@ export function campaignsPage(): string {
     .inspector-creative-thumb {
       width: 100%;
       aspect-ratio: 1 / 1;
+      position: relative;
+      overflow: hidden;
       background: var(--surface-1, #0f0f12);
-      background-size: cover;
-      background-position: center;
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--text-3);
       font-size: 28px;
+    }
+    .inspector-creative-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .inspector-creative-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    .inspector-creative-video-badge {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      direction: rtl;
     }
   </style>
 
@@ -244,6 +273,20 @@ export function campaignsPage(): string {
   function escHtml(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+  // escHtml + quote escaping — safe for use inside double-quoted HTML attributes
+  // (e.g. an <img src="..."> built from a Meta CDN URL).
+  function escAttr(s) {
+    return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  // onerror handler for creative thumbnails. Meta CDN links expire; when the
+  // image 404s we hide it and reveal the sibling fallback box instead of
+  // leaving a broken-image icon. Named (not inline) to avoid nested quotes in
+  // the attribute — those would trip the template-literal apostrophe footgun.
+  function creativeImgFailed(img) {
+    img.style.display = 'none';
+    var box = img.parentNode && img.parentNode.querySelector('.inspector-creative-fallback');
+    if (box) box.style.display = 'flex';
+  }
   function getToken() { return localStorage.getItem('adlytic_token'); }
   function getWorkspaceId() { return localStorage.getItem('adlytic_workspace_id'); }
   function setWorkspaceId(id) { localStorage.setItem('adlytic_workspace_id', id); }
@@ -279,20 +322,7 @@ export function campaignsPage(): string {
     });
   }
 
-  function sleep(ms) {
-    return new Promise(function(resolve) { setTimeout(resolve, ms); });
-  }
-
-  async function pollSyncJob(jobId) {
-    var maxAttempts = 120;
-    for (var i = 0; i < maxAttempts; i++) {
-      var job = await apiFetch('/api/sync-jobs/' + encodeURIComponent(jobId));
-      if (job.status === 'COMPLETED') return job;
-      if (job.status === 'FAILED') throw new Error(job.error || 'Sync failed');
-      await sleep(1000);
-    }
-    throw new Error('Sync timed out — try again in a moment');
-  }
+  // sleep() and pollSyncJob() are provided by SHARED_JS (layout.ts).
 
   function showError(msg) {
     document.getElementById('loading-state').style.display = 'none';
@@ -705,10 +735,19 @@ export function campaignsPage(): string {
     var cardsHtml = creatives.map(function(item) {
       var creative = item.creative || {};
       var copy = creative.headline || creative.primaryText || creative.description || '';
-      var thumbStyle = creative.thumbnailUrl
-        ? 'background-image:url(' + JSON.stringify(creative.thumbnailUrl) + ');'
+      var fallbackEmoji = creative.videoId ? '🎬' : '🖼️';
+
+      // Real <img> (lazy + no-referrer) so we can fall back gracefully when the
+      // (expiring) Meta CDN link 404s; CSS background-image had no error hook.
+      var thumbInner = creative.thumbnailUrl
+        ? '<img class="inspector-creative-img" src="' + escAttr(creative.thumbnailUrl) + '"'
+          + ' alt="' + escAttr(item.adName || '') + '" loading="lazy" referrerpolicy="no-referrer"'
+          + ' onerror="creativeImgFailed(this)">'
+          + '<div class="inspector-creative-fallback" style="display:none;">' + fallbackEmoji + '</div>'
+        : '<div class="inspector-creative-fallback">' + fallbackEmoji + '</div>';
+      var videoBadge = creative.videoId
+        ? '<span class="inspector-creative-video-badge">▶ فيديو</span>'
         : '';
-      var fallbackIcon = creative.thumbnailUrl ? '' : (creative.videoId ? '🎬' : '🖼️');
 
       var statusBadge =
           '<span class="badge ' + statusBadgeClass(item.status) + '" style="font-size:11px;">'
@@ -724,7 +763,7 @@ export function campaignsPage(): string {
 
       return ''
         + '<div class="inspector-creative-card">'
-        +   '<div class="inspector-creative-thumb" style="' + thumbStyle + '">' + fallbackIcon + '</div>'
+        +   '<div class="inspector-creative-thumb">' + thumbInner + videoBadge + '</div>'
         +   '<div style="padding:12px;display:flex;flex-direction:column;gap:8px;">'
         +     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;direction:rtl;">'
         +       '<div style="font-weight:700;color:var(--text);font-size:13px;direction:rtl;text-align:right;'

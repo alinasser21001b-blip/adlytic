@@ -648,6 +648,30 @@ async function apiFetchWithTimeout(path, opts, timeoutMs) {
   }
 }
 
+function sleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+
+// Poll a SyncJob (GET /api/sync-jobs/:id) until it COMPLETES or FAILS. Every
+// "Sync now" entrypoint MUST funnel through this so the UI reflects the REAL
+// background outcome instead of the bare 202 enqueue response (which only means
+// the job was queued, not that any data was written). opts:
+//   { intervalMs = 1500, maxAttempts = 180, onProgress(job, tick) }
+// Resolves with the COMPLETED job; throws on FAILED (Error.message = job.error)
+// or on timeout. A TOKEN_ENCRYPTION_KEY mismatch surfaces synchronously at the
+// POST /sync call (500 + code TOKEN_DECRYPT_FAILED), never here.
+async function pollSyncJob(jobId, opts) {
+  opts = opts || {};
+  var intervalMs = opts.intervalMs || 1500;
+  var maxAttempts = opts.maxAttempts || 180;
+  for (var i = 0; i < maxAttempts; i++) {
+    var job = await apiFetch('/api/sync-jobs/' + encodeURIComponent(jobId));
+    if (opts.onProgress) { try { opts.onProgress(job, i); } catch (e) {} }
+    if (job && job.status === 'COMPLETED') return job;
+    if (job && job.status === 'FAILED') throw new Error(job.error || 'Sync failed');
+    await sleep(intervalMs);
+  }
+  throw new Error('Sync is taking longer than expected — it will finish in the background.');
+}
+
 var shellState = { me: null, ready: false, initPromise: null };
 var SHELL_LOADING = 'Loading…';
 
