@@ -16,15 +16,21 @@ import { withRedis } from '../lib/redis';
 import type { Redis } from 'ioredis';
 
 const COUNT_KEY_PREFIX = 'meta:usage:count:';
+const ERROR_KEY_PREFIX = 'meta:usage:error:';
 const LATEST_KEY = 'meta:usage:latest';
 const COUNT_TTL_SECONDS = 30 * 86400;
 const UPGRADE_THRESHOLD = 1500;
+// Meta requires a <10% error rate over the rolling 15-day window to qualify for
+// (and keep) the higher Marketing API access tier. Stricter of the documented
+// 10%/15% figures, chosen defensively.
+const ERROR_RATE_GATE_PCT = 10;
 
 type StatsData = {
   today: string | null;
   yesterday: string | null;
   last7Days: number;
   last15Days: number;
+  errorsLast15Days: number;
   hash: Record<string, string>;
 };
 
@@ -38,6 +44,10 @@ export interface MetaUsageStats {
     last7Days: number;
     last15Days: number;
     progressTo1500Pct: number;
+    errorsLast15Days: number;
+    errorRatePct15d: number;
+    meetsCallThreshold: boolean;
+    meetsErrorGate: boolean;
   };
   latest: {
     appUsage: { callCount: number; totalCpuTime: number; totalTime: number } | null;
@@ -49,6 +59,10 @@ export interface MetaUsageStats {
 
 function countKey(date: Date): string {
   return `${COUNT_KEY_PREFIX}${date.toISOString().slice(0, 10)}`;
+}
+
+function errorCountKey(date: Date): string {
+  return `${ERROR_KEY_PREFIX}${date.toISOString().slice(0, 10)}`;
 }
 
 function dateDaysAgo(days: number): Date {
@@ -71,6 +85,10 @@ function emptyStats(redisAvailable: boolean): MetaUsageStats {
       last7Days: 0,
       last15Days: 0,
       progressTo1500Pct: 0,
+      errorsLast15Days: 0,
+      errorRatePct15d: 0,
+      meetsCallThreshold: false,
+      meetsErrorGate: false,
     },
     latest: {
       appUsage: null,
@@ -127,16 +145,23 @@ function parseLatestBusinessUseCase(
   }
 }
 
-async function sumDayCounts(r: Redis, days: number): Promise<number> {
-  const keys = Array.from({ length: days }, (_, i) => countKey(dateDaysAgo(i)));
+async function sumDayCounts(
+  r: Redis,
+  days: number,
+  keyFn: (d: Date) => string = countKey,
+): Promise<number> {
+  const keys = Array.from({ length: days }, (_, i) => keyFn(dateDaysAgo(i)));
   const values = await r.mget(...keys);
   return values.reduce((sum, v) => sum + (v ? parseInt(v, 10) : 0), 0);
 }
 
 /**
  * Fire-and-forget hook from MetaClient after every fetch response. INCRs the
- * daily counter on 2xx; always persists usage headers when present (including
- * 429). Never throws — failures are swallowed via withRedis fallback.
+ * daily success counter on 2xx and the daily error counter on any other status
+ * (4xx/5xx incl. 429); always persists usage headers when present. Each retry
+ * is a distinct HTTP response, so counting per-response mirrors what Meta sees
+ * in its own 15-day error-rate calculation. Never throws — failures are
+ * swallowed via withRedis fallback.
  */
 export async function recordMetaResponseHeaders(
   headers: Headers,
@@ -181,8 +206,10 @@ export async function recordMetaResponseHeaders(
     }
 
     const is2xx = status !== undefined && status >= 200 && status < 300;
+    const isError = status !== undefined && (status < 200 || status >= 300);
     const now = new Date();
     const todayKey = countKey(now);
+    const todayErrorKey = errorCountKey(now);
     const hasSnapshot = appUsage !== undefined
       || adAccountUsage !== undefined
       || businessUseCase !== undefined;
@@ -193,6 +220,9 @@ export async function recordMetaResponseHeaders(
       if (is2xx) {
         multi.incr(todayKey);
         multi.expire(todayKey, COUNT_TTL_SECONDS);
+      } else if (isError) {
+        multi.incr(todayErrorKey);
+        multi.expire(todayErrorKey, COUNT_TTL_SECONDS);
       }
 
       if (hasSnapshot) {
@@ -216,19 +246,25 @@ export async function recordMetaResponseHeaders(
 /** Read cumulative call counts and the latest usage-header snapshot. */
 export async function getMetaUsageStats(): Promise<MetaUsageStats> {
   const data = await withRedis<StatsData | null>(async (r) => {
-    const [today, yesterday, last7Days, last15Days, hash] = await Promise.all([
+    const [today, yesterday, last7Days, last15Days, errorsLast15Days, hash] = await Promise.all([
       r.get(countKey(new Date())),
       r.get(countKey(dateDaysAgo(1))),
       sumDayCounts(r, 7),
       sumDayCounts(r, 15),
+      sumDayCounts(r, 15, errorCountKey),
       r.hgetall(LATEST_KEY),
     ]);
-    return { today, yesterday, last7Days, last15Days, hash };
+    return { today, yesterday, last7Days, last15Days, errorsLast15Days, hash };
   }, null);
 
   if (!data) return emptyStats(false);
 
   const last15Days = data.last15Days;
+  const errorsLast15Days = data.errorsLast15Days;
+  const totalLast15Days = last15Days + errorsLast15Days;
+  const errorRatePct15d = totalLast15Days > 0
+    ? Math.round((errorsLast15Days / totalLast15Days) * 1000) / 10
+    : 0;
   return {
     redisAvailable: true,
     counts: {
@@ -237,6 +273,10 @@ export async function getMetaUsageStats(): Promise<MetaUsageStats> {
       last7Days: data.last7Days,
       last15Days,
       progressTo1500Pct: Math.round((last15Days / UPGRADE_THRESHOLD) * 1000) / 10,
+      errorsLast15Days,
+      errorRatePct15d,
+      meetsCallThreshold: last15Days >= UPGRADE_THRESHOLD,
+      meetsErrorGate: errorRatePct15d < ERROR_RATE_GATE_PCT,
     },
     latest: {
       appUsage: parseLatestAppUsage(data.hash.appUsage),
