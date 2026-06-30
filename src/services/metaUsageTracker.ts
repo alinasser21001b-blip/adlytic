@@ -21,9 +21,10 @@ const LATEST_KEY = 'meta:usage:latest';
 const COUNT_TTL_SECONDS = 30 * 86400;
 const UPGRADE_THRESHOLD = 1500;
 // Meta requires a <10% error rate over the rolling 15-day window to qualify for
-// (and keep) the higher Marketing API access tier. Stricter of the documented
-// 10%/15% figures, chosen defensively.
-const ERROR_RATE_GATE_PCT = 10;
+// (and keep) the higher Marketing API access tier. Meta's formula: errors are HTTP
+// status ≥400 (client + server errors); successes are 2xx. The 10% threshold is
+// the stricter of documented 10%/15%, chosen defensively for the approval phase.
+const ERROR_RATE_GATE_PCT = 9; // Target 9% to have 1% safety buffer under strictest rule
 
 type StatsData = {
   today: string | null;
@@ -156,12 +157,15 @@ async function sumDayCounts(
 }
 
 /**
- * Fire-and-forget hook from MetaClient after every fetch response. INCRs the
- * daily success counter on 2xx and the daily error counter on any other status
- * (4xx/5xx incl. 429); always persists usage headers when present. Each retry
- * is a distinct HTTP response, so counting per-response mirrors what Meta sees
- * in its own 15-day error-rate calculation. Never throws — failures are
- * swallowed via withRedis fallback.
+ * Fire-and-forget hook from MetaClient after every fetch response. Per Meta's
+ * tier-upgrade requirements: INCRs the daily success counter on 2xx responses
+ * (toward the 1500-call threshold) and the daily error counter on status >= 400
+ * (client errors 4xx + server errors 5xx, including 429 rate-limits, used to
+ * calculate the <10% error-rate gate). 3xx redirects are not counted as either
+ * (only successful terminal responses are 2xx; only actual errors are ≥400).
+ * Always persists usage-header snapshots when present. Each HTTP attempt/retry
+ * is a distinct event, matching Meta's own 15-day measurement. Never throws —
+ * failures are swallowed via withRedis fallback.
  */
 export async function recordMetaResponseHeaders(
   headers: Headers,
@@ -206,7 +210,7 @@ export async function recordMetaResponseHeaders(
     }
 
     const is2xx = status !== undefined && status >= 200 && status < 300;
-    const isError = status !== undefined && (status < 200 || status >= 300);
+    const isError = status !== undefined && status >= 400;
     const now = new Date();
     const todayKey = countKey(now);
     const todayErrorKey = errorCountKey(now);
