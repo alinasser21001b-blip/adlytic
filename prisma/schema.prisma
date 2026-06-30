@@ -113,6 +113,8 @@ model AdAccount {
   @@unique([platform, externalAccountId])
   @@index([workspaceId])
   @@index([connectionId])
+  @@index([tokenSource, status, tokenExpiresAt])
+  @@index([status, lastSyncedAt])
   @@map("ad_accounts")
 }
 

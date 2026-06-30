@@ -73,9 +73,15 @@ import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
+import {
+  getCachedWorkspaceTokenHealth,
+  invalidateCachedTokenHealth,
+} from '../services/cachedTokenHealth';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWebhook';
 import { config } from '../config';
+import { enqueueOrFallback, getQueues } from '../lib/queue';
+import { kickoffInitialSync as kickoffInitialSyncImpl } from '../lib/initialSync';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
@@ -264,8 +270,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // ── Middleware ───────────────────────────────────────────────────────────
 
   // ── CORS — locked to ALLOWED_ORIGINS in production ────────────────────
-  const _allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? '')
-    .split(',').map(s => s.trim()).filter(Boolean);
+  const _allowedOrigins = config.cors.allowedOrigins;
 
   app.use(
     '*',
@@ -383,6 +388,46 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return prisma.workspaceMember.findFirst({ where: { userId, workspaceId } });
   }
 
+  /**
+   * Look up an existing AdAccount by (platform, externalAccountId) and assert
+   * that — if it exists — it belongs to the workspace the caller is currently
+   * acting in. Returns `{ kind: 'none' }` when no row exists, `{ kind: 'owned',
+   * existing }` when we own it, and `{ kind: 'conflict', ownedBy }` when a
+   * DIFFERENT workspace already owns it.
+   *
+   * Why this exists (Phase 6a finding R-1):
+   *   Without this guard, three OAuth/connect call sites used to do
+   *   `findFirst({ platform, externalAccountId })` then `update({ data: { ...,
+   *   workspaceId } })`. When two Adlytic workspaces shared agency access to
+   *   the same Meta ad account, the second reconnect SILENTLY HIJACKED the
+   *   row — workspaceId was overwritten and the first workspace lost the
+   *   account. This helper makes that case explicit (409) instead of silent.
+   */
+  async function findExistingAdAccountForWorkspace(
+    externalAccountId: string,
+    workspaceId: string,
+  ): Promise<
+    | { kind: 'none' }
+    | { kind: 'owned'; existing: { id: string; workspaceId: string; name: string } }
+    | { kind: 'conflict'; ownedBy: string }
+  > {
+    const row = await prisma.adAccount.findFirst({
+      where: { platform: 'META', externalAccountId },
+      select: { id: true, workspaceId: true, name: true },
+    });
+    if (!row) return { kind: 'none' };
+    if (row.workspaceId === workspaceId) return { kind: 'owned', existing: row };
+    return { kind: 'conflict', ownedBy: row.workspaceId };
+  }
+
+  /** Canonical 409 payload for the cross-workspace hijack guard above. */
+  const AD_ACCOUNT_CONFLICT_JSON = {
+    error:
+      'This Meta ad account is already linked to another Adlytic workspace. ' +
+      'Please contact support to initiate an explicit account transfer.',
+    code: 'AD_ACCOUNT_ALREADY_LINKED_ELSEWHERE',
+  } as const;
+
   /** Paths inactive (pending-activation) users may call with a bearer token. */
   const INACTIVE_ALLOWED_API = new Set([
     '/api/auth/me',
@@ -419,7 +464,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   async function getAccount(workspaceId: string) {
     const ws = await prisma.workspace.findUniqueOrThrow({
       where: { id: workspaceId },
-      include: { adAccounts: true },
+      include: { adAccounts: { orderBy: { createdAt: 'asc' } } },
     });
     const account = ws.adAccounts[0] ?? null;
     if (account && currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
@@ -429,65 +474,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return { workspace: ws, account };
   }
 
-  /** Fire-and-forget initial backfill after account connect (OAuth or manual). */
+  /** Fire-and-forget initial backfill after account connect (OAuth or manual).
+   *  Thin closure-bound wrapper around the extracted module-level impl in
+   *  src/lib/initialSync.ts so existing call sites keep their 2-arg shape
+   *  while the heavy lifting + queue-vs-setImmediate decision lives in one
+   *  place that the BullMQ maintenance worker can also call. */
   async function kickoffInitialSync(
     adAccountId: string,
     triggeredBy: string,
   ): Promise<void> {
-    const account = await prisma.adAccount.findUnique({ where: { id: adAccountId } });
-    if (!account) return;
-
-    const resolvedToken = await resolveAccountToken(prisma, account);
-    if (!resolvedToken.encrypted) {
-      console.warn(`[adlytic:initial-sync] ${account.externalAccountId} — no token, skipping backfill`);
-      return;
-    }
-
-    let accessToken: string;
-    try {
-      accessToken = decryptToken(resolvedToken.encrypted);
-    } catch (decErr) {
-      const msg = decErr instanceof Error ? decErr.message : String(decErr);
-      console.error(`[adlytic:initial-sync] ${account.externalAccountId} — token decrypt failed: ${msg}`);
-      return;
-    }
-
-    const apiVersion = config.meta.apiVersion;
-    const metaClient = new MetaClient({ apiVersion, accessToken });
-    const worker = new SyncAccountWorker(prisma, metaClient);
-    const now = new Date();
-    const since = new Date(now.getTime() - (INITIAL_BACKFILL_DAYS - 1) * 86400 * 1000);
-    const job = await prisma.syncJob.create({
-      data: {
-        adAccountId: account.id,
-        status: SyncJobStatus.PENDING,
-        windowDays: INITIAL_BACKFILL_DAYS,
-        windowSince: since,
-        windowUntil: now,
-        triggeredBy,
-      },
-    });
-
-    setImmediate(() => {
-      void (async () => {
-        try {
-          await worker.syncChunked(job.id);
-          const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
-          if (final?.status === SyncJobStatus.COMPLETED) {
-            await runEngines(prisma, account.id);
-            await runBrainOrchestrator(prisma, metaClient, account.id);
-          }
-        } catch (err: unknown) {
-          console.error('[adlytic:initial-sync]', err);
-        }
-      })();
-    });
-
-    setImmediate(() => {
-      void worker.syncLifetimeTotals(account.id).catch((err: unknown) => {
-        console.error('[adlytic:lifetime-sync]', err);
-      });
-    });
+    return kickoffInitialSyncImpl(prisma, adAccountId, triggeredBy);
   }
 
   // ── Phase 2: System User / FB Login for Business helpers ──────────────────
@@ -1213,12 +1209,20 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return c.text('Bad Request', 400);
     }
 
-    // Ack immediately; never block Meta on our processing.
-    setImmediate(() => {
-      void processMetaWebhookEvent(prisma, payload).catch((err) => {
-        console.error('[meta-webhook] background processing error:', err);
-      });
-    });
+    // Ack immediately; never block Meta on our processing. When BULLMQ is
+    // enabled we enqueue the payload onto the maintenance queue so a crashed
+    // API instance still has the event durably queued; otherwise the original
+    // setImmediate body runs in-process exactly as before.
+    enqueueOrFallback(
+      () => getQueues()!.maintenance.add('webhook-event', { payload }),
+      () => {
+        setImmediate(() => {
+          void processMetaWebhookEvent(prisma, payload).catch((err) => {
+            console.error('[meta-webhook] background processing error:', err);
+          });
+        });
+      },
+    );
     return c.text('OK', 200);
   });
 
@@ -1320,7 +1324,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
     const member = await checkMember(userId, workspaceId);
     if (!member) return c.json({ error: 'Access denied' }, 403);
-    const health = await checkWorkspaceTokenHealth(prisma, workspaceId);
+    // Phase 2 — Redis-backed read-through cache (60s TTL). Falls back to a
+    // live probe transparently when Redis is unavailable; semantics are
+    // identical to the unwrapped path either way.
+    const health = await getCachedWorkspaceTokenHealth(prisma, workspaceId);
     return c.json(health, health.ok ? 200 : 503);
   });
 
@@ -2717,12 +2724,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       if (!connection || connection.workspaceId !== workspaceId) {
         return c.json({ error: 'Connection not found for this workspace' }, 404);
       }
-      const existing = await prisma.adAccount.findFirst({
-        where: { platform: 'META', externalAccountId: account.id },
-      });
-      if (existing) {
+      const lookup = await findExistingAdAccountForWorkspace(account.id, workspaceId);
+      if (lookup.kind === 'conflict') {
+        return c.json(AD_ACCOUNT_CONFLICT_JSON, 409);
+      }
+      if (lookup.kind === 'owned') {
         await prisma.adAccount.update({
-          where: { id: existing.id },
+          where: { id: lookup.existing.id },
           data: {
             connectionId:         connection.id,
             tokenSource:          'SYSTEM_USER',
@@ -2733,7 +2741,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             currencyMinorFactor,
             timezone,
             countryCode,
-            workspaceId,
+            // workspaceId intentionally OMITTED: ownership stays where it is.
             status:               'ACTIVE',
           },
         });
@@ -2756,6 +2764,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           },
         });
       }
+      await invalidateCachedTokenHealth(workspaceId);
       oauthSessions.delete(sessionId);
 
       // Kick off the initial backfill using the connection token.
@@ -2791,23 +2800,39 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               triggeredBy: 'oauth-callback-system-user',
             },
           });
-          setImmediate(() => {
-            void (async () => {
-              try {
-                await worker.syncChunked(job.id);
-                const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
-                if (final?.status === SyncJobStatus.COMPLETED) {
-                  await runEngines(prisma, acct.id);
-                  await runBrainOrchestrator(prisma, metaClient, acct.id);
-                }
-              } catch (err: unknown) { console.error('[adlytic:initial-sync:system-user]', err); }
-            })();
-          });
-          setImmediate(() => {
-            void worker.syncLifetimeTotals(acct.id).catch((err: unknown) => {
-              console.error('[adlytic:lifetime-sync]', err);
-            });
-          });
+          enqueueOrFallback(
+            () =>
+              getQueues()!.syncAccount.add('oauth-callback-system-user', {
+                syncJobId: job.id,
+                adAccountId: acct.id,
+                runEnginesOnCompleted: true,
+                triggeredBy: 'oauth-callback-system-user',
+              }),
+            () => {
+              setImmediate(() => {
+                void (async () => {
+                  try {
+                    await worker.syncChunked(job.id);
+                    const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+                    if (final?.status === SyncJobStatus.COMPLETED) {
+                      await runEngines(prisma, acct.id);
+                      await runBrainOrchestrator(prisma, metaClient, acct.id);
+                    }
+                  } catch (err: unknown) { console.error('[adlytic:initial-sync:system-user]', err); }
+                })();
+              });
+            },
+          );
+          enqueueOrFallback(
+            () => getQueues()!.maintenance.add('lifetime-totals', { adAccountId: acct.id }),
+            () => {
+              setImmediate(() => {
+                void worker.syncLifetimeTotals(acct.id).catch((err: unknown) => {
+                  console.error('[adlytic:lifetime-sync]', err);
+                });
+              });
+            },
+          );
           return c.json({ success: true, systemUser: true, syncJobId: job.id });
         }
       } catch (kickoffErr: unknown) {
@@ -2820,14 +2845,17 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const encryptedToken = encryptToken(session.accessToken);
     const apiVersion     = config.meta.apiVersion;
 
-    // Upsert the ad account (unique on platform + externalAccountId)
-    const existing = await prisma.adAccount.findFirst({
-      where: { platform: 'META', externalAccountId: account.id },
-    });
+    // Upsert the ad account — but assert workspace ownership first so a Meta
+    // ad account linked to a DIFFERENT workspace is not silently hijacked
+    // (Phase 6a finding R-1).
+    const lookup = await findExistingAdAccountForWorkspace(account.id, workspaceId);
+    if (lookup.kind === 'conflict') {
+      return c.json(AD_ACCOUNT_CONFLICT_JSON, 409);
+    }
 
-    if (existing) {
+    if (lookup.kind === 'owned') {
       await prisma.adAccount.update({
-        where: { id: existing.id },
+        where: { id: lookup.existing.id },
         data: {
           accessTokenEncrypted: encryptedToken,
           tokenExpiresAt:       session.expiresAt,
@@ -2836,7 +2864,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           currencyMinorFactor,
           timezone,
           countryCode,
-          workspaceId,
+          // workspaceId intentionally OMITTED: ownership stays where it is.
           status:               'ACTIVE',
         },
       });
@@ -2857,6 +2885,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         },
       });
     }
+    await invalidateCachedTokenHealth(workspaceId);
 
     // Invalidate session — one-time use
     oauthSessions.delete(sessionId);
@@ -2874,11 +2903,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         });
         const acct = ws?.adAccounts.find(a => a.externalAccountId === account.id);
         if (acct) {
-          setImmediate(() => {
-            void seedMockAdAccountData(prisma, acct.id).catch((err: unknown) => {
-              console.error('[adlytic:mock-seed]', err);
-            });
-          });
+          enqueueOrFallback(
+            () => getQueues()!.maintenance.add('mock-seed', { adAccountId: acct.id }),
+            () => {
+              setImmediate(() => {
+                void seedMockAdAccountData(prisma, acct.id).catch((err: unknown) => {
+                  console.error('[adlytic:mock-seed]', err);
+                });
+              });
+            },
+          );
         }
       } catch (e) {
         console.error('[adlytic:mock-seed-setup]', e);
@@ -2909,25 +2943,41 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             triggeredBy: 'oauth-callback',
           },
         });
-        setImmediate(() => {
-          void (async () => {
-            try {
-              await worker.syncChunked(job.id);
-              const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
-              if (final?.status === SyncJobStatus.COMPLETED) {
-                await runEngines(prisma, acct.id);
-                await runBrainOrchestrator(prisma, metaClient, acct.id);  // 🧠 V6 Brain V2 tick
-              }
-            } catch (err: unknown) { console.error('[adlytic:initial-sync]', err); }
-          })();
-        });
+        enqueueOrFallback(
+          () =>
+            getQueues()!.syncAccount.add('oauth-callback', {
+              syncJobId: job.id,
+              adAccountId: acct.id,
+              runEnginesOnCompleted: true,
+              triggeredBy: 'oauth-callback',
+            }),
+          () => {
+            setImmediate(() => {
+              void (async () => {
+                try {
+                  await worker.syncChunked(job.id);
+                  const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+                  if (final?.status === SyncJobStatus.COMPLETED) {
+                    await runEngines(prisma, acct.id);
+                    await runBrainOrchestrator(prisma, metaClient, acct.id);  // 🧠 V6 Brain V2 tick
+                  }
+                } catch (err: unknown) { console.error('[adlytic:initial-sync]', err); }
+              })();
+            });
+          },
+        );
         // Fire-and-forget: surface true lifetime spend immediately (one Meta
         // request, no DailyStat rows). Independent of the chunked window above.
-        setImmediate(() => {
-          void worker.syncLifetimeTotals(acct.id).catch((err: unknown) => {
-            console.error('[adlytic:lifetime-sync]', err);
-          });
-        });
+        enqueueOrFallback(
+          () => getQueues()!.maintenance.add('lifetime-totals', { adAccountId: acct.id }),
+          () => {
+            setImmediate(() => {
+              void worker.syncLifetimeTotals(acct.id).catch((err: unknown) => {
+                console.error('[adlytic:lifetime-sync]', err);
+              });
+            });
+          },
+        );
         return c.json({ success: true, syncJobId: job.id });
       }
     } catch (kickoffErr: unknown) {
@@ -2999,15 +3049,17 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const encryptedToken   = encryptToken(body.accessToken);
     const resolvedCurrency = (metaCurrency ?? body.currency ?? 'USD').trim().toUpperCase();
     const currencyMinorFactor = currencyMinorFactorFor(resolvedCurrency);
-    const existing = await prisma.adAccount.findFirst({
-      where: { platform: 'META', externalAccountId: extId },
-    });
-    if (existing) {
+    const lookup = await findExistingAdAccountForWorkspace(extId, workspaceId);
+    if (lookup.kind === 'conflict') {
+      return c.json(AD_ACCOUNT_CONFLICT_JSON, 409);
+    }
+    if (lookup.kind === 'owned') {
+      const { existing } = lookup;
       await prisma.adAccount.update({
         where: { id: existing.id },
         data: {
           accessTokenEncrypted: encryptedToken,
-          workspaceId,
+          // workspaceId intentionally OMITTED: ownership stays where it is.
           name:                 body.name ?? existing.name,
           currency:             resolvedCurrency,
           currencyMinorFactor,
@@ -3016,11 +3068,21 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           status:               'ACTIVE',
         },
       });
-      setImmediate(() => {
-        void kickoffInitialSync(existing.id, 'manual-connect').catch((err: unknown) => {
-          console.error('[adlytic:manual-connect] initial sync kickoff failed:', err);
-        });
-      });
+      await invalidateCachedTokenHealth(workspaceId);
+      enqueueOrFallback(
+        () =>
+          getQueues()!.maintenance.add('initial-sync-kickoff', {
+            adAccountId: existing.id,
+            triggeredBy: 'manual-connect',
+          }),
+        () => {
+          setImmediate(() => {
+            void kickoffInitialSync(existing.id, 'manual-connect').catch((err: unknown) => {
+              console.error('[adlytic:manual-connect] initial sync kickoff failed:', err);
+            });
+          });
+        },
+      );
       return c.json({ success: true, id: existing.id });
     }
     const acct = await prisma.adAccount.create({
@@ -3037,11 +3099,21 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         accessTokenEncrypted: encryptedToken,
       },
     });
-    setImmediate(() => {
-      void kickoffInitialSync(acct.id, 'manual-connect').catch((err: unknown) => {
-        console.error('[adlytic:manual-connect] initial sync kickoff failed:', err);
-      });
-    });
+    await invalidateCachedTokenHealth(workspaceId);
+    enqueueOrFallback(
+      () =>
+        getQueues()!.maintenance.add('initial-sync-kickoff', {
+          adAccountId: acct.id,
+          triggeredBy: 'manual-connect',
+        }),
+      () => {
+        setImmediate(() => {
+          void kickoffInitialSync(acct.id, 'manual-connect').catch((err: unknown) => {
+            console.error('[adlytic:manual-connect] initial sync kickoff failed:', err);
+          });
+        });
+      },
+    );
     return c.json({ success: true, id: acct.id });
   });
 
@@ -3156,20 +3228,31 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
     const worker = new SyncAccountWorker(prisma, metaClient);
-    setImmediate(() => {
-      void (async () => {
-        try {
-          await worker.syncChunked(job.id);
-          const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
-          if (final?.status === SyncJobStatus.COMPLETED) {
-            await runEngines(prisma, account.id);
-            await runBrainOrchestrator(prisma, metaClient, account.id);
-          }
-        } catch (err: unknown) {
-          console.error('[adlytic:repair-iqd] sync failed:', err);
-        }
-      })();
-    });
+    enqueueOrFallback(
+      () =>
+        getQueues()!.syncAccount.add('repair-iqd', {
+          syncJobId: job.id,
+          adAccountId: account.id,
+          runEnginesOnCompleted: true,
+          triggeredBy: `repair-iqd:${userId}`,
+        }),
+      () => {
+        setImmediate(() => {
+          void (async () => {
+            try {
+              await worker.syncChunked(job.id);
+              const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+              if (final?.status === SyncJobStatus.COMPLETED) {
+                await runEngines(prisma, account.id);
+                await runBrainOrchestrator(prisma, metaClient, account.id);
+              }
+            } catch (err: unknown) {
+              console.error('[adlytic:repair-iqd] sync failed:', err);
+            }
+          })();
+        });
+      },
+    );
 
     return c.json({
       success: true,
@@ -3290,31 +3373,50 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       externalAccountId: account.externalAccountId,
       isSystemUser: resolvedToken.isSystemUser,
       connectionId: resolvedToken.connectionId,
+      workspaceId: account.workspaceId,
     });
 
-    // Fire-and-forget: setImmediate yields control back to the event loop so
-    // we can return 202 immediately. The worker updates SyncJob status as it
-    // progresses; engines + Brain run only on COMPLETED.
-    setImmediate(() => {
-      void (async () => {
-        try {
-          await worker.syncChunked(job.id);
-          const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
-          if (final?.status === SyncJobStatus.COMPLETED) {
-            await runEngines(prisma, account.id);
-            await runBrainOrchestrator(prisma, metaClient, account.id);
-          } else if (final?.error && /code.*190|190.*code|OAuthException/.test(final.error)) {
-            await handle190();
-          }
-        } catch (err: unknown) {
-          console.error('[adlytic:syncChunked]', err);
-          if (err instanceof MetaApiError) {
-            const body = err.body as Record<string, any>;
-            if (body?.error?.code === 190) await handle190();
-          }
-        }
-      })();
-    });
+    // Fire-and-forget: yields control back to the event loop so we can return
+    // 202 immediately. The worker updates SyncJob status as it progresses;
+    // engines + Brain run only on COMPLETED. When BULLMQ_ENABLED is on the
+    // job is durably queued in Redis (so an instance crash doesn't lose it);
+    // otherwise the original setImmediate body runs in-process exactly as
+    // before. The 190 handler runs on either path.
+    enqueueOrFallback(
+      () =>
+        getQueues()!.syncAccount.add('manual-sync', {
+          syncJobId: job.id,
+          adAccountId: account.id,
+          runEnginesOnCompleted: true,
+          triggeredBy: userId,
+          handle190OnFailure: true,
+          isSystemUser: resolvedToken.isSystemUser,
+          connectionId: resolvedToken.connectionId,
+          externalAccountId: account.externalAccountId,
+        }),
+      () => {
+        setImmediate(() => {
+          void (async () => {
+            try {
+              await worker.syncChunked(job.id);
+              const final = await prisma.syncJob.findUnique({ where: { id: job.id } });
+              if (final?.status === SyncJobStatus.COMPLETED) {
+                await runEngines(prisma, account.id);
+                await runBrainOrchestrator(prisma, metaClient, account.id);
+              } else if (final?.error && /code.*190|190.*code|OAuthException/.test(final.error)) {
+                await handle190();
+              }
+            } catch (err: unknown) {
+              console.error('[adlytic:syncChunked]', err);
+              if (err instanceof MetaApiError) {
+                const body = err.body as Record<string, any>;
+                if (body?.error?.code === 190) await handle190();
+              }
+            }
+          })();
+        });
+      },
+    );
 
     return c.json({
       jobId: job.id,

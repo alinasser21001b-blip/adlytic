@@ -30,6 +30,7 @@ import { SyncAccountWorker } from '../workers/syncAccount';
 import { resolveAccountToken } from './accountToken';
 import { decryptToken, TokenDecryptError } from './tokenEncryption';
 import { config } from '../config';
+import { withRedis, isRedisHealthy } from '../lib/redis';
 
 /** Webhook fields we act on; everything else is acknowledged and ignored. */
 const WEBHOOK_FIELDS = new Set(['campaigns', 'adsets', 'ads']);
@@ -38,8 +39,13 @@ const WEBHOOK_FIELDS = new Set(['campaigns', 'adsets', 'ads']);
  *  trigger a single reconcile. Long enough to absorb a status-change storm,
  *  short enough to keep the "instant" feel. */
 const DEBOUNCE_MS = 5000;
+/** Redis key for the cluster-wide debounce slot per ad account. */
+const REDIS_DEBOUNCE_KEY_PREFIX = 'webhook:debounce:meta:';
 
-/** Pending per-account reconcile timers (keyed by internal AdAccount id). */
+/** Pending per-account reconcile timers (keyed by internal AdAccount id).
+ *  Used only when the Redis-backed debounce is disabled or Redis is
+ *  unreachable — gives single-node deployments and outage windows the same
+ *  burst-absorption guarantee as the distributed path. */
 const pendingReconciles = new Map<string, NodeJS.Timeout>();
 
 /**
@@ -139,11 +145,62 @@ async function runReconcile(prisma: PrismaClient, adAccountId: string): Promise<
 }
 
 /**
- * Schedule (or re-schedule) a debounced reconcile for an account. Repeated
- * calls inside DEBOUNCE_MS collapse into one run. The timer is unref'd so it
- * never keeps the process alive on its own.
+ * Schedule a debounced reconcile for an account.
+ *
+ * Two strategies, selected at call time:
+ *
+ *   Redis path (config.features.webhookRedisDebounceEnabled && Redis healthy):
+ *     Atomically `SET webhook:debounce:meta:{id} 1 EX 5 NX`. The first webhook
+ *     for an account inside any 5-second window wins the slot cluster-wide
+ *     and schedules the actual reconcile in this process; every other webhook
+ *     across every instance sees the key and drops. First-event-wins
+ *     semantics — cleaner under multi-instance than the old "rolling 5s
+ *     after last event" reset, and atomically deduplicated by Redis.
+ *
+ *   In-process path (flag off or Redis unhealthy):
+ *     Original last-event-wins Map debounce. Single-node correct; safe under
+ *     multi-instance too (we get at most one reconcile per instance per
+ *     burst, and the polling loop is the durable safety net).
+ *
+ *  Known limitation of the Redis path until Phase 3: the winner schedules
+ *  the actual fire via setTimeout in its own process. If that process is
+ *  killed (deploy, OOM) between winning and firing, the reconcile is lost
+ *  for this burst. Phase 3 replaces the setTimeout with a BullMQ delayed
+ *  job so a crashed winner is recovered by another worker. Until then,
+ *  the periodic poll is the safety net.
  */
-function scheduleReconcile(prisma: PrismaClient, adAccountId: string): void {
+async function scheduleReconcile(prisma: PrismaClient, adAccountId: string): Promise<void> {
+  if (config.features.webhookRedisDebounceEnabled && isRedisHealthy()) {
+    const ttlSeconds = Math.ceil(DEBOUNCE_MS / 1000);
+    type Outcome = 'won' | 'lost' | 'fallback';
+    const outcome: Outcome = await withRedis<Outcome>(
+      async (r) => {
+        const res = await r.set(
+          `${REDIS_DEBOUNCE_KEY_PREFIX}${adAccountId}`,
+          '1',
+          'EX', ttlSeconds,
+          'NX',
+        );
+        return res === 'OK' ? 'won' : 'lost';
+      },
+      'fallback',
+    );
+
+    if (outcome === 'won') {
+      const timer = setTimeout(() => { void runReconcile(prisma, adAccountId); }, DEBOUNCE_MS);
+      if (typeof timer.unref === 'function') timer.unref();
+      return;
+    }
+    if (outcome === 'lost') {
+      // Another instance owns this 5s window — drop redundant execution.
+      return;
+    }
+    // outcome === 'fallback' → withRedis caught a runtime failure during the
+    // SET. Fall through to the in-process Map path so we don't silently drop
+    // a webhook on a transient Redis hiccup.
+  }
+
+  // In-process fallback path (last-event-wins).
   const existing = pendingReconciles.get(adAccountId);
   if (existing) clearTimeout(existing);
   const timer = setTimeout(() => {
@@ -191,6 +248,6 @@ export async function processMetaWebhookEvent(
       );
       continue;
     }
-    scheduleReconcile(prisma, account.id);
+    await scheduleReconcile(prisma, account.id);
   }
 }

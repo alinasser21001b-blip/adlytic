@@ -179,11 +179,109 @@ if (metaSystemUserEnabled) {
   }
 }
 
+// ── Redis (optional — gates horizontal-scaling features) ─────────────────────
+//
+// Phase 1 of the horizontal-scaling roadmap. Redis is OPTIONAL: when unset,
+// the Redis-backed modules (webhook debounce, distributed locks, queues)
+// fall back to in-process implementations. We validate the URL here so the
+// boot log makes the deploy state obvious; runtime errors are surfaced by
+// src/lib/redis.ts via ioredis event listeners.
+
+const rawRedisUrl = env('REDIS_URL');
+let redisUrl: string | undefined;
+if (rawRedisUrl === undefined) {
+  record({
+    key: 'REDIS_URL',
+    status: 'warn',
+    detail: 'not set — Redis-backed features disabled; using in-process fallbacks',
+  });
+} else {
+  try {
+    const u = new URL(rawRedisUrl);
+    if (u.protocol !== 'redis:' && u.protocol !== 'rediss:') {
+      record({
+        key: 'REDIS_URL',
+        status: 'warn',
+        detail: `protocol must be redis:// or rediss:// (got ${u.protocol}) — feature disabled`,
+      });
+    } else {
+      redisUrl = rawRedisUrl;
+      record({
+        key: 'REDIS_URL',
+        status: 'ok',
+        detail: `${u.protocol}//${u.hostname}:${u.port || '6379'}`,
+      });
+    }
+  } catch {
+    record({
+      key: 'REDIS_URL',
+      status: 'warn',
+      detail: 'is not a valid URL — Redis-backed features disabled',
+    });
+  }
+}
+
+// ── feature flags (horizontal-scaling rollout) ───────────────────────────────
+//
+// Each flag here gates a Phase 2+ feature whose Redis path is being rolled out
+// in stages. Off by default until the staging drill confirms graceful
+// fallback behavior under simulated Redis outages.
+
+/** Phase 2 — route Meta webhook reconcile debounce through Redis so multi-
+ *  instance deploys coalesce bursts cluster-wide instead of per-process. */
+const webhookRedisDebounceEnabled = envBoolean('WEBHOOK_REDIS_DEBOUNCE_ENABLED', false);
+record({
+  key: 'WEBHOOK_REDIS_DEBOUNCE_ENABLED',
+  status: 'ok',
+  detail: webhookRedisDebounceEnabled
+    ? 'enabled — Meta webhook debounce uses Redis SET NX EX (with in-process fallback)'
+    : 'disabled (default) — in-process Map debounce only',
+});
+
+/** Phase 3 — route fire-and-forget background work (post-OAuth initial sync,
+ *  manual /sync triggers, webhook reconciles, lifetime-totals backfills, mock
+ *  seed) through BullMQ instead of in-process setImmediate. Workers run inside
+ *  the API process for Phase 3-a (zero-regression rollout); a follow-up phase
+ *  splits workers into their own dynos. When the flag is off, or when Redis
+ *  is unhealthy, every enqueue site falls back to its original setImmediate
+ *  body so behavior is identical to pre-Phase-3. */
+const bullmqEnabled = envBoolean('BULLMQ_ENABLED', false);
+record({
+  key: 'BULLMQ_ENABLED',
+  status: 'ok',
+  detail: bullmqEnabled
+    ? 'enabled — fire-and-forget background work routed through BullMQ (with in-process fallback)'
+    : 'disabled (default) — fire-and-forget runs via in-process setImmediate only',
+});
+
 // ── misc operational vars ────────────────────────────────────────────────────
 
 const port = envNumber('PORT', 3001);
 const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 6 * 60 * 60 * 1000);
 const rawInsightsRetainDays = envNumber('RAW_INSIGHTS_RETAIN_DAYS', 90);
+
+// ── CORS ─────────────────────────────────────────────────────────────────────
+
+const rawAllowedOrigins = env('ALLOWED_ORIGINS');
+const allowedOrigins = (rawAllowedOrigins ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (IS_PRODUCTION && allowedOrigins.length === 0) {
+  record({
+    key: 'ALLOWED_ORIGINS',
+    status: 'fail',
+    detail: 'ALLOWED_ORIGINS must be set to a comma-separated list of origins in production',
+  });
+} else if (allowedOrigins.length === 0) {
+  record({
+    key: 'ALLOWED_ORIGINS',
+    status: 'warn',
+    detail: 'not set — CORS allows all origins (development only)',
+  });
+} else {
+  record({ key: 'ALLOWED_ORIGINS', status: 'ok', detail: allowedOrigins.join(', ') });
+}
 
 // ── public, frozen config ────────────────────────────────────────────────────
 
@@ -193,6 +291,9 @@ export interface AppConfig {
   port: number;
 
   database: { url: string | undefined };
+
+  /** Redis is optional; absent → consumers fall back to in-process behavior. */
+  redis: { url: string | undefined };
 
   jwt: { secret: string };
 
@@ -224,6 +325,19 @@ export interface AppConfig {
     intervalMs: number;
     rawInsightsRetainDays: number;
   };
+
+  cors: { allowedOrigins: string[] };
+
+  /** Phase 2+ feature flags. Each must default to the pre-flag behavior. */
+  features: {
+    /** When true, Meta webhook debounce uses Redis SET NX EX (with in-process
+     *  Map fallback if Redis is unhealthy). */
+    webhookRedisDebounceEnabled: boolean;
+    /** When true, fire-and-forget background work is enqueued into BullMQ
+     *  (with in-process setImmediate fallback if Redis is unhealthy or the
+     *  enqueue throws). */
+    bullmqEnabled: boolean;
+  };
 }
 
 export const config: Readonly<AppConfig> = Object.freeze({
@@ -231,6 +345,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
   isProduction: IS_PRODUCTION,
   port,
   database: Object.freeze({ url: rawDbUrl }),
+  redis: Object.freeze({ url: redisUrl }),
   jwt: Object.freeze({ secret: jwtSecret }),
   tokenEncryption: Object.freeze({
     key: tokenEncryptionKey,
@@ -251,6 +366,11 @@ export const config: Readonly<AppConfig> = Object.freeze({
   sync: Object.freeze({
     intervalMs: syncIntervalMs,
     rawInsightsRetainDays: rawInsightsRetainDays,
+  }),
+  cors: Object.freeze({ allowedOrigins }),
+  features: Object.freeze({
+    webhookRedisDebounceEnabled,
+    bullmqEnabled,
   }),
 }) as Readonly<AppConfig>;
 
