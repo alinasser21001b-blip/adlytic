@@ -78,6 +78,13 @@ import {
   getCachedWorkspaceTokenHealth,
   invalidateCachedTokenHealth,
 } from '../services/cachedTokenHealth';
+import {
+  saveOAuthSession,
+  getOAuthSession,
+  deleteOAuthSession,
+  pruneOAuthSessions,
+  type OAuthSession,
+} from '../services/oauthSessionStore';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWebhook';
 import { config } from '../config';
@@ -172,34 +179,11 @@ function checkRateLimit(
 // ── Meta OAuth state + session ────────────────────────────────────────────
 // OAuth `state` (CSRF token) is persisted in the DB (model OAuthState) with a
 // ~10-min TTL so the start→callback handshake survives Railway redeploys and
-// multi-instance deploys. Sessions remain in-memory (short-lived, consumed on
-// the same instance immediately after the redirect) — see follow-up note.
-
-interface OAuthSession {
-  workspaceId:  string;
-  userId:       string;
-  accessToken:  string;
-  expiresAt:    Date;
-  accounts:     MetaAdAccountInfo[];
-  createdAt:    number; // ms epoch
-  // ── Phase 2 (System User / FB Login for Business) ──────────────────────
-  // Present ONLY when the META_SYSTEM_USER_ENABLED flag drove this flow.
-  // Legacy sessions omit these and behave exactly as before.
-  kind?:        'legacy' | 'system_user';
-  /** Id of the MetaConnection row created at callback time (system_user only). */
-  connectionId?: string;
-}
-
-const oauthSessions = new Map<string, OAuthSession>();
+// multi-instance deploys. Sessions are stored in Redis (30-min TTL) with an
+// in-process Map fallback when Redis is unavailable.
 
 /** TTL for a persisted OAuth state row (start → callback window). */
 const OAUTH_STATE_TTL_MS = 10 * 60_000;
-
-/** Remove expired in-memory sessions to prevent unbounded growth. */
-function pruneOAuth(): void {
-  const now = Date.now();
-  for (const [k, v] of oauthSessions) if (v.createdAt + 30 * 60_000 < now) oauthSessions.delete(k);
-}
 
 // ── Utilities ─────────────────────────────────────────────────────────────
 
@@ -2340,7 +2324,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // exercise the dashboard end-to-end while Meta App Review is pending.
     if (isMockAuthEnabled()) {
       console.warn('[adlytic:meta-oauth] MOCK MODE — bypassing Facebook OAuth dialog');
-      pruneOAuth();
+      await pruneOAuthSessions();
       const state = await createOAuthState({ workspaceId, userId, kind: 'legacy' });
       return c.json({
         url: `/api/meta/oauth/mock-callback?state=${state}`,
@@ -2375,9 +2359,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           }
           console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE unavailable; falling through to System User flow');
         } else {
-          pruneOAuth();
+          await pruneOAuthSessions();
           const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
-          oauthSessions.set(sessionId, {
+          await saveOAuthSession(sessionId, {
             workspaceId,
             userId,
             accessToken: directToken,
@@ -2462,9 +2446,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               grantedAssetIds: resolved.accounts.map(a => a.id),
               configId:        config.meta.systemUserConfigId,
             });
-            pruneOAuth();
+            await pruneOAuthSessions();
             const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
-            oauthSessions.set(sessionId, {
+            await saveOAuthSession(sessionId, {
               workspaceId,
               userId,
               accessToken: sysToken,
@@ -2499,7 +2483,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           message: 'Meta business login is currently unavailable on this server. You can still connect by pasting an access token manually.',
         });
       }
-      pruneOAuth();
+      await pruneOAuthSessions();
       // `state` is persisted in the DB (oauth_states) with a short TTL so the
       // handshake survives redeploys / multi-instance deploys.
       const state = await createOAuthState({ workspaceId, userId, kind: 'system_user' });
@@ -2519,7 +2503,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       });
     }
 
-    pruneOAuth();
+    await pruneOAuthSessions();
     const state = await createOAuthState({ workspaceId, userId, kind: 'legacy' });
 
     return c.json({ url: oauth.getAuthorizationUrl(state), configured: true });
@@ -2539,14 +2523,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const state = c.req.query('state');
     if (!state) return c.redirect('/welcome?oauth_error=missing_state');
 
-    pruneOAuth();
+    await pruneOAuthSessions();
     const stored = await consumeOAuthState(state);
     if (!stored) {
       return c.redirect('/welcome?oauth_error=expired_state');
     }
 
     const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
-    oauthSessions.set(sessionId, {
+    await saveOAuthSession(sessionId, {
       workspaceId:  stored.workspaceId,
       userId:       stored.userId,
       accessToken:  MOCK_ACCESS_TOKEN,
@@ -2577,7 +2561,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     if (!code || !state) return c.redirect('/welcome?oauth_error=missing_params');
 
-    pruneOAuth();
+    await pruneOAuthSessions();
     const stored = await consumeOAuthState(state); // one-time use
     if (!stored) {
       return c.redirect('/welcome?oauth_error=expired_state');
@@ -2622,7 +2606,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           configId:        config.meta.systemUserConfigId,
         });
         const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
-        oauthSessions.set(sessionId, {
+        await saveOAuthSession(sessionId, {
           workspaceId: stored.workspaceId,
           userId:      stored.userId,
           accessToken: token,
@@ -2652,7 +2636,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
       // Store in session
       const sessionId = (await import('node:crypto')).randomBytes(32).toString('hex');
-      oauthSessions.set(sessionId, {
+      await saveOAuthSession(sessionId, {
         workspaceId:  stored.workspaceId,
         userId:       stored.userId,
         accessToken:  longToken,
@@ -2683,8 +2667,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-    pruneOAuth();
-    const session = oauthSessions.get(c.req.param('sessionId'));
+    await pruneOAuthSessions();
+    const session = await getOAuthSession(c.req.param('sessionId'));
     if (!session) return c.json({ error: 'Session not found or expired. Please reconnect.' }, 404);
     if (session.userId !== userId) return c.json({ error: 'Forbidden' }, 403);
     return c.json({ accounts: session.accounts, workspaceId: session.workspaceId });
@@ -2712,8 +2696,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!wsm) return c.json({ error: 'Forbidden' }, 403);
     if (wsm.role === 'VIEWER') return c.json({ error: 'Forbidden' }, 403);
 
-    pruneOAuth();
-    const session = oauthSessions.get(sessionId);
+    await pruneOAuthSessions();
+    const session = await getOAuthSession(sessionId);
     if (!session) return c.json({ error: 'Session not found or expired. Please reconnect.' }, 404);
     if (session.workspaceId !== workspaceId) return c.json({ error: 'Workspace mismatch' }, 403);
     if (session.userId !== userId) return c.json({ error: 'Session does not belong to you' }, 403);
@@ -2784,7 +2768,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         });
       }
       await invalidateCachedTokenHealth(workspaceId);
-      oauthSessions.delete(sessionId);
+      await deleteOAuthSession(sessionId);
 
       // Kick off the initial backfill using the connection token.
       try {
@@ -2907,7 +2891,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     await invalidateCachedTokenHealth(workspaceId);
 
     // Invalidate session — one-time use
-    oauthSessions.delete(sessionId);
+    await deleteOAuthSession(sessionId);
 
     // ── Mock-auth seeding ────────────────────────────────────────────────
     // If this connect was driven by the mock OAuth flow, the stored token is
