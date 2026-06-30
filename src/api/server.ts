@@ -57,6 +57,7 @@ import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
 import { MetaClient, MetaApiError } from '../services/metaClient';
+import { getMetaUsageStats } from '../services/metaUsageTracker';
 import { loginPage } from '../web/pages/loginPage';
 import { registerPage } from '../web/pages/registerPage';
 import { dashboardPage } from '../web/pages/dashboardPage';
@@ -1271,6 +1272,24 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       triggeredBy: gate.userId,
     });
     return c.json(result);
+  });
+
+  /**
+   * GET /api/admin/meta-usage
+   * Returns current Meta API call counter (cumulative toward 1500
+   * upgrade threshold) and latest x-app-usage snapshot.
+   *
+   * Auth: requires authenticated user. No role gate — any logged-in
+   * user can read this during the Ops quota-collection window. Tighten
+   * to OWNER-only after launch if needed.
+   */
+  app.get('/api/admin/meta-usage', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const stats = await getMetaUsageStats();
+    return c.json(stats);
   });
 
   /**
