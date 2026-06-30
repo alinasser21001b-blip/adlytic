@@ -9,6 +9,8 @@
 //  If Meta deprecates v20.0 → v21.0, only this file changes.
 // ════════════════════════════════════════════════════════════════════════
 
+import { recordMetaResponseHeaders } from './metaUsageTracker';
+
 export interface MetaClientConfig {
   apiVersion: string;          // e.g. "v20.0"
   accessToken: string;         // long-lived user/system-user token
@@ -214,6 +216,7 @@ export class MetaClient {
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
         const res = await this.fetchFn(url);
+        void recordMetaResponseHeaders(res.headers, res.status).catch(() => {});
         if (res.status === 429 || res.status >= 500) {
           // retryable: throw to trigger backoff
           const body = await safeJson(res);
