@@ -187,6 +187,38 @@ model OAuthState {
   @@map("oauth_states")
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  MetaAuditLog (ADDITIVE, non-destructive)
+//
+//  Append-only record of Meta account lifecycle events — connected,
+//  disconnected, token expired, reconnect required. Written fire-and-forget
+//  from the connect/disconnect routes and the token-refresh worker so that a
+//  platform admin (and a Meta reviewer, if asked) can see a clear history of
+//  how each workspace's Meta link changed over time. Read-only surface; never
+//  stores tokens or PII, only ids + a short human-readable detail string.
+// ════════════════════════════════════════════════════════════════════════
+model MetaAuditLog {
+  id                String         @id @default(cuid())
+  workspaceId       String         @map("workspace_id")
+  event             MetaAuditEvent
+  /// AdAccount.id when the event concerns a specific account (null for
+  /// workspace-wide events). No FK — the row must survive account deletion so
+  /// a DISCONNECTED entry is not cascaded away with the account it describes.
+  adAccountId       String?        @map("ad_account_id")
+  /// Meta's external "act_<id>" for the account, kept denormalized so the log
+  /// stays meaningful after the AdAccount row is gone.
+  externalAccountId String?        @map("external_account_id")
+  /// User.id that triggered the event (null for system/worker events).
+  actorUserId       String?        @map("actor_user_id")
+  /// Short human-readable context. Never contains tokens or secrets.
+  detail            String?
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt])
+  @@index([event, createdAt])
+  @@map("meta_audit_logs")
+}
+
 model Campaign {
   id                 String       @id @default(cuid())
   adAccountId        String       @map("ad_account_id")
@@ -630,6 +662,13 @@ enum MetaTokenSource {
   SYSTEM_USER
   DIRECT_TOKEN
   MANUAL
+}
+
+enum MetaAuditEvent {
+  CONNECTED
+  DISCONNECTED
+  TOKEN_EXPIRED
+  RECONNECT_REQUIRED
 }
 
 enum WorkspaceRole {

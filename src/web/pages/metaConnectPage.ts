@@ -11,8 +11,8 @@ import { layout } from '../layout';
 export function metaConnectPage(sessionId: string): string {
   const content = `
 <div class="page-header">
-  <div class="page-title" id="page-title">Choose your ad account</div>
-  <div class="page-subtitle" id="page-subtitle">Select the Meta ad account you want to analyze</div>
+  <div class="page-title" id="page-title">اختر حساب الإعلانات</div>
+  <div class="page-subtitle" id="page-subtitle">حدد حساب Meta الإعلاني الذي تريد تحليله</div>
 </div>
 
 <div id="connect-container" style="max-width:600px;">
@@ -166,7 +166,7 @@ export function metaConnectPage(sessionId: string): string {
               <div class="account-meta">\${a.currency} &nbsp;·&nbsp; \${a.timezone_name || 'UTC'}</div>
             </div>
             <div class="account-status-badge">
-              <span class="badge \${a.account_status === 1 ? 'badge-green' : 'badge-gray'}">\${a.account_status === 1 ? 'Active' : 'Inactive'}</span>
+              <span class="badge \${a.account_status === 1 ? 'badge-green' : 'badge-gray'}">\${a.account_status === 1 ? lbl('Active', 'نشطة') : lbl('Inactive', 'معطّلة')}</span>
             </div>
           </div>
         \`).join('')}
@@ -198,7 +198,7 @@ export function metaConnectPage(sessionId: string): string {
         await performConnect(selectedId, (e) => {
           connecting = false;
           render();
-          toast(e.message || 'Could not connect this ad account.', 'error');
+          toast(e.message || lbl('Could not connect this ad account.', 'تعذر ربط حساب الإعلانات.'), 'error');
         });
       });
     }

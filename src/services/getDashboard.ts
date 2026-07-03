@@ -42,6 +42,10 @@ import { isCurrentlySpending, accountLocalTodayFloor } from "../lib/campaignSpen
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
+import { diagnose, type Diagnosis } from "../engines/rules/diagnose";
+import type { Signals } from "../engines/rules/types";
+import type { IssueRecord } from "../repositories/detectedIssuesRepo";
+import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
 // ── Module-level Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
@@ -114,6 +118,8 @@ export interface DashboardDTO {
     recommendations: string[]; // localized
     evidence: Record<string, unknown>;
   }>;
+  diagnoses: Diagnosis[];
+  attribution: Attribution | null;
   priorityAction: {
     actionCode: string;
     priority: string;
@@ -229,6 +235,8 @@ export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
   kpis:           [],
   trendSeries:    { dates: [], messages: [], spend: [], ctr: [] },
   issues:         [],
+  diagnoses:      [],
+  attribution:    null,
   priorityAction: null,
   bestCampaign:   null,
   worstCampaign:  null,
@@ -612,6 +620,41 @@ export async function getDashboard(
     }
   }
 
+  // 7b. Diagnoses — re-derive from stored issues + latest trends.
+  const latestTrend = await timedStage('latestTrend', () =>
+    prisma.metricTrend.findFirst({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+      orderBy: { date: "desc" },
+    }),
+  );
+  const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
+    issueCode: d.issueCode,
+    severity: d.severity,
+    evidence: (d.evidenceJson as Record<string, unknown>) ?? {},
+  }));
+  const signals: Signals = {
+    ctrTrend: (latestTrend as any)?.ctrTrend ?? null,
+    cpmTrend: (latestTrend as any)?.cpmTrend ?? null,
+    frequencyTrend: (latestTrend as any)?.frequencyTrend ?? null,
+    resultsTrend: (latestTrend as any)?.resultsTrend ?? null,
+    spendTrend: (latestTrend as any)?.spendTrend ?? null,
+    currentCtr: ctrWindow,
+    currentCpm: cpmWindow,
+    currentFrequency: freqAvg,
+    currentResults: totalMsgs,
+    currentSpend: totalSpendMinor,
+  };
+  const diagnoses = diagnose(issueRecords, signals);
+
+  // 7c. Attribution — decompose results change into impressions × CTR × CVR.
+  const priorImpr = sum(priorDaily, "impressions");
+  const priorClicks = sum(priorDaily, "clicks");
+  const priorResults = sum(priorDaily, "messages");
+  const resultAttribution = attributeChange(
+    { impressions: totalImpr, clicks: totalClicks, results: totalMsgs },
+    { impressions: priorImpr, clicks: priorClicks, results: priorResults },
+  );
+
   // 8. Priority action — highest-priority recommendation, rendered to text.
   const rec = await timedStage('recommendation', () =>
     prisma.recommendation.findFirst({
@@ -737,6 +780,8 @@ export async function getDashboard(
     kpis,
     trendSeries,
     issues: filteredIssues,
+    diagnoses,
+    attribution: resultAttribution,
     priorityAction,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,

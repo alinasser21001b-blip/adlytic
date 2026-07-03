@@ -18,7 +18,13 @@ export const SHARED_CSS = `
   --text-3: #5a5a6a;
   --accent: #6366f1;
   --accent-2: #818cf8;
+  --accent-3: #a5b4fc;
   --accent-dim: rgba(99,102,241,0.12);
+  --accent-glow: rgba(99,102,241,0.35);
+  --violet: #8b5cf6;
+  --pink: #ec4899;
+  --cyan: #06b6d4;
+  --teal: #14b8a6;
   --success: #22c55e;
   --success-dim: rgba(34,197,94,0.12);
   --warning: #f59e0b;
@@ -27,6 +33,13 @@ export const SHARED_CSS = `
   --error-dim: rgba(239,68,68,0.12);
   --critical: #dc2626;
   --critical-dim: rgba(220,38,38,0.12);
+  --grad-accent: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --grad-accent-hover: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  --grad-vibrant: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+  --grad-cool: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
+  --grad-success: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);
+  --grad-warm: linear-gradient(135deg, #f59e0b 0%, #ec4899 100%);
+  --grad-surface: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
   --sidebar-w: 220px;
   --topbar-h: 56px;
   --radius: 8px;
@@ -34,14 +47,17 @@ export const SHARED_CSS = `
   --radius-lg: 12px;
   --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
   --shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-accent: 0 4px 14px rgba(99,102,241,0.35);
+  --shadow-glow: 0 0 0 1px rgba(99,102,241,0.15), 0 8px 24px rgba(99,102,241,0.18);
   --transition: 150ms cubic-bezier(0.4,0,0.2,1);
+  --transition-slow: 260ms cubic-bezier(0.34,1.56,0.64,1);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; -webkit-font-smoothing: antialiased; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Geeza Pro', 'SF Arabic', 'Inter', Roboto, sans-serif;
+  font-family: 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
   line-height: 1.5;
   min-height: 100vh;
 }
@@ -74,11 +90,12 @@ input, select, textarea { font-family: inherit; }
 }
 .sidebar-logo-mark {
   width: 28px; height: 28px;
-  background: var(--accent);
+  background: var(--grad-accent);
   border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 13px; color: #fff; letter-spacing: -0.5px;
   flex-shrink: 0;
+  box-shadow: var(--shadow-accent);
 }
 .sidebar-logo-text { font-weight: 700; font-size: 15px; color: var(--text); letter-spacing: -0.3px; }
 .sidebar-logo-badge {
@@ -123,7 +140,7 @@ input, select, textarea { font-family: inherit; }
 .sidebar-user:hover { background: var(--surface-hover); }
 .avatar {
   width: 28px; height: 28px;
-  background: var(--accent);
+  background: var(--grad-vibrant);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; color: #fff;
@@ -186,10 +203,20 @@ input, select, textarea { font-family: inherit; }
 
 /* ── Cards ───────────────────────────────────────────────────────── */
 .card {
+  position: relative;
   background: var(--surface);
+  background-image: var(--grad-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.card:hover { border-color: var(--border-2); box-shadow: var(--shadow-lg); }
+/* Optional gradient top-edge accent: add class .card-accent */
+.card-accent::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--grad-accent);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .card-title {
   font-size: 12px; font-weight: 600; color: var(--text-3);
@@ -205,13 +232,22 @@ input, select, textarea { font-family: inherit; }
   margin-bottom: 24px;
 }
 .kpi-card {
+  position: relative;
   background: var(--surface);
+  background-image: var(--grad-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px 18px;
-  transition: border-color var(--transition);
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
-.kpi-card:hover { border-color: var(--border-2); }
+.kpi-card::before {
+  content: ""; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--grad-accent);
+  opacity: 0; transition: opacity var(--transition);
+}
+.kpi-card:hover { border-color: var(--border-2); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.kpi-card:hover::before { opacity: 1; }
 .kpi-label { font-size: 11.5px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
 .kpi-value { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; line-height: 1.2; }
 .kpi-delta {
@@ -293,30 +329,61 @@ tr:hover td { background: var(--surface-hover); }
 
 /* ── Buttons ─────────────────────────────────────────────────────── */
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 7px 14px;
   border-radius: var(--radius-sm);
-  font-size: 13px; font-weight: 500;
+  font-size: 13px; font-weight: 600;
   border: none; cursor: pointer;
-  transition: all var(--transition);
+  transition: transform var(--transition), box-shadow var(--transition), background var(--transition), border-color var(--transition), color var(--transition), filter var(--transition);
   text-decoration: none;
   white-space: nowrap;
+  overflow: hidden;
+  isolation: isolate;
 }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: #4f46e5; }
+.btn:active { transform: translateY(1px) scale(0.985); }
+/* Ripple */
+.btn::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at var(--rx, 50%) var(--ry, 50%), rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 45%);
+  opacity: 0;
+  transition: opacity 500ms ease;
+  pointer-events: none;
+  z-index: -1;
+}
+.btn.is-rippling::after { opacity: 1; transition: opacity 0ms; }
+.btn-primary { background: var(--grad-accent); color: #fff; box-shadow: var(--shadow-accent); }
+.btn-primary:hover { background: var(--grad-accent-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.45); }
+.btn-primary:active { transform: translateY(0) scale(0.985); }
 .btn-secondary {
   background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--border);
 }
-.btn-secondary:hover { background: var(--surface-hover); border-color: var(--border-2); }
+.btn-secondary:hover { background: var(--surface-hover); border-color: var(--accent); color: #fff; transform: translateY(-1px); }
 .btn-danger { background: var(--error-dim); color: var(--error); border: 1px solid transparent; }
-.btn-danger:hover { background: var(--error); color: #fff; }
+.btn-danger:hover { background: var(--error); color: #fff; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(239,68,68,0.35); }
 .btn-ghost { background: transparent; color: var(--text-2); }
 .btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
+.btn-success { background: var(--grad-success); color: #fff; box-shadow: 0 4px 14px rgba(20,184,166,0.3); }
+.btn-success:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 6px 20px rgba(20,184,166,0.4); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .btn-lg { padding: 10px 20px; font-size: 14px; }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; transform: none; box-shadow: none; }
+/* Loading state: hide label, show spinner */
+.btn.is-loading { color: transparent !important; pointer-events: none; }
+.btn.is-loading::before {
+  content: "";
+  position: absolute; top: 50%; left: 50%;
+  width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+  z-index: 1;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 
 /* ── Forms ───────────────────────────────────────────────────────── */
 .form-group { margin-bottom: 16px; }
@@ -631,6 +698,184 @@ select.form-input { cursor: pointer; }
 }
 .mode-toggle-btn:hover { color: var(--text); }
 .mode-toggle-btn.active { background: var(--accent); color: #fff; }
+
+/* ── RTL Support ────────────────────────────────────────────────── */
+[dir="rtl"] .sidebar { left: auto; right: 0; border-right: none; border-left: 1px solid var(--border); }
+[dir="rtl"] .main { margin-left: 0; margin-right: var(--sidebar-w); }
+[dir="rtl"] .sidebar-logo-badge { margin-left: 0; margin-right: auto; }
+[dir="rtl"] th { text-align: right; }
+[dir="rtl"] .search-wrap svg { left: auto; right: 10px; }
+[dir="rtl"] .search-input { padding-left: 12px !important; padding-right: 32px !important; }
+[dir="rtl"] .toast.success { border-left: none; border-right: 3px solid var(--success); }
+[dir="rtl"] .toast.error { border-left: none; border-right: 3px solid var(--error); }
+[dir="rtl"] .toast.info { border-left: none; border-right: 3px solid var(--accent); }
+[dir="rtl"] .toast.warning { border-left: none; border-right: 3px solid var(--warning); }
+[dir="rtl"] #toast-container { right: auto; left: 20px; }
+[dir="rtl"] .kpi-value, [dir="rtl"] .health-number { font-feature-settings: 'tnum'; direction: ltr; }
+[dir="rtl"] .sync-status-meta { margin-left: 0; margin-right: auto; }
+[dir="rtl"] .mode-toggle { margin-right: 0; margin-left: 8px; }
+[dir="rtl"] .topbar-btn.mobile-menu-btn { margin-right: 0; margin-left: 8px; }
+@media (max-width: 768px) {
+  [dir="rtl"] .sidebar { transform: translateX(100%); }
+  [dir="rtl"] .sidebar.open { transform: translateX(0); }
+  [dir="rtl"] .main { margin-right: 0; }
+}
+
+/* ── Diagnosis cards ────────────────────────────────────────────── */
+.diagnosis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.diagnosis-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  transition: border-color var(--transition);
+}
+.diagnosis-card:hover { border-color: var(--border-2); }
+.diagnosis-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.diagnosis-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.diagnosis-confidence { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.diagnosis-confidence.high { background: var(--success-dim); color: var(--success); }
+.diagnosis-confidence.medium { background: var(--warning-dim); color: var(--warning); }
+.diagnosis-confidence.low { background: rgba(255,255,255,0.06); color: var(--text-3); }
+.diagnosis-narrative { font-size: 13px; color: var(--text-2); line-height: 1.65; margin-bottom: 12px; }
+.diagnosis-action {
+  font-size: 12.5px; color: var(--accent-2); background: var(--accent-dim);
+  padding: 10px 14px; border-radius: var(--radius-sm); line-height: 1.55;
+}
+.diagnosis-action-label { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; color: var(--accent); }
+
+/* ── Attribution bar ────────────────────────────────────────────── */
+.attribution-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+.attribution-title { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+.attribution-bars { display: flex; gap: 16px; flex-wrap: wrap; }
+.attribution-factor { flex: 1; min-width: 120px; }
+.attribution-factor-label { font-size: 12px; color: var(--text-2); margin-bottom: 6px; font-weight: 500; }
+.attribution-factor-value { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; direction: ltr; }
+.attribution-factor-value.positive { color: var(--success); }
+.attribution-factor-value.negative { color: var(--error); }
+.attribution-factor-value.neutral { color: var(--text-3); }
+.attribution-factor-bar {
+  height: 4px; border-radius: 2px; margin-top: 6px;
+  background: var(--surface-2);
+}
+.attribution-factor-fill {
+  height: 100%; border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.attribution-primary-tag {
+  display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 3px; margin-top: 4px;
+  background: var(--accent-dim); color: var(--accent-2); letter-spacing: 0.05em;
+}
+.attribution-narrative { font-size: 13px; color: var(--text-2); margin-top: 14px; line-height: 1.6; padding-top: 14px; border-top: 1px solid var(--border); }
+
+/* ── Table horizontal scroll on mobile ──────────────────────────── */
+@media (max-width: 768px) {
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { min-width: 700px; }
+  .account-cards { grid-template-columns: 1fr !important; }
+  .rec-grid { grid-template-columns: 1fr !important; }
+  .settings-grid { grid-template-columns: 1fr !important; }
+  .gate-grid { grid-template-columns: 1fr !important; }
+  .diagnosis-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .modal { max-width: calc(100vw - 32px); margin: 16px; }
+}
+
+/* ── New components ─────────────────────────────────────────────── */
+/* Gradient text (headings / brand emphasis) */
+.gradient-text {
+  background: var(--grad-vibrant);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* Skeleton loaders */
+.skeleton {
+  position: relative; overflow: hidden;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  animation: skeleton-shimmer 1.3s infinite;
+}
+[dir="rtl"] .skeleton::after { animation-name: skeleton-shimmer-rtl; }
+@keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }
+@keyframes skeleton-shimmer-rtl { 100% { transform: translateX(-100%); } }
+[dir="rtl"] .skeleton::after { transform: translateX(100%); }
+.skeleton-line { height: 12px; margin-bottom: 8px; }
+.skeleton-line.sk-lg { height: 20px; }
+.skeleton-line.w-40 { width: 40%; } .skeleton-line.w-60 { width: 60%; } .skeleton-line.w-80 { width: 80%; }
+.skeleton-kpi { height: 78px; border-radius: var(--radius-lg); }
+
+/* Empty states */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 48px 24px; gap: 6px;
+}
+.empty-state-icon {
+  width: 56px; height: 56px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; margin-bottom: 10px;
+  background: var(--accent-dim); color: var(--accent-2);
+}
+.empty-state-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.empty-state-text { font-size: 13px; color: var(--text-2); max-width: 340px; line-height: 1.6; }
+.empty-state .btn { margin-top: 12px; }
+
+/* Tooltips (data-tooltip attribute) */
+[data-tooltip] { position: relative; }
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(4px);
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2);
+  padding: 5px 9px; border-radius: var(--radius-sm);
+  font-size: 11.5px; font-weight: 500; white-space: nowrap;
+  box-shadow: var(--shadow-lg);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--transition), transform var(--transition);
+  z-index: 200;
+}
+[data-tooltip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Section header with gradient accent bar */
+.section-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+}
+.section-header::before {
+  content: ""; width: 4px; height: 18px; border-radius: 2px;
+  background: var(--grad-accent); flex-shrink: 0;
+}
+.section-header-title { font-size: 15px; font-weight: 700; color: var(--text); }
+
+/* Chip / pill */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: var(--surface-2); color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.chip-accent { background: var(--accent-dim); color: var(--accent-2); border-color: transparent; }
+
+/* ── Accessibility ──────────────────────────────────────────────── */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 `;
 
 // ── Sidebar icons (SVG) ─────────────────────────────────────────────────
@@ -737,28 +982,28 @@ async function pollSyncJob(jobId, opts) {
     if (job && job.status === 'FAILED') throw new Error(job.error || 'Sync failed');
     await sleep(intervalMs);
   }
-  throw new Error('Sync is taking longer than expected — it will finish in the background.');
+  throw new Error('المزامنة تأخذ وقتاً أطول من المتوقع — ستنتهي في الخلفية.');
 }
 
 function friendlyApiError(err) {
-  if (!err) return 'Something went wrong. Please try again.';
+  if (!err) return 'حدث خطأ. يرجى المحاولة مرة أخرى.';
   if (err.code === 'TOKEN_DECRYPT_FAILED') {
-    return 'Your stored Meta token could not be read. Reconnect your account in Workspace settings.';
+    return 'تعذّر قراءة رمز Meta المحفوظ. أعد ربط حسابك من إعدادات مساحة العمل.';
   }
   var msg = err.message || String(err);
   if (/Another sync is already in progress/i.test(msg)) {
-    return 'A sync is already running — your data will update automatically when it finishes.';
+    return 'المزامنة قيد التشغيل — ستتحدّث بياناتك تلقائياً عند الانتهاء.';
   }
-  if (/timed out/i.test(msg)) return 'Request timed out — check your connection and try again.';
-  if (/non-JSON response/i.test(msg)) return 'Unexpected server response — please refresh the page.';
+  if (/timed out/i.test(msg)) return 'انتهت مهلة الطلب — تحقق من اتصالك وحاول مجدداً.';
+  if (/non-JSON response/i.test(msg)) return 'استجابة غير متوقعة من الخادم — أعد تحميل الصفحة.';
   if (/token has expired|please reconnect/i.test(msg)) {
-    return 'Your Meta access token expired. Reconnect in Workspace settings.';
+    return 'انتهت صلاحية رمز Meta. أعد الربط من إعدادات مساحة العمل.';
   }
   if (/finish in the background|still running in the background/i.test(msg)) {
-    return 'Sync is still running in the background — your dashboard will update shortly.';
+    return 'المزامنة تعمل في الخلفية — ستتحدّث لوحة التحكم قريباً.';
   }
-  if (/Insufficient permissions/i.test(msg)) return 'You need Manager or Owner access to sync data.';
-  if (/No ad account/i.test(msg)) return 'Connect a Meta ad account in Workspace settings first.';
+  if (/Insufficient permissions/i.test(msg)) return 'تحتاج صلاحية مدير أو مالك لمزامنة البيانات.';
+  if (/No ad account/i.test(msg)) return 'اربط حساب Meta الإعلاني من إعدادات مساحة العمل أولاً.';
   return msg;
 }
 
@@ -823,11 +1068,11 @@ function updateSyncStatusBar(job, reused) {
   }
   if (text) {
     text.textContent = (reused && pct < 5)
-      ? 'System auto-syncing in background…'
-      : ('Syncing data…' + (pct > 0 ? ' (' + pct + '%)' : ''));
+      ? 'مزامنة تلقائية في الخلفية…'
+      : ('جارٍ مزامنة البيانات…' + (pct > 0 ? ' (' + pct + '%)' : ''));
   }
   if (progBar) progBar.style.width = Math.max(4, Math.min(100, pct)) + '%';
-  if (meta) meta.textContent = (job && job.rowsUpserted > 0) ? (job.rowsUpserted + ' rows loaded') : '';
+  if (meta) meta.textContent = (job && job.rowsUpserted > 0) ? (job.rowsUpserted + ' صف تم تحميله') : '';
 }
 function hideSyncStatusBar() {
   var bar = document.getElementById('sync-status-bar');
@@ -859,10 +1104,10 @@ async function runWorkspaceSync(workspaceId, opts) {
       body: JSON.stringify(opts.body || {}),
     });
     if (!res || !res.jobId) {
-      toast('Sync started', 'info');
+      toast('بدأت المزامنة', 'info');
       return res;
     }
-    if (res.reused) toast('System auto-syncing in background…', 'info');
+    if (res.reused) toast('مزامنة تلقائية في الخلفية…', 'info');
     rememberActiveSyncJob(workspaceId, res.jobId);
     syncUiState.activeJobId = res.jobId;
     updateSyncStatusBar({ progress: 0, chunksDone: 0, chunksTotal: 0 }, !!res.reused);
@@ -913,7 +1158,7 @@ async function resumeActiveSyncIfAny(workspaceId, opts) {
 }
 
 var shellState = { me: null, ready: false, initPromise: null };
-var SHELL_LOADING = 'Loading…';
+var SHELL_LOADING = 'جارٍ التحميل…';
 
 function shellInitials(name) {
   if (!name) return '?';
@@ -926,13 +1171,13 @@ function populateAppShell(me) {
   var avEl = document.getElementById('user-avatar');
   var wsEl = document.getElementById('ws-name');
   if (!me) {
-    if (nameEl && nameEl.textContent === SHELL_LOADING) nameEl.textContent = 'User';
+    if (nameEl && nameEl.textContent === SHELL_LOADING) nameEl.textContent = 'مستخدم';
     if (emailEl && !emailEl.textContent) emailEl.textContent = '';
     if (avEl && avEl.textContent === '?') avEl.textContent = '?';
-    if (wsEl && wsEl.textContent === SHELL_LOADING) wsEl.textContent = 'Workspace';
+    if (wsEl && wsEl.textContent === SHELL_LOADING) wsEl.textContent = 'مساحة العمل';
     return;
   }
-  var userName = me.name || me.email || 'User';
+  var userName = me.name || me.email || 'مستخدم';
   if (avEl) avEl.textContent = shellInitials(userName);
   if (nameEl) nameEl.textContent = userName;
   if (emailEl) emailEl.textContent = me.email || '';
@@ -945,7 +1190,7 @@ function populateAppShell(me) {
       : null;
     var wsName = membership && membership.workspace && membership.workspace.name;
     if (!wsName && wsId) wsName = wsId;
-    wsEl.textContent = wsName || 'Workspace';
+    wsEl.textContent = wsName || 'مساحة العمل';
   }
 }
 
@@ -1169,6 +1414,19 @@ window.pollSyncJob = pollSyncJob;
 window.severityBadge = severityBadge;
 window.statusBadge = statusBadge;
 
+// Global ripple: coordinates the click origin for the .btn::after glow.
+document.addEventListener('pointerdown', function (e) {
+  var btn = e.target && e.target.closest ? e.target.closest('.btn') : null;
+  if (!btn || btn.disabled || btn.classList.contains('is-loading')) return;
+  var rect = btn.getBoundingClientRect();
+  btn.style.setProperty('--rx', ((e.clientX - rect.left) / rect.width * 100) + '%');
+  btn.style.setProperty('--ry', ((e.clientY - rect.top) / rect.height * 100) + '%');
+  btn.classList.remove('is-rippling');
+  void btn.offsetWidth;
+  btn.classList.add('is-rippling');
+  setTimeout(function () { btn.classList.remove('is-rippling'); }, 520);
+}, true);
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
@@ -1193,12 +1451,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Sidebar HTML ────────────────────────────────────────────────────────
 export function sidebar(active: string): string {
   const nav = [
-    { id: 'dashboard',       label: 'Dashboard',       href: '/dashboard' },
-    { id: 'campaigns',       label: 'Campaigns',        href: '/campaigns' },
-    { id: 'recommendations', label: 'Recommendations',  href: '/recommendations' },
-    { id: 'workspace',       label: 'Workspace',        href: '/workspace' },
-    { id: 'ai',              label: 'AI Assistant',     href: '/ai' },
-    { id: 'settings',        label: 'Settings',         href: '/settings' },
+    { id: 'dashboard',       label: 'لوحة التحكم',      href: '/dashboard' },
+    { id: 'campaigns',       label: 'الحملات',           href: '/campaigns' },
+    { id: 'recommendations', label: 'التوصيات',          href: '/recommendations' },
+    { id: 'workspace',       label: 'مساحة العمل',       href: '/workspace' },
+    { id: 'ai',              label: 'المساعد الذكي',     href: '/ai' },
+    { id: 'settings',        label: 'الإعدادات',         href: '/settings' },
   ];
   const links = nav.map(n => `
     <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}">
@@ -1212,8 +1470,8 @@ export function sidebar(active: string): string {
     <span class="sidebar-logo-text">Adlytic</span>
     <span class="sidebar-logo-badge">Beta</span>
   </div>
-  <nav class="sidebar-nav">
-    <div class="nav-section-label">Main</div>
+  <nav class="sidebar-nav" aria-label="التنقل الرئيسي">
+    <div class="nav-section-label">القائمة الرئيسية</div>
     ${links}
   </nav>
   <div class="sidebar-footer">
@@ -1225,7 +1483,7 @@ export function sidebar(active: string): string {
       </div>
     </div>
     <a class="nav-item" id="logout-btn" style="margin-top:4px;cursor:pointer;">
-      ${ICONS['logout']} Logout
+      ${ICONS['logout']} تسجيل الخروج
     </a>
   </div>
 </aside>`;
@@ -1251,7 +1509,7 @@ export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): str
   ${toggle}
   <div class="topbar-ws" id="ws-selector" title="Switch workspace">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-    <span class="topbar-ws-name" id="ws-name">Loading…</span>
+    <span class="topbar-ws-name" id="ws-name">جارٍ التحميل…</span>
     ${ICONS['chevron']}
   </div>
   <button class="topbar-btn" title="Notifications">${ICONS['bell']}</button>
@@ -1272,10 +1530,14 @@ export function layout(opts: {
 }): string {
   const { title, active, content, scripts = '', extraHead = '', mode } = opts;
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0a0b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <title>${title} — Adlytic</title>
   <style>${SHARED_CSS}</style>
   ${extraHead}
@@ -1292,11 +1554,11 @@ export function layout(opts: {
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
         <div class="token-decrypt-banner-body">
-          <div class="token-decrypt-banner-title">Meta token cannot be read</div>
-          <div class="token-decrypt-banner-text" id="token-decrypt-banner-msg">Stored access token could not be decrypted — the encryption key changed.</div>
+          <div class="token-decrypt-banner-title">تعذّر قراءة رمز Meta</div>
+          <div class="token-decrypt-banner-text" id="token-decrypt-banner-msg">لم يتمكن النظام من فك تشفير رمز الوصول المحفوظ — تغيّر مفتاح التشفير.</div>
         </div>
         <div class="token-decrypt-banner-actions">
-          <a id="token-decrypt-banner-cta" href="/workspace?connect=manual" class="btn-reconnect">Reconnect Meta</a>
+          <a id="token-decrypt-banner-cta" href="/workspace?connect=manual" class="btn-reconnect">إعادة ربط Meta</a>
           <button type="button" class="token-decrypt-banner-dismiss" id="token-decrypt-banner-dismiss" title="Dismiss">×</button>
         </div>
       </div>

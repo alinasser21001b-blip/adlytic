@@ -9,7 +9,7 @@ import { SHARED_CSS } from '../layout';
 
 export function welcomePage(): string {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -281,7 +281,7 @@ export function welcomePage(): string {
       },
     };
 
-    let locale = 'EN';
+    let locale = 'AR';
     let isAuthenticated = false;
     let userEmail = '';
 

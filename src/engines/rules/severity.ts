@@ -50,11 +50,11 @@ export function confidenceFromCorroboration(signals: Array<boolean>): number {
   const present = signals.filter(Boolean).length;
   const total = signals.length;
   if (total === 0) return 0;
-  // Linear: 1/3 signals = 0.45, 2/3 = 0.70, 3/3 = 0.90.
+  // Linear (0.20 + present/total * 0.70): 1/3 signals = 0.43, 2/3 = 0.67, 3/3 = 0.90.
   // Not 1.0 because we are never certain.
   // because:
   //   We want corroboration to matter more than the count, but not absurdly
-  //   so. A floor of 0.45 prevents single-signal issues from looking
+  //   so. A floor of ~0.43 prevents single-signal issues from looking
   //   dismissibly tentative; a ceiling of 0.90 keeps room for "this is
   //   definitely it" once user feedback teaches us patterns.
   return +(0.20 + (present / total) * 0.70).toFixed(2);

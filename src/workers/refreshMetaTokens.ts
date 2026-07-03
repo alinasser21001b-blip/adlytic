@@ -9,6 +9,7 @@
 
 import type { PrismaClient } from '@prisma/client';
 import { invalidateCachedTokenHealth } from '../services/cachedTokenHealth';
+import { recordMetaAuditEvent } from '../services/metaAudit';
 import { buildMetaOAuth } from '../services/metaOAuth';
 import { decryptToken, encryptToken, TokenDecryptError } from '../services/tokenEncryption';
 
@@ -28,6 +29,13 @@ async function flagAccountNeedsRegrant(
     data: { status: 'PAUSED', accessTokenEncrypted: null },
   });
   await invalidateCachedTokenHealth(workspaceId);
+  void recordMetaAuditEvent(prisma, {
+    workspaceId,
+    event: 'TOKEN_EXPIRED',
+    adAccountId: accountId,
+    externalAccountId,
+    detail: 'Token expired — account PAUSED; owner must reconnect.',
+  });
   console.warn(
     `[adlytic:token-refresh] workspaceId=${workspaceId} adAccountId=${accountId} ` +
     `externalAccountId=${externalAccountId} — marked PAUSED (token expired); owner must reconnect.`,
@@ -47,6 +55,13 @@ async function flagAccountDecryptFailed(
     data: { status: 'PAUSED' },
   });
   await invalidateCachedTokenHealth(workspaceId);
+  void recordMetaAuditEvent(prisma, {
+    workspaceId,
+    event: 'RECONNECT_REQUIRED',
+    adAccountId: accountId,
+    externalAccountId,
+    detail: 'Token could not be decrypted — reconnect required.',
+  });
   console.error(
     `[adlytic:TOKEN_DECRYPT_FAILED][token-refresh] workspaceId=${workspaceId} ` +
     `adAccountId=${accountId} externalAccountId=${externalAccountId} — ${detail}`,

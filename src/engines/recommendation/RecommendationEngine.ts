@@ -169,5 +169,6 @@ export class RecommendationEngine {
 }
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
-const dateOnly = (d: Date) => new Date(d.toISOString().slice(0, 10));
+const dateOnly = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400_000);

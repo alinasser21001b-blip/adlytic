@@ -26,6 +26,8 @@ import { calculateCpmTrend } from "./calculateCpmTrend";
 import { calculateFrequencyTrend } from "./calculateFrequencyTrend";
 import { calculateResultsTrend } from "./calculateResultsTrend";
 import { calculateSpendTrend } from "./calculateSpendTrend";
+import { attributeChange, type Attribution } from "./attributeChange";
+import { sumCount } from "./aggregate";
 
 export interface AnalyticsOptions {
   /** Length of each comparison window in days. Default 7. */
@@ -52,6 +54,7 @@ export interface AnalyticsResult {
     resultsTrend: number | null;
     spendTrend: number | null;
   };
+  attribution: Attribution | null;
   ok: boolean;
   error?: string;
 }
@@ -89,6 +92,7 @@ export class AnalyticsEngine {
       currentSince: ymd(currentSince), currentUntil: ymd(currentUntil),
       priorSince: ymd(priorSince), priorUntil: ymd(priorUntil),
       trends: { ctrTrend: null, cpmTrend: null, frequencyTrend: null, resultsTrend: null, spendTrend: null },
+      attribution: null,
       ok: false,
     };
 
@@ -106,6 +110,11 @@ export class AnalyticsEngine {
         resultsTrend: calculateResultsTrend(current, prior),
         spendTrend: calculateSpendTrend(current, prior),
       };
+
+      result.attribution = attributeChange(
+        { impressions: sumCount(current, "impressions"), clicks: sumCount(current, "clicks"), results: sumCount(current, "conversions") },
+        { impressions: sumCount(prior, "impressions"), clicks: sumCount(prior, "clicks"), results: sumCount(prior, "conversions") },
+      );
 
       // Single write — through the repo
       await this.trendsRepo.upsert({
@@ -154,4 +163,6 @@ export class AnalyticsEngine {
 // ── date helpers ─────────────────────────────────────────────────────────
 function ymd(d: Date): string { return d.toISOString().slice(0, 10); }
 function addDays(d: Date, n: number): Date { return new Date(d.getTime() + n * 86400_000); }
-function dateOnly(d: Date): Date { return new Date(d.toISOString().slice(0, 10)); }
+function dateOnly(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
