@@ -162,6 +162,7 @@ const calls: Call[] = [];
 //   cpmTrend: 0, spendTrend: 0
 // daily_stats in current window: CTR ~2.0%, freq 5.4, ~28 messages total
 const trendRow = {
+  date: new Date("2026-06-14"),
   ctrTrend: -0.33, cpmTrend: 0, frequencyTrend: 0.46,
   resultsTrend: -0.33, spendTrend: 0,
 };
@@ -249,6 +250,17 @@ async function main() {
   const firstWrite = calls.findIndex(c => c.op === "createMany" || c.op === "deleteMany");
   check("reads happen before writes", firstRead < firstWrite);
 
+  // B1 regression: trends read must be scoped to asOf (date.lte), NOT the
+  // globally-newest row — otherwise a backfill pairs a past date with today's
+  // trends. asOf was 2026-06-14 → the query must carry date.lte = 2026-06-14.
+  const trendRead = calls.find(c => c.table === "metric_trends");
+  check("B1: trends read scoped by asOf (date.lte present, not globally-newest)",
+    trendRead?.where?.date?.lte != null, trendRead?.where);
+  check("B1: date.lte equals dateOnly(asOf) = 2026-06-14",
+    trendRead?.where?.date?.lte instanceof Date &&
+      trendRead.where.date.lte.toISOString().slice(0, 10) === "2026-06-14",
+    trendRead?.where?.date?.lte);
+
   // ── IDEMPOTENCY ──
   console.log("\n── Idempotency ──");
   const beforeSize = issuesStore.size;
@@ -262,7 +274,7 @@ async function main() {
   // ── COSMETICS PATH — different story, same code ──
   console.log("\n── Cosmetics path ──");
   // Replace fixtures with cosmetics shape: low CTR but everything else fine
-  const cosmeticsTrend = { ctrTrend: -0.04, cpmTrend: 0.03, frequencyTrend: 0.10, resultsTrend: 0.08, spendTrend: 0.05 };
+  const cosmeticsTrend = { date: new Date("2026-06-14"), ctrTrend: -0.04, cpmTrend: 0.03, frequencyTrend: 0.10, resultsTrend: 0.08, spendTrend: 0.05 };
   const cosmeticsDaily = ["2026-06-06","2026-06-07","2026-06-08","2026-06-09","2026-06-10","2026-06-11","2026-06-12"]
     .map(d => ({
       date: new Date(d),

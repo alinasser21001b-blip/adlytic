@@ -630,22 +630,29 @@ export function dashboardPage(): string {
               <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
             </div>
             <div class="chart-card">
-              <div class="chart-card-header"><div class="chart-card-title">Messages Trend</div></div>
+              <div class="chart-card-header"><div class="chart-card-title">اتجاه الرسائل</div></div>
               <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
             </div>
           </div>
 
+          <div id="attribution-section" style="display:none;"></div>
+
+          <div id="diagnoses-section" style="display:none;">
+            <div class="section-header" style="margin-bottom:16px;"><div class="section-header-title">التشخيص والتوصيات</div></div>
+            <div class="diagnosis-grid" id="diagnoses-grid"></div>
+          </div>
+
           <div class="card section-gap">
-            <div class="card-title">Issues &amp; Alerts</div>
-            <div id="issues-list"><div class="text-3 text-sm">No issues detected.</div></div>
+            <div class="section-header" style="margin-bottom:14px;"><div class="section-header-title">التنبيهات والمشاكل</div></div>
+            <div id="issues-list"><div class="text-3 text-sm">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div></div>
           </div>
 
           <div class="table-wrap">
-            <div class="table-header"><div class="table-title">Campaign Performance</div></div>
+            <div class="table-header"><div class="table-title">أداء الحملات</div></div>
             <table>
-              <thead><tr><th>Campaign</th><th>Status</th><th>Budget</th><th>Note</th></tr></thead>
+              <thead><tr><th>الحملة</th><th>الحالة</th><th>الميزانية</th><th>ملاحظة</th></tr></thead>
               <tbody id="campaigns-tbody">
-                <tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">Loading…</td></tr>
+                <tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">جارٍ التحميل…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1145,7 +1152,7 @@ export function dashboardPage(): string {
   function renderIssues(issues) {
     var el = document.getElementById('issues-list');
     if (!issues || issues.length === 0) {
-      el.innerHTML = '<div class="text-3 text-sm">No issues detected. Your account looks healthy.</div>';
+      el.innerHTML = '<div class="text-3 text-sm">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div>';
       return;
     }
     el.innerHTML = issues.map(function (iss) {
@@ -1163,6 +1170,69 @@ export function dashboardPage(): string {
     }).join('');
   }
 
+  function renderDiagnoses(diagnoses) {
+    var section = document.getElementById('diagnoses-section');
+    var grid = document.getElementById('diagnoses-grid');
+    if (!diagnoses || diagnoses.length === 0) { if (section) section.style.display = 'none'; return; }
+    if (section) section.style.display = 'block';
+    var DIAGNOSIS_AR = {
+      'Creative Fatigue': 'إرهاق الإعلان',
+      'Audience Saturation': 'تشبّع الجمهور',
+      'Auction Pressure': 'ضغط المزاد',
+      'Post-Click Problem': 'مشكلة ما بعد النقر',
+      'Rising Cost per Result': 'ارتفاع تكلفة النتيجة',
+    };
+    grid.innerHTML = diagnoses.map(function (d) {
+      var confLevel = d.confidence >= 0.75 ? 'high' : d.confidence >= 0.5 ? 'medium' : 'low';
+      var confLabel = d.confidence >= 0.75 ? 'ثقة عالية' : d.confidence >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
+      var name = DIAGNOSIS_AR[d.name] || d.name;
+      return '<div class="diagnosis-card">'
+        + '<div class="diagnosis-header">'
+          + '<div class="diagnosis-name">' + escHtml(name) + '</div>'
+          + '<span class="diagnosis-confidence ' + confLevel + '">' + confLabel + ' ' + Math.round(d.confidence * 100) + '%</span>'
+        + '</div>'
+        + '<div class="diagnosis-narrative">' + escHtml(d.narrative) + '</div>'
+        + '<div class="diagnosis-action">'
+          + '<div class="diagnosis-action-label">الإجراء المطلوب</div>'
+          + escHtml(d.action)
+        + '</div>'
+      + '</div>';
+    }).join('');
+  }
+
+  function renderAttribution(attr) {
+    var section = document.getElementById('attribution-section');
+    if (!attr || !section) { if (section) section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    var DRIVER_AR = { impressions: 'الظهور', ctr: 'نسبة النقر', cvr: 'نسبة التحويل' };
+    var factors = [
+      { key: 'impressions', label: 'الظهور (Impressions)', delta: attr.drivers.impressions.change, contribution: attr.drivers.impressions.contribution },
+      { key: 'ctr', label: 'نسبة النقر (CTR)', delta: attr.drivers.ctr.change, contribution: attr.drivers.ctr.contribution },
+      { key: 'cvr', label: 'نسبة التحويل (CVR)', delta: attr.drivers.cvr.change, contribution: attr.drivers.cvr.contribution },
+    ];
+    var totalDir = attr.totalChange >= 0 ? 'ارتفعت' : 'انخفضت';
+    section.innerHTML = '<div class="attribution-card">'
+      + '<div class="attribution-title">تحليل أسباب تغيّر النتائج</div>'
+      + '<div class="attribution-bars">'
+      + factors.map(function (f) {
+          var cls = f.delta > 0.02 ? 'positive' : f.delta < -0.02 ? 'negative' : 'neutral';
+          var fillColor = f.delta > 0.02 ? 'var(--success)' : f.delta < -0.02 ? 'var(--error)' : 'var(--text-3)';
+          var pct = Math.min(Math.abs(f.delta * 100), 100);
+          var isPrimary = f.key === attr.primaryDriver;
+          return '<div class="attribution-factor">'
+            + '<div class="attribution-factor-label">' + f.label + '</div>'
+            + '<div class="attribution-factor-value ' + cls + '">'
+              + (f.delta >= 0 ? '+' : '') + (f.delta * 100).toFixed(1) + '%'
+            + '</div>'
+            + '<div class="attribution-factor-bar"><div class="attribution-factor-fill" style="width:' + pct + '%;background:' + fillColor + ';"></div></div>'
+            + (isPrimary ? '<div class="attribution-primary-tag">السبب الرئيسي</div>' : '')
+          + '</div>';
+        }).join('')
+      + '</div>'
+      + '<div class="attribution-narrative">' + escHtml(attr.narrative) + '</div>'
+    + '</div>';
+  }
+
   function renderCampaignsTable(best, worst, allCampaigns) {
     var tbody = document.getElementById('campaigns-tbody');
     var rows = [];
@@ -1178,13 +1248,13 @@ export function dashboardPage(): string {
         + '<td class="text-xs text-3">' + escHtml(note || '') + '</td>'
       + '</tr>';
     }
-    if (best)  rows.push(row(best,  '⭐ Best'));
-    if (worst) rows.push(row(worst, '⚠ Worst'));
+    if (best)  rows.push(row(best,  '⭐ الأفضل'));
+    if (worst) rows.push(row(worst, '⚠ الأسوأ'));
     var seen = new Set([best && best.id, worst && worst.id].filter(Boolean));
     (allCampaigns || []).forEach(function (c) { if (!seen.has(c.id)) rows.push(row(c, '')); });
     tbody.innerHTML = rows.length
       ? rows.join('')
-      : '<tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">No campaigns found.</td></tr>';
+      : '<tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">لا توجد حملات.</td></tr>';
   }
 
   // ── Tier 1: Executive Pulse Banner ──────────────────────────────────────
@@ -1928,6 +1998,8 @@ export function dashboardPage(): string {
         makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
       });
 
+      safeRender('attribution', function () { renderAttribution(dashData.attribution || null); });
+      safeRender('diagnoses', function () { renderDiagnoses(Array.isArray(dashData.diagnoses) ? dashData.diagnoses : []); });
       safeRender('issues', function () { renderIssues(Array.isArray(dashData.issues) ? dashData.issues : []); });
       safeRender('campaignsTable', function () { renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns); });
     } catch (e) {

@@ -8,39 +8,39 @@ export function recommendationsPage(): string {
   const content = `
 <div class="page-header flex items-center justify-between">
   <div>
-    <div class="page-title">Recommendations</div>
-    <div class="page-subtitle">AI-powered actions to improve campaign performance</div>
+    <div class="page-title">التوصيات</div>
+    <div class="page-subtitle">إجراءات مدعومة بالمساعد الذكي لتحسين أداء الحملات</div>
   </div>
-  <button class="btn btn-secondary btn-sm" id="refresh-btn">↻ Refresh</button>
+  <button class="btn btn-secondary btn-sm" id="refresh-btn">↻ تحديث</button>
 </div>
 
 <!-- Filters row -->
 <div class="flex items-center gap-2 section-gap" style="flex-wrap:wrap;">
   <div class="tabs" id="severity-tabs">
-    <button class="tab active" data-filter="all">All</button>
-    <button class="tab" data-filter="CRITICAL">Critical</button>
-    <button class="tab" data-filter="HIGH">High</button>
-    <button class="tab" data-filter="MEDIUM">Medium</button>
-    <button class="tab" data-filter="LOW">Low</button>
+    <button class="tab active" data-filter="all">الكل</button>
+    <button class="tab" data-filter="CRITICAL">حرجة</button>
+    <button class="tab" data-filter="HIGH">عالية</button>
+    <button class="tab" data-filter="MEDIUM">متوسطة</button>
+    <button class="tab" data-filter="LOW">منخفضة</button>
   </div>
   <div class="search-wrap" style="margin-left:auto;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="text" class="form-input search-input" id="search-input" placeholder="Search recommendations…" style="width:240px;">
+    <input type="text" class="form-input search-input" id="search-input" placeholder="ابحث في التوصيات…" style="width:240px;">
   </div>
 </div>
 
 <!-- Summary stats -->
 <div class="kpi-grid" id="summary-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:20px;">
-  <div class="kpi-card"><div class="kpi-label">Total Issues</div><div class="kpi-value" id="stat-total">—</div></div>
-  <div class="kpi-card"><div class="kpi-label">Critical</div><div class="kpi-value" id="stat-critical" style="color:var(--critical)">—</div></div>
-  <div class="kpi-card"><div class="kpi-label">High</div><div class="kpi-value" id="stat-high" style="color:var(--error)">—</div></div>
-  <div class="kpi-card"><div class="kpi-label">Medium</div><div class="kpi-value" id="stat-medium" style="color:var(--warning)">—</div></div>
-  <div class="kpi-card"><div class="kpi-label">Top Priority</div><div class="kpi-value" id="stat-action" style="font-size:13px;color:var(--accent-2)">—</div></div>
+  <div class="kpi-card"><div class="kpi-label">إجمالي الملاحظات</div><div class="kpi-value" id="stat-total">—</div></div>
+  <div class="kpi-card"><div class="kpi-label">حرجة</div><div class="kpi-value" id="stat-critical" style="color:var(--critical)">—</div></div>
+  <div class="kpi-card"><div class="kpi-label">عالية</div><div class="kpi-value" id="stat-high" style="color:var(--error)">—</div></div>
+  <div class="kpi-card"><div class="kpi-label">متوسطة</div><div class="kpi-value" id="stat-medium" style="color:var(--warning)">—</div></div>
+  <div class="kpi-card"><div class="kpi-label">أعلى أولوية</div><div class="kpi-value" id="stat-action" style="font-size:13px;color:var(--accent-2)">—</div></div>
 </div>
 
 <!-- Main issues + recommendations list -->
 <div id="issues-container">
-  <div class="loading-overlay"><div class="spinner"></div><div class="loading-text">Loading recommendations…</div></div>
+  <div class="loading-overlay"><div class="spinner"></div><div class="loading-text">جارٍ تحميل التوصيات…</div></div>
 </div>`;
 
   const scripts = `<script>
@@ -57,7 +57,7 @@ export function recommendationsPage(): string {
   document.getElementById('user-email').textContent = me.email;
   document.getElementById('user-avatar').textContent = (me.name||me.email||'?')[0].toUpperCase();
   const wsM = me.memberships?.find(m => m.workspaceId === wsId) || me.memberships?.[0];
-  document.getElementById('ws-name').textContent = wsM?.workspace?.name || 'Workspace';
+  document.getElementById('ws-name').textContent = wsM?.workspace?.name || 'مساحة العمل';
 
   let allIssues = [];
   let recs = [];
@@ -66,7 +66,7 @@ export function recommendationsPage(): string {
 
   async function loadData() {
     document.getElementById('issues-container').innerHTML =
-      '<div class="loading-overlay"><div class="spinner"></div><div class="loading-text">Loading…</div></div>';
+      '<div class="loading-overlay"><div class="spinner"></div><div class="loading-text">جارٍ التحميل…</div></div>';
     try {
       [allIssues, recs] = await Promise.all([
         apiFetch('/api/workspaces/' + wsId + '/issues'),
@@ -75,7 +75,7 @@ export function recommendationsPage(): string {
       render();
     } catch(e) {
       document.getElementById('issues-container').innerHTML =
-        '<div class="alert alert-error">' + (e.message||'Failed to load') + '</div>';
+        '<div class="alert alert-error">' + (e.message||'تعذّر التحميل') + '</div>';
     }
   }
 
@@ -101,8 +101,8 @@ export function recommendationsPage(): string {
     if (!issues.length) {
       document.getElementById('issues-container').innerHTML =
         '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">' +
-        (activeFilter==='all' ? 'No issues detected' : 'No ' + activeFilter + ' issues') + '</div>' +
-        '<div class="empty-text">Your campaigns look healthy or no data has been synced yet.</div></div>';
+        (activeFilter==='all' ? 'لم يتم رصد أي ملاحظات' : 'لا توجد ملاحظات من فئة ' + activeFilter) + '</div>' +
+        '<div class="empty-text">حملاتك تبدو بحالة جيدة أو لم تتم مزامنة أي بيانات بعد.</div></div>';
       return;
     }
 
@@ -131,12 +131,12 @@ export function recommendationsPage(): string {
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Recommended Action</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">الإجراء الموصى به</div>
       <div style="font-size:13px;color:var(--accent-2);font-weight:500;">\${rec ? (userLocale === 'AR' ? actionLabel(rec.actionCode) : rec.actionCode.replace(/_/g,' ')) : '—'}</div>
-      \${rec ? '<div style="font-size:11.5px;color:var(--text-3);margin-top:3px;">Priority: ' + rec.priority + '</div>' : ''}
+      \${rec ? '<div style="font-size:11.5px;color:var(--text-3);margin-top:3px;">الأولوية: ' + rec.priority + '</div>' : ''}
     </div>
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Category</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">الفئة</div>
       <div style="font-size:13px;color:var(--text-2);">\${categoryLabel(issue.issueCode)}</div>
     </div>
   </div>
@@ -233,5 +233,5 @@ export function recommendationsPage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'Recommendations', active: 'recommendations', content, scripts });
+  return layout({ title: 'التوصيات', active: 'recommendations', content, scripts });
 }

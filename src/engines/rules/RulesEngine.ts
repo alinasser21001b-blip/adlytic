@@ -23,6 +23,7 @@ import { detectHighFrequency } from "./detectHighFrequency";
 import { detectAudienceFatigue } from "./detectAudienceFatigue";
 import { detectDecliningResults } from "./detectDecliningResults";
 import { detectRisingCostPerResult } from "./detectRisingCostPerResult";
+import { diagnose, type Diagnosis } from "./diagnose";
 
 /** The full detector registry. Adding a new rule = adding to this list. */
 export const ALL_DETECTORS: Detector[] = [
@@ -49,6 +50,7 @@ export interface RulesResult {
   entityId: string;
   asOf: string;
   issues: IssueRecord[];
+  diagnoses: Diagnosis[];
   ok: boolean;
   error?: string;
 }
@@ -71,7 +73,7 @@ export class RulesEngine {
     const detectors = opts.detectors ?? ALL_DETECTORS;
 
     const result: RulesResult = {
-      entityType, entityId, asOf: ymd(asOf), issues: [], ok: false,
+      entityType, entityId, asOf: ymd(asOf), issues: [], diagnoses: [], ok: false,
     };
 
     try {
@@ -90,6 +92,7 @@ export class RulesEngine {
       });
 
       result.issues = issues;
+      result.diagnoses = diagnose(issues, signals);
       result.ok = true;
     } catch (e) {
       result.ok = false;
@@ -112,11 +115,19 @@ export class RulesEngine {
     const currentUntil = addDays(asOf, -lag);
     const currentSince = addDays(currentUntil, -(windowDays - 1));
 
-    // Latest trends row — should be the one Analytics just wrote for this asOf.
+    // Trends row for this asOf — the newest row AT OR BEFORE asOf, so a backfill
+    // for a past date pairs with that date's trends, not today's. (Reading the
+    // globally-newest row corrupted historical runs.)
     const trend = await this.prisma.metricTrend.findFirst({
-      where: { entityType, entityId },
+      where: { entityType, entityId, date: { lte: dateOnly(asOf) } },
       orderBy: { date: "desc" },
     });
+    const staleDays = lag + 1;
+    if (!trend || daysBetween(trend.date, asOf) > staleDays) {
+      console.warn(
+        `[RulesEngine] stale/missing trends: entity=${entityId} asOf=${ymd(asOf)} trendDate=${trend ? ymd(trend.date) : "none"} staleDays=${staleDays}`
+      );
+    }
 
     const daily = await this.prisma.dailyStat.findMany({
       where: {
@@ -160,4 +171,7 @@ export class RulesEngine {
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400_000);
-const dateOnly = (d: Date) => new Date(d.toISOString().slice(0, 10));
+const dateOnly = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+const daysBetween = (a: Date, b: Date) =>
+  Math.abs(Math.round((dateOnly(b).getTime() - dateOnly(a).getTime()) / 86400_000));

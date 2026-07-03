@@ -107,6 +107,16 @@ console.log("\n── Results trend ──");
   check("1 → 2 below minSignal=3 → null", t === null, t);
 }
 {
+  // B4 regression: noisy baseline (prior=1) with a large current (6) must still
+  // be null — 1 → 6 is not a real +500%. Guard is on the PRIOR only.
+  const prior = days(7, { conversions: 0 });
+  prior[0] = { ...prior[0], conversions: 1 };
+  const current = days(7, { conversions: 0 });
+  current[0] = { ...current[0], conversions: 6 };
+  const t = calculateResultsTrend(current, prior);
+  check("1 → 6 prior below minSignal=3 → null (not +500%)", t === null, t);
+}
+{
   // Zero prior — null, not Infinity
   const prior = days(7, { conversions: 0 });
   const current = days(7, { conversions: 5 });

@@ -6,11 +6,15 @@ import { SHARED_CSS } from '../layout';
 
 export function loginPage(): string {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign in — Adlytic</title>
+  <meta name="theme-color" content="#0a0a0b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>تسجيل الدخول — Adlytic</title>
   <style>
     ${SHARED_CSS}
     body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
@@ -35,32 +39,32 @@ export function loginPage(): string {
       <span class="auth-logo-text">Adlytic</span>
     </div>
     <div class="auth-card">
-      <div class="auth-title">Welcome back</div>
-      <div class="auth-subtitle">Sign in to your Adlytic account</div>
+      <div class="auth-title">مرحباً بعودتك</div>
+      <div class="auth-subtitle">سجّل الدخول إلى حسابك في Adlytic</div>
 
       <div id="error-msg" class="alert alert-error"></div>
       <div id="success-msg" class="alert alert-success"></div>
 
       <form id="login-form">
         <div class="form-group">
-          <label class="form-label" for="email">Email address</label>
-          <input type="email" id="email" class="form-input" placeholder="you@company.com" required autocomplete="email">
+          <label class="form-label" for="email">البريد الإلكتروني</label>
+          <input type="email" id="email" class="form-input" placeholder="you@company.com" required autocomplete="email" dir="ltr">
         </div>
         <div class="form-group">
           <label class="form-label" for="password">
-            Password
+            كلمة المرور
           </label>
-          <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+          <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password" dir="ltr">
         </div>
         <button type="submit" class="btn btn-primary btn-lg" id="submit-btn" style="width:100%;justify-content:center;margin-top:4px;">
-          <span id="btn-text">Sign in</span>
+          <span id="btn-text">تسجيل الدخول</span>
           <span id="btn-spinner" class="spinner" style="display:none;width:16px;height:16px;border-width:2px;"></span>
         </button>
       </form>
 
       <hr class="auth-divider">
       <div style="font-size:12.5px;color:var(--text-3);text-align:center;">
-        Don't have an account? <a href="/register" style="color:var(--accent);text-decoration:none;">Create one</a>
+        ليس لديك حساب؟ <a href="/register" style="color:var(--accent);text-decoration:none;">أنشئ حساباً</a>
       </div>
     </div>
     <div class="auth-footer">
@@ -101,7 +105,7 @@ export function loginPage(): string {
     }
     function setLoading(on) {
       btn.disabled = on;
-      btnText.textContent = on ? 'Signing in…' : 'Sign in';
+      btnText.textContent = on ? 'جارٍ تسجيل الدخول…' : 'تسجيل الدخول';
       btnSpin.style.display = on ? 'inline-block' : 'none';
     }
 
@@ -109,7 +113,7 @@ export function loginPage(): string {
       e.preventDefault();
       const email    = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showError('Please fill in all fields.'); return; }
+      if (!email || !password) { showError('يرجى ملء جميع الحقول.'); return; }
 
       setLoading(true);
       errEl.style.display = 'none';
@@ -123,7 +127,7 @@ export function loginPage(): string {
         const data = await res.json();
 
         if (!res.ok) {
-          showError(data.error || 'Login failed. Please check your credentials.');
+          showError(data.error || 'فشل تسجيل الدخول. تحقق من بياناتك.');
           setLoading(false);
           return;
         }
@@ -139,7 +143,7 @@ export function loginPage(): string {
         if (meRes.ok) {
           const me = await meRes.json();
           if (me.isActive === false) {
-            showSuccess('Signed in! Redirecting…');
+            showSuccess('تم تسجيل الدخول! جارٍ التحويل…');
             setTimeout(() => { window.location.href = '/pending-activation'; }, 400);
             return;
           }
@@ -150,7 +154,7 @@ export function loginPage(): string {
           localStorage.setItem('adlytic_workspace_id', firstWs);
         }
 
-        showSuccess('Signed in successfully! Redirecting…');
+        showSuccess('تم تسجيل الدخول بنجاح! جارٍ التحويل…');
         setTimeout(async () => {
           try {
             const wsId = localStorage.getItem('adlytic_workspace_id');
@@ -171,7 +175,7 @@ export function loginPage(): string {
         }, 600);
 
       } catch (err) {
-        showError('Network error. Please try again.');
+        showError('خطأ في الشبكة. حاول مرة أخرى.');
         setLoading(false);
       }
     });

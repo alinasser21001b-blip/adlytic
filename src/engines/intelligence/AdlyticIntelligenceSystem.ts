@@ -36,7 +36,7 @@ import { calculateCpmTrend } from "../analytics/calculateCpmTrend";
 import { calculateFrequencyTrend } from "../analytics/calculateFrequencyTrend";
 import { calculateResultsTrend } from "../analytics/calculateResultsTrend";
 import { calculateSpendTrend } from "../analytics/calculateSpendTrend";
-import { confidenceFromCorroboration } from "../rules/severity";
+import { confidenceFromCorroboration, severityFromMagnitude } from "../rules/severity";
 import { metaKnowledgeInsightEngine } from "../../knowledge/MetaKnowledgeInsightEngine";
 import type { CampaignMetrics } from "../../knowledge/types";
 
@@ -66,11 +66,11 @@ interface RecommendationRow {
 
 // ── severity helpers ──────────────────────────────────────────────────────
 
+// Delegates to the single severity ladder in rules/severity.ts so tuning the
+// buckets there propagates to V5 too (no duplicate ladder to drift). The
+// Severity enum values ARE the string labels ("LOW"|"MEDIUM"|"HIGH"|"CRITICAL").
 function severityLabel(absMovement: number): string {
-  if (absMovement < 0.10) return "LOW";
-  if (absMovement < 0.25) return "MEDIUM";
-  if (absMovement < 0.50) return "HIGH";
-  return "CRITICAL";
+  return severityFromMagnitude(absMovement);
 }
 
 function priorityLabel(strength: number): string {
@@ -84,7 +84,9 @@ function priorityLabel(strength: number): string {
 
 function ymd(d: Date): string { return d.toISOString().slice(0, 10); }
 function addDays(d: Date, n: number): Date { return new Date(d.getTime() + n * 86_400_000); }
-function dateOnly(d: Date): Date { return new Date(d.toISOString().slice(0, 10)); }
+function dateOnly(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
 function pct(n: number): string { return `${(n * 100).toFixed(1)}%`; }
 
 // ── expert rules ──────────────────────────────────────────────────────────

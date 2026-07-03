@@ -56,28 +56,28 @@ export function aiPage(): string {
 </style>
 
 <div class="page-header">
-  <div class="page-title">AI Assistant</div>
-  <div class="page-subtitle">Data-driven insights powered by your campaign analytics</div>
+  <div class="page-title">المساعد الذكي</div>
+  <div class="page-subtitle">رؤى مبنية على البيانات مدعومة بتحليلات حملاتك</div>
 </div>
 
 <div class="chat-shell">
   <!-- Left: Suggested questions + context -->
   <div class="chat-sidebar">
     <div class="card" style="padding:14px;">
-      <div class="card-title">Live Context</div>
+      <div class="card-title">السياق المباشر</div>
       <div id="context-chips" style="display:flex;flex-wrap:wrap;gap:4px;">
         <div class="spinner" style="width:16px;height:16px;border-width:2px;"></div>
       </div>
     </div>
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding:0 2px;">Suggested Questions</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding:0 2px;">أسئلة مقترحة</div>
       <div style="display:flex;flex-direction:column;gap:7px;" id="suggestions">
-        <div class="suggested-card"><div class="suggested-label">Performance</div><div class="suggested-text">Why is my ad engagement dropping?</div></div>
-        <div class="suggested-card"><div class="suggested-label">Budget</div><div class="suggested-text">Is my budget being spent efficiently?</div></div>
-        <div class="suggested-card"><div class="suggested-label">Audience</div><div class="suggested-text">Is ad repetition too high on my campaigns?</div></div>
-        <div class="suggested-card"><div class="suggested-label">Strategy</div><div class="suggested-text">Which campaign should I scale?</div></div>
-        <div class="suggested-card"><div class="suggested-label">Action</div><div class="suggested-text">What should I do next?</div></div>
-        <div class="suggested-card"><div class="suggested-label">Health</div><div class="suggested-text">What's causing declining results?</div></div>
+        <div class="suggested-card"><div class="suggested-label">الأداء</div><div class="suggested-text">لماذا انخفض تفاعل إعلاناتي؟</div></div>
+        <div class="suggested-card"><div class="suggested-label">الميزانية</div><div class="suggested-text">هل تُنفَق ميزانيتي بشكل فعّال؟</div></div>
+        <div class="suggested-card"><div class="suggested-label">الجمهور</div><div class="suggested-text">هل يرى جمهوري نفس الإعلانات كثيراً؟</div></div>
+        <div class="suggested-card"><div class="suggested-label">الاستراتيجية</div><div class="suggested-text">أي حملة أستحق أن أوسّعها؟</div></div>
+        <div class="suggested-card"><div class="suggested-label">الإجراء</div><div class="suggested-text">ما الذي أنصح به الآن؟</div></div>
+        <div class="suggested-card"><div class="suggested-label">الصحة</div><div class="suggested-text">ما سبب تراجع النتائج؟</div></div>
       </div>
     </div>
   </div>

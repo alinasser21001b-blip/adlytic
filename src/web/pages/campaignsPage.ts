@@ -20,38 +20,38 @@ export function campaignsPage(): string {
   const content = `
 <div class="loading-overlay" id="loading-state">
   <div class="spinner"></div>
-  <div class="loading-text">Loading campaigns…</div>
+  <div class="loading-text">جارٍ تحميل الحملات…</div>
 </div>
 
 <div id="error-state" style="display:none;">
-  <div class="alert alert-error" id="error-msg">An error occurred.</div>
+  <div class="alert alert-error" id="error-msg">حدث خطأ.</div>
 </div>
 
 <div id="main-content" style="display:none;">
   <!-- No ad account CTA -->
   <div class="alert alert-info section-gap" id="no-ad-account-cta"
        style="display:none;flex-direction:column;align-items:center;text-align:center;padding:24px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Connect Your Meta Ad Account</div>
-    <div style="margin-bottom:14px;max-width:480px;">Link your Meta Ads account to start tracking campaign performance, spend, and ROI in real time.</div>
-    <a href="/workspace" class="btn btn-primary">Go to Workspace</a>
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px;">اربط حساب Meta الإعلاني الخاص بك</div>
+    <div style="margin-bottom:14px;max-width:480px;">اربط حساب Meta الإعلاني لبدء تتبّع أداء الحملات والإنفاق والعائد على الاستثمار في الوقت الفعلي.</div>
+    <a href="/workspace" class="btn btn-primary">الانتقال إلى مساحة العمل</a>
   </div>
 
   <!-- Paused / expired token CTA -->
   <div class="alert alert-warning section-gap" id="paused-account-cta"
        style="display:none;flex-direction:column;align-items:center;text-align:center;padding:24px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Ad Account Token Expired</div>
-    <div style="margin-bottom:14px;max-width:480px;">Your Meta Ads access token has expired. Data shown below is cached and may be outdated. Reconnect your account to resume live syncing.</div>
-    <a href="/workspace?connect=manual" class="btn btn-primary">Reconnect Meta (paste token)</a>
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px;">انتهت صلاحية رمز حساب الإعلانات</div>
+    <div style="margin-bottom:14px;max-width:480px;">انتهت صلاحية رمز الوصول لحساب Meta الإعلاني. البيانات المعروضة أدناه مخزّنة مؤقتاً وقد تكون قديمة. أعد ربط حسابك لاستئناف المزامنة المباشرة.</div>
+    <a href="/workspace?connect=manual" class="btn btn-primary">إعادة ربط Meta (لصق الرمز)</a>
   </div>
 
   <!-- Page header -->
   <div class="page-header flex items-center justify-between">
     <div>
-      <div class="page-title">Campaigns</div>
-      <div class="page-subtitle" id="page-subtitle">All campaigns across your Meta ad account</div>
+      <div class="page-title">الحملات</div>
+      <div class="page-subtitle" id="page-subtitle">جميع الحملات في حساب Meta الإعلاني الخاص بك</div>
     </div>
     <div class="flex items-center gap-2">
-      <button type="button" class="btn btn-ghost btn-sm js-sync-trigger" id="force-sync-btn" title="Sync latest data from Meta">↻ Refresh Data</button>
+      <button type="button" class="btn btn-ghost btn-sm js-sync-trigger" id="force-sync-btn" title="مزامنة أحدث البيانات من Meta">↻ تحديث البيانات</button>
       <div class="tabs" id="date-tabs">
         <button class="tab" data-days="7">7d</button>
         <button class="tab" data-days="14">14d</button>
@@ -64,32 +64,32 @@ export function campaignsPage(): string {
   <!-- KPI cards -->
   <div class="kpi-grid">
     <div class="kpi-card">
-      <div class="kpi-label">Total Campaigns</div>
+      <div class="kpi-label">إجمالي الحملات</div>
       <div class="kpi-value" id="total-campaigns">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label" title="Campaigns with spend today (matches dashboard)">Spending Today</div>
+      <div class="kpi-label" title="الحملات التي أنفقت اليوم (مطابقة للوحة التحكم)">الإنفاق اليوم</div>
       <div class="kpi-value" id="active-campaigns" style="color:var(--success);">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Paused</div>
+      <div class="kpi-label">متوقفة مؤقتاً</div>
       <div class="kpi-value" id="paused-campaigns" style="color:var(--warning);">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Total Spend</div>
+      <div class="kpi-label">إجمالي الإنفاق</div>
       <div class="kpi-value" id="total-spend" style="font-size:18px;">—</div>
-      <div class="text-xs text-3" id="spend-period" style="margin-top:6px;">last 30 days</div>
+      <div class="text-xs text-3" id="spend-period" style="margin-top:6px;">آخر 30 يوماً</div>
     </div>
   </div>
 
   <!-- Charts -->
   <div class="chart-grid">
     <div class="chart-card">
-      <div class="chart-card-header"><div class="chart-card-title">Spend Over Time</div></div>
+      <div class="chart-card-header"><div class="chart-card-title">الإنفاق عبر الزمن</div></div>
       <div class="chart-canvas-wrap"><canvas id="chart-spend"></canvas></div>
     </div>
     <div class="chart-card" id="ctr-chart-card">
-      <div class="chart-card-header"><div class="chart-card-title">CTR Over Time</div></div>
+      <div class="chart-card-header"><div class="chart-card-title">نسبة النقر عبر الزمن</div></div>
       <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
     </div>
   </div>
@@ -97,34 +97,34 @@ export function campaignsPage(): string {
   <!-- Campaigns table -->
   <div class="table-wrap">
     <div class="table-header">
-      <div class="table-title">All Campaigns</div>
+      <div class="table-title">جميع الحملات</div>
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" class="form-input search-input" id="search-input" placeholder="Search campaigns…" style="width:240px;">
+        <input type="text" class="form-input search-input" id="search-input" placeholder="بحث في الحملات…" style="width:240px;">
       </div>
     </div>
     <div style="overflow-x:auto;" id="table-container">
       <table>
         <thead>
           <tr>
-            <th>Campaign</th>
-            <th>Status</th>
-            <th>Objective</th>
-            <th>Daily Budget</th>
-            <th>Created</th>
-            <th>Actions</th>
+            <th>الحملة</th>
+            <th>الحالة</th>
+            <th>الهدف</th>
+            <th>الميزانية اليومية</th>
+            <th>تاريخ الإنشاء</th>
+            <th>الإجراءات</th>
           </tr>
         </thead>
         <tbody id="campaigns-tbody">
-          <tr><td colspan="6" style="color:var(--text-3);text-align:center;padding:24px;">Loading…</td></tr>
+          <tr><td colspan="6" style="color:var(--text-3);text-align:center;padding:24px;">جارٍ التحميل…</td></tr>
         </tbody>
       </table>
     </div>
     <div id="empty-campaigns" style="display:none;">
       <div class="empty-state">
         <div class="empty-icon">📋</div>
-        <div class="empty-title">No campaigns found</div>
-        <div class="empty-text">No campaigns match your search or there are no campaigns in this workspace yet.</div>
+        <div class="empty-title">لا توجد حملات</div>
+        <div class="empty-text">لا توجد حملات مطابقة لبحثك أو لا توجد حملات في مساحة العمل هذه بعد.</div>
       </div>
     </div>
   </div>
@@ -441,7 +441,7 @@ export function campaignsPage(): string {
     document.getElementById('active-campaigns').textContent = String(active);
     document.getElementById('paused-campaigns').textContent = String(paused);
     document.getElementById('total-spend').textContent = fmtCurrencyMinor(totalSpendMinor);
-    document.getElementById('spend-period').textContent = 'last ' + state.days + ' days';
+    document.getElementById('spend-period').textContent = 'آخر ' + state.days + ' يوماً';
   }
 
   // ── Table rendering ───────────────────────────────────────────────────────
@@ -469,7 +469,7 @@ export function campaignsPage(): string {
       // in MINOR units — format via the account-aware helper.
       var budget = c.dailyBudget != null
         ? fmtCurrencyMinor(c.dailyBudget)
-        : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' (lifetime)' : '—');
+        : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' (إجمالي)' : '—');
       return '<tr>'
         + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div>'
         + '<div style="font-size:11px;color:var(--text-3);margin-top:2px;font-family:monospace;">' + escHtml(c.id || '') + '</div></td>'
@@ -477,12 +477,12 @@ export function campaignsPage(): string {
         + '<td style="color:var(--text-2);">' + escHtml(c.objective || '—') + '</td>'
         + '<td>' + escHtml(budget) + '</td>'
         + '<td style="color:var(--text-2);">' + escHtml(fmtDate(c.createdAt)) + '</td>'
-        + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">View</button></td>'
+        + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">عرض</button></td>'
         + '</tr>';
     }).join('');
     } catch (tableErr) {
       console.error('[campaigns] table render failed:', tableErr);
-      tbody.innerHTML = '<tr><td colspan="6" class="section-fallback">Could not display campaigns — try refreshing.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="section-fallback">تعذّر عرض الحملات — حاول التحديث.</td></tr>';
     }
   }
 
@@ -1036,7 +1036,7 @@ export function campaignsPage(): string {
     var el = document.createElement('div');
     el.className = 'toast error';
     var link = err.reconnectUrl || '/workspace?connect=manual';
-    var label = err.reconnectLabel || 'Reconnect Meta';
+    var label = err.reconnectLabel || 'إعادة ربط Meta';
     el.innerHTML = escHtml(msg)
       + ' <a href="' + escHtml(link) + '" style="color:var(--accent);font-weight:600;margin-left:8px;white-space:nowrap;">'
       + escHtml(label) + ' →</a>';
@@ -1053,7 +1053,7 @@ export function campaignsPage(): string {
         body: { windowDays: 3 },
       });
       if (job) {
-        toast('Sync complete — ' + (job.rowsUpserted || 0) + ' rows updated', 'success');
+        toast('اكتملت المزامنة — تم تحديث ' + (job.rowsUpserted || 0) + ' صفاً', 'success');
         await loadCampaignData();
       }
     } catch (err) {
@@ -1196,7 +1196,7 @@ export function campaignsPage(): string {
 
       document.getElementById('ws-name').textContent = wsName;
       document.getElementById('page-subtitle').textContent =
-        'All campaigns · ' + wsName;
+        'جميع الحملات · ' + wsName;
 
       updateSummary(state.campaigns, state.insights);
       updateCharts(state.insights);

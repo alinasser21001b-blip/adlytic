@@ -7,35 +7,35 @@ import { layout } from '../layout';
 export function workspacePage(): string {
   const content = `
 <div class="page-header">
-  <div class="page-title">Workspace</div>
-  <div class="page-subtitle">Manage workspace settings and team members</div>
+  <div class="page-title">مساحة العمل</div>
+  <div class="page-subtitle">إدارة إعدادات مساحة العمل وأعضاء الفريق</div>
 </div>
 
 <!-- Workspace info card -->
 <div class="card section-gap">
   <div class="flex items-center justify-between" style="margin-bottom:20px;">
-    <div class="card-title" style="margin-bottom:0">Workspace Settings</div>
-    <button class="btn btn-primary btn-sm" id="save-ws-btn">Save Changes</button>
+    <div class="card-title" style="margin-bottom:0">إعدادات مساحة العمل</div>
+    <button class="btn btn-primary btn-sm" id="save-ws-btn">حفظ التغييرات</button>
   </div>
   <div id="ws-info-loading" class="loading-overlay"><div class="spinner"></div></div>
   <div id="ws-info-form" style="display:none;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Workspace Name</label>
-        <input type="text" id="ws-name-input" class="form-input" placeholder="My Workspace">
+        <label class="form-label">اسم مساحة العمل</label>
+        <input type="text" id="ws-name-input" class="form-input" placeholder="مساحة عملي">
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Plan</label>
+        <label class="form-label">الخطة</label>
         <input type="text" id="ws-plan-input" class="form-input" disabled style="opacity:0.5;">
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Industry Profile</label>
+        <label class="form-label">ملف القطاع</label>
         <select id="ws-industry-select" class="form-input">
-          <option value="">— No industry —</option>
+          <option value="">— بدون قطاع —</option>
         </select>
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">Workspace ID</label>
+        <label class="form-label">معرّف مساحة العمل</label>
         <input type="text" id="ws-id-input" class="form-input" disabled style="opacity:0.5;font-family:monospace;font-size:12px;">
       </div>
     </div>
@@ -45,12 +45,12 @@ export function workspacePage(): string {
 <!-- Ad Accounts -->
 <div class="card section-gap">
   <div class="flex items-center justify-between" style="margin-bottom:16px;">
-    <div class="card-title" style="margin-bottom:0;">Connected Ad Accounts</div>
+    <div class="card-title" style="margin-bottom:0;">الحسابات الإعلانية المرتبطة</div>
     <div class="flex items-center" style="gap:10px;">
-      <button type="button" class="btn btn-ghost btn-sm" id="connect-manual-btn" style="font-size:12px;">Connect manually (paste token)</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="connect-manual-btn" style="font-size:12px;">الربط يدوياً (لصق الرمز)</button>
       <button class="btn btn-primary btn-sm" id="connect-meta-btn">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Connect Meta Ads
+        ربط إعلانات Meta
       </button>
     </div>
   </div>
@@ -62,28 +62,28 @@ export function workspacePage(): string {
 <!-- Manual token modal (shown when OAuth not configured) -->
 <div id="manual-token-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <div class="modal-title">Connect Meta Ads (Manual)</div>
-    <div class="modal-subtitle">Enter your Meta access token and ad account ID from the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:var(--accent)">Meta Graph API Explorer</a>. Prefer one-click Connect Meta Ads when available; this path is for agencies and operators using short-lived Graph API tokens.</div>
+    <div class="modal-title">ربط إعلانات Meta (يدوياً)</div>
+    <div class="modal-subtitle">أدخل رمز وصول Meta ومعرّف الحساب الإعلاني من <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:var(--accent)">مستكشف واجهة Meta Graph API</a>. يُفضَّل استخدام الربط بنقرة واحدة عند توفره؛ هذا المسار مخصص للوكالات والمشغّلين الذين يستخدمون رموز Graph API قصيرة الأجل.</div>
     <div id="manual-reason" class="alert alert-warning" style="display:none;margin-bottom:12px;font-size:12.5px;"></div>
     <div id="manual-error" class="alert alert-error" style="display:none;"></div>
     <div class="form-group">
-      <label class="form-label">Access Token</label>
+      <label class="form-label">رمز الوصول</label>
       <input type="password" id="manual-token" class="form-input" placeholder="EAABwzLixnjYBO...">
     </div>
     <div class="form-group">
-      <label class="form-label">Ad Account ID</label>
+      <label class="form-label">معرّف الحساب الإعلاني</label>
       <input type="text" id="manual-account-id" class="form-input" placeholder="act_123456789 or 123456789">
     </div>
     <div class="form-group">
-      <label class="form-label">Account Name (optional)</label>
-      <input type="text" id="manual-account-name" class="form-input" placeholder="My Business Account">
+      <label class="form-label">اسم الحساب (اختياري)</label>
+      <input type="text" id="manual-account-name" class="form-input" placeholder="حساب نشاطي التجاري">
     </div>
     <p style="font-size:12.5px;color:var(--text-2);margin:0 0 12px;">
-      Currency is detected automatically from your Meta ad account (e.g. USD, IQD).
+      يتم اكتشاف العملة تلقائياً من حسابك الإعلاني على Meta (مثل USD، IQD).
     </p>
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="manual-cancel">Cancel</button>
-      <button class="btn btn-primary" id="manual-confirm">Connect Account</button>
+      <button class="btn btn-secondary" id="manual-cancel">إلغاء</button>
+      <button class="btn btn-primary" id="manual-confirm">ربط الحساب</button>
     </div>
   </div>
 </div>
@@ -91,10 +91,10 @@ export function workspacePage(): string {
 <!-- Members -->
 <div class="table-wrap section-gap">
   <div class="table-header">
-    <span class="table-title">Team Members</span>
+    <span class="table-title">أعضاء الفريق</span>
     <button class="btn btn-primary btn-sm" id="invite-btn">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Invite Member
+      دعوة عضو
     </button>
   </div>
   <div id="members-container">
@@ -104,37 +104,37 @@ export function workspacePage(): string {
 
 <!-- Danger zone -->
 <div class="card" style="border-color:var(--error-dim);">
-  <div class="card-title" style="color:var(--error);">Danger Zone</div>
+  <div class="card-title" style="color:var(--error);">منطقة الخطر</div>
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
-      <div style="font-size:13.5px;font-weight:600;color:var(--text);">Leave Workspace</div>
-      <div style="font-size:12.5px;color:var(--text-2);margin-top:2px;">You will lose access to this workspace and all its data.</div>
+      <div style="font-size:13.5px;font-weight:600;color:var(--text);">مغادرة مساحة العمل</div>
+      <div style="font-size:12.5px;color:var(--text-2);margin-top:2px;">ستفقد الوصول إلى مساحة العمل هذه وجميع بياناتها.</div>
     </div>
-    <button class="btn btn-danger btn-sm" id="leave-btn">Leave Workspace</button>
+    <button class="btn btn-danger btn-sm" id="leave-btn">مغادرة مساحة العمل</button>
   </div>
 </div>
 
 <!-- Invite modal -->
 <div id="invite-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <div class="modal-title">Invite Team Member</div>
-    <div class="modal-subtitle">Enter the email of an existing Adlytic user to add them to this workspace.</div>
+    <div class="modal-title">دعوة عضو للفريق</div>
+    <div class="modal-subtitle">أدخل البريد الإلكتروني لمستخدم موجود في Adlytic لإضافته إلى مساحة العمل هذه.</div>
     <div id="invite-error" class="alert alert-error" style="display:none;"></div>
     <div class="form-group">
-      <label class="form-label">Email Address</label>
+      <label class="form-label">عنوان البريد الإلكتروني</label>
       <input type="email" id="invite-email" class="form-input" placeholder="colleague@company.com">
     </div>
     <div class="form-group">
-      <label class="form-label">Role</label>
+      <label class="form-label">الدور</label>
       <select id="invite-role" class="form-input">
-        <option value="VIEWER">Viewer — read-only access</option>
-        <option value="MANAGER">Manager — can manage campaigns</option>
-        <option value="OWNER">Owner — full access</option>
+        <option value="VIEWER">مشاهد — وصول للقراءة فقط</option>
+        <option value="MANAGER">مدير — يمكنه إدارة الحملات</option>
+        <option value="OWNER">مالك — وصول كامل</option>
       </select>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="invite-cancel">Cancel</button>
-      <button class="btn btn-primary" id="invite-confirm">Send Invite</button>
+      <button class="btn btn-secondary" id="invite-cancel">إلغاء</button>
+      <button class="btn btn-primary" id="invite-confirm">إرسال الدعوة</button>
     </div>
   </div>
 </div>`;
@@ -156,7 +156,7 @@ export function workspacePage(): string {
   document.getElementById('user-email').textContent = me.email;
   document.getElementById('user-avatar').textContent = (me.name||me.email||'?')[0].toUpperCase();
   const myMembership = me.memberships?.find(m => m.workspaceId === wsId);
-  document.getElementById('ws-name').textContent = myMembership?.workspace?.name || 'Workspace';
+  document.getElementById('ws-name').textContent = myMembership?.workspace?.name || 'مساحة العمل';
   const myRole = myMembership?.role || 'VIEWER';
   const canManage = myRole === 'OWNER' || myRole === 'MANAGER';
   console.log('[WS:5] membership found:', !!myMembership, '| role:', myRole);
@@ -169,7 +169,7 @@ export function workspacePage(): string {
     if (!ws) {
       console.log('[WS:7a] ws null — clearing ad-accounts-container');
       document.getElementById('ad-accounts-container').innerHTML =
-        '<div class="empty-state" style="padding:24px;"><div class="empty-title">Could not load accounts</div></div>';
+        '<div class="empty-state" style="padding:24px;"><div class="empty-title">تعذّر تحميل الحسابات</div></div>';
       return;
     }
     document.getElementById('ws-info-form').style.display = 'block';
@@ -191,11 +191,11 @@ export function workspacePage(): string {
           const expiresSoon = expiresAt !== null && !isExpired && (expiresAt - now) < 7 * 86400000;
           const needsReconnect = a.status !== 'ACTIVE' || isExpired;
           const expiryNote = isExpired
-            ? 'Access expired — reconnect to restore'
+            ? 'انتهت صلاحية الوصول — أعد الربط للاستعادة'
             : expiresSoon
-              ? 'Access expires ' + new Date(expiresAt).toLocaleDateString()
-              : (a.lastSyncedAt ? 'Synced ' + new Date(a.lastSyncedAt).toLocaleDateString() : 'Never synced');
-          const badgeLabel = isExpired ? 'EXPIRED' : a.status;
+              ? 'تنتهي صلاحية الوصول في ' + new Date(expiresAt).toLocaleDateString()
+              : (a.lastSyncedAt ? 'تمت المزامنة في ' + new Date(a.lastSyncedAt).toLocaleDateString() : 'لم تتم المزامنة بعد');
+          const badgeLabel = isExpired ? 'منتهية الصلاحية' : a.status;
           const badgeClass = (a.status === 'ACTIVE' && !isExpired) ? 'badge-green' : 'badge-gray';
           const noteColor = (isExpired || expiresSoon) ? 'var(--warning)' : 'var(--text-3)';
           return \`
@@ -210,18 +210,18 @@ export function workspacePage(): string {
             </div>
             <span class="badge \${badgeClass}" style="margin-right:8px;">\${badgeLabel}</span>
             \${needsReconnect
-              ? \`<button class="btn btn-primary btn-sm" style="font-size:12px;" onclick="document.getElementById('connect-meta-btn').click()" title="Reconnect to restore access">⚠ Reconnect Meta</button>\`
-              : \`<button class="btn btn-ghost btn-sm sync-now-btn js-sync-trigger" data-aid="\${a.id}" title="Sync now">↻ Sync</button>\`
+              ? \`<button class="btn btn-primary btn-sm" style="font-size:12px;" onclick="document.getElementById('connect-meta-btn').click()" title="أعد الربط لاستعادة الوصول">⚠ إعادة ربط Meta</button>\`
+              : \`<button class="btn btn-ghost btn-sm sync-now-btn js-sync-trigger" data-aid="\${a.id}" title="مزامنة الآن">↻ مزامنة</button>\`
             }
-            <button class="btn btn-danger btn-sm disconnect-btn" data-aid="\${a.id}" data-name="\${a.name}" title="Disconnect">✕</button>
+            <button class="btn btn-danger btn-sm disconnect-btn" data-aid="\${a.id}" data-name="\${a.name}" title="فصل">✕</button>
           </div>\`;
         }).join('')
       : \`<div class="empty-state" style="padding:32px;">
            <div class="empty-icon">📣</div>
-           <div class="empty-title">No ad accounts connected</div>
-           <div class="empty-text">Connect your Meta Ads account to start syncing campaign data and get AI-powered insights.</div>
-           <button class="btn btn-primary" style="margin-top:16px;" onclick="document.getElementById('connect-meta-btn').click()">Connect Meta Ads</button>
-           <button type="button" class="btn btn-ghost btn-sm connect-manual-btn" style="margin-top:10px;">Connect manually (paste token)</button>
+           <div class="empty-title">لا توجد حسابات إعلانية مرتبطة</div>
+           <div class="empty-text">اربط حسابك الإعلاني على Meta لبدء مزامنة بيانات الحملات والحصول على رؤى مدعومة بالذكاء الاصطناعي.</div>
+           <button class="btn btn-primary" style="margin-top:16px;" onclick="document.getElementById('connect-meta-btn').click()">ربط إعلانات Meta</button>
+           <button type="button" class="btn btn-ghost btn-sm connect-manual-btn" style="margin-top:10px;">الربط يدوياً (لصق الرمز)</button>
          </div>\`;
 
     console.log('[WS:9] ad-accounts-container rendered (accs=' + accs.length + ')');

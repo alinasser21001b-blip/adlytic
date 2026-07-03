@@ -7,23 +7,23 @@ import { layout } from '../layout';
 export function settingsPage(): string {
   const content = `
 <div class="page-header">
-  <div class="page-title">Settings</div>
-  <div class="page-subtitle">Manage your account preferences</div>
+  <div class="page-title">الإعدادات</div>
+  <div class="page-subtitle">إدارة تفضيلات حسابك</div>
 </div>
 
 <!-- Settings tab nav -->
 <div class="flex gap-3 section-gap" style="border-bottom:1px solid var(--border);padding-bottom:0;margin-bottom:24px;">
-  <button class="settings-tab active" data-tab="profile" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text);background:none;border:none;border-bottom:2px solid var(--accent);cursor:pointer;margin-bottom:-1px;">Profile</button>
-  <button class="settings-tab" data-tab="security" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Security</button>
-  <button class="settings-tab" data-tab="notifications" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Notifications</button>
-  <button class="settings-tab" data-tab="billing" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Billing</button>
-  <button class="settings-tab" data-tab="danger" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--error);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">Danger Zone</button>
+  <button class="settings-tab active" data-tab="profile" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text);background:none;border:none;border-bottom:2px solid var(--accent);cursor:pointer;margin-bottom:-1px;">الملف الشخصي</button>
+  <button class="settings-tab" data-tab="security" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">الأمان</button>
+  <button class="settings-tab" data-tab="notifications" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">الإشعارات</button>
+  <button class="settings-tab" data-tab="billing" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--text-2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">الفوترة</button>
+  <button class="settings-tab" data-tab="danger" style="padding:8px 0;font-size:13.5px;font-weight:500;color:var(--error);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;">منطقة الخطر</button>
 </div>
 
 <!-- Profile tab -->
 <div id="tab-profile" class="settings-panel">
   <div class="card" style="max-width:560px;">
-    <div class="card-title">Profile Information</div>
+    <div class="card-title">معلومات الملف الشخصي</div>
     <div id="profile-loading" class="loading-overlay" style="min-height:120px;"><div class="spinner"></div></div>
     <div id="profile-form" style="display:none;">
       <div class="flex items-center gap-3" style="margin-bottom:24px;">
@@ -36,22 +36,22 @@ export function settingsPage(): string {
       <div id="profile-success" class="alert alert-success" style="display:none;"></div>
       <div id="profile-error" class="alert alert-error" style="display:none;"></div>
       <div class="form-group">
-        <label class="form-label">Full Name</label>
-        <input type="text" id="name-input" class="form-input" placeholder="Your full name">
+        <label class="form-label">الاسم الكامل</label>
+        <input type="text" id="name-input" class="form-input" placeholder="اسمك الكامل">
       </div>
       <div class="form-group">
-        <label class="form-label">Email Address</label>
+        <label class="form-label">البريد الإلكتروني</label>
         <input type="email" id="email-input" class="form-input" disabled style="opacity:0.5;">
-        <div style="font-size:11.5px;color:var(--text-3);margin-top:4px;">Email changes require account verification.</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:4px;">تغيير البريد الإلكتروني يتطلب التحقق من الحساب.</div>
       </div>
       <div class="form-group">
-        <label class="form-label">Language</label>
+        <label class="form-label">اللغة</label>
         <select id="locale-input" class="form-input">
           <option value="EN">English</option>
           <option value="AR">العربية (Arabic)</option>
         </select>
       </div>
-      <button class="btn btn-primary" id="save-profile-btn">Save Profile</button>
+      <button class="btn btn-primary" id="save-profile-btn">حفظ الملف الشخصي</button>
     </div>
   </div>
 </div>
@@ -59,35 +59,35 @@ export function settingsPage(): string {
 <!-- Security tab -->
 <div id="tab-security" class="settings-panel" style="display:none;">
   <div class="card" style="max-width:560px;">
-    <div class="card-title">Change Password</div>
+    <div class="card-title">تغيير كلمة المرور</div>
     <div id="pw-success" class="alert alert-success" style="display:none;"></div>
     <div id="pw-error"   class="alert alert-error"   style="display:none;"></div>
     <div class="form-group">
-      <label class="form-label">Current Password</label>
-      <input type="password" id="pw-current" class="form-input" placeholder="Enter current password" autocomplete="current-password">
+      <label class="form-label">كلمة المرور الحالية</label>
+      <input type="password" id="pw-current" class="form-input" placeholder="أدخل كلمة المرور الحالية" autocomplete="current-password">
     </div>
     <div class="form-group">
-      <label class="form-label">New Password</label>
-      <input type="password" id="pw-new" class="form-input" placeholder="At least 8 characters" autocomplete="new-password">
+      <label class="form-label">كلمة المرور الجديدة</label>
+      <input type="password" id="pw-new" class="form-input" placeholder="8 أحرف على الأقل" autocomplete="new-password">
     </div>
     <div class="form-group">
-      <label class="form-label">Confirm New Password</label>
-      <input type="password" id="pw-confirm" class="form-input" placeholder="Repeat new password" autocomplete="new-password">
+      <label class="form-label">تأكيد كلمة المرور الجديدة</label>
+      <input type="password" id="pw-confirm" class="form-input" placeholder="أعد إدخال كلمة المرور الجديدة" autocomplete="new-password">
     </div>
-    <button class="btn btn-primary" id="save-pw-btn">Update Password</button>
+    <button class="btn btn-primary" id="save-pw-btn">تحديث كلمة المرور</button>
   </div>
 
   <div class="card" style="max-width:560px;margin-top:16px;">
-    <div class="card-title">Active Sessions</div>
+    <div class="card-title">الجلسات النشطة</div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
       <div>
-        <div style="font-size:13px;font-weight:500;color:var(--text);">Current Session</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">This device &nbsp;·&nbsp; Active now</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);">الجلسة الحالية</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">هذا الجهاز &nbsp;·&nbsp; نشط الآن</div>
       </div>
-      <span class="badge badge-green">Current</span>
+      <span class="badge badge-green">الحالية</span>
     </div>
     <div style="padding-top:12px;">
-      <button class="btn btn-danger btn-sm" id="signout-all-btn">Sign out all other sessions</button>
+      <button class="btn btn-danger btn-sm" id="signout-all-btn">تسجيل الخروج من جميع الجلسات الأخرى</button>
     </div>
   </div>
 </div>
@@ -95,14 +95,14 @@ export function settingsPage(): string {
 <!-- Notifications tab -->
 <div id="tab-notifications" class="settings-panel" style="display:none;">
   <div class="card" style="max-width:560px;">
-    <div class="card-title">Notification Preferences</div>
+    <div class="card-title">تفضيلات الإشعارات</div>
     <div style="display:flex;flex-direction:column;gap:0;">
       ${[
-        ['notif-issues',   'Issue Alerts',         'Get notified when new issues are detected in your campaigns'],
-        ['notif-budget',   'Budget Warnings',       'Alerts when spend pace is abnormal or budgets are depleting fast'],
-        ['notif-recs',     'New Recommendations',   'Weekly digest of top recommendations for your workspace'],
-        ['notif-sync',     'Sync Notifications',    'Notifications when data sync completes or fails'],
-        ['notif-digest',   'Weekly Performance Digest', 'A weekly summary of your campaign performance'],
+        ['notif-issues',   'تنبيهات المشكلات',         'احصل على إشعار عند اكتشاف مشكلات جديدة في حملاتك'],
+        ['notif-budget',   'تحذيرات الميزانية',       'تنبيهات عندما تكون وتيرة الإنفاق غير طبيعية أو تنفد الميزانيات بسرعة'],
+        ['notif-recs',     'توصيات جديدة',   'ملخص أسبوعي لأهم التوصيات لمساحة عملك'],
+        ['notif-sync',     'إشعارات المزامنة',    'إشعارات عند اكتمال مزامنة البيانات أو فشلها'],
+        ['notif-digest',   'ملخص الأداء الأسبوعي', 'ملخص أسبوعي لأداء حملاتك'],
       ].map(([id, label, desc]) => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border);">
         <div>
@@ -115,14 +115,14 @@ export function settingsPage(): string {
         </label>
       </div>`).join('')}
     </div>
-    <button class="btn btn-primary" style="margin-top:16px;" id="save-notif-btn">Save Preferences</button>
+    <button class="btn btn-primary" style="margin-top:16px;" id="save-notif-btn">حفظ التفضيلات</button>
   </div>
 </div>
 
 <!-- Billing tab -->
 <div id="tab-billing" class="settings-panel" style="display:none;">
   <div class="card" style="max-width:560px;">
-    <div class="card-title">Subscription</div>
+    <div class="card-title">الاشتراك</div>
     <div id="billing-banner" class="alert" style="display:none;margin-bottom:16px;"></div>
     <div id="billing-loading" class="loading-overlay" style="min-height:80px;"><div class="spinner"></div></div>
     <div id="billing-body" style="display:none;">

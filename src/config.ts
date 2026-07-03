@@ -132,7 +132,35 @@ const metaAppId = env('META_APP_ID');
 const metaAppSecret = env('META_APP_SECRET');
 const metaVerifyToken = env('META_VERIFY_TOKEN');
 const metaRedirectUri = env('META_REDIRECT_URI') ?? 'http://localhost:3001/api/meta/oauth/callback';
-const metaOAuthScope = env('META_OAUTH_SCOPE') ?? 'ads_read';
+// Adlytic is a strictly read-only product: it must NEVER request a Meta write
+// scope. We defensively strip any write/management scope from the configured
+// value so a misconfigured META_OAUTH_SCOPE env can never escalate us out of
+// read-only. If nothing valid remains, we fall back to `ads_read`.
+const META_FORBIDDEN_SCOPES = new Set([
+  'ads_management',
+  'business_management',
+  'pages_manage_ads',
+  'catalog_management',
+]);
+const rawMetaOAuthScope = env('META_OAUTH_SCOPE') ?? 'ads_read';
+const metaOAuthScope = (() => {
+  const kept = rawMetaOAuthScope
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !META_FORBIDDEN_SCOPES.has(s));
+  const stripped = rawMetaOAuthScope
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter((s) => META_FORBIDDEN_SCOPES.has(s));
+  if (stripped.length > 0) {
+    record({
+      key: 'META_OAUTH_SCOPE',
+      status: 'warn',
+      detail: `Stripped forbidden write scope(s) [${stripped.join(', ')}] — Adlytic is read-only and only requests read scopes.`,
+    });
+  }
+  return kept.length > 0 ? kept.join(' ') : 'ads_read';
+})();
 const metaDirectToken = env('META_DIRECT_TOKEN');
 /**
  * Phase 1 feature flag. When false (default), the legacy user-OAuth flow is the

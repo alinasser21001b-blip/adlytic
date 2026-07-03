@@ -38,7 +38,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EntityType, WorkspaceRole, SyncJobStatus, type Locale } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
@@ -53,6 +53,7 @@ import { buildWhatsappLink } from '../services/whatsappLink';
 import { buildActivationWhatsappLink } from '../services/activationWhatsappLink';
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
+import { metaReadinessPage } from '../web/pages/metaReadinessPage';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
@@ -70,10 +71,13 @@ import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { welcomePage } from '../web/pages/welcomePage';
 import { pendingActivationPage } from '../web/pages/pendingActivationPage';
+import { privacyPage } from '../web/pages/privacyPage';
+import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
+import { recordMetaAuditEvent, listMetaAuditEvents } from '../services/metaAudit';
 import {
   getCachedWorkspaceTokenHealth,
   invalidateCachedTokenHealth,
@@ -245,6 +249,44 @@ function summarizeMetaAuthError(err: unknown): string {
   return msg.replace(/\s+/g, ' ').trim().slice(0, 280);
 }
 
+/**
+ * Verify + decode a Meta `signed_request` (used by the Data Deletion callback).
+ * Format is `<base64url-signature>.<base64url-json-payload>`; the signature is
+ * HMAC-SHA256(payload, appSecret). Uses a constant-time comparison to reject
+ * forged requests. Returns the decoded JSON payload on success.
+ */
+function parseMetaSignedRequest(
+  signedRequest: string,
+  appSecret: string,
+): { ok: true; payload: Record<string, unknown> } | { ok: false; reason: string } {
+  const parts = signedRequest.split('.');
+  if (parts.length !== 2) return { ok: false, reason: 'Malformed signed_request' };
+  const [encodedSig, encodedPayload] = parts as [string, string];
+
+  let expected: Buffer;
+  let provided: Buffer;
+  try {
+    provided = Buffer.from(encodedSig.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    expected = createHmac('sha256', appSecret).update(encodedPayload).digest();
+  } catch {
+    return { ok: false, reason: 'Invalid signature encoding' };
+  }
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+    return { ok: false, reason: 'Bad signature' };
+  }
+
+  try {
+    const json = Buffer.from(
+      encodedPayload.replace(/-/g, '+').replace(/_/g, '/'),
+      'base64',
+    ).toString('utf8');
+    const payload = JSON.parse(json) as Record<string, unknown>;
+    return { ok: true, payload };
+  } catch {
+    return { ok: false, reason: 'Invalid payload JSON' };
+  }
+}
+
 // ── Application factory ───────────────────────────────────────────────────
 
 export function buildRoutes(prisma: PrismaClient): Hono {
@@ -308,6 +350,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/register',       (c) => c.html(registerPage()));
   app.get('/pending-activation', (c) => c.html(pendingActivationPage()));
   app.get('/welcome',        (c) => c.html(welcomePage()));
+  // Public legal pages — no auth. Required by Meta App Review (Privacy Policy URL
+  // + Data Deletion Instructions URL, both on the app's own domain).
+  app.get('/privacy',        (c) => c.html(privacyPage()));
+  app.get('/data-deletion',  (c) => c.html(dataDeletionPage(c.req.query('code') ?? undefined)));
   // /dashboard switches between the Pro view and the Beginner view based on a
   // dashboard_mode cookie. The cookie is per-user-agent (httpOnly=false so the
   // toggle JS can read it for the active-pill state on first load). Default is
@@ -341,6 +387,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
   app.get('/admin',          (c) => c.html(adminDashboardPage()));
+  app.get('/admin/meta-readiness', (c) => c.html(metaReadinessPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
@@ -1260,20 +1307,87 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /**
    * GET /api/admin/meta-usage
-   * Returns current Meta API call counter (cumulative toward 1500
+   * Returns current Meta API call counter (cumulative toward the
    * upgrade threshold) and latest x-app-usage snapshot.
    *
-   * Auth: requires authenticated user. No role gate — any logged-in
-   * user can read this during the Ops quota-collection window. Tighten
-   * to OWNER-only after launch if needed.
+   * Auth: platform-admin (owner) only, via requirePlatformAdmin. The usage
+   * ledger exposes app-wide Meta quota consumption, so it is restricted to
+   * the platform owner rather than any authenticated user.
    */
   app.get('/api/admin/meta-usage', async (c) => {
     const req = await honoToApiRequest(c);
-    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    const userId = await getUserId(req.bearerToken);
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getMetaUsageStats();
     return c.json(stats);
+  });
+
+  // Platform-admin: Meta account lifecycle audit trail (connected / disconnected
+  // / token expired / reconnect required). Read-only; newest first. Optional
+  // ?workspaceId= scopes to one workspace, ?limit= caps rows (default 100).
+  app.get('/api/admin/meta-audit', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const workspaceId = c.req.query('workspaceId') ?? undefined;
+    const limitRaw = c.req.query('limit');
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
+    const events = await listMetaAuditEvents(prisma, {
+      workspaceId,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    return c.json({ events });
+  });
+
+  /**
+   * POST /api/meta/data-deletion
+   * Meta's Data Deletion Callback. Meta POSTs a `signed_request` (form-encoded)
+   * when a user removes the app from their Facebook Business Integrations. We
+   * verify the HMAC-SHA256 signature with META_APP_SECRET, then respond with the
+   * `{ url, confirmation_code }` contract Meta requires.
+   *
+   * Adlytic stores only aggregated advertising metrics tied to an advertiser's
+   * ad account — never the individual Meta end-user's personal profile — so
+   * there is no per-end-user personal record to purge here. The request is
+   * logged (audit trail) and acknowledged with a trackable confirmation code
+   * pointing at the public /data-deletion status page.
+   */
+  app.post('/api/meta/data-deletion', async (c) => {
+    const appSecret = config.meta.appSecret;
+    if (!appSecret) {
+      return c.json({ error: 'Data deletion callback is not configured' }, 503);
+    }
+
+    // Meta sends application/x-www-form-urlencoded with a single field.
+    let signedRequest: string | undefined;
+    try {
+      const body = await c.req.parseBody();
+      const raw = body['signed_request'];
+      if (typeof raw === 'string') signedRequest = raw;
+    } catch {
+      /* fall through to 400 below */
+    }
+    if (!signedRequest) {
+      return c.json({ error: 'Missing signed_request' }, 400);
+    }
+
+    const parsed = parseMetaSignedRequest(signedRequest, appSecret);
+    if (!parsed.ok) {
+      return c.json({ error: parsed.reason }, 400);
+    }
+
+    const metaUserId = String(parsed.payload['user_id'] ?? 'unknown');
+    const confirmationCode = randomBytes(12).toString('hex');
+    console.log(
+      `[meta-data-deletion] request received user_id=${metaUserId} code=${confirmationCode}`,
+    );
+
+    const base = (config.meta.redirectUri || '')
+      .replace(/\/meta\/oauth\/callback\/?$/, '')
+      .replace(/\/$/, '');
+    const statusUrl = `${base}/data-deletion?code=${confirmationCode}`;
+
+    return c.json({ url: statusUrl, confirmation_code: confirmationCode });
   });
 
   /**
@@ -2286,7 +2400,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     let reply: string;
     try {
-      const context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      const context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
       reply = await askClaude(context);
     } catch (err) {
       console.error('[adlytic:ai-chat] Claude API error:', err);
@@ -2769,6 +2883,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       await invalidateCachedTokenHealth(workspaceId);
       await deleteOAuthSession(sessionId);
+      void recordMetaAuditEvent(prisma, {
+        workspaceId,
+        event: 'CONNECTED',
+        externalAccountId: account.id,
+        actorUserId: userId,
+        detail: `System User connection linked (${accountName})`,
+      });
 
       // Kick off the initial backfill using the connection token.
       try {
@@ -2889,6 +3010,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       });
     }
     await invalidateCachedTokenHealth(workspaceId);
+    void recordMetaAuditEvent(prisma, {
+      workspaceId,
+      event: 'CONNECTED',
+      externalAccountId: account.id,
+      actorUserId: userId,
+      detail: `Ad account connected (${accountName})`,
+    });
 
     // Invalidate session — one-time use
     await deleteOAuthSession(sessionId);
@@ -3163,6 +3291,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     ]);
 
     await prisma.adAccount.delete({ where: { id: accountId } });
+    void recordMetaAuditEvent(prisma, {
+      workspaceId,
+      event: 'DISCONNECTED',
+      adAccountId: accountId,
+      externalAccountId: acct.externalAccountId,
+      actorUserId: userId,
+      detail: `Ad account disconnected (${acct.name})`,
+    });
     return c.json({ success: true });
   });
 

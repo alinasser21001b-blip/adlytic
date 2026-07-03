@@ -9,7 +9,7 @@
 //  If Meta deprecates v20.0 → v21.0, only this file changes.
 // ════════════════════════════════════════════════════════════════════════
 
-import { recordMetaResponseHeaders } from './metaUsageTracker';
+import { recordMetaResponseHeaders, recordMetaErrorCategory } from './metaUsageTracker';
 
 export interface MetaClientConfig {
   apiVersion: string;          // e.g. "v20.0"
@@ -220,11 +220,13 @@ export class MetaClient {
         if (res.status === 429 || res.status >= 500) {
           // retryable: throw to trigger backoff
           const body = await safeJson(res);
+          void recordMetaErrorCategory(res.status, metaErrorCode(body)).catch(() => {});
           throw new MetaApiError(res.status, body, `Meta ${res.status}`);
         }
         if (!res.ok) {
           // non-retryable client error (4xx other than 429)
           const body = await safeJson(res);
+          void recordMetaErrorCategory(res.status, metaErrorCode(body)).catch(() => {});
           throw new MetaApiError(res.status, body, `Meta ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
         }
         return (await res.json()) as MetaPage;
@@ -251,4 +253,11 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const safeJson = async (r: Response) => {
   try { return await r.json(); } catch { return null; }
+};
+
+/** Pull Meta's numeric error code out of an error body ({ error: { code } }). */
+const metaErrorCode = (body: unknown): number | undefined => {
+  const err = (body as { error?: { code?: unknown } } | null)?.error;
+  const code = err?.code;
+  return typeof code === 'number' ? code : undefined;
 };
