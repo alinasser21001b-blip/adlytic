@@ -233,13 +233,17 @@ function buildCampaignMetrics(cur: DailyPoint[]): CampaignMetrics {
   const curCpm = avgRate(cur, "cpm");
   const curFreq = avgRate(cur, "frequency");
   const curSpend = sumCount(cur, "spend");
+  const curClicks = sumCount(cur, "clicks");
   const curMessages = sumCount(cur, "messages");
   const costPerMessage =
     curMessages > 0 ? +(curSpend / curMessages).toFixed(4) : null;
+  const cpc =
+    curClicks > 0 ? +(curSpend / curClicks).toFixed(4) : null;
 
   return {
     ctr: curCtr,
     cpm: curCpm,
+    cpc,
     frequency: curFreq,
     cost_per_message: costPerMessage,
   };

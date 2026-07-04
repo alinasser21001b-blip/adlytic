@@ -31,6 +31,7 @@ import { performance } from "node:perf_hooks";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import {
   evaluateCampaign,
+  evaluateBenchmarks,
   findActionsForBreaches,
   formatActionsForDisplay,
   type CampaignMetrics,
@@ -586,6 +587,7 @@ export async function getDashboard(
     cost_per_message: totalMsgs > 0 ? totalSpendMinor / totalMsgs : null,
   };
   const kbBreaches = evaluateCampaign(kbMetrics);
+  const benchmarkInsights = evaluateBenchmarks(kbMetrics);
   const kbActionTexts = formatActionsForDisplay(findActionsForBreaches(kbBreaches));
 
   const METRIC_ISSUE_CODE: Record<string, IssueCode> = {
@@ -616,6 +618,35 @@ export async function getDashboard(
         ],
         recommendations: texts,
         evidence: { source: "meta_ads_knowledge_base", knowledgeBase: breach },
+      });
+    }
+  }
+
+  // Benchmark-only insights: emit additional contextual guidance even when
+  // no hard KB threshold is breached, so the dashboard explains relative gaps.
+  for (const insight of benchmarkInsights) {
+    if (insight.comparison === "within") continue;
+    const code = METRIC_ISSUE_CODE[insight.metricKey] ?? IssueCode.LOW_CTR;
+    const existing = issues.find(i => i.code === code);
+    const recText = `${insight.inference} (Source: ${insight.source})`;
+    if (existing) {
+      if (!existing.recommendations.includes(recText)) {
+        existing.recommendations = [...existing.recommendations, recText];
+      }
+      existing.evidence = {
+        ...existing.evidence,
+        benchmarkInsight: insight,
+      };
+    } else {
+      issues.push({
+        code,
+        title: insight.metricLabel,
+        severity: "HIGH",
+        causes: [
+          `${insight.metricLabel} benchmark comparison is ${insight.comparison} (${insight.benchmarkText})`,
+        ],
+        recommendations: [recText],
+        evidence: { source: "industry_benchmark_intelligence", benchmarkInsight: insight },
       });
     }
   }

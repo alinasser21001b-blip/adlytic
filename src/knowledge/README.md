@@ -26,6 +26,7 @@ Drop-in metric thresholds and optimization actions for the AI insight pipeline. 
 2. Restart the server (KB is cached once per process).
 
 3. Run tests: `npm run test:knowledge-base`
+4. Run benchmark intelligence test: `npm run test:knowledge-benchmarks`
 
 ## File priority
 
@@ -78,3 +79,4 @@ import {
 - **`MetaKnowledgeInsightEngine`** — KB-first recommendations for V5 intelligence
 - **`RecommendationEngine`** — attaches KB actions to `detailsJson` when thresholds breach
 - **`getDashboard`** — merges KB action text into `issues[].recommendations` and `priorityAction`
+- **`benchmarkIntelligence.ts`** — compares live metrics against global + industry ranges and emits source-backed inference strings
