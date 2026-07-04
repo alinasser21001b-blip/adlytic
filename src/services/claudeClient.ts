@@ -14,6 +14,24 @@ const MODEL   = 'claude-sonnet-4-6';
 // room than a one-line answer — especially in Arabic, which runs longer per idea.
 const MAX_TOKENS = 1024;
 
+// Prepended to the system prompt when the user is writing in Arabic. The base
+// prompt already asks the model to reply in the user's language, but the entire
+// knowledge base is in English so answers drift toward English phrasing. This
+// override forces Arabic-only prose and pins the tone.
+const ARABIC_LANGUAGE_OVERRIDE = `
+
+LANGUAGE OVERRIDE (highest priority)
+- The user is Arabic-speaking. Reply ENTIRELY in clear, natural Modern Standard Arabic with an Iraqi/Gulf-friendly tone.
+- Keep ONLY metric acronyms in Latin letters (CTR, CPM, CPC, ROAS, CPA, CVR). Explain each acronym once in Arabic the first time it appears.
+- Do NOT write English sentences, English section headers, or English paragraphs.
+- Use Latin digits (0-9), not Arabic-Indic digits (٠-٩) — the dashboard renders Latin digits.
+- Sound like a warm, direct Arab e-commerce advisor: no filler, no marketing jargon, no English loanwords for concepts that have plain Arabic equivalents.`;
+
+/** Presence of any character in the Arabic Unicode block (U+0600..U+06FF). */
+function looksArabic(s: string): boolean {
+  return /[\u0600-\u06FF]/.test(s);
+}
+
 let _client: Anthropic | null = null;
 
 function getClient(): Anthropic {
@@ -29,10 +47,13 @@ function getClient(): Anthropic {
 
 export async function askClaude(context: string): Promise<string> {
   const client = getClient();
+  const system = looksArabic(context)
+    ? getExpertSystemPrompt() + ARABIC_LANGUAGE_OVERRIDE
+    : getExpertSystemPrompt();
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
-    system: getExpertSystemPrompt(),
+    system,
     messages: [{ role: 'user', content: sanitizeLlmUserContent(context) }],
   });
 

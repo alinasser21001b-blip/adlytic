@@ -105,7 +105,11 @@ async function main(): Promise<void> {
       console.log(`[adlytic] Routes mounted: ${ROUTE_COUNT}`);
       console.log(`[adlytic] Health:     GET http://localhost:${info.port}/api/health`);
       console.log(`[adlytic] Dashboard:  GET http://localhost:${info.port}/api/dashboard/:workspaceId`);
-      console.log(`[adlytic] Auto-sync:  every ${Math.round(SYNC_INTERVAL_MS / 3600000)}h`);
+      console.log(`[adlytic] Auto-sync:  every ${
+        SYNC_INTERVAL_MS >= 3600000
+          ? `${Math.round(SYNC_INTERVAL_MS / 3600000)}h`
+          : `${Math.round(SYNC_INTERVAL_MS / 60000)}m`
+      }`);
 
       // Meta OAuth diagnostic: surface the reason at boot when it is unusable,
       // so operators see why "Connect Meta Ads" falls back to the manual modal.

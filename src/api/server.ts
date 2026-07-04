@@ -74,6 +74,7 @@ import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { privacyPage } from '../web/pages/privacyPage';
 import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { buildAiContext } from '../services/aiContextBuilder';
+import { buildAiContextV5 } from '../services/aiContextBuilderV5';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
@@ -2389,7 +2390,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
     const body = req.body as { message?: string };
-    const message = (body.message ?? '').trim().toLowerCase();
+    // Preserve original casing so metric names (CTR, CPC, CPM) survive to the LLM.
+    const message = (body.message ?? '').trim();
     if (!message) return c.json({ error: 'Message is required' }, 400);
 
     // Load live data for context
@@ -2398,9 +2400,33 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       console.error('[adlytic:ai-chat] getDashboard error:', err);
     }
 
+    // Prefer V5 intelligence report (richer, per-signal weighted context);
+    // fall back to V1 DTO-derived context when the V5 report hasn't been
+    // written yet for this ad account.
     let reply: string;
     try {
-      const context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      let context: string | null = null;
+      try {
+        const ws = await prisma.workspace.findUnique({
+          where: { id: workspaceId },
+          select: { name: true, adAccounts: { select: { id: true, currency: true } } },
+        });
+        const primaryAccount = ws?.adAccounts?.[0];
+        if (primaryAccount) {
+          const v5 = await buildAiContextV5(prisma, primaryAccount.id, message, {
+            currency: primaryAccount.currency ?? undefined,
+            workspaceName: ws?.name ?? undefined,
+          });
+          // V5 returns a "not yet available" fallback string when no report exists.
+          // Detect that and drop back to V1 rather than sending the weaker fallback.
+          if (!/Intelligence data not yet available/i.test(v5)) context = v5;
+        }
+      } catch (err) {
+        console.error('[adlytic:ai-chat] V5 context error, falling back to V1:', err);
+      }
+      if (!context) {
+        context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      }
       reply = await askClaude(context);
     } catch (err) {
       console.error('[adlytic:ai-chat] Claude API error:', err);

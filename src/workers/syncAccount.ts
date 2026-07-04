@@ -53,9 +53,9 @@ function currencyFactorForMapper(
 /** Days per chunk. 7 keeps each Meta call small enough to dodge rate limits. */
 const CHUNK_SIZE_DAYS = 7;
 /** Politeness pause between chunks to keep Meta happy. */
-const INTER_CHUNK_DELAY_MS = 300;
-/** Parallel campaign-insight fetches. 3 balances throughput vs Meta rate limits. */
-const CAMPAIGN_CONCURRENCY = 3;
+const INTER_CHUNK_DELAY_MS = 150;
+/** Parallel campaign-insight fetches. 5 balances throughput vs Meta rate limits. */
+const CAMPAIGN_CONCURRENCY = 5;
 
 function parseMetaDateTime(raw: unknown): Date | null {
   if (raw == null || raw === "") return null;

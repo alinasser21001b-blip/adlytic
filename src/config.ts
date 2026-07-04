@@ -285,7 +285,14 @@ record({
 // ── misc operational vars ────────────────────────────────────────────────────
 
 const port = envNumber('PORT', 3001);
-const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 6 * 60 * 60 * 1000);
+// Auto-sync tick. Default was 6h — far too slow to catch Meta's 72h
+// attribution corrections and left dashboards displaying stale numbers for
+// hours. 15 minutes hits a balanced spot: fresh enough to feel live, still
+// well inside Meta rate-limit + tier-upgrade quota headroom (each account
+// sync is a small handful of Graph API calls). Operators can override via
+// SYNC_INTERVAL_MS env when they need slower cadence (e.g. very large
+// account portfolios).
+const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 15 * 60 * 1000);
 const rawInsightsRetainDays = envNumber('RAW_INSIGHTS_RETAIN_DAYS', 90);
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
