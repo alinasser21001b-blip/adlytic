@@ -29,7 +29,10 @@ export class MetaApiError extends Error {
   }
 }
 
-const DEFAULT_FIELDS = [
+/** Exported (not just joined) so callers needing extra fields — e.g. ad-level
+ *  sync needs 'ad_id' to map rows back to our internal Ad.id — can spread this
+ *  array instead of duplicating the metric field list. */
+export const DEFAULT_INSIGHT_FIELDS = [
   "date_start", "date_stop",
   "spend", "impressions", "reach", "clicks",
   "inline_link_clicks", "unique_clicks",
@@ -37,7 +40,9 @@ const DEFAULT_FIELDS = [
   "actions", "action_values",
   "cost_per_action_type", "cost_per_unique_action_type",
   "purchase_roas",
-].join(",");
+] as const;
+
+const DEFAULT_FIELDS = DEFAULT_INSIGHT_FIELDS.join(",");
 
 export class MetaClient {
   private base: string;

@@ -20,7 +20,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient, EntityType, EntityStatus, SyncJobStatus, Prisma } from "@prisma/client";
-import { MetaClient, MetaApiError } from "../services/metaClient";
+import { MetaClient, MetaApiError, DEFAULT_INSIGHT_FIELDS } from "../services/metaClient";
 import { mapMetaInsight, mapMetaBreakdownInsight } from "../mappers/insightMapper";
 import { mapMetaAdSet, mapMetaAd } from "../mappers/creativeMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
@@ -870,6 +870,151 @@ export class SyncAccountWorker {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  AD-LEVEL DAILY STATS  (Pass D — Phase 2 AI agent, T6 get_creative_performance)
+  //
+  //  syncAdSetsAndAds() above is discovery-only and explicitly defers
+  //  ad-level metrics ("Adding ad-level DailyStat is a future Pass D"). The
+  //  AI agent's get_creative_performance tool needs real per-ad spend/
+  //  messages to rank creatives — without this pass that tool would always
+  //  return empty results, which is worse than not having the tool.
+  //
+  //  Method: for each eligible campaign, call Meta's insights endpoint at
+  //  level='ad' with 'ad_id' added to the requested fields (Meta does NOT
+  //  include entity-id fields by default — they must be requested). Map
+  //  each row's ad_id (Meta's id) to our internal Ad.id via a lookup built
+  //  from Ad.externalAdId, then upsert DailyStat with entityType=AD.
+  //
+  //  Rows whose ad_id has no matching Ad row are skipped with a warning
+  //  (can happen if an ad was created after the last syncAdSetsAndAds
+  //  discovery pass) — never crashes the run over one stale id.
+  //
+  //  Same eligibility filter as syncAdSetsAndAds (ACTIVE OR recently-spent)
+  //  to stay inside Meta's per-account call-volume ceiling (error code 17).
+  // ════════════════════════════════════════════════════════════════════════
+  async syncAdInsights(
+    adAccountId: string,
+    opts: { since: Date; until: Date }
+  ): Promise<{ campaignsProcessed: number; rowsUpserted: number; unmatchedAdIds: number }> {
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const tag = `[syncAdInsights:${acct.externalAccountId}]`;
+
+    const allCampaigns = await this.prisma.campaign.findMany({
+      where: { adAccountId },
+      select: { id: true, externalCampaignId: true, status: true },
+    });
+    if (allCampaigns.length === 0) {
+      console.log(`${tag} no campaigns under account — nothing to sync`);
+      return { campaignsProcessed: 0, rowsUpserted: 0, unmatchedAdIds: 0 };
+    }
+
+    const campaignIds = allCampaigns.map((c) => c.id);
+    const spentRows = await this.prisma.dailyStat.groupBy({
+      by: ['entityId'],
+      where: {
+        entityType: EntityType.CAMPAIGN,
+        entityId: { in: campaignIds },
+        date: { gte: opts.since },
+        spend: { gt: 0n },
+      },
+      _sum: { spend: true },
+    });
+    const recentlySpentIds = new Set(spentRows.map((r) => r.entityId));
+    const campaigns = allCampaigns.filter(
+      (c) => c.status === EntityStatus.ACTIVE || recentlySpentIds.has(c.id),
+    );
+    if (campaigns.length === 0) {
+      console.log(`${tag} no eligible campaigns after filter — nothing to sync`);
+      return { campaignsProcessed: 0, rowsUpserted: 0, unmatchedAdIds: 0 };
+    }
+
+    const adLevelFields = [...DEFAULT_INSIGHT_FIELDS, 'ad_id'].join(',');
+    let rowsUpserted = 0;
+    let unmatchedAdIds = 0;
+    let campaignsProcessed = 0;
+
+    for (let i = 0; i < campaigns.length; i += CAMPAIGN_CONCURRENCY) {
+      const slice = campaigns.slice(i, i + CAMPAIGN_CONCURRENCY);
+
+      const settled = await Promise.allSettled(
+        slice.map(async (camp, sliceIdx) => {
+          if (sliceIdx > 0) await sleep(INTER_CAMPAIGN_DELAY_MS);
+
+          // Build the external→internal Ad id map for THIS campaign only —
+          // bounded query, avoids loading the whole account's ads into memory.
+          const ads = await this.prisma.ad.findMany({
+            where: { adSet: { campaignId: camp.id } },
+            select: { id: true, externalAdId: true },
+          });
+          if (ads.length === 0) return { localRows: 0, localUnmatched: 0 };
+          const adIdMap = new Map(ads.map((a) => [a.externalAdId, a.id]));
+
+          const rows = await withCode17Retry(
+            `getInsights(${camp.externalCampaignId}, level=ad)`,
+            () => this.meta.getInsights({
+              externalId: camp.externalCampaignId,
+              level: 'ad',
+              since: opts.since,
+              until: opts.until,
+              fields: adLevelFields,
+            }),
+          );
+          if (rows.length === 0) return { localRows: 0, localUnmatched: 0 };
+
+          let localUnmatched = 0;
+          const dailyBatch: Array<{ entityType: EntityType; entityId: string; insight: ReturnType<typeof mapMetaInsight> }> = [];
+          for (const r of rows) {
+            const externalAdId = String((r as Record<string, unknown>)['ad_id'] ?? '');
+            const internalAdId = externalAdId ? adIdMap.get(externalAdId) : undefined;
+            if (!internalAdId) {
+              localUnmatched++;
+              continue;
+            }
+            dailyBatch.push({
+              entityType: EntityType.AD,
+              entityId: internalAdId,
+              insight: mapMetaInsight(r, {
+                currencyMinorFactor: currencyFactorForMapper(
+                  acct.currency,
+                  acct.currencyMinorFactor,
+                  `${tag} ad insights`,
+                ),
+              }),
+            });
+          }
+          if (dailyBatch.length > 0) await this.dailyRepo.upsertMany(dailyBatch);
+          return { localRows: dailyBatch.length, localUnmatched };
+        })
+      );
+
+      for (let j = 0; j < settled.length; j++) {
+        const r = settled[j]!;
+        const camp = slice[j]!;
+        if (r.status === 'fulfilled') {
+          rowsUpserted += r.value.localRows;
+          unmatchedAdIds += r.value.localUnmatched;
+          campaignsProcessed++;
+        } else {
+          const err = r.reason;
+          const msg = err instanceof MetaApiError
+            ? `Meta ${err.status}: ${err.message}`
+            : err instanceof Error ? err.message : String(err);
+          console.error(`${tag} campaign=${camp.externalCampaignId} ad insights FAILED — ${msg}`);
+        }
+      }
+
+      if (i + CAMPAIGN_CONCURRENCY < campaigns.length) {
+        await sleep(INTER_CHUNK_DELAY_MS);
+      }
+    }
+
+    if (unmatchedAdIds > 0) {
+      console.warn(`${tag} ${unmatchedAdIds} insight row(s) had no matching Ad — likely created after last discovery sync`);
+    }
+    console.log(`${tag} done — ${campaignsProcessed} campaigns, ${rowsUpserted} ad-level daily rows`);
+    return { campaignsProcessed, rowsUpserted, unmatchedAdIds };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  BREAKDOWN SYNC (Phase 5 — Pass C)
   //
   //  Pulls campaign-level daily insights sliced by ONE breakdown dimension
@@ -1224,6 +1369,23 @@ export class SyncAccountWorker {
           ? `Meta ${e.status}: ${e.message}`
           : e instanceof Error ? e.message : String(e);
         console.error(`${tag} syncAdSetsAndAds FAILED (non-fatal) — ${msg}`);
+      }
+
+      // Pass D — ad-level daily stats (feeds T6 get_creative_performance).
+      // Non-fatal; runs AFTER syncAdSetsAndAds so the Ad rows it needs for
+      // ad_id → internal id mapping are guaranteed to exist.
+      try {
+        const adInsightsResult = await this.syncAdInsights(adAccountId, { since, until });
+        console.log(
+          `${tag} ad insights: ${adInsightsResult.campaignsProcessed} campaigns, ` +
+          `${adInsightsResult.rowsUpserted} ad-level daily rows` +
+          (adInsightsResult.unmatchedAdIds > 0 ? `, ${adInsightsResult.unmatchedAdIds} unmatched` : '')
+        );
+      } catch (e) {
+        const msg = e instanceof MetaApiError
+          ? `Meta ${e.status}: ${e.message}`
+          : e instanceof Error ? e.message : String(e);
+        console.error(`${tag} syncAdInsights FAILED (non-fatal) — ${msg}`);
       }
 
       // Phase 5 Pass C — campaign-level breakdowns (age/gender/platform/position).
