@@ -18,6 +18,9 @@ import { getAudienceBreakdownHandler } from './getAudienceBreakdown';
 import { lookupKnowledgeHandler } from './lookupKnowledge';
 import { simulateBudgetShiftHandler } from './simulateBudgetShift';
 import { checkSuspiciousActivityHandler } from './checkSuspiciousActivity';
+import { getCreativePerformanceHandler } from './getCreativePerformance';
+import { getHourlyPatternHandler } from './getHourlyPattern';
+import { findSimilarCampaignsHandler } from './findSimilarCampaigns';
 import { saveRecommendationHandler } from './saveRecommendation';
 
 /** Build the full tool set. Called once per HTTP request by the dispatcher. */
@@ -32,6 +35,9 @@ export function buildAgentToolHandlers(): ToolHandler<unknown, unknown>[] {
     lookupKnowledgeHandler(),
     simulateBudgetShiftHandler(),
     checkSuspiciousActivityHandler(),
+    getCreativePerformanceHandler(),
+    getHourlyPatternHandler(),
+    findSimilarCampaignsHandler(),
     saveRecommendationHandler(),
   ] as unknown as ToolHandler<unknown, unknown>[];
 }
