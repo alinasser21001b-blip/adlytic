@@ -24,6 +24,7 @@ import { MetaClient, MetaApiError } from '../services/metaClient';
 import { decryptToken, TokenDecryptError } from '../services/tokenEncryption';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { runEngines } from '../workers/runEngines';
+import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 import { config, reportConfig } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
@@ -210,9 +211,20 @@ async function main(): Promise<void> {
       try {
         const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken });
         const worker = new SyncAccountWorker(prisma, metaClient);
-        const syncResult = await worker.sync(acct.id, { backfillDays: 7 });
+        // 28 days covers Meta's full attribution backfill window so late-arriving
+        // conversions on days 8-28 update in daily_stats instead of going stale.
+        const syncResult = await worker.sync(acct.id, { backfillDays: 28 });
         if (syncResult.ok) {
           await runEngines(prisma, acct.id);
+          // Refresh V6 Brain tables (campaignBrainSnapshot / campaignIntelligenceReport)
+          // so the dashboard's Brain section, CMO feed, and AI context stop reading
+          // stale rows in the in-process (non-BullMQ) fallback path. BullMQ path
+          // already does this in syncAccountProcessor.
+          try {
+            await runBrainOrchestrator(prisma, metaClient, acct.id);
+          } catch (brainErr) {
+            console.error(`[adlytic:auto-sync] brain refresh failed for ${acct.externalAccountId}:`, brainErr);
+          }
           console.log(`[adlytic:auto-sync] ✓ ${acct.externalAccountId} (${syncResult.rowsUpserted} rows, ${syncResult.durationMs}ms)`);
         } else {
           console.warn(`[adlytic:auto-sync] ✗ ${acct.externalAccountId}: ${syncResult.error}`);

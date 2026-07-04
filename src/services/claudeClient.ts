@@ -9,7 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getExpertSystemPrompt } from './aiKnowledgeContext';
 import { sanitizeLlmUserContent } from '../lib/dataSanitizer';
 
-const MODEL   = 'claude-sonnet-4-6';
+const MODEL   = process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5';
 // Detailed, evidence-based analysis (live value vs benchmark + a fix) needs more
 // room than a one-line answer — especially in Arabic, which runs longer per idea.
 const MAX_TOKENS = 1024;
