@@ -16,6 +16,8 @@ import { comparePeriodsHandler } from './comparePeriods';
 import { detectAnomalyHandler } from './detectAnomaly';
 import { getAudienceBreakdownHandler } from './getAudienceBreakdown';
 import { lookupKnowledgeHandler } from './lookupKnowledge';
+import { simulateBudgetShiftHandler } from './simulateBudgetShift';
+import { checkSuspiciousActivityHandler } from './checkSuspiciousActivity';
 import { saveRecommendationHandler } from './saveRecommendation';
 
 /** Build the full tool set. Called once per HTTP request by the dispatcher. */
@@ -28,6 +30,8 @@ export function buildAgentToolHandlers(): ToolHandler<unknown, unknown>[] {
     detectAnomalyHandler(),
     getAudienceBreakdownHandler(),
     lookupKnowledgeHandler(),
+    simulateBudgetShiftHandler(),
+    checkSuspiciousActivityHandler(),
     saveRecommendationHandler(),
   ] as unknown as ToolHandler<unknown, unknown>[];
 }

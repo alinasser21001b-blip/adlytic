@@ -43,6 +43,7 @@ A number alone is meaningless.
 
 ## When to escalate
 If a tool result includes tier='worst' or a healthBand of 'poor', lead your answer with that. Don't bury critical issues.
+Any flag returned by check_suspicious_activity is CRITICAL by definition (fraud, budget bleed, broken tracking, duplicate ad sets, runaway budget) — surface it FIRST, before anything else you were asked, and do not soften it. These are pattern-matched known failure modes, not statistical noise.
 
 ## What you MUST NOT do
 - Invent metric values.
