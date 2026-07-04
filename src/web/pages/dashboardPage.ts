@@ -29,6 +29,9 @@ import { dashboardStyles } from './dashboard/dashboardStyles';
 import { i18nHelpersJs } from './dashboard/lib/i18n';
 import { formatHelpersJs } from './dashboard/lib/format';
 import { currencyHelpersJs } from './dashboard/lib/currency';
+import { renderKpisJs } from './dashboard/sections/kpis';
+import { renderIssuesJs } from './dashboard/sections/issues';
+import { renderDiagnosesJs } from './dashboard/sections/diagnoses';
 
 export function dashboardPage(): string {
   const extraHead = dashboardStyles;
@@ -622,80 +625,9 @@ export function dashboardPage(): string {
   }
 
   // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
-  function renderKpis(kpis) {
-    var grid = document.getElementById('kpi-grid');
-    if (!grid) return;
-    if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">No KPI data available.</div>'; return; }
-    grid.innerHTML = kpis.map(function (k) {
-      var deltaClass = 'flat', arrow = '→';
-      if (k.deltaPct != null) {
-        var good = k.goodWhenUp !== false;
-        var up = k.direction === 'up';
-        if (up)   { deltaClass = good ? 'up-good' : 'up-bad'; arrow = '↑'; }
-        else      { deltaClass = good ? 'down-bad' : 'down-good'; arrow = '↓'; }
-      }
-      // deltaPct is stored as a ratio (0.05 = 5%) — multiply before display.
-      var deltaHtml = k.deltaPct != null
-        ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '%</div>'
-        : '';
-      return '<div class="kpi-card">'
-        + '<div class="kpi-label">' + escHtml(k.label || k.key) + '</div>'
-        + '<div class="kpi-value">' + escHtml(String(k.display || k.value || '—')) + '</div>'
-        + deltaHtml
-      + '</div>';
-    }).join('');
-  }
-
-  function renderIssues(issues) {
-    var el = document.getElementById('issues-list');
-    if (!issues || issues.length === 0) {
-      el.innerHTML = '<div class="text-3 text-sm">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div>';
-      return;
-    }
-    el.innerHTML = issues.map(function (iss) {
-      var sev = (iss.severity || 'low').toUpperCase();
-      var causes = Array.isArray(iss.causes) ? iss.causes.join(', ') : (iss.causes || '');
-      var recs = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
-      return '<div style="padding:10px 0;border-top:1px solid var(--border);">'
-        + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">'
-          + '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escHtml(iss.title || iss.code) + '</div>'
-          + severityBadge(sev)
-        + '</div>'
-        + (causes ? '<div class="text-sm text-2" style="margin-top:3px;">' + escHtml(causes) + '</div>' : '')
-        + (recs ? '<div class="text-xs text-3" style="margin-top:2px;font-style:italic;">' + escHtml(recs) + '</div>' : '')
-      + '</div>';
-    }).join('');
-  }
-
-  function renderDiagnoses(diagnoses) {
-    var section = document.getElementById('diagnoses-section');
-    var grid = document.getElementById('diagnoses-grid');
-    if (!diagnoses || diagnoses.length === 0) { if (section) section.style.display = 'none'; return; }
-    if (section) section.style.display = 'block';
-    var DIAGNOSIS_AR = {
-      'Creative Fatigue': 'إرهاق الإعلان',
-      'Audience Saturation': 'تشبّع الجمهور',
-      'Auction Pressure': 'ضغط المزاد',
-      'Post-Click Problem': 'مشكلة ما بعد النقر',
-      'Rising Cost per Result': 'ارتفاع تكلفة النتيجة',
-    };
-    grid.innerHTML = diagnoses.map(function (d) {
-      var confLevel = d.confidence >= 0.75 ? 'high' : d.confidence >= 0.5 ? 'medium' : 'low';
-      var confLabel = d.confidence >= 0.75 ? 'ثقة عالية' : d.confidence >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
-      var name = DIAGNOSIS_AR[d.name] || d.name;
-      return '<div class="diagnosis-card">'
-        + '<div class="diagnosis-header">'
-          + '<div class="diagnosis-name">' + escHtml(name) + '</div>'
-          + '<span class="diagnosis-confidence ' + confLevel + '">' + confLabel + ' ' + Math.round(d.confidence * 100) + '%</span>'
-        + '</div>'
-        + '<div class="diagnosis-narrative">' + escHtml(d.narrative) + '</div>'
-        + '<div class="diagnosis-action">'
-          + '<div class="diagnosis-action-label">الإجراء المطلوب</div>'
-          + escHtml(d.action)
-        + '</div>'
-      + '</div>';
-    }).join('');
-  }
+  ${renderKpisJs}
+  ${renderIssuesJs}
+  ${renderDiagnosesJs}
 
   function renderAttribution(attr) {
     var section = document.getElementById('attribution-section');
