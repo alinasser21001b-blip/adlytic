@@ -14,6 +14,8 @@ import { getCampaignDetailsHandler } from './getCampaignDetails';
 import { rankCampaignsHandler } from './rankCampaigns';
 import { comparePeriodsHandler } from './comparePeriods';
 import { detectAnomalyHandler } from './detectAnomaly';
+import { getAudienceBreakdownHandler } from './getAudienceBreakdown';
+import { lookupKnowledgeHandler } from './lookupKnowledge';
 import { saveRecommendationHandler } from './saveRecommendation';
 
 /** Build the full tool set. Called once per HTTP request by the dispatcher. */
@@ -24,6 +26,8 @@ export function buildAgentToolHandlers(): ToolHandler<unknown, unknown>[] {
     rankCampaignsHandler(),
     comparePeriodsHandler(),
     detectAnomalyHandler(),
+    getAudienceBreakdownHandler(),
+    lookupKnowledgeHandler(),
     saveRecommendationHandler(),
   ] as unknown as ToolHandler<unknown, unknown>[];
 }
