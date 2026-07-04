@@ -135,16 +135,24 @@ export function saveRecommendationHandler(): ToolHandler<SaveRecommendationArgs,
         createdBy: 'ai_agent',
       };
 
-      // Upsert on the composite (entityType, entityId, date, actionCode) key.
-      const rec = await prisma.recommendation.upsert({
-        where: {
-          entityType_entityId_date_actionCode: {
-            entityType: args.entityType === 'ACCOUNT' ? EntityType.ACCOUNT : EntityType.CAMPAIGN,
-            entityId: args.entityId,
-            date: today,
-            actionCode: args.actionCode,
-          },
+      // Determine insert-vs-update DETERMINISTICALLY by checking existence
+      // first — Recommendation has no updatedAt column, and a timestamp-since-
+      // creation heuristic cannot distinguish "just inserted this call" from
+      // "inserted moments ago by a prior call in the same turn," which is
+      // exactly the retry scenario this idempotency key exists to catch.
+      const compositeKey = {
+        entityType_entityId_date_actionCode: {
+          entityType: args.entityType === 'ACCOUNT' ? EntityType.ACCOUNT : EntityType.CAMPAIGN,
+          entityId: args.entityId,
+          date: today,
+          actionCode: args.actionCode,
         },
+      };
+      const existing = await prisma.recommendation.findUnique({ where: compositeKey });
+      const deduplicated = existing != null;
+
+      const rec = await prisma.recommendation.upsert({
+        where: compositeKey,
         create: {
           entityType: args.entityType === 'ACCOUNT' ? EntityType.ACCOUNT : EntityType.CAMPAIGN,
           entityId: args.entityId,
@@ -164,16 +172,11 @@ export function saveRecommendationHandler(): ToolHandler<SaveRecommendationArgs,
         },
       });
 
-      // Was it an insert or an update? Prisma doesn't tell us directly, but
-      // we can detect via createdAt vs updatedAt-like comparison. Cheaper:
-      // did we create it in the last 5s? Then it's fresh; else dedup.
-      const isFresh = Date.now() - rec.createdAt.getTime() < 5_000;
-
       return ok<SaveRecommendationResult>(
         {
           recommendationId: rec.id,
           status: 'SUGGESTED_BY_AI',
-          deduplicated: !isFresh,
+          deduplicated,
           entityType: rec.entityType,
           entityId: rec.entityId,
           actionCode: rec.actionCode,
