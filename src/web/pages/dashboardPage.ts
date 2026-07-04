@@ -26,6 +26,9 @@
 
 import { layout } from '../layout';
 import { dashboardStyles } from './dashboard/dashboardStyles';
+import { i18nHelpersJs } from './dashboard/lib/i18n';
+import { formatHelpersJs } from './dashboard/lib/format';
+import { currencyHelpersJs } from './dashboard/lib/currency';
 
 export function dashboardPage(): string {
   const extraHead = dashboardStyles;
@@ -251,87 +254,11 @@ export function dashboardPage(): string {
     lastCampaigns: [],
   };
 
-  function isArabic() { return state.locale === 'AR'; }
-  function lbl(en, ar) { return isArabic() ? ar : en; }
-  var KPI_LABELS_EN = {
-    spend: 'Spend', impressions: 'Impressions', reach: 'Reach (latest day)',
-    clicks: 'Clicks', ctr: 'CTR', cpc: 'CPC', cpm: 'CPM', messages: 'Messages',
-  };
-  var KPI_LABELS_AR = {
-    spend: 'الإنفاق', impressions: 'مرات الظهور', reach: 'الوصول (آخر يوم)',
-    clicks: 'النقرات', ctr: 'تفاعل الإعلان', cpc: 'تكلفة النقرة', cpm: 'تكلفة الوصول لألف شخص', messages: 'الرسائل',
-  };
-  function kpiLabel(key) {
-    var map = isArabic() ? KPI_LABELS_AR : KPI_LABELS_EN;
-    return map[key] || key;
-  }
+  ${i18nHelpersJs}
 
   // ── helpers ─────────────────────────────────────────────────────────────
-  function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function fmtNum(n, d) {
-    if (n == null || isNaN(n)) return '—';
-    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-    return d != null ? n.toFixed(d) : String(n);
-  }
-  function fmtPctLocal(n) {
-    if (n == null || isNaN(n)) return '—';
-    return Number(n).toFixed(2) + '%';
-  }
-  // Convert a BigInt-or-Number minor-unit value to a human currency string
-  // honouring the connected ad-account's currency + minorFactor.
-  function fmtCurrencyMinor(minorVal) {
-    if (minorVal == null || isNaN(Number(minorVal))) return '—';
-    var major = Number(minorVal) / state.minorFactor;
-    if (state.minorFactor === 1) major = Math.round(major);
-    return major.toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
-  }
-  function fmtCurrencyMajor(n) {
-    if (n == null || isNaN(n)) return '—';
-    if (state.minorFactor === 1) {
-      return Math.round(Number(n)).toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ' + state.currency;
-    }
-    return Number(n).toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
-  }
-  // Prefer dashboard DTO (authoritative) then workspace adAccounts for currency state.
-  function hydrateCurrencyState(dashData, wsData) {
-    var currency = null;
-    var factor = null;
-    if (dashData && dashData.workspace) {
-      if (dashData.workspace.currency) currency = dashData.workspace.currency;
-      if (dashData.workspace.currencyMinorFactor != null) {
-        factor = Number(dashData.workspace.currencyMinorFactor);
-      }
-    }
-    if (wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts.length > 0) {
-      var primary = wsData.adAccounts[0];
-      if (!currency && primary.currency) currency = primary.currency;
-      if (factor == null && primary.currencyMinorFactor != null) {
-        factor = Number(primary.currencyMinorFactor);
-      }
-    }
-    if (currency) state.currency = currency;
-    // IQD has no minor unit — never divide by a stale factor=100 from DB.
-    if (currency === 'IQD') state.minorFactor = 1;
-    else if (factor != null && factor > 0) state.minorFactor = factor;
-  }
-  // Sum BigInt-or-Number spend over an insights slice (already in minor units).
-  function sumMinor(rows) {
-    var s = 0;
-    for (var i = 0; i < rows.length; i++) s += Number(rows[i].spend) || 0;
-    return s;
-  }
-  // recentAsc: DailyStats arrive date-DESC. Take the first N (= most recent N),
-  // then reverse so charts render oldest → newest left-to-right.
-  function recentAsc(arr, n) {
-    if (!Array.isArray(arr)) return [];
-    var head = arr.slice(0, n);
-    return head.slice().reverse();
-  }
-  function initialsOf(name) {
-    if (!name) return '?';
-    return name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0, 2);
-  }
+  ${formatHelpersJs}
+  ${currencyHelpersJs}
 
   function showError(msg) {
     document.getElementById('loading-state').style.display = 'none';
