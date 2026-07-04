@@ -2436,6 +2436,77 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   // ════════════════════════════════════════════════════════════════════════
+  //  AI Chat v2 — Phase 2 smart CMO agent
+  //
+  //  POST /api/workspaces/:workspaceId/ai/chat/v2
+  //  Body: { message: string, conversationId?: string, sessionContext?: object }
+  //  Returns: { conversationId, reply, toolCalls: [...], latencyMs, tokensIn, tokensOut }
+  //
+  //  Behind AI_AGENT_V2_ENABLED env flag; when unset, returns 404 so the
+  //  legacy /ai/chat above stays authoritative. See PHASE2_AI_AGENT_DESIGN.md §7.
+  // ════════════════════════════════════════════════════════════════════════
+  app.post('/api/workspaces/:workspaceId/ai/chat/v2', async (c) => {
+    if (process.env['AI_AGENT_V2_ENABLED'] !== 'true') {
+      return c.json({ error: 'AI Agent v2 is disabled' }, 404);
+    }
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const { workspaceId } = req.params;
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+
+    const body = req.body as {
+      message?: string;
+      conversationId?: string;
+      sessionContext?: Record<string, unknown>;
+    };
+    const message = (body.message ?? '').trim();
+    if (!message) return c.json({ error: 'Message is required' }, 400);
+    if (message.length > 4000) return c.json({ error: 'Message too long (max 4000 chars)' }, 400);
+
+    try {
+      const { runAgentTurn } = await import('../services/agent/loop');
+      const result = await runAgentTurn({
+        prisma,
+        workspaceId,
+        userId,
+        conversationId: body.conversationId ?? null,
+        userMessage: message,
+        sessionContext: body.sessionContext,
+      });
+      return c.json({
+        conversationId: result.conversationId,
+        reply: result.reply,
+        toolCalls: result.toolCalls.map((tc) => ({
+          toolName: tc.toolName,
+          args: tc.args,
+          ok: tc.result.ok,
+          errorCode: tc.result.ok ? null : tc.result.error.code,
+          aiMessageId: tc.aiMessageId,
+        })),
+        latencyMs: result.latencyMs,
+        tokensIn: result.tokensIn,
+        tokensOut: result.tokensOut,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[adlytic:ai-chat-v2] error:', err);
+      // Graceful fallback in the merchant's likely language — MVP: Arabic default.
+      return c.json({
+        conversationId: body.conversationId ?? null,
+        reply: 'حدث خطأ في تحليل حملاتك الآن. جرب بعد لحظة، أو اسأل سؤالاً أضيق نطاقاً.',
+        toolCalls: [],
+        latencyMs: 0,
+        tokensIn: 0,
+        tokensOut: 0,
+        error: msg,
+      }, 500);
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
   //  META ADS — OAuth flow + ad-account management
   // ════════════════════════════════════════════════════════════════════════
 
