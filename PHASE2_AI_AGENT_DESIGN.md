@@ -1084,20 +1084,638 @@ Ran the design against `tool_design_best_practices.md` checklist and `agent_arch
 
 ---
 
-## 20. Estimated effort (v2)
+## 20. Anti-hallucination hard guardrails (NEW in v3)
+
+"Don't invent numbers" as a system-prompt line is not enough. Merchants will trust the assistant IFF numbers are provably correct. Enforce it in code, not prose.
+
+### 20.1 Deterministic post-check
+
+Every ASSISTANT reply passes a validator before being sent to the merchant:
+
+```
+1. Extract all number-like tokens from the reply (regex: /-?\d+[.,]?\d*/g).
+2. Extract all campaign/adset/ad names in quotes or after "الحملة"/"إعلان".
+3. For each number: must appear (exact or ±0.5% rounding tolerance) in
+   the toolResultsJson of at least one TOOL message in the same turn.
+4. For each name: must appear verbatim in the tool results of this turn.
+5. If ANY token fails:
+     - Log a HALLUCINATION_DETECTED event.
+     - Do NOT send reply to merchant.
+     - Rewind: append a system message to Claude
+       "Your previous reply contained the value 3.2x which was not in
+        any tool result. Retry using only values from the tools called
+        this turn." and re-run.
+     - Max 2 retries. On third failure, degrade to fallback (§14).
+```
+
+**Exceptions from post-check:**
+- Numbers inside quoted merchant messages ("قال المستخدم '5 دولار'…") — passed through.
+- Well-known constants: 100, 1000, 30 (days), 24 (hours), etc.
+- Percentages the tool result implicitly expresses ("34%" when tool returned `0.34`).
+
+**Metrics tracked:** hallucination rate per model per week. If Sonnet > 2% or Haiku > 5%, escalate to prompt review.
+
+### 20.2 Structured citation
+
+Reply strings support a compact citation syntax that the UI can render as clickable footnotes:
+
+```
+"CTR اليوم 0.8% [T2:campaign.metrics.ctr.current] مقابل خط الأساس 1.2% [T2:campaign.historicalBaseline.ctrMean]"
+```
+
+The `[Tn:path]` markers get stripped from the visible text and rendered as a superscript reference. Clicking opens a modal showing the exact tool call and the JSON path used.
+
+**Why this matters:** merchant can *verify* every number the assistant cites. Zero-hallucination is a claim; verifiability makes it real.
+
+---
+
+## 21. Continuous learning loop (NEW in v3)
+
+The assistant should get smarter as the merchant uses it — not by retraining Claude, but by tuning the deterministic parts around it.
+
+### 21.1 Signals we collect
+
+Every merchant action becomes a signal in the `AiSignal` table:
+
+```prisma
+model AiSignal {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  userId        String
+  createdAt     DateTime @default(now())
+  signalType    AiSignalType
+  targetType    String     // 'recommendation'|'alert'|'brief'|'message'
+  targetId      String
+  metadata      Json       // e.g. { dismissReason: 'noise', dwellMs: 340 }
+
+  @@index([workspaceId, signalType, createdAt])
+  @@map("ai_signals")
+}
+
+enum AiSignalType {
+  RECOMMENDATION_ACCEPTED
+  RECOMMENDATION_DISMISSED
+  ALERT_TAPPED
+  ALERT_IGNORED
+  BRIEF_READ
+  BRIEF_SKIPPED
+  MESSAGE_HELPFUL
+  MESSAGE_UNHELPFUL
+  DWELL_TIME
+  CITATION_CLICKED
+}
+```
+
+### 21.2 What we tune from signals
+
+**Anomaly z-score threshold per workspace:**
+- Merchant dismisses 3+ anomaly alerts in a row as "noise" → raise their `minAbsZ` from 2.0 to 2.5.
+- Merchant taps 3+ anomaly alerts as helpful → keep at 2.0.
+- Bayesian update, EMA over last 20 signals.
+
+**Recommendation priority ranking:**
+- If merchant accepts REFRESH_CREATIVE 80% but dismisses PAUSE_CAMPAIGN 70% → rank REFRESH_CREATIVE first when both are viable.
+- Per-workspace preference vector over actionCodes.
+
+**Terseness auto-adjustment:**
+- Median `dwellMs` on assistant messages < 8s → merchant likely skimming → shift to `terseness=terse` preference.
+- Median dwellMs > 30s and `MESSAGE_HELPFUL` signals high → keep `terseness=detailed`.
+
+**Suggested-question generation weights:**
+- Track which suggested questions get clicked; upweight similar phrasings in next classification pass.
+
+### 21.3 Guardrails on learning
+
+- **Never learn from a single signal.** Minimum 5 signals before adjusting any parameter.
+- **Bound all adjustments.** z-score can only move within [1.5, 3.5]. Terseness has 3 discrete levels.
+- **Show the merchant what changed.** Settings page shows "الوكيل تعلّم أنك تفضل الملخصات القصيرة — يمكنك تغيير ذلك".
+- **One-tap reset.** Merchant can revert all learned preferences.
+
+---
+
+## 22. User preferences (NEW in v3)
+
+Stored on `User` (new fields) and read at every chat turn:
+
+```prisma
+model User {
+  // ... existing fields
+  aiLocale       Locale       @default(AR) @map("ai_locale")
+  aiDialect      String?      @map("ai_dialect")      // 'iraqi'|'gulf'|'levantine'|'egyptian'|null
+  aiTerseness    AiTerseness  @default(BALANCED) @map("ai_terseness")
+  aiPersonality  AiPersonality @default(DIRECT) @map("ai_personality")
+  aiCurrencyPref String?      @map("ai_currency_pref") // override account currency for display
+}
+
+enum AiTerseness { TERSE BALANCED DETAILED }
+enum AiPersonality { DIRECT ENCOURAGING PROFESSIONAL }
+```
+
+**How they flow into the prompt:**
+
+```
+[Base system prompt]
+
+## Merchant preferences (this session)
+- Locale: Arabic (Iraqi dialect)
+- Length preference: balanced (3-5 sentences per point)
+- Tone: direct and encouraging
+- Currency preference: IQD (override display; keep DB in account currency)
+```
+
+**Defaults from behavior:** on first use, dialect is inferred from user's IP (Iraq → iraqi) and can be overridden in settings.
+
+**Why it makes the assistant feel "smart":** the same reply reads differently to different merchants. A blunt Iraqi retailer gets *"شفت حملة X، تكلفتها انفلتت — أوقف الإعلانات الثابتة"*. A cautious Gulf brand manager gets *"لاحظت مؤشراً في حملة X يستدعي المراجعة — تكلفة الرسالة ارتفعت 42% وقد يفيد تحديث الإبداعات"*.
+
+---
+
+## 23. Session-aware cross-surface context (NEW in v3)
+
+The chat doesn't live in isolation — the merchant is often looking at a specific campaign on the dashboard when they open chat. The assistant should know that.
+
+### 23.1 Session context envelope
+
+Frontend passes a lightweight envelope with every chat request:
+
+```jsonc
+{
+  "message": "لماذا هذا الأداء ضعيف؟",
+  "sessionContext": {
+    "currentSurface": "campaigns_page",
+    "focusedCampaignId": "cmp_abc",
+    "openTabsSummary": ["campaigns", "recommendations"],
+    "lastDashboardKpiClicked": "ctr",
+    "timeOnPage": 47
+  }
+}
+```
+
+### 23.2 How the agent uses it
+
+- **Ambiguous references resolve:** merchant says *"لماذا هذا"* — agent knows "هذا" = campaign `cmp_abc` because they're looking at it. No clarifying question needed.
+- **Skip redundant tool calls:** if the merchant is looking at the dashboard, `list_campaigns` output for the current window is likely already loaded in their view. Cache hit → no extra call.
+- **Personalized suggested questions:** dynamic 4 suggestions match the surface. On the campaigns page: *"لماذا حملة X أفضل من Y؟"*. On the recommendations page: *"اشرح لي هذه التوصية"*.
+
+### 23.3 Privacy
+
+Session context is transient — not persisted. Only passed to the current turn. Merchant can disable via a toggle "لا تشاركني موقعي في التطبيق".
+
+---
+
+## 24. Structured output for UI (NEW in v3)
+
+Some replies belong in a card, not a paragraph. Give Claude a way to opt into structured output via a special tool.
+
+### 24.1 `render_ui_block` tool (T13)
+
+**Description Claude sees:** *"When your reply is better rendered as a structured card (a KPI grid, a comparison table, a ranked list), call this instead of writing prose. The UI will render the block above your text reply. Use SPARINGLY — plain Arabic prose is preferred for narrative answers."*
+
+```jsonc
+{
+  "type": "object",
+  "properties": {
+    "blockType": { "type": "string", "enum": ["kpi_grid","comparison_table","ranked_list","alert_banner","action_button_row"] },
+    "title":     { "type": "string", "maxLength": 100 },
+    "payload":   { "type": "object", "description": "Block-type-specific shape" },
+    "citation":  { "type": "array", "items": { "type": "string" }, "description": "Tool call refs like ['T2:campaign.metrics']" }
+  },
+  "required": ["blockType","payload"]
+}
+```
+
+**Block types & payload schemas** documented in `agent/blocks/schemas.ts`. Example — `comparison_table`:
+
+```ts
+{
+  columns: ['الحملة', 'CTR', 'CPM', 'ROAS'],
+  rows: [
+    { label: 'رمضان — عرض 20%', values: ['1.8%', '$4.20', '2.1x'] },
+    { label: 'إطلاق منتج جديد',  values: ['0.9%', '$6.80', '0.8x'] }
+  ],
+  highlight: { row: 1, reason: 'أداء تحت المتوسط' }
+}
+```
+
+**UI renders:** block above the streamed prose. Merchant can tap a row to drill down.
+
+**Why this is "smart":** prose is right for "why", tables are right for "what". The agent chooses.
+
+---
+
+## 25. Alert escalation ladder (NEW in v3)
+
+Same anomaly persisting for days is not the same event repeated — it's a growing problem. The assistant's tone should reflect that.
+
+### 25.1 The ladder
+
+For each `(entity, metric, direction)` tuple, track `daysAnomalous` in `AiAnomalyState` table:
+
+```prisma
+model AiAnomalyState {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  entityType     EntityType
+  entityId       String
+  metric         String
+  direction      String     // 'better'|'worse'
+  firstDetectedAt DateTime
+  lastDetectedAt  DateTime
+  daysAnomalous  Int        @default(1)
+  totalAlerts    Int        @default(0)
+  merchantResponse String? // 'acknowledged'|'dismissed'|null
+
+  @@unique([workspaceId, entityType, entityId, metric, direction])
+}
+```
+
+### 25.2 Alert tone by ladder step
+
+| daysAnomalous | Tone | Example |
+|---|---|---|
+| 1 | **Whisper** — soft observation | *"لاحظت شذوذاً بسيطاً في حملة X، لكن اليوم واحد فقط — راقب."* |
+| 2 | **Normal** — clear description | *"يومان متتاليان: تكلفة الرسالة في حملة X أعلى بـ 60% من المتوسط. سبب واضح مقترح…"* |
+| 3–4 | **Concerned** — urging action | *"3 أيام والوضع لم يتحسن. أنصحك بشدة تحدث الإبداعات أو توقف مؤقتاً."* |
+| 5+ | **Escalation** — strongest voice | *"⚠️ 5 أيام والوضع يتدهور. لو ما تدخّلت الآن، الميزانية تتضرر بلا نتائج. القرار لك — أنا نبّهتك بأقصى ما أستطيع."* |
+
+**Reset condition:** metric returns within 1.5σ of baseline for 2 consecutive days → clear the state.
+
+**Guardrail:** merchant can silence one anomaly for 7 days via one tap ("لا أزعجني بهذا").
+
+---
+
+## 26. Sentiment matching + emotional intelligence (NEW in v3)
+
+Before the analyst turn, run a lightweight sentiment check on the merchant's message. Adjust the reply's emotional register.
+
+### 26.1 Detection
+
+Haiku classifier extended:
+
+```jsonc
+{
+  "sentiment": "neutral"|"frustrated"|"excited"|"confused"|"anxious",
+  "signalStrength": 0..1  // confidence
+}
+```
+
+Triggers by keyword + punctuation:
+- **frustrated:** "ليش", "ما يشتغل", "خرا", exclamation marks, all-caps
+- **excited:** "!", "ممتاز", "أخيراً", "شكراً"
+- **confused:** "ما فهمت", "شنو يعني", multiple question marks
+- **anxious:** "قلقان", "خايف", "الفلوس", "ميزانية"
+
+### 26.2 Reply adjustments
+
+| Detected | Adjustment |
+|---|---|
+| frustrated | Acknowledge briefly before diving in. *"أفهم إحباطك. خليني أشوف الأرقام…"* |
+| excited | Match energy. *"يسعدني الخبر! خليني أرى شنو يشتغل بالضبط."* |
+| confused | Reduce jargon, use analogies. Set terseness to `TERSE`. |
+| anxious | Lead with reassurance data. *"ميزانيتك آمنة، لا خسائر كبيرة الآن."* |
+
+**Never lie.** If numbers are bad, still say so — but with acknowledgment first when sentiment is negative.
+
+---
+
+## 27. New-merchant cold start (NEW in v3)
+
+A merchant who just connected their account has 0–3 days of data. The agent must not pretend to have historical context.
+
+### 27.1 Cold-start detection
+
+At turn start, check `account.lastSyncedAt` and total daily_stat rows. Categorize:
+
+- **Cold** (0–3 days data): apologize for limited context.
+- **Warm** (4–14 days): partial baselines available.
+- **Established** (15+ days): full analysis.
+
+### 27.2 Cold-start behavior
+
+- No baseline comparisons (they'd be noise).
+- No z-score anomaly detection (need 30 days for a meaningful baseline).
+- Instead: use industry benchmarks from `lookup_knowledge` + `benchmarks_by_industry.json`.
+- Prompt suffix injected: *"This merchant has {n} days of data. Do not compare to their historical baseline (not available). Use industry benchmarks and current-window metrics only. Acknowledge the limited data gracefully."*
+
+### 27.3 Onboarding conversation
+
+First time the merchant opens the chat, agent runs:
+
+```
+1. list_campaigns to see what's there
+2. If total activeCampaigns == 0:
+     "أهلاً بك في Adlytic. ما شفت حملات نشطة بعد — لما تشغّل أول حملة على Meta،
+      أنا سأبدأ التحليل تلقائياً."
+3. If activeCampaigns >= 1:
+     "أهلاً بك. عندك {n} حملة نشطة. سأحتاج بضعة أيام لبناء خط الأساس التاريخي،
+      لكن يمكنني الآن مقارنة أدائك مع معايير الصناعة. تحبّ أبدأ؟"
+4. Persist as AiConversation with metadata.onboardingType='initial'.
+```
+
+---
+
+## 28. A/B testing infrastructure (NEW in v3)
+
+The only way to prove "revolutionary" is to measure. Roll out V2 to 50% of workspaces first.
+
+### 28.1 Bucketing
+
+```ts
+function isAgentV2Enabled(workspaceId: string): boolean {
+  const bucket = sha1(`agent-v2-rollout-2026-07:${workspaceId}`).slice(0, 8);
+  const bucketPct = parseInt(bucket, 16) % 100;
+  return bucketPct < config.agent.v2RolloutPct;   // env-controlled 0..100
+}
+```
+
+Sticky per workspace, deterministic, no cookies needed. Ramp: 10% → 25% → 50% → 100% over 3 weeks.
+
+### 28.2 Metrics compared (per bucket, weekly)
+
+- **Engagement:** chat turns per active user
+- **Retention:** 7-day return rate to chat surface
+- **Recommendation acceptance rate:** accepted / (accepted + dismissed)
+- **Anomaly detection true-positive rate** (from merchant feedback)
+- **Session dwell time on dashboard**
+- **NPS-lite proxy:** MESSAGE_HELPFUL / (helpful + unhelpful)
+
+### 28.3 Rollback trigger
+
+Automatic rollback (v2 % → 0) if any of:
+- Weekly hallucination rate > 3%
+- p95 latency > 15s for 3 days
+- Recommendation acceptance rate drops > 30% vs v1 bucket
+- Cost per workspace/day > $3
+
+---
+
+## 29. Explainable recommendations audit trail (NEW in v3)
+
+Every AI-generated recommendation carries a complete reasoning chain. Merchants can ask "لماذا اقترحت هذا؟" weeks later and get the exact evidence.
+
+### 29.1 Persistence
+
+`Recommendation` table extended:
+
+```prisma
+model Recommendation {
+  // existing fields...
+  source          String        @default("rule_engine")  // 'rule_engine' | 'ai_agent'
+  reasoningChainJson Json?       // (NEW) the tool results + reasoning
+  aiConversationId String?       // link back to the conversation that produced it
+  aiMessageId      String?       // link to the specific ASSISTANT message
+}
+```
+
+`reasoningChainJson` example:
+
+```jsonc
+{
+  "generatedByModel": "claude-sonnet-5",
+  "toolCallsInEvidence": [
+    { "tool": "detect_anomaly", "returned": {...compressed} },
+    { "tool": "get_creative_performance", "returned": {...compressed} }
+  ],
+  "keyFacts": [
+    "cost_per_message deviated 5.8 sigma from 90d baseline on 2026-07-04",
+    "4 of 5 creatives lack video; video correlates -0.62 with cost_per_message"
+  ],
+  "reasoning": "Video absence identified as most-likely cause; refreshing creatives ranked higher than pause because campaign has strong lifetime ROAS (2.1x).",
+  "confidenceScore": 0.87,
+  "alternativesConsidered": [
+    { "action": "PAUSE_CAMPAIGN", "rejectedBecause": "sustained ROAS > 2x means pause loses proven learning" },
+    { "action": "DECREASE_BUDGET", "rejectedBecause": "not addressing root cause (creative)" }
+  ]
+}
+```
+
+### 29.2 UI: "لماذا اقترحت هذا؟" button
+
+On any recommendation card, a small "؟" button opens a modal showing:
+- The key facts as bullets in Arabic
+- The alternatives considered (transparency)
+- A link to the original conversation
+- Confidence score as a bar
+
+**Why this matters for trust:** merchants can *audit* the AI's reasoning. This is the difference between "black box" and "glass box".
+
+---
+
+## 30. Fraud & suspicious-activity safety net (NEW in v3)
+
+Some patterns are not "optimization opportunities" — they're red flags. The assistant should catch them.
+
+### 30.1 Patterns detected in `check_suspicious_activity` (T14)
+
+- **Impression fraud:** spend increased 500%+ hour-over-hour with impressions rising but 0 clicks/messages. Auction fraud or bot traffic.
+- **Budget bleed:** daily spend exceeded daily budget by >30% (Meta's over-delivery gone wrong).
+- **Attribution collapse:** conversions dropped to 0 while spend continued — tracking pixel likely broken.
+- **Duplicate charges:** multiple identical ad sets with same creative and same audience (unintended duplication).
+- **Runaway budget:** newly launched campaign hit 100% of daily budget in first hour.
+
+### 30.2 Response
+
+- **Severity ALWAYS `CRITICAL`** — surfaced first in any brief.
+- Alert channel: push notification + email (not just chat).
+- Tone: urgent, action-oriented. *"⚠️ فحصت الأرقام: حملة X استهلكت الميزانية في ساعة واحدة بلا أي رسائل. ممكن مشكلة في تتبع البيكسل. راجع Meta الآن."*
+- Recommendation saved with `actionCode='INVESTIGATE_TRACKING'` or `'PAUSE_URGENT'`.
+
+### 30.3 Rate limits
+
+Fraud alerts are rare and important — no rate cap. But same fraud pattern doesn't re-alert within 6 hours.
+
+---
+
+## 31. Industry benchmarking (opt-in, NEW in v3)
+
+Cross-workspace insights add real value — with careful consent.
+
+### 31.1 What we compare
+
+For merchants who opt in:
+- Their CTR vs median of same-industry workspaces (same country + industry)
+- Their cost_per_message vs same-cohort P50/P75
+- Their ROAS vs same-cohort P50/P75
+
+All returned as **rank percentiles**, never raw values or names of other merchants.
+
+### 31.2 Consent flow
+
+Settings toggle: *"شارك بياناتك مع مقارنات مجمّعة (بدون هوية) لتحسين نصائح Adlytic لك"*. Default: OFF. When ON:
+- Their data becomes part of the aggregation pool.
+- They can query the pool.
+- Turn off any time → historical aggregations still exist (can't un-mix), but no future contribution.
+
+### 31.3 `get_industry_benchmark` tool (T15)
+
+**Description Claude sees:** *"For workspaces with benchmarking enabled, return industry P50/P75 for the merchant's metrics. Use when merchant asks 'شنو الوضع الطبيعي' or 'أنا أفضل ولا أسوأ من غيري'. Returns null with a reason when benchmarking is disabled — do NOT invent benchmarks."*
+
+Response:
+
+```ts
+{
+  enabled: boolean;
+  reason?: string;     // "opted_out" | "insufficient_cohort" (<20 workspaces in cohort)
+  cohort?: {
+    industry: string;
+    country: string;
+    workspaceCount: number;    // for the merchant's transparency
+  };
+  benchmarks?: {
+    ctr:              { p50: number; p75: number; yourRank: number };
+    cost_per_message: { p50: number; p75: number; yourRank: number };
+    roas:             { p50: number; p75: number; yourRank: number };
+  };
+}
+```
+
+### 31.4 Anonymization
+
+- Cohort size floor: benchmark returned only when ≥20 workspaces in the same (industry, country) cell. Below floor: return `null` with reason.
+- Weekly re-aggregation from raw data; no per-workspace values stored in the benchmark table.
+- Differential privacy noise added to P50/P75 (Laplace noise, ε=0.5) to prevent inference of any single workspace.
+
+---
+
+## 32. Multi-language mid-conversation (NEW in v3)
+
+Merchant may switch languages mid-thread. Reply in whatever they used *last*, not what the conversation was set to.
+
+### 32.1 Per-turn language detection
+
+Classifier extended output: `replyLanguage: 'ar'|'en'`. Detects from the most recent user message (not the conversation locale).
+
+### 32.2 Handling
+
+- System prompt includes: *"The user's LAST message was in {ar|en}. Reply in that language."*
+- If it changes back next turn, follow again.
+- `AiConversation.locale` stays as the *default* but per-message override wins.
+
+---
+
+## 33. Meta API budget awareness (NEW in v3)
+
+Some tools trigger real Meta API calls (via the existing sync worker path). Be transparent about cost.
+
+### 33.1 Tools flagged as "Meta-live"
+
+Today, all tools read from PostgreSQL (indirectly from Meta via sync). Future tools may hit Meta live (e.g. `verify_campaign_status_live`). When they exist:
+
+- Tool description declares: *"This tool hits Meta's API directly. Rate-limited to 10 calls/hour per workspace."*
+- Response includes `meta.metaApiCallsUsed: 1`.
+- Assistant tells merchant: *"شفت مباشرة من Meta (لأن الحالة قد تغيّرت الآن)…"*.
+
+### 33.2 Not in Phase 2
+
+All Phase 2 tools remain DB-only. This section reserves the pattern for Phase 3+ when live actions arrive.
+
+---
+
+## 34. Onboarding conversation flow (NEW in v3)
+
+When a merchant first uses the chat, guide them explicitly.
+
+### 34.1 Flow
+
+Trigger: first `POST /ai/chat/v2` for a `user_id` in a workspace.
+
+```
+1. Skip classifier + full analyst turn. Send a hand-crafted greeting:
+   "أهلاً {firstName}! أنا CMO ذكي، جاهز أساعدك تفهم حملاتك على Facebook و
+    Instagram. أفضل طريقة تبدأ:
+    ⚡ اسأل: 'شنو أفضل حملاتي؟'
+    🔍 أو: 'هل هناك مشاكل الآن؟'
+    📊 أو: 'قارن هذا الشهر بالماضي'.
+    ما رأيك؟"
+2. Log AiSignal(type=ONBOARDING_STARTED).
+3. Next turn: normal flow.
+```
+
+### 34.2 First-week nudges
+
+If user hasn't asked a comparison question in first week, agent proactively offers on next opening: *"لاحظت لم تسألني عن المقارنة بين الحملات — تحب أريك أفضل حملة الآن؟"*.
+
+Bounded: max 3 nudges total; stops after any acknowledgment.
+
+---
+
+## 35. Deep progressive disclosure (NEW in v3)
+
+Default reply length: 2-3 sentences. Merchant asks for more → expand.
+
+### 35.1 Layered response
+
+Every analyst turn produces two layers:
+
+```
+mainAnswer: string;         // 2-3 sentences, streamed first
+expandedAnswer?: string;    // 5-10 sentences, only sent if merchant taps "أكثر"
+```
+
+Sent as SSE events:
+
+```
+event: main_answer
+data: {"text": "الحملة X أفضل: ROAS 3.2x."}
+
+event: expand_available
+data: {"hasMore": true, "hint": "اشرح لي أكثر"}
+
+// if user clicks "أكثر":
+event: expanded_answer
+data: {"text": "التفاصيل: ..."}
+```
+
+### 35.2 Personalization from §22
+
+Merchant with `terseness=TERSE` → skip `expanded_answer` unless requested.
+Merchant with `terseness=DETAILED` → send both immediately.
+
+---
+
+## 36. Estimated effort (v3)
 
 | Sub-phase | Scope | LOC (net) | Days |
 |---|---|---|---|
-| 2.1 | Prisma migration + hourly breakdown sync extension | ~200 | 0.5 |
-| 2.2 | Tool infrastructure (envelope, cache, rate limit, dispatcher, validator) | ~600 | 1.0 |
-| 2.3 | 12 tool handlers | ~1 800 | 2.0 |
-| 2.4 | Agent loop + classifier + prompts | ~500 | 1.0 |
-| 2.5 | SSE streaming endpoint | ~250 | 0.5 |
-| 2.6 | Daily brief cron + anomaly alert path | ~350 | 0.5 |
-| 2.7 | Evaluation harness + 40 cases | ~800 | 1.0 |
-| 2.8 | Admin observability page + fallback | ~400 | 0.5 |
-| 2.9 | UI wiring: aiPage SSE consumer + proactive brief surface | ~350 | 0.5 |
-| 2.10 | Cleanup: delete V1/V5, remove dead code | ~-1 200 | 0.25 |
-| **Total** | | **~4 050** | **~7.75 days** |
+| 2.1 | Prisma migrations (conversations, signals, anomaly state, prefs, benchmark) + hourly breakdown sync extension | ~350 | 0.75 |
+| 2.2 | Tool infrastructure (envelope, cache, rate limit, dispatcher, validator, dataFreshness) | ~700 | 1.0 |
+| 2.3 | 15 tool handlers (12 from v2 + T13 render_ui_block + T14 check_suspicious + T15 industry_benchmark) | ~2 400 | 2.5 |
+| 2.4 | Agent loop + classifier + prompts + sentiment + session context | ~700 | 1.25 |
+| 2.5 | Anti-hallucination post-check + citation parser + retry logic | ~450 | 0.75 |
+| 2.6 | SSE streaming endpoint (main + expanded layers) | ~350 | 0.5 |
+| 2.7 | Daily brief cron + anomaly alert with escalation ladder + fraud alerts | ~600 | 1.0 |
+| 2.8 | Continuous learning: signal ingestion + threshold tuning + preference EMA | ~500 | 0.75 |
+| 2.9 | Evaluation harness + 40 cases + LLM-as-judge | ~900 | 1.25 |
+| 2.10 | Admin observability page + smart fallback + A/B bucketing telemetry | ~550 | 0.75 |
+| 2.11 | UI wiring: aiPage SSE consumer + proactive brief surface + citation modal + "why?" audit + onboarding flow | ~700 | 1.0 |
+| 2.12 | Industry benchmark aggregation job + consent flow | ~350 | 0.5 |
+| 2.13 | Cleanup: delete V1/V5, remove dead code, docs | ~-1 400 | 0.25 |
+| **Total** | | **~7 150** | **~12.25 days** |
 
-Bigger than v1 estimate (3.5 days → 7.75). Expected — added streaming, proactive mode, evaluation harness, and 4 more tools. This is the honest number for a paradigm shift.
+Grew from v2's 7.75 days → 12.25. The additions in v3 (guardrails, learning loop, preferences, sentiment, escalation, structured output, cold-start, A/B, benchmarking, cross-surface context, onboarding, progressive disclosure) are what turn "an assistant that reads DB" into "an assistant that trusts and gets trusted." Honest number.
+
+---
+
+## 37. What v3 changes vs v2 — summary
+
+Sixteen new sections (§§20–35). The center of gravity moved from *"give Claude better tools"* to *"turn Claude into an accountable, personalized, safety-checked partner"*.
+
+**New core capabilities:**
+
+1. **Zero-hallucination guarantee via post-check** (§20) — every reply is validated against tool outputs; violations trigger a rewind, not a silent error.
+2. **Learning loop** (§21) — the assistant tunes anomaly thresholds, recommendation priorities, and terseness from merchant signals over time.
+3. **User preferences** (§22) — dialect, tone, terseness, currency preference persist per user.
+4. **Session-aware context** (§23) — knows what the merchant is looking at right now.
+5. **Structured UI blocks** (§24) — tables and cards when prose is wrong.
+6. **Escalation ladder** (§25) — day-1 whisper → day-5 warning, per anomaly.
+7. **Sentiment matching** (§26) — acknowledges frustration/anxiety before analysis.
+8. **Cold-start handling** (§27) — new merchants get honest limited-data mode.
+9. **A/B testing infra** (§28) — 10% → 100% ramp with automatic rollback triggers.
+10. **Explainable recommendations** (§29) — every AI rec carries its full reasoning chain.
+11. **Fraud safety net** (§30) — impression fraud, budget bleed, attribution collapse, duplicate charges, runaway budget.
+12. **Industry benchmarking** (§31) — opt-in, cohort-floored, differential-privacy noise.
+13. **Multi-language mid-thread** (§32) — reply in the last-used language, not the conversation locale.
+14. **Onboarding conversation** (§34) — first-run flow with concrete example questions.
+15. **Progressive disclosure** (§35) — 2-sentence answer first, expand on demand.
+16. **Total tools: 15** (up from 12): +T13 `render_ui_block`, +T14 `check_suspicious_activity`, +T15 `get_industry_benchmark`.
+
+**Anti-pattern audit (re-checked for v3 additions) — still clean.**
