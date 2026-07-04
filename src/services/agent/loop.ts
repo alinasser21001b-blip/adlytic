@@ -29,6 +29,7 @@ import { ToolDispatcher } from './dispatcher';
 import { buildAgentToolHandlers } from './tools';
 import { handlersToAnthropicTools, type AnthropicToolDef } from './anthropicTools';
 import { buildSystemPrompt } from './prompts';
+import { postCheckReply, buildRetryNudge } from './postcheck';
 
 /** Bounds — matches PHASE2_AI_AGENT_DESIGN.md §5 */
 const MAX_ITERATIONS = 6;
@@ -36,6 +37,8 @@ const MAX_TOKENS = 2048;
 const MAX_HISTORY_MESSAGES = 40;   // ~20 turn pairs
 const OVERALL_TIMEOUT_MS = 60_000;
 const ANALYST_MODEL = process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5';
+/** Anti-hallucination rewind attempts before we degrade to fallback. §20. */
+const MAX_POSTCHECK_RETRIES = 2;
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -163,6 +166,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   let totalTokensOut = 0;
   let finalReply = '';
   let iterations = 0;
+  let postCheckRetries = 0;
 
   const overallDeadline = Date.now() + OVERALL_TIMEOUT_MS;
 
@@ -257,7 +261,37 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
       continue;
     }
 
-    // No tool use requested — this is the final answer.
+    // No tool use requested — this is the (candidate) final answer.
+    // Run the anti-hallucination post-check before we ship it.
+    if (assistantText) {
+      const check = postCheckReply({
+        reply: assistantText,
+        userMessage,
+        toolResults: toolCallLog.map((tc) => ({ toolName: tc.toolName, result: tc.result })),
+      });
+      if (!check.ok && postCheckRetries < MAX_POSTCHECK_RETRIES) {
+        // Rewind: append a system-flavored user message spelling out the
+        // offending tokens; loop again for a corrected reply.
+        postCheckRetries++;
+        console.warn(
+          `[ai-agent:postcheck] iteration=${iterations} retry=${postCheckRetries} offenders=${check.offendingTokens.join(',')}`,
+        );
+        anthropicMessages.push({
+          role: 'user',
+          content: buildRetryNudge(check.offendingTokens, promptLocale === 'AR' ? 'AR' : 'EN'),
+        });
+        continue;
+      }
+      if (!check.ok) {
+        // Exhausted retries — degrade to fallback rather than ship claims we can't verify.
+        console.error(
+          `[ai-agent:postcheck] max_retries_exhausted offenders=${check.offendingTokens.join(',')}`,
+        );
+        finalReply = buildHallucinationFallback(promptLocale);
+        break;
+      }
+    }
+
     finalReply = assistantText || buildEmptyReplyPlaceholder(promptLocale);
     break;
   }
@@ -359,4 +393,12 @@ function buildEmptyReplyPlaceholder(locale: Locale): string {
   return locale === 'AR'
     ? 'ما لديّ رد نصي هذه المرة — راجع الأدوات المستدعاة في الجانب.'
     : 'No text reply produced — see the tool calls in the side panel.';
+}
+
+/** Final fallback when the anti-hallucination check keeps failing.
+ *  Better to say "I can't answer cleanly" than to ship claims we can't verify. */
+function buildHallucinationFallback(locale: Locale): string {
+  return locale === 'AR'
+    ? 'ما قدرت أعطيك جواباً بأرقام موثوقة الآن. جرب سؤالاً أضيق أو أعد المحاولة، وسأتحقق مرة أخرى من البيانات.'
+    : "I couldn't produce a numerically verifiable answer this turn. Please narrow the question or try again.";
 }

@@ -10,14 +10,20 @@
 
 import type { ToolHandler } from '../dispatcher';
 import { listCampaignsHandler } from './listCampaigns';
+import { getCampaignDetailsHandler } from './getCampaignDetails';
 import { rankCampaignsHandler } from './rankCampaigns';
+import { comparePeriodsHandler } from './comparePeriods';
+import { detectAnomalyHandler } from './detectAnomaly';
 import { saveRecommendationHandler } from './saveRecommendation';
 
 /** Build the full tool set. Called once per HTTP request by the dispatcher. */
 export function buildAgentToolHandlers(): ToolHandler<unknown, unknown>[] {
   return [
     listCampaignsHandler(),
+    getCampaignDetailsHandler(),
     rankCampaignsHandler(),
+    comparePeriodsHandler(),
+    detectAnomalyHandler(),
     saveRecommendationHandler(),
   ] as unknown as ToolHandler<unknown, unknown>[];
 }
