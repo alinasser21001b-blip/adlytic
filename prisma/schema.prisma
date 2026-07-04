@@ -23,7 +23,24 @@ model User {
   activatedBy  String?           @map("activated_by")
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
-  memberships  WorkspaceMember[]
+
+  // ── AI Assistant preferences (Phase 2 v3) ──────────────────────────────
+  /// Preferred locale for the AI assistant. Falls back to `locale` when null.
+  aiLocale       Locale?       @map("ai_locale")
+  /// Arabic dialect for the AI assistant to match (iraqi|gulf|levantine|egyptian).
+  /// Free-form to allow future values without a migration.
+  aiDialect      String?       @map("ai_dialect")
+  /// Merchant's preferred reply length. EMA-tuned from dwell-time signals.
+  aiTerseness    AiTerseness   @default(BALANCED) @map("ai_terseness")
+  /// Merchant's preferred conversational register.
+  aiPersonality  AiPersonality @default(DIRECT) @map("ai_personality")
+  /// Optional currency code override for AI money formatting (e.g. "IQD" to
+  /// force IQD display when the ad account is USD-denominated).
+  aiCurrencyPref String?       @map("ai_currency_pref")
+
+  memberships     WorkspaceMember[]
+  aiConversations AiConversation[]
+  aiSignals       AiSignal[]
 
   @@index([isActive])
   @@map("users")
@@ -57,6 +74,7 @@ model Workspace {
   executions      RecommendationExecution[]
   paymentEvents   PaymentEvent[]
   metaConnections MetaConnection[]
+  aiConversations AiConversation[]
 
   @@index([industryProfileId])
   @@index([subscriptionStatus])
@@ -460,11 +478,24 @@ model Recommendation {
   sourceIssuesJson Json                     @map("source_issues_json")
   detailsJson      Json?                    @map("details_json")
   createdAt        DateTime                 @default(now()) @map("created_at")
+
+  // ── AI Assistant fields (Phase 2 v3) ────────────────────────────────────
+  /// Provenance of this recommendation. Existing rows default to V1_RULES.
+  source              RecommendationSource @default(V1_RULES)
+  /// Full reasoning chain when source = AI_AGENT: tool calls, key facts,
+  /// alternatives considered, confidence. Enables the "لماذا اقترحت هذا؟" UX.
+  reasoningChainJson  Json?               @map("reasoning_chain_json")
+  /// Link back to the conversation that produced this recommendation.
+  aiConversationId    String?             @map("ai_conversation_id")
+  /// Link to the specific assistant message that emitted this recommendation.
+  aiMessageId         String?             @map("ai_message_id")
+
   execution        RecommendationExecution?
 
   @@unique([entityType, entityId, date, actionCode])
   @@index([entityType, entityId, date])
   @@index([priority])
+  @@index([source, createdAt])
   @@map("recommendations")
 }
 
@@ -725,6 +756,58 @@ enum Locale {
 enum RecommendationSource {
   V1_RULES
   V5_INTELLIGENCE
+  /// Phase 2 v3 — Recommendation authored by the AI agent via save_recommendation tool.
+  AI_AGENT
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  AI Assistant enums (Phase 2 v3)
+// ════════════════════════════════════════════════════════════════════════
+
+enum AiMessageRole {
+  USER
+  ASSISTANT
+  TOOL
+  SYSTEM
+}
+
+enum AiSignalType {
+  /// Merchant accepted a recommendation via the UI.
+  RECOMMENDATION_ACCEPTED
+  /// Merchant dismissed a recommendation.
+  RECOMMENDATION_DISMISSED
+  /// Merchant opened / interacted with a proactive alert.
+  ALERT_TAPPED
+  /// Merchant let a proactive alert expire without opening it.
+  ALERT_IGNORED
+  /// Merchant read the daily brief (opened + dwelled > 3s).
+  BRIEF_READ
+  /// Merchant skipped the daily brief.
+  BRIEF_SKIPPED
+  /// Merchant tapped the "helpful" thumb on an assistant reply.
+  MESSAGE_HELPFUL
+  /// Merchant tapped the "not helpful" thumb.
+  MESSAGE_UNHELPFUL
+  /// Aggregate dwell time on an assistant message (metadata.dwellMs).
+  DWELL_TIME
+  /// Merchant clicked a citation to inspect a tool call.
+  CITATION_CLICKED
+  /// Onboarding conversation started for a new merchant.
+  ONBOARDING_STARTED
+  /// Merchant silenced a specific anomaly for 7 days.
+  ANOMALY_SILENCED
+}
+
+enum AiTerseness {
+  TERSE
+  BALANCED
+  DETAILED
+}
+
+enum AiPersonality {
+  DIRECT
+  ENCOURAGING
+  PROFESSIONAL
 }
 
 enum UserActionStatus {
@@ -941,4 +1024,139 @@ model CampaignHistoryRollup {
   @@unique([workspaceId, objective, windowKey])
   @@index([workspaceId, windowKey])
   @@map("campaign_history_rollups")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  AI Assistant tables (Phase 2 v3)
+//
+//  These tables give the Adlytic Smart CMO agent:
+//    • conversation memory across turns (AiConversation + AiMessage)
+//    • per-workspace / per-user learning signals (AiSignal)
+//    • per-anomaly escalation ladder state (AiAnomalyState)
+//
+//  The agent's tool responses are cached in-process, not here — this file
+//  only stores durable state that must survive process restarts.
+// ════════════════════════════════════════════════════════════════════════
+
+/// One chat thread. Created per interactive session OR per proactive push
+/// (daily brief, anomaly alert). `isProactive` distinguishes the two so the
+/// UI can filter and the observability layer can measure engagement.
+model AiConversation {
+  id           String   @id @default(cuid())
+  workspaceId  String   @map("workspace_id")
+  userId       String   @map("user_id")
+  /// Human-readable label — LLM-generated after the second turn.
+  title        String?
+  /// Conversation default locale. Per-message language can override this
+  /// (§32 multi-language mid-thread).
+  locale       Locale   @default(AR)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  /// True when the conversation was initiated by the agent (daily brief,
+  /// anomaly alert), not by the merchant. Filters the chat sidebar.
+  isProactive  Boolean  @default(false) @map("is_proactive")
+  /// When isProactive=true: what triggered it. Free-form enum-like string.
+  ///  'daily_brief' | 'anomaly_alert' | 'fraud_alert' | 'first_run'
+  triggerType  String?  @map("trigger_type")
+
+  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId],      references: [id], onDelete: Cascade)
+  messages     AiMessage[]
+
+  @@index([workspaceId, updatedAt])
+  @@index([userId, updatedAt])
+  @@index([workspaceId, isProactive, createdAt])
+  @@map("ai_conversations")
+}
+
+/// One entry in a conversation. Includes USER, ASSISTANT, TOOL, and SYSTEM
+/// messages. TOOL messages persist the exact tool arguments and result so
+/// (a) Claude can re-read them via the standard messages history contract
+/// and (b) the audit modal ("لماذا اقترحت هذا؟") can quote them verbatim
+/// weeks later.
+model AiMessage {
+  id              String   @id @default(cuid())
+  conversationId  String   @map("conversation_id")
+  role            AiMessageRole
+  /// Prose content for USER/ASSISTANT/SYSTEM. Empty string for TOOL rows
+  /// (their payload lives in the JSON columns below).
+  content         String   @db.Text
+  /// When role=ASSISTANT: array of tool_use blocks requested by the model.
+  /// When role=USER/SYSTEM/TOOL: null.
+  toolCallsJson   Json?    @map("tool_calls_json")
+  /// When role=TOOL: the ToolResult<T> envelope returned by the dispatcher.
+  toolResultsJson Json?    @map("tool_results_json")
+  /// Per-turn token accounting for cost observability.
+  tokensIn        Int?     @map("tokens_in")
+  tokensOut       Int?     @map("tokens_out")
+  latencyMs       Int?     @map("latency_ms")
+  /// Which Anthropic model produced this row.
+  model           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  conversation    AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+/// Merchant behavioral signal. Fed into the continuous learning loop (§21)
+/// to EMA-tune per-workspace anomaly thresholds, recommendation priorities,
+/// terseness, and suggested-question weights.
+///
+/// Signals are append-only; the tuning worker reads recent windows and
+/// updates cached parameters. Never delete rows here — they're the audit
+/// trail for why a workspace's assistant behaves as it does.
+model AiSignal {
+  id            String       @id @default(cuid())
+  workspaceId   String       @map("workspace_id")
+  userId        String       @map("user_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  signalType    AiSignalType @map("signal_type")
+  /// What the signal is ABOUT. E.g. 'recommendation' | 'alert' | 'brief' | 'message'.
+  targetType    String       @map("target_type")
+  /// FK-like reference to the target row. Not a hard FK because target tables
+  /// vary (Recommendation, AiMessage, etc.); the app layer resolves it.
+  targetId      String       @map("target_id")
+  /// Signal-specific metadata: { dismissReason, dwellMs, citationRef, ... }.
+  metadata      Json?
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, signalType, createdAt])
+  @@index([userId, signalType, createdAt])
+  @@index([targetType, targetId])
+  @@map("ai_signals")
+}
+
+/// Escalation-ladder state per (workspace, entity, metric, direction).
+/// Tracked because the same anomaly persisting for days should escalate
+/// the alert's tone (whisper → normal → concerned → escalation). See §25.
+model AiAnomalyState {
+  id                String     @id @default(cuid())
+  workspaceId       String     @map("workspace_id")
+  entityType        EntityType @map("entity_type")
+  entityId          String     @map("entity_id")
+  /// Which metric is anomalous. E.g. 'cost_per_message', 'ctr', 'spend'.
+  metric            String
+  /// Signed direction: 'better' | 'worse'. Direction matters for tone —
+  /// a persistent "better" anomaly is exciting; a persistent "worse"
+  /// anomaly is alarming.
+  direction         String
+  firstDetectedAt   DateTime   @map("first_detected_at")
+  lastDetectedAt    DateTime   @map("last_detected_at")
+  /// Rungs of the escalation ladder — 1 = whisper, 2 = normal,
+  /// 3-4 = concerned, 5+ = escalation.
+  daysAnomalous     Int        @default(1) @map("days_anomalous")
+  totalAlerts       Int        @default(0) @map("total_alerts")
+  /// Latest merchant response for suppression logic:
+  ///   'acknowledged' | 'dismissed' | 'silenced_until_YYYY-MM-DD' | null.
+  merchantResponse  String?    @map("merchant_response")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, entityType, entityId, metric, direction])
+  @@index([workspaceId, lastDetectedAt])
+  @@map("ai_anomaly_states")
 }

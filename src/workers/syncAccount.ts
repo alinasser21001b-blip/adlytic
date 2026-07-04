@@ -909,7 +909,17 @@ export class SyncAccountWorker {
     }
 
     // Each dimension is fetched separately — see header for why.
-    const DIMENSIONS = ['age', 'gender', 'publisher_platform', 'platform_position'] as const;
+    // 'hourly_stats_aggregated_by_advertiser_time_zone' added for Phase 2 v3
+    // (AI agent T9 get_hourly_pattern tool). Meta stores it under that exact
+    // field name on breakdown rows; the generic mapMetaBreakdownInsight handles
+    // it without a mapper change.
+    const DIMENSIONS = [
+      'age',
+      'gender',
+      'publisher_platform',
+      'platform_position',
+      'hourly_stats_aggregated_by_advertiser_time_zone',
+    ] as const;
     const INTER_DIM_DELAY_MS = 200;
 
     let rowsUpserted = 0;
