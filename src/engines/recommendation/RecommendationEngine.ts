@@ -32,6 +32,10 @@ import {
   findActionsForBreaches,
   type CampaignMetrics,
 } from "../../knowledge";
+import {
+  resolveBenchmarkIndustry,
+  toBenchmarkEvaluationOptions,
+} from "../../knowledge/industryRouting";
 
 export interface RecommendationOptions {
   /** "as of" date for the run. Matches what Rules wrote. */
@@ -80,8 +84,13 @@ export class RecommendationEngine {
 
       // Meta Ads KB FIRST — attach verbatim actions when live metrics breach thresholds.
       const metrics = await this.loadCampaignMetrics(entityType, entityId, asOf);
+      const industry =
+        entityType === EntityType.ACCOUNT
+          ? await resolveBenchmarkIndustry(this.prisma, { adAccountId: entityId })
+          : await resolveBenchmarkIndustry(this.prisma, {});
+      const benchmarkOptions = toBenchmarkEvaluationOptions(industry);
       const kbBreaches = evaluateCampaign(metrics);
-      const benchmarkInsights = evaluateBenchmarks(metrics);
+      const benchmarkInsights = evaluateBenchmarks(metrics, benchmarkOptions);
       const kbActions = findActionsForBreaches(kbBreaches);
 
       let recommendation: RecommendationRecord | null = null;

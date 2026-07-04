@@ -36,6 +36,10 @@ import {
   formatActionsForDisplay,
   type CampaignMetrics,
 } from "../knowledge";
+import {
+  resolveBenchmarkIndustryFromContext,
+  toBenchmarkEvaluationOptions,
+} from "../knowledge/industryRouting";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
@@ -587,7 +591,11 @@ export async function getDashboard(
     cost_per_message: totalMsgs > 0 ? totalSpendMinor / totalMsgs : null,
   };
   const kbBreaches = evaluateCampaign(kbMetrics);
-  const benchmarkInsights = evaluateBenchmarks(kbMetrics);
+  const resolvedIndustry = resolveBenchmarkIndustryFromContext({ workspace: ws });
+  const benchmarkInsights = evaluateBenchmarks(
+    kbMetrics,
+    toBenchmarkEvaluationOptions(resolvedIndustry),
+  );
   const kbActionTexts = formatActionsForDisplay(findActionsForBreaches(kbBreaches));
 
   const METRIC_ISSUE_CODE: Record<string, IssueCode> = {

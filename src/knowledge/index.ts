@@ -34,6 +34,17 @@ export {
 } from "./benchmarkIntelligence";
 
 export {
+  resolveBenchmarkIndustry,
+  resolveBenchmarkIndustryFromContext,
+  resolveBenchmarkIndustryFromProfile,
+  toBenchmarkEvaluationOptions,
+  type IndustryProfileLike,
+  type IndustryResolutionSource,
+  type IndustryRoutingContext,
+  type ResolvedBenchmarkIndustry,
+} from "./industryRouting";
+
+export {
   MetaKnowledgeInsightEngine,
   metaKnowledgeInsightEngine,
   type KnowledgeInsightRecommendation,
