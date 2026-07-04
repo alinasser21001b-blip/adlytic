@@ -1,0 +1,23 @@
+// ════════════════════════════════════════════════════════════════════════
+//  src/services/agent/tools/index.ts
+//
+//  Registry of all AI-agent tool handlers. Import order matters only for
+//  the string ordering of the dispatcher's error-listing suggestion; not
+//  for correctness.
+//
+//  As more tools land (T2, T3, T5-T11, T13-T15), append them here.
+// ════════════════════════════════════════════════════════════════════════
+
+import type { ToolHandler } from '../dispatcher';
+import { listCampaignsHandler } from './listCampaigns';
+import { rankCampaignsHandler } from './rankCampaigns';
+import { saveRecommendationHandler } from './saveRecommendation';
+
+/** Build the full tool set. Called once per HTTP request by the dispatcher. */
+export function buildAgentToolHandlers(): ToolHandler<unknown, unknown>[] {
+  return [
+    listCampaignsHandler(),
+    rankCampaignsHandler(),
+    saveRecommendationHandler(),
+  ] as unknown as ToolHandler<unknown, unknown>[];
+}
