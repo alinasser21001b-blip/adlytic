@@ -190,7 +190,7 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
 
       const rows = await prisma.dailyStat.findMany({
         where: {
-          entityType: args.entityType as EntityType,
+          entityType: toDbEntityType(args.entityType),
           entityId: args.entityId,
           date: { gte: earliest, lte: latest },
         },
@@ -268,6 +268,13 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
 
 function utcMidnight(ms: number): Date {
   return new Date(new Date(ms).toISOString().slice(0, 10));
+}
+
+/** Tool schema exposes 'ADSET' (matches Meta's terminology) but Prisma's
+ *  EntityType enum column is 'AD_SET'. Map explicitly — a blind `as EntityType`
+ *  cast would silently send an invalid enum value to Postgres. */
+function toDbEntityType(t: ComparePeriodsArgs['entityType']): EntityType {
+  return t === 'ADSET' ? EntityType.AD_SET : (t as EntityType);
 }
 
 function pctChange(a: number | null, b: number | null): number | null {
