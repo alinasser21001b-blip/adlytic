@@ -724,17 +724,69 @@ select.form-input { cursor: pointer; }
 }
 .context-action-chip:hover { background: var(--accent); color: #fff; }
 
-/* ── Responsive ──────────────────────────────────────────────────── */
+/* ── Sidebar overlay (mobile) ─────────────────────────────────────── */
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0; z-index: 99;
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);
+  opacity: 0; transition: opacity 0.2s;
+}
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); transition: transform var(--transition); }
+  .sidebar-overlay.visible { display: block; opacity: 1; }
+}
+
+/* ── Responsive ──────────────────────────────────���───────────────── */
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); transition: transform var(--transition); z-index: 100; }
   .sidebar.open { transform: translateX(0); }
-  .main { margin-left: 0; }
+  .main { margin-left: 0; padding-bottom: 72px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-grid { grid-template-columns: 1fr; }
-  .page-content { padding: 16px; }
+  .page-content { padding: 14px 12px 24px; }
   .mobile-menu-btn { display: flex !important; }
+  .topbar { padding: 0 12px; }
+  .topbar-title { font-size: 14px; }
+  .modal { max-width: calc(100vw - 24px) !important; margin: 12px auto !important; }
 }
 .mobile-menu-btn { display: none; }
+
+/* ── Mobile Bottom Navigation ─────────────────────────────────────── */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 1000;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 6px 0 env(safe-area-inset-bottom, 8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+@media (max-width: 768px) {
+  .mobile-bottom-nav { display: flex; }
+}
+.mobile-nav-item {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 4px;
+  text-decoration: none;
+  color: var(--text-3);
+  font-size: 10px; font-weight: 600;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-nav-item svg { width: 20px; height: 20px; }
+.mobile-nav-item.active { color: var(--accent); }
+.mobile-nav-item:active { transform: scale(0.92); }
+
+/* ── Mobile touch targets + spacing ───────────────────────────────── */
+@media (max-width: 768px) {
+  .btn, .topbar-btn, .nav-item, .context-action-chip { min-height: 44px; min-width: 44px; }
+  .info-btn { min-width: 32px; min-height: 32px; font-size: 13px; }
+  .ticker-item { padding: 6px 12px; }
+  .strategy-card { padding: 14px 16px; }
+  .hero-card { padding: 16px; }
+  .hero-value { font-size: 26px; }
+  .hero-label { font-size: 10px; }
+}
 
 /* ── Dashboard mode toggle (Pro / Beginner) ──────────────────────────── */
 .mode-toggle {
@@ -775,7 +827,7 @@ select.form-input { cursor: pointer; }
 [dir="rtl"] .mode-toggle { margin-right: 0; margin-left: 8px; }
 [dir="rtl"] .topbar-btn.mobile-menu-btn { margin-right: 0; margin-left: 8px; }
 @media (max-width: 768px) {
-  [dir="rtl"] .sidebar { transform: translateX(100%); }
+  [dir="rtl"] .sidebar { transform: translateX(100%); z-index: 100; }
   [dir="rtl"] .sidebar.open { transform: translateX(0); }
   [dir="rtl"] .main { margin-right: 0; }
 }
@@ -1822,7 +1874,16 @@ document.addEventListener('keydown', function (e) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
-    document.querySelector('.sidebar')?.classList.toggle('open');
+    var sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+      sidebar.classList.toggle('open');
+      document.getElementById('sidebar-overlay')?.classList.toggle('visible');
+    }
+  });
+  // Overlay tap closes sidebar
+  document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+    document.querySelector('.sidebar')?.classList.remove('open');
+    document.getElementById('sidebar-overlay')?.classList.remove('visible');
   });
   // Mode toggle — both buttons are wired; clicking the already-active one is
   // a no-op (the server will reload the same page).
@@ -1881,6 +1942,19 @@ export function sidebar(active: string): string {
 </aside>`;
 }
 
+// ── Mobile Bottom Navigation ────────────────────────────────────────────
+function mobileBottomNav(active: string): string {
+  const items = [
+    { id: 'dashboard', label: 'الرئيسية', href: '/dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>' },
+    { id: 'campaigns', label: 'الحملات', href: '/campaigns', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' },
+    { id: 'ai', label: 'الذكاء', href: '/ai', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93"/><path d="M8 6a4 4 0 018 0"/><path d="M12 22v-4"/><circle cx="12" cy="14" r="4"/><path d="M5 18a7 7 0 0114 0"/></svg>' },
+    { id: 'settings', label: 'الإعدادات', href: '/settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z"/></svg>' },
+  ];
+  return `<nav class="mobile-bottom-nav" aria-label="Mobile navigation">${items.map(it =>
+    `<a href="${it.href}" class="mobile-nav-item${active === it.id ? ' active' : ''}">${it.icon}<span>${it.label}</span></a>`
+  ).join('')}</nav>`;
+}
+
 // ── Topbar HTML ─────────────────────────────────────────────────────────
 // `currentMode` selects which segment of the dashboard mode toggle is
 // highlighted. When undefined, the toggle is not rendered (used for pages
@@ -1933,6 +2007,7 @@ export function layout(opts: {
 </head>
 <body>
   <div id="toast-container"></div>
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
   <div class="app-shell">
     ${sidebar(active)}
     <div class="main">
@@ -1956,6 +2031,7 @@ export function layout(opts: {
       </div>
     </div>
   </div>
+  ${mobileBottomNav(active)}
   <div id="metric-info-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeMetricInfo()">
     <div class="modal" style="max-width:420px;">
       <div class="modal-title" id="metric-info-title" style="display:flex;align-items:center;gap:8px;"></div>

@@ -55,6 +55,24 @@ export function aiPage(): string {
   .data-chip { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--accent-dim);color:var(--accent-2);border-radius:4px;font-size:11px;font-weight:600;margin:2px; }
   .tool-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
   .tool-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-3); border-radius:10px; font-size:10.5px; }
+
+  @media (max-width: 768px) {
+    .chat-shell { flex-direction:column; height:calc(100vh - var(--topbar-h) - 140px); min-height:400px; }
+    .chat-sidebar { width:100%; flex-shrink:0; max-height:120px; overflow-x:auto; overflow-y:hidden; flex-direction:row; gap:8px; }
+    .chat-sidebar .card { min-width:200px; flex-shrink:0; padding:10px 12px !important; }
+    .chat-main { min-height:0; }
+    .chat-messages { padding:12px; gap:10px; }
+    .msg { max-width:92%; }
+    .msg-bubble { padding:9px 12px; font-size:13px; }
+    .chat-input-area { padding:10px 12px; }
+    .chat-input { min-height:38px; font-size:14px; padding:8px 12px; }
+    .chat-send-btn { width:38px; height:38px; }
+    .chat-header { padding:10px 14px; }
+  }
+  @media (max-width: 480px) {
+    .chat-sidebar { max-height:100px; }
+    .suggested-text { font-size:11.5px; }
+  }
 </style>
 
 <div class="page-header">

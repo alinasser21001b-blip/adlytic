@@ -486,4 +486,46 @@ export const dashboardStyles = `<style>
       font-size: 11px; font-weight: 800;
     }
 
+    /* ── Mobile Dashboard Optimizations ──────────────────────────────── */
+    @media (max-width: 768px) {
+      .hero-grid { gap: 10px; margin-bottom: 14px; }
+      .hero-card { padding: 14px 16px; }
+      .hero-value { font-size: 24px; letter-spacing: -0.5px; }
+      .hero-sub { font-size: 11px; margin-top: 4px; }
+      .hero-delta { font-size: 10.5px; padding: 2px 7px; margin-top: 6px; }
+
+      .ticker-wrap { margin-bottom: 14px; border-radius: var(--radius); }
+      .ticker-header { padding: 6px 10px 5px; }
+      .ticker-header-title { font-size: 10px; }
+      .ticker-scroll-area { padding: 7px 0; }
+      .ticker-item { font-size: 12px; padding: 4px 8px; gap: 5px; }
+      .ticker-badge { font-size: 9px; padding: 1px 5px; }
+
+      .ai-context-strip { font-size: 10px; padding: 5px 10px; margin-bottom: 12px; gap: 6px; flex-wrap: wrap; }
+
+      .active-grid { gap: 8px; }
+      .active-card { padding: 12px 14px; }
+      .active-name { font-size: 12px; }
+
+      .split-grid { gap: 14px; margin-bottom: 18px; }
+      .brain-box { padding: 14px; }
+      .brain-box-head { margin-bottom: 10px; }
+      .strategy-card { padding: 12px 14px; margin-bottom: 8px; }
+      .strategy-title { font-size: 12.5px; }
+      .strategy-body { font-size: 11.5px; }
+
+      .main-move-card { padding: 16px; }
+      .main-move-title { font-size: 15px; }
+      .main-move-why { font-size: 12px; }
+
+      .exec-pulse-banner { padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .hero-grid > :last-child { grid-column: 1 / -1; }
+      .hero-value { font-size: 20px; }
+      .active-grid { grid-template-columns: 1fr !important; }
+    }
+
   </style>`;

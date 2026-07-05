@@ -199,6 +199,10 @@ export function campaignsPage(): string {
       border-radius: 6px;
       direction: rtl;
     }
+    @media (max-width: 768px) {
+      .inspector-tab { padding: 8px 12px; font-size: 13px; }
+      .inspector-creative-card { border-radius: 8px; }
+    }
   </style>
 
   <!-- Campaign Inspector Modal — populated on-demand from
