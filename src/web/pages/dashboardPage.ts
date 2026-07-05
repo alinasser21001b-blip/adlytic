@@ -256,6 +256,7 @@ export function dashboardPage(): string {
     lastInsights: [],
     lastCampaigns: [],
     lastSyncedAt: null,
+    lastIssues: [],
   };
 
   ${i18nHelpersJs}
@@ -1402,6 +1403,7 @@ export function dashboardPage(): string {
       if (chartMeta) chartMeta.textContent = state.currency;
       updateLastUpdatedLabel(dashData);
       state.lastSyncedAt = (dashData.workspace && dashData.workspace.lastSyncedAt) || null;
+      state.lastIssues = Array.isArray(dashData.issues) ? dashData.issues : [];
 
       safeRender('hero', function () { renderHero(dashData, insights); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });

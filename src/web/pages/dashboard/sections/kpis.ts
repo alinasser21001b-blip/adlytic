@@ -28,10 +28,14 @@ export const renderKpisJs = `
       var infoHtml = (typeof METRIC_GLOSSARY !== 'undefined' && METRIC_GLOSSARY[k.key])
         ? ' <button type="button" class="info-btn" data-metric-info="' + k.key + '"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button>'
         : '';
+      var contextHtml = (typeof renderContextActions === 'function')
+        ? renderContextActions(k.key, state.lastIssues)
+        : '';
       return '<div class="kpi-card">'
         + '<div class="kpi-label">' + escHtml(k.label || k.key) + infoHtml + '</div>'
         + '<div class="kpi-value">' + escHtml(String(k.display || k.value || '—')) + '</div>'
         + deltaHtml
+        + contextHtml
       + '</div>';
     }).join('');
   }

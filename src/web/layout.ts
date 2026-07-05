@@ -709,6 +709,21 @@ select.form-input { cursor: pointer; }
 .metric-info-causes { margin: 0; padding-inline-start: 18px; font-size: 13px; color: var(--text-2); line-height: 1.6; }
 .metric-info-causes li { margin-bottom: 3px; }
 
+/* ── Smart Context Actions — chip row under a KPI's delta, only when an
+   issue is actively affecting that metric. Quiet by default (no chips on
+   healthy metrics), matches the redesign's "recessive unless there's a
+   story" principle. ──────────────────────────────────────────────────── */
+.context-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.context-action-chip {
+  display: inline-flex; align-items: center;
+  font-size: 10.5px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--accent-dim); color: var(--accent-2);
+  border: 1px solid transparent;
+  transition: all var(--transition);
+}
+.context-action-chip:hover { background: var(--accent); color: #fff; }
+
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); transition: transform var(--transition); }
@@ -1571,6 +1586,81 @@ var METRIC_GLOSSARY = {
     causes: [],
   },
 };
+
+// ── Smart Context Actions ────────────────────────────────────────────────
+// A lookup table, not a rules engine: which IssueCode (from the schema's
+// IssueCode enum — see prisma/schema.prisma) drives which metric, and which
+// 1-3 actions make sense once that issue is active. Deliberately NOT an LLM
+// decision — the issue code already fully determines the right actions, so
+// spending a model call to reproduce that would just add latency for the
+// same answer. See PHASE3_IFA_DESIGN.md §2.
+var METRIC_TO_ISSUE_CODES = {
+  ctr: ['LOW_CTR', 'AUDIENCE_FATIGUE'],
+  cpm: ['HIGH_CPM'],
+  frequency: ['HIGH_FREQUENCY', 'AUDIENCE_FATIGUE'],
+  spend: ['BUDGET_BURNING_FAST'],
+  reach: ['LOW_REACH'],
+  cost_per_result: ['RISING_COST_PER_RESULT'],
+  cost_per_messaging_conversation: ['RISING_COST_PER_RESULT'],
+  messages: ['DECLINING_RESULTS', 'STALLED_DELIVERY'],
+  roas: ['DECLINING_RESULTS'],
+};
+
+var ACTIONS_BY_ISSUE = {
+  LOW_CTR: [
+    { label: 'تحليل الإبداع', question: 'حملتي تعاني من انخفاض معدل النقر (CTR) — حلّل أداء الإبداعات الحالية وأخبرني ما المشكلة بالتحديد.' },
+    { label: 'جودة الجمهور', question: 'هل استهداف جمهوري هو سبب انخفاض معدل النقر؟ حلّل جودة الجمهور الحالي.' },
+  ],
+  HIGH_CPM: [
+    { label: 'تحليل المزاد', question: 'تكلفة الألف ظهور (CPM) مرتفعة في حملتي — هل السبب منافسة في المزاد؟ اشرح لي التفاصيل.' },
+    { label: 'تشبع الجمهور', question: 'هل جمهوري المستهدف مُشبع وهذا سبب ارتفاع CPM؟ حلّل التكرار وحجم الجمهور.' },
+  ],
+  HIGH_FREQUENCY: [
+    { label: 'تحديث الإبداع', question: 'التكرار مرتفع جداً في حملتي — هل حان وقت تحديث الإبداعات؟ اقترح خطة عملية.' },
+    { label: 'توسيع الجمهور', question: 'التكرار مرتفع في حملتي — هل يجب أن أوسّع الجمهور المستهدف؟' },
+  ],
+  AUDIENCE_FATIGUE: [
+    { label: 'تحليل الإبداع', question: 'أرى علامات تعب في الإعلان (فريكوينسي مرتفع مع تراجع في التفاعل) — حلّل السبب الحقيقي واقترح حلاً.' },
+  ],
+  DECLINING_RESULTS: [
+    { label: 'لماذا التراجع', question: 'نتائج حملتي تتراجع — ما السبب الرئيسي وما الذي تنصح به الآن؟' },
+  ],
+  BUDGET_BURNING_FAST: [
+    { label: 'تحليل الإنفاق', question: 'ميزانية حملتي تُستنزف بسرعة أكبر من المتوقع — حلّل السبب واقترح كيف أتحكم بالإنفاق.' },
+  ],
+  LOW_REACH: [
+    { label: 'توسيع الاستهداف', question: 'وصول حملتي منخفض جداً — هل الاستهداف ضيق جداً؟ اقترح كيف أوسّعه.' },
+  ],
+  RISING_COST_PER_RESULT: [
+    { label: 'تحليل صفحة الهبوط', question: 'تكلفة النتيجة في حملتي ترتفع رغم أن معدل النقر جيد — هل المشكلة بعد النقرة (صفحة الهبوط أو المتجر)؟' },
+    { label: 'تشخيص إتمام الشراء', question: 'تكلفة النتيجة مرتفعة — تحقق من إعداد التتبّع (Pixel) وعملية إتمام الشراء.' },
+  ],
+  STALLED_DELIVERY: [
+    { label: 'سبب توقف التسليم', question: 'حملتي توقفت عن التسليم أو تسليمها بطيء جداً — ما السبب المحتمل؟' },
+  ],
+};
+
+// Returns an HTML chip row for the given metric key, or '' when no active
+// issue maps to it. 'issues' is the dashboard DTO's already-fetched
+// issues[] array ({ code, severity, ... }) — no new query, no new endpoint.
+function renderContextActions(metricKey, issues, campaignName) {
+  var codes = METRIC_TO_ISSUE_CODES[metricKey];
+  if (!codes || !Array.isArray(issues) || !issues.length) return '';
+  var severityRank = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+  var match = null;
+  issues.forEach(function (iss) {
+    if (codes.indexOf(iss.code) === -1) return;
+    if (!match || (severityRank[iss.severity] ?? 9) < (severityRank[match.severity] ?? 9)) match = iss;
+  });
+  if (!match) return '';
+  var actions = ACTIONS_BY_ISSUE[match.code];
+  if (!actions || !actions.length) return '';
+  var suffix = campaignName ? (' (حملة: ' + campaignName + ')') : '';
+  return '<div class="context-actions">' + actions.map(function (a) {
+    var q = a.question + suffix;
+    return '<a class="context-action-chip" href="/ai?q=' + encodeURIComponent(q) + '">' + a.label + '</a>';
+  }).join('') + '</div>';
+}
 
 // Data Lineage — relative-time formatter for the popover's source block.
 // Deliberately coarse (minutes/hours/days) rather than exact timestamps:
