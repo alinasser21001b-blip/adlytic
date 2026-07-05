@@ -295,6 +295,26 @@ const port = envNumber('PORT', 3001);
 const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 15 * 60 * 1000);
 const rawInsightsRetainDays = envNumber('RAW_INSIGHTS_RETAIN_DAYS', 90);
 
+// ── Service role (Phase A of the sync-layer split) ───────────────────────────
+// 'combined' (default) → one process serves HTTP AND runs background ETL —
+//   byte-for-byte identical to the pre-split single-service deploy.
+// 'api'      → HTTP only; the worker service owns all background ETL. Set this
+//   on the API service once a separate worker service is running.
+// 'worker'   → set by the worker entrypoint (serve.worker.ts); no HTTP server.
+const rawServiceRole = (env('SERVICE_ROLE') ?? 'combined').toLowerCase();
+const serviceRole: 'combined' | 'api' | 'worker' =
+  rawServiceRole === 'api' || rawServiceRole === 'worker' ? rawServiceRole : 'combined';
+record({
+  key: 'SERVICE_ROLE',
+  status: 'ok',
+  detail:
+    serviceRole === 'combined'
+      ? 'combined (default) — this process serves HTTP and runs background sync'
+      : serviceRole === 'api'
+        ? 'api — HTTP only; background sync runs in the worker service'
+        : 'worker — background sync only; no HTTP server',
+});
+
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
 const rawAllowedOrigins = env('ALLOWED_ORIGINS');
@@ -361,6 +381,9 @@ export interface AppConfig {
     rawInsightsRetainDays: number;
   };
 
+  /** Which job this process does. See SERVICE_ROLE above. */
+  role: 'combined' | 'api' | 'worker';
+
   cors: { allowedOrigins: string[] };
 
   /** Phase 2+ feature flags. Each must default to the pre-flag behavior. */
@@ -402,6 +425,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
     intervalMs: syncIntervalMs,
     rawInsightsRetainDays: rawInsightsRetainDays,
   }),
+  role: serviceRole,
   cors: Object.freeze({ allowedOrigins }),
   features: Object.freeze({
     webhookRedisDebounceEnabled,
