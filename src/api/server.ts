@@ -3717,22 +3717,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // first, surfacing a misleading "Another sync is already in progress" error
     // in the UI even though the user's original sync is healthy. Returning the
     // existing jobId lets the frontend poll the REAL ongoing job seamlessly.
+    //
+    // Staleness guard: if the job is older than 15 minutes and still
+    // PENDING/PROCESSING, it's stuck (crashed worker, deploy, OOM). Mark it
+    // FAILED so a fresh job can be created instead of returning a zombie.
+    const STALE_JOB_MS = 15 * 60 * 1000;
     const existingActive = await prisma.syncJob.findFirst({
       where: {
         adAccountId: account.id,
         status: { in: [SyncJobStatus.PENDING, SyncJobStatus.PROCESSING] },
       },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, status: true, windowDays: true, windowSince: true, windowUntil: true },
+      select: { id: true, status: true, windowDays: true, windowSince: true, windowUntil: true, createdAt: true },
     });
     if (existingActive) {
-      return c.json({
-        jobId: existingActive.id,
-        status: existingActive.status,
-        windowDays: existingActive.windowDays,
-        adAccountId: account.id,
-        reused: true,
-      }, 200);
+      const ageMs = Date.now() - existingActive.createdAt.getTime();
+      if (ageMs > STALE_JOB_MS) {
+        await prisma.syncJob.update({
+          where: { id: existingActive.id },
+          data: { status: SyncJobStatus.FAILED, error: 'Timed out — job was stuck for over 15 minutes', completedAt: new Date() },
+        });
+        console.warn(`[adlytic:sync] Marked stale job ${existingActive.id} as FAILED (age ${Math.round(ageMs / 60000)}m)`);
+      } else {
+        return c.json({
+          jobId: existingActive.id,
+          status: existingActive.status,
+          windowDays: existingActive.windowDays,
+          adAccountId: account.id,
+          reused: true,
+        }, 200);
+      }
     }
 
     const job = await prisma.syncJob.create({

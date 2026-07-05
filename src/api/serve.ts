@@ -91,6 +91,22 @@ async function main(): Promise<void> {
     console.warn('[adlytic] Warning: database connection failed — DB-backed routes will error.', err);
   }
 
+  // Clean up zombie SyncJobs left by a prior crash/deploy. Any job that was
+  // PENDING or PROCESSING when the process died will never complete — mark it
+  // FAILED so new sync requests aren't blocked by the "reuse active job" logic.
+  try {
+    const { count } = await prisma.syncJob.updateMany({
+      where: {
+        status: { in: ['PENDING', 'PROCESSING'] },
+        createdAt: { lt: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+      data: { status: 'FAILED', error: 'Server restarted — job was orphaned', completedAt: new Date() },
+    });
+    if (count > 0) console.log(`[adlytic:startup] Cleaned up ${count} orphaned sync job(s)`);
+  } catch (err) {
+    console.warn('[adlytic:startup] Failed to clean up orphaned sync jobs:', err);
+  }
+
   const app = buildRoutes(prisma);
 
   // Phase 3-a: boot BullMQ workers IN-PROCESS. When BULLMQ_ENABLED is off,
