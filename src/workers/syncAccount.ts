@@ -188,14 +188,15 @@ export class SyncAccountWorker {
   async sync(adAccountId: string, opts: SyncOptions = {}): Promise<SyncResult> {
     const lockId = advisoryLockId(adAccountId);
 
-    // Fix C-1 (mirrored from syncChunked) — defensive cleanup of leaked
-    // session-level locks. See lines 1044-1060 for full rationale.
-    // The auto-sync loop in serve.ts calls sync() directly; without this
-    // preflight a crashed prior sync can leave a stale advisory lock on a
-    // pooled connection, causing subsequent auto-sync passes to skip the
-    // account with a misleading "already in progress" warning.
+    // Release any stale lock for THIS account on the pooled connection, then
+    // acquire. Using pg_advisory_unlock($1) instead of pg_advisory_unlock_all()
+    // so we only release the specific per-account lock — not unrelated locks
+    // (e.g. the auto-sync pass lock from serve.ts) that may share the connection.
     const [, lockRows] = await this.prisma.$transaction([
-      this.prisma.$queryRawUnsafe<unknown[]>(`SELECT pg_advisory_unlock_all()`),
+      this.prisma.$queryRawUnsafe<unknown[]>(
+        `SELECT pg_advisory_unlock($1)`,
+        lockId,
+      ),
       this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
         `SELECT pg_try_advisory_lock($1)`,
         lockId,
@@ -1244,25 +1245,15 @@ export class SyncAccountWorker {
     const lockId = advisoryLockId(adAccountId);
     const tag = `[syncChunked:${jobId.slice(0, 8)}]`;
 
-    // Advisory lock — belt-and-suspenders alongside the SyncJob status row.
-    //
-    // Fix C-1 — defensive cleanup of leaked session-level locks.
-    // pg_try_advisory_lock is SESSION-scoped: it persists across queries on the
-    // same pooled connection until pg_advisory_unlock runs on THAT SAME
-    // connection. If a Node process crashes (or is killed mid-sync by a deploy
-    // / OOM / SIGTERM during the chunk loop) the `finally` unlock below never
-    // runs, and Prisma's pg pool eventually serves that still-locked connection
-    // to a future syncChunked — which then fails on pg_try_advisory_lock and
-    // surfaces a misleading "Another sync is already in progress" to the user.
-    //
-    // pg_advisory_unlock_all() releases EVERY session-level advisory lock held
-    // by the current backend. Bundling it with the acquire in a single
-    // $transaction pins both statements to the same pooled connection, so the
-    // connection we're about to lock is also the one we just cleared. The
-    // acquire itself is still session-scoped, so the lock correctly persists
-    // across the (multi-minute) chunk loop after the transaction commits.
+    // Release any stale lock for THIS account on the pooled connection, then
+    // acquire. Using targeted pg_advisory_unlock($1) instead of unlock_all so
+    // we don't accidentally release unrelated locks (e.g. the auto-sync pass
+    // lock) that may share the same pooled connection.
     const [, lockRows] = await this.prisma.$transaction([
-      this.prisma.$queryRawUnsafe<unknown[]>(`SELECT pg_advisory_unlock_all()`),
+      this.prisma.$queryRawUnsafe<unknown[]>(
+        `SELECT pg_advisory_unlock($1)`,
+        lockId,
+      ),
       this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
         `SELECT pg_try_advisory_lock($1)`,
         lockId,

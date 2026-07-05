@@ -1248,11 +1248,16 @@ async function resumeActiveSyncIfAny(workspaceId, opts) {
     var job = await apiFetchWithTimeout('/api/sync-jobs/' + encodeURIComponent(jobId), {}, 5000);
     var active = job && (job.status === 'PENDING' || job.status === 'PROCESSING' || job.status === 'RUNNING' || job.status === 'IN_PROGRESS');
     if (!active) { clearActiveSyncJob(workspaceId); return null; }
+    // Skip stale jobs — if created more than 10 min ago and still "active",
+    // it's likely stuck. Don't block page load polling a zombie job.
+    if (job.createdAt) {
+      var ageMs = Date.now() - new Date(job.createdAt).getTime();
+      if (ageMs > 10 * 60 * 1000) { clearActiveSyncJob(workspaceId); return null; }
+    }
     ensureSyncStatusBar(opts.statusContainerId || 'main-content');
     setSyncButtonsDisabled(true, opts.buttonSelector);
     syncUiState.polling = true;
     updateSyncStatusBar(job, true);
-    toast('System auto-syncing in background…', 'info');
     var completed = await pollSyncJob(jobId, {
       onProgress: function (j) { updateSyncStatusBar(j, true); if (opts.onProgress) try { opts.onProgress(j); } catch (e) {} },
     });
@@ -1260,7 +1265,7 @@ async function resumeActiveSyncIfAny(workspaceId, opts) {
     if (opts.onComplete) try { opts.onComplete(completed); } catch (e) {}
     return completed;
   } catch (err) {
-    console.warn('[sync] resume failed:', err);
+    clearActiveSyncJob(workspaceId);
     return null;
   } finally {
     syncUiState.polling = false;
