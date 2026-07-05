@@ -106,8 +106,26 @@ export function dashboardPage(): string {
 
       <!-- 3 ▸ AI Motion Ticker -->
       <section class="ticker-wrap" id="ticker-wrap" style="display:none;" dir="auto">
-        <div class="ticker-track" id="ticker-track" dir="auto"></div>
+        <div class="ticker-header">
+          <div class="ticker-header-left">
+            <span class="ticker-live-dot"></span>
+            <span class="ticker-header-title" id="ticker-title">AI Monitor</span>
+          </div>
+          <div class="ticker-freshness" id="ticker-freshness"></div>
+        </div>
+        <div class="ticker-scroll-area">
+          <div class="ticker-track" id="ticker-track" dir="auto"></div>
+        </div>
       </section>
+
+      <!-- 3b ▸ AI Context Strip — explains what the AI monitors -->
+      <div class="ai-context-strip" id="ai-context-strip" style="display:none;" dir="auto">
+        <span class="ai-context-item" id="ai-ctx-campaigns"></span>
+        <span class="ai-context-sep">·</span>
+        <span class="ai-context-item" id="ai-ctx-window"></span>
+        <span class="ai-context-sep">·</span>
+        <span class="ai-context-item" id="ai-ctx-interval"></span>
+      </div>
 
       <!-- 3 ▸ Active Ads Showcase -->
       <section class="active-section" id="active-section" style="display:none;">
@@ -431,12 +449,7 @@ export function dashboardPage(): string {
     }
   }
 
-  // ── AI Motion Ticker ─────────────────────────────────────────────────────
-  function tickerBadge(severity, kind) {
-    if (kind === 'kpi') return 'تحسين';
-    if (severity === 'critical' || severity === 'warning') return 'تنبيه';
-    return 'تحسين';
-  }
+  // ── AI Motion Ticker (Enhanced) ──────────────────────────────────────────
   function buildTickerItems(dashData) {
     var items = [];
     var cmoFeedV2 = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
@@ -444,52 +457,122 @@ export function dashboardPage(): string {
       if (it.title) {
         var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'warning' : 'success';
         items.push({
-          badge: tickerBadge(sev, 'feed'),
+          category: 'strategy',
+          badge: lbl('Strategy', 'استراتيجية'),
           severity: sev,
-          text: it.title + ' — ' + (it.campaignName || ''),
+          text: it.title + (it.campaignName ? ' — ' + it.campaignName : ''),
+          explain: it.body || lbl('AI-generated strategic recommendation', 'توصية استراتيجية من الذكاء الاصطناعي'),
         });
       }
     });
     var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
     issues.slice(0, 5).forEach(function (iss) {
       var sev = (iss.severity || 'low').toLowerCase();
+      var mappedSev = sev === 'critical' ? 'critical' : sev === 'high' ? 'warning' : sev === 'medium' ? 'warning' : 'success';
+      var rec = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
       items.push({
-        badge: 'تنبيه',
-        severity: sev === 'critical' ? 'critical' : sev === 'high' ? 'warning' : sev === 'medium' ? 'warning' : 'success',
-        text: (iss.title || iss.code || 'observation') + (iss.recommendations ? ' — ' + (Array.isArray(iss.recommendations) ? iss.recommendations[0] : iss.recommendations) : ''),
+        category: 'alert',
+        badge: lbl('Alert', 'تنبيه'),
+        severity: mappedSev,
+        text: (iss.title || iss.code || lbl('Observation', 'ملاحظة')) + (rec ? ' — ' + rec : ''),
+        explain: rec
+          ? lbl('Recommended action: ', 'الإجراء المقترح: ') + rec
+          : lbl('Review this alert in the issues panel below', 'راجع هذا التنبيه في لوحة المشاكل أدناه'),
       });
     });
     var kpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
     kpis.slice(0, 4).forEach(function (k) {
       if (k.deltaPct == null) return;
-      var dir = k.direction === 'up' ? 'ارتفاع' : 'انخفاض';
+      var pct = Math.abs(Number(k.deltaPct) * 100).toFixed(1);
+      var dir = k.direction === 'up' ? lbl('up', 'ارتفاع') : lbl('down', 'انخفاض');
+      var isGood = k.direction === 'up' ? (k.goodWhenUp !== false) : (k.goodWhenUp === false);
       items.push({
-        badge: 'تحسين',
-        severity: k.direction === 'up' ? (k.goodWhenUp === false ? 'warning' : 'success') : (k.goodWhenUp === false ? 'success' : 'warning'),
-        text: (k.label || k.key) + ' ' + dir + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '% — مراقبة وتحسين تلقائي',
+        category: 'performance',
+        badge: lbl('KPI', 'مؤشر'),
+        severity: isGood ? 'success' : 'warning',
+        text: (k.label || k.key) + ' ' + dir + ' ' + pct + '%',
+        explain: isGood
+          ? lbl('Positive trend — continue current strategy', 'اتجاه إيجابي — استمر في الاستراتيجية الحالية')
+          : lbl('Needs attention — AI is monitoring for further decline', 'يحتاج اهتمام — الذكاء الاصطناعي يراقب أي انخفاض إضافي'),
       });
     });
+    // Intra-day pulse if available
+    var pulse = dashData.brain && dashData.brain.livePulse;
+    if (pulse && pulse.intraDaySpendPct != null) {
+      items.push({
+        category: 'insight',
+        badge: lbl('Today', 'اليوم'),
+        severity: 'success',
+        text: lbl('Budget pacing: ', 'سرعة الإنفاق: ') + pulse.intraDaySpendPct.toFixed(1) + '% ' + lbl('spent', 'أُنفق'),
+        explain: lbl('Percentage of daily budget spent so far today', 'نسبة الميزانية اليومية المنفقة حتى الآن'),
+      });
+    }
     if (items.length === 0) {
-      items.push({ badge: 'تحسين', severity: 'success', text: 'يراقب الذكاء الاصطناعي حسابك · لا توجد تنبيهات نشطة' });
+      items.push({
+        category: 'insight',
+        badge: lbl('Status', 'الحالة'),
+        severity: 'success',
+        text: lbl('AI is monitoring your account — no active alerts', 'الذكاء الاصطناعي يراقب حسابك — لا توجد تنبيهات'),
+        explain: lbl('All metrics are within normal ranges. You will be notified when action is needed.', 'جميع المؤشرات ضمن النطاق الطبيعي. سيتم إعلامك عند الحاجة لإجراء.'),
+      });
     }
     return items;
   }
-  function renderTicker(items) {
+  function renderTicker(items, dashData) {
     if (!items || items.length === 0) return;
     var wrap = document.getElementById('ticker-wrap');
     var track = document.getElementById('ticker-track');
+    var titleEl = document.getElementById('ticker-title');
+    var freshnessEl = document.getElementById('ticker-freshness');
+    if (!wrap || !track) return;
+
+    // Header title (bilingual)
+    if (titleEl) titleEl.textContent = lbl('AI Monitor', 'مراقب الذكاء الاصطناعي');
+
+    // Freshness indicator
+    if (freshnessEl) {
+      var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
+      if (synced) {
+        var ago = Math.round((Date.now() - new Date(synced).getTime()) / 60000);
+        var agoText = ago < 2 ? lbl('Just now', 'الآن') : ago < 60 ? ago + lbl('m ago', 'د') : Math.round(ago / 60) + lbl('h ago', 'س');
+        var isStale = ago > 30;
+        freshnessEl.innerHTML = '<span class="ticker-freshness-dot' + (isStale ? ' stale' : '') + '"></span> '
+          + lbl('Data: ', 'البيانات: ') + escHtml(agoText);
+      } else {
+        freshnessEl.innerHTML = '';
+      }
+    }
+
+    var catIcon = { strategy: '🎯', alert: '⚠️', performance: '📊', insight: '💡' };
     var html = items.concat(items).map(function (it) {
-      var badgeHtml = it.badge
-        ? '<span class="ticker-badge">' + escHtml(it.badge) + '</span>'
+      var icon = catIcon[it.category] || '•';
+      var catCls = 'cat-' + (it.category || 'insight');
+      var tooltipHtml = it.explain
+        ? '<span class="ticker-tooltip" dir="auto">' + escHtml(it.explain) + '</span>'
         : '';
       return '<span class="ticker-item">'
+        + '<span class="ticker-icon">' + icon + '</span>'
         + '<span class="ticker-dot ' + it.severity + '"></span>'
-        + badgeHtml
+        + '<span class="ticker-badge ' + catCls + '">' + escHtml(it.badge) + '</span>'
         + '<span class="ticker-text" dir="auto">' + escHtml(it.text) + '</span>'
+        + tooltipHtml
       + '</span>';
     }).join('');
     track.innerHTML = html;
     wrap.style.display = 'block';
+  }
+  function renderAiContextStrip(dashData, campaigns) {
+    var strip = document.getElementById('ai-context-strip');
+    if (!strip) return;
+    var campCount = Array.isArray(campaigns) ? campaigns.length : 0;
+    var activeCount = Array.isArray(campaigns) ? campaigns.filter(function (c) { return c.isCurrentlySpending; }).length : 0;
+    var ctxCampaigns = document.getElementById('ai-ctx-campaigns');
+    var ctxWindow = document.getElementById('ai-ctx-window');
+    var ctxInterval = document.getElementById('ai-ctx-interval');
+    if (ctxCampaigns) ctxCampaigns.textContent = '🔍 ' + lbl('Monitoring ', 'يراقب ') + campCount + lbl(' campaigns', ' حملة') + (activeCount ? ' (' + activeCount + lbl(' active', ' نشطة') + ')' : '');
+    if (ctxWindow) ctxWindow.textContent = '📅 ' + lbl('28-day analysis window', 'نافذة تحليل 28 يوم');
+    if (ctxInterval) ctxInterval.textContent = '⚡ ' + lbl('Auto-sync every 15min', 'مزامنة تلقائية كل 15 دقيقة');
+    strip.style.display = 'flex';
   }
 
   // ── Active Ads Showcase ─────────────────────────────────────────────────
@@ -1445,7 +1528,8 @@ export function dashboardPage(): string {
 
       safeRender('hero', function () { renderHero(dashData, insights); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
-      safeRender('ticker', function () { renderTicker(buildTickerItems(dashData)); });
+      safeRender('ticker', function () { renderTicker(buildTickerItems(dashData), dashData); });
+      safeRender('aiContext', function () { renderAiContextStrip(dashData, campaigns); });
       safeRender('activeAds', function () { renderActiveAds(campaigns); });
       safeRender('brainBox', function () { renderBrainBox(dashData); });
 

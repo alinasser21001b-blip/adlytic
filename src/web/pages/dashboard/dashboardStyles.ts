@@ -45,40 +45,89 @@ export const dashboardStyles = `<style>
     .hero-delta.down { color: var(--error);   background: var(--error-dim); }
     .hero-delta.flat { color: var(--text-3);  background: rgba(255,255,255,0.04); }
 
-    /* AI Motion Ticker — marquee */
+    /* AI Motion Ticker — enhanced marquee with categories & explanations */
     .ticker-wrap {
       position: relative;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 10px 0;
+      padding: 0;
       margin-bottom: 22px;
       overflow: hidden;
-      mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
     }
-    .ticker-wrap::before {
-      content: 'مباشر'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-      font-size: 10px; font-weight: 800; letter-spacing: normal;
-      color: var(--accent-2);
-      background: var(--accent-dim);
-      padding: 3px 8px; border-radius: 4px;
-      z-index: 2;
+    .ticker-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 14px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ticker-header-left { display: flex; align-items: center; gap: 8px; }
+    .ticker-live-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--success);
+      animation: ticker-pulse 2s ease-in-out infinite;
+    }
+    @keyframes ticker-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .ticker-header-title { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: var(--text-2); text-transform: uppercase; }
+    .ticker-freshness {
+      font-size: 10.5px; color: var(--text-3); display: flex; align-items: center; gap: 4px;
+    }
+    .ticker-freshness-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+    .ticker-freshness-dot.stale { background: var(--warning); }
+    .ticker-scroll-area {
+      overflow: hidden;
+      padding: 9px 0;
+      mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
     }
     .ticker-track {
-      display: inline-flex; gap: 38px;
-      padding-left: 80px;
+      display: inline-flex; gap: 32px;
+      padding-left: 14px;
       white-space: nowrap;
-      animation: ticker-slide 55s linear infinite;
+      animation: ticker-slide 60s linear infinite;
     }
-    .ticker-item { font-size: 13px; color: var(--text); display: inline-flex; align-items: center; gap: 8px; line-height: 1.6; letter-spacing: normal; }
+    .ticker-item {
+      font-size: 13px; color: var(--text); display: inline-flex; align-items: center; gap: 7px;
+      line-height: 1.6; letter-spacing: normal;
+      padding: 3px 10px; border-radius: 6px;
+      transition: background 0.15s;
+      cursor: default; position: relative;
+    }
+    .ticker-item:hover { background: rgba(255,255,255,0.04); }
+    .ticker-icon { font-size: 13px; flex-shrink: 0; }
     .ticker-dot  { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
     .ticker-dot.success  { background: var(--success); }
     .ticker-dot.warning  { background: var(--warning); }
     .ticker-dot.critical { background: var(--error); }
-    .ticker-badge { font-size: 11px; font-weight: 700; color: var(--text-2); letter-spacing: normal; padding: 2px 7px; border-radius: 4px; background: rgba(255,255,255,0.05); }
+    .ticker-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+      padding: 2px 7px; border-radius: 4px;
+    }
+    .ticker-badge.cat-strategy { color: var(--accent-2); background: var(--accent-dim); }
+    .ticker-badge.cat-alert { color: var(--warning); background: rgba(199,122,31,0.12); }
+    .ticker-badge.cat-performance { color: var(--success); background: rgba(52,168,113,0.1); }
+    .ticker-badge.cat-insight { color: var(--text-2); background: rgba(255,255,255,0.05); }
     .ticker-text { letter-spacing: normal; line-height: 1.6; }
+    .ticker-explain {
+      font-size: 11px; color: var(--text-3); margin-inline-start: 4px; opacity: 0.7;
+    }
+    .ticker-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px; font-size: 12px; color: var(--text-2); white-space: normal;
+      max-width: 280px; width: max-content; z-index: 100; box-shadow: var(--shadow-lg);
+      line-height: 1.5; text-align: start;
+    }
+    .ticker-item:hover .ticker-tooltip { display: block; }
     @keyframes ticker-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
+
+    /* AI Context Strip — explains what AI monitors */
+    .ai-context-strip {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      font-size: 11px; color: var(--text-3); padding: 6px 14px;
+      margin-bottom: 16px; border-radius: var(--radius);
+      background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+    }
+    .ai-context-item { display: inline-flex; align-items: center; gap: 4px; }
+    .ai-context-sep { color: var(--text-3); opacity: 0.4; }
 
     /* Active Ads Showcase Grid */
     .active-section { margin-bottom: 24px; }
