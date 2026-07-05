@@ -2242,6 +2242,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json({ date: dateParam, priorDate: priorDate.toISOString().slice(0, 10), attribution });
   });
 
+  /**
+   * GET /api/workspaces/:workspaceId/campaigns/:campaignId/creative-attribution
+   *   ?date=YYYY-MM-DD
+   * Timeline Explorer's per-campaign "which creative drove this day" lookup —
+   * a second, narrower attribution layer alongside /attribution's
+   * impressions/CTR/CVR breakdown. Reuses get_creative_performance's single-
+   * day mode (task #50) via the dispatcher instead of a bespoke query, so the
+   * feature extraction / correlation logic is not duplicated.
+   */
+  app.get('/api/workspaces/:workspaceId/campaigns/:campaignId/creative-attribution', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const { workspaceId, campaignId } = req.params;
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const dateParam = req.query['date'];
+    if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return c.json({ error: 'date must be YYYY-MM-DD' }, 400);
+    }
+    const { ToolDispatcher } = await import('../services/agent/dispatcher');
+    const { buildAgentToolHandlers } = await import('../services/agent/tools');
+    const dispatcher = new ToolDispatcher(buildAgentToolHandlers(), { prisma, workspaceId, userId });
+    const result = await dispatcher.dispatch('get_creative_performance', {
+      campaignId, date: dateParam, metric: 'spend', limit: 3,
+    });
+    if (!result.ok) return c.json({ error: result.error.message }, 404);
+    return c.json(result.data);
+  });
+
   /** GET /api/workspaces/:workspaceId/insights/trends — metric trends. */
   app.get('/api/workspaces/:workspaceId/insights/trends', async (c) => {
     const req = await honoToApiRequest(c);

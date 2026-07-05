@@ -26,6 +26,16 @@ interface GetCreativePerformanceArgs {
   windowDays: number;
   limit: number;
   metric: Metric;
+  /**
+   * Single-day mode (YYYY-MM-DD): rank creatives using ONLY that day's
+   * ad-level stats instead of the windowDays aggregate. Overrides windowDays
+   * when set. Built for Timeline Explorer's click-to-attribute — "which
+   * creative drove THIS day's spike/drop" needs a day, not a rolling window.
+   * A single day's data is thin, so featureCorrelations will often come back
+   * empty (the existing MIN_GROUP_SIZE guard applies here too) — that's a
+   * correct "not enough data for a pattern", not a bug.
+   */
+  date?: string;
 }
 
 interface CreativeFeatures {
@@ -62,6 +72,8 @@ interface GetCreativePerformanceResult {
   campaignName: string;
   metric: Metric;
   windowDays: number;
+  /** Set only in single-day mode (args.date was provided). */
+  date: string | null;
   ranked: RankedAd[];
   featureCorrelations: FeatureCorrelation[];
   totalAdsWithData: number;
@@ -81,7 +93,7 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
   return {
     name: 'get_creative_performance',
     description:
-      "Rank the ads (creatives) inside ONE campaign by a metric, with extracted creative features (has_video, has_carousel, text_length_bucket, cta_type, headline_first_word, has_emoji) and featureCorrelations showing which characteristics correlate with the metric. Use when the merchant asks 'أي إعلان يشتغل أفضل' or 'ليش الإعلان ما يشتغل'. Requires ad-level sync data — if totalAdsWithData is 0, the campaign's ads haven't accumulated daily stats yet (wait for the next sync cycle) rather than having no ads at all.",
+      "Rank the ads (creatives) inside ONE campaign by a metric, with extracted creative features (has_video, has_carousel, text_length_bucket, cta_type, headline_first_word, has_emoji) and featureCorrelations showing which characteristics correlate with the metric. Use when the merchant asks 'أي إعلان يشتغل أفضل' or 'ليش الإعلان ما يشتغل'. Pass `date` (YYYY-MM-DD) instead of windowDays to rank creatives using ONLY that single day's data — use this when asked 'which ad caused the spike/drop on <date>', not the rolling-window mode. Requires ad-level sync data — if totalAdsWithData is 0, the campaign's ads haven't accumulated daily stats yet (wait for the next sync cycle) rather than having no ads at all.",
     schema: {
       type: 'object',
       properties: {
@@ -93,6 +105,7 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
           enum: ['cost_per_message', 'ctr', 'cpm', 'spend', 'messages'],
           default: 'cost_per_message',
         },
+        date: { type: 'string', minLength: 10, maxLength: 10, description: 'Single-day mode, format YYYY-MM-DD — overrides windowDays.' },
       },
       required: ['campaignId'],
       additionalProperties: false,
@@ -113,9 +126,19 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
         });
       }
 
+      let dayDate: Date | null = null;
+      if (args.date != null) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(args.date) || Number.isNaN(Date.parse(args.date))) {
+          return fail('INVALID_INPUT', `"${args.date}" is not a valid YYYY-MM-DD date`, {
+            field: 'date', retryable: false,
+          });
+        }
+        dayDate = utcMidnight(Date.parse(args.date));
+      }
+
       const factor = resolveCurrencyMinorFactor(camp.adAccount.currency, camp.adAccount.currencyMinorFactor);
       const now = new Date();
-      const sinceDate = utcMidnight(now.getTime() - args.windowDays * 864e5);
+      const sinceDate = dayDate ?? utcMidnight(now.getTime() - args.windowDays * 864e5);
 
       const ads = await prisma.ad.findMany({
         where: { adSet: { campaignId: camp.id } },
@@ -128,6 +151,7 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
             campaignName: camp.name,
             metric: args.metric,
             windowDays: args.windowDays,
+            date: args.date ?? null,
             ranked: [],
             featureCorrelations: [],
             totalAdsWithData: 0,
@@ -144,7 +168,9 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
 
       const adIds = ads.map((a) => a.id);
       const dailyRows = await prisma.dailyStat.findMany({
-        where: { entityType: EntityType.AD, entityId: { in: adIds }, date: { gte: sinceDate } },
+        where: dayDate
+          ? { entityType: EntityType.AD, entityId: { in: adIds }, date: dayDate }
+          : { entityType: EntityType.AD, entityId: { in: adIds }, date: { gte: sinceDate } },
       });
 
       const byAd = new Map<string, typeof dailyRows>();
@@ -204,6 +230,7 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
           campaignName: camp.name,
           metric: args.metric,
           windowDays: args.windowDays,
+          date: args.date ?? null,
           ranked: limited,
           featureCorrelations,
           totalAdsWithData: items.length,

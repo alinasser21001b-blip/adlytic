@@ -379,7 +379,7 @@ export function campaignsPage(): string {
           var el = elements[0];
           var ds = chart.data.datasets[el.datasetIndex];
           if (ds && ds.isIssueMarkers && ds.pointDates && ds.pointDates[el.index]) {
-            openTimelineAttribution(ds.pointDates[el.index]);
+            openTimelineAttribution(ds.pointDates[el.index], state.currentInspectorCampaignId);
           }
         },
       }

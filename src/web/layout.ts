@@ -833,6 +833,12 @@ select.form-input { cursor: pointer; }
   background: var(--accent-dim); color: var(--accent-2); letter-spacing: 0.05em;
 }
 .attribution-narrative { font-size: 13px; color: var(--text-2); margin-top: 14px; line-height: 1.6; padding-top: 14px; border-top: 1px solid var(--border); }
+.attribution-creative-card { margin-top: 12px; margin-bottom: 0; }
+.attribution-creative-list { display: flex; flex-direction: column; gap: 8px; }
+.attribution-creative-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.attribution-creative-rank { color: var(--text-3); font-weight: 700; width: 22px; flex-shrink: 0; }
+.attribution-creative-name { color: var(--text-1); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attribution-creative-spend { color: var(--text-2); direction: ltr; font-variant-numeric: tabular-nums; }
 
 /* ── Table horizontal scroll on mobile ──────────────────────────── */
 @media (max-width: 768px) {
@@ -1698,7 +1704,10 @@ function renderAttributionCardHtml(attr, titleText) {
 // Fetches attributeChange()'s output for a single clicked day (vs the same
 // weekday one week earlier) and renders it with the exact same markup as
 // the dashboard's fixed-window attribution card. See PHASE3_IFA_DESIGN.md §3.
-async function openTimelineAttribution(dateIso) {
+// When campaignId is available (e.g. an open campaign inspector), also asks
+// "which creative drove this day" via get_creative_performance's single-day
+// mode — a second, narrower lookup appended below the metric-level card.
+async function openTimelineAttribution(dateIso, campaignId) {
   var overlay = document.getElementById('timeline-attribution-modal');
   var body = document.getElementById('timeline-attribution-body');
   if (!overlay || !body) return;
@@ -1707,11 +1716,37 @@ async function openTimelineAttribution(dateIso) {
   var wsId = getWsId();
   try {
     var res = await apiFetch('/api/workspaces/' + wsId + '/attribution?date=' + dateIso);
-    body.innerHTML = renderAttributionCardHtml(res.attribution, 'سبب تغيّر النتائج — ' + dateIso);
+    var html = renderAttributionCardHtml(res.attribution, 'سبب تغيّر النتائج — ' + dateIso);
+    if (campaignId) {
+      html += await renderCreativeAttributionHtml(wsId, campaignId, dateIso);
+    }
+    body.innerHTML = html;
   } catch (e) {
     var msg = String((e && e.message) || 'تعذّر تحليل هذا اليوم — بيانات غير كافية للمقارنة.')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     body.innerHTML = '<div class="v2-action-empty">' + msg + '</div>';
+  }
+}
+// Best-effort — a thin ad set on a given day is expected to come back empty
+// (totalAdsWithData: 0), which is rendered as "no data" rather than an error.
+async function renderCreativeAttributionHtml(wsId, campaignId, dateIso) {
+  try {
+    var res = await apiFetch('/api/workspaces/' + wsId + '/campaigns/' + campaignId + '/creative-attribution?date=' + dateIso);
+    if (!res.ranked || !res.ranked.length) return '';
+    var rows = res.ranked.map(function (r) {
+      var name = String(r.adName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return '<div class="attribution-creative-row">'
+        + '<span class="attribution-creative-rank">#' + r.rank + '</span>'
+        + '<span class="attribution-creative-name">' + name + '</span>'
+        + '<span class="attribution-creative-spend">' + r.metricDisplay + '</span>'
+      + '</div>';
+    }).join('');
+    return '<div class="attribution-card attribution-creative-card">'
+      + '<div class="attribution-title">أي إعلان يشتغل هذا اليوم</div>'
+      + '<div class="attribution-creative-list">' + rows + '</div>'
+    + '</div>';
+  } catch (e) {
+    return '';
   }
 }
 function closeTimelineAttribution() {
