@@ -285,6 +285,79 @@ input, select, textarea { font-family: inherit; }
 .kpi-delta.down-bad { color: var(--error); background: var(--error-dim); }
 .kpi-delta.flat { color: var(--text-3); background: transparent; }
 
+/* ── Campaigns KPI row ──────────────────────────────────────────── */
+.camp-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.camp-kpi {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+  background-image: var(--grad-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.camp-kpi:hover {
+  border-color: var(--border-2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+.camp-kpi-icon {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.camp-kpi-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.camp-kpi[data-accent="gold"]  .camp-kpi-icon { background: rgba(217,167,89,0.12); color: #D9A759; }
+.camp-kpi[data-accent="green"] .camp-kpi-icon { background: rgba(52,168,113,0.12); color: #34A871; }
+.camp-kpi[data-accent="amber"] .camp-kpi-icon { background: rgba(199,122,31,0.12); color: #C77A1F; }
+.camp-kpi[data-accent="blue"]  .camp-kpi-icon { background: rgba(91,141,239,0.12); color: #5B8DEF; }
+.camp-kpi-body { min-width: 0; }
+.camp-kpi-label {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+.camp-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+.camp-kpi-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* ── Campaigns chart grid (2×2) ─────────────────────────────────── */
+.camp-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
 /* ── Charts ──────────────────────────────────────────────────────── */
 .chart-grid {
   display: grid;
@@ -736,6 +809,8 @@ select.form-input { cursor: pointer; }
   .main { margin-left: 0; padding-bottom: 72px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-grid { grid-template-columns: 1fr; }
+  .camp-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .camp-chart-grid { grid-template-columns: 1fr; }
   .page-content { padding: 14px 12px 24px; }
   .mobile-menu-btn { display: flex !important; }
   .topbar { padding: 0 12px; }

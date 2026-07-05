@@ -62,35 +62,83 @@ export function campaignsPage(): string {
   </div>
 
   <!-- KPI cards -->
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-label">إجمالي الحملات</div>
-      <div class="kpi-value" id="total-campaigns">—</div>
+  <div class="camp-kpi-row">
+    <div class="camp-kpi" data-accent="gold">
+      <div class="camp-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+      </div>
+      <div class="camp-kpi-body">
+        <div class="camp-kpi-label">إجمالي الحملات</div>
+        <div class="camp-kpi-value" id="total-campaigns">—</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label" title="الحملات التي أنفقت اليوم (مطابقة للوحة التحكم)">الإنفاق اليوم</div>
-      <div class="kpi-value" id="active-campaigns" style="color:var(--success);">—</div>
+    <div class="camp-kpi" data-accent="green">
+      <div class="camp-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="camp-kpi-body">
+        <div class="camp-kpi-label">حملات نشطة</div>
+        <div class="camp-kpi-value" id="active-campaigns">—</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">متوقفة مؤقتاً</div>
-      <div class="kpi-value" id="paused-campaigns" style="color:var(--warning);">—</div>
+    <div class="camp-kpi" data-accent="amber">
+      <div class="camp-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+      </div>
+      <div class="camp-kpi-body">
+        <div class="camp-kpi-label">متوقفة مؤقتاً</div>
+        <div class="camp-kpi-value" id="paused-campaigns">—</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">إجمالي الإنفاق <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
-      <div class="kpi-value" id="total-spend" style="font-size:18px;">—</div>
-      <div class="text-xs text-3" id="spend-period" style="margin-top:6px;">آخر 30 يوماً</div>
+    <div class="camp-kpi" data-accent="blue">
+      <div class="camp-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      </div>
+      <div class="camp-kpi-body">
+        <div class="camp-kpi-label">إجمالي الإنفاق <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+        <div class="camp-kpi-value" id="total-spend">—</div>
+        <div class="camp-kpi-sub" id="spend-period">آخر 30 يوماً</div>
+      </div>
     </div>
   </div>
 
-  <!-- Charts -->
-  <div class="chart-grid">
+  <!-- Charts — 2×2 grid -->
+  <div class="camp-chart-grid">
     <div class="chart-card">
-      <div class="chart-card-header"><div class="chart-card-title">الإنفاق عبر الزمن</div></div>
+      <div class="chart-card-header">
+        <div class="chart-card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:var(--accent);"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          الإنفاق عبر الزمن
+        </div>
+      </div>
       <div class="chart-canvas-wrap"><canvas id="chart-spend"></canvas></div>
     </div>
     <div class="chart-card" id="ctr-chart-card">
-      <div class="chart-card-header"><div class="chart-card-title">نسبة النقر عبر الزمن</div></div>
+      <div class="chart-card-header">
+        <div class="chart-card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:#34A871;"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg>
+          نسبة النقر (CTR)
+        </div>
+      </div>
       <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
+    </div>
+    <div class="chart-card" id="reach-chart-card">
+      <div class="chart-card-header">
+        <div class="chart-card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:#5B8DEF;"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          الوصول (Reach)
+        </div>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="chart-reach"></canvas></div>
+    </div>
+    <div class="chart-card" id="impressions-chart-card">
+      <div class="chart-card-header">
+        <div class="chart-card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:#C77A1F;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          مرات الظهور
+        </div>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
     </div>
   </div>
 
@@ -334,6 +382,8 @@ export function campaignsPage(): string {
     days: 30,
     spendChart: null,
     ctrChart: null,
+    reachChart: null,
+    impressionsChart: null,
     workspaceId: null,
     // Currency context — hydrated from /api/workspaces/:id once it returns.
     // Defaults are safe for the common case (USD-style 2-decimal currencies).
@@ -449,7 +499,7 @@ export function campaignsPage(): string {
     if (!hasCtrData) {
       ctrCard.style.display = 'none';
     } else {
-      ctrCard.style.display = 'block';
+      ctrCard.style.display = '';
       if (state.ctrChart) {
         state.ctrChart.data.labels = labels;
         state.ctrChart.data.datasets[0].data = ctrData;
@@ -464,10 +514,52 @@ export function campaignsPage(): string {
         }]);
       }
     }
+
+    var reachData = filtered.map(function(d) { return Number(d.reach) || 0; });
+    var hasReachData = reachData.some(function(v){ return v > 0; });
+    var reachCard = document.getElementById('reach-chart-card');
+    if (!hasReachData) {
+      reachCard.style.display = 'none';
+    } else {
+      reachCard.style.display = '';
+      if (state.reachChart) {
+        state.reachChart.data.labels = labels;
+        state.reachChart.data.datasets[0].data = reachData;
+        state.reachChart.update();
+      } else {
+        state.reachChart = makeLineChart('chart-reach', labels, [{
+          label: 'Reach',
+          data: reachData,
+          borderColor: '#5B8DEF',
+          backgroundColor: 'rgba(91,141,239,0.08)',
+          fill: true, tension: 0.4
+        }]);
+      }
+    }
+
+    var impressionsData = filtered.map(function(d) { return Number(d.impressions) || 0; });
+    var hasImpressionsData = impressionsData.some(function(v){ return v > 0; });
+    var impressionsCard = document.getElementById('impressions-chart-card');
+    if (!hasImpressionsData) {
+      impressionsCard.style.display = 'none';
+    } else {
+      impressionsCard.style.display = '';
+      if (state.impressionsChart) {
+        state.impressionsChart.data.labels = labels;
+        state.impressionsChart.data.datasets[0].data = impressionsData;
+        state.impressionsChart.update();
+      } else {
+        state.impressionsChart = makeLineChart('chart-impressions', labels, [{
+          label: 'Impressions',
+          data: impressionsData,
+          borderColor: '#C77A1F',
+          backgroundColor: 'rgba(199,122,31,0.08)',
+          fill: true, tension: 0.4
+        }]);
+      }
+    }
     } catch (chartErr) {
       console.error('[campaigns] chart render failed:', chartErr);
-      var ctrCard = document.getElementById('ctr-chart-card');
-      if (ctrCard) ctrCard.style.display = 'none';
     }
   }
 
@@ -476,7 +568,7 @@ export function campaignsPage(): string {
     var total = campaigns.length;
     // Match dashboard "Active Ads · Now Spending" — DB status alone can stay
     // stale ACTIVE when sync is blocked (e.g. TOKEN_ENCRYPTION_KEY rotation).
-    var active = campaigns.filter(function(c){ return c.isCurrentlySpending === true; }).length;
+    var active = campaigns.filter(function(c){ return c.status === 'ACTIVE'; }).length;
     var paused = campaigns.filter(function(c){ return c.status === 'PAUSED'; }).length;
     var filtered = recentAsc(insights, state.days);
     // d.spend is BigInt minor units (cents for USD, EGP, SAR; whole-unit
@@ -489,6 +581,31 @@ export function campaignsPage(): string {
     document.getElementById('paused-campaigns').textContent = String(paused);
     document.getElementById('total-spend').textContent = fmtCurrencyMinor(totalSpendMinor);
     document.getElementById('spend-period').textContent = 'آخر ' + state.days + ' يوماً';
+  }
+
+  // ── Objective translation ──────────────────────────────────────────────────
+  var OBJECTIVE_AR = {
+    OUTCOME_SALES:        'مبيعات',
+    OUTCOME_ENGAGEMENT:   'تفاعل',
+    OUTCOME_LEADS:        'عملاء محتملون',
+    OUTCOME_AWARENESS:    'وعي بالعلامة',
+    OUTCOME_TRAFFIC:      'زيارات',
+    OUTCOME_APP_PROMOTION:'ترويج تطبيق',
+    MESSAGES:             'رسائل',
+    CONVERSIONS:          'تحويلات',
+    LINK_CLICKS:          'نقرات الرابط',
+    REACH:                'وصول',
+    BRAND_AWARENESS:      'وعي بالعلامة',
+    POST_ENGAGEMENT:      'تفاعل المنشور',
+    PAGE_LIKES:           'إعجابات الصفحة',
+    VIDEO_VIEWS:          'مشاهدات فيديو',
+    LEAD_GENERATION:      'توليد عملاء',
+    PRODUCT_CATALOG_SALES:'مبيعات الكتالوج',
+    STORE_VISITS:         'زيارات المتجر',
+  };
+  function translateObjective(obj) {
+    if (!obj) return '—';
+    return OBJECTIVE_AR[obj] || obj.replace(/^OUTCOME_/, '').replace(/_/g, ' ');
   }
 
   // ── Table rendering ───────────────────────────────────────────────────────
@@ -518,10 +635,9 @@ export function campaignsPage(): string {
         ? fmtCurrencyMinor(c.dailyBudget)
         : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' (إجمالي)' : '—');
       return '<tr>'
-        + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div>'
-        + '<div style="font-size:11px;color:var(--text-3);margin-top:2px;font-family:monospace;">' + escHtml(c.id || '') + '</div></td>'
+        + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div></td>'
         + '<td>' + statusBadge(c.status) + '</td>'
-        + '<td style="color:var(--text-2);">' + escHtml(c.objective || '—') + '</td>'
+        + '<td style="color:var(--text-2);">' + escHtml(translateObjective(c.objective)) + '</td>'
         + '<td>' + escHtml(budget) + '</td>'
         + '<td style="color:var(--text-2);">' + escHtml(fmtDate(c.createdAt)) + '</td>'
         + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">عرض</button></td>'
