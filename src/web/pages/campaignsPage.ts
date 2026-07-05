@@ -1090,10 +1090,10 @@ export function campaignsPage(): string {
     if (!workspaceId) return;
 
     var results = await Promise.all([
-      apiFetch('/api/workspaces/' + workspaceId + '/campaigns'),
-      apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
-      apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
-      apiFetch('/api/workspaces/' + workspaceId + '/issue-dates?days=30').catch(function() { return []; }),
+      apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 12000),
+      apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 12000),
+      apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 8000).catch(function() { return null; }),
+      apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 8000).catch(function() { return []; }),
     ]);
     var campaigns = results[0];
     var insights = results[1];
@@ -1248,10 +1248,10 @@ export function campaignsPage(): string {
       });
 
       var [campaigns, insights, wsData, issueDates] = await Promise.all([
-        apiFetch('/api/workspaces/' + workspaceId + '/campaigns'),
-        apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
-        apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
-        apiFetch('/api/workspaces/' + workspaceId + '/issue-dates?days=30').catch(function() { return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 12000),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 12000),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 8000).catch(function() { return null; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 8000).catch(function() { return []; }),
       ]);
       state.lastIssueDates = Array.isArray(issueDates) ? issueDates : [];
 
@@ -1294,12 +1294,6 @@ export function campaignsPage(): string {
       state.insights = Array.isArray(insights) ? insights : [];
 
       var wsName = (wsData && wsData.name) || workspaceId;
-      try {
-        var dashData = await apiFetch('/api/dashboard/' + workspaceId);
-        if (dashData && dashData.workspace) {
-          wsName = dashData.workspace.name || dashData.workspace.id || wsName;
-        }
-      } catch (_) { /* non-critical */ }
 
       document.getElementById('ws-name').textContent = wsName;
       document.getElementById('page-subtitle').textContent =

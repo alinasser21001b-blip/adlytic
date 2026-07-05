@@ -1245,7 +1245,7 @@ async function resumeActiveSyncIfAny(workspaceId, opts) {
   var jobId = getRememberedSyncJob(workspaceId);
   if (!jobId || syncUiState.polling) return null;
   try {
-    var job = await apiFetch('/api/sync-jobs/' + encodeURIComponent(jobId));
+    var job = await apiFetchWithTimeout('/api/sync-jobs/' + encodeURIComponent(jobId), {}, 5000);
     var active = job && (job.status === 'PENDING' || job.status === 'PROCESSING' || job.status === 'RUNNING' || job.status === 'IN_PROGRESS');
     if (!active) { clearActiveSyncJob(workspaceId); return null; }
     ensureSyncStatusBar(opts.statusContainerId || 'main-content');
