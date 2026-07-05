@@ -42,7 +42,7 @@ export function aiPage(): string {
   .chat-input:focus { border-color:var(--accent); }
   .chat-input::placeholder { color:var(--text-3); }
   .chat-send-btn { width:38px;height:38px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background var(--transition); }
-  .chat-send-btn:hover { background:#4f46e5; }
+  .chat-send-btn:hover { background:var(--accent-2); }
   .chat-send-btn:disabled { opacity:0.4;cursor:not-allowed; }
   .suggested-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; cursor:pointer; transition:all var(--transition); }
   .suggested-card:hover { background:var(--surface-2); border-color:var(--border-2); }
@@ -371,6 +371,15 @@ export function aiPage(): string {
     conversationId = null;
     addMsg('assistant', 'Chat cleared. Ask me anything about your campaign performance.');
   });
+
+  // Deep-link prefill — Dashboard/Campaigns "Why"/"Fix" hooks land here as
+  // /ai?q=<question> instead of duplicating the agent call inline on every
+  // card. Auto-send once, then strip the param so a refresh doesn't resend.
+  const prefillQ = new URLSearchParams(window.location.search).get('q');
+  if (prefillQ && prefillQ.trim()) {
+    window.history.replaceState({}, '', '/ai');
+    sendMessage(prefillQ.trim());
+  }
 
   inputEl.focus();
   } catch (err) {

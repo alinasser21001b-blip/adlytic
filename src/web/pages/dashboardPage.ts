@@ -80,19 +80,19 @@ export function dashboardPage(): string {
       <!-- 1 ▸ Financial hero cards -->
       <section class="hero-grid" id="hero-grid">
         <div class="hero-card" id="hero-30">
-          <div class="hero-label">30-Day Spend</div>
+          <div class="hero-label">30-Day Spend <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           <div class="hero-value" id="hero-30-val">—</div>
           <div class="hero-sub">Past 30 days</div>
           <span class="hero-delta flat" id="hero-30-delta">→ —</span>
         </div>
         <div class="hero-card success" id="hero-7">
-          <div class="hero-label">7-Day Spend</div>
+          <div class="hero-label">7-Day Spend <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           <div class="hero-value" id="hero-7-val">—</div>
           <div class="hero-sub">Past 7 days</div>
           <span class="hero-delta flat" id="hero-7-delta">→ —</span>
         </div>
         <div class="hero-card warning" id="hero-life">
-          <div class="hero-label">Lifetime Spend</div>
+          <div class="hero-label">Lifetime Spend <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           <div class="hero-value" id="hero-life-val">—</div>
           <div class="hero-sub" id="hero-life-sub">Account history (90-day window)</div>
           <span class="hero-delta flat">Account total</span>
@@ -305,17 +305,17 @@ export function dashboardPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#18181b',
-            borderColor: '#232326',
+            backgroundColor: '#221D19',
+            borderColor: '#3D352D',
             borderWidth: 1,
-            titleColor: '#f1f0f0',
-            bodyColor: '#a0a0b0',
+            titleColor: '#F3EFE7',
+            bodyColor: '#B8AC9C',
             padding: 10,
           }
         },
         scales: {
-          x: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
-          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', font: { size: 11 } } }
+          x: { grid: { color: '#322B25' }, ticks: { color: '#746A5C', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
+          y: { grid: { color: '#322B25' }, ticks: { color: '#746A5C', font: { size: 11 } } }
         },
         elements: { point: { radius: 0, hoverRadius: 4 } }
       }
@@ -894,6 +894,14 @@ export function dashboardPage(): string {
       return (primary && primary.decision) || '';
     }
   }
+  // "Ask AI why" deep-link — hands the Main Move item's own title/campaign
+  // straight to the /ai chat as a prefilled question (see aiPage.ts's ?q=
+  // handling), instead of duplicating a root-cause explanation UI here.
+  function mainMoveAiQuestion(item) {
+    var q = lbl('Why is this happening and how do I fix it, in detail: ', 'لماذا يحدث هذا، وكيف أحله بالتفصيل: ') + (item.title || '');
+    if (item.campaignName) q += lbl(' (campaign: ', ' (حملة: ') + item.campaignName + ')';
+    return q;
+  }
   function renderMainMove(dashData, kpis) {
     var card = document.getElementById('main-move-card');
     var meta = document.getElementById('main-move-meta');
@@ -938,6 +946,7 @@ export function dashboardPage(): string {
       + (why ? '<div class="main-move-why">' + escHtml(why) + '</div>' : '')
       + '<div class="main-move-cta-row">'
         + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText) + '</button>'
+        + '<a class="btn btn-secondary btn-sm" href="/ai?q=' + encodeURIComponent(mainMoveAiQuestion(primary)) + '">' + escHtml(lbl('Ask AI why', 'اسأل الذكاء الاصطناعي لماذا')) + '</a>'
         + '<span class="text-xs text-3">' + escHtml(lbl('Confidence', 'الثقة')) + ' ' + escHtml(String(primary.confidence)) + '%</span>'
       + '</div>'
     + '</div>';
@@ -1422,9 +1431,9 @@ export function dashboardPage(): string {
       }
 
       safeRender('charts', function () {
-        makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
-        makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-        makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+        makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
+        makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#34A871', backgroundColor: 'rgba(52,168,113,0.08)', fill: true, tension: 0.4 }]);
+        makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#C77A1F', backgroundColor: 'rgba(199,122,31,0.08)', fill: true, tension: 0.4 }]);
       });
 
       safeRender('attribution', function () { renderAttribution(dashData.attribution || null); });

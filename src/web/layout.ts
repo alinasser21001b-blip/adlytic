@@ -692,6 +692,23 @@ select.form-input { cursor: pointer; }
 .modal-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 20px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
+/* ── Metric "Explain" info trigger + popover body ───────────────────── */
+.info-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--text-3); color: var(--text-3);
+  font-size: 10px; font-weight: 700; line-height: 1; cursor: pointer;
+  flex-shrink: 0; transition: all var(--transition);
+}
+.info-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.metric-info-block { margin-bottom: 14px; }
+.metric-info-block:last-child { margin-bottom: 0; }
+.metric-info-block-title { font-size: 10.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+#metric-info-body p { font-size: 13px; color: var(--text-2); line-height: 1.55; }
+.metric-info-formula { font-family: 'Tajawal', monospace; font-size: 13.5px; color: var(--accent-2); background: var(--accent-dim); border-radius: var(--radius-sm); padding: 8px 10px; display: inline-block; }
+.metric-info-causes { margin: 0; padding-inline-start: 18px; font-size: 13px; color: var(--text-2); line-height: 1.6; }
+.metric-info-causes li { margin-bottom: 3px; }
+
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); transition: transform var(--transition); }
@@ -1454,6 +1471,150 @@ document.addEventListener('pointerdown', function (e) {
   setTimeout(function () { btn.classList.remove('is-rippling'); }, 520);
 }, true);
 
+// ── Metric glossary / "Explain" popover ─────────────────────────────────
+// Static, zero-network-cost content — every metric tile across the app can
+// attach data-metric-info="<key>" to a .info-btn and get a definition +
+// formula + healthy range + common causes without a new endpoint or an LLM
+// call. Kept in Arabic to match the rest of the static chrome (sidebar,
+// topbar, page titles are all Arabic regardless of the user's AI-chat
+// locale — only AI-generated conversational replies are locale-detected).
+var METRIC_GLOSSARY = {
+  spend: {
+    label: 'الإنفاق الإجمالي (Spend)',
+    def: 'إجمالي المبلغ الذي أنفقته حملاتك الإعلانية خلال الفترة المحددة، كما تُبلغ عنه Meta.',
+    formula: 'مجموع الإنفاق اليومي لكل الحملات النشطة خلال الفترة.',
+    range: 'لا يوجد مدى صحي عام — يُقارن دائماً بالنتائج التي يحققها (تكلفة النتيجة، العائد).',
+    causes: ['ميزانية حملة رُفعت يدوياً', 'حملة جديدة دخلت مرحلة التعلم', 'Meta وسّع الاستهداف تلقائياً'],
+  },
+  ctr: {
+    label: 'معدل النقر إلى الظهور (CTR)',
+    def: 'نسبة الأشخاص الذين نقروا على إعلانك من إجمالي من شاهدوه.',
+    formula: 'النقرات ÷ مرات الظهور × 100',
+    range: '1.5%+ يُعتبر جيداً لمعظم الأهداف؛ أقل من 1% يشير غالباً إلى إعلان أو استهداف ضعيف.',
+    causes: ['الإعلان أصبح متعباً (نفس الإبداع لفترة طويلة)', 'الرسالة الإعلانية غير مناسبة للجمهور المستهدف', 'استهداف واسع جداً يقلل من الصلة'],
+  },
+  cpm: {
+    label: 'تكلفة الألف ظهور (CPM)',
+    def: 'المبلغ الذي تدفعه مقابل كل 1000 مرة ظهور لإعلانك.',
+    formula: '(الإنفاق ÷ مرات الظهور) × 1000',
+    range: 'يختلف حسب البلد والقطاع؛ ارتفاع مفاجئ بنسبة 20% أو أكثر يستحق المراجعة.',
+    causes: ['منافسة أعلى في مزاد Meta', 'جمهور مُشبع (تكرار مرتفع)', 'جودة إعلان منخفضة تجعل Meta يتقاضى أكثر'],
+  },
+  cpc: {
+    label: 'تكلفة النقرة (CPC)',
+    def: 'متوسط ما تدفعه مقابل كل نقرة يحصل عليها إعلانك.',
+    formula: 'الإنفاق ÷ النقرات',
+    range: 'يختلف حسب القطاع والهدف؛ يُقرأ دائماً مع CTR — CPC مرتفع مع CTR منخفض يعني مزاداً مكلفاً بلا تفاعل.',
+    causes: ['CTR منخفض يرفع تكلفة كل نقرة', 'منافسة مرتفعة على نفس الجمهور', 'موضع إعلان أغلى (مثل Stories)'],
+  },
+  cost_per_result: {
+    label: 'تكلفة النتيجة (Cost per Result)',
+    def: 'متوسط التكلفة للوصول إلى هدف التحسين المحدد للحملة (شراء، رسالة، عميل محتمل...).',
+    formula: 'الإنفاق ÷ عدد النتائج',
+    range: 'يُقارن دائماً بقيمة النتيجة نفسها (هامش الربح، قيمة العميل) — لا يوجد رقم صحي مطلق.',
+    causes: ['معدل التحويل بعد النقر انخفض (صفحة الهبوط/المتجر)', 'الجمهور أقل صلة بالعرض', 'إعداد التتبّع (Pixel) لا يبلّغ كل النتائج'],
+  },
+  roas: {
+    label: 'العائد على الإنفاق الإعلاني (ROAS)',
+    def: 'قيمة الإيراد الذي تحققه مقابل كل وحدة عملة تنفقها.',
+    formula: 'الإيراد ÷ الإنفاق',
+    range: 'أعلى من 2x يُعتبر مربحاً لمعظم المتاجر؛ أقل من 1x يعني خسارة مباشرة على مستوى الإعلان.',
+    causes: ['نافذة الإسناد لا تلتقط كل عمليات الشراء', 'انخفاض في معدل التحويل أو قيمة الطلب', 'ارتفاع تكلفة الوصول (CPM) دون تحسّن مقابل في النتائج'],
+  },
+  frequency: {
+    label: 'التكرار (Frequency)',
+    def: 'متوسط عدد مرات مشاهدة الشخص الواحد لإعلانك خلال الفترة.',
+    formula: 'مرات الظهور ÷ الوصول',
+    range: 'أقل من 3 صحي عادةً؛ أعلى من 5 غالباً يعني إعلاناً متعباً يستحق تحديث الإبداع أو توسيع الجمهور.',
+    causes: ['جمهور مستهدف ضيق جداً', 'ميزانية مرتفعة بالنسبة لحجم الجمهور', 'الحملة تعمل منذ فترة طويلة بدون تحديث'],
+  },
+  reach: {
+    label: 'الوصول (Reach)',
+    def: 'عدد الأشخاص الفريدين الذين شاهدوا إعلانك مرة واحدة على الأقل خلال الفترة.',
+    formula: 'عدّ فريد لهويات المستخدمين المعروضة عليهم الإعلان (وليس مجموع مرات الظهور).',
+    range: 'يُقرأ دائماً مع التكرار — وصول منخفض مع تكرار مرتفع يعني أن الجمهور المستهدف صغير جداً.',
+    causes: ['استهداف ضيق جداً', 'ميزانية منخفضة نسبة لحجم الجمهور', 'موضع إعلان واحد فقط مفعّل'],
+  },
+  impressions: {
+    label: 'مرات الظهور (Impressions)',
+    def: 'إجمالي عدد المرات التي ظهر فيها إعلانك على الشاشة، بما يشمل ظهوره أكثر من مرة لنفس الشخص.',
+    formula: 'مجموع كل عرض للإعلان، بلا استثناء التكرار.',
+    range: 'لا يوجد مدى صحي مستقل — يُقرأ دائماً مقابل الإنفاق (CPM) أو الوصول (التكرار).',
+    causes: [],
+  },
+  health_score: {
+    label: 'درجة صحة الحملة',
+    def: 'مقياس خاص بـ Adlytic (وليس من Meta مباشرة) يجمع بين اتجاه الإنفاق، معدل النقر، والتكرار في رقم واحد من 100 لإعطائك نظرة سريعة على حالة الحملة.',
+    formula: 'متوسط مرجّح لعدة إشارات أداء داخلية، يُعاد حسابه مع كل مزامنة بيانات جديدة.',
+    range: '80+ ممتاز، 60-79 مقبول ويستحق مراقبة، أقل من 60 يستحق مراجعة فورية.',
+    causes: [],
+  },
+  cost_per_messaging_conversation: {
+    label: 'تكلفة محادثة المراسلة',
+    def: 'متوسط التكلفة لكل محادثة تم بدؤها عبر رسائل الإعلان (Messenger أو WhatsApp).',
+    formula: 'الإنفاق ÷ عدد محادثات المراسلة التي بدأها المستخدمون',
+    range: 'يختلف حسب القطاع — يُقارن بأداء المحادثة نفسها (هل تتحول إلى مبيعات فعلية؟).',
+    causes: ['رسالة الترحيب الآلية بطيئة أو غير واضحة', 'الجمهور المستهدف غير جاهز للتفاعل المباشر', 'إعلان يدفع نحو المراسلة لكن بعرض غير مقنع'],
+  },
+  clicks: {
+    label: 'النقرات (Clicks)',
+    def: 'إجمالي عدد النقرات التي حصل عليها إعلانك (روابط، صور، أزرار الدعوة لاتخاذ إجراء).',
+    formula: 'مجموع كل نقرة مسجّلة على عناصر الإعلان القابلة للنقر.',
+    range: 'يُقرأ دائماً مع مرات الظهور (CTR) — لا يوجد رقم صحي مستقل.',
+    causes: [],
+  },
+  messages: {
+    label: 'الرسائل (Messages)',
+    def: 'عدد محادثات المراسلة التي بدأها المستخدمون استجابة لإعلانك.',
+    formula: 'مجموع محادثات المراسلة الجديدة المنسوبة للإعلان خلال الفترة.',
+    range: 'يُقارن بتكلفة محادثة المراسلة ومعدل تحوّلها إلى مبيعات.',
+    causes: [],
+  },
+};
+
+function renderMetricInfo(key) {
+  var m = METRIC_GLOSSARY[key];
+  var body = document.getElementById('metric-info-body');
+  var titleEl = document.getElementById('metric-info-title');
+  if (!body || !titleEl) return;
+  if (!m) { titleEl.textContent = 'المؤشر'; body.innerHTML = '<p style="color:var(--text-3);">لا يتوفر شرح لهذا المؤشر بعد.</p>'; return; }
+  titleEl.textContent = m.label;
+  var causesHtml = m.causes && m.causes.length
+    ? '<div class="metric-info-block"><div class="metric-info-block-title">أسباب شائعة للتغيّر</div><ul class="metric-info-causes">' + m.causes.map(function (c) { return '<li>' + c + '</li>'; }).join('') + '</ul></div>'
+    : '';
+  body.innerHTML =
+    '<div class="metric-info-block"><div class="metric-info-block-title">ما هو؟</div><p>' + m.def + '</p></div>' +
+    '<div class="metric-info-block"><div class="metric-info-block-title">طريقة الحساب</div><div class="metric-info-formula">' + m.formula + '</div></div>' +
+    '<div class="metric-info-block"><div class="metric-info-block-title">المدى الصحي</div><p>' + m.range + '</p></div>' +
+    causesHtml;
+}
+
+function openMetricInfo(key) {
+  renderMetricInfo(key);
+  var overlay = document.getElementById('metric-info-modal');
+  if (overlay) overlay.style.display = 'flex';
+}
+function closeMetricInfo() {
+  var overlay = document.getElementById('metric-info-modal');
+  if (overlay) overlay.style.display = 'none';
+}
+window.openMetricInfo = openMetricInfo;
+
+// Event delegation on document (not DOMContentLoaded) so info buttons that
+// pages render client-side *after* their own data fetch — e.g. KPI tiles
+// built once dashboard data arrives — work without each page wiring its own
+// listener.
+document.addEventListener('click', function (e) {
+  var btn = e.target && e.target.closest ? e.target.closest('.info-btn[data-metric-info]') : null;
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openMetricInfo(btn.getAttribute('data-metric-info'));
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeMetricInfo();
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
@@ -1588,6 +1749,15 @@ export function layout(opts: {
       </div>
       <div class="page-content">
         ${content}
+      </div>
+    </div>
+  </div>
+  <div id="metric-info-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeMetricInfo()">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-title" id="metric-info-title" style="display:flex;align-items:center;gap:8px;"></div>
+      <div id="metric-info-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeMetricInfo()">إغلاق</button>
       </div>
     </div>
   </div>
