@@ -22,6 +22,8 @@ export interface NormalizedAdSet {
   dailyBudgetMinor: bigint | null;  // null when Meta doesn't expose one (e.g. campaign-budget-optimized)
   optimizationGoal: string | null;
   targeting: unknown;               // forensic blob — written into Json column verbatim
+  /** Meta's learning_stage_info.status, verbatim. Null when Meta omits the field. */
+  learningPhaseStatus: string | null;
 }
 
 export function mapMetaAdSet(row: MetaInsightRow): NormalizedAdSet {
@@ -34,6 +36,10 @@ export function mapMetaAdSet(row: MetaInsightRow): NormalizedAdSet {
       ? BigInt(String(dailyBudgetRaw))
       : null;
 
+  const learningStageInfo = row['learning_stage_info'] as { status?: unknown } | null | undefined;
+  const learningPhaseStatus =
+    learningStageInfo && learningStageInfo.status != null ? String(learningStageInfo.status) : null;
+
   return {
     externalAdSetId,
     name: String(row['name'] ?? '(unnamed)'),
@@ -41,6 +47,7 @@ export function mapMetaAdSet(row: MetaInsightRow): NormalizedAdSet {
     dailyBudgetMinor,
     optimizationGoal: row['optimization_goal'] != null ? String(row['optimization_goal']) : null,
     targeting: row['targeting'] ?? null,
+    learningPhaseStatus,
   };
 }
 

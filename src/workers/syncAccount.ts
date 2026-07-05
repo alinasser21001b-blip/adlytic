@@ -744,6 +744,7 @@ export class SyncAccountWorker {
                 dailyBudget: norm.dailyBudgetMinor,
                 optimizationGoal: norm.optimizationGoal,
                 targetingJson: norm.targeting as Prisma.InputJsonValue ?? Prisma.JsonNull,
+                learningPhaseStatus: norm.learningPhaseStatus,
               },
               update: {
                 name: norm.name,
@@ -751,6 +752,7 @@ export class SyncAccountWorker {
                 dailyBudget: norm.dailyBudgetMinor,
                 optimizationGoal: norm.optimizationGoal,
                 targetingJson: norm.targeting as Prisma.InputJsonValue ?? Prisma.JsonNull,
+                learningPhaseStatus: norm.learningPhaseStatus,
               },
               select: { id: true },
             });

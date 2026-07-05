@@ -63,8 +63,6 @@ const SECTION_DEFS = [
 ] as const;
 
 const UNAVAILABLE_SECTIONS: Record<string, string> = {
-  learning_phase:
-    'لا تتوفر بيانات مرحلة التعلّم حالياً — Meta تُبلغ عن هذا لكن Adlytic لا يزامنه بعد. سيُضاف في تحديث قادم.',
   pixel_health:
     'لا تتوفر أداة لفحص صحة التتبّع (Pixel) حالياً. هذا القسم يحتاج أداة مخصصة لم تُبنَ بعد.',
 };
@@ -106,9 +104,20 @@ export async function investigateCampaign(args: {
   // Sections with no tool call at all — genuine gaps, never sent to the LLM.
   const availableKeys = SECTION_DEFS.filter((s) => !(s.key in UNAVAILABLE_SECTIONS)).map((s) => s.key);
 
+  // learning_stage_info is only ever synced for ad sets touched since this
+  // field was added — reportedAdSets===0 means "we have no signal yet" for
+  // this campaign, not "all ad sets exited learning". Null it out so the
+  // prompt's own "empty JSON -> say not enough data" rule handles it,
+  // instead of the model reasoning from an all-zero object.
+  const learningPhaseData = details.ok
+    ? (details.data as { learningPhase?: { reportedAdSets: number } }).learningPhase
+    : null;
+  const learningPhaseForPrompt = learningPhaseData && learningPhaseData.reportedAdSets > 0 ? learningPhaseData : null;
+
   const dataForPrompt: Record<string, unknown> = {
     structure: details.ok ? details.data : null,
     budget: details.ok ? (details.data as { spendPacing?: unknown }).spendPacing ?? null : null,
+    learning_phase: learningPhaseForPrompt,
     audience: audience.ok ? audience.data : null,
     creative_fatigue: {
       creative: creative.ok ? creative.data : null,

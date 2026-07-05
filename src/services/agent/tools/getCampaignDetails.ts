@@ -65,6 +65,22 @@ interface CampaignDetailsResult {
   topIssues: Array<{ code: string; severity: string; evidence: string[]; strength: number }>;
   topRecommendations: Array<{ text: string; priority: string; strength: number }>;
   latestBrainAction: { action: string; priority: string; date: string } | null;
+  /**
+   * Meta's ad-set learning_stage_info.status, aggregated across this
+   * campaign's ad sets. Null status per ad set means Meta never returned
+   * the field (ad set didn't qualify for a learning phase, or was created
+   * before Adlytic started syncing this — never fabricate a status).
+   */
+  learningPhase: {
+    totalAdSets: number;
+    /** Ad sets where Meta returned a learning_stage_info.status at all. */
+    reportedAdSets: number;
+    inLearning: number;
+    learningLimited: number;
+    success: number;
+    /** Verbatim statuses we don't recognize, kept for transparency. */
+    other: string[];
+  };
   spendPacing: {
     todaySpend: number;
     dailyBudget: number | null;
@@ -77,7 +93,7 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
   return {
     name: 'get_campaign_details',
     description:
-      "Deep dive into ONE campaign. Returns current-window metrics with prior comparison, plus a HISTORICAL BASELINE (60+ days) and vs-baseline delta so you can say 'CTR اليوم أقل بـ 33% من خط الأساس التاريخي للحملة نفسها'. Also returns detected issues, top recommendations from the intelligence engine, latest brain-decided action, and today's spend pacing. Use when the merchant asks about ONE campaign by name (not the workspace overall). If you don't know the campaignId, call list_campaigns first.",
+      "Deep dive into ONE campaign. Returns current-window metrics with prior comparison, plus a HISTORICAL BASELINE (60+ days) and vs-baseline delta so you can say 'CTR اليوم أقل بـ 33% من خط الأساس التاريخي للحملة نفسها'. Also returns detected issues, top recommendations from the intelligence engine, latest brain-decided action, today's spend pacing, and learningPhase (how many of this campaign's ad sets are still in Meta's learning phase, learning-limited, or have exited to steady delivery — reportedAdSets may be less than totalAdSets since Meta doesn't always return this field). Use when the merchant asks about ONE campaign by name (not the workspace overall). If you don't know the campaignId, call list_campaigns first.",
     schema: {
       type: 'object',
       properties: {
@@ -114,7 +130,7 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
       const sinceBaseline = utcMidnight(now.getTime() - args.baselineDays * 864e5);
 
       // Bulk fetch all needed rows in parallel.
-      const [dailyRows, latestReport, latestSnapshot, todayStat] = await Promise.all([
+      const [dailyRows, latestReport, latestSnapshot, todayStat, adSets] = await Promise.all([
         prisma.dailyStat.findMany({
           where: {
             entityType: EntityType.CAMPAIGN,
@@ -139,6 +155,10 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
             entityId: campaign.id,
             date: utcMidnight(now.getTime()),
           },
+        }),
+        prisma.adSet.findMany({
+          where: { campaignId: campaign.id },
+          select: { learningPhaseStatus: true },
         }),
       ]);
 
@@ -221,6 +241,19 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
         strength: r.strength,
       }));
 
+      const learningPhase = {
+        totalAdSets: adSets.length,
+        reportedAdSets: adSets.filter((a) => a.learningPhaseStatus != null).length,
+        inLearning: adSets.filter((a) => a.learningPhaseStatus === 'LEARNING').length,
+        learningLimited: adSets.filter((a) => a.learningPhaseStatus === 'LEARNING_LIMITED').length,
+        success: adSets.filter((a) => a.learningPhaseStatus === 'SUCCESS').length,
+        other: [...new Set(
+          adSets
+            .map((a) => a.learningPhaseStatus)
+            .filter((s): s is string => s != null && !['LEARNING', 'LEARNING_LIMITED', 'SUCCESS'].includes(s)),
+        )],
+      };
+
       const latestBrainAction = latestSnapshot
         ? {
             action: latestSnapshot.action,
@@ -263,6 +296,7 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
           topIssues,
           topRecommendations,
           latestBrainAction,
+          learningPhase,
           spendPacing,
         },
         {
