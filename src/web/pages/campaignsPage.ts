@@ -395,8 +395,26 @@ export function campaignsPage(): string {
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
+  function makeGradient(ctx, canvasH, r, g, b) {
+    var grad = ctx.createLinearGradient(0, 0, 0, canvasH);
+    grad.addColorStop(0,   'rgba(' + r + ',' + g + ',' + b + ', 0.45)');
+    grad.addColorStop(0.5, 'rgba(' + r + ',' + g + ',' + b + ', 0.15)');
+    grad.addColorStop(1,   'rgba(' + r + ',' + g + ',' + b + ', 0.02)');
+    return grad;
+  }
+
   function makeLineChart(canvasId, labels, datasets) {
-    var ctx = document.getElementById(canvasId).getContext('2d');
+    var canvas = document.getElementById(canvasId);
+    var ctx = canvas.getContext('2d');
+    var h = canvas.parentElement.clientHeight || 220;
+
+    datasets.forEach(function(ds) {
+      if (ds._rgb) {
+        ds.backgroundColor = makeGradient(ctx, h, ds._rgb[0], ds._rgb[1], ds._rgb[2]);
+        delete ds._rgb;
+      }
+    });
+
     return new Chart(ctx, {
       type: 'line',
       data: { labels: labels, datasets: datasets },
@@ -412,22 +430,36 @@ export function campaignsPage(): string {
             borderWidth: 1,
             titleColor: '#F3EFE7',
             bodyColor: '#B8AC9C',
-            padding: 10,
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: { size: 13, weight: '600' },
+            bodyFont: { size: 12 },
+            displayColors: false,
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
           }
         },
         scales: {
           x: {
-            grid: { color: '#322B25' },
-            ticks: { color: '#746A5C', maxTicksLimit: 8, font: { size: 11 } }
+            grid: { color: 'rgba(50,43,37,0.5)', lineWidth: 0.5 },
+            ticks: { color: '#746A5C', maxTicksLimit: 7, font: { size: 11 } }
           },
           y: {
-            grid: { color: '#322B25' },
-            ticks: { color: '#746A5C', font: { size: 11 } }
+            grid: { color: 'rgba(50,43,37,0.5)', lineWidth: 0.5 },
+            ticks: {
+              color: '#746A5C',
+              font: { size: 11 },
+              callback: function(v) {
+                if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+                if (v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'K';
+                return v;
+              }
+            }
           }
         },
-        elements: { point: { radius: 0, hoverRadius: 4 } },
-        // Timeline Explorer — click a marker to see that day's attribution.
+        elements: {
+          point: { radius: 1.5, hoverRadius: 6, hoverBorderWidth: 2, hitRadius: 8 },
+          line: { borderWidth: 2.5 }
+        },
         onClick: function (evt, elements, chart) {
           if (!elements || !elements.length) return;
           var el = elements[0];
@@ -477,11 +509,12 @@ export function campaignsPage(): string {
     var ctrData = filtered.map(function(d) { return Number(d.ctr) || 0; });
 
     var spendDatasets = [{
-      label: 'Spend',
+      label: 'الإنفاق (' + state.currency + ')',
       data: spendData,
       borderColor: '#D9A759',
-      backgroundColor: 'rgba(217,167,89,0.08)',
-      fill: true, tension: 0.4
+      _rgb: [217, 167, 89],
+      fill: true, tension: 0.4,
+      pointBackgroundColor: '#D9A759',
     }];
     var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
     if (markerDataset) spendDatasets.push(markerDataset);
@@ -506,11 +539,12 @@ export function campaignsPage(): string {
         state.ctrChart.update();
       } else {
         state.ctrChart = makeLineChart('chart-ctr', labels, [{
-          label: 'CTR (%)',
+          label: 'نسبة النقر (%)',
           data: ctrData,
           borderColor: '#34A871',
-          backgroundColor: 'rgba(52,168,113,0.08)',
-          fill: true, tension: 0.4
+          _rgb: [52, 168, 113],
+          fill: true, tension: 0.4,
+          pointBackgroundColor: '#34A871',
         }]);
       }
     }
@@ -528,11 +562,12 @@ export function campaignsPage(): string {
         state.reachChart.update();
       } else {
         state.reachChart = makeLineChart('chart-reach', labels, [{
-          label: 'Reach',
+          label: 'الوصول',
           data: reachData,
           borderColor: '#5B8DEF',
-          backgroundColor: 'rgba(91,141,239,0.08)',
-          fill: true, tension: 0.4
+          _rgb: [91, 141, 239],
+          fill: true, tension: 0.4,
+          pointBackgroundColor: '#5B8DEF',
         }]);
       }
     }
@@ -550,11 +585,12 @@ export function campaignsPage(): string {
         state.impressionsChart.update();
       } else {
         state.impressionsChart = makeLineChart('chart-impressions', labels, [{
-          label: 'Impressions',
+          label: 'مرات الظهور',
           data: impressionsData,
           borderColor: '#C77A1F',
-          backgroundColor: 'rgba(199,122,31,0.08)',
-          fill: true, tension: 0.4
+          _rgb: [199, 122, 31],
+          fill: true, tension: 0.4,
+          pointBackgroundColor: '#C77A1F',
         }]);
       }
     }
