@@ -76,7 +76,7 @@ export function campaignsPage(): string {
       <div class="kpi-value" id="paused-campaigns" style="color:var(--warning);">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">إجمالي الإنفاق</div>
+      <div class="kpi-label">إجمالي الإنفاق <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
       <div class="kpi-value" id="total-spend" style="font-size:18px;">—</div>
       <div class="text-xs text-3" id="spend-period" style="margin-top:6px;">آخر 30 يوماً</div>
     </div>
@@ -148,7 +148,7 @@ export function campaignsPage(): string {
     .inspector-tab:hover { color: var(--text-2); }
     .inspector-tab.is-active {
       color: var(--text);
-      border-bottom-color: var(--primary, #6366f1);
+      border-bottom-color: var(--accent);
     }
     .inspector-creative-card {
       background: var(--surface-2, rgba(255,255,255,0.02));
@@ -163,7 +163,7 @@ export function campaignsPage(): string {
       aspect-ratio: 1 / 1;
       position: relative;
       overflow: hidden;
-      background: var(--surface-1, #0f0f12);
+      background: var(--surface);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -349,22 +349,22 @@ export function campaignsPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#18181b',
-            borderColor: '#232326',
+            backgroundColor: '#221D19',
+            borderColor: '#3D352D',
             borderWidth: 1,
-            titleColor: '#f1f0f0',
-            bodyColor: '#a0a0b0',
+            titleColor: '#F3EFE7',
+            bodyColor: '#B8AC9C',
             padding: 10,
           }
         },
         scales: {
           x: {
-            grid: { color: '#232326' },
-            ticks: { color: '#5a5a6a', maxTicksLimit: 8, font: { size: 11 } }
+            grid: { color: '#322B25' },
+            ticks: { color: '#746A5C', maxTicksLimit: 8, font: { size: 11 } }
           },
           y: {
-            grid: { color: '#232326' },
-            ticks: { color: '#5a5a6a', font: { size: 11 } }
+            grid: { color: '#322B25' },
+            ticks: { color: '#746A5C', font: { size: 11 } }
           }
         },
         elements: { point: { radius: 0, hoverRadius: 4 } }
@@ -391,8 +391,8 @@ export function campaignsPage(): string {
       state.spendChart = makeLineChart('chart-spend', labels, [{
         label: 'Spend',
         data: spendData,
-        borderColor: '#6366f1',
-        backgroundColor: 'rgba(99,102,241,0.08)',
+        borderColor: '#D9A759',
+        backgroundColor: 'rgba(217,167,89,0.08)',
         fill: true, tension: 0.4
       }]);
     }
@@ -411,8 +411,8 @@ export function campaignsPage(): string {
         state.ctrChart = makeLineChart('chart-ctr', labels, [{
           label: 'CTR (%)',
           data: ctrData,
-          borderColor: '#22c55e',
-          backgroundColor: 'rgba(34,197,94,0.08)',
+          borderColor: '#34A871',
+          backgroundColor: 'rgba(52,168,113,0.08)',
           fill: true, tension: 0.4
         }]);
       }
@@ -576,7 +576,7 @@ export function campaignsPage(): string {
   function signalLine(s, isPositive) {
     var label   = SIGNAL_LABELS_AR[s.key] || s.key;
     var arrow   = (s.deltaPct >= 0 ? '▲' : '▼');
-    var color   = isPositive ? 'var(--success)' : 'var(--danger, #ef4444)';
+    var color   = isPositive ? 'var(--success)' : 'var(--error)';
     var current = s.key === 'ctr' ? fmtNum(s.current, 2) + '%' : fmtNum(s.current, 2);
     var prior   = s.key === 'ctr' ? fmtNum(s.prior,   2) + '%' : fmtNum(s.prior,   2);
     return '<li style="margin:6px 0;color:var(--text-2);direction:rtl;text-align:right;">'
@@ -624,13 +624,13 @@ export function campaignsPage(): string {
     // weren't tied to the Phase 1 messaging KPI.
     var kpiHtml =
       '<div class="kpi-grid" style="grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:20px;direction:rtl;text-align:right;">'
-    +   '<div class="kpi-card"><div class="kpi-label">الإنفاق</div>'
+    +   '<div class="kpi-card"><div class="kpi-label">الإنفاق <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">الميزانية</div>'
     +     '<div class="kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">إجمالي الرسائل</div>'
+    +   '<div class="kpi-card"><div class="kpi-label">إجمالي الرسائل <button type="button" class="info-btn" data-metric-info="messages" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">تكلفة الرسالة</div>'
+    +   '<div class="kpi-card"><div class="kpi-label">تكلفة الرسالة <button type="button" class="info-btn" data-metric-info="cost_per_messaging_conversation" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCostPerMessage != null ? fmtMinor(s.avgCostPerMessage * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
     + '</div>';
 
@@ -646,7 +646,7 @@ export function campaignsPage(): string {
     var signalsHtml =
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;direction:rtl;">'
     +   '<div><div style="font-weight:700;color:var(--success);margin-bottom:8px;text-align:right;">إيجابيات 🟢</div>' + posHtml + '</div>'
-    +   '<div><div style="font-weight:700;color:var(--danger, #ef4444);margin-bottom:8px;text-align:right;">سلبيات 🔴</div>' + negHtml + '</div>'
+    +   '<div><div style="font-weight:700;color:var(--error);margin-bottom:8px;text-align:right;">سلبيات 🔴</div>' + negHtml + '</div>'
     + '</div>';
 
     // ── AI timeline ────────────────────────────────────────────────────────
@@ -892,13 +892,13 @@ export function campaignsPage(): string {
         // text colors unchanged so contrast stays accessible.
         var isWinner   = !!r.isWinner;
         var barFill    = isWinner
-          ? 'linear-gradient(90deg, #10b981, #34d399)'
-          : 'linear-gradient(90deg, var(--accent, #6366f1), var(--accent-2, #8b5cf6))';
+          ? 'linear-gradient(90deg, #34A871, #5CC08F)'
+          : 'linear-gradient(90deg, var(--accent), var(--accent-2))';
         var rowBg      = isWinner
-          ? 'background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:8px 10px;'
+          ? 'background:rgba(52,168,113,0.06);border:1px solid rgba(52,168,113,0.25);border-radius:8px;padding:8px 10px;'
           : '';
         var winnerBadge = isWinner
-          ? '<span style="display:inline-block;background:#10b981;color:#fff;font-size:10px;font-weight:700;'
+          ? '<span style="display:inline-block;background:#34A871;color:#fff;font-size:10px;font-weight:700;'
             + 'padding:1px 6px;border-radius:10px;margin-inline-start:6px;">الأفضل</span>'
           : '';
 
