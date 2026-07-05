@@ -38,6 +38,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EntityType, WorkspaceRole, SyncJobStatus, type Locale } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
@@ -313,6 +314,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   );
 
   app.use('*', logger());
+
+  // ── Self-hosted fonts (Tajawal + El Messiri woff2) ────────────────────
+  // Self-hosted so the CSP below never needs a third-party font-src/style-src
+  // exception. Files live in ./public/fonts, resolved relative to process
+  // cwd — stable both under `tsx src/api/serve.ts` (dev) and the production
+  // start command `node dist/src/api/serve.js` (both run from the repo
+  // root). Immutable cache: filenames are content-stable per font version,
+  // never rewritten in place.
+  app.use('/fonts/*', serveStatic({ root: './public' }));
+  app.use('/fonts/*', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'public, max-age=31536000, immutable');
+  });
 
   // ── Security headers ───────────────────────────────────────────────────
   app.use('*', async (c, next) => {

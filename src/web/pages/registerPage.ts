@@ -10,14 +10,11 @@ export function registerPage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0a0a0b">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#100E0D">
   <title>إنشاء حساب — Adlytic</title>
   <style>
     ${SHARED_CSS}
-    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); font-family: 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
     .auth-wrap { width: 100%; max-width: 400px; padding: 0 16px; }
     .auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; justify-content: center; }
     .auth-logo-mark { width: 36px; height: 36px; background: var(--accent); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: #fff; }

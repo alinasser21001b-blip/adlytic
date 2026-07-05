@@ -6,40 +6,66 @@
 // ════════════════════════════════════════════════════════════════════════
 
 export const SHARED_CSS = `
+/* ── Self-hosted fonts ───────────────────────────────────────────────
+   Tajawal: body/data workhorse — clean at small sizes, dense tables.
+   El Messiri: display face — warmth + character, used with restraint
+   for page titles, hero numbers, and the AI's own voice. Both served
+   from /fonts (see server.ts) so font-src 'self' in the CSP is enough —
+   no third-party stylesheet, no render-blocking cross-origin request. ── */
+@font-face { font-family: 'Tajawal'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/tajawal-arabic-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/tajawal-arabic-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/tajawal-arabic-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-weight: 800; font-style: normal; font-display: swap; src: url('/fonts/tajawal-arabic-800-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-weight: 900; font-style: normal; font-display: swap; src: url('/fonts/tajawal-arabic-900-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Tajawal'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/tajawal-latin-400-normal.woff2') format('woff2'); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Tajawal'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/tajawal-latin-500-normal.woff2') format('woff2'); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Tajawal'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/tajawal-latin-700-normal.woff2') format('woff2'); unicode-range: U+0000-00FF; }
+@font-face { font-family: 'El Messiri'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/el-messiri-arabic-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'El Messiri'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/el-messiri-arabic-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'El Messiri'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/el-messiri-arabic-700-normal.woff2') format('woff2'); }
+
 :root {
-  --bg: #0a0a0b;
-  --surface: #111113;
-  --surface-2: #18181b;
-  --surface-hover: #1c1c1f;
-  --border: #232326;
-  --border-2: #2e2e33;
-  --text: #f1f0f0;
-  --text-2: #a0a0b0;
-  --text-3: #5a5a6a;
-  --accent: #6366f1;
-  --accent-2: #818cf8;
-  --accent-3: #a5b4fc;
-  --accent-dim: rgba(99,102,241,0.12);
-  --accent-glow: rgba(99,102,241,0.35);
-  --violet: #8b5cf6;
-  --pink: #ec4899;
-  --cyan: #06b6d4;
-  --teal: #14b8a6;
-  --success: #22c55e;
-  --success-dim: rgba(34,197,94,0.12);
-  --warning: #f59e0b;
-  --warning-dim: rgba(245,158,11,0.12);
-  --error: #ef4444;
-  --error-dim: rgba(239,68,68,0.12);
-  --critical: #dc2626;
-  --critical-dim: rgba(220,38,38,0.12);
-  --grad-accent: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --grad-accent-hover: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  --grad-vibrant: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
-  --grad-cool: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
-  --grad-success: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);
-  --grad-warm: linear-gradient(135deg, #f59e0b 0%, #ec4899 100%);
+  /* ── Neutrals — warm dark "ledger" surface, not cold near-black ──── */
+  --bg: #100E0D;
+  --surface: #1A1613;
+  --surface-2: #221D19;
+  --surface-hover: #2A2420;
+  --border: #322B25;
+  --border-2: #3D352D;
+  --text: #F3EFE7;
+  --text-2: #B8AC9C;
+  --text-3: #746A5C;
+
+  /* ── Brand / AI accent — warm gold, reserved for the AI's voice and
+     primary actions. This is the one color the eye should learn to
+     associate with "the assistant is telling me something." ──────── */
+  --accent: #D9A759;
+  --accent-2: #E6BD7A;
+  --accent-3: #F0D4A3;
+  --accent-dim: rgba(217,167,89,0.14);
+  --accent-glow: rgba(217,167,89,0.35);
+
+  /* ── Status — validated for dark-surface contrast + CVD separation
+     via dataviz skill's validate_palette.js against this --bg. Kept
+     visually distinct from --accent so a status color never doubles
+     as an AI marker. ───────────────────────────────────────────────── */
+  --success: #34A871;
+  --success-dim: rgba(52,168,113,0.14);
+  --warning: #C77A1F;
+  --warning-dim: rgba(199,122,31,0.14);
+  --error: #E2604F;
+  --error-dim: rgba(226,96,79,0.14);
+  --critical: #C7382A;
+  --critical-dim: rgba(199,56,42,0.14);
+
+  --grad-accent: linear-gradient(135deg, #D9A759 0%, #C68A3D 100%);
+  --grad-accent-hover: linear-gradient(135deg, #E6BD7A 0%, #D9A759 100%);
+  --grad-success: linear-gradient(135deg, #34A871 0%, #2B8C6A 100%);
   --grad-surface: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+
+  --font-body: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'El Messiri', 'Tajawal', -apple-system, sans-serif;
+
   --sidebar-w: 220px;
   --topbar-h: 56px;
   --radius: 8px;
@@ -47,8 +73,8 @@ export const SHARED_CSS = `
   --radius-lg: 12px;
   --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
   --shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
-  --shadow-accent: 0 4px 14px rgba(99,102,241,0.35);
-  --shadow-glow: 0 0 0 1px rgba(99,102,241,0.15), 0 8px 24px rgba(99,102,241,0.18);
+  --shadow-accent: 0 4px 14px rgba(217,167,89,0.32);
+  --shadow-glow: 0 0 0 1px rgba(217,167,89,0.15), 0 8px 24px rgba(217,167,89,0.18);
   --transition: 150ms cubic-bezier(0.4,0,0.2,1);
   --transition-slow: 260ms cubic-bezier(0.34,1.56,0.64,1);
 }
@@ -57,10 +83,11 @@ html { font-size: 14px; -webkit-font-smoothing: antialiased; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+  font-family: var(--font-body);
   line-height: 1.5;
   min-height: 100vh;
 }
+h1, h2, h3, .page-title, .card-title-lg { font-family: var(--font-display); }
 [dir="auto"] { letter-spacing: normal; line-height: 1.6; }
 a { color: var(--accent-2); text-decoration: none; }
 a:hover { color: var(--text); }
@@ -140,7 +167,7 @@ input, select, textarea { font-family: inherit; }
 .sidebar-user:hover { background: var(--surface-hover); }
 .avatar {
   width: 28px; height: 28px;
-  background: var(--grad-vibrant);
+  background: var(--grad-accent);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; color: #fff;
@@ -354,7 +381,7 @@ tr:hover td { background: var(--surface-hover); }
 }
 .btn.is-rippling::after { opacity: 1; transition: opacity 0ms; }
 .btn-primary { background: var(--grad-accent); color: #fff; box-shadow: var(--shadow-accent); }
-.btn-primary:hover { background: var(--grad-accent-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.45); }
+.btn-primary:hover { background: var(--grad-accent-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(217,167,89,0.45); }
 .btn-primary:active { transform: translateY(0) scale(0.985); }
 .btn-secondary {
   background: var(--surface-2);
@@ -363,11 +390,11 @@ tr:hover td { background: var(--surface-hover); }
 }
 .btn-secondary:hover { background: var(--surface-hover); border-color: var(--accent); color: #fff; transform: translateY(-1px); }
 .btn-danger { background: var(--error-dim); color: var(--error); border: 1px solid transparent; }
-.btn-danger:hover { background: var(--error); color: #fff; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(239,68,68,0.35); }
+.btn-danger:hover { background: var(--error); color: #fff; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(226,96,79,0.35); }
 .btn-ghost { background: transparent; color: var(--text-2); }
 .btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
-.btn-success { background: var(--grad-success); color: #fff; box-shadow: 0 4px 14px rgba(20,184,166,0.3); }
-.btn-success:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 6px 20px rgba(20,184,166,0.4); }
+.btn-success { background: var(--grad-success); color: #fff; box-shadow: 0 4px 14px rgba(52,168,113,0.3); }
+.btn-success:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 6px 20px rgba(52,168,113,0.4); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .btn-lg { padding: 10px 20px; font-size: 14px; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; transform: none; box-shadow: none; }
@@ -410,10 +437,10 @@ select.form-input { cursor: pointer; }
   margin-bottom: 16px;
   display: flex; align-items: flex-start; gap: 9px;
 }
-.alert-error { background: var(--error-dim); color: var(--error); border: 1px solid rgba(239,68,68,0.2); }
-.alert-success { background: var(--success-dim); color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
-.alert-warning { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
-.alert-info { background: var(--accent-dim); color: var(--accent-2); border: 1px solid rgba(99,102,241,0.2); }
+.alert-error { background: var(--error-dim); color: var(--error); border: 1px solid rgba(226,96,79,0.2); }
+.alert-success { background: var(--success-dim); color: var(--success); border: 1px solid rgba(52,168,113,0.2); }
+.alert-warning { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(199,122,31,0.2); }
+.alert-info { background: var(--accent-dim); color: var(--accent-2); border: 1px solid rgba(217,167,89,0.2); }
 
 /* ── Global token-decrypt failure banner ─────────────────────────── */
 .token-decrypt-banner {
@@ -421,7 +448,7 @@ select.form-input { cursor: pointer; }
   align-items: center;
   gap: 14px;
   padding: 14px 24px;
-  background: linear-gradient(90deg, rgba(220,38,38,0.22), rgba(239,68,68,0.12));
+  background: linear-gradient(90deg, rgba(199,56,42,0.22), rgba(226,96,79,0.12));
   border-bottom: 2px solid var(--critical);
   color: var(--text);
   font-size: 14px;
@@ -442,7 +469,7 @@ select.form-input { cursor: pointer; }
 .token-decrypt-banner-title {
   font-size: 14px;
   font-weight: 800;
-  color: #fecaca;
+  color: #F2B8AE;
   letter-spacing: -0.2px;
   margin-bottom: 2px;
 }
@@ -468,7 +495,7 @@ select.form-input { cursor: pointer; }
   white-space: nowrap;
   transition: background var(--transition);
 }
-.token-decrypt-banner .btn-reconnect:hover { background: #b91c1c; color: #fff; }
+.token-decrypt-banner .btn-reconnect:hover { background: #A92F23; color: #fff; }
 .token-decrypt-banner-dismiss {
   background: transparent;
   border: 1px solid rgba(255,255,255,0.15);
@@ -584,7 +611,7 @@ select.form-input { cursor: pointer; }
   padding: 10px 14px;
   margin-bottom: 16px;
   background: var(--accent-dim);
-  border: 1px solid rgba(99,102,241,0.35);
+  border: 1px solid rgba(217,167,89,0.35);
   border-radius: var(--radius-lg);
   font-size: 13px;
   color: var(--text);
@@ -592,7 +619,7 @@ select.form-input { cursor: pointer; }
 .sync-status-inner { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; flex-wrap: wrap; }
 .sync-status-spinner {
   width: 14px; height: 14px; flex-shrink: 0;
-  border: 2px solid rgba(99,102,241,0.25);
+  border: 2px solid rgba(217,167,89,0.25);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.75s linear infinite;
@@ -792,7 +819,7 @@ select.form-input { cursor: pointer; }
 /* ── New components ─────────────────────────────────────────────── */
 /* Gradient text (headings / brand emphasis) */
 .gradient-text {
-  background: var(--grad-vibrant);
+  background: var(--grad-accent);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: transparent;
 }
@@ -1534,10 +1561,7 @@ export function layout(opts: {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0a0a0b">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#100E0D">
   <title>${title} — Adlytic</title>
   <style>${SHARED_CSS}</style>
   ${extraHead}
