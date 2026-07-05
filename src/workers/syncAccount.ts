@@ -1192,6 +1192,43 @@ export class SyncAccountWorker {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  INTRA-DAY VELOCITY — "today so far" from Meta's date_preset=today.
+  //
+  //  Meta evaluates this in the ad account's reporting timezone. The row is
+  //  upserted into DailyStat with today's date so the dashboard can surface
+  //  partial-day spend/impressions/messages without waiting for the full-day
+  //  attribution window to close. Re-running is safe (upsert overwrites).
+  //  This is cheap: 1 Meta call per account, no pagination expected.
+  // ════════════════════════════════════════════════════════════════════════
+  async syncToday(
+    adAccountId: string,
+  ): Promise<{ rowsUpserted: number }> {
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const tag = `[syncToday:${acct.externalAccountId}]`;
+    const rows = await this.meta.getTodayInsights({
+      externalId: acct.externalAccountId,
+      level: 'account',
+    });
+    if (rows.length === 0) return { rowsUpserted: 0 };
+
+    const dailyBatch = rows.map((r) => ({
+      entityType: EntityType.ACCOUNT,
+      entityId: adAccountId,
+      insight: mapMetaInsight(r, {
+        currencyMinorFactor: currencyFactorForMapper(
+          acct.currency,
+          acct.currencyMinorFactor,
+          `${tag} today insights`,
+        ),
+      }),
+    }));
+    await this.dailyRepo.upsertMany(dailyBatch);
+    await this.markSynced(adAccountId, new Date());
+    console.log(`${tag} today velocity: ${dailyBatch.length} row(s) upserted`);
+    return { rowsUpserted: dailyBatch.length };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  CHUNKED SYNC — drives a SyncJob row over a configurable window.
   //
   //  Reads SyncJob.windowSince/until/windowDays from the DB (the route only
@@ -1283,13 +1320,8 @@ export class SyncAccountWorker {
     let totalUpserted = 0;
     const reconcileNow = new Date();
 
-    // Reconcile campaign statuses from Meta FIRST so the dashboard reflects
-    // reality while the (potentially long) account-level backfill runs.
-    const earlyReconcile = await this.reconcileCampaignStatusesSafe(adAccountId, reconcileNow, tag);
-    if (!earlyReconcile.ok) {
-      console.warn(`${tag} early reconcile failed — continuing sync; will retry at completion`);
-    }
-
+    // syncCampaigns internally calls reconcileCampaignStatuses — no need for
+    // a separate early reconcile (was a duplicate Meta listCampaigns call).
     try {
       const campResult = await this.syncCampaigns(adAccountId, { since, until, now: reconcileNow });
       console.log(
@@ -1407,10 +1439,6 @@ export class SyncAccountWorker {
       }
 
       await this.markSynced(adAccountId, new Date());
-      const finalReconcile = await this.reconcileCampaignStatusesSafe(adAccountId, new Date(), tag);
-      if (!finalReconcile.ok) {
-        console.warn(`${tag} final reconcile failed after sync — ${finalReconcile.error}`);
-      }
       await this.prisma.syncJob.update({
         where: { id: jobId },
         data: {

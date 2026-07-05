@@ -211,30 +211,71 @@ async function main(): Promise<void> {
       try {
         const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken });
         const worker = new SyncAccountWorker(prisma, metaClient);
-        // 28 days covers Meta's full attribution backfill window so late-arriving
-        // conversions on days 8-28 update in daily_stats instead of going stale.
+        const tag = `[adlytic:auto-sync:${acct.externalAccountId}]`;
+        const syncStart = Date.now();
+
+        // Phase 0: Intra-day velocity (single fast call — "today so far")
+        try {
+          await worker.syncToday(acct.id);
+        } catch (todayErr) {
+          console.error(`${tag} syncToday failed (non-fatal):`, todayErr instanceof Error ? todayErr.message : todayErr);
+        }
+
+        // Phase 1: Account-level daily stats (28-day backfill for attribution lag)
         const syncResult = await worker.sync(acct.id, { backfillDays: 28 });
-        if (syncResult.ok) {
-          await runEngines(prisma, acct.id);
-          // Refresh V6 Brain tables (campaignBrainSnapshot / campaignIntelligenceReport)
-          // so the dashboard's Brain section, CMO feed, and AI context stop reading
-          // stale rows in the in-process (non-BullMQ) fallback path. BullMQ path
-          // already does this in syncAccountProcessor.
-          try {
-            await runBrainOrchestrator(prisma, metaClient, acct.id);
-          } catch (brainErr) {
-            console.error(`[adlytic:auto-sync] brain refresh failed for ${acct.externalAccountId}:`, brainErr);
-          }
-          console.log(`[adlytic:auto-sync] ✓ ${acct.externalAccountId} (${syncResult.rowsUpserted} rows, ${syncResult.durationMs}ms)`);
-        } else {
-          console.warn(`[adlytic:auto-sync] ✗ ${acct.externalAccountId}: ${syncResult.error}`);
+        if (!syncResult.ok) {
+          console.warn(`${tag} account sync ✗: ${syncResult.error}`);
           if (syncResult.error && /code.*190|190.*code|OAuthException/.test(syncResult.error)) {
             await handle190();
           }
+          continue;
         }
+
+        // Phase 2: Campaign-level daily stats + status reconciliation
+        const since = new Date(Date.now() - 28 * 864e5);
+        const until = new Date();
+        try {
+          const campResult = await worker.syncCampaigns(acct.id, { since, until });
+          console.log(`${tag} campaigns: ${campResult.dailyRowsUpserted} daily rows`);
+        } catch (campErr) {
+          console.error(`${tag} syncCampaigns failed (non-fatal):`, campErr instanceof Error ? campErr.message : campErr);
+        }
+
+        // Phase 3: Ad-set + Ad + Creative discovery
+        try {
+          const adsResult = await worker.syncAdSetsAndAds(acct.id, { since });
+          console.log(`${tag} ads: ${adsResult.adsUpserted} ads, ${adsResult.creativesUpserted} creatives`);
+        } catch (adsErr) {
+          console.error(`${tag} syncAdSetsAndAds failed (non-fatal):`, adsErr instanceof Error ? adsErr.message : adsErr);
+        }
+
+        // Phase 4: Ad-level daily stats (feeds get_creative_performance)
+        try {
+          const adInsResult = await worker.syncAdInsights(acct.id, { since, until });
+          console.log(`${tag} ad insights: ${adInsResult.rowsUpserted} rows`);
+        } catch (aiErr) {
+          console.error(`${tag} syncAdInsights failed (non-fatal):`, aiErr instanceof Error ? aiErr.message : aiErr);
+        }
+
+        // Phase 5: Breakdowns (age/gender/platform — feeds audience tool)
+        try {
+          const bdResult = await worker.syncBreakdowns(acct.id, { since, until });
+          console.log(`${tag} breakdowns: ${bdResult.rowsUpserted} segment rows`);
+        } catch (bdErr) {
+          console.error(`${tag} syncBreakdowns failed (non-fatal):`, bdErr instanceof Error ? bdErr.message : bdErr);
+        }
+
+        // Phase 6: Engines + Brain
+        await runEngines(prisma, acct.id);
+        try {
+          await runBrainOrchestrator(prisma, metaClient, acct.id);
+        } catch (brainErr) {
+          console.error(`${tag} brain refresh failed:`, brainErr instanceof Error ? brainErr.message : brainErr);
+        }
+
+        console.log(`${tag} ✓ full sync done (${Date.now() - syncStart}ms)`);
       } catch (err) {
         console.error(`[adlytic:auto-sync] Error syncing ${acct.externalAccountId}:`, err);
-        // Also catch MetaApiError code 190 thrown before SyncResult is produced
         if (err instanceof MetaApiError) {
           const body = err.body as Record<string, any>;
           if (body?.error?.code === 190) {
