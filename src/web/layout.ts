@@ -116,15 +116,10 @@ input, select, textarea { font-family: inherit; }
   display: flex; align-items: center; gap: 10px;
 }
 .sidebar-logo-mark {
-  width: 28px; height: 28px;
-  background: var(--grad-accent);
-  border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 13px; color: #fff; letter-spacing: -0.5px;
+  width: 30px; height: 30px;
   flex-shrink: 0;
-  box-shadow: var(--shadow-accent);
 }
-.sidebar-logo-text { font-weight: 700; font-size: 15px; color: var(--text); letter-spacing: -0.3px; }
+.sidebar-logo-text { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -0.3px; }
 .sidebar-logo-badge {
   font-size: 10px; font-weight: 600; color: var(--accent-2);
   background: var(--accent-dim); border-radius: 4px; padding: 1px 5px;
@@ -1923,7 +1918,7 @@ export function sidebar(active: string): string {
   return `
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <div class="sidebar-logo-mark">A</div>
+    <div class="sidebar-logo-mark"><svg width="30" height="30" viewBox="0 0 120 120" fill="none"><defs><linearGradient id="sl" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#D9A759"/><stop offset="100%" stop-color="#C4903E"/></linearGradient></defs><rect x="2" y="2" width="116" height="116" rx="26" fill="#100E0D" stroke="url(#sl)" stroke-width="3" opacity="0.5"/><text x="60" y="78" text-anchor="middle" font-family="serif" font-size="64" font-weight="700" fill="url(#sl)">A</text><rect x="36" y="86" width="48" height="2.5" rx="1.25" fill="url(#sl)" opacity="0.5"/></svg></div>
     <span class="sidebar-logo-text">Adlytic</span>
     <span class="sidebar-logo-badge">Beta</span>
   </div>

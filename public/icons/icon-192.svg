@@ -1,4 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="32" fill="#100E0D"/>
-  <text x="96" y="120" text-anchor="middle" font-family="system-ui, sans-serif" font-size="96" font-weight="900" fill="#D9A759">A</text>
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D9A759"/>
+      <stop offset="50%" stop-color="#E6BD7A"/>
+      <stop offset="100%" stop-color="#C4903E"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="#100E0D"/>
+  <rect x="6" y="6" width="180" height="180" rx="38" fill="none" stroke="url(#g1)" stroke-width="2" opacity="0.3"/>
+  <text x="96" y="122" text-anchor="middle" font-family="serif" font-size="96" font-weight="700" fill="url(#g1)">A</text>
+  <rect x="56" y="134" width="80" height="3" rx="1.5" fill="url(#g1)" opacity="0.5"/>
 </svg>
