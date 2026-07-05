@@ -335,6 +335,7 @@ export function campaignsPage(): string {
     currency: 'USD',
     minorFactor: 100,
     lastSyncedAt: null,
+    lastIssueDates: [],
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
@@ -356,6 +357,7 @@ export function campaignsPage(): string {
             titleColor: '#F3EFE7',
             bodyColor: '#B8AC9C',
             padding: 10,
+            filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
           }
         },
         scales: {
@@ -368,15 +370,49 @@ export function campaignsPage(): string {
             ticks: { color: '#746A5C', font: { size: 11 } }
           }
         },
-        elements: { point: { radius: 0, hoverRadius: 4 } }
+        elements: { point: { radius: 0, hoverRadius: 4 } },
+        // Timeline Explorer — click a marker to see that day's attribution.
+        onClick: function (evt, elements, chart) {
+          if (!elements || !elements.length) return;
+          var el = elements[0];
+          var ds = chart.data.datasets[el.datasetIndex];
+          if (ds && ds.isIssueMarkers && ds.pointDates && ds.pointDates[el.index]) {
+            openTimelineAttribution(ds.pointDates[el.index]);
+          }
+        },
       }
     });
+  }
+
+  // Timeline Explorer — see PHASE3_IFA_DESIGN.md §3 / dashboardPage.ts's
+  // twin implementation for chart-spend-main.
+  function buildIssueMarkerDataset(labels, isoDates, issueDates) {
+    if (!Array.isArray(issueDates) || !issueDates.length) return null;
+    var severityColor = { CRITICAL: '#C7382A', HIGH: '#E2604F', MEDIUM: '#C77A1F', LOW: '#746A5C' };
+    var isoToIndex = {};
+    isoDates.forEach(function (d, i) { isoToIndex[d] = i; });
+    var points = [], pointDates = [], colors = [];
+    issueDates.forEach(function (iss) {
+      var idx = isoToIndex[iss.date];
+      if (idx == null) return;
+      points.push({ x: labels[idx], y: 0 });
+      pointDates.push(iss.date);
+      colors.push(severityColor[iss.severity] || '#746A5C');
+    });
+    if (!points.length) return null;
+    return {
+      type: 'scatter', label: 'مشاكل مكتشفة', data: points,
+      pointDates: pointDates, isIssueMarkers: true,
+      backgroundColor: colors, pointRadius: 6, pointHoverRadius: 8,
+      showLine: false, order: 0,
+    };
   }
 
   function updateCharts(insights) {
     try {
     var filtered = recentAsc(insights, state.days);
     var labels = filtered.map(function(d) { return fmtShortDate(d.date); });
+    var isoDates = filtered.map(function(d) { return new Date(d.date).toISOString().slice(0, 10); });
     // d.spend is BigInt minor units (e.g. cents). We pass the raw minor
     // number into the chart series here because the y-axis tick formatter
     // would otherwise need the divisor too — keep it consistent by also
@@ -384,18 +420,22 @@ export function campaignsPage(): string {
     var spendData = filtered.map(function(d) { return (Number(d.spend) || 0) / state.minorFactor; });
     var ctrData = filtered.map(function(d) { return Number(d.ctr) || 0; });
 
+    var spendDatasets = [{
+      label: 'Spend',
+      data: spendData,
+      borderColor: '#D9A759',
+      backgroundColor: 'rgba(217,167,89,0.08)',
+      fill: true, tension: 0.4
+    }];
+    var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
+    if (markerDataset) spendDatasets.push(markerDataset);
+
     if (state.spendChart) {
       state.spendChart.data.labels = labels;
-      state.spendChart.data.datasets[0].data = spendData;
+      state.spendChart.data.datasets = spendDatasets;
       state.spendChart.update();
     } else {
-      state.spendChart = makeLineChart('chart-spend', labels, [{
-        label: 'Spend',
-        data: spendData,
-        borderColor: '#D9A759',
-        backgroundColor: 'rgba(217,167,89,0.08)',
-        fill: true, tension: 0.4
-      }]);
+      state.spendChart = makeLineChart('chart-spend', labels, spendDatasets);
     }
 
     var hasCtrData = ctrData.some(function(v){ return v > 0; });
@@ -1002,10 +1042,12 @@ export function campaignsPage(): string {
       apiFetch('/api/workspaces/' + workspaceId + '/campaigns'),
       apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
       apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
+      apiFetch('/api/workspaces/' + workspaceId + '/issue-dates?days=30').catch(function() { return []; }),
     ]);
     var campaigns = results[0];
     var insights = results[1];
     var wsData = results[2];
+    state.lastIssueDates = Array.isArray(results[3]) ? results[3] : [];
 
     var primary = wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts[0];
     if (primary) {
@@ -1150,11 +1192,13 @@ export function campaignsPage(): string {
         onComplete: function() { loadCampaignData(); },
       });
 
-      var [campaigns, insights, wsData] = await Promise.all([
+      var [campaigns, insights, wsData, issueDates] = await Promise.all([
         apiFetch('/api/workspaces/' + workspaceId + '/campaigns'),
         apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
         apiFetch('/api/workspaces/' + workspaceId).catch(function() { return null; }),
+        apiFetch('/api/workspaces/' + workspaceId + '/issue-dates?days=30').catch(function() { return []; }),
       ]);
+      state.lastIssueDates = Array.isArray(issueDates) ? issueDates : [];
 
       // Hydrate currency context BEFORE rendering so the first paint of
       // budgets / total spend uses the correct factor. /api/workspaces/:id

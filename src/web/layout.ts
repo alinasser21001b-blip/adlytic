@@ -1662,6 +1662,65 @@ function renderContextActions(metricKey, issues, campaignName) {
   }).join('') + '</div>';
 }
 
+// ── Shared attribution-card renderer ────────────────────────────────────
+// Extracted so both the dashboard's fixed 30-day attribution section and
+// Timeline Explorer's per-spike click popover (a narrower, on-demand window)
+// render identically instead of maintaining two copies of the same markup.
+function renderAttributionCardHtml(attr, titleText) {
+  var factors = [
+    { key: 'impressions', label: 'الظهور (Impressions)', delta: attr.drivers.impressions.change },
+    { key: 'ctr', label: 'نسبة النقر (CTR)', delta: attr.drivers.ctr.change },
+    { key: 'cvr', label: 'نسبة التحويل (CVR)', delta: attr.drivers.cvr.change },
+  ];
+  return '<div class="attribution-card">'
+    + '<div class="attribution-title">' + titleText + '</div>'
+    + '<div class="attribution-bars">'
+    + factors.map(function (f) {
+        var cls = f.delta > 0.02 ? 'positive' : f.delta < -0.02 ? 'negative' : 'neutral';
+        var fillColor = f.delta > 0.02 ? 'var(--success)' : f.delta < -0.02 ? 'var(--error)' : 'var(--text-3)';
+        var pct = Math.min(Math.abs(f.delta * 100), 100);
+        var isPrimary = f.key === attr.primaryDriver;
+        return '<div class="attribution-factor">'
+          + '<div class="attribution-factor-label">' + f.label + '</div>'
+          + '<div class="attribution-factor-value ' + cls + '">'
+            + (f.delta >= 0 ? '+' : '') + (f.delta * 100).toFixed(1) + '%'
+          + '</div>'
+          + '<div class="attribution-factor-bar"><div class="attribution-factor-fill" style="width:' + pct + '%;background:' + fillColor + ';"></div></div>'
+          + (isPrimary ? '<div class="attribution-primary-tag">السبب الرئيسي</div>' : '')
+        + '</div>';
+      }).join('')
+    + '</div>'
+    + '<div class="attribution-narrative">' + attr.narrative + '</div>'
+  + '</div>';
+}
+
+// ── Timeline Explorer — click-to-attribute popover ──────────────────────
+// Fetches attributeChange()'s output for a single clicked day (vs the same
+// weekday one week earlier) and renders it with the exact same markup as
+// the dashboard's fixed-window attribution card. See PHASE3_IFA_DESIGN.md §3.
+async function openTimelineAttribution(dateIso) {
+  var overlay = document.getElementById('timeline-attribution-modal');
+  var body = document.getElementById('timeline-attribution-body');
+  if (!overlay || !body) return;
+  body.innerHTML = '<div class="v2-action-empty">جارٍ التحليل…</div>';
+  overlay.style.display = 'flex';
+  var wsId = getWsId();
+  try {
+    var res = await apiFetch('/api/workspaces/' + wsId + '/attribution?date=' + dateIso);
+    body.innerHTML = renderAttributionCardHtml(res.attribution, 'سبب تغيّر النتائج — ' + dateIso);
+  } catch (e) {
+    var msg = String((e && e.message) || 'تعذّر تحليل هذا اليوم — بيانات غير كافية للمقارنة.')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    body.innerHTML = '<div class="v2-action-empty">' + msg + '</div>';
+  }
+}
+function closeTimelineAttribution() {
+  var overlay = document.getElementById('timeline-attribution-modal');
+  if (overlay) overlay.style.display = 'none';
+}
+window.openTimelineAttribution = openTimelineAttribution;
+window.closeTimelineAttribution = closeTimelineAttribution;
+
 // Data Lineage — relative-time formatter for the popover's source block.
 // Deliberately coarse (minutes/hours/days) rather than exact timestamps:
 // the point is "is this fresh enough to trust", not a precise clock.
@@ -1868,6 +1927,14 @@ export function layout(opts: {
       <div id="metric-info-body"></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary btn-sm" onclick="closeMetricInfo()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+  <div id="timeline-attribution-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeTimelineAttribution()">
+    <div class="modal" style="max-width:460px;">
+      <div id="timeline-attribution-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeTimelineAttribution()">إغلاق</button>
       </div>
     </div>
   </div>

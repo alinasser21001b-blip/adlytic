@@ -45,6 +45,7 @@ import { signToken, verifyToken, verifyPassword, hashPassword } from '../service
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse, DashboardStageTimeoutError } from '../services/getDashboard';
+import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { requireActiveUser } from '../services/accountAccess';
@@ -2173,6 +2174,72 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       orderBy: { date: 'desc' },
     });
     return c.json(safeJson(stats));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/issue-dates — Timeline Explorer markers.
+   * Returns the account-level DetectedIssue rows in the window as
+   * { date, issueCode, severity }[] — a direct read, no new computation.
+   * Matches the scope of chart-spend-main / chart-spend (both workspace-wide
+   * aggregates, not a single campaign's line) — see PHASE3_IFA_DESIGN.md §3.
+   */
+  app.get('/api/workspaces/:workspaceId/issue-dates', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json([]);
+    const days = Math.min(Number(req.query['days'] ?? '30'), 90);
+    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
+    const rows = await prisma.detectedIssue.findMany({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
+      orderBy: { date: 'asc' },
+      select: { date: true, issueCode: true, severity: true },
+    });
+    return c.json(rows.map(r => ({
+      date: r.date.toISOString().slice(0, 10),
+      issueCode: r.issueCode,
+      severity: r.severity,
+    })));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/attribution?date=YYYY-MM-DD — Timeline
+   * Explorer's click-to-attribute. Compares the clicked day against the same
+   * weekday one week earlier (not the day before) so a Friday spike isn't
+   * misattributed against a quiet Thursday — reuses attributeChange(), the
+   * same deterministic engine renderAttribution() already uses for the
+   * dashboard's fixed 30-day window, just called with a single-day window.
+   * See PHASE3_IFA_DESIGN.md §3.
+   */
+  app.get('/api/workspaces/:workspaceId/attribution', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const dateParam = req.query['date'];
+    if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return c.json({ error: 'date must be YYYY-MM-DD' }, 400);
+    }
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const currentDate = new Date(dateParam + 'T00:00:00.000Z');
+    const priorDate = new Date(currentDate.getTime() - 7 * 864e5);
+    const [currentRows, priorRows] = await Promise.all([
+      prisma.dailyStat.findMany({ where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: currentDate } }),
+      prisma.dailyStat.findMany({ where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: priorDate } }),
+    ]);
+    const sumField = (rows: { [k: string]: any }[], f: string) => rows.reduce((a, r) => a + Number(r[f] ?? 0), 0);
+    const current = { impressions: sumField(currentRows, 'impressions'), clicks: sumField(currentRows, 'clicks'), results: sumField(currentRows, 'messages') };
+    const prior = { impressions: sumField(priorRows, 'impressions'), clicks: sumField(priorRows, 'clicks'), results: sumField(priorRows, 'messages') };
+    const attribution = attributeChange(current, prior);
+    if (!attribution) {
+      return c.json({ error: 'Not enough data to attribute this day (no prior-week baseline)' }, 422);
+    }
+    return c.json({ date: dateParam, priorDate: priorDate.toISOString().slice(0, 10), attribution });
   });
 
   /** GET /api/workspaces/:workspaceId/insights/trends — metric trends. */

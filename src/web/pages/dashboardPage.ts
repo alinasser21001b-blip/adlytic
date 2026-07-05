@@ -257,6 +257,7 @@ export function dashboardPage(): string {
     lastCampaigns: [],
     lastSyncedAt: null,
     lastIssues: [],
+    lastIssueDates: [],
   };
 
   ${i18nHelpersJs}
@@ -313,16 +314,53 @@ export function dashboardPage(): string {
             titleColor: '#F3EFE7',
             bodyColor: '#B8AC9C',
             padding: 10,
+            // Timeline Explorer's marker dataset sits at y:0 purely for
+            // positioning — it has no value worth showing in the tooltip.
+            filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
           }
         },
         scales: {
           x: { grid: { color: '#322B25' }, ticks: { color: '#746A5C', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
           y: { grid: { color: '#322B25' }, ticks: { color: '#746A5C', font: { size: 11 } } }
         },
-        elements: { point: { radius: 0, hoverRadius: 4 } }
+        elements: { point: { radius: 0, hoverRadius: 4 } },
+        // Timeline Explorer — click a marker to see that day's attribution.
+        onClick: function (evt, elements, chart) {
+          if (!elements || !elements.length) return;
+          var el = elements[0];
+          var ds = chart.data.datasets[el.datasetIndex];
+          if (ds && ds.isIssueMarkers && ds.pointDates && ds.pointDates[el.index]) {
+            openTimelineAttribution(ds.pointDates[el.index]);
+          }
+        },
       }
     });
     return chartInstances[canvasId];
+  }
+
+  // Timeline Explorer — builds the secondary scatter dataset of small dots
+  // under the spend line, one per day with an active account-level issue.
+  // See PHASE3_IFA_DESIGN.md §3.
+  function buildIssueMarkerDataset(labels, isoDates, issueDates) {
+    if (!Array.isArray(issueDates) || !issueDates.length) return null;
+    var severityColor = { CRITICAL: '#C7382A', HIGH: '#E2604F', MEDIUM: '#C77A1F', LOW: '#746A5C' };
+    var isoToIndex = {};
+    isoDates.forEach(function (d, i) { isoToIndex[d] = i; });
+    var points = [], pointDates = [], colors = [];
+    issueDates.forEach(function (iss) {
+      var idx = isoToIndex[iss.date];
+      if (idx == null) return;
+      points.push({ x: labels[idx], y: 0 });
+      pointDates.push(iss.date);
+      colors.push(severityColor[iss.severity] || '#746A5C');
+    });
+    if (!points.length) return null;
+    return {
+      type: 'scatter', label: 'مشاكل مكتشفة', data: points,
+      pointDates: pointDates, isIssueMarkers: true,
+      backgroundColor: colors, pointRadius: 6, pointHoverRadius: 8,
+      showLine: false, order: 0,
+    };
   }
 
   // ── Hero cards ──────────────────────────────────────────────────────────
@@ -1423,24 +1461,32 @@ export function dashboardPage(): string {
 
       var last30 = recentAsc(insights, 30);
       var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+      var isoDates = last30.map(function (d) { return new Date(d.date).toISOString().slice(0, 10); });
       var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
       var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
       var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
 
       if (dashData.trendSeries && Array.isArray(dashData.trendSeries.dates)) {
         var ts = dashData.trendSeries;
-        var tsLabels = ts.dates.map(function (d) {
+        var tsIso = ts.dates.map(function (d) {
           var dateVal = d && typeof d === 'object' ? d.date : d;
-          return new Date(dateVal).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return new Date(dateVal).toISOString().slice(0, 10);
+        });
+        var tsLabels = tsIso.map(function (iso) {
+          return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         });
         if (Array.isArray(ts.spend))    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
         if (Array.isArray(ts.ctr))      ctrSeries        = ts.ctr.map(Number);
         if (Array.isArray(ts.messages)) impSeries        = ts.messages.map(Number);
         labels = tsLabels;
+        isoDates = tsIso;
       }
 
       safeRender('charts', function () {
-        makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
+        var spendDatasets = [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }];
+        var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
+        if (markerDataset) spendDatasets.push(markerDataset);
+        makeLineChart('chart-spend-main', labels, spendDatasets, { maxTicks: 10 });
         makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#34A871', backgroundColor: 'rgba(52,168,113,0.08)', fill: true, tension: 0.4 }]);
         makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#C77A1F', backgroundColor: 'rgba(199,122,31,0.08)', fill: true, tension: 0.4 }]);
       });
@@ -1506,6 +1552,7 @@ export function dashboardPage(): string {
         apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 15000).catch(function () { return []; }),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 15000).catch(function () { return []; }),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 15000).catch(function () { return null; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 15000).catch(function () { return []; }),
       ]);
       var dashData = results[0] || {};
       if (dashData.workspace && dashData.workspace.locale) {
@@ -1514,6 +1561,7 @@ export function dashboardPage(): string {
       var insights = results[1] || [];
       var campaigns = results[2] || [];
       var wsData = results[3];
+      state.lastIssueDates = Array.isArray(results[4]) ? results[4] : [];
 
       // 4) Empty state — no ad account connected
       if (dashData.empty) {
