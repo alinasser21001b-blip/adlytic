@@ -53,6 +53,8 @@ export function aiPage(): string {
   .typing-dots span:nth-child(3) { animation-delay:0.4s; }
   @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
   .data-chip { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--accent-dim);color:var(--accent-2);border-radius:4px;font-size:11px;font-weight:600;margin:2px; }
+  .tool-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .tool-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-3); border-radius:10px; font-size:10.5px; }
 </style>
 
 <div class="page-header">
@@ -160,6 +162,10 @@ export function aiPage(): string {
 
   let dashData = null;
   let sending  = false;
+  // v2 conversation id — persisted only for this page session (in-memory).
+  // null until the first successful v2 turn; once set, subsequent turns pass
+  // it so the agent has conversation history. Cleared by "Clear chat".
+  let conversationId = null;
   const messagesEl = document.getElementById('chat-messages');
   const inputEl    = document.getElementById('chat-input');
   const sendBtn    = document.getElementById('send-btn');
@@ -181,6 +187,49 @@ export function aiPage(): string {
     document.getElementById('context-chips').innerHTML = chips.length
       ? chips.map(c => '<span class="data-chip">' + c + '</span>').join('')
       : '<span style="font-size:12px;color:var(--text-3);">No campaign data yet</span>';
+  }
+
+  // Short human labels for tool chips — falls back to the raw tool name for
+  // any tool added later that isn't in this map yet.
+  var TOOL_LABELS = {
+    list_campaigns:            { ar: 'قائمة الحملات',        en: 'Campaign list' },
+    get_campaign_details:      { ar: 'تفاصيل الحملة',        en: 'Campaign details' },
+    rank_campaigns:            { ar: 'ترتيب الحملات',        en: 'Ranking' },
+    compare_periods:           { ar: 'مقارنة فترات',         en: 'Period comparison' },
+    detect_anomaly:            { ar: 'كشف شذوذ',            en: 'Anomaly check' },
+    get_audience_breakdown:    { ar: 'تحليل الجمهور',        en: 'Audience breakdown' },
+    get_creative_performance:  { ar: 'أداء الإعلانات',       en: 'Creative performance' },
+    lookup_knowledge:          { ar: 'مرجع Meta',            en: 'Knowledge lookup' },
+    get_hourly_pattern:        { ar: 'نمط الساعات',          en: 'Hourly pattern' },
+    find_similar_campaigns:    { ar: 'حملات مشابهة',         en: 'Similar campaigns' },
+    simulate_budget_shift:     { ar: 'محاكاة ميزانية',       en: 'Budget simulation' },
+    check_suspicious_activity: { ar: 'فحص أمني',            en: 'Security check' },
+    save_recommendation:       { ar: 'حفظ توصية',           en: 'Saved recommendation' },
+  };
+
+  function toolLabel(name) {
+    var entry = TOOL_LABELS[name];
+    if (!entry) return name;
+    return userLocale === 'AR' ? entry.ar : entry.en;
+  }
+
+  // Renders a small chip row under an assistant bubble showing which tools
+  // the agent called this turn — the visible proof that v2's live-DB agent
+  // (not the old rule-engine translator) produced this reply.
+  function renderToolChips(msgWrapperEl, toolCalls) {
+    if (!toolCalls || !toolCalls.length) return;
+    var bubble = msgWrapperEl.querySelector('.msg-bubble');
+    if (!bubble) return;
+    var row = document.createElement('div');
+    row.className = 'tool-chips';
+    toolCalls.forEach(function (tc) {
+      var chip = document.createElement('span');
+      chip.className = 'tool-chip';
+      var icon = tc.ok === false ? '⚠️' : '🔍';
+      chip.textContent = icon + ' ' + toolLabel(tc.toolName);
+      row.appendChild(chip);
+    });
+    bubble.appendChild(row);
   }
 
   function addMsg(role, html) {
@@ -236,13 +285,41 @@ export function aiPage(): string {
     const typingEl = addTyping();
 
     try {
-      const res = await apiFetch('/api/workspaces/' + wsId + '/ai/chat', {
-        method:'POST',
-        body: JSON.stringify({ message: question }),
-      });
+      // Try the Phase 2 agent (v2) first — it's feature-flagged server-side
+      // (AI_AGENT_V2_ENABLED). When disabled, the server returns 404 with
+      // code:'V2_DISABLED' and we fall back to the original v1 endpoint
+      // silently, so this is safe to ship regardless of the flag's state.
+      // When v2 IS enabled, this is what makes the new agent visibly show up
+      // — no separate UI deploy needed to flip it on.
+      let res = null;
+      let usedV2 = false;
+      try {
+        res = await apiFetch('/api/workspaces/' + wsId + '/ai/chat/v2', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: question,
+            conversationId: conversationId || undefined,
+          }),
+        });
+        usedV2 = true;
+      } catch (v2err) {
+        if (v2err && v2err.code === 'V2_DISABLED') {
+          res = await apiFetch('/api/workspaces/' + wsId + '/ai/chat', {
+            method: 'POST',
+            body: JSON.stringify({ message: question }),
+          });
+        } else {
+          throw v2err;
+        }
+      }
+
       typingEl.remove();
       const answer = res?.reply || 'I could not generate a response. Please try again.';
-      addMsg('assistant', mdToHtml(answer));
+      const bubbleWrapper = addMsg('assistant', mdToHtml(answer));
+      if (usedV2 && res) {
+        if (res.conversationId) conversationId = res.conversationId;
+        renderToolChips(bubbleWrapper, res.toolCalls);
+      }
     } catch(e) {
       typingEl.remove();
       addMsg('assistant', '<span style="color:var(--error);">Error: ' + (e.message||'Request failed') + '</span>');
@@ -291,6 +368,7 @@ export function aiPage(): string {
   // Clear chat
   document.getElementById('clear-btn').addEventListener('click', () => {
     messagesEl.innerHTML = '';
+    conversationId = null;
     addMsg('assistant', 'Chat cleared. Ask me anything about your campaign performance.');
   });
 

@@ -2447,7 +2447,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // ════════════════════════════════════════════════════════════════════════
   app.post('/api/workspaces/:workspaceId/ai/chat/v2', async (c) => {
     if (process.env['AI_AGENT_V2_ENABLED'] !== 'true') {
-      return c.json({ error: 'AI Agent v2 is disabled' }, 404);
+      return c.json({ error: 'AI Agent v2 is disabled', code: 'V2_DISABLED' }, 404);
     }
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
