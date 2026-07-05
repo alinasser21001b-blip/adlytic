@@ -1898,6 +1898,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initTokenDecryptBanner();
     startShellLoadingFallback(5000);
   }
+  // PWA Service Worker registration
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
 });
 `;
 
@@ -2001,6 +2005,10 @@ export function layout(opts: {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#100E0D">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
   <title>${title} — Adlytic</title>
   <style>${SHARED_CSS}</style>
   ${extraHead}

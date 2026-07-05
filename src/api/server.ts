@@ -329,6 +329,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     c.header('Cache-Control', 'public, max-age=31536000, immutable');
   });
 
+  // PWA assets: manifest, service worker, icons
+  app.use('/manifest.json', serveStatic({ root: './public' }));
+  app.use('/sw.js', serveStatic({ root: './public' }));
+  app.use('/icons/*', serveStatic({ root: './public' }));
+
   // ── Security headers ───────────────────────────────────────────────────
   app.use('*', async (c, next) => {
     await next();

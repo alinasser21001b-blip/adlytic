@@ -23,6 +23,7 @@ import { getHourlyPatternHandler } from './getHourlyPattern';
 import { findSimilarCampaignsHandler } from './findSimilarCampaigns';
 import { saveRecommendationHandler } from './saveRecommendation';
 import { checkPixelHealthHandler } from './checkPixelHealth';
+import { analyzeCreativePatternsHandler } from './analyzeCreativePatterns';
 
 /** Build the full tool set. Called once per HTTP request by the dispatcher. */
 export function buildAgentToolHandlers(): ToolHandler<unknown, unknown>[] {
@@ -41,5 +42,6 @@ export function buildAgentToolHandlers(): ToolHandler<unknown, unknown>[] {
     findSimilarCampaignsHandler(),
     saveRecommendationHandler(),
     checkPixelHealthHandler(),
+    analyzeCreativePatternsHandler(),
   ] as unknown as ToolHandler<unknown, unknown>[];
 }

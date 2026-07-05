@@ -1,0 +1,27 @@
+{
+  "name": "Adlytic — AI Ad Intelligence",
+  "short_name": "Adlytic",
+  "description": "AI-powered Meta Ads management and analytics",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#100E0D",
+  "theme_color": "#100E0D",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "ar",
+  "dir": "rtl"
+}
