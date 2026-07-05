@@ -96,7 +96,14 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
       aiPersonality: true,
     },
   });
-  const promptLocale: Locale = user.aiLocale ?? user.locale;
+  // §32 — reply in the language of THIS message, not the conversation's
+  // stored default. A merchant whose account locale defaults to EN (Prisma's
+  // schema default, or simply never set) but who types in Arabic must get an
+  // Arabic reply — the stored preference is a fallback for language-neutral
+  // turns (e.g. "ok" or a pure number), not an override of what they actually
+  // wrote this turn.
+  const storedLocale: Locale = user.aiLocale ?? user.locale;
+  const promptLocale: Locale = detectMessageLocale(userMessage) ?? storedLocale;
 
   // 2. Load or create conversation.
   let conversationId = args.conversationId;
@@ -387,6 +394,26 @@ function buildBudgetExhaustedReply(locale: Locale): string {
   return locale === 'AR'
     ? 'أعطيتك أقصى تحليل ممكن الآن. سؤال أضيق سيسمح لي بالتعمق أكثر.'
     : "I've reached the analysis budget for this turn. A narrower question would let me go deeper.";
+}
+
+/**
+ * Detect the language of a single message. Returns null when the message is
+ * too short or too neutral to tell (e.g. "ok", "5", an emoji) — callers
+ * should fall back to the stored preference in that case rather than force
+ * a locale from no evidence.
+ *
+ * Threshold-based, not a full language-ID model: counts Arabic-block
+ * characters vs Latin letters and requires a clear majority (not just one
+ * stray character) before overriding the stored default.
+ */
+function detectMessageLocale(message: string): Locale | null {
+  const arabicChars = message.match(/[؀-ۿ]/g)?.length ?? 0;
+  const latinChars = message.match(/[a-zA-Z]/g)?.length ?? 0;
+  const total = arabicChars + latinChars;
+  if (total < 3) return null;   // too little signal — don't override
+  if (arabicChars > latinChars) return 'AR' as Locale;
+  if (latinChars > arabicChars) return 'EN' as Locale;
+  return null;   // tie — ambiguous, defer to stored preference
 }
 
 function buildEmptyReplyPlaceholder(locale: Locale): string {

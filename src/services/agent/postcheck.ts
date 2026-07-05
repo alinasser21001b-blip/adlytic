@@ -47,6 +47,18 @@ const WHITELISTED_NUMBERS = new Set<string>([
  *  formatting differences. */
 const NUMERIC_TOLERANCE_PCT = 0.005;
 
+/** Wider tolerance for DERIVED figures (percent differences, ratios) since
+ *  Claude computes these itself from two corpus numbers rather than quoting
+ *  a tool-provided value verbatim — small rounding in its arithmetic (e.g.
+ *  "40%" for a true 39.4%) is legitimate, not fabrication. */
+const DERIVED_TOLERANCE_ABS = 1.5;
+
+/** Cap on distinct corpus numbers used for O(n^2) pairwise derivation checks
+ *  (percent-diff, ratio) so a tool result with hundreds of daily rows can't
+ *  make the check slow. Numbers beyond the cap still count for direct
+ *  (non-derived) matching via numberBackedByCorpus's first pass. */
+const MAX_NUMBERS_FOR_DERIVED_CHECK = 200;
+
 /**
  * Run the anti-hallucination check. Returns `ok: false` with the offending
  * tokens when a claim isn't sourced. The caller sends a system nudge to
@@ -72,13 +84,20 @@ export function postCheckReply(input: PostCheckInput): PostCheckResult {
   //    the merchant themselves wrote ("قال '5 دولار'").
   const strippedReply = stripUserQuotes(input.reply, input.userMessage);
 
+  // 2b. Precompute DERIVED values (percent-difference and ratio between every
+  // pair of corpus numbers) once per check, not per-token. This is what lets
+  // Claude say "أعلى بـ 40%" when two raw campaign metrics are 1.8 and 1.29 —
+  // a legitimate computation on retrieved numbers, not a fabrication, even
+  // though "40" never appears verbatim in any tool result.
+  const derivedValues = computeDerivedValues(corpus.numbers);
+
   // 3. Number tokens.
   const numberTokens = extractNumberTokens(strippedReply);
   for (const raw of numberTokens) {
     if (WHITELISTED_NUMBERS.has(raw)) continue;
     const asNum = parseNumberToken(raw);
     if (asNum == null) continue;
-    if (!numberBackedByCorpus(asNum, corpus.numbers)) {
+    if (!numberBackedByCorpus(asNum, corpus.numbers) && !derivedValueMatches(asNum, derivedValues)) {
       offendingTokens.push(raw);
       reasons.push(`unsourced_number:${raw}`);
     }
@@ -152,28 +171,45 @@ function collectCorpus(toolResults: PostCheckInput['toolResults']): Corpus {
   return { numbers, names };
 }
 
-function walk(value: unknown, numbers: number[], names: Set<string>): void {
+/** Key names that hold opaque identifiers (Prisma cuids, Meta external ids),
+ *  never a genuine metric. Real cuids are long alphanumeric strings packed
+ *  with incidental digits ("cmr6z1a6s00010m7dqgu1m7c2") — walking them for
+ *  embedded numbers would flood the corpus with meaningless noise that then
+ *  coincidentally "backs" fabricated figures.
+ *
+ *  Case-SENSITIVE on purpose: matches the exact key "id", or any key ending
+ *  in a camelCase "Id" boundary (campaignId, entityId, adId, creativeId,
+ *  workspaceId, userId, conversationId, toolUseId, recommendationId, ...).
+ *  A case-insensitive match would also catch unrelated fields like "valid"
+ *  (ends in lowercase "id") — the capital-I requirement avoids that. */
+const ID_KEY_PATTERN = /^id$|[a-z]Id$/;
+
+function walk(value: unknown, numbers: number[], names: Set<string>, key?: string): void {
   if (value == null) return;
+  const isIdField = key != null && ID_KEY_PATTERN.test(key);
   if (typeof value === 'number' && Number.isFinite(value)) {
-    numbers.push(value);
+    if (!isIdField) numbers.push(value);
     return;
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (trimmed.length >= 3) names.add(trimmed);
-    // Also parse embedded numbers in display strings like "3.20 USD".
-    for (const raw of extractNumberTokens(value)) {
-      const n = parseNumberToken(raw);
-      if (n != null) numbers.push(n);
+    // Also parse embedded numbers in display strings like "3.20 USD" — but
+    // never from id-shaped fields (see ID_KEY_PATTERN above).
+    if (!isIdField) {
+      for (const raw of extractNumberTokens(value)) {
+        const n = parseNumberToken(raw);
+        if (n != null) numbers.push(n);
+      }
     }
     return;
   }
   if (Array.isArray(value)) {
-    for (const v of value) walk(v, numbers, names);
+    for (const v of value) walk(v, numbers, names, key);
     return;
   }
   if (typeof value === 'object') {
-    for (const v of Object.values(value as Record<string, unknown>)) walk(v, numbers, names);
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) walk(v, numbers, names, k);
   }
 }
 
@@ -206,10 +242,61 @@ function numberBackedByCorpus(value: number, corpus: number[]): boolean {
   return false;
 }
 
+/**
+ * Every pairwise percent-difference, percent-ratio, and straight ratio
+ * between distinct corpus numbers. This is the "legitimate arithmetic"
+ * allowlist — Claude is expected to compare two retrieved metrics and state
+ * the relationship ("X higher/lower by Y%", "Zx"), and that Y or Z will
+ * essentially never appear verbatim in a tool result.
+ *
+ * Capped to MAX_NUMBERS_FOR_DERIVED_CHECK distinct values to bound the O(n^2)
+ * pair count — a detect_anomaly call with hundreds of daily rows would
+ * otherwise make this expensive for no real benefit (Claude cites a handful
+ * of comparisons per reply, not hundreds).
+ */
+function computeDerivedValues(numbers: number[]): number[] {
+  const distinct = Array.from(new Set(numbers.map((n) => +n.toFixed(6))))
+    .filter((n) => Number.isFinite(n))
+    .slice(0, MAX_NUMBERS_FOR_DERIVED_CHECK);
+  const derived: number[] = [];
+  for (let i = 0; i < distinct.length; i++) {
+    for (let j = 0; j < distinct.length; j++) {
+      if (i === j) continue;
+      const a = distinct[i]!;
+      const b = distinct[j]!;
+      if (b === 0) continue;
+      derived.push(((a - b) / Math.abs(b)) * 100);   // percent difference
+      derived.push((a / b) * 100);                     // percent ratio ("a is X% of b")
+      derived.push(a / b);                              // straight ratio ("2.4x")
+    }
+  }
+  return derived;
+}
+
+/** True when `value` is within DERIVED_TOLERANCE_ABS of a precomputed
+ *  derived value. Absolute (not relative) tolerance because derived
+ *  percentages are already a normalized scale — ±1.5 points covers Claude's
+ *  own rounding without being loose enough to wave through invented figures. */
+function derivedValueMatches(value: number, derived: number[]): boolean {
+  for (const d of derived) {
+    if (Math.abs(d - value) <= DERIVED_TOLERANCE_ABS) return true;
+  }
+  return false;
+}
+
 /** Find campaign name mentions in the reply. Two shapes:
  *    1. quoted strings — "..." or ' ... '
  *    2. words following "الحملة" or "إعلان" or "campaign"
  */
+/** True when the string contains at least one letter (Arabic or Latin) —
+ *  used to reject captures that are actually numbers/punctuation, not names.
+ *  Without this, "صحة الحملة 82/100" (health OF the campaign, a generic
+ *  phrase) gets misread as "الحملة" introducing a campaign literally named
+ *  "82/100". */
+function looksLikeName(s: string): boolean {
+  return /[a-zA-Z؀-ۿ]/.test(s);
+}
+
 function extractNamedMentions(text: string): string[] {
   const out: string[] = [];
   // Quoted strings — Arabic quotes «…» too.
@@ -217,15 +304,16 @@ function extractNamedMentions(text: string): string[] {
   if (quoted) {
     for (const q of quoted) {
       const inner = q.replace(/^["'«]|["'»]$/g, '').trim();
-      if (inner) out.push(inner);
+      if (inner && looksLikeName(inner)) out.push(inner);
     }
   }
-  // "الحملة X" / "إعلان X" / "campaign X" — take next 1-4 words.
+  // "الحملة X" / "إعلان X" / "campaign X" — take next 1-4 words. Guarded
+  // against generic phrases like "صحة الحملة 82/100" (see looksLikeName).
   const followers = text.match(/(?:الحملة|إعلان|campaign)\s+([^\s,،.!؟\n]{2,}(?:\s+[^\s,،.!؟\n]{2,}){0,3})/gi);
   if (followers) {
     for (const f of followers) {
       const cleaned = f.replace(/^(الحملة|إعلان|campaign)\s+/i, '').trim();
-      if (cleaned) out.push(cleaned);
+      if (cleaned && looksLikeName(cleaned)) out.push(cleaned);
     }
   }
   return out;
