@@ -27,17 +27,17 @@ export function adminDashboardPage(): string {
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0a0a0b;
-      --surface: #111113;
-      --surface-2: #18181b;
-      --border: #232326;
-      --text: #f1f0f0;
-      --text-2: #a0a0b0;
-      --text-3: #5a5a6a;
-      --accent: #6366f1;
-      --success: #22c55e;
-      --warning: #f59e0b;
-      --error: #ef4444;
+      --bg: #100E0D;
+      --surface: #1A1613;
+      --surface-2: #221D19;
+      --border: #322B25;
+      --text: #F3EFE7;
+      --text-2: #B8AC9C;
+      --text-3: #746A5C;
+      --accent: #D9A759;
+      --success: #34A871;
+      --warning: #C77A1F;
+      --error: #E2604F;
     }
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
     a { color: inherit; text-decoration: none; }
@@ -51,7 +51,7 @@ export function adminDashboardPage(): string {
     .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: rgba(99,102,241,0.15); color: var(--accent); }
+    .nav-item.active { background: rgba(217,167,89,0.15); color: var(--accent); }
     .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
     .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
 
@@ -96,18 +96,18 @@ export function adminDashboardPage(): string {
     .cache-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px; }
     .cache-info { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-2); }
     .badge { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
-    .badge-cache { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.35); }
-    .badge-fresh { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.35); }
+    .badge-cache { background: rgba(199,122,31,0.15); color: var(--warning); border: 1px solid rgba(199,122,31,0.35); }
+    .badge-fresh { background: rgba(52,168,113,0.15); color: var(--success); border: 1px solid rgba(52,168,113,0.35); }
     .btn-refresh { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
     .btn-refresh:hover { opacity: 0.9; }
     .btn-refresh[disabled] { opacity: 0.5; cursor: not-allowed; }
     .btn-activate { padding: 6px 12px; border-radius: 6px; background: var(--success); color: #fff; font-size: 12px; font-weight: 600; }
     .btn-activate:hover { opacity: 0.9; }
     .btn-activate[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .badge-active { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.35); }
-    .badge-inactive { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.35); }
+    .badge-active { background: rgba(52,168,113,0.15); color: var(--success); border: 1px solid rgba(52,168,113,0.35); }
+    .badge-inactive { background: rgba(199,122,31,0.15); color: var(--warning); border: 1px solid rgba(199,122,31,0.35); }
 
-    .error-box { padding: 16px; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.08); border-radius: 10px; color: var(--error); font-size: 13px; }
+    .error-box { padding: 16px; border: 1px solid rgba(226,96,79,0.35); background: rgba(226,96,79,0.08); border-radius: 10px; color: var(--error); font-size: 13px; }
   </style>
 </head>
 <body>

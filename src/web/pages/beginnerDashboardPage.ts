@@ -33,8 +33,8 @@ export function beginnerDashboardPage(): string {
     .bgn-greeting {
       display: flex; align-items: center; gap: 14px;
       padding: 22px 26px; margin-bottom: 22px;
-      background: linear-gradient(135deg, #1a2332 0%, #111113 70%);
-      border: 1px solid #2a3a52;
+      background: linear-gradient(135deg, #241C15 0%, #100E0D 70%);
+      border: 1px solid rgba(217,167,89,0.25);
       border-radius: 18px;
     }
     .bgn-greeting-emoji { font-size: 38px; line-height: 1; }
@@ -53,12 +53,12 @@ export function beginnerDashboardPage(): string {
       width: 10px; height: 10px; border-radius: 50%;
       box-shadow: 0 0 0 3px rgba(255,255,255,0.06);
     }
-    .bgn-status-pill.green  { background: rgba(34,197,94,0.14);  color: #4ade80; }
-    .bgn-status-pill.green  .bgn-dot { background: #22c55e; }
-    .bgn-status-pill.yellow { background: rgba(245,158,11,0.14); color: #fbbf24; }
-    .bgn-status-pill.yellow .bgn-dot { background: #f59e0b; }
-    .bgn-status-pill.red    { background: rgba(239,68,68,0.14);  color: #f87171; }
-    .bgn-status-pill.red    .bgn-dot { background: #ef4444; }
+    .bgn-status-pill.green  { background: rgba(52,168,113,0.14);  color: #5CC08F; }
+    .bgn-status-pill.green  .bgn-dot { background: #34A871; }
+    .bgn-status-pill.yellow { background: rgba(199,122,31,0.14); color: #E0A050; }
+    .bgn-status-pill.yellow .bgn-dot { background: #C77A1F; }
+    .bgn-status-pill.red    { background: rgba(226,96,79,0.14);  color: #EB9186; }
+    .bgn-status-pill.red    .bgn-dot { background: #E2604F; }
     .bgn-status-pill.gray   { background: rgba(255,255,255,0.05); color: var(--text-3); }
     .bgn-status-pill.gray   .bgn-dot { background: var(--text-3); }
 
@@ -78,23 +78,23 @@ export function beginnerDashboardPage(): string {
       display: flex; align-items: center; gap: 18px;
       transition: transform var(--transition), border-color var(--transition);
     }
-    .bgn-metric-card:hover { transform: translateY(-2px); border-color: #3a3a4a; }
+    .bgn-metric-card:hover { transform: translateY(-2px); border-color: var(--border-2); }
     .bgn-metric-icon {
       font-size: 40px; line-height: 1;
       width: 64px; height: 64px;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(99,102,241,0.10);
+      background: rgba(217,167,89,0.10);
       border-radius: 16px; flex-shrink: 0;
     }
-    .bgn-metric-card.green  .bgn-metric-icon { background: rgba(34,197,94,0.12); }
+    .bgn-metric-card.green  .bgn-metric-icon { background: rgba(52,168,113,0.12); }
     .bgn-metric-card.blue   .bgn-metric-icon { background: rgba(59,130,246,0.12); }
     .bgn-metric-card.purple .bgn-metric-icon { background: rgba(168,85,247,0.12); }
     .bgn-metric-body { flex: 1; min-width: 0; }
     .bgn-metric-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; line-height: 1.6; letter-spacing: normal; }
     .bgn-metric-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: normal; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bgn-metric-trend { margin-top: 6px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; line-height: 1.6; letter-spacing: normal; }
-    .bgn-metric-trend.up   { color: #4ade80; }
-    .bgn-metric-trend.down { color: #f87171; }
+    .bgn-metric-trend.up   { color: #5CC08F; }
+    .bgn-metric-trend.down { color: #EB9186; }
     .bgn-metric-trend.flat { color: var(--text-3); }
 
     /* Section title */
@@ -121,18 +121,18 @@ export function beginnerDashboardPage(): string {
     .bgn-bar-fill {
       height: 100%;
       border-radius: 999px;
-      background: linear-gradient(90deg, #22c55e, #4ade80);
+      background: linear-gradient(90deg, #34A871, #5CC08F);
       transition: width 0.6s ease;
     }
-    .bgn-bar-fill.warning { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-    .bgn-bar-fill.danger  { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .bgn-bar-fill.warning { background: linear-gradient(90deg, #C77A1F, #E0A050); }
+    .bgn-bar-fill.danger  { background: linear-gradient(90deg, #E2604F, #EB9186); }
     .bgn-bar-fill.blue    { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
     .bgn-bar-hint { font-size: 12px; color: var(--text-3); margin-top: 8px; }
 
     /* Priority action card */
     .bgn-action-card {
-      background: linear-gradient(135deg, rgba(99,102,241,0.10) 0%, var(--surface) 100%);
-      border: 1px solid rgba(99,102,241,0.30);
+      background: linear-gradient(135deg, rgba(217,167,89,0.10) 0%, var(--surface) 100%);
+      border: 1px solid rgba(217,167,89,0.30);
       border-radius: 16px;
       padding: 20px 22px;
       display: flex; align-items: flex-start; gap: 14px;
