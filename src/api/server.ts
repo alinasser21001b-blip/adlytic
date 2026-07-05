@@ -904,6 +904,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /** GET /api/health — process liveness + DB readiness. */
   app.get('/api/health', async (c) => {
+    // role/bullmq are surfaced so `curl /api/health` on each Railway service
+    // confirms which one is the API and which runs background sync.
+    const roleInfo = {
+      role: config.role,
+      runsBackgroundSync: config.role !== 'api',
+      bullmq: config.features.bullmqEnabled ? 'enabled' : 'disabled',
+    };
     try {
       await prisma.$queryRaw`SELECT 1`;
       return c.json({
@@ -912,6 +919,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         version: '0.1.0',
         timestamp: new Date().toISOString(),
         db: 'ok',
+        ...roleInfo,
       });
     } catch {
       return c.json({
@@ -920,6 +928,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         version: '0.1.0',
         timestamp: new Date().toISOString(),
         db: 'unavailable',
+        ...roleInfo,
       }, 503);
     }
   });

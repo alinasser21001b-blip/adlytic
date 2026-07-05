@@ -95,8 +95,8 @@ async function main(): Promise<void> {
       console.log(`[adlytic] Health:     GET http://localhost:${info.port}/api/health`);
       console.log(`[adlytic] Dashboard:  GET http://localhost:${info.port}/api/dashboard/:workspaceId`);
       console.log(`[adlytic] Auto-sync:  ${
-        config.role === 'combined'
-          ? `every ${SYNC_INTERVAL_MS >= 3600000 ? `${Math.round(SYNC_INTERVAL_MS / 3600000)}h` : `${Math.round(SYNC_INTERVAL_MS / 60000)}m`} (in-process)`
+        config.role !== 'api'
+          ? `every ${SYNC_INTERVAL_MS >= 3600000 ? `${Math.round(SYNC_INTERVAL_MS / 3600000)}h` : `${Math.round(SYNC_INTERVAL_MS / 60000)}m`} (role=${config.role})`
           : 'delegated to worker service (SERVICE_ROLE=api)'
       }`);
 
@@ -112,12 +112,15 @@ async function main(): Promise<void> {
   );
 
   // ── Background work ──────────────────────────────────────────────────
-  // In 'combined' role (the default) this process ALSO runs the auto-sync
-  // loop, daily maintenance, and BullMQ workers — identical to the previous
-  // single-service deploy. In 'api' role a dedicated worker service
-  // (src/workers/serve.worker.ts) owns all of that, so the API event loop is
-  // never blocked by Meta ETL. The logic itself lives in backgroundScheduler.
-  if (config.role === 'combined') {
+  // One entrypoint, two behaviors chosen by SERVICE_ROLE:
+  //   • 'api'   → serve HTTP only; a separate worker service owns all Meta ETL,
+  //     so the API event loop is never blocked by a long sync.
+  //   • 'worker' or 'combined' → ALSO run the auto-sync loop, daily
+  //     maintenance, and BullMQ workers. Both still serve HTTP so Railway's
+  //     healthcheck passes on every service (a worker with no HTTP port would
+  //     fail the healthcheck and the deploy).
+  // Default (unset) = 'combined' = identical to the previous single-service deploy.
+  if (config.role !== 'api') {
     startBackgroundWork(prisma);
   } else {
     console.log('[adlytic] SERVICE_ROLE=api — background sync/queues run in the worker service');

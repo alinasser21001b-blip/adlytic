@@ -163,13 +163,16 @@ Key properties:
 
 ## 5. Recommended Redesign
 
-### 5.1 Split API and Worker (highest impact, mostly config)
-- Add a tiny `src/workers/serve.worker.ts` entrypoint that boots **only** the
-  BullMQ workers + the cadence scheduler (reuse `bootQueueWorkers`, move
-  `scheduleSyncLoop` behind it).
-- Gate `serve.ts` so the API process **does not** call `scheduleSyncLoop()` and
-  does not drain queues when `ROLE=api` (or `WORKER_MODE` unset). One env var.
-- Railway: one repo, two services — `start:api` and `start:worker`.
+### 5.1 Split API and Worker (highest impact, mostly config) — SHIPPED
+- One entrypoint (`serve.ts`), behavior chosen by `SERVICE_ROLE`:
+  `api` = HTTP only, no ETL; `worker`/`combined` = HTTP **and** background ETL.
+  Both roles serve HTTP so Railway's healthcheck passes on every service.
+- The auto-sync loop, maintenance, and BullMQ boot are extracted to
+  `src/workers/backgroundScheduler.ts` (`startBackgroundWork`), called only when
+  `config.role !== 'api'`.
+- Railway: one repo, two services. API service = `npm run start` + `SERVICE_ROLE=api`;
+  worker service = `npm run start:worker` (same `serve.js`, skips migrations) +
+  `SERVICE_ROLE=worker`. `/api/health` reports `role` so each service is verifiable.
 
 ### 5.2 Turn on the durable queue
 - Provision Railway Redis, set `REDIS_URL` on both services, `BULLMQ_ENABLED=true`.
@@ -201,11 +204,14 @@ Key properties:
 
 ## 6. Migration Plan (phased, launch-aware)
 
-**Phase A — "stop the hang" (½-1 day, config + ~30 LOC, do before launch)**
-1. Provision Redis on Railway; set `REDIS_URL`, `BULLMQ_ENABLED=true`.
-2. Add `serve.worker.ts` entrypoint + `ROLE` gate in `serve.ts`.
-3. Deploy a second Railway "worker" service (`start:worker`).
-4. Verify: API logs show no `[auto-sync]`; worker logs show queue drain.
+**Phase A — "stop the hang" (SHIPPED — needs Railway config)**
+1. Provision Redis on Railway; set `REDIS_URL`, `BULLMQ_ENABLED=true` on BOTH
+   services (same Redis instance).
+2. `SERVICE_ROLE` gate + `backgroundScheduler` extraction — DONE in code.
+3. API service: `SERVICE_ROLE=api`. Worker service: `npm run start:worker` +
+   `SERVICE_ROLE=worker` + all shared secrets (esp. `TOKEN_ENCRYPTION_KEY`).
+4. Verify via `/api/health` on each: API shows `role:"api"`,
+   worker shows `role:"worker","runsBackgroundSync":true`.
    *Outcome:* pages stay fast during sync; deploys stop losing data.
 
 **Phase B — cadence split + freshness UI (1-2 days)**

@@ -312,7 +312,7 @@ record({
       ? 'combined (default) — this process serves HTTP and runs background sync'
       : serviceRole === 'api'
         ? 'api — HTTP only; background sync runs in the worker service'
-        : 'worker — background sync only; no HTTP server',
+        : 'worker — runs background sync (also serves HTTP for healthchecks)',
 });
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
