@@ -198,6 +198,52 @@ export class MetaClient {
     return this.paginated(`${this.base}/${externalAdSetId}/ads?${params.toString()}`);
   }
 
+  /**
+   * List Meta Pixels / Datasets registered on this ad account. Read-only
+   * discovery — used to find a dataset_id for getDatasetQuality() without
+   * asking the merchant to paste one in manually.
+   */
+  async listPixels(externalAccountId: string): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      fields: "id,name,last_fired_time",
+      access_token: this.token,
+      limit: "50",
+    });
+    return this.paginated(`${this.base}/${externalAccountId}/adspixels?${params.toString()}`);
+  }
+
+  /**
+   * Dataset Quality API — event match quality + coverage diagnostics for a
+   * Pixel/Conversions API dataset. This is a DIFFERENT integration surface
+   * than the campaign/insights reads elsewhere in this file: it requires the
+   * dataset to actually receive server-side (Conversions API) events, and
+   * may need a permission grant beyond ads_read depending on the Business
+   * Manager's setup. Callers MUST treat a thrown MetaApiError here as an
+   * expected, not exceptional, outcome — see checkPixelHealth.ts.
+   *
+   * Response shape isn't in Adlytic's control and isn't guaranteed to be a
+   * `{data:[...]}` envelope like the paginated endpoints, so this bypasses
+   * `paginated()`/`requestWithRetry()` and parses defensively.
+   */
+  async getDatasetQuality(datasetId: string): Promise<MetaInsightRow | null> {
+    const params = new URLSearchParams({
+      dataset_id: datasetId,
+      fields: "web{event_coverage{percentage,goal_percentage,description},event_name}",
+      access_token: this.token,
+    });
+    const url = `${this.base}/dataset_quality?${params.toString()}`;
+    const res = await this.fetchFn(url);
+    void recordMetaResponseHeaders(res.headers, res.status).catch(() => {});
+    if (!res.ok) {
+      const body = await safeJson(res);
+      void recordMetaErrorCategory(res.status, metaErrorCode(body)).catch(() => {});
+      throw new MetaApiError(res.status, body, `Meta ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
+    }
+    const body = (await res.json()) as { data?: MetaInsightRow[] } & MetaInsightRow;
+    if (Array.isArray(body.data)) return body.data[0] ?? null;
+    return body;
+  }
+
   /** Internal: follow paging.next until exhausted, with retry on transient errors. */
   private async paginated(initialUrl: string, maxPages = 500): Promise<MetaInsightRow[]> {
     const out: MetaInsightRow[] = [];

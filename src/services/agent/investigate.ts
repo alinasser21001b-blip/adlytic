@@ -62,15 +62,15 @@ const SECTION_DEFS = [
   { key: 'historical_trend', title: 'الاتجاه التاريخي' },
 ] as const;
 
-const UNAVAILABLE_SECTIONS: Record<string, string> = {
-  pixel_health:
-    'لا تتوفر أداة لفحص صحة التتبّع (Pixel) حالياً. هذا القسم يحتاج أداة مخصصة لم تُبنَ بعد.',
-};
+const UNAVAILABLE_SECTIONS: Record<string, string> = {};
 
 /**
- * Fixed pipeline: 5 parallel tool calls (no LLM in this phase), then one
+ * Fixed pipeline: 6 parallel tool calls (no LLM in this phase), then one
  * Sonnet turn to write the narrative, guarded by the same deterministic
- * anti-hallucination post-check the chat agent uses.
+ * anti-hallucination post-check the chat agent uses. check_pixel_health is
+ * the one LIVE Meta call in the batch (9s timeout) — it runs alongside the
+ * five fast Postgres-backed reads, not after them, so it doesn't add extra
+ * latency beyond its own worst case.
  */
 export async function investigateCampaign(args: {
   prisma: PrismaClient;
@@ -85,12 +85,13 @@ export async function investigateCampaign(args: {
     { prisma, workspaceId, userId },
   );
 
-  const [details, anomaly, audience, creative, hourly] = await Promise.all([
+  const [details, anomaly, audience, creative, hourly, pixel] = await Promise.all([
     dispatcher.dispatch('get_campaign_details', { campaignId }),
     dispatcher.dispatch('detect_anomaly', { scope: 'campaign', campaignId }),
     dispatcher.dispatch('get_audience_breakdown', { campaignId, dimension: 'placement' }),
     dispatcher.dispatch('get_creative_performance', { campaignId }),
     dispatcher.dispatch('get_hourly_pattern', { scope: 'campaign', campaignId }),
+    dispatcher.dispatch('check_pixel_health', {}),
   ]);
 
   const toolResults = [
@@ -99,6 +100,7 @@ export async function investigateCampaign(args: {
     { toolName: 'get_audience_breakdown', result: audience },
     { toolName: 'get_creative_performance', result: creative },
     { toolName: 'get_hourly_pattern', result: hourly },
+    { toolName: 'check_pixel_health', result: pixel },
   ];
 
   // Sections with no tool call at all — genuine gaps, never sent to the LLM.
@@ -124,6 +126,7 @@ export async function investigateCampaign(args: {
       anomaly: anomaly.ok ? anomaly.data : null,
     },
     placement: audience.ok ? audience.data : null,
+    pixel_health: pixel.ok ? pixel.data : null,
     historical_trend: details.ok ? (details.data as { historicalBaseline?: unknown; vsBaseline?: unknown }) : null,
   };
 
@@ -133,6 +136,13 @@ export async function investigateCampaign(args: {
     if (def.key in UNAVAILABLE_SECTIONS) {
       return { key: def.key, title: def.title, status: 'unavailable', narrative: UNAVAILABLE_SECTIONS[def.key]! };
     }
+    // check_pixel_health is a live Meta call expected to fail on many
+    // accounts (no pixel, no Conversions API, permission scope). Surface
+    // its real, deterministic error message directly rather than let the
+    // LLM paraphrase — this is diagnostic text, not a claim to verify.
+    if (def.key === 'pixel_health' && !pixel.ok) {
+      return { key: def.key, title: def.title, status: 'unavailable', narrative: pixelHealthErrorNarrative(pixel.error) };
+    }
     const narrative = narratives[def.key];
     if (!narrative) {
       return { key: def.key, title: def.title, status: 'no_data', narrative: 'لا تتوفر بيانات كافية لهذا القسم حالياً.' };
@@ -141,6 +151,16 @@ export async function investigateCampaign(args: {
   });
 
   return { campaignId, generatedAt: new Date().toISOString(), sections };
+}
+
+function pixelHealthErrorNarrative(error: { code: string; message: string }): string {
+  if (error.code === 'NOT_FOUND') {
+    return 'لا يوجد Pixel أو Dataset مرتبط بحساب الإعلانات هذا — يحتاج العميل لإعداد Pixel أو Conversions API في Meta Events Manager أولاً.';
+  }
+  if (error.code === 'FORBIDDEN') {
+    return 'تعذّر الوصول لبيانات صحة التتبّع — على الأغلب هذا الحساب لا يملك صلاحية Conversions API الكافية بعد.';
+  }
+  return 'تعذّر فحص صحة التتبّع الآن (' + error.message + ').';
 }
 
 /**
