@@ -217,6 +217,7 @@ export function campaignsPage(): string {
         <button class="inspector-tab is-active" data-tab="overview"  role="tab" type="button">النظرة العامة</button>
         <button class="inspector-tab"           data-tab="creatives" role="tab" type="button">الإبداعات</button>
         <button class="inspector-tab"           data-tab="audience"  role="tab" type="button">الجمهور</button>
+        <button class="inspector-tab"           data-tab="investigate" role="tab" type="button">🔎 تحقيق شامل</button>
       </div>
 
       <div id="inspector-body">
@@ -336,6 +337,7 @@ export function campaignsPage(): string {
     minorFactor: 100,
     lastSyncedAt: null,
     lastIssueDates: [],
+    currentInspectorCampaignId: null,
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
@@ -754,10 +756,54 @@ export function campaignsPage(): string {
     document.getElementById('inspector-body').innerHTML =
         '<div data-tab-panel="overview">'  + overviewHtml  + '</div>'
       + '<div data-tab-panel="creatives" style="display:none;">' + creativesHtml + '</div>'
-      + '<div data-tab-panel="audience"  style="display:none;">' + audienceHtml  + '</div>';
+      + '<div data-tab-panel="audience"  style="display:none;">' + audienceHtml  + '</div>'
+      + '<div data-tab-panel="investigate" style="display:none;" id="investigate-panel">'
+      +   '<div class="v2-action-empty">اضغط على هذا التبويب لبدء التحقيق الشامل بالذكاء الاصطناعي.</div>'
+      + '</div>';
 
     // Reset the active tab to Overview every time we render new data.
     switchInspectorTab('overview');
+  }
+
+  // ── AI Investigation tab (Phase 3 IFA §1) ───────────────────────────────
+  // Lazy: only fetched when the tab is first opened for this campaign (an
+  // LLM call, unlike the other three tabs which are plain DB reads) and
+  // cached client-side per campaignId so re-clicking the tab doesn't re-fetch.
+  var investigationCache = {};
+  var SECTION_STATUS_LABEL = { unavailable: 'غير متاح بعد', no_data: 'لا توجد بيانات كافية' };
+
+  function renderInvestigation(report) {
+    var panel = document.getElementById('investigate-panel');
+    if (!panel) return;
+    panel.innerHTML = '<div style="font-size:11px;color:var(--text-3);margin-bottom:12px;direction:rtl;text-align:right;">'
+      + 'تم إجراء هذا التحقيق ' + new Date(report.generatedAt).toLocaleString('ar') + '</div>'
+      + report.sections.map(function (s) {
+          var badge = s.status !== 'ok'
+            ? '<span class="badge badge-gray" style="margin-inline-start:8px;">' + (SECTION_STATUS_LABEL[s.status] || s.status) + '</span>'
+            : '';
+          return '<div class="strategy-card ' + (s.status === 'ok' ? 'medium' : 'low') + '" style="margin-bottom:10px;direction:rtl;text-align:right;">'
+            + '<div class="strategy-head"><div class="strategy-title">' + escHtml(s.title) + badge + '</div></div>'
+            + '<div class="strategy-body">' + escHtml(s.narrative) + '</div>'
+          + '</div>';
+        }).join('');
+  }
+
+  async function loadInvestigation(campaignId) {
+    var panel = document.getElementById('investigate-panel');
+    if (!panel) return;
+    if (investigationCache[campaignId]) { renderInvestigation(investigationCache[campaignId]); return; }
+    panel.innerHTML = '<div class="v2-action-empty">جارٍ إجراء التحقيق الشامل… قد يستغرق ذلك حتى 30 ثانية.</div>';
+    try {
+      var report = await apiFetch(
+        '/api/workspaces/' + state.workspaceId + '/campaigns/' + encodeURIComponent(campaignId) + '/investigate',
+        { method: 'POST' },
+      );
+      investigationCache[campaignId] = report;
+      renderInvestigation(report);
+    } catch (err) {
+      panel.innerHTML = '<div class="alert alert-error" style="direction:rtl;text-align:right;">تعذّر إجراء التحقيق: '
+        + escHtml(friendlyApiError(err)) + '</div>';
+    }
   }
 
   /**
@@ -1007,6 +1053,7 @@ export function campaignsPage(): string {
 
   async function openInspector(campaignId) {
     if (!state.workspaceId || !campaignId) return;
+    state.currentInspectorCampaignId = campaignId;
     document.getElementById('inspector-title').textContent = 'تفاصيل الحملة';
     var subtitleEl = document.getElementById('inspector-subtitle');
     subtitleEl.style.direction = 'rtl';
@@ -1147,7 +1194,11 @@ export function campaignsPage(): string {
       var btn = e.target && e.target.closest && e.target.closest('.inspector-tab');
       if (!btn) return;
       var name = btn.getAttribute('data-tab');
-      if (name) switchInspectorTab(name);
+      if (!name) return;
+      switchInspectorTab(name);
+      if (name === 'investigate' && state.currentInspectorCampaignId) {
+        loadInvestigation(state.currentInspectorCampaignId);
+      }
     });
 
     // Close handlers: explicit button, backdrop click, and Escape key.

@@ -2588,6 +2588,51 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   // ════════════════════════════════════════════════════════════════════════
+  //  AI Investigation — Phase 3 IFA §1
+  //
+  //  POST /api/workspaces/:workspaceId/campaigns/:campaignId/investigate
+  //  Returns: { campaignId, generatedAt, sections: [{key,title,status,narrative}] }
+  //
+  //  A fixed pipeline (5 parallel tool calls + 1 Sonnet narrative pass), not
+  //  an agentic loop — see src/services/agent/investigate.ts. Gated behind
+  //  the same flag as the chat agent since it shares its tool/dispatcher/
+  //  post-check infrastructure. Cached 15 min per campaign — this is a
+  //  deliberate "look deeper" action, not a live chat turn, so staleness on
+  //  the order of minutes is expected and shown via generatedAt.
+  // ════════════════════════════════════════════════════════════════════════
+  app.post('/api/workspaces/:workspaceId/campaigns/:campaignId/investigate', async (c) => {
+    if (process.env['AI_AGENT_V2_ENABLED'] !== 'true') {
+      return c.json({ error: 'AI Agent v2 is disabled', code: 'V2_DISABLED' }, 404);
+    }
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const { workspaceId, campaignId } = req.params;
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!workspaceId || !campaignId) return c.json({ error: 'Missing parameters' }, 400);
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(workspaceId);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const campaign = await prisma.campaign.findFirst({ where: { id: campaignId, adAccountId: account.id } });
+    if (!campaign) return c.json({ error: 'Not found' }, 404);
+
+    const { toolCache } = await import('../services/agent/cache');
+    const { investigateCampaign } = await import('../services/agent/investigate');
+    const cacheKey = `${workspaceId}:investigation:${campaignId}`;
+    const cached = toolCache.get<Awaited<ReturnType<typeof investigateCampaign>>>(cacheKey);
+    if (cached) return c.json(cached.value);
+
+    try {
+      const report = await investigateCampaign({ prisma, workspaceId, userId, campaignId });
+      toolCache.set(cacheKey, report, 900);
+      return c.json(report);
+    } catch (err) {
+      console.error('[adlytic:investigate] error:', err);
+      return c.json({ error: 'تعذّر إجراء التحقيق الآن. جرب بعد لحظة.' }, 500);
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
   //  META ADS — OAuth flow + ad-account management
   // ════════════════════════════════════════════════════════════════════════
 
