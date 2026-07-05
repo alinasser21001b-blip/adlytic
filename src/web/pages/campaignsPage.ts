@@ -334,6 +334,7 @@ export function campaignsPage(): string {
     // Defaults are safe for the common case (USD-style 2-decimal currencies).
     currency: 'USD',
     minorFactor: 100,
+    lastSyncedAt: null,
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
@@ -622,15 +623,16 @@ export function campaignsPage(): string {
     // We deliberately dropped Avg CTR, Frequency, and the combined
     // "Messages · Purchases" card: the client found them noisy and they
     // weren't tied to the Phase 1 messaging KPI.
+    var freshnessAttr = state.lastSyncedAt ? ' data-freshness="' + escHtml(state.lastSyncedAt) + '"' : '';
     var kpiHtml =
       '<div class="kpi-grid" style="grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:20px;direction:rtl;text-align:right;">'
-    +   '<div class="kpi-card"><div class="kpi-label">الإنفاق <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">الإنفاق <button type="button" class="info-btn" data-metric-info="spend"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">الميزانية</div>'
     +     '<div class="kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">إجمالي الرسائل <button type="button" class="info-btn" data-metric-info="messages" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">إجمالي الرسائل <button type="button" class="info-btn" data-metric-info="messages"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">تكلفة الرسالة <button type="button" class="info-btn" data-metric-info="cost_per_messaging_conversation" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">تكلفة الرسالة <button type="button" class="info-btn" data-metric-info="cost_per_messaging_conversation"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCostPerMessage != null ? fmtMinor(s.avgCostPerMessage * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
     + '</div>';
 
@@ -1164,6 +1166,12 @@ export function campaignsPage(): string {
           state.minorFactor = 1;
         } else if (primary.currencyMinorFactor != null && Number(primary.currencyMinorFactor) > 0) {
           state.minorFactor = Number(primary.currencyMinorFactor);
+        }
+        state.lastSyncedAt = primary.lastSyncedAt || null;
+        if (state.lastSyncedAt) {
+          document.querySelectorAll('.info-btn[data-metric-info]').forEach(function (btn) {
+            btn.setAttribute('data-freshness', state.lastSyncedAt);
+          });
         }
       }
 

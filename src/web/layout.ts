@@ -1572,7 +1572,23 @@ var METRIC_GLOSSARY = {
   },
 };
 
-function renderMetricInfo(key) {
+// Data Lineage — relative-time formatter for the popover's source block.
+// Deliberately coarse (minutes/hours/days) rather than exact timestamps:
+// the point is "is this fresh enough to trust", not a precise clock.
+function metricInfoRelativeTime(iso) {
+  if (!iso) return null;
+  var then = new Date(iso).getTime();
+  if (isNaN(then)) return null;
+  var diffMin = Math.round((Date.now() - then) / 60000);
+  if (diffMin < 1) return 'الآن';
+  if (diffMin < 60) return 'قبل ' + diffMin + ' دقيقة';
+  var diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return 'قبل ' + diffHr + ' ساعة';
+  var diffDay = Math.round(diffHr / 24);
+  return 'قبل ' + diffDay + ' يوم';
+}
+
+function renderMetricInfo(key, freshnessIso) {
   var m = METRIC_GLOSSARY[key];
   var body = document.getElementById('metric-info-body');
   var titleEl = document.getElementById('metric-info-title');
@@ -1582,15 +1598,19 @@ function renderMetricInfo(key) {
   var causesHtml = m.causes && m.causes.length
     ? '<div class="metric-info-block"><div class="metric-info-block-title">أسباب شائعة للتغيّر</div><ul class="metric-info-causes">' + m.causes.map(function (c) { return '<li>' + c + '</li>'; }).join('') + '</ul></div>'
     : '';
+  var relTime = metricInfoRelativeTime(freshnessIso);
+  var lineageHtml = relTime
+    ? '<div class="metric-info-block"><div class="metric-info-block-title">مصدر البيانات</div><p>Meta Graph API · ads_insights<br>آخر تحديث: ' + relTime + '</p></div>'
+    : '';
   body.innerHTML =
     '<div class="metric-info-block"><div class="metric-info-block-title">ما هو؟</div><p>' + m.def + '</p></div>' +
     '<div class="metric-info-block"><div class="metric-info-block-title">طريقة الحساب</div><div class="metric-info-formula">' + m.formula + '</div></div>' +
     '<div class="metric-info-block"><div class="metric-info-block-title">المدى الصحي</div><p>' + m.range + '</p></div>' +
-    causesHtml;
+    causesHtml + lineageHtml;
 }
 
-function openMetricInfo(key) {
-  renderMetricInfo(key);
+function openMetricInfo(key, freshnessIso) {
+  renderMetricInfo(key, freshnessIso);
   var overlay = document.getElementById('metric-info-modal');
   if (overlay) overlay.style.display = 'flex';
 }
@@ -1609,7 +1629,7 @@ document.addEventListener('click', function (e) {
   if (!btn) return;
   e.preventDefault();
   e.stopPropagation();
-  openMetricInfo(btn.getAttribute('data-metric-info'));
+  openMetricInfo(btn.getAttribute('data-metric-info'), btn.getAttribute('data-freshness'));
 });
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') closeMetricInfo();

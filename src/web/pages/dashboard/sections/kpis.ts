@@ -24,8 +24,9 @@ export const renderKpisJs = `
       var deltaHtml = k.deltaPct != null
         ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '%</div>'
         : '';
+      var freshnessAttr = state.lastSyncedAt ? ' data-freshness="' + escHtml(state.lastSyncedAt) + '"' : '';
       var infoHtml = (typeof METRIC_GLOSSARY !== 'undefined' && METRIC_GLOSSARY[k.key])
-        ? ' <button type="button" class="info-btn" data-metric-info="' + k.key + '" title="ما هذا؟" aria-label="شرح المؤشر">i</button>'
+        ? ' <button type="button" class="info-btn" data-metric-info="' + k.key + '"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button>'
         : '';
       return '<div class="kpi-card">'
         + '<div class="kpi-label">' + escHtml(k.label || k.key) + infoHtml + '</div>'

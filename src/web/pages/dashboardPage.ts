@@ -255,6 +255,7 @@ export function dashboardPage(): string {
     mainMovePrimary: null,
     lastInsights: [],
     lastCampaigns: [],
+    lastSyncedAt: null,
   };
 
   ${i18nHelpersJs}
@@ -333,6 +334,11 @@ export function dashboardPage(): string {
     var hLife = document.getElementById('hero-life-val');
     var hLifeSub = document.getElementById('hero-life-sub');
     if (!h30 || !h7 || !hLife) return;
+    if (state.lastSyncedAt) {
+      document.querySelectorAll('#hero-grid .info-btn[data-metric-info]').forEach(function (btn) {
+        btn.setAttribute('data-freshness', state.lastSyncedAt);
+      });
+    }
     var arr = Array.isArray(insights90) ? insights90 : [];
     var spendKpi = findKpi(dashData, 'spend');
     var spend7 = sumMinor(arr.slice(0, 7));
@@ -1395,6 +1401,7 @@ export function dashboardPage(): string {
       var chartMeta = document.getElementById('chart-panel-meta');
       if (chartMeta) chartMeta.textContent = state.currency;
       updateLastUpdatedLabel(dashData);
+      state.lastSyncedAt = (dashData.workspace && dashData.workspace.lastSyncedAt) || null;
 
       safeRender('hero', function () { renderHero(dashData, insights); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
