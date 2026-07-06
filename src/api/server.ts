@@ -2476,40 +2476,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json({ reply });
   });
 
-  /**
-   * POST /api/ad-assessor/assess
-   * Meta ad creative assessment (ported from meta-ads-ai-assessor).
-   */
-  app.post('/api/ad-assessor/assess', async (c) => {
-    const req = await honoToApiRequest(c);
-    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    const userId = await getUserId(req.bearerToken);
-    if (!userId) return c.json({ error: 'Invalid token' }, 401);
-
-    const result = await runAdAssessment(req.body);
-    if (!result.ok) {
-      return c.json({ error: result.error, details: result.details }, result.status as 400 | 503);
-    }
-    return c.json(result.data);
-  });
-
-  /**
-   * POST /api/ad-assessor/ad-library/search
-   * Trend context from Meta Ad Library or curated fallback.
-   */
-  app.post('/api/ad-assessor/ad-library/search', async (c) => {
-    const req = await honoToApiRequest(c);
-    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    const userId = await getUserId(req.bearerToken);
-    if (!userId) return c.json({ error: 'Invalid token' }, 401);
-
-    const result = await searchAdLibraryTrends(req.body);
-    if (!result.ok) {
-      return c.json({ error: result.error, details: result.details }, result.status as 400 | 503);
-    }
-    return c.json(result.data);
-  });
-
   // ════════════════════════════════════════════════════════════════════════
   //  META ADS — OAuth flow + ad-account management
   // ════════════════════════════════════════════════════════════════════════
