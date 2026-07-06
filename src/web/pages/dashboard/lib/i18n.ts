@@ -23,4 +23,16 @@ export const i18nHelpersJs = `
     var map = isArabic() ? KPI_LABELS_AR : KPI_LABELS_EN;
     return map[key] || key;
   }
+  // Meta objective enums → Arabic. Raw values like OUTCOME_ENGAGEMENT mean
+  // nothing to a client; unknown values degrade to a cleaned English label.
+  var OBJECTIVE_AR = {
+    OUTCOME_SALES: 'مبيعات', OUTCOME_ENGAGEMENT: 'تفاعل', OUTCOME_LEADS: 'عملاء محتملون',
+    OUTCOME_AWARENESS: 'وعي بالعلامة', OUTCOME_TRAFFIC: 'زيارات', OUTCOME_APP_PROMOTION: 'ترويج تطبيق',
+    MESSAGES: 'رسائل', CONVERSIONS: 'تحويلات', LINK_CLICKS: 'نقرات الرابط', REACH: 'وصول',
+    VIDEO_VIEWS: 'مشاهدات فيديو', LEAD_GENERATION: 'توليد عملاء', POST_ENGAGEMENT: 'تفاعل المنشور',
+  };
+  function translateObjective(obj) {
+    if (!obj) return '—';
+    return OBJECTIVE_AR[obj] || String(obj).replace(/^OUTCOME_/, '').replace(/_/g, ' ');
+  }
 `;

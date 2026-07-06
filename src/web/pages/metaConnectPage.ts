@@ -208,5 +208,5 @@ export function metaConnectPage(sessionId: string): string {
 })();
 </script>`;
 
-  return layout({ title: 'Connect Meta Ads', active: 'dashboard', content, scripts });
+  return layout({ title: 'ربط إعلانات Meta', active: 'dashboard', content, scripts });
 }

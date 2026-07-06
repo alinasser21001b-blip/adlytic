@@ -571,5 +571,5 @@ export function workspacePage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'Workspace', active: 'workspace', content, scripts });
+  return layout({ title: 'مساحة العمل', active: 'workspace', content, scripts });
 }

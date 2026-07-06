@@ -13,7 +13,7 @@ model User {
   email        String            @unique
   passwordHash String            @map("password_hash")
   name         String
-  locale       Locale            @default(EN)
+  locale       Locale            @default(AR)
   tokenVersion Int               @default(0) @map("token_version")
   /// Manual WhatsApp activation gate — new signups default inactive; existing
   /// users were backfilled to active at migration time.

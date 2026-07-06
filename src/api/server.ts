@@ -38,6 +38,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { bodyLimit } from 'hono/body-limit';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EntityType, WorkspaceRole, SyncJobStatus, type Locale } from '@prisma/client';
@@ -164,8 +165,10 @@ export const ROUTE_COUNT = 57;
 // In-memory per-IP rate limiter. Single-instance; sufficient for Phase 1.
 
 interface RateEntry { count: number; resetAt: number; }
-const _loginRateMap    = new Map<string, RateEntry>(); // 10 req / 15 min
-const _registerRateMap = new Map<string, RateEntry>(); // 5 req  / 60 min
+const _loginRateMap    = new Map<string, RateEntry>(); // 10 req / 15 min per IP
+const _registerRateMap = new Map<string, RateEntry>(); // 5 req  / 60 min per IP
+const _passwordRateMap = new Map<string, RateEntry>(); // 5 req  / 15 min per user
+const _aiRateMap       = new Map<string, RateEntry>(); // LLM endpoints per user
 
 function checkRateLimit(
   map: Map<string, RateEntry>,
@@ -174,6 +177,12 @@ function checkRateLimit(
   windowMs: number,
 ): boolean {
   const now = Date.now();
+  // Bound memory: prune expired entries once the map grows past a few
+  // thousand keys (each new IP/user adds one entry that would otherwise
+  // live forever).
+  if (map.size > 5000) {
+    for (const [k, v] of map) if (v.resetAt < now) map.delete(k);
+  }
   const entry = map.get(key);
   if (!entry || entry.resetAt < now) {
     map.set(key, { count: 1, resetAt: now + windowMs });
@@ -317,6 +326,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   app.use('*', logger());
 
+  // Cap API request bodies at 1 MB — the largest legitimate payload (AI chat
+  // history) is well under this; anything bigger is abuse or a bug.
+  app.use('/api/*', bodyLimit({
+    maxSize: 1024 * 1024,
+    onError: (c) => c.json({ error: 'Request body too large' }, 413),
+  }));
+
   // ── Self-hosted fonts (Tajawal + El Messiri woff2) ────────────────────
   // Self-hosted so the CSP below never needs a third-party font-src/style-src
   // exception. Files live in ./public/fonts, resolved relative to process
@@ -355,8 +371,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     c.header(
       'Content-Security-Policy',
+      // script-src no longer needs cdn.jsdelivr.net — Chart.js is self-hosted
+      // under /vendor (same origin), so third-party script execution is now
+      // fully blocked.
       "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+      "script-src 'self' 'unsafe-inline'; " +
       "style-src 'self' 'unsafe-inline'; " +
       "font-src 'self' data:; " +
       "img-src 'self' data: https:; " +
@@ -797,6 +816,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    // Per-user limit: a stolen session token must not allow brute-forcing the
+    // current password out of this endpoint.
+    if (!checkRateLimit(_passwordRateMap, userId, 5, 15 * 60_000)) {
+      return c.json({ error: 'Too many attempts. Please try again in 15 minutes.' }, 429);
+    }
     const body = req.body as { currentPassword?: string; newPassword?: string };
     if (!body.currentPassword || !body.newPassword) return c.json({ error: 'Both passwords are required' }, 400);
     if (body.newPassword.length < 8) return c.json({ error: 'New password must be at least 8 characters' }, 400);
@@ -2595,6 +2619,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_aiRateMap, 'chat:' + userId, 20, 10 * 60_000)) {
+      return c.json({ error: 'وصلت حد الاستخدام مؤقتاً — حاول بعد دقائق قليلة.' }, 429);
+    }
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
     const body = req.body as { message?: string };
     // Preserve original casing so metric names (CTR, CPC, CPM) survive to the LLM.
@@ -2662,6 +2689,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_aiRateMap, 'chat:' + userId, 20, 10 * 60_000)) {
+      return c.json({ error: 'وصلت حد الاستخدام مؤقتاً — حاول بعد دقائق قليلة.' }, 429);
+    }
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
 
     const body = req.body as {
@@ -2737,6 +2767,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     if (!workspaceId || !campaignId) return c.json({ error: 'Missing parameters' }, 400);
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_aiRateMap, 'inv:' + userId, 6, 10 * 60_000)) {
+      return c.json({ error: 'وصلت حد التحقيقات مؤقتاً — حاول بعد دقائق قليلة.' }, 429);
+    }
     const { account } = await getAccount(workspaceId);
     if (!account) return c.json({ error: 'No ad account connected' }, 404);
     const campaign = await prisma.campaign.findFirst({ where: { id: campaignId, adAccountId: account.id } });

@@ -92,6 +92,17 @@ const jwtValid = validateRequired('JWT_SECRET', rawJwtSecret, (v) =>
 );
 const jwtSecret = jwtValid.ok ? (rawJwtSecret as string) : DEV_JWT_SECRET;
 
+// Secret-reuse tripwire: signing sessions with the same value as the Meta app
+// secret means a leak of either compromises both. Warn loudly (not fatal —
+// rotating requires coordinating both services + re-login of all users).
+if (rawJwtSecret && rawJwtSecret === env('META_APP_SECRET')) {
+  record({
+    key: 'JWT_SECRET',
+    status: 'warn',
+    detail: 'JWT_SECRET is IDENTICAL to META_APP_SECRET — generate a distinct value (openssl rand -hex 32) and set it on BOTH services at the same time',
+  });
+}
+
 // ── TOKEN_ENCRYPTION_KEY ─────────────────────────────────────────────────────
 
 const rawEncKey = env('TOKEN_ENCRYPTION_KEY');

@@ -397,5 +397,5 @@ export function settingsPage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'Settings', active: 'settings', content, scripts });
+  return layout({ title: 'الإعدادات', active: 'settings', content, scripts });
 }

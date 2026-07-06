@@ -51,10 +51,10 @@ export function dashboardPage(): string {
     <div class="onboarding-overlay" id="onboarding-overlay" style="display:none;">
       <div class="onboarding-card">
         <div class="onboarding-icon">⚡</div>
-        <div class="onboarding-title" id="onboarding-title">Setting up your dashboard</div>
-        <div class="onboarding-msg" id="onboarding-msg">Analyzing your last 30 days of campaigns…</div>
+        <div class="onboarding-title" id="onboarding-title">جارٍ تجهيز لوحة التحكم</div>
+        <div class="onboarding-msg" id="onboarding-msg">نحلل آخر 30 يوماً من حملاتك…</div>
         <div class="onboarding-progress"><div class="onboarding-progress-bar" id="onboarding-bar"></div></div>
-        <div class="onboarding-meta" id="onboarding-meta">This usually takes a minute</div>
+        <div class="onboarding-meta" id="onboarding-meta">يستغرق هذا عادةً دقيقة واحدة</div>
       </div>
     </div>
 
@@ -64,38 +64,38 @@ export function dashboardPage(): string {
 
     <div id="dashboard-content" style="display:none;">
       <div class="page-header">
-        <div class="page-title">Dashboard</div>
-        <div class="page-subtitle" id="dash-subtitle">Overview of your ad performance · <span id="dash-last-updated" class="text-3">—</span></div>
+        <div class="page-title">لوحة التحكم</div>
+        <div class="page-subtitle" id="dash-subtitle">نظرة عامة على أداء إعلاناتك · <span id="dash-last-updated" class="text-3">—</span></div>
       </div>
 
       <!-- Stale-data banner -->
       <div class="alert alert-warning" id="stale-banner">
         <div style="flex:1;">
-          <div style="font-weight:600;">Showing cached data — token expired</div>
-          <div style="font-size:12px;margin-top:2px;color:var(--text-2);">Your ad account token expired. These metrics are from your last sync.</div>
+          <div style="font-weight:600;">تُعرض بيانات مخزّنة — انتهت صلاحية الرمز</div>
+          <div style="font-size:12px;margin-top:2px;color:var(--text-2);">انتهت صلاحية رمز حساب الإعلانات. هذه الأرقام من آخر مزامنة ناجحة.</div>
         </div>
-        <a href="/workspace" class="btn btn-primary btn-sm">Reconnect</a>
+        <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
 
       <!-- 1 ▸ Financial hero cards -->
       <section class="hero-grid" id="hero-grid">
         <div class="hero-card" id="hero-30">
-          <div class="hero-label">30-Day Spend <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          <div class="hero-label">إنفاق 30 يوماً <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           <div class="hero-value" id="hero-30-val">—</div>
-          <div class="hero-sub">Past 30 days</div>
+          <div class="hero-sub">آخر 30 يوماً</div>
           <span class="hero-delta flat" id="hero-30-delta">→ —</span>
         </div>
         <div class="hero-card success" id="hero-7">
-          <div class="hero-label">7-Day Spend <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          <div class="hero-label">إنفاق 7 أيام <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           <div class="hero-value" id="hero-7-val">—</div>
-          <div class="hero-sub">Past 7 days</div>
+          <div class="hero-sub">آخر 7 أيام</div>
           <span class="hero-delta flat" id="hero-7-delta">→ —</span>
         </div>
         <div class="hero-card warning" id="hero-life">
-          <div class="hero-label">Lifetime Spend <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          <div class="hero-label">الإنفاق الكلي <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           <div class="hero-value" id="hero-life-val">—</div>
-          <div class="hero-sub" id="hero-life-sub">Account history (90-day window)</div>
-          <span class="hero-delta flat">Account total</span>
+          <div class="hero-sub" id="hero-life-sub">سجل الحساب (نافذة 90 يوماً)</div>
+          <span class="hero-delta flat">إجمالي الحساب</span>
         </div>
       </section>
 
@@ -109,7 +109,7 @@ export function dashboardPage(): string {
         <div class="ticker-header">
           <div class="ticker-header-left">
             <span class="ticker-live-dot"></span>
-            <span class="ticker-header-title" id="ticker-title">AI Monitor</span>
+            <span class="ticker-header-title" id="ticker-title">مراقب الذكاء الاصطناعي</span>
           </div>
           <div class="ticker-freshness" id="ticker-freshness"></div>
         </div>
@@ -130,7 +130,7 @@ export function dashboardPage(): string {
       <!-- 3 ▸ Active Ads Showcase -->
       <section class="active-section" id="active-section" style="display:none;">
         <div class="active-header">
-          <div class="active-title">Active Ads · Now Spending</div>
+          <div class="active-title">إعلانات نشطة · تُنفق الآن</div>
           <div class="active-meta" id="active-meta">—</div>
         </div>
         <div class="active-grid" id="active-grid"></div>
@@ -150,7 +150,7 @@ export function dashboardPage(): string {
         </div>
         <div class="chart-panel">
           <div class="chart-panel-head">
-            <div class="chart-panel-title">Performance · Spend Over Time</div>
+            <div class="chart-panel-title">الأداء · الإنفاق عبر الزمن</div>
             <div class="chart-panel-meta" id="chart-panel-meta">—</div>
           </div>
           <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas></div>
@@ -160,11 +160,11 @@ export function dashboardPage(): string {
       <!-- 5 ▸ Main Move — unified focus (Tier 2 + Tier 3 narrative) -->
       <section class="v2-section" id="main-move-section">
         <div class="v2-section-head">
-          <div class="v2-section-title" id="main-move-label">Main Move</div>
+          <div class="v2-section-title" id="main-move-label">الخطوة الأهم</div>
           <div class="v2-section-meta" id="main-move-meta">—</div>
         </div>
         <div class="main-move-card" id="main-move-card">
-          <div class="main-move-empty" id="main-move-empty">Loading…</div>
+          <div class="main-move-empty" id="main-move-empty">جارٍ التحميل…</div>
         </div>
       </section>
 
@@ -179,7 +179,7 @@ export function dashboardPage(): string {
           <div class="modal-subtitle" id="action-modal-subtitle">—</div>
           <div class="action-modal-steps" id="action-modal-steps"></div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary btn-sm" id="action-modal-cancel">Cancel</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="action-modal-cancel">إلغاء</button>
             <button type="button" class="btn btn-primary btn-sm" id="action-modal-confirm">I've applied this</button>
           </div>
         </div>
@@ -194,24 +194,24 @@ export function dashboardPage(): string {
         <div class="v2-advanced-body">
           <div class="v2-section" id="brain-pulse-section" style="display:none;margin-bottom:18px;">
             <div class="v2-section-head">
-              <div class="v2-section-title">Live Pulse</div>
-              <div class="v2-section-meta">Refreshes every 30s · <span id="brain-pulse-tick">—</span></div>
+              <div class="v2-section-title">النبض المباشر</div>
+              <div class="v2-section-meta">يتحدّث كل 30 ثانية · <span id="brain-pulse-tick">—</span></div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
               <div class="card" style="padding:14px;">
-                <div id="brain-pulse-burn-label" class="kpi-label">Spend pace</div>
+                <div id="brain-pulse-burn-label" class="kpi-label">وتيرة الإنفاق</div>
                 <div id="brain-pulse-burn" class="kpi-value" style="font-size:20px;">—</div>
-                <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> <span id="brain-pulse-burn-meta">campaigns</span></div>
+                <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> <span id="brain-pulse-burn-meta">حملة</span></div>
               </div>
               <div class="card" style="padding:14px;">
-                <div id="brain-pulse-spend-label" class="kpi-label">Today's spend share</div>
+                <div id="brain-pulse-spend-label" class="kpi-label">حصة إنفاق اليوم</div>
                 <div id="brain-pulse-spendpct" class="kpi-value" style="font-size:20px;">—</div>
-                <div id="brain-pulse-spend-meta" class="text-xs text-3">of total daily budget</div>
+                <div id="brain-pulse-spend-meta" class="text-xs text-3">من إجمالي الميزانية اليومية</div>
               </div>
               <div class="card" style="padding:14px;">
-                <div id="brain-pulse-dna-label" class="kpi-label">Match to your top campaigns</div>
+                <div id="brain-pulse-dna-label" class="kpi-label">التطابق مع أفضل حملاتك</div>
                 <div id="brain-pulse-dna" class="kpi-value" style="font-size:20px;">—</div>
-                <div id="brain-pulse-dna-meta" class="text-xs text-3">compared to your top past campaigns</div>
+                <div id="brain-pulse-dna-meta" class="text-xs text-3">مقارنةً بأفضل حملاتك السابقة</div>
               </div>
             </div>
           </div>
@@ -301,8 +301,8 @@ export function dashboardPage(): string {
     if (!el) return;
     var synced = dashData.workspace && dashData.workspace.lastSyncedAt;
     el.textContent = synced
-      ? ('Synced ' + formatLastUpdated(synced))
-      : ('Updated ' + formatLastUpdated(new Date()));
+      ? (lbl('Synced ', 'آخر مزامنة ') + formatLastUpdated(synced))
+      : (lbl('Updated ', 'حُدّث ') + formatLastUpdated(new Date()));
   }
 
   // ── Chart.js wrapper ────────────────────────────────────────────────────
@@ -444,7 +444,7 @@ export function dashboardPage(): string {
     if (hLifeSub) {
       hLifeSub.textContent =
         (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt)
-          ? 'Meta account lifetime total'
+          ? lbl('Meta account lifetime total', 'إجمالي حساب Meta الكلي')
           : ('Account history (' + days + '-day window)');
     }
   }
@@ -584,17 +584,17 @@ export function dashboardPage(): string {
     if (!sec || !grid) return;
     if (active.length === 0) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
-    if (meta) meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' spending today';
+    if (meta) meta.textContent = active.length + ' ' + lbl('spending today', 'حملة تُنفق اليوم');
     grid.innerHTML = active.slice(0, 12).map(function (c) {
       var budget = c.dailyBudget
         ? fmtCurrencyMinor(c.dailyBudget) + '/day'
-        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' total' : 'No budget set');
+        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' ' + lbl('total', 'إجمالي') : lbl('No budget set', 'بدون ميزانية محددة'));
       return '<div class="active-card">'
         + '<div class="active-top">'
           + '<span class="blink-dot"></span>'
           + '<span class="active-name" dir="auto" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</span>'
         + '</div>'
-        + '<div class="active-meta-row"><span>' + escHtml(c.objective || 'OBJECTIVE') + '</span><b>' + escHtml(budget) + '</b></div>'
+        + '<div class="active-meta-row"><span>' + escHtml(translateObjective(c.objective)) + '</span><b>' + escHtml(budget) + '</b></div>'
       + '</div>';
     }).join('');
   }
@@ -1544,7 +1544,7 @@ export function dashboardPage(): string {
       safeRender('kpis', function () { renderKpis(kpis); });
 
       var last30 = recentAsc(insights, 30);
-      var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+      var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' }); });
       var isoDates = last30.map(function (d) { return new Date(d.date).toISOString().slice(0, 10); });
       var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
       var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
@@ -1557,7 +1557,7 @@ export function dashboardPage(): string {
           return new Date(dateVal).toISOString().slice(0, 10);
         });
         var tsLabels = tsIso.map(function (iso) {
-          return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return new Date(iso).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' });
         });
         if (Array.isArray(ts.spend))    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
         if (Array.isArray(ts.ctr))      ctrSeries        = ts.ctr.map(Number);
@@ -1597,7 +1597,7 @@ export function dashboardPage(): string {
       // 1) Identify user — shared shell init (timeout-bounded)
       var me = await initAppShell();
       if (!me) return;
-      state.locale = (me.locale || 'EN').toUpperCase();
+      state.locale = (me.locale || 'AR').toUpperCase();
       var userName = me.name || me.email || 'User';
       var userInitials = initialsOf(userName);
       var avEl = document.getElementById('user-avatar');     if (avEl) avEl.textContent = userInitials;
@@ -1683,5 +1683,5 @@ export function dashboardPage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'Dashboard', active: 'dashboard', content, scripts, extraHead, mode: 'pro' });
+  return layout({ title: 'لوحة التحكم', active: 'dashboard', content, scripts, extraHead, mode: 'pro' });
 }

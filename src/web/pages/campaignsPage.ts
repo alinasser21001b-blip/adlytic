@@ -60,10 +60,10 @@ export function campaignsPage(): string {
       </div>
       <button type="button" class="btn btn-ghost btn-sm js-sync-trigger" id="force-sync-btn" title="مزامنة أحدث البيانات من Meta">↻ تحديث البيانات</button>
       <div class="tabs" id="date-tabs">
-        <button class="tab" data-days="7">7d</button>
-        <button class="tab" data-days="14">14d</button>
-        <button class="tab active" data-days="30">30d</button>
-        <button class="tab" data-days="90">90d</button>
+        <button class="tab" data-days="7">7ي</button>
+        <button class="tab" data-days="14">14ي</button>
+        <button class="tab active" data-days="30">30ي</button>
+        <button class="tab" data-days="90">90ي</button>
       </div>
     </div>
   </div>
@@ -171,7 +171,7 @@ export function campaignsPage(): string {
             <th class="th-sort" data-sort="status">الحالة</th>
             <th class="th-sort is-sorted desc" data-sort="spendWindowMinor">الإنفاق <span id="window-label" class="th-window">(30ي)</span></th>
             <th class="th-sort" data-sort="messagesWindow">الرسائل</th>
-            <th class="th-sort" data-sort="ctrWindow">CTR</th>
+            <th class="th-sort" data-sort="ctrWindow">نسبة النقر</th>
             <th class="th-sort" data-sort="dailyBudget">الميزانية اليومية</th>
             <th>الإجراءات</th>
           </tr>
@@ -409,13 +409,15 @@ export function campaignsPage(): string {
   function recentAsc(insights, days) {
     return insights.slice(0, days).slice().reverse();
   }
+  // 'ar-u-nu-latn' = Arabic month names with Latin digits, so dates read
+  // Arabic while numbers stay consistent with the metric values next to them.
   function fmtDate(s) {
     if (!s) return '—';
-    return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(s).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric', year: 'numeric' });
   }
   function fmtShortDate(s) {
     if (!s) return '';
-    return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(s).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' });
   }
   function initials(name) {
     if (!name) return '?';
@@ -550,6 +552,16 @@ export function campaignsPage(): string {
             bodyFont: { size: 12 },
             displayColors: false,
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
+            callbacks: {
+              label: function (item) {
+                var v = item.parsed.y;
+                var f = item.dataset && item.dataset._fmt;
+                var txt = f === 'currency' ? fmtCurrencyMinor(v * state.minorFactor)
+                  : f === 'pct' ? (Number(v).toFixed(2) + '%')
+                  : Number(v).toLocaleString('en-US');
+                return (item.dataset.label || '') + ': ' + txt;
+              },
+            },
           }
         },
         scales: {
@@ -627,9 +639,30 @@ export function campaignsPage(): string {
       data: spendData,
       borderColor: '#D9A759',
       _rgb: [217, 167, 89],
+      _fmt: 'currency',
       fill: true, tension: 0.4,
       pointBackgroundColor: '#D9A759',
     }];
+    // 7-day moving average — smooths daily noise so the trend reads at a
+    // glance. Dashed, no fill, sits behind the daily line.
+    if (spendData.length >= 7) {
+      var ma = spendData.map(function(_, i) {
+        var from = Math.max(0, i - 6);
+        var slice = spendData.slice(from, i + 1);
+        return slice.reduce(function(a, b) { return a + b; }, 0) / slice.length;
+      });
+      spendDatasets.push({
+        label: 'المتوسط (7 أيام)',
+        data: ma,
+        borderColor: 'rgba(230,189,122,0.55)',
+        borderDash: [6, 5],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+        tension: 0.4,
+        _fmt: 'currency',
+      });
+    }
     var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
     if (markerDataset) spendDatasets.push(markerDataset);
 
@@ -657,6 +690,7 @@ export function campaignsPage(): string {
           data: ctrData,
           borderColor: '#34A871',
           _rgb: [52, 168, 113],
+          _fmt: 'pct',
           fill: true, tension: 0.4,
           pointBackgroundColor: '#34A871',
         }]);
@@ -680,6 +714,7 @@ export function campaignsPage(): string {
           data: reachData,
           borderColor: '#5B8DEF',
           _rgb: [91, 141, 239],
+          _fmt: 'int',
           fill: true, tension: 0.4,
           pointBackgroundColor: '#5B8DEF',
         }]);
@@ -703,6 +738,7 @@ export function campaignsPage(): string {
           data: impressionsData,
           borderColor: '#C77A1F',
           _rgb: [199, 122, 31],
+          _fmt: 'int',
           fill: true, tension: 0.4,
           pointBackgroundColor: '#C77A1F',
         }]);
@@ -1741,5 +1777,5 @@ export function campaignsPage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'Campaigns', active: 'campaigns', content, scripts });
+  return layout({ title: 'الحملات', active: 'campaigns', content, scripts });
 }

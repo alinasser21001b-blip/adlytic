@@ -411,5 +411,5 @@ export function aiPage(): string {
 })();
 </script>`;
 
-  return layout({ title: 'AI Assistant', active: 'ai', content, scripts });
+  return layout({ title: 'المساعد الذكي', active: 'ai', content, scripts });
 }
