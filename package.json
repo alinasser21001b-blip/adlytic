@@ -36,6 +36,7 @@
     "dashboard:run": "tsx runDashboard.ts",
     "sync:run": "tsx runSync.ts",
     "create-user": "tsx --env-file=.env scripts/create-user.ts",
+    "reset-password": "tsx --env-file=.env scripts/reset-password.ts",
     "seed-demo": "tsx --env-file=.env scripts/seed-demo.ts",
     "create-user:auto": "tsx --env-file=.env scripts/create-user-auto.ts",
     "seed-knowledge": "tsx --env-file=.env scripts/seedKnowledgeUniversal.ts",
