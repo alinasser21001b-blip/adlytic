@@ -809,9 +809,16 @@ select.form-input { cursor: pointer; }
 
 /* ── Responsive ──────────────────────────────────���───────────────── */
 @media (max-width: 768px) {
+  /* The off-canvas sidebar is position:fixed and slid off-screen with a
+     transform. A translated fixed element STILL contributes to the document's
+     horizontal scroll width, so it added ~a sidebar-width of phantom overflow
+     on phones (content looked shifted/cut off). Clip it at the root. We use
+     the html element (not body) so the sticky topbar's scroll container is
+     unaffected. */
+  html { overflow-x: hidden; }
   .sidebar { transform: translateX(-100%); transition: transform var(--transition); z-index: 100; }
   .sidebar.open { transform: translateX(0); }
-  .main { margin-left: 0; padding-bottom: 72px; }
+  .main { margin-left: 0; padding-bottom: 72px; min-width: 0; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-grid { grid-template-columns: 1fr; }
   .camp-kpi-row { grid-template-columns: repeat(2, 1fr); }
