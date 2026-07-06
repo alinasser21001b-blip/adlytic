@@ -318,6 +318,33 @@ if (IS_PRODUCTION && allowedOrigins.length === 0) {
   record({ key: 'ALLOWED_ORIGINS', status: 'ok', detail: allowedOrigins.join(', ') });
 }
 
+// ── Meta Ad Library (ad assessor) ───────────────────────────────────────────
+
+const metaAccessToken = env('META_ACCESS_TOKEN') ?? metaDirectToken;
+if (metaAccessToken) {
+  record({ key: 'META_ACCESS_TOKEN', status: 'ok', detail: 'present — Ad Library live trend search enabled' });
+} else {
+  record({
+    key: 'META_ACCESS_TOKEN',
+    status: 'warn',
+    detail: 'not set — ad assessor uses curated industry benchmarks only',
+  });
+}
+
+// ── OpenAI (ad assessor) ────────────────────────────────────────────────────
+
+const openaiApiKey = env('OPENAI_API_KEY');
+const openaiModel = env('OPENAI_MODEL') ?? 'gpt-4o-mini';
+if (openaiApiKey) {
+  record({ key: 'OPENAI_API_KEY', status: 'ok', detail: `present — ad assessor model ${openaiModel}` });
+} else {
+  record({
+    key: 'OPENAI_API_KEY',
+    status: 'warn',
+    detail: 'not set — ad assessor falls back to curated offline analysis',
+  });
+}
+
 // ── public, frozen config ────────────────────────────────────────────────────
 
 export interface AppConfig {
@@ -354,6 +381,13 @@ export interface AppConfig {
     systemUserConfigId: string | undefined;
     /** Phase 2 — optional pre-minted System User token (env META_SYSTEM_USER_TOKEN). */
     systemUserToken: string | undefined;
+    /** Meta access token for Ad Library search (META_ACCESS_TOKEN or META_DIRECT_TOKEN). */
+    accessToken: string | undefined;
+  };
+
+  openai: {
+    apiKey: string | undefined;
+    model: string;
   };
 
   sync: {
@@ -397,6 +431,11 @@ export const config: Readonly<AppConfig> = Object.freeze({
     systemUserEnabled: metaSystemUserEnabled,
     systemUserConfigId: metaSystemUserConfigId,
     systemUserToken: metaSystemUserToken,
+    accessToken: metaAccessToken,
+  }),
+  openai: Object.freeze({
+    apiKey: openaiApiKey,
+    model: openaiModel,
   }),
   sync: Object.freeze({
     intervalMs: syncIntervalMs,
