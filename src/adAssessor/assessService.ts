@@ -8,9 +8,8 @@ import {
 } from './assessment-prompt';
 import { buildFallbackAssessment } from './fallback-assessment';
 import { getTrendContext, type TrendInsights } from './meta-ad-library';
-import { assessRequestSchema, assessmentResultSchema, campaignGoalSchema, type AssessmentResponsePayload } from './schemas';
+import { assessRequestSchema, assessmentResultSchema, campaignGoalSchema, type AssessmentResultPayload } from './schemas';
 import type { CampaignGoal } from './types';
-import type { AssessmentResultPayload } from './schemas';
 import { config } from '../config';
 
 const SERVICE_UNAVAILABLE = 'الخدمة غير متوفرة مؤقتاً';
