@@ -1673,28 +1673,53 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       orderBy: { createdAt: 'desc' },
     });
     const tickToday = accountLocalTodayFloor(account.timezone);
-    const todayStats = campaigns.length
-      ? await prisma.dailyStat.findMany({
-          where: {
-            entityType: EntityType.CAMPAIGN,
-            entityId: { in: campaigns.map((c) => c.id) },
-            date: tickToday,
-          },
-          select: { entityId: true, spend: true },
-        })
-      : [];
+    const campaignIds = campaigns.map((c) => c.id);
+    // Per-campaign performance window (?days=7|14|30|90, default 30) — powers
+    // the analytics columns in the campaigns table (spend / messages / CTR).
+    const rawDays = Number(req.query['days'] ?? '30');
+    const windowDays = Number.isFinite(rawDays) ? Math.min(Math.max(Math.trunc(rawDays), 1), 90) : 30;
+    const sinceDate = new Date(new Date(Date.now() - windowDays * 864e5).toISOString().slice(0, 10));
+    const [todayStats, windowAgg] = campaigns.length
+      ? await Promise.all([
+          prisma.dailyStat.findMany({
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              date: tickToday,
+            },
+            select: { entityId: true, spend: true },
+          }),
+          prisma.dailyStat.groupBy({
+            by: ['entityId'],
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              date: { gte: sinceDate },
+            },
+            _sum: { spend: true, messages: true, impressions: true, clicks: true },
+          }),
+        ])
+      : [[], []];
     const spendTodayByCampaign = new Map(
       todayStats.map((s) => [s.entityId, Number(s.spend)]),
     );
+    const aggByCampaign = new Map(windowAgg.map((a) => [a.entityId, a._sum]));
     return c.json(
       campaigns.map((camp) => {
         const row = safeJson(camp) as Record<string, unknown>;
+        const sum = aggByCampaign.get(camp.id);
+        const impressions = Number(sum?.impressions ?? 0);
+        const clicks = Number(sum?.clicks ?? 0);
         return {
           ...row,
           isCurrentlySpending: isCurrentlySpending({
             status: camp.status,
             spendTodayMinor: spendTodayByCampaign.get(camp.id) ?? 0,
           }),
+          windowDays,
+          spendWindowMinor: Number(sum?.spend ?? 0),
+          messagesWindow: Number(sum?.messages ?? 0),
+          ctrWindow: impressions > 0 ? +((clicks / impressions) * 100).toFixed(2) : null,
         };
       }),
     );

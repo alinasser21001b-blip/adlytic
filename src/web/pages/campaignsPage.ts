@@ -153,6 +153,11 @@ export function campaignsPage(): string {
   <div class="table-wrap">
     <div class="table-header">
       <div class="table-title">جميع الحملات</div>
+      <div class="table-filters" id="status-filters">
+        <button type="button" class="filter-chip active" data-status="ALL">الكل</button>
+        <button type="button" class="filter-chip" data-status="ACTIVE">نشطة</button>
+        <button type="button" class="filter-chip" data-status="PAUSED">متوقفة</button>
+      </div>
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" class="form-input search-input" id="search-input" placeholder="بحث في الحملات…" style="width:240px;">
@@ -160,19 +165,21 @@ export function campaignsPage(): string {
     </div>
     <div style="overflow-x:auto;" id="table-container">
       <table>
-        <thead>
+        <thead id="campaigns-thead">
           <tr>
-            <th>الحملة</th>
-            <th>الحالة</th>
-            <th>الهدف</th>
-            <th>الميزانية اليومية</th>
-            <th>تاريخ الإنشاء</th>
+            <th class="th-sort" data-sort="name">الحملة</th>
+            <th class="th-sort" data-sort="status">الحالة</th>
+            <th class="th-sort is-sorted desc" data-sort="spendWindowMinor">الإنفاق <span id="window-label" class="th-window">(30ي)</span></th>
+            <th class="th-sort" data-sort="messagesWindow">الرسائل</th>
+            <th class="th-sort" data-sort="ctrWindow">CTR</th>
+            <th class="th-sort" data-sort="dailyBudget">الميزانية اليومية</th>
             <th>الإجراءات</th>
           </tr>
         </thead>
         <tbody id="campaigns-tbody">
-          <tr><td colspan="6" style="color:var(--text-3);text-align:center;padding:24px;">جارٍ التحميل…</td></tr>
+          <tr><td colspan="7" style="color:var(--text-3);text-align:center;padding:24px;">جارٍ التحميل…</td></tr>
         </tbody>
+        <tfoot id="campaigns-tfoot"></tfoot>
       </table>
     </div>
     <!-- Phone view: the wide table becomes tappable cards (CSS swaps them
@@ -192,6 +199,42 @@ export function campaignsPage(): string {
        polluting the global stylesheet for a single modal. -->
   <style>
     .export-item:hover { background: var(--surface-2, rgba(255,255,255,0.05)); }
+
+    /* ── Analytics table upgrades ─────────────────────────────────────── */
+    .table-filters { display: flex; gap: 6px; }
+    .filter-chip {
+      font-size: 12px; font-weight: 600; color: var(--text-3);
+      background: transparent; border: 1px solid var(--border-2);
+      padding: 5px 13px; border-radius: 999px; cursor: pointer;
+      font-family: inherit; transition: all .15s;
+    }
+    .filter-chip:hover { color: var(--text); border-color: var(--text-3); }
+    .filter-chip.active { color: var(--accent-2); background: var(--accent-dim); border-color: rgba(217,167,89,0.4); }
+    .th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+    .th-sort:hover { color: var(--text); }
+    .th-sort::after { content: '↕'; opacity: 0.35; margin-inline-start: 5px; font-size: 10px; }
+    .th-sort.is-sorted.desc::after { content: '↓'; opacity: 1; color: var(--accent); }
+    .th-sort.is-sorted.asc::after  { content: '↑'; opacity: 1; color: var(--accent); }
+    .th-window { font-weight: 400; color: var(--text-3); font-size: 10.5px; }
+    .cell-name { font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .obj-chip {
+      display: inline-block; margin-top: 4px;
+      font-size: 10.5px; color: var(--text-3);
+      background: var(--surface-2, rgba(255,255,255,0.03));
+      border: 1px solid var(--border-2);
+      padding: 1px 8px; border-radius: 999px;
+    }
+    .cell-spend { min-width: 110px; }
+    .cell-spend .num { font-weight: 700; color: var(--text); font-feature-settings: 'tnum'; direction: ltr; unicode-bidi: embed; }
+    .spend-bar { height: 3px; background: var(--surface-2, rgba(255,255,255,0.05)); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+    .spend-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 2px; }
+    .cell-num { font-feature-settings: 'tnum'; direction: ltr; unicode-bidi: embed; color: var(--text-2); }
+    #campaigns-tfoot td {
+      border-top: 2px solid var(--border-2);
+      font-weight: 700; color: var(--text);
+      background: var(--surface-2, rgba(255,255,255,0.02));
+    }
+    #campaigns-tfoot .tot-label { color: var(--text-3); font-weight: 600; font-size: 12px; }
 
     /* ── Phone campaign cards (replace the 700px-wide table on mobile) ── */
     .camp-cards { display: none; }
@@ -447,6 +490,11 @@ export function campaignsPage(): string {
     lastSyncedAt: null,
     lastIssueDates: [],
     currentInspectorCampaignId: null,
+    // Table state — sorted by window spend (highest first) by default,
+    // matching how a media buyer scans Ads Manager.
+    sortKey: 'spendWindowMinor',
+    sortDir: -1,
+    statusFilter: 'ALL',
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
@@ -731,9 +779,17 @@ export function campaignsPage(): string {
     tableContainer.style.display = 'block';
     emptyEl.style.display = 'none';
 
+    // Spend bar scale: relative to the biggest spender in the visible list.
+    var maxSpend = 0;
+    campaigns.forEach(function(c) {
+      var s = Number(c.spendWindowMinor) || 0;
+      if (s > maxSpend) maxSpend = s;
+    });
+
     // Phone cards — same data, tap anywhere on the card to open the inspector.
     if (cardsEl) {
       cardsEl.innerHTML = campaigns.map(function(c) {
+        var spendTxt = fmtCurrencyMinor(Number(c.spendWindowMinor) || 0);
         var budget = c.dailyBudget != null
           ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
           : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' إجمالي' : 'بدون ميزانية');
@@ -743,15 +799,17 @@ export function campaignsPage(): string {
           +   statusBadge(c.status)
           + '</div>'
           + '<div class="camp-card-meta">'
+          +   '<span class="camp-card-chip">📊 <b>' + escHtml(spendTxt) + '</b> · ' + state.days + 'ي</span>'
+          +   '<span class="camp-card-chip">💬 ' + escHtml(fmtNum(c.messagesWindow, 0)) + ' رسالة</span>'
           +   '<span class="camp-card-chip">🎯 ' + escHtml(translateObjective(c.objective)) + '</span>'
-          +   '<span class="camp-card-chip">💰 <b>' + escHtml(budget) + '</b></span>'
-          +   '<span class="camp-card-chip">📅 ' + escHtml(fmtDate(c.createdAt)) + '</span>'
+          +   '<span class="camp-card-chip">💰 ' + escHtml(budget) + '</span>'
           + '</div>'
           + '<div class="camp-card-cta">عرض التفاصيل ←</div>'
           + '</div>';
       }).join('');
     }
 
+    var totSpend = 0, totMsgs = 0;
     tbody.innerHTML = campaigns.map(function(c) {
       // Campaign.dailyBudget / lifetimeBudget are BigInt minor units in the
       // schema. They came through bigintReplacer as plain Numbers but still
@@ -759,45 +817,90 @@ export function campaignsPage(): string {
       var budget = c.dailyBudget != null
         ? fmtCurrencyMinor(c.dailyBudget)
         : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' (إجمالي)' : '—');
+      var spendMinor = Number(c.spendWindowMinor) || 0;
+      totSpend += spendMinor;
+      totMsgs += Number(c.messagesWindow) || 0;
+      var barPct = maxSpend > 0 ? Math.max(2, Math.round((spendMinor / maxSpend) * 100)) : 0;
       return '<tr>'
-        + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div></td>'
+        + '<td><div class="cell-name" title="' + escAttr(c.name || '') + '">' + escHtml(c.name || '—') + '</div>'
+        +   '<span class="obj-chip">' + escHtml(translateObjective(c.objective)) + '</span></td>'
         + '<td>' + statusBadge(c.status) + '</td>'
-        + '<td style="color:var(--text-2);">' + escHtml(translateObjective(c.objective)) + '</td>'
-        + '<td>' + escHtml(budget) + '</td>'
-        + '<td style="color:var(--text-2);">' + escHtml(fmtDate(c.createdAt)) + '</td>'
+        + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
+        +   (maxSpend > 0 ? '<div class="spend-bar"><i style="width:' + barPct + '%"></i></div>' : '') + '</td>'
+        + '<td class="cell-num">' + escHtml(fmtNum(c.messagesWindow, 0)) + '</td>'
+        + '<td class="cell-num">' + (c.ctrWindow != null ? escHtml(fmtNum(c.ctrWindow, 2)) + '%' : '—') + '</td>'
+        + '<td class="cell-num">' + escHtml(budget) + '</td>'
         + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">عرض</button></td>'
         + '</tr>';
     }).join('');
+
+    // Totals row — window spend and messages across the visible (filtered) set.
+    var tfoot = document.getElementById('campaigns-tfoot');
+    if (tfoot) {
+      tfoot.innerHTML = '<tr>'
+        + '<td colspan="2" class="tot-label">الإجمالي · ' + campaigns.length + ' حملة · آخر ' + state.days + ' يوماً</td>'
+        + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(totSpend)) + '</span></td>'
+        + '<td class="cell-num">' + escHtml(fmtNum(totMsgs, 0)) + '</td>'
+        + '<td colspan="3"></td>'
+        + '</tr>';
+    }
     } catch (tableErr) {
       console.error('[campaigns] table render failed:', tableErr);
-      tbody.innerHTML = '<tr><td colspan="6" class="section-fallback">تعذّر عرض الحملات — حاول التحديث.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="section-fallback">تعذّر عرض الحملات — حاول التحديث.</td></tr>';
     }
   }
 
-  // ── Search filter ─────────────────────────────────────────────────────────
-  function applyFilter(query) {
-    var q = (query || '').toLowerCase().trim();
-    if (!q) {
-      renderTable(state.campaigns);
-      return;
-    }
-    var filtered = state.campaigns.filter(function(c) {
+  // ── Filter + sort pipeline ─────────────────────────────────────────────────
+  // One function owns the search box, the status chips, and the sort state so
+  // every path (typing, chip click, header click, data refresh) re-renders the
+  // same way.
+  function applyFilters() {
+    var searchEl = document.getElementById('search-input');
+    var q = (searchEl && searchEl.value || '').toLowerCase().trim();
+    var list = state.campaigns.filter(function(c) {
+      if (state.statusFilter !== 'ALL' && c.status !== state.statusFilter) return false;
+      if (!q) return true;
       return (c.name || '').toLowerCase().includes(q)
         || (c.objective || '').toLowerCase().includes(q)
         || (c.status || '').toLowerCase().includes(q)
         || (c.id || '').toLowerCase().includes(q);
     });
-    renderTable(filtered);
+    var key = state.sortKey, dir = state.sortDir;
+    list = list.slice().sort(function(a, b) {
+      var av = a[key], bv = b[key];
+      if (typeof av === 'string' || typeof bv === 'string') {
+        return String(av || '').localeCompare(String(bv || ''), 'ar') * dir;
+      }
+      var an = av == null ? -Infinity : Number(av);
+      var bn = bv == null ? -Infinity : Number(bv);
+      return (an - bn) * dir;
+    });
+    renderTable(list);
   }
 
   // ── Date tab switch ───────────────────────────────────────────────────────
+  // Charts/summary re-slice locally; the per-campaign window columns need the
+  // server (aggregated in daily_stats), so re-fetch the list with ?days=.
   function setDays(days) {
     state.days = days;
     document.querySelectorAll('.tab').forEach(function(btn) {
       if (btn.dataset.days != null) btn.classList.toggle('active', Number(btn.dataset.days) === days);
     });
+    var winLabel = document.getElementById('window-label');
+    if (winLabel) winLabel.textContent = '(' + days + 'ي)';
     updateSummary(state.campaigns, state.insights);
     updateCharts(state.insights);
+    applyFilters();
+    if (!state.workspaceId) return;
+    apiFetchWithTimeout('/api/workspaces/' + state.workspaceId + '/campaigns?days=' + days, {}, 12000)
+      .then(function(camps) {
+        if (Array.isArray(camps)) {
+          state.campaigns = camps;
+          updateSummary(state.campaigns, state.insights);
+          applyFilters();
+        }
+      })
+      .catch(function() { /* keep showing the previous window's numbers */ });
   }
 
   // ── Campaign Inspector (drawer-style modal) ───────────────────────────────
@@ -1331,7 +1434,7 @@ export function campaignsPage(): string {
     if (!workspaceId) return;
 
     var results = await Promise.all([
-      apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 12000),
+      apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns?days=' + state.days, {}, 12000),
       apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 12000),
       apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 8000).catch(function() { return null; }),
       apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 8000).catch(function() { return []; }),
@@ -1354,10 +1457,7 @@ export function campaignsPage(): string {
     state.campaigns = Array.isArray(campaigns) ? campaigns : [];
     state.insights = Array.isArray(insights) ? insights : [];
 
-    var searchInput = document.getElementById('search-input');
-    var searchVal = searchInput && searchInput.value;
-    if (searchVal) applyFilter(searchVal);
-    else renderTable(state.campaigns);
+    applyFilters();
     updateSummary(state.campaigns, state.insights);
     updateCharts(state.insights);
   }
@@ -1444,7 +1544,38 @@ export function campaignsPage(): string {
     });
 
     document.getElementById('search-input').addEventListener('input', function(e) {
-      applyFilter(e.target.value);
+      applyFilters();
+    });
+
+    // Sortable headers — click toggles direction on the same column,
+    // switches column otherwise. Numeric columns start descending
+    // (biggest spender first), text columns ascending.
+    document.getElementById('campaigns-thead').addEventListener('click', function(e) {
+      var th = e.target && e.target.closest && e.target.closest('.th-sort');
+      if (!th) return;
+      var key = th.getAttribute('data-sort');
+      if (state.sortKey === key) {
+        state.sortDir = -state.sortDir;
+      } else {
+        state.sortKey = key;
+        state.sortDir = (key === 'name' || key === 'status') ? 1 : -1;
+      }
+      document.querySelectorAll('#campaigns-thead .th-sort').forEach(function(el) {
+        el.classList.remove('is-sorted', 'asc', 'desc');
+      });
+      th.classList.add('is-sorted', state.sortDir === 1 ? 'asc' : 'desc');
+      applyFilters();
+    });
+
+    // Status filter chips (الكل / نشطة / متوقفة).
+    document.getElementById('status-filters').addEventListener('click', function(e) {
+      var chip = e.target && e.target.closest && e.target.closest('.filter-chip');
+      if (!chip) return;
+      state.statusFilter = chip.getAttribute('data-status') || 'ALL';
+      document.querySelectorAll('#status-filters .filter-chip').forEach(function(el) {
+        el.classList.toggle('active', el === chip);
+      });
+      applyFilters();
     });
 
     document.getElementById('force-sync-btn').addEventListener('click', function() {
@@ -1543,7 +1674,7 @@ export function campaignsPage(): string {
       });
 
       var [campaigns, insights, wsData, issueDates] = await Promise.all([
-        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 12000),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns?days=' + state.days, {}, 12000),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 12000),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 8000).catch(function() { return null; }),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 8000).catch(function() { return []; }),
@@ -1596,7 +1727,7 @@ export function campaignsPage(): string {
 
       updateSummary(state.campaigns, state.insights);
       updateCharts(state.insights);
-      renderTable(state.campaigns);
+      applyFilters();
 
       document.getElementById('loading-state').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
