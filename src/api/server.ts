@@ -105,6 +105,7 @@ import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFa
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 import { isCurrentlySpending, accountLocalTodayFloor } from '../lib/campaignSpending';
+import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -1692,6 +1693,57 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         };
       }),
     );
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/export/campaigns.csv — client-facing CSV
+   * of every campaign (name, status, objective, budgets, created). UTF-8 BOM +
+   * CRLF so Excel opens Arabic correctly. Auth via bearer (the frontend fetches
+   * with the header, then triggers a blob download).
+   */
+  app.get('/api/workspaces/:workspaceId/export/campaigns.csv', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const campaigns = await prisma.campaign.findMany({
+      where: { adAccountId: account.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const csv = campaignsToCsv(campaigns, account);
+    const stamp = new Date().toISOString().slice(0, 10);
+    c.header('Content-Type', 'text/csv; charset=utf-8');
+    c.header('Content-Disposition', `attachment; filename="campaigns-${stamp}.csv"`);
+    return c.body(csv);
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/export/insights.csv?days=90 — daily
+   * account-level metrics (spend, impressions, reach, clicks, CTR, CPM,
+   * messages, purchases) as CSV.
+   */
+  app.get('/api/workspaces/:workspaceId/export/insights.csv', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const days = Math.min(Number(req.query['days'] ?? '90'), 365);
+    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
+    const stats = await prisma.dailyStat.findMany({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
+      orderBy: { date: 'desc' },
+    });
+    const csv = insightsToCsv(stats, account);
+    const stamp = new Date().toISOString().slice(0, 10);
+    c.header('Content-Type', 'text/csv; charset=utf-8');
+    c.header('Content-Disposition', `attachment; filename="insights-${stamp}.csv"`);
+    return c.body(csv);
   });
 
   /** GET /api/workspaces/:workspaceId/campaigns/:campaignId — single campaign. */

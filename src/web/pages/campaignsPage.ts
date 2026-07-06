@@ -51,6 +51,13 @@ export function campaignsPage(): string {
       <div class="page-subtitle" id="page-subtitle">جميع الحملات في حساب Meta الإعلاني الخاص بك</div>
     </div>
     <div class="flex items-center gap-2">
+      <div style="position:relative;" id="export-wrap">
+        <button type="button" class="btn btn-ghost btn-sm" id="export-btn" title="تصدير البيانات كملف CSV">⬇ تصدير</button>
+        <div id="export-menu" style="display:none;position:absolute;top:calc(100% + 6px);inset-inline-end:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);padding:6px;min-width:200px;">
+          <button type="button" class="export-item" data-export="campaigns" style="display:block;width:100%;text-align:start;background:none;border:none;color:var(--text);font:inherit;padding:9px 12px;border-radius:7px;cursor:pointer;">📋 قائمة الحملات (CSV)</button>
+          <button type="button" class="export-item" data-export="insights" style="display:block;width:100%;text-align:start;background:none;border:none;color:var(--text);font:inherit;padding:9px 12px;border-radius:7px;cursor:pointer;">📈 الأداء اليومي (CSV)</button>
+        </div>
+      </div>
       <button type="button" class="btn btn-ghost btn-sm js-sync-trigger" id="force-sync-btn" title="مزامنة أحدث البيانات من Meta">↻ تحديث البيانات</button>
       <div class="tabs" id="date-tabs">
         <button class="tab" data-days="7">7d</button>
@@ -181,6 +188,7 @@ export function campaignsPage(): string {
        tab styling lives next to the markup that uses it and we avoid
        polluting the global stylesheet for a single modal. -->
   <style>
+    .export-item:hover { background: var(--surface-2, rgba(255,255,255,0.05)); }
     .inspector-tab {
       background: transparent;
       color: var(--text-3);
@@ -1291,6 +1299,34 @@ export function campaignsPage(): string {
     setTimeout(function() { el.remove(); }, 8000);
   }
 
+  // ── CSV export ────────────────────────────────────────────────────────────
+  // Downloads must carry the bearer token, so a plain <a href> won't work —
+  // fetch with the auth header, then trigger a blob download.
+  async function downloadExport(kind) {
+    if (!state.workspaceId) return;
+    var token = getToken();
+    var path = kind === 'insights'
+      ? '/api/workspaces/' + state.workspaceId + '/export/insights.csv?days=90'
+      : '/api/workspaces/' + state.workspaceId + '/export/campaigns.csv';
+    var stamp = new Date().toISOString().slice(0, 10);
+    try {
+      var res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
+      if (!res.ok) { toast('تعذّر تصدير الملف — حاول بعد المزامنة', 'error'); return; }
+      var blob = await res.blob();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = (kind === 'insights' ? 'insights-' : 'campaigns-') + stamp + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast('تم تنزيل الملف', 'success');
+    } catch (e) {
+      toast('تعذّر تصدير الملف', 'error');
+    }
+  }
+
   async function forceSync() {
     if (!state.workspaceId) return;
     try {
@@ -1332,6 +1368,25 @@ export function campaignsPage(): string {
 
     document.getElementById('force-sync-btn').addEventListener('click', function() {
       forceSync();
+    });
+
+    // Export menu — toggle open/closed, download on item click, close on outside click.
+    var exportBtn = document.getElementById('export-btn');
+    var exportMenu = document.getElementById('export-menu');
+    exportBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      exportMenu.style.display = exportMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    exportMenu.addEventListener('click', function(e) {
+      var item = e.target && e.target.closest && e.target.closest('.export-item');
+      if (!item) return;
+      exportMenu.style.display = 'none';
+      downloadExport(item.getAttribute('data-export'));
+    });
+    document.addEventListener('click', function(e) {
+      if (exportMenu.style.display !== 'none' && !document.getElementById('export-wrap').contains(e.target)) {
+        exportMenu.style.display = 'none';
+      }
     });
 
     // Delegated click for inspector — tbody is re-rendered on every search,
