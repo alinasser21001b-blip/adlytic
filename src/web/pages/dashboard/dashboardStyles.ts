@@ -486,11 +486,32 @@ export const dashboardStyles = `<style>
       font-size: 11px; font-weight: 800;
     }
 
+    /* ── Overflow guards (apply on every viewport) ───────────────────────
+       Grid/flex items default to min-width:auto, so a wide child — most
+       often the Chart.js canvas, which takes an intrinsic pixel width — can
+       force its track wider than the screen and cause horizontal scroll on
+       mobile. min-width:0 lets these tracks shrink to the viewport. This was
+       the root cause of the chart bleeding off the right edge on phones. */
+    .split-grid, .active-grid, .v2-spotlight-grid, .v2-recovery-grid, .v2-insights { min-width: 0; }
+    .split-grid > *, .active-card, .hero-card, .chart-panel, .brain-box,
+    .main-move-card, .ticker-wrap, .exec-pulse-banner, .v2-action-body,
+    .main-move-secondary-body, .v2-spotlight, .strategy-card { min-width: 0; }
+    .chart-panel-canvas { max-width: 100%; }
+    .chart-panel-canvas canvas { max-width: 100% !important; }
+    .exec-pulse-text, .ticker-tooltip, .strategy-body, .main-move-why,
+    .active-name, .v2-action-title, .main-move-title { overflow-wrap: anywhere; }
+
     /* ── Mobile Dashboard Optimizations ──────────────────────────────── */
     @media (max-width: 768px) {
+      /* Kill any residual horizontal overflow from wide descendants. */
+      .page-content { overflow-x: hidden; }
+
       .hero-grid { gap: 10px; margin-bottom: 14px; }
-      .hero-card { padding: 14px 16px; }
-      .hero-value { font-size: 24px; letter-spacing: -0.5px; }
+      .hero-card { padding: 15px 16px; }
+      /* English metric labels inside an RTL page: keep their own direction so
+         "7-Day Spend" doesn't reorder to "Day Spend-7". */
+      .hero-label { unicode-bidi: plaintext; }
+      .hero-value { font-size: 25px; letter-spacing: -0.5px; }
       .hero-sub { font-size: 11px; margin-top: 4px; }
       .hero-delta { font-size: 10.5px; padding: 2px 7px; margin-top: 6px; }
 
@@ -507,25 +528,40 @@ export const dashboardStyles = `<style>
       .active-card { padding: 12px 14px; }
       .active-name { font-size: 12px; }
 
+      /* Chart: single column already (split-grid collapses at 1000px); make it
+         a comfortable phone height and let the canvas fill the card width. */
       .split-grid { gap: 14px; margin-bottom: 18px; }
-      .brain-box { padding: 14px; }
+      .chart-panel { padding: 14px 14px 16px; }
+      .chart-panel-head { flex-wrap: wrap; gap: 2px 8px; margin-bottom: 10px; }
+      .chart-panel-canvas { height: 240px; min-height: 200px; }
+      .brain-box { padding: 14px; max-height: none; }
       .brain-box-head { margin-bottom: 10px; }
       .strategy-card { padding: 12px 14px; margin-bottom: 8px; }
       .strategy-title { font-size: 12.5px; }
       .strategy-body { font-size: 11.5px; }
 
-      .main-move-card { padding: 16px; }
-      .main-move-title { font-size: 15px; }
-      .main-move-why { font-size: 12px; }
+      .main-move-primary { padding: 16px; }
+      .main-move-title { font-size: 16px; }
+      .main-move-why { font-size: 12.5px; }
+      .main-move-cta { width: 100%; text-align: center; }
+      .main-move-cta-row { gap: 8px; }
+      .main-move-secondary, .main-move-more summary { padding-left: 16px; padding-right: 16px; }
 
-      .exec-pulse-banner { padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; }
+      /* Action rows stack so the button isn't squeezed off-screen. */
+      .v2-action-row { flex-wrap: wrap; padding: 12px 14px; }
+      .v2-action-btn { width: 100%; }
+
+      .exec-pulse-banner { padding: 12px 14px; margin-bottom: 14px; }
+      .exec-pulse-text { font-size: 13px; }
     }
 
     @media (max-width: 480px) {
-      .hero-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-      .hero-grid > :last-child { grid-column: 1 / -1; }
-      .hero-value { font-size: 20px; }
+      /* One clean column of large, readable numbers — no cramped 2-up. */
+      .hero-grid { grid-template-columns: 1fr; gap: 10px; }
+      .hero-card { padding: 16px 18px; }
+      .hero-value { font-size: 26px; }
       .active-grid { grid-template-columns: 1fr !important; }
+      .chart-panel-canvas { height: 220px; }
     }
 
   </style>`;

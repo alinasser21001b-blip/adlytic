@@ -370,10 +370,15 @@ input, select, textarea { font-family: inherit; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  min-width: 0; /* let the grid track shrink below the canvas's intrinsic width */
 }
 .chart-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .chart-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.chart-canvas-wrap { position: relative; height: 220px; }
+.chart-canvas-wrap { position: relative; height: 220px; max-width: 100%; }
+/* Chart.js canvases take an intrinsic pixel width; clamp them so a chart never
+   forces horizontal scroll on mobile. */
+.chart-canvas-wrap canvas { max-width: 100% !important; }
+.chart-grid, .camp-chart-grid { min-width: 0; }
 
 /* ── Tables ──────────────────────────────────────────────────────── */
 .table-wrap {
