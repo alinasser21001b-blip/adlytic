@@ -175,6 +175,9 @@ export function campaignsPage(): string {
         </tbody>
       </table>
     </div>
+    <!-- Phone view: the wide table becomes tappable cards (CSS swaps them
+         at ≤768px). Rendered by renderTable from the same campaigns array. -->
+    <div id="campaigns-cards" class="camp-cards"></div>
     <div id="empty-campaigns" style="display:none;">
       <div class="empty-state">
         <div class="empty-icon">📋</div>
@@ -189,6 +192,50 @@ export function campaignsPage(): string {
        polluting the global stylesheet for a single modal. -->
   <style>
     .export-item:hover { background: var(--surface-2, rgba(255,255,255,0.05)); }
+
+    /* ── Phone campaign cards (replace the 700px-wide table on mobile) ── */
+    .camp-cards { display: none; }
+    .camp-card {
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      border: 1px solid var(--border-2);
+      border-inline-start: 3px solid var(--border-2);
+      border-radius: 12px;
+      padding: 14px 16px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color .15s, transform .1s;
+    }
+    .camp-card:active { transform: scale(0.985); }
+    .camp-card[data-status="ACTIVE"] { border-inline-start-color: var(--success); }
+    .camp-card[data-status="PAUSED"] { border-inline-start-color: var(--warning); }
+    .camp-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .camp-card-name {
+      font-size: 14px; font-weight: 700; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1;
+    }
+    .camp-card-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+    .camp-card-chip {
+      font-size: 11.5px; color: var(--text-2);
+      background: var(--surface); border: 1px solid var(--border-2);
+      padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+    }
+    .camp-card-chip b { color: var(--text); font-weight: 600; }
+    .camp-card-cta {
+      margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--accent);
+      display: flex; align-items: center; gap: 4px;
+    }
+    @media (max-width: 768px) {
+      /* Inline display:block from renderTable would beat a plain rule. */
+      #table-container { display: none !important; }
+      .camp-cards { display: flex; flex-direction: column; gap: 10px; }
+      .table-header { flex-direction: column; align-items: stretch; gap: 10px; }
+      .table-header .search-input { width: 100% !important; }
+      /* Header: actions wrap under the title instead of overflowing. */
+      .page-header.flex { flex-direction: column; align-items: stretch; gap: 12px; }
+      .page-header .flex { flex-wrap: wrap; }
+      #date-tabs { width: 100%; display: flex; }
+      #date-tabs .tab { flex: 1; }
+    }
     .inspector-tab {
       background: transparent;
       color: var(--text-3);
@@ -291,7 +338,7 @@ export function campaignsPage(): string {
 </div>`;
 
   const scripts = `
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/vendor/chart.umd.min.js"></script>
 <script>
 (function () {
   'use strict';
@@ -411,17 +458,28 @@ export function campaignsPage(): string {
     return grad;
   }
 
-  function makeLineChart(canvasId, labels, datasets) {
+  // Convert each dataset's _rgb marker into a real canvas gradient. Runs on
+  // BOTH the create path and the update path — updateCharts replaces the
+  // spend chart's datasets wholesale on every refresh, and a dataset left
+  // with only _rgb (no backgroundColor) would fill with the Chart.js default.
+  function applyGradients(canvasId, datasets) {
     var canvas = document.getElementById(canvasId);
+    if (!canvas) return datasets;
     var ctx = canvas.getContext('2d');
-    var h = canvas.parentElement.clientHeight || 220;
-
+    var h = (canvas.parentElement && canvas.parentElement.clientHeight) || 220;
     datasets.forEach(function(ds) {
       if (ds._rgb) {
         ds.backgroundColor = makeGradient(ctx, h, ds._rgb[0], ds._rgb[1], ds._rgb[2]);
         delete ds._rgb;
       }
     });
+    return datasets;
+  }
+
+  function makeLineChart(canvasId, labels, datasets) {
+    var canvas = document.getElementById(canvasId);
+    var ctx = canvas.getContext('2d');
+    applyGradients(canvasId, datasets);
 
     return new Chart(ctx, {
       type: 'line',
@@ -529,7 +587,7 @@ export function campaignsPage(): string {
 
     if (state.spendChart) {
       state.spendChart.data.labels = labels;
-      state.spendChart.data.datasets = spendDatasets;
+      state.spendChart.data.datasets = applyGradients('chart-spend', spendDatasets);
       state.spendChart.update();
     } else {
       state.spendChart = makeLineChart('chart-spend', labels, spendDatasets);
@@ -659,17 +717,40 @@ export function campaignsPage(): string {
     var tbody = document.getElementById('campaigns-tbody');
     var emptyEl = document.getElementById('empty-campaigns');
     var tableContainer = document.getElementById('table-container');
+    var cardsEl = document.getElementById('campaigns-cards');
     try {
     if (!campaigns || !Array.isArray(campaigns)) campaigns = [];
 
     if (campaigns.length === 0) {
       tableContainer.style.display = 'none';
+      if (cardsEl) cardsEl.innerHTML = '';
       emptyEl.style.display = 'block';
       return;
     }
 
     tableContainer.style.display = 'block';
     emptyEl.style.display = 'none';
+
+    // Phone cards — same data, tap anywhere on the card to open the inspector.
+    if (cardsEl) {
+      cardsEl.innerHTML = campaigns.map(function(c) {
+        var budget = c.dailyBudget != null
+          ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
+          : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' إجمالي' : 'بدون ميزانية');
+        return '<div class="camp-card" data-campaign-id="' + escAttr(c.id) + '" data-status="' + escAttr(c.status || '') + '">'
+          + '<div class="camp-card-top">'
+          +   '<div class="camp-card-name">' + escHtml(c.name || '—') + '</div>'
+          +   statusBadge(c.status)
+          + '</div>'
+          + '<div class="camp-card-meta">'
+          +   '<span class="camp-card-chip">🎯 ' + escHtml(translateObjective(c.objective)) + '</span>'
+          +   '<span class="camp-card-chip">💰 <b>' + escHtml(budget) + '</b></span>'
+          +   '<span class="camp-card-chip">📅 ' + escHtml(fmtDate(c.createdAt)) + '</span>'
+          + '</div>'
+          + '<div class="camp-card-cta">عرض التفاصيل ←</div>'
+          + '</div>';
+      }).join('');
+    }
 
     tbody.innerHTML = campaigns.map(function(c) {
       // Campaign.dailyBudget / lifetimeBudget are BigInt minor units in the
@@ -1396,6 +1477,13 @@ export function campaignsPage(): string {
       if (!btn) return;
       e.preventDefault();
       openInspector(btn.getAttribute('data-campaign-id'));
+    });
+
+    // Phone cards: the whole card is the tap target.
+    document.getElementById('campaigns-cards').addEventListener('click', function(e) {
+      var card = e.target && e.target.closest && e.target.closest('.camp-card');
+      if (!card) return;
+      openInspector(card.getAttribute('data-campaign-id'));
     });
 
     // Tab switching — delegated so the listener survives renderInspector()

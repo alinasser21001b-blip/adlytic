@@ -334,6 +334,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.use('/manifest.json', serveStatic({ root: './public' }));
   app.use('/sw.js', serveStatic({ root: './public' }));
   app.use('/icons/*', serveStatic({ root: './public' }));
+  // Self-hosted JS libraries (Chart.js). Served same-origin so charts never
+  // depend on a third-party CDN — jsdelivr is unreachable on some regional
+  // mobile networks, which left every chart card empty while the rest of the
+  // page rendered fine.
+  app.use('/vendor/*', serveStatic({ root: './public' }));
 
   // ── Security headers ───────────────────────────────────────────────────
   app.use('*', async (c, next) => {
