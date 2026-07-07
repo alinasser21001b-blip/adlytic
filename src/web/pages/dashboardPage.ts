@@ -1606,16 +1606,19 @@ export function dashboardPage(): string {
         isoDates = tsIso;
       }
 
-      safeRender('charts', function () {
-        var spendDatasets = [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }];
-        var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
-        if (markerDataset) spendDatasets.push(markerDataset);
-        makeLineChart('chart-spend-main', labels, spendDatasets, { maxTicks: 10 });
-        // The two trend charts live inside the collapsed <details>. A chart
-        // created while its canvas is display:none renders 0×0 and never
-        // recovers — so stash the series and draw on first open instead.
-        state._advCharts = { labels: labels, ctr: ctrSeries, msgs: impSeries };
-        renderAdvancedChartsIfOpen();
+      // Chart.js needs a laid-out canvas to measure dimensions — creating
+      // inside display:none yields 0×0 charts. Defer to next frame so the
+      // container is visible and canvas dimensions are resolved.
+      state._advCharts = { labels: labels, ctr: ctrSeries, msgs: impSeries };
+      var _chartLabels = labels, _chartIsoDates = isoDates, _spendSeriesMajor = spendSeriesMajor;
+      requestAnimationFrame(function () {
+        safeRender('charts', function () {
+          var spendDatasets = [{ label: lbl('Spend', 'الإنفاق'), data: _spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }];
+          var markerDataset = buildIssueMarkerDataset(_chartLabels, _chartIsoDates, state.lastIssueDates);
+          if (markerDataset) spendDatasets.push(markerDataset);
+          makeLineChart('chart-spend-main', _chartLabels, spendDatasets, { maxTicks: 10 });
+          renderAdvancedChartsIfOpen();
+        });
       });
 
       safeRender('attribution', function () { renderAttribution(dashData.attribution || null); });
@@ -1709,13 +1712,14 @@ export function dashboardPage(): string {
         return;
       }
 
+      // Show the container FIRST so Chart.js canvases have real dimensions.
+      hideLoadingShowDashboard();
       try {
         applyDashboardData(dashData, insights, campaigns, wsData, true);
         startAutoRefresh(workspaceId);
       } catch (renderErr) {
         console.error('[dashboard] init render failed:', renderErr);
       }
-      hideLoadingShowDashboard();
 
     } catch (err) {
       console.error('[dashboard] init failed:', err);

@@ -1933,13 +1933,20 @@ export function campaignsPage(): string {
         'جميع الحملات · ' + wsName;
 
       updateSummary(state.campaigns, state.insights);
-      updateCharts(state.insights);
       renderFreshnessStrip(state.insights);
       applyFilters();
-      runDataObserver(workspaceId);
 
+      // Show container BEFORE creating charts — Chart.js needs a laid-out
+      // canvas to measure dimensions. Creating inside display:none → 0×0.
       document.getElementById('loading-state').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
+
+      // Defer chart creation to the next frame so the browser has painted
+      // the layout and canvas dimensions are resolved.
+      requestAnimationFrame(function() {
+        updateCharts(state.insights);
+        runDataObserver(workspaceId);
+      });
       staggerReveal(['.camp-kpi-row', '#data-observer-banner', '#fresh-strip', '.camp-chart-grid', '.table-wrap']);
 
     } catch (err) {
