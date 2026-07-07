@@ -153,7 +153,7 @@ export function dashboardPage(): string {
             <div class="chart-panel-title">الأداء · الإنفاق عبر الزمن</div>
             <div class="chart-panel-meta" id="chart-panel-meta">—</div>
           </div>
-          <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas></div>
+          <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas><div class="chart-empty" id="chart-spend-main-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div></div>
         </div>
       </section>
 
@@ -1613,10 +1613,20 @@ export function dashboardPage(): string {
       var _chartLabels = labels, _chartIsoDates = isoDates, _spendSeriesMajor = spendSeriesMajor;
       requestAnimationFrame(function () {
         safeRender('charts', function () {
-          var spendDatasets = [{ label: lbl('Spend', 'الإنفاق'), data: _spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }];
-          var markerDataset = buildIssueMarkerDataset(_chartLabels, _chartIsoDates, state.lastIssueDates);
-          if (markerDataset) spendDatasets.push(markerDataset);
-          makeLineChart('chart-spend-main', _chartLabels, spendDatasets, { maxTicks: 10 });
+          var hasSpend = _spendSeriesMajor.some(function(v){ return v > 0; });
+          var emptyEl = document.getElementById('chart-spend-main-empty');
+          var canvasEl = document.getElementById('chart-spend-main');
+          if (!hasSpend || !_chartLabels.length) {
+            if (emptyEl) emptyEl.style.display = 'flex';
+            if (canvasEl) canvasEl.style.display = 'none';
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            if (canvasEl) canvasEl.style.display = '';
+            var spendDatasets = [{ label: lbl('Spend', 'الإنفاق'), data: _spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }];
+            var markerDataset = buildIssueMarkerDataset(_chartLabels, _chartIsoDates, state.lastIssueDates);
+            if (markerDataset) spendDatasets.push(markerDataset);
+            makeLineChart('chart-spend-main', _chartLabels, spendDatasets, { maxTicks: 10 });
+          }
           renderAdvancedChartsIfOpen();
         });
       });

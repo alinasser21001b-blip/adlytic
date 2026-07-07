@@ -219,6 +219,11 @@ export const dashboardStyles = `<style>
     .chart-panel-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
     .chart-panel-meta  { font-size: 11.5px; color: var(--text-3); }
     .chart-panel-canvas { position: relative; flex: 1; height: 380px; min-height: 280px; }
+    .chart-empty {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: var(--text-3); font-size: 13px; text-align: center; direction: rtl;
+      background: var(--surface); border-radius: 8px;
+    }
 
     /* Stale-data banner */
     #stale-banner { display: none; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }

@@ -84,8 +84,9 @@ export function campaignsPage(): string {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
       </div>
       <div class="camp-kpi-body">
-        <div class="camp-kpi-label">حملات نشطة</div>
+        <div class="camp-kpi-label">حملات تنفق</div>
         <div class="camp-kpi-value" id="active-campaigns">—</div>
+        <div class="camp-kpi-sub" id="active-sub"></div>
       </div>
     </div>
     <div class="camp-kpi" data-accent="amber">
@@ -133,14 +134,17 @@ export function campaignsPage(): string {
 
   <!-- Charts — 2×2 grid -->
   <div class="camp-chart-grid">
-    <div class="chart-card">
+    <div class="chart-card" id="spend-chart-card">
       <div class="chart-card-header">
         <div class="chart-card-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:var(--accent);"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
           الإنفاق عبر الزمن
         </div>
       </div>
-      <div class="chart-canvas-wrap"><canvas id="chart-spend"></canvas></div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-spend"></canvas>
+        <div class="chart-empty" id="chart-spend-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div>
+      </div>
     </div>
     <div class="chart-card" id="ctr-chart-card">
       <div class="chart-card-header">
@@ -149,7 +153,10 @@ export function campaignsPage(): string {
           نسبة النقر (CTR)
         </div>
       </div>
-      <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-ctr"></canvas>
+        <div class="chart-empty" id="chart-ctr-empty" style="display:none;">لا توجد بيانات نقر في هذه الفترة</div>
+      </div>
     </div>
     <div class="chart-card" id="reach-chart-card">
       <div class="chart-card-header">
@@ -158,7 +165,10 @@ export function campaignsPage(): string {
           الوصول (Reach)
         </div>
       </div>
-      <div class="chart-canvas-wrap"><canvas id="chart-reach"></canvas></div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-reach"></canvas>
+        <div class="chart-empty" id="chart-reach-empty" style="display:none;">لا توجد بيانات وصول في هذه الفترة</div>
+      </div>
     </div>
     <div class="chart-card" id="impressions-chart-card">
       <div class="chart-card-header">
@@ -167,7 +177,10 @@ export function campaignsPage(): string {
           مرات الظهور
         </div>
       </div>
-      <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-impressions"></canvas>
+        <div class="chart-empty" id="chart-impressions-empty" style="display:none;">لا توجد بيانات مرات ظهور في هذه الفترة</div>
+      </div>
     </div>
   </div>
 
@@ -236,8 +249,16 @@ export function campaignsPage(): string {
     .observer-body { flex: 1; min-width: 0; }
     .observer-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
     .observer-msg { font-size: 12px; color: var(--text-3); line-height: 1.5; }
-    .observer-fix-btn { font-size: 11px; white-space: nowrap; background: rgba(245,166,35,0.15); color: var(--accent); border: 1px solid rgba(245,166,35,0.3); }
+    .observer-fix-btn { font-size: 11px; white-space: nowrap; background: rgba(245,166,35,0.15); color: var(--accent); border: 1px solid rgba(245,166,35,0.3); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
     .observer-fix-btn:hover { background: rgba(245,166,35,0.25); }
+
+    /* ── Chart empty state ────────────────────────────────────────────── */
+    .chart-empty {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: var(--text-3); font-size: 13px; text-align: center; direction: rtl;
+      background: var(--surface); border-radius: 8px;
+    }
+    .camp-kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
     /* ── Data-quality tracker (Tremor Tracker port) ──────────────────── */
     .fresh-strip {
@@ -684,64 +705,76 @@ export function campaignsPage(): string {
     };
   }
 
+  function showChartEmpty(chartId, show) {
+    var el = document.getElementById(chartId + '-empty');
+    var canvas = document.getElementById(chartId);
+    if (el) el.style.display = show ? 'flex' : 'none';
+    if (canvas) canvas.style.display = show ? 'none' : '';
+  }
+
   function updateCharts(insights) {
     try {
     var filtered = recentAsc(insights, state.days);
+
+    if (!filtered.length) {
+      showChartEmpty('chart-spend', true);
+      showChartEmpty('chart-ctr', true);
+      showChartEmpty('chart-reach', true);
+      showChartEmpty('chart-impressions', true);
+      return;
+    }
+
     var labels = filtered.map(function(d) { return fmtShortDate(d.date); });
     var isoDates = filtered.map(function(d) { return new Date(d.date).toISOString().slice(0, 10); });
-    // d.spend is BigInt minor units (e.g. cents). We pass the raw minor
-    // number into the chart series here because the y-axis tick formatter
-    // would otherwise need the divisor too — keep it consistent by also
-    // dividing in the dataset. The chart already shows magnitude only.
     var spendData = filtered.map(function(d) { return (Number(d.spend) || 0) / state.minorFactor; });
     var ctrData = filtered.map(function(d) { return Number(d.ctr) || 0; });
 
-    var spendDatasets = [{
-      label: 'الإنفاق (' + state.currency + ')',
-      data: spendData,
-      borderColor: '#D9A759',
-      _rgb: [217, 167, 89],
-      _fmt: 'currency',
-      fill: true, tension: 0.4,
-      pointBackgroundColor: '#D9A759',
-    }];
-    // 7-day moving average — smooths daily noise so the trend reads at a
-    // glance. Dashed, no fill, sits behind the daily line.
-    if (spendData.length >= 7) {
-      var ma = spendData.map(function(_, i) {
-        var from = Math.max(0, i - 6);
-        var slice = spendData.slice(from, i + 1);
-        return slice.reduce(function(a, b) { return a + b; }, 0) / slice.length;
-      });
-      spendDatasets.push({
-        label: 'المتوسط (7 أيام)',
-        data: ma,
-        borderColor: 'rgba(230,189,122,0.55)',
-        borderDash: [6, 5],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-        tension: 0.4,
-        _fmt: 'currency',
-      });
-    }
-    var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
-    if (markerDataset) spendDatasets.push(markerDataset);
+    var hasSpendData = spendData.some(function(v){ return v > 0; });
+    showChartEmpty('chart-spend', !hasSpendData);
 
-    if (state.spendChart) {
-      state.spendChart.data.labels = labels;
-      state.spendChart.data.datasets = applyGradients('chart-spend', spendDatasets);
-      state.spendChart.update();
-    } else {
-      state.spendChart = makeLineChart('chart-spend', labels, spendDatasets);
+    if (hasSpendData) {
+      var spendDatasets = [{
+        label: 'الإنفاق (' + state.currency + ')',
+        data: spendData,
+        borderColor: '#D9A759',
+        _rgb: [217, 167, 89],
+        _fmt: 'currency',
+        fill: true, tension: 0.4,
+        pointBackgroundColor: '#D9A759',
+      }];
+      if (spendData.length >= 7) {
+        var ma = spendData.map(function(_, i) {
+          var from = Math.max(0, i - 6);
+          var slice = spendData.slice(from, i + 1);
+          return slice.reduce(function(a, b) { return a + b; }, 0) / slice.length;
+        });
+        spendDatasets.push({
+          label: 'المتوسط (7 أيام)',
+          data: ma,
+          borderColor: 'rgba(230,189,122,0.55)',
+          borderDash: [6, 5],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.4,
+          _fmt: 'currency',
+        });
+      }
+      var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
+      if (markerDataset) spendDatasets.push(markerDataset);
+
+      if (state.spendChart) {
+        state.spendChart.data.labels = labels;
+        state.spendChart.data.datasets = applyGradients('chart-spend', spendDatasets);
+        state.spendChart.update();
+      } else {
+        state.spendChart = makeLineChart('chart-spend', labels, spendDatasets);
+      }
     }
 
     var hasCtrData = ctrData.some(function(v){ return v > 0; });
-    var ctrCard = document.getElementById('ctr-chart-card');
-    if (!hasCtrData) {
-      ctrCard.style.display = 'none';
-    } else {
-      ctrCard.style.display = '';
+    showChartEmpty('chart-ctr', !hasCtrData);
+    if (hasCtrData) {
       if (state.ctrChart) {
         state.ctrChart.data.labels = labels;
         state.ctrChart.data.datasets[0].data = ctrData;
@@ -761,11 +794,8 @@ export function campaignsPage(): string {
 
     var reachData = filtered.map(function(d) { return Number(d.reach) || 0; });
     var hasReachData = reachData.some(function(v){ return v > 0; });
-    var reachCard = document.getElementById('reach-chart-card');
-    if (!hasReachData) {
-      reachCard.style.display = 'none';
-    } else {
-      reachCard.style.display = '';
+    showChartEmpty('chart-reach', !hasReachData);
+    if (hasReachData) {
       if (state.reachChart) {
         state.reachChart.data.labels = labels;
         state.reachChart.data.datasets[0].data = reachData;
@@ -785,11 +815,8 @@ export function campaignsPage(): string {
 
     var impressionsData = filtered.map(function(d) { return Number(d.impressions) || 0; });
     var hasImpressionsData = impressionsData.some(function(v){ return v > 0; });
-    var impressionsCard = document.getElementById('impressions-chart-card');
-    if (!hasImpressionsData) {
-      impressionsCard.style.display = 'none';
-    } else {
-      impressionsCard.style.display = '';
+    showChartEmpty('chart-impressions', !hasImpressionsData);
+    if (hasImpressionsData) {
       if (state.impressionsChart) {
         state.impressionsChart.data.labels = labels;
         state.impressionsChart.data.datasets[0].data = impressionsData;
@@ -812,17 +839,23 @@ export function campaignsPage(): string {
   }
 
   // ── Summary cards ─────────────────────────────────────────────────────────
-  // KPI spend is derived from per-campaign spendWindowMinor (same source as
-  // the table footer) — NOT from account-level /insights which includes
-  // deleted/archived campaigns and diverges from the visible table.
+  // "Active" = campaigns that actually spent money in the selected window.
+  // This is more meaningful than status === 'ACTIVE' alone (which includes
+  // campaigns that are technically active but haven't spent anything).
+  // Total spend uses account-level insights (same source as the dashboard)
+  // so both pages show consistent numbers.
   function updateSummary(campaigns, insights) {
     var total = campaigns.length;
-    var active = campaigns.filter(function(c){ return c.status === 'ACTIVE'; }).length;
+    var spending = campaigns.filter(function(c){ return (Number(c.spendWindowMinor) || 0) > 0; }).length;
+    var statusActive = campaigns.filter(function(c){ return c.status === 'ACTIVE'; }).length;
     var paused = campaigns.filter(function(c){ return c.status === 'PAUSED'; }).length;
-    var totalSpendMinor = campaigns.reduce(function(acc, c){ return acc + (Number(c.spendWindowMinor) || 0); }, 0);
+    var insightsSlice = recentAsc(insights, state.days);
+    var totalSpendMinor = insightsSlice.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
 
     tickText(document.getElementById('total-campaigns'), String(total));
-    tickText(document.getElementById('active-campaigns'), String(active));
+    tickText(document.getElementById('active-campaigns'), String(spending));
+    var activeSub = document.getElementById('active-sub');
+    if (activeSub) activeSub.textContent = statusActive + ' بحالة نشطة';
     tickText(document.getElementById('paused-campaigns'), String(paused));
     tickText(document.getElementById('total-spend'), fmtCurrencyMinor(totalSpendMinor));
     document.getElementById('spend-period').textContent = 'آخر ' + state.days + ' يوماً';
