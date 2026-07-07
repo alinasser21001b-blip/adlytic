@@ -13,6 +13,7 @@
 //                  POST  /api/auth/password
 //                  DELETE /api/auth/account
 //    Health        GET  /api/health
+//    Data Observer GET  /api/workspaces/:workspaceId/data-health
 //    Dashboard     GET  /api/dashboard/:workspaceId
 //    Settings      GET  /api/workspaces/:workspaceId
 //                  PATCH /api/workspaces/:workspaceId
@@ -961,6 +962,96 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         ...roleInfo,
       }, 503);
     }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  DATA OBSERVER — reconciliation & cleanup
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * GET /api/workspaces/:workspaceId/data-health — data consistency observer.
+   * Compares account-level vs sum-of-campaign stats and reports orphaned data.
+   * ?cleanup=true  → also DELETE orphaned daily_stat rows (admin only).
+   */
+  app.get('/api/workspaces/:workspaceId/data-health', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account linked' }, 404);
+
+    const doCleanup = req.query['cleanup'] === 'true';
+    const days = 30;
+    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
+
+    const activeCampaignIds = (await prisma.campaign.findMany({
+      where: { adAccountId: account.id },
+      select: { id: true },
+    })).map(c => c.id);
+    const campaignIdSet = new Set(activeCampaignIds);
+
+    const [accountStats, campaignAgg, allCampaignStats] = await Promise.all([
+      prisma.dailyStat.findMany({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
+        select: { date: true, spend: true, impressions: true, clicks: true },
+        orderBy: { date: 'asc' },
+      }),
+      activeCampaignIds.length > 0
+        ? prisma.dailyStat.groupBy({
+            by: ['entityId'],
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: activeCampaignIds },
+              date: { gte: sinceDate },
+            },
+            _sum: { spend: true, impressions: true, clicks: true },
+          })
+        : Promise.resolve([]),
+      prisma.dailyStat.findMany({
+        where: { entityType: EntityType.CAMPAIGN, date: { gte: sinceDate } },
+        select: { entityId: true },
+        distinct: ['entityId'],
+      }),
+    ]);
+
+    const accountTotalSpend = accountStats.reduce((a, s) => a + Number(s.spend), 0);
+    const campaignTotalSpend = campaignAgg.reduce((a, g) => a + Number(g._sum.spend ?? 0), 0);
+    const divergence = accountTotalSpend - campaignTotalSpend;
+    const divergencePct = accountTotalSpend > 0
+      ? +((Math.abs(divergence) / accountTotalSpend) * 100).toFixed(2)
+      : 0;
+
+    const orphanedEntityIds = allCampaignStats
+      .map(s => s.entityId)
+      .filter(id => !campaignIdSet.has(id));
+
+    let orphanedRowsDeleted = 0;
+    if (doCleanup && orphanedEntityIds.length > 0) {
+      const result = await prisma.dailyStat.deleteMany({
+        where: { entityType: EntityType.CAMPAIGN, entityId: { in: orphanedEntityIds } },
+      });
+      orphanedRowsDeleted = result.count;
+    }
+
+    return c.json({
+      window: `${days}d`,
+      accountId: account.id,
+      activeCampaigns: activeCampaignIds.length,
+      accountLevelSpend: accountTotalSpend,
+      campaignLevelSpend: campaignTotalSpend,
+      divergence,
+      divergencePct,
+      divergenceStatus: divergencePct > 10 ? 'HIGH' : divergencePct > 2 ? 'MODERATE' : 'OK',
+      orphanedCampaignIds: orphanedEntityIds,
+      orphanedCount: orphanedEntityIds.length,
+      ...(doCleanup ? { orphanedRowsDeleted } : {}),
+      daysWithData: accountStats.length,
+      lastSyncDate: accountStats.length > 0
+        ? accountStats[accountStats.length - 1].date
+        : null,
+    });
   });
 
   // ════════════════════════════════════════════════════════════════════════

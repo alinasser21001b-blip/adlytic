@@ -109,6 +109,16 @@ export function campaignsPage(): string {
     </div>
   </div>
 
+  <!-- Data observer banner — shown when account-level and campaign-level totals diverge -->
+  <div class="data-observer-banner" id="data-observer-banner" style="display:none;">
+    <div class="observer-icon">🔍</div>
+    <div class="observer-body">
+      <div class="observer-title">مراقب البيانات</div>
+      <div class="observer-msg" id="observer-msg"></div>
+    </div>
+    <button type="button" class="btn btn-sm observer-fix-btn" id="observer-fix-btn" style="display:none;">تنظيف البيانات</button>
+  </div>
+
   <!-- Data-quality tracker (Tremor Tracker port): one segment per day -->
   <div class="fresh-strip" id="fresh-strip" style="display:none;">
     <div class="fresh-strip-head">
@@ -212,6 +222,22 @@ export function campaignsPage(): string {
        polluting the global stylesheet for a single modal. -->
   <style>
     .export-item:hover { background: var(--surface-2, rgba(255,255,255,0.05)); }
+
+    /* ── Data observer banner ─────────────────────────────────────────── */
+    .data-observer-banner {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 16px;
+      direction: rtl;
+    }
+    .data-observer-banner.warn { border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.06); }
+    .data-observer-banner.ok { border-color: rgba(52,168,113,0.4); background: rgba(52,168,113,0.06); }
+    .observer-icon { font-size: 20px; flex-shrink: 0; }
+    .observer-body { flex: 1; min-width: 0; }
+    .observer-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .observer-msg { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+    .observer-fix-btn { font-size: 11px; white-space: nowrap; background: rgba(245,166,35,0.15); color: var(--accent); border: 1px solid rgba(245,166,35,0.3); }
+    .observer-fix-btn:hover { background: rgba(245,166,35,0.25); }
 
     /* ── Data-quality tracker (Tremor Tracker port) ──────────────────── */
     .fresh-strip {
@@ -786,17 +812,14 @@ export function campaignsPage(): string {
   }
 
   // ── Summary cards ─────────────────────────────────────────────────────────
+  // KPI spend is derived from per-campaign spendWindowMinor (same source as
+  // the table footer) — NOT from account-level /insights which includes
+  // deleted/archived campaigns and diverges from the visible table.
   function updateSummary(campaigns, insights) {
     var total = campaigns.length;
-    // Match dashboard "Active Ads · Now Spending" — DB status alone can stay
-    // stale ACTIVE when sync is blocked (e.g. TOKEN_ENCRYPTION_KEY rotation).
     var active = campaigns.filter(function(c){ return c.status === 'ACTIVE'; }).length;
     var paused = campaigns.filter(function(c){ return c.status === 'PAUSED'; }).length;
-    var filtered = recentAsc(insights, state.days);
-    // d.spend is BigInt minor units (cents for USD, EGP, SAR; whole-unit
-    // for IQD). Sum in minor units, format once with the account's
-    // currencyMinorFactor — never assume "$" or 100.
-    var totalSpendMinor = filtered.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
+    var totalSpendMinor = campaigns.reduce(function(acc, c){ return acc + (Number(c.spendWindowMinor) || 0); }, 0);
 
     tickText(document.getElementById('total-campaigns'), String(total));
     tickText(document.getElementById('active-campaigns'), String(active));
@@ -1015,7 +1038,6 @@ export function campaignsPage(): string {
     });
     var winLabel = document.getElementById('window-label');
     if (winLabel) winLabel.textContent = '(' + days + 'ي)';
-    updateSummary(state.campaigns, state.insights);
     updateCharts(state.insights);
     applyFilters();
     if (!state.workspaceId) return;
@@ -1588,6 +1610,63 @@ export function campaignsPage(): string {
     updateSummary(state.campaigns, state.insights);
     updateCharts(state.insights);
     renderFreshnessStrip(state.insights);
+    runDataObserver(workspaceId);
+  }
+
+  // ── Data observer — detect and report account/campaign divergence ─────
+  function runDataObserver(workspaceId) {
+    if (!workspaceId) return;
+    apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/data-health', {}, 10000)
+      .then(function(health) {
+        var banner = document.getElementById('data-observer-banner');
+        var msgEl = document.getElementById('observer-msg');
+        var fixBtn = document.getElementById('observer-fix-btn');
+        if (!banner || !msgEl) return;
+
+        var parts = [];
+        if (health.divergenceStatus === 'HIGH' || health.divergenceStatus === 'MODERATE') {
+          parts.push('فرق بين إجمالي الحساب وإجمالي الحملات: ' + health.divergencePct + '% — '
+            + (health.divergenceStatus === 'HIGH' ? 'فرق كبير' : 'فرق معتدل'));
+        }
+        if (health.orphanedCount > 0) {
+          parts.push(health.orphanedCount + ' حملة محذوفة لا تزال بياناتها محفوظة');
+        }
+
+        if (parts.length === 0) {
+          banner.style.display = 'flex';
+          banner.className = 'data-observer-banner ok';
+          msgEl.textContent = 'البيانات متسقة — لا توجد مشاكل.';
+          fixBtn.style.display = 'none';
+          setTimeout(function() { banner.style.display = 'none'; }, 5000);
+          return;
+        }
+
+        banner.style.display = 'flex';
+        banner.className = 'data-observer-banner warn';
+        msgEl.textContent = parts.join(' · ');
+        if (health.orphanedCount > 0) {
+          fixBtn.style.display = '';
+          fixBtn.onclick = function() {
+            fixBtn.disabled = true;
+            fixBtn.textContent = 'جارٍ التنظيف…';
+            apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/data-health?cleanup=true', {}, 15000)
+              .then(function(result) {
+                toast('تم تنظيف ' + (result.orphanedRowsDeleted || 0) + ' صف بيانات قديمة', 'success');
+                fixBtn.style.display = 'none';
+                loadCampaignData();
+                setTimeout(function() { runDataObserver(workspaceId); }, 2000);
+              })
+              .catch(function() {
+                toast('تعذّر تنظيف البيانات', 'error');
+                fixBtn.disabled = false;
+                fixBtn.textContent = 'تنظيف البيانات';
+              });
+          };
+        } else {
+          fixBtn.style.display = 'none';
+        }
+      })
+      .catch(function() { /* silently skip if the endpoint is unavailable */ });
   }
 
   function toastWithReconnect(err) {
@@ -1857,10 +1936,11 @@ export function campaignsPage(): string {
       updateCharts(state.insights);
       renderFreshnessStrip(state.insights);
       applyFilters();
+      runDataObserver(workspaceId);
 
       document.getElementById('loading-state').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
-      staggerReveal(['.camp-kpi-row', '#fresh-strip', '.camp-chart-grid', '.table-wrap']);
+      staggerReveal(['.camp-kpi-row', '#data-observer-banner', '#fresh-strip', '.camp-chart-grid', '.table-wrap']);
 
     } catch (err) {
       showError(friendlyApiError(err));

@@ -266,6 +266,41 @@ async function refreshHistoryRollups(prisma: PrismaClient): Promise<void> {
 async function runDailyMaintenance(prisma: PrismaClient): Promise<void> {
   await pruneRawInsights(prisma);
   await refreshHistoryRollups(prisma);
+  await cleanOrphanedCampaignStats(prisma);
+}
+
+async function cleanOrphanedCampaignStats(prisma: PrismaClient): Promise<void> {
+  try {
+    const accounts = await prisma.adAccount.findMany({ select: { id: true } });
+    let totalCleaned = 0;
+    for (const account of accounts) {
+      const knownIds = (await prisma.campaign.findMany({
+        where: { adAccountId: account.id },
+        select: { id: true },
+      })).map(c => c.id);
+      if (knownIds.length === 0) continue;
+      const orphans = await prisma.dailyStat.findMany({
+        where: {
+          entityType: 'CAMPAIGN',
+          entityId: { notIn: knownIds },
+        },
+        select: { entityId: true },
+        distinct: ['entityId'],
+        take: 500,
+      });
+      if (orphans.length === 0) continue;
+      const orphanIds = orphans.map(o => o.entityId);
+      const { count } = await prisma.dailyStat.deleteMany({
+        where: { entityType: 'CAMPAIGN', entityId: { in: orphanIds } },
+      });
+      totalCleaned += count;
+    }
+    if (totalCleaned > 0) {
+      console.log(`[adlytic:maintenance] Cleaned ${totalCleaned} orphaned campaign daily_stat row(s)`);
+    }
+  } catch (err) {
+    console.error('[adlytic:maintenance] Failed to clean orphaned campaign stats:', err);
+  }
 }
 
 /**
