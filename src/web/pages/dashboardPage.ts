@@ -188,8 +188,8 @@ export function dashboardPage(): string {
       <!-- 7 ▸ Advanced Analytics (collapsed) -->
       <details class="v2-advanced">
         <summary>
-          Advanced Analytics
-          <span>مؤشرات الأداء · تفاعل الإعلان · مرات الظهور · التنبيهات · الحملات</span>
+          التحليلات المتقدمة
+          <span>مؤشرات الأداء · تفاعل الإعلان · الرسائل · التنبيهات · الحملات</span>
         </summary>
         <div class="v2-advanced-body">
           <div class="v2-section" id="brain-pulse-section" style="display:none;margin-bottom:18px;">
@@ -197,7 +197,7 @@ export function dashboardPage(): string {
               <div class="v2-section-title">النبض المباشر</div>
               <div class="v2-section-meta">يتحدّث كل 30 ثانية · <span id="brain-pulse-tick">—</span></div>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
               <div class="card" style="padding:14px;">
                 <div id="brain-pulse-burn-label" class="kpi-label">وتيرة الإنفاق</div>
                 <div id="brain-pulse-burn" class="kpi-value" style="font-size:20px;">—</div>
@@ -216,14 +216,20 @@ export function dashboardPage(): string {
             </div>
           </div>
 
+          <div class="v2-section-head" style="margin-top:6px;">
+            <div class="v2-section-title">مؤشرات النافذة · آخر 30 يوماً</div>
+          </div>
           <div class="kpi-grid" id="kpi-grid"></div>
 
+          <div class="v2-section-head" style="margin-top:6px;">
+            <div class="v2-section-title">الاتجاهات · آخر 30 يوماً</div>
+          </div>
           <div class="chart-grid">
-            <div class="chart-card">
+            <div class="chart-card" id="adv-ctr-card">
               <div class="chart-card-header"><div class="chart-card-title" id="chart-ctr-title">اتجاه تفاعل الإعلان</div></div>
               <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
             </div>
-            <div class="chart-card">
+            <div class="chart-card" id="adv-msgs-card">
               <div class="chart-card-header"><div class="chart-card-title">اتجاه الرسائل</div></div>
               <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
             </div>
@@ -587,7 +593,7 @@ export function dashboardPage(): string {
     if (meta) meta.textContent = active.length + ' ' + lbl('spending today', 'حملة تُنفق اليوم');
     grid.innerHTML = active.slice(0, 12).map(function (c) {
       var budget = c.dailyBudget
-        ? fmtCurrencyMinor(c.dailyBudget) + '/day'
+        ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
         : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' ' + lbl('total', 'إجمالي') : lbl('No budget set', 'بدون ميزانية محددة'));
       return '<div class="active-card">'
         + '<div class="active-top">'
@@ -757,6 +763,29 @@ export function dashboardPage(): string {
   ${renderIssuesJs}
   ${renderDiagnosesJs}
 
+  // Draw/refresh the Advanced Analytics trend charts — only while their
+  // <details> is open (see the 0×0-canvas note above). Hides a card whose
+  // series is all zeros instead of showing an empty box.
+  function renderAdvancedChartsIfOpen() {
+    var det = document.querySelector('details.v2-advanced');
+    var data = state._advCharts;
+    if (!det || !det.open || !data) return;
+    var hasCtr  = data.ctr.some(function (v) { return v > 0; });
+    var hasMsgs = data.msgs.some(function (v) { return v > 0; });
+    var ctrCard = document.getElementById('adv-ctr-card');
+    var msgCard = document.getElementById('adv-msgs-card');
+    if (ctrCard) ctrCard.style.display = hasCtr ? '' : 'none';
+    if (msgCard) msgCard.style.display = hasMsgs ? '' : 'none';
+    if (hasCtr) {
+      var c1 = makeLineChart('chart-ctr', data.labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'), data: data.ctr, borderColor: '#34A871', backgroundColor: 'rgba(52,168,113,0.08)', fill: true, tension: 0.4 }]);
+      if (c1) c1.resize();
+    }
+    if (hasMsgs) {
+      var c2 = makeLineChart('chart-impressions', data.labels, [{ label: lbl('Messages', 'الرسائل'), data: data.msgs, borderColor: '#C77A1F', backgroundColor: 'rgba(199,122,31,0.08)', fill: true, tension: 0.4 }]);
+      if (c2) c2.resize();
+    }
+  }
+
   function renderAttribution(attr) {
     var section = document.getElementById('attribution-section');
     if (!attr || !section) { if (section) section.style.display = 'none'; return; }
@@ -786,7 +815,15 @@ export function dashboardPage(): string {
           + '</div>';
         }).join('')
       + '</div>'
-      + '<div class="attribution-narrative">' + escHtml(attr.narrative) + '</div>'
+      + '<div class="attribution-narrative">' + escHtml(
+          attr.drivers
+            ? ('النتائج ' + totalDir + ' ' + Math.abs(attr.totalChange * 100).toFixed(0) + '% — التفصيل: '
+              + 'الظهور ' + (attr.drivers.impressions.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.impressions.change * 100).toFixed(0) + '%، '
+              + 'نسبة النقر ' + (attr.drivers.ctr.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.ctr.change * 100).toFixed(0) + '%، '
+              + 'نسبة التحويل ' + (attr.drivers.cvr.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.cvr.change * 100).toFixed(0) + '%. '
+              + 'السبب الرئيسي: ' + (DRIVER_AR[attr.primaryDriver] || attr.primaryDriver) + '.')
+            : attr.narrative
+        ) + '</div>'
     + '</div>';
   }
 
@@ -795,8 +832,8 @@ export function dashboardPage(): string {
     var rows = [];
     function row(c, note) {
       var budget = c.dailyBudget
-        ? fmtCurrencyMinor(c.dailyBudget) + '/day'
-        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' total' : '—');
+        ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
+        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' إجمالي' : '—');
       return '<tr>'
         + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div>'
           + '<div class="text-xs text-3">' + escHtml(c.objective || '') + '</div></td>'
@@ -1548,7 +1585,9 @@ export function dashboardPage(): string {
       var isoDates = last30.map(function (d) { return new Date(d.date).toISOString().slice(0, 10); });
       var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
       var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
-      var impSeries        = last30.map(function (d) { return Number(d.impressions) || 0; });
+      // NOTE: this feeds the "اتجاه الرسائل" chart — it must be messages,
+      // not impressions (a long-standing mislabel in the fallback path).
+      var impSeries        = last30.map(function (d) { return Number(d.messages) || 0; });
 
       if (dashData.trendSeries && Array.isArray(dashData.trendSeries.dates)) {
         var ts = dashData.trendSeries;
@@ -1571,8 +1610,11 @@ export function dashboardPage(): string {
         var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
         if (markerDataset) spendDatasets.push(markerDataset);
         makeLineChart('chart-spend-main', labels, spendDatasets, { maxTicks: 10 });
-        makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#34A871', backgroundColor: 'rgba(52,168,113,0.08)', fill: true, tension: 0.4 }]);
-        makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#C77A1F', backgroundColor: 'rgba(199,122,31,0.08)', fill: true, tension: 0.4 }]);
+        // The two trend charts live inside the collapsed <details>. A chart
+        // created while its canvas is display:none renders 0×0 and never
+        // recovers — so stash the series and draw on first open instead.
+        state._advCharts = { labels: labels, ctr: ctrSeries, msgs: impSeries };
+        renderAdvancedChartsIfOpen();
       });
 
       safeRender('attribution', function () { renderAttribution(dashData.attribution || null); });
@@ -1589,6 +1631,8 @@ export function dashboardPage(): string {
   async function init() {
     try {
       wireMainMoveActions();
+      var advDetails = document.querySelector('details.v2-advanced');
+      if (advDetails) advDetails.addEventListener('toggle', renderAdvancedChartsIfOpen);
       startLoadingSafetyTimeout(5000);
 
       var token = getToken();
