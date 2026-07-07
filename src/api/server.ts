@@ -1703,7 +1703,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const rawDays = Number(req.query['days'] ?? '30');
     const windowDays = Number.isFinite(rawDays) ? Math.min(Math.max(Math.trunc(rawDays), 1), 90) : 30;
     const sinceDate = new Date(new Date(Date.now() - windowDays * 864e5).toISOString().slice(0, 10));
-    const [todayStats, windowAgg] = campaigns.length
+    // Sparkline window: last 7 days of per-campaign daily spend, zero-filled
+    // so every campaign gets exactly 7 chronological points.
+    const sparkDays = 7;
+    const sparkSince = new Date(new Date(Date.now() - (sparkDays - 1) * 864e5).toISOString().slice(0, 10));
+    const [todayStats, windowAgg, sparkRows] = campaigns.length
       ? await Promise.all([
           prisma.dailyStat.findMany({
             where: {
@@ -1722,12 +1726,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             },
             _sum: { spend: true, messages: true, impressions: true, clicks: true },
           }),
+          prisma.dailyStat.findMany({
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              date: { gte: sparkSince },
+            },
+            select: { entityId: true, date: true, spend: true },
+          }),
         ])
-      : [[], []];
+      : [[], [], []];
     const spendTodayByCampaign = new Map(
       todayStats.map((s) => [s.entityId, Number(s.spend)]),
     );
     const aggByCampaign = new Map(windowAgg.map((a) => [a.entityId, a._sum]));
+    const sparkIso: string[] = [];
+    for (let i = sparkDays - 1; i >= 0; i--) {
+      sparkIso.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+    }
+    const sparkByCampaign = new Map<string, Map<string, number>>();
+    for (const r of sparkRows) {
+      let m = sparkByCampaign.get(r.entityId);
+      if (!m) { m = new Map(); sparkByCampaign.set(r.entityId, m); }
+      m.set(r.date.toISOString().slice(0, 10), Number(r.spend));
+    }
     return c.json(
       campaigns.map((camp) => {
         const row = safeJson(camp) as Record<string, unknown>;
@@ -1744,6 +1766,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           spendWindowMinor: Number(sum?.spend ?? 0),
           messagesWindow: Number(sum?.messages ?? 0),
           ctrWindow: impressions > 0 ? +((clicks / impressions) * 100).toFixed(2) : null,
+          // 7 chronological daily-spend points (minor units) for the table
+          // sparkline; zero-filled for days with no row.
+          spark: sparkIso.map((d) => sparkByCampaign.get(camp.id)?.get(d) ?? 0),
         };
       }),
     );

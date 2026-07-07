@@ -109,6 +109,18 @@ export function campaignsPage(): string {
     </div>
   </div>
 
+  <!-- Data-quality tracker (Tremor Tracker port): one segment per day -->
+  <div class="fresh-strip" id="fresh-strip" style="display:none;">
+    <div class="fresh-strip-head">
+      <span class="fresh-strip-title">جودة البيانات · آخر 30 يوماً</span>
+      <span class="fresh-strip-legend">
+        <i class="seg-ok"></i> يوم مُزامَن
+        <i class="seg-miss"></i> بلا بيانات
+      </span>
+    </div>
+    <div class="fresh-strip-track" id="fresh-strip-track"></div>
+  </div>
+
   <!-- Charts — 2×2 grid -->
   <div class="camp-chart-grid">
     <div class="chart-card">
@@ -170,6 +182,7 @@ export function campaignsPage(): string {
             <th class="th-sort" data-sort="name">الحملة</th>
             <th class="th-sort" data-sort="status">الحالة</th>
             <th class="th-sort is-sorted desc" data-sort="spendWindowMinor">الإنفاق <span id="window-label" class="th-window">(30ي)</span></th>
+            <th>الاتجاه <span class="th-window">(7ي)</span></th>
             <th class="th-sort" data-sort="messagesWindow">الرسائل</th>
             <th class="th-sort" data-sort="ctrWindow">نسبة النقر</th>
             <th class="th-sort" data-sort="dailyBudget">الميزانية اليومية</th>
@@ -177,7 +190,7 @@ export function campaignsPage(): string {
           </tr>
         </thead>
         <tbody id="campaigns-tbody">
-          <tr><td colspan="7" style="color:var(--text-3);text-align:center;padding:24px;">جارٍ التحميل…</td></tr>
+          <tr><td colspan="8" style="color:var(--text-3);text-align:center;padding:24px;">جارٍ التحميل…</td></tr>
         </tbody>
         <tfoot id="campaigns-tfoot"></tfoot>
       </table>
@@ -199,6 +212,29 @@ export function campaignsPage(): string {
        polluting the global stylesheet for a single modal. -->
   <style>
     .export-item:hover { background: var(--surface-2, rgba(255,255,255,0.05)); }
+
+    /* ── Data-quality tracker (Tremor Tracker port) ──────────────────── */
+    .fresh-strip {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 20px;
+    }
+    .fresh-strip-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+    .fresh-strip-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .fresh-strip-legend { font-size: 11px; color: var(--text-3); display: inline-flex; align-items: center; gap: 6px; }
+    .fresh-strip-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+    .fresh-strip-legend .seg-ok   { background: var(--success); }
+    .fresh-strip-legend .seg-miss { background: var(--surface-2, rgba(255,255,255,0.08)); border: 1px solid var(--border-2); }
+    .fresh-strip-track { display: flex; gap: 3px; direction: ltr; }
+    .fresh-seg {
+      flex: 1; height: 22px; border-radius: 3px;
+      background: var(--surface-2, rgba(255,255,255,0.06));
+      transition: transform .1s;
+    }
+    .fresh-seg:hover { transform: scaleY(1.15); }
+    .fresh-seg.ok { background: var(--success); opacity: .85; }
+
+    /* Sparkline column */
+    .spark-cell canvas { display: block; width: 96px; height: 26px; }
 
     /* ── Analytics table upgrades ─────────────────────────────────────── */
     .table-filters { display: flex; gap: 6px; }
@@ -762,10 +798,10 @@ export function campaignsPage(): string {
     // currencyMinorFactor — never assume "$" or 100.
     var totalSpendMinor = filtered.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
 
-    document.getElementById('total-campaigns').textContent = String(total);
-    document.getElementById('active-campaigns').textContent = String(active);
-    document.getElementById('paused-campaigns').textContent = String(paused);
-    document.getElementById('total-spend').textContent = fmtCurrencyMinor(totalSpendMinor);
+    tickText(document.getElementById('total-campaigns'), String(total));
+    tickText(document.getElementById('active-campaigns'), String(active));
+    tickText(document.getElementById('paused-campaigns'), String(paused));
+    tickText(document.getElementById('total-spend'), fmtCurrencyMinor(totalSpendMinor));
     document.getElementById('spend-period').textContent = 'آخر ' + state.days + ' يوماً';
   }
 
@@ -792,6 +828,56 @@ export function campaignsPage(): string {
   function translateObjective(obj) {
     if (!obj) return '—';
     return OBJECTIVE_AR[obj] || obj.replace(/^OUTCOME_/, '').replace(/_/g, ' ');
+  }
+
+  // Draw every .spark-cell canvas from its data-spark JSON (7 daily values).
+  function drawSparklines() {
+    document.querySelectorAll('.spark-cell canvas').forEach(function (cv) {
+      var vals;
+      try { vals = JSON.parse(cv.getAttribute('data-spark') || '[]'); } catch (e) { vals = []; }
+      var ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      if (!vals.length || !vals.some(function (v) { return v > 0; })) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath(); ctx.moveTo(4, cv.height / 2); ctx.lineTo(cv.width - 4, cv.height / 2); ctx.stroke();
+        return;
+      }
+      var max = Math.max.apply(null, vals), pad = 6;
+      var stepX = (cv.width - pad * 2) / (vals.length - 1);
+      var y = function (v) { return cv.height - pad - (v / max) * (cv.height - pad * 2); };
+      // area fill
+      ctx.beginPath();
+      vals.forEach(function (v, i) { var px = pad + i * stepX; i ? ctx.lineTo(px, y(v)) : ctx.moveTo(px, y(v)); });
+      ctx.lineTo(pad + (vals.length - 1) * stepX, cv.height - 2); ctx.lineTo(pad, cv.height - 2); ctx.closePath();
+      ctx.fillStyle = 'rgba(217,167,89,0.16)'; ctx.fill();
+      // line
+      ctx.beginPath();
+      vals.forEach(function (v, i) { var px = pad + i * stepX; i ? ctx.lineTo(px, y(v)) : ctx.moveTo(px, y(v)); });
+      ctx.strokeStyle = '#D9A759'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
+      // latest-day dot
+      ctx.beginPath(); ctx.arc(pad + (vals.length - 1) * stepX, y(vals[vals.length - 1]), 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#E6BD7A'; ctx.fill();
+    });
+  }
+
+  // 30-day data-quality strip: a green segment for every day that has a
+  // synced daily_stat row in /insights, gray for gaps (Tremor Tracker port).
+  function renderFreshnessStrip(insights) {
+    var wrap = document.getElementById('fresh-strip');
+    var track = document.getElementById('fresh-strip-track');
+    if (!wrap || !track) return;
+    if (!Array.isArray(insights) || insights.length === 0) { wrap.style.display = 'none'; return; }
+    var have = {};
+    insights.forEach(function (d) { have[new Date(d.date).toISOString().slice(0, 10)] = true; });
+    var segs = '';
+    for (var i = 29; i >= 0; i--) {
+      var dt = new Date(Date.now() - i * 864e5);
+      var iso = dt.toISOString().slice(0, 10);
+      var label = dt.toLocaleDateString('ar-u-nu-latn', { day: 'numeric', month: 'short' });
+      segs += '<div class="fresh-seg' + (have[iso] ? ' ok' : '') + '" title="' + escAttr(label + (have[iso] ? ' — مُزامَن' : ' — لا بيانات')) + '"></div>';
+    }
+    track.innerHTML = segs;
+    wrap.style.display = '';
   }
 
   // ── Table rendering ───────────────────────────────────────────────────────
@@ -863,12 +949,17 @@ export function campaignsPage(): string {
         + '<td>' + statusBadge(c.status) + '</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
         +   (maxSpend > 0 ? '<div class="spend-bar"><i style="width:' + barPct + '%"></i></div>' : '') + '</td>'
+        + '<td class="spark-cell"><canvas width="192" height="52" data-spark="' + escAttr(JSON.stringify(c.spark || [])) + '"></canvas></td>'
         + '<td class="cell-num">' + escHtml(fmtNum(c.messagesWindow, 0)) + '</td>'
         + '<td class="cell-num">' + (c.ctrWindow != null ? escHtml(fmtNum(c.ctrWindow, 2)) + '%' : '—') + '</td>'
         + '<td class="cell-num">' + escHtml(budget) + '</td>'
         + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">عرض</button></td>'
         + '</tr>';
     }).join('');
+
+    // Tiny raw-2D sparklines (Tremor SparkChart port) — one per row, no
+    // Chart.js instances so 100 rows stay cheap. devicePixelRatio-2 canvas.
+    drawSparklines();
 
     // Totals row — window spend and messages across the visible (filtered) set.
     var tfoot = document.getElementById('campaigns-tfoot');
@@ -877,12 +968,12 @@ export function campaignsPage(): string {
         + '<td colspan="2" class="tot-label">الإجمالي · ' + campaigns.length + ' حملة · آخر ' + state.days + ' يوماً</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(totSpend)) + '</span></td>'
         + '<td class="cell-num">' + escHtml(fmtNum(totMsgs, 0)) + '</td>'
-        + '<td colspan="3"></td>'
+        + '<td colspan="4"></td>'
         + '</tr>';
     }
     } catch (tableErr) {
       console.error('[campaigns] table render failed:', tableErr);
-      tbody.innerHTML = '<tr><td colspan="7" class="section-fallback">تعذّر عرض الحملات — حاول التحديث.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="section-fallback">تعذّر عرض الحملات — حاول التحديث.</td></tr>';
     }
   }
 
@@ -1496,6 +1587,7 @@ export function campaignsPage(): string {
     applyFilters();
     updateSummary(state.campaigns, state.insights);
     updateCharts(state.insights);
+    renderFreshnessStrip(state.insights);
   }
 
   function toastWithReconnect(err) {
@@ -1763,10 +1855,12 @@ export function campaignsPage(): string {
 
       updateSummary(state.campaigns, state.insights);
       updateCharts(state.insights);
+      renderFreshnessStrip(state.insights);
       applyFilters();
 
       document.getElementById('loading-state').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
+      staggerReveal(['.camp-kpi-row', '#fresh-strip', '.camp-chart-grid', '.table-wrap']);
 
     } catch (err) {
       showError(friendlyApiError(err));

@@ -1069,6 +1069,20 @@ select.form-input { cursor: pointer; }
 
 /* ── Accessibility ──────────────────────────────────────────────── */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* ── Section reveal (Magic UI blur-fade port) ─────────────────────
+   JS adds .reveal + .reveal-in together (staggerReveal), so nothing is
+   ever left invisible if scripts fail; reduced-motion users skip it in JS. */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal { opacity: 0; }
+  .reveal.reveal-in {
+    animation: blur-fade-in .45s cubic-bezier(.22,.61,.36,1) forwards;
+  }
+  @keyframes blur-fade-in {
+    from { opacity: 0; transform: translateY(8px); filter: blur(6px); }
+    to   { opacity: 1; transform: none;            filter: none; }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -1611,6 +1625,55 @@ window.toast = toast;
 window.friendlyApiError = friendlyApiError;
 window.creativeImgFailed = creativeImgFailed;
 window.creativeImgLoaded = creativeImgLoaded;
+// ── Number ticker (Magic UI number-ticker port) ──────────────────────────
+// Animates the numeric token inside finalText (e.g. "1,234.56 USD") from the
+// element's current number to the target over ~700ms ease-out-cubic, keeping
+// any prefix/suffix. Falls back to instant set under reduced motion.
+function tickText(el, finalText) {
+  if (!el) return;
+  var target = String(finalText);
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var m = target.match(/-?[\d,]+(?:\.\d+)?/);
+  if (reduced || !m) { el.textContent = target; return; }
+  var endNum = parseFloat(m[0].replace(/,/g, ''));
+  if (!isFinite(endNum)) { el.textContent = target; return; }
+  var decimals = (m[0].split('.')[1] || '').length;
+  var prefix = target.slice(0, m.index);
+  var suffix = target.slice(m.index + m[0].length);
+  var cur = (el.textContent || '').match(/-?[\d,]+(?:\.\d+)?/);
+  var startNum = cur ? parseFloat(cur[0].replace(/,/g, '')) : 0;
+  if (!isFinite(startNum) || startNum === endNum) { el.textContent = target; return; }
+  var t0 = performance.now(), DUR = 700;
+  function frame(now) {
+    var t = Math.min(1, (now - t0) / DUR);
+    var eased = 1 - Math.pow(1 - t, 3);
+    var v = startNum + (endNum - startNum) * eased;
+    el.textContent = prefix + v.toLocaleString('en-US', {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+    }) + suffix;
+    if (t < 1) requestAnimationFrame(frame);
+    else el.textContent = target;
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── Stagger reveal (Magic UI blur-fade port) ──────────────────────────────
+// Call AFTER the page container becomes visible. Each selector gets the
+// blur-fade entrance with a 70ms stagger. No-op under reduced motion.
+function staggerReveal(selectors) {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var i = 0;
+  selectors.forEach(function (sel) {
+    var el = document.querySelector(sel);
+    if (!el || el.classList.contains('reveal')) return;
+    el.style.animationDelay = (i * 70) + 'ms';
+    el.classList.add('reveal');
+    requestAnimationFrame(function () { el.classList.add('reveal-in'); });
+    i++;
+  });
+}
+window.tickText = tickText;
+window.staggerReveal = staggerReveal;
 window.runWorkspaceSync = runWorkspaceSync;
 window.resumeActiveSyncIfAny = resumeActiveSyncIfAny;
 window.checkTokenDecryptBanner = checkTokenDecryptBanner;

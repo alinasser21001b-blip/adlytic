@@ -409,16 +409,16 @@ export function dashboardPage(): string {
 
     // 30d hero: authoritative KPI from getDashboard DTO (single source of truth).
     if (spendKpi && spendKpi.display) {
-      h30.textContent = spendKpi.display;
+      tickText(h30, spendKpi.display);
     } else {
-      h30.textContent = fmtCurrencyMinor(sumMinor(arr.slice(0, 30)));
+      tickText(h30, fmtCurrencyMinor(sumMinor(arr.slice(0, 30))));
     }
 
-    h7.textContent = fmtCurrencyMinor(spend7);
+    tickText(h7, fmtCurrencyMinor(spend7));
     var lifeMinor = (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt != null)
       ? dashData.lifetimeSpend.minor
       : spend90; // fallback if lifetime sync pending
-    hLife.textContent = fmtCurrencyMinor(lifeMinor);
+    tickText(hLife, fmtCurrencyMinor(lifeMinor));
 
     function applyDelta(el, pct, goodWhenUp) {
       if (pct == null) { el.className = 'hero-delta flat'; el.textContent = '→ —'; return; }
@@ -1406,6 +1406,7 @@ export function dashboardPage(): string {
     var contentEl = document.getElementById('dashboard-content');
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) contentEl.style.display = 'block';
+    staggerReveal(['.hero-grid', '#exec-pulse-section', '.ticker-wrap', '.active-section', '.split-grid', '#main-move-section']);
   }
 
   /** Safety net if init hangs — do not rely on layout SHARED_JS globals. */

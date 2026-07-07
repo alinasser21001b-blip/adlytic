@@ -364,6 +364,25 @@ export const dashboardStyles = `<style>
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       overflow: hidden;
+      position: relative;
+    }
+    /* Border beam (Magic UI port): a soft gold segment orbiting the card's
+       border via offset-path rect(). Progressive enhancement — browsers
+       without rect() offset-path (or reduced-motion users) keep the plain
+       border. The ONE signature effect on this page. */
+    @supports (offset-path: rect(0 0 auto auto)) {
+      @media (prefers-reduced-motion: no-preference) {
+        .main-move-card::after {
+          content: '';
+          position: absolute;
+          width: 110px; height: 2px;
+          background: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent);
+          offset-path: rect(0 auto auto 0 round 12px);
+          animation: mm-beam 9s linear infinite;
+          pointer-events: none;
+        }
+        @keyframes mm-beam { to { offset-distance: 100%; } }
+      }
     }
     .main-move-primary {
       padding: 22px 24px;
