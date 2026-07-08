@@ -2,19 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "watchPatterns": [
-      "src/workers/**",
-      "src/services/**",
-      "src/lib/**",
-      "src/api/**",
-      "src/engines/**",
-      "src/config.ts",
-      "prisma/**",
-      "package.json",
-      "package-lock.json",
-      "nixpacks.toml",
-      "railway.worker.json"
-    ]
+    "watchPatterns": ["__railway_skip_autodeploy__/**"]
   },
   "deploy": {
     "startCommand": "npx tsx src/workers/runNarrationWorker.ts",
