@@ -1,0 +1,55 @@
+# Git & tooling
+.git
+.gitignore
+.cursor
+.claude
+.github
+
+# Dependencies & build output (rebuilt in container)
+node_modules
+dist
+coverage
+.playwright
+playwright-report
+test-results
+
+# Local env & secrets
+.env
+.env.*
+!.env.example
+
+# Tests & dev scripts
+test_*.ts
+tests
+e2e
+playwright.config.ts
+*.command
+scripts/compileMasterAuditPdf.ts
+
+# Docs, audits, logs (not needed at runtime)
+*.md
+*.txt
+*.pdf
+*.log
+*.sh
+AUDIT_*
+ADLYTIC_*
+ARCHITECTURE_*
+DEPLOY*
+EXPLORE*
+RAILWAY_*
+SESSION_*
+SYNC_*
+HOW_IT_*
+CMO_*
+COMPLETION_*
+alpha_*
+
+# Uploads / artifacts
+uploads
+artifacts
+tmp
+
+# Railway setup (not runtime)
+railway.setup.txt
+deploy-adlytic-only.command

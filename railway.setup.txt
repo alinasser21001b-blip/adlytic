@@ -27,6 +27,10 @@
   adlytic → Cmd+K → Deploy Latest Commit
   انتظر 5–7 دقائق (خدمة واحدة فقط)
 
+─── ملاحظة: Publishing image بطيء؟ ───
+  المشروع يستخدم Dockerfile (Alpine) بدل Nixpacks — صورة ~150MB بدل ~387MB.
+  إذا علّق على Publishing image >10 دقائق: Cancel → Deploy Latest Commit.
+
 ─── تحقق ───
   curl https://adlytic-production.up.railway.app/api/health
   Hard refresh: /recommendations (لا خطأ escHtml)

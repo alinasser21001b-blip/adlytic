@@ -1,13 +1,14 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile",
     "watchPatterns": [
       "src/**",
       "prisma/**",
       "package.json",
       "package-lock.json",
-      "nixpacks.toml",
+      "Dockerfile",
       "railway.json",
       "tsconfig.json",
       "prisma.config.ts",
