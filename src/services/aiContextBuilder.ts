@@ -7,6 +7,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { DashboardDTO } from './getDashboard';
+import { formatCampaignCountsLine } from '../lib/campaignCatalog';
 import { sanitizeDashboardForLlm, scrubString } from '../lib/dataSanitizer';
 
 export function buildAiContext(dto: DashboardDTO, message: string): string {
@@ -28,7 +29,10 @@ export function buildAiContext(dto: DashboardDTO, message: string): string {
   // ── Header ──────────────────────────────────────────────────────────
   lines.push(
     `## Workspace: ${ws?.name ?? '—'} | Industry: ${ws?.industry ?? '—'} | Currency: ${ws?.currency ?? 'USD'}`,
-    `## Period: last 30d | Last sync: ${ws?.lastSyncedAt ?? 'never'} | Health: ${safeDto.health.score}/100 (${safeDto.health.band}) | Active campaigns: ${ws?.activeCampaigns ?? 0}`,
+    `## Period: last 30d | Last sync: ${ws?.lastSyncedAt ?? 'never'} | Health: ${safeDto.health.score}/100 (${safeDto.health.band})`,
+    ws?.campaignCounts
+      ? `## Campaign counts: ${formatCampaignCountsLine(ws.campaignCounts)}`
+      : `## Active campaigns spending today: ${ws?.activeCampaigns ?? 0}`,
   );
 
   // ── KPIs ────────────────────────────────────────────────────────────
@@ -66,13 +70,14 @@ export function buildAiContext(dto: DashboardDTO, message: string): string {
   const campaigns = safeDto.campaigns ?? [];
   if (campaigns.length > 0) {
     lines.push(
-      `## Campaigns (${campaigns.length} active, sorted by health desc)`,
-      '| Campaign | Health | CTR% | CPM | Freq | Messages |',
-      '|----------|--------|------|-----|------|----------|',
+      `## Campaigns with 30d metrics (${campaigns.length} rows, sorted by health desc)`,
+      'Match user questions by exact name, metaId, or ref from the full catalog block when present.',
+      '| ref | name | metaId | health | CTR% | CPM | Freq | Messages |',
+      '|-----|------|--------|--------|------|-----|------|----------|',
     );
-    for (const c of campaigns.slice(0, CAMPAIGN_ROW_CAP)) {
+    for (const [i, c] of campaigns.slice(0, CAMPAIGN_ROW_CAP).entries()) {
       lines.push(
-        `| ${c.name} | ${c.health}/100 (${c.band}) | ${c.ctr?.toFixed(2) ?? '—'} | ${c.cpm?.toFixed(2) ?? '—'} | ${c.frequency?.toFixed(2) ?? '—'} | ${c.messages} |`,
+        `| ${i + 1} | ${c.name} | ${c.metaId ?? '—'} | ${c.health}/100 (${c.band}) | ${c.ctr?.toFixed(2) ?? '—'} | ${c.cpm?.toFixed(2) ?? '—'} | ${c.frequency?.toFixed(2) ?? '—'} | ${c.messages} |`,
       );
     }
     if (campaigns.length > CAMPAIGN_ROW_CAP) {

@@ -337,14 +337,41 @@ export function campaignsPage(): string {
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
+  var chartResizeBound = false;
+  function destroyChartInstance(chart) {
+    if (chart) {
+      try { chart.destroy(); } catch (e) {}
+    }
+  }
+  function bindChartResize(charts) {
+    if (chartResizeBound) return;
+    chartResizeBound = true;
+    var resizeTimer = null;
+    function scheduleResize() {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        [state.spendChart, state.ctrChart].forEach(function (c) {
+          if (c) try { c.resize(); } catch (e) {}
+        });
+      }, 120);
+    }
+    window.addEventListener('resize', scheduleResize);
+    if (typeof ResizeObserver !== 'undefined') {
+      var ro = new ResizeObserver(scheduleResize);
+      document.querySelectorAll('.chart-canvas-wrap').forEach(function (el) { ro.observe(el); });
+    }
+  }
   function makeLineChart(canvasId, labels, datasets) {
-    var ctx = document.getElementById(canvasId).getContext('2d');
-    return new Chart(ctx, {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+    var ctx = canvas.getContext('2d');
+    var chart = new Chart(ctx, {
       type: 'line',
       data: { labels: labels, datasets: datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        resizeDelay: 150,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
@@ -364,12 +391,15 @@ export function campaignsPage(): string {
           },
           y: {
             grid: { color: '#232326' },
-            ticks: { color: '#5a5a6a', font: { size: 11 } }
+            ticks: { color: '#5a5a6a', font: { size: 11 } },
+            beginAtZero: true
           }
         },
-        elements: { point: { radius: 0, hoverRadius: 4 } }
+        elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.35 } }
       }
     });
+    bindChartResize();
+    return chart;
   }
 
   function updateCharts(insights) {
@@ -386,7 +416,8 @@ export function campaignsPage(): string {
     if (state.spendChart) {
       state.spendChart.data.labels = labels;
       state.spendChart.data.datasets[0].data = spendData;
-      state.spendChart.update();
+      state.spendChart.update('none');
+      state.spendChart.resize();
     } else {
       state.spendChart = makeLineChart('chart-spend', labels, [{
         label: 'Spend',
@@ -406,7 +437,8 @@ export function campaignsPage(): string {
       if (state.ctrChart) {
         state.ctrChart.data.labels = labels;
         state.ctrChart.data.datasets[0].data = ctrData;
-        state.ctrChart.update();
+        state.ctrChart.update('none');
+        state.ctrChart.resize();
       } else {
         state.ctrChart = makeLineChart('chart-ctr', labels, [{
           label: 'CTR (%)',

@@ -278,7 +278,8 @@ input, select, textarea { font-family: inherit; }
 }
 .chart-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .chart-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.chart-canvas-wrap { position: relative; height: 200px; }
+.chart-canvas-wrap { position: relative; height: 220px; max-height: 220px; overflow: hidden; }
+.chart-canvas-wrap canvas { display: block; width: 100% !important; height: 100% !important; max-height: 220px; }
 
 /* ── Tables ──────────────────────────────────────────────────────── */
 .table-wrap {

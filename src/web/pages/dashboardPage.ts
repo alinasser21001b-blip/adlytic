@@ -285,6 +285,34 @@ export function dashboardPage(): string {
   }
 
   // ── Chart.js wrapper ────────────────────────────────────────────────────
+  var chartResizeBound = false;
+  function destroyChart(canvasId) {
+    if (chartInstances[canvasId]) {
+      try { chartInstances[canvasId].destroy(); } catch (e) {}
+      delete chartInstances[canvasId];
+    }
+  }
+  function resizeAllCharts() {
+    Object.keys(chartInstances).forEach(function (id) {
+      try { chartInstances[id].resize(); } catch (e) {}
+    });
+  }
+  function bindChartResize() {
+    if (chartResizeBound) return;
+    chartResizeBound = true;
+    var resizeTimer = null;
+    function scheduleResize() {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeAllCharts, 120);
+    }
+    window.addEventListener('resize', scheduleResize);
+    if (typeof ResizeObserver !== 'undefined') {
+      var ro = new ResizeObserver(scheduleResize);
+      document.querySelectorAll('.chart-panel-canvas, .chart-canvas-wrap').forEach(function (el) {
+        ro.observe(el);
+      });
+    }
+  }
   function makeLineChart(canvasId, labels, datasets, opts) {
     var canvas = document.getElementById(canvasId);
     if (!canvas) return null;
@@ -292,8 +320,10 @@ export function dashboardPage(): string {
       chartInstances[canvasId].data.labels = labels;
       chartInstances[canvasId].data.datasets = datasets;
       chartInstances[canvasId].update('none');
+      chartInstances[canvasId].resize();
       return chartInstances[canvasId];
     }
+    destroyChart(canvasId);
     var ctx = canvas.getContext('2d');
     chartInstances[canvasId] = new Chart(ctx, {
       type: 'line',
@@ -301,6 +331,7 @@ export function dashboardPage(): string {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        resizeDelay: 150,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
@@ -315,11 +346,12 @@ export function dashboardPage(): string {
         },
         scales: {
           x: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
-          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', font: { size: 11 } } }
+          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', font: { size: 11 } }, beginAtZero: true }
         },
-        elements: { point: { radius: 0, hoverRadius: 4 } }
+        elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.35 } }
       }
     });
+    bindChartResize();
     return chartInstances[canvasId];
   }
 
@@ -448,7 +480,7 @@ export function dashboardPage(): string {
   }
 
   // ── Active Ads Showcase ─────────────────────────────────────────────────
-  function renderActiveAds(campaigns) {
+  function renderActiveAds(campaigns, campaignCounts) {
     var active = (campaigns || []).filter(function (c) { return c.isCurrentlySpending === true; });
     var sec = document.getElementById('active-section');
     var grid = document.getElementById('active-grid');
@@ -456,7 +488,15 @@ export function dashboardPage(): string {
     if (!sec || !grid) return;
     if (active.length === 0) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
-    if (meta) meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' spending today';
+    if (meta) {
+      if (campaignCounts) {
+        meta.textContent = campaignCounts.spendingToday + ' ' + lbl('spending today', 'تنفق اليوم')
+          + ' · ' + campaignCounts.activeStatus + ' ' + lbl('active', 'نشطة')
+          + ' · ' + campaignCounts.total + ' ' + lbl('total', 'إجمالي');
+      } else {
+        meta.textContent = active.length + ' campaign' + (active.length === 1 ? '' : 's') + ' spending today';
+      }
+    }
     grid.innerHTML = active.slice(0, 12).map(function (c) {
       var budget = c.dailyBudget
         ? fmtCurrencyMinor(c.dailyBudget) + '/day'
@@ -1144,7 +1184,7 @@ export function dashboardPage(): string {
     el = document.getElementById('brain-pulse-burn-label');
     if (el) el.textContent = lbl('Spend pace', 'سرعة الإنفاق');
     el = document.getElementById('brain-pulse-burn-meta');
-    if (el) el.textContent = lbl('campaigns', 'حملات');
+    if (el) el.textContent = lbl('with spend pace today', 'بوتيرة إنفاق اليوم');
     el = document.getElementById('brain-pulse-spend-label');
     if (el) el.textContent = lbl("Today's spend share", 'حصة الإنفاق اليوم');
     el = document.getElementById('brain-pulse-spend-meta');
@@ -1390,7 +1430,7 @@ export function dashboardPage(): string {
       safeRender('hero', function () { renderHero(dashData, insights); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
       safeRender('ticker', function () { renderTicker(buildTickerItems(dashData)); });
-      safeRender('activeAds', function () { renderActiveAds(campaigns); });
+      safeRender('activeAds', function () { renderActiveAds(campaigns, dashData.workspace && dashData.workspace.campaignCounts); });
       safeRender('brainBox', function () { renderBrainBox(dashData); });
 
       if (dashData.brain) {

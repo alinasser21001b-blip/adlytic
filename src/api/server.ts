@@ -77,6 +77,7 @@ import { privacyPage } from '../web/pages/privacyPage';
 import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { buildAiContextV5 } from '../services/aiContextBuilderV5';
+import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
@@ -2447,12 +2448,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let reply: string;
     try {
       let context: string | null = null;
+      let primaryAccount: { id: string; currency: string; timezone: string } | undefined;
       try {
         const ws = await prisma.workspace.findUnique({
           where: { id: workspaceId },
-          select: { name: true, adAccounts: { select: { id: true, currency: true } } },
+          select: { name: true, adAccounts: { select: { id: true, currency: true, timezone: true } } },
         });
-        const primaryAccount = ws?.adAccounts?.[0];
+        primaryAccount = ws?.adAccounts?.[0];
         if (primaryAccount) {
           const v5 = await buildAiContextV5(prisma, primaryAccount.id, message, {
             currency: primaryAccount.currency ?? undefined,
@@ -2467,6 +2469,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       if (!context) {
         context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      }
+      if (primaryAccount) {
+        const campaignCtx = await buildAiCampaignContext(
+          prisma,
+          primaryAccount.id,
+          primaryAccount.timezone,
+          dto,
+        );
+        context = mergeCampaignBlockIntoContext(context, campaignCtx.promptBlock);
       }
       reply = await askClaude(context);
     } catch (err) {
