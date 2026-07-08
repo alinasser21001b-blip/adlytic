@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════
-//  src/web/pages/aiPage.ts  —  AI Assistant page
+//  src/web/pages/aiPage.ts  —  AI Assistant (global-standard CMO UX)
 // ════════════════════════════════════════════════════════════════════════
 
 import { layout } from '../layout';
@@ -7,131 +7,193 @@ import { layout } from '../layout';
 export function aiPage(): string {
   const content = `
 <style>
-  .chat-shell { display:flex; gap:20px; height:calc(100vh - var(--topbar-h) - 80px); min-height:500px; }
-  .chat-sidebar { width:260px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; }
-  .chat-main { flex:1; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; }
-  .chat-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .ai-page { direction: rtl; max-width: 1120px; margin: 0 auto; }
+  .ai-hero {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .ai-hero-title { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+  .ai-hero-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 520px; }
+  .ai-method-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;
+  }
+  @media (max-width: 900px) { .ai-method-row { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .ai-method-row { grid-template-columns: 1fr; } }
+  .ai-method-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 12px 14px;
+  }
+  .ai-method-step { font-size: 10px; font-weight: 700; color: var(--accent-2); letter-spacing: 0.06em; margin-bottom: 4px; }
+  .ai-method-label { font-size: 13px; font-weight: 700; color: var(--text); }
+  .ai-method-desc { font-size: 11.5px; color: var(--text-3); margin-top: 3px; line-height: 1.45; }
+
+  .chat-shell { display:flex; gap:18px; height:calc(100vh - var(--topbar-h) - 220px); min-height:480px; }
+  .chat-sidebar { width:280px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+  .chat-main {
+    flex:1; display:flex; flex-direction:column; background:var(--surface);
+    border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+  }
+  .chat-header {
+    padding:14px 18px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:12px;
+    background: linear-gradient(135deg, rgba(217,167,89,0.08), transparent);
+  }
   .chat-header-dot { width:8px;height:8px;background:var(--success);border-radius:50%;animation:pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   .chat-messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:16px; }
   .chat-messages::-webkit-scrollbar { width:4px; }
-  .chat-messages::-webkit-scrollbar-track { background:transparent; }
   .chat-messages::-webkit-scrollbar-thumb { background:var(--border-2); border-radius:2px; }
-  .msg { display:flex; gap:10px; max-width:85%; }
-  .msg.user { align-self:flex-end; flex-direction:row-reverse; }
-  .msg-avatar { width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0; }
-  .msg.assistant .msg-avatar { background:var(--accent); color:#fff; }
+  .msg { display:flex; gap:10px; max-width:88%; }
+  .msg.user { align-self:flex-start; }
+  .msg.assistant { align-self:stretch; max-width:100%; }
+  .msg-avatar {
+    width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:800;flex-shrink:0;
+  }
+  .msg.assistant .msg-avatar {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color:#1A1613;
+  }
   .msg.user .msg-avatar { background:var(--surface-2); color:var(--text-2); border:1px solid var(--border); }
-  .msg-bubble { padding:11px 14px; border-radius:var(--radius); font-size:13.5px; line-height:1.6; }
-  .msg.assistant .msg-bubble { background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
-  .msg.user .msg-bubble { background:var(--accent); color:#fff; }
+  .msg-bubble { padding:12px 15px; border-radius:14px; font-size:13.5px; line-height:1.7; }
+  .msg.assistant .msg-bubble {
+    background: rgba(255,255,255,0.03); color:var(--text);
+    border:1px solid var(--border); border-inline-start: 3px solid var(--accent);
+  }
+  .msg.user .msg-bubble { background:var(--accent-dim); color:var(--text); border:1px solid rgba(217,167,89,0.25); }
   .msg-bubble p { margin:0 0 8px; }
   .msg-bubble p:last-child { margin-bottom:0; }
   .msg-bubble ul { margin:6px 0 6px 16px; }
   .msg-bubble li { margin-bottom:3px; }
-  .msg-bubble strong { font-weight:700; }
-  .msg-bubble code { background:rgba(255,255,255,0.1); padding:1px 5px; border-radius:3px; font-family:monospace; font-size:12px; }
-  .chat-input-area { padding:14px 16px; border-top:1px solid var(--border); }
+  .msg-bubble strong { font-weight:700; color: var(--accent-2); }
+  .msg-bubble code { background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px; font-family:monospace; font-size:12px; }
+  .chat-input-area { padding:14px 16px; border-top:1px solid var(--border); background: rgba(0,0,0,0.12); }
   .chat-input-row { display:flex; gap:8px; align-items:flex-end; }
   .chat-input {
     flex:1; background:var(--surface-2); border:1px solid var(--border);
-    border-radius:var(--radius); padding:10px 14px; color:var(--text);
+    border-radius:12px; padding:11px 14px; color:var(--text);
     font-size:13.5px; font-family:inherit; resize:none; outline:none;
-    transition:border-color var(--transition); min-height:42px; max-height:120px;
+    transition:border-color var(--transition); min-height:44px; max-height:120px;
   }
   .chat-input:focus { border-color:var(--accent); }
   .chat-input::placeholder { color:var(--text-3); }
-  .chat-send-btn { width:38px;height:38px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background var(--transition); }
-  .chat-send-btn:hover { background:var(--accent-2); }
+  .chat-send-btn {
+    width:42px;height:42px;background:linear-gradient(135deg, var(--accent), var(--accent-2));
+    border:none;border-radius:12px;color:#1A1613;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;flex-shrink:0;font-weight:800;
+  }
   .chat-send-btn:disabled { opacity:0.4;cursor:not-allowed; }
-  .suggested-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; cursor:pointer; transition:all var(--transition); }
-  .suggested-card:hover { background:var(--surface-2); border-color:var(--border-2); }
-  .suggested-label { font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px; }
-  .suggested-text { font-size:12.5px;color:var(--text-2);line-height:1.4; }
+  .suggested-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:12px 14px; cursor:pointer; transition: border-color 0.15s, background 0.15s;
+  }
+  .suggested-card:hover { background:var(--surface-2); border-color: rgba(217,167,89,0.35); }
+  .suggested-label { font-size:10px;font-weight:700;color:var(--accent-2);letter-spacing:.04em;margin-bottom:4px; }
+  .suggested-text { font-size:12.5px;color:var(--text-2);line-height:1.45; }
   .typing-dots span { animation:blink 1.4s infinite; display:inline-block; }
   .typing-dots span:nth-child(2) { animation-delay:0.2s; }
   .typing-dots span:nth-child(3) { animation-delay:0.4s; }
   @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
-  .data-chip { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--accent-dim);color:var(--accent-2);border-radius:4px;font-size:11px;font-weight:600;margin:2px; }
-  .tool-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
-  .tool-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-3); border-radius:10px; font-size:10.5px; }
+  .data-chip {
+    display:inline-flex;align-items:center;gap:4px;padding:4px 9px;
+    background:rgba(217,167,89,0.1);color:var(--accent-2);border:1px solid rgba(217,167,89,0.22);
+    border-radius:999px;font-size:11px;font-weight:600;margin:2px;
+  }
+  .tool-chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .tool-chip {
+    display:inline-flex; align-items:center; gap:4px; padding:3px 8px;
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text-3);
+    border-radius:999px; font-size:10.5px;
+  }
+  .evidence-bar {
+    display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; padding-top:8px;
+    border-top:1px dashed var(--border);
+  }
+  .evidence-pill {
+    font-size:10.5px; padding:3px 8px; border-radius:999px;
+    background: rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-3);
+  }
+  .evidence-pill b { color: var(--text-2); font-weight: 600; }
+  .ai-side-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px;
+  }
+  .ai-side-title { font-size:12px; font-weight:700; color:var(--text); margin-bottom:10px; }
 
   @media (max-width: 768px) {
-    .chat-shell { flex-direction:column; height:calc(100vh - var(--topbar-h) - 140px); min-height:400px; }
-    .chat-sidebar { width:100%; flex-shrink:0; max-height:120px; overflow-x:auto; overflow-y:hidden; flex-direction:row; gap:8px; }
-    .chat-sidebar .card { min-width:200px; flex-shrink:0; padding:10px 12px !important; }
-    .chat-main { min-height:0; }
-    .chat-messages { padding:12px; gap:10px; }
-    .msg { max-width:92%; }
-    .msg-bubble { padding:9px 12px; font-size:13px; }
-    .chat-input-area { padding:10px 12px; }
-    .chat-input { min-height:38px; font-size:14px; padding:8px 12px; }
-    .chat-send-btn { width:38px; height:38px; }
-    .chat-header { padding:10px 14px; }
-  }
-  @media (max-width: 480px) {
-    .chat-sidebar { max-height:100px; }
-    .suggested-text { font-size:11.5px; }
+    .chat-shell { flex-direction:column; height:auto; min-height:420px; }
+    .chat-sidebar { width:100%; max-height:160px; overflow-x:auto; overflow-y:hidden; flex-direction:row; }
+    .chat-sidebar .ai-side-card { min-width:220px; flex-shrink:0; }
+    .chat-main { min-height:420px; }
   }
 </style>
 
-<div class="page-header">
-  <div class="page-title">المساعد الذكي</div>
-  <div class="page-subtitle">رؤى مبنية على البيانات مدعومة بتحليلات حملاتك</div>
-</div>
-
-<div class="chat-shell">
-  <!-- Left: Suggested questions + context -->
-  <div class="chat-sidebar">
-    <div class="card" style="padding:14px;">
-      <div class="card-title">السياق المباشر</div>
-      <div id="context-chips" style="display:flex;flex-wrap:wrap;gap:4px;">
-        <div class="spinner" style="width:16px;height:16px;border-width:2px;"></div>
-      </div>
-    </div>
+<div class="ai-page">
+  <div class="ai-hero">
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding:0 2px;">أسئلة مقترحة</div>
-      <div style="display:flex;flex-direction:column;gap:7px;" id="suggestions">
-        <div class="suggested-card"><div class="suggested-label">الأداء</div><div class="suggested-text">لماذا انخفض تفاعل إعلاناتي؟</div></div>
-        <div class="suggested-card"><div class="suggested-label">الميزانية</div><div class="suggested-text">هل تُنفَق ميزانيتي بشكل فعّال؟</div></div>
-        <div class="suggested-card"><div class="suggested-label">الجمهور</div><div class="suggested-text">هل يرى جمهوري نفس الإعلانات كثيراً؟</div></div>
-        <div class="suggested-card"><div class="suggested-label">الاستراتيجية</div><div class="suggested-text">أي حملة أستحق أن أوسّعها؟</div></div>
-        <div class="suggested-card"><div class="suggested-label">الإجراء</div><div class="suggested-text">ما الذي أنصح به الآن؟</div></div>
-        <div class="suggested-card"><div class="suggested-label">الصحة</div><div class="suggested-text">ما سبب تراجع النتائج؟</div></div>
-      </div>
+      <div class="ai-hero-title">المساعد الذكي</div>
+      <div class="ai-hero-sub">تحليل وفق معايير مديري التسويق العالميين: دليل رقمي → تشخيص → توصية واحدة واضحة مع مستوى ثقة</div>
     </div>
+    <button class="btn btn-secondary btn-sm" id="clear-btn">مسح المحادثة</button>
   </div>
 
-  <!-- Right: Chat -->
-  <div class="chat-main">
-    <div class="chat-header">
-      <div style="width:30px;height:30px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;">A</div>
+  <div class="ai-method-row" id="ai-method-row">
+    <div class="ai-method-card"><div class="ai-method-step">01</div><div class="ai-method-label">الوضع</div><div class="ai-method-desc">ماذا يحدث الآن في الحساب؟</div></div>
+    <div class="ai-method-card"><div class="ai-method-step">02</div><div class="ai-method-label">الدليل</div><div class="ai-method-desc">أرقام حية مقارنة بالفترة السابقة أو المعيار</div></div>
+    <div class="ai-method-card"><div class="ai-method-step">03</div><div class="ai-method-label">التشخيص</div><div class="ai-method-desc">السبب الأرجح: إبداع / جمهور / ميزانية / تتبّع</div></div>
+    <div class="ai-method-card"><div class="ai-method-step">04</div><div class="ai-method-label">التوصية</div><div class="ai-method-desc">خطوة واحدة قابلة للتنفيذ + مستوى الثقة</div></div>
+  </div>
+
+  <div class="chat-shell">
+    <div class="chat-sidebar">
+      <div class="ai-side-card">
+        <div class="ai-side-title">سياق الحساب المباشر</div>
+        <div id="context-chips" style="display:flex;flex-wrap:wrap;gap:4px;">
+          <div class="spinner" style="width:16px;height:16px;border-width:2px;"></div>
+        </div>
+      </div>
       <div>
-        <div style="font-size:13.5px;font-weight:700;color:var(--text);">Adlytic AI</div>
-        <div style="font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:5px;"><div class="chat-header-dot"></div>Analyzing your live data</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-3);margin-bottom:8px;padding:0 2px;">أسئلة تحليلية</div>
+        <div style="display:flex;flex-direction:column;gap:7px;" id="suggestions">
+          <div class="suggested-card"><div class="suggested-label">الأداء</div><div class="suggested-text">لماذا انخفض تفاعل إعلاناتي؟</div></div>
+          <div class="suggested-card"><div class="suggested-label">الميزانية</div><div class="suggested-text">هل تُنفَق ميزانيتي بشكل فعّال؟</div></div>
+          <div class="suggested-card"><div class="suggested-label">الجمهور</div><div class="suggested-text">هل يرى جمهوري نفس الإعلانات كثيراً؟</div></div>
+          <div class="suggested-card"><div class="suggested-label">الاستراتيجية</div><div class="suggested-text">أي حملة أستحق أن أوسّعها؟</div></div>
+          <div class="suggested-card"><div class="suggested-label">الإجراء</div><div class="suggested-text">ما الذي أنصح به الآن؟</div></div>
+          <div class="suggested-card"><div class="suggested-label">الصحة</div><div class="suggested-text">ما سبب تراجع النتائج؟</div></div>
+        </div>
       </div>
-      <button class="btn btn-ghost btn-sm" id="clear-btn" style="margin-left:auto;">Clear chat</button>
     </div>
 
-    <div class="chat-messages" id="chat-messages">
-      <!-- Welcome message inserted by JS -->
-    </div>
-
-    <div class="chat-input-area">
-      <div class="chat-input-row">
-        <textarea class="chat-input" id="chat-input" placeholder="Ask about your campaigns, budget, audience, or performance…" rows="1"></textarea>
-        <button class="chat-send-btn" id="send-btn" title="Send">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
+    <div class="chat-main">
+      <div class="chat-header">
+        <div style="width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#1A1613;">A</div>
+        <div>
+          <div style="font-size:13.5px;font-weight:700;color:var(--text);">Adlytic CMO</div>
+          <div style="font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:5px;">
+            <div class="chat-header-dot"></div>
+            <span id="ai-status-line">يحلّل بيانات حسابك الحية</span>
+          </div>
+        </div>
       </div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:6px;text-align:center;">Responses are generated from your live campaign data.</div>
+
+      <div class="chat-messages" id="chat-messages"></div>
+
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="chat-input" placeholder="اسأل عن الحملات، الميزانية، الجمهور، أو الأداء…" rows="1"></textarea>
+          <button class="chat-send-btn" id="send-btn" title="إرسال">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:7px;text-align:center;">الإجابات مبنية على بيانات حسابك الفعلية — مع مقارنة زمنية ومعايير الصناعة عند التوفر</div>
+      </div>
     </div>
   </div>
 </div>`;
 
   const scripts = `<script>
 (async () => {
-  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   const token = localStorage.getItem('adlytic_token');
   if (!token) { window.location.href = '/login'; return; }
   if (!(await ensureAccountActive())) return;
@@ -141,9 +203,6 @@ export function aiPage(): string {
   try {
   const me = await apiFetch('/api/auth/me');
   if (!me) return;
-  // Guarded DOM write: getElementById(id).textContent throws if the element is
-  // absent in any render path. A single missing node must never abort init and
-  // leave the Live Context loader spinning in a dead state.
   function setText(id, value) {
     var el = document.getElementById(id);
     if (el) el.textContent = value;
@@ -152,9 +211,28 @@ export function aiPage(): string {
   setText('user-email', me.email);
   setText('user-avatar', (me.name || me.email || '?')[0].toUpperCase());
   const wsM = me.memberships?.find(m => m.workspaceId === wsId) || me.memberships?.[0];
-  setText('ws-name', wsM?.workspace?.name || 'Workspace');
+  setText('ws-name', wsM?.workspace?.name || 'مساحة العمل');
   const userInitial = (me.name || me.email || '?')[0].toUpperCase();
-  const userLocale = (me.locale || 'EN').toUpperCase();
+  const userLocale = (me.locale || 'AR').toUpperCase();
+  const isAr = userLocale === 'AR';
+
+  if (!isAr) {
+    document.querySelector('.ai-hero-title').textContent = 'Smart Assistant';
+    document.querySelector('.ai-hero-sub').textContent = 'Global CMO standard: evidence → diagnosis → one clear recommendation with confidence';
+    document.getElementById('clear-btn').textContent = 'Clear chat';
+    document.getElementById('ai-status-line').textContent = 'Analyzing your live account data';
+    document.getElementById('chat-input').placeholder = 'Ask about campaigns, budget, audience, or performance…';
+    var methodLabels = [
+      ['Situation', 'What is happening in the account now?'],
+      ['Evidence', 'Live numbers vs prior period or benchmark'],
+      ['Diagnosis', 'Likely cause: creative / audience / budget / tracking'],
+      ['Recommendation', 'One actionable step + confidence'],
+    ];
+    document.querySelectorAll('.ai-method-card').forEach(function (card, i) {
+      card.querySelector('.ai-method-label').textContent = methodLabels[i][0];
+      card.querySelector('.ai-method-desc').textContent = methodLabels[i][1];
+    });
+  }
 
   var SUGGESTIONS_AR = [
     { label: 'الأداء', text: 'لماذا انخفض تفاعل إعلاناتي؟' },
@@ -172,48 +250,52 @@ export function aiPage(): string {
     { label: 'Action', text: 'What should I do next?' },
     { label: 'Health', text: "What's causing declining results?" },
   ];
-  if (userLocale === 'AR') {
-    document.getElementById('suggestions').innerHTML = SUGGESTIONS_AR.map(function (s) {
-      return '<div class="suggested-card"><div class="suggested-label">' + s.label + '</div><div class="suggested-text">' + s.text + '</div></div>';
-    }).join('');
-  }
+  var suggestions = isAr ? SUGGESTIONS_AR : SUGGESTIONS_EN;
+  document.getElementById('suggestions').innerHTML = suggestions.map(function (s) {
+    return '<div class="suggested-card"><div class="suggested-label">' + esc(s.label) + '</div><div class="suggested-text">' + esc(s.text) + '</div></div>';
+  }).join('');
 
   let dashData = null;
   let sending  = false;
-  // v2 conversation id — persisted only for this page session (in-memory).
-  // null until the first successful v2 turn; once set, subsequent turns pass
-  // it so the agent has conversation history. Cleared by "Clear chat".
   let conversationId = null;
   const messagesEl = document.getElementById('chat-messages');
   const inputEl    = document.getElementById('chat-input');
   const sendBtn    = document.getElementById('send-btn');
 
-  // Load context
   try {
     dashData = await apiFetch('/api/dashboard/' + wsId);
     if (dashData) renderContextChips(dashData);
   } catch(e) {
-    document.getElementById('context-chips').innerHTML = '<span style="font-size:12px;color:var(--text-3);">No data loaded</span>';
+    document.getElementById('context-chips').innerHTML = '<span style="font-size:12px;color:var(--text-3);">' +
+      (isAr ? 'لا توجد بيانات محمّلة' : 'No data loaded') + '</span>';
   }
 
   function renderContextChips(d) {
     const chips = [];
-    if (d.health) chips.push('Health: ' + d.health.score + ' (' + d.health.band + ')');
-    const cc = d.workspace?.campaignCounts;
-    if (cc) {
-      chips.push(cc.deliveringInWindow + ' delivering · ' + cc.spendingToday + ' today · ' + cc.dormantActive + ' dormant · ' + cc.total + ' total');
-    } else if (d.workspace?.activeCampaigns != null) {
-      chips.push(d.workspace.activeCampaigns + ' delivering');
+    if (d.health) {
+      chips.push((isAr ? 'الصحة: ' : 'Health: ') + d.health.score + ' (' + d.health.band + ')');
     }
-    if (d.issues?.length) chips.push(d.issues.length + ' issue' + (d.issues.length>1?'s':''));
-    if (d.workspace?.lastSyncedAt) chips.push('Synced ' + new Date(d.workspace.lastSyncedAt).toLocaleDateString());
+    const cc = d.workspace && d.workspace.campaignCounts;
+    if (cc) {
+      chips.push(
+        (cc.deliveringInWindow != null ? cc.deliveringInWindow : '—') + (isAr ? ' تعمل' : ' delivering') +
+        ' · ' + (cc.spendingToday != null ? cc.spendingToday : '—') + (isAr ? ' اليوم' : ' today') +
+        ' · ' + (cc.dormantActive != null ? cc.dormantActive : '—') + (isAr ? ' بدون إنفاق' : ' dormant')
+      );
+    } else if (d.workspace && d.workspace.activeCampaigns != null) {
+      chips.push(d.workspace.activeCampaigns + (isAr ? ' تعمل' : ' delivering'));
+    }
+    if (d.issues && d.issues.length) {
+      chips.push(d.issues.length + (isAr ? ' ملاحظة' : ' issue' + (d.issues.length > 1 ? 's' : '')));
+    }
+    if (d.workspace && d.workspace.lastSyncedAt) {
+      chips.push((isAr ? 'آخر مزامنة ' : 'Synced ') + new Date(d.workspace.lastSyncedAt).toLocaleString(isAr ? 'ar' : 'en'));
+    }
     document.getElementById('context-chips').innerHTML = chips.length
-      ? chips.map(c => '<span class="data-chip">' + c + '</span>').join('')
-      : '<span style="font-size:12px;color:var(--text-3);">No campaign data yet</span>';
+      ? chips.map(function (c) { return '<span class="data-chip">' + esc(c) + '</span>'; }).join('')
+      : '<span style="font-size:12px;color:var(--text-3);">' + (isAr ? 'لا توجد بيانات حملات بعد' : 'No campaign data yet') + '</span>';
   }
 
-  // Short human labels for tool chips — falls back to the raw tool name for
-  // any tool added later that isn't in this map yet.
   var TOOL_LABELS = {
     list_campaigns:            { ar: 'قائمة الحملات',        en: 'Campaign list' },
     get_campaign_details:      { ar: 'تفاصيل الحملة',        en: 'Campaign details' },
@@ -228,17 +310,15 @@ export function aiPage(): string {
     simulate_budget_shift:     { ar: 'محاكاة ميزانية',       en: 'Budget simulation' },
     check_suspicious_activity: { ar: 'فحص أمني',            en: 'Security check' },
     save_recommendation:       { ar: 'حفظ توصية',           en: 'Saved recommendation' },
+    check_pixel_health:        { ar: 'صحة التتبّع',          en: 'Pixel health' },
   };
 
   function toolLabel(name) {
     var entry = TOOL_LABELS[name];
     if (!entry) return name;
-    return userLocale === 'AR' ? entry.ar : entry.en;
+    return isAr ? entry.ar : entry.en;
   }
 
-  // Renders a small chip row under an assistant bubble showing which tools
-  // the agent called this turn — the visible proof that v2's live-DB agent
-  // (not the old rule-engine translator) produced this reply.
   function renderToolChips(msgWrapperEl, toolCalls) {
     if (!toolCalls || !toolCalls.length) return;
     var bubble = msgWrapperEl.querySelector('.msg-bubble');
@@ -248,11 +328,18 @@ export function aiPage(): string {
     toolCalls.forEach(function (tc) {
       var chip = document.createElement('span');
       chip.className = 'tool-chip';
-      var icon = tc.ok === false ? '⚠️' : '🔍';
-      chip.textContent = icon + ' ' + toolLabel(tc.toolName);
+      chip.textContent = (tc.ok === false ? '⚠ ' : '✓ ') + toolLabel(tc.toolName);
       row.appendChild(chip);
     });
+    var evidence = document.createElement('div');
+    evidence.className = 'evidence-bar';
+    evidence.innerHTML =
+      '<span class="evidence-pill"><b>' + (isAr ? 'الأدلة' : 'Evidence') + '</b> ' +
+      toolCalls.length + (isAr ? ' مصدر بيانات' : ' data sources') + '</span>' +
+      '<span class="evidence-pill"><b>' + (isAr ? 'المنهج' : 'Method') + '</b> ' +
+      (isAr ? 'وضع → دليل → تشخيص → توصية' : 'Situation → Evidence → Diagnosis → Action') + '</span>';
     bubble.appendChild(row);
+    bubble.appendChild(evidence);
   }
 
   function addMsg(role, html) {
@@ -272,7 +359,7 @@ export function aiPage(): string {
   }
 
   function mdToHtml(text) {
-    return text
+    return String(text || '')
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>')
       .replace(/\\*(.+?)\\*/g,'<em>$1</em>')
@@ -286,17 +373,25 @@ export function aiPage(): string {
       .replace(/^(?!<[ul])/,'<p>').replace(/(?<![>])$/,'</p>');
   }
 
-  // Welcome message
   const welcomeText = dashData
-    ? 'Hello! I\\'m your Adlytic AI assistant. I have access to your live campaign data' +
-      (dashData.workspace?.name ? ' for <strong>' + esc(dashData.workspace.name) + '</strong>' : '') + '.' +
-      (dashData.issues?.length
-        ? ' I\\'ve detected <strong>' + Number(dashData.issues.length) + ' issue' + (dashData.issues.length>1?'s':'') + '</strong> in your campaigns. Ask me about them or anything else related to your ad performance.'
-        : ' Your campaigns look healthy. Ask me anything about performance, budget, or strategy.') +
-      '<br><br><em>' + (userLocale === 'AR'
-        ? 'جرّب: "ما الذي أنصح به الآن؟" أو "لماذا انخفض تفاعل إعلاناتي؟"'
-        : 'Try: "What should I do next?" or "Why is ad engagement dropping?"') + '</em>'
-    : 'Hello! I\\'m your Adlytic AI assistant. Connect your campaigns to get data-driven insights. In the meantime, ask me anything about Meta Ads strategy.';
+    ? (isAr
+        ? 'مرحباً — أنا مساعد Adlytic CMO. أحلّل بيانات حسابك الحية' +
+          (dashData.workspace && dashData.workspace.name ? ' لـ <strong>' + esc(dashData.workspace.name) + '</strong>' : '') +
+          ' بمنهج: <strong>الوضع → الدليل → التشخيص → التوصية</strong>.' +
+          (dashData.issues && dashData.issues.length
+            ? ' رصدت <strong>' + Number(dashData.issues.length) + '</strong> ملاحظة حالياً.'
+            : ' الحساب يبدو مستقراً نسبياً.') +
+          '<br><br><em>جرّب: «ما الذي أنصح به الآن؟» أو «لماذا انخفض تفاعل إعلاناتي؟»</em>'
+        : 'Hello — I\\'m your Adlytic CMO assistant. I analyze live account data' +
+          (dashData.workspace && dashData.workspace.name ? ' for <strong>' + esc(dashData.workspace.name) + '</strong>' : '') +
+          ' using <strong>Situation → Evidence → Diagnosis → Recommendation</strong>.' +
+          (dashData.issues && dashData.issues.length
+            ? ' I detected <strong>' + Number(dashData.issues.length) + '</strong> issue' + (dashData.issues.length > 1 ? 's' : '') + '.'
+            : ' Your account looks relatively steady.') +
+          '<br><br><em>Try: "What should I do next?" or "Why is ad engagement dropping?"</em>')
+    : (isAr
+        ? 'مرحباً — أنا مساعد Adlytic. اربط حملاتك للحصول على تحليل مبني على بياناتك.'
+        : 'Hello — I\\'m Adlytic AI. Connect campaigns to get data-driven insights.');
   addMsg('assistant', welcomeText);
 
   async function sendMessage(question) {
@@ -304,16 +399,10 @@ export function aiPage(): string {
     sending = true;
     sendBtn.disabled = true;
 
-    addMsg('user', question.replace(/</g,'&lt;').replace(/>/g,'&gt;'));
+    addMsg('user', esc(question));
     const typingEl = addTyping();
 
     try {
-      // Try the Phase 2 agent (v2) first — it's feature-flagged server-side
-      // (AI_AGENT_V2_ENABLED). When disabled, the server returns 404 with
-      // code:'V2_DISABLED' and we fall back to the original v1 endpoint
-      // silently, so this is safe to ship regardless of the flag's state.
-      // When v2 IS enabled, this is what makes the new agent visibly show up
-      // — no separate UI deploy needed to flip it on.
       let res = null;
       let usedV2 = false;
       try {
@@ -337,15 +426,26 @@ export function aiPage(): string {
       }
 
       typingEl.remove();
-      const answer = res?.reply || 'I could not generate a response. Please try again.';
+      const answer = res && res.reply
+        ? res.reply
+        : (isAr ? 'تعذّر توليد رد. حاول مرة أخرى.' : 'I could not generate a response. Please try again.');
       const bubbleWrapper = addMsg('assistant', mdToHtml(answer));
       if (usedV2 && res) {
         if (res.conversationId) conversationId = res.conversationId;
         renderToolChips(bubbleWrapper, res.toolCalls);
+      } else {
+        var bubble = bubbleWrapper.querySelector('.msg-bubble');
+        if (bubble) {
+          var evidence = document.createElement('div');
+          evidence.className = 'evidence-bar';
+          evidence.innerHTML = '<span class="evidence-pill"><b>' + (isAr ? 'المصدر' : 'Source') + '</b> ' +
+            (isAr ? 'بيانات لوحة التحكم الحية' : 'Live dashboard context') + '</span>';
+          bubble.appendChild(evidence);
+        }
       }
     } catch(e) {
       typingEl.remove();
-      addMsg('assistant', '<span style="color:var(--error);">Error: ' + (e.message||'Request failed') + '</span>');
+      addMsg('assistant', '<span style="color:var(--error);">' + esc(isAr ? 'خطأ: ' : 'Error: ') + esc(e.message || (isAr ? 'فشل الطلب' : 'Request failed')) + '</span>');
     } finally {
       sending = false;
       sendBtn.disabled = false;
@@ -353,7 +453,6 @@ export function aiPage(): string {
     }
   }
 
-  // Send button
   sendBtn.addEventListener('click', () => {
     const q = inputEl.value.trim();
     if (!q) return;
@@ -362,7 +461,6 @@ export function aiPage(): string {
     sendMessage(q);
   });
 
-  // Enter key (shift+enter for newline)
   inputEl.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -374,13 +472,11 @@ export function aiPage(): string {
     }
   });
 
-  // Auto-resize textarea
   inputEl.addEventListener('input', () => {
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
   });
 
-  // Suggested questions
   document.getElementById('suggestions').addEventListener('click', e => {
     const card = e.target.closest('.suggested-card');
     if (!card) return;
@@ -388,16 +484,14 @@ export function aiPage(): string {
     if (q) sendMessage(q);
   });
 
-  // Clear chat
   document.getElementById('clear-btn').addEventListener('click', () => {
     messagesEl.innerHTML = '';
     conversationId = null;
-    addMsg('assistant', 'Chat cleared. Ask me anything about your campaign performance.');
+    addMsg('assistant', isAr
+      ? 'تم مسح المحادثة. اسأل عن أداء حملاتك في أي وقت.'
+      : 'Chat cleared. Ask me anything about your campaign performance.');
   });
 
-  // Deep-link prefill — Dashboard/Campaigns "Why"/"Fix" hooks land here as
-  // /ai?q=<question> instead of duplicating the agent call inline on every
-  // card. Auto-send once, then strip the param so a refresh doesn't resend.
   const prefillQ = new URLSearchParams(window.location.search).get('q');
   if (prefillQ && prefillQ.trim()) {
     window.history.replaceState({}, '', '/ai');
@@ -406,12 +500,9 @@ export function aiPage(): string {
 
   inputEl.focus();
   } catch (err) {
-    // Last-resort guard: ANY uncaught init failure must surface visibly rather
-    // than leaving the Live Context loader spinning forever in a dead state.
-    // The message is also printed to the console with a [ai-init] tag.
     console.error('[ai-init] fatal init error:', err);
     var __cc = document.getElementById('context-chips');
-    if (__cc) __cc.innerHTML = '<span style="font-size:12px;color:var(--error);">Init error: ' + String((err && err.message) || err) + '</span>';
+    if (__cc) __cc.innerHTML = '<span style="font-size:12px;color:var(--error);">Init error: ' + esc((err && err.message) || err) + '</span>';
   }
 })();
 </script>`;

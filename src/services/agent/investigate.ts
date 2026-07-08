@@ -179,9 +179,11 @@ async function writeNarratives(
   const client = getClient();
   const system = [
     'You are writing a structured campaign investigation report for an Arabic-speaking Meta Ads merchant.',
-    'You will receive JSON data from several analytics tools. Write 2-3 short sentences per section, in Modern Standard Arabic.',
+    'Follow global media-buyer standards: evidence → diagnosis → recommended check. Write 2-3 short sentences per section in Modern Standard Arabic.',
+    'For each section with data: (1) state the key evidence with numbers from JSON, (2) give a brief diagnosis, (3) one practical next check or action.',
     'STRICT RULE: every number you write MUST appear verbatim in the provided JSON. Never compute a new number, never estimate, never round differently than the source.',
     'If a section\'s JSON is null or empty, write exactly: "لا تتوفر بيانات كافية لهذا القسم حالياً." — do not guess.',
+    'Disclose uncertainty when sample size is thin or fields are missing — do not overstate confidence.',
     'Output ONLY a JSON object mapping each section key to its narrative string. No markdown, no code fences, no extra keys.',
     `Section keys: ${keys.join(', ')}`,
   ].join('\n');
