@@ -1,0 +1,41 @@
+═══════════════════════════════════════════════════════════════
+  Adlytic — إعداد Railway (مرة واحدة بعد إلغاء الطابور)
+═══════════════════════════════════════════════════════════════
+
+المشكلة: 3 خدمات تبني من نفس GitHub → طابور Queued لساعات.
+الحل:  adlytic فقط ينشر من GitHub. الباقي بدون auto-deploy.
+
+─── الخطوة 1: ألغِ كل Queued ───
+  • adlytic / thriving-manifestation / lively-insight
+  • Deployments → Cancel (كل ما هو Queued أو Building)
+
+─── الخطوة 2: thriving-manifestation ───
+  Settings → Source → Auto Deploy: DISABLE
+  Settings → Config File Path: /railway.sync-worker.json
+  Variables (تأكد): SERVICE_ROLE=worker
+
+─── الخطوة 3: lively-insight ───
+  Settings → Source → Auto Deploy: DISABLE
+  Settings → Config File Path: /railway.worker.json
+
+─── الخطوة 4: adlytic (الإنتاج) ───
+  Settings → Config File Path: /railway.json
+  Settings → Source → Auto Deploy: ENABLE (branch: main)
+  Public URL: adlytic-production.up.railway.app
+
+─── الخطوة 5: انشر adlytic ───
+  adlytic → Cmd+K → Deploy Latest Commit
+  انتظر 5–7 دقائق (خدمة واحدة فقط)
+
+─── تحقق ───
+  curl https://adlytic-production.up.railway.app/api/health
+  Hard refresh: /recommendations (لا خطأ escHtml)
+
+─── (اختياري) نشر من GitHub Actions ───
+  1. Token من https://railway.app/account/tokens (No Team)
+  2. GitHub → Secrets → RAILWAY_TOKEN
+  3. ثم يمكن تعطيل Auto Deploy على adlytic والاعتماد على Action فقط
+
+Project ID:  69ca3009-3a67-4d92-b808-6e4f278335d6
+Environment: 89cdf3cb-15b7-4b92-b1ae-07e812333c37
+Adlytic Svc: cc7cbf67-d757-4018-bf6d-9cec643222c3
