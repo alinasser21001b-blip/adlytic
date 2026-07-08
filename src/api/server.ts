@@ -993,7 +993,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     let orphanedRowsDeleted = 0;
     if (doCleanup && report.orphanedCount > 0) {
-      orphanedRowsDeleted = await cleanupOrphanedCampaignStats(prisma, account.id);
+      orphanedRowsDeleted = await cleanupOrphanedCampaignStats(prisma);
     }
 
     return c.json({

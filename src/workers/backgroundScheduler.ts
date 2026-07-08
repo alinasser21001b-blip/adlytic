@@ -23,7 +23,10 @@ import { runEngines } from './runEngines';
 import { runBrainOrchestrator } from './runBrainOrchestrator';
 import { config } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
-import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
+import {
+  cleanupOrphanedCampaignStats,
+  runDataIntegrityCheck,
+} from '../services/dataIntegrityMonitor';
 import { refreshExpiringMetaTokens } from './refreshMetaTokens';
 import { refreshCampaignHistoryRollups } from './rollupHistory';
 import { bootQueueWorkers } from './queue';
@@ -267,7 +270,6 @@ async function refreshHistoryRollups(prisma: PrismaClient): Promise<void> {
 async function runDailyMaintenance(prisma: PrismaClient): Promise<void> {
   await pruneRawInsights(prisma);
   await refreshHistoryRollups(prisma);
-  await cleanOrphanedCampaignStats(prisma);
   await runIntegritySweep(prisma);
 }
 
@@ -294,51 +296,13 @@ async function runIntegritySweep(prisma: PrismaClient): Promise<void> {
           `[adlytic:integrity] workspace=${account.workspaceId} status=${report.overallStatus} checks=${actionable.map((c) => c.code).join(',')}`,
         );
       }
-      if (report.orphanedCount > 0) {
-        const cleaned = await cleanupOrphanedCampaignStats(prisma, account.id);
-        if (cleaned > 0) {
-          console.log(
-            `[adlytic:integrity] workspace=${account.workspaceId} auto-cleaned ${cleaned} orphaned daily_stat row(s)`,
-          );
-        }
-      }
+    }
+    const cleaned = await cleanupOrphanedCampaignStats(prisma);
+    if (cleaned > 0) {
+      console.log(`[adlytic:integrity] auto-cleaned ${cleaned} orphaned daily_stat row(s) globally`);
     }
   } catch (err) {
     console.error('[adlytic:integrity] Sweep failed:', err);
-  }
-}
-
-async function cleanOrphanedCampaignStats(prisma: PrismaClient): Promise<void> {
-  try {
-    const accounts = await prisma.adAccount.findMany({ select: { id: true } });
-    let totalCleaned = 0;
-    for (const account of accounts) {
-      const knownIds = (await prisma.campaign.findMany({
-        where: { adAccountId: account.id },
-        select: { id: true },
-      })).map(c => c.id);
-      if (knownIds.length === 0) continue;
-      const orphans = await prisma.dailyStat.findMany({
-        where: {
-          entityType: 'CAMPAIGN',
-          entityId: { notIn: knownIds },
-        },
-        select: { entityId: true },
-        distinct: ['entityId'],
-        take: 500,
-      });
-      if (orphans.length === 0) continue;
-      const orphanIds = orphans.map(o => o.entityId);
-      const { count } = await prisma.dailyStat.deleteMany({
-        where: { entityType: 'CAMPAIGN', entityId: { in: orphanIds } },
-      });
-      totalCleaned += count;
-    }
-    if (totalCleaned > 0) {
-      console.log(`[adlytic:maintenance] Cleaned ${totalCleaned} orphaned campaign daily_stat row(s)`);
-    }
-  } catch (err) {
-    console.error('[adlytic:maintenance] Failed to clean orphaned campaign stats:', err);
   }
 }
 

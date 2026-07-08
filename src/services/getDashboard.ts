@@ -988,7 +988,7 @@ function buildSteadyStateSummary(input: {
           `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة تعمل — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
         );
 
-  const stableCount = stableCampaigns.length || input.campaignCounts?.activeStatus || input.activeCampaigns;
+  const stableCount = stableCampaigns.length || input.campaignCounts?.deliveringInWindow || input.activeCampaigns;
   const namesPreview = stableCampaigns
     .slice(0, 3)
     .map((c) => c.name)

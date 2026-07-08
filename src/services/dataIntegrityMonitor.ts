@@ -2,6 +2,10 @@ import type { PrismaClient } from '@prisma/client';
 import { EntityType } from '@prisma/client';
 
 import { getCampaignCounts, type CampaignCounts } from '../lib/campaignCatalog';
+import {
+  cleanupOrphanedCampaignStats,
+  findGloballyOrphanedCampaignEntityIds,
+} from '../lib/campaignDataIsolation';
 import { classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
 
 export type IntegritySeverity = 'OK' | 'INFO' | 'WARN' | 'CRITICAL';
@@ -64,7 +68,7 @@ export async function runDataIntegrityCheck(
   });
   const campaignIdSet = new Set(knownCampaigns.map((c) => c.id));
 
-  const [accountStats, campaignAgg, allCampaignStats, windowAgg] = await Promise.all([
+  const [accountStats, campaignAgg, windowAgg, orphanedEntityIds] = await Promise.all([
     prisma.dailyStat.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       select: { spend: true },
@@ -80,11 +84,6 @@ export async function runDataIntegrityCheck(
           _sum: { spend: true },
         })
       : Promise.resolve([]),
-    prisma.dailyStat.findMany({
-      where: { entityType: EntityType.CAMPAIGN, date: { gte: sinceDate } },
-      select: { entityId: true },
-      distinct: ['entityId'],
-    }),
     knownCampaigns.length
       ? prisma.dailyStat.groupBy({
           by: ['entityId'],
@@ -96,6 +95,7 @@ export async function runDataIntegrityCheck(
           _sum: { spend: true },
         })
       : Promise.resolve([]),
+    findGloballyOrphanedCampaignEntityIds(prisma, { sinceDate, limit: 500 }),
   ]);
 
   const spendWindowByCampaign = new Map(
@@ -127,16 +127,12 @@ export async function runDataIntegrityCheck(
   const divergenceStatus: DataIntegrityReport['divergenceStatus'] =
     divergencePct > 10 ? 'HIGH' : divergencePct > 2 ? 'MODERATE' : 'OK';
 
-  const orphanedEntityIds = allCampaignStats
-    .map((s) => s.entityId)
-    .filter((id) => !campaignIdSet.has(id));
-
   if (orphanedEntityIds.length > 0) {
     checks.push({
       code: 'ORPHANED_CAMPAIGN_STATS',
       severity: 'WARN',
-      message: `${orphanedEntityIds.length} deleted campaign(s) still have daily stats mixed with live data`,
-      messageAr: `${orphanedEntityIds.length} حملة محذوفة لا تزال بياناتها مدمجة مع البيانات الحية`,
+      message: `${orphanedEntityIds.length} deleted campaign(s) still have daily stats that can mix with live totals`,
+      messageAr: `${orphanedEntityIds.length} حملة محذوفة — بياناتها القديمة قد تختلط مع البيانات الحية`,
       value: orphanedEntityIds.length,
       autoFixable: true,
     });
@@ -164,8 +160,8 @@ export async function runDataIntegrityCheck(
     checks.push({
       code: 'DORMANT_ACTIVE_INFLATION',
       severity: 'INFO',
-      message: `${staleActiveCount} campaign(s) are Meta-ACTIVE but spent nothing in ${windowDays}d — use "delivering" count (${campaignCounts.deliveringInWindow}) not Meta active (${campaignCounts.activeStatus})`,
-      messageAr: `${staleActiveCount} حملة بحالة Meta نشطة بدون إنفاق خلال ${windowDays} يوم — العدد الفعلي ${campaignCounts.deliveringInWindow} وليس ${campaignCounts.activeStatus}`,
+      message: `${staleActiveCount} campaign(s) are Meta-ACTIVE but spent nothing in ${windowDays}d — use delivering (${campaignCounts.deliveringInWindow}) not Meta active (${campaignCounts.activeStatus})`,
+      messageAr: `${staleActiveCount} حملة Meta نشطة بدون إنفاق — العدد الفعلي ${campaignCounts.deliveringInWindow} وليس ${campaignCounts.activeStatus}`,
       value: staleActiveCount,
     });
   }
@@ -209,32 +205,4 @@ export async function runDataIntegrityCheck(
   };
 }
 
-/** Delete daily_stat rows for campaigns no longer in the account (historical isolation). */
-export async function cleanupOrphanedCampaignStats(
-  prisma: PrismaClient,
-  adAccountId: string,
-): Promise<number> {
-  const knownIds = (await prisma.campaign.findMany({
-    where: { adAccountId },
-    select: { id: true },
-  })).map((c) => c.id);
-
-  if (!knownIds.length) return 0;
-
-  const orphans = await prisma.dailyStat.findMany({
-    where: {
-      entityType: EntityType.CAMPAIGN,
-      entityId: { notIn: knownIds },
-    },
-    select: { entityId: true },
-    distinct: ['entityId'],
-    take: 500,
-  });
-  if (!orphans.length) return 0;
-
-  const orphanIds = orphans.map((o) => o.entityId);
-  const { count } = await prisma.dailyStat.deleteMany({
-    where: { entityType: EntityType.CAMPAIGN, entityId: { in: orphanIds } },
-  });
-  return count;
-}
+export { cleanupOrphanedCampaignStats, findGloballyOrphanedCampaignEntityIds };
