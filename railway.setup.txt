@@ -2,10 +2,10 @@
   Adlytic — إعداد Railway (مرة واحدة)
 ═══════════════════════════════════════════════════════════════
 
-ملفات الإعداد الجديدة (TOML):
-  adlytic                 → /railway.toml
-  thriving-manifestation  → /railway.sync-worker.toml
-  lively-insight          → /railway.worker.toml
+ملفات الإعداد (JSON أو TOML — نفس المحتوى):
+  adlytic                 → /railway.toml  أو /railway.json
+  thriving-manifestation  → /railway.sync-worker.json  (أو .toml)
+  lively-insight          → /railway.worker.json         (أو .toml)
 
 ─── 1) ألغِ كل Queued ───
   Deployments → Cancel على الخدمات الثلاث
