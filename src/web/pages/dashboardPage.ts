@@ -714,6 +714,10 @@ export function dashboardPage(): string {
     var meta = document.getElementById('active-meta');
     if (!sec || !grid) return;
     if (active.length === 0) { sec.style.display = 'none'; return; }
+    // SaaS attention order: highest spend first among campaigns spending now.
+    active = active.slice().sort(function (a, b) {
+      return (Number(b.spendWindowMinor) || 0) - (Number(a.spendWindowMinor) || 0);
+    });
     sec.style.display = 'block';
     if (meta) {
       if (campaignCounts) {

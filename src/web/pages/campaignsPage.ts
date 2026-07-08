@@ -197,6 +197,12 @@ export function campaignsPage(): string {
         <button type="button" class="filter-chip" data-status="ARCHIVED">أرشيف</button>
         <button type="button" class="filter-chip" data-status="ALL">الكل</button>
       </div>
+      <div class="sort-presets" id="sort-presets" title="ترتيب القائمة">
+        <button type="button" class="sort-preset active" data-sort-preset="attention">الأهم أولاً</button>
+        <button type="button" class="sort-preset" data-sort-preset="spend">الأعلى إنفاقاً</button>
+        <button type="button" class="sort-preset" data-sort-preset="results">الأكثر نتائج</button>
+        <button type="button" class="sort-preset" data-sort-preset="engagement">الأفضل تفاعلاً</button>
+      </div>
       <div class="display-mode-toggle" id="display-mode-toggle">
         <button type="button" class="view-btn active" data-view="table" title="عرض جدول">☰</button>
         <button type="button" class="view-btn" data-view="cards" title="عرض بطاقات">▦</button>
@@ -206,13 +212,14 @@ export function campaignsPage(): string {
         <input type="text" class="form-input search-input" id="search-input" placeholder="بحث في الحملات…" style="width:240px;">
       </div>
     </div>
+    <div class="sort-hint" id="sort-hint">الترتيب: الأهم أولاً — تنفق الآن، ثم تحتاج مراجعة، ثم الأعلى إنفاقاً</div>
     <div style="overflow-x:auto;" id="table-container">
       <table>
         <thead id="campaigns-thead">
           <tr>
             <th class="th-sort" data-sort="name">الحملة</th>
             <th class="th-sort" data-sort="status">الحالة</th>
-            <th class="th-sort is-sorted desc" data-sort="spendWindowMinor">الإنفاق <span id="window-label" class="th-window">(30ي)</span></th>
+            <th class="th-sort" data-sort="spendWindowMinor">الإنفاق <span id="window-label" class="th-window">(30ي)</span></th>
             <th>الاتجاه <span class="th-window">(7ي)</span></th>
             <th class="th-sort" data-sort="messagesWindow">الرسائل</th>
             <th class="th-sort" data-sort="ctrWindow">نسبة النقر</th>
@@ -301,6 +308,27 @@ export function campaignsPage(): string {
     }
     .filter-chip:hover { color: var(--text); border-color: var(--text-3); }
     .filter-chip.active { color: var(--accent-2); background: var(--accent-dim); border-color: rgba(217,167,89,0.4); }
+    .sort-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-inline-start: 4px; }
+    .sort-preset {
+      font-size: 11.5px; font-weight: 700; color: var(--text-3);
+      background: transparent; border: 1px solid var(--border-2);
+      padding: 5px 11px; border-radius: 8px; cursor: pointer;
+      font-family: inherit; transition: all .15s;
+    }
+    .sort-preset:hover { color: var(--text); border-color: var(--text-3); }
+    .sort-preset.active { color: var(--text); background: rgba(255,255,255,0.04); border-color: rgba(217,167,89,0.45); }
+    .sort-hint {
+      font-size: 11.5px; color: var(--text-3); padding: 0 18px 10px;
+      direction: rtl; line-height: 1.4;
+    }
+    .attention-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+      margin-top: 4px; margin-inline-start: 6px;
+    }
+    .attention-pill.hot { background: rgba(217,167,89,0.16); color: var(--accent-2); }
+    .attention-pill.watch { background: rgba(199,122,31,0.14); color: #C77A1F; }
+    .attention-pill.ok { background: rgba(52,168,113,0.12); color: var(--success); }
     .display-mode-toggle { display: flex; gap: 4px; margin-inline-start: 8px; }
     .view-btn {
       width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
@@ -601,9 +629,10 @@ export function campaignsPage(): string {
     lastSyncedAt: null,
     lastIssueDates: [],
     currentInspectorCampaignId: null,
-    // Table state — sorted by window spend (highest first) by default,
-    // matching how a media buyer scans Ads Manager.
-    sortKey: 'spendWindowMinor',
+    // SaaS default: attention-first (live spend → needs review → spend),
+    // with simple presets for spend / results / engagement.
+    sortPreset: 'attention',
+    sortKey: 'attentionScore',
     sortDir: -1,
     statusFilter: 'DELIVERING',
     displayMode: 'table',
@@ -1074,12 +1103,16 @@ export function campaignsPage(): string {
           + '<div class="camp-card-top">'
           +   '<div class="camp-card-name">' + escHtml(c.name || '—') + '</div>'
           +   statusBadge(c.status)
+          +   (function () {
+                var att = attentionLabel(c);
+                return att ? '<span class="attention-pill ' + att.cls + '">' + escHtml(att.text) + '</span>' : '';
+              })()
           + '</div>'
           + '<div class="camp-card-meta">'
-          +   '<span class="camp-card-chip">📊 <b>' + escHtml(spendTxt) + '</b> · ' + state.days + 'ي</span>'
-          +   '<span class="camp-card-chip">💬 ' + escHtml(fmtNum(c.messagesWindow, 0)) + ' رسالة</span>'
-          +   '<span class="camp-card-chip">🎯 ' + escHtml(translateObjective(c.objective)) + '</span>'
-          +   '<span class="camp-card-chip">💰 ' + escHtml(budget) + '</span>'
+          +   '<span class="camp-card-chip"><b>' + escHtml(spendTxt) + '</b> · ' + state.days + ' يوم</span>'
+          +   '<span class="camp-card-chip">' + escHtml(fmtNum(c.messagesWindow, 0)) + ' نتيجة</span>'
+          +   '<span class="camp-card-chip">' + escHtml(translateObjective(c.objective)) + '</span>'
+          +   '<span class="camp-card-chip">' + escHtml(budget) + '</span>'
           + '</div>'
           + '<div class="camp-card-cta">عرض التفاصيل ←</div>'
           + '</div>';
@@ -1100,7 +1133,12 @@ export function campaignsPage(): string {
       var barPct = maxSpend > 0 ? Math.max(2, Math.round((spendMinor / maxSpend) * 100)) : 0;
       return '<tr>'
         + '<td><div class="cell-name" title="' + escAttr(c.name || '') + '">' + escHtml(c.name || '—') + '</div>'
-        +   '<span class="obj-chip">' + escHtml(translateObjective(c.objective)) + '</span></td>'
+        +   '<span class="obj-chip">' + escHtml(translateObjective(c.objective)) + '</span>'
+        +   (function () {
+              var att = attentionLabel(c);
+              return att ? '<span class="attention-pill ' + att.cls + '">' + escHtml(att.text) + '</span>' : '';
+            })()
+        + '</td>'
         + '<td>' + statusBadge(c.status) + deliveryBadge(c) + '</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
         +   (maxSpend > 0 ? '<div class="spend-bar"><i style="width:' + barPct + '%"></i></div>' : '') + '</td>'
@@ -1137,9 +1175,78 @@ export function campaignsPage(): string {
   }
 
   // ── Filter + sort pipeline ─────────────────────────────────────────────────
-  // One function owns the search box, the status chips, and the sort state so
-  // every path (typing, chip click, header click, data refresh) re-renders the
-  // same way.
+  // SaaS ordering: filter first, then one transparent sort preset.
+  // Default "الأهم أولاً" = live spend → dormant/active risk → spend volume.
+  var SORT_PRESET_HINTS = {
+    attention: 'الترتيب: الأهم أولاً — تنفق الآن، ثم تحتاج مراجعة، ثم الأعلى إنفاقاً',
+    spend: 'الترتيب: الأعلى إنفاقاً في النافذة الحالية',
+    results: 'الترتيب: الأكثر نتائج (رسائل) في النافذة الحالية',
+    engagement: 'الترتيب: الأفضل تفاعلاً (نسبة النقر)',
+  };
+
+  function sparkTrend(c) {
+    var spark = Array.isArray(c.spark) ? c.spark : [];
+    if (spark.length < 4) return 0;
+    var mid = Math.floor(spark.length / 2);
+    var older = 0, newer = 0, i;
+    for (i = 0; i < mid; i++) older += Number(spark[i]) || 0;
+    for (i = mid; i < spark.length; i++) newer += Number(spark[i]) || 0;
+    if (older <= 0 && newer <= 0) return 0;
+    if (older <= 0) return 1;
+    return (newer - older) / older;
+  }
+
+  function attentionScore(c) {
+    var spend = Number(c.spendWindowMinor) || 0;
+    var score = Math.log10(spend + 1) * 10;
+    if (c.isCurrentlySpending) score += 1000;
+    else if (c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW') score += 700;
+    else if (c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) score += 450;
+    else if ((c.status || '').toUpperCase() === 'ACTIVE') score += 200;
+    else if ((c.status || '').toUpperCase() === 'PAUSED') score += 50;
+    var trend = sparkTrend(c);
+    if (c.isCurrentlySpending && trend > 0.35) score += 40;
+    if ((c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) && spend > 0) score += 30;
+    var ctr = c.ctrWindow != null ? Number(c.ctrWindow) : null;
+    if (ctr != null && ctr < 1 && spend > 0) score += 25;
+    return score;
+  }
+
+  function attentionLabel(c) {
+    if (c.isCurrentlySpending) return { cls: 'hot', text: 'تنفق الآن' };
+    if (c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) return { cls: 'watch', text: 'تحتاج مراجعة' };
+    if (c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW') return { cls: 'ok', text: 'تعمل' };
+    return null;
+  }
+
+  function applySortPreset(preset) {
+    state.sortPreset = preset || 'attention';
+    if (state.sortPreset === 'spend') {
+      state.sortKey = 'spendWindowMinor';
+      state.sortDir = -1;
+    } else if (state.sortPreset === 'results') {
+      state.sortKey = 'messagesWindow';
+      state.sortDir = -1;
+    } else if (state.sortPreset === 'engagement') {
+      state.sortKey = 'ctrWindow';
+      state.sortDir = -1;
+    } else {
+      state.sortKey = 'attentionScore';
+      state.sortDir = -1;
+    }
+    document.querySelectorAll('#sort-presets .sort-preset').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-sort-preset') === state.sortPreset);
+    });
+    var hint = document.getElementById('sort-hint');
+    if (hint) hint.textContent = SORT_PRESET_HINTS[state.sortPreset] || SORT_PRESET_HINTS.attention;
+    document.querySelectorAll('#campaigns-thead .th-sort').forEach(function(el) {
+      el.classList.remove('is-sorted', 'asc', 'desc');
+      if (el.getAttribute('data-sort') === state.sortKey && state.sortKey !== 'attentionScore') {
+        el.classList.add('is-sorted', state.sortDir === 1 ? 'asc' : 'desc');
+      }
+    });
+  }
+
   function applyFilters() {
     var searchEl = document.getElementById('search-input');
     var q = (searchEl && searchEl.value || '').toLowerCase().trim();
@@ -1153,6 +1260,9 @@ export function campaignsPage(): string {
     });
     var key = state.sortKey, dir = state.sortDir;
     list = list.slice().sort(function(a, b) {
+      if (key === 'attentionScore') {
+        return (attentionScore(a) - attentionScore(b)) * dir;
+      }
       var av = a[key], bv = b[key];
       if (typeof av === 'string' || typeof bv === 'string') {
         return String(av || '').localeCompare(String(bv || ''), 'ar') * dir;
@@ -1902,9 +2012,8 @@ export function campaignsPage(): string {
       applyFilters();
     });
 
-    // Sortable headers — click toggles direction on the same column,
-    // switches column otherwise. Numeric columns start descending
-    // (biggest spender first), text columns ascending.
+    // Sortable headers — clicking a column switches to that metric sort.
+    // Numeric columns start descending; text columns ascending.
     document.getElementById('campaigns-thead').addEventListener('click', function(e) {
       var th = e.target && e.target.closest && e.target.closest('.th-sort');
       if (!th) return;
@@ -1915,10 +2024,24 @@ export function campaignsPage(): string {
         state.sortKey = key;
         state.sortDir = (key === 'name' || key === 'status') ? 1 : -1;
       }
+      state.sortPreset = 'custom';
+      document.querySelectorAll('#sort-presets .sort-preset').forEach(function(el) {
+        el.classList.remove('active');
+      });
+      var hint = document.getElementById('sort-hint');
+      if (hint) hint.textContent = 'الترتيب: حسب العمود المحدد';
       document.querySelectorAll('#campaigns-thead .th-sort').forEach(function(el) {
         el.classList.remove('is-sorted', 'asc', 'desc');
       });
       th.classList.add('is-sorted', state.sortDir === 1 ? 'asc' : 'desc');
+      applyFilters();
+    });
+
+    // Simple SaaS sort presets (attention / spend / results / engagement).
+    document.getElementById('sort-presets').addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest && e.target.closest('.sort-preset');
+      if (!btn) return;
+      applySortPreset(btn.getAttribute('data-sort-preset') || 'attention');
       applyFilters();
     });
 
