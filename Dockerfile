@@ -1,12 +1,13 @@
-# Single npm ci (avoids OOM on Railway). Node 22 required by @prisma/streams-local.
+# Node 22 + single npm ci. Skip postinstall until prisma schema is copied.
 FROM node:22-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache openssl libc6-compat
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci --no-audit --no-fund --ignore-scripts
 COPY prisma prisma.config.ts tsconfig.json ./
 COPY prisma ./prisma/
 COPY src ./src/
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 RUN npm run build \
   && npm prune --omit=dev \
   && npm cache clean --force
