@@ -199,7 +199,12 @@ export function aiPage(): string {
   function renderContextChips(d) {
     const chips = [];
     if (d.health) chips.push('Health: ' + d.health.score + ' (' + d.health.band + ')');
-    if (d.workspace?.activeCampaigns) chips.push(d.workspace.activeCampaigns + ' campaigns');
+    const cc = d.workspace?.campaignCounts;
+    if (cc) {
+      chips.push(cc.total + ' total · ' + cc.activeStatus + ' active · ' + cc.spendingToday + ' spending today');
+    } else if (d.workspace?.activeCampaigns != null) {
+      chips.push(d.workspace.activeCampaigns + ' spending today');
+    }
     if (d.issues?.length) chips.push(d.issues.length + ' issue' + (d.issues.length>1?'s':''));
     if (d.workspace?.lastSyncedAt) chips.push('Synced ' + new Date(d.workspace.lastSyncedAt).toLocaleDateString());
     document.getElementById('context-chips').innerHTML = chips.length

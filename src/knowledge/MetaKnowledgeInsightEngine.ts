@@ -9,7 +9,8 @@ import {
   formatActionsForDisplay,
 } from "./evaluate";
 import { loadKnowledgeBase } from "./loadKnowledgeBase";
-import type { CampaignMetrics, MetricBreach, OptimizationAction } from "./types";
+import { evaluateBenchmarks, type BenchmarkEvaluationOptions } from "./benchmarkIntelligence";
+import type { BenchmarkAssessment, CampaignMetrics, MetricBreach, OptimizationAction } from "./types";
 
 export interface KnowledgeInsightRecommendation {
   entityId: string;
@@ -20,6 +21,7 @@ export interface KnowledgeInsightRecommendation {
   /** Verbatim KB actions attached to this recommendation. */
   recommended_optimization_actions: OptimizationAction[];
   metricBreaches: MetricBreach[];
+  benchmarkInsights: BenchmarkAssessment[];
 }
 
 const SEVERITY_STRENGTH: Record<string, number> = {
@@ -45,11 +47,30 @@ export class MetaKnowledgeInsightEngine {
   deriveRecommendations(
     metrics: CampaignMetrics,
     entityId: string,
+    benchmarkOptions: BenchmarkEvaluationOptions = {},
   ): KnowledgeInsightRecommendation[] {
     const breaches = this.evaluateMetrics(metrics);
-    if (breaches.length === 0) return [];
-
+    const benchmarkInsights = evaluateBenchmarks(metrics, benchmarkOptions);
     const actions = findActionsForBreaches(breaches);
+
+    if (breaches.length === 0 && benchmarkInsights.length === 0) return [];
+
+    const topInsight =
+      benchmarkInsights.find((x) => x.comparison === "below" || x.comparison === "above") ??
+      benchmarkInsights[0];
+
+    if (actions.length === 0 && topInsight) {
+      return [{
+        entityId,
+        actionCode: "BENCHMARK_OPTIMIZATION",
+        priority: topInsight.comparison === "within" ? "MEDIUM" : "HIGH",
+        strength: topInsight.comparison === "within" ? 0.5 : 0.7,
+        text: topInsight.inference,
+        recommended_optimization_actions: [],
+        metricBreaches: [],
+        benchmarkInsights,
+      }];
+    }
     if (actions.length === 0) return [];
 
     const topSeverity = breaches[0]!.severity;
@@ -69,6 +90,7 @@ export class MetaKnowledgeInsightEngine {
         ...b,
         recommended_optimization_actions: b.recommended_optimization_actions.map(a => ({ ...a })),
       })),
+      benchmarkInsights,
     }];
   }
 

@@ -591,10 +591,6 @@ export function campaignsPage(): string {
     return grad;
   }
 
-  // Convert each dataset's _rgb marker into a real canvas gradient. Runs on
-  // BOTH the create path and the update path — updateCharts replaces the
-  // spend chart's datasets wholesale on every refresh, and a dataset left
-  // with only _rgb (no backgroundColor) would fill with the Chart.js default.
   function applyGradients(canvasId, datasets) {
     var canvas = document.getElementById(canvasId);
     if (!canvas) return datasets;
@@ -609,17 +605,52 @@ export function campaignsPage(): string {
     return datasets;
   }
 
+  var chartResizeBound = false;
+  var CHART_CARD_H = 220;
+
+  function lockChartBox(canvasId, heightPx) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas || !canvas.parentElement) return;
+    var box = canvas.parentElement;
+    box.style.height = heightPx + 'px';
+    box.style.maxHeight = heightPx + 'px';
+    box.style.minHeight = heightPx + 'px';
+    box.style.overflow = 'hidden';
+  }
+
+  function destroyChartInstance(chart) {
+    if (chart) {
+      try { chart.destroy(); } catch (e) {}
+    }
+  }
+
+  function bindChartResize() {
+    if (chartResizeBound) return;
+    chartResizeBound = true;
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        [state.spendChart, state.ctrChart, state.reachChart, state.impressionsChart].forEach(function (c) {
+          if (c) try { c.resize(); } catch (e) {}
+        });
+      }, 150);
+    });
+  }
+
   function makeLineChart(canvasId, labels, datasets) {
     var canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+    lockChartBox(canvasId, CHART_CARD_H);
     var ctx = canvas.getContext('2d');
     applyGradients(canvasId, datasets);
-
-    return new Chart(ctx, {
+    var chart = new Chart(ctx, {
       type: 'line',
       data: { labels: labels, datasets: datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
@@ -679,6 +710,8 @@ export function campaignsPage(): string {
         },
       }
     });
+    bindChartResize();
+    return chart;
   }
 
   // Timeline Explorer — see PHASE3_IFA_DESIGN.md §3 / dashboardPage.ts's
@@ -778,8 +811,9 @@ export function campaignsPage(): string {
       if (state.ctrChart) {
         state.ctrChart.data.labels = labels;
         state.ctrChart.data.datasets[0].data = ctrData;
-        state.ctrChart.update();
+        state.ctrChart.update('none');
       } else {
+        destroyChartInstance(state.ctrChart);
         state.ctrChart = makeLineChart('chart-ctr', labels, [{
           label: 'نسبة النقر (%)',
           data: ctrData,

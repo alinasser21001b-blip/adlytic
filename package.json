@@ -18,6 +18,8 @@
     "test:rules": "tsx test_rules.ts",
     "test:knowledge": "tsx test_knowledge.ts",
     "test:knowledge-base": "tsx test_knowledge_base.ts",
+    "test:knowledge-benchmarks": "tsx test_knowledge_benchmarks.ts",
+    "test:industry-routing": "tsx test_industry_routing.ts",
     "test:recommendation": "tsx test_recommendation.ts",
     "test:health": "tsx test_health.ts",
     "test:dto": "tsx test_dto_shape.ts",
@@ -60,11 +62,13 @@
     "hono": "^4.12.25",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
+    "openai": "^6.45.0",
     "pg": "^8.21.0",
     "prisma": "^7.8.0",
     "stripe": "^22.2.2",
     "tsx": "^4.19.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

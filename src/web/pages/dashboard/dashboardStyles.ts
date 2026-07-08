@@ -174,6 +174,7 @@ export const dashboardStyles = `<style>
       grid-template-columns: 360px 1fr;
       gap: 16px;
       margin-bottom: 24px;
+      align-items: start;
     }
     @media (max-width: 1000px) { .split-grid { grid-template-columns: 1fr; } }
     .brain-box {
@@ -213,12 +214,26 @@ export const dashboardStyles = `<style>
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: 20px;
-      display: flex; flex-direction: column;
+      display: block;
+      align-self: start;
+      overflow: hidden;
     }
     .chart-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
     .chart-panel-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
     .chart-panel-meta  { font-size: 11.5px; color: var(--text-3); }
-    .chart-panel-canvas { position: relative; flex: 1; height: 380px; min-height: 280px; }
+    .chart-panel-canvas {
+      position: relative;
+      height: 280px;
+      max-height: 280px;
+      min-height: 280px;
+      width: 100%;
+      overflow: hidden;
+      contain: layout size style;
+    }
+    .chart-panel-canvas > canvas {
+      display: block;
+      max-width: 100%;
+    }
     .chart-empty {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       color: var(--text-3); font-size: 13px; text-align: center; direction: rtl;

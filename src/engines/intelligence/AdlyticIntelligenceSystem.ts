@@ -38,6 +38,10 @@ import { calculateResultsTrend } from "../analytics/calculateResultsTrend";
 import { calculateSpendTrend } from "../analytics/calculateSpendTrend";
 import { confidenceFromCorroboration, severityFromMagnitude } from "../rules/severity";
 import { metaKnowledgeInsightEngine } from "../../knowledge/MetaKnowledgeInsightEngine";
+import {
+  resolveBenchmarkIndustry,
+  toBenchmarkEvaluationOptions,
+} from "../../knowledge/industryRouting";
 import type { CampaignMetrics } from "../../knowledge/types";
 
 // ── types ────────────────────────────────────────────────────────────────
@@ -233,13 +237,17 @@ function buildCampaignMetrics(cur: DailyPoint[]): CampaignMetrics {
   const curCpm = avgRate(cur, "cpm");
   const curFreq = avgRate(cur, "frequency");
   const curSpend = sumCount(cur, "spend");
+  const curClicks = sumCount(cur, "clicks");
   const curMessages = sumCount(cur, "messages");
   const costPerMessage =
     curMessages > 0 ? +(curSpend / curMessages).toFixed(4) : null;
+  const cpc =
+    curClicks > 0 ? +(curSpend / curClicks).toFixed(4) : null;
 
   return {
     ctr: curCtr,
     cpm: curCpm,
+    cpc,
     frequency: curFreq,
     cost_per_message: costPerMessage,
   };
@@ -344,7 +352,12 @@ export class AdlyticIntelligenceSystem {
 
     // KB FIRST — verbatim recommended_optimization_actions when thresholds breach.
     const metrics = buildCampaignMetrics(cur);
-    const kbRecs = metaKnowledgeInsightEngine.deriveRecommendations(metrics, adAccountId);
+    const industry = await resolveBenchmarkIndustry(this.prisma, { adAccountId });
+    const kbRecs = metaKnowledgeInsightEngine.deriveRecommendations(
+      metrics,
+      adAccountId,
+      toBenchmarkEvaluationOptions(industry),
+    );
     const recs: RecommendationRow[] = kbRecs.length > 0
       ? kbRecs.map(r => ({
           entityId: r.entityId,

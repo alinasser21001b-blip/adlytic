@@ -155,7 +155,27 @@ async function main() {
     detectedIssue_write: { create: () => { throw new Error("VIOLATION: rec wrote detected_issues"); } },
     healthScore:  { create: () => { throw new Error("VIOLATION: rec wrote health_scores"); } },
     knowledgeRule:{ create: () => { throw new Error("VIOLATION: rec wrote knowledge_rules"); } },
-    adAccount:    { update: () => { throw new Error("VIOLATION: rec wrote ad_accounts"); } },
+    adAccount: {
+      findUnique: async ({ where }: any) => {
+        calls.push({ table: "ad_accounts", op: "read", where });
+        if (where.id === "acc_furn") {
+          return {
+            workspace: {
+              industryProfile: { name: "furniture", knowledgeJson: {} },
+            },
+          };
+        }
+        if (where.id === "acc_cosm") {
+          return {
+            workspace: {
+              industryProfile: { name: "cosmetics", knowledgeJson: {} },
+            },
+          };
+        }
+        return null;
+      },
+      update: () => { throw new Error("VIOLATION: rec wrote ad_accounts"); },
+    },
   };
 
   const { RecommendationEngine } = await import("./src/engines/recommendation/RecommendationEngine");
@@ -198,10 +218,11 @@ async function main() {
   // ── CORDON ──
   console.log("\n── Cordon ──");
   const tables = new Set(calls.map(c => c.table));
-  check("reads detected_issues + daily_stats (KB); writes recommendations only",
-    tables.size === 3 &&
+  check("reads detected_issues + daily_stats + ad_accounts (industry routing); writes recommendations only",
+    tables.size === 4 &&
     tables.has("detected_issues") &&
     tables.has("daily_stats") &&
+    tables.has("ad_accounts") &&
     tables.has("recommendations"),
     [...tables]);
   // Verify no human-readable leakage in the recommendation record

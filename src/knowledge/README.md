@@ -26,6 +26,8 @@ Drop-in metric thresholds and optimization actions for the AI insight pipeline. 
 2. Restart the server (KB is cached once per process).
 
 3. Run tests: `npm run test:knowledge-base`
+4. Run benchmark intelligence test: `npm run test:knowledge-benchmarks`
+5. Run industry routing test: `npm run test:industry-routing`
 
 ## File priority
 
@@ -78,3 +80,31 @@ import {
 - **`MetaKnowledgeInsightEngine`** — KB-first recommendations for V5 intelligence
 - **`RecommendationEngine`** — attaches KB actions to `detailsJson` when thresholds breach
 - **`getDashboard`** — merges KB action text into `issues[].recommendations` and `priorityAction`
+- **`benchmarkIntelligence.ts`** — compares live metrics against global + industry ranges and emits source-backed inference strings
+- **`industryRouting.ts`** — resolves the benchmark industry key from workspace → ad account → global without manual params at call sites
+
+## Industry-aware benchmark routing
+
+Benchmark comparisons use `benchmarks_by_industry.json`. The industry key is resolved automatically:
+
+1. **Workspace** — `workspace.industryProfile` (`name` or `knowledgeJson.benchmarkIndustryKey`)
+2. **Ad account** — same profile via `adAccount.workspace` when only `adAccountId` is available (engines)
+3. **Global** — `global_averages` when no profile is set
+
+```ts
+import {
+  resolveBenchmarkIndustry,
+  resolveBenchmarkIndustryFromContext,
+  toBenchmarkEvaluationOptions,
+  evaluateBenchmarks,
+} from "./knowledge";
+
+// Async (engines with adAccountId)
+const resolved = await resolveBenchmarkIndustry(prisma, { adAccountId });
+const insights = evaluateBenchmarks(metrics, toBenchmarkEvaluationOptions(resolved));
+
+// Sync (getDashboard — workspace already loaded)
+const resolved = resolveBenchmarkIndustryFromContext({ workspace: ws });
+```
+
+Profile name aliases (e.g. `furniture` → `homewares_furniture_interiors`, `cosmetics` → `beauty_cosmetics`) live in `industryRouting.ts`. Override any mapping with `industryProfile.knowledgeJson.benchmarkIndustryKey`.

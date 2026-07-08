@@ -25,6 +25,10 @@ export interface KnowledgeMetricDefinition {
   label: string;
   unit?: string;
   description?: string;
+  /** Optional references for the benchmark origin (e.g., pengwing_2026, motion). */
+  benchmark_source_ids?: string[];
+  /** Optional evidence notes used to ground recommendations. */
+  benchmark_notes?: string[];
   direction: ThresholdDirection;
   warning_threshold: number;
   critical_threshold: number;
@@ -53,6 +57,17 @@ export interface MetricBreach {
 
 export interface CampaignMetrics {
   [metricKey: string]: number | null | undefined;
+}
+
+export interface BenchmarkAssessment {
+  metricKey: string;
+  metricLabel: string;
+  liveValue: number;
+  benchmarkText: string;
+  source: string;
+  comparison: "below" | "within" | "above" | "unscored";
+  confidence: "low" | "medium" | "high";
+  inference: string;
 }
 
 export interface EvaluateMetricContext {

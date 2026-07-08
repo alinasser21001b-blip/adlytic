@@ -17,7 +17,10 @@ function check(name: string, cond: boolean, got?: unknown) {
 const fake: DashboardDTO = {
   workspace: {
     id: "ws_x", name: "Test", industry: "furniture", locale: "EN" as any,
-    currency: "IQD", lastSyncedAt: null, activeCampaigns: 2,
+    currency: "IQD", currencyMinorFactor: 1, lastSyncedAt: null, activeCampaigns: 2,
+    campaignCounts: {
+      total: 5, activeStatus: 3, paused: 1, archived: 1, spendingToday: 2, withMetrics: 2,
+    },
   },
   health: { score: 51, band: "attention" },
   kpis: [
@@ -32,12 +35,14 @@ const fake: DashboardDTO = {
     actionCode: "REFRESH_CREATIVES", priority: "HIGH",
     text: "Refresh creatives", details: null,
   },
+  diagnoses: [],
+  attribution: null,
   bestCampaign: {
-    id: "c1", name: "Bedroom", health: 94, band: "excellent",
+    id: "c1", metaId: "120001", name: "Bedroom", health: 94, band: "excellent",
     messages: 45, ctr: 4.2, cpm: 3.8, frequency: 3.1,
   },
   worstCampaign: {
-    id: "c2", name: "Living Room", health: 57, band: "attention",
+    id: "c2", metaId: "120002", name: "Living Room", health: 57, band: "attention",
     messages: 8, ctr: 1.6, cpm: 6.1, frequency: 6.4,
   },
   lifetimeSpend: { minor: 128294, display: "1282.94 USD", syncedAt: "2026-06-26T00:00:00.000Z" },
@@ -45,14 +50,14 @@ const fake: DashboardDTO = {
 
 // Top-level keys
 const topKeys = Object.keys(fake).sort();
-const expectedTopKeys = ["bestCampaign", "health", "issues", "kpis", "lifetimeSpend", "priorityAction", "trendSeries", "workspace", "worstCampaign"];
+const expectedTopKeys = ["attribution", "bestCampaign", "diagnoses", "health", "issues", "kpis", "lifetimeSpend", "priorityAction", "trendSeries", "workspace", "worstCampaign"];
 check("DTO top-level keys exact match (no additions, no removals)",
   JSON.stringify(topKeys) === JSON.stringify(expectedTopKeys), topKeys);
 
 // workspace fields
 const wsKeys = Object.keys(fake.workspace).sort();
-const expectedWsKeys = ["activeCampaigns", "currency", "id", "industry", "lastSyncedAt", "locale", "name"];
-check("workspace shape: 7 fields, unchanged",
+const expectedWsKeys = ["activeCampaigns", "campaignCounts", "currency", "currencyMinorFactor", "id", "industry", "lastSyncedAt", "locale", "name"];
+check("workspace shape includes campaignCounts",
   JSON.stringify(wsKeys) === JSON.stringify(expectedWsKeys), wsKeys);
 
 // health fields
@@ -90,8 +95,8 @@ check("lifetimeSpend shape: {minor, display, syncedAt}",
 
 // campaign card shape
 const ccKeys = Object.keys(fake.bestCampaign!).sort();
-const expectedCcKeys = ["band", "cpm", "ctr", "frequency", "health", "id", "messages", "name"];
-check("campaignCard shape: 8 fields, unchanged",
+const expectedCcKeys = ["band", "cpm", "ctr", "frequency", "health", "id", "messages", "metaId", "name"];
+check("campaignCard shape includes metaId",
   JSON.stringify(ccKeys) === JSON.stringify(expectedCcKeys), ccKeys);
 
 // Verify the DTO does NOT contain any v2-leaked field

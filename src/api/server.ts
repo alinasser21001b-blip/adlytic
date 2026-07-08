@@ -71,6 +71,8 @@ import { campaignsPage } from '../web/pages/campaignsPage';
 import { recommendationsPage } from '../web/pages/recommendationsPage';
 import { workspacePage } from '../web/pages/workspacePage';
 import { aiPage } from '../web/pages/aiPage';
+import { adAnalysisPage } from '../web/pages/adAnalysisPage';
+import { runAdAssessment, searchAdLibraryTrends } from '../adAssessor/assessService';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { welcomePage } from '../web/pages/welcomePage';
@@ -79,6 +81,7 @@ import { privacyPage } from '../web/pages/privacyPage';
 import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { buildAiContextV5 } from '../services/aiContextBuilderV5';
+import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
 import { askClaude } from '../services/claudeClient';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
@@ -429,6 +432,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json({ ok: true, mode });
   });
   app.get('/campaigns',      (c) => c.html(campaignsPage()));
+  app.get('/ad-analysis',    (c) => c.html(adAnalysisPage()));
   app.get('/recommendations',(c) => c.html(recommendationsPage()));
   app.get('/workspace',      (c) => c.html(workspacePage()));
   app.get('/ai',             (c) => c.html(aiPage()));
@@ -2719,6 +2723,44 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   // ════════════════════════════════════════════════════════════════════════
+  //  AD ASSESSOR — Meta Ad creative analysis (تحليل الإعلان)
+  // ════════════════════════════════════════════════════════════════════════
+
+  /** POST /api/ad-assessor/assess — AI-powered creative assessment. */
+  app.post('/api/ad-assessor/assess', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const result = await runAdAssessment(req.body);
+    if (!result.ok) {
+      return c.json(
+        { error: result.error, ...(result.details ? { details: result.details } : {}) },
+        result.status as 400 | 503,
+      );
+    }
+    return c.json(result.data);
+  });
+
+  /** POST /api/ad-assessor/ad-library/search — live Ad Library trend lookup. */
+  app.post('/api/ad-assessor/ad-library/search', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const result = await searchAdLibraryTrends(req.body);
+    if (!result.ok) {
+      return c.json(
+        { error: result.error, ...(result.details ? { details: result.details } : {}) },
+        result.status as 400 | 503,
+      );
+    }
+    return c.json(result.data);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
   //  AI CHAT — data-driven assistant using live dashboard context
   // ════════════════════════════════════════════════════════════════════════
 
@@ -2756,12 +2798,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let reply: string;
     try {
       let context: string | null = null;
+      let primaryAccount: { id: string; currency: string; timezone: string } | undefined;
       try {
         const ws = await prisma.workspace.findUnique({
           where: { id: workspaceId },
-          select: { name: true, adAccounts: { select: { id: true, currency: true } } },
+          select: { name: true, adAccounts: { select: { id: true, currency: true, timezone: true } } },
         });
-        const primaryAccount = ws?.adAccounts?.[0];
+        primaryAccount = ws?.adAccounts?.[0];
         if (primaryAccount) {
           const v5 = await buildAiContextV5(prisma, primaryAccount.id, message, {
             currency: primaryAccount.currency ?? undefined,
@@ -2776,6 +2819,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       if (!context) {
         context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      }
+      if (primaryAccount) {
+        const campaignCtx = await buildAiCampaignContext(
+          prisma,
+          primaryAccount.id,
+          primaryAccount.timezone,
+          dto,
+        );
+        context = mergeCampaignBlockIntoContext(context, campaignCtx.promptBlock);
       }
       reply = await askClaude(context);
     } catch (err) {

@@ -31,13 +31,19 @@ import { performance } from "node:perf_hooks";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import {
   evaluateCampaign,
+  evaluateBenchmarks,
   findActionsForBreaches,
   formatActionsForDisplay,
   type CampaignMetrics,
 } from "../knowledge";
+import {
+  resolveBenchmarkIndustryFromContext,
+  toBenchmarkEvaluationOptions,
+} from "../knowledge/industryRouting";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
+import { getCampaignCounts, type CampaignCounts } from "../lib/campaignCatalog";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
@@ -88,7 +94,17 @@ export interface DashboardDTO {
      *  IQD-vs-everything-else rule. */
     currencyMinorFactor: number;
     lastSyncedAt: string | null;
+    /** ACTIVE campaigns with spend today > 0 — kept for backward compatibility. */
     activeCampaigns: number;
+    /** Unified counts — same source used by AI + UI chips. */
+    campaignCounts: {
+      total: number;
+      activeStatus: number;
+      paused: number;
+      archived: number;
+      spendingToday: number;
+      withMetrics: number;
+    };
   };
   health: {
     score: number;
@@ -216,8 +232,9 @@ export interface BrainSection {
   ledger: InterventionsLedger;
 }
 
-interface CampaignCard {
+export interface CampaignCard {
   id: string;
+  metaId: string;
   name: string;
   health: number;
   band: string;
@@ -441,9 +458,6 @@ export async function getDashboard(
 
   const curr = account.currency;
   const factor = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
-  const activeCampaigns = await timedStage('activeSpendingCount', () =>
-    countActiveCampaigns(prisma, account.id, account.timezone),
-  );
   const sinceDate = utcDateFloor(windowDays);
   const priorSinceDate = utcDateFloor(windowDays * 2);
 
@@ -585,6 +599,11 @@ export async function getDashboard(
     cost_per_message: totalMsgs > 0 ? totalSpendMinor / totalMsgs : null,
   };
   const kbBreaches = evaluateCampaign(kbMetrics);
+  const resolvedIndustry = resolveBenchmarkIndustryFromContext({ workspace: ws });
+  const benchmarkInsights = evaluateBenchmarks(
+    kbMetrics,
+    toBenchmarkEvaluationOptions(resolvedIndustry),
+  );
   const kbActionTexts = formatActionsForDisplay(findActionsForBreaches(kbBreaches));
 
   const METRIC_ISSUE_CODE: Record<string, IssueCode> = {
@@ -615,6 +634,35 @@ export async function getDashboard(
         ],
         recommendations: texts,
         evidence: { source: "meta_ads_knowledge_base", knowledgeBase: breach },
+      });
+    }
+  }
+
+  // Benchmark-only insights: emit additional contextual guidance even when
+  // no hard KB threshold is breached, so the dashboard explains relative gaps.
+  for (const insight of benchmarkInsights) {
+    if (insight.comparison === "within") continue;
+    const code = METRIC_ISSUE_CODE[insight.metricKey] ?? IssueCode.LOW_CTR;
+    const existing = issues.find(i => i.code === code);
+    const recText = `${insight.inference} (Source: ${insight.source})`;
+    if (existing) {
+      if (!existing.recommendations.includes(recText)) {
+        existing.recommendations = [...existing.recommendations, recText];
+      }
+      existing.evidence = {
+        ...existing.evidence,
+        benchmarkInsight: insight,
+      };
+    } else {
+      issues.push({
+        code,
+        title: insight.metricLabel,
+        severity: "HIGH",
+        causes: [
+          `${insight.metricLabel} benchmark comparison is ${insight.comparison} (${insight.benchmarkText})`,
+        ],
+        recommendations: [recText],
+        evidence: { source: "industry_benchmark_intelligence", benchmarkInsight: insight },
       });
     }
   }
@@ -723,6 +771,11 @@ export async function getDashboard(
     buildCampaignCards(account.id, prisma, sinceDate, factor),
   );
 
+  const campaignCounts = await timedStage('campaignCounts', () =>
+    getCampaignCounts(prisma, account.id, account.timezone, cards.all.length),
+  );
+  const activeCampaigns = campaignCounts.spendingToday;
+
   // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
   //     Returns undefined when no snapshots exist for this workspace (V5-only render).
   const brain = await timedStage('brainSection', () =>
@@ -757,6 +810,7 @@ export async function getDashboard(
         healthScore: score,
         healthBand: band(score),
         activeCampaigns,
+        campaignCounts,
         stableCampaigns: cards.stable,
         brain,
         money,
@@ -774,6 +828,7 @@ export async function getDashboard(
       currencyMinorFactor: factor,
       lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
       activeCampaigns,
+      campaignCounts,
     },
     health: { score, band: band(score) },
     kpis,
@@ -808,6 +863,7 @@ function buildSteadyStateSummary(input: {
   healthScore: number;
   healthBand: ReturnType<typeof band>;
   activeCampaigns: number;
+  campaignCounts?: CampaignCounts;
   stableCampaigns: CampaignCard[];
   brain: BrainSection | null | undefined;
   money: (minor: number) => string;
@@ -887,12 +943,20 @@ function buildSteadyStateSummary(input: {
   }
 
   const pulse = input.brain?.livePulse;
+  const counts = input.campaignCounts;
   const pulseParts: string[] = [];
-  if (pulse?.campaignsObserved) {
+  if (counts && counts.total > 0) {
     pulseParts.push(
       t(
-        `Monitoring ${pulse.campaignsObserved} active campaign${pulse.campaignsObserved === 1 ? "" : "s"}`,
-        `مراقبة ${pulse.campaignsObserved} حملة نشطة`,
+        `Monitoring ${counts.total} campaigns (${counts.spendingToday} spending today, ${counts.activeStatus} active status)`,
+        `مراقبة ${counts.total} حملة (${counts.spendingToday} تنفق اليوم · ${counts.activeStatus} بحالة نشطة)`,
+      ),
+    );
+  } else if (pulse?.campaignsObserved) {
+    pulseParts.push(
+      t(
+        `Spend pace tracked on ${pulse.campaignsObserved} campaign${pulse.campaignsObserved === 1 ? "" : "s"}`,
+        `وتيرة الإنفاق على ${pulse.campaignsObserved} حملة`,
       ),
     );
   }
@@ -917,11 +981,11 @@ function buildSteadyStateSummary(input: {
     pulseParts.length > 0
       ? pulseParts.join(" · ")
       : t(
-          `AI is watching ${input.activeCampaigns} campaign${input.activeCampaigns === 1 ? "" : "s"} — health score ${input.healthScore} (${input.healthBand}).`,
-          `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
+          `AI is watching ${input.activeCampaigns} campaign${input.activeCampaigns === 1 ? "" : "s"} spending today — health score ${input.healthScore} (${input.healthBand}).`,
+          `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة تنفق اليوم — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
         );
 
-  const stableCount = stableCampaigns.length || input.activeCampaigns;
+  const stableCount = stableCampaigns.length || input.campaignCounts?.activeStatus || input.activeCampaigns;
   const namesPreview = stableCampaigns
     .slice(0, 3)
     .map((c) => c.name)
@@ -998,17 +1062,6 @@ function buildSteadyStateSummary(input: {
 }
 
 // ── Campaign cards: 30d window aggregates + latest health score. ──
-async function countActiveCampaigns(
-  prisma: PrismaClient,
-  adAccountId: string,
-  _timezone: string,
-): Promise<number> {
-  return prisma.campaign.count({
-    where: { adAccountId, status: "ACTIVE" },
-  });
-}
-
-// Uses bulk queries instead of N+1. Budget stays on campaigns table (not shown here).
 async function buildCampaignCards(
   adAccountId: string,
   prisma: PrismaClient,
@@ -1057,6 +1110,7 @@ async function buildCampaignCards(
     if (!rows?.length || !h) continue;
     cards.push({
       id: c.id,
+      metaId: c.externalCampaignId,
       name: c.name,
       health: h.score,
       band: band(h.score),

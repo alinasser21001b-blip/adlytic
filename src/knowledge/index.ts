@@ -1,6 +1,7 @@
 // src/knowledge/index.ts — public API for Meta Ads knowledge base.
 
 export type {
+  BenchmarkAssessment,
   BreachSeverity,
   CampaignMetrics,
   EvaluateMetricContext,
@@ -25,6 +26,23 @@ export {
   formatActionsForDisplay,
   getMetricDefinition,
 } from "./evaluate";
+
+export {
+  evaluateBenchmarks,
+  resetBenchmarkCache,
+  type BenchmarkEvaluationOptions,
+} from "./benchmarkIntelligence";
+
+export {
+  resolveBenchmarkIndustry,
+  resolveBenchmarkIndustryFromContext,
+  resolveBenchmarkIndustryFromProfile,
+  toBenchmarkEvaluationOptions,
+  type IndustryProfileLike,
+  type IndustryResolutionSource,
+  type IndustryRoutingContext,
+  type ResolvedBenchmarkIndustry,
+} from "./industryRouting";
 
 export {
   MetaKnowledgeInsightEngine,

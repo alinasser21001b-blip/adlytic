@@ -271,6 +271,185 @@ export function dashboardPage(): string {
   var REFRESH_MS = 30000;
   var refreshTimer = null;
   var chartInstances = {};
+  var chartResizeBound = false;
+  var pendingAdvancedCharts = null;
+  var CHART_MAIN_H = 280;
+  var CHART_CARD_H = 220;
+
+  function lockChartBox(canvasId, heightPx) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas || !canvas.parentElement) return;
+    var box = canvas.parentElement;
+    box.style.height = heightPx + 'px';
+    box.style.maxHeight = heightPx + 'px';
+    box.style.minHeight = heightPx + 'px';
+    box.style.overflow = 'hidden';
+  }
+
+  function isElementVisible(el) {
+    if (!el) return false;
+    var rect = el.getBoundingClientRect();
+    return rect.width > 40 && rect.height > 40;
+  }
+
+  function destroyChart(canvasId) {
+    if (chartInstances[canvasId]) {
+      try { chartInstances[canvasId].destroy(); } catch (e) {}
+      delete chartInstances[canvasId];
+    }
+  }
+
+  function resizeAllCharts() {
+    Object.keys(chartInstances).forEach(function (id) {
+      var canvas = document.getElementById(id);
+      if (!canvas || !isElementVisible(canvas)) return;
+      try { chartInstances[id].resize(); } catch (e) {}
+    });
+  }
+
+  function bindChartResize() {
+    if (chartResizeBound) return;
+    chartResizeBound = true;
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeAllCharts, 150);
+    });
+    var details = document.querySelector('.v2-advanced');
+    if (details) {
+      details.addEventListener('toggle', function () {
+        if (details.open) {
+          renderAdvancedCharts(true);
+          setTimeout(resizeAllCharts, 50);
+        }
+      });
+    }
+  }
+
+  function buildDataset(label, data, color, bg, fillArea) {
+    return {
+      label: label,
+      data: data,
+      borderColor: color,
+      backgroundColor: bg,
+      fill: fillArea !== false,
+      tension: 0.35,
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      spanGaps: true,
+    };
+  }
+
+  function makeLineChart(canvasId, labels, datasets, opts) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+    var heightPx = (canvasId === 'chart-spend-main') ? CHART_MAIN_H : CHART_CARD_H;
+    lockChartBox(canvasId, heightPx);
+
+    if (!isElementVisible(canvas) && canvasId !== 'chart-spend-main') {
+      return null;
+    }
+
+    if (chartInstances[canvasId]) {
+      chartInstances[canvasId].data.labels = labels;
+      chartInstances[canvasId].data.datasets = datasets;
+      chartInstances[canvasId].update('none');
+      return chartInstances[canvasId];
+    }
+
+    destroyChart(canvasId);
+    var ctx = canvas.getContext('2d');
+    chartInstances[canvasId] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#221D19',
+            borderColor: '#3D352D',
+            borderWidth: 1,
+            titleColor: '#F3EFE7',
+            bodyColor: '#B8AC9C',
+            padding: 10,
+            filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#322B25' },
+            ticks: { color: '#746A5C', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } },
+          },
+          y: {
+            grid: { color: '#322B25' },
+            ticks: { color: '#746A5C', font: { size: 11 } },
+            beginAtZero: true,
+          }
+        },
+        elements: { point: { radius: 0, hoverRadius: 4 } },
+        onClick: function (evt, elements, chart) {
+          if (!elements || !elements.length) return;
+          var el = elements[0];
+          var ds = chart.data.datasets[el.datasetIndex];
+          if (ds && ds.isIssueMarkers && ds.pointDates && ds.pointDates[el.index]) {
+            openTimelineAttribution(ds.pointDates[el.index]);
+          }
+        },
+      }
+    });
+    bindChartResize();
+    return chartInstances[canvasId];
+  }
+
+  function renderAdvancedCharts(force) {
+    if (!pendingAdvancedCharts) return;
+    var details = document.querySelector('.v2-advanced');
+    if (!force && details && !details.open) return;
+    var p = pendingAdvancedCharts;
+    var hasCtr = p.ctrSeries.some(function (v) { return v > 0; });
+    var hasMsgs = p.impSeries.some(function (v) { return v > 0; });
+    var ctrCard = document.getElementById('adv-ctr-card');
+    var msgCard = document.getElementById('adv-msgs-card');
+    if (ctrCard) ctrCard.style.display = hasCtr ? '' : 'none';
+    if (msgCard) msgCard.style.display = hasMsgs ? '' : 'none';
+    if (hasCtr) {
+      makeLineChart('chart-ctr', p.labels, [
+        buildDataset(lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'), p.ctrSeries, '#34A871', 'rgba(52,168,113,0.08)'),
+      ]);
+    }
+    if (hasMsgs) {
+      makeLineChart('chart-impressions', p.labels, [
+        buildDataset(lbl('Messages', 'الرسائل'), p.impSeries, '#C77A1F', 'rgba(199,122,31,0.08)'),
+      ]);
+    }
+  }
+
+  function buildIssueMarkerDataset(labels, isoDates, issueDates) {
+    if (!Array.isArray(issueDates) || !issueDates.length) return null;
+    var severityColor = { CRITICAL: '#C7382A', HIGH: '#E2604F', MEDIUM: '#C77A1F', LOW: '#746A5C' };
+    var isoToIndex = {};
+    isoDates.forEach(function (d, i) { isoToIndex[d] = i; });
+    var points = [], pointDates = [], colors = [];
+    issueDates.forEach(function (iss) {
+      var idx = isoToIndex[iss.date];
+      if (idx == null) return;
+      points.push({ x: labels[idx], y: 0 });
+      pointDates.push(iss.date);
+      colors.push(severityColor[iss.severity] || '#746A5C');
+    });
+    if (!points.length) return null;
+    return {
+      type: 'scatter', label: 'مشاكل مكتشفة', data: points,
+      pointDates: pointDates, isIssueMarkers: true,
+      backgroundColor: colors, pointRadius: 6, pointHoverRadius: 8,
+      showLine: false, order: 0,
+    };
+  }
   var state = {
     currency: 'USD',
     minorFactor: 100,
@@ -309,82 +488,6 @@ export function dashboardPage(): string {
     el.textContent = synced
       ? (lbl('Synced ', 'آخر مزامنة ') + formatLastUpdated(synced))
       : (lbl('Updated ', 'حُدّث ') + formatLastUpdated(new Date()));
-  }
-
-  // ── Chart.js wrapper ────────────────────────────────────────────────────
-  function makeLineChart(canvasId, labels, datasets, opts) {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas) return null;
-    if (chartInstances[canvasId]) {
-      chartInstances[canvasId].data.labels = labels;
-      chartInstances[canvasId].data.datasets = datasets;
-      chartInstances[canvasId].update('none');
-      return chartInstances[canvasId];
-    }
-    var ctx = canvas.getContext('2d');
-    chartInstances[canvasId] = new Chart(ctx, {
-      type: 'line',
-      data: { labels: labels, datasets: datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#221D19',
-            borderColor: '#3D352D',
-            borderWidth: 1,
-            titleColor: '#F3EFE7',
-            bodyColor: '#B8AC9C',
-            padding: 10,
-            // Timeline Explorer's marker dataset sits at y:0 purely for
-            // positioning — it has no value worth showing in the tooltip.
-            filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
-          }
-        },
-        scales: {
-          x: { grid: { color: '#322B25' }, ticks: { color: '#746A5C', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
-          y: { grid: { color: '#322B25' }, ticks: { color: '#746A5C', font: { size: 11 } } }
-        },
-        elements: { point: { radius: 0, hoverRadius: 4 } },
-        // Timeline Explorer — click a marker to see that day's attribution.
-        onClick: function (evt, elements, chart) {
-          if (!elements || !elements.length) return;
-          var el = elements[0];
-          var ds = chart.data.datasets[el.datasetIndex];
-          if (ds && ds.isIssueMarkers && ds.pointDates && ds.pointDates[el.index]) {
-            openTimelineAttribution(ds.pointDates[el.index]);
-          }
-        },
-      }
-    });
-    return chartInstances[canvasId];
-  }
-
-  // Timeline Explorer — builds the secondary scatter dataset of small dots
-  // under the spend line, one per day with an active account-level issue.
-  // See PHASE3_IFA_DESIGN.md §3.
-  function buildIssueMarkerDataset(labels, isoDates, issueDates) {
-    if (!Array.isArray(issueDates) || !issueDates.length) return null;
-    var severityColor = { CRITICAL: '#C7382A', HIGH: '#E2604F', MEDIUM: '#C77A1F', LOW: '#746A5C' };
-    var isoToIndex = {};
-    isoDates.forEach(function (d, i) { isoToIndex[d] = i; });
-    var points = [], pointDates = [], colors = [];
-    issueDates.forEach(function (iss) {
-      var idx = isoToIndex[iss.date];
-      if (idx == null) return;
-      points.push({ x: labels[idx], y: 0 });
-      pointDates.push(iss.date);
-      colors.push(severityColor[iss.severity] || '#746A5C');
-    });
-    if (!points.length) return null;
-    return {
-      type: 'scatter', label: 'مشاكل مكتشفة', data: points,
-      pointDates: pointDates, isIssueMarkers: true,
-      backgroundColor: colors, pointRadius: 6, pointHoverRadius: 8,
-      showLine: false, order: 0,
-    };
   }
 
   // ── Hero cards ──────────────────────────────────────────────────────────
@@ -582,7 +685,7 @@ export function dashboardPage(): string {
   }
 
   // ── Active Ads Showcase ─────────────────────────────────────────────────
-  function renderActiveAds(campaigns) {
+  function renderActiveAds(campaigns, campaignCounts) {
     var active = (campaigns || []).filter(function (c) { return c.isCurrentlySpending === true; });
     var sec = document.getElementById('active-section');
     var grid = document.getElementById('active-grid');
@@ -590,7 +693,15 @@ export function dashboardPage(): string {
     if (!sec || !grid) return;
     if (active.length === 0) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
-    if (meta) meta.textContent = active.length + ' ' + lbl('spending today', 'حملة تُنفق اليوم');
+    if (meta) {
+      if (campaignCounts) {
+        meta.textContent = campaignCounts.spendingToday + ' ' + lbl('spending today', 'تنفق اليوم')
+          + ' · ' + campaignCounts.activeStatus + ' ' + lbl('active', 'نشطة')
+          + ' · ' + campaignCounts.total + ' ' + lbl('total', 'إجمالي');
+      } else {
+        meta.textContent = active.length + ' ' + lbl('spending today', 'حملة تُنفق اليوم');
+      }
+    }
     grid.innerHTML = active.slice(0, 12).map(function (c) {
       var budget = c.dailyBudget
         ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
@@ -767,23 +878,7 @@ export function dashboardPage(): string {
   // <details> is open (see the 0×0-canvas note above). Hides a card whose
   // series is all zeros instead of showing an empty box.
   function renderAdvancedChartsIfOpen() {
-    var det = document.querySelector('details.v2-advanced');
-    var data = state._advCharts;
-    if (!det || !det.open || !data) return;
-    var hasCtr  = data.ctr.some(function (v) { return v > 0; });
-    var hasMsgs = data.msgs.some(function (v) { return v > 0; });
-    var ctrCard = document.getElementById('adv-ctr-card');
-    var msgCard = document.getElementById('adv-msgs-card');
-    if (ctrCard) ctrCard.style.display = hasCtr ? '' : 'none';
-    if (msgCard) msgCard.style.display = hasMsgs ? '' : 'none';
-    if (hasCtr) {
-      var c1 = makeLineChart('chart-ctr', data.labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'), data: data.ctr, borderColor: '#34A871', backgroundColor: 'rgba(52,168,113,0.08)', fill: true, tension: 0.4 }]);
-      if (c1) c1.resize();
-    }
-    if (hasMsgs) {
-      var c2 = makeLineChart('chart-impressions', data.labels, [{ label: lbl('Messages', 'الرسائل'), data: data.msgs, borderColor: '#C77A1F', backgroundColor: 'rgba(199,122,31,0.08)', fill: true, tension: 0.4 }]);
-      if (c2) c2.resize();
-    }
+    renderAdvancedCharts(true);
   }
 
   function renderAttribution(attr) {
@@ -1318,7 +1413,7 @@ export function dashboardPage(): string {
     el = document.getElementById('brain-pulse-burn-label');
     if (el) el.textContent = lbl('Spend pace', 'سرعة الإنفاق');
     el = document.getElementById('brain-pulse-burn-meta');
-    if (el) el.textContent = lbl('campaigns', 'حملات');
+    if (el) el.textContent = lbl('with spend pace today', 'بوتيرة إنفاق اليوم');
     el = document.getElementById('brain-pulse-spend-label');
     if (el) el.textContent = lbl("Today's spend share", 'حصة الإنفاق اليوم');
     el = document.getElementById('brain-pulse-spend-meta');
@@ -1568,7 +1663,7 @@ export function dashboardPage(): string {
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
       safeRender('ticker', function () { renderTicker(buildTickerItems(dashData), dashData); });
       safeRender('aiContext', function () { renderAiContextStrip(dashData, campaigns); });
-      safeRender('activeAds', function () { renderActiveAds(campaigns); });
+      safeRender('activeAds', function () { renderActiveAds(campaigns, dashData.workspace && dashData.workspace.campaignCounts); });
       safeRender('brainBox', function () { renderBrainBox(dashData); });
 
       if (dashData.brain) {
@@ -1606,10 +1701,7 @@ export function dashboardPage(): string {
         isoDates = tsIso;
       }
 
-      // Chart.js needs a laid-out canvas to measure dimensions — creating
-      // inside display:none yields 0×0 charts. Defer to next frame so the
-      // container is visible and canvas dimensions are resolved.
-      state._advCharts = { labels: labels, ctr: ctrSeries, msgs: impSeries };
+      pendingAdvancedCharts = { labels: labels, ctrSeries: ctrSeries, impSeries: impSeries };
       var _chartLabels = labels, _chartIsoDates = isoDates, _spendSeriesMajor = spendSeriesMajor;
       requestAnimationFrame(function () {
         safeRender('charts', function () {
@@ -1622,12 +1714,14 @@ export function dashboardPage(): string {
           } else {
             if (emptyEl) emptyEl.style.display = 'none';
             if (canvasEl) canvasEl.style.display = '';
-            var spendDatasets = [{ label: lbl('Spend', 'الإنفاق'), data: _spendSeriesMajor, borderColor: '#D9A759', backgroundColor: 'rgba(217,167,89,0.12)', fill: true, tension: 0.4, borderWidth: 2 }];
+            var spendDatasets = [
+              buildDataset(lbl('Spend', 'الإنفاق'), _spendSeriesMajor, '#D9A759', 'rgba(217,167,89,0.12)'),
+            ];
             var markerDataset = buildIssueMarkerDataset(_chartLabels, _chartIsoDates, state.lastIssueDates);
             if (markerDataset) spendDatasets.push(markerDataset);
             makeLineChart('chart-spend-main', _chartLabels, spendDatasets, { maxTicks: 10 });
           }
-          renderAdvancedChartsIfOpen();
+          renderAdvancedCharts(false);
         });
       });
 
