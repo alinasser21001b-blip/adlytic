@@ -119,15 +119,27 @@ export const dashboardStyles = `<style>
     @keyframes ticker-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
 
-    /* AI Context Strip — explains what AI monitors */
+    /* AI Context Strip — account snapshot pills */
     .ai-context-strip {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      font-size: 11px; color: var(--text-3); padding: 6px 14px;
-      margin-bottom: 16px; border-radius: var(--radius);
-      background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+      display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 18px; direction: rtl;
     }
-    .ai-context-item { display: inline-flex; align-items: center; gap: 4px; }
-    .ai-context-sep { color: var(--text-3); opacity: 0.4; }
+    .ai-ctx-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 11.5px; color: var(--text-2);
+      padding: 8px 14px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .ai-ctx-pill-primary {
+      border-color: rgba(217,167,89,0.35);
+      background: rgba(217,167,89,0.08);
+      color: var(--text);
+      font-weight: 500;
+    }
+    .ai-ctx-pill-muted { opacity: 0.85; }
+    .ai-ctx-pill b { color: var(--accent-2); font-weight: 800; }
+    .ai-ctx-icon { font-size: 13px; line-height: 1; }
 
     /* Active Ads Showcase Grid */
     .active-section { margin-bottom: 24px; }

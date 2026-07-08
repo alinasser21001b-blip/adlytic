@@ -118,13 +118,12 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 3b ▸ AI Context Strip — explains what the AI monitors -->
+      <!-- 3b ▸ AI Context Strip — account snapshot for AI monitoring -->
       <div class="ai-context-strip" id="ai-context-strip" style="display:none;" dir="auto">
-        <span class="ai-context-item" id="ai-ctx-campaigns"></span>
-        <span class="ai-context-sep">·</span>
-        <span class="ai-context-item" id="ai-ctx-window"></span>
-        <span class="ai-context-sep">·</span>
-        <span class="ai-context-item" id="ai-ctx-interval"></span>
+        <div class="ai-ctx-pill ai-ctx-pill-primary" id="ai-ctx-campaigns"></div>
+        <div class="ai-ctx-pill" id="ai-ctx-window"></div>
+        <div class="ai-ctx-pill" id="ai-ctx-sync"></div>
+        <div class="ai-ctx-pill ai-ctx-pill-muted" id="ai-ctx-interval"></div>
       </div>
 
       <!-- 3 ▸ Active Ads Showcase -->
@@ -673,14 +672,31 @@ export function dashboardPage(): string {
   function renderAiContextStrip(dashData, campaigns) {
     var strip = document.getElementById('ai-context-strip');
     if (!strip) return;
-    var campCount = Array.isArray(campaigns) ? campaigns.length : 0;
-    var activeCount = Array.isArray(campaigns) ? campaigns.filter(function (c) { return c.isCurrentlySpending; }).length : 0;
+    var cc = dashData && dashData.workspace && dashData.workspace.campaignCounts;
+    var delivering = cc ? cc.deliveringInWindow : 0;
+    var spendingToday = cc ? cc.spendingToday : 0;
+    var dormant = cc ? cc.dormantActive : 0;
+    var total = cc ? cc.total : (Array.isArray(campaigns) ? campaigns.length : 0);
+    var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
     var ctxCampaigns = document.getElementById('ai-ctx-campaigns');
     var ctxWindow = document.getElementById('ai-ctx-window');
+    var ctxSync = document.getElementById('ai-ctx-sync');
     var ctxInterval = document.getElementById('ai-ctx-interval');
-    if (ctxCampaigns) ctxCampaigns.textContent = '🔍 ' + lbl('Monitoring ', 'يراقب ') + campCount + lbl(' campaigns', ' حملة') + (activeCount ? ' (' + activeCount + lbl(' active', ' نشطة') + ')' : '');
-    if (ctxWindow) ctxWindow.textContent = '📅 ' + lbl('28-day analysis window', 'نافذة تحليل 28 يوم');
-    if (ctxInterval) ctxInterval.textContent = '⚡ ' + lbl('Auto-sync every 15min', 'مزامنة تلقائية كل 15 دقيقة');
+    if (ctxCampaigns) {
+      ctxCampaigns.innerHTML = '<span class="ai-ctx-icon">📊</span><span><b>' + delivering + '</b> '
+        + lbl('delivering', 'تعمل') + ' · ' + spendingToday + ' '
+        + lbl('today', 'اليوم') + ' · ' + dormant + ' '
+        + lbl('dormant', 'بدون إنفاق') + ' / ' + total + ' '
+        + lbl('total', 'إجمالي');
+    }
+    if (ctxWindow) ctxWindow.innerHTML = '<span class="ai-ctx-icon">📅</span>' + lbl('30-day analysis window', 'نافذة 30 يوم');
+    if (ctxSync) {
+      var syncTxt = synced
+        ? lbl('Synced ', 'آخر مزامنة ') + formatLastUpdated(synced)
+        : lbl('Awaiting sync', 'بانتظار المزامنة');
+      ctxSync.innerHTML = '<span class="ai-ctx-icon">🔄</span>' + escHtml(syncTxt);
+    }
+    if (ctxInterval) ctxInterval.innerHTML = '<span class="ai-ctx-icon">⚡</span>' + lbl('Auto-sync every 15min', 'مزامنة كل 15 دقيقة');
     strip.style.display = 'flex';
   }
 

@@ -1123,6 +1123,10 @@ const ICONS: Record<string, string> = {
 export const SHARED_JS = `
 const API = '';
 
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function getToken() { return localStorage.getItem('adlytic_token') || ''; }
 function getWsId()  { return localStorage.getItem('adlytic_workspace_id') || ''; }
 function setWsId(id) { localStorage.setItem('adlytic_workspace_id', id); }
