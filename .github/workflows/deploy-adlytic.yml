@@ -9,7 +9,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'nixpacks.toml'
-      - 'railway.json'
+      - 'railway.toml'
+      - '.npmrc'
       - '.deploy/**'
       - '.github/workflows/deploy-adlytic.yml'
 

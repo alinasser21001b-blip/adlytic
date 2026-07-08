@@ -1,0 +1,11 @@
+# thriving-manifestation — background sync worker (لا ينشر من GitHub)
+[build]
+builder = "NIXPACKS"
+watchPatterns = ["__railway_skip_autodeploy__/**"]
+
+[deploy]
+startCommand = "node dist/src/api/serve.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
