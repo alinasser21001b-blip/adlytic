@@ -247,6 +247,143 @@ export function dashboardPage(): string {
   var REFRESH_MS = 30000;
   var refreshTimer = null;
   var chartInstances = {};
+  var chartResizeBound = false;
+  var pendingAdvancedCharts = null;
+  var CHART_MAIN_H = 280;
+  var CHART_CARD_H = 220;
+
+  function lockChartBox(canvasId, heightPx) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas || !canvas.parentElement) return;
+    var box = canvas.parentElement;
+    box.style.height = heightPx + 'px';
+    box.style.maxHeight = heightPx + 'px';
+    box.style.minHeight = heightPx + 'px';
+    box.style.overflow = 'hidden';
+  }
+
+  function isElementVisible(el) {
+    if (!el) return false;
+    var rect = el.getBoundingClientRect();
+    return rect.width > 40 && rect.height > 40;
+  }
+
+  function destroyChart(canvasId) {
+    if (chartInstances[canvasId]) {
+      try { chartInstances[canvasId].destroy(); } catch (e) {}
+      delete chartInstances[canvasId];
+    }
+  }
+
+  function resizeAllCharts() {
+    Object.keys(chartInstances).forEach(function (id) {
+      var canvas = document.getElementById(id);
+      if (!canvas || !isElementVisible(canvas)) return;
+      try { chartInstances[id].resize(); } catch (e) {}
+    });
+  }
+
+  function bindChartResize() {
+    if (chartResizeBound) return;
+    chartResizeBound = true;
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeAllCharts, 150);
+    });
+    var details = document.querySelector('.v2-advanced');
+    if (details) {
+      details.addEventListener('toggle', function () {
+        if (details.open) {
+          renderAdvancedCharts(true);
+          setTimeout(resizeAllCharts, 50);
+        }
+      });
+    }
+  }
+
+  function buildDataset(label, data, color, bg, fillArea) {
+    return {
+      label: label,
+      data: data,
+      borderColor: color,
+      backgroundColor: bg,
+      fill: fillArea !== false,
+      tension: 0.35,
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      spanGaps: true,
+    };
+  }
+
+  function makeLineChart(canvasId, labels, datasets, opts) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+    var heightPx = (canvasId === 'chart-spend-main') ? CHART_MAIN_H : CHART_CARD_H;
+    lockChartBox(canvasId, heightPx);
+
+    if (!isElementVisible(canvas) && canvasId !== 'chart-spend-main') {
+      return null;
+    }
+
+    if (chartInstances[canvasId]) {
+      chartInstances[canvasId].data.labels = labels;
+      chartInstances[canvasId].data.datasets = datasets;
+      chartInstances[canvasId].update('none');
+      return chartInstances[canvasId];
+    }
+
+    destroyChart(canvasId);
+    var ctx = canvas.getContext('2d');
+    chartInstances[canvasId] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#18181b',
+            borderColor: '#232326',
+            borderWidth: 1,
+            titleColor: '#f1f0f0',
+            bodyColor: '#a0a0b0',
+            padding: 10,
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#232326' },
+            ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } },
+          },
+          y: {
+            grid: { color: '#232326' },
+            ticks: { color: '#5a5a6a', font: { size: 11 } },
+            beginAtZero: true,
+          }
+        },
+      }
+    });
+    bindChartResize();
+    return chartInstances[canvasId];
+  }
+
+  function renderAdvancedCharts(force) {
+    if (!pendingAdvancedCharts) return;
+    var details = document.querySelector('.v2-advanced');
+    if (!force && details && !details.open) return;
+    var p = pendingAdvancedCharts;
+    makeLineChart('chart-ctr', p.labels, [
+      buildDataset(lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'), p.ctrSeries, '#22c55e', 'rgba(34,197,94,0.08)'),
+    ]);
+    makeLineChart('chart-impressions', p.labels, [
+      buildDataset(lbl('Messages', 'الرسائل'), p.impSeries, '#f59e0b', 'rgba(245,158,11,0.08)'),
+    ]);
+  }
   var state = {
     currency: 'USD',
     minorFactor: 100,
@@ -282,77 +419,6 @@ export function dashboardPage(): string {
     el.textContent = synced
       ? ('Synced ' + formatLastUpdated(synced))
       : ('Updated ' + formatLastUpdated(new Date()));
-  }
-
-  // ── Chart.js wrapper ────────────────────────────────────────────────────
-  var chartResizeBound = false;
-  function destroyChart(canvasId) {
-    if (chartInstances[canvasId]) {
-      try { chartInstances[canvasId].destroy(); } catch (e) {}
-      delete chartInstances[canvasId];
-    }
-  }
-  function resizeAllCharts() {
-    Object.keys(chartInstances).forEach(function (id) {
-      try { chartInstances[id].resize(); } catch (e) {}
-    });
-  }
-  function bindChartResize() {
-    if (chartResizeBound) return;
-    chartResizeBound = true;
-    var resizeTimer = null;
-    function scheduleResize() {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(resizeAllCharts, 120);
-    }
-    window.addEventListener('resize', scheduleResize);
-    if (typeof ResizeObserver !== 'undefined') {
-      var ro = new ResizeObserver(scheduleResize);
-      document.querySelectorAll('.chart-panel-canvas, .chart-canvas-wrap').forEach(function (el) {
-        ro.observe(el);
-      });
-    }
-  }
-  function makeLineChart(canvasId, labels, datasets, opts) {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas) return null;
-    if (chartInstances[canvasId]) {
-      chartInstances[canvasId].data.labels = labels;
-      chartInstances[canvasId].data.datasets = datasets;
-      chartInstances[canvasId].update('none');
-      chartInstances[canvasId].resize();
-      return chartInstances[canvasId];
-    }
-    destroyChart(canvasId);
-    var ctx = canvas.getContext('2d');
-    chartInstances[canvasId] = new Chart(ctx, {
-      type: 'line',
-      data: { labels: labels, datasets: datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        resizeDelay: 150,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#18181b',
-            borderColor: '#232326',
-            borderWidth: 1,
-            titleColor: '#f1f0f0',
-            bodyColor: '#a0a0b0',
-            padding: 10,
-          }
-        },
-        scales: {
-          x: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } } },
-          y: { grid: { color: '#232326' }, ticks: { color: '#5a5a6a', font: { size: 11 } }, beginAtZero: true }
-        },
-        elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.35 } }
-      }
-    });
-    bindChartResize();
-    return chartInstances[canvasId];
   }
 
   // ── Hero cards ──────────────────────────────────────────────────────────
@@ -1462,9 +1528,11 @@ export function dashboardPage(): string {
       }
 
       safeRender('charts', function () {
-        makeLineChart('chart-spend-main', labels, [{ label: lbl('Spend', 'الإنفاق'), data: spendSeriesMajor, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.4, borderWidth: 2 }], { maxTicks: 10 });
-        makeLineChart('chart-ctr',        labels, [{ label: lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'),  data: ctrSeries, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4 }]);
-        makeLineChart('chart-impressions', labels, [{ label: lbl('Messages', 'الرسائل'), data: impSeries, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true, tension: 0.4 }]);
+        makeLineChart('chart-spend-main', labels, [
+          buildDataset(lbl('Spend', 'الإنفاق'), spendSeriesMajor, '#6366f1', 'rgba(99,102,241,0.12)'),
+        ], { maxTicks: 10 });
+        pendingAdvancedCharts = { labels: labels, ctrSeries: ctrSeries, impSeries: impSeries };
+        renderAdvancedCharts(false);
       });
 
       safeRender('attribution', function () { renderAttribution(dashData.attribution || null); });

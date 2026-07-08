@@ -338,32 +338,42 @@ export function campaignsPage(): string {
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
   var chartResizeBound = false;
+  var CHART_CARD_H = 220;
+
+  function lockChartBox(canvasId, heightPx) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas || !canvas.parentElement) return;
+    var box = canvas.parentElement;
+    box.style.height = heightPx + 'px';
+    box.style.maxHeight = heightPx + 'px';
+    box.style.minHeight = heightPx + 'px';
+    box.style.overflow = 'hidden';
+  }
+
   function destroyChartInstance(chart) {
     if (chart) {
       try { chart.destroy(); } catch (e) {}
     }
   }
-  function bindChartResize(charts) {
+
+  function bindChartResize() {
     if (chartResizeBound) return;
     chartResizeBound = true;
     var resizeTimer = null;
-    function scheduleResize() {
+    window.addEventListener('resize', function () {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
         [state.spendChart, state.ctrChart].forEach(function (c) {
           if (c) try { c.resize(); } catch (e) {}
         });
-      }, 120);
-    }
-    window.addEventListener('resize', scheduleResize);
-    if (typeof ResizeObserver !== 'undefined') {
-      var ro = new ResizeObserver(scheduleResize);
-      document.querySelectorAll('.chart-canvas-wrap').forEach(function (el) { ro.observe(el); });
-    }
+      }, 150);
+    });
   }
+
   function makeLineChart(canvasId, labels, datasets) {
     var canvas = document.getElementById(canvasId);
     if (!canvas) return null;
+    lockChartBox(canvasId, CHART_CARD_H);
     var ctx = canvas.getContext('2d');
     var chart = new Chart(ctx, {
       type: 'line',
@@ -371,7 +381,7 @@ export function campaignsPage(): string {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        resizeDelay: 150,
+        animation: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
@@ -395,7 +405,7 @@ export function campaignsPage(): string {
             beginAtZero: true
           }
         },
-        elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.35 } }
+        elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.35, spanGaps: true } }
       }
     });
     bindChartResize();
@@ -417,8 +427,8 @@ export function campaignsPage(): string {
       state.spendChart.data.labels = labels;
       state.spendChart.data.datasets[0].data = spendData;
       state.spendChart.update('none');
-      state.spendChart.resize();
     } else {
+      destroyChartInstance(state.spendChart);
       state.spendChart = makeLineChart('chart-spend', labels, [{
         label: 'Spend',
         data: spendData,
@@ -438,8 +448,8 @@ export function campaignsPage(): string {
         state.ctrChart.data.labels = labels;
         state.ctrChart.data.datasets[0].data = ctrData;
         state.ctrChart.update('none');
-        state.ctrChart.resize();
       } else {
+        destroyChartInstance(state.ctrChart);
         state.ctrChart = makeLineChart('chart-ctr', labels, [{
           label: 'CTR (%)',
           data: ctrData,
