@@ -529,7 +529,7 @@ export function dashboardPage(): string {
       var cls = (up === !!goodWhenUp) ? 'up' : 'down';
       // Spend going up is bad for cost-control; goodWhenUp = false
       el.className = 'hero-delta ' + cls;
-      el.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '% vs prior';
+      el.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '% ' + lbl('vs prior', 'مقابل السابق');
     }
 
     // 30d delta: align with KPI DTO when present (30d vs prior-30d server math).
@@ -634,10 +634,8 @@ export function dashboardPage(): string {
     var freshnessEl = document.getElementById('ticker-freshness');
     if (!wrap || !track) return;
 
-    // Header title (bilingual)
     if (titleEl) titleEl.textContent = lbl('AI Monitor', 'مراقب الذكاء الاصطناعي');
 
-    // Freshness indicator
     if (freshnessEl) {
       var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
       if (synced) {
@@ -652,21 +650,22 @@ export function dashboardPage(): string {
     }
 
     var catIcon = { strategy: '🎯', alert: '⚠️', performance: '📊', insight: '💡' };
-    var html = items.concat(items).map(function (it) {
+    var shown = items.slice(0, 4);
+    track.innerHTML = shown.map(function (it) {
       var icon = catIcon[it.category] || '•';
       var catCls = 'cat-' + (it.category || 'insight');
-      var tooltipHtml = it.explain
-        ? '<span class="ticker-tooltip" dir="auto">' + escHtml(it.explain) + '</span>'
+      var explain = it.explain
+        ? '<div class="ticker-explain" dir="auto">' + escHtml(it.explain) + '</div>'
         : '';
-      return '<span class="ticker-item">'
-        + '<span class="ticker-icon">' + icon + '</span>'
-        + '<span class="ticker-dot ' + it.severity + '"></span>'
-        + '<span class="ticker-badge ' + catCls + '">' + escHtml(it.badge) + '</span>'
-        + '<span class="ticker-text" dir="auto">' + escHtml(it.text) + '</span>'
-        + tooltipHtml
-      + '</span>';
+      return '<div class="ticker-item">'
+        + '<div class="ticker-item-top">'
+          + '<span class="ticker-icon">' + icon + '</span>'
+          + '<span class="ticker-badge ' + catCls + '">' + escHtml(it.badge) + '</span>'
+        + '</div>'
+        + '<div class="ticker-text" dir="auto">' + escHtml(it.text) + '</div>'
+        + explain
+      + '</div>';
     }).join('');
-    track.innerHTML = html;
     wrap.style.display = 'block';
   }
   function renderAiContextStrip(dashData, campaigns) {
@@ -683,21 +682,28 @@ export function dashboardPage(): string {
     var ctxSync = document.getElementById('ai-ctx-sync');
     var ctxInterval = document.getElementById('ai-ctx-interval');
     if (ctxCampaigns) {
-      ctxCampaigns.innerHTML = '<span class="ai-ctx-icon">📊</span><span><b>' + delivering + '</b> '
-        + lbl('delivering', 'تعمل') + ' · ' + spendingToday + ' '
-        + lbl('today', 'اليوم') + ' · ' + dormant + ' '
-        + lbl('dormant', 'بدون إنفاق') + ' / ' + total + ' '
-        + lbl('total', 'إجمالي');
+      ctxCampaigns.innerHTML = '<div class="ai-ctx-label">' + lbl('Campaigns', 'الحملات') + '</div>'
+        + '<div class="ai-ctx-value"><b>' + delivering + '</b> ' + lbl('delivering', 'تعمل')
+        + ' · ' + spendingToday + ' ' + lbl('today', 'اليوم')
+        + ' · ' + dormant + ' ' + lbl('dormant', 'بدون إنفاق')
+        + ' / ' + total + ' ' + lbl('total', 'إجمالي') + '</div>';
     }
-    if (ctxWindow) ctxWindow.innerHTML = '<span class="ai-ctx-icon">📅</span>' + lbl('30-day analysis window', 'نافذة 30 يوم');
+    if (ctxWindow) {
+      ctxWindow.innerHTML = '<div class="ai-ctx-label">' + lbl('Analysis window', 'نافذة التحليل') + '</div>'
+        + '<div class="ai-ctx-value">' + lbl('Last 30 days', 'آخر 30 يوماً') + '</div>';
+    }
     if (ctxSync) {
       var syncTxt = synced
-        ? lbl('Synced ', 'آخر مزامنة ') + formatLastUpdated(synced)
+        ? formatLastUpdated(synced)
         : lbl('Awaiting sync', 'بانتظار المزامنة');
-      ctxSync.innerHTML = '<span class="ai-ctx-icon">🔄</span>' + escHtml(syncTxt);
+      ctxSync.innerHTML = '<div class="ai-ctx-label">' + lbl('Last sync', 'آخر مزامنة') + '</div>'
+        + '<div class="ai-ctx-value">' + escHtml(syncTxt) + '</div>';
     }
-    if (ctxInterval) ctxInterval.innerHTML = '<span class="ai-ctx-icon">⚡</span>' + lbl('Auto-sync every 15min', 'مزامنة كل 15 دقيقة');
-    strip.style.display = 'flex';
+    if (ctxInterval) {
+      ctxInterval.innerHTML = '<div class="ai-ctx-label">' + lbl('Auto-sync', 'المزامنة التلقائية') + '</div>'
+        + '<div class="ai-ctx-value">' + lbl('Every 15 minutes', 'كل 15 دقيقة') + '</div>';
+    }
+    strip.style.display = 'grid';
   }
 
   // ── Active Ads Showcase ─────────────────────────────────────────────────
@@ -796,8 +802,12 @@ export function dashboardPage(): string {
       : '';
     var benchHtml = Array.isArray(steady.benchmarks) && steady.benchmarks.length > 0
       ? '<div class="main-move-benchmarks">' + steady.benchmarks.slice(0, 4).map(function (b) {
-          var cls = b.positive ? ' positive' : ' negative';
-          return '<span class="main-move-benchmark' + cls + '">' + escHtml(b.label + ': ' + b.valueDisplay + ' — ' + b.verdict) + '</span>';
+          var cls = b.positive === true ? ' positive' : (b.positive === false ? ' negative' : '');
+          return '<div class="main-move-benchmark' + cls + '">'
+            + '<span class="main-move-benchmark-label">' + escHtml(b.label) + '</span>'
+            + '<span class="main-move-benchmark-value">' + escHtml(b.valueDisplay) + '</span>'
+            + '<span class="main-move-benchmark-verdict">' + escHtml(b.verdict) + '</span>'
+          + '</div>';
         }).join('') + '</div>'
       : '';
     card.innerHTML = '<div class="main-move-primary steady" dir="auto">'
@@ -820,7 +830,10 @@ export function dashboardPage(): string {
     if (cards.length === 0) return false;
     list.innerHTML = cards.slice(0, 6).map(function (c) {
       return '<div class="strategy-card low">'
-        + '<div class="strategy-head"><div class="strategy-title">' + escHtml(c.title) + '</div></div>'
+        + '<div class="strategy-head">'
+          + '<div class="strategy-title">' + escHtml(c.title) + '</div>'
+          + '<span class="strategy-sev">' + escHtml(lbl('Stable', 'مستقر')) + '</span>'
+        + '</div>'
         + '<div class="strategy-body">' + escHtml(c.body) + '</div>'
       + '</div>';
     }).join('');
@@ -877,8 +890,15 @@ export function dashboardPage(): string {
       return;
     }
     list.innerHTML = cards.slice(0, 6).map(function (c) {
+      var sevLabel = c.sev === 'critical' ? lbl('Critical', 'حرج')
+        : c.sev === 'high' ? lbl('High', 'مرتفع')
+        : c.sev === 'medium' ? lbl('Watch', 'مراقبة')
+        : lbl('Info', 'معلومة');
       return '<div class="strategy-card ' + c.sev + '">'
-        + '<div class="strategy-head"><div class="strategy-title">' + escHtml(c.title) + '</div></div>'
+        + '<div class="strategy-head">'
+          + '<div class="strategy-title">' + escHtml(c.title) + '</div>'
+          + '<span class="strategy-sev">' + escHtml(sevLabel) + '</span>'
+        + '</div>'
         + '<div class="strategy-body">' + escHtml(c.body) + '</div>'
       + '</div>';
     }).join('');
