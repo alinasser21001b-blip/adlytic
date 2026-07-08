@@ -695,9 +695,9 @@ export function dashboardPage(): string {
     sec.style.display = 'block';
     if (meta) {
       if (campaignCounts) {
-        meta.textContent = campaignCounts.spendingToday + ' ' + lbl('spending today', 'تنفق اليوم')
-          + ' · ' + campaignCounts.activeStatus + ' ' + lbl('active', 'نشطة')
-          + ' · ' + campaignCounts.total + ' ' + lbl('total', 'إجمالي');
+        meta.textContent = campaignCounts.deliveringInWindow + ' ' + lbl('delivering', 'تعمل')
+          + ' · ' + campaignCounts.spendingToday + ' ' + lbl('spending today', 'تنفق اليوم')
+          + ' · ' + campaignCounts.dormantActive + ' ' + lbl('dormant', 'بدون إنفاق');
       } else {
         meta.textContent = active.length + ' ' + lbl('spending today', 'حملة تُنفق اليوم');
       }

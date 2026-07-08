@@ -84,7 +84,7 @@ export function campaignsPage(): string {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
       </div>
       <div class="camp-kpi-body">
-        <div class="camp-kpi-label">حملات تنفق</div>
+        <div class="camp-kpi-label">حملات تعمل</div>
         <div class="camp-kpi-value" id="active-campaigns">—</div>
         <div class="camp-kpi-sub" id="active-sub"></div>
       </div>
@@ -187,11 +187,19 @@ export function campaignsPage(): string {
   <!-- Campaigns table -->
   <div class="table-wrap">
     <div class="table-header">
-      <div class="table-title">جميع الحملات</div>
+      <div class="table-title">الحملات</div>
       <div class="table-filters" id="status-filters">
-        <button type="button" class="filter-chip active" data-status="ALL">الكل</button>
-        <button type="button" class="filter-chip" data-status="ACTIVE">نشطة</button>
+        <button type="button" class="filter-chip active" data-status="DELIVERING">تعمل</button>
+        <button type="button" class="filter-chip" data-status="TODAY">تنفق اليوم</button>
+        <button type="button" class="filter-chip" data-status="DORMANT">نشطة بدون إنفاق</button>
+        <button type="button" class="filter-chip" data-status="ACTIVE">Meta نشطة</button>
         <button type="button" class="filter-chip" data-status="PAUSED">متوقفة</button>
+        <button type="button" class="filter-chip" data-status="ARCHIVED">أرشيف</button>
+        <button type="button" class="filter-chip" data-status="ALL">الكل</button>
+      </div>
+      <div class="display-mode-toggle" id="display-mode-toggle">
+        <button type="button" class="view-btn active" data-view="table" title="عرض جدول">☰</button>
+        <button type="button" class="view-btn" data-view="cards" title="عرض بطاقات">▦</button>
       </div>
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -293,6 +301,24 @@ export function campaignsPage(): string {
     }
     .filter-chip:hover { color: var(--text); border-color: var(--text-3); }
     .filter-chip.active { color: var(--accent-2); background: var(--accent-dim); border-color: rgba(217,167,89,0.4); }
+    .display-mode-toggle { display: flex; gap: 4px; margin-inline-start: 8px; }
+    .view-btn {
+      width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-3); cursor: pointer; font-size: 14px;
+    }
+    .view-btn.active { color: var(--accent-2); border-color: rgba(217,167,89,0.45); background: var(--accent-dim); }
+    .delivery-badge {
+      display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 999px; margin-top: 4px; direction: rtl;
+    }
+    .delivery-badge.delivering { background: rgba(52,168,113,0.15); color: var(--success); }
+    .delivery-badge.today { background: rgba(217,167,89,0.18); color: var(--accent-2); }
+    .delivery-badge.dormant { background: rgba(199,122,31,0.15); color: #C77A1F; }
+    .delivery-badge.paused { background: rgba(116,106,92,0.15); color: var(--text-3); }
+    .action-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    .camp-cards-only .table-wrap table,
+    .camp-cards-only #table-container { display: none !important; }
+    .camp-table-only #campaigns-cards { display: none !important; }
     .th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
     .th-sort:hover { color: var(--text); }
     .th-sort::after { content: '↕'; opacity: 0.35; margin-inline-start: 5px; font-size: 10px; }
@@ -579,7 +605,8 @@ export function campaignsPage(): string {
     // matching how a media buyer scans Ads Manager.
     sortKey: 'spendWindowMinor',
     sortDir: -1,
-    statusFilter: 'ALL',
+    statusFilter: 'DELIVERING',
+    displayMode: 'table',
   };
 
   // ── Chart helpers ─────────────────────────────────────────────────────────
@@ -872,24 +899,62 @@ export function campaignsPage(): string {
     }
   }
 
+  function deliveryBadge(c) {
+    var tier = c.deliveryTier || '';
+    var labels = {
+      DELIVERING_TODAY: ['تنفق اليوم', 'today'],
+      DELIVERING_WINDOW: ['تعمل', 'delivering'],
+      DORMANT_ACTIVE: ['نشطة بدون إنفاق', 'dormant'],
+      PAUSED: ['متوقفة', 'paused'],
+      ARCHIVED: ['مؤرشفة', 'paused'],
+    };
+    var pair = labels[tier];
+    if (!pair) return '';
+    return '<span class="delivery-badge ' + pair[1] + '">' + pair[0] + '</span>';
+  }
+
+  function matchesStatusFilter(c, filter) {
+    var tier = c.deliveryTier || '';
+    if (filter === 'ALL') return true;
+    if (filter === 'DELIVERING') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
+    if (filter === 'TODAY') return tier === 'DELIVERING_TODAY';
+    if (filter === 'DORMANT') return tier === 'DORMANT_ACTIVE';
+    if (filter === 'ACTIVE') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW' || tier === 'DORMANT_ACTIVE';
+    if (filter === 'PAUSED') return tier === 'PAUSED';
+    if (filter === 'ARCHIVED') return tier === 'ARCHIVED';
+    return c.status === filter;
+  }
+
+  function setDisplayMode(mode) {
+    state.displayMode = mode === 'cards' ? 'cards' : 'table';
+    document.body.classList.toggle('camp-cards-only', state.displayMode === 'cards');
+    document.body.classList.toggle('camp-table-only', state.displayMode === 'table');
+    document.querySelectorAll('#display-mode-toggle .view-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-view') === state.displayMode);
+    });
+  }
+
   // ── Summary cards ─────────────────────────────────────────────────────────
-  // "Active" = campaigns that actually spent money in the selected window.
-  // This is more meaningful than status === 'ACTIVE' alone (which includes
-  // campaigns that are technically active but haven't spent anything).
-  // Total spend uses account-level insights (same source as the dashboard)
-  // so both pages show consistent numbers.
+  // Primary KPI = delivering in window (real delivery). Sub-label shows Meta
+  // ACTIVE count separately so 17 vs 4 confusion is visible and explained.
   function updateSummary(campaigns, insights) {
     var total = campaigns.length;
-    var spending = campaigns.filter(function(c){ return (Number(c.spendWindowMinor) || 0) > 0; }).length;
-    var statusActive = campaigns.filter(function(c){ return c.status === 'ACTIVE'; }).length;
-    var paused = campaigns.filter(function(c){ return c.status === 'PAUSED'; }).length;
+    var delivering = campaigns.filter(function(c) {
+      return c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW';
+    }).length;
+    var spendingToday = campaigns.filter(function(c) { return c.deliveryTier === 'DELIVERING_TODAY'; }).length;
+    var statusActive = campaigns.filter(function(c) { return c.status === 'ACTIVE'; }).length;
+    var dormant = campaigns.filter(function(c) { return c.deliveryTier === 'DORMANT_ACTIVE'; }).length;
+    var paused = campaigns.filter(function(c) { return c.status === 'PAUSED'; }).length;
     var insightsSlice = recentAsc(insights, state.days);
     var totalSpendMinor = insightsSlice.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
 
     tickText(document.getElementById('total-campaigns'), String(total));
-    tickText(document.getElementById('active-campaigns'), String(spending));
+    tickText(document.getElementById('active-campaigns'), String(delivering));
     var activeSub = document.getElementById('active-sub');
-    if (activeSub) activeSub.textContent = statusActive + ' بحالة نشطة';
+    if (activeSub) {
+      activeSub.textContent = spendingToday + ' تنفق اليوم · ' + statusActive + ' Meta نشطة · ' + dormant + ' بدون إنفاق';
+    }
     tickText(document.getElementById('paused-campaigns'), String(paused));
     tickText(document.getElementById('total-spend'), fmtCurrencyMinor(totalSpendMinor));
     document.getElementById('spend-period').textContent = 'آخر ' + state.days + ' يوماً';
@@ -1036,14 +1101,18 @@ export function campaignsPage(): string {
       return '<tr>'
         + '<td><div class="cell-name" title="' + escAttr(c.name || '') + '">' + escHtml(c.name || '—') + '</div>'
         +   '<span class="obj-chip">' + escHtml(translateObjective(c.objective)) + '</span></td>'
-        + '<td>' + statusBadge(c.status) + '</td>'
+        + '<td>' + statusBadge(c.status) + deliveryBadge(c) + '</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
         +   (maxSpend > 0 ? '<div class="spend-bar"><i style="width:' + barPct + '%"></i></div>' : '') + '</td>'
         + '<td class="spark-cell"><canvas width="192" height="52" data-spark="' + escAttr(JSON.stringify(c.spark || [])) + '"></canvas></td>'
         + '<td class="cell-num">' + escHtml(fmtNum(c.messagesWindow, 0)) + '</td>'
         + '<td class="cell-num">' + (c.ctrWindow != null ? escHtml(fmtNum(c.ctrWindow, 2)) + '%' : '—') + '</td>'
         + '<td class="cell-num">' + escHtml(budget) + '</td>'
-        + '<td><button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '">عرض</button></td>'
+        + '<td><div class="action-group">'
+        +   '<button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="overview">تحليل</button>'
+        +   '<button class="btn btn-ghost btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="creatives">إبداع</button>'
+        +   '<button class="btn btn-ghost btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="investigate">🔎</button>'
+        + '</div></td>'
         + '</tr>';
     }).join('');
 
@@ -1075,7 +1144,7 @@ export function campaignsPage(): string {
     var searchEl = document.getElementById('search-input');
     var q = (searchEl && searchEl.value || '').toLowerCase().trim();
     var list = state.campaigns.filter(function(c) {
-      if (state.statusFilter !== 'ALL' && c.status !== state.statusFilter) return false;
+      if (!matchesStatusFilter(c, state.statusFilter)) return false;
       if (!q) return true;
       return (c.name || '').toLowerCase().includes(q)
         || (c.objective || '').toLowerCase().includes(q)
@@ -1615,9 +1684,10 @@ export function campaignsPage(): string {
   function showInspectorModal() { document.getElementById('campaign-inspector-modal').style.display = 'flex'; }
   function hideInspectorModal() { document.getElementById('campaign-inspector-modal').style.display = 'none'; }
 
-  async function openInspector(campaignId) {
+  async function openInspector(campaignId, initialTab) {
     if (!state.workspaceId || !campaignId) return;
     state.currentInspectorCampaignId = campaignId;
+    var startTab = initialTab || 'overview';
     document.getElementById('inspector-title').textContent = 'تفاصيل الحملة';
     var subtitleEl = document.getElementById('inspector-subtitle');
     subtitleEl.style.direction = 'rtl';
@@ -1625,14 +1695,14 @@ export function campaignsPage(): string {
     subtitleEl.textContent = 'جارٍ التحميل…';
     document.getElementById('inspector-body').innerHTML =
       '<div style="text-align:center;color:var(--text-3);padding:24px;direction:rtl;">جارٍ تحميل البيانات…</div>';
-    // Always start a fresh open on the Overview tab so the user lands on
-    // the financial summary they expect, not whatever tab they left open.
-    switchInspectorTab('overview');
+    switchInspectorTab(startTab);
     showInspectorModal();
     try {
       var data = await apiFetch('/api/workspaces/' + state.workspaceId + '/campaigns/' + encodeURIComponent(campaignId) + '/inspector?days=30');
       try {
         renderInspector(data);
+        switchInspectorTab(startTab);
+        if (startTab === 'investigate') loadInvestigation(campaignId);
       } catch (renderErr) {
         console.error('[campaigns] inspector render failed:', renderErr);
         document.getElementById('inspector-body').innerHTML =
@@ -1695,8 +1765,19 @@ export function campaignsPage(): string {
           parts.push('فرق بين إجمالي الحساب وإجمالي الحملات: ' + health.divergencePct + '% — '
             + (health.divergenceStatus === 'HIGH' ? 'فرق كبير' : 'فرق معتدل'));
         }
+        if (health.dormantActiveCampaigns > 0 || health.staleActiveCount > 0) {
+          var dormantN = health.dormantActiveCampaigns || health.staleActiveCount || 0;
+          var deliveringN = (health.campaignCounts && health.campaignCounts.deliveringInWindow) || health.activeCampaigns || 0;
+          var metaN = health.metaActiveCampaigns || (health.campaignCounts && health.campaignCounts.activeStatus) || 0;
+          parts.push(deliveringN + ' حملة تعمل فعلياً · ' + metaN + ' Meta نشطة · ' + dormantN + ' بدون إنفاق');
+        }
         if (health.orphanedCount > 0) {
-          parts.push(health.orphanedCount + ' حملة محذوفة لا تزال بياناتها محفوظة');
+          parts.push(health.orphanedCount + ' حملة محذوفة — بياناتها القديمة مدمجة مع الجديدة');
+        }
+        if (Array.isArray(health.checks)) {
+          health.checks.filter(function(ch) { return ch.severity === 'CRITICAL' || ch.severity === 'WARN'; }).forEach(function(ch) {
+            if (ch.messageAr) parts.push(ch.messageAr);
+          });
         }
 
         if (parts.length === 0) {
@@ -1881,8 +1962,15 @@ export function campaignsPage(): string {
       var btn = e.target && e.target.closest && e.target.closest('.js-inspect-btn');
       if (!btn) return;
       e.preventDefault();
-      openInspector(btn.getAttribute('data-campaign-id'));
+      openInspector(btn.getAttribute('data-campaign-id'), btn.getAttribute('data-tab') || 'overview');
     });
+
+    document.getElementById('display-mode-toggle').addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest && e.target.closest('.view-btn');
+      if (!btn) return;
+      setDisplayMode(btn.getAttribute('data-view') || 'table');
+    });
+    setDisplayMode('table');
 
     // Phone cards: the whole card is the tap target.
     document.getElementById('campaigns-cards').addEventListener('click', function(e) {

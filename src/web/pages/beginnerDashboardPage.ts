@@ -346,10 +346,13 @@ export function beginnerDashboardPage(): string {
   function renderMiniCards(dash) {
     var mini = document.getElementById('bgn-mini-cards');
     var ctr = getKpi(dash, 'ctr');
-    var activeCampaigns = (dash.workspace && dash.workspace.activeCampaigns) || 0;
+    var cc = dash.workspace && dash.workspace.campaignCounts;
+    var activeCampaigns = cc
+      ? cc.deliveringInWindow
+      : ((dash.workspace && dash.workspace.activeCampaigns) || 0);
 
     var cards = [
-      { emoji: '📣', label: 'الحملات النشطة', value: fmtSimpleCount(activeCampaigns) },
+      { emoji: '📣', label: 'حملات تعمل', value: fmtSimpleCount(activeCampaigns) },
       { emoji: '🎯', label: 'تفاعل الإعلان', value: ctr && ctr.value != null && isFinite(Number(ctr.value)) ? fmtSimplePct(ctr.value) : '—' },
     ];
     mini.innerHTML = cards.map(function (c) {
@@ -372,7 +375,8 @@ export function beginnerDashboardPage(): string {
     var band  = (dash.health && dash.health.band) || 'none';
     var scoreCls = band === 'poor' ? 'danger' : band === 'attention' ? 'warning' : (band === 'none' ? 'blue' : '');
 
-    var active = (dash.workspace && dash.workspace.activeCampaigns) || 0;
+    var cc = dash.workspace && dash.workspace.campaignCounts;
+    var active = cc ? cc.deliveringInWindow : ((dash.workspace && dash.workspace.activeCampaigns) || 0);
     // Target: 3 active campaigns is a "healthy" beginner baseline. The bar
     // visualizes progress toward that informal goal, capped at 100%.
     var target = 3;

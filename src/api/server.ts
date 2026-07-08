@@ -110,6 +110,8 @@ import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFa
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 import { isCurrentlySpending, accountLocalTodayFloor } from '../lib/campaignSpending';
+import { classifyCampaignDelivery, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
+import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
 // ── Background sync window policy ─────────────────────────────────────────
@@ -974,8 +976,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /**
    * GET /api/workspaces/:workspaceId/data-health — data consistency observer.
-   * Compares account-level vs sum-of-campaign stats and reports orphaned data.
-   * ?cleanup=true  → also DELETE orphaned daily_stat rows (admin only).
+   * Compares account-level vs sum-of-campaign stats, dormant ACTIVE inflation,
+   * and orphaned historical rows. ?cleanup=true removes orphaned stats.
    */
   app.get('/api/workspaces/:workspaceId/data-health', async (c) => {
     const req = await honoToApiRequest(c);
@@ -987,74 +989,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!account) return c.json({ error: 'No ad account linked' }, 404);
 
     const doCleanup = req.query['cleanup'] === 'true';
-    const days = 30;
-    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
-
-    const activeCampaignIds = (await prisma.campaign.findMany({
-      where: { adAccountId: account.id },
-      select: { id: true },
-    })).map(c => c.id);
-    const campaignIdSet = new Set(activeCampaignIds);
-
-    const [accountStats, campaignAgg, allCampaignStats] = await Promise.all([
-      prisma.dailyStat.findMany({
-        where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
-        select: { date: true, spend: true, impressions: true, clicks: true },
-        orderBy: { date: 'asc' },
-      }),
-      activeCampaignIds.length > 0
-        ? prisma.dailyStat.groupBy({
-            by: ['entityId'],
-            where: {
-              entityType: EntityType.CAMPAIGN,
-              entityId: { in: activeCampaignIds },
-              date: { gte: sinceDate },
-            },
-            _sum: { spend: true, impressions: true, clicks: true },
-          })
-        : Promise.resolve([]),
-      prisma.dailyStat.findMany({
-        where: { entityType: EntityType.CAMPAIGN, date: { gte: sinceDate } },
-        select: { entityId: true },
-        distinct: ['entityId'],
-      }),
-    ]);
-
-    const accountTotalSpend = accountStats.reduce((a, s) => a + Number(s.spend), 0);
-    const campaignTotalSpend = campaignAgg.reduce((a, g) => a + Number(g._sum.spend ?? 0), 0);
-    const divergence = accountTotalSpend - campaignTotalSpend;
-    const divergencePct = accountTotalSpend > 0
-      ? +((Math.abs(divergence) / accountTotalSpend) * 100).toFixed(2)
-      : 0;
-
-    const orphanedEntityIds = allCampaignStats
-      .map(s => s.entityId)
-      .filter(id => !campaignIdSet.has(id));
+    const report = await runDataIntegrityCheck(prisma, req.params['workspaceId'], account);
 
     let orphanedRowsDeleted = 0;
-    if (doCleanup && orphanedEntityIds.length > 0) {
-      const result = await prisma.dailyStat.deleteMany({
-        where: { entityType: EntityType.CAMPAIGN, entityId: { in: orphanedEntityIds } },
-      });
-      orphanedRowsDeleted = result.count;
+    if (doCleanup && report.orphanedCount > 0) {
+      orphanedRowsDeleted = await cleanupOrphanedCampaignStats(prisma, account.id);
     }
 
     return c.json({
-      window: `${days}d`,
-      accountId: account.id,
-      activeCampaigns: activeCampaignIds.length,
-      accountLevelSpend: accountTotalSpend,
-      campaignLevelSpend: campaignTotalSpend,
-      divergence,
-      divergencePct,
-      divergenceStatus: divergencePct > 10 ? 'HIGH' : divergencePct > 2 ? 'MODERATE' : 'OK',
-      orphanedCampaignIds: orphanedEntityIds,
-      orphanedCount: orphanedEntityIds.length,
+      window: `${report.windowDays}d`,
+      accountId: report.accountId,
+      checkedAt: report.checkedAt,
+      overallStatus: report.overallStatus,
+      checks: report.checks,
+      campaignCounts: report.campaignCounts,
+      activeCampaigns: report.campaignCounts.deliveringInWindow,
+      metaActiveCampaigns: report.campaignCounts.activeStatus,
+      dormantActiveCampaigns: report.campaignCounts.dormantActive,
+      divergencePct: report.divergencePct,
+      divergenceStatus: report.divergenceStatus,
+      orphanedCampaignIds: report.orphanedCampaignIds,
+      orphanedCount: report.orphanedCount,
+      staleActiveCount: report.staleActiveCount,
+      syncAgeHours: report.syncAgeHours,
       ...(doCleanup ? { orphanedRowsDeleted } : {}),
-      daysWithData: accountStats.length,
-      lastSyncDate: accountStats.length > 0
-        ? accountStats[accountStats.length - 1].date
-        : null,
     });
   });
 
@@ -1797,12 +1755,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // the analytics columns in the campaigns table (spend / messages / CTR).
     const rawDays = Number(req.query['days'] ?? '30');
     const windowDays = Number.isFinite(rawDays) ? Math.min(Math.max(Math.trunc(rawDays), 1), 90) : 30;
+    const scopeRaw = String(req.query['scope'] ?? 'all').toLowerCase();
+    const scope: CampaignScopeFilter =
+      scopeRaw === 'live' || scopeRaw === 'historical' ? scopeRaw : 'all';
     const sinceDate = new Date(new Date(Date.now() - windowDays * 864e5).toISOString().slice(0, 10));
     // Sparkline window: last 7 days of per-campaign daily spend, zero-filled
     // so every campaign gets exactly 7 chronological points.
     const sparkDays = 7;
     const sparkSince = new Date(new Date(Date.now() - (sparkDays - 1) * 864e5).toISOString().slice(0, 10));
-    const [todayStats, windowAgg, sparkRows] = campaigns.length
+    const [todayStats, windowAgg, sparkRows, lastSpendRows] = campaigns.length
       ? await Promise.all([
           prisma.dailyStat.findMany({
             where: {
@@ -1829,8 +1790,17 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             },
             select: { entityId: true, date: true, spend: true },
           }),
+          prisma.dailyStat.groupBy({
+            by: ['entityId'],
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              spend: { gt: 0 },
+            },
+            _max: { date: true },
+          }),
         ])
-      : [[], [], []];
+      : [[], [], [], []];
     const spendTodayByCampaign = new Map(
       todayStats.map((s) => [s.entityId, Number(s.spend)]),
     );
@@ -1845,27 +1815,41 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       if (!m) { m = new Map(); sparkByCampaign.set(r.entityId, m); }
       m.set(r.date.toISOString().slice(0, 10), Number(r.spend));
     }
+    const lastSpendByCampaign = new Map(
+      lastSpendRows.map((r) => [r.entityId, r._max.date?.toISOString().slice(0, 10) ?? null]),
+    );
     return c.json(
-      campaigns.map((camp) => {
+      campaigns
+        .map((camp) => {
         const row = safeJson(camp) as Record<string, unknown>;
         const sum = aggByCampaign.get(camp.id);
         const impressions = Number(sum?.impressions ?? 0);
         const clicks = Number(sum?.clicks ?? 0);
+        const spendTodayMinor = spendTodayByCampaign.get(camp.id) ?? 0;
+        const spendWindowMinor = Number(sum?.spend ?? 0);
+        const deliveryTier = classifyCampaignDelivery({
+          status: camp.status,
+          spendTodayMinor,
+          spendWindowMinor,
+        });
         return {
           ...row,
+          deliveryTier,
+          deliveringInWindow: deliveryTier === 'DELIVERING_TODAY' || deliveryTier === 'DELIVERING_WINDOW',
+          isDormantActive: deliveryTier === 'DORMANT_ACTIVE',
           isCurrentlySpending: isCurrentlySpending({
             status: camp.status,
-            spendTodayMinor: spendTodayByCampaign.get(camp.id) ?? 0,
+            spendTodayMinor,
           }),
+          lastSpendDate: lastSpendByCampaign.get(camp.id) ?? null,
           windowDays,
-          spendWindowMinor: Number(sum?.spend ?? 0),
+          spendWindowMinor,
           messagesWindow: Number(sum?.messages ?? 0),
           ctrWindow: impressions > 0 ? +((clicks / impressions) * 100).toFixed(2) : null,
-          // 7 chronological daily-spend points (minor units) for the table
-          // sparkline; zero-filled for days with no row.
           spark: sparkIso.map((d) => sparkByCampaign.get(camp.id)?.get(d) ?? 0),
         };
-      }),
+      })
+        .filter((row) => matchesCampaignScope(row.deliveryTier, scope)),
     );
   });
 

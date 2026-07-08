@@ -94,7 +94,7 @@ export interface DashboardDTO {
      *  IQD-vs-everything-else rule. */
     currencyMinorFactor: number;
     lastSyncedAt: string | null;
-    /** ACTIVE campaigns with spend today > 0 — kept for backward compatibility. */
+    /** Campaigns delivering spend in the window — primary operational "active" count. */
     activeCampaigns: number;
     /** Unified counts — same source used by AI + UI chips. */
     campaignCounts: {
@@ -103,7 +103,10 @@ export interface DashboardDTO {
       paused: number;
       archived: number;
       spendingToday: number;
+      deliveringInWindow: number;
+      dormantActive: number;
       withMetrics: number;
+      deliveryWindowDays: number;
     };
   };
   health: {
@@ -774,7 +777,7 @@ export async function getDashboard(
   const campaignCounts = await timedStage('campaignCounts', () =>
     getCampaignCounts(prisma, account.id, account.timezone, cards.all.length),
   );
-  const activeCampaigns = campaignCounts.spendingToday;
+  const activeCampaigns = campaignCounts.deliveringInWindow;
 
   // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
   //     Returns undefined when no snapshots exist for this workspace (V5-only render).
@@ -948,8 +951,8 @@ function buildSteadyStateSummary(input: {
   if (counts && counts.total > 0) {
     pulseParts.push(
       t(
-        `Monitoring ${counts.total} campaigns (${counts.spendingToday} spending today, ${counts.activeStatus} active status)`,
-        `مراقبة ${counts.total} حملة (${counts.spendingToday} تنفق اليوم · ${counts.activeStatus} بحالة نشطة)`,
+        `Monitoring ${counts.total} campaigns (${counts.deliveringInWindow} delivering, ${counts.spendingToday} spending today, ${counts.dormantActive} dormant Meta-active)`,
+        `مراقبة ${counts.total} حملة (${counts.deliveringInWindow} تعمل · ${counts.spendingToday} تنفق اليوم · ${counts.dormantActive} نشطة بدون إنفاق)`,
       ),
     );
   } else if (pulse?.campaignsObserved) {
@@ -981,8 +984,8 @@ function buildSteadyStateSummary(input: {
     pulseParts.length > 0
       ? pulseParts.join(" · ")
       : t(
-          `AI is watching ${input.activeCampaigns} campaign${input.activeCampaigns === 1 ? "" : "s"} spending today — health score ${input.healthScore} (${input.healthBand}).`,
-          `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة تنفق اليوم — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
+          `AI is watching ${input.activeCampaigns} delivering campaign${input.activeCampaigns === 1 ? "" : "s"} — health score ${input.healthScore} (${input.healthBand}).`,
+          `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة تعمل — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
         );
 
   const stableCount = stableCampaigns.length || input.campaignCounts?.activeStatus || input.activeCampaigns;

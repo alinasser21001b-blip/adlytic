@@ -19,7 +19,8 @@ const fake: DashboardDTO = {
     id: "ws_x", name: "Test", industry: "furniture", locale: "EN" as any,
     currency: "IQD", currencyMinorFactor: 1, lastSyncedAt: null, activeCampaigns: 2,
     campaignCounts: {
-      total: 5, activeStatus: 3, paused: 1, archived: 1, spendingToday: 2, withMetrics: 2,
+      total: 5, activeStatus: 17, paused: 1, archived: 1, spendingToday: 2,
+      deliveringInWindow: 4, dormantActive: 13, withMetrics: 2, deliveryWindowDays: 30,
     },
   },
   health: { score: 51, band: "attention" },

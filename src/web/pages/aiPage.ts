@@ -201,9 +201,9 @@ export function aiPage(): string {
     if (d.health) chips.push('Health: ' + d.health.score + ' (' + d.health.band + ')');
     const cc = d.workspace?.campaignCounts;
     if (cc) {
-      chips.push(cc.total + ' total · ' + cc.activeStatus + ' active · ' + cc.spendingToday + ' spending today');
+      chips.push(cc.deliveringInWindow + ' delivering · ' + cc.spendingToday + ' today · ' + cc.dormantActive + ' dormant · ' + cc.total + ' total');
     } else if (d.workspace?.activeCampaigns != null) {
-      chips.push(d.workspace.activeCampaigns + ' spending today');
+      chips.push(d.workspace.activeCampaigns + ' delivering');
     }
     if (d.issues?.length) chips.push(d.issues.length + ' issue' + (d.issues.length>1?'s':''));
     if (d.workspace?.lastSyncedAt) chips.push('Synced ' + new Date(d.workspace.lastSyncedAt).toLocaleDateString());

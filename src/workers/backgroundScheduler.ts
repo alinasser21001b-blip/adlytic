@@ -23,6 +23,7 @@ import { runEngines } from './runEngines';
 import { runBrainOrchestrator } from './runBrainOrchestrator';
 import { config } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
+import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { refreshExpiringMetaTokens } from './refreshMetaTokens';
 import { refreshCampaignHistoryRollups } from './rollupHistory';
 import { bootQueueWorkers } from './queue';
@@ -267,6 +268,44 @@ async function runDailyMaintenance(prisma: PrismaClient): Promise<void> {
   await pruneRawInsights(prisma);
   await refreshHistoryRollups(prisma);
   await cleanOrphanedCampaignStats(prisma);
+  await runIntegritySweep(prisma);
+}
+
+/** Periodic data-integrity observer — logs warnings and auto-cleans orphans. */
+async function runIntegritySweep(prisma: PrismaClient): Promise<void> {
+  try {
+    const accounts = await prisma.adAccount.findMany({
+      where: { status: 'ACTIVE' },
+      select: {
+        id: true,
+        timezone: true,
+        lastSyncedAt: true,
+        workspaceId: true,
+      },
+    });
+    for (const account of accounts) {
+      if (!account.workspaceId) continue;
+      const report = await runDataIntegrityCheck(prisma, account.workspaceId, account);
+      const actionable = report.checks.filter(
+        (c) => c.severity === 'WARN' || c.severity === 'CRITICAL',
+      );
+      if (actionable.length > 0) {
+        console.warn(
+          `[adlytic:integrity] workspace=${account.workspaceId} status=${report.overallStatus} checks=${actionable.map((c) => c.code).join(',')}`,
+        );
+      }
+      if (report.orphanedCount > 0) {
+        const cleaned = await cleanupOrphanedCampaignStats(prisma, account.id);
+        if (cleaned > 0) {
+          console.log(
+            `[adlytic:integrity] workspace=${account.workspaceId} auto-cleaned ${cleaned} orphaned daily_stat row(s)`,
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[adlytic:integrity] Sweep failed:', err);
+  }
 }
 
 async function cleanOrphanedCampaignStats(prisma: PrismaClient): Promise<void> {
@@ -319,5 +358,7 @@ export function startBackgroundWork(prisma: PrismaClient): void {
   setTimeout(() => {
     void runDailyMaintenance(prisma);
     setInterval(() => { void runDailyMaintenance(prisma); }, 24 * 60 * 60_000);
+    // Integrity sweep every 6h — catches dormant ACTIVE inflation + orphaned stats.
+    setInterval(() => { void runIntegritySweep(prisma); }, 6 * 60 * 60_000);
   }, 30_000);
 }
