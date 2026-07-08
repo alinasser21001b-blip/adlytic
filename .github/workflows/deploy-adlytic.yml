@@ -9,6 +9,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'nixpacks.toml'
+      - 'railway.json'
       - 'railway.toml'
       - '.npmrc'
       - '.deploy/**'
@@ -25,9 +26,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npx prisma generate
       - run: npm run typecheck
 
   deploy-adlytic:
@@ -40,11 +42,14 @@ jobs:
         run: |
           if [ -z "$RAILWAY_TOKEN" ]; then
             echo "RAILWAY_TOKEN secret not set — skipping API deploy."
-            echo "Railway GitHub autodeploy on adlytic will still run if enabled."
+            echo "Set GitHub secret RAILWAY_TOKEN (Railway account token, No Team)"
+            echo "OR in Railway UI: adlytic → Deploy Latest Commit after cancelling other queues."
             exit 0
           fi
-          curl -fsS -X POST "https://backboard.railway.app/graphql/v2" \
+          RESP=$(curl -sS -X POST "https://backboard.railway.app/graphql/v2" \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"query":"mutation serviceInstanceDeploy($serviceId: String!, $environmentId: String!, $latestCommit: Boolean) { serviceInstanceDeploy(serviceId: $serviceId, environmentId: $environmentId, latestCommit: $latestCommit) }","variables":{"serviceId":"cc7cbf67-d757-4018-bf6d-9cec643222c3","environmentId":"89cdf3cb-15b7-4b92-b1ae-07e812333c37","latestCommit":true}}'
-          echo "Triggered adlytic deploy."
+            -d '{"query":"mutation serviceInstanceDeploy($serviceId: String!, $environmentId: String!, $latestCommit: Boolean) { serviceInstanceDeploy(serviceId: $serviceId, environmentId: $environmentId, latestCommit: $latestCommit) }","variables":{"serviceId":"cc7cbf67-d757-4018-bf6d-9cec643222c3","environmentId":"89cdf3cb-15b7-4b92-b1ae-07e812333c37","latestCommit":true}}')
+          echo "$RESP"
+          echo "$RESP" | grep -q '"errors"' && exit 1 || true
+          echo "Triggered adlytic-only deploy."

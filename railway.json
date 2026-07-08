@@ -8,7 +8,6 @@
       "package.json",
       "package-lock.json",
       "nixpacks.toml",
-      "railway.toml",
       "railway.json",
       ".npmrc",
       "tsconfig.json",

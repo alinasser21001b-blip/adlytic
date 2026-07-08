@@ -1,4 +1,4 @@
-# lively-insight — narration cron (لا ينشر من GitHub)
+# lively-insight — narration cron (skip GitHub autodeploy)
 [build]
 builder = "NIXPACKS"
 watchPatterns = ["__railway_skip_autodeploy__/**"]

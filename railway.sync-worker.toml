@@ -1,4 +1,4 @@
-# thriving-manifestation — background sync worker (لا ينشر من GitHub)
+# thriving-manifestation — sync worker (skip GitHub autodeploy)
 [build]
 builder = "NIXPACKS"
 watchPatterns = ["__railway_skip_autodeploy__/**"]

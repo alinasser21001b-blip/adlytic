@@ -1,4 +1,5 @@
-# adlytic — production web/API (الخدمة الوحيدة التي تنشر من GitHub)
+# Canonical production config for service "adlytic".
+# Keep in sync with railway.json (Railway may use either file).
 [build]
 builder = "NIXPACKS"
 watchPatterns = [
@@ -7,6 +8,7 @@ watchPatterns = [
   "package.json",
   "package-lock.json",
   "nixpacks.toml",
+  "railway.json",
   "railway.toml",
   ".npmrc",
   "tsconfig.json",

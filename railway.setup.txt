@@ -1,33 +1,49 @@
 ═══════════════════════════════════════════════════════════════
-  Adlytic — إعداد Railway (مرة واحدة)
+  Adlytic — CORRECT UPLOAD PROCEDURE (read before every deploy)
 ═══════════════════════════════════════════════════════════════
 
-ملفات الإعداد (JSON أو TOML — نفس المحتوى):
-  adlytic                 → /railway.toml  أو /railway.json
-  thriving-manifestation  → /railway.sync-worker.json  (أو .toml)
-  lively-insight          → /railway.worker.json         (أو .toml)
+WHY UPLOADS FAILED BEFORE
+  3 Railway services share this GitHub repo. Every push queued all three
+  → "Waiting for deployment slot" for hours. Builds succeeded; deploy never
+  became Active. Production stayed on the old commit.
 
-─── 1) ألغِ كل Queued ───
-  Deployments → Cancel على الخدمات الثلاث
+CORRECT REFERENCES (do not change casually)
+  Service adlytic (production URL)
+    ID:     cc7cbf67-d757-4018-bf6d-9cec643222c3
+    Config: /railway.json   (or /railway.toml — same settings)
+    Auto Deploy: ENABLE on branch main
 
-─── 2) thriving-manifestation ───
-  Auto Deploy: DISABLE
-  Config File Path: /railway.sync-worker.toml
-  Variable: SERVICE_ROLE=worker
+  Service thriving-manifestation (sync worker)
+    Config: /railway.sync-worker.json
+    Auto Deploy: DISABLE
+    Env:    SERVICE_ROLE=worker
 
-─── 3) lively-insight ───
-  Auto Deploy: DISABLE
-  Config File Path: /railway.worker.toml
+  Service lively-insight (narration cron)
+    Config: /railway.worker.json
+    Auto Deploy: DISABLE
 
-─── 4) adlytic (الإنتاج) ───
-  Auto Deploy: ENABLE (main)
-  Config File Path: /railway.toml
+  Project:     69ca3009-3a67-4d92-b808-6e4f278335d6
+  Environment: 89cdf3cb-15b7-4b92-b1ae-07e812333c37
+  URL:         https://adlytic-production.up.railway.app
 
-─── 5) Deploy Latest Commit على adlytic فقط ───
+BUILD CONTRACT (verified)
+  nixpacks.toml → Node 22, npm ci --ignore-scripts, npm run build
+  .npmrc        → ignore-scripts=true (prisma generate only in build)
+  startCommand  → npx prisma migrate deploy && node dist/src/api/serve.js
+  UI markers    → escHtml in layout SHARED_JS; rec-page; settings-shell
 
-─── تحقق ───
-  curl https://adlytic-production.up.railway.app/api/health
-  Hard refresh /recommendations
+UPLOAD STEPS (every time)
+  1. Cancel ALL Queued/Building on thriving-manifestation + lively-insight
+  2. Confirm those two have Auto Deploy DISABLED
+  3. Confirm adlytic Config File Path = /railway.json
+  4. Push to main  OR  adlytic → Cmd+K → Deploy Latest Commit
+  5. Wait until adlytic shows ACTIVE (one service only, ~5–8 min)
+  6. Verify:
+       curl https://adlytic-production.up.railway.app/api/health
+       curl -sL .../login | grep -c 'function escHtml'   # must be >= 1
+       Hard refresh /recommendations and /settings
 
-Project:  69ca3009-3a67-4d92-b808-6e4f278335d6
-Adlytic:  cc7cbf67-d757-4018-bf6d-9cec643222c3
+OPTIONAL (best): GitHub secret RAILWAY_TOKEN
+  https://railway.app/account/tokens  → create "No Team" token
+  GitHub repo → Settings → Secrets → RAILWAY_TOKEN
+  Then Actions workflow deploys ONLY adlytic via API.
