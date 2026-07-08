@@ -426,13 +426,25 @@ export function aiPage(): string {
       }
 
       typingEl.remove();
-      const answer = res && res.reply
+      const answer = res && res.reply && String(res.reply).trim()
         ? res.reply
-        : (isAr ? 'تعذّر توليد رد. حاول مرة أخرى.' : 'I could not generate a response. Please try again.');
+        : (isAr
+          ? 'راجعت البيانات لكن الرد لم يكتمل. أعد السؤال أو اختر حملة واحدة محددة.'
+          : 'I reviewed the data but the answer did not complete. Retry or ask about one specific campaign.');
       const bubbleWrapper = addMsg('assistant', mdToHtml(answer));
       if (usedV2 && res) {
         if (res.conversationId) conversationId = res.conversationId;
         renderToolChips(bubbleWrapper, res.toolCalls);
+        if (res.latencyMs != null) {
+          var bubble = bubbleWrapper.querySelector('.msg-bubble');
+          if (bubble) {
+            var latency = document.createElement('div');
+            latency.className = 'evidence-bar';
+            latency.innerHTML = '<span class="evidence-pill"><b>' + (isAr ? 'الوقت' : 'Latency') + '</b> ' +
+              Math.round(Number(res.latencyMs) / 100) / 10 + (isAr ? ' ث' : 's') + '</span>';
+            bubble.appendChild(latency);
+          }
+        }
       } else {
         var bubble = bubbleWrapper.querySelector('.msg-bubble');
         if (bubble) {

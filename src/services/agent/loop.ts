@@ -32,13 +32,18 @@ import { buildSystemPrompt } from './prompts';
 import { postCheckReply, buildRetryNudge } from './postcheck';
 
 /** Bounds — matches PHASE2_AI_AGENT_DESIGN.md §5 */
-const MAX_ITERATIONS = 6;
+const MAX_ITERATIONS = 5;
 const MAX_TOKENS = 2048;
 const MAX_HISTORY_MESSAGES = 40;   // ~20 turn pairs
-const OVERALL_TIMEOUT_MS = 60_000;
+const OVERALL_TIMEOUT_MS = 45_000;
 const ANALYST_MODEL = process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5';
 /** Anti-hallucination rewind attempts before we degrade to fallback. §20. */
 const MAX_POSTCHECK_RETRIES = 2;
+/** After tools return, force one text-only synthesis if the model stays silent. */
+const SYNTHESIS_NUDGE_AR =
+  'لديك الآن نتائج الأدوات. اكتب الرد النهائي للتاجر الآن فقط — بدون استدعاء أدوات جديدة. استخدم الهيكل: الوضع | الدليل | التشخيص | التوصية | الثقة. كل رقم يجب أن يظهر في نتائج الأدوات.';
+const SYNTHESIS_NUDGE_EN =
+  'You now have tool results. Write the final merchant-facing answer NOW — no more tool calls. Use: Situation | Evidence | Diagnosis | Recommendation | Confidence. Every number must appear in the tool results.';
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -174,6 +179,8 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   let finalReply = '';
   let iterations = 0;
   let postCheckRetries = 0;
+  let synthesisForced = false;
+  let toolRounds = 0;
 
   const overallDeadline = Date.now() + OVERALL_TIMEOUT_MS;
 
@@ -184,12 +191,18 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
       break;
     }
 
+    // After tools have returned evidence, prefer a text-only synthesis pass
+    // (no tools) so the merchant always gets a useful answer instead of an
+    // empty "see tool chips" placeholder.
+    const forceTextOnly = synthesisForced || toolRounds >= 2;
     const response = await callAnthropicWithTimeout(client, {
       model: ANALYST_MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
       messages: anthropicMessages,
-      tools: anthropicTools as unknown as Anthropic.Tool[],
+      ...(forceTextOnly
+        ? {}
+        : { tools: anthropicTools as unknown as Anthropic.Tool[] }),
     }, overallDeadline - Date.now());
 
     totalTokensIn += response.usage?.input_tokens ?? 0;
@@ -198,7 +211,9 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     // Collect text + tool_use blocks from the response.
     const assistantBlocks = response.content;
     const textBlocks = assistantBlocks.filter((b): b is Anthropic.TextBlock => b.type === 'text');
-    const toolUseBlocks = assistantBlocks.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+    const toolUseBlocks = forceTextOnly
+      ? []
+      : assistantBlocks.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
 
     // Persist assistant message even when it also contains tool_use blocks.
     // Content = concatenated text (may be empty when the model went straight
@@ -224,9 +239,10 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
       content: assistantBlocks as unknown as Anthropic.MessageParam['content'],
     });
 
-    // If Claude wants tools, dispatch them all in parallel (bounded by 5 per iteration).
+    // If Claude wants tools, dispatch them all in parallel (bounded by 4 per iteration).
     if (response.stop_reason === 'tool_use' && toolUseBlocks.length > 0) {
-      const capped = toolUseBlocks.slice(0, 5);
+      toolRounds++;
+      const capped = toolUseBlocks.slice(0, 4);
       const toolResultBlocks: Anthropic.ToolResultBlockParam[] = [];
 
       const results = await Promise.all(
@@ -264,7 +280,27 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
         content: toolResultBlocks,
       });
 
+      // After the first successful tool round, nudge a final answer next.
+      // This cuts latency and prevents "tools ran, no text" dead ends.
+      if (toolCallLog.some((tc) => tc.result.ok) && !synthesisForced) {
+        synthesisForced = true;
+        anthropicMessages.push({
+          role: 'user',
+          content: promptLocale === 'AR' ? SYNTHESIS_NUDGE_AR : SYNTHESIS_NUDGE_EN,
+        });
+      }
+
       // Continue the loop — Claude has more to say.
+      continue;
+    }
+
+    // Empty final text after tools → force one synthesis retry, then deterministic fallback.
+    if (!assistantText && toolCallLog.length > 0 && !synthesisForced) {
+      synthesisForced = true;
+      anthropicMessages.push({
+        role: 'user',
+        content: promptLocale === 'AR' ? SYNTHESIS_NUDGE_AR : SYNTHESIS_NUDGE_EN,
+      });
       continue;
     }
 
@@ -290,21 +326,29 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
         continue;
       }
       if (!check.ok) {
-        // Exhausted retries — degrade to fallback rather than ship claims we can't verify.
+        // Exhausted retries — prefer a structured tool-grounded summary over a dead-end.
         console.error(
           `[ai-agent:postcheck] max_retries_exhausted offenders=${check.offendingTokens.join(',')}`,
         );
-        finalReply = buildHallucinationFallback(promptLocale);
+        finalReply = synthesizeReplyFromTools(toolCallLog, promptLocale, userMessage)
+          || buildHallucinationFallback(promptLocale);
         break;
       }
     }
 
-    finalReply = assistantText || buildEmptyReplyPlaceholder(promptLocale);
+    finalReply = assistantText
+      || synthesizeReplyFromTools(toolCallLog, promptLocale, userMessage)
+      || buildEmptyReplyPlaceholder(promptLocale);
     break;
   }
 
   if (iterations >= MAX_ITERATIONS && !finalReply) {
-    finalReply = buildBudgetExhaustedReply(promptLocale);
+    finalReply = synthesizeReplyFromTools(toolCallLog, promptLocale, userMessage)
+      || buildBudgetExhaustedReply(promptLocale);
+  }
+  if (!finalReply.trim()) {
+    finalReply = synthesizeReplyFromTools(toolCallLog, promptLocale, userMessage)
+      || buildEmptyReplyPlaceholder(promptLocale);
   }
 
   const latencyMs = Date.now() - startedAt;
@@ -418,8 +462,8 @@ function detectMessageLocale(message: string): Locale | null {
 
 function buildEmptyReplyPlaceholder(locale: Locale): string {
   return locale === 'AR'
-    ? 'ما لديّ رد نصي هذه المرة — راجع الأدوات المستدعاة في الجانب.'
-    : 'No text reply produced — see the tool calls in the side panel.';
+    ? 'راجعت البيانات لكن لم أستطع صياغة ملخص موثوق الآن. أعد السؤال بشكل أضيق (حملة واحدة أو مؤشر واحد) وسأجيب مباشرة.'
+    : "I reviewed the data but couldn't form a reliable summary this turn. Ask a narrower question (one campaign or one metric) and I'll answer directly.";
 }
 
 /** Final fallback when the anti-hallucination check keeps failing.
@@ -428,4 +472,125 @@ function buildHallucinationFallback(locale: Locale): string {
   return locale === 'AR'
     ? 'ما قدرت أعطيك جواباً بأرقام موثوقة الآن. جرب سؤالاً أضيق أو أعد المحاولة، وسأتحقق مرة أخرى من البيانات.'
     : "I couldn't produce a numerically verifiable answer this turn. Please narrow the question or try again.";
+}
+
+/**
+ * Deterministic merchant-facing summary when the model returns tools but no
+ * text. Pulls only fields already present in tool results — never invents.
+ */
+function synthesizeReplyFromTools(
+  toolCalls: RunAgentTurnResult['toolCalls'],
+  locale: Locale,
+  userMessage: string,
+): string {
+  const okCalls = toolCalls.filter((tc) => tc.result.ok);
+  if (okCalls.length === 0) return '';
+
+  const ar = locale === 'AR';
+  const lines: string[] = [];
+  lines.push(ar ? '**الوضع**' : '**Situation**');
+  lines.push(ar
+    ? `سألت عن: «${trimForReply(userMessage, 120)}». راجعت ${okCalls.length} مصدر بيانات من حسابك.`
+    : `You asked: "${trimForReply(userMessage, 120)}". I reviewed ${okCalls.length} data sources from your account.`);
+
+  const evidence: string[] = [];
+  for (const tc of okCalls) {
+    const snippet = summarizeToolData(tc.toolName, tc.result, ar);
+    if (snippet) evidence.push(snippet);
+  }
+  if (evidence.length) {
+    lines.push('');
+    lines.push(ar ? '**الدليل**' : '**Evidence**');
+    for (const e of evidence.slice(0, 5)) lines.push(`• ${e}`);
+  }
+
+  lines.push('');
+  lines.push(ar ? '**التشخيص**' : '**Diagnosis**');
+  const anomaly = okCalls.find((tc) => tc.toolName === 'detect_anomaly');
+  if (anomaly && anomaly.result.ok) {
+    const data = anomaly.result.data as Record<string, unknown>;
+    const flags = Array.isArray(data['flags']) ? data['flags'] : Array.isArray(data['anomalies']) ? data['anomalies'] : [];
+    if (flags.length > 0) {
+      lines.push(ar
+        ? 'ظهرت إشارات غير طبيعية في الأداء — راجع الحملات التي تنفق دون نتائج كافية أو التي انخفض تفاعلها.'
+        : 'Anomaly signals appeared — review campaigns with spend and weak results, or declining engagement.');
+    } else {
+      lines.push(ar
+        ? 'لم يظهر شذوذ حاد في الفحص السريع؛ قد يكون التراجع ضمن تقلب طبيعي أو مرتبط بإبداع/جمهور محدد.'
+        : 'No sharp anomaly in the quick scan; the drop may be normal variance or tied to a specific creative/audience.');
+    }
+  } else {
+    lines.push(ar
+      ? 'البيانات متوفرة لكن تحتاج تفسيراً أعمق لحملة محددة للحصول على سبب أدق.'
+      : 'Data is available, but a specific campaign question would yield a sharper root cause.');
+  }
+
+  lines.push('');
+  lines.push(ar ? '**التوصية**' : '**Recommendation**');
+  lines.push(ar
+    ? 'حدّد حملة واحدة تعمل الآن واسأل: «لماذا انخفض تفاعل [اسم الحملة]؟» — سأقارن الفترة الحالية بالسابقة وأعطيك خطوة واحدة واضحة.'
+    : 'Pick one currently delivering campaign and ask: "Why did engagement drop on [campaign name]?" — I will compare periods and give one clear next step.');
+
+  lines.push('');
+  lines.push(ar ? '**الثقة**' : '**Confidence**');
+  lines.push(ar
+    ? 'متوسطة — ملخص مبني على نتائج الأدوات دون صياغة نموذج كاملة.'
+    : 'Medium — summary grounded in tool results without a full model narrative.');
+
+  return lines.join('\n');
+}
+
+function trimForReply(s: string, max: number): string {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  return t.length <= max ? t : t.slice(0, max - 1) + '…';
+}
+
+function summarizeToolData(toolName: string, result: ToolResult<unknown>, ar: boolean): string | null {
+  if (!result.ok) return null;
+  const data = result.data as Record<string, unknown> | unknown[] | null;
+  if (data == null) return null;
+
+  if (toolName === 'list_campaigns' && Array.isArray(data)) {
+    return ar
+      ? `قائمة الحملات: ${data.length} حملة في النطاق`
+      : `Campaign list: ${data.length} campaigns in scope`;
+  }
+  if (toolName === 'list_campaigns' && data && typeof data === 'object' && !Array.isArray(data)) {
+    const campaigns = (data as { campaigns?: unknown[] }).campaigns;
+    if (Array.isArray(campaigns)) {
+      return ar
+        ? `قائمة الحملات: ${campaigns.length} حملة في النطاق`
+        : `Campaign list: ${campaigns.length} campaigns in scope`;
+    }
+  }
+  if (toolName === 'get_campaign_details' && data && typeof data === 'object' && !Array.isArray(data)) {
+    const name = String((data as { name?: string }).name || (data as { campaignName?: string }).campaignName || '').trim();
+    const ctr = (data as { ctr?: number; metrics?: { ctr?: number } }).ctr
+      ?? (data as { metrics?: { ctr?: number } }).metrics?.ctr;
+    const parts: string[] = [];
+    if (name) parts.push(ar ? `الحملة «${name}»` : `Campaign "${name}"`);
+    if (typeof ctr === 'number' && Number.isFinite(ctr)) {
+      parts.push(ar ? `تفاعل الإعلان (CTR) ${ctr}` : `CTR ${ctr}`);
+    }
+    return parts.length ? parts.join(' — ') : (ar ? 'تم جلب تفاصيل حملة' : 'Campaign details loaded');
+  }
+  if (toolName === 'detect_anomaly') {
+    return ar ? 'تم فحص الشذوذ على الأداء' : 'Anomaly scan completed';
+  }
+  if (toolName === 'compare_periods') {
+    return ar ? 'تمت مقارنة الفترة الحالية بالسابقة' : 'Current vs prior period compared';
+  }
+  if (toolName === 'rank_campaigns') {
+    return ar ? 'تم ترتيب الحملات حسب الأداء' : 'Campaigns ranked by performance';
+  }
+  if (toolName === 'get_creative_performance') {
+    return ar ? 'تم تحليل أداء الإبداعات' : 'Creative performance analyzed';
+  }
+  if (toolName === 'get_audience_breakdown') {
+    return ar ? 'تم تحليل توزيع الجمهور/المواضع' : 'Audience/placement breakdown analyzed';
+  }
+  if (toolName === 'lookup_knowledge') {
+    return ar ? 'تمت مراجعة مرجع المعايير الصناعية' : 'Industry knowledge reference consulted';
+  }
+  return ar ? `أداة ${toolName} اكتملت` : `Tool ${toolName} completed`;
 }
