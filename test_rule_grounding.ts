@@ -64,7 +64,7 @@ console.log('\nrule grounding');
 }
 
 {
-  // Expensive CPM vs baseline must NOT invent auction pressure (level ≠ trend).
+  // Expensive / inefficient vs baseline must NOT invent temporal decline.
   const raw: CampaignRawData = {
     campaignId: 'expensive_01',
     campaignName: 'حملة غالية',
@@ -78,10 +78,32 @@ console.log('\nrule grounding');
     cpc: 1,
   };
   const signals = signalsFromCampaignRaw(raw, baseline);
-  check('campaignSignals omits cpmTrend', signals.cpmTrend === null, signals);
-  check('campaignSignals omits spendTrend', signals.spendTrend === null, signals);
+  check('campaignSignals omits all trends', 
+    signals.cpmTrend === null && signals.spendTrend === null &&
+    signals.ctrTrend === null && signals.resultsTrend === null &&
+    signals.frequencyTrend === null, signals);
   const g = buildRuleGrounding(raw, baseline);
-  check('no false AUCTION_PRESSURE from baseline CPM', !g.diagnoses.some((d) => d.code === 'AUCTION_PRESSURE'), g.diagnoses);
+  check('no false AUCTION_PRESSURE', !g.diagnoses.some((d) => d.code === 'AUCTION_PRESSURE'), g.diagnoses);
+  check('no false POST_CLICK / DECLINING from inefficiency', 
+    !g.diagnoses.some((d) => d.code === 'POST_CLICK_PROBLEM' || d.code === 'DECLINING_OUTCOMES'), g.diagnoses);
+}
+
+{
+  // New inefficient campaign with healthy CTR — previously hallucinated "dropped 80%".
+  const raw: CampaignRawData = {
+    campaignId: 'new_01',
+    campaignName: 'حملة جديدة',
+    spend: 50,
+    impressions: 8000,
+    clicks: 160,
+    ctr: 2.0,
+    frequency: 1.5,
+    messages: 2,
+    cpm: 6.25,
+    cpc: 0.31,
+  };
+  const g = buildRuleGrounding(raw, baseline);
+  check('new campaign has no fake decline diagnosis', g.diagnoses.length === 0, g.diagnoses);
 }
 
 {
@@ -146,6 +168,40 @@ console.log('\nrule grounding');
     }],
   });
   check('post-click blocks wrong creative refresh', next.action === 'HOLD_AND_MONITOR', next);
+}
+
+{
+  // Dual diagnosis: fatigue would upgrade HOLD→REFRESH, but post-click must win.
+  const hold: CampaignDecision = {
+    campaignId: 'x',
+    action: 'HOLD_AND_MONITOR',
+    priority: 'NORMAL',
+    reason: 'stable',
+  };
+  const next = applyRuleGroundingToDecision(hold, {
+    primaryCode: 'CREATIVE_FATIGUE',
+    issues: [
+      { code: 'AUDIENCE_FATIGUE', severity: 'HIGH' },
+      { code: 'DECLINING_RESULTS', severity: 'HIGH' },
+    ],
+    diagnoses: [
+      {
+        code: 'CREATIVE_FATIGUE',
+        name: 'إرهاق الإعلان',
+        confidence: 0.85,
+        narrative: 'تعب',
+        action: 'جدّد',
+      },
+      {
+        code: 'POST_CLICK_PROBLEM',
+        name: 'مشكلة بعد النقر',
+        confidence: 0.8,
+        narrative: 'صفحة',
+        action: 'راجع الصفحة',
+      },
+    ],
+  });
+  check('post-click outranks fatigue upgrade', next.action === 'HOLD_AND_MONITOR', next);
 }
 
 {

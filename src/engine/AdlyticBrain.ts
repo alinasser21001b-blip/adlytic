@@ -85,8 +85,9 @@ export function runBrainForCampaign(
   // Layer 4: Decision Engine — الترجمة إلى Action قابل للتنفيذ (يبقى أعمى ونقياً)
   let decision = decideCampaignAction(physics, confidence, pattern, recovery);
 
-  // Layer 4b: Rule grounding — fuse diagnose() patterns into the decision.
-  // Pure, baseline-relative; does not replace V2 emergency override below.
+  // Layer 4b: Rule grounding — fuse absolute-level diagnose() patterns into
+  // the decision. Campaign signals intentionally omit *Trend fields (a single
+  // snapshot cannot observe period movement). Does not replace V2 emergency.
   const ruleGrounding = buildRuleGrounding(raw, baseline);
   decision = applyRuleGroundingToDecision(decision, ruleGrounding);
 

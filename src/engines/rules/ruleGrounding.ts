@@ -61,7 +61,8 @@ export function buildRuleGrounding(
  * Guardrails:
  * - Never invents EMERGENCY_PAUSE (orchestrator/V2 only).
  * - Never upgrades KEEP_COLLECTING — cold-start must finish collecting.
- * - Never silently downgrades CRITICAL pauses without a clear alternate cause.
+ * - POST_CLICK_PROBLEM always outranks creative-refresh upgrades (re-checked
+ *   after upgrades so dual diagnoses cannot contradict each other).
  */
 export function applyRuleGroundingToDecision(
   decision: CampaignDecision,
@@ -71,75 +72,72 @@ export function applyRuleGroundingToDecision(
 
   const codes = new Set(grounding.diagnoses.map((d) => d.code));
   const primary = grounding.primaryCode;
-
-  // Landing/offer problem: creative refresh is the wrong lever.
-  if (
-    codes.has('POST_CLICK_PROBLEM') &&
-    decision.action === 'REFRESH_CREATIVE'
-  ) {
-    return {
-      ...decision,
-      action: 'HOLD_AND_MONITOR',
-      priority: 'HIGH',
-      reason:
-        `${decision.reason} | Rule grounding: post-click/offer problem — hold creative, fix landing/response.`,
-      overriddenAction: decision.action,
-    };
-  }
+  let next = decision;
 
   // Creative fatigue / weak creative: upgrade passive HOLD into refresh.
-  // KEEP_COLLECTING is intentionally excluded — interrupting cold-start with
-  // a refresh recommendation invents confidence the sample does not have.
+  // KEEP_COLLECTING is intentionally excluded.
   if (
     (codes.has('CREATIVE_FATIGUE') || codes.has('WEAK_CREATIVE')) &&
-    decision.action === 'HOLD_AND_MONITOR'
+    next.action === 'HOLD_AND_MONITOR'
   ) {
-    return {
-      ...decision,
+    next = {
+      ...next,
       action: 'REFRESH_CREATIVE',
       priority: 'HIGH',
       reason:
-        `${decision.reason} | Rule grounding: ${primary} — creative refresh is the primary lever.`,
-      overriddenAction: decision.action,
+        `${next.reason} | Rule grounding: ${primary} — creative refresh is the primary lever.`,
+      overriddenAction: next.action,
     };
   }
 
-  // Auction pressure: prefer hold over pause when physics wanted to kill on
-  // noise AND we have no creative-fatigue diagnosis. Only applies when the
-  // auction diagnosis itself is present (requires issue corroboration now).
+  // Auction pressure: prefer hold over pause when no creative diagnosis.
+  // (Campaign path rarely emits AUCTION_PRESSURE — trends are omitted.)
   if (
     codes.has('AUCTION_PRESSURE') &&
-    decision.action === 'PAUSE_CAMPAIGN' &&
+    next.action === 'PAUSE_CAMPAIGN' &&
     !codes.has('CREATIVE_FATIGUE') &&
     !codes.has('WEAK_CREATIVE')
   ) {
-    return {
-      ...decision,
+    next = {
+      ...next,
       action: 'HOLD_AND_MONITOR',
       priority: 'HIGH',
       reason:
-        `${decision.reason} | Rule grounding: auction pressure — creative may be fine; market is expensive.`,
-      overriddenAction: decision.action,
+        `${next.reason} | Rule grounding: auction pressure — creative may be fine; market is expensive.`,
+      overriddenAction: next.overriddenAction ?? next.action,
     };
   }
 
-  // Audience saturation: reinforce expand messaging when already refreshing.
-  if (codes.has('AUDIENCE_SATURATION') && decision.action === 'REFRESH_CREATIVE') {
-    return {
-      ...decision,
+  // Audience saturation: reinforce expand messaging when refreshing.
+  if (codes.has('AUDIENCE_SATURATION') && next.action === 'REFRESH_CREATIVE') {
+    next = {
+      ...next,
       reason:
-        `${decision.reason} | Rule grounding: audience saturation — refresh creative and consider expanding audience.`,
+        `${next.reason} | Rule grounding: audience saturation — refresh creative and consider expanding audience.`,
     };
   }
 
-  // Align dying creative pattern with fatigue diagnosis — bump priority.
+  // Align dying creative with fatigue — bump priority.
   if (
     codes.has('CREATIVE_FATIGUE') &&
-    decision.action === 'REFRESH_CREATIVE' &&
-    decision.priority === 'NORMAL'
+    next.action === 'REFRESH_CREATIVE' &&
+    next.priority === 'NORMAL'
   ) {
-    return { ...decision, priority: 'HIGH' };
+    next = { ...next, priority: 'HIGH' };
   }
 
-  return decision;
+  // FINAL: post-click/offer problem outranks any creative refresh (including
+  // upgrades applied above). Re-check against the fused action.
+  if (codes.has('POST_CLICK_PROBLEM') && next.action === 'REFRESH_CREATIVE') {
+    next = {
+      ...next,
+      action: 'HOLD_AND_MONITOR',
+      priority: 'HIGH',
+      reason:
+        `${next.reason} | Rule grounding: post-click/offer problem — hold creative, fix landing/response.`,
+      overriddenAction: next.overriddenAction ?? 'REFRESH_CREATIVE',
+    };
+  }
+
+  return next;
 }
