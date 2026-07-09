@@ -455,11 +455,18 @@ export const dashboardStyles = `<style>
     }
 
     .adv-chart-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       margin-bottom: 0;
     }
-    @media (max-width: 800px) {
+    @media (max-width: 1000px) {
       .adv-chart-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card-sub {
+      font-size: 11px;
+      color: var(--text-3);
+      margin-top: 2px;
+      font-weight: 500;
+      line-height: 1.35;
     }
 
     .adv-shell .diagnosis-grid {

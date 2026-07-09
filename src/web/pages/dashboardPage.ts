@@ -149,7 +149,7 @@ export function dashboardPage(): string {
         </div>
         <div class="chart-panel">
           <div class="chart-panel-head">
-            <div class="chart-panel-title">الأداء · الإنفاق عبر الزمن</div>
+            <div class="chart-panel-title">الإنفاق اليومي</div>
             <div class="chart-panel-meta" id="chart-panel-meta">—</div>
           </div>
           <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas><div class="chart-empty" id="chart-spend-main-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div></div>
@@ -241,13 +241,26 @@ export function dashboardPage(): string {
                 </div>
               </div>
               <div class="chart-grid adv-chart-grid">
+                <div class="chart-card" id="adv-results-card">
+                  <div class="chart-card-header">
+                    <div class="chart-card-title" id="chart-results-title">اتجاه النتائج</div>
+                    <div class="chart-card-sub">رسائل + مشتريات + عملاء محتملون</div>
+                  </div>
+                  <div class="chart-canvas-wrap"><canvas id="chart-results"></canvas></div>
+                </div>
                 <div class="chart-card" id="adv-ctr-card">
-                  <div class="chart-card-header"><div class="chart-card-title" id="chart-ctr-title">اتجاه تفاعل الإعلان</div></div>
+                  <div class="chart-card-header">
+                    <div class="chart-card-title" id="chart-ctr-title">نسبة النقر (CTR)</div>
+                    <div class="chart-card-sub">جودة التفاعل مع الإعلان</div>
+                  </div>
                   <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
                 </div>
-                <div class="chart-card" id="adv-msgs-card">
-                  <div class="chart-card-header"><div class="chart-card-title">اتجاه الرسائل</div></div>
-                  <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
+                <div class="chart-card" id="adv-freq-card">
+                  <div class="chart-card-header">
+                    <div class="chart-card-title" id="chart-freq-title">التكرار اليومي</div>
+                    <div class="chart-card-sub">مؤشر إرهاق الجمهور</div>
+                  </div>
+                  <div class="chart-canvas-wrap"><canvas id="chart-frequency"></canvas></div>
                 </div>
               </div>
             </section>
@@ -379,7 +392,7 @@ export function dashboardPage(): string {
     }
   }
 
-  function buildDataset(label, data, color, bg, fillArea) {
+  function buildDataset(label, data, color, bg, fillArea, fmt) {
     return {
       label: label,
       data: data,
@@ -390,8 +403,29 @@ export function dashboardPage(): string {
       borderWidth: 2,
       pointRadius: 0,
       pointHoverRadius: 4,
-      spanGaps: true,
+      spanGaps: false,
+      _fmt: fmt || 'num',
     };
+  }
+
+  function formatChartTip(item) {
+    var v = item.parsed.y;
+    if (v == null || Number.isNaN(v)) return 'لا بيانات لهذا اليوم';
+    var f = item.dataset && item.dataset._fmt;
+    if (f === 'currency') {
+      try {
+        return new Intl.NumberFormat('ar-SA', {
+          style: 'currency',
+          currency: state.currency || 'SAR',
+          maximumFractionDigits: v >= 100 ? 0 : 2,
+        }).format(v);
+      } catch (e) {
+        return Number(v).toFixed(2) + ' ' + (state.currency || '');
+      }
+    }
+    if (f === 'pct') return Number(v).toFixed(2) + '%';
+    if (f === 'freq') return Number(v).toFixed(2);
+    return Number(v).toLocaleString('en-US');
   }
 
   function makeLineChart(canvasId, labels, datasets, opts) {
@@ -424,24 +458,43 @@ export function dashboardPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#221D19',
-            borderColor: '#3D352D',
+            backgroundColor: 'rgba(12,12,14,0.96)',
+            borderColor: 'rgba(201,168,76,0.25)',
             borderWidth: 1,
-            titleColor: '#F3EFE7',
-            bodyColor: '#B8AC9C',
+            titleColor: '#e8e6e0',
+            bodyColor: '#C9A84C',
             padding: 10,
+            displayColors: false,
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
+            callbacks: {
+              label: function (item) {
+                var tip = formatChartTip(item);
+                return (item.dataset.label ? item.dataset.label + ': ' : '') + tip;
+              },
+            },
           }
         },
         scales: {
           x: {
-            grid: { color: '#322B25' },
-            ticks: { color: '#746A5C', maxTicksLimit: (opts && opts.maxTicks) || 7, font: { size: 11 } },
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              color: 'rgba(148,163,184,0.55)',
+              maxTicksLimit: (opts && opts.maxTicks) || 7,
+              font: { size: 10 },
+              maxRotation: 0,
+            },
           },
           y: {
-            grid: { color: '#322B25' },
-            ticks: { color: '#746A5C', font: { size: 11 } },
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            border: { display: false },
+            ticks: {
+              color: 'rgba(148,163,184,0.55)',
+              font: { size: 10 },
+              maxTicksLimit: 4,
+            },
             beginAtZero: true,
+            grace: '8%',
           }
         },
         elements: { point: { radius: 0, hoverRadius: 4 } },
@@ -464,20 +517,28 @@ export function dashboardPage(): string {
     var details = document.querySelector('.v2-advanced');
     if (!force && details && !details.open) return;
     var p = pendingAdvancedCharts;
-    var hasCtr = p.ctrSeries.some(function (v) { return v > 0; });
-    var hasMsgs = p.impSeries.some(function (v) { return v > 0; });
+    var hasResults = (p.resultsSeries || []).some(function (v) { return v != null && v > 0; });
+    var hasCtr = (p.ctrSeries || []).some(function (v) { return v != null && v > 0; });
+    var hasFreq = (p.freqSeries || []).some(function (v) { return v != null && v > 0; });
+    var resultsCard = document.getElementById('adv-results-card');
     var ctrCard = document.getElementById('adv-ctr-card');
-    var msgCard = document.getElementById('adv-msgs-card');
+    var freqCard = document.getElementById('adv-freq-card');
+    if (resultsCard) resultsCard.style.display = hasResults ? '' : 'none';
     if (ctrCard) ctrCard.style.display = hasCtr ? '' : 'none';
-    if (msgCard) msgCard.style.display = hasMsgs ? '' : 'none';
-    if (hasCtr) {
-      makeLineChart('chart-ctr', p.labels, [
-        buildDataset(lbl('Ad engagement (%)', 'تفاعل الإعلان (٪)'), p.ctrSeries, '#34A871', 'rgba(52,168,113,0.08)'),
+    if (freqCard) freqCard.style.display = hasFreq ? '' : 'none';
+    if (hasResults) {
+      makeLineChart('chart-results', p.labels, [
+        buildDataset(lbl('Results', 'النتائج'), p.resultsSeries, '#2DD4BF', 'rgba(45,212,191,0.12)', true, 'num'),
       ]);
     }
-    if (hasMsgs) {
-      makeLineChart('chart-impressions', p.labels, [
-        buildDataset(lbl('Messages', 'الرسائل'), p.impSeries, '#C77A1F', 'rgba(199,122,31,0.08)'),
+    if (hasCtr) {
+      makeLineChart('chart-ctr', p.labels, [
+        buildDataset(lbl('CTR (%)', 'نسبة النقر (٪)'), p.ctrSeries, '#34A871', 'rgba(52,168,113,0.08)', true, 'pct'),
+      ]);
+    }
+    if (hasFreq) {
+      makeLineChart('chart-frequency', p.labels, [
+        buildDataset(lbl('Frequency', 'التكرار'), p.freqSeries, '#FB7185', 'rgba(251,113,133,0.10)', true, 'freq'),
       ]);
     }
   }
@@ -1856,35 +1917,92 @@ export function dashboardPage(): string {
       safeRender('kpis', function () { renderKpis(kpis); });
 
       var last30 = recentAsc(insights, 30);
-      var labels = last30.map(function (d) { return new Date(d.date).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' }); });
-      var isoDates = last30.map(function (d) { return new Date(d.date).toISOString().slice(0, 10); });
-      var spendSeriesMajor = last30.map(function (d) { return (Number(d.spend) || 0) / state.minorFactor; });
-      var ctrSeries        = last30.map(function (d) { return Number(d.ctr) || 0; });
-      // NOTE: this feeds the "اتجاه الرسائل" chart — it must be messages,
-      // not impressions (a long-standing mislabel in the fallback path).
-      var impSeries        = last30.map(function (d) { return Number(d.messages) || 0; });
+      var byDate = {};
+      last30.forEach(function (d) {
+        byDate[new Date(d.date).toISOString().slice(0, 10)] = d;
+      });
+      var end = new Date();
+      end.setHours(12, 0, 0, 0);
+      var start = new Date(end);
+      start.setDate(start.getDate() - 29);
+      var labels = [];
+      var isoDates = [];
+      var spendSeriesMajor = [];
+      var ctrSeries = [];
+      var resultsSeries = [];
+      var freqSeries = [];
+      for (var cal = new Date(start); cal <= end; cal.setDate(cal.getDate() + 1)) {
+        var key = cal.toISOString().slice(0, 10);
+        isoDates.push(key);
+        labels.push(new Date(key).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' }));
+        var row = byDate[key] || null;
+        if (!row) {
+          spendSeriesMajor.push(null);
+          ctrSeries.push(null);
+          resultsSeries.push(null);
+          freqSeries.push(null);
+        } else {
+          spendSeriesMajor.push((Number(row.spend) || 0) / state.minorFactor);
+          var ctrV = Number(row.ctr);
+          ctrSeries.push(Number.isFinite(ctrV) ? ctrV : null);
+          resultsSeries.push(
+            (Number(row.messages) || 0) + (Number(row.purchases) || 0) + (Number(row.leads) || 0),
+          );
+          freqSeries.push(
+            row.frequency == null || !Number.isFinite(Number(row.frequency))
+              ? null
+              : Number(row.frequency),
+          );
+        }
+      }
 
-      if (dashData.trendSeries && Array.isArray(dashData.trendSeries.dates)) {
+      if (dashData.trendSeries && Array.isArray(dashData.trendSeries.dates) && dashData.trendSeries.dates.length) {
         var ts = dashData.trendSeries;
         var tsIso = ts.dates.map(function (d) {
           var dateVal = d && typeof d === 'object' ? d.date : d;
           return new Date(dateVal).toISOString().slice(0, 10);
         });
-        var tsLabels = tsIso.map(function (iso) {
+        var tsByIdx = {};
+        tsIso.forEach(function (iso, i) { tsByIdx[iso] = i; });
+        spendSeriesMajor = isoDates.map(function (iso) {
+          var i = tsByIdx[iso];
+          if (i == null || !Array.isArray(ts.spend) || ts.spend[i] == null) return null;
+          return Number(ts.spend[i]) / state.minorFactor;
+        });
+        ctrSeries = isoDates.map(function (iso) {
+          var i = tsByIdx[iso];
+          if (i == null || !Array.isArray(ts.ctr) || ts.ctr[i] == null) return null;
+          var v = Number(ts.ctr[i]);
+          return Number.isFinite(v) ? v : null;
+        });
+        resultsSeries = isoDates.map(function (iso) {
+          var i = tsByIdx[iso];
+          if (i == null) return null;
+          if (Array.isArray(ts.results) && ts.results[i] != null) return Number(ts.results[i]);
+          if (Array.isArray(ts.messages) && ts.messages[i] != null) return Number(ts.messages[i]);
+          return null;
+        });
+        freqSeries = isoDates.map(function (iso) {
+          var i = tsByIdx[iso];
+          if (i == null || !Array.isArray(ts.frequency) || ts.frequency[i] == null) return null;
+          var v = Number(ts.frequency[i]);
+          return Number.isFinite(v) ? v : null;
+        });
+        labels = isoDates.map(function (iso) {
           return new Date(iso).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' });
         });
-        if (Array.isArray(ts.spend))    spendSeriesMajor = ts.spend.map(function (s) { return Number(s) / state.minorFactor; });
-        if (Array.isArray(ts.ctr))      ctrSeries        = ts.ctr.map(Number);
-        if (Array.isArray(ts.messages)) impSeries        = ts.messages.map(Number);
-        labels = tsLabels;
-        isoDates = tsIso;
       }
 
-      pendingAdvancedCharts = { labels: labels, ctrSeries: ctrSeries, impSeries: impSeries };
+      pendingAdvancedCharts = {
+        labels: labels,
+        ctrSeries: ctrSeries,
+        resultsSeries: resultsSeries,
+        freqSeries: freqSeries,
+      };
       var _chartLabels = labels, _chartIsoDates = isoDates, _spendSeriesMajor = spendSeriesMajor;
       requestAnimationFrame(function () {
         safeRender('charts', function () {
-          var hasSpend = _spendSeriesMajor.some(function(v){ return v > 0; });
+          var hasSpend = _spendSeriesMajor.some(function(v){ return v != null && v > 0; });
           var emptyEl = document.getElementById('chart-spend-main-empty');
           var canvasEl = document.getElementById('chart-spend-main');
           if (!hasSpend || !_chartLabels.length) {
@@ -1894,7 +2012,7 @@ export function dashboardPage(): string {
             if (emptyEl) emptyEl.style.display = 'none';
             if (canvasEl) canvasEl.style.display = '';
             var spendDatasets = [
-              buildDataset(lbl('Spend', 'الإنفاق'), _spendSeriesMajor, '#D9A759', 'rgba(217,167,89,0.12)'),
+              buildDataset(lbl('Spend', 'الإنفاق'), _spendSeriesMajor, '#D9A759', 'rgba(217,167,89,0.12)', true, 'currency'),
             ];
             var markerDataset = buildIssueMarkerDataset(_chartLabels, _chartIsoDates, state.lastIssueDates);
             if (markerDataset) spendDatasets.push(markerDataset);

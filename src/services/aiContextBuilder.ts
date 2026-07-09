@@ -99,12 +99,12 @@ export function buildAiContext(dto: DashboardDTO, message: string): string {
   const td = safeDto.trendSeries;
   if (td.dates.length > 0) {
     const last3 = Math.max(0, td.dates.length - 3);
-    const dates    = td.dates.slice(last3);
-    const messages = td.messages.slice(last3);
-    const spend    = td.spend.slice(last3);
-    lines.push('## Recent trend (last 3 days)', '| Date | Messages | Spend |', '|------|----------|-------|');
+    const dates = td.dates.slice(last3);
+    const results = (td.results ?? td.messages).slice(last3);
+    const spend = td.spend.slice(last3);
+    lines.push('## Recent trend (last 3 days)', '| Date | Results | Spend |', '|------|---------|-------|');
     for (let i = 0; i < dates.length; i++) {
-      lines.push(`| ${dates[i]} | ${messages[i]} | ${spend[i].toFixed(2)} |`);
+      lines.push(`| ${dates[i]} | ${results[i]} | ${spend[i].toFixed(2)} |`);
     }
   }
 
