@@ -2559,7 +2559,7 @@ export function sidebar(active: string): string {
     { id: 'workspace',       label: 'مساحة العمل',       href: '/workspace' },
     { id: 'ai',              label: 'المساعد الذكي',     href: '/ai' },
     { id: 'settings',        label: 'الإعدادات',         href: '/settings' },
-    { id: 'admin',           label: 'إدارة المنصة',      href: '/admin' },
+    { id: 'admin',           label: 'إدارة الإيرادات',   href: '/admin' },
   ];
   const links = nav.map(n => `
     <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}${n.id === 'admin' ? ' nav-item-admin' : ''}" data-nav-id="${n.id}"${n.id === 'admin' ? ' style="display:none;"' : ''}>
