@@ -356,9 +356,12 @@ function computeWindowTrendDeltas(
   cpmTrend: number | null;
   frequencyTrend: number | null;
 } {
+  const resultsVolume = (rows: { [k: string]: any }[]) =>
+    sum(rows, "messages") + sum(rows, "purchases") + sum(rows, "leads");
   return {
     spendTrend: pctTrend(sum(current, "spend"), sum(prior, "spend")),
-    resultsTrend: pctTrend(sum(current, "messages"), sum(prior, "messages"), { minSignal: 3 }),
+    // Align with trendSeries.results (messages + purchases + leads), not messages alone.
+    resultsTrend: pctTrend(resultsVolume(current), resultsVolume(prior), { minSignal: 3 }),
     ctrTrend: pctTrend(windowCtr(current), windowCtr(prior), { noiseFloor: 0.02 }),
     cpmTrend: pctTrend(windowCpm(current, factor), windowCpm(prior, factor), { noiseFloor: 0.02 }),
     frequencyTrend: pctTrend(avg(current, "frequency"), avg(prior, "frequency"), { noiseFloor: 0.02 }),
@@ -464,21 +467,21 @@ export async function getDashboard(
   const prisma = opts.prisma ?? _standalonePrisma;
   const knowledge = new KnowledgeEngine(prisma);
   const recService = new RecommendationService(prisma);
-  const appliedItemKeys = await timedStage('appliedItemKeys', () =>
-    recService.getAppliedItemKeys(workspaceId),
-  );
   const windowDays = opts.windowDays ?? 30;
 
-  // 1. Workspace + industry + the (single) ad account.
-  const ws = await timedStage('workspace+account', () =>
-    prisma.workspace.findUniqueOrThrow({
-      where: { id: workspaceId },
-      include: {
-        industryProfile: true,
-        adAccounts: true,
-      },
-    }),
-  );
+  // 1. Workspace + applied keys in parallel (independent).
+  const [appliedItemKeys, ws] = await Promise.all([
+    timedStage('appliedItemKeys', () => recService.getAppliedItemKeys(workspaceId)),
+    timedStage('workspace+account', () =>
+      prisma.workspace.findUniqueOrThrow({
+        where: { id: workspaceId },
+        include: {
+          industryProfile: true,
+          adAccounts: true,
+        },
+      }),
+    ),
+  ]);
   const locale = opts.locale ?? Locale.EN;
   const account = ws.adAccounts[0]; // Phase 1: one account per workspace
   if (!account) return EMPTY_DASHBOARD_DTO;
@@ -499,29 +502,47 @@ export async function getDashboard(
   const sinceDate = utcDateFloor(windowDays);
   const priorSinceDate = utcDateFloor(windowDays * 2);
 
-  // 2. Account-level daily stats — current + prior window for KPI deltas and charts.
-  const allDaily = await timedStage('accountDailyStats', () =>
-    prisma.dailyStat.findMany({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
-      orderBy: { date: "asc" },
-    }),
-  );
+  // 2. Independent account reads in parallel (biggest latency win).
+  const [allDaily, healthRow, detected, latestTrend, rec] = await Promise.all([
+    timedStage('accountDailyStats', () =>
+      prisma.dailyStat.findMany({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
+        orderBy: { date: "asc" },
+      }),
+    ),
+    timedStage('accountHealthScore', () =>
+      prisma.healthScore.findFirst({
+        where: {
+          entityType: EntityType.ACCOUNT,
+          entityId: account.id,
+          algorithmVersion: HEALTH_ALGORITHM_VERSION,
+        },
+        orderBy: { date: "desc" },
+      }),
+    ),
+    timedStage('detectedIssues', () =>
+      prisma.detectedIssue.findMany({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+        orderBy: { severity: "desc" },
+      }),
+    ),
+    timedStage('latestTrend', () =>
+      prisma.metricTrend.findFirst({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+        orderBy: { date: "desc" },
+      }),
+    ),
+    timedStage('recommendation', () =>
+      prisma.recommendation.findFirst({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+        orderBy: [{ priority: "desc" }, { date: "desc" }],
+      }),
+    ),
+  ]);
+
   const sinceMs = sinceDate.getTime();
   const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
   const priorDaily = allDaily.filter((d) => d.date.getTime() < sinceMs);
-
-  // 3. Latest stored health score for the CURRENT algorithm version only.
-  //    v1 rows may coexist for the same date; we explicitly pick v2.
-  const healthRow = await timedStage('accountHealthScore', () =>
-    prisma.healthScore.findFirst({
-      where: {
-        entityType: EntityType.ACCOUNT,
-        entityId: account.id,
-        algorithmVersion: HEALTH_ALGORITHM_VERSION,
-      },
-      orderBy: { date: "desc" },
-    }),
-  );
   const score = healthRow?.score ?? 0;
 
   // 4. KPI badge deltas — 30d window totals vs prior 30d (not metric_trends 7d).
@@ -631,16 +652,7 @@ export async function getDashboard(
     }),
   };
 
-  // 7. Issues — join detected_issues → knowledge_rules, localized AND
-  //    industry-specialized. The fallback rule (industry → universal) lives
-  //    inside KnowledgeEngine; this function only consumes the result.
-  const detected = await timedStage('detectedIssues', () =>
-    prisma.detectedIssue.findMany({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-      orderBy: { severity: "desc" },
-    }),
-  );
-
+  // 7. Issues — join detected_issues → knowledge_rules (detected already loaded in parallel).
   const knowledgeMap = await timedStage('knowledgeLookup', () =>
     knowledge.lookupMany({
       issueCodes: (detected as any[]).map(d => d.issueCode as IssueCode),
@@ -746,13 +758,7 @@ export async function getDashboard(
     }
   }
 
-  // 7b. Diagnoses — re-derive from stored issues + latest trends.
-  const latestTrend = await timedStage('latestTrend', () =>
-    prisma.metricTrend.findFirst({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-      orderBy: { date: "desc" },
-    }),
-  );
+  // 7b. Diagnoses — re-derive from stored issues + latest trends (trend already loaded).
   const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
     issueCode: d.issueCode,
     severity: d.severity,
@@ -776,21 +782,19 @@ export async function getDashboard(
   const diagnoses = diagnose(issueRecords, signals);
 
   // 7c. Attribution — decompose results change into impressions × CTR × CVR.
+  // Use the same results volume as trendSeries (messages + purchases + leads).
   const priorImpr = sum(priorDaily, "impressions");
   const priorClicks = sum(priorDaily, "clicks");
-  const priorResults = sum(priorDaily, "messages");
+  const currentResultsVol =
+    sum(daily, "messages") + sum(daily, "purchases") + sum(daily, "leads");
+  const priorResultsVol =
+    sum(priorDaily, "messages") + sum(priorDaily, "purchases") + sum(priorDaily, "leads");
   const resultAttribution = attributeChange(
-    { impressions: totalImpr, clicks: totalClicks, results: totalMsgs },
-    { impressions: priorImpr, clicks: priorClicks, results: priorResults },
+    { impressions: totalImpr, clicks: totalClicks, results: currentResultsVol },
+    { impressions: priorImpr, clicks: priorClicks, results: priorResultsVol },
   );
 
-  // 8. Priority action — highest-priority recommendation, rendered to text.
-  const rec = await timedStage('recommendation', () =>
-    prisma.recommendation.findFirst({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-      orderBy: [{ priority: "desc" }, { date: "desc" }],
-    }),
-  );
+  // 8. Priority action — recommendation already loaded in parallel.
   // Sanitize every issue at the product boundary — UI and AI never see codes/jargon.
   const merchantIssues = issues.map(sanitizeIssueForMerchant);
 
@@ -893,28 +897,27 @@ export async function getDashboard(
     );
   }
 
-  // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
-  const cards = await timedStage('campaignCards', () =>
-    buildCampaignCards(account.id, prisma, sinceDate, factor),
-  );
+  // 9–10. Campaign cards + brain section in parallel (independent after account context).
+  const [cards, brain] = await Promise.all([
+    timedStage('campaignCards', () =>
+      buildCampaignCards(account.id, prisma, sinceDate, factor),
+    ),
+    timedStage('brainSection', () =>
+      buildBrainSection(
+        prisma,
+        ws.id,
+        account.id,
+        account.currency,
+        account.currencyMinorFactor,
+        appliedItemKeys,
+      ),
+    ),
+  ]);
 
   const campaignCounts = await timedStage('campaignCounts', () =>
     getCampaignCounts(prisma, account.id, account.timezone, cards.all.length),
   );
   const activeCampaigns = campaignCounts.deliveringInWindow;
-
-  // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
-  //     Returns undefined when no snapshots exist for this workspace (V5-only render).
-  const brain = await timedStage('brainSection', () =>
-    buildBrainSection(
-      prisma,
-      ws.id,
-      account.id,
-      account.currency,
-      account.currencyMinorFactor,
-      appliedItemKeys,
-    ),
-  );
 
   const hasActionItems =
     filteredIssues.length > 0 ||
@@ -1219,17 +1222,23 @@ async function buildCampaignCards(
     snapsByCampaign.set(s.entityId, rows);
   }
 
-  // Bulk fetch: latest health score per campaign
-  const allHealth = await prisma.healthScore.findMany({
-    where: {
-      entityType: EntityType.CAMPAIGN,
-      entityId: { in: campaignIds },
-      algorithmVersion: HEALTH_ALGORITHM_VERSION,
-    },
-    orderBy: { date: "desc" },
-  });
-  const healthMap = new Map<string, (typeof allHealth)[number]>();
-  for (const h of allHealth) if (!healthMap.has(h.entityId)) healthMap.set(h.entityId, h);
+  // Bulk fetch: latest health score per campaign (one row each — avoid full history).
+  // DISTINCT ON is Postgres-specific; matches our production DB.
+  const latestHealthRows = await prisma.$queryRaw<
+    Array<{ entity_id: string; score: number }>
+  >`
+    SELECT DISTINCT ON (entity_id)
+      entity_id, score
+    FROM health_scores
+    WHERE entity_type = 'CAMPAIGN'::"EntityType"
+      AND entity_id = ANY(${campaignIds})
+      AND algorithm_version = ${HEALTH_ALGORITHM_VERSION}
+    ORDER BY entity_id, date DESC
+  `;
+  const healthMap = new Map<string, { score: number }>();
+  for (const h of latestHealthRows) {
+    healthMap.set(h.entity_id, { score: h.score });
+  }
 
   const cards: CampaignCard[] = [];
   for (const c of campaigns) {

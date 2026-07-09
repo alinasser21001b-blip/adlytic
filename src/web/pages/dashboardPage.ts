@@ -363,8 +363,12 @@ export function dashboardPage(): string {
   'use strict';
 
   // ── State ───────────────────────────────────────────────────────────────
-  var REFRESH_MS = 30000;
+  var PULSE_MS = 30000;
+  var FULL_REFRESH_MS = 300000; // full DTO every 5 min; pulse fills the gaps
   var refreshTimer = null;
+  var fullRefreshTimer = null;
+  var refreshGeneration = 0;
+  var refreshInFlight = false;
   var chartInstances = {};
   var chartResizeBound = false;
   var pendingAdvancedCharts = null;
@@ -1600,6 +1604,7 @@ export function dashboardPage(): string {
       primary.narrative = task.why || primary.narrative;
       primary.itemId = task.itemKey || primary.itemId;
       primary.actionCode = task.actionCode || primary.actionCode;
+      primary.kind = (task.itemKey && String(task.itemKey).indexOf('priority:') === 0) ? 'priority' : 'issue';
       primary.buttonText = lbl('Do this task', 'نفّذ المهمة');
     }
 
@@ -1861,46 +1866,77 @@ export function dashboardPage(): string {
   function applyPulse(pulse) {
     updatePulseLabels();
     if (!pulse) return;
-    document.getElementById('brain-pulse-burn').textContent = pulse.burnRateDisplay || '—';
-    document.getElementById('brain-pulse-burn-n').textContent = String(pulse.campaignsObserved || 0);
-    document.getElementById('brain-pulse-spendpct').textContent = (pulse.intraDaySpendPct != null) ? pulse.intraDaySpendPct.toFixed(1) + '%' : '—';
-    document.getElementById('brain-pulse-dna').textContent = (pulse.dnaMatchPct != null) ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
-    document.getElementById('brain-pulse-tick').textContent = pulse.tickDate || lbl('no tick yet today', 'لا يوجد تحديث اليوم');
+    var burn = document.getElementById('brain-pulse-burn');
+    var burnN = document.getElementById('brain-pulse-burn-n');
+    var spendPct = document.getElementById('brain-pulse-spendpct');
+    var dna = document.getElementById('brain-pulse-dna');
+    var tick = document.getElementById('brain-pulse-tick');
+    if (burn) burn.textContent = pulse.burnRateDisplay || '—';
+    if (burnN) burnN.textContent = String(pulse.campaignsObserved || 0);
+    if (spendPct) spendPct.textContent = (pulse.intraDaySpendPct != null) ? pulse.intraDaySpendPct.toFixed(1) + '%' : '—';
+    if (dna) dna.textContent = (pulse.dnaMatchPct != null) ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
+    if (tick) tick.textContent = pulse.tickDate || lbl('no tick yet today', 'لا يوجد تحديث اليوم');
   }
-  function startAutoRefresh(workspaceId) {
-    async function refreshDashboard() {
-      if (document.hidden) return;
-      try {
-        var results = await Promise.all([
-          apiFetch('/api/dashboard/' + workspaceId),
-          apiFetch('/api/workspaces/' + workspaceId + '/insights?days=90'),
-          apiFetch('/api/workspaces/' + workspaceId + '/campaigns').catch(function () { return []; }),
-        ]);
-        var dashData = results[0] || {};
-        if (dashData.empty) return;
-        applyDashboardData(dashData, results[1] || [], results[2] || [], null, false);
-      } catch (e) { /* silent background refresh */ }
-    }
-    function stopTimer() {
-      if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
+
+  /** Shared full refresh — used by auto-refresh, visibility, and post-sync onComplete. */
+  async function refreshDashboardData(workspaceId, opts) {
+    opts = opts || {};
+    if (!workspaceId || document.hidden) return null;
+    if (refreshInFlight && !opts.force) return null;
+    var gen = ++refreshGeneration;
+    refreshInFlight = true;
+    try {
+      var results = await Promise.all([
+        apiFetchWithTimeout('/api/dashboard/' + workspaceId, {}, opts.timeoutMs || 15000),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, opts.timeoutMs || 15000).catch(function () { return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, opts.timeoutMs || 15000).catch(function () { return []; }),
+      ]);
+      if (gen !== refreshGeneration) return null; // stale response
+      var dashData = results[0];
+      if (!dashData || dashData.empty) return dashData || null;
+      if (dashData.error || dashData.code === 'DASHBOARD_TIMEOUT') {
+        throw Object.assign(new Error(dashData.error || 'Dashboard timed out'), { code: dashData.code || 'DASHBOARD_TIMEOUT' });
       }
+      applyDashboardData(dashData, results[1] || [], results[2] || [], null, !!opts.isInitial);
+      return dashData;
+    } finally {
+      if (gen === refreshGeneration) refreshInFlight = false;
     }
-    function armTimer() {
-      stopTimer();
-      refreshTimer = setInterval(refreshDashboard, REFRESH_MS);
+  }
+
+  async function refreshPulseOnly(workspaceId) {
+    if (!workspaceId || document.hidden) return;
+    try {
+      var pulse = await apiFetchWithTimeout('/api/dashboard/pulse/' + workspaceId, {}, 8000);
+      if (!pulse) return;
+      applyPulse(pulse);
+      var pulseSection = document.getElementById('brain-pulse-section');
+      if (pulseSection) pulseSection.style.display = 'block';
+    } catch (e) { /* silent pulse */ }
+  }
+
+  function startAutoRefresh(workspaceId) {
+    function stopTimers() {
+      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+      if (fullRefreshTimer) { clearInterval(fullRefreshTimer); fullRefreshTimer = null; }
+    }
+    function armTimers() {
+      stopTimers();
+      refreshTimer = setInterval(function () { refreshPulseOnly(workspaceId); }, PULSE_MS);
+      fullRefreshTimer = setInterval(function () {
+        refreshDashboardData(workspaceId).catch(function () { /* silent */ });
+      }, FULL_REFRESH_MS);
     }
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) {
-        refreshDashboard();
-        armTimer();
+        refreshDashboardData(workspaceId).catch(function () { /* silent */ });
+        armTimers();
       } else {
-        stopTimer();
+        stopTimers();
       }
     });
-    window.addEventListener('pagehide', stopTimer);
-    armTimer();
+    window.addEventListener('pagehide', stopTimers);
+    armTimers();
   }
 
   // ── Insights → KPIs fallback (uses minor-unit-aware spend totals) ───────
@@ -2301,7 +2337,11 @@ export function dashboardPage(): string {
 
       await resumeActiveSyncIfAny(workspaceId, {
         statusContainerId: 'dashboard-content',
-        onComplete: function () { refreshDashboard(); },
+        onComplete: function () {
+          refreshDashboardData(workspaceId, { force: true }).catch(function (e) {
+            console.warn('[dashboard] post-sync refresh failed:', e);
+          });
+        },
       });
 
       var urlParams = new URLSearchParams(window.location.search);
@@ -2312,15 +2352,32 @@ export function dashboardPage(): string {
         window.history.replaceState({}, '', '/dashboard');
       }
 
-      // 3) Parallel data fetch (each call bounded; failures degrade gracefully)
+      // 3) Parallel data fetch — dashboard failure is fatal; secondary calls degrade.
+      var dashFetchFailed = null;
       var results = await Promise.all([
-        apiFetchWithTimeout('/api/dashboard/' + workspaceId, {}, 15000).catch(function (e) { console.warn('[dashboard] dashboard fetch failed:', e); return {}; }),
+        apiFetchWithTimeout('/api/dashboard/' + workspaceId, {}, 15000).catch(function (e) {
+          console.warn('[dashboard] dashboard fetch failed:', e);
+          dashFetchFailed = e;
+          return null;
+        }),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 15000).catch(function () { return []; }),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 15000).catch(function () { return []; }),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 15000).catch(function () { return null; }),
         apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 15000).catch(function () { return []; }),
       ]);
-      var dashData = results[0] || {};
+      var dashData = results[0];
+
+      if (dashFetchFailed || !dashData) {
+        hideLoadingShowDashboard();
+        showError(friendlyApiError(dashFetchFailed || { message: 'تعذّر تحميل لوحة التحكم' }));
+        return;
+      }
+      if (dashData.error || dashData.code === 'DASHBOARD_TIMEOUT') {
+        hideLoadingShowDashboard();
+        showError(friendlyApiError(Object.assign(new Error(dashData.error || 'انتهت مهلة تحميل اللوحة'), { code: dashData.code })));
+        return;
+      }
+
       if (dashData.workspace && dashData.workspace.locale) {
         state.locale = String(dashData.workspace.locale).toUpperCase();
       }
@@ -2353,6 +2410,7 @@ export function dashboardPage(): string {
         startAutoRefresh(workspaceId);
       } catch (renderErr) {
         console.error('[dashboard] init render failed:', renderErr);
+        showError(friendlyApiError(renderErr));
       }
 
     } catch (err) {
