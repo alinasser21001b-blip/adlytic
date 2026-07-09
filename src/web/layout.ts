@@ -1602,7 +1602,21 @@ function friendlyApiError(err) {
   if (err.code === 'TOKEN_DECRYPT_FAILED') {
     return 'تعذّر قراءة رمز Meta المحفوظ. أعد ربط حسابك من إعدادات مساحة العمل.';
   }
+  if (err.code === 'AI_CREDITS_EXHAUSTED') {
+    return 'المساعد الذكي غير متاح مؤقتاً بسبب نفاد رصيد مزوّد الذكاء الاصطناعي. تابع التشخيص من لوحة التحكم، أو أعد المحاولة لاحقاً.';
+  }
+  if (err.code === 'AI_RATE_LIMITED') {
+    return 'وصلنا حد الطلبات مؤقتاً. انتظر دقيقة ثم أعد المحاولة.';
+  }
+  if (err.code === 'AI_AUTH_FAILED' || err.code === 'AI_UNAVAILABLE' || err.code === 'AI_TIMEOUT' || err.code === 'AI_UNKNOWN') {
+    return err.message && /[\u0600-\u06FF]/.test(String(err.message))
+      ? String(err.message)
+      : 'المساعد الذكي غير متاح مؤقتاً. جرّب بعد لحظات أو راجع التشخيص في لوحة التحكم.';
+  }
   var msg = err.message || String(err);
+  if (/credit balance is too low|purchase credits|Plans & Billing|insufficient.?credit/i.test(msg)) {
+    return 'المساعد الذكي غير متاح مؤقتاً بسبب نفاد رصيد مزوّد الذكاء الاصطناعي. تابع التشخيص من لوحة التحكم، أو أعد المحاولة لاحقاً.';
+  }
   if (/Another sync is already in progress/i.test(msg)) {
     return 'المزامنة قيد التشغيل — ستتحدّث بياناتك تلقائياً عند الانتهاء.';
   }
@@ -1619,6 +1633,10 @@ function friendlyApiError(err) {
   }
   if (/Insufficient permissions/i.test(msg)) return 'تحتاج صلاحية مدير أو مالك لمزامنة البيانات.';
   if (/No ad account/i.test(msg)) return 'اربط حساب Meta الإعلاني من إعدادات مساحة العمل أولاً.';
+  // Never show raw Anthropic / provider JSON blobs in the UI.
+  if (/invalid_request_error|"type"\s*:\s*"error"|request_id|anthropic/i.test(msg)) {
+    return 'المساعد الذكي غير متاح مؤقتاً. جرّب بعد لحظات أو راجع التشخيص في لوحة التحكم.';
+  }
   return msg;
 }
 

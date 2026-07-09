@@ -435,14 +435,22 @@ export function aiPage(): string {
       if (usedV2 && res) {
         if (res.conversationId) conversationId = res.conversationId;
         renderToolChips(bubbleWrapper, res.toolCalls);
-        if (res.latencyMs != null) {
-          var bubble = bubbleWrapper.querySelector('.msg-bubble');
-          if (bubble) {
-            var latency = document.createElement('div');
-            latency.className = 'evidence-bar';
-            latency.innerHTML = '<span class="evidence-pill"><b>' + (isAr ? 'الوقت' : 'Latency') + '</b> ' +
+        var v2Bubble = bubbleWrapper.querySelector('.msg-bubble');
+        if (v2Bubble) {
+          var metaBar = document.createElement('div');
+          metaBar.className = 'evidence-bar';
+          var pills = '';
+          if (res.usedOffline) {
+            pills += '<span class="evidence-pill"><b>' + (isAr ? 'المصدر' : 'Source') + '</b> ' +
+              (isAr ? 'تشخيص الحساب (بدون نموذج سحابي)' : 'Account diagnosis (offline)') + '</span>';
+          }
+          if (res.latencyMs != null) {
+            pills += '<span class="evidence-pill"><b>' + (isAr ? 'الوقت' : 'Latency') + '</b> ' +
               Math.round(Number(res.latencyMs) / 100) / 10 + (isAr ? ' ث' : 's') + '</span>';
-            bubble.appendChild(latency);
+          }
+          if (pills) {
+            metaBar.innerHTML = pills;
+            v2Bubble.appendChild(metaBar);
           }
         }
       } else {
@@ -450,14 +458,20 @@ export function aiPage(): string {
         if (bubble) {
           var evidence = document.createElement('div');
           evidence.className = 'evidence-bar';
+          var srcLabel = (res && res.usedOffline)
+            ? (isAr ? 'تشخيص الحساب (بدون نموذج سحابي)' : 'Account diagnosis (offline)')
+            : (isAr ? 'بيانات لوحة التحكم الحية' : 'Live dashboard context');
           evidence.innerHTML = '<span class="evidence-pill"><b>' + (isAr ? 'المصدر' : 'Source') + '</b> ' +
-            (isAr ? 'بيانات لوحة التحكم الحية' : 'Live dashboard context') + '</span>';
+            srcLabel + '</span>';
           bubble.appendChild(evidence);
         }
       }
     } catch(e) {
       typingEl.remove();
-      addMsg('assistant', '<span style="color:var(--error);">' + esc(isAr ? 'خطأ: ' : 'Error: ') + esc(e.message || (isAr ? 'فشل الطلب' : 'Request failed')) + '</span>');
+      var friendly = (typeof friendlyApiError === 'function')
+        ? friendlyApiError(e)
+        : (e && e.message) || (isAr ? 'فشل الطلب' : 'Request failed');
+      addMsg('assistant', '<span style="color:var(--error);">' + esc(friendly) + '</span>');
     } finally {
       sending = false;
       sendBtn.disabled = false;

@@ -87,6 +87,8 @@ import { buildAiContext } from '../services/aiContextBuilder';
 import { buildAiContextV5 } from '../services/aiContextBuilderV5';
 import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
 import { askClaude } from '../services/claudeClient';
+import { buildAiUnavailableReply } from '../services/aiOfflineReply';
+import { classifyLlmError } from '../lib/llmErrors';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
 import { recordMetaAuditEvent, listMetaAuditEvents } from '../services/metaAudit';
@@ -3062,7 +3064,24 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       reply = await askClaude(context);
     } catch (err) {
       console.error('[adlytic:ai-chat] Claude API error:', err);
-      reply = 'Sorry, the AI assistant is temporarily unavailable. Please try again in a moment.';
+      const fallback = buildAiUnavailableReply({
+        err,
+        dto,
+        userMessage: message,
+        locale: 'AR',
+      });
+      // Prefer a useful offline diagnosis (200) over leaking provider JSON.
+      if (fallback.usedOffline) {
+        return c.json({
+          reply: fallback.reply,
+          code: fallback.code,
+          usedOffline: true,
+        });
+      }
+      return c.json(
+        { error: fallback.reply, code: fallback.code, reply: fallback.reply },
+        fallback.httpStatus as 402 | 429 | 500 | 503,
+      );
     }
     return c.json({ reply });
   });
@@ -3126,18 +3145,46 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         tokensOut: result.tokensOut,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
       console.error('[adlytic:ai-chat-v2] error:', err);
-      // Graceful fallback in the merchant's likely language — MVP: Arabic default.
-      return c.json({
-        conversationId: body.conversationId ?? null,
-        reply: 'حدث خطأ في تحليل حملاتك الآن. جرب بعد لحظة، أو اسأل سؤالاً أضيق نطاقاً.',
-        toolCalls: [],
-        latencyMs: 0,
-        tokensIn: 0,
-        tokensOut: 0,
-        error: msg,
-      }, 500);
+      const classified = classifyLlmError(err);
+      let dto: Awaited<ReturnType<typeof getDashboard>> | null = null;
+      try {
+        dto = await getDashboard(workspaceId, { prisma });
+      } catch (dtoErr) {
+        console.error('[adlytic:ai-chat-v2] offline getDashboard error:', dtoErr);
+      }
+      const fallback = buildAiUnavailableReply({
+        err,
+        dto,
+        userMessage: message,
+        locale: 'AR',
+      });
+      // Never put raw provider messages in the client payload.
+      if (fallback.usedOffline) {
+        return c.json({
+          conversationId: body.conversationId ?? null,
+          reply: fallback.reply,
+          toolCalls: [],
+          latencyMs: 0,
+          tokensIn: 0,
+          tokensOut: 0,
+          code: fallback.code,
+          usedOffline: true,
+        });
+      }
+      return c.json(
+        {
+          conversationId: body.conversationId ?? null,
+          reply: fallback.reply,
+          toolCalls: [],
+          latencyMs: 0,
+          tokensIn: 0,
+          tokensOut: 0,
+          error: fallback.reply,
+          code: fallback.code || classified.code,
+        },
+        fallback.httpStatus as 402 | 429 | 500 | 503,
+      );
     }
   });
 
