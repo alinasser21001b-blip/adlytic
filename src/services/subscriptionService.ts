@@ -103,6 +103,49 @@ export async function activateManual(
   });
 }
 
+// ── Manual cancel / downgrade (owner admin console) ─────────────────────
+
+export interface ManualCancelInput {
+  workspaceId: string;
+  /** Free-form note from the platform owner. */
+  note?: string;
+  /** User.id of the admin who pressed cancel. */
+  triggeredBy: string;
+}
+
+/**
+ * Downgrade a workspace to FREE + CANCELED and append a ledger row.
+ * Does not call Stripe — for WhatsApp/cash customers, or when the owner
+ * wants to revoke access immediately regardless of Stripe state.
+ */
+export async function cancelManual(
+  prisma: PrismaClient,
+  input: ManualCancelInput,
+): Promise<ApplyResult> {
+  return prisma.$transaction(async (tx) => {
+    const ws = await tx.workspace.update({
+      where: { id: input.workspaceId },
+      data: {
+        tier: 'FREE',
+        subscriptionStatus: 'CANCELED',
+        subscriptionExpiresAt: new Date(),
+      },
+      select: { id: true, tier: true, subscriptionStatus: true },
+    });
+    await tx.paymentEvent.create({
+      data: {
+        workspaceId: ws.id,
+        eventType: 'CANCELED',
+        source: 'WHATSAPP_MANUAL',
+        tierAfter: 'FREE',
+        note: input.note ?? 'Canceled by platform admin',
+        triggeredBy: input.triggeredBy,
+      },
+    });
+    return { ok: true, workspaceId: ws.id, status: ws.subscriptionStatus, tier: ws.tier };
+  });
+}
+
 // ── Stripe webhook router ───────────────────────────────────────────────
 
 /**

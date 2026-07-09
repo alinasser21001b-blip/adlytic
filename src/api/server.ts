@@ -52,11 +52,23 @@ import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatfor
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
-import { handleStripeWebhookEvent, activateManual } from '../services/subscriptionService';
+import { handleStripeWebhookEvent, activateManual, cancelManual } from '../services/subscriptionService';
+import {
+  createCustomer,
+  listCustomers,
+  getCustomerDetail,
+  updateCustomerUser,
+  setCustomerActive,
+  adminResetPassword,
+  listSubscriptions,
+  listRecentPaymentEvents,
+  adminOverview,
+} from '../services/adminConsole';
 import { buildWhatsappLink } from '../services/whatsappLink';
 import { buildActivationWhatsappLink } from '../services/activationWhatsappLink';
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
+import { adminConsolePage } from '../web/pages/adminConsolePage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
@@ -471,7 +483,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/workspace',      (c) => c.html(workspacePage()));
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
-  app.get('/admin',          (c) => c.html(adminDashboardPage()));
+  app.get('/admin',          (c) => c.html(adminConsolePage()));
+  app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
   app.get('/admin/meta-readiness', (c) => c.html(metaReadinessPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
@@ -1147,25 +1160,39 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /**
    * GET /api/admin/users — list users with activation status for manual review.
+   * Supports ?q=&status=active|pending|all&tier=FREE|PREMIUM|all&take=&skip=
    */
   app.get('/api/admin/users', async (c) => {
     const req = await honoToApiRequest(c);
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
 
-    const users = await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        activatedAt: true,
-        createdAt: true,
-      },
-    });
-    return c.json({ users: safeJson(users) });
+    const q = c.req.query('q') ?? undefined;
+    const statusRaw = c.req.query('status') ?? 'all';
+    const status = statusRaw === 'active' || statusRaw === 'pending' ? statusRaw : 'all';
+    const tierRaw = c.req.query('tier') ?? 'all';
+    const tier = tierRaw === 'FREE' || tierRaw === 'PREMIUM' ? tierRaw : 'all';
+    const take = Number(c.req.query('take') ?? 50);
+    const skip = Number(c.req.query('skip') ?? 0);
+
+    // Legacy shape for the old observability page: { users: [...] }
+    // New console prefers /api/admin/customers — keep this enriched.
+    const result = await listCustomers(prisma, { q, status, tier, take, skip });
+    return c.json(safeJson({
+      users: result.customers.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        isActive: u.isActive,
+        activatedAt: u.activatedAt,
+        createdAt: u.createdAt,
+        hasPremium: u.hasPremium,
+        workspaces: u.workspaces,
+      })),
+      total: result.total,
+      take: result.take,
+      skip: result.skip,
+    }));
   });
 
   /**
@@ -1189,22 +1216,217 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return c.json({ ok: true, alreadyActive: true, user: existing });
     }
 
-    const user = await prisma.user.update({
-      where: { id: targetUserId },
-      data: {
-        isActive: true,
-        activatedAt: new Date(),
-        activatedBy: gate.userId,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        activatedAt: true,
-      },
-    });
+    const user = await setCustomerActive(prisma, targetUserId, true, gate.userId);
     return c.json({ ok: true, user: safeJson(user) });
+  });
+
+  /**
+   * POST /api/admin/users/deactivate — suspend a customer account.
+   */
+  app.post('/api/admin/users/deactivate', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as { userId?: string };
+    const targetUserId = body.userId?.trim();
+    if (!targetUserId) return c.json({ error: 'userId is required' }, 400);
+    if (targetUserId === gate.userId) {
+      return c.json({ error: 'Cannot deactivate your own admin account' }, 400);
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true },
+    });
+    if (!existing) return c.json({ error: 'User not found' }, 404);
+
+    const user = await setCustomerActive(prisma, targetUserId, false, gate.userId);
+    return c.json({ ok: true, user: safeJson(user) });
+  });
+
+  /**
+   * GET /api/admin/overview — owner console KPI strip.
+   */
+  app.get('/api/admin/overview', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const overview = await adminOverview(prisma);
+    return c.json(safeJson(overview));
+  });
+
+  /**
+   * GET /api/admin/customers — searchable customer list for the owner console.
+   */
+  app.get('/api/admin/customers', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const q = c.req.query('q') ?? undefined;
+    const statusRaw = c.req.query('status') ?? 'all';
+    const status = statusRaw === 'active' || statusRaw === 'pending' ? statusRaw : 'all';
+    const tierRaw = c.req.query('tier') ?? 'all';
+    const tier = tierRaw === 'FREE' || tierRaw === 'PREMIUM' ? tierRaw : 'all';
+    const take = Number(c.req.query('take') ?? 50);
+    const skip = Number(c.req.query('skip') ?? 0);
+    const result = await listCustomers(prisma, { q, status, tier, take, skip });
+    return c.json(safeJson(result));
+  });
+
+  /**
+   * POST /api/admin/customers — create a customer account + workspace.
+   */
+  app.post('/api/admin/customers', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as {
+      email?: string;
+      name?: string;
+      password?: string;
+      workspaceName?: string;
+      locale?: 'AR' | 'EN';
+      activateAccount?: boolean;
+      grantPremium?: boolean;
+      premiumDays?: number;
+      premiumNote?: string;
+    };
+
+    try {
+      const premiumDays = Math.max(1, Math.min(730, Number(body.premiumDays ?? 30)));
+      const result = await createCustomer(prisma, {
+        email: body.email ?? '',
+        name: body.name ?? '',
+        password: body.password ?? '',
+        workspaceName: body.workspaceName ?? '',
+        locale: body.locale === 'EN' ? 'EN' : 'AR',
+        activateAccount: body.activateAccount !== false,
+        grantPremium: body.grantPremium === true,
+        premiumExpiresAt: body.grantPremium
+          ? new Date(Date.now() + premiumDays * 864e5)
+          : undefined,
+        premiumNote: body.premiumNote,
+        triggeredBy: gate.userId,
+      });
+      return c.json(safeJson({ ok: true, ...result }), 201);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'CREATE_FAILED';
+      const map: Record<string, { status: 400 | 409; error: string }> = {
+        INVALID_EMAIL: { status: 400, error: 'البريد الإلكتروني غير صالح' },
+        INVALID_NAME: { status: 400, error: 'الاسم مطلوب' },
+        WEAK_PASSWORD: { status: 400, error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' },
+        EMAIL_TAKEN: { status: 409, error: 'هذا البريد مسجّل مسبقاً' },
+      };
+      const mapped = map[code] ?? { status: 400 as const, error: 'تعذّر إنشاء الحساب' };
+      return c.json({ error: mapped.error, code }, mapped.status);
+    }
+  });
+
+  /**
+   * GET /api/admin/customers/:userId — customer detail + activity.
+   */
+  app.get('/api/admin/customers/:userId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+    const detail = await getCustomerDetail(prisma, userId);
+    if (!detail) return c.json({ error: 'User not found' }, 404);
+    return c.json(safeJson(detail));
+  });
+
+  /**
+   * PATCH /api/admin/customers/:userId — edit name/email/locale.
+   */
+  app.patch('/api/admin/customers/:userId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+    const body = req.body as { name?: string; email?: string; locale?: 'AR' | 'EN' };
+    try {
+      const user = await updateCustomerUser(prisma, userId, body);
+      return c.json(safeJson({ ok: true, user }));
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'UPDATE_FAILED';
+      if (code === 'EMAIL_TAKEN') return c.json({ error: 'هذا البريد مسجّل مسبقاً', code }, 409);
+      if (code === 'INVALID_EMAIL') return c.json({ error: 'البريد غير صالح', code }, 400);
+      if (code === 'INVALID_NAME') return c.json({ error: 'الاسم مطلوب', code }, 400);
+      return c.json({ error: 'تعذّر التحديث', code }, 400);
+    }
+  });
+
+  /**
+   * POST /api/admin/customers/:userId/reset-password
+   */
+  app.post('/api/admin/customers/:userId/reset-password', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+    const body = req.body as { password?: string };
+    try {
+      const user = await adminResetPassword(prisma, userId, body.password ?? '');
+      return c.json(safeJson({ ok: true, user }));
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'RESET_FAILED';
+      if (code === 'WEAK_PASSWORD') {
+        return c.json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل', code }, 400);
+      }
+      return c.json({ error: 'تعذّر إعادة تعيين كلمة المرور', code }, 400);
+    }
+  });
+
+  /**
+   * GET /api/admin/subscriptions — all workspaces with billing state.
+   */
+  app.get('/api/admin/subscriptions', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const take = Number(c.req.query('take') ?? 100);
+    const rows = await listSubscriptions(prisma, take);
+    return c.json(safeJson({ subscriptions: rows }));
+  });
+
+  /**
+   * GET /api/admin/payment-events — recent ledger rows.
+   */
+  app.get('/api/admin/payment-events', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const take = Number(c.req.query('take') ?? 50);
+    const events = await listRecentPaymentEvents(prisma, take);
+    return c.json(safeJson({ events }));
+  });
+
+  /**
+   * POST /api/admin/subscriptions/cancel-manual — revoke Premium / cancel.
+   */
+  app.post('/api/admin/subscriptions/cancel-manual', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as { workspaceId?: string; note?: string };
+    const workspaceId = body.workspaceId?.trim();
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+    const exists = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+    if (!exists) return c.json({ error: 'Workspace not found' }, 404);
+
+    const result = await cancelManual(prisma, {
+      workspaceId,
+      ...(body.note ? { note: body.note } : {}),
+      triggeredBy: gate.userId,
+    });
+    return c.json(result);
   });
 
   // ════════════════════════════════════════════════════════════════════════
