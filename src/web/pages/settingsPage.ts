@@ -12,6 +12,10 @@ export function settingsPage(): string {
       <div class="page-title">الإعدادات</div>
       <div class="page-subtitle">إدارة حسابك، الأمان، والفوترة</div>
     </div>
+    <div class="settings-version" title="إصدار المنتج">
+      <span class="settings-version-label">الإصدار</span>
+      <span class="settings-version-value">V1.1</span>
+    </div>
   </div>
 
   <div class="settings-layout">
@@ -181,7 +185,36 @@ export function settingsPage(): string {
 
 <style>
   .settings-shell { direction: rtl; max-width: 960px; margin: 0 auto; }
-  .settings-header { margin-bottom: 24px; }
+  .settings-header {
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .settings-version {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(217,167,89,0.06);
+    flex-shrink: 0;
+  }
+  .settings-version-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-3);
+  }
+  .settings-version-value {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-2);
+    letter-spacing: 0.02em;
+  }
   .settings-layout {
     display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start;
   }
