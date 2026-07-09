@@ -1095,6 +1095,29 @@ select.form-input { cursor: pointer; }
 }
 .mobile-menu-btn { display: none; }
 
+/* ── Beginner mode: hide pro chrome (sidebar + mobile nav) ───────────
+   Beginner is a focused, simplified surface. Pro navigation lives in the
+   sidebar / bottom nav — hide both so only the beginner dashboard +
+   topbar (mode toggle) remain. Switching back to احترافي restores them. */
+.app-shell--beginner .sidebar,
+.app-shell--beginner + .mobile-bottom-nav,
+body:has(.app-shell--beginner) .mobile-bottom-nav,
+body:has(.app-shell--beginner) .sidebar-overlay {
+  display: none !important;
+}
+.app-shell--beginner .main {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+.app-shell--beginner .mobile-menu-btn { display: none !important; }
+[dir="rtl"] .app-shell--beginner .main {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+@media (max-width: 768px) {
+  .app-shell--beginner .main { padding-bottom: 24px; }
+}
+
 /* ── Mobile Bottom Navigation ─────────────────────────────────────── */
 .mobile-bottom-nav {
   display: none;
@@ -2568,6 +2591,7 @@ function mobileBottomNav(active: string): string {
 // highlighted. When undefined, the toggle is not rendered (used for pages
 // where the toggle is irrelevant — settings, login, register, etc.).
 export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): string {
+  const isBeginner = currentMode === 'beginner';
   const toggle = currentMode
     ? `<div class="mode-toggle" role="group" aria-label="وضع لوحة التحكم">
         <div class="mode-toggle-indicator" id="mode-toggle-indicator" aria-hidden="true"></div>
@@ -2575,11 +2599,18 @@ export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): str
         <button class="mode-toggle-btn ${currentMode === 'beginner' ? 'active' : ''}" data-mode="beginner" id="mode-btn-beginner" type="button">مبتدئ</button>
       </div>`
     : '';
+  // Beginner mode hides the pro sidebar — keep logout reachable from the topbar.
+  const beginnerLogout = isBeginner
+    ? `<button class="topbar-btn" type="button" id="logout-btn" title="تسجيل الخروج" aria-label="تسجيل الخروج">${ICONS['logout']}</button>`
+    : `<button class="topbar-btn topbar-btn--bell" type="button" title="الإشعارات" aria-label="الإشعارات">${ICONS['bell']}</button>`;
+  const menuBtn = isBeginner
+    ? ''
+    : `<button class="topbar-btn topbar-btn--menu mobile-menu-btn" id="mobile-menu-btn" type="button" aria-label="فتح القائمة">
+    ${ICONS['menu']}
+  </button>`;
   return `
 <header class="topbar">
-  <button class="topbar-btn topbar-btn--menu mobile-menu-btn" id="mobile-menu-btn" type="button" aria-label="فتح القائمة">
-    ${ICONS['menu']}
-  </button>
+  ${menuBtn}
   <span class="topbar-title">${pageTitle}</span>
   <div class="topbar-actions">
     ${toggle}
@@ -2593,7 +2624,7 @@ export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): str
       </span>
       <span class="topbar-ws-chevron" aria-hidden="true">${ICONS['chevron']}</span>
     </div>
-    <button class="topbar-btn topbar-btn--bell" type="button" title="الإشعارات" aria-label="الإشعارات">${ICONS['bell']}</button>
+    ${beginnerLogout}
   </div>
 </header>`;
 }
@@ -2611,6 +2642,13 @@ export function layout(opts: {
   mode?: 'pro' | 'beginner';
 }): string {
   const { title, active, content, scripts = '', extraHead = '', mode } = opts;
+  const isBeginner = mode === 'beginner';
+  // Beginner mode: no pro sidebar / bottom nav — focused beginner surface only.
+  // Mode toggle in the topbar remains so the user can return to احترافي.
+  const shellClass = isBeginner ? 'app-shell app-shell--beginner' : 'app-shell';
+  const chromeSidebar = isBeginner ? '' : sidebar(active);
+  const chromeOverlay = isBeginner ? '' : `<div id="sidebar-overlay" class="sidebar-overlay"></div>`;
+  const chromeBottomNav = isBeginner ? '' : mobileBottomNav(active);
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -2627,9 +2665,9 @@ export function layout(opts: {
 </head>
 <body>
   <div id="toast-container"></div>
-  <div id="sidebar-overlay" class="sidebar-overlay"></div>
-  <div class="app-shell">
-    ${sidebar(active)}
+  ${chromeOverlay}
+  <div class="${shellClass}">
+    ${chromeSidebar}
     <div class="main">
       ${topbar(title, mode)}
       <div id="token-decrypt-banner" class="token-decrypt-banner" role="alert" aria-hidden="true">
@@ -2651,7 +2689,7 @@ export function layout(opts: {
       </div>
     </div>
   </div>
-  ${mobileBottomNav(active)}
+  ${chromeBottomNav}
   <div id="metric-info-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeMetricInfo()">
     <div class="modal" style="max-width:420px;">
       <div class="modal-title" id="metric-info-title" style="display:flex;align-items:center;gap:8px;"></div>
