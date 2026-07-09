@@ -9,6 +9,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { AccountBaseline, CampaignRawData } from '../../engine/BaselineCalculator';
+import { resultCountForObjective } from '../../lib/objectiveKpis';
 import type { Signals } from './types';
 import type { IssueRecord } from '../../repositories/detectedIssuesRepo';
 
@@ -18,6 +19,7 @@ export interface AbsoluteMetricLevels {
   currentCpm: number | null;
   currentResults: number;
   currentSpend: number;
+  objective?: string | null;
 }
 
 /** Issue codes that require period-over-period trends to diagnose honestly. */
@@ -40,6 +42,7 @@ export function absoluteLevelSignals(levels: AbsoluteMetricLevels): Signals {
     currentCpm: levels.currentCpm,
     currentResults: levels.currentResults,
     currentSpend: levels.currentSpend,
+    objective: levels.objective ?? null,
   };
 }
 
@@ -47,17 +50,29 @@ export function absoluteLevelSignals(levels: AbsoluteMetricLevels): Signals {
  * Campaign raw → absolute Signals for brain rule-grounding.
  * `baseline` is unused (API kept for call-site stability); trends are never
  * inferred from baseline levels.
+ *
+ * Results follow Meta objective (impressions for awareness, messages for
+ * messaging, …) — never hard-code messages for every campaign.
  */
 export function signalsFromCampaignRaw(
   raw: CampaignRawData,
   _baseline: AccountBaseline,
 ): Signals {
+  const results = resultCountForObjective(raw.objective, {
+    impressions: Number.isFinite(raw.impressions) ? raw.impressions : 0,
+    reach: Number.isFinite(raw.reach) ? Number(raw.reach) : 0,
+    clicks: Number.isFinite(raw.clicks) ? raw.clicks : 0,
+    messages: Number.isFinite(raw.messages) ? raw.messages : 0,
+    purchases: Number.isFinite(raw.purchases) ? Number(raw.purchases) : 0,
+    leads: Number.isFinite(raw.leads) ? Number(raw.leads) : 0,
+  });
   return absoluteLevelSignals({
     currentCtr: Number.isFinite(raw.ctr) ? raw.ctr : null,
     currentFrequency: Number.isFinite(raw.frequency) ? raw.frequency : null,
     currentCpm: Number.isFinite(raw.cpm) ? raw.cpm : null,
-    currentResults: Number.isFinite(raw.messages) ? raw.messages : 0,
+    currentResults: results,
     currentSpend: Number.isFinite(raw.spend) ? raw.spend : 0,
+    objective: raw.objective ?? null,
   });
 }
 

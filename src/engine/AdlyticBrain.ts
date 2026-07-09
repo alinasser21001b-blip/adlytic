@@ -59,6 +59,8 @@ export interface BrainV2Inputs {
 export interface BrainTickResult {
   campaignId: string;
   campaignName: string;
+  /** Meta objective when known — drives narration vocabulary + KPI framing. */
+  objective?: string | null;
   physics: CampaignPhysicsOutput;
   confidence: ConfidenceAnalysis;
   pattern: PatternAnalysis;
@@ -150,6 +152,7 @@ export function runBrainForCampaign(
   return {
     campaignId: raw.campaignId,
     campaignName: raw.campaignName,
+    objective: raw.objective ?? null,
     physics,
     confidence,
     pattern,

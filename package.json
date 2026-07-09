@@ -28,6 +28,7 @@
     "test:rule-grounding": "tsx test_rule_grounding.ts",
     "test:evidence-consistency": "tsx test_evidence_consistency.ts",
     "test:objective-kpis": "tsx test_objective_kpis.ts",
+    "test:meta-standards": "tsx test_meta_objective_standards.ts",
     "test:historical": "tsx test_historical.ts",
     "test:currency": "tsx test_currency.ts",
     "test:csv": "tsx test_csv_export.ts",

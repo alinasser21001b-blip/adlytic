@@ -9,6 +9,12 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { IssueRecord } from "../../repositories/detectedIssuesRepo";
+import {
+  arabicEfficiencyPhrase,
+  arabicResultPhrase,
+  getMetaObjectiveStandard,
+  lowCtrFloorForObjective,
+} from "../../knowledge/metaObjectiveStandards";
 import type { Signals } from "./types";
 
 export interface Diagnosis {
@@ -22,6 +28,27 @@ export interface Diagnosis {
 }
 
 type IssueMap = Map<string, IssueRecord>;
+
+function resultNoun(s: Signals): string {
+  return arabicResultPhrase(s.objective);
+}
+
+function efficiencyNoun(s: Signals): string {
+  return arabicEfficiencyPhrase(s.objective);
+}
+
+function isMessagingFamily(s: Signals): boolean {
+  return getMetaObjectiveStandard(s.objective).family === "messaging";
+}
+
+function isAwarenessFamily(s: Signals): boolean {
+  return getMetaObjectiveStandard(s.objective).family === "awareness";
+}
+
+function isSalesOrLeads(s: Signals): boolean {
+  const f = getMetaObjectiveStandard(s.objective).family;
+  return f === "sales" || f === "leads";
+}
 
 export function diagnose(issues: IssueRecord[], signals: Signals): Diagnosis[] {
   const m: IssueMap = new Map();
@@ -95,7 +122,7 @@ function diagnoseAudienceSaturation(m: IssueMap, s: Signals): Diagnosis | null {
     code: "AUDIENCE_SATURATION",
     confidence: 0.65,
     narrative:
-      `مرات الظهور وصلت إلى ${freq} والنتائج انخفضت ${resultsDrop}، لكن التفاعل ما زال مقبولاً. ` +
+      `مرات الظهور وصلت إلى ${freq} و${resultNoun(s)} انخفضت ${resultsDrop}، لكن التفاعل ما زال مقبولاً. ` +
       `الإعلان يعمل، لكنك وصلت تقريباً لكل من في هذا الجمهور.`,
     action:
       `وسّع الجمهور: زد نطاق المنطقة، أو أضف جمهوراً مشابهاً، أو جرّب اهتمامات جديدة. التصميم جيد — حجم الجمهور هو المشكلة.`,
@@ -118,8 +145,9 @@ function diagnoseAuctionPressure(m: IssueMap, s: Signals): Diagnosis | null {
     narrative:
       `تكلفة الوصول ارتفعت ${cpmRise} بينما تفاعل الإعلان بقي مستقراً. ` +
       `الإعلان نفسه بخير — الغلاء جاء من منافسة أعلى على نفس الجمهور.`,
-    action:
-      `جرّب: (1) نقل جزء من الميزانية لأوقات أقل ازدحاماً، (2) تضييق الجمهور لمن هم أقرب للشراء، أو (3) الإبقاء على الإنفاق إذا كانت النتائج ما زالت مربحة.`,
+    action: isAwarenessFamily(s)
+      ? `لحملة الوعي: راجع مواضع العرض الأرخص، أو وسّع الجمهور قليلاً لتخفيف ضغط المزاد، مع مراقبة التكرار.`
+      : `جرّب: (1) نقل جزء من الميزانية لأوقات أقل ازدحاماً، (2) تضييق الجمهور لمن هم أقرب للشراء، أو (3) الإبقاء على الإنفاق إذا كانت ${resultNoun(s)} ما زالت مجدية.`,
     contributingIssues: [...(m.has("RISING_COST_PER_RESULT") ? ["RISING_COST_PER_RESULT"] : [])],
   };
 }
@@ -127,22 +155,36 @@ function diagnoseAuctionPressure(m: IssueMap, s: Signals): Diagnosis | null {
 // ── Pattern 4: Landing/Offer Problem ──────────────────────────────────
 function diagnoseLandingPageProblem(m: IssueMap, s: Signals): Diagnosis | null {
   if (!m.has("DECLINING_RESULTS")) return null;
-  const ctrHealthy = s.currentCtr != null && s.currentCtr >= 1.0;
+  // Awareness campaigns rarely have a "post-click" conversion path — skip.
+  if (isAwarenessFamily(s)) return null;
+  const ctrFloor = lowCtrFloorForObjective(s.objective);
+  const ctrHealthy = s.currentCtr != null && s.currentCtr >= ctrFloor;
   const ctrNotDropping = s.ctrTrend == null || s.ctrTrend > -0.10;
   if (!ctrHealthy || !ctrNotDropping) return null;
 
   const resultsDrop = s.resultsTrend != null ? `${Math.abs(s.resultsTrend * 100).toFixed(0)}%` : "؟";
   const ctr = s.currentCtr != null ? `${s.currentCtr.toFixed(1)}%` : "؟";
 
+  let action: string;
+  if (isMessagingFamily(s)) {
+    action =
+      `راجع: (1) سرعة فتح الصفحة أو الشات، (2) تطابق وعد الإعلان مع رسالة الترحيب، (3) سرعة الرد على واتساب/ماسنجر. الإعلان نفسه يعمل.`;
+  } else if (isSalesOrLeads(s)) {
+    action =
+      `راجع: (1) سرعة صفحة الهبوط، (2) تطابق وعد الإعلان مع العرض، (3) خطوات النموذج أو الدفع. الإعلان يجلب نقراً — التسريب بعد النقر.`;
+  } else {
+    action =
+      `راجع: (1) سرعة فتح الصفحة، (2) وضوح الدعوة بعد النقر، (3) أن الوجهة تطابق وعد الإعلان. الإعلان نفسه يعمل.`;
+  }
+
   return {
     name: "مشكلة بعد النقر",
     code: "POST_CLICK_PROBLEM",
     confidence: 0.70,
     narrative:
-      `النتائج انخفضت ${resultsDrop} لكن نسبة النقر جيدة عند ${ctr}. ` +
-      `الناس ينقرون، لكن لا يكملون بعد النقر — المشكلة في الصفحة أو العرض أو سرعة الرد على الرسائل.`,
-    action:
-      `راجع: (1) سرعة فتح الصفحة، (2) تطابق وعد الإعلان مع محتوى الصفحة، (3) سرعة الرد على واتساب إن كان الهدف رسائل. الإعلان نفسه يعمل.`,
+      `${resultNoun(s)} انخفضت ${resultsDrop} لكن نسبة النقر جيدة عند ${ctr}. ` +
+      `الناس ينقرون، لكن لا يكملون بعد النقر — المشكلة في الصفحة أو العرض أو مسار ما بعد النقر.`,
+    action,
     contributingIssues: ["DECLINING_RESULTS"],
   };
 }
@@ -161,10 +203,10 @@ function diagnoseEfficiencyDrop(m: IssueMap, s: Signals): Diagnosis | null {
     code: "RISING_COST_PER_RESULT",
     confidence: (cpr.evidence.confidence as number) ?? 0.75,
     narrative:
-      `كل نتيجة أصبحت أغلى بنسبة ${divPct} تقريباً مقارنة بالإنفاق. ` +
-      `تصرف ميزانية مشابهة لكن تحصل على نتائج أقل.`,
+      `${efficiencyNoun(s)} ارتفعت بنسبة ${divPct} تقريباً مقارنة بالإنفاق. ` +
+      `تصرف ميزانية مشابهة لكن تحصل على ${resultNoun(s)} أقل.`,
     action:
-      `راجع الحملات ذات الفجوة الأكبر في التكلفة، وأوقف أو عدّل الأضعف. إن كانت المشكلة على مستوى الحساب كله، تأكد أن الحملات لا تتنافس على نفس الجمهور.`,
+      `راجع الحملات ذات الفجوة الأكبر في ${efficiencyNoun(s)}، وأوقف أو عدّل الأضعف. إن كانت المشكلة على مستوى الحساب كله، تأكد أن الحملات لا تتنافس على نفس الجمهور.`,
     contributingIssues: ["RISING_COST_PER_RESULT", ...(m.has("DECLINING_RESULTS") ? ["DECLINING_RESULTS"] : [])],
   };
 }
@@ -181,10 +223,11 @@ function diagnoseWeakCreative(m: IssueMap, s: Signals): Diagnosis | null {
     code: "WEAK_CREATIVE",
     confidence: (low.evidence.confidence as number) ?? 0.75,
     narrative:
-      `نسبة النقر الحالية حوالي ${ctr} — أقل من المستوى المعتاد للإعلانات الفعّالة. ` +
+      `نسبة النقر الحالية حوالي ${ctr} — أقل من المستوى المعتاد لحملات ${isAwarenessFamily(s) ? "الوعي" : "هذا الهدف"} حسب معايير Meta. ` +
       `كثير من الناس يرون الإعلان ويمرّون دون اهتمام كافٍ.`,
-    action:
-      `جدّد الافتتاحية أو الصورة خلال هذا الأسبوع، واجعل العرض أو الدعوة أوضح في أول ثانيتين.`,
+    action: isAwarenessFamily(s)
+      ? `لحملة الوعي: حسّن الافتتاحية البصرية خلال أول ثانيتين، وراقب تكلفة الوصول والتكرار مع تجديد الإبداع.`
+      : `جدّد الافتتاحية أو الصورة خلال هذا الأسبوع، واجعل العرض أو الدعوة أوضح في أول ثانيتين.`,
     contributingIssues: ["LOW_CTR"],
   };
 }
@@ -221,10 +264,10 @@ function diagnoseDecliningResultsAlone(m: IssueMap, s: Signals): Diagnosis | nul
     code: "DECLINING_OUTCOMES",
     confidence: (dec.evidence.confidence as number) ?? 0.8,
     narrative:
-      `النتائج انخفضت حوالي ${resultsDrop} مقارنة بالمستوى المرجعي. ` +
+      `${resultNoun(s)} انخفضت حوالي ${resultsDrop} مقارنة بالمستوى المرجعي. ` +
       `لم يتضح بعد إن كان السبب الإبداع أو الجمهور أو العرض — لكن الاتجاه يستحق انتباهاً.`,
     action:
-      `راجع أقوى إعلان في الحملة، وقارن التكلفة لكل نتيجة مع حملاتك الأخرى، ثم عدّل الأضعف أولاً.`,
+      `راجع أقوى إعلان في الحملة، وقارن ${efficiencyNoun(s)} مع حملاتك الأخرى، ثم عدّل الأضعف أولاً.`,
     contributingIssues: ["DECLINING_RESULTS"],
   };
 }

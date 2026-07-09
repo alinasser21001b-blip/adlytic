@@ -129,34 +129,37 @@ export const METRICS: MetricDefinition[] = [
 ];
 
 export const BENCHMARKS: Record<MetaObjective, Record<string, BenchmarkRange>> = {
+  // Floors/ranges aligned with public Meta 2025–2026 objective benchmarks
+  // (Focus Digital / industry summaries). Account baselines still override.
   OUTCOME_AWARENESS: {
-    cpm: { good: { max: 8 }, average: { min: 8, max: 15 }, poor: { min: 15 }, unit: "USD" },
+    cpm: { good: { max: 10 }, average: { min: 10, max: 18 }, poor: { min: 18 }, unit: "USD" },
     frequency: { good: { max: 2.5 }, average: { min: 2.5, max: 4 }, poor: { min: 4 }, unit: "x" },
-    ctr: { good: { min: 1.5 }, average: { min: 0.8, max: 1.5 }, poor: { max: 0.8 }, unit: "%" },
+    // Brand/reach CTR is naturally lower than traffic/lead objectives.
+    ctr: { good: { min: 1.0 }, average: { min: 0.6, max: 1.0 }, poor: { max: 0.6 }, unit: "%" },
   },
   OUTCOME_TRAFFIC: {
     cpc_link: { good: { max: 0.8 }, average: { min: 0.8, max: 1.5 }, poor: { min: 1.5 }, unit: "USD" },
-    link_ctr: { good: { min: 1.2 }, average: { min: 0.6, max: 1.2 }, poor: { max: 0.6 }, unit: "%" },
-    cpm: { good: { max: 10 }, average: { min: 10, max: 18 }, poor: { min: 18 }, unit: "USD" },
+    link_ctr: { good: { min: 1.5 }, average: { min: 0.9, max: 1.5 }, poor: { max: 0.9 }, unit: "%" },
+    cpm: { good: { max: 12 }, average: { min: 12, max: 22 }, poor: { min: 22 }, unit: "USD" },
   },
   OUTCOME_ENGAGEMENT: {
-    cpc: { good: { max: 0.3 }, average: { min: 0.3, max: 0.6 }, poor: { min: 0.6 }, unit: "USD" },
-    ctr: { good: { min: 2 }, average: { min: 1, max: 2 }, poor: { max: 1 }, unit: "%" },
+    cpc: { good: { max: 0.35 }, average: { min: 0.35, max: 0.7 }, poor: { min: 0.7 }, unit: "USD" },
+    ctr: { good: { min: 2 }, average: { min: 1.2, max: 2 }, poor: { max: 1.2 }, unit: "%" },
     frequency: { good: { max: 3 }, average: { min: 3, max: 5 }, poor: { min: 5 }, unit: "x" },
   },
   OUTCOME_LEADS: {
-    cpl: { good: { max: 15 }, average: { min: 15, max: 35 }, poor: { min: 35 }, unit: "USD" },
+    cpl: { good: { max: 18 }, average: { min: 18, max: 40 }, poor: { min: 40 }, unit: "USD" },
     conversion_rate: { good: { min: 8 }, average: { min: 3, max: 8 }, poor: { max: 3 }, unit: "%" },
-    link_ctr: { good: { min: 1 }, average: { min: 0.5, max: 1 }, poor: { max: 0.5 }, unit: "%" },
+    link_ctr: { good: { min: 1.5 }, average: { min: 0.8, max: 1.5 }, poor: { max: 0.8 }, unit: "%" },
   },
   OUTCOME_APP_PROMOTION: {
     cpi: { good: { max: 2.5 }, average: { min: 2.5, max: 5 }, poor: { min: 5 }, unit: "USD" },
     ctr: { good: { min: 1.5 }, average: { min: 0.8, max: 1.5 }, poor: { max: 0.8 }, unit: "%" },
   },
   OUTCOME_SALES: {
-    roas: { good: { min: 3 }, average: { min: 1.5, max: 3 }, poor: { max: 1.5 }, unit: "x" },
-    cpa: { good: { max: 25 }, average: { min: 25, max: 50 }, poor: { min: 50 }, unit: "USD" },
-    conversion_rate: { good: { min: 3 }, average: { min: 1, max: 3 }, poor: { max: 1 }, unit: "%" },
+    roas: { good: { min: 2.5 }, average: { min: 1.5, max: 2.5 }, poor: { max: 1.5 }, unit: "x" },
+    cpa: { good: { max: 28 }, average: { min: 28, max: 55 }, poor: { min: 55 }, unit: "USD" },
+    conversion_rate: { good: { min: 2.5 }, average: { min: 1, max: 2.5 }, poor: { max: 1 }, unit: "%" },
     add_to_cart_rate: { good: { min: 8 }, average: { min: 4, max: 8 }, poor: { max: 4 }, unit: "%" },
   },
 };

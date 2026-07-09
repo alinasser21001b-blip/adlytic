@@ -72,6 +72,11 @@ export interface BenchmarkAssessment {
 
 export interface EvaluateMetricContext {
   kb?: MetaAdsKnowledgeBase;
+  /**
+   * Meta campaign objective — when set, only metrics relevant to that
+   * objective family are evaluated (awareness won't be scored on messages/ROAS).
+   */
+  objective?: string | null;
 }
 
 /** Empty KB — safe fallback when no drop-in file exists yet. */

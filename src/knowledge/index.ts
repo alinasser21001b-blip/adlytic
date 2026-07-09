@@ -50,6 +50,17 @@ export {
   type KnowledgeInsightRecommendation,
 } from "./MetaKnowledgeInsightEngine";
 
+export {
+  arabicEfficiencyPhrase,
+  arabicObjectiveCoachingBlock,
+  arabicResultPhrase,
+  filterMetricsForObjective,
+  getMetaObjectiveStandard,
+  kbMetricKeysForObjective,
+  lowCtrFloorForObjective,
+  type MetaObjectiveStandard,
+} from "./metaObjectiveStandards";
+
 import { loadKnowledgeBase as _loadKnowledgeBase } from "./loadKnowledgeBase";
 
 /** Convenience alias matching spec naming. */

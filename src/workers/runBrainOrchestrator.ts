@@ -94,6 +94,7 @@ export async function runBrainOrchestrator(
             id: true,
             externalCampaignId: true,
             name: true,
+            objective: true,
             dailyBudget: true,
           },
         },
@@ -158,6 +159,11 @@ export async function runBrainOrchestrator(
       dataReady.map((d) => d.campaign.id),
       { asOf: now },
     );
+    // Stamp Meta objective onto Signals so detectors/diagnose use objective standards.
+    for (const { campaign, raw } of dataReady) {
+      const sig = periodSignalsByCampaign.get(campaign.id);
+      if (sig) sig.objective = raw.objective ?? campaign.objective ?? null;
+    }
     console.log(`${tag} period signals loaded for ${periodSignalsByCampaign.size}/${dataReady.length} campaigns`);
 
     // ── 4. Per-campaign V2 assembly + Brain tick, chunked + failure-isolated. ──
@@ -300,10 +306,10 @@ async function loadRawDataForCampaigns(
     },
   });
 
-  // Campaign names for CampaignRawData.campaignName.
+  // Campaign names + objective for CampaignRawData (Meta standards need objective).
   const camps = await prisma.campaign.findMany({
     where: { id: { in: campaignIds } },
-    select: { id: true, externalCampaignId: true, name: true },
+    select: { id: true, externalCampaignId: true, name: true, objective: true },
   });
   const byId = new Map(camps.map(c => [c.id, c]));
 
@@ -321,6 +327,7 @@ async function loadRawDataForCampaigns(
     out.set(r.entityId, {
       campaignId:   c.externalCampaignId,   // engine-visible id = Meta id (matches existing test fixtures)
       campaignName: c.name,
+      objective:    c.objective ?? null,
       spend:        spendMajor,
       impressions:  Number(r.impressions),
       clicks:       Number(r.clicks),

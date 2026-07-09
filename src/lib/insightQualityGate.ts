@@ -9,6 +9,10 @@
 
 import type { BrainTickResult } from '../engine/AdlyticBrain';
 import type { CmoFeedItemDTO } from '../types/cmoFeed';
+import {
+  arabicEfficiencyPhrase,
+  arabicResultPhrase,
+} from '../knowledge/metaObjectiveStandards';
 
 /** Titles that mark a useless generic card (LLM fallback / cron sentinel). */
 export const GENERIC_INSIGHT_TITLE_MARKERS: readonly string[] = [
@@ -126,6 +130,18 @@ function readDiagnosisHint(payload: unknown): string | null {
   return typeof name === 'string' && name.trim() ? name.trim() : null;
 }
 
+function readObjective(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const obj = (payload as Record<string, unknown>).objective;
+  if (typeof obj === 'string' && obj.trim()) return obj.trim();
+  // CmoPayload nests objective.raw
+  if (obj && typeof obj === 'object') {
+    const raw = (obj as Record<string, unknown>).raw;
+    if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  }
+  return null;
+}
+
 /**
  * Deterministic Arabic narration grounded in brain action + qualitative signals.
  * Used when LLM fails — never emit the generic "تحديث أداء الحملة" template.
@@ -153,6 +169,14 @@ export function buildDeterministicNarration(
   const ctrDir = qualitativeCtr(payload);
   const spendPressure = qualitativeSpendPressure(payload);
   const diagnosisHint = readDiagnosisHint(payload);
+  const objective =
+    (payload && typeof payload === 'object' && 'objective' in payload
+      ? (typeof (payload as BrainTickResult).objective === 'string'
+          ? (payload as BrainTickResult).objective
+          : readObjective(payload))
+      : readObjective(payload)) || null;
+  const resultNoun = arabicResultPhrase(objective);
+  const efficiencyNoun = arabicEfficiencyPhrase(objective);
   const ctrHint =
     ctrDir === 'down'
       ? ' التفاعل مع الإعلان تراجع.'
@@ -174,7 +198,7 @@ export function buildDeterministicNarration(
       return {
         arabicTitle: 'إيقاف فوري لحماية الميزانية',
         arabicNarration:
-          `أوقفنا حملة «${shortName}» لأن الإنفاق يرتفع دون نتائج كافية.` +
+          `أوقفنا حملة «${shortName}» لأن الإنفاق يرتفع دون ${resultNoun} كافية.` +
           spendHint +
           whyHint +
           ` راجع الإبداع والاستهداف قبل إعادة التشغيل.`,
@@ -184,7 +208,7 @@ export function buildDeterministicNarration(
       return {
         arabicTitle: 'يُفضّل إيقاف هذه الحملة',
         arabicNarration:
-          `حملة «${shortName}» تستهلك ميزانية دون عائد واضح.` +
+          `حملة «${shortName}» تستهلك ميزانية دون عائد واضح على ${resultNoun}.` +
           ctrHint +
           whyHint +
           ` أوقفها مؤقتاً وراجع التصميم أو الجمهور قبل إعادة الإطلاق.`,
@@ -207,16 +231,16 @@ export function buildDeterministicNarration(
           `حملة «${shortName}» ضعيفة لكن فيها إشارة إنقاذ محتملة.` +
           ctrHint +
           whyHint +
-          ` لا توقفها الآن — راقب النتائج يومياً قبل اتخاذ قرار.`,
+          ` لا توقفها الآن — راقب ${resultNoun} يومياً قبل اتخاذ قرار.`,
         creativeDirective: directive,
       };
     case 'SCALE_BUDGET':
       return {
         arabicTitle: 'فرصة لزيادة الميزانية',
         arabicNarration:
-          `حملة «${shortName}» تعمل بكفاءة جيدة.` +
+          `حملة «${shortName}» تعمل بكفاءة جيدة على ${resultNoun}.` +
           ctrHint +
-          ` زِد الميزانية تدريجياً واستمر في مراقبة التكلفة لكل نتيجة.`,
+          ` زِد الميزانية تدريجياً واستمر في مراقبة ${efficiencyNoun}.`,
         creativeDirective: directive,
       };
     case 'KEEP_COLLECTING':
@@ -224,7 +248,7 @@ export function buildDeterministicNarration(
         arabicTitle: 'نراقب ونبني خط الأساس',
         arabicNarration:
           `حملة «${shortName}» ما زالت في مرحلة جمع البيانات.` +
-          ` نتابع الأداء وسننبّهك عند ظهور قرار واضح.`,
+          ` نتابع ${resultNoun} وسننبّهك عند ظهور قرار واضح.`,
         creativeDirective: directive,
       };
     case 'HOLD_AND_MONITOR':
@@ -236,7 +260,7 @@ export function buildDeterministicNarration(
           ctrHint +
           spendHint +
           whyHint +
-          ` نتابع المؤشرات وسننبّهك إذا تغيّر الوضع.`,
+          ` نتابع ${resultNoun} و${efficiencyNoun} وسننبّهك إذا تغيّر الوضع.`,
         creativeDirective: directive,
       };
   }
