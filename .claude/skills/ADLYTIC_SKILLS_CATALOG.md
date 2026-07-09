@@ -5,6 +5,10 @@ Curated agent skills installed for building **Adlytic** (multi-tenant ads intell
 Installed under: `.claude/skills/`  
 Branch: `cursor/adlytic-saas-analytics-ui-skills-a2e9`
 
+## GG protocol
+
+When a user message ends with **`GG`**, the agent must use **all relevant available skills** (and download missing ones from the sources below if needed). See root `AGENTS.md` / `CLAUDE.md`.
+
 ---
 
 ## Already in repo (keep using)
