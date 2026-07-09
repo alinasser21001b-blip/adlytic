@@ -148,15 +148,6 @@ input, select, textarea { font-family: inherit; }
 .sidebar-logo-tagline {
   font-size: 10.5px; font-weight: 600; color: var(--text-3); letter-spacing: 0.01em;
 }
-.sidebar-logo-badge {
-  font-size: 9.5px; font-weight: 700; color: var(--accent-2);
-  background: rgba(217,167,89,0.12);
-  border: 1px solid rgba(217,167,89,0.28);
-  border-radius: 999px; padding: 3px 8px;
-  margin-inline-start: auto;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
 .sidebar-nav { flex: 1; padding: 12px 10px 8px; }
 .nav-section-label {
   font-size: 10px; font-weight: 700; color: var(--text-3);
@@ -1210,7 +1201,6 @@ body:has(.app-shell--beginner) .sidebar-overlay {
 /* ── RTL Support ────────────────────────────────────────────────── */
 [dir="rtl"] .sidebar { left: auto; right: 0; border-right: none; border-left: 1px solid var(--border); }
 [dir="rtl"] .main { margin-left: 0; margin-right: var(--sidebar-w); }
-[dir="rtl"] .sidebar-logo-badge { margin-left: 0; margin-right: auto; }
 [dir="rtl"] th { text-align: right; }
 [dir="rtl"] .search-wrap svg { left: auto; right: 10px; }
 [dir="rtl"] .search-input { padding-left: 12px !important; padding-right: 32px !important; }
@@ -2580,7 +2570,6 @@ export function sidebar(active: string): string {
       <span class="sidebar-logo-text">Adlytic</span>
       <span class="sidebar-logo-tagline">ذكاء الإعلانات</span>
     </div>
-    <span class="sidebar-logo-badge">Beta</span>
   </a>
   <nav class="sidebar-nav" aria-label="التنقل الرئيسي">
     <div class="nav-section-label">القائمة الرئيسية</div>
