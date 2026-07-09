@@ -1484,6 +1484,7 @@ const ICONS: Record<string, string> = {
   ai: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2"/><path d="M12 6v6l4 2"/></svg>`,
   'ad-analysis': `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
   settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>`,
+  admin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
   logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
   bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
   chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`,
@@ -1798,17 +1799,20 @@ function populateAppShell(me) {
   var emailEl = document.getElementById('user-email');
   var avEl = document.getElementById('user-avatar-initials');
   var wsEl = document.getElementById('ws-name');
+  var adminNav = document.querySelector('.nav-item-admin');
   if (!me) {
     if (nameEl && nameEl.textContent === SHELL_LOADING) nameEl.textContent = 'مستخدم';
     if (emailEl && !emailEl.textContent) emailEl.textContent = '';
     if (avEl && avEl.textContent === '?') avEl.textContent = '?';
     if (wsEl && wsEl.textContent === SHELL_LOADING) wsEl.textContent = 'مساحة العمل';
+    if (adminNav) adminNav.style.display = 'none';
     return;
   }
   var userName = me.name || me.email || 'مستخدم';
   if (avEl) avEl.textContent = shellInitials(userName);
   if (nameEl) nameEl.textContent = userName;
   if (emailEl) emailEl.textContent = me.email || '';
+  if (adminNav) adminNav.style.display = me.isPlatformAdmin ? '' : 'none';
   if (wsEl) {
     var wsId = getWsId();
     var membership = Array.isArray(me.memberships)
@@ -2555,9 +2559,10 @@ export function sidebar(active: string): string {
     { id: 'workspace',       label: 'مساحة العمل',       href: '/workspace' },
     { id: 'ai',              label: 'المساعد الذكي',     href: '/ai' },
     { id: 'settings',        label: 'الإعدادات',         href: '/settings' },
+    { id: 'admin',           label: 'إدارة المنصة',      href: '/admin' },
   ];
   const links = nav.map(n => `
-    <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}" data-nav-id="${n.id}">
+    <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}${n.id === 'admin' ? ' nav-item-admin' : ''}" data-nav-id="${n.id}"${n.id === 'admin' ? ' style="display:none;"' : ''}>
       <span class="nav-item-icon" aria-hidden="true">${ICONS[n.id] ?? ''}</span>
       <span class="nav-item-label">${n.label}</span>
     </a>`).join('');
