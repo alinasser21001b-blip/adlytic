@@ -2,13 +2,15 @@
 //  src/engines/rules/ruleGrounding.ts
 //
 //  Pure bridge between detectors/diagnose and the V6 brain.
-//  Uses the shared detector pipeline + absolute campaign signals.
+//  Prefers real period Signals when provided; falls back to absolute-only
+//  snapshot signals (no fabricated trends).
 // ════════════════════════════════════════════════════════════════════════
 
 import type { AccountBaseline, CampaignRawData } from '../../engine/BaselineCalculator';
 import type { CampaignDecision } from '../../engine/DecisionEngine';
 import { signalsFromCampaignRaw } from './campaignSignals';
 import { runDetectorPipeline } from './runDetectorPipeline';
+import type { Signals } from './types';
 
 export interface RuleGrounding {
   issues: Array<{ code: string; severity: string }>;
@@ -21,13 +23,19 @@ export interface RuleGrounding {
   }>;
   /** Top diagnosis code, if any. */
   primaryCode: string | null;
+  /** Whether grounding used real period trends (vs absolute snapshot). */
+  evidenceSource: 'period_trends' | 'absolute_levels';
 }
 
 export function buildRuleGrounding(
   raw: CampaignRawData,
   baseline: AccountBaseline,
+  periodSignals?: Signals | null,
 ): RuleGrounding {
-  const { issues, diagnoses } = runDetectorPipeline(signalsFromCampaignRaw(raw, baseline));
+  const evidenceSource: RuleGrounding['evidenceSource'] =
+    periodSignals != null ? 'period_trends' : 'absolute_levels';
+  const signals = periodSignals ?? signalsFromCampaignRaw(raw, baseline);
+  const { issues, diagnoses } = runDetectorPipeline(signals);
 
   return {
     issues: issues.map((i) => ({
@@ -42,6 +50,7 @@ export function buildRuleGrounding(
       action: d.action,
     })),
     primaryCode: diagnoses[0]?.code ?? null,
+    evidenceSource,
   };
 }
 
@@ -52,6 +61,8 @@ export function buildRuleGrounding(
  * Guardrails:
  * - Never invents EMERGENCY_PAUSE.
  * - Never upgrades KEEP_COLLECTING.
+ * - WEAK_CREATIVE alone does NOT upgrade HOLD (awareness/brand false positives).
+ *   Only multi-signal CREATIVE_FATIGUE upgrades creative refresh.
  * - POST_CLICK_PROBLEM always outranks creative-refresh upgrades.
  */
 export function applyRuleGroundingToDecision(
@@ -64,10 +75,8 @@ export function applyRuleGroundingToDecision(
   const primary = grounding.primaryCode;
   let next = decision;
 
-  if (
-    (codes.has('CREATIVE_FATIGUE') || codes.has('WEAK_CREATIVE')) &&
-    next.action === 'HOLD_AND_MONITOR'
-  ) {
+  // Multi-signal creative fatigue only — not bare LOW_CTR / WEAK_CREATIVE.
+  if (codes.has('CREATIVE_FATIGUE') && next.action === 'HOLD_AND_MONITOR') {
     next = {
       ...next,
       action: 'REFRESH_CREATIVE',

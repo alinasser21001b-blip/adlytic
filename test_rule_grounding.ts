@@ -115,6 +115,7 @@ console.log('\nrule grounding');
   };
   const next = applyRuleGroundingToDecision(hold, {
     primaryCode: 'CREATIVE_FATIGUE',
+    evidenceSource: 'period_trends',
     issues: [{ code: 'AUDIENCE_FATIGUE', severity: 'HIGH' }],
     diagnoses: [{
       code: 'CREATIVE_FATIGUE',
@@ -129,6 +130,28 @@ console.log('\nrule grounding');
 }
 
 {
+  const hold: CampaignDecision = {
+    campaignId: 'x',
+    action: 'HOLD_AND_MONITOR',
+    priority: 'NORMAL',
+    reason: 'stable',
+  };
+  const next = applyRuleGroundingToDecision(hold, {
+    primaryCode: 'WEAK_CREATIVE',
+    evidenceSource: 'absolute_levels',
+    issues: [{ code: 'LOW_CTR', severity: 'MEDIUM' }],
+    diagnoses: [{
+      code: 'WEAK_CREATIVE',
+      name: 'ضعف التفاعل',
+      confidence: 0.8,
+      narrative: 'ضعيف',
+      action: 'جدّد',
+    }],
+  });
+  check('WEAK_CREATIVE alone does NOT upgrade HOLD', next.action === 'HOLD_AND_MONITOR', next);
+}
+
+{
   const collecting: CampaignDecision = {
     campaignId: 'x',
     action: 'KEEP_COLLECTING',
@@ -137,6 +160,7 @@ console.log('\nrule grounding');
   };
   const next = applyRuleGroundingToDecision(collecting, {
     primaryCode: 'WEAK_CREATIVE',
+    evidenceSource: 'absolute_levels',
     issues: [{ code: 'LOW_CTR', severity: 'MEDIUM' }],
     diagnoses: [{
       code: 'WEAK_CREATIVE',
@@ -158,6 +182,7 @@ console.log('\nrule grounding');
   };
   const next = applyRuleGroundingToDecision(refresh, {
     primaryCode: 'POST_CLICK_PROBLEM',
+    evidenceSource: 'period_trends',
     issues: [{ code: 'DECLINING_RESULTS', severity: 'HIGH' }],
     diagnoses: [{
       code: 'POST_CLICK_PROBLEM',
@@ -180,6 +205,7 @@ console.log('\nrule grounding');
   };
   const next = applyRuleGroundingToDecision(hold, {
     primaryCode: 'CREATIVE_FATIGUE',
+    evidenceSource: 'period_trends',
     issues: [
       { code: 'AUDIENCE_FATIGUE', severity: 'HIGH' },
       { code: 'DECLINING_RESULTS', severity: 'HIGH' },
@@ -223,6 +249,52 @@ console.log('\nrule grounding');
     'ruleGrounding present when issues/diagnoses exist OR absent when none',
     tick.ruleGrounding == null || Array.isArray(tick.ruleGrounding.diagnoses),
     tick.ruleGrounding,
+  );
+  check(
+    'absolute fallback marks evidenceSource',
+    !tick.ruleGrounding || tick.ruleGrounding.evidenceSource === 'absolute_levels',
+    tick.ruleGrounding?.evidenceSource,
+  );
+}
+
+{
+  // Period signals enable true decline diagnosis without inventing from baseline.
+  const raw: CampaignRawData = {
+    campaignId: 'period_01',
+    campaignName: 'تراجع حقيقي',
+    spend: 100,
+    impressions: 8000,
+    clicks: 160,
+    ctr: 2.0,
+    frequency: 2.0,
+    messages: 5,
+    cpm: 12,
+    cpc: 0.6,
+  };
+  const periodSignals = {
+    ctrTrend: 0.02,
+    cpmTrend: null,
+    frequencyTrend: null,
+    resultsTrend: -0.45,
+    spendTrend: 0.05,
+    currentCtr: 2.0,
+    currentFrequency: 2.0,
+    currentCpm: 12,
+    currentResults: 5,
+    currentSpend: 10000,
+  };
+  const g = buildRuleGrounding(raw, baseline, periodSignals);
+  check('period evidenceSource', g.evidenceSource === 'period_trends', g.evidenceSource);
+  check(
+    'period signals can diagnose decline/post-click',
+    g.diagnoses.some((d) => d.code === 'POST_CLICK_PROBLEM' || d.code === 'DECLINING_OUTCOMES' || d.code === 'RISING_COST_PER_RESULT'),
+    g.diagnoses.map((d) => d.code),
+  );
+  const tick = runBrainForCampaign(raw, baseline, undefined, { periodSignals });
+  check(
+    'brain tick carries period evidenceSource',
+    tick.ruleGrounding?.evidenceSource === 'period_trends',
+    tick.ruleGrounding?.evidenceSource,
   );
 }
 

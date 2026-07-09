@@ -39,6 +39,7 @@ import { calculateAccountBaseline, CampaignRawData } from '../engine/BaselineCal
 import { runBrainForCampaign, BrainTickResult } from '../engine/AdlyticBrain';
 import { assembleV2Inputs } from '../services/v2ContextAssembler';
 import { persistBrainBatch, BrainSnapshotInput } from '../services/BrainPersistence';
+import { loadCampaignSignalsBatch } from '../engines/rules/loadCampaignSignals';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 const ORCHESTRATOR_CONFIG = {
@@ -149,6 +150,16 @@ export async function runBrainOrchestrator(
     const baseline = calculateAccountBaseline(dataReady.map(d => d.raw));
     console.log(`${tag} baseline computed — confidence=${baseline.confidence.level} (${baseline.confidence.score})`);
 
+    // ── 3b. Real period Signals for rule grounding (same math as Analytics). ──
+    // One batched DailyStat read; campaigns without enough history simply fall
+    // back to absolute-only grounding inside buildRuleGrounding.
+    const periodSignalsByCampaign = await loadCampaignSignalsBatch(
+      prisma,
+      dataReady.map((d) => d.campaign.id),
+      { asOf: now },
+    );
+    console.log(`${tag} period signals loaded for ${periodSignalsByCampaign.size}/${dataReady.length} campaigns`);
+
     // ── 4. Per-campaign V2 assembly + Brain tick, chunked + failure-isolated. ──
     const snapshots: BrainSnapshotInput[] = [];
     let failed = 0;
@@ -170,7 +181,8 @@ export async function runBrainOrchestrator(
           const result: BrainTickResult = runBrainForCampaign(
             raw,
             baseline,
-            v2Inputs ?? undefined,    // null → V1-only graceful path
+            v2Inputs ?? undefined,
+            { periodSignals: periodSignalsByCampaign.get(campaign.id) ?? null },
           );
 
           return {

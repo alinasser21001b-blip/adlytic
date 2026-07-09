@@ -195,6 +195,7 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
       primaryCode: b.ruleGrounding.primaryCode,
       diagnoses: b.ruleGrounding.diagnoses.slice(0, 3),
       issues: b.ruleGrounding.issues.slice(0, 5),
+      evidenceSource: b.ruleGrounding.evidenceSource,
     };
   }
 
@@ -380,7 +381,9 @@ post-click problems, etc.). They are already merchant-facing Arabic.
   and diagnosis says CREATIVE_FATIGUE / WEAK_CREATIVE, say the creative is tired.
 - If diagnosis says POST_CLICK_PROBLEM, emphasize the page/offer/response — not
   the ad image — even if decision.action is HOLD_AND_MONITOR.
-- Never quote diagnosis.code or issue severity enums in merchant prose.
+- Never quote diagnosis.code, issue severity enums, or evidenceSource in merchant prose.
+- If evidenceSource is "absolute_levels", avoid claiming week-over-week movement;
+  speak about the current level only. If "period_trends", qualitative movement is OK.
 
 ═══════════════════════════════════════════════════════════════
 LENGTH
