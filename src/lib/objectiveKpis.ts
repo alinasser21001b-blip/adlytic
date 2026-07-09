@@ -187,9 +187,10 @@ export function objectiveKpiFamily(objective: string | null | undefined): Object
   ) {
     return 'messaging';
   }
-  // Engagement is often used for Messenger / WhatsApp in MENA accounts, but
-  // Meta's Outcome-era ENGAGEMENT is post engagement. Prefer clicks/CPC over
-  // falsely labeling every engagement campaign as "messages".
+  // Engagement shell is often used for Messenger/WhatsApp in MENA, but the
+  // true purpose is decided by ad-set optimization_goal (see campaignPurpose.ts).
+  // Without that context, keep a neutral engagement family — callers that have
+  // optimization goals MUST use resolveCampaignPurpose() instead.
   if (raw === 'OUTCOME_ENGAGEMENT' || raw === 'ENGAGEMENT' || raw === 'POST_ENGAGEMENT' || raw === 'PAGE_LIKES') {
     return 'engagement';
   }

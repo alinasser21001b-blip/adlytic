@@ -117,13 +117,31 @@ import { isCurrentlySpending, accountLocalTodayFloor } from '../lib/campaignSpen
 import { classifyCampaignDelivery, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
 import {
   efficiencyForObjective,
-  getObjectiveKpiSpec,
   resultCountForObjective,
   signalGoodDirection,
+  type ObjectiveKpiFamily,
   type SignalMetricKey,
 } from '../lib/objectiveKpis';
+import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
+
+/** Map resolved purpose family → objective key for KPI math helpers. */
+function purposeToObjectiveKey(
+  family: ObjectiveKpiFamily,
+  fallbackObjective: string | null | undefined,
+): string {
+  switch (family) {
+    case 'awareness': return 'OUTCOME_AWARENESS';
+    case 'traffic': return 'OUTCOME_TRAFFIC';
+    case 'engagement': return 'OUTCOME_ENGAGEMENT';
+    case 'leads': return 'OUTCOME_LEADS';
+    case 'sales': return 'OUTCOME_SALES';
+    case 'messaging': return 'MESSAGES';
+    case 'app': return 'OUTCOME_APP_PROMOTION';
+    default: return fallbackObjective || 'MESSAGES';
+  }
+}
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -1759,6 +1777,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const campaigns = await prisma.campaign.findMany({
       where: { adAccountId: account.id },
       orderBy: { createdAt: 'desc' },
+      include: {
+        adSets: { select: { optimizationGoal: true } },
+      },
     });
     const tickToday = accountLocalTodayFloor(account.timezone);
     const campaignIds = campaigns.map((c) => c.id);
@@ -1866,16 +1887,25 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           leads,
           revenueMinor,
         };
-        const kpiSpec = getObjectiveKpiSpec(camp.objective);
-        const resultsWindow = resultCountForObjective(camp.objective, windowTotals);
-        const costPerResultMajor = efficiencyForObjective(camp.objective, windowTotals, factor);
+        // Purpose BEFORE KPIs: ENGAGEMENT + CONVERSATIONS → messaging, not clicks.
+        const purpose = resolveCampaignPurpose({
+          objective: camp.objective,
+          optimizationGoals: (camp.adSets ?? []).map((a) => a.optimizationGoal),
+          messagesWindow: messages,
+        });
+        const kpiSpec = purpose.kpi;
+        const purposeKey = purposeToObjectiveKey(purpose.family, camp.objective);
+        const resultsWindow = resultCountForObjective(purposeKey, windowTotals);
+        const costPerResultMajor = efficiencyForObjective(purposeKey, windowTotals, factor);
         const deliveryTier = classifyCampaignDelivery({
           status: camp.status,
           spendTodayMinor,
           spendWindowMinor,
         });
+        // Strip nested adSets from list payload (include was for purpose only).
+        const { adSets: _adSets, ...campRow } = row as Record<string, unknown> & { adSets?: unknown };
         return {
-          ...row,
+          ...campRow,
           deliveryTier,
           deliveringInWindow: deliveryTier === 'DELIVERING_TODAY' || deliveryTier === 'DELIVERING_WINDOW',
           isDormantActive: deliveryTier === 'DORMANT_ACTIVE',
@@ -1897,6 +1927,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
           kpiFamily: kpiSpec.family,
+          purposeLabelAr: purpose.labelAr,
+          purposeReason: purpose.reason,
+          optimizationGoal: purpose.optimizationGoal,
           // MAJOR units (or null). List UI multiplies by currencyMinorFactor for money keys.
           costPerResult: costPerResultMajor,
           ctrWindow: impressions > 0 ? +((clicks / impressions) * 100).toFixed(2) : null,
@@ -2010,6 +2043,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const campaign = await prisma.campaign.findFirst({
       where: { id: req.params['campaignId'], adAccountId: account.id },
+      include: { adSets: { select: { optimizationGoal: true } } },
     });
     if (!campaign) return c.json({ error: 'Not found' }, 404);
 
@@ -2135,7 +2169,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const avgCostPerLead     = safeDiv(spendMajor, leadsN);
     const avgFrequency      = freqCount > 0 ? freqSum / freqCount : null;
 
-    const kpiSpec = getObjectiveKpiSpec(campaign.objective);
     const windowTotals = {
       spendMinor: Number(spendMinor),
       impressions: impressionsN,
@@ -2146,8 +2179,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       leads: leadsN,
       revenueMinor: Number(revenueMinor),
     };
-    const resultsCount = resultCountForObjective(campaign.objective, windowTotals);
-    const avgCostPerResult = efficiencyForObjective(campaign.objective, windowTotals, factor);
+    // Purpose BEFORE KPIs — ENGAGEMENT+CONVERSATIONS must show messages, not clicks.
+    const purpose = resolveCampaignPurpose({
+      objective: campaign.objective,
+      optimizationGoals: campaign.adSets.map((a) => a.optimizationGoal),
+      messagesWindow: messagesN,
+    });
+    const kpiSpec = purpose.kpi;
+    const purposeKey = purposeToObjectiveKey(purpose.family, campaign.objective);
+    const resultsCount = resultCountForObjective(purposeKey, windowTotals);
+    const avgCostPerResult = efficiencyForObjective(purposeKey, windowTotals, factor);
 
     // ── Positive / negative signals: 7d vs prior 7d ──────────────────────
     // Daily rows are date-desc, so the first ≤7 are "recent", the next ≤7
@@ -2302,6 +2343,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         name: campaign.name,
         status: campaign.status,
         objective: campaign.objective,
+        purposeLabelAr: purpose.labelAr,
+        purposeFamily: purpose.family,
+        purposeReason: purpose.reason,
+        optimizationGoal: purpose.optimizationGoal,
         dailyBudgetMinor: campaign.dailyBudget,
         lifetimeBudgetMinor: campaign.lifetimeBudget,
         createdAt: campaign.createdAt,
@@ -2320,13 +2365,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         messages,
         purchases,
         leads,
-        // Objective-aware primary result + efficiency (replaces hard-coded messages KPIs).
+        // Purpose-aware primary result + efficiency (not raw Meta objective alone).
         results: resultsCount,
         resultKey: kpiSpec.resultKey,
         resultLabelAr: kpiSpec.resultLabelAr,
         efficiencyKey: kpiSpec.efficiencyKey,
         efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
         kpiFamily: kpiSpec.family,
+        purposeLabelAr: purpose.labelAr,
         avgCostPerResult,
         // All ratios derived from the windowed totals (see comment above the
         // aggregation block). avgCtr is a percentage; CPC / CPM / cost-per-

@@ -1144,6 +1144,12 @@ export function campaignsPage(): string {
     return OBJECTIVE_AR[obj] || obj.replace(/^OUTCOME_/, '').replace(/_/g, ' ');
   }
 
+  /** Prefer purpose-resolved Arabic label (رسائل for ENGAGEMENT+CONVERSATIONS). */
+  function purposeLabel(c) {
+    if (c && c.purposeLabelAr) return c.purposeLabelAr;
+    return translateObjective(c && c.objective);
+  }
+
   // Draw every .spark-cell canvas from its data-spark JSON (7 daily values).
   function drawSparklines() {
     document.querySelectorAll('.spark-cell canvas').forEach(function (cv) {
@@ -1247,7 +1253,7 @@ export function campaignsPage(): string {
           +   '<span class="camp-card-chip"><b>' + escHtml(spendTxt) + '</b> · ' + state.days + ' يوم</span>'
           +   '<span class="camp-card-chip">' + escHtml(fmtNum(resultsCount(c), 0)) + ' ' + escHtml(c.resultLabelAr || 'نتيجة') + '</span>'
           +   '<span class="camp-card-chip">تكلفة: <b>' + escHtml(costTxt) + '</b></span>'
-          +   '<span class="camp-card-chip">' + escHtml(translateObjective(c.objective)) + '</span>'
+          +   '<span class="camp-card-chip">' + escHtml(purposeLabel(c)) + '</span>'
           +   '<span class="camp-card-chip">' + escHtml(budget) + '</span>'
           + '</div>'
           + '<div class="camp-card-cta">عرض التفاصيل ←</div>'
@@ -1270,7 +1276,7 @@ export function campaignsPage(): string {
       var cost = costPerResultMinor(c);
       return '<tr>'
         + '<td><div class="cell-name" title="' + escAttr(c.name || '') + '">' + escHtml(c.name || '—') + '</div>'
-        +   '<span class="obj-chip">' + escHtml(translateObjective(c.objective)) + '</span>'
+        +   '<span class="obj-chip">' + escHtml(purposeLabel(c)) + '</span>'
         + '</td>'
         + '<td>' + deliveryStatusHtml(c) + '</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
@@ -1385,8 +1391,10 @@ export function campaignsPage(): string {
       if (!q) return true;
       return (c.name || '').toLowerCase().includes(q)
         || (c.objective || '').toLowerCase().includes(q)
+        || (c.purposeLabelAr || '').toLowerCase().includes(q)
         || (c.status || '').toLowerCase().includes(q)
         || (c.id || '').toLowerCase().includes(q)
+        || purposeLabel(c).toLowerCase().includes(q)
         || translateObjective(c.objective).toLowerCase().includes(q);
     });
     var key = state.sortKey, dir = state.sortDir;
@@ -1535,8 +1543,8 @@ export function campaignsPage(): string {
       '<span class="badge ' + statusBadgeClass(c.status) + '" style="margin-inline-start:8px;">'
     +   escHtml(statusArabic(c.status))
     + '</span>';
-    var objectiveChip = c.objective
-      ? '<span class="obj-chip" style="margin-inline-start:8px;">' + escHtml(translateObjective(c.objective)) + '</span>'
+    var objectiveChip = (c.purposeLabelAr || c.objective)
+      ? '<span class="obj-chip" style="margin-inline-start:8px;">' + escHtml(c.purposeLabelAr || translateObjective(c.objective)) + '</span>'
       : '';
     var subtitleEl = document.getElementById('inspector-subtitle');
     subtitleEl.style.direction = 'rtl';

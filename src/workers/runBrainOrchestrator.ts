@@ -40,6 +40,7 @@ import { runBrainForCampaign, BrainTickResult } from '../engine/AdlyticBrain';
 import { assembleV2Inputs } from '../services/v2ContextAssembler';
 import { persistBrainBatch, BrainSnapshotInput } from '../services/BrainPersistence';
 import { loadCampaignSignalsBatch } from '../engines/rules/loadCampaignSignals';
+import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 const ORCHESTRATOR_CONFIG = {
@@ -309,7 +310,13 @@ async function loadRawDataForCampaigns(
   // Campaign names + objective for CampaignRawData (Meta standards need objective).
   const camps = await prisma.campaign.findMany({
     where: { id: { in: campaignIds } },
-    select: { id: true, externalCampaignId: true, name: true, objective: true },
+    select: {
+      id: true,
+      externalCampaignId: true,
+      name: true,
+      objective: true,
+      adSets: { select: { optimizationGoal: true } },
+    },
   });
   const byId = new Map(camps.map(c => [c.id, c]));
 
@@ -324,10 +331,26 @@ async function loadRawDataForCampaigns(
     const cpmMajor   = (r.cpm ?? 0)   / factor;
     const cpcMajor   = (r.cpc ?? 0)   / factor;
 
+    // Resolve true purpose (ENGAGEMENT+CONVERSATIONS → messaging) before brain.
+    const purpose = resolveCampaignPurpose({
+      objective: c.objective,
+      optimizationGoals: c.adSets.map((a) => a.optimizationGoal),
+      messagesWindow: Number(r.messages),
+    });
+    const effectiveObjective =
+      purpose.family === 'messaging' ? 'MESSAGES'
+      : purpose.family === 'awareness' ? 'OUTCOME_AWARENESS'
+      : purpose.family === 'traffic' ? 'OUTCOME_TRAFFIC'
+      : purpose.family === 'sales' ? 'OUTCOME_SALES'
+      : purpose.family === 'leads' ? 'OUTCOME_LEADS'
+      : purpose.family === 'app' ? 'OUTCOME_APP_PROMOTION'
+      : purpose.family === 'engagement' ? 'OUTCOME_ENGAGEMENT'
+      : (c.objective ?? null);
+
     out.set(r.entityId, {
       campaignId:   c.externalCampaignId,   // engine-visible id = Meta id (matches existing test fixtures)
       campaignName: c.name,
-      objective:    c.objective ?? null,
+      objective:    effectiveObjective,
       spend:        spendMajor,
       impressions:  Number(r.impressions),
       clicks:       Number(r.clicks),
