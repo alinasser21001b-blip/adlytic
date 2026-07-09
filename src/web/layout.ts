@@ -300,6 +300,9 @@ input, select, textarea { font-family: inherit; }
   gap: 14px;
   margin-bottom: 24px;
 }
+.camp-kpi-row--hero {
+  grid-template-columns: repeat(3, 1fr);
+}
 .camp-kpi {
   position: relative;
   display: flex;
@@ -839,6 +842,7 @@ select.form-input { cursor: pointer; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-grid { grid-template-columns: 1fr; }
   .camp-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .camp-kpi-row--hero { grid-template-columns: 1fr; }
   .camp-chart-grid { grid-template-columns: 1fr; }
   .page-content { padding: 14px 12px 24px; }
   .mobile-menu-btn { display: flex !important; }
@@ -1665,7 +1669,8 @@ function severityBadge(s) {
 }
 function statusBadge(s) {
   const map = { ACTIVE:'badge-green', PAUSED:'badge-yellow', ARCHIVED:'badge-gray', DELETED:'badge-red' };
-  return '<span class="badge ' + (map[s]||'badge-gray') + '">' + s + '</span>';
+  const labels = { ACTIVE:'نشطة', PAUSED:'متوقفة', ARCHIVED:'مؤرشفة', DELETED:'محذوفة' };
+  return '<span class="badge ' + (map[s]||'badge-gray') + '">' + (labels[s] || s || '—') + '</span>';
 }
 
 /**

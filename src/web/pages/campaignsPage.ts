@@ -44,39 +44,30 @@ export function campaignsPage(): string {
     <a href="/workspace?connect=manual" class="btn btn-primary">إعادة ربط Meta (لصق الرمز)</a>
   </div>
 
-  <!-- Page header -->
+  <!-- Page header — brand + period only; actions live in the Ads Manager toolbar -->
   <div class="page-header flex items-center justify-between">
     <div>
       <div class="page-title">الحملات</div>
-      <div class="page-subtitle" id="page-subtitle">جميع الحملات في حساب Meta الإعلاني الخاص بك</div>
+      <div class="page-subtitle" id="page-subtitle">إدارة أداء الحملات ومراجعتها</div>
     </div>
-    <div class="flex items-center gap-2">
-      <div style="position:relative;" id="export-wrap">
-        <button type="button" class="btn btn-ghost btn-sm" id="export-btn" title="تصدير البيانات كملف CSV">⬇ تصدير</button>
-        <div id="export-menu" style="display:none;position:absolute;top:calc(100% + 6px);inset-inline-end:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);padding:6px;min-width:200px;">
-          <button type="button" class="export-item" data-export="campaigns" style="display:block;width:100%;text-align:start;background:none;border:none;color:var(--text);font:inherit;padding:9px 12px;border-radius:7px;cursor:pointer;">📋 قائمة الحملات (CSV)</button>
-          <button type="button" class="export-item" data-export="insights" style="display:block;width:100%;text-align:start;background:none;border:none;color:var(--text);font:inherit;padding:9px 12px;border-radius:7px;cursor:pointer;">📈 الأداء اليومي (CSV)</button>
-        </div>
-      </div>
-      <button type="button" class="btn btn-ghost btn-sm js-sync-trigger" id="force-sync-btn" title="مزامنة أحدث البيانات من Meta">↻ تحديث البيانات</button>
-      <div class="tabs" id="date-tabs">
-        <button class="tab" data-days="7">7ي</button>
-        <button class="tab" data-days="14">14ي</button>
-        <button class="tab active" data-days="30">30ي</button>
-        <button class="tab" data-days="90">90ي</button>
-      </div>
+    <div class="tabs" id="date-tabs" aria-label="فترة العرض">
+      <button class="tab" data-days="7">7 أيام</button>
+      <button class="tab" data-days="14">14 يوماً</button>
+      <button class="tab active" data-days="30">30 يوماً</button>
+      <button class="tab" data-days="90">90 يوماً</button>
     </div>
   </div>
 
-  <!-- KPI cards -->
-  <div class="camp-kpi-row">
-    <div class="camp-kpi" data-accent="gold">
+  <!-- Hero KPIs — three merchant signals only (Ads Manager clarity) -->
+  <div class="camp-kpi-row camp-kpi-row--hero">
+    <div class="camp-kpi" data-accent="blue">
       <div class="camp-kpi-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       </div>
       <div class="camp-kpi-body">
-        <div class="camp-kpi-label">إجمالي الحملات</div>
-        <div class="camp-kpi-value" id="total-campaigns">—</div>
+        <div class="camp-kpi-label">إنفاق الفترة <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+        <div class="camp-kpi-value" id="total-spend">—</div>
+        <div class="camp-kpi-sub" id="spend-period">آخر 30 يوماً</div>
       </div>
     </div>
     <div class="camp-kpi" data-accent="green">
@@ -94,18 +85,9 @@ export function campaignsPage(): string {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
       </div>
       <div class="camp-kpi-body">
-        <div class="camp-kpi-label">متوقفة مؤقتاً</div>
-        <div class="camp-kpi-value" id="paused-campaigns">—</div>
-      </div>
-    </div>
-    <div class="camp-kpi" data-accent="blue">
-      <div class="camp-kpi-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-      </div>
-      <div class="camp-kpi-body">
-        <div class="camp-kpi-label">إجمالي الإنفاق <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
-        <div class="camp-kpi-value" id="total-spend">—</div>
-        <div class="camp-kpi-sub" id="spend-period">آخر 30 يوماً</div>
+        <div class="camp-kpi-label">تحتاج مراجعة</div>
+        <div class="camp-kpi-value" id="review-campaigns">—</div>
+        <div class="camp-kpi-sub" id="review-sub"></div>
       </div>
     </div>
   </div>
@@ -132,103 +114,117 @@ export function campaignsPage(): string {
     <div class="fresh-strip-track" id="fresh-strip-track"></div>
   </div>
 
-  <!-- Charts — 2×2 grid -->
-  <div class="camp-chart-grid">
-    <div class="chart-card" id="spend-chart-card">
-      <div class="chart-card-header">
-        <div class="chart-card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:var(--accent);"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-          الإنفاق عبر الزمن
+  <!-- Account trends — collapsed by default so the campaigns table stays primary -->
+  <details class="camp-trends" id="camp-trends">
+    <summary class="camp-trends-summary">
+      <span>اتجاهات الحساب</span>
+      <span class="camp-trends-hint">إنفاق · تفاعل · وصول · ظهور</span>
+    </summary>
+    <div class="camp-chart-grid">
+      <div class="chart-card" id="spend-chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">الإنفاق عبر الزمن</div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-spend"></canvas>
+          <div class="chart-empty" id="chart-spend-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div>
         </div>
       </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="chart-spend"></canvas>
-        <div class="chart-empty" id="chart-spend-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div>
-      </div>
-    </div>
-    <div class="chart-card" id="ctr-chart-card">
-      <div class="chart-card-header">
-        <div class="chart-card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:#34A871;"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg>
-          نسبة النقر (CTR)
+      <div class="chart-card" id="ctr-chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">تفاعل الإعلان</div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-ctr"></canvas>
+          <div class="chart-empty" id="chart-ctr-empty" style="display:none;">لا توجد بيانات تفاعل في هذه الفترة</div>
         </div>
       </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="chart-ctr"></canvas>
-        <div class="chart-empty" id="chart-ctr-empty" style="display:none;">لا توجد بيانات نقر في هذه الفترة</div>
-      </div>
-    </div>
-    <div class="chart-card" id="reach-chart-card">
-      <div class="chart-card-header">
-        <div class="chart-card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:#5B8DEF;"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-          الوصول (Reach)
+      <div class="chart-card" id="reach-chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">الوصول</div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-reach"></canvas>
+          <div class="chart-empty" id="chart-reach-empty" style="display:none;">لا توجد بيانات وصول في هذه الفترة</div>
         </div>
       </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="chart-reach"></canvas>
-        <div class="chart-empty" id="chart-reach-empty" style="display:none;">لا توجد بيانات وصول في هذه الفترة</div>
-      </div>
-    </div>
-    <div class="chart-card" id="impressions-chart-card">
-      <div class="chart-card-header">
-        <div class="chart-card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:middle;margin-inline-end:6px;color:#C77A1F;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          مرات الظهور
+      <div class="chart-card" id="impressions-chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">مرات الظهور</div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-impressions"></canvas>
+          <div class="chart-empty" id="chart-impressions-empty" style="display:none;">لا توجد بيانات مرات ظهور في هذه الفترة</div>
         </div>
       </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="chart-impressions"></canvas>
-        <div class="chart-empty" id="chart-impressions-empty" style="display:none;">لا توجد بيانات مرات ظهور في هذه الفترة</div>
-      </div>
     </div>
-  </div>
+  </details>
 
-  <!-- Campaigns table -->
-  <div class="table-wrap">
-    <div class="table-header">
-      <div class="table-title">الحملات</div>
-      <div class="table-filters" id="status-filters">
-        <button type="button" class="filter-chip active" data-status="DELIVERING">تعمل</button>
-        <button type="button" class="filter-chip" data-status="TODAY">تنفق اليوم</button>
-        <button type="button" class="filter-chip" data-status="DORMANT">نشطة بدون إنفاق</button>
-        <button type="button" class="filter-chip" data-status="ACTIVE">Meta نشطة</button>
-        <button type="button" class="filter-chip" data-status="PAUSED">متوقفة</button>
-        <button type="button" class="filter-chip" data-status="ARCHIVED">أرشيف</button>
-        <button type="button" class="filter-chip" data-status="ALL">الكل</button>
+  <!-- Campaigns table — Ads Manager style: toolbar first, then rows -->
+  <div class="table-wrap camp-manager">
+    <div class="camp-toolbar">
+      <div class="camp-toolbar-start">
+        <div class="table-title">قائمة الحملات</div>
+        <span class="camp-result-count" id="camp-result-count"></span>
       </div>
-      <div class="sort-presets" id="sort-presets" title="ترتيب القائمة">
-        <button type="button" class="sort-preset active" data-sort-preset="attention">الأهم أولاً</button>
-        <button type="button" class="sort-preset" data-sort-preset="spend">الأعلى إنفاقاً</button>
-        <button type="button" class="sort-preset" data-sort-preset="results">الأكثر نتائج</button>
-        <button type="button" class="sort-preset" data-sort-preset="engagement">الأفضل تفاعلاً</button>
-      </div>
-      <div class="display-mode-toggle" id="display-mode-toggle">
-        <button type="button" class="view-btn active" data-view="table" title="عرض جدول">☰</button>
-        <button type="button" class="view-btn" data-view="cards" title="عرض بطاقات">▦</button>
-      </div>
-      <div class="search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" class="form-input search-input" id="search-input" placeholder="بحث في الحملات…" style="width:240px;">
+      <div class="camp-toolbar-controls">
+        <label class="camp-field">
+          <span class="camp-field-label">حالة التسليم</span>
+          <select id="status-filter-select" class="camp-select" aria-label="تصفية حسب حالة التسليم">
+            <option value="DELIVERING">تعمل</option>
+            <option value="TODAY">تنفق اليوم</option>
+            <option value="REVIEW">تحتاج مراجعة</option>
+            <option value="PAUSED">متوقفة</option>
+            <option value="ARCHIVED">أرشيف</option>
+            <option value="ALL">الكل</option>
+          </select>
+        </label>
+        <label class="camp-field">
+          <span class="camp-field-label">الترتيب</span>
+          <select id="sort-preset-select" class="camp-select" aria-label="ترتيب القائمة">
+            <option value="attention">الأهم أولاً</option>
+            <option value="spend">الأعلى إنفاقاً</option>
+            <option value="results">الأكثر نتائج</option>
+            <option value="cost">الأقل تكلفة نتيجة</option>
+            <option value="engagement">الأفضل تفاعلاً</option>
+          </select>
+        </label>
+        <div class="search-wrap camp-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="form-input search-input" id="search-input" placeholder="ابحث باسم الحملة…" style="width:220px;">
+        </div>
+        <div class="display-mode-toggle" id="display-mode-toggle">
+          <button type="button" class="view-btn active" data-view="table" title="عرض جدول" aria-label="عرض جدول">☰</button>
+          <button type="button" class="view-btn" data-view="cards" title="عرض بطاقات" aria-label="عرض بطاقات">▦</button>
+        </div>
+        <div style="position:relative;" id="export-wrap">
+          <button type="button" class="btn btn-ghost btn-sm" id="export-btn" title="تصدير البيانات كملف CSV">تصدير</button>
+          <div id="export-menu" style="display:none;position:absolute;top:calc(100% + 6px);inset-inline-end:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);padding:6px;min-width:200px;">
+            <button type="button" class="export-item" data-export="campaigns" style="display:block;width:100%;text-align:start;background:none;border:none;color:var(--text);font:inherit;padding:9px 12px;border-radius:7px;cursor:pointer;">قائمة الحملات (CSV)</button>
+            <button type="button" class="export-item" data-export="insights" style="display:block;width:100%;text-align:start;background:none;border:none;color:var(--text);font:inherit;padding:9px 12px;border-radius:7px;cursor:pointer;">الأداء اليومي (CSV)</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm js-sync-trigger" id="force-sync-btn" title="مزامنة أحدث البيانات من Meta">تحديث</button>
       </div>
     </div>
     <div class="sort-hint" id="sort-hint">الترتيب: الأهم أولاً — تنفق الآن، ثم تحتاج مراجعة، ثم الأعلى إنفاقاً</div>
     <div style="overflow-x:auto;" id="table-container">
-      <table>
+      <table class="camp-table">
         <thead id="campaigns-thead">
           <tr>
             <th class="th-sort" data-sort="name">الحملة</th>
-            <th class="th-sort" data-sort="status">الحالة</th>
+            <th class="th-sort" data-sort="deliveryRank">حالة التسليم</th>
             <th class="th-sort" data-sort="spendWindowMinor">الإنفاق <span id="window-label" class="th-window">(30ي)</span></th>
             <th>الاتجاه <span class="th-window">(7ي)</span></th>
-            <th class="th-sort" data-sort="messagesWindow">الرسائل</th>
-            <th class="th-sort" data-sort="ctrWindow">نسبة النقر</th>
-            <th class="th-sort" data-sort="dailyBudget">الميزانية اليومية</th>
-            <th>الإجراءات</th>
+            <th class="th-sort" data-sort="messagesWindow">النتائج</th>
+            <th class="th-sort" data-sort="costPerResult">تكلفة النتيجة</th>
+            <th class="th-sort" data-sort="ctrWindow">تفاعل الإعلان</th>
+            <th class="th-sort" data-sort="dailyBudget">الميزانية</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="campaigns-tbody">
-          <tr><td colspan="8" style="color:var(--text-3);text-align:center;padding:24px;">جارٍ التحميل…</td></tr>
+          <tr><td colspan="9" style="color:var(--text-3);text-align:center;padding:24px;">جارٍ التحميل…</td></tr>
         </tbody>
         <tfoot id="campaigns-tfoot"></tfoot>
       </table>
@@ -250,6 +246,28 @@ export function campaignsPage(): string {
        polluting the global stylesheet for a single modal. -->
   <style>
     .export-item:hover { background: var(--surface-2, rgba(255,255,255,0.05)); }
+
+    /* ── Ads Manager hero KPIs ─────────────────────────────────────────── */
+    .camp-kpi-row--hero { grid-template-columns: repeat(3, 1fr); }
+
+    /* ── Collapsible account trends ───────────────────────────────────── */
+    .camp-trends {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); margin-bottom: 20px; overflow: hidden;
+    }
+    .camp-trends-summary {
+      list-style: none; cursor: pointer; display: flex; align-items: center;
+      justify-content: space-between; gap: 12px; padding: 14px 18px;
+      font-size: 13px; font-weight: 700; color: var(--text); direction: rtl;
+      user-select: none;
+    }
+    .camp-trends-summary::-webkit-details-marker { display: none; }
+    .camp-trends-summary::after {
+      content: '▾'; color: var(--text-3); font-size: 12px; transition: transform .15s;
+    }
+    .camp-trends[open] .camp-trends-summary::after { transform: rotate(180deg); }
+    .camp-trends-hint { font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+    .camp-trends .camp-chart-grid { padding: 0 16px 16px; margin-bottom: 0; }
 
     /* ── Data observer banner ─────────────────────────────────────────── */
     .data-observer-banner {
@@ -298,51 +316,55 @@ export function campaignsPage(): string {
     /* Sparkline column */
     .spark-cell canvas { display: block; width: 96px; height: 26px; }
 
-    /* ── Analytics table upgrades ─────────────────────────────────────── */
-    .table-filters { display: flex; gap: 6px; }
-    .filter-chip {
-      font-size: 12px; font-weight: 600; color: var(--text-3);
-      background: transparent; border: 1px solid var(--border-2);
-      padding: 5px 13px; border-radius: 999px; cursor: pointer;
-      font-family: inherit; transition: all .15s;
+    /* ── Ads Manager toolbar ──────────────────────────────────────────── */
+    .camp-manager .camp-toolbar {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      gap: 14px; flex-wrap: wrap; padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
+      direction: rtl;
     }
-    .filter-chip:hover { color: var(--text); border-color: var(--text-3); }
-    .filter-chip.active { color: var(--accent-2); background: var(--accent-dim); border-color: rgba(217,167,89,0.4); }
-    .sort-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-inline-start: 4px; }
-    .sort-preset {
-      font-size: 11.5px; font-weight: 700; color: var(--text-3);
-      background: transparent; border: 1px solid var(--border-2);
-      padding: 5px 11px; border-radius: 8px; cursor: pointer;
-      font-family: inherit; transition: all .15s;
+    .camp-toolbar-start { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .camp-result-count { font-size: 12px; color: var(--text-3); font-weight: 600; }
+    .camp-toolbar-controls {
+      display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; justify-content: flex-start;
     }
-    .sort-preset:hover { color: var(--text); border-color: var(--text-3); }
-    .sort-preset.active { color: var(--text); background: rgba(255,255,255,0.04); border-color: rgba(217,167,89,0.45); }
+    .camp-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .camp-field-label {
+      font-size: 10.5px; font-weight: 700; color: var(--text-3);
+      letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .camp-select {
+      appearance: none; -webkit-appearance: none;
+      background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23746A5C' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat left 10px center;
+      color: var(--text); border: 1px solid var(--border-2); border-radius: 8px;
+      padding: 8px 12px 8px 28px; font: inherit; font-size: 12.5px; font-weight: 600;
+      min-width: 148px; cursor: pointer; direction: rtl;
+    }
+    .camp-select:focus { outline: none; border-color: rgba(217,167,89,0.55); }
+    .camp-search { align-self: flex-end; }
     .sort-hint {
       font-size: 11.5px; color: var(--text-3); padding: 0 18px 10px;
       direction: rtl; line-height: 1.4;
     }
-    .attention-pill {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
-      margin-top: 4px; margin-inline-start: 6px;
+    .delivery-status {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+      white-space: nowrap; direction: rtl;
     }
-    .attention-pill.hot { background: rgba(217,167,89,0.16); color: var(--accent-2); }
-    .attention-pill.watch { background: rgba(199,122,31,0.14); color: #C77A1F; }
-    .attention-pill.ok { background: rgba(52,168,113,0.12); color: var(--success); }
-    .display-mode-toggle { display: flex; gap: 4px; margin-inline-start: 8px; }
+    .delivery-status .dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: currentColor;
+    }
+    .delivery-status.today { background: rgba(217,167,89,0.16); color: var(--accent-2); }
+    .delivery-status.delivering { background: rgba(52,168,113,0.14); color: var(--success); }
+    .delivery-status.dormant { background: rgba(199,122,31,0.14); color: #C77A1F; }
+    .delivery-status.paused { background: rgba(116,106,92,0.16); color: var(--text-3); }
+    .delivery-status.archived { background: rgba(116,106,92,0.12); color: var(--text-3); }
+    .display-mode-toggle { display: flex; gap: 4px; align-self: flex-end; }
     .view-btn {
       width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
       background: var(--surface); color: var(--text-3); cursor: pointer; font-size: 14px;
     }
     .view-btn.active { color: var(--accent-2); border-color: rgba(217,167,89,0.45); background: var(--accent-dim); }
-    .delivery-badge {
-      display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px;
-      border-radius: 999px; margin-top: 4px; direction: rtl;
-    }
-    .delivery-badge.delivering { background: rgba(52,168,113,0.15); color: var(--success); }
-    .delivery-badge.today { background: rgba(217,167,89,0.18); color: var(--accent-2); }
-    .delivery-badge.dormant { background: rgba(199,122,31,0.15); color: #C77A1F; }
-    .delivery-badge.paused { background: rgba(116,106,92,0.15); color: var(--text-3); }
     .action-group { display: flex; gap: 6px; flex-wrap: wrap; }
     .camp-cards-only .table-wrap table,
     .camp-cards-only #table-container { display: none !important; }
@@ -353,7 +375,7 @@ export function campaignsPage(): string {
     .th-sort.is-sorted.desc::after { content: '↓'; opacity: 1; color: var(--accent); }
     .th-sort.is-sorted.asc::after  { content: '↑'; opacity: 1; color: var(--accent); }
     .th-window { font-weight: 400; color: var(--text-3); font-size: 10.5px; }
-    .cell-name { font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cell-name { font-weight: 600; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .obj-chip {
       display: inline-block; margin-top: 4px;
       font-size: 10.5px; color: var(--text-3);
@@ -366,6 +388,7 @@ export function campaignsPage(): string {
     .spend-bar { height: 3px; background: var(--surface-2, rgba(255,255,255,0.05)); border-radius: 2px; margin-top: 5px; overflow: hidden; }
     .spend-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 2px; }
     .cell-num { font-feature-settings: 'tnum'; direction: ltr; unicode-bidi: embed; color: var(--text-2); }
+    .camp-table td, .camp-table th { vertical-align: middle; }
     #campaigns-tfoot td {
       border-top: 2px solid var(--border-2);
       font-weight: 700; color: var(--text);
@@ -386,8 +409,11 @@ export function campaignsPage(): string {
       transition: border-color .15s, transform .1s;
     }
     .camp-card:active { transform: scale(0.985); }
-    .camp-card[data-status="ACTIVE"] { border-inline-start-color: var(--success); }
-    .camp-card[data-status="PAUSED"] { border-inline-start-color: var(--warning); }
+    .camp-card[data-delivery="DELIVERING_TODAY"] { border-inline-start-color: var(--accent); }
+    .camp-card[data-delivery="DELIVERING_WINDOW"] { border-inline-start-color: var(--success); }
+    .camp-card[data-delivery="DORMANT_ACTIVE"] { border-inline-start-color: #C77A1F; }
+    .camp-card[data-delivery="PAUSED"],
+    .camp-card[data-delivery="ARCHIVED"] { border-inline-start-color: var(--text-3); }
     .camp-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
     .camp-card-name {
       font-size: 14px; font-weight: 700; color: var(--text);
@@ -404,17 +430,23 @@ export function campaignsPage(): string {
       margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--accent);
       display: flex; align-items: center; gap: 4px;
     }
+    @media (max-width: 900px) {
+      .camp-kpi-row--hero { grid-template-columns: 1fr; }
+      .camp-toolbar-controls { width: 100%; }
+      .camp-select, .camp-search .search-input { width: 100%; min-width: 0; }
+      .camp-search { width: 100%; }
+      .camp-search .search-input { width: 100% !important; }
+    }
     @media (max-width: 768px) {
       /* Inline display:block from renderTable would beat a plain rule. */
       #table-container { display: none !important; }
       .camp-cards { display: flex; flex-direction: column; gap: 10px; }
-      .table-header { flex-direction: column; align-items: stretch; gap: 10px; }
-      .table-header .search-input { width: 100% !important; }
+      .camp-manager .camp-toolbar { flex-direction: column; align-items: stretch; }
       /* Header: actions wrap under the title instead of overflowing. */
       .page-header.flex { flex-direction: column; align-items: stretch; gap: 12px; }
-      .page-header .flex { flex-wrap: wrap; }
       #date-tabs { width: 100%; display: flex; }
       #date-tabs .tab { flex: 1; }
+      .camp-chart-grid { grid-template-columns: 1fr; }
     }
     .inspector-tab {
       background: transparent;
@@ -504,7 +536,7 @@ export function campaignsPage(): string {
         <button class="inspector-tab is-active" data-tab="overview"  role="tab" type="button">النظرة العامة</button>
         <button class="inspector-tab"           data-tab="creatives" role="tab" type="button">الإبداعات</button>
         <button class="inspector-tab"           data-tab="audience"  role="tab" type="button">الجمهور</button>
-        <button class="inspector-tab"           data-tab="investigate" role="tab" type="button">🔎 تحقيق شامل</button>
+        <button class="inspector-tab"           data-tab="investigate" role="tab" type="button">تحقيق شامل</button>
       </div>
 
       <div id="inspector-body">
@@ -871,7 +903,7 @@ export function campaignsPage(): string {
       } else {
         destroyChartInstance(state.ctrChart);
         state.ctrChart = makeLineChart('chart-ctr', labels, [{
-          label: 'نسبة النقر (%)',
+          label: 'تفاعل الإعلان (%)',
           data: ctrData,
           borderColor: '#34A871',
           _rgb: [52, 168, 113],
@@ -928,26 +960,44 @@ export function campaignsPage(): string {
     }
   }
 
-  function deliveryBadge(c) {
+  function deliveryStatus(c) {
     var tier = c.deliveryTier || '';
-    var labels = {
-      DELIVERING_TODAY: ['تنفق اليوم', 'today'],
-      DELIVERING_WINDOW: ['تعمل', 'delivering'],
-      DORMANT_ACTIVE: ['نشطة بدون إنفاق', 'dormant'],
-      PAUSED: ['متوقفة', 'paused'],
-      ARCHIVED: ['مؤرشفة', 'paused'],
-    };
-    var pair = labels[tier];
-    if (!pair) return '';
-    return '<span class="delivery-badge ' + pair[1] + '">' + pair[0] + '</span>';
+    if (c.isCurrentlySpending || tier === 'DELIVERING_TODAY') {
+      return { cls: 'today', text: 'تنفق الآن', rank: 1 };
+    }
+    if (tier === 'DELIVERING_WINDOW') {
+      return { cls: 'delivering', text: 'تعمل', rank: 2 };
+    }
+    if (tier === 'DORMANT_ACTIVE' || c.isDormantActive) {
+      return { cls: 'dormant', text: 'تحتاج مراجعة', rank: 3 };
+    }
+    if (tier === 'PAUSED' || (c.status || '').toUpperCase() === 'PAUSED') {
+      return { cls: 'paused', text: 'متوقفة', rank: 4 };
+    }
+    if (tier === 'ARCHIVED' || (c.status || '').toUpperCase() === 'ARCHIVED') {
+      return { cls: 'archived', text: 'مؤرشفة', rank: 5 };
+    }
+    return { cls: 'paused', text: 'غير معروفة', rank: 9 };
+  }
+
+  function deliveryStatusHtml(c) {
+    var st = deliveryStatus(c);
+    return '<span class="delivery-status ' + st.cls + '"><span class="dot" aria-hidden="true"></span>' + escHtml(st.text) + '</span>';
+  }
+
+  function costPerResultMinor(c) {
+    var spend = Number(c.spendWindowMinor) || 0;
+    var msgs = Number(c.messagesWindow) || 0;
+    if (msgs <= 0 || spend <= 0) return null;
+    return spend / msgs;
   }
 
   function matchesStatusFilter(c, filter) {
     var tier = c.deliveryTier || '';
     if (filter === 'ALL') return true;
     if (filter === 'DELIVERING') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
-    if (filter === 'TODAY') return tier === 'DELIVERING_TODAY';
-    if (filter === 'DORMANT') return tier === 'DORMANT_ACTIVE';
+    if (filter === 'TODAY') return tier === 'DELIVERING_TODAY' || !!c.isCurrentlySpending;
+    if (filter === 'REVIEW' || filter === 'DORMANT') return tier === 'DORMANT_ACTIVE' || !!c.isDormantActive;
     if (filter === 'ACTIVE') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW' || tier === 'DORMANT_ACTIVE';
     if (filter === 'PAUSED') return tier === 'PAUSED';
     if (filter === 'ARCHIVED') return tier === 'ARCHIVED';
@@ -964,29 +1014,34 @@ export function campaignsPage(): string {
   }
 
   // ── Summary cards ─────────────────────────────────────────────────────────
-  // Primary KPI = delivering in window (real delivery). Sub-label shows Meta
-  // ACTIVE count separately so 17 vs 4 confusion is visible and explained.
+  // Three merchant-facing signals: spend, delivering, needs review.
   function updateSummary(campaigns, insights) {
-    var total = campaigns.length;
     var delivering = campaigns.filter(function(c) {
       return c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW';
     }).length;
-    var spendingToday = campaigns.filter(function(c) { return c.deliveryTier === 'DELIVERING_TODAY'; }).length;
-    var statusActive = campaigns.filter(function(c) { return c.status === 'ACTIVE'; }).length;
-    var dormant = campaigns.filter(function(c) { return c.deliveryTier === 'DORMANT_ACTIVE'; }).length;
-    var paused = campaigns.filter(function(c) { return c.status === 'PAUSED'; }).length;
+    var spendingToday = campaigns.filter(function(c) {
+      return c.deliveryTier === 'DELIVERING_TODAY' || c.isCurrentlySpending;
+    }).length;
+    var needsReview = campaigns.filter(function(c) {
+      return c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive;
+    }).length;
+    var paused = campaigns.filter(function(c) { return c.status === 'PAUSED' || c.deliveryTier === 'PAUSED'; }).length;
     var insightsSlice = recentAsc(insights, state.days);
     var totalSpendMinor = insightsSlice.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
 
-    tickText(document.getElementById('total-campaigns'), String(total));
     tickText(document.getElementById('active-campaigns'), String(delivering));
     var activeSub = document.getElementById('active-sub');
     if (activeSub) {
-      activeSub.textContent = spendingToday + ' تنفق اليوم · ' + statusActive + ' Meta نشطة · ' + dormant + ' بدون إنفاق';
+      activeSub.textContent = spendingToday + ' تنفق اليوم · من أصل ' + campaigns.length + ' حملة';
     }
-    tickText(document.getElementById('paused-campaigns'), String(paused));
+    tickText(document.getElementById('review-campaigns'), String(needsReview));
+    var reviewSub = document.getElementById('review-sub');
+    if (reviewSub) {
+      reviewSub.textContent = paused + ' متوقفة · بدون إنفاق رغم أنها نشطة';
+    }
     tickText(document.getElementById('total-spend'), fmtCurrencyMinor(totalSpendMinor));
-    document.getElementById('spend-period').textContent = 'آخر ' + state.days + ' يوماً';
+    var spendPeriod = document.getElementById('spend-period');
+    if (spendPeriod) spendPeriod.textContent = 'آخر ' + state.days + ' يوماً';
   }
 
   // ── Objective translation ──────────────────────────────────────────────────
@@ -1065,20 +1120,26 @@ export function campaignsPage(): string {
   }
 
   // ── Table rendering ───────────────────────────────────────────────────────
-  // statusBadge is provided as a global by SHARED_JS in layout.ts — uses the
-  // unified .badge palette (badge-green/yellow/gray/red).
   function renderTable(campaigns) {
     var tbody = document.getElementById('campaigns-tbody');
     var emptyEl = document.getElementById('empty-campaigns');
     var tableContainer = document.getElementById('table-container');
     var cardsEl = document.getElementById('campaigns-cards');
+    var countEl = document.getElementById('camp-result-count');
     try {
     if (!campaigns || !Array.isArray(campaigns)) campaigns = [];
+    if (countEl) {
+      countEl.textContent = campaigns.length
+        ? (campaigns.length + ' حملة ظاهرة')
+        : '';
+    }
 
     if (campaigns.length === 0) {
       tableContainer.style.display = 'none';
       if (cardsEl) cardsEl.innerHTML = '';
       emptyEl.style.display = 'block';
+      var emptyFoot = document.getElementById('campaigns-tfoot');
+      if (emptyFoot) emptyFoot.innerHTML = '';
       return;
     }
 
@@ -1096,21 +1157,21 @@ export function campaignsPage(): string {
     if (cardsEl) {
       cardsEl.innerHTML = campaigns.map(function(c) {
         var spendTxt = fmtCurrencyMinor(Number(c.spendWindowMinor) || 0);
+        var cost = costPerResultMinor(c);
+        var costTxt = cost != null ? fmtCurrencyMinor(cost) : '—';
         var budget = c.dailyBudget != null
           ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
           : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' إجمالي' : 'بدون ميزانية');
-        return '<div class="camp-card" data-campaign-id="' + escAttr(c.id) + '" data-status="' + escAttr(c.status || '') + '">'
+        var st = deliveryStatus(c);
+        return '<div class="camp-card" data-campaign-id="' + escAttr(c.id) + '" data-delivery="' + escAttr(c.deliveryTier || '') + '">'
           + '<div class="camp-card-top">'
           +   '<div class="camp-card-name">' + escHtml(c.name || '—') + '</div>'
-          +   statusBadge(c.status)
-          +   (function () {
-                var att = attentionLabel(c);
-                return att ? '<span class="attention-pill ' + att.cls + '">' + escHtml(att.text) + '</span>' : '';
-              })()
+          +   deliveryStatusHtml(c)
           + '</div>'
           + '<div class="camp-card-meta">'
           +   '<span class="camp-card-chip"><b>' + escHtml(spendTxt) + '</b> · ' + state.days + ' يوم</span>'
           +   '<span class="camp-card-chip">' + escHtml(fmtNum(c.messagesWindow, 0)) + ' نتيجة</span>'
+          +   '<span class="camp-card-chip">تكلفة: <b>' + escHtml(costTxt) + '</b></span>'
           +   '<span class="camp-card-chip">' + escHtml(translateObjective(c.objective)) + '</span>'
           +   '<span class="camp-card-chip">' + escHtml(budget) + '</span>'
           + '</div>'
@@ -1131,25 +1192,21 @@ export function campaignsPage(): string {
       totSpend += spendMinor;
       totMsgs += Number(c.messagesWindow) || 0;
       var barPct = maxSpend > 0 ? Math.max(2, Math.round((spendMinor / maxSpend) * 100)) : 0;
+      var cost = costPerResultMinor(c);
       return '<tr>'
         + '<td><div class="cell-name" title="' + escAttr(c.name || '') + '">' + escHtml(c.name || '—') + '</div>'
         +   '<span class="obj-chip">' + escHtml(translateObjective(c.objective)) + '</span>'
-        +   (function () {
-              var att = attentionLabel(c);
-              return att ? '<span class="attention-pill ' + att.cls + '">' + escHtml(att.text) + '</span>' : '';
-            })()
         + '</td>'
-        + '<td>' + statusBadge(c.status) + deliveryBadge(c) + '</td>'
+        + '<td>' + deliveryStatusHtml(c) + '</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
         +   (maxSpend > 0 ? '<div class="spend-bar"><i style="width:' + barPct + '%"></i></div>' : '') + '</td>'
         + '<td class="spark-cell"><canvas width="192" height="52" data-spark="' + escAttr(JSON.stringify(c.spark || [])) + '"></canvas></td>'
         + '<td class="cell-num">' + escHtml(fmtNum(c.messagesWindow, 0)) + '</td>'
+        + '<td class="cell-num">' + (cost != null ? escHtml(fmtCurrencyMinor(cost)) : '—') + '</td>'
         + '<td class="cell-num">' + (c.ctrWindow != null ? escHtml(fmtNum(c.ctrWindow, 2)) + '%' : '—') + '</td>'
         + '<td class="cell-num">' + escHtml(budget) + '</td>'
         + '<td><div class="action-group">'
-        +   '<button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="overview">تحليل</button>'
-        +   '<button class="btn btn-ghost btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="creatives">إبداع</button>'
-        +   '<button class="btn btn-ghost btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="investigate">🔎</button>'
+        +   '<button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="overview">عرض</button>'
         + '</div></td>'
         + '</tr>';
     }).join('');
@@ -1159,18 +1216,20 @@ export function campaignsPage(): string {
     drawSparklines();
 
     // Totals row — window spend and messages across the visible (filtered) set.
+    // Columns: name | delivery | spend | spark | results | cost | ctr | budget | action
     var tfoot = document.getElementById('campaigns-tfoot');
     if (tfoot) {
       tfoot.innerHTML = '<tr>'
         + '<td colspan="2" class="tot-label">الإجمالي · ' + campaigns.length + ' حملة · آخر ' + state.days + ' يوماً</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(totSpend)) + '</span></td>'
+        + '<td></td>'
         + '<td class="cell-num">' + escHtml(fmtNum(totMsgs, 0)) + '</td>'
         + '<td colspan="4"></td>'
         + '</tr>';
     }
     } catch (tableErr) {
       console.error('[campaigns] table render failed:', tableErr);
-      tbody.innerHTML = '<tr><td colspan="8" class="section-fallback">تعذّر عرض الحملات — حاول التحديث.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="section-fallback">تعذّر عرض الحملات — حاول التحديث.</td></tr>';
     }
   }
 
@@ -1180,8 +1239,9 @@ export function campaignsPage(): string {
   var SORT_PRESET_HINTS = {
     attention: 'الترتيب: الأهم أولاً — تنفق الآن، ثم تحتاج مراجعة، ثم الأعلى إنفاقاً',
     spend: 'الترتيب: الأعلى إنفاقاً في النافذة الحالية',
-    results: 'الترتيب: الأكثر نتائج (رسائل) في النافذة الحالية',
-    engagement: 'الترتيب: الأفضل تفاعلاً (نسبة النقر)',
+    results: 'الترتيب: الأكثر نتائج في النافذة الحالية',
+    cost: 'الترتيب: الأقل تكلفة لكل نتيجة',
+    engagement: 'الترتيب: الأفضل تفاعلاً (تفاعل الإعلان)',
   };
 
   function sparkTrend(c) {
@@ -1212,13 +1272,6 @@ export function campaignsPage(): string {
     return score;
   }
 
-  function attentionLabel(c) {
-    if (c.isCurrentlySpending) return { cls: 'hot', text: 'تنفق الآن' };
-    if (c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) return { cls: 'watch', text: 'تحتاج مراجعة' };
-    if (c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW') return { cls: 'ok', text: 'تعمل' };
-    return null;
-  }
-
   function applySortPreset(preset) {
     state.sortPreset = preset || 'attention';
     if (state.sortPreset === 'spend') {
@@ -1227,6 +1280,9 @@ export function campaignsPage(): string {
     } else if (state.sortPreset === 'results') {
       state.sortKey = 'messagesWindow';
       state.sortDir = -1;
+    } else if (state.sortPreset === 'cost') {
+      state.sortKey = 'costPerResult';
+      state.sortDir = 1;
     } else if (state.sortPreset === 'engagement') {
       state.sortKey = 'ctrWindow';
       state.sortDir = -1;
@@ -1234,9 +1290,8 @@ export function campaignsPage(): string {
       state.sortKey = 'attentionScore';
       state.sortDir = -1;
     }
-    document.querySelectorAll('#sort-presets .sort-preset').forEach(function(el) {
-      el.classList.toggle('active', el.getAttribute('data-sort-preset') === state.sortPreset);
-    });
+    var sortSelect = document.getElementById('sort-preset-select');
+    if (sortSelect && state.sortPreset !== 'custom') sortSelect.value = state.sortPreset;
     var hint = document.getElementById('sort-hint');
     if (hint) hint.textContent = SORT_PRESET_HINTS[state.sortPreset] || SORT_PRESET_HINTS.attention;
     document.querySelectorAll('#campaigns-thead .th-sort').forEach(function(el) {
@@ -1256,12 +1311,24 @@ export function campaignsPage(): string {
       return (c.name || '').toLowerCase().includes(q)
         || (c.objective || '').toLowerCase().includes(q)
         || (c.status || '').toLowerCase().includes(q)
-        || (c.id || '').toLowerCase().includes(q);
+        || (c.id || '').toLowerCase().includes(q)
+        || translateObjective(c.objective).toLowerCase().includes(q);
     });
     var key = state.sortKey, dir = state.sortDir;
     list = list.slice().sort(function(a, b) {
       if (key === 'attentionScore') {
         return (attentionScore(a) - attentionScore(b)) * dir;
+      }
+      if (key === 'costPerResult') {
+        var ac = costPerResultMinor(a);
+        var bc = costPerResultMinor(b);
+        if (ac == null && bc == null) return 0;
+        if (ac == null) return 1;
+        if (bc == null) return -1;
+        return (ac - bc) * dir;
+      }
+      if (key === 'deliveryRank') {
+        return (deliveryStatus(a).rank - deliveryStatus(b).rank) * dir;
       }
       var av = a[key], bv = b[key];
       if (typeof av === 'string' || typeof bv === 'string') {
@@ -1879,7 +1946,7 @@ export function campaignsPage(): string {
           var dormantN = health.dormantActiveCampaigns || health.staleActiveCount || 0;
           var deliveringN = (health.campaignCounts && health.campaignCounts.deliveringInWindow) || health.activeCampaigns || 0;
           var metaN = health.metaActiveCampaigns || (health.campaignCounts && health.campaignCounts.activeStatus) || 0;
-          parts.push(deliveringN + ' حملة تعمل فعلياً · ' + metaN + ' Meta نشطة · ' + dormantN + ' بدون إنفاق');
+          parts.push(deliveringN + ' حملة تعمل فعلياً · ' + dormantN + ' تحتاج مراجعة · ' + metaN + ' معلّمة نشطة في المنصة');
         }
         if (health.orphanedCount > 0) {
           parts.push(health.orphanedCount + ' حملة محذوفة — بياناتها القديمة مدمجة مع الجديدة');
@@ -2022,12 +2089,9 @@ export function campaignsPage(): string {
         state.sortDir = -state.sortDir;
       } else {
         state.sortKey = key;
-        state.sortDir = (key === 'name' || key === 'status') ? 1 : -1;
+        state.sortDir = (key === 'name' || key === 'status' || key === 'deliveryRank' || key === 'costPerResult') ? 1 : -1;
       }
       state.sortPreset = 'custom';
-      document.querySelectorAll('#sort-presets .sort-preset').forEach(function(el) {
-        el.classList.remove('active');
-      });
       var hint = document.getElementById('sort-hint');
       if (hint) hint.textContent = 'الترتيب: حسب العمود المحدد';
       document.querySelectorAll('#campaigns-thead .th-sort').forEach(function(el) {
@@ -2037,28 +2101,41 @@ export function campaignsPage(): string {
       applyFilters();
     });
 
-    // Simple SaaS sort presets (attention / spend / results / engagement).
-    document.getElementById('sort-presets').addEventListener('click', function(e) {
-      var btn = e.target && e.target.closest && e.target.closest('.sort-preset');
-      if (!btn) return;
-      applySortPreset(btn.getAttribute('data-sort-preset') || 'attention');
-      applyFilters();
-    });
-
-    // Status filter chips (الكل / نشطة / متوقفة).
-    document.getElementById('status-filters').addEventListener('click', function(e) {
-      var chip = e.target && e.target.closest && e.target.closest('.filter-chip');
-      if (!chip) return;
-      state.statusFilter = chip.getAttribute('data-status') || 'ALL';
-      document.querySelectorAll('#status-filters .filter-chip').forEach(function(el) {
-        el.classList.toggle('active', el === chip);
+    // Delivery status + sort selects (Ads Manager toolbar).
+    var statusSelect = document.getElementById('status-filter-select');
+    if (statusSelect) {
+      statusSelect.value = state.statusFilter;
+      statusSelect.addEventListener('change', function() {
+        state.statusFilter = statusSelect.value || 'DELIVERING';
+        applyFilters();
       });
-      applyFilters();
-    });
+    }
+    var sortPresetSelect = document.getElementById('sort-preset-select');
+    if (sortPresetSelect) {
+      sortPresetSelect.value = state.sortPreset;
+      sortPresetSelect.addEventListener('change', function() {
+        applySortPreset(sortPresetSelect.value || 'attention');
+        applyFilters();
+      });
+    }
 
     document.getElementById('force-sync-btn').addEventListener('click', function() {
       forceSync();
     });
+
+    // Charts live inside a collapsed <details> — remeasure when opened.
+    var trendsEl = document.getElementById('camp-trends');
+    if (trendsEl) {
+      trendsEl.addEventListener('toggle', function() {
+        if (!trendsEl.open) return;
+        requestAnimationFrame(function() {
+          updateCharts(state.insights);
+          [state.spendChart, state.ctrChart, state.reachChart, state.impressionsChart].forEach(function(c) {
+            if (c) try { c.resize(); } catch (e) {}
+          });
+        });
+      });
+    }
 
     // Export menu — toggle open/closed, download on item click, close on outside click.
     var exportBtn = document.getElementById('export-btn');
@@ -2225,7 +2302,7 @@ export function campaignsPage(): string {
         updateCharts(state.insights);
         runDataObserver(workspaceId);
       });
-      staggerReveal(['.camp-kpi-row', '#data-observer-banner', '#fresh-strip', '.camp-chart-grid', '.table-wrap']);
+      staggerReveal(['.camp-kpi-row', '#data-observer-banner', '#fresh-strip', '.camp-trends', '.table-wrap']);
 
     } catch (err) {
       showError(friendlyApiError(err));
