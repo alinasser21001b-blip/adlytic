@@ -224,7 +224,7 @@ export function campaignsPage(): string {
             <th class="th-sort" data-sort="deliveryRank">حالة التسليم</th>
             <th class="th-sort" data-sort="spendWindowMinor">الإنفاق <span id="window-label" class="th-window">(30ي)</span></th>
             <th>الاتجاه <span class="th-window">(7ي)</span></th>
-            <th class="th-sort" data-sort="messagesWindow">النتائج</th>
+            <th class="th-sort" data-sort="resultsWindow">النتائج</th>
             <th class="th-sort" data-sort="costPerResult">تكلفة النتيجة</th>
             <th class="th-sort" data-sort="ctrWindow">تفاعل الإعلان</th>
             <th class="th-sort" data-sort="dailyBudget">الميزانية</th>
@@ -1048,10 +1048,23 @@ export function campaignsPage(): string {
   }
 
   function costPerResultMinor(c) {
+    // Prefer server-computed objective-aware efficiency (MAJOR units).
+    if (c.costPerResult != null && Number.isFinite(Number(c.costPerResult))) {
+      var factor = state.minorFactor || 100;
+      return Number(c.costPerResult) * factor;
+    }
+    // Legacy fallback: spend ÷ messages (Phase-1 messaging-only accounts).
     var spend = Number(c.spendWindowMinor) || 0;
     var msgs = Number(c.messagesWindow) || 0;
     if (msgs <= 0 || spend <= 0) return null;
     return spend / msgs;
+  }
+
+  function resultsCount(c) {
+    if (c.resultsWindow != null && Number.isFinite(Number(c.resultsWindow))) {
+      return Number(c.resultsWindow);
+    }
+    return Number(c.messagesWindow) || 0;
   }
 
   function matchesStatusFilter(c, filter) {
@@ -1232,7 +1245,7 @@ export function campaignsPage(): string {
           + '</div>'
           + '<div class="camp-card-meta">'
           +   '<span class="camp-card-chip"><b>' + escHtml(spendTxt) + '</b> · ' + state.days + ' يوم</span>'
-          +   '<span class="camp-card-chip">' + escHtml(fmtNum(c.messagesWindow, 0)) + ' نتيجة</span>'
+          +   '<span class="camp-card-chip">' + escHtml(fmtNum(resultsCount(c), 0)) + ' ' + escHtml(c.resultLabelAr || 'نتيجة') + '</span>'
           +   '<span class="camp-card-chip">تكلفة: <b>' + escHtml(costTxt) + '</b></span>'
           +   '<span class="camp-card-chip">' + escHtml(translateObjective(c.objective)) + '</span>'
           +   '<span class="camp-card-chip">' + escHtml(budget) + '</span>'
@@ -1242,7 +1255,7 @@ export function campaignsPage(): string {
       }).join('');
     }
 
-    var totSpend = 0, totMsgs = 0;
+    var totSpend = 0, totResults = 0;
     tbody.innerHTML = campaigns.map(function(c) {
       // Campaign.dailyBudget / lifetimeBudget are BigInt minor units in the
       // schema. They came through bigintReplacer as plain Numbers but still
@@ -1252,7 +1265,7 @@ export function campaignsPage(): string {
         : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' (إجمالي)' : '—');
       var spendMinor = Number(c.spendWindowMinor) || 0;
       totSpend += spendMinor;
-      totMsgs += Number(c.messagesWindow) || 0;
+      totResults += resultsCount(c);
       var barPct = maxSpend > 0 ? Math.max(2, Math.round((spendMinor / maxSpend) * 100)) : 0;
       var cost = costPerResultMinor(c);
       return '<tr>'
@@ -1263,7 +1276,7 @@ export function campaignsPage(): string {
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
         +   (maxSpend > 0 ? '<div class="spend-bar"><i style="width:' + barPct + '%"></i></div>' : '') + '</td>'
         + '<td class="spark-cell"><canvas width="192" height="52" data-spark="' + escAttr(JSON.stringify(c.spark || [])) + '"></canvas></td>'
-        + '<td class="cell-num">' + escHtml(fmtNum(c.messagesWindow, 0)) + '</td>'
+        + '<td class="cell-num">' + escHtml(fmtNum(resultsCount(c), 0)) + '</td>'
         + '<td class="cell-num">' + (cost != null ? escHtml(fmtCurrencyMinor(cost)) : '—') + '</td>'
         + '<td class="cell-num">' + (c.ctrWindow != null ? escHtml(fmtNum(c.ctrWindow, 2)) + '%' : '—') + '</td>'
         + '<td class="cell-num">' + escHtml(budget) + '</td>'
@@ -1277,7 +1290,7 @@ export function campaignsPage(): string {
     // Chart.js instances so 100 rows stay cheap. devicePixelRatio-2 canvas.
     drawSparklines();
 
-    // Totals row — window spend and messages across the visible (filtered) set.
+    // Totals row — window spend and objective-aware results across the visible set.
     // Columns: name | delivery | spend | spark | results | cost | ctr | budget | action
     var tfoot = document.getElementById('campaigns-tfoot');
     if (tfoot) {
@@ -1285,7 +1298,7 @@ export function campaignsPage(): string {
         + '<td colspan="2" class="tot-label">الإجمالي · ' + campaigns.length + ' حملة · آخر ' + state.days + ' يوماً</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(totSpend)) + '</span></td>'
         + '<td></td>'
-        + '<td class="cell-num">' + escHtml(fmtNum(totMsgs, 0)) + '</td>'
+        + '<td class="cell-num">' + escHtml(fmtNum(totResults, 0)) + '</td>'
         + '<td colspan="4"></td>'
         + '</tr>';
     }
@@ -1340,7 +1353,7 @@ export function campaignsPage(): string {
       state.sortKey = 'spendWindowMinor';
       state.sortDir = -1;
     } else if (state.sortPreset === 'results') {
-      state.sortKey = 'messagesWindow';
+      state.sortKey = 'resultsWindow';
       state.sortDir = -1;
     } else if (state.sortPreset === 'cost') {
       state.sortKey = 'costPerResult';
@@ -1388,6 +1401,9 @@ export function campaignsPage(): string {
         if (ac == null) return 1;
         if (bc == null) return -1;
         return (ac - bc) * dir;
+      }
+      if (key === 'resultsWindow' || key === 'messagesWindow') {
+        return (resultsCount(a) - resultsCount(b)) * dir;
       }
       if (key === 'deliveryRank') {
         return (deliveryStatus(a).rank - deliveryStatus(b).rank) * dir;
@@ -1469,6 +1485,7 @@ export function campaignsPage(): string {
     ctr:            'تفاعل الإعلان',
     frequency:      'تكرار ظهور الإعلان',
     cpm:            'تكلفة الوصول لألف شخص',
+    cpc:            'تكلفة النقرة',
     costPerMessage: 'تكلفة الرسالة',
   };
 
@@ -1518,10 +1535,13 @@ export function campaignsPage(): string {
       '<span class="badge ' + statusBadgeClass(c.status) + '" style="margin-inline-start:8px;">'
     +   escHtml(statusArabic(c.status))
     + '</span>';
+    var objectiveChip = c.objective
+      ? '<span class="obj-chip" style="margin-inline-start:8px;">' + escHtml(translateObjective(c.objective)) + '</span>'
+      : '';
     var subtitleEl = document.getElementById('inspector-subtitle');
     subtitleEl.style.direction = 'rtl';
     subtitleEl.style.textAlign = 'right';
-    subtitleEl.innerHTML = 'آخر ' + (s.windowDays || 30) + ' يوم' + statusBadge;
+    subtitleEl.innerHTML = 'آخر ' + (s.windowDays || 30) + ' يوم' + statusBadge + objectiveChip;
 
     // ── Financial summary block ───────────────────────────────────────────
     var budgetLine =
@@ -1529,25 +1549,39 @@ export function campaignsPage(): string {
     : c.lifetimeBudgetMinor != null ? fmtMinor(c.lifetimeBudgetMinor, a.currencyMinorFactor, a.currency) + ' (إجمالي)'
     : '—';
 
-    // STANDARDIZED FINANCIAL SUMMARY — exactly 4 KPI cards, in this order:
-    //   1. الإنفاق         (window spend)
-    //   2. الميزانية       (daily or lifetime budget, whichever Meta returned)
-    //   3. إجمالي الرسائل   (window total — INTEGER, no decimals)
-    //   4. تكلفة الرسالة   (spend ÷ messages, in account currency)
-    // We deliberately dropped Avg CTR, Frequency, and the combined
-    // "Messages · Purchases" card: the client found them noisy and they
-    // weren't tied to the Phase 1 messaging KPI.
+    // Objective-aware financial summary — exactly 4 KPI cards:
+    //   1. الإنفاق
+    //   2. الميزانية
+    //   3. Primary result for this objective (impressions / clicks / messages / …)
+    //   4. Matching efficiency (CPM / CPC / cost-per-message / …)
+    // Awareness campaigns must NEVER show messaging KPIs.
     var freshnessAttr = state.lastSyncedAt ? ' data-freshness="' + escHtml(state.lastSyncedAt) + '"' : '';
+    var resultLabel = s.resultLabelAr || 'إجمالي الرسائل';
+    var efficiencyLabel = s.efficiencyLabelAr || 'تكلفة الرسالة';
+    var resultInfoId = s.resultKey === 'impressions' ? 'impressions'
+      : s.resultKey === 'clicks' ? 'clicks'
+      : s.resultKey === 'purchases' ? 'purchases'
+      : s.resultKey === 'leads' ? 'leads'
+      : s.resultKey === 'reach' ? 'reach'
+      : 'messages';
+    var efficiencyInfoId = s.efficiencyKey === 'cpm' ? 'cpm'
+      : s.efficiencyKey === 'cpc' ? 'cpc'
+      : s.efficiencyKey === 'costPerMessage' ? 'cost_per_messaging_conversation'
+      : 'cost_per_result';
+    var resultValue = s.results != null ? s.results
+      : (s.messages != null ? s.messages : 0);
+    var efficiencyMajor = s.avgCostPerResult != null ? s.avgCostPerResult
+      : s.avgCostPerMessage;
     var kpiHtml =
       '<div class="kpi-grid" style="grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:20px;direction:rtl;text-align:right;">'
     +   '<div class="kpi-card"><div class="kpi-label">الإنفاق <button type="button" class="info-btn" data-metric-info="spend"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
     +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
     +   '<div class="kpi-card"><div class="kpi-label">الميزانية</div>'
     +     '<div class="kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">إجمالي الرسائل <button type="button" class="info-btn" data-metric-info="messages"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(s.messages, 0)) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">تكلفة الرسالة <button type="button" class="info-btn" data-metric-info="cost_per_messaging_conversation"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(s.avgCostPerMessage != null ? fmtMinor(s.avgCostPerMessage * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">' + escHtml(resultLabel) + ' <button type="button" class="info-btn" data-metric-info="' + escAttr(resultInfoId) + '"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(resultValue, 0)) + '</div></div>'
+    +   '<div class="kpi-card"><div class="kpi-label">' + escHtml(efficiencyLabel) + ' <button type="button" class="info-btn" data-metric-info="' + escAttr(efficiencyInfoId) + '"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
+    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(efficiencyMajor != null ? fmtMinor(efficiencyMajor * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
     + '</div>';
 
     // ── Signals block ──────────────────────────────────────────────────────
@@ -1623,7 +1657,7 @@ export function campaignsPage(): string {
     // Audience tab (Pass C) — accepts the breakdowns block emitted by the
     // /inspector endpoint and renders four sections (age, gender, platform,
     // position). The renderer owns all Arabic translation of Meta vocabulary.
-    var audienceHtml = renderAudienceTab(data.breakdowns || {}, a);
+    var audienceHtml = renderAudienceTab(data.breakdowns || {}, a, s.kpiFamily || 'messaging');
 
     document.getElementById('inspector-body').innerHTML =
         '<div data-tab-panel="overview">'  + overviewHtml  + '</div>'
@@ -1822,9 +1856,10 @@ export function campaignsPage(): string {
    * only the dimensions that returned data; if none did, a single friendly
    * placeholder explains that the breakdown sync is still warming up.
    */
-  function renderAudienceTab(breakdowns, account) {
+  function renderAudienceTab(breakdowns, account, kpiFamily) {
     var ORDER = ['age', 'gender', 'publisher_platform', 'platform_position'];
     var sections = [];
+    var isMessaging = !kpiFamily || kpiFamily === 'messaging';
 
     for (var i = 0; i < ORDER.length; i++) {
       var key = ORDER[i];
@@ -1844,6 +1879,7 @@ export function campaignsPage(): string {
         var labelAr   = translateBreakdownValue(key, r.value);
         var spendText = fmtMinor(r.spendMinor, account.currencyMinorFactor, account.currency);
         var msgText   = fmtNum(Number(r.messages || 0), 0);
+        var clicksText = fmtNum(Number(r.clicks || 0), 0);
         // costPerMessage is in MAJOR units (see /inspector contract); multiply
         // back into minor units so fmtMinor can do its division consistently.
         var cpm       = r.costPerMessage != null
@@ -1868,14 +1904,20 @@ export function campaignsPage(): string {
             + 'padding:1px 6px;border-radius:10px;margin-inline-start:6px;">الأفضل</span>'
           : '';
 
+        var metricsLine = isMessaging
+          ? ('الرسائل: <span style="color:var(--text-2);">' + escHtml(msgText) + '</span>'
+            + ' · تكلفة الرسالة: <span style="color:var(--text-2);">' + escHtml(cpm) + '</span>'
+            + ' · تفاعل الإعلان: <span style="color:var(--text-2);">' + escHtml(ctrText) + '</span>')
+          : ('الظهور: <span style="color:var(--text-2);">' + escHtml(fmtNum(Number(r.impressions || 0), 0)) + '</span>'
+            + ' · النقرات: <span style="color:var(--text-2);">' + escHtml(clicksText) + '</span>'
+            + ' · تفاعل الإعلان: <span style="color:var(--text-2);">' + escHtml(ctrText) + '</span>');
+
         return ''
           + '<div style="margin:10px 0;direction:rtl;text-align:right;' + rowBg + '">'
           +   '<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text);margin-bottom:4px;gap:8px;flex-wrap:wrap;">'
           +     '<span style="font-weight:600;">' + escHtml(labelAr) + winnerBadge + '</span>'
           +     '<span style="color:var(--text-3);font-size:12px;">'
-          +       'الرسائل: <span style="color:var(--text-2);">' + escHtml(msgText) + '</span>'
-          +       ' · تكلفة الرسالة: <span style="color:var(--text-2);">' + escHtml(cpm) + '</span>'
-          +       ' · تفاعل الإعلان: <span style="color:var(--text-2);">' + escHtml(ctrText) + '</span>'
+          +       metricsLine
           +     '</span>'
           +   '</div>'
           +   '<div style="background:var(--surface-2, rgba(255,255,255,0.04));border-radius:6px;height:18px;overflow:hidden;position:relative;">'
