@@ -748,6 +748,14 @@ export const dashboardStyles = `<style>
     .below-chart-section { margin-top: 4px; }
     .below-chart-section + .below-chart-section { margin-top: 18px; }
     #main-move-section { margin-top: 18px; }
+    #main-move-section.main-move-above-fold {
+      margin-top: 14px;
+      margin-bottom: 4px;
+    }
+    #main-move-section.main-move-above-fold .main-move-card {
+      box-shadow: 0 10px 36px rgba(0,0,0,0.22);
+      border-color: rgba(217,167,89,0.28);
+    }
     .action-modal-steps { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
     .action-modal-step {
       display: flex; align-items: flex-start; gap: 10px;

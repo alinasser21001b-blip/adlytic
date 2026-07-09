@@ -99,12 +99,23 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 2 ▸ Executive Pulse Banner (Tier 1) -->
+      <!-- 2 ▸ Today's task — ABOVE THE FOLD (must be visible without scrolling) -->
+      <section class="v2-section main-move-above-fold" id="main-move-section">
+        <div class="v2-section-head">
+          <div class="v2-section-title" id="main-move-label">مهمتك الآن</div>
+          <div class="v2-section-meta" id="main-move-meta">—</div>
+        </div>
+        <div class="main-move-card" id="main-move-card">
+          <div class="main-move-empty" id="main-move-empty">جارٍ التحميل…</div>
+        </div>
+      </section>
+
+      <!-- 3 ▸ Executive Pulse Banner (Tier 1) -->
       <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
         <div class="exec-pulse-text" id="exec-pulse-text">—</div>
       </section>
 
-      <!-- 3 ▸ AI Motion Ticker -->
+      <!-- 4 ▸ AI Motion Ticker -->
       <section class="ticker-wrap" id="ticker-wrap" style="display:none;" dir="auto">
         <div class="ticker-header">
           <div class="ticker-header-left">
@@ -118,7 +129,7 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 3b ▸ AI Context Strip — account snapshot for AI monitoring -->
+      <!-- 4b ▸ AI Context Strip — account snapshot for AI monitoring -->
       <div class="ai-context-strip" id="ai-context-strip" style="display:none;" dir="auto">
         <div class="ai-ctx-pill ai-ctx-pill-primary" id="ai-ctx-campaigns"></div>
         <div class="ai-ctx-pill" id="ai-ctx-window"></div>
@@ -126,7 +137,7 @@ export function dashboardPage(): string {
         <div class="ai-ctx-pill ai-ctx-pill-muted" id="ai-ctx-interval"></div>
       </div>
 
-      <!-- 3 ▸ Active Ads Showcase -->
+      <!-- 5 ▸ Active Ads Showcase -->
       <section class="active-section" id="active-section" style="display:none;">
         <div class="active-header">
           <div class="active-title">إعلانات نشطة · تُنفق الآن</div>
@@ -135,12 +146,12 @@ export function dashboardPage(): string {
         <div class="active-grid" id="active-grid"></div>
       </section>
 
-      <!-- 4 ▸ Bottom Split Panel — AI Brain Box (left) + Spend chart (right) -->
+      <!-- 6 ▸ Split Panel — secondary insights + Spend chart -->
       <section class="split-grid">
         <div class="brain-box">
           <div class="brain-box-head">
             <div class="brain-box-icon">AI</div>
-            <div class="brain-box-title">مساعدك الذكي</div>
+            <div class="brain-box-title" id="brain-box-title">مهام أخرى</div>
             <div class="brain-box-sub" id="brain-box-sub">—</div>
           </div>
           <div id="strategy-list" dir="auto">
@@ -153,17 +164,6 @@ export function dashboardPage(): string {
             <div class="chart-panel-meta" id="chart-panel-meta">—</div>
           </div>
           <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas><div class="chart-empty" id="chart-spend-main-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div></div>
-        </div>
-      </section>
-
-      <!-- 5 ▸ Main Move — unified focus (Tier 2 + Tier 3 narrative) -->
-      <section class="v2-section" id="main-move-section">
-        <div class="v2-section-head">
-          <div class="v2-section-title" id="main-move-label">مهمتك الآن</div>
-          <div class="v2-section-meta" id="main-move-meta">—</div>
-        </div>
-        <div class="main-move-card" id="main-move-card">
-          <div class="main-move-empty" id="main-move-empty">جارٍ التحميل…</div>
         </div>
       </section>
 
@@ -1044,48 +1044,81 @@ export function dashboardPage(): string {
     return true;
   }
 
-  // ── AI Brain Box (strategy cards — skips Main Move #1 to avoid duplication) ─
+  // ── AI Brain Box (secondary tasks — primary lives in Main Move above the fold) ─
   function renderBrainBox(dashData) {
     var list = document.getElementById('strategy-list');
     var sub  = document.getElementById('brain-box-sub');
+    var titleEl = document.getElementById('brain-box-title');
     var cards = [];
+    var merchantTasks = Array.isArray(dashData.merchantTasks) ? dashData.merchantTasks.filter(Boolean) : [];
     var mainPrimary = buildAllMoveItems(dashData)[0];
-    var skipTitle = mainPrimary ? mainPrimary.title : '';
+    var skipTitle = (merchantTasks[0] && merchantTasks[0].title) || (mainPrimary ? mainPrimary.title : '');
+    var hasPrimaryTask = merchantTasks.length > 0 || !!mainPrimary;
 
     function shouldSkip(title, body) {
       if (!skipTitle) return false;
       return textsOverlap(title, skipTitle) || textsOverlap(body, skipTitle);
     }
 
-    var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
-    var seenBrainFp = {};
-    feed.slice(0, 8).forEach(function (it) {
-      if (shouldSkip(it.title, it.body)) return;
-      if (isGenericInsightCopy(it.title, it.body)) return;
-      var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
-      var title = it.title || it.campaignName || lbl('AI decision', 'قرار ذكي');
-      var body = !it.generatedAt ? lbl('AI summary pending…', 'جاري تجهيز الملخص…') : (it.body || lbl('Action recommended', 'إجراء مقترح'));
-      if (shouldSkip(title, body)) return;
-      var fp = insightCopyFingerprint(title, body);
-      if (seenBrainFp[fp]) return;
-      seenBrainFp[fp] = true;
-      cards.push({ sev: sev, title: title, body: body });
+    // Prefer remaining merchant tasks after #1.
+    merchantTasks.slice(1, 6).forEach(function (t) {
+      cards.push({
+        sev: String(t.severity || 'medium').toLowerCase(),
+        title: t.title,
+        body: t.action || t.why || '',
+        isTask: true,
+      });
     });
 
-    var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
-    issues.sort(function (a, b) {
-      return severityRank(a.severity) - severityRank(b.severity);
-    });
-    issues.slice(0, 4).forEach(function (iss) {
-      var sev = (iss.severity || 'medium').toLowerCase();
-      var rec = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
-      var title = iss.title || iss.code || lbl('Observation', 'ملاحظة');
-      var body = rec || lbl('Review affected campaigns and adjust strategy.', 'راجع الحملات المتأثرة وعدّل الاستراتيجية.');
-      if (shouldSkip(title, body)) return;
-      cards.push({ sev: sev, title: title, body: body });
-    });
+    if (cards.length < 3) {
+      var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
+      var seenBrainFp = {};
+      feed.slice(0, 8).forEach(function (it) {
+        if (shouldSkip(it.title, it.body)) return;
+        if (isGenericInsightCopy(it.title, it.body)) return;
+        var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
+        var title = it.title || it.campaignName || lbl('AI decision', 'قرار ذكي');
+        var body = !it.generatedAt ? lbl('AI summary pending…', 'جاري تجهيز الملخص…') : (it.body || lbl('Action recommended', 'إجراء مقترح'));
+        if (shouldSkip(title, body)) return;
+        var fp = insightCopyFingerprint(title, body);
+        if (seenBrainFp[fp]) return;
+        seenBrainFp[fp] = true;
+        cards.push({ sev: sev, title: title, body: body });
+      });
+    }
+
+    if (cards.length < 3) {
+      var issues = Array.isArray(dashData.issues) ? dashData.issues.slice() : [];
+      issues.sort(function (a, b) {
+        return severityRank(a.severity) - severityRank(b.severity);
+      });
+      issues.slice(0, 4).forEach(function (iss) {
+        var sev = (iss.severity || 'medium').toLowerCase();
+        var rec = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
+        var title = iss.title || iss.code || lbl('Observation', 'ملاحظة');
+        var body = rec || lbl('Review affected campaigns and adjust strategy.', 'راجع الحملات المتأثرة وعدّل الاستراتيجية.');
+        if (shouldSkip(title, body)) return;
+        if (cards.some(function (c) { return textsOverlap(c.title, title); })) return;
+        cards.push({ sev: sev, title: title, body: body });
+      });
+    }
+
+    if (titleEl) {
+      titleEl.textContent = hasPrimaryTask
+        ? lbl('Other tasks', 'مهام أخرى')
+        : lbl('Smart assistant', 'مساعدك الذكي');
+    }
 
     if (cards.length === 0) {
+      // Never paint fake "مستقر" when a primary task exists above.
+      if (hasPrimaryTask) {
+        list.innerHTML = '<div class="v2-action-empty">' + escHtml(lbl(
+          'Focus on the task above. More tasks will appear here when ready.',
+          'ركّز على المهمة أعلاه. ستظهر هنا مهام إضافية عند توفرها.'
+        )) + '</div>';
+        if (sub) sub.textContent = lbl('Primary task above', 'المهمة الأساسية أعلاه');
+        return;
+      }
       var steadyForBrain = getSteadyState(dashData);
       if (steadyForBrain && renderSteadyBrainBox(steadyForBrain)) return;
       var fallbackBrain = buildClientSteadyFallback(dashData, []);
@@ -1094,13 +1127,13 @@ export function dashboardPage(): string {
         'Account is steady — no strategic actions needed right now.',
         'الحساب مستقر — لا توجد إجراءات استراتيجية الآن.'
       )) + '</div>';
-      sub.textContent = lbl('All clear', 'كل شيء مستقر');
+      if (sub) sub.textContent = lbl('All clear', 'كل شيء مستقر');
       return;
     }
     list.innerHTML = cards.slice(0, 6).map(function (c) {
-      var sevLabel = c.sev === 'critical' ? lbl('Critical', 'حرج')
-        : c.sev === 'high' ? lbl('High', 'مرتفع')
-        : c.sev === 'medium' ? lbl('Watch', 'مراقبة')
+      var sevLabel = c.sev === 'critical' ? lbl('Critical', 'مستعجل')
+        : c.sev === 'high' ? lbl('High', 'مهم')
+        : c.sev === 'medium' ? lbl('Watch', 'للمتابعة')
         : lbl('Info', 'معلومة');
       return '<div class="strategy-card ' + c.sev + '">'
         + '<div class="strategy-head">'
@@ -1110,7 +1143,12 @@ export function dashboardPage(): string {
         + '<div class="strategy-body">' + escHtml(c.body) + '</div>'
       + '</div>';
     }).join('');
-    sub.textContent = cards.length + ' ' + lbl(cards.length === 1 ? 'insight' : 'insights', cards.length === 1 ? 'رؤية' : 'رؤى');
+    if (sub) {
+      sub.textContent = cards.length + ' ' + lbl(
+        cards.length === 1 ? 'item' : 'items',
+        cards.length === 1 ? 'عنصر' : 'عناصر'
+      );
+    }
   }
 
   // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
@@ -1269,8 +1307,12 @@ export function dashboardPage(): string {
     try {
       if (!dashData) return healthyFallback;
       var issues = Array.isArray(dashData.issues) ? dashData.issues.filter(Boolean) : [];
-      var hasCritical = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'critical'; });
-      var hasHigh = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'high'; });
+      var tasks = Array.isArray(dashData.merchantTasks) ? dashData.merchantTasks.filter(Boolean) : [];
+      var topTask = tasks[0] || null;
+      var hasCritical = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'critical'; })
+        || tasks.some(function (t) { return String(t.severity || '').toUpperCase() === 'CRITICAL'; });
+      var hasHigh = issues.some(function (i) { return (i.severity || '').toLowerCase() === 'high'; })
+        || tasks.some(function (t) { return String(t.severity || '').toUpperCase() === 'HIGH'; });
       var budgetWaste = issues.some(issueIndicatesBudgetWaste);
       var band = (dashData.health && dashData.health.band) || 'none';
       var pulse = dashData.brain && dashData.brain.livePulse;
@@ -1281,19 +1323,29 @@ export function dashboardPage(): string {
       if (hasCritical || band === 'poor' || (hasHigh && budgetWaste)) {
         return {
           level: 'critical',
-          text: lbl(
-            'Status: Immediate Action Required. We detected budget waste.',
-            'الحالة: انتبه، توجد حملات تهدر الميزانية حالياً'
-          ),
+          text: topTask
+            ? lbl(
+                'Status: Immediate action needed — ' + topTask.title,
+                'الحالة: انتبه — ' + topTask.title
+              )
+            : lbl(
+                'Status: Immediate Action Required. We detected budget waste.',
+                'الحالة: انتبه، توجد حملات تهدر الميزانية حالياً'
+              ),
         };
       }
-      if (hasHigh || band === 'attention' || budgetWaste) {
+      if (hasHigh || band === 'attention' || budgetWaste || topTask) {
         return {
           level: 'warning',
-          text: lbl(
-            'Status: Needs Attention. Some campaigns need a quick review.',
-            'الحالة: يحتاج انتباه. بعض الحملات تحتاج مراجعة سريعة.'
-          ),
+          text: topTask
+            ? lbl(
+                'Status: Needs attention — start with: ' + topTask.action,
+                'الحالة: يحتاج انتباه — ابدأ بـ: ' + topTask.action
+              )
+            : lbl(
+                'Status: Needs Attention. Some campaigns need a quick review.',
+                'الحالة: يحتاج انتباه. بعض الحملات تحتاج مراجعة سريعة.'
+              ),
         };
       }
       return healthyFallback;
