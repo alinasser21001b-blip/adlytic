@@ -47,7 +47,7 @@ const dto: DashboardDTO = {
   },
   health: { score: 82, band: 'good' },
   kpis: [],
-  trendSeries: { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [] },
+  trendSeries: { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] },
   issues: [],
   priorityAction: null,
   bestCampaign: {

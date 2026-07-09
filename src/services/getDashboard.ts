@@ -135,9 +135,17 @@ export interface DashboardDTO {
     /** Outcome volume: messages + purchases + leads (Meta-style results). */
     results: number[];
     spend: number[];
-    ctr: number[];
+    /** Daily CTR %; null when Meta did not return a rate (no impressions). */
+    ctr: Array<number | null>;
     /** Daily frequency when present; null when Meta did not return it. */
     frequency: Array<number | null>;
+    /** Daily CPM in major currency units; null when unavailable. */
+    cpm: Array<number | null>;
+    /**
+     * Daily cost-per-result in major units (spend / results).
+     * Null when that day had zero results — never invent a fake CPA.
+     */
+    costPerResult: Array<number | null>;
   };
   issues: Array<{
     code: IssueCode;
@@ -263,7 +271,7 @@ export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
   empty:          true,
   health:         { score: 0, band: "none" },
   kpis:           [],
-  trendSeries:    { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [] },
+  trendSeries:    { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] },
   issues:         [],
   diagnoses:      [],
   attribution:    null,
@@ -567,8 +575,7 @@ export async function getDashboard(
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
 
-  // 6. Trend series for charts — outcomes first (results), not vanity volume.
-  // Frequency stays nullable so the UI can gap missing days instead of inventing 0.
+  // 6. Trend series for charts — outcomes + efficiency, honest nulls for gaps.
   const trendSeries = {
     dates: daily.map((d: any) => d.date.toISOString().slice(0, 10)),
     messages: daily.map((d: any) => Number(d.messages)),
@@ -576,12 +583,24 @@ export async function getDashboard(
       Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0),
     ),
     spend: daily.map((d: any) => Number(d.spend)),
-    ctr: daily.map((d: any) => d.ctr ?? 0),
+    ctr: daily.map((d: any) =>
+      d.ctr == null || !Number.isFinite(Number(d.ctr)) ? null : Number(d.ctr),
+    ),
     frequency: daily.map((d: any) =>
       d.frequency == null || !Number.isFinite(Number(d.frequency))
         ? null
         : Number(d.frequency),
     ),
+    cpm: daily.map((d: any) =>
+      d.cpm == null || !Number.isFinite(Number(d.cpm)) ? null : Number(d.cpm),
+    ),
+    costPerResult: daily.map((d: any) => {
+      const results =
+        Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0);
+      if (results <= 0) return null;
+      const spendMajor = Number(d.spend) / factor;
+      return Number.isFinite(spendMajor) ? spendMajor / results : null;
+    }),
   };
 
   // 7. Issues — join detected_issues → knowledge_rules, localized AND

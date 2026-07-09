@@ -246,21 +246,50 @@ export function dashboardPage(): string {
                     <div class="chart-card-title" id="chart-results-title">اتجاه النتائج</div>
                     <div class="chart-card-sub">رسائل + مشتريات + عملاء محتملون</div>
                   </div>
-                  <div class="chart-canvas-wrap"><canvas id="chart-results"></canvas></div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="chart-results"></canvas>
+                    <div class="chart-empty" id="chart-results-empty" style="display:none;">لا توجد نتائج في هذه الفترة</div>
+                  </div>
+                </div>
+                <div class="chart-card" id="adv-cpr-card">
+                  <div class="chart-card-header">
+                    <div class="chart-card-title">تكلفة النتيجة</div>
+                    <div class="chart-card-sub">الإنفاق ÷ النتائج · فارغ إن لم تُسجَّل نتيجة</div>
+                  </div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="chart-cpr"></canvas>
+                    <div class="chart-empty" id="chart-cpr-empty" style="display:none;">لا توجد تكلفة نتيجة في هذه الفترة</div>
+                  </div>
+                </div>
+                <div class="chart-card" id="adv-cpm-card">
+                  <div class="chart-card-header">
+                    <div class="chart-card-title">تكلفة الألف ظهور (CPM)</div>
+                    <div class="chart-card-sub">كفاءة التوصيل</div>
+                  </div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="chart-cpm"></canvas>
+                    <div class="chart-empty" id="chart-cpm-empty" style="display:none;">لا توجد بيانات CPM في هذه الفترة</div>
+                  </div>
                 </div>
                 <div class="chart-card" id="adv-ctr-card">
                   <div class="chart-card-header">
                     <div class="chart-card-title" id="chart-ctr-title">نسبة النقر (CTR)</div>
                     <div class="chart-card-sub">جودة التفاعل مع الإعلان</div>
                   </div>
-                  <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="chart-ctr"></canvas>
+                    <div class="chart-empty" id="chart-ctr-empty" style="display:none;">لا توجد بيانات تفاعل في هذه الفترة</div>
+                  </div>
                 </div>
                 <div class="chart-card" id="adv-freq-card">
                   <div class="chart-card-header">
                     <div class="chart-card-title" id="chart-freq-title">التكرار اليومي</div>
                     <div class="chart-card-sub">مؤشر إرهاق الجمهور</div>
                   </div>
-                  <div class="chart-canvas-wrap"><canvas id="chart-frequency"></canvas></div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="chart-frequency"></canvas>
+                    <div class="chart-empty" id="chart-frequency-empty" style="display:none;">لا توجد بيانات تكرار في هذه الفترة</div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -517,18 +546,50 @@ export function dashboardPage(): string {
     var details = document.querySelector('.v2-advanced');
     if (!force && details && !details.open) return;
     var p = pendingAdvancedCharts;
+
+    function showEmpty(id, show) {
+      var el = document.getElementById(id + '-empty');
+      var canvas = document.getElementById(id);
+      if (el) el.style.display = show ? 'flex' : 'none';
+      if (canvas) canvas.style.display = show ? 'none' : '';
+    }
+
     var hasResults = (p.resultsSeries || []).some(function (v) { return v != null && v > 0; });
+    var hasCpr = (p.cprSeries || []).some(function (v) { return v != null && v > 0; });
+    var hasCpm = (p.cpmSeries || []).some(function (v) { return v != null && v > 0; });
     var hasCtr = (p.ctrSeries || []).some(function (v) { return v != null && v > 0; });
     var hasFreq = (p.freqSeries || []).some(function (v) { return v != null && v > 0; });
+
     var resultsCard = document.getElementById('adv-results-card');
+    var cprCard = document.getElementById('adv-cpr-card');
+    var cpmCard = document.getElementById('adv-cpm-card');
     var ctrCard = document.getElementById('adv-ctr-card');
     var freqCard = document.getElementById('adv-freq-card');
-    if (resultsCard) resultsCard.style.display = hasResults ? '' : 'none';
-    if (ctrCard) ctrCard.style.display = hasCtr ? '' : 'none';
-    if (freqCard) freqCard.style.display = hasFreq ? '' : 'none';
+    if (resultsCard) resultsCard.style.display = '';
+    if (cprCard) cprCard.style.display = '';
+    if (cpmCard) cpmCard.style.display = '';
+    if (ctrCard) ctrCard.style.display = '';
+    if (freqCard) freqCard.style.display = '';
+
+    showEmpty('chart-results', !hasResults);
+    showEmpty('chart-cpr', !hasCpr);
+    showEmpty('chart-cpm', !hasCpm);
+    showEmpty('chart-ctr', !hasCtr);
+    showEmpty('chart-frequency', !hasFreq);
+
     if (hasResults) {
       makeLineChart('chart-results', p.labels, [
         buildDataset(lbl('Results', 'النتائج'), p.resultsSeries, '#2DD4BF', 'rgba(45,212,191,0.12)', true, 'num'),
+      ]);
+    }
+    if (hasCpr) {
+      makeLineChart('chart-cpr', p.labels, [
+        buildDataset(lbl('Cost per result', 'تكلفة النتيجة'), p.cprSeries, '#60A5FA', 'rgba(96,165,250,0.12)', true, 'currency'),
+      ]);
+    }
+    if (hasCpm) {
+      makeLineChart('chart-cpm', p.labels, [
+        buildDataset(lbl('CPM', 'CPM'), p.cpmSeries, '#C77A1F', 'rgba(199,122,31,0.10)', true, 'currency'),
       ]);
     }
     if (hasCtr) {
@@ -1931,6 +1992,8 @@ export function dashboardPage(): string {
       var ctrSeries = [];
       var resultsSeries = [];
       var freqSeries = [];
+      var cpmSeries = [];
+      var cprSeries = [];
       for (var cal = new Date(start); cal <= end; cal.setDate(cal.getDate() + 1)) {
         var key = cal.toISOString().slice(0, 10);
         isoDates.push(key);
@@ -1941,18 +2004,24 @@ export function dashboardPage(): string {
           ctrSeries.push(null);
           resultsSeries.push(null);
           freqSeries.push(null);
+          cpmSeries.push(null);
+          cprSeries.push(null);
         } else {
-          spendSeriesMajor.push((Number(row.spend) || 0) / state.minorFactor);
+          var spendMaj = (Number(row.spend) || 0) / state.minorFactor;
+          spendSeriesMajor.push(spendMaj);
           var ctrV = Number(row.ctr);
           ctrSeries.push(Number.isFinite(ctrV) ? ctrV : null);
-          resultsSeries.push(
-            (Number(row.messages) || 0) + (Number(row.purchases) || 0) + (Number(row.leads) || 0),
-          );
+          var dayRes = (Number(row.messages) || 0) + (Number(row.purchases) || 0) + (Number(row.leads) || 0);
+          resultsSeries.push(dayRes);
           freqSeries.push(
             row.frequency == null || !Number.isFinite(Number(row.frequency))
               ? null
               : Number(row.frequency),
           );
+          cpmSeries.push(
+            row.cpm == null || !Number.isFinite(Number(row.cpm)) ? null : Number(row.cpm),
+          );
+          cprSeries.push(dayRes > 0 ? spendMaj / dayRes : null);
         }
       }
 
@@ -1988,6 +2057,24 @@ export function dashboardPage(): string {
           var v = Number(ts.frequency[i]);
           return Number.isFinite(v) ? v : null;
         });
+        cpmSeries = isoDates.map(function (iso) {
+          var i = tsByIdx[iso];
+          if (i == null || !Array.isArray(ts.cpm) || ts.cpm[i] == null) return null;
+          var v = Number(ts.cpm[i]);
+          return Number.isFinite(v) ? v : null;
+        });
+        cprSeries = isoDates.map(function (iso) {
+          var i = tsByIdx[iso];
+          if (i == null) return null;
+          if (Array.isArray(ts.costPerResult) && ts.costPerResult[i] != null) {
+            var cprV = Number(ts.costPerResult[i]);
+            return Number.isFinite(cprV) ? cprV : null;
+          }
+          var res = resultsSeries[isoDates.indexOf(iso)];
+          var sp = spendSeriesMajor[isoDates.indexOf(iso)];
+          if (res != null && res > 0 && sp != null) return sp / res;
+          return null;
+        });
         labels = isoDates.map(function (iso) {
           return new Date(iso).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' });
         });
@@ -1998,6 +2085,8 @@ export function dashboardPage(): string {
         ctrSeries: ctrSeries,
         resultsSeries: resultsSeries,
         freqSeries: freqSeries,
+        cpmSeries: cpmSeries,
+        cprSeries: cprSeries,
       };
       var _chartLabels = labels, _chartIsoDates = isoDates, _spendSeriesMajor = spendSeriesMajor;
       requestAnimationFrame(function () {

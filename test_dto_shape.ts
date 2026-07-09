@@ -27,7 +27,7 @@ const fake: DashboardDTO = {
   kpis: [
     { key: "spend", label: "Spend", value: 100, display: "100", deltaPct: 0.1, direction: "up", goodWhenUp: false },
   ],
-  trendSeries: { dates: ["2026-06-14"], messages: [4], results: [4], spend: [13000], ctr: [2.0], frequency: [1.2] },
+  trendSeries: { dates: ["2026-06-14"], messages: [4], results: [4], spend: [13000], ctr: [2.0], frequency: [1.2], cpm: [12.5], costPerResult: [3.25] },
   issues: [
     { code: "AUDIENCE_FATIGUE" as any, title: "Audience fatigue", severity: "HIGH",
       causes: ["..."], recommendations: ["..."], evidence: { confidence: 0.9 } },
@@ -74,8 +74,8 @@ check("KPI shape: 7 fields, no health/severity leaking in",
 
 // trendSeries shape
 const tsKeys = Object.keys(fake.trendSeries).sort();
-check("trendSeries shape: {dates, messages, results, spend, ctr, frequency}",
-  JSON.stringify(tsKeys) === JSON.stringify(["ctr", "dates", "frequency", "messages", "results", "spend"]), tsKeys);
+check("trendSeries shape: {dates, messages, results, spend, ctr, frequency, cpm, costPerResult}",
+  JSON.stringify(tsKeys) === JSON.stringify(["costPerResult", "cpm", "ctr", "dates", "frequency", "messages", "results", "spend"]), tsKeys);
 
 // issues shape
 const issueKeys = Object.keys(fake.issues[0]).sort();
