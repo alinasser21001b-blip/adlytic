@@ -610,21 +610,41 @@ export function dashboardPage(): string {
     }
   }
 
+  // Client-side cognitive filter: drop identical generic insight twins that
+  // may still arrive from older snapshots before the server gate rewrites them.
+  function isGenericInsightCopy(title, body) {
+    var t = String(title || '').trim();
+    var b = String(body || '').trim();
+    if (t.indexOf('تحديث أداء الحملة') === 0 || t === 'Campaign Performance Update') return true;
+    if (b.indexOf('راجعنا أداء حملتك وصدرت توصية جديدة') !== -1) return true;
+    return false;
+  }
+
+  function insightCopyFingerprint(title, body) {
+    return String(title || '').toLowerCase().replace(/\d+/g, '#')
+      + '||'
+      + String(body || '').toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().slice(0, 120);
+  }
+
   // ── AI Motion Ticker (Enhanced) ──────────────────────────────────────────
   function buildTickerItems(dashData) {
     var items = [];
+    var seenInsightFp = {};
     var cmoFeedV2 = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
-    cmoFeedV2.slice(0, 6).forEach(function (it) {
-      if (it.title) {
-        var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'warning' : 'success';
-        items.push({
-          category: 'strategy',
-          badge: lbl('Strategy', 'استراتيجية'),
-          severity: sev,
-          text: it.title + (it.campaignName ? ' — ' + it.campaignName : ''),
-          explain: it.body || lbl('AI-generated strategic recommendation', 'توصية استراتيجية من الذكاء الاصطناعي'),
-        });
-      }
+    cmoFeedV2.slice(0, 8).forEach(function (it) {
+      if (!it.title) return;
+      if (isGenericInsightCopy(it.title, it.body)) return;
+      var fp = insightCopyFingerprint(it.title, it.body);
+      if (seenInsightFp[fp]) return;
+      seenInsightFp[fp] = true;
+      var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'warning' : 'success';
+      items.push({
+        category: 'strategy',
+        badge: lbl('Strategy', 'استراتيجية'),
+        severity: sev,
+        text: it.title + (it.campaignName ? ' — ' + it.campaignName : ''),
+        explain: it.body || lbl('AI-generated strategic recommendation', 'توصية استراتيجية من الذكاء الاصطناعي'),
+      });
     });
     var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
     issues.slice(0, 5).forEach(function (iss) {
@@ -912,12 +932,17 @@ export function dashboardPage(): string {
     }
 
     var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
-    feed.slice(0, 4).forEach(function (it) {
+    var seenBrainFp = {};
+    feed.slice(0, 8).forEach(function (it) {
       if (shouldSkip(it.title, it.body)) return;
+      if (isGenericInsightCopy(it.title, it.body)) return;
       var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
       var title = it.title || it.campaignName || lbl('AI decision', 'قرار ذكي');
       var body = !it.generatedAt ? lbl('AI summary pending…', 'جاري تجهيز الملخص…') : (it.body || lbl('Action recommended', 'إجراء مقترح'));
       if (shouldSkip(title, body)) return;
+      var fp = insightCopyFingerprint(title, body);
+      if (seenBrainFp[fp]) return;
+      seenBrainFp[fp] = true;
       cards.push({ sev: sev, title: title, body: body });
     });
 
@@ -1245,8 +1270,13 @@ export function dashboardPage(): string {
 
       var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2.filter(Boolean).slice() : [];
       feed.sort(function (a, b) { return feedSeverityRank(a.severity) - feedSeverityRank(b.severity); });
+      var seenMoveFp = {};
       feed.forEach(function (it) {
         if (!it || !it.generatedAt) return;
+        if (isGenericInsightCopy(it.title, it.body)) return;
+        var moveFp = insightCopyFingerprint(it.title, it.body);
+        if (seenMoveFp[moveFp]) return;
+        seenMoveFp[moveFp] = true;
         var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
         pushItem({
           kind: 'feed',
