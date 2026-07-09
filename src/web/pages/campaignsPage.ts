@@ -527,6 +527,157 @@ export function campaignsPage(): string {
       color: var(--text);
       border-bottom-color: var(--accent);
     }
+
+    /* ── Inspector overview — Meta-style purpose-first layout ─────────── */
+    .insp-meta {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      direction: rtl; margin-bottom: 4px;
+    }
+    .insp-meta-window {
+      font-size: 12.5px; color: var(--text-3); font-weight: 500;
+    }
+    .insp-purpose {
+      display: flex; align-items: flex-start; gap: 12px;
+      direction: rtl; text-align: right;
+      padding: 12px 14px; margin: 14px 0 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(212, 175, 55, 0.22);
+      background: linear-gradient(135deg, rgba(212,175,55,0.08), rgba(255,255,255,0.02));
+    }
+    .insp-purpose-mark {
+      width: 4px; align-self: stretch; border-radius: 4px;
+      background: var(--grad-accent, linear-gradient(180deg, var(--accent), var(--accent-2)));
+      flex-shrink: 0;
+    }
+    .insp-purpose-title {
+      font-size: 12px; font-weight: 700; color: var(--accent);
+      letter-spacing: 0.02em; margin-bottom: 4px;
+    }
+    .insp-purpose-text {
+      font-size: 13px; color: var(--text-2); line-height: 1.65;
+    }
+    .insp-section {
+      margin-bottom: 22px; direction: rtl; text-align: right;
+    }
+    .insp-section-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 10px; margin-bottom: 12px;
+    }
+    .insp-section-title {
+      font-size: 13px; font-weight: 700; color: var(--text);
+    }
+    .insp-section-hint {
+      font-size: 11.5px; color: var(--text-3); font-weight: 500;
+    }
+    .insp-primary {
+      display: grid; grid-template-columns: 1.15fr 1fr; gap: 12px;
+      margin-bottom: 12px;
+    }
+    .insp-metric {
+      position: relative; overflow: hidden;
+      background: var(--surface);
+      background-image: var(--grad-surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .insp-metric:hover { border-color: var(--border-2); box-shadow: var(--shadow-lg); }
+    .insp-metric.is-hero {
+      border-color: rgba(212, 175, 55, 0.28);
+      background-image: linear-gradient(160deg, rgba(212,175,55,0.07), transparent 55%), var(--grad-surface);
+    }
+    .insp-metric-label {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 600; color: var(--text-3);
+      letter-spacing: 0.04em; margin-bottom: 10px;
+    }
+    .insp-metric-value {
+      font-size: 26px; font-weight: 700; color: var(--text);
+      letter-spacing: -0.4px; line-height: 1.15;
+      font-feature-settings: 'tnum'; direction: ltr; unicode-bidi: embed;
+    }
+    .insp-metric.is-hero .insp-metric-value { font-size: 30px; }
+    .insp-metric-sub {
+      margin-top: 8px; font-size: 12px; color: var(--text-3); line-height: 1.45;
+    }
+    .insp-secondary {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .insp-metric.is-secondary {
+      padding: 14px 16px; border-radius: 12px;
+    }
+    .insp-metric.is-secondary .insp-metric-value { font-size: 18px; }
+    .insp-signals {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .insp-signal-card {
+      border: 1px solid var(--border-2);
+      border-radius: 12px;
+      padding: 14px 14px 12px;
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      min-height: 88px;
+    }
+    .insp-signal-card.is-pos { border-color: rgba(52,168,113,0.28); }
+    .insp-signal-card.is-neg { border-color: rgba(220,80,80,0.28); }
+    .insp-signal-head {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12.5px; font-weight: 700; margin-bottom: 10px;
+    }
+    .insp-signal-head.is-pos { color: var(--success); }
+    .insp-signal-head.is-neg { color: var(--error); }
+    .insp-signal-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .insp-signal-dot.is-pos { background: var(--success); }
+    .insp-signal-dot.is-neg { background: var(--error); }
+    .insp-signal-empty {
+      font-size: 13px; color: var(--text-3); line-height: 1.6;
+    }
+    .insp-signal-list { list-style: none; padding: 0; margin: 0; }
+    .insp-signal-list li {
+      margin: 0 0 8px; color: var(--text-2); font-size: 13px; line-height: 1.5;
+    }
+    .insp-signal-list li:last-child { margin-bottom: 0; }
+    .insp-stable {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px; border-radius: 12px;
+      border: 1px solid var(--border-2);
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      color: var(--text-2); font-size: 13.5px; line-height: 1.55;
+    }
+    .insp-stable-icon {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(52,168,113,0.12); color: var(--success);
+      font-size: 14px; font-weight: 700; flex-shrink: 0;
+    }
+    .insp-timeline-item {
+      border-inline-end: 2px solid rgba(212,175,55,0.35);
+      padding: 14px 16px; margin-bottom: 10px; border-radius: 10px;
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      direction: rtl; text-align: right;
+    }
+    .insp-timeline-date {
+      font-size: 11.5px; color: var(--text-3); margin-bottom: 8px; font-weight: 600;
+    }
+    .insp-timeline-title {
+      font-weight: 700; color: var(--text); margin-bottom: 6px; font-size: 14px;
+    }
+    .insp-timeline-body {
+      color: var(--text-2); font-size: 13px; line-height: 1.7;
+    }
+    .insp-empty-panel {
+      color: var(--text-3); font-size: 13px; padding: 16px;
+      direction: rtl; text-align: right;
+      border: 1px dashed var(--border-2); border-radius: 10px;
+      line-height: 1.65;
+    }
+    @media (max-width: 640px) {
+      .insp-primary, .insp-secondary, .insp-signals { grid-template-columns: 1fr; }
+      .insp-metric.is-hero .insp-metric-value { font-size: 26px; }
+    }
     .inspector-creative-card {
       background: var(--surface-2, rgba(255,255,255,0.02));
       border: 1px solid var(--border-2);
@@ -1519,11 +1670,42 @@ export function campaignsPage(): string {
     var color   = isPositive ? 'var(--success)' : 'var(--error)';
     var current = s.key === 'ctr' ? fmtNum(s.current, 2) + '%' : fmtNum(s.current, 2);
     var prior   = s.key === 'ctr' ? fmtNum(s.prior,   2) + '%' : fmtNum(s.prior,   2);
-    return '<li style="margin:6px 0;color:var(--text-2);direction:rtl;text-align:right;">'
+    return '<li>'
       +    '<span style="color:' + color + ';font-weight:700;">' + arrow + ' ' + fmtPct(s.deltaPct) + '</span>'
       +    ' <span style="color:var(--text);">' + escHtml(label) + '</span>'
       +    ' <span style="color:var(--text-3);font-size:12px;">(الآن ' + escHtml(current) + ' · سابقاً ' + escHtml(prior) + ')</span>'
       +    '</li>';
+  }
+
+  /** Purpose-aware one-liner explaining which Meta result this overview tracks. */
+  function purposeFrameCopy(family, resultLabel, efficiencyLabel) {
+    switch (family) {
+      case 'awareness':
+        return 'هذه حملة وعي — نتابع ' + resultLabel + ' و' + efficiencyLabel + ' كما في مدير إعلانات Meta، وليس الرسائل أو المبيعات.';
+      case 'messaging':
+        return 'هذه حملة رسائل — النتيجة الأساسية هي المحادثات وتكلفتها، وليس مرات الظهور.';
+      case 'traffic':
+        return 'هذه حملة زيارات — نتابع النقرات وتكلفة النقرة وجودة ما بعد النقر.';
+      case 'sales':
+        return 'هذه حملة مبيعات — نتابع المشتريات وتكلفة الشراء / العائد.';
+      case 'leads':
+        return 'هذه حملة عملاء محتملين — نتابع عدد العملاء وتكلفتهم.';
+      case 'engagement':
+        return 'هذه حملة تفاعل منشور — نتابع التفاعل وتكلفته (وليست محادثات الرسائل).';
+      case 'app':
+        return 'هذه حملة ترويج تطبيق — نتابع النقرات / التثبيتات وتكلفة الاكتساب.';
+      default:
+        return 'نعرض مؤشرات الهدف الحقيقي لهذه الحملة فقط.';
+    }
+  }
+
+  function isGenericNarrationClient(title, body) {
+    var t = String(title || '').trim();
+    var b = String(body || '').trim();
+    if (!t && !b) return true;
+    if (t === 'تحديث أداء الحملة' || t.indexOf('تحديث أداء الحملة') === 0) return true;
+    if (b.indexOf('راجعنا أداء حملتك وصدرت توصية جديدة') !== -1) return true;
+    return false;
   }
 
   function renderInspector(data) {
@@ -1534,38 +1716,35 @@ export function campaignsPage(): string {
     var timeline = Array.isArray(data.timeline) ? data.timeline : [];
 
     // ── Title + subtitle ──────────────────────────────────────────────────
-    // Clean, client-facing: campaign name as the title, status badge + window
-    // hint as the subtitle. We deliberately drop the raw Meta objective
-    // enum (OUTCOME_ENGAGEMENT, OUTCOME_TRAFFIC, …) — an internal label
-    // that means nothing to a non-technical client.
     document.getElementById('inspector-title').textContent = c.name || 'الحملة';
+    var purposeText = c.purposeLabelAr || translateObjective(c.objective);
     var statusBadge =
-      '<span class="badge ' + statusBadgeClass(c.status) + '" style="margin-inline-start:8px;">'
+      '<span class="badge ' + statusBadgeClass(c.status) + '">'
     +   escHtml(statusArabic(c.status))
     + '</span>';
-    var objectiveChip = (c.purposeLabelAr || c.objective)
-      ? '<span class="obj-chip" style="margin-inline-start:8px;">' + escHtml(c.purposeLabelAr || translateObjective(c.objective)) + '</span>'
+    var objectiveChip = purposeText
+      ? '<span class="obj-chip" style="margin-top:0;">' + escHtml(purposeText) + '</span>'
       : '';
     var subtitleEl = document.getElementById('inspector-subtitle');
     subtitleEl.style.direction = 'rtl';
     subtitleEl.style.textAlign = 'right';
-    subtitleEl.innerHTML = 'آخر ' + (s.windowDays || 30) + ' يوم' + statusBadge + objectiveChip;
+    subtitleEl.innerHTML =
+      '<div class="insp-meta">'
+    +   '<span class="insp-meta-window">آخر ' + (s.windowDays || 30) + ' يوم</span>'
+    +   statusBadge
+    +   objectiveChip
+    + '</div>';
 
-    // ── Financial summary block ───────────────────────────────────────────
+    // ── Purpose-first financial summary ───────────────────────────────────
     var budgetLine =
       c.dailyBudgetMinor    != null ? fmtMinor(c.dailyBudgetMinor,    a.currencyMinorFactor, a.currency) + ' / يومياً'
     : c.lifetimeBudgetMinor != null ? fmtMinor(c.lifetimeBudgetMinor, a.currencyMinorFactor, a.currency) + ' (إجمالي)'
     : '—';
 
-    // Objective-aware financial summary — exactly 4 KPI cards:
-    //   1. الإنفاق
-    //   2. الميزانية
-    //   3. Primary result for this objective (impressions / clicks / messages / …)
-    //   4. Matching efficiency (CPM / CPC / cost-per-message / …)
-    // Awareness campaigns must NEVER show messaging KPIs.
     var freshnessAttr = state.lastSyncedAt ? ' data-freshness="' + escHtml(state.lastSyncedAt) + '"' : '';
     var resultLabel = s.resultLabelAr || 'إجمالي الرسائل';
     var efficiencyLabel = s.efficiencyLabelAr || 'تكلفة الرسالة';
+    var family = s.kpiFamily || c.purposeFamily || 'messaging';
     var resultInfoId = s.resultKey === 'impressions' ? 'impressions'
       : s.resultKey === 'clicks' ? 'clicks'
       : s.resultKey === 'purchases' ? 'purchases'
@@ -1580,85 +1759,156 @@ export function campaignsPage(): string {
       : (s.messages != null ? s.messages : 0);
     var efficiencyMajor = s.avgCostPerResult != null ? s.avgCostPerResult
       : s.avgCostPerMessage;
+    var efficiencyText = efficiencyMajor != null
+      ? fmtMinor(efficiencyMajor * a.currencyMinorFactor, a.currencyMinorFactor, a.currency)
+      : '—';
+    var spendText = fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency);
+    var purposeFrame = purposeFrameCopy(family, resultLabel, efficiencyLabel);
+
+    var purposeBanner =
+      '<div class="insp-purpose">'
+    +   '<div class="insp-purpose-mark" aria-hidden="true"></div>'
+    +   '<div>'
+    +     '<div class="insp-purpose-title">معيار العرض · ' + escHtml(purposeText || 'الحملة') + '</div>'
+    +     '<div class="insp-purpose-text">' + escHtml(purposeFrame) + '</div>'
+    +   '</div>'
+    + '</div>';
+
+    function metricCard(opts) {
+      return ''
+        + '<div class="insp-metric' + (opts.hero ? ' is-hero' : '') + (opts.secondary ? ' is-secondary' : '') + '">'
+        +   '<div class="insp-metric-label">' + escHtml(opts.label)
+        +     (opts.infoId
+          ? ' <button type="button" class="info-btn" data-metric-info="' + escAttr(opts.infoId) + '"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button>'
+          : '')
+        +   '</div>'
+        +   '<div class="insp-metric-value">' + escHtml(opts.value) + '</div>'
+        +   (opts.sub ? '<div class="insp-metric-sub">' + escHtml(opts.sub) + '</div>' : '')
+        + '</div>';
+    }
+
     var kpiHtml =
-      '<div class="kpi-grid" style="grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:20px;direction:rtl;text-align:right;">'
-    +   '<div class="kpi-card"><div class="kpi-label">الإنفاق <button type="button" class="info-btn" data-metric-info="spend"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency)) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">الميزانية</div>'
-    +     '<div class="kpi-value" style="font-size:14px;">' + escHtml(budgetLine) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">' + escHtml(resultLabel) + ' <button type="button" class="info-btn" data-metric-info="' + escAttr(resultInfoId) + '"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(fmtNum(resultValue, 0)) + '</div></div>'
-    +   '<div class="kpi-card"><div class="kpi-label">' + escHtml(efficiencyLabel) + ' <button type="button" class="info-btn" data-metric-info="' + escAttr(efficiencyInfoId) + '"' + freshnessAttr + ' title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>'
-    +     '<div class="kpi-value" style="font-size:18px;">' + escHtml(efficiencyMajor != null ? fmtMinor(efficiencyMajor * a.currencyMinorFactor, a.currencyMinorFactor, a.currency) : '—') + '</div></div>'
+      '<div class="insp-primary">'
+    +   metricCard({
+          hero: true,
+          label: resultLabel,
+          infoId: resultInfoId,
+          value: fmtNum(resultValue, 0),
+          sub: 'النتيجة الأساسية حسب هدف الحملة',
+        })
+    +   metricCard({
+          hero: true,
+          label: efficiencyLabel,
+          infoId: efficiencyInfoId,
+          value: efficiencyText,
+          sub: 'تكلفة كل وحدة من النتيجة الأساسية',
+        })
+    + '</div>'
+    + '<div class="insp-secondary">'
+    +   metricCard({
+          secondary: true,
+          label: 'الإنفاق',
+          infoId: 'spend',
+          value: spendText,
+          sub: 'خلال النافذة المحددة',
+        })
+    +   metricCard({
+          secondary: true,
+          label: 'الميزانية',
+          value: budgetLine,
+          sub: budgetLine === '—' ? 'لم تُرجع Meta ميزانية على مستوى الحملة' : 'من إعدادات الحملة في Meta',
+        })
     + '</div>';
 
     // ── Signals block ──────────────────────────────────────────────────────
-    var stableMsg = '<div style="color:var(--text-3);font-size:13px;direction:rtl;text-align:right;">الأداء مستقر ولا توجد تغييرات حادة</div>';
-    var posHtml = sig.positive.length === 0
-      ? stableMsg
-      : '<ul style="list-style:none;padding:0;margin:0;">' + sig.positive.map(function(x){ return signalLine(x, true); }).join('') + '</ul>';
-    var negHtml = sig.negative.length === 0
-      ? stableMsg
-      : '<ul style="list-style:none;padding:0;margin:0;">' + sig.negative.map(function(x){ return signalLine(x, false); }).join('') + '</ul>';
-
-    var signalsHtml =
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;direction:rtl;">'
-    +   '<div><div style="font-weight:700;color:var(--success);margin-bottom:8px;text-align:right;">إيجابيات 🟢</div>' + posHtml + '</div>'
-    +   '<div><div style="font-weight:700;color:var(--error);margin-bottom:8px;text-align:right;">سلبيات 🔴</div>' + negHtml + '</div>'
-    + '</div>';
+    var hasPos = sig.positive && sig.positive.length > 0;
+    var hasNeg = sig.negative && sig.negative.length > 0;
+    var signalsHtml;
+    if (!hasPos && !hasNeg) {
+      signalsHtml =
+        '<div class="insp-stable">'
+      +   '<div class="insp-stable-icon" aria-hidden="true">✓</div>'
+      +   '<div>الأداء مستقر خلال آخر 7 أيام — لا توجد تغيّرات حادة تستحق تدخلاً الآن.</div>'
+      + '</div>';
+    } else {
+      var posBody = hasPos
+        ? '<ul class="insp-signal-list">' + sig.positive.map(function(x){ return signalLine(x, true); }).join('') + '</ul>'
+        : '<div class="insp-signal-empty">لا إيجابيات بارزة في هذه المقارنة.</div>';
+      var negBody = hasNeg
+        ? '<ul class="insp-signal-list">' + sig.negative.map(function(x){ return signalLine(x, false); }).join('') + '</ul>'
+        : '<div class="insp-signal-empty">لا سلبيات بارزة في هذه المقارنة.</div>';
+      signalsHtml =
+        '<div class="insp-signals">'
+      +   '<div class="insp-signal-card is-pos">'
+      +     '<div class="insp-signal-head is-pos"><span class="insp-signal-dot is-pos"></span>إيجابيات</div>'
+      +     posBody
+      +   '</div>'
+      +   '<div class="insp-signal-card is-neg">'
+      +     '<div class="insp-signal-head is-neg"><span class="insp-signal-dot is-neg"></span>سلبيات</div>'
+      +     negBody
+      +   '</div>'
+      + '</div>';
+    }
 
     // ── AI timeline ────────────────────────────────────────────────────────
-    // The brain's raw rule outputs (action codes like KEEP_COLLECTING and
-    // pattern signatures like UNDER_OBSERVATION) are *internal* — they are
-    // the upstream signal that Claude CMO turns into a customer-facing
-    // Arabic narration. The client should only ever see the narration.
-    var narrationPendingMsg = '⏳ الذكاء الاصطناعي يحلل بيانات هذه الحملة لتقديم التوصيات...';
-    var timelineEmptyMsg    = '⏳ لا توجد توصيات بعد — سيبدأ الذكاء الاصطناعي بالتحليل قريباً.';
+    var narrationPendingMsg = 'الذكاء الاصطناعي يحلّل بيانات هذه الحملة لتقديم توصية أوضح…';
+    var timelineEmptyMsg    = 'لا توجد توصيات بعد — سيبدأ التحليل تلقائياً بعد اكتمال البيانات.';
+
+    var usefulTimeline = timeline.filter(function(t) {
+      var n = t.narration || {};
+      if (!n.arabicTitle && !n.arabicNarration) return true; // pending — keep
+      return !isGenericNarrationClient(n.arabicTitle, n.arabicNarration);
+    });
 
     var timelineHtml;
     if (timeline.length === 0) {
+      timelineHtml = '<div class="insp-empty-panel">' + escHtml(timelineEmptyMsg) + '</div>';
+    } else if (usefulTimeline.length === 0) {
       timelineHtml =
-        '<div style="color:var(--text-3);font-size:13px;padding:12px;direction:rtl;text-align:right;border:1px dashed var(--border-2);border-radius:8px;">'
-      +   escHtml(timelineEmptyMsg)
+        '<div class="insp-empty-panel">'
+      +   'التوصية السابقة عامة وغير كافية — نعيد التحليل بناءً على هدف الحملة الفعلي ('
+      +   escHtml(purposeText || 'الحملة')
+      +   ').'
       + '</div>';
     } else {
-      timelineHtml = timeline.map(function(t) {
+      timelineHtml = usefulTimeline.map(function(t) {
         var narration  = t.narration || {};
         var hasArabic  = !!(narration.arabicTitle || narration.arabicNarration);
-
         var bodyHtml;
         if (hasArabic) {
           var titleHtml = narration.arabicTitle
-            ? '<div style="font-weight:700;color:var(--text);margin-bottom:6px;">' + escHtml(narration.arabicTitle) + '</div>'
+            ? '<div class="insp-timeline-title">' + escHtml(narration.arabicTitle) + '</div>'
             : '';
           var narrHtml  = narration.arabicNarration
-            ? '<div style="color:var(--text-2);font-size:13px;line-height:1.7;">' + escHtml(narration.arabicNarration) + '</div>'
+            ? '<div class="insp-timeline-body">' + escHtml(narration.arabicNarration) + '</div>'
             : '';
           bodyHtml = titleHtml + narrHtml;
         } else {
-          // Narration not generated yet — friendly waiting state.
-          bodyHtml = '<div style="color:var(--text-3);font-size:13px;line-height:1.7;">' + escHtml(narrationPendingMsg) + '</div>';
+          bodyHtml = '<div class="insp-timeline-body" style="color:var(--text-3);">' + escHtml(narrationPendingMsg) + '</div>';
         }
-
-        return '<div style="border-inline-end:2px solid var(--border-2);padding:12px 14px;margin-bottom:10px;border-radius:6px;background:var(--surface-2, rgba(255,255,255,0.02));direction:rtl;text-align:right;">'
-          +    '<div style="font-size:12px;color:var(--text-3);margin-bottom:8px;">' + escHtml(fmtDate(t.tickDate)) + '</div>'
+        return '<div class="insp-timeline-item">'
+          +    '<div class="insp-timeline-date">' + escHtml(fmtDate(t.tickDate)) + '</div>'
           +    bodyHtml
           +  '</div>';
       }).join('');
     }
 
-    var sectionHeader = function(text) {
-      return '<div style="font-weight:700;color:var(--text);margin-bottom:10px;font-size:13px;direction:rtl;text-align:right;">' + escHtml(text) + '</div>';
-    };
+    function sectionBlock(title, hint, body) {
+      return ''
+        + '<section class="insp-section">'
+        +   '<div class="insp-section-head">'
+        +     '<div class="insp-section-title">' + escHtml(title) + '</div>'
+        +     (hint ? '<div class="insp-section-hint">' + escHtml(hint) + '</div>' : '')
+        +   '</div>'
+        +   body
+        + '</section>';
+    }
 
-    // ── Tab payloads ─────────────────────────────────────────────────────
-    // Each tab is a self-contained HTML string. We render them all up-front
-    // and use CSS display toggles to switch — no re-render on tab change,
-    // so the user can flip between Overview/Creatives/Audience instantly.
     var overviewHtml =
-      sectionHeader('الملخص المالي') + kpiHtml
-    + sectionHeader('كيف تغيّر الأداء · مقارنة بآخر 7 أيام') + signalsHtml
-    + sectionHeader('سجل نصائح الذكاء الاصطناعي 🧠') + timelineHtml;
+      purposeBanner
+    + sectionBlock('نتائج الهدف', 'كما يعرضها مدير إعلانات Meta لهذا النوع', kpiHtml)
+    + sectionBlock('تغيّر الأداء', 'مقارنة آخر 7 أيام بالـ 7 التي قبلها', signalsHtml)
+    + sectionBlock('نصائح الذكاء الاصطناعي', null, timelineHtml);
 
     var creativesHtml = renderCreativesTab(Array.isArray(data.creatives) ? data.creatives : []);
 
