@@ -924,7 +924,7 @@ select.form-input { cursor: pointer; }
 }
 
 /* ── Diagnosis cards ────────────────────────────────────────────── */
-.diagnosis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-bottom: 8px; }
+.diagnosis-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 8px; }
 .diagnosis-card {
   background: var(--surface);
   border: 1px solid rgba(255,255,255,0.07);
@@ -933,6 +933,8 @@ select.form-input { cursor: pointer; }
   border-inline-start: 3px solid var(--accent);
   direction: rtl;
   transition: border-color var(--transition);
+  width: 100%;
+  max-width: none;
 }
 .diagnosis-card:hover { border-color: rgba(217,167,89,0.28); }
 .diagnosis-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
@@ -949,7 +951,7 @@ select.form-input { cursor: pointer; }
 }
 .diagnosis-action-label { font-weight: 800; font-size: 11px; margin-bottom: 4px; color: var(--accent-2); }
 
-/* Advanced analytics section chrome */
+/* Advanced analytics section chrome (shared) */
 .adv-block { margin-bottom: 22px; direction: rtl; }
 .adv-block-head { margin-bottom: 12px; }
 .adv-block-title {
@@ -976,10 +978,6 @@ select.form-input { cursor: pointer; }
 .adv-issue-sev.low { background: rgba(255,255,255,0.05); color: var(--text-3); }
 .adv-issue-why { font-size: 12.5px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
 .adv-issue-action { font-size: 12.5px; color: var(--accent-2); margin-top: 6px; line-height: 1.5; }
-.adv-campaigns-wrap {
-  padding: 16px 16px 8px; background: var(--surface);
-  border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; overflow: hidden;
-}
 .adv-campaigns-table { width: 100%; border-collapse: collapse; direction: rtl; }
 .adv-campaigns-table th {
   text-align: start; font-size: 11px; font-weight: 700; color: var(--text-3);
