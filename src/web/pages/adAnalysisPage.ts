@@ -136,7 +136,29 @@ export function adAnalysisPage(): string {
   }
   .ctx-card h4 { font-size: 13px; font-weight: 800; margin-bottom: 6px; color: var(--text); }
   .ctx-card p { font-size: 12.5px; color: var(--text-2); line-height: 1.65; margin: 0; }
-  @media (max-width: 640px) { .source-grid { grid-template-columns: 1fr; } }
+  .review-panel {
+    display: none; margin-top: 8px; padding: 16px; border-radius: var(--radius-lg);
+    border: 1px solid rgba(217,167,89,0.35); background: rgba(217,167,89,0.06); direction: rtl;
+  }
+  .review-panel.show { display: block; }
+  .review-panel-title { font-size: 13px; font-weight: 800; color: var(--accent-2); margin-bottom: 10px; }
+  .review-creative {
+    display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: start; margin-bottom: 12px;
+  }
+  .review-thumb {
+    width: 96px; height: 96px; border-radius: 10px; overflow: hidden;
+    background: var(--surface); border: 1px solid var(--border-2);
+    display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 28px;
+  }
+  .review-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .review-copy .ad-name { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+  .review-copy .ad-line { font-size: 12.5px; color: var(--text-2); line-height: 1.55; margin-bottom: 4px; }
+  .review-copy .ad-muted { color: var(--text-3); font-size: 12px; }
+  .manual-fields.hidden-by-adlytic { display: none !important; }
+  @media (max-width: 640px) {
+    .source-grid { grid-template-columns: 1fr; }
+    .review-creative { grid-template-columns: 1fr; }
+  }
 </style>
 
 <div class="page-header assessor-hero">
@@ -151,7 +173,7 @@ export function adAnalysisPage(): string {
   <div class="wizard-card">
     <div id="step-0">
       <h3>من أين نحلّل؟</h3>
-      <p class="hint">اختر حملة متصلة للاستفادة من أرقامك وتشخيصات Adlytic، أو ابدأ بإعلان جديد.</p>
+      <p class="hint">اختر حملة متصلة — المحتوى والأرقام يُجلبان تلقائياً، ثم تراجع وتحلّل مباشرة. أو ابدأ بإعلان جديد يدوياً.</p>
       <div class="source-grid">
         <button type="button" class="source-btn selected" id="src-adlytic" data-source="adlytic">
           <div class="src-title">حملة من Adlytic</div>
@@ -167,34 +189,44 @@ export function adAnalysisPage(): string {
         <select class="form-input" id="field-campaign">
           <option value="">جارٍ تحميل الحملات…</option>
         </select>
-        <p class="hint" id="campaign-load-hint" style="margin-top:8px;margin-bottom:0;">سنملأ النص والأرقام تلقائياً من بيانات حسابك.</p>
+        <p class="hint" id="campaign-load-hint" style="margin-top:8px;margin-bottom:0;">لن نطلب منك رفع الصورة أو إعادة كتابة النص — جاهز من حسابك.</p>
       </div>
     </div>
 
     <div id="step-1" style="display:none;">
-      <h3>عن إعلانك</h3>
-      <p class="hint">أخبرنا ببساطة — لا حاجة لمصطلحات Ads Manager.</p>
+      <h3 id="step-1-title">عن إعلانك</h3>
+      <p class="hint" id="step-1-hint">أخبرنا ببساطة — لا حاجة لمصطلحات Ads Manager.</p>
       <div class="adlytic-strip" id="adlytic-strip">
         <div class="adlytic-strip-title">بيانات Adlytic الحية</div>
         <div class="adlytic-kpis" id="adlytic-kpis"></div>
       </div>
-      <div class="form-group">
-        <label class="form-label">مجال عملك</label>
-        <select class="form-input" id="field-industry"></select>
+      <div class="review-panel" id="review-panel">
+        <div class="review-panel-title">محتوى الحملة جاهز من Adlytic — لن نطلبه منك مرة أخرى</div>
+        <div class="review-creative">
+          <div class="review-thumb" id="review-thumb">🎨</div>
+          <div class="review-copy" id="review-copy"></div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-edit-creative">تعديل المحتوى يدوياً</button>
       </div>
-      <div class="form-group">
-        <label class="form-label">ما الذي تريد تحقيقه؟</label>
-        <div class="goal-grid" id="goal-grid"></div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">من جمهورك؟ (اختياري)</label>
-        <textarea class="form-input" id="field-audience" rows="2" placeholder="مثال: نساء 25-40 في السعودية مهتمات بالعناية"></textarea>
+      <div id="step-1-manual-meta" class="manual-fields">
+        <div class="form-group">
+          <label class="form-label">مجال عملك</label>
+          <select class="form-input" id="field-industry"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ما الذي تريد تحقيقه؟</label>
+          <div class="goal-grid" id="goal-grid"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">من جمهورك؟ (اختياري)</label>
+          <textarea class="form-input" id="field-audience" rows="2" placeholder="مثال: نساء 25-40 في السعودية مهتمات بالعناية"></textarea>
+        </div>
       </div>
     </div>
 
     <div id="step-2" style="display:none;">
       <h3>محتوى الإعلان</h3>
-      <p class="hint">ارفع صورة إعلانك — هذا أهم شيء! سنساعدك تفهم ما يراه المشاهد في أول ثانيتين.</p>
+      <p class="hint" id="step-2-hint">ارفع صورة إعلانك — هذا أهم شيء! سنساعدك تفهم ما يراه المشاهد في أول ثانيتين.</p>
       <div id="upload-area"></div>
       <div class="form-group" style="margin-top:16px;">
         <label class="form-label">النص الأساسي (اختياري)</label>
@@ -274,8 +306,20 @@ export function adAnalysisPage(): string {
   let analysisSource = 'adlytic';
   let workspaceId = (typeof getWsId === 'function' ? getWsId() : null) || localStorage.getItem('adlytic_workspace_id') || '';
   let selectedCampaignId = '';
+  let prefillAdId = '';
   let adlyticContext = null;
   let campaignsLoaded = false;
+  let forceEditCreative = false;
+
+  var CTA_AR = {
+    SHOP_NOW: 'تسوق الآن', LEARN_MORE: 'اعرف المزيد', SIGN_UP: 'سجّل الآن',
+    BOOK_TRAVEL: 'احجز', CONTACT_US: 'تواصل معنا', DOWNLOAD: 'حمّل',
+    GET_OFFER: 'احصل على العرض', GET_QUOTE: 'اطلب عرض سعر', APPLY_NOW: 'قدّم الآن',
+    BUY_NOW: 'اشترِ الآن', ORDER_NOW: 'اطلب الآن', SUBSCRIBE: 'اشترك',
+    WATCH_MORE: 'شاهد المزيد', SEND_MESSAGE: 'أرسل رسالة', WHATSAPP_MESSAGE: 'راسل عبر واتساب',
+    INSTAGRAM_MESSAGE: 'راسل عبر إنستغرام', GET_DIRECTIONS: 'احصل على الاتجاهات',
+    CALL_NOW: 'اتصل الآن', NO_BUTTON: 'بدون زر',
+  };
 
   function esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -287,16 +331,73 @@ export function adAnalysisPage(): string {
     return Number.isFinite(n) ? n : undefined;
   }
 
+  function ctaLabel(raw) {
+    if (!raw) return '';
+    var key = String(raw).toUpperCase();
+    return CTA_AR[key] || String(raw).replace(/_/g, ' ');
+  }
+
+  function isAdlyticMode() {
+    return analysisSource === 'adlytic' && !!selectedCampaignId && !!adlyticContext;
+  }
+
+  function hasAdlyticCreativeReady(ctx) {
+    if (!ctx || !ctx.creative) return false;
+    var c = ctx.creative;
+    return !!(c.thumbnailUrl || c.primaryText || c.headline || c.callToActionType);
+  }
+
+  function hasAdlyticMetricsReady(ctx) {
+    if (!ctx || !ctx.metrics) return false;
+    var m = ctx.metrics;
+    return (Number(m.impressions) || 0) > 0
+      || (Number(m.spendMajor) || 0) > 0
+      || (Number(m.messages) || 0) > 0
+      || (Number(m.purchases) || 0) > 0
+      || (Number(m.leads) || 0) > 0;
+  }
+
+  function shouldSkipContentSteps() {
+    return isAdlyticMode() && hasAdlyticCreativeReady(adlyticContext) && !forceEditCreative;
+  }
+
+  function visibleSteps() {
+    if (shouldSkipContentSteps()) {
+      return [
+        { id: 0, title: 'المصدر', emoji: '🔗' },
+        { id: 1, title: 'مراجعة وتحليل', emoji: '✨' },
+      ];
+    }
+    return STEPS;
+  }
+
   function renderSteps() {
     const el = document.getElementById('wizard-steps');
     if (!el) return;
-    el.innerHTML = STEPS.map((s, i) => {
+    var steps = visibleSteps();
+    el.innerHTML = steps.map(function(s, i) {
       const cls = step === s.id ? 'active' : (step > s.id ? 'done' : '');
-      const conn = i < STEPS.length - 1
+      const conn = i < steps.length - 1
         ? '<div class="wizard-connector' + (step > s.id ? ' done' : '') + '"></div>'
         : '';
       return '<div class="wizard-step ' + cls + '"><span>' + s.emoji + '</span><span>' + s.title + '</span></div>' + conn;
     }).join('');
+  }
+
+  function syncStep1Chrome() {
+    var title = document.getElementById('step-1-title');
+    var hint = document.getElementById('step-1-hint');
+    var review = document.getElementById('review-panel');
+    var meta = document.getElementById('step-1-manual-meta');
+    var skipReady = shouldSkipContentSteps();
+    if (title) title.textContent = skipReady ? 'مراجعة الحملة' : 'عن إعلانك';
+    if (hint) {
+      hint.textContent = skipReady
+        ? 'المحتوى والأرقام جاهزة من حسابك. راجعها ثم اضغط «حلّل الآن».'
+        : 'أخبرنا ببساطة — لا حاجة لمصطلحات Ads Manager.';
+    }
+    if (review) review.classList.toggle('show', skipReady);
+    if (meta) meta.classList.toggle('hidden-by-adlytic', skipReady && !forceEditCreative);
   }
 
   function showStep(n) {
@@ -306,10 +407,19 @@ export function adAnalysisPage(): string {
       if (el) el.style.display = i === n ? 'block' : 'none';
     });
     document.getElementById('btn-back').style.display = n > 0 ? 'inline-flex' : 'none';
-    document.getElementById('btn-next').textContent = n < 3 ? 'التالي ←' : '🔍 افهم إعلاني';
+    var nextBtn = document.getElementById('btn-next');
+    if (shouldSkipContentSteps() && n === 1) {
+      nextBtn.textContent = '🔍 حلّل الآن';
+    } else {
+      nextBtn.textContent = n < 3 ? 'التالي ←' : '🔍 افهم إعلاني';
+    }
     renderSteps();
     updateMetricLabels();
-    if (n === 1 && adlyticContext) renderAdlyticStrip();
+    syncStep1Chrome();
+    if (n === 1 && adlyticContext) {
+      renderAdlyticStrip();
+      renderReviewPanel();
+    }
   }
 
   function setAnalysisSource(src) {
@@ -320,8 +430,14 @@ export function adAnalysisPage(): string {
     if (analysisSource === 'manual') {
       adlyticContext = null;
       selectedCampaignId = '';
+      prefillAdId = '';
+      forceEditCreative = false;
       document.getElementById('adlytic-strip').classList.remove('show');
+      var review = document.getElementById('review-panel');
+      if (review) review.classList.remove('show');
     }
+    syncStep1Chrome();
+    renderSteps();
   }
 
   async function ensureWorkspaceId() {
@@ -364,10 +480,12 @@ export function adAnalysisPage(): string {
 
       var params = new URLSearchParams(window.location.search);
       var qCamp = params.get('campaignId');
+      var qAd = params.get('adId') || '';
       if (qCamp && camps.some(function(c) { return c.id === qCamp; })) {
         sel.value = qCamp;
         selectedCampaignId = qCamp;
-        await loadAdlyticContext(qCamp, params.get('adId'));
+        prefillAdId = qAd;
+        await loadAdlyticContext(qCamp, qAd || null);
       }
     } catch (e) {
       sel.innerHTML = '<option value="">تعذّر تحميل الحملات</option>';
@@ -402,23 +520,68 @@ export function adAnalysisPage(): string {
       updateMetricLabels();
     }
     if (ctx.creative) {
+      if (ctx.creative.adId) prefillAdId = ctx.creative.adId;
       if (ctx.creative.primaryText) document.getElementById('field-primary').value = ctx.creative.primaryText;
       if (ctx.creative.headline) document.getElementById('field-headline').value = ctx.creative.headline;
-      if (ctx.creative.callToActionType) document.getElementById('field-action').value = ctx.creative.callToActionType;
-      if (ctx.creative.thumbnailUrl && !imagePreview) {
+      if (ctx.creative.callToActionType) {
+        document.getElementById('field-action').value = ctaLabel(ctx.creative.callToActionType);
+      }
+      if (ctx.creative.thumbnailUrl) {
         imagePreview = ctx.creative.thumbnailUrl;
-        skipImage = false;
-        // Remote URL preview only — assessment still works on copy + live metrics.
-        renderUpload();
+        // Remote CDN preview only — server uses Adlytic copy + live metrics.
+        skipImage = true;
+      } else if (ctx.creative.primaryText || ctx.creative.headline) {
+        // Copy-only creative: never block the merchant on image upload.
+        skipImage = true;
       }
     }
-    // Live metrics: skip manual entry.
+    // Live metrics: never ask the merchant to re-type Ads Manager numbers.
     skipMetrics = true;
     document.getElementById('btn-skip-metrics').classList.add('selected-skip');
     document.getElementById('btn-add-metrics').classList.remove('selected-metrics');
     document.getElementById('metrics-fields').style.display = 'none';
     var skipBtn = document.getElementById('btn-skip-metrics');
     if (skipBtn) skipBtn.textContent = '✓ تم جلب الأرقام من Adlytic تلقائياً';
+    forceEditCreative = false;
+    renderReviewPanel();
+    syncStep1Chrome();
+    renderSteps();
+  }
+
+  function renderReviewPanel() {
+    var panel = document.getElementById('review-panel');
+    var thumb = document.getElementById('review-thumb');
+    var copy = document.getElementById('review-copy');
+    if (!panel || !thumb || !copy) return;
+    if (!shouldSkipContentSteps()) {
+      panel.classList.remove('show');
+      return;
+    }
+    var c = adlyticContext.creative || {};
+    var m = adlyticContext.metrics || {};
+    if (c.thumbnailUrl) {
+      thumb.innerHTML = '<img src="' + esc(c.thumbnailUrl) + '" alt="" referrerpolicy="no-referrer" />';
+    } else {
+      thumb.textContent = '🎨';
+    }
+    var lines = [];
+    lines.push('<div class="ad-name">' + esc(c.adName || adlyticContext.campaignName || 'الحملة') + '</div>');
+    if (c.headline) lines.push('<div class="ad-line"><b>العنوان:</b> ' + esc(c.headline) + '</div>');
+    if (c.primaryText) lines.push('<div class="ad-line"><b>النص:</b> ' + esc(c.primaryText) + '</div>');
+    if (c.callToActionType) lines.push('<div class="ad-line"><b>الدعوة:</b> ' + esc(ctaLabel(c.callToActionType)) + '</div>');
+    if (!c.headline && !c.primaryText) {
+      lines.push('<div class="ad-muted">لا يوجد نص إبداعي مخزّن — سنحلّل الأداء والتشخيصات من بيانات الحملة.</div>');
+    }
+    if (hasAdlyticMetricsReady(adlyticContext)) {
+      lines.push(
+        '<div class="ad-muted" style="margin-top:8px;">الأرقام جاهزة: إنفاق '
+        + esc(String(m.spendMajor)) + ' ' + esc(m.currency || '')
+        + (m.ctr != null ? ' · تفاعل ' + esc(String(m.ctr)) + '%' : '')
+        + ' · آخر ' + esc(String(m.windowDays || 30)) + ' يوماً</div>'
+      );
+    }
+    copy.innerHTML = lines.join('');
+    panel.classList.add('show');
   }
 
   function renderAdlyticStrip() {
@@ -534,8 +697,39 @@ export function adAnalysisPage(): string {
 
   function clearImage() {
     imagePreview = imageBase64 = imageMimeType = undefined;
-    skipImage = false;
+    // If Adlytic still has copy, keep image optional — don't trap the merchant.
+    skipImage = isAdlyticMode() && hasAdlyticCreativeReady(adlyticContext);
+    if (!skipImage && adlyticContext && adlyticContext.creative && adlyticContext.creative.thumbnailUrl) {
+      imagePreview = adlyticContext.creative.thumbnailUrl;
+      skipImage = true;
+    }
     renderUpload();
+  }
+
+  function resetAssessor() {
+    step = 0; goal = 'sales'; skipImage = false; skipMetrics = true;
+    imageBase64 = imageMimeType = imagePreview = undefined;
+    adlyticContext = null; selectedCampaignId = ''; prefillAdId = ''; forceEditCreative = false;
+    document.getElementById('assessor-result-view').style.display = 'none';
+    document.getElementById('assessor-result-view').innerHTML = '';
+    document.getElementById('assessor-form-view').style.display = 'block';
+    document.getElementById('assessor-error').style.display = 'none';
+    document.getElementById('adlytic-strip').classList.remove('show');
+    var review = document.getElementById('review-panel');
+    if (review) review.classList.remove('show');
+    ['field-primary','field-headline','field-action','field-audience'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    var skipBtn = document.getElementById('btn-skip-metrics');
+    if (skipBtn) skipBtn.textContent = '✨ لا أملك أرقاماً بعد — حلّل الإعلان فقط';
+    setAnalysisSource('adlytic');
+    showStep(0);
+    renderGoals();
+    renderUpload();
+    document.getElementById('btn-skip-metrics').classList.add('selected-skip');
+    document.getElementById('btn-add-metrics').classList.remove('selected-metrics');
+    document.getElementById('metrics-fields').style.display = 'none';
   }
 
   function scoreClass(score) {
@@ -663,26 +857,6 @@ export function adAnalysisPage(): string {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function resetAssessor() {
-    step = 0; goal = 'sales'; skipImage = false; skipMetrics = true;
-    imageBase64 = imageMimeType = imagePreview = undefined;
-    adlyticContext = null; selectedCampaignId = '';
-    document.getElementById('assessor-result-view').style.display = 'none';
-    document.getElementById('assessor-result-view').innerHTML = '';
-    document.getElementById('assessor-form-view').style.display = 'block';
-    document.getElementById('assessor-error').style.display = 'none';
-    document.getElementById('adlytic-strip').classList.remove('show');
-    var skipBtn = document.getElementById('btn-skip-metrics');
-    if (skipBtn) skipBtn.textContent = '✨ لا أملك أرقاماً بعد — حلّل الإعلان فقط';
-    setAnalysisSource('adlytic');
-    showStep(0);
-    renderGoals();
-    renderUpload();
-    document.getElementById('btn-skip-metrics').classList.add('selected-skip');
-    document.getElementById('btn-add-metrics').classList.remove('selected-metrics');
-    document.getElementById('metrics-fields').style.display = 'none';
-  }
-
   async function submitAssessment() {
     var errEl = document.getElementById('assessor-error');
     errEl.style.display = 'none';
@@ -715,8 +889,16 @@ export function adAnalysisPage(): string {
     if (useAdlytic) {
       payload.workspaceId = workspaceId;
       payload.campaignId = selectedCampaignId;
-      if (adlyticContext && adlyticContext.creative && adlyticContext.creative.adId) {
-        payload.adId = adlyticContext.creative.adId;
+      var adId = prefillAdId
+        || (adlyticContext && adlyticContext.creative && adlyticContext.creative.adId)
+        || undefined;
+      if (adId) payload.adId = adId;
+      // Prefer Adlytic creative fields if the form was left empty.
+      if (!payload.creative.primaryText && adlyticContext && adlyticContext.creative) {
+        payload.creative.primaryText = adlyticContext.creative.primaryText || undefined;
+        payload.creative.headline = payload.creative.headline || adlyticContext.creative.headline || undefined;
+        payload.creative.desiredAction = payload.creative.desiredAction
+          || ctaLabel(adlyticContext.creative.callToActionType) || undefined;
       }
     }
 
@@ -740,31 +922,78 @@ export function adAnalysisPage(): string {
     }
   }
 
-  document.getElementById('btn-back').addEventListener('click', function() { if (step > 0) showStep(step - 1); });
+  document.getElementById('btn-back').addEventListener('click', function() {
+    if (step <= 0) return;
+    if (shouldSkipContentSteps()) {
+      showStep(0);
+      return;
+    }
+    // Jump over auto-skipped steps when returning from manual edit path.
+    if (step === 3 && isAdlyticMode() && hasAdlyticMetricsReady(adlyticContext) && forceEditCreative) {
+      showStep(2);
+      return;
+    }
+    showStep(step - 1);
+  });
+
   document.getElementById('btn-next').addEventListener('click', async function() {
     if (step === 0) {
       if (analysisSource === 'adlytic') {
         selectedCampaignId = document.getElementById('field-campaign').value;
         if (!selectedCampaignId) { toast('اختر حملة من Adlytic أو بدّل إلى الوضع اليدوي', 'warning'); return; }
         if (!adlyticContext || adlyticContext.campaignId !== selectedCampaignId) {
-          await loadAdlyticContext(selectedCampaignId);
+          await loadAdlyticContext(selectedCampaignId, prefillAdId || null);
         }
       }
-      showStep(1); return;
+      showStep(1);
+      return;
     }
-    if (step === 1) { showStep(2); renderUpload(); return; }
+    if (step === 1) {
+      // Adlytic campaign already has creative + metrics → analyze immediately.
+      if (shouldSkipContentSteps()) {
+        submitAssessment();
+        return;
+      }
+      showStep(2);
+      renderUpload();
+      return;
+    }
     if (step === 2) {
-      if (!imagePreview && !skipImage) { toast('ارفع صورة أو اختر التخطي المؤقت', 'warning'); return; }
-      showStep(3); return;
+      if (!imagePreview && !skipImage && !(isAdlyticMode() && hasAdlyticCreativeReady(adlyticContext))) {
+        toast('ارفع صورة أو اختر التخطي المؤقت', 'warning');
+        return;
+      }
+      // Skip metrics re-entry when Adlytic already has live numbers.
+      if (isAdlyticMode() && hasAdlyticMetricsReady(adlyticContext)) {
+        submitAssessment();
+        return;
+      }
+      showStep(3);
+      return;
     }
     submitAssessment();
   });
 
   document.getElementById('src-adlytic').addEventListener('click', function() { setAnalysisSource('adlytic'); });
-  document.getElementById('src-manual').addEventListener('click', function() { setAnalysisSource('manual'); });
+  document.getElementById('src-manual').addEventListener('click', function() {
+    forceEditCreative = false;
+    setAnalysisSource('manual');
+  });
   document.getElementById('field-campaign').addEventListener('change', function() {
     selectedCampaignId = document.getElementById('field-campaign').value;
+    forceEditCreative = false;
+    // Changing campaign invalidates a deep-linked ad unless same campaign.
+    prefillAdId = '';
     if (selectedCampaignId) loadAdlyticContext(selectedCampaignId);
+  });
+  document.getElementById('btn-edit-creative').addEventListener('click', function() {
+    forceEditCreative = true;
+    syncStep1Chrome();
+    renderSteps();
+    showStep(2);
+    renderUpload();
+    var hint = document.getElementById('step-2-hint');
+    if (hint) hint.textContent = 'عدّل المحتوى إن أردت — البيانات الأصلية محفوظة من Adlytic.';
   });
 
   document.getElementById('btn-skip-metrics').addEventListener('click', function() {
@@ -774,6 +1003,10 @@ export function adAnalysisPage(): string {
     document.getElementById('metrics-fields').style.display = 'none';
   });
   document.getElementById('btn-add-metrics').addEventListener('click', function() {
+    if (isAdlyticMode() && hasAdlyticMetricsReady(adlyticContext)) {
+      toast('أرقام هذه الحملة جاهزة من Adlytic — لا حاجة لإعادة إدخالها', 'info');
+      return;
+    }
     skipMetrics = false;
     document.getElementById('btn-add-metrics').classList.add('selected-metrics');
     document.getElementById('btn-skip-metrics').classList.remove('selected-skip');
