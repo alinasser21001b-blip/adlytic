@@ -218,7 +218,15 @@ input, select, textarea { font-family: inherit; }
 .topbar-btn svg { width: 15px; height: 15px; }
 
 /* ── Page content ────────────────────────────────────────────────── */
-.page-content { flex: 1; padding: 28px 28px 48px; max-width: 1400px; }
+.page-content {
+  flex: 1;
+  width: 100%;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 28px 28px 48px;
+  box-sizing: border-box;
+}
 .page-header { margin-bottom: 24px; }
 .page-title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; }
 .page-subtitle { font-size: 13px; color: var(--text-2); margin-top: 3px; }
