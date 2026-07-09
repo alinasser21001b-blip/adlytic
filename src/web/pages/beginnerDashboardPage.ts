@@ -1,58 +1,39 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/web/pages/beginnerDashboardPage.ts
 //
-//  Dashboard — Beginner Mode (وضع المبتدئ).
+//  Dashboard — Beginner Mode (وضع المبتدئ / لوحة الإنقاذ).
 //
-//  Visual contract:
-//    • Icon-heavy metric cards (💰 الإنفاق · 👥 الوصول · 📩 الرسائل · …)
-//    • Simple horizontal progress bars (الميزانية المستخدمة · الحملات النشطة)
-//    • Traffic-light status pill on the account-health score
-//    • Big trend arrows (⬆️/⬇️/➡️) instead of dense charts
-//    • Ample whitespace, soft palette, 100% Arabic, RTL layout.
-//
-//  Data contract:
-//    Identical to the Pro dashboard — calls /api/dashboard/:wsId and
-//    /api/workspaces/:wsId. No new DTO, no new endpoint, no new DB query.
-//
-//  Number formatting:
-//    • All currency renders as whole units (no decimals) + Arabic currency
-//      word: "٢٬٩٩٢ دولار" (instead of "2,992.41 USD"). See ARABIC_CURRENCY.
-//    • Counts/money use toLocaleString('ar-EG', { useGrouping: false }) — plain digits.
-//    • Percentages round to whole numbers with useGrouping: false.
+//  Goal: explain what's happening in plain Arabic — no jargon, no charts.
+//  Same /api/dashboard/:wsId DTO as Pro; richer client-side storytelling.
 // ════════════════════════════════════════════════════════════════════════
 
 import { layout } from '../layout';
 
 export function beginnerDashboardPage(): string {
   const extraHead = `<style>
-    /* ── Beginner mode palette + RTL ───────────────────────────────── */
     .bgn-shell { direction: rtl; text-align: right; max-width: 980px; margin: 0 auto; letter-spacing: normal; line-height: 1.6; }
     .bgn-shell *, .bgn-shell *::before, .bgn-shell *::after { box-sizing: border-box; }
 
-    /* Greeting */
+    /* ── Greeting ── */
     .bgn-greeting {
-      display: flex; align-items: center; gap: 14px;
-      padding: 22px 26px; margin-bottom: 22px;
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 22px 26px; margin-bottom: 18px;
       background: linear-gradient(135deg, #241C15 0%, #100E0D 70%);
       border: 1px solid rgba(217,167,89,0.25);
       border-radius: 18px;
     }
-    .bgn-greeting-emoji { font-size: 38px; line-height: 1; }
-    .bgn-greeting-text-wrap { flex: 1; }
-    .bgn-greeting-title { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.6; letter-spacing: normal; }
-    .bgn-greeting-sub { font-size: 13.5px; color: var(--text-2); margin-top: 4px; line-height: 1.6; letter-spacing: normal; }
-
-    /* Status pill (traffic-light) */
+    .bgn-greeting-emoji { font-size: 38px; line-height: 1; flex-shrink: 0; }
+    .bgn-greeting-text-wrap { flex: 1; min-width: 0; }
+    .bgn-greeting-title { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.5; }
+    .bgn-greeting-sub { font-size: 13.5px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+    .bgn-greeting-meta { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+    .bgn-status-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
     .bgn-status-pill {
       display: inline-flex; align-items: center; gap: 8px;
-      padding: 7px 14px;
-      border-radius: 999px;
+      padding: 7px 14px; border-radius: 999px;
       font-size: 13px; font-weight: 700;
     }
-    .bgn-status-pill .bgn-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.06);
-    }
+    .bgn-status-pill .bgn-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
     .bgn-status-pill.green  { background: rgba(52,168,113,0.14);  color: #5CC08F; }
     .bgn-status-pill.green  .bgn-dot { background: #34A871; }
     .bgn-status-pill.yellow { background: rgba(199,122,31,0.14); color: #E0A050; }
@@ -61,119 +42,148 @@ export function beginnerDashboardPage(): string {
     .bgn-status-pill.red    .bgn-dot { background: #E2604F; }
     .bgn-status-pill.gray   { background: rgba(255,255,255,0.05); color: var(--text-3); }
     .bgn-status-pill.gray   .bgn-dot { background: var(--text-3); }
+    .bgn-status-hint { font-size: 11px; color: var(--text-3); max-width: 140px; text-align: end; line-height: 1.4; }
 
-    /* Big metric cards */
-    .bgn-metric-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 22px;
+    /* ── "What's happening now" summary ── */
+    .bgn-summary {
+      background: linear-gradient(135deg, rgba(217,167,89,0.08) 0%, var(--surface) 100%);
+      border: 1px solid rgba(217,167,89,0.22);
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+      display: flex; gap: 14px; align-items: flex-start;
     }
+    .bgn-summary-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
+    .bgn-summary-label { font-size: 11px; font-weight: 700; color: var(--accent-2); letter-spacing: 0.04em; margin-bottom: 5px; }
+    .bgn-summary-text { font-size: 14.5px; color: var(--text); line-height: 1.65; }
+
+    /* ── Metric cards ── */
+    .bgn-metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
     @media (max-width: 760px) { .bgn-metric-grid { grid-template-columns: 1fr; } }
     .bgn-metric-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 22px 20px;
-      display: flex; align-items: center; gap: 18px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px 16px;
       transition: transform var(--transition), border-color var(--transition);
     }
     .bgn-metric-card:hover { transform: translateY(-2px); border-color: var(--border-2); }
+    .bgn-metric-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .bgn-metric-icon {
-      font-size: 40px; line-height: 1;
-      width: 64px; height: 64px;
+      font-size: 28px; line-height: 1; width: 48px; height: 48px;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(217,167,89,0.10);
-      border-radius: 16px; flex-shrink: 0;
+      background: rgba(217,167,89,0.10); border-radius: 12px; flex-shrink: 0;
     }
     .bgn-metric-card.green  .bgn-metric-icon { background: rgba(52,168,113,0.12); }
     .bgn-metric-card.blue   .bgn-metric-icon { background: rgba(59,130,246,0.12); }
     .bgn-metric-card.purple .bgn-metric-icon { background: rgba(168,85,247,0.12); }
-    .bgn-metric-body { flex: 1; min-width: 0; }
-    .bgn-metric-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; line-height: 1.6; letter-spacing: normal; }
-    .bgn-metric-value { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: normal; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bgn-metric-trend { margin-top: 6px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; line-height: 1.6; letter-spacing: normal; }
+    .bgn-metric-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); line-height: 1.45; }
+    .bgn-metric-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1.15; margin-bottom: 4px; }
+    .bgn-metric-trend { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 6px; }
     .bgn-metric-trend.up   { color: #5CC08F; }
     .bgn-metric-trend.down { color: #EB9186; }
     .bgn-metric-trend.flat { color: var(--text-3); }
+    .bgn-metric-hint { font-size: 11.5px; color: var(--text-3); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; margin-top: 4px; }
 
-    /* Section title */
-    .bgn-section { margin-bottom: 22px; }
-    .bgn-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .bgn-section-emoji { font-size: 22px; line-height: 1; }
-    .bgn-section-title { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.6; letter-spacing: normal; }
+    /* ── Mini cards ── */
+    .bgn-mini-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+    @media (max-width: 760px) { .bgn-mini-cards { grid-template-columns: 1fr; } }
+    .bgn-mini-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px;
+    }
+    .bgn-mini-top { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .bgn-mini-emoji { font-size: 24px; line-height: 1; }
+    .bgn-mini-label { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+    .bgn-mini-value { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
+    .bgn-mini-hint { font-size: 11.5px; color: var(--text-3); line-height: 1.45; margin-top: 4px; }
 
-    /* Progress bar */
+    /* ── Sections ── */
+    .bgn-section { margin-bottom: 20px; }
+    .bgn-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .bgn-section-emoji { font-size: 20px; line-height: 1; }
+    .bgn-section-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .bgn-section-sub { font-size: 12px; color: var(--text-3); margin-inline-start: auto; }
+
+    /* ── Progress bars ── */
     .bgn-bar-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px 22px 22px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px 20px 20px;
     }
-    .bgn-bar-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
-    .bgn-bar-label { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.6; letter-spacing: normal; }
-    .bgn-bar-value { font-size: 13px; color: var(--text-2); font-weight: 600; }
-    .bgn-bar-track {
-      width: 100%; height: 14px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 999px; overflow: hidden;
-    }
-    .bgn-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #34A871, #5CC08F);
-      transition: width 0.6s ease;
-    }
+    .bgn-bar-block { margin-bottom: 16px; }
+    .bgn-bar-block:last-child { margin-bottom: 0; }
+    .bgn-bar-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+    .bgn-bar-label { font-size: 13.5px; font-weight: 600; color: var(--text); }
+    .bgn-bar-value { font-size: 12.5px; color: var(--text-2); font-weight: 600; white-space: nowrap; }
+    .bgn-bar-track { width: 100%; height: 12px; background: rgba(255,255,255,0.05); border-radius: 999px; overflow: hidden; }
+    .bgn-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #34A871, #5CC08F); transition: width 0.6s ease; }
     .bgn-bar-fill.warning { background: linear-gradient(90deg, #C77A1F, #E0A050); }
     .bgn-bar-fill.danger  { background: linear-gradient(90deg, #E2604F, #EB9186); }
     .bgn-bar-fill.blue    { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-    .bgn-bar-hint { font-size: 12px; color: var(--text-3); margin-top: 8px; }
+    .bgn-bar-fill.gold    { background: linear-gradient(90deg, #C4903E, #E6BD7A); }
+    .bgn-bar-hint { font-size: 11.5px; color: var(--text-3); margin-top: 6px; line-height: 1.45; }
 
-    /* Priority action card */
+    /* ── Issue notice ── */
+    .bgn-issue-card {
+      background: rgba(226,96,79,0.06);
+      border: 1px solid rgba(226,96,79,0.22);
+      border-radius: 14px; padding: 16px 18px;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .bgn-issue-card.warn {
+      background: rgba(199,122,31,0.06);
+      border-color: rgba(199,122,31,0.22);
+    }
+    .bgn-issue-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+    .bgn-issue-title { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .bgn-issue-body { font-size: 13px; color: var(--text-2); line-height: 1.55; }
+
+    /* ── Next step / guidance ── */
     .bgn-action-card {
       background: linear-gradient(135deg, rgba(217,167,89,0.10) 0%, var(--surface) 100%);
       border: 1px solid rgba(217,167,89,0.30);
-      border-radius: 16px;
-      padding: 20px 22px;
-      display: flex; align-items: flex-start; gap: 14px;
+      border-radius: 16px; padding: 18px 20px;
     }
-    .bgn-action-emoji { font-size: 32px; line-height: 1; flex-shrink: 0; }
-    .bgn-action-title { font-size: 14px; font-weight: 700; color: var(--accent-2); margin-bottom: 5px; }
-    .bgn-action-text { font-size: 14px; color: var(--text); line-height: 1.6; letter-spacing: normal; }
-
-    /* Active campaigns count */
-    .bgn-mini-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 22px; }
-    @media (max-width: 760px) { .bgn-mini-cards { grid-template-columns: 1fr; } }
-    .bgn-mini-card {
-      background: var(--surface);
+    .bgn-action-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+    .bgn-action-emoji { font-size: 28px; line-height: 1; flex-shrink: 0; }
+    .bgn-action-title { font-size: 13px; font-weight: 700; color: var(--accent-2); margin-bottom: 4px; }
+    .bgn-action-text { font-size: 14px; color: var(--text); line-height: 1.6; }
+    .bgn-action-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 16px; border-radius: 10px;
+      background: var(--accent); color: #100E0D;
+      font-size: 13px; font-weight: 700;
+      text-decoration: none; border: none; cursor: pointer;
+      font-family: inherit;
+      transition: background var(--transition), transform var(--transition);
+    }
+    .bgn-action-cta:hover { background: var(--accent-2); transform: translateY(-1px); }
+    .bgn-action-cta.secondary {
+      background: rgba(255,255,255,0.06); color: var(--text);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 18px;
-      display: flex; align-items: center; gap: 14px;
     }
-    .bgn-mini-emoji { font-size: 28px; line-height: 1; }
-    .bgn-mini-label { font-size: 13px; color: var(--text-2); }
-    .bgn-mini-value { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; margin-top: 2px; }
+    .bgn-action-cta.secondary:hover { background: rgba(255,255,255,0.09); }
 
-    /* Empty / loading states */
-    .bgn-empty {
-      text-align: center;
-      padding: 64px 24px;
-      background: var(--surface);
-      border: 1px dashed var(--border-2);
-      border-radius: 18px;
+    /* ── Quick links ── */
+    .bgn-quick-links {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      margin-top: 4px;
     }
+    @media (max-width: 600px) { .bgn-quick-links { grid-template-columns: 1fr; } }
+    .bgn-quick-link {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 14px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-2); font-size: 13px; font-weight: 600;
+      text-decoration: none; transition: all var(--transition);
+    }
+    .bgn-quick-link:hover { border-color: rgba(217,167,89,0.35); color: var(--accent-2); background: rgba(217,167,89,0.06); }
+    .bgn-quick-link span { font-size: 16px; }
+
+    /* ── Empty / loading ── */
+    .bgn-empty { text-align: center; padding: 64px 24px; background: var(--surface); border: 1px dashed var(--border-2); border-radius: 18px; }
     .bgn-empty-emoji { font-size: 54px; opacity: 0.6; margin-bottom: 12px; }
     .bgn-empty-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
     .bgn-empty-text { font-size: 14px; color: var(--text-2); max-width: 360px; margin: 0 auto; line-height: 1.6; }
-    .bgn-empty-btn {
-      display: inline-block; margin-top: 18px;
-      padding: 10px 20px; border-radius: 10px;
-      background: var(--accent); color: #fff;
-      font-size: 14px; font-weight: 600;
-      text-decoration: none;
-    }
-
+    .bgn-empty-btn { display: inline-block; margin-top: 18px; padding: 10px 20px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
     .bgn-loading { text-align: center; padding: 80px 24px; color: var(--text-3); font-size: 14px; }
   </style>`;
 
@@ -190,47 +200,67 @@ export function beginnerDashboardPage(): string {
       </div>
 
       <div id="bgn-main" style="display:none;">
-        <!-- Greeting + status pill -->
         <div class="bgn-greeting">
           <div class="bgn-greeting-emoji">👋</div>
           <div class="bgn-greeting-text-wrap">
             <div class="bgn-greeting-title" id="bgn-greeting-title">مرحباً بك!</div>
             <div class="bgn-greeting-sub" id="bgn-greeting-sub">ها هي نظرة سريعة على حملاتك.</div>
-            <div class="bgn-bar-hint" id="bgn-last-updated" style="margin-top:6px;"></div>
+            <div class="bgn-greeting-meta" id="bgn-last-updated"></div>
           </div>
-          <span id="bgn-status-pill" class="bgn-status-pill gray">
-            <span class="bgn-dot"></span>
-            <span id="bgn-status-text">—</span>
-          </span>
+          <div class="bgn-status-wrap">
+            <span id="bgn-status-pill" class="bgn-status-pill gray">
+              <span class="bgn-dot"></span>
+              <span id="bgn-status-text">—</span>
+            </span>
+            <span class="bgn-status-hint" id="bgn-status-hint"></span>
+          </div>
         </div>
 
-        <!-- Top metrics: spend, reach, messages -->
-        <div class="bgn-metric-grid" id="bgn-metric-grid"></div>
+        <div class="bgn-summary" id="bgn-summary">
+          <div class="bgn-summary-icon">📋</div>
+          <div style="flex:1;">
+            <div class="bgn-summary-label">ما يحدث الآن</div>
+            <div class="bgn-summary-text" id="bgn-summary-text">جاري التحميل…</div>
+          </div>
+        </div>
 
-        <!-- Two mini cards: active campaigns + CTR -->
+        <div class="bgn-metric-grid" id="bgn-metric-grid"></div>
         <div class="bgn-mini-cards" id="bgn-mini-cards"></div>
 
-        <!-- Progress: budget used + health score -->
         <div class="bgn-section">
           <div class="bgn-section-head">
-            <span class="bgn-section-emoji">📊</span>
-            <h2 class="bgn-section-title">تقدم اليوم</h2>
+            <span class="bgn-section-emoji">🩺</span>
+            <h2 class="bgn-section-title">حالة حسابك</h2>
+            <span class="bgn-section-sub">آخر ٣٠ يوماً</span>
           </div>
           <div class="bgn-bar-card" id="bgn-progress-card"></div>
         </div>
 
-        <!-- Priority action -->
-        <div class="bgn-section" id="bgn-action-section" style="display:none;">
+        <div class="bgn-section" id="bgn-issue-section" style="display:none;">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">⚠️</span>
+            <h2 class="bgn-section-title">ملاحظة مهمة</h2>
+          </div>
+          <div class="bgn-issue-card" id="bgn-issue-card"></div>
+        </div>
+
+        <div class="bgn-section" id="bgn-action-section">
           <div class="bgn-section-head">
             <span class="bgn-section-emoji">✨</span>
-            <h2 class="bgn-section-title">الاقتراح الأهم</h2>
+            <h2 class="bgn-section-title">الخطوة التالية</h2>
           </div>
-          <div class="bgn-action-card">
-            <div class="bgn-action-emoji">💡</div>
-            <div style="flex:1;">
-              <div class="bgn-action-title">ننصحك بـ:</div>
-              <div class="bgn-action-text" id="bgn-action-text">—</div>
-            </div>
+          <div class="bgn-action-card" id="bgn-action-card"></div>
+        </div>
+
+        <div class="bgn-section">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">🔗</span>
+            <h2 class="bgn-section-title">انتقل إلى</h2>
+          </div>
+          <div class="bgn-quick-links">
+            <a href="/recommendations" class="bgn-quick-link"><span>💡</span> التوصيات</a>
+            <a href="/campaigns" class="bgn-quick-link"><span>📣</span> الحملات</a>
+            <a href="/ai" class="bgn-quick-link"><span>🤖</span> المساعد الذكي</a>
           </div>
         </div>
       </div>
@@ -238,86 +268,159 @@ export function beginnerDashboardPage(): string {
   `;
 
   const scripts = `<script>
-  // ── Arabic currency word table ─────────────────────────────────────
-  // Keys are ISO codes; the value is the singular noun in Arabic. We
-  // intentionally avoid pluralization rules — keeping the word singular
-  // matches conversational Arabic on dashboards ("٢٬٩٩٢ دولار").
   var ARABIC_CURRENCY = {
     USD: 'دولار', EUR: 'يورو', GBP: 'جنيه إسترليني',
     SAR: 'ريال', AED: 'درهم', IQD: 'دينار',
     EGP: 'جنيه', JOD: 'دينار', KWD: 'دينار',
     QAR: 'ريال', OMR: 'ريال', BHD: 'دينار',
   };
-  function arabicCurrencyWord(code) {
-    return ARABIC_CURRENCY[code] || code || '';
-  }
+  function arabicCurrencyWord(code) { return ARABIC_CURRENCY[code] || code || ''; }
 
   var AR_LOCALE = 'ar-EG';
   var AR_NUM_PLAIN = { useGrouping: false };
 
-  /** Strip decimals, group with Arabic thousands separators, append currency word. */
   function fmtSimpleMoney(minor, currency, factor) {
     if (minor == null || !isFinite(Number(minor))) return '—';
     var f = factor == null ? (currency === 'IQD' ? 1 : 100) : factor;
     var whole = Math.round(Number(minor) / f);
-    // Arabic numerals with Arabic thousands separator (U+066C). The browser's
-    // built-in 'ar-EG' locale produces "٢٬٩٩٢" which matches design intent.
-    var nf = whole.toLocaleString(AR_LOCALE, AR_NUM_PLAIN);
-    return nf + ' ' + arabicCurrencyWord(currency);
+    return whole.toLocaleString(AR_LOCALE, AR_NUM_PLAIN) + ' ' + arabicCurrencyWord(currency);
   }
-
-  /** Round a count to a whole number and group with Arabic separators. */
   function fmtSimpleCount(n) {
     if (n == null || !isFinite(Number(n))) return '—';
     return Math.round(Number(n)).toLocaleString(AR_LOCALE, AR_NUM_PLAIN);
   }
-
-  /** Round a percent (0–100) to a whole number and append %. No grouping. */
   function fmtSimplePct(n) {
     if (n == null || !isFinite(Number(n))) return '—';
     return Math.round(Number(n)).toLocaleString(AR_LOCALE, AR_NUM_PLAIN) + '٪';
   }
 
   function trendArrow(dir, goodWhenUp) {
-    if (dir === 'flat' || dir == null) return { sym: '➡️', cls: 'flat', label: '' };
+    if (dir === 'flat' || dir == null) return { sym: '➡️', cls: 'flat', label: 'ثابت' };
     var good = goodWhenUp !== false;
-    if (dir === 'up')   return { sym: '⬆️', cls: good ? 'up' : 'down', label: 'تحسّن' };
-    /* down */          return { sym: '⬇️', cls: good ? 'down' : 'up', label: 'تراجع' };
+    if (dir === 'up')   return { sym: '⬆️', cls: good ? 'up' : 'down', label: good ? 'تحسّن' : 'ارتفاع' };
+    return { sym: '⬇️', cls: good ? 'down' : 'up', label: good ? 'انخفاض' : 'تحسّن' };
   }
 
   function healthBandPill(band) {
-    // Map DTO health.band → traffic-light pill class + Arabic label.
     var map = {
       excellent: { cls: 'green',  label: 'ممتاز' },
       good:      { cls: 'green',  label: 'جيد' },
       attention: { cls: 'yellow', label: 'يحتاج انتباه' },
       poor:      { cls: 'red',    label: 'ضعيف' },
-      none:      { cls: 'gray',   label: 'لا توجد بيانات بعد' },
+      none:      { cls: 'gray',   label: 'لا بيانات' },
+    };
+    return map[band] || map.none;
+  }
+
+  function healthBandHint(band, score) {
+    var s = typeof score === 'number' ? Math.round(score) : null;
+    var map = {
+      excellent: 'أداء ممتاز — استمر على نفس المسار.',
+      good:      'أداء جيد — يمكنك تحسينه أكثر.',
+      attention: (s != null ? ('النتيجة ' + s + '/١٠٠ — راجع الملاحظات.') : 'هناك نقاط تحتاج متابعة.'),
+      poor:      (s != null ? ('النتيجة ' + s + '/١٠٠ — يُنصح بإجراء سريع.') : 'الأداء ضعيف — يُنصح بإجراء سريع.'),
+      none:      'بانتظار بيانات كافية من فيسبوك.',
     };
     return map[band] || map.none;
   }
 
   function getKpi(dash, key) {
-    var k = (dash.kpis || []).find(function (x) { return x.key === key; });
-    return k || null;
+    return (dash.kpis || []).find(function (x) { return x.key === key; }) || null;
+  }
+
+  function activeCampaignCount(dash) {
+    var cc = dash.workspace && dash.workspace.campaignCounts;
+    return cc ? cc.deliveringInWindow : ((dash.workspace && dash.workspace.activeCampaigns) || 0);
+  }
+
+  function buildNowSummary(dash) {
+    var band = (dash.health && dash.health.band) || 'none';
+    var msgs = getKpi(dash, 'messages');
+    var spend = getKpi(dash, 'spend');
+    var active = activeCampaignCount(dash);
+    var issueCount = (dash.issues || []).length;
+    var parts = [];
+
+    if (band === 'poor') parts.push('حسابك يحتاج اهتماماً عاجلاً هذه الفترة.');
+    else if (band === 'attention') parts.push('هناك بعض النقاط التي تحتاج مراجعة في حسابك.');
+    else if (band === 'excellent' || band === 'good') parts.push('حسابك يعمل بشكل جيد بشكل عام.');
+
+    if (msgs && Number(msgs.value) > 0) {
+      parts.push('وصلتك ' + fmtSimpleCount(msgs.value) + ' رسالة من العملاء خلال آخر ٣٠ يوماً.');
+    } else if (spend && Number(spend.value) > 0) {
+      parts.push('أنفقت ' + fmtSimpleMoney(spend.value, dash.workspace.currency, dash.workspace.currencyMinorFactor) + ' على الإعلانات خلال آخر ٣٠ يوماً.');
+    }
+
+    if (active === 0) parts.push('لا توجد حملات تُنفِق حالياً — فكّر بتشغيل حملة.');
+    else if (active < 3) parts.push('لديك ' + fmtSimpleCount(active) + ' حملة تعمل — تشغيل ٣ حملات يعطي نتائج أفضل.');
+
+    if (issueCount > 0) parts.push('رصدنا ' + fmtSimpleCount(issueCount) + ' ملاحظة تحتاج متابعة.');
+
+    return parts.length
+      ? parts.join(' ')
+      : 'ها نظرة مبسّطة على أداء إعلاناتك خلال آخر ٣٠ يوماً.';
+  }
+
+  function pickTopIssue(dash) {
+    var issues = dash.issues || [];
+    if (!issues.length) return null;
+    var rank = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+    return issues.slice().sort(function (a, b) {
+      return (rank[a.severity] != null ? rank[a.severity] : 9) - (rank[b.severity] != null ? rank[b.severity] : 9);
+    })[0];
+  }
+
+  function guidanceCta(dash, kind) {
+    if (kind === 'issue' || (dash.priorityAction && dash.priorityAction.actionCode)) {
+      var code = dash.priorityAction && dash.priorityAction.actionCode ? dash.priorityAction.actionCode : '';
+      if (/CREATIVE|REFRESH/i.test(code)) return { href: '/campaigns', label: 'مراجعة الحملات' };
+      if (/PAUSE|SCALE|BUDGET|RESCUE/i.test(code)) return { href: '/campaigns', label: 'إدارة الحملات' };
+      return { href: '/recommendations', label: 'عرض التوصيات' };
+    }
+    return { href: '/ai', label: 'اسأل المساعد الذكي' };
+  }
+
+  function renderSummary(dash) {
+    var el = document.getElementById('bgn-summary-text');
+    if (el) el.textContent = buildNowSummary(dash);
+  }
+
+  function renderStatus(dash) {
+    var pill = document.getElementById('bgn-status-pill');
+    var txt  = document.getElementById('bgn-status-text');
+    var hint = document.getElementById('bgn-status-hint');
+    var band = (dash.health && dash.health.band) || 'none';
+    var score = dash.health && dash.health.score;
+    var p = healthBandPill(band);
+    pill.className = 'bgn-status-pill ' + p.cls;
+    txt.textContent = p.label;
+    if (hint) hint.textContent = healthBandHint(band, score);
+  }
+
+  function renderGreeting(dash) {
+    var titleEl = document.getElementById('bgn-greeting-title');
+    var subEl   = document.getElementById('bgn-greeting-sub');
+    var wsName = (dash.workspace && dash.workspace.name) || 'مساحة العمل';
+    if (titleEl) titleEl.textContent = 'أهلاً بك في ' + wsName;
+    if (subEl) subEl.textContent = 'لوحة مبسّطة — كل ما تحتاج معرفته في مكان واحد.';
   }
 
   function renderMetricCards(dash, currency, factor) {
     var grid = document.getElementById('bgn-metric-grid');
+    if (!grid) return;
     var spend = getKpi(dash, 'spend');
     var reach = getKpi(dash, 'reach');
     var msgs  = getKpi(dash, 'messages');
 
     var cards = [
-      { emoji: '💰', label: 'الإنفاق (٣٠ يوماً)', tone: 'green',
+      { emoji: '💰', label: 'الإنفاق (٣٠ يوماً)', tone: 'green', hint: 'مجموع ما دفعته لفيسبوك على الإعلانات.',
         value: spend ? fmtSimpleMoney(spend.value, currency, factor) : '—',
         delta: spend ? trendArrow(spend.direction, spend.goodWhenUp !== false) : null,
         deltaPct: spend && spend.deltaPct != null ? spend.deltaPct : null },
-      { emoji: '👥', label: 'الأشخاص الذين شاهدوا إعلاناتك', tone: 'blue',
+      { emoji: '👥', label: 'من شاهد إعلاناتك', tone: 'blue', hint: 'عدد الأشخاص المختلفين الذين رأوا إعلانك.',
         value: reach ? fmtSimpleCount(reach.value) : '—',
-        delta: reach ? trendArrow(reach.direction, true) : null,
-        deltaPct: null },
-      { emoji: '📩', label: 'الرسائل (المحادثات)', tone: 'purple',
+        delta: reach ? trendArrow(reach.direction, true) : null, deltaPct: null },
+      { emoji: '📩', label: 'الرسائل والمحادثات', tone: 'purple', hint: 'رسائل بدأها العملاء بعد رؤية إعلانك.',
         value: msgs ? fmtSimpleCount(msgs.value) : '—',
         delta: msgs ? trendArrow(msgs.direction, true) : null,
         deltaPct: msgs && msgs.deltaPct != null ? msgs.deltaPct : null },
@@ -326,145 +429,155 @@ export function beginnerDashboardPage(): string {
     grid.innerHTML = cards.map(function (c) {
       var trendHtml = '';
       if (c.delta) {
-        // deltaPct is stored as a ratio (0.05 = 5%) — multiply before display.
-        var pctText = c.deltaPct != null
-          ? (' ' + Math.round(Math.abs(Number(c.deltaPct) * 100)) + '٪')
-          : '';
+        var pctText = c.deltaPct != null ? (' ' + Math.round(Math.abs(Number(c.deltaPct) * 100)) + '٪') : '';
         trendHtml = '<div class="bgn-metric-trend ' + c.delta.cls + '">' + c.delta.sym + ' ' + c.delta.label + pctText + '</div>';
       }
       return '<div class="bgn-metric-card ' + c.tone + '">'
-        + '<div class="bgn-metric-icon">' + c.emoji + '</div>'
-        + '<div class="bgn-metric-body">'
-          + '<div class="bgn-metric-label">' + c.label + '</div>'
-          + '<div class="bgn-metric-value">' + c.value + '</div>'
-          + trendHtml
-        + '</div>'
+        + '<div class="bgn-metric-top"><div class="bgn-metric-icon">' + c.emoji + '</div><div class="bgn-metric-label">' + c.label + '</div></div>'
+        + '<div class="bgn-metric-value">' + c.value + '</div>'
+        + trendHtml
+        + '<div class="bgn-metric-hint">' + c.hint + '</div>'
       + '</div>';
     }).join('');
   }
 
   function renderMiniCards(dash) {
     var mini = document.getElementById('bgn-mini-cards');
+    if (!mini) return;
     var ctr = getKpi(dash, 'ctr');
-    var cc = dash.workspace && dash.workspace.campaignCounts;
-    var activeCampaigns = cc
-      ? cc.deliveringInWindow
-      : ((dash.workspace && dash.workspace.activeCampaigns) || 0);
-
+    var active = activeCampaignCount(dash);
     var cards = [
-      { emoji: '📣', label: 'حملات تعمل', value: fmtSimpleCount(activeCampaigns) },
-      { emoji: '🎯', label: 'تفاعل الإعلان', value: ctr && ctr.value != null && isFinite(Number(ctr.value)) ? fmtSimplePct(ctr.value) : '—' },
+      { emoji: '📣', label: 'حملات تعمل الآن', value: fmtSimpleCount(active),
+        hint: 'حملات تُنفِق مالاً وتُسلِّم إعلاناتك حالياً.' },
+      { emoji: '🎯', label: 'نسبة النقر (CTR)', value: ctr && ctr.value != null && isFinite(Number(ctr.value)) ? fmtSimplePct(ctr.value) : '—',
+        hint: 'كم شخصاً ضغط على إعلانك من بين من شاهدوه.' },
     ];
     mini.innerHTML = cards.map(function (c) {
       return '<div class="bgn-mini-card">'
-        + '<div class="bgn-mini-emoji">' + c.emoji + '</div>'
-        + '<div>'
-          + '<div class="bgn-mini-label">' + c.label + '</div>'
-          + '<div class="bgn-mini-value">' + c.value + '</div>'
-        + '</div>'
+        + '<div class="bgn-mini-top"><div class="bgn-mini-emoji">' + c.emoji + '</div><div class="bgn-mini-label">' + c.label + '</div></div>'
+        + '<div class="bgn-mini-value">' + c.value + '</div>'
+        + '<div class="bgn-mini-hint">' + c.hint + '</div>'
       + '</div>';
     }).join('');
   }
 
   function renderProgressCard(dash) {
-    // Two stacked bars:
-    //   1) Health score (0-100) — colored by band.
-    //   2) Active campaigns ratio (active / max(3, active)) — never below 0.
     var el = document.getElementById('bgn-progress-card');
+    if (!el) return;
     var score = (dash.health && typeof dash.health.score === 'number') ? dash.health.score : 0;
     var band  = (dash.health && dash.health.band) || 'none';
     var scoreCls = band === 'poor' ? 'danger' : band === 'attention' ? 'warning' : (band === 'none' ? 'blue' : '');
-
-    var cc = dash.workspace && dash.workspace.campaignCounts;
-    var active = cc ? cc.deliveringInWindow : ((dash.workspace && dash.workspace.activeCampaigns) || 0);
-    // Target: 3 active campaigns is a "healthy" beginner baseline. The bar
-    // visualizes progress toward that informal goal, capped at 100%.
+    var active = activeCampaignCount(dash);
     var target = 3;
-    var pct = Math.min(100, Math.round((active / target) * 100));
+    var campPct = Math.min(100, Math.round((active / target) * 100));
+    var pulse = dash.brain && dash.brain.livePulse;
+    var todayHtml = '';
 
-    el.innerHTML =
-      '<div class="bgn-bar-row">'
-        + '<span class="bgn-bar-label">🩺 صحة حسابك</span>'
-        + '<span class="bgn-bar-value">' + Math.round(score) + ' من ١٠٠</span>'
+    if (pulse && pulse.intraDaySpendPct != null && isFinite(Number(pulse.intraDaySpendPct))) {
+      var dayPct = Math.max(0, Math.min(100, Math.round(Number(pulse.intraDaySpendPct))));
+      todayHtml =
+        '<div class="bgn-bar-block">'
+          + '<div class="bgn-bar-row"><span class="bgn-bar-label">⏱️ ميزانية اليوم</span>'
+          + '<span class="bgn-bar-value">' + fmtSimplePct(dayPct) + ' مستخدمة</span></div>'
+          + '<div class="bgn-bar-track"><div class="bgn-bar-fill gold" style="width:' + dayPct + '%;"></div></div>'
+          + '<div class="bgn-bar-hint">نسبة ما أُنفق اليوم من الميزانية اليومية لحملاتك.</div>'
+        + '</div>';
+    }
+
+    el.innerHTML = todayHtml
+      + '<div class="bgn-bar-block">'
+        + '<div class="bgn-bar-row"><span class="bgn-bar-label">🩺 صحة الحساب</span>'
+        + '<span class="bgn-bar-value">' + Math.round(score) + ' من ١٠٠</span></div>'
+        + '<div class="bgn-bar-track"><div class="bgn-bar-fill ' + scoreCls + '" style="width:' + Math.max(0, Math.min(100, Math.round(score))) + '%;"></div></div>'
+        + '<div class="bgn-bar-hint">' + healthBandHint(band, score) + '</div>'
       + '</div>'
-      + '<div class="bgn-bar-track"><div class="bgn-bar-fill ' + scoreCls + '" style="width:' + Math.max(0, Math.min(100, Math.round(score))) + '%;"></div></div>'
-      + '<div class="bgn-bar-hint">كلما زاد الرقم، كان أداء حسابك أفضل.</div>'
-      + '<div style="height:14px;"></div>'
-      + '<div class="bgn-bar-row">'
-        + '<span class="bgn-bar-label">📣 الحملات النشطة</span>'
-        + '<span class="bgn-bar-value">' + fmtSimpleCount(active) + ' / ' + fmtSimpleCount(target) + '</span>'
-      + '</div>'
-      + '<div class="bgn-bar-track"><div class="bgn-bar-fill blue" style="width:' + pct + '%;"></div></div>'
-      + '<div class="bgn-bar-hint">يُنصح بتشغيل ٣ حملات على الأقل في نفس الوقت لرؤية نتائج أفضل.</div>';
+      + '<div class="bgn-bar-block">'
+        + '<div class="bgn-bar-row"><span class="bgn-bar-label">📣 الحملات النشطة</span>'
+        + '<span class="bgn-bar-value">' + fmtSimpleCount(active) + ' / ' + fmtSimpleCount(target) + '</span></div>'
+        + '<div class="bgn-bar-track"><div class="bgn-bar-fill blue" style="width:' + campPct + '%;"></div></div>'
+        + '<div class="bgn-bar-hint">يُنصح بتشغيل ٣ حملات على الأقل لنتائج أفضل.</div>'
+      + '</div>';
   }
 
-  function renderAction(dash) {
-    var sec = document.getElementById('bgn-action-section');
-    var text = document.getElementById('bgn-action-text');
-    var pa = dash.priorityAction;
-    if (!pa) { sec.style.display = 'none'; return; }
-    var t = (typeof pa === 'string') ? pa : (pa.text || pa.actionCode || '');
-    if (!t) { sec.style.display = 'none'; return; }
-    text.textContent = t;
+  function renderTopIssue(dash) {
+    var sec = document.getElementById('bgn-issue-section');
+    var card = document.getElementById('bgn-issue-card');
+    if (!sec || !card) return;
+    var issue = pickTopIssue(dash);
+    if (!issue) { sec.style.display = 'none'; return; }
+    var isWarn = issue.severity === 'MEDIUM' || issue.severity === 'LOW';
+    card.className = 'bgn-issue-card' + (isWarn ? ' warn' : '');
+    var body = (issue.recommendations && issue.recommendations[0]) || issue.title || '';
+    card.innerHTML = '<div class="bgn-issue-icon">' + (isWarn ? '💡' : '⚠️') + '</div>'
+      + '<div><div class="bgn-issue-title">' + (issue.title || 'ملاحظة') + '</div>'
+      + '<div class="bgn-issue-body">' + body + '</div></div>';
     sec.style.display = 'block';
   }
 
-  function renderStatus(dash) {
-    var pill = document.getElementById('bgn-status-pill');
-    var txt  = document.getElementById('bgn-status-text');
-    var p = healthBandPill((dash.health && dash.health.band) || 'none');
-    pill.className = 'bgn-status-pill ' + p.cls;
-    txt.textContent = p.label;
-  }
+  function renderNextStep(dash) {
+    var card = document.getElementById('bgn-action-card');
+    if (!card) return;
+    var pa = dash.priorityAction;
+    var steady = dash.steadyState;
+    var title = 'ماذا تفعل الآن؟';
+    var text = '';
+    var cta = guidanceCta(dash, 'default');
 
-  function renderGreeting(dash) {
-    var titleEl = document.getElementById('bgn-greeting-title');
-    var subEl   = document.getElementById('bgn-greeting-sub');
-    var wsName = (dash.workspace && dash.workspace.name) || 'مساحة العمل';
-    titleEl.textContent = 'أهلاً بك في ' + wsName + ' 👋';
-    var msgs  = getKpi(dash, 'messages');
-    var count = msgs ? Math.round(Number(msgs.value || 0)) : 0;
-    if (count > 0) {
-      subEl.textContent = 'وصلتك ' + fmtSimpleCount(count) + ' رسالة جديدة خلال آخر ٣٠ يوماً.';
+    if (pa) {
+      text = (typeof pa === 'string') ? pa : (pa.text || pa.actionCode || '');
+      cta = guidanceCta(dash, 'action');
+    } else if (steady && (steady.mainMoveNarrative || steady.backgroundSummary)) {
+      title = steady.mainMoveTitle || 'الوضع الحالي';
+      text = steady.mainMoveNarrative || steady.backgroundSummary || '';
+      cta = { href: '/ai', label: 'اسأل المساعد الذكي' };
     } else {
-      subEl.textContent = 'ها هي نظرة سريعة على حملاتك.';
+      var issue = pickTopIssue(dash);
+      if (issue && issue.recommendations && issue.recommendations[0]) {
+        text = issue.recommendations[0];
+        cta = guidanceCta(dash, 'issue');
+      } else {
+        text = 'كل شيء مستقر نسبياً. تابع الأرقام أعلاه أو اسأل المساعد الذكي عن أي شيء غير واضح.';
+        cta = { href: '/ai', label: 'اسأل المساعد الذكي' };
+      }
     }
-  }
 
-  var BGN_REFRESH_MS = 90000;
-  var bgnRefreshTimer = null;
-
-  function bgnFormatLastUpdated(isoOrDate) {
-    if (!isoOrDate) return '';
-    try {
-      return new Date(isoOrDate).toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
-    } catch (e) { return ''; }
+    card.innerHTML = '<div class="bgn-action-head">'
+      + '<div class="bgn-action-emoji">💡</div>'
+      + '<div style="flex:1;"><div class="bgn-action-title">' + title + '</div>'
+      + '<div class="bgn-action-text">' + text + '</div></div>'
+      + '</div>'
+      + '<a href="' + cta.href + '" class="bgn-action-cta">' + cta.label + ' ←</a>';
   }
 
   function updateBgnLastUpdated(dash) {
     var el = document.getElementById('bgn-last-updated');
     if (!el) return;
     var synced = dash.workspace && dash.workspace.lastSyncedAt;
-    el.textContent = synced
-      ? ('آخر مزامنة: ' + bgnFormatLastUpdated(synced))
-      : ('تم التحديث: ' + bgnFormatLastUpdated(new Date()));
+    try {
+      el.textContent = synced
+        ? ('آخر مزامنة مع فيسبوك: ' + new Date(synced).toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' }))
+        : ('تم التحديث: ' + new Date().toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' }));
+    } catch (e) { el.textContent = ''; }
   }
 
   function renderBeginnerDashboard(dash) {
     var currency = dash.workspace.currency || 'USD';
-    var factor   = currency === 'IQD' ? 1
+    var factor = currency === 'IQD' ? 1
       : (dash.workspace.currencyMinorFactor != null && dash.workspace.currencyMinorFactor > 0
-        ? dash.workspace.currencyMinorFactor
-        : 100);
-
+        ? dash.workspace.currencyMinorFactor : 100);
     renderGreeting(dash);
     renderStatus(dash);
+    renderSummary(dash);
     renderMetricCards(dash, currency, factor);
     renderMiniCards(dash);
     renderProgressCard(dash);
-    renderAction(dash);
+    renderTopIssue(dash);
+    renderNextStep(dash);
     updateBgnLastUpdated(dash);
   }
+
+  var BGN_REFRESH_MS = 90000;
+  var bgnRefreshTimer = null;
 
   function startBgnAutoRefresh(wsId) {
     async function refresh() {
@@ -473,20 +586,15 @@ export function beginnerDashboardPage(): string {
         var dash = await apiFetch('/api/dashboard/' + wsId);
         if (!dash || dash.empty || !dash.workspace) return;
         renderBeginnerDashboard(dash);
-      } catch (e) { /* silent background refresh */ }
+      } catch (e) { /* silent */ }
     }
     function armTimer() {
       if (bgnRefreshTimer) clearInterval(bgnRefreshTimer);
       bgnRefreshTimer = setInterval(refresh, BGN_REFRESH_MS);
     }
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) {
-        refresh();
-        armTimer();
-      } else if (bgnRefreshTimer) {
-        clearInterval(bgnRefreshTimer);
-        bgnRefreshTimer = null;
-      }
+      if (!document.hidden) { refresh(); armTimer(); }
+      else if (bgnRefreshTimer) { clearInterval(bgnRefreshTimer); bgnRefreshTimer = null; }
     });
     armTimer();
   }
@@ -496,15 +604,13 @@ export function beginnerDashboardPage(): string {
     if (!wsId) { window.location.href = '/workspace'; return; }
     try {
       var dash = await apiFetch('/api/dashboard/' + wsId);
-      if (!dash) return; // 401 already handled by apiFetch (logout redirect)
+      if (!dash) return;
       document.getElementById('bgn-loading').style.display = 'none';
-
       if (dash.empty || !dash.workspace) {
         document.getElementById('bgn-empty').style.display = 'block';
         return;
       }
       document.getElementById('bgn-main').style.display = 'block';
-
       renderBeginnerDashboard(dash);
       startBgnAutoRefresh(wsId);
     } catch (err) {
