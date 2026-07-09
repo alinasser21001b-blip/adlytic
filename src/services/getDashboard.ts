@@ -130,9 +130,14 @@ export interface DashboardDTO {
   }>;
   trendSeries: {
     dates: string[];
+    /** Messaging conversions only — kept for AI/compat; prefer `results` in UI. */
     messages: number[];
+    /** Outcome volume: messages + purchases + leads (Meta-style results). */
+    results: number[];
     spend: number[];
     ctr: number[];
+    /** Daily frequency when present; null when Meta did not return it. */
+    frequency: Array<number | null>;
   };
   issues: Array<{
     code: IssueCode;
@@ -258,7 +263,7 @@ export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
   empty:          true,
   health:         { score: 0, band: "none" },
   kpis:           [],
-  trendSeries:    { dates: [], messages: [], spend: [], ctr: [] },
+  trendSeries:    { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [] },
   issues:         [],
   diagnoses:      [],
   attribution:    null,
@@ -562,12 +567,21 @@ export async function getDashboard(
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
 
-  // 6. Trend series for the chart.
+  // 6. Trend series for charts — outcomes first (results), not vanity volume.
+  // Frequency stays nullable so the UI can gap missing days instead of inventing 0.
   const trendSeries = {
     dates: daily.map((d: any) => d.date.toISOString().slice(0, 10)),
     messages: daily.map((d: any) => Number(d.messages)),
+    results: daily.map((d: any) =>
+      Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0),
+    ),
     spend: daily.map((d: any) => Number(d.spend)),
     ctr: daily.map((d: any) => d.ctr ?? 0),
+    frequency: daily.map((d: any) =>
+      d.frequency == null || !Number.isFinite(Number(d.frequency))
+        ? null
+        : Number(d.frequency),
+    ),
   };
 
   // 7. Issues — join detected_issues → knowledge_rules, localized AND

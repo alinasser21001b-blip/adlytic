@@ -2996,7 +2996,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         console.error('[adlytic:ai-chat] V5 context error, falling back to V1:', err);
       }
       if (!context) {
-        context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+        context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
       }
       if (primaryAccount) {
         const campaignCtx = await buildAiCampaignContext(

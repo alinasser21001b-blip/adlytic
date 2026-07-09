@@ -123,46 +123,51 @@ export function campaignsPage(): string {
         </span>
         <span class="camp-trends-copy">
           <span class="camp-trends-title">اتجاهات الحساب</span>
-          <span class="camp-trends-hint">إنفاق · تفاعل · وصول · ظهور</span>
+          <span class="camp-trends-hint">إنفاق · نتائج · تفاعل · تكرار</span>
         </span>
       </span>
       <span class="camp-trends-action">عرض الرسوم</span>
     </summary>
+    <p class="camp-trends-note">بيانات الحساب بالكامل — ليست لحملة واحدة. الأيام بلا مزامنة تظهر كفجوة وليست صفراً.</p>
     <div class="camp-chart-grid">
       <div class="chart-card" id="spend-chart-card">
         <div class="chart-card-header">
-          <div class="chart-card-title">الإنفاق عبر الزمن</div>
+          <div class="chart-card-title">الإنفاق اليومي</div>
+          <div class="chart-card-sub">كم أنفقت كل يوم</div>
         </div>
         <div class="chart-canvas-wrap">
           <canvas id="chart-spend"></canvas>
           <div class="chart-empty" id="chart-spend-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div>
         </div>
       </div>
+      <div class="chart-card" id="results-chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">النتائج اليومية</div>
+          <div class="chart-card-sub">رسائل + مشتريات + عملاء محتملون</div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-results"></canvas>
+          <div class="chart-empty" id="chart-results-empty" style="display:none;">لا توجد نتائج في هذه الفترة</div>
+        </div>
+      </div>
       <div class="chart-card" id="ctr-chart-card">
         <div class="chart-card-header">
-          <div class="chart-card-title">تفاعل الإعلان</div>
+          <div class="chart-card-title">نسبة النقر (CTR)</div>
+          <div class="chart-card-sub">جودة التفاعل مع الإعلان</div>
         </div>
         <div class="chart-canvas-wrap">
           <canvas id="chart-ctr"></canvas>
           <div class="chart-empty" id="chart-ctr-empty" style="display:none;">لا توجد بيانات تفاعل في هذه الفترة</div>
         </div>
       </div>
-      <div class="chart-card" id="reach-chart-card">
+      <div class="chart-card" id="freq-chart-card">
         <div class="chart-card-header">
-          <div class="chart-card-title">الوصول</div>
+          <div class="chart-card-title">التكرار اليومي</div>
+          <div class="chart-card-sub">متوسط مرات الظهور لنفس الشخص · مؤشر إرهاق</div>
         </div>
         <div class="chart-canvas-wrap">
-          <canvas id="chart-reach"></canvas>
-          <div class="chart-empty" id="chart-reach-empty" style="display:none;">لا توجد بيانات وصول في هذه الفترة</div>
-        </div>
-      </div>
-      <div class="chart-card" id="impressions-chart-card">
-        <div class="chart-card-header">
-          <div class="chart-card-title">مرات الظهور</div>
-        </div>
-        <div class="chart-canvas-wrap">
-          <canvas id="chart-impressions"></canvas>
-          <div class="chart-empty" id="chart-impressions-empty" style="display:none;">لا توجد بيانات مرات ظهور في هذه الفترة</div>
+          <canvas id="chart-frequency"></canvas>
+          <div class="chart-empty" id="chart-frequency-empty" style="display:none;">لا توجد بيانات تكرار في هذه الفترة</div>
         </div>
       </div>
     </div>
@@ -326,6 +331,13 @@ export function campaignsPage(): string {
       transform: rotate(225deg); margin-top: 3px;
     }
     .camp-trends .camp-chart-grid { padding: 0 16px 16px; margin-bottom: 0; }
+    .camp-trends-note {
+      margin: 0 16px 12px; padding: 0;
+      font-size: 11.5px; color: var(--text-3); line-height: 1.45; direction: rtl;
+    }
+    .chart-card-sub {
+      font-size: 11px; color: var(--text-3); margin-top: 2px; font-weight: 500; line-height: 1.35;
+    }
     @media (max-width: 640px) {
       .camp-trends-hint { display: none; }
       .camp-trends-action { padding: 7px 10px; font-size: 12px; }
@@ -864,8 +876,8 @@ export function campaignsPage(): string {
     days: 30,
     spendChart: null,
     ctrChart: null,
-    reachChart: null,
-    impressionsChart: null,
+    resultsChart: null,
+    frequencyChart: null,
     workspaceId: null,
     // Currency context — hydrated from /api/workspaces/:id once it returns.
     // Defaults are safe for the common case (USD-style 2-decimal currencies).
@@ -932,7 +944,7 @@ export function campaignsPage(): string {
     window.addEventListener('resize', function () {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
-        [state.spendChart, state.ctrChart, state.reachChart, state.impressionsChart].forEach(function (c) {
+        [state.spendChart, state.ctrChart, state.resultsChart, state.frequencyChart].forEach(function (c) {
           if (c) try { c.resize(); } catch (e) {}
         });
       }, 150);
@@ -945,6 +957,11 @@ export function campaignsPage(): string {
     lockChartBox(canvasId, CHART_CARD_H);
     var ctx = canvas.getContext('2d');
     applyGradients(canvasId, datasets);
+    datasets.forEach(function (ds) {
+      if (ds.spanGaps === undefined) ds.spanGaps = false;
+      if (ds.pointRadius === undefined && !ds.isIssueMarkers) ds.pointRadius = 0;
+      if (ds.pointHoverRadius === undefined && !ds.isIssueMarkers) ds.pointHoverRadius = 4;
+    });
     var chart = new Chart(ctx, {
       type: 'line',
       data: { labels: labels, datasets: datasets },
@@ -956,11 +973,11 @@ export function campaignsPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#221D19',
-            borderColor: '#3D352D',
+            backgroundColor: 'rgba(12,12,14,0.96)',
+            borderColor: 'rgba(201,168,76,0.25)',
             borderWidth: 1,
-            titleColor: '#F3EFE7',
-            bodyColor: '#B8AC9C',
+            titleColor: '#e8e6e0',
+            bodyColor: '#C9A84C',
             padding: 12,
             cornerRadius: 8,
             titleFont: { size: 13, weight: '600' },
@@ -970,9 +987,11 @@ export function campaignsPage(): string {
             callbacks: {
               label: function (item) {
                 var v = item.parsed.y;
+                if (v == null || Number.isNaN(v)) return 'لا بيانات لهذا اليوم';
                 var f = item.dataset && item.dataset._fmt;
                 var txt = f === 'currency' ? fmtCurrencyMinor(v * state.minorFactor)
                   : f === 'pct' ? (Number(v).toFixed(2) + '%')
+                  : f === 'freq' ? Number(v).toFixed(2)
                   : Number(v).toLocaleString('en-US');
                 return (item.dataset.label || '') + ': ' + txt;
               },
@@ -981,14 +1000,19 @@ export function campaignsPage(): string {
         },
         scales: {
           x: {
-            grid: { color: 'rgba(50,43,37,0.5)', lineWidth: 0.5 },
-            ticks: { color: '#746A5C', maxTicksLimit: 7, font: { size: 11 } }
+            grid: { display: false },
+            border: { display: false },
+            ticks: { color: 'rgba(148,163,184,0.55)', maxTicksLimit: 7, font: { size: 10 }, maxRotation: 0 }
           },
           y: {
-            grid: { color: 'rgba(50,43,37,0.5)', lineWidth: 0.5 },
+            beginAtZero: true,
+            grace: '8%',
+            grid: { color: 'rgba(255,255,255,0.04)', lineWidth: 1 },
+            border: { display: false },
             ticks: {
-              color: '#746A5C',
-              font: { size: 11 },
+              color: 'rgba(148,163,184,0.55)',
+              font: { size: 10 },
+              maxTicksLimit: 4,
               callback: function(v) {
                 if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
                 if (v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'K';
@@ -998,8 +1022,8 @@ export function campaignsPage(): string {
           }
         },
         elements: {
-          point: { radius: 1.5, hoverRadius: 6, hoverBorderWidth: 2, hitRadius: 8 },
-          line: { borderWidth: 2.5 }
+          point: { radius: 0, hoverRadius: 4, hoverBorderWidth: 2, hitRadius: 8 },
+          line: { borderWidth: 2 }
         },
         onClick: function (evt, elements, chart) {
           if (!elements || !elements.length) return;
@@ -1046,24 +1070,64 @@ export function campaignsPage(): string {
     if (canvas) canvas.style.display = show ? 'none' : '';
   }
 
+  /** Calendar continuum with nulls for unsynced days — never invent continuity. */
+  function toChartCalendar(insights, days) {
+    var byDate = {};
+    (insights || []).forEach(function (d) {
+      byDate[new Date(d.date).toISOString().slice(0, 10)] = d;
+    });
+    var end = new Date();
+    end.setHours(12, 0, 0, 0);
+    var start = new Date(end);
+    start.setDate(start.getDate() - (days - 1));
+    var labels = [];
+    var isoDates = [];
+    var rows = [];
+    for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      var key = d.toISOString().slice(0, 10);
+      isoDates.push(key);
+      labels.push(fmtShortDate(key));
+      rows.push(byDate[key] || null);
+    }
+    return { labels: labels, isoDates: isoDates, rows: rows };
+  }
+
+  function dayResults(d) {
+    if (!d) return null;
+    return (Number(d.messages) || 0) + (Number(d.purchases) || 0) + (Number(d.leads) || 0);
+  }
+
   function updateCharts(insights) {
     try {
-    var filtered = recentAsc(insights, state.days);
+    var cal = toChartCalendar(insights, state.days);
+    var labels = cal.labels;
+    var isoDates = cal.isoDates;
+    var rows = cal.rows;
 
-    if (!filtered.length) {
+    if (!rows.some(function (r) { return r; })) {
       showChartEmpty('chart-spend', true);
+      showChartEmpty('chart-results', true);
       showChartEmpty('chart-ctr', true);
-      showChartEmpty('chart-reach', true);
-      showChartEmpty('chart-impressions', true);
+      showChartEmpty('chart-frequency', true);
       return;
     }
 
-    var labels = filtered.map(function(d) { return fmtShortDate(d.date); });
-    var isoDates = filtered.map(function(d) { return new Date(d.date).toISOString().slice(0, 10); });
-    var spendData = filtered.map(function(d) { return (Number(d.spend) || 0) / state.minorFactor; });
-    var ctrData = filtered.map(function(d) { return Number(d.ctr) || 0; });
+    var spendData = rows.map(function (d) {
+      return d ? (Number(d.spend) || 0) / state.minorFactor : null;
+    });
+    var resultsData = rows.map(function (d) { return dayResults(d); });
+    var ctrData = rows.map(function (d) {
+      if (!d) return null;
+      var v = Number(d.ctr);
+      return Number.isFinite(v) ? v : null;
+    });
+    var freqData = rows.map(function (d) {
+      if (!d || d.frequency == null) return null;
+      var v = Number(d.frequency);
+      return Number.isFinite(v) ? v : null;
+    });
 
-    var hasSpendData = spendData.some(function(v){ return v > 0; });
+    var hasSpendData = spendData.some(function (v) { return v != null && v > 0; });
     showChartEmpty('chart-spend', !hasSpendData);
 
     if (hasSpendData) {
@@ -1073,24 +1137,30 @@ export function campaignsPage(): string {
         borderColor: '#D9A759',
         _rgb: [217, 167, 89],
         _fmt: 'currency',
-        fill: true, tension: 0.4,
+        fill: true, tension: 0.35,
+        spanGaps: false,
         pointBackgroundColor: '#D9A759',
       }];
-      if (spendData.length >= 7) {
-        var ma = spendData.map(function(_, i) {
-          var from = Math.max(0, i - 6);
-          var slice = spendData.slice(from, i + 1);
-          return slice.reduce(function(a, b) { return a + b; }, 0) / slice.length;
+      var numericSpend = spendData.filter(function (v) { return v != null; });
+      if (numericSpend.length >= 7) {
+        var ma = spendData.map(function (_, i) {
+          var window = [];
+          for (var j = Math.max(0, i - 6); j <= i; j++) {
+            if (spendData[j] != null) window.push(spendData[j]);
+          }
+          if (!window.length) return null;
+          return window.reduce(function (a, b) { return a + b; }, 0) / window.length;
         });
         spendDatasets.push({
-          label: 'المتوسط (7 أيام)',
+          label: 'المتوسط (أيام متاحة)',
           data: ma,
           borderColor: 'rgba(230,189,122,0.55)',
           borderDash: [6, 5],
           borderWidth: 1.5,
           pointRadius: 0,
           fill: false,
-          tension: 0.4,
+          tension: 0.35,
+          spanGaps: false,
           _fmt: 'currency',
         });
       }
@@ -1106,66 +1176,72 @@ export function campaignsPage(): string {
       }
     }
 
-    var hasCtrData = ctrData.some(function(v){ return v > 0; });
+    var hasResultsData = resultsData.some(function (v) { return v != null && v > 0; });
+    showChartEmpty('chart-results', !hasResultsData);
+    if (hasResultsData) {
+      var resultsDatasets = [{
+        label: 'النتائج',
+        data: resultsData,
+        borderColor: '#2DD4BF',
+        _rgb: [45, 212, 191],
+        _fmt: 'int',
+        fill: true, tension: 0.35,
+        spanGaps: false,
+        pointBackgroundColor: '#2DD4BF',
+      }];
+      if (state.resultsChart) {
+        state.resultsChart.data.labels = labels;
+        state.resultsChart.data.datasets = applyGradients('chart-results', resultsDatasets);
+        state.resultsChart.update();
+      } else {
+        destroyChartInstance(state.resultsChart);
+        state.resultsChart = makeLineChart('chart-results', labels, resultsDatasets);
+      }
+    }
+
+    var hasCtrData = ctrData.some(function (v) { return v != null && v > 0; });
     showChartEmpty('chart-ctr', !hasCtrData);
     if (hasCtrData) {
+      var ctrDatasets = [{
+        label: 'نسبة النقر (%)',
+        data: ctrData,
+        borderColor: '#34A871',
+        _rgb: [52, 168, 113],
+        _fmt: 'pct',
+        fill: true, tension: 0.35,
+        spanGaps: false,
+        pointBackgroundColor: '#34A871',
+      }];
       if (state.ctrChart) {
         state.ctrChart.data.labels = labels;
-        state.ctrChart.data.datasets[0].data = ctrData;
+        state.ctrChart.data.datasets = applyGradients('chart-ctr', ctrDatasets);
         state.ctrChart.update('none');
       } else {
         destroyChartInstance(state.ctrChart);
-        state.ctrChart = makeLineChart('chart-ctr', labels, [{
-          label: 'تفاعل الإعلان (%)',
-          data: ctrData,
-          borderColor: '#34A871',
-          _rgb: [52, 168, 113],
-          _fmt: 'pct',
-          fill: true, tension: 0.4,
-          pointBackgroundColor: '#34A871',
-        }]);
+        state.ctrChart = makeLineChart('chart-ctr', labels, ctrDatasets);
       }
     }
 
-    var reachData = filtered.map(function(d) { return Number(d.reach) || 0; });
-    var hasReachData = reachData.some(function(v){ return v > 0; });
-    showChartEmpty('chart-reach', !hasReachData);
-    if (hasReachData) {
-      if (state.reachChart) {
-        state.reachChart.data.labels = labels;
-        state.reachChart.data.datasets[0].data = reachData;
-        state.reachChart.update();
+    var hasFreqData = freqData.some(function (v) { return v != null && v > 0; });
+    showChartEmpty('chart-frequency', !hasFreqData);
+    if (hasFreqData) {
+      var freqDatasets = [{
+        label: 'التكرار',
+        data: freqData,
+        borderColor: '#FB7185',
+        _rgb: [251, 113, 133],
+        _fmt: 'freq',
+        fill: true, tension: 0.35,
+        spanGaps: false,
+        pointBackgroundColor: '#FB7185',
+      }];
+      if (state.frequencyChart) {
+        state.frequencyChart.data.labels = labels;
+        state.frequencyChart.data.datasets = applyGradients('chart-frequency', freqDatasets);
+        state.frequencyChart.update();
       } else {
-        state.reachChart = makeLineChart('chart-reach', labels, [{
-          label: 'الوصول',
-          data: reachData,
-          borderColor: '#5B8DEF',
-          _rgb: [91, 141, 239],
-          _fmt: 'int',
-          fill: true, tension: 0.4,
-          pointBackgroundColor: '#5B8DEF',
-        }]);
-      }
-    }
-
-    var impressionsData = filtered.map(function(d) { return Number(d.impressions) || 0; });
-    var hasImpressionsData = impressionsData.some(function(v){ return v > 0; });
-    showChartEmpty('chart-impressions', !hasImpressionsData);
-    if (hasImpressionsData) {
-      if (state.impressionsChart) {
-        state.impressionsChart.data.labels = labels;
-        state.impressionsChart.data.datasets[0].data = impressionsData;
-        state.impressionsChart.update();
-      } else {
-        state.impressionsChart = makeLineChart('chart-impressions', labels, [{
-          label: 'مرات الظهور',
-          data: impressionsData,
-          borderColor: '#C77A1F',
-          _rgb: [199, 122, 31],
-          _fmt: 'int',
-          fill: true, tension: 0.4,
-          pointBackgroundColor: '#C77A1F',
-        }]);
+        destroyChartInstance(state.frequencyChart);
+        state.frequencyChart = makeLineChart('chart-frequency', labels, freqDatasets);
       }
     }
     } catch (chartErr) {
@@ -2504,7 +2580,7 @@ export function campaignsPage(): string {
         if (!trendsEl.open) return;
         requestAnimationFrame(function() {
           updateCharts(state.insights);
-          [state.spendChart, state.ctrChart, state.reachChart, state.impressionsChart].forEach(function(c) {
+          [state.spendChart, state.ctrChart, state.resultsChart, state.frequencyChart].forEach(function(c) {
             if (c) try { c.resize(); } catch (e) {}
           });
         });

@@ -361,7 +361,7 @@ input, select, textarea { font-family: inherit; }
   margin-top: 2px;
 }
 
-/* ── Campaigns chart grid (2×2) ─────────────────────────────────── */
+/* ── Campaigns chart grid (2×2 outcomes-first) ──────────────────── */
 .camp-chart-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -383,8 +383,20 @@ input, select, textarea { font-family: inherit; }
   padding: 20px;
   min-width: 0; /* let the grid track shrink below the canvas's intrinsic width */
 }
-.chart-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.chart-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: 14px;
+}
 .chart-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.chart-card-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 500;
+  line-height: 1.35;
+}
 .chart-canvas-wrap {
   position: relative;
   height: 220px;
