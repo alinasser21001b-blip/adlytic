@@ -5,6 +5,8 @@
 //  web pages. Every page imports layout() to get the full shell.
 // ════════════════════════════════════════════════════════════════════════
 
+import { logoSvg } from './pages/authShared';
+
 export const SHARED_CSS = `
 /* ── Self-hosted fonts ───────────────────────────────────────────────
    Tajawal: body/data workhorse — clean at small sizes, dense tables.
@@ -66,7 +68,7 @@ export const SHARED_CSS = `
   --font-body: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'El Messiri', 'Tajawal', -apple-system, sans-serif;
 
-  --sidebar-w: 220px;
+  --sidebar-w: 236px;
   --topbar-h: 56px;
   --radius: 8px;
   --radius-sm: 5px;
@@ -101,7 +103,9 @@ input, select, textarea { font-family: inherit; }
 .sidebar {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, rgba(217,167,89,0.04) 0%, transparent 38%),
+    var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -109,68 +113,170 @@ input, select, textarea { font-family: inherit; }
   top: 0; left: 0; bottom: 0;
   z-index: 100;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .sidebar-logo {
-  padding: 18px 16px 14px;
+  padding: 16px 14px 14px;
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 11px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--transition);
+  position: relative;
 }
+.sidebar-logo::after {
+  content: "";
+  position: absolute; inset: auto 14px 0 14px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(217,167,89,0.35), transparent);
+  opacity: 0.6;
+}
+.sidebar-logo:hover { background: rgba(255,255,255,0.02); }
 .sidebar-logo-mark {
-  width: 30px; height: 30px;
+  width: 38px; height: 38px;
   flex-shrink: 0;
+  filter: drop-shadow(0 4px 14px rgba(217,167,89,0.22));
+  transition: transform var(--transition-slow);
 }
-.sidebar-logo-text { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -0.3px; }
+.sidebar-logo:hover .sidebar-logo-mark { transform: scale(1.04); }
+.sidebar-logo-copy {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0;
+}
+.sidebar-logo-text {
+  font-family: var(--font-display); font-weight: 700; font-size: 17px;
+  color: var(--text); letter-spacing: -0.4px; line-height: 1.1;
+}
+.sidebar-logo-tagline {
+  font-size: 10.5px; font-weight: 600; color: var(--text-3); letter-spacing: 0.01em;
+}
 .sidebar-logo-badge {
-  font-size: 10px; font-weight: 600; color: var(--accent-2);
-  background: var(--accent-dim); border-radius: 4px; padding: 1px 5px;
-  margin-left: auto;
+  font-size: 9.5px; font-weight: 700; color: var(--accent-2);
+  background: rgba(217,167,89,0.12);
+  border: 1px solid rgba(217,167,89,0.28);
+  border-radius: 999px; padding: 3px 8px;
+  margin-inline-start: auto;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-.sidebar-nav { flex: 1; padding: 10px 8px; }
+.sidebar-nav { flex: 1; padding: 12px 10px 8px; }
 .nav-section-label {
-  font-size: 10px; font-weight: 600; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: 0.08em;
-  padding: 8px 8px 4px;
+  font-size: 10px; font-weight: 700; color: var(--text-3);
+  letter-spacing: 0.06em;
+  padding: 4px 10px 10px;
+}
+.nav-list {
+  position: relative;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.nav-indicator {
+  position: absolute;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--grad-accent);
+  box-shadow: 0 0 12px rgba(217,167,89,0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 280ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    height 280ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    opacity 180ms ease;
+  z-index: 0;
 }
 .nav-item {
-  display: flex; align-items: center; gap: 9px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
+  position: relative;
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 10px;
+  border-radius: 11px;
   color: var(--text-2);
-  font-size: 13.5px; font-weight: 500;
-  transition: all var(--transition);
-  margin-bottom: 1px;
+  font-size: 13.5px; font-weight: 600;
+  transition:
+    color 200ms ease,
+    background 200ms ease,
+    transform 200ms ease,
+    box-shadow 200ms ease;
+  margin-bottom: 0;
   text-decoration: none;
+  border: 1px solid transparent;
+  z-index: 1;
 }
-.nav-item:hover { background: var(--surface-hover); color: var(--text); }
+.nav-item::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(217,167,89,0.1) 0%, rgba(217,167,89,0.02) 100%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  transform: translateX(2px);
+}
+[dir="rtl"] .nav-item:hover { transform: translateX(-2px); }
 .nav-item.active {
-  background: var(--accent-dim);
   color: var(--accent-2);
+  background: rgba(217,167,89,0.1);
+  border-color: rgba(217,167,89,0.22);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 18px rgba(0,0,0,0.18);
 }
-.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.8; }
-.nav-item.active svg { opacity: 1; }
+.nav-item.active::before { opacity: 1; }
+.nav-item-icon {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+  transition: background 200ms ease, border-color 200ms ease, transform 200ms ease;
+}
+.nav-item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: 0.78; transition: opacity 200ms ease; }
+.nav-item:hover .nav-item-icon { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.08); }
+.nav-item.active .nav-item-icon {
+  background: rgba(217,167,89,0.16);
+  border-color: rgba(217,167,89,0.35);
+  transform: scale(1.03);
+}
+.nav-item.active svg { opacity: 1; color: var(--accent-2); }
+.nav-item-label { flex: 1; min-width: 0; line-height: 1.25; }
+.nav-item.nav-item--muted { color: var(--text-3); font-weight: 500; }
+.nav-item.nav-item--muted:hover { color: var(--text-2); }
 .sidebar-footer {
-  padding: 12px 8px;
+  padding: 12px 10px 14px;
   border-top: 1px solid var(--border);
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.12));
 }
 .sidebar-user {
-  display: flex; align-items: center; gap: 9px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 11px;
+  border-radius: 11px;
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background var(--transition), border-color var(--transition);
+  border: 1px solid transparent;
+  margin-bottom: 6px;
 }
-.sidebar-user:hover { background: var(--surface-hover); }
+.sidebar-user:hover {
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.06);
+}
 .avatar {
-  width: 28px; height: 28px;
+  width: 32px; height: 32px;
   background: var(--grad-accent);
-  border-radius: 50%;
+  border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #fff;
+  font-size: 11px; font-weight: 800; color: #100E0D;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(217,167,89,0.25);
 }
 .sidebar-user-info { flex: 1; min-width: 0; }
-.sidebar-user-name { font-size: 13px; font-weight: 500; color: var(--text); truncate; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-user-email { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Page enter — subtle fade when navigating between shell pages */
+@keyframes shell-page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
 
 /* ── Main area ───────────────────────────────────────────────────── */
 .main {
@@ -179,6 +285,7 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  animation: shell-page-in 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /* ── Topbar ──────────────────────────────────────────────────────── */
@@ -880,17 +987,29 @@ select.form-input { cursor: pointer; }
 }
 .mobile-nav-item {
   flex: 1;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 6px 4px;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 8px 4px 6px;
   text-decoration: none;
   color: var(--text-3);
-  font-size: 10px; font-weight: 600;
-  transition: color 0.15s;
+  font-size: 10px; font-weight: 700;
+  transition: color 0.22s ease, transform 0.18s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.mobile-nav-item svg { width: 20px; height: 20px; }
-.mobile-nav-item.active { color: var(--accent); }
-.mobile-nav-item:active { transform: scale(0.92); }
+.mobile-nav-item::before {
+  content: "";
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 0; height: 3px; border-radius: 999px;
+  background: var(--grad-accent);
+  transition: width 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+.mobile-nav-item svg { width: 21px; height: 21px; transition: transform 0.2s ease; }
+.mobile-nav-item.active {
+  color: var(--accent-2);
+}
+.mobile-nav-item.active::before { width: 28px; }
+.mobile-nav-item.active svg { transform: translateY(-1px); }
+.mobile-nav-item:active { transform: scale(0.94); }
 
 /* ── Mobile touch targets + spacing ───────────────────────────────── */
 @media (max-width: 768px) {
@@ -2128,6 +2247,45 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') closeMetricInfo();
 });
 
+function initSidebarNav() {
+  var list = document.getElementById('nav-list');
+  var indicator = document.getElementById('nav-indicator');
+  if (!list || !indicator) return;
+
+  var items = list.querySelectorAll('.nav-item');
+  if (!items.length) return;
+
+  function moveTo(el) {
+    if (!el) return;
+    var listRect = list.getBoundingClientRect();
+    var elRect = el.getBoundingClientRect();
+    var top = elRect.top - listRect.top + list.scrollTop;
+    indicator.style.transform = 'translateY(' + top + 'px)';
+    indicator.style.height = elRect.height + 'px';
+    indicator.style.opacity = '1';
+  }
+
+  var active = list.querySelector('.nav-item.active');
+  if (active) moveTo(active);
+
+  items.forEach(function (item) {
+    item.addEventListener('mouseenter', function () { moveTo(item); });
+    item.addEventListener('focus', function () { moveTo(item); });
+  });
+
+  list.addEventListener('mouseleave', function () {
+    var act = list.querySelector('.nav-item.active');
+    if (act) moveTo(act);
+    else indicator.style.opacity = '0';
+  });
+
+  window.addEventListener('resize', function () {
+    var hovered = list.querySelector('.nav-item:hover');
+    var act = list.querySelector('.nav-item.active');
+    moveTo(hovered || act);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
@@ -2154,6 +2312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initAppShell();
     initTokenDecryptBanner();
     startShellLoadingFallback(5000);
+    initSidebarNav();
   }
   // PWA Service Worker registration
   if ('serviceWorker' in navigator) {
@@ -2174,20 +2333,27 @@ export function sidebar(active: string): string {
     { id: 'settings',        label: 'الإعدادات',         href: '/settings' },
   ];
   const links = nav.map(n => `
-    <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}">
-      ${ICONS[n.id] ?? ''} ${n.label}
+    <a href="${n.href}" class="nav-item${active === n.id ? ' active' : ''}" data-nav-id="${n.id}">
+      <span class="nav-item-icon" aria-hidden="true">${ICONS[n.id] ?? ''}</span>
+      <span class="nav-item-label">${n.label}</span>
     </a>`).join('');
 
   return `
 <aside class="sidebar" id="sidebar">
-  <div class="sidebar-logo">
-    <div class="sidebar-logo-mark"><svg width="30" height="30" viewBox="0 0 120 120" fill="none"><defs><linearGradient id="sl" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#D9A759"/><stop offset="100%" stop-color="#C4903E"/></linearGradient></defs><rect x="2" y="2" width="116" height="116" rx="26" fill="#100E0D" stroke="url(#sl)" stroke-width="3" opacity="0.5"/><text x="60" y="78" text-anchor="middle" font-family="serif" font-size="64" font-weight="700" fill="url(#sl)">A</text><rect x="36" y="86" width="48" height="2.5" rx="1.25" fill="url(#sl)" opacity="0.5"/></svg></div>
-    <span class="sidebar-logo-text">Adlytic</span>
+  <a href="/dashboard" class="sidebar-logo" aria-label="Adlytic — لوحة التحكم">
+    <div class="sidebar-logo-mark">${logoSvg(38, 'sb')}</div>
+    <div class="sidebar-logo-copy">
+      <span class="sidebar-logo-text">Adlytic</span>
+      <span class="sidebar-logo-tagline">ذكاء الإعلانات</span>
+    </div>
     <span class="sidebar-logo-badge">Beta</span>
-  </div>
+  </a>
   <nav class="sidebar-nav" aria-label="التنقل الرئيسي">
     <div class="nav-section-label">القائمة الرئيسية</div>
-    ${links}
+    <div class="nav-list" id="nav-list">
+      <div class="nav-indicator" id="nav-indicator" aria-hidden="true"></div>
+      ${links}
+    </div>
   </nav>
   <div class="sidebar-footer">
     <div class="sidebar-user" id="sidebar-user">
@@ -2197,8 +2363,9 @@ export function sidebar(active: string): string {
         <div class="sidebar-user-email" id="user-email"></div>
       </div>
     </div>
-    <a class="nav-item" id="logout-btn" style="margin-top:4px;cursor:pointer;">
-      ${ICONS['logout']} تسجيل الخروج
+    <a class="nav-item nav-item--muted" id="logout-btn" role="button" tabindex="0">
+      <span class="nav-item-icon" aria-hidden="true">${ICONS['logout']}</span>
+      <span class="nav-item-label">تسجيل الخروج</span>
     </a>
   </div>
 </aside>`;
