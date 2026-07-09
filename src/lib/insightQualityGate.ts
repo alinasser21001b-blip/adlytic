@@ -285,8 +285,11 @@ export function scoreInsightQuality(input: {
     reasons.push('named_campaign');
   }
 
-  // Vague bodies without a verb of action
-  if (!generic && !/(أوقف|جدّد|زِد|راجع|راقب|وسّع|خفّض|أعد)/u.test(input.body)) {
+  // Vague bodies without a verb of action (cover LLM + deterministic templates).
+  if (
+    !generic &&
+    !/(أوقف|جدّد|زِد|زد|راجع|راقب|وسّع|خفّض|أعد|تابع|نبّه|أصلح)/u.test(input.body)
+  ) {
     score -= 8;
     reasons.push('weak_action_language');
   }

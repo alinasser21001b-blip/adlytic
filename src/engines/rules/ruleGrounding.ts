@@ -7,25 +7,11 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { AccountBaseline, CampaignRawData } from '../../engine/BaselineCalculator';
-import type { CampaignDecision, DecisionAction } from '../../engine/DecisionEngine';
-import { diagnose, type Diagnosis } from './diagnose';
+import type { CampaignDecision } from '../../engine/DecisionEngine';
+import { diagnose } from './diagnose';
 import { signalsFromCampaignRaw } from './campaignSignals';
-import { detectAudienceFatigue } from './detectAudienceFatigue';
-import { detectDecliningResults } from './detectDecliningResults';
-import { detectRisingCostPerResult } from './detectRisingCostPerResult';
-import { detectHighFrequency } from './detectHighFrequency';
-import { detectLowCtr } from './detectLowCtr';
-import type { Detector } from './types';
+import { ALL_DETECTORS } from './detectors';
 import type { IssueRecord } from '../../repositories/detectedIssuesRepo';
-
-/** Same registry order as RulesEngine — kept local to avoid Prisma import. */
-const CAMPAIGN_DETECTORS: Detector[] = [
-  detectAudienceFatigue,
-  detectDecliningResults,
-  detectRisingCostPerResult,
-  detectHighFrequency,
-  detectLowCtr,
-];
 
 export interface RuleGrounding {
   issues: Array<{ code: string; severity: string }>;
@@ -46,7 +32,7 @@ export function buildRuleGrounding(
 ): RuleGrounding {
   const signals = signalsFromCampaignRaw(raw, baseline);
   const issues: IssueRecord[] = [];
-  for (const detect of CAMPAIGN_DETECTORS) {
+  for (const detect of ALL_DETECTORS) {
     const issue = detect(signals);
     if (issue) issues.push(issue);
   }
@@ -70,8 +56,12 @@ export function buildRuleGrounding(
 
 /**
  * Soft fusion: adjust a brain decision when rule diagnoses strongly agree
- * or disagree with the physics/pattern verdict. Never invents EMERGENCY_PAUSE
- * (that stays orchestrator/V2-only). Never downgrades CRITICAL pauses blindly.
+ * or disagree with the physics/pattern verdict.
+ *
+ * Guardrails:
+ * - Never invents EMERGENCY_PAUSE (orchestrator/V2 only).
+ * - Never upgrades KEEP_COLLECTING — cold-start must finish collecting.
+ * - Never silently downgrades CRITICAL pauses without a clear alternate cause.
  */
 export function applyRuleGroundingToDecision(
   decision: CampaignDecision,
@@ -81,7 +71,6 @@ export function applyRuleGroundingToDecision(
 
   const codes = new Set(grounding.diagnoses.map((d) => d.code));
   const primary = grounding.primaryCode;
-  const top = grounding.diagnoses[0];
 
   // Landing/offer problem: creative refresh is the wrong lever.
   if (
@@ -98,15 +87,13 @@ export function applyRuleGroundingToDecision(
     };
   }
 
-  // Creative fatigue / weak creative: upgrade passive holds into refresh.
+  // Creative fatigue / weak creative: upgrade passive HOLD into refresh.
+  // KEEP_COLLECTING is intentionally excluded — interrupting cold-start with
+  // a refresh recommendation invents confidence the sample does not have.
   if (
     (codes.has('CREATIVE_FATIGUE') || codes.has('WEAK_CREATIVE')) &&
-    (decision.action === 'HOLD_AND_MONITOR' || decision.action === 'KEEP_COLLECTING')
+    decision.action === 'HOLD_AND_MONITOR'
   ) {
-    // Don't interrupt true cold-start KEEP_COLLECTING with low confidence.
-    if (decision.action === 'KEEP_COLLECTING' && (top?.confidence ?? 0) < 0.7) {
-      return decision;
-    }
     return {
       ...decision,
       action: 'REFRESH_CREATIVE',
@@ -117,11 +104,14 @@ export function applyRuleGroundingToDecision(
     };
   }
 
-  // Auction pressure: prefer hold over pause when physics wanted to kill on noise.
+  // Auction pressure: prefer hold over pause when physics wanted to kill on
+  // noise AND we have no creative-fatigue diagnosis. Only applies when the
+  // auction diagnosis itself is present (requires issue corroboration now).
   if (
     codes.has('AUCTION_PRESSURE') &&
     decision.action === 'PAUSE_CAMPAIGN' &&
-    !codes.has('CREATIVE_FATIGUE')
+    !codes.has('CREATIVE_FATIGUE') &&
+    !codes.has('WEAK_CREATIVE')
   ) {
     return {
       ...decision,
@@ -133,7 +123,7 @@ export function applyRuleGroundingToDecision(
     };
   }
 
-  // Audience saturation: reinforce refresh/expand messaging in reason only when already refreshing.
+  // Audience saturation: reinforce expand messaging when already refreshing.
   if (codes.has('AUDIENCE_SATURATION') && decision.action === 'REFRESH_CREATIVE') {
     return {
       ...decision,
@@ -153,11 +143,3 @@ export function applyRuleGroundingToDecision(
 
   return decision;
 }
-
-/** Compact Arabic snippet for deterministic narration / CMO payload. */
-export function groundingActionHint(grounding: RuleGrounding | null | undefined): string {
-  if (!grounding?.diagnoses[0]) return '';
-  return grounding.diagnoses[0].action;
-}
-
-export type { Diagnosis, DecisionAction };

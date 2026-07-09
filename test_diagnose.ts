@@ -100,5 +100,14 @@ console.log('\ndiagnose coverage');
   check('post-click when CTR healthy', d.some((x) => x.code === 'POST_CLICK_PROBLEM'), d.map((x) => x.code));
 }
 
+{
+  // Auction pressure needs real cpmTrend — still valid on account Analytics path.
+  const d = diagnose(
+    [],
+    { ...baseSignals, cpmTrend: 0.25, ctrTrend: 0.02 },
+  );
+  check('auction pressure from true cpmTrend', d.some((x) => x.code === 'AUCTION_PRESSURE'), d.map((x) => x.code));
+}
+
 console.log(`\ndiagnose: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

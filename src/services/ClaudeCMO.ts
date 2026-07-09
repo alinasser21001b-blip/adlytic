@@ -517,14 +517,15 @@ export async function generateMerchantNarration(
       };
     } else {
       // Soft score gate: weak/vague copy on high-stakes actions → deterministic.
+      // Skip when campaign name is empty — includes() against "" is always true
+      // and would falsely mark every body as campaign-specific.
+      const namePrefix = brainResult.campaignName.trim().slice(0, 12);
       const q = scoreInsightQuality({
         title: out.arabicTitle,
         body: out.arabicNarration,
         action: brainResult.decision.action,
         generatedAt: new Date().toISOString(),
-        hasCampaignSpecifics: out.arabicNarration.includes(
-          brainResult.campaignName.slice(0, Math.min(12, brainResult.campaignName.length)),
-        ),
+        hasCampaignSpecifics: namePrefix.length > 0 && out.arabicNarration.includes(namePrefix),
       });
       if (
         !q.isUseful &&

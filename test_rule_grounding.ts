@@ -7,6 +7,7 @@ import {
   applyRuleGroundingToDecision,
   buildRuleGrounding,
 } from './src/engines/rules/ruleGrounding';
+import { signalsFromCampaignRaw } from './src/engines/rules/campaignSignals';
 import type { CampaignDecision } from './src/engine/DecisionEngine';
 
 let pass = 0;
@@ -63,6 +64,27 @@ console.log('\nrule grounding');
 }
 
 {
+  // Expensive CPM vs baseline must NOT invent auction pressure (level ≠ trend).
+  const raw: CampaignRawData = {
+    campaignId: 'expensive_01',
+    campaignName: 'حملة غالية',
+    spend: 100,
+    impressions: 5000,
+    clicks: 100,
+    ctr: 2.0,
+    frequency: 2.0,
+    messages: 20,
+    cpm: 20,
+    cpc: 1,
+  };
+  const signals = signalsFromCampaignRaw(raw, baseline);
+  check('campaignSignals omits cpmTrend', signals.cpmTrend === null, signals);
+  check('campaignSignals omits spendTrend', signals.spendTrend === null, signals);
+  const g = buildRuleGrounding(raw, baseline);
+  check('no false AUCTION_PRESSURE from baseline CPM', !g.diagnoses.some((d) => d.code === 'AUCTION_PRESSURE'), g.diagnoses);
+}
+
+{
   const hold: CampaignDecision = {
     campaignId: 'x',
     action: 'HOLD_AND_MONITOR',
@@ -82,6 +104,27 @@ console.log('\nrule grounding');
   });
   check('fatigue upgrades HOLD to REFRESH', next.action === 'REFRESH_CREATIVE', next);
   check('stores overriddenAction', next.overriddenAction === 'HOLD_AND_MONITOR', next);
+}
+
+{
+  const collecting: CampaignDecision = {
+    campaignId: 'x',
+    action: 'KEEP_COLLECTING',
+    priority: 'NORMAL',
+    reason: 'cold start',
+  };
+  const next = applyRuleGroundingToDecision(collecting, {
+    primaryCode: 'WEAK_CREATIVE',
+    issues: [{ code: 'LOW_CTR', severity: 'MEDIUM' }],
+    diagnoses: [{
+      code: 'WEAK_CREATIVE',
+      name: 'ضعف التفاعل',
+      confidence: 0.9,
+      narrative: 'ضعيف',
+      action: 'جدّد',
+    }],
+  });
+  check('does NOT upgrade KEEP_COLLECTING', next.action === 'KEEP_COLLECTING', next);
 }
 
 {
@@ -106,7 +149,6 @@ console.log('\nrule grounding');
 }
 
 {
-  // Dying creative fixture from test_brain — should still decide and attach grounding when relevant.
   const raw: CampaignRawData = {
     campaignId: 'dying_01',
     campaignName: 'Tired Promo',
