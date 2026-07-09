@@ -65,6 +65,12 @@ import {
   adminOverview,
 } from '../services/adminConsole';
 import { buildWhatsappLink } from '../services/whatsappLink';
+import {
+  getRevenueSettings,
+  updateRevenueSettings,
+  resolveSupportWhatsappDigits,
+  formatPremiumCta,
+} from '../services/revenueSettings';
 import { buildActivationWhatsappLink } from '../services/activationWhatsappLink';
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
@@ -838,7 +844,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
     if (user.isActive) return c.json({ error: 'Account is already active' }, 400);
     try {
-      const link = buildActivationWhatsappLink(user.email);
+      const digits = await resolveSupportWhatsappDigits(prisma);
+      if (!digits) {
+        return c.json({ error: 'WhatsApp support is not configured on this server' }, 503);
+      }
+      const link = buildActivationWhatsappLink(user.email, digits);
       return c.json(link);
     } catch (err) {
       console.error('[activation] SUPPORT_WHATSAPP_NUMBER misconfigured:', err);
@@ -1408,6 +1418,58 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   /**
+   * GET /api/admin/revenue-settings — Premium display price + WhatsApp number.
+   */
+  app.get('/api/admin/revenue-settings', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const settings = await getRevenueSettings(prisma);
+    return c.json({ settings, ctaLabel: formatPremiumCta(settings) });
+  });
+
+  /**
+   * PUT /api/admin/revenue-settings — update display price / WhatsApp.
+   * Stripe Price ID stays in env (STRIPE_PREMIUM_PRICE_ID).
+   */
+  app.put('/api/admin/revenue-settings', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const body = (req.body ?? {}) as {
+      premiumPriceAmount?: number;
+      premiumPriceCurrency?: string;
+      premiumPricePeriod?: string;
+      supportWhatsappNumber?: string | null;
+    };
+    try {
+      const settings = await updateRevenueSettings(prisma, body, gate.userId);
+      return c.json({ settings, ctaLabel: formatPremiumCta(settings) });
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : 'Invalid settings' }, 400);
+    }
+  });
+
+  /**
+   * GET /api/billing/offer — authenticated display price for settings CTA.
+   */
+  app.get('/api/billing/offer', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const settings = await getRevenueSettings(prisma);
+    return c.json({
+      premiumPriceAmount: settings.premiumPriceAmount,
+      premiumPriceCurrency: settings.premiumPriceCurrency,
+      premiumPricePeriod: settings.premiumPricePeriod,
+      ctaLabel: formatPremiumCta(settings),
+      stripeConfigured: settings.stripeConfigured,
+      whatsappConfigured: settings.whatsappConfigured,
+    });
+  });
+
+  /**
    * POST /api/admin/subscriptions/cancel-manual — revoke Premium / cancel.
    */
   app.post('/api/admin/subscriptions/cancel-manual', async (c) => {
@@ -1781,7 +1843,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!user) return c.json({ error: 'User not found' }, 404);
 
     try {
-      const link = buildWhatsappLink({ workspaceId, userEmail: user.email });
+      const digits = await resolveSupportWhatsappDigits(prisma);
+      if (!digits) {
+        return c.json({ error: 'WhatsApp support channel is not configured' }, 503);
+      }
+      const link = buildWhatsappLink({
+        workspaceId,
+        userEmail: user.email,
+        supportNumber: digits,
+      });
       return c.json(link);
     } catch (e) {
       console.error('[whatsapp-link] env error:', e);

@@ -5,7 +5,7 @@
 //  Reuses SUPPORT_WHATSAPP_NUMBER sanitisation from whatsappLink.ts.
 // ════════════════════════════════════════════════════════════════════════
 
-import { getSupportWhatsappNumber } from './whatsappLink';
+import { getSupportWhatsappNumber, sanitiseWhatsappNumber } from './whatsappLink';
 
 const WA_BASE = 'https://wa.me';
 
@@ -14,8 +14,13 @@ export interface ActivationWhatsappLinkResult {
   message: string;
 }
 
-export function buildActivationWhatsappLink(userEmail: string): ActivationWhatsappLinkResult {
-  const number = getSupportWhatsappNumber();
+export function buildActivationWhatsappLink(
+  userEmail: string,
+  supportNumber?: string,
+): ActivationWhatsappLinkResult {
+  const number = supportNumber
+    ? sanitiseWhatsappNumber(supportNumber)
+    : getSupportWhatsappNumber();
   const message = `Hello, I want to activate my Adlytic account. My registered email is: ${userEmail}`;
   const url = `${WA_BASE}/${number}?text=${encodeURIComponent(message)}`;
   return { url, message };

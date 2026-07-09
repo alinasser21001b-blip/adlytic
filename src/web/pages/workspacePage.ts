@@ -413,7 +413,11 @@ export function workspacePage(): string {
     }
     document.getElementById('ws-info-form').style.display = 'block';
     document.getElementById('ws-name-input').value  = ws.name || '';
-    document.getElementById('ws-plan-input').value  = ws.plan || 'free';
+    var planLabel = 'مجاني';
+    if (ws.tier === 'PREMIUM' && ws.subscriptionStatus === 'ACTIVE') planLabel = 'Premium';
+    else if (ws.tier === 'PREMIUM') planLabel = 'Premium (غير نشط)';
+    else if (ws.plan && String(ws.plan).toLowerCase() !== 'free') planLabel = ws.plan;
+    document.getElementById('ws-plan-input').value  = planLabel;
     document.getElementById('ws-id-input').textContent = ws.id || '—';
     renderConnectionHero(ws);
   }
