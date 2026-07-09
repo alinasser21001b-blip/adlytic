@@ -159,7 +159,7 @@ export function dashboardPage(): string {
       <!-- 5 ▸ Main Move — unified focus (Tier 2 + Tier 3 narrative) -->
       <section class="v2-section" id="main-move-section">
         <div class="v2-section-head">
-          <div class="v2-section-title" id="main-move-label">الخطوة الأهم</div>
+          <div class="v2-section-title" id="main-move-label">مهمتك الآن</div>
           <div class="v2-section-meta" id="main-move-meta">—</div>
         </div>
         <div class="main-move-card" id="main-move-card">
@@ -1481,52 +1481,89 @@ export function dashboardPage(): string {
     var label = document.getElementById('main-move-label');
     if (!card) return;
     try {
-    if (label) label.textContent = lbl('Main Move', 'الخطوة الأهم');
+    if (label) label.textContent = lbl('Main Move', 'مهمتك الآن');
+    var merchantTasks = Array.isArray(dashData.merchantTasks) ? dashData.merchantTasks.filter(Boolean) : [];
     var items = buildAllMoveItems(dashData);
-    if (items.length === 0) {
+    if (items.length === 0 && !merchantTasks.length) {
       var steady = getSteadyState(dashData) || buildClientSteadyFallback(dashData, kpis);
       if (renderSteadyMainMove(steady)) return;
       if (meta) meta.textContent = lbl('All clear', 'كل شيء مستقر');
       state.mainMovePrimary = null;
       card.innerHTML = '<div class="main-move-empty">' + escHtml(lbl(
         'No actions for today. Account is steady.',
-        'لا توجد إجراءات اليوم. حسابك مستقر.'
+        'لا توجد مهام اليوم. حسابك مستقر.'
       )) + '</div>';
       return;
     }
-    var primary = items[0];
-    var secondary = items.slice(1, 6);
-    var why = pickMainMoveNarrative(primary, dashData, kpis);
-    if (textsOverlap(why, primary.title)) why = primary.decision && !textsOverlap(primary.decision, primary.title) ? primary.decision : '';
-    if (textsOverlap(why, primary.decision)) why = '';
+
+    var task = merchantTasks[0] || null;
+    var primary = items[0] || null;
+    if (task && !primary) {
+      primary = {
+        kind: 'issue',
+        itemId: task.itemKey,
+        issueCode: task.issueCode,
+        actionCode: task.actionCode,
+        severity: String(task.severity || 'high').toLowerCase(),
+        title: task.title,
+        decision: task.action,
+        steps: task.steps || [],
+        narrative: task.why,
+        buttonText: lbl('Do this task', 'نفّذ المهمة'),
+        confidence: 90,
+      };
+    }
+    if (task && primary) {
+      primary.title = task.title || primary.title;
+      primary.decision = task.action || primary.decision;
+      primary.steps = (task.steps && task.steps.length) ? task.steps : primary.steps;
+      primary.narrative = task.why || primary.narrative;
+      primary.itemId = task.itemKey || primary.itemId;
+      primary.actionCode = task.actionCode || primary.actionCode;
+      primary.buttonText = lbl('Do this task', 'نفّذ المهمة');
+    }
+
+    var secondary = items.slice(primary && items[0] === primary ? 1 : 0, 6).filter(function (it) {
+      return !task || it.itemId !== task.itemKey;
+    }).slice(0, 5);
 
     if (meta) {
       meta.textContent = secondary.length > 0
-        ? lbl(secondary.length + ' more item' + (secondary.length === 1 ? '' : 's') + ' below', secondary.length + ' عناصر إضافية بالأسفل')
-        : lbl('Top priority for the next 24h', 'الأولوية للـ ٢٤ ساعة القادمة');
+        ? lbl(secondary.length + ' more tasks below', secondary.length + ' مهام إضافية بالأسفل')
+        : lbl('Understand → Decide → Act → Verify', 'فهم → قرار → فعل → تحقق');
     }
 
     var sevCls = primary.severity === 'critical' ? 'has-critical' : primary.severity === 'high' ? 'has-warning' : '';
     var ctaCls = primary.severity === 'critical' ? ' critical' : '';
+    var why = (task && task.why) || pickMainMoveNarrative(primary, dashData, kpis);
+    if (textsOverlap(why, primary.title)) why = primary.decision && !textsOverlap(primary.decision, primary.title) ? primary.decision : why;
+    var steps = (task && task.steps && task.steps.length) ? task.steps : actionStepsForItem(primary);
+    var expect = (task && task.expect) || lbl('Review results in 3–7 days after applying the change.', 'راجع النتيجة خلال ٣–٧ أيام بعد تطبيق الخطوة.');
     var impactHtml = primary.impact
       ? '<div class="main-move-impact">' + escHtml(primary.impact) + '</div>'
       : '';
 
     var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
-      + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 priority", 'الأولوية الأولى اليوم')) + '</div>'
+      + '<div class="main-move-loop" aria-hidden="true"><span>١ فهم</span><span class="sep">→</span><span>٢ قرار</span><span class="sep">→</span><span>٣ فعل</span><span class="sep">→</span><span>٤ تحقق</span></div>'
+      + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 task", 'مهمتك الأولى اليوم')) + '</div>'
       + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
       + impactHtml
-      + (why ? '<div class="main-move-why">' + escHtml(why) + '</div>' : '')
+      + (why ? '<div class="main-move-block"><div class="main-move-block-label">' + escHtml(lbl('1 · What is happening?', '١ · ماذا يحدث؟')) + '</div><div class="main-move-why">' + escHtml(why) + '</div></div>' : '')
+      + '<div class="main-move-action-box"><div class="main-move-block-label">' + escHtml(lbl('2 · What to do now?', '٢ · ماذا تفعل الآن؟')) + '</div><div class="main-move-action-text">' + escHtml(primary.decision || primary.title) + '</div></div>'
+      + '<div class="main-move-block"><div class="main-move-block-label">' + escHtml(lbl('3 · Steps', '٣ · الخطوات')) + '</div><ol class="main-move-steps">'
+      + steps.map(function (s) { return '<li>' + escHtml(s) + '</li>'; }).join('')
+      + '</ol></div>'
+      + '<div class="main-move-expect"><b>' + escHtml(lbl('4 · Verify:', '٤ · تحقق:')) + '</b> ' + escHtml(expect) + '</div>'
       + '<div class="main-move-cta-row">'
-        + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText) + '</button>'
-        + '<a class="btn btn-secondary btn-sm" href="/ai?q=' + encodeURIComponent(mainMoveAiQuestion(primary)) + '">' + escHtml(lbl('Ask AI why', 'اسأل الذكاء الاصطناعي لماذا')) + '</a>'
-        + '<span class="text-xs text-3">' + escHtml(lbl('Confidence', 'الثقة')) + ' ' + escHtml(String(primary.confidence)) + '%</span>'
+        + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText || lbl('Do this task', 'نفّذ المهمة')) + '</button>'
+        + '<a class="btn btn-secondary btn-sm" href="/ai?q=' + encodeURIComponent(mainMoveAiQuestion(primary)) + '">' + escHtml(lbl('Ask AI', 'اسأل المساعد')) + '</a>'
+        + '<a class="btn btn-ghost btn-sm" href="/recommendations">' + escHtml(lbl('All tasks', 'كل المهام')) + '</a>'
       + '</div>'
     + '</div>';
 
     if (secondary.length > 0) {
       html += '<details class="main-move-more">'
-        + '<summary>' + escHtml(lbl('Other priorities (' + secondary.length + ')', 'أولويات أخرى (' + secondary.length + ')')) + '</summary>'
+        + '<summary>' + escHtml(lbl('Other tasks (' + secondary.length + ')', 'مهام أخرى (' + secondary.length + ')')) + '</summary>'
         + '<div class="main-move-secondary">'
         + secondary.map(function (a, idx) {
           return '<div class="main-move-secondary-item" dir="auto">'

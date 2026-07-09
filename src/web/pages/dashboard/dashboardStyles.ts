@@ -619,7 +619,36 @@ export const dashboardStyles = `<style>
       letter-spacing: 0.06em;
       color: var(--accent-2);
     }
+    .main-move-loop {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin-bottom: 10px; padding: 7px 11px;
+      background: rgba(217,167,89,0.07); border: 1px solid rgba(217,167,89,0.18);
+      border-radius: 999px; width: fit-content; max-width: 100%;
+    }
+    .main-move-loop span { font-size: 11px; font-weight: 800; color: var(--accent-2); }
+    .main-move-loop .sep { color: var(--text-3); font-weight: 600; }
     .main-move-title { font-size: 19px; font-weight: 800; color: var(--text); line-height: 1.35; letter-spacing: -0.02em; }
+    .main-move-block { margin-top: 12px; }
+    .main-move-block-label {
+      font-size: 11px; font-weight: 800; color: var(--accent-2);
+      margin-bottom: 4px; letter-spacing: 0.02em;
+    }
+    .main-move-action-box {
+      margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+      background: rgba(217,167,89,0.1); border: 1px solid rgba(217,167,89,0.22);
+    }
+    .main-move-action-text { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.45; }
+    .main-move-steps {
+      margin: 0; padding-inline-start: 18px;
+      color: var(--text-2); font-size: 13px; line-height: 1.55;
+    }
+    .main-move-steps li { margin-bottom: 4px; }
+    .main-move-expect {
+      margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+      font-size: 12.5px; color: var(--text-2); line-height: 1.5;
+      background: rgba(255,255,255,0.03); border: 1px dashed rgba(217,167,89,0.25);
+    }
+    .main-move-expect b { color: var(--accent-2); }
     .main-move-impact {
       display: inline-flex;
       align-items: center;

@@ -37,12 +37,14 @@ import {
   type CampaignMetrics,
 } from "../knowledge";
 import {
+  buildAdviceTask,
   issueActionAr,
   issueTitleAr,
   issueWhyAr,
   sanitizeIssueForMerchant,
   sanitizePriorityActionText,
   simplifyMerchantText,
+  type AdviceTask,
 } from "../lib/plainArabicAdvice";
 import {
   resolveBenchmarkIndustryFromContext,
@@ -163,6 +165,11 @@ export interface DashboardDTO {
     recommendations: string[]; // localized
     evidence: Record<string, unknown>;
   }>;
+  /**
+   * Merchant-facing task cards (فهم → قرار → فعل → تحقق).
+   * Built from sanitized issues + priorityAction — primary UI contract.
+   */
+  merchantTasks?: AdviceTask[];
   diagnoses: Diagnosis[];
   attribution: Attribution | null;
   priorityAction: {
@@ -281,6 +288,7 @@ export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
   kpis:           [],
   trendSeries:    { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] },
   issues:         [],
+  merchantTasks:  [],
   diagnoses:      [],
   attribution:    null,
   priorityAction: null,
@@ -854,6 +862,37 @@ export async function getDashboard(
     (i) => !appliedItemKeys.has(`issue:${i.code}`),
   );
 
+  // Merchant task cards — single presentation contract for dashboard UIs.
+  const merchantTasks: AdviceTask[] = filteredIssues
+    .slice()
+    .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
+    .map((iss, idx) =>
+      buildAdviceTask({
+        code: iss.code,
+        title: iss.title,
+        severity: iss.severity,
+        causes: iss.causes,
+        recommendations: iss.recommendations,
+        actionCode: idx === 0 ? priorityAction?.actionCode ?? null : null,
+        priorityText: idx === 0 ? priorityAction?.text ?? null : null,
+        itemKey: `issue:${iss.code}`,
+      }),
+    );
+
+  // If we only have a priority action (no issues), still surface one task.
+  if (!merchantTasks.length && priorityAction) {
+    merchantTasks.push(
+      buildAdviceTask({
+        code: null,
+        title: priorityAction.text,
+        severity: priorityAction.priority,
+        actionCode: priorityAction.actionCode,
+        priorityText: priorityAction.text,
+        itemKey: `priority:${priorityAction.actionCode}`,
+      }),
+    );
+  }
+
   // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
   const cards = await timedStage('campaignCards', () =>
     buildCampaignCards(account.id, prisma, sinceDate, factor),
@@ -922,6 +961,7 @@ export async function getDashboard(
     kpis,
     trendSeries,
     issues: filteredIssues,
+    merchantTasks,
     diagnoses,
     attribution: resultAttribution,
     priorityAction,

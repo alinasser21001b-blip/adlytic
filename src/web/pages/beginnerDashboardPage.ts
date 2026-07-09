@@ -237,18 +237,45 @@ export function beginnerDashboardPage(): string {
     .bgn-issue-title { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
     .bgn-issue-body { font-size: 13px; color: var(--text-2); line-height: 1.55; }
 
-    /* ── Next step / guidance ── */
+    /* ── Next step / task card ── */
     .bgn-action-card {
-      background: linear-gradient(135deg, rgba(217,167,89,0.10) 0%, var(--surface) 100%);
-      border: 1px solid rgba(217,167,89,0.30);
+      background: linear-gradient(145deg, rgba(217,167,89,0.12) 0%, var(--surface) 55%);
+      border: 1px solid rgba(217,167,89,0.32);
       border-radius: 16px; padding: 18px 20px;
       transition: box-shadow 220ms ease, border-color 220ms ease;
     }
     .bgn-action-card:hover { border-color: rgba(217,167,89,0.5); box-shadow: 0 10px 30px rgba(217,167,89,0.08); }
-    .bgn-action-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
-    .bgn-action-emoji { font-size: 28px; line-height: 1; flex-shrink: 0; }
-    .bgn-action-title { font-size: 13px; font-weight: 700; color: var(--accent-2); margin-bottom: 4px; }
-    .bgn-action-text { font-size: 14px; color: var(--text); line-height: 1.6; }
+    .bgn-task-loop {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin-bottom: 14px; padding: 8px 12px;
+      background: rgba(217,167,89,0.07); border: 1px solid rgba(217,167,89,0.18);
+      border-radius: 999px; width: fit-content; max-width: 100%;
+    }
+    .bgn-task-loop span { font-size: 11px; font-weight: 800; color: var(--accent-2); }
+    .bgn-task-loop .sep { color: var(--text-3); font-weight: 600; }
+    .bgn-task-sev {
+      display: inline-block; font-size: 11px; font-weight: 800;
+      padding: 3px 9px; border-radius: 999px; margin-bottom: 8px;
+    }
+    .bgn-task-title { font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.35; margin-bottom: 12px; }
+    .bgn-task-block { margin-bottom: 12px; }
+    .bgn-task-label { font-size: 11px; font-weight: 800; color: var(--accent-2); margin-bottom: 4px; letter-spacing: 0.02em; }
+    .bgn-task-text { font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
+    .bgn-task-action {
+      background: rgba(217,167,89,0.1); border: 1px solid rgba(217,167,89,0.22);
+      border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+    }
+    .bgn-task-action .bgn-task-text { color: var(--text); font-weight: 700; font-size: 14px; }
+    .bgn-task-steps { margin: 0; padding-inline-start: 18px; color: var(--text-2); font-size: 13px; line-height: 1.55; }
+    .bgn-task-steps li { margin-bottom: 4px; }
+    .bgn-task-expect {
+      font-size: 12.5px; color: var(--text-2); line-height: 1.5;
+      padding: 10px 12px; border-radius: 10px;
+      background: rgba(255,255,255,0.03); border: 1px dashed rgba(217,167,89,0.25);
+      margin-bottom: 14px;
+    }
+    .bgn-task-expect b { color: var(--accent-2); }
+    .bgn-task-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .bgn-action-cta {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 9px 16px; border-radius: 10px;
@@ -260,11 +287,17 @@ export function beginnerDashboardPage(): string {
     }
     .bgn-action-cta:hover { background: var(--accent-2); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(217,167,89,0.28); }
     .bgn-action-cta:active { transform: scale(0.98); }
+    .bgn-action-cta:disabled { opacity: 0.55; cursor: default; transform: none; }
     .bgn-action-cta.secondary {
       background: rgba(255,255,255,0.06); color: var(--text);
       border: 1px solid var(--border);
     }
     .bgn-action-cta.secondary:hover { background: rgba(255,255,255,0.09); }
+    .bgn-action-cta.ghost {
+      background: transparent; color: var(--text-2); border: 1px solid transparent;
+      padding-inline: 10px;
+    }
+    .bgn-action-cta.ghost:hover { color: var(--accent-2); background: rgba(217,167,89,0.06); }
 
     /* ── Quick links ── */
     .bgn-quick-links {
@@ -348,18 +381,11 @@ export function beginnerDashboardPage(): string {
           <div class="bgn-bar-card" id="bgn-progress-card"></div>
         </div>
 
-        <div class="bgn-section bgn-anim d6" id="bgn-issue-section" style="display:none;">
-          <div class="bgn-section-head">
-            <span class="bgn-section-emoji">⚠️</span>
-            <h2 class="bgn-section-title">ملاحظة مهمة</h2>
-          </div>
-          <div class="bgn-issue-card" id="bgn-issue-card"></div>
-        </div>
-
         <div class="bgn-section bgn-anim d6" id="bgn-action-section">
           <div class="bgn-section-head">
-            <span class="bgn-section-emoji">✨</span>
-            <h2 class="bgn-section-title">الخطوة التالية</h2>
+            <span class="bgn-section-emoji">✅</span>
+            <h2 class="bgn-section-title">مهمتك الآن</h2>
+            <span class="bgn-section-sub">فهم → قرار → فعل → تحقق</span>
           </div>
           <div class="bgn-action-card" id="bgn-action-card"></div>
         </div>
@@ -370,7 +396,7 @@ export function beginnerDashboardPage(): string {
             <h2 class="bgn-section-title">انتقل إلى</h2>
           </div>
           <div class="bgn-quick-links">
-            <a href="/recommendations" class="bgn-quick-link"><span>💡</span> التوصيات</a>
+            <a href="/recommendations" class="bgn-quick-link"><span>✅</span> مهامك</a>
             <a href="/campaigns" class="bgn-quick-link"><span>📣</span> الحملات</a>
             <a href="/ai" class="bgn-quick-link"><span>🤖</span> المساعد الذكي</a>
           </div>
@@ -483,13 +509,38 @@ export function beginnerDashboardPage(): string {
   }
 
   function guidanceCta(dash, kind) {
-    if (kind === 'issue' || (dash.priorityAction && dash.priorityAction.actionCode)) {
-      var code = dash.priorityAction && dash.priorityAction.actionCode ? dash.priorityAction.actionCode : '';
-      if (/CREATIVE|REFRESH/i.test(code)) return { href: '/campaigns', label: 'مراجعة الحملات' };
-      if (/PAUSE|SCALE|BUDGET|RESCUE/i.test(code)) return { href: '/campaigns', label: 'إدارة الحملات' };
-      return { href: '/recommendations', label: 'عرض التوصيات' };
+    if (kind === 'issue' || kind === 'action' || (dash.priorityAction && dash.priorityAction.actionCode)) {
+      return { href: '/campaigns', label: 'افتح الحملات' };
     }
     return { href: '/ai', label: 'اسأل المساعد الذكي' };
+  }
+
+  function pickTopTask(dash) {
+    var tasks = Array.isArray(dash.merchantTasks) ? dash.merchantTasks.filter(Boolean) : [];
+    if (tasks.length) return tasks[0];
+    var issue = pickTopIssue(dash);
+    if (!issue) return null;
+    return {
+      itemKey: 'issue:' + (issue.code || 'UNKNOWN'),
+      issueCode: issue.code || null,
+      actionCode: dash.priorityAction && dash.priorityAction.actionCode ? dash.priorityAction.actionCode : null,
+      severity: issue.severity || 'MEDIUM',
+      severityLabel: issue.severity === 'CRITICAL' ? 'مستعجل' : issue.severity === 'HIGH' ? 'مهم' : issue.severity === 'MEDIUM' ? 'للمتابعة' : 'معلومة',
+      title: issue.title || 'ملاحظة على الحساب',
+      why: (issue.causes && issue.causes[0]) || 'راجع الحملة واتخذ خطوة بسيطة اليوم.',
+      action: (issue.recommendations && issue.recommendations[0]) || (dash.priorityAction && dash.priorityAction.text) || 'افتح الحملات وطبّق تعديلاً واحداً',
+      steps: (issue.recommendations || []).slice(0, 3),
+      expect: 'راجع النتيجة خلال ٣–٧ أيام بعد تطبيق الخطوة.',
+      askAi: 'اشرح لي ببساطة: ' + (issue.title || 'هذه الملاحظة') + '. ماذا أفعل الآن خطوة بخطوة؟ ومتى أراجع النتيجة؟',
+    };
+  }
+
+  function escBgn(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function renderSummary(dash) {
@@ -616,57 +667,50 @@ export function beginnerDashboardPage(): string {
       + '</div>';
   }
 
-  function renderTopIssue(dash) {
-    var sec = document.getElementById('bgn-issue-section');
-    var card = document.getElementById('bgn-issue-card');
-    if (!sec || !card) return;
-    var issue = pickTopIssue(dash);
-    if (!issue) { sec.style.display = 'none'; return; }
-    var isWarn = issue.severity === 'MEDIUM' || issue.severity === 'LOW';
-    card.className = 'bgn-issue-card' + (isWarn ? ' warn' : '');
-    var body = (issue.recommendations && issue.recommendations[0]) || issue.title || '';
-    card.innerHTML = '<div class="bgn-issue-icon">' + (isWarn ? '💡' : '⚠️') + '</div>'
-      + '<div><div class="bgn-issue-title">' + (issue.title || 'ملاحظة') + '</div>'
-      + '<div class="bgn-issue-body">' + body + '</div></div>';
-    sec.style.display = 'block';
-  }
-
   function renderNextStep(dash) {
     var card = document.getElementById('bgn-action-card');
     if (!card) return;
-    var pa = dash.priorityAction;
+    var task = pickTopTask(dash);
     var steady = dash.steadyState;
-    var title = 'ماذا تفعل الآن؟';
-    var text = '';
-    var cta = guidanceCta(dash, 'default');
 
-    if (pa) {
-      text = (typeof pa === 'string') ? pa : (pa.text || '');
-      if (!text || /^[A-Z0-9_]+$/.test(String(text))) {
-        text = 'راجع الحملات وطبّق تعديلاً واحداً واضحاً اليوم.';
-      }
-      cta = guidanceCta(dash, 'action');
-    } else if (steady && (steady.mainMoveNarrative || steady.backgroundSummary)) {
-      title = steady.mainMoveTitle || 'الوضع الحالي';
-      text = steady.mainMoveNarrative || steady.backgroundSummary || '';
-      cta = { href: '/ai', label: 'اسأل المساعد الذكي' };
-    } else {
-      var issue = pickTopIssue(dash);
-      if (issue && issue.recommendations && issue.recommendations[0]) {
-        text = issue.recommendations[0];
-        cta = guidanceCta(dash, 'issue');
-      } else {
-        text = 'كل شيء مستقر نسبياً. تابع الأرقام أعلاه أو اسأل المساعد الذكي عن أي شيء غير واضح.';
-        cta = { href: '/ai', label: 'اسأل المساعد الذكي' };
-      }
+    if (!task) {
+      var steadyTitle = (steady && steady.mainMoveTitle) || 'كل شيء مستقر نسبياً';
+      var steadyText = (steady && (steady.mainMoveNarrative || steady.backgroundSummary))
+        || 'تابع الأرقام أعلاه أو اسأل المساعد الذكي عن أي شيء غير واضح.';
+      card.innerHTML = '<div class="bgn-task-loop" aria-hidden="true"><span>١ فهم</span><span class="sep">→</span><span>٢ قرار</span><span class="sep">→</span><span>٣ فعل</span><span class="sep">→</span><span>٤ تحقق</span></div>'
+        + '<div class="bgn-task-title">' + escBgn(steadyTitle) + '</div>'
+        + '<div class="bgn-task-block"><div class="bgn-task-label">١ · ماذا يحدث؟</div><div class="bgn-task-text">' + escBgn(steadyText) + '</div></div>'
+        + '<div class="bgn-task-actions">'
+        +   '<a href="/ai" class="bgn-action-cta">اسأل المساعد الذكي ←</a>'
+        +   '<a href="/recommendations" class="bgn-action-cta secondary">كل المهام</a>'
+        + '</div>';
+      return;
     }
 
-    card.innerHTML = '<div class="bgn-action-head">'
-      + '<div class="bgn-action-emoji">💡</div>'
-      + '<div style="flex:1;"><div class="bgn-action-title">' + title + '</div>'
-      + '<div class="bgn-action-text">' + text + '</div></div>'
-      + '</div>'
-      + '<a href="' + cta.href + '" class="bgn-action-cta">' + cta.label + ' ←</a>';
+    var steps = Array.isArray(task.steps) && task.steps.length
+      ? task.steps
+      : [task.action, 'طبّق التعديل في مدير إعلانات فيسبوك.', 'راجع النتيجة بعد بضعة أيام.'];
+    var sevColor = task.severity === 'CRITICAL' ? 'var(--critical, #E2604F)'
+      : task.severity === 'HIGH' ? 'var(--error, #E2604F)'
+      : task.severity === 'MEDIUM' ? 'var(--warning, #C77A1F)'
+      : 'var(--text-3)';
+    var ask = task.askAi || ('اشرح لي ببساطة: ' + task.title + '. ماذا أفعل الآن خطوة بخطوة؟ ومتى أراجع النتيجة؟');
+
+    card.innerHTML = '<div class="bgn-task-loop" aria-hidden="true"><span>١ فهم</span><span class="sep">→</span><span>٢ قرار</span><span class="sep">→</span><span>٣ فعل</span><span class="sep">→</span><span>٤ تحقق</span></div>'
+      + '<span class="bgn-task-sev" style="background:' + sevColor + '22;color:' + sevColor + ';">' + escBgn(task.severityLabel || 'مهم') + '</span>'
+      + '<div class="bgn-task-title">' + escBgn(task.title) + '</div>'
+      + '<div class="bgn-task-block"><div class="bgn-task-label">١ · ماذا يحدث؟</div><div class="bgn-task-text">' + escBgn(task.why) + '</div></div>'
+      + '<div class="bgn-task-action"><div class="bgn-task-label">٢ · ماذا تفعل الآن؟</div><div class="bgn-task-text">' + escBgn(task.action) + '</div></div>'
+      + '<div class="bgn-task-block"><div class="bgn-task-label">٣ · الخطوات</div><ol class="bgn-task-steps">'
+      + steps.map(function (s) { return '<li>' + escBgn(s) + '</li>'; }).join('')
+      + '</ol></div>'
+      + '<div class="bgn-task-expect"><b>٤ · تحقق:</b> ' + escBgn(task.expect) + '</div>'
+      + '<div class="bgn-task-actions">'
+      +   '<button type="button" class="bgn-action-cta" id="bgn-task-do" data-item-key="' + escBgn(task.itemKey) + '" data-action-code="' + escBgn(task.actionCode || '') + '" data-title="' + escBgn(task.title) + '">نفّذت المهمة</button>'
+      +   '<a href="/campaigns" class="bgn-action-cta secondary">افتح الحملات</a>'
+      +   '<a href="/ai?q=' + encodeURIComponent(ask) + '" class="bgn-action-cta ghost">اسأل المساعد</a>'
+      +   '<a href="/recommendations" class="bgn-action-cta ghost">كل المهام</a>'
+      + '</div>';
   }
 
   function updateBgnLastUpdated(dash) {
@@ -722,7 +766,6 @@ export function beginnerDashboardPage(): string {
     renderMetricCards(dash, currency, factor);
     renderMiniCards(dash);
     renderProgressCard(dash);
-    renderTopIssue(dash);
     renderNextStep(dash);
     updateBgnLastUpdated(dash);
     playInteractions();
@@ -730,6 +773,32 @@ export function beginnerDashboardPage(): string {
 
   // Event delegation so expandable cards keep working after auto-refresh re-renders.
   document.addEventListener('click', function (e) {
+    var doBtn = e.target && e.target.closest ? e.target.closest('#bgn-task-do') : null;
+    if (doBtn) {
+      e.preventDefault();
+      (async function () {
+        if (!bgnWsId) return;
+        doBtn.disabled = true;
+        try {
+          await apiFetch('/api/workspaces/' + encodeURIComponent(bgnWsId) + '/recommendations/action', {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'EXECUTED',
+              itemKey: doBtn.getAttribute('data-item-key'),
+              itemKind: 'issue',
+              actionCode: doBtn.getAttribute('data-action-code') || null,
+              title: doBtn.getAttribute('data-title') || null,
+            }),
+          });
+          if (typeof toast === 'function') toast('تم تسجيل المهمة — راجع النتيجة خلال أيام', 'success');
+          await refreshBeginnerDashboard(false);
+        } catch (err) {
+          doBtn.disabled = false;
+          if (typeof toast === 'function') toast('تعذّر تسجيل المهمة', 'error');
+        }
+      })();
+      return;
+    }
     var card = e.target && e.target.closest ? e.target.closest('.bgn-metric-card, .bgn-mini-card') : null;
     if (!card || !document.getElementById('bgn-main') || !document.getElementById('bgn-main').contains(card)) return;
     var open = card.classList.toggle('is-open');

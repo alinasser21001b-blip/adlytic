@@ -395,12 +395,18 @@ export function recommendationsPage(): string {
     return 3;
   }
 
-  function renderCard(issue) {
-    var task = buildTask(issue);
-    var sev = task.severity;
+  function taskSeverity(task) {
+    if (task && task.severity && typeof task.severity === 'object' && task.severity.key) {
+      return task.severity;
+    }
+    return severityLabel(task && task.severity);
+  }
+
+  function renderCardFromTask(task) {
+    var sev = taskSeverity(task);
     return '<article class="rec-card" style="border-inline-start-color:' + sev.color + ';" data-severity="' + escHtml(sev.key) + '" data-item-key="' + escHtml(task.itemKey) + '">'
       + '<div class="rec-card-head">'
-      +   '<span class="rec-sev" style="background:' + sev.color + '22;color:' + sev.color + ';">' + escHtml(sev.text) + '</span>'
+      +   '<span class="rec-sev" style="background:' + sev.color + '22;color:' + sev.color + ';">' + escHtml(task.severityLabel || sev.text) + '</span>'
       +   '<div class="rec-card-title">' + escHtml(task.title) + '</div>'
       + '</div>'
       + '<div class="rec-block"><div class="rec-block-label">١ · ماذا يحدث؟</div><div class="rec-block-text">' + escHtml(task.why) + '</div></div>'
@@ -409,73 +415,78 @@ export function recommendationsPage(): string {
       +   '<div class="rec-action-text">' + escHtml(task.action) + '</div>'
       + '</div>'
       + '<div class="rec-block"><div class="rec-block-label">٣ · الخطوات</div><ol class="rec-steps">'
-      + task.steps.map(function(s) { return '<li>' + escHtml(s) + '</li>'; }).join('')
+      + (task.steps || []).map(function(s) { return '<li>' + escHtml(s) + '</li>'; }).join('')
       + '</ol></div>'
       + '<div class="rec-expect"><b>٤ · تحقق:</b> ' + escHtml(task.expect) + '</div>'
       + '<div class="rec-card-actions">'
       +   '<button type="button" class="btn btn-primary btn-sm rec-do-btn" data-item-key="' + escHtml(task.itemKey) + '">نفّذت المهمة</button>'
       +   '<button type="button" class="btn btn-secondary btn-sm rec-ignore-btn" data-item-key="' + escHtml(task.itemKey) + '">تجاهل</button>'
-      +   '<a class="btn btn-ghost btn-sm" href="/ai?q=' + encodeURIComponent(task.askAi) + '">اسأل المساعد</a>'
+      +   '<a class="btn btn-ghost btn-sm" href="/ai?q=' + encodeURIComponent(task.askAi || '') + '">اسأل المساعد</a>'
       +   '<a class="btn btn-ghost btn-sm" href="/campaigns">افتح الحملات</a>'
       + '</div>'
       + '</article>';
   }
 
+  function allTasks() {
+    if (Array.isArray(dashData && dashData.merchantTasks) && dashData.merchantTasks.length) {
+      return dashData.merchantTasks.slice();
+    }
+    return (allIssues || []).map(buildTask);
+  }
+
   function render() {
     var q = (document.getElementById('search-input').value || '').toLowerCase();
-    var issues = (allIssues || []).slice();
+    var tasks = allTasks();
 
-    document.getElementById('stat-total').textContent = issues.length;
-    document.getElementById('stat-critical').textContent = issues.filter(i => String(i.severity).toUpperCase() === 'CRITICAL').length;
-    document.getElementById('stat-high').textContent = issues.filter(i => String(i.severity).toUpperCase() === 'HIGH').length;
-    document.getElementById('stat-medium').textContent = issues.filter(i => String(i.severity).toUpperCase() === 'MEDIUM').length;
+    document.getElementById('stat-total').textContent = tasks.length;
+    document.getElementById('stat-critical').textContent = tasks.filter(i => String(i.severity).toUpperCase() === 'CRITICAL').length;
+    document.getElementById('stat-high').textContent = tasks.filter(i => String(i.severity).toUpperCase() === 'HIGH').length;
+    document.getElementById('stat-medium').textContent = tasks.filter(i => String(i.severity).toUpperCase() === 'MEDIUM').length;
 
-    var topIssue = issues.slice().sort(function(a, b) {
+    var topTask = tasks.slice().sort(function(a, b) {
       return severityRank(a.severity) - severityRank(b.severity);
     })[0];
-    document.getElementById('stat-action').textContent = topIssue
-      ? buildTask(topIssue).action
+    document.getElementById('stat-action').textContent = topTask
+      ? topTask.action
       : 'لا مهمة مطلوبة';
 
     if (activeFilter !== 'all') {
-      issues = issues.filter(i => String(i.severity || '').toUpperCase() === activeFilter);
+      tasks = tasks.filter(i => String(i.severity || '').toUpperCase() === activeFilter);
     }
     if (q) {
-      issues = issues.filter(function(i) {
-        var t = buildTask(i);
-        return t.title.toLowerCase().includes(q) || t.action.toLowerCase().includes(q) || t.why.toLowerCase().includes(q);
+      tasks = tasks.filter(function(t) {
+        return (t.title || '').toLowerCase().includes(q) || (t.action || '').toLowerCase().includes(q) || (t.why || '').toLowerCase().includes(q);
       });
     }
 
-    issues.sort(function(a, b) {
+    tasks.sort(function(a, b) {
       return severityRank(a.severity) - severityRank(b.severity);
     });
 
     var container = document.getElementById('issues-container');
-    if (!issues.length) {
+    if (!tasks.length) {
       container.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">'
         + (activeFilter === 'all' ? 'لا توجد مهام الآن' : 'لا توجد مهام في هذه الفئة')
         + '</div><div class="empty-text">حسابك يبدو مستقراً. حدّث الصفحة بعد المزامنة إن أردت أحدث قراءة.</div></div>';
       return;
     }
 
-    var urgent = issues.filter(i => ['CRITICAL', 'HIGH'].includes(String(i.severity || '').toUpperCase()));
-    var later = issues.filter(i => !['CRITICAL', 'HIGH'].includes(String(i.severity || '').toUpperCase()));
+    var urgent = tasks.filter(i => ['CRITICAL', 'HIGH'].includes(String(i.severity || '').toUpperCase()));
+    var later = tasks.filter(i => !['CRITICAL', 'HIGH'].includes(String(i.severity || '').toUpperCase()));
     var html = '';
     if (urgent.length) {
       html += '<section class="rec-group"><div class="rec-group-title">ابدأ من هنا · ' + urgent.length + '</div>'
-        + urgent.map(renderCard).join('') + '</section>';
+        + urgent.map(renderCardFromTask).join('') + '</section>';
     }
     if (later.length) {
       html += '<section class="rec-group"><div class="rec-group-title">للمتابعة لاحقاً · ' + later.length + '</div>'
-        + later.map(renderCard).join('') + '</section>';
+        + later.map(renderCardFromTask).join('') + '</section>';
     }
     container.innerHTML = html;
   }
 
-  function findIssueByKey(itemKey) {
-    var code = String(itemKey || '').replace(/^issue:/, '');
-    return (allIssues || []).find(function(i) { return issueKey(i) === code; }) || null;
+  function findTaskByKey(itemKey) {
+    return allTasks().find(function(t) { return t.itemKey === itemKey; }) || null;
   }
 
   window.closeRecTaskModal = function() {
@@ -485,13 +496,12 @@ export function recommendationsPage(): string {
   };
 
   function openDoModal(itemKey) {
-    var issue = findIssueByKey(itemKey);
-    if (!issue) return;
-    var task = buildTask(issue);
+    var task = findTaskByKey(itemKey);
+    if (!task) return;
     pendingTask = task;
     document.getElementById('rec-task-modal-title').textContent = task.action;
     document.getElementById('rec-task-modal-sub').textContent = 'اتبع الخطوات ثم أكّد أنك نفّذتها — سنراقب النتيجة خلال ٧ أيام.';
-    document.getElementById('rec-task-modal-steps').innerHTML = task.steps.map(function(s, idx) {
+    document.getElementById('rec-task-modal-steps').innerHTML = (task.steps || []).map(function(s, idx) {
       return '<div class="rec-modal-step"><b>' + (idx + 1) + '</b><span>' + escHtml(s) + '</span></div>';
     }).join('');
     document.getElementById('rec-task-modal').style.display = 'flex';
@@ -527,9 +537,8 @@ export function recommendationsPage(): string {
   }
 
   async function ignoreTask(itemKey) {
-    var issue = findIssueByKey(itemKey);
-    if (!issue) return;
-    var task = buildTask(issue);
+    var task = findTaskByKey(itemKey);
+    if (!task) return;
     try {
       await postAction('IGNORED', task);
       toast('تم تجاهل المهمة', 'info');
