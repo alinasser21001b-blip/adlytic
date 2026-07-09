@@ -117,8 +117,16 @@ export function campaignsPage(): string {
   <!-- Account trends — collapsed by default so the campaigns table stays primary -->
   <details class="camp-trends" id="camp-trends">
     <summary class="camp-trends-summary">
-      <span>اتجاهات الحساب</span>
-      <span class="camp-trends-hint">إنفاق · تفاعل · وصول · ظهور</span>
+      <span class="camp-trends-lead">
+        <span class="camp-trends-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 7-8"/><path d="M14 7h7v7"/></svg>
+        </span>
+        <span class="camp-trends-copy">
+          <span class="camp-trends-title">اتجاهات الحساب</span>
+          <span class="camp-trends-hint">إنفاق · تفاعل · وصول · ظهور</span>
+        </span>
+      </span>
+      <span class="camp-trends-action">عرض الرسوم</span>
     </summary>
     <div class="camp-chart-grid">
       <div class="chart-card" id="spend-chart-card">
@@ -250,24 +258,78 @@ export function campaignsPage(): string {
     /* ── Ads Manager hero KPIs ─────────────────────────────────────────── */
     .camp-kpi-row--hero { grid-template-columns: repeat(3, 1fr); }
 
-    /* ── Collapsible account trends ───────────────────────────────────── */
+    /* ── Collapsible account trends (high-contrast control) ───────────── */
     .camp-trends {
-      background: var(--surface); border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(217,167,89,0.08), transparent 70%), var(--surface);
+      border: 1px solid rgba(217,167,89,0.38);
       border-radius: var(--radius-lg); margin-bottom: 20px; overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(217,167,89,0.08);
     }
     .camp-trends-summary {
       list-style: none; cursor: pointer; display: flex; align-items: center;
-      justify-content: space-between; gap: 12px; padding: 14px 18px;
-      font-size: 13px; font-weight: 700; color: var(--text); direction: rtl;
-      user-select: none;
+      justify-content: space-between; gap: 14px; padding: 15px 18px;
+      font-size: 14px; font-weight: 700; color: var(--text); direction: rtl;
+      user-select: none; transition: background .15s, border-color .15s;
     }
     .camp-trends-summary::-webkit-details-marker { display: none; }
-    .camp-trends-summary::after {
-      content: '▾'; color: var(--text-3); font-size: 12px; transition: transform .15s;
+    .camp-trends-summary:hover {
+      background: rgba(217,167,89,0.10);
     }
-    .camp-trends[open] .camp-trends-summary::after { transform: rotate(180deg); }
-    .camp-trends-hint { font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+    .camp-trends-summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .camp-trends-lead {
+      display: flex; align-items: center; gap: 12px; min-width: 0;
+    }
+    .camp-trends-icon {
+      flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(217,167,89,0.16); color: var(--accent-2);
+      border: 1px solid rgba(217,167,89,0.35);
+    }
+    .camp-trends-icon svg { width: 18px; height: 18px; }
+    .camp-trends-copy {
+      display: flex; flex-direction: column; gap: 3px; min-width: 0;
+    }
+    .camp-trends-title {
+      font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.01em;
+    }
+    .camp-trends-hint {
+      font-size: 12px; font-weight: 600; color: var(--text-2); line-height: 1.35;
+    }
+    .camp-trends-action {
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12.5px; font-weight: 800; color: var(--accent-2);
+      background: rgba(217,167,89,0.14); border: 1px solid rgba(217,167,89,0.42);
+      padding: 8px 12px; border-radius: 999px; white-space: nowrap;
+    }
+    .camp-trends-action::after {
+      content: ''; width: 7px; height: 7px;
+      border-inline-end: 2px solid currentColor; border-bottom: 2px solid currentColor;
+      transform: rotate(45deg); margin-top: -3px; transition: transform .15s;
+    }
+    .camp-trends[open] {
+      border-color: rgba(217,167,89,0.55);
+      box-shadow: 0 0 0 1px rgba(217,167,89,0.12);
+    }
+    .camp-trends[open] .camp-trends-summary {
+      border-bottom: 1px solid rgba(217,167,89,0.22);
+      background: rgba(217,167,89,0.07);
+    }
+    .camp-trends[open] .camp-trends-action {
+      color: var(--text);
+      background: rgba(255,255,255,0.06);
+      border-color: var(--border-2);
+    }
+    .camp-trends[open] .camp-trends-action::after {
+      transform: rotate(225deg); margin-top: 3px;
+    }
     .camp-trends .camp-chart-grid { padding: 0 16px 16px; margin-bottom: 0; }
+    @media (max-width: 640px) {
+      .camp-trends-hint { display: none; }
+      .camp-trends-action { padding: 7px 10px; font-size: 12px; }
+    }
 
     /* ── Data observer banner ─────────────────────────────────────────── */
     .data-observer-banner {
@@ -2126,7 +2188,13 @@ export function campaignsPage(): string {
     // Charts live inside a collapsed <details> — remeasure when opened.
     var trendsEl = document.getElementById('camp-trends');
     if (trendsEl) {
+      var trendsAction = trendsEl.querySelector('.camp-trends-action');
+      function syncTrendsActionLabel() {
+        if (trendsAction) trendsAction.textContent = trendsEl.open ? 'إخفاء الرسوم' : 'عرض الرسوم';
+      }
+      syncTrendsActionLabel();
       trendsEl.addEventListener('toggle', function() {
+        syncTrendsActionLabel();
         if (!trendsEl.open) return;
         requestAnimationFrame(function() {
           updateCharts(state.insights);
