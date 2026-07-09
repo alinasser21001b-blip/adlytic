@@ -37,6 +37,14 @@ import {
   type CampaignMetrics,
 } from "../knowledge";
 import {
+  issueActionAr,
+  issueTitleAr,
+  issueWhyAr,
+  sanitizeIssueForMerchant,
+  sanitizePriorityActionText,
+  simplifyMerchantText,
+} from "../lib/plainArabicAdvice";
+import {
   resolveBenchmarkIndustryFromContext,
   toBenchmarkEvaluationOptions,
 } from "../knowledge/industryRouting";
@@ -675,7 +683,13 @@ export async function getDashboard(
   for (const breach of kbBreaches) {
     const code = METRIC_ISSUE_CODE[breach.metricKey] ?? IssueCode.LOW_CTR;
     if (appliedItemKeys.has(`issue:${code}`)) continue;
-    const texts = formatActionsForDisplay(breach.recommended_optimization_actions);
+    // Prefer Arabic merchant copy — never push raw English KB strings to UI/AI.
+    const texts = [
+      issueActionAr(code),
+      ...formatActionsForDisplay(breach.recommended_optimization_actions)
+        .map(simplifyMerchantText)
+        .filter(Boolean),
+    ].filter((t, i, arr) => t && arr.indexOf(t) === i);
     const existing = issues.find(i => i.code === code);
     if (existing) {
       existing.recommendations = [...texts, ...existing.recommendations];
@@ -686,12 +700,10 @@ export async function getDashboard(
     } else {
       issues.push({
         code,
-        title: breach.metricLabel,
+        title: issueTitleAr(code),
         severity: breach.severity === "critical" ? "CRITICAL" : "HIGH",
-        causes: [
-          `${breach.metricLabel} is ${breach.value} (${breach.direction} threshold ${breach.threshold})`,
-        ],
-        recommendations: texts,
+        causes: [issueWhyAr(code)],
+        recommendations: texts.length ? texts : [issueActionAr(code)],
         evidence: { source: "meta_ads_knowledge_base", knowledgeBase: breach },
       });
     }
@@ -703,7 +715,9 @@ export async function getDashboard(
     if (insight.comparison === "within") continue;
     const code = METRIC_ISSUE_CODE[insight.metricKey] ?? IssueCode.LOW_CTR;
     const existing = issues.find(i => i.code === code);
-    const recText = `${insight.inference} (Source: ${insight.source})`;
+    const recText =
+      simplifyMerchantText(insight.inference) || issueActionAr(code);
+    if (!recText) continue;
     if (existing) {
       if (!existing.recommendations.includes(recText)) {
         existing.recommendations = [...existing.recommendations, recText];
@@ -715,11 +729,9 @@ export async function getDashboard(
     } else {
       issues.push({
         code,
-        title: insight.metricLabel,
+        title: issueTitleAr(code),
         severity: "HIGH",
-        causes: [
-          `${insight.metricLabel} benchmark comparison is ${insight.comparison} (${insight.benchmarkText})`,
-        ],
+        causes: [issueWhyAr(code)],
         recommendations: [recText],
         evidence: { source: "industry_benchmark_intelligence", benchmarkInsight: insight },
       });
@@ -771,16 +783,26 @@ export async function getDashboard(
       orderBy: [{ priority: "desc" }, { date: "desc" }],
     }),
   );
+  // Sanitize every issue at the product boundary — UI and AI never see codes/jargon.
+  const merchantIssues = issues.map(sanitizeIssueForMerchant);
+
   // The recommendation's action text comes from the top issue's localized recs.
-  const activeIssues = issues.filter(
-    (i) => !appliedItemKeys.has(`issue:${i.code}`),
-  );
+  // Sort by severity so "top" is actually urgent, not insertion order.
+  const severityRank = (s: string) =>
+    s === "CRITICAL" ? 0 : s === "HIGH" ? 1 : s === "MEDIUM" ? 2 : 3;
+  const activeIssues = merchantIssues
+    .filter((i) => !appliedItemKeys.has(`issue:${i.code}`))
+    .slice()
+    .sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
   const topIssue = activeIssues[0];
   let priorityAction = rec
     ? {
         actionCode: rec.actionCode,
         priority: rec.priority,
-        text: topIssue?.recommendations?.[0] ?? rec.actionCode,
+        text: sanitizePriorityActionText(
+          rec.actionCode,
+          topIssue?.recommendations?.[0] ?? null,
+        ),
         details: (rec.detailsJson as Record<string, unknown>) ?? null,
       }
     : null;
@@ -789,7 +811,7 @@ export async function getDashboard(
     priorityAction = null;
   }
 
-  // KB-first priority text when thresholds breached and no stored recommendation.
+  // KB-first priority text when thresholds breached — always Arabic merchant copy.
   if (kbActionTexts.length > 0) {
     const kbActions = findActionsForBreaches(kbBreaches);
     const kbTop = kbBreaches[0]!;
@@ -799,10 +821,14 @@ export async function getDashboard(
       appliedItemKeys.has(`issue:${kbIssueCode}`) ||
       appliedItemKeys.has(`priority:${kbActionId}`);
     if (!kbApplied) {
+      const kbText = sanitizePriorityActionText(
+        kbActionId,
+        simplifyMerchantText(kbActionTexts[0]!) || issueActionAr(kbIssueCode),
+      );
       if (priorityAction) {
         priorityAction = {
           ...priorityAction,
-          text: kbActionTexts[0]!,
+          text: kbText,
           details: {
             ...(priorityAction.details ?? {}),
             recommended_optimization_actions: kbActions,
@@ -811,9 +837,9 @@ export async function getDashboard(
         };
       } else {
         priorityAction = {
-          actionCode: kbActions[0]!.id,
+          actionCode: kbActionId,
           priority: kbTop.severity === "critical" ? "CRITICAL" : "HIGH",
-          text: kbActionTexts[0]!,
+          text: kbText,
           details: {
             source: "meta_ads_knowledge_base",
             recommended_optimization_actions: kbActions,
@@ -824,7 +850,7 @@ export async function getDashboard(
     }
   }
 
-  const filteredIssues = issues.filter(
+  const filteredIssues = merchantIssues.filter(
     (i) => !appliedItemKeys.has(`issue:${i.code}`),
   );
 

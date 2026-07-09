@@ -1370,19 +1370,24 @@ export function dashboardPage(): string {
           actionCode: issueActionCode(iss, dashData),
           rank: severityRank(sev),
           severity: sev,
-          title: iss.title || iss.code || lbl('Action needed', 'إجراء مطلوب'),
+          title: (iss.title && !/^[A-Z0-9_]+$/.test(String(iss.title)))
+            ? iss.title
+            : lbl('Action needed', 'ملاحظة على الحساب'),
           decision: decision,
           steps: recs.slice(0, 4),
           narrative: causes || decision,
           impact: savedSpendLabel(dashData),
-          buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
+          buttonText: sev === 'critical' ? lbl('Do this task', 'نفّذ المهمة') : lbl('Review task', 'راجع المهمة'),
           confidence: iss.confidence || (sev === 'critical' ? 92 : sev === 'high' ? 86 : 78),
         });
       });
 
       if (dashData.priorityAction) {
         var pa = dashData.priorityAction;
-        var paText = typeof pa === 'string' ? pa : (pa.text || pa.actionCode || '');
+        var paText = typeof pa === 'string' ? pa : (pa.text || '');
+        if (!paText || /^[A-Z0-9_]+$/.test(String(paText))) {
+          paText = lbl('Review campaigns and apply one clear change.', 'راجع الحملات وطبّق تعديلاً واحداً واضحاً');
+        }
         if (paText) {
           pushItem({
             kind: 'priority',
@@ -1395,7 +1400,7 @@ export function dashboardPage(): string {
             steps: [paText],
             narrative: paText,
             impact: savedSpendLabel(dashData),
-            buttonText: lbl('Fix Now', 'تطبيق الحل فوراً'),
+            buttonText: lbl('Do this task', 'نفّذ المهمة'),
             confidence: 92,
           });
         }
@@ -1425,7 +1430,7 @@ export function dashboardPage(): string {
           steps: it.body ? [it.body] : [],
           narrative: it.bodyFull || it.body || '',
           impact: savedSpendLabel(dashData),
-          buttonText: sev === 'critical' ? lbl('Fix Now', 'تطبيق الحل فوراً') : lbl('Review', 'مراجعة'),
+          buttonText: sev === 'critical' ? lbl('Do this task', 'نفّذ المهمة') : lbl('Review task', 'راجع المهمة'),
           confidence: sev === 'critical' ? 90 : 82,
         });
       });
@@ -1462,7 +1467,11 @@ export function dashboardPage(): string {
   // straight to the /ai chat as a prefilled question (see aiPage.ts's ?q=
   // handling), instead of duplicating a root-cause explanation UI here.
   function mainMoveAiQuestion(item) {
-    var q = lbl('Why is this happening and how do I fix it, in detail: ', 'لماذا يحدث هذا، وكيف أحله بالتفصيل: ') + (item.title || '');
+    var title = item.title || lbl('this priority', 'هذه الأولوية');
+    var q = lbl(
+      'Explain simply: ' + title + '. What should I do now step by step, and when should I review the result?',
+      'اشرح لي ببساطة: ' + title + '. ماذا أفعل الآن خطوة بخطوة؟ ومتى أراجع النتيجة؟'
+    );
     if (item.campaignName) q += lbl(' (campaign: ', ' (حملة: ') + item.campaignName + ')';
     return q;
   }
@@ -1565,17 +1574,17 @@ export function dashboardPage(): string {
     titleEl.textContent = item.title || lbl('Recommended action', 'الإجراء الموصى به');
     var subtitleParts = [];
     if (item.campaignName) subtitleParts.push(item.campaignName);
-    if (item.actionCode) subtitleParts.push(String(item.actionCode).replace(/_/g, ' '));
+    if (item.decision && item.decision !== item.title) subtitleParts.push(item.decision);
     subEl.textContent = subtitleParts.length > 0
       ? subtitleParts.join(' · ')
-      : lbl('Follow these steps in Meta Ads Manager.', 'اتبع هذه الخطوات في مدير إعلانات Meta.');
+      : lbl('Follow these steps in Meta Ads Manager.', 'اتبع هذه الخطوات في مدير إعلانات فيسبوك ثم راجع النتيجة.');
     stepsEl.innerHTML = steps.map(function (step, idx) {
       return '<div class="action-modal-step" dir="auto"><b>' + (idx + 1) + '</b><span>' + escHtml(step) + '</span></div>';
     }).join('');
     var cancelBtn = document.getElementById('action-modal-cancel');
     var confirmBtn = document.getElementById('action-modal-confirm');
     if (cancelBtn) cancelBtn.textContent = lbl('Cancel', 'إلغاء');
-    if (confirmBtn) confirmBtn.textContent = lbl("I've applied this", 'طبّقت الإجراء');
+    if (confirmBtn) confirmBtn.textContent = lbl("I've applied this", 'نفّذت المهمة');
     modal.style.display = 'flex';
   }
   async function confirmExecuteAction() {

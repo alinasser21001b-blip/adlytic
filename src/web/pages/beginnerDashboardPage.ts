@@ -641,7 +641,10 @@ export function beginnerDashboardPage(): string {
     var cta = guidanceCta(dash, 'default');
 
     if (pa) {
-      text = (typeof pa === 'string') ? pa : (pa.text || pa.actionCode || '');
+      text = (typeof pa === 'string') ? pa : (pa.text || '');
+      if (!text || /^[A-Z0-9_]+$/.test(String(text))) {
+        text = 'راجع الحملات وطبّق تعديلاً واحداً واضحاً اليوم.';
+      }
       cta = guidanceCta(dash, 'action');
     } else if (steady && (steady.mainMoveNarrative || steady.backgroundSummary)) {
       title = steady.mainMoveTitle || 'الوضع الحالي';

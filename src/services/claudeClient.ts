@@ -22,10 +22,12 @@ const ARABIC_LANGUAGE_OVERRIDE = `
 
 LANGUAGE OVERRIDE (highest priority)
 - The user is Arabic-speaking. Reply ENTIRELY in clear, natural Modern Standard Arabic with an Iraqi/Gulf-friendly tone.
-- Keep ONLY metric acronyms in Latin letters (CTR, CPM, CPC, ROAS, CPA, CVR). Explain each acronym once in Arabic the first time it appears.
+- Structure every answer as a merchant TASK: فهم → قرار → خطوات (1–3) → تحقق.
+- Prefer Arabic metric nouns (نسبة النقر، تكلفة الوصول، مرات الظهور، تكلفة النتيجة). Do NOT lead with Latin acronyms.
+- NEVER echo internal engine codes (LOW_CTR, REFRESH_CREATIVES, RESCUE_WATCH, KEEP_COLLECTING, etc.).
 - Do NOT write English sentences, English section headers, or English paragraphs.
 - Use Latin digits (0-9), not Arabic-Indic digits (٠-٩) — the dashboard renders Latin digits.
-- Sound like a warm, direct Arab e-commerce advisor: no filler, no marketing jargon, no English loanwords for concepts that have plain Arabic equivalents.`;
+- Sound like a warm, direct Arab e-commerce advisor: no filler, no marketing jargon.`;
 
 /** Presence of any character in the Arabic Unicode block (U+0600..U+06FF). */
 function looksArabic(s: string): boolean {
