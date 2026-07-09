@@ -188,90 +188,125 @@ export function dashboardPage(): string {
       <details class="v2-advanced">
         <summary>
           التحليلات المتقدمة
-          <span>مؤشرات الأداء · تفاعل الإعلان · الرسائل · التنبيهات · الحملات</span>
+          <span>نبض مباشر · مؤشرات · اتجاهات · تشخيص · حملات</span>
         </summary>
         <div class="v2-advanced-body">
-          <div class="v2-section" id="brain-pulse-section" style="display:none;margin-bottom:18px;">
-            <div class="v2-section-head">
-              <div class="v2-section-title">النبض المباشر</div>
-              <div class="v2-section-meta">يتحدّث كل 30 ثانية · <span id="brain-pulse-tick">—</span></div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
-              <div class="card" style="padding:14px;">
-                <div id="brain-pulse-burn-label" class="kpi-label">وتيرة الإنفاق</div>
-                <div id="brain-pulse-burn" class="kpi-value" style="font-size:20px;">—</div>
-                <div class="text-xs text-3"><span id="brain-pulse-burn-n">0</span> <span id="brain-pulse-burn-meta">حملة</span></div>
+          <div class="adv-shell">
+
+            <!-- 1. Live pulse -->
+            <section class="adv-panel" id="brain-pulse-section" style="display:none;">
+              <div class="adv-panel-head">
+                <div>
+                  <div class="adv-panel-kicker">الآن</div>
+                  <div class="adv-panel-title">النبض المباشر</div>
+                </div>
+                <div class="adv-panel-meta">يتحدّث كل 30 ثانية · <span id="brain-pulse-tick">—</span></div>
               </div>
-              <div class="card" style="padding:14px;">
-                <div id="brain-pulse-spend-label" class="kpi-label">حصة إنفاق اليوم</div>
-                <div id="brain-pulse-spendpct" class="kpi-value" style="font-size:20px;">—</div>
-                <div id="brain-pulse-spend-meta" class="text-xs text-3">من إجمالي الميزانية اليومية</div>
+              <div class="adv-pulse-grid">
+                <div class="adv-pulse-card">
+                  <div id="brain-pulse-burn-label" class="adv-pulse-label">سرعة الإنفاق</div>
+                  <div id="brain-pulse-burn" class="adv-pulse-value">—</div>
+                  <div class="adv-pulse-sub"><span id="brain-pulse-burn-n">0</span> <span id="brain-pulse-burn-meta">حملة</span></div>
+                </div>
+                <div class="adv-pulse-card">
+                  <div id="brain-pulse-spend-label" class="adv-pulse-label">حصة إنفاق اليوم</div>
+                  <div id="brain-pulse-spendpct" class="adv-pulse-value">—</div>
+                  <div id="brain-pulse-spend-meta" class="adv-pulse-sub">من الميزانية اليومية</div>
+                </div>
+                <div class="adv-pulse-card">
+                  <div id="brain-pulse-dna-label" class="adv-pulse-label">التشابه مع الأفضل</div>
+                  <div id="brain-pulse-dna" class="adv-pulse-value">—</div>
+                  <div id="brain-pulse-dna-meta" class="adv-pulse-sub">مقارنةً بأفضل حملاتك</div>
+                </div>
               </div>
-              <div class="card" style="padding:14px;">
-                <div id="brain-pulse-dna-label" class="kpi-label">التطابق مع أفضل حملاتك</div>
-                <div id="brain-pulse-dna" class="kpi-value" style="font-size:20px;">—</div>
-                <div id="brain-pulse-dna-meta" class="text-xs text-3">مقارنةً بأفضل حملاتك السابقة</div>
+            </section>
+
+            <!-- 2. Window KPIs -->
+            <section class="adv-panel">
+              <div class="adv-panel-head">
+                <div>
+                  <div class="adv-panel-kicker">آخر 30 يوماً</div>
+                  <div class="adv-panel-title">مؤشرات النافذة</div>
+                </div>
               </div>
-            </div>
-          </div>
+              <div class="kpi-grid adv-kpi-grid" id="kpi-grid"></div>
+            </section>
 
-          <div class="v2-section-head" style="margin-top:6px;">
-            <div class="v2-section-title">مؤشرات النافذة · آخر 30 يوماً</div>
-          </div>
-          <div class="kpi-grid" id="kpi-grid"></div>
+            <!-- 3. Trends -->
+            <section class="adv-panel">
+              <div class="adv-panel-head">
+                <div>
+                  <div class="adv-panel-kicker">آخر 30 يوماً</div>
+                  <div class="adv-panel-title">الاتجاهات</div>
+                </div>
+              </div>
+              <div class="chart-grid adv-chart-grid">
+                <div class="chart-card" id="adv-ctr-card">
+                  <div class="chart-card-header"><div class="chart-card-title" id="chart-ctr-title">اتجاه تفاعل الإعلان</div></div>
+                  <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
+                </div>
+                <div class="chart-card" id="adv-msgs-card">
+                  <div class="chart-card-header"><div class="chart-card-title">اتجاه الرسائل</div></div>
+                  <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
+                </div>
+              </div>
+            </section>
 
-          <div class="v2-section-head" style="margin-top:6px;">
-            <div class="v2-section-title">الاتجاهات · آخر 30 يوماً</div>
-          </div>
-          <div class="chart-grid">
-            <div class="chart-card" id="adv-ctr-card">
-              <div class="chart-card-header"><div class="chart-card-title" id="chart-ctr-title">اتجاه تفاعل الإعلان</div></div>
-              <div class="chart-canvas-wrap"><canvas id="chart-ctr"></canvas></div>
-            </div>
-            <div class="chart-card" id="adv-msgs-card">
-              <div class="chart-card-header"><div class="chart-card-title">اتجاه الرسائل</div></div>
-              <div class="chart-canvas-wrap"><canvas id="chart-impressions"></canvas></div>
-            </div>
-          </div>
+            <!-- 4. Attribution -->
+            <div id="attribution-section" class="adv-panel" style="display:none;"></div>
 
-          <div id="attribution-section" style="display:none;"></div>
+            <!-- 5. Diagnoses -->
+            <section id="diagnoses-section" class="adv-panel" style="display:none;">
+              <div class="adv-panel-head">
+                <div>
+                  <div class="adv-panel-kicker">الخطوة التالية</div>
+                  <div class="adv-panel-title">التشخيص والتوصيات</div>
+                  <div class="adv-panel-sub">لماذا تغيّرت النتائج · وماذا تفعل الآن</div>
+                </div>
+              </div>
+              <div class="diagnosis-grid" id="diagnoses-grid"></div>
+            </section>
 
-          <div id="diagnoses-section" class="adv-block" style="display:none;">
-            <div class="adv-block-head">
-              <div class="adv-block-title">التشخيص والتوصيات</div>
-              <div class="adv-block-sub">لماذا تغيّرت النتائج · وماذا تفعل الآن</div>
-            </div>
-            <div class="diagnosis-grid" id="diagnoses-grid"></div>
-          </div>
+            <!-- 6. Alerts -->
+            <section class="adv-panel">
+              <div class="adv-panel-head">
+                <div>
+                  <div class="adv-panel-kicker">مراقبة</div>
+                  <div class="adv-panel-title">التنبيهات والمشاكل</div>
+                  <div class="adv-panel-sub">ملاحظات مرتبة حسب الأولوية</div>
+                </div>
+              </div>
+              <div id="issues-list"><div class="adv-empty-ok">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div></div>
+            </section>
 
-          <div class="adv-block section-gap">
-            <div class="adv-block-head">
-              <div class="adv-block-title">التنبيهات والمشاكل</div>
-              <div class="adv-block-sub">ملاحظات مرتبة حسب الأولوية</div>
-            </div>
-            <div id="issues-list"><div class="adv-empty-ok">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div></div>
-          </div>
+            <!-- 7. Campaigns -->
+            <section class="adv-panel adv-campaigns-wrap">
+              <div class="adv-panel-head">
+                <div>
+                  <div class="adv-panel-kicker">الحساب</div>
+                  <div class="adv-panel-title">أداء الحملات</div>
+                  <div class="adv-panel-sub">الأفضل والأسوأ أولاً، ثم الأعلى إنفاقاً</div>
+                </div>
+              </div>
+              <div class="table-wrap" style="border:none;background:transparent;overflow-x:auto;">
+                <table class="adv-campaigns-table">
+                  <thead>
+                    <tr>
+                      <th>الحملة</th>
+                      <th>الحالة</th>
+                      <th>الإنفاق</th>
+                      <th>النتائج</th>
+                      <th>التفاعل</th>
+                      <th>ملاحظة</th>
+                    </tr>
+                  </thead>
+                  <tbody id="campaigns-tbody">
+                    <tr><td colspan="6" class="text-3" style="text-align:center;padding:18px;">جارٍ التحميل…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
-          <div class="adv-block table-wrap adv-campaigns-wrap">
-            <div class="adv-block-head" style="padding:0 0 12px;">
-              <div class="adv-block-title">أداء الحملات</div>
-              <div class="adv-block-sub">الأفضل والأسوأ أولاً، ثم الأعلى إنفاقاً</div>
-            </div>
-            <table class="adv-campaigns-table">
-              <thead>
-                <tr>
-                  <th>الحملة</th>
-                  <th>الحالة</th>
-                  <th>الإنفاق</th>
-                  <th>النتائج</th>
-                  <th>التفاعل</th>
-                  <th>ملاحظة</th>
-                </tr>
-              </thead>
-              <tbody id="campaigns-tbody">
-                <tr><td colspan="6" class="text-3" style="text-align:center;padding:18px;">جارٍ التحميل…</td></tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </details>
@@ -950,8 +985,10 @@ export function dashboardPage(): string {
       { key: 'cvr', label: 'نسبة التحويل', delta: attr.drivers.cvr.change, contribution: attr.drivers.cvr.contribution },
     ];
     var totalDir = attr.totalChange >= 0 ? 'ارتفعت' : 'انخفضت';
-    section.innerHTML = '<div class="attribution-card">'
-      + '<div class="attribution-title">لماذا تغيّرت النتائج؟</div>'
+    section.innerHTML = '<div class="adv-panel-head"><div>'
+      + '<div class="adv-panel-kicker">تفسير</div>'
+      + '<div class="adv-panel-title">لماذا تغيّرت النتائج؟</div>'
+      + '</div></div>'
       + '<div class="attribution-bars">'
       + factors.map(function (f) {
           var cls = f.delta > 0.02 ? 'positive' : f.delta < -0.02 ? 'negative' : 'neutral';
@@ -976,8 +1013,7 @@ export function dashboardPage(): string {
               + 'نسبة التحويل ' + (attr.drivers.cvr.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.cvr.change * 100).toFixed(0) + '%. '
               + 'السبب الرئيسي: ' + (DRIVER_AR[attr.primaryDriver] || attr.primaryDriver) + '.')
             : attr.narrative
-        ) + '</div>'
-    + '</div>';
+        ) + '</div>';
   }
 
   function renderCampaignsTable(best, worst, allCampaigns) {
