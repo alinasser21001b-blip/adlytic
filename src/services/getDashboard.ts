@@ -38,6 +38,7 @@ import {
 } from "../knowledge";
 import {
   buildAdviceTask,
+  buildAdviceTaskFromDiagnosis,
   issueActionAr,
   issueTitleAr,
   issueWhyAr,
@@ -866,8 +867,26 @@ export async function getDashboard(
     (i) => !appliedItemKeys.has(`issue:${i.code}`),
   );
 
-  // Merchant task cards — single presentation contract for dashboard UIs.
-  const merchantTasks: AdviceTask[] = filteredIssues
+  // Merchant task cards — prefer evidence-rich diagnoses (product thesis),
+  // then fall back to sanitized issues / priority action.
+  const diagnosisTasks: AdviceTask[] = diagnoses
+    .filter((d) => {
+      const issueKey = d.contributingIssues?.[0];
+      return !issueKey || !appliedItemKeys.has(`issue:${issueKey}`);
+    })
+    .map((d, idx) =>
+      buildAdviceTaskFromDiagnosis({
+        name: d.name,
+        code: d.code,
+        confidence: d.confidence,
+        narrative: d.narrative,
+        action: d.action,
+        contributingIssues: d.contributingIssues,
+        actionCode: idx === 0 ? priorityAction?.actionCode ?? null : null,
+      }),
+    );
+
+  const issueTasks: AdviceTask[] = filteredIssues
     .slice()
     .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
     .map((iss, idx) =>
@@ -877,13 +896,28 @@ export async function getDashboard(
         severity: iss.severity,
         causes: iss.causes,
         recommendations: iss.recommendations,
-        actionCode: idx === 0 ? priorityAction?.actionCode ?? null : null,
-        priorityText: idx === 0 ? priorityAction?.text ?? null : null,
+        actionCode:
+          diagnosisTasks.length === 0 && idx === 0
+            ? priorityAction?.actionCode ?? null
+            : null,
+        priorityText:
+          diagnosisTasks.length === 0 && idx === 0
+            ? priorityAction?.text ?? null
+            : null,
         itemKey: `issue:${iss.code}`,
       }),
     );
 
-  // If we only have a priority action (no issues), still surface one task.
+  // Prefer diagnoses; append issue tasks that aren't already covered.
+  const coveredIssueCodes = new Set(
+    diagnosisTasks.map((t) => t.issueCode).filter(Boolean) as string[],
+  );
+  const merchantTasks: AdviceTask[] = [
+    ...diagnosisTasks,
+    ...issueTasks.filter((t) => !t.issueCode || !coveredIssueCodes.has(t.issueCode)),
+  ];
+
+  // If we only have a priority action (no issues/diagnoses), still surface one task.
   if (!merchantTasks.length && priorityAction) {
     merchantTasks.push(
       buildAdviceTask({

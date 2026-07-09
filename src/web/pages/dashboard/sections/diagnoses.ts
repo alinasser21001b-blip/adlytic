@@ -2,7 +2,8 @@
 //  src/web/pages/dashboard/sections/diagnoses.ts
 //
 //  Client-side renderDiagnoses(diagnoses). Plain Arabic cards:
-//  title → why → what to do now.
+//  title → confidence → evidence → ماذا تفعل الآن.
+//  Primary diagnosis lives above the fold; this grid shows extras only.
 // ════════════════════════════════════════════════════════════════════════
 
 export const renderDiagnosesJs = `
@@ -10,7 +11,12 @@ export const renderDiagnosesJs = `
     var section = document.getElementById('diagnoses-section');
     var grid = document.getElementById('diagnoses-grid');
     if (!diagnoses || diagnoses.length === 0) { if (section) section.style.display = 'none'; return; }
+    // Primary diagnosis already owns the above-fold hero — show extras only.
+    var rest = diagnoses.length > 1 ? diagnoses.slice(1) : [];
+    if (!rest.length) { if (section) section.style.display = 'none'; return; }
     if (section) section.style.display = 'block';
+    var headTitle = section.querySelector('.adv-panel-title');
+    if (headTitle) headTitle.textContent = 'تشخيصات إضافية';
     var FALLBACK_NAME = {
       'Creative Fatigue': 'إرهاق الإعلان',
       'Audience Saturation': 'تشبّع الجمهور',
@@ -38,7 +44,7 @@ export const renderDiagnosesJs = `
       t = t.replace(/\\bauction\\b/gi, 'المزاد');
       return t.replace(/\\s+/g, ' ').trim();
     }
-    grid.innerHTML = diagnoses.map(function (d) {
+    grid.innerHTML = rest.map(function (d) {
       var confLevel = d.confidence >= 0.75 ? 'high' : d.confidence >= 0.5 ? 'medium' : 'low';
       var confLabel = d.confidence >= 0.75 ? 'ثقة عالية' : d.confidence >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
       var name = FALLBACK_NAME[d.code] || FALLBACK_NAME[d.name] || d.name;

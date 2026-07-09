@@ -404,21 +404,27 @@ export function recommendationsPage(): string {
 
   function renderCardFromTask(task) {
     var sev = taskSeverity(task);
-    return '<article class="rec-card" style="border-inline-start-color:' + sev.color + ';" data-severity="' + escHtml(sev.key) + '" data-item-key="' + escHtml(task.itemKey) + '">'
-      + '<div class="rec-card-head">'
-      +   '<span class="rec-sev" style="background:' + sev.color + '22;color:' + sev.color + ';">' + escHtml(task.severityLabel || sev.text) + '</span>'
-      +   '<div class="rec-card-title">' + escHtml(task.title) + '</div>'
+    var confHtml = '';
+    if (task.confidence != null && isFinite(Number(task.confidence))) {
+      var c = Number(task.confidence);
+      if (c > 1) c = c / 100;
+      c = Math.max(0, Math.min(1, c));
+      var confLevel = c >= 0.75 ? 'high' : c >= 0.5 ? 'medium' : 'low';
+      var confLabel = c >= 0.75 ? 'ثقة عالية' : c >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
+      confHtml = '<span class="diagnosis-confidence ' + confLevel + '">' + escHtml(confLabel + ' ' + Math.round(c * 100) + '%') + '</span>';
+    }
+    return '<article class="rec-card diagnosis-card" style="border-inline-start-color:' + sev.color + ';" data-severity="' + escHtml(sev.key) + '" data-item-key="' + escHtml(task.itemKey) + '">'
+      + '<div class="diagnosis-header">'
+      +   '<div class="diagnosis-name">' + escHtml(task.title) + '</div>'
+      +   (confHtml || '<span class="rec-sev" style="background:' + sev.color + '22;color:' + sev.color + ';">' + escHtml(task.severityLabel || sev.text) + '</span>')
       + '</div>'
-      + '<div class="rec-block"><div class="rec-block-label">١ · ماذا يحدث؟</div><div class="rec-block-text">' + escHtml(task.why) + '</div></div>'
-      + '<div class="rec-action-box">'
-      +   '<div class="rec-action-label">٢ · ماذا تفعل الآن؟</div>'
-      +   '<div class="rec-action-text">' + escHtml(task.action) + '</div>'
+      + '<div class="diagnosis-narrative">' + escHtml(task.why) + '</div>'
+      + '<div class="diagnosis-action">'
+      +   '<div class="diagnosis-action-label">ماذا تفعل الآن؟</div>'
+      +   escHtml(task.action)
+      +   (task.expect ? '<div class="diagnosis-expect">' + escHtml(task.expect) + '</div>' : '')
       + '</div>'
-      + '<div class="rec-block"><div class="rec-block-label">٣ · الخطوات</div><ol class="rec-steps">'
-      + (task.steps || []).map(function(s) { return '<li>' + escHtml(s) + '</li>'; }).join('')
-      + '</ol></div>'
-      + '<div class="rec-expect"><b>٤ · تحقق:</b> ' + escHtml(task.expect) + '</div>'
-      + '<div class="rec-card-actions">'
+      + '<div class="rec-card-actions" style="margin-top:12px;">'
       +   '<button type="button" class="btn btn-primary btn-sm rec-do-btn" data-item-key="' + escHtml(task.itemKey) + '">نفّذت المهمة</button>'
       +   '<button type="button" class="btn btn-secondary btn-sm rec-ignore-btn" data-item-key="' + escHtml(task.itemKey) + '">تجاهل</button>'
       +   '<a class="btn btn-ghost btn-sm" href="/ai?q=' + encodeURIComponent(task.askAi || '') + '">اسأل المساعد</a>'

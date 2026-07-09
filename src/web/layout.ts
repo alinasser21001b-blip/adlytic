@@ -1262,6 +1262,25 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   padding: 11px 13px; border-radius: 12px; line-height: 1.55;
 }
 .diagnosis-action-label { font-weight: 800; font-size: 11px; margin-bottom: 4px; color: var(--accent-2); }
+.diagnosis-expect {
+  margin-top: 8px; font-size: 12.5px; color: var(--text-2); line-height: 1.5;
+  padding-top: 8px; border-top: 1px dashed rgba(217,167,89,0.22);
+}
+.diagnosis-card--hero {
+  padding: 20px 20px 16px;
+  border-inline-start-width: 4px;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(217,167,89,0.12), transparent 55%),
+    var(--surface);
+  border-color: rgba(217,167,89,0.28);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.22);
+}
+.diagnosis-card--hero .diagnosis-name { font-size: 20px; letter-spacing: -0.02em; }
+.diagnosis-card--hero .diagnosis-narrative { font-size: 14px; margin-bottom: 14px; }
+.diagnosis-card--hero .diagnosis-action { font-size: 13.5px; padding: 13px 14px; }
+.diagnosis-cta-row { margin-top: 14px; }
+.diagnosis-card--hero.has-critical { border-inline-start-color: var(--error); }
+.diagnosis-card--hero.has-warning { border-inline-start-color: var(--warning); }
 
 /* Advanced analytics section chrome (shared) */
 .adv-block { margin-bottom: 22px; direction: rtl; }

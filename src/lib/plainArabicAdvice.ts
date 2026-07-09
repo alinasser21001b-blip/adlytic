@@ -9,15 +9,19 @@
 export type AdviceSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface AdviceTask {
-  /** Stable key for apply/ignore closed-loop (issue:CODE | priority:ACTION). */
+  /** Stable key for apply/ignore closed-loop (issue:CODE | priority:ACTION | diagnosis:CODE). */
   itemKey: string;
   issueCode: string | null;
   actionCode: string | null;
+  /** When sourced from diagnose() — e.g. CREATIVE_FATIGUE */
+  diagnosisCode?: string | null;
   severity: AdviceSeverity;
   severityLabel: string;
-  /** ماذا يحدث؟ */
+  /** 0–1 from diagnose(); null when unknown */
+  confidence: number | null;
+  /** ماذا يحدث؟ / اسم التشخيص */
   title: string;
-  /** لماذا يهم؟ */
+  /** لماذا يهم؟ — evidence narrative with numbers when from diagnose() */
   why: string;
   /** ماذا تفعل الآن؟ (headline) */
   action: string;
@@ -264,14 +268,75 @@ export function buildAdviceTask(input: {
     itemKey,
     issueCode: code,
     actionCode,
+    diagnosisCode: null,
     severity,
     severityLabel: severityLabelAr(severity),
+    confidence: null,
     title,
     why,
     action,
     steps,
     expect,
     askAi: `اشرح لي ببساطة: ${title}. ماذا أفعل الآن خطوة بخطوة؟ ومتى أراجع النتيجة؟`,
+  };
+}
+
+/** Split diagnose() action prose into headline + verify timeline when present. */
+function splitDiagnosisAction(actionText: string): { action: string; expect: string | null } {
+  const raw = simplifyMerchantText(actionText) || String(actionText || '').trim();
+  if (!raw) return { action: 'افتح الحملات وطبّق تعديلاً واحداً واضحاً', expect: null };
+  const parts = raw.split(/(?<=[.。؟!])\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const last = parts[parts.length - 1]!;
+    if (/يوم|أيام|ساعة|ساعات|أسبوع|أسابيع|خلال|بعد/.test(last)) {
+      return { action: parts.slice(0, -1).join(' ').trim(), expect: last.trim() };
+    }
+  }
+  return { action: raw, expect: null };
+}
+
+/**
+ * Preferred merchant card — evidence-rich diagnosis from diagnose().
+ * This is the product thesis: title + confidence + why (numbers) + ماذا تفعل الآن.
+ */
+export function buildAdviceTaskFromDiagnosis(input: {
+  name: string;
+  code: string;
+  confidence: number;
+  narrative: string;
+  action: string;
+  contributingIssues?: string[];
+  actionCode?: string | null;
+}): AdviceTask {
+  const issueCode = input.contributingIssues?.[0] || null;
+  const split = splitDiagnosisAction(input.action);
+  const title = simplifyMerchantText(input.name) || input.name;
+  const why = simplifyMerchantText(input.narrative) || input.narrative;
+  const action = split.action;
+  const expect =
+    split.expect ||
+    (issueCode ? issueExpectAr(issueCode) : 'راجع النتيجة خلال ٣–٧ أيام بعد تطبيق الخطوة.');
+  const steps = issueCode
+    ? issueStepsAr(issueCode, { action })
+    : [action, 'طبّق التعديل في مدير إعلانات فيسبوك.', 'راجع النتيجة بعد بضعة أيام.'];
+  const conf = Math.max(0, Math.min(1, Number(input.confidence) || 0));
+  const severity: AdviceSeverity =
+    conf >= 0.75 ? 'HIGH' : conf >= 0.5 ? 'MEDIUM' : 'LOW';
+
+  return {
+    itemKey: issueCode ? `issue:${issueCode}` : `diagnosis:${input.code}`,
+    issueCode,
+    actionCode: input.actionCode || null,
+    diagnosisCode: input.code,
+    severity,
+    severityLabel: severityLabelAr(severity),
+    confidence: conf,
+    title,
+    why,
+    action,
+    steps,
+    expect,
+    askAi: `اشرح لي ببساطة التشخيص «${title}»: ${why} ماذا أفعل الآن خطوة بخطوة؟ ومتى أراجع؟`,
   };
 }
 

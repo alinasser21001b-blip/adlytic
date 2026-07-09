@@ -77,10 +77,14 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
 
-      <!-- 1 ▸ Today's task FIRST — the page thesis (visible without scrolling) -->
+      <!-- 1 ▸ Diagnosis thesis FIRST — the product's ideal card (visible without scrolling) -->
       <section class="v2-section main-move-above-fold" id="main-move-section">
         <div class="v2-section-head">
-          <div class="v2-section-title" id="main-move-label">مهمتك الآن</div>
+          <div>
+            <div class="v2-section-kicker" id="main-move-kicker">الخطوة التالية</div>
+            <div class="v2-section-title" id="main-move-label">التشخيص والتوصيات</div>
+            <div class="v2-section-sub" id="main-move-sub">لماذا تغيّرت النتائج · وماذا تفعل الآن</div>
+          </div>
           <div class="v2-section-meta" id="main-move-meta">—</div>
         </div>
         <div class="main-move-card" id="main-move-card">
@@ -1559,16 +1563,31 @@ export function dashboardPage(): string {
     if (item.campaignName) q += lbl(' (campaign: ', ' (حملة: ') + item.campaignName + ')';
     return q;
   }
+  function confBadge(confidence) {
+    if (confidence == null || !isFinite(Number(confidence))) return null;
+    var c = Number(confidence);
+    if (c > 1) c = c / 100;
+    c = Math.max(0, Math.min(1, c));
+    var level = c >= 0.75 ? 'high' : c >= 0.5 ? 'medium' : 'low';
+    var label = c >= 0.75 ? 'ثقة عالية' : c >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
+    return { level: level, label: label, pct: Math.round(c * 100) };
+  }
+
   function renderMainMove(dashData, kpis) {
     var card = document.getElementById('main-move-card');
     var meta = document.getElementById('main-move-meta');
     var label = document.getElementById('main-move-label');
+    var kicker = document.getElementById('main-move-kicker');
+    var sub = document.getElementById('main-move-sub');
     if (!card) return;
     try {
-    if (label) label.textContent = lbl('Main Move', 'مهمتك الآن');
+    if (kicker) kicker.textContent = lbl('Next step', 'الخطوة التالية');
+    if (label) label.textContent = lbl('Diagnosis & recommendations', 'التشخيص والتوصيات');
+    if (sub) sub.textContent = lbl('Why results changed · what to do now', 'لماذا تغيّرت النتائج · وماذا تفعل الآن');
     var merchantTasks = Array.isArray(dashData.merchantTasks) ? dashData.merchantTasks.filter(Boolean) : [];
+    var diagnoses = Array.isArray(dashData.diagnoses) ? dashData.diagnoses.filter(Boolean) : [];
     var items = buildAllMoveItems(dashData);
-    if (items.length === 0 && !merchantTasks.length) {
+    if (items.length === 0 && !merchantTasks.length && !diagnoses.length) {
       var steady = getSteadyState(dashData) || buildClientSteadyFallback(dashData, kpis);
       if (renderSteadyMainMove(steady)) return;
       if (meta) meta.textContent = lbl('All clear', 'كل شيء مستقر');
@@ -1581,10 +1600,27 @@ export function dashboardPage(): string {
     }
 
     var task = merchantTasks[0] || null;
+    // Prefer raw diagnosis[0] if merchantTasks somehow missed it.
+    if (!task && diagnoses[0]) {
+      var d0 = diagnoses[0];
+      task = {
+        itemKey: (d0.contributingIssues && d0.contributingIssues[0]) ? ('issue:' + d0.contributingIssues[0]) : ('diagnosis:' + d0.code),
+        issueCode: (d0.contributingIssues && d0.contributingIssues[0]) || null,
+        diagnosisCode: d0.code,
+        title: d0.name,
+        why: d0.narrative,
+        action: d0.action,
+        expect: '',
+        steps: [],
+        confidence: d0.confidence,
+        severity: 'HIGH',
+        severityLabel: 'مهم',
+      };
+    }
     var primary = items[0] || null;
     if (task && !primary) {
       primary = {
-        kind: 'issue',
+        kind: task.diagnosisCode ? 'diagnosis' : 'issue',
         itemId: task.itemKey,
         issueCode: task.issueCode,
         actionCode: task.actionCode,
@@ -1594,7 +1630,7 @@ export function dashboardPage(): string {
         steps: task.steps || [],
         narrative: task.why,
         buttonText: lbl('Do this task', 'نفّذ المهمة'),
-        confidence: 90,
+        confidence: task.confidence != null ? Math.round(Number(task.confidence) * (Number(task.confidence) <= 1 ? 100 : 1)) : 90,
       };
     }
     if (task && primary) {
@@ -1604,8 +1640,12 @@ export function dashboardPage(): string {
       primary.narrative = task.why || primary.narrative;
       primary.itemId = task.itemKey || primary.itemId;
       primary.actionCode = task.actionCode || primary.actionCode;
-      primary.kind = (task.itemKey && String(task.itemKey).indexOf('priority:') === 0) ? 'priority' : 'issue';
+      primary.kind = task.diagnosisCode ? 'diagnosis'
+        : (task.itemKey && String(task.itemKey).indexOf('priority:') === 0) ? 'priority' : 'issue';
       primary.buttonText = lbl('Do this task', 'نفّذ المهمة');
+      if (task.confidence != null) {
+        primary.confidence = Math.round(Number(task.confidence) * (Number(task.confidence) <= 1 ? 100 : 1));
+      }
     }
 
     var secondary = items.slice(primary && items[0] === primary ? 1 : 0, 6).filter(function (it) {
@@ -1614,46 +1654,41 @@ export function dashboardPage(): string {
 
     if (meta) {
       meta.textContent = secondary.length > 0
-        ? lbl(secondary.length + ' more tasks below', secondary.length + ' مهام إضافية بالأسفل')
-        : lbl('Understand → Decide → Act → Verify', 'فهم → قرار → فعل → تحقق');
+        ? lbl(secondary.length + ' more below', secondary.length + ' إضافية بالأسفل')
+        : lbl('Primary diagnosis', 'التشخيص الأساسي');
     }
 
     var sevCls = primary.severity === 'critical' ? 'has-critical' : primary.severity === 'high' ? 'has-warning' : '';
     var ctaCls = primary.severity === 'critical' ? ' critical' : '';
     var why = (task && task.why) || pickMainMoveNarrative(primary, dashData, kpis);
-    if (textsOverlap(why, primary.title)) why = primary.decision && !textsOverlap(primary.decision, primary.title) ? primary.decision : why;
-    var steps = (task && task.steps && task.steps.length) ? task.steps : actionStepsForItem(primary);
-    var expect = (task && task.expect) || lbl('Review results in 3–7 days after applying the change.', 'راجع النتيجة خلال ٣–٧ أيام بعد تطبيق الخطوة.');
-    var impactHtml = primary.impact
-      ? '<div class="main-move-impact">' + escHtml(primary.impact) + '</div>'
+    var expect = (task && task.expect) || '';
+    var badge = confBadge(task && task.confidence != null ? task.confidence : (primary.confidence != null ? primary.confidence / 100 : null));
+    var badgeHtml = badge
+      ? '<span class="diagnosis-confidence ' + badge.level + '">' + escHtml(badge.label + ' ' + badge.pct + '%') + '</span>'
       : '';
 
-    var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
-      + '<div class="main-move-loop" aria-hidden="true"><span>١ فهم</span><span class="sep">→</span><span>٢ قرار</span><span class="sep">→</span><span>٣ فعل</span><span class="sep">→</span><span>٤ تحقق</span></div>'
-      + '<div class="main-move-tag-row">'
-        + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 task", 'مهمتك الأولى اليوم')) + '</div>'
-        + (task && task.severityLabel
-          ? '<span class="main-move-sev-pill">' + escHtml(task.severityLabel) + '</span>'
-          : '')
+    // Ideal product card: title + confidence + evidence narrative + ماذا تفعل الآن
+    var html = '<article class="diagnosis-card diagnosis-card--hero ' + sevCls + '" dir="auto">'
+      + '<div class="diagnosis-header">'
+        + '<div class="diagnosis-name">' + escHtml(primary.title) + '</div>'
+        + badgeHtml
       + '</div>'
-      + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
-      + impactHtml
-      + (why ? '<div class="main-move-block"><div class="main-move-block-label">' + escHtml(lbl('1 · What is happening?', '١ · ماذا يحدث؟')) + '</div><div class="main-move-why">' + escHtml(why) + '</div></div>' : '')
-      + '<div class="main-move-action-box"><div class="main-move-block-label">' + escHtml(lbl('2 · What to do now?', '٢ · ماذا تفعل الآن؟')) + '</div><div class="main-move-action-text">' + escHtml(primary.decision || primary.title) + '</div></div>'
-      + '<div class="main-move-block"><div class="main-move-block-label">' + escHtml(lbl('3 · Steps', '٣ · الخطوات')) + '</div><ol class="main-move-steps">'
-      + steps.map(function (s) { return '<li>' + escHtml(s) + '</li>'; }).join('')
-      + '</ol></div>'
-      + '<div class="main-move-expect"><b>' + escHtml(lbl('4 · Verify:', '٤ · تحقق:')) + '</b> ' + escHtml(expect) + '</div>'
-      + '<div class="main-move-cta-row">'
+      + (why ? '<div class="diagnosis-narrative">' + escHtml(why) + '</div>' : '')
+      + '<div class="diagnosis-action">'
+        + '<div class="diagnosis-action-label">' + escHtml(lbl('What to do now?', 'ماذا تفعل الآن؟')) + '</div>'
+        + escHtml(primary.decision || primary.title)
+        + (expect ? '<div class="diagnosis-expect">' + escHtml(expect) + '</div>' : '')
+      + '</div>'
+      + '<div class="main-move-cta-row diagnosis-cta-row">'
         + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText || lbl('Do this task', 'نفّذ المهمة')) + '</button>'
         + '<a class="btn btn-secondary btn-sm" href="/ai?q=' + encodeURIComponent(mainMoveAiQuestion(primary)) + '">' + escHtml(lbl('Ask AI', 'اسأل المساعد')) + '</a>'
         + '<a class="btn btn-ghost btn-sm" href="/recommendations">' + escHtml(lbl('All tasks', 'كل المهام')) + '</a>'
       + '</div>'
-    + '</div>';
+    + '</article>';
 
     if (secondary.length > 0) {
       html += '<details class="main-move-more">'
-        + '<summary>' + escHtml(lbl('Other tasks (' + secondary.length + ')', 'مهام أخرى (' + secondary.length + ')')) + '</summary>'
+        + '<summary>' + escHtml(lbl('Other priorities (' + secondary.length + ')', 'أولويات أخرى (' + secondary.length + ')')) + '</summary>'
         + '<div class="main-move-secondary">'
         + secondary.map(function (a, idx) {
           return '<div class="main-move-secondary-item" dir="auto">'
