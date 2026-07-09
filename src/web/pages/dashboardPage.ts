@@ -287,16 +287,17 @@ export function dashboardPage(): string {
                   <div class="adv-panel-title">أداء الحملات</div>
                   <div class="adv-panel-sub">الأفضل والأسوأ أولاً، ثم الأعلى إنفاقاً</div>
                 </div>
+                <a href="/campaigns" class="btn btn-ghost btn-sm">عرض الكل</a>
               </div>
               <div class="table-wrap" style="border:none;background:transparent;overflow-x:auto;">
                 <table class="adv-campaigns-table">
                   <thead>
                     <tr>
                       <th>الحملة</th>
-                      <th>الحالة</th>
+                      <th>حالة التسليم</th>
                       <th>الإنفاق</th>
                       <th>النتائج</th>
-                      <th>التفاعل</th>
+                      <th>تفاعل الإعلان</th>
                       <th>ملاحظة</th>
                     </tr>
                   </thead>
@@ -1063,23 +1064,30 @@ export function dashboardPage(): string {
     best = enrich(best);
     worst = enrich(worst);
     var rows = [];
+    function deliveryLabel(c) {
+      var tier = c.deliveryTier || '';
+      if (c.isCurrentlySpending || tier === 'DELIVERING_TODAY') return { text: 'تنفق الآن', cls: 'note-hot' };
+      if (tier === 'DELIVERING_WINDOW') return { text: 'تعمل', cls: 'note-best' };
+      if (tier === 'DORMANT_ACTIVE' || c.isDormantActive) return { text: 'تحتاج مراجعة', cls: 'note-watch' };
+      if (tier === 'PAUSED' || (c.status || '').toUpperCase() === 'PAUSED') return { text: 'متوقفة', cls: 'note-muted' };
+      if (tier === 'ARCHIVED' || (c.status || '').toUpperCase() === 'ARCHIVED') return { text: 'مؤرشفة', cls: 'note-muted' };
+      return { text: '—', cls: 'note-muted' };
+    }
     function noteFor(c, forced) {
       if (forced) return forced;
-      if (c.isCurrentlySpending) return 'تنفق الآن';
-      if (c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) return 'تحتاج مراجعة';
-      if (c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW') return 'تعمل';
-      if ((c.status || '').toUpperCase() === 'PAUSED') return 'متوقفة';
-      return '';
+      return deliveryLabel(c).text;
     }
     function noteClass(note) {
       if (note === 'الأفضل') return 'note-best';
       if (note === 'الأسوأ') return 'note-worst';
       if (note === 'تنفق الآن') return 'note-hot';
       if (note === 'تحتاج مراجعة') return 'note-watch';
+      if (note === 'تعمل') return 'note-best';
       return 'note-muted';
     }
     function row(c, forcedNote) {
       var note = noteFor(c, forcedNote);
+      var delivery = deliveryLabel(c);
       var spend = c.spendWindowMinor != null ? fmtCurrencyMinor(c.spendWindowMinor)
         : (c.dailyBudget != null ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم' : '—');
       var msgs = c.messagesWindow != null ? Number(c.messagesWindow).toLocaleString('en-US')
@@ -1089,7 +1097,7 @@ export function dashboardPage(): string {
       return '<tr>'
         + '<td><div class="adv-camp-name">' + escHtml(c.name || '—') + '</div>'
           + '<div class="adv-camp-obj">' + escHtml(translateObjective(c.objective)) + '</div></td>'
-        + '<td>' + statusBadge(c.status || 'UNKNOWN') + '</td>'
+        + '<td><span class="adv-camp-note ' + delivery.cls + '">' + escHtml(delivery.text) + '</span></td>'
         + '<td class="adv-camp-num">' + escHtml(spend) + '</td>'
         + '<td class="adv-camp-num">' + escHtml(String(msgs)) + '</td>'
         + '<td class="adv-camp-num">' + escHtml(ctr) + '</td>'
