@@ -1,32 +1,50 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/web/pages/dashboard/sections/issues.ts
 //
-//  Client-side renderIssues(issues). Exported as a JS string interpolated
-//  into the dashboard's IIFE `<script>` block.
-//
-//  Consumes: #issues-list.  Uses: escHtml (from lib/format) and
-//  severityBadge (from layout SHARED_JS).
+//  Client-side renderIssues(issues) — Arabic severity + plain next step.
 // ════════════════════════════════════════════════════════════════════════
 
 export const renderIssuesJs = `
   function renderIssues(issues) {
     var el = document.getElementById('issues-list');
     if (!issues || issues.length === 0) {
-      el.innerHTML = '<div class="text-3 text-sm">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div>';
+      el.innerHTML = '<div class="adv-empty-ok">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div>';
       return;
     }
-    el.innerHTML = issues.map(function (iss) {
-      var sev = (iss.severity || 'low').toUpperCase();
-      var causes = Array.isArray(iss.causes) ? iss.causes.join(', ') : (iss.causes || '');
-      var recs = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
-      return '<div style="padding:10px 0;border-top:1px solid var(--border);">'
-        + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">'
-          + '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escHtml(iss.title || iss.code) + '</div>'
-          + severityBadge(sev)
+    function sevAr(sev) {
+      var s = String(sev || '').toUpperCase();
+      if (s === 'CRITICAL') return { text: 'مستعجل', cls: 'critical' };
+      if (s === 'HIGH') return { text: 'مهم', cls: 'high' };
+      if (s === 'MEDIUM') return { text: 'للمتابعة', cls: 'medium' };
+      return { text: 'معلومة', cls: 'low' };
+    }
+    function simplifyIssueText(text) {
+      if (!text) return '';
+      var t = String(text);
+      t = t.replace(/\\bCTR\\b/gi, 'نسبة النقر');
+      t = t.replace(/\\bCPM\\b/gi, 'تكلفة الوصول');
+      t = t.replace(/\\bROAS\\b/gi, 'العائد على الإنفاق');
+      t = t.replace(/\\bfrequency\\b/gi, 'مرات الظهور');
+      if (/[A-Za-z]{5,}/.test(t) && !/[\\u0600-\\u06FF]/.test(t)) return '';
+      return t.replace(/\\s+/g, ' ').trim();
+    }
+    el.innerHTML = '<div class="adv-issues-list">' + issues.map(function (iss) {
+      var sev = sevAr(iss.severity);
+      var causesRaw = Array.isArray(iss.causes) ? iss.causes : [];
+      var causes = causesRaw.map(simplifyIssueText).filter(Boolean).slice(0, 2).join(' · ');
+      var recsRaw = Array.isArray(iss.recommendations) ? iss.recommendations[0] : (iss.recommendations || '');
+      var recs = simplifyIssueText(recsRaw);
+      var title = iss.title && !/^[A-Z0-9_]+$/.test(String(iss.title))
+        ? iss.title
+        : (iss.title || iss.code || 'ملاحظة');
+      return '<div class="adv-issue-row">'
+        + '<div class="adv-issue-top">'
+          + '<div class="adv-issue-title">' + escHtml(title) + '</div>'
+          + '<span class="adv-issue-sev ' + sev.cls + '">' + escHtml(sev.text) + '</span>'
         + '</div>'
-        + (causes ? '<div class="text-sm text-2" style="margin-top:3px;">' + escHtml(causes) + '</div>' : '')
-        + (recs ? '<div class="text-xs text-3" style="margin-top:2px;font-style:italic;">' + escHtml(recs) + '</div>' : '')
+        + (causes ? '<div class="adv-issue-why">' + escHtml(causes) + '</div>' : '')
+        + (recs ? '<div class="adv-issue-action"><b>الخطوة:</b> ' + escHtml(recs) + '</div>' : '')
       + '</div>';
-    }).join('');
+    }).join('') + '</div>';
   }
 `;
