@@ -20,6 +20,7 @@ import {
 } from '../lib/insightQualityGate';
 import { DecisionAction } from '../engine/DecisionEngine';
 import { sanitizeObjectForLlm, scrubString } from '../lib/dataSanitizer';
+import type { RuleGrounding } from '../engines/rules/ruleGrounding';
 
 // ════════════════════════════════════════════════════════════════════════
 // Public output contract — persisted to narrationJson (campaignId omitted at write)
@@ -116,17 +117,7 @@ interface CmoPayload {
   };
 
   /** Deterministic diagnose() patterns — already merchant Arabic. */
-  ruleGrounding?: {
-    primaryCode: string | null;
-    diagnoses: Array<{
-      code: string;
-      name: string;
-      confidence: number;
-      narrative: string;
-      action: string;
-    }>;
-    issues: Array<{ code: string; severity: string }>;
-  };
+  ruleGrounding?: RuleGrounding;
 }
 
 /** Closed-set historical context block — assembled by the narration cron caller. */
@@ -199,15 +190,10 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
   }
 
   if (b.ruleGrounding && (b.ruleGrounding.diagnoses.length > 0 || b.ruleGrounding.issues.length > 0)) {
+    // Truncate for LLM token budget only — shape owned by ruleGrounding.ts.
     payload.ruleGrounding = {
       primaryCode: b.ruleGrounding.primaryCode,
-      diagnoses: b.ruleGrounding.diagnoses.slice(0, 3).map((d) => ({
-        code: d.code,
-        name: d.name,
-        confidence: d.confidence,
-        narrative: d.narrative,
-        action: d.action,
-      })),
+      diagnoses: b.ruleGrounding.diagnoses.slice(0, 3),
       issues: b.ruleGrounding.issues.slice(0, 5),
     };
   }

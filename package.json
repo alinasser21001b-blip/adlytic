@@ -26,6 +26,7 @@
     "test:insight-gate": "tsx test_insight_quality_gate.ts",
     "test:diagnose": "tsx test_diagnose.ts",
     "test:rule-grounding": "tsx test_rule_grounding.ts",
+    "test:evidence-consistency": "tsx test_evidence_consistency.ts",
     "test:historical": "tsx test_historical.ts",
     "test:currency": "tsx test_currency.ts",
     "test:csv": "tsx test_csv_export.ts",
