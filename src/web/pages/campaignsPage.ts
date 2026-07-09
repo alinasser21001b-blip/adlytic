@@ -2329,7 +2329,13 @@ export function campaignsPage(): string {
   function renderInvestigation(report) {
     var panel = document.getElementById('investigate-panel');
     if (!panel) return;
-    panel.innerHTML = '<div style="font-size:11px;color:var(--text-3);margin-bottom:12px;direction:rtl;text-align:right;">'
+    var offlineNote = report.usedOffline
+      ? '<div style="font-size:12px;color:var(--text-3);margin-bottom:10px;direction:rtl;text-align:right;padding:10px 12px;border:1px solid var(--border-2);border-radius:10px;background:rgba(217,167,89,0.06);">'
+        + 'تم بناء هذا التحقيق من بيانات حسابك مباشرة (بدون نموذج سحابي). الأرقام من أدوات التحليل الحية.'
+        + '</div>'
+      : '';
+    panel.innerHTML = offlineNote
+      + '<div style="font-size:11px;color:var(--text-3);margin-bottom:12px;direction:rtl;text-align:right;">'
       + 'تم إجراء هذا التحقيق ' + new Date(report.generatedAt).toLocaleString('ar') + '</div>'
       + report.sections.map(function (s) {
           var badge = s.status !== 'ok'
@@ -2346,17 +2352,31 @@ export function campaignsPage(): string {
     var panel = document.getElementById('investigate-panel');
     if (!panel) return;
     if (investigationCache[campaignId]) { renderInvestigation(investigationCache[campaignId]); return; }
-    panel.innerHTML = '<div class="v2-action-empty">جارٍ إجراء التحقيق الشامل… قد يستغرق ذلك حتى 30 ثانية.</div>';
+    panel.innerHTML = '<div class="v2-action-empty">جارٍ إجراء التحقيق الشامل من بيانات الحملة…</div>';
     try {
       var report = await apiFetch(
         '/api/workspaces/' + state.workspaceId + '/campaigns/' + encodeURIComponent(campaignId) + '/investigate',
         { method: 'POST' },
       );
+      if (!report || !Array.isArray(report.sections)) {
+        throw Object.assign(new Error('تعذّر قراءة تقرير التحقيق'), { code: 'AI_UNAVAILABLE' });
+      }
       investigationCache[campaignId] = report;
       renderInvestigation(report);
     } catch (err) {
-      panel.innerHTML = '<div class="alert alert-error" style="direction:rtl;text-align:right;">تعذّر إجراء التحقيق: '
-        + escHtml(friendlyApiError(err)) + '</div>';
+      var msg = (typeof friendlyApiError === 'function') ? friendlyApiError(err) : ((err && err.message) || 'تعذّر إجراء التحقيق');
+      panel.innerHTML =
+        '<div class="alert alert-error" style="direction:rtl;text-align:right;margin-bottom:12px;">'
+      +   escHtml(msg)
+      + '</div>'
+      + '<button type="button" class="btn btn-secondary btn-sm" id="investigate-retry-btn">إعادة المحاولة</button>';
+      var retry = document.getElementById('investigate-retry-btn');
+      if (retry) {
+        retry.addEventListener('click', function () {
+          delete investigationCache[campaignId];
+          loadInvestigation(campaignId);
+        });
+      }
     }
   }
 

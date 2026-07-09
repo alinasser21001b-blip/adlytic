@@ -22,6 +22,8 @@ import type { ToolHandler } from './dispatcher';
 import { ToolDispatcher } from './dispatcher';
 import { buildAgentToolHandlers } from './tools';
 import { postCheckReply, buildRetryNudge } from './postcheck';
+import { buildDeterministicInvestigationNarratives } from './investigateNarratives';
+import { classifyLlmError } from '../../lib/llmErrors';
 
 const ANALYST_MODEL = process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5';
 const MAX_TOKENS = 1536;
@@ -29,12 +31,10 @@ const MAX_POSTCHECK_RETRIES = 2;
 const OVERALL_TIMEOUT_MS = 45_000;
 
 let _client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!_client) {
-    const apiKey = process.env['ANTHROPIC_API_KEY'];
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
-    _client = new Anthropic({ apiKey });
-  }
+function tryGetClient(): Anthropic | null {
+  const apiKey = process.env['ANTHROPIC_API_KEY'];
+  if (!apiKey) return null;
+  if (!_client) _client = new Anthropic({ apiKey });
   return _client;
 }
 
@@ -49,6 +49,10 @@ export interface InvestigationReport {
   campaignId: string;
   generatedAt: string;
   sections: InvestigationSection[];
+  /** True when narratives came from tool data without Claude. */
+  usedOffline?: boolean;
+  /** Stable product code when offline due to LLM failure. */
+  offlineCode?: string;
 }
 
 const SECTION_DEFS = [
@@ -130,7 +134,41 @@ export async function investigateCampaign(args: {
     historical_trend: details.ok ? (details.data as { historicalBaseline?: unknown; vsBaseline?: unknown }) : null,
   };
 
-  const narratives = await writeNarratives(availableKeys, dataForPrompt, toolResults);
+  // Prefer Claude narratives when available; always fall back to deterministic
+  // Arabic from the same tool JSON so the tab never hard-fails on credits /
+  // timeout / missing API key. Skip the LLM call entirely when the chat-v2
+  // flag is off — tools alone are enough for a useful report.
+  let narratives: Record<string, string> = {};
+  let usedOffline = false;
+  let offlineCode: string | undefined;
+  const llmEnabled = process.env['AI_AGENT_V2_ENABLED'] === 'true' && !!process.env['ANTHROPIC_API_KEY'];
+  if (llmEnabled) {
+    try {
+      narratives = await writeNarratives(availableKeys, dataForPrompt, toolResults);
+    } catch (err) {
+      const classified = classifyLlmError(err);
+      console.warn('[adlytic:investigate] LLM narrative failed, using offline:', classified.code, classified.providerMessage);
+      offlineCode = classified.code;
+      usedOffline = true;
+    }
+  } else {
+    usedOffline = true;
+    offlineCode = process.env['ANTHROPIC_API_KEY'] ? 'AI_UNAVAILABLE' : 'AI_AUTH_FAILED';
+  }
+
+  const offlineNarratives = buildDeterministicInvestigationNarratives(dataForPrompt, availableKeys);
+  if (!Object.keys(narratives).length) {
+    narratives = offlineNarratives;
+    usedOffline = true;
+  } else {
+    // Fill any missing section from deterministic data rather than blank no_data.
+    for (const key of availableKeys) {
+      if (!narratives[key] && offlineNarratives[key]) {
+        narratives[key] = offlineNarratives[key]!;
+        usedOffline = true;
+      }
+    }
+  }
 
   const sections: InvestigationSection[] = SECTION_DEFS.map((def) => {
     if (def.key in UNAVAILABLE_SECTIONS) {
@@ -150,7 +188,12 @@ export async function investigateCampaign(args: {
     return { key: def.key, title: def.title, status: 'ok', narrative };
   });
 
-  return { campaignId, generatedAt: new Date().toISOString(), sections };
+  return {
+    campaignId,
+    generatedAt: new Date().toISOString(),
+    sections,
+    ...(usedOffline ? { usedOffline: true, offlineCode } : {}),
+  };
 }
 
 function pixelHealthErrorNarrative(error: { code: string; message: string }): string {
@@ -176,7 +219,11 @@ async function writeNarratives(
   dataForPrompt: Record<string, unknown>,
   toolResults: Array<{ toolName: string; result: unknown }>,
 ): Promise<Record<string, string>> {
-  const client = getClient();
+  const client = tryGetClient();
+  if (!client) {
+    // No API key — caller fills from deterministic narratives.
+    return {};
+  }
   const system = [
     'You are writing a structured campaign investigation report for an Arabic-speaking Meta Ads merchant.',
     'Follow global media-buyer standards: evidence → diagnosis → recommended check. Write 2-3 short sentences per section in Modern Standard Arabic.',

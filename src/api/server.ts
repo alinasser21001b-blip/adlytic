@@ -3264,9 +3264,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   //  the order of minutes is expected and shown via generatedAt.
   // ════════════════════════════════════════════════════════════════════════
   app.post('/api/workspaces/:workspaceId/campaigns/:campaignId/investigate', async (c) => {
-    if (process.env['AI_AGENT_V2_ENABLED'] !== 'true') {
-      return c.json({ error: 'AI Agent v2 is disabled', code: 'V2_DISABLED' }, 404);
-    }
+    // Investigation is tool-first (Postgres). Claude is optional polish —
+    // investigateCampaign falls back to deterministic Arabic narratives.
+    // Do not hard-gate on AI_AGENT_V2_ENABLED: merchants need this tab even
+    // when chat v2 / Anthropic credits are down.
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const { workspaceId, campaignId } = req.params;
@@ -3284,6 +3285,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const { toolCache } = await import('../services/agent/cache');
     const { investigateCampaign } = await import('../services/agent/investigate');
+    const { classifyLlmError } = await import('../lib/llmErrors');
     const cacheKey = `${workspaceId}:investigation:${campaignId}`;
     const cached = toolCache.get<Awaited<ReturnType<typeof investigateCampaign>>>(cacheKey);
     if (cached) return c.json(cached.value);
@@ -3294,7 +3296,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return c.json(report);
     } catch (err) {
       console.error('[adlytic:investigate] error:', err);
-      return c.json({ error: 'تعذّر إجراء التحقيق الآن. جرب بعد لحظة.' }, 500);
+      const classified = classifyLlmError(err);
+      // Prefer a friendly Arabic message — never leak Anthropic JSON.
+      return c.json(
+        {
+          error: classified.messageAr,
+          code: classified.code,
+        },
+        classified.httpStatus === 402 ? 503 : (classified.httpStatus as 429 | 500 | 503),
+      );
     }
   });
 
