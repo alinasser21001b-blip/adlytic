@@ -1738,6 +1738,12 @@ export function campaignsPage(): string {
         +       statusBadge
         +     '</div>'
         +     copyHtml
+        +     (state.currentInspectorCampaignId
+          ? '<a class="btn btn-ghost btn-sm" style="align-self:flex-start;" href="/ad-analysis?campaignId='
+            + encodeURIComponent(state.currentInspectorCampaignId)
+            + (item.adId ? '&adId=' + encodeURIComponent(item.adId) : '')
+            + '">حلّل هذا الإعلان</a>'
+          : '')
         +   '</div>'
         + '</div>';
     }).join('');
