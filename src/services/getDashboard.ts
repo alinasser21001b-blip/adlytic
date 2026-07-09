@@ -48,6 +48,12 @@ import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
 import { diagnose, type Diagnosis } from "../engines/rules/diagnose";
+import {
+  isGenericInsightNarration,
+  buildDeterministicNarration,
+  selectUsefulFeedItems,
+  upgradeGenericNarration,
+} from "../lib/insightQualityGate";
 import type { Signals } from "../engines/rules/types";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
@@ -1214,6 +1220,8 @@ interface BrainSnapshotRow {
   priority: string;
   narrationJson: unknown;
   narrationGeneratedAt: Date | null;
+  /** Brain tick payload — used to upgrade generic / sentinel narrations on read. */
+  payload?: unknown;
 }
 
 interface CmoFeedCandidate {
@@ -1253,13 +1261,34 @@ function mapSnapshotToFeedCandidate(
   nameById: Map<string, string>,
 ): CmoFeedCandidate {
   const campaignName = nameById.get(s.campaignId) ?? s.externalCampaignId;
-  const narration = readNarration(s.narrationJson);
+  let narration = readNarration(s.narrationJson);
+
+  // Cognitive gate (read path): replace legacy generic / identical templates
+  // with action-aware deterministic Arabic grounded in the brain payload.
+  if (
+    narration &&
+    isGenericInsightNarration(narration.arabicTitle, narration.arabicNarration)
+  ) {
+    const upgraded = upgradeGenericNarration(
+      narration,
+      s.payload,
+      campaignName,
+      s.action,
+    );
+    narration = upgraded.narration;
+  } else if (!narration) {
+    narration = buildDeterministicNarration(s.payload ?? {}, {
+      campaignName,
+      action: s.action,
+    });
+  }
+
   const date = formatUtcDate(s.tickDate);
   const insightType = s.action;
   const dedupeKey = `${s.campaignId}:${insightType}:${date}`;
 
-  const rawTitle = narration?.arabicTitle ?? campaignName;
-  const rawBody = normalizeWhitespace(narration?.arabicNarration ?? '');
+  const rawTitle = narration.arabicTitle || campaignName;
+  const rawBody = normalizeWhitespace(narration.arabicNarration ?? '');
   const title = truncatePreview(rawTitle, CMO_FEED_PREVIEW_CHARS);
   const body = truncatePreview(rawBody, CMO_FEED_PREVIEW_CHARS);
 
@@ -1279,7 +1308,7 @@ function mapSnapshotToFeedCandidate(
   if (rawBody.length > CMO_FEED_PREVIEW_CHARS) {
     item.bodyFull = rawBody;
   }
-  if (narration?.creativeDirective) {
+  if (narration.creativeDirective) {
     item.creativeDirective = truncatePreview(
       narration.creativeDirective,
       CMO_FEED_CREATIVE_DIRECTIVE_MAX,
@@ -1325,13 +1354,17 @@ function buildCmoFeedV2(
   }
 
   const deduped = Array.from(byCampaign.values());
-  const total = deduped.length;
-  const limited = sortFeedCandidates(deduped).slice(0, BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT);
+  // Prefer severity order, then let the quality gate drop generics / body twins
+  // and cap learning-phase noise so merchants only see useful cards.
+  const ranked = sortFeedCandidates(deduped).map(c => c.item);
+  const selected = selectUsefulFeedItems(ranked, BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT);
+  const selectedIds = new Set(selected.map(i => i.id));
+  const limited = sortFeedCandidates(deduped.filter(c => selectedIds.has(c.item.id)));
 
   return {
-    items: limited.map(c => c.item),
+    items: selected,
     meta: {
-      total,
+      total: deduped.length,
       window,
       maxPreviewChars: CMO_FEED_PREVIEW_CHARS,
       truncated: limited.some(c => c.truncated),

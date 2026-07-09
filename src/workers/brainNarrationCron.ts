@@ -38,6 +38,7 @@ import {
   isLearningPhaseSnapshot,
   shouldBlockLearningGeneration,
 } from '../lib/cmoInsightDedupe';
+import { buildDeterministicNarration } from '../lib/insightQualityGate';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 export const NARRATION_CRON_CONFIG = {
@@ -218,7 +219,7 @@ export async function runBrainNarrationCron(
         }
         const campaign = await prisma.campaign.findUnique({
           where: { id: row.campaignId },
-          select: { objective: true },
+          select: { objective: true, name: true },
         });
         const history = await buildCmoHistoricalContext(
           prisma,
@@ -247,10 +248,25 @@ export async function runBrainNarrationCron(
         console.error(`${tag} ${label} narration failed → ${msg} (writing sentinel)`);
 
         try {
+          // Prefer a fresh name lookup; fall back to external id if DB is down.
+          let campaignName = row.externalCampaignId;
+          try {
+            const named = await prisma.campaign.findUnique({
+              where: { id: row.campaignId },
+              select: { name: true },
+            });
+            if (named?.name) campaignName = named.name;
+          } catch {
+            /* keep external id */
+          }
           await prisma.campaignBrainSnapshot.update({
             where: { id: row.id },
             data: {
-              narrationJson: buildSentinelNarration(row.action),
+              narrationJson: buildSentinelNarration(
+                row.action,
+                campaignName,
+                row.payload,
+              ),
               narrationGeneratedAt: new Date(),
             },
           });
@@ -362,16 +378,24 @@ function serializeNarration(n: CmoNarration): Prisma.InputJsonValue {
 
 /**
  * Failure sentinel — written to narrationJson when Claude CMO throws or the
- * payload fails shape validation. Same JSONB schema as a real narration so the
- * dashboard reader works uniformly. Arabic copy mirrors ClaudeCMO's own
- * production-safe fallback.
+ * payload fails shape validation. Uses deterministic action-aware Arabic so
+ * merchants never see identical useless "تحديث أداء الحملة" cards.
  */
-function buildSentinelNarration(action: string): Prisma.InputJsonValue {
-  void action;
-  return {
-    arabicTitle: 'تحديث أداء الحملة',
+function buildSentinelNarration(
+  action: string,
+  campaignName?: string,
+  payload?: unknown,
+): Prisma.InputJsonValue {
+  const det = buildDeterministicNarration(payload ?? {}, {
+    action,
+    campaignName: campaignName || 'حملتك',
+  });
+  const out: Record<string, string> = {
+    arabicTitle: det.arabicTitle,
     arabicNarration:
-      'راجعنا أداء حملتك وصدرت توصية جديدة بناءً على البيانات الحالية. ' +
-      'تعذّر توليد التفاصيل هذه المرة — سيُعاد المحاولة لاحقاً.',
+      det.arabicNarration +
+      ' (تعذّر توليد التفاصيل الكاملة هذه المرة — سيُعاد المحاولة لاحقاً.)',
   };
+  if (det.creativeDirective) out.creativeDirective = det.creativeDirective;
+  return out;
 }

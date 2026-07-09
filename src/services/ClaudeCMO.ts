@@ -13,6 +13,7 @@
 //   { arabicTitle, arabicNarration, creativeDirective? }
 
 import { BrainTickResult } from '../engine/AdlyticBrain';
+import { buildDeterministicNarration } from '../lib/insightQualityGate';
 import { DecisionAction } from '../engine/DecisionEngine';
 import { sanitizeObjectForLlm, scrubString } from '../lib/dataSanitizer';
 
@@ -388,15 +389,18 @@ function parseLlmNarrationOutput(raw: unknown): LlmNarrationOutput {
 }
 
 function buildFallbackNarration(b: BrainTickResult): CmoNarration {
+  // Never emit the old campaign-agnostic template — merchants saw identical
+  // useless cards across every campaign when the LLM failed.
+  const det = buildDeterministicNarration(b);
   const fallback: CmoNarration = {
     campaignId: b.campaignId,
-    arabicTitle: 'تحديث أداء الحملة',
-    arabicNarration:
-      'راجعنا أداء حملتك وصدرت توصية جديدة بناءً على البيانات الحالية. ' +
-      'راجع تفاصيل الحملة في لوحة التحكم.',
+    arabicTitle: det.arabicTitle,
+    arabicNarration: det.arabicNarration,
   };
 
-  if (b.v2?.resonance.creativeDirective) {
+  if (det.creativeDirective) {
+    fallback.creativeDirective = det.creativeDirective;
+  } else if (b.v2?.resonance.creativeDirective) {
     fallback.creativeDirective = b.v2.resonance.creativeDirective;
   }
 
