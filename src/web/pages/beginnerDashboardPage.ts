@@ -14,6 +14,41 @@ export function beginnerDashboardPage(): string {
     .bgn-shell { direction: rtl; text-align: right; max-width: 980px; margin: 0 auto; letter-spacing: normal; line-height: 1.6; }
     .bgn-shell *, .bgn-shell *::before, .bgn-shell *::after { box-sizing: border-box; }
 
+    /* ── Motion: entrance + reduced-motion ── */
+    @keyframes bgn-rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes bgn-pulse-dot {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
+      50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(226,96,79,0.18); }
+    }
+    @keyframes bgn-wave {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    @keyframes bgn-soft-spin {
+      to { transform: rotate(360deg); }
+    }
+    .bgn-anim {
+      opacity: 0;
+      animation: bgn-rise 420ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+    }
+    .bgn-anim.d1 { animation-delay: 40ms; }
+    .bgn-anim.d2 { animation-delay: 90ms; }
+    .bgn-anim.d3 { animation-delay: 140ms; }
+    .bgn-anim.d4 { animation-delay: 190ms; }
+    .bgn-anim.d5 { animation-delay: 240ms; }
+    .bgn-anim.d6 { animation-delay: 290ms; }
+    .bgn-anim.d7 { animation-delay: 340ms; }
+    @media (prefers-reduced-motion: reduce) {
+      .bgn-anim { opacity: 1; animation: none; }
+      .bgn-status-pill.red .bgn-dot,
+      .bgn-status-pill.yellow .bgn-dot { animation: none; }
+      .bgn-bar-fill { transition: none !important; }
+      .bgn-metric-value, .bgn-mini-value { transition: none; }
+    }
+
     /* ── Greeting ── */
     .bgn-greeting {
       display: flex; align-items: flex-start; gap: 14px;
@@ -21,25 +56,43 @@ export function beginnerDashboardPage(): string {
       background: linear-gradient(135deg, #241C15 0%, #100E0D 70%);
       border: 1px solid rgba(217,167,89,0.25);
       border-radius: 18px;
+      transition: border-color 200ms ease, box-shadow 200ms ease;
     }
-    .bgn-greeting-emoji { font-size: 38px; line-height: 1; flex-shrink: 0; }
+    .bgn-greeting:hover { border-color: rgba(217,167,89,0.4); box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
+    .bgn-greeting-emoji { font-size: 38px; line-height: 1; flex-shrink: 0; transition: transform 280ms ease; }
+    .bgn-greeting:hover .bgn-greeting-emoji { transform: scale(1.08) rotate(-6deg); }
     .bgn-greeting-text-wrap { flex: 1; min-width: 0; }
     .bgn-greeting-title { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.5; }
     .bgn-greeting-sub { font-size: 13.5px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
-    .bgn-greeting-meta { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+    .bgn-greeting-meta { font-size: 12px; color: var(--text-3); margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .bgn-refresh-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px; border-radius: 999px;
+      border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+      color: var(--text-3); font-size: 11px; font-weight: 600;
+      font-family: inherit; cursor: pointer;
+      transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+    .bgn-refresh-btn:hover { color: var(--accent-2); border-color: rgba(217,167,89,0.35); background: rgba(217,167,89,0.08); }
+    .bgn-refresh-btn.is-busy { pointer-events: none; opacity: 0.7; }
+    .bgn-refresh-btn.is-busy .bgn-refresh-ico { animation: bgn-soft-spin 0.8s linear infinite; }
+    .bgn-refresh-ico { width: 12px; height: 12px; display: inline-block; }
     .bgn-status-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
     .bgn-status-pill {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 7px 14px; border-radius: 999px;
       font-size: 13px; font-weight: 700;
+      cursor: help;
+      transition: transform 180ms ease, box-shadow 180ms ease;
     }
+    .bgn-status-pill:hover { transform: scale(1.04); }
     .bgn-status-pill .bgn-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
     .bgn-status-pill.green  { background: rgba(52,168,113,0.14);  color: #5CC08F; }
     .bgn-status-pill.green  .bgn-dot { background: #34A871; }
     .bgn-status-pill.yellow { background: rgba(199,122,31,0.14); color: #E0A050; }
-    .bgn-status-pill.yellow .bgn-dot { background: #C77A1F; }
+    .bgn-status-pill.yellow .bgn-dot { background: #C77A1F; animation: bgn-pulse-dot 1.8s ease-in-out infinite; }
     .bgn-status-pill.red    { background: rgba(226,96,79,0.14);  color: #EB9186; }
-    .bgn-status-pill.red    .bgn-dot { background: #E2604F; }
+    .bgn-status-pill.red    .bgn-dot { background: #E2604F; animation: bgn-pulse-dot 1.4s ease-in-out infinite; }
     .bgn-status-pill.gray   { background: rgba(255,255,255,0.05); color: var(--text-3); }
     .bgn-status-pill.gray   .bgn-dot { background: var(--text-3); }
     .bgn-status-hint { font-size: 11px; color: var(--text-3); max-width: 140px; text-align: end; line-height: 1.4; }
@@ -52,7 +105,9 @@ export function beginnerDashboardPage(): string {
       padding: 18px 20px;
       margin-bottom: 20px;
       display: flex; gap: 14px; align-items: flex-start;
+      transition: border-color 200ms ease, transform 200ms ease;
     }
+    .bgn-summary:hover { border-color: rgba(217,167,89,0.4); transform: translateY(-1px); }
     .bgn-summary-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
     .bgn-summary-label { font-size: 11px; font-weight: 700; color: var(--accent-2); letter-spacing: 0.04em; margin-bottom: 5px; }
     .bgn-summary-text { font-size: 14.5px; color: var(--text); line-height: 1.65; }
@@ -63,25 +118,48 @@ export function beginnerDashboardPage(): string {
     .bgn-metric-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 16px; padding: 18px 16px;
-      transition: transform var(--transition), border-color var(--transition);
+      cursor: pointer; user-select: none;
+      transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease, background 200ms ease;
     }
-    .bgn-metric-card:hover { transform: translateY(-2px); border-color: var(--border-2); }
+    .bgn-metric-card:hover { transform: translateY(-3px); border-color: var(--border-2); box-shadow: 0 10px 28px rgba(0,0,0,0.2); }
+    .bgn-metric-card:active { transform: translateY(-1px) scale(0.99); }
+    .bgn-metric-card.is-open {
+      border-color: rgba(217,167,89,0.4);
+      background: linear-gradient(180deg, rgba(217,167,89,0.06), var(--surface));
+    }
     .bgn-metric-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .bgn-metric-icon {
       font-size: 28px; line-height: 1; width: 48px; height: 48px;
       display: flex; align-items: center; justify-content: center;
       background: rgba(217,167,89,0.10); border-radius: 12px; flex-shrink: 0;
+      transition: transform 220ms ease;
     }
+    .bgn-metric-card:hover .bgn-metric-icon { transform: scale(1.06); }
     .bgn-metric-card.green  .bgn-metric-icon { background: rgba(52,168,113,0.12); }
     .bgn-metric-card.blue   .bgn-metric-icon { background: rgba(59,130,246,0.12); }
     .bgn-metric-card.purple .bgn-metric-icon { background: rgba(168,85,247,0.12); }
-    .bgn-metric-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); line-height: 1.45; }
+    .bgn-metric-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); line-height: 1.45; flex: 1; }
+    .bgn-metric-expand {
+      font-size: 10px; font-weight: 700; color: var(--text-3);
+      padding: 2px 7px; border-radius: 999px;
+      border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+      transition: color 160ms ease, border-color 160ms ease;
+    }
+    .bgn-metric-card.is-open .bgn-metric-expand { color: var(--accent-2); border-color: rgba(217,167,89,0.35); }
     .bgn-metric-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1.15; margin-bottom: 4px; }
     .bgn-metric-trend { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 6px; }
     .bgn-metric-trend.up   { color: #5CC08F; }
     .bgn-metric-trend.down { color: #EB9186; }
     .bgn-metric-trend.flat { color: var(--text-3); }
-    .bgn-metric-hint { font-size: 11.5px; color: var(--text-3); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; margin-top: 4px; }
+    .bgn-metric-hint {
+      font-size: 11.5px; color: var(--text-3); line-height: 1.5;
+      border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; margin-top: 4px;
+      max-height: 0; opacity: 0; overflow: hidden; padding-top: 0; border-top-width: 0; margin-top: 0;
+      transition: max-height 280ms ease, opacity 200ms ease, padding 200ms ease, margin 200ms ease, border-width 200ms ease;
+    }
+    .bgn-metric-card.is-open .bgn-metric-hint {
+      max-height: 80px; opacity: 1; padding-top: 8px; border-top-width: 1px; margin-top: 4px;
+    }
 
     /* ── Mini cards ── */
     .bgn-mini-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -89,12 +167,23 @@ export function beginnerDashboardPage(): string {
     .bgn-mini-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 14px; padding: 14px 16px;
+      cursor: pointer;
+      transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
     }
+    .bgn-mini-card:hover { transform: translateY(-2px); border-color: var(--border-2); box-shadow: 0 8px 22px rgba(0,0,0,0.16); }
+    .bgn-mini-card:active { transform: scale(0.99); }
+    .bgn-mini-card.is-open { border-color: rgba(217,167,89,0.35); }
     .bgn-mini-top { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-    .bgn-mini-emoji { font-size: 24px; line-height: 1; }
+    .bgn-mini-emoji { font-size: 24px; line-height: 1; transition: transform 220ms ease; }
+    .bgn-mini-card:hover .bgn-mini-emoji { transform: scale(1.08); }
     .bgn-mini-label { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
     .bgn-mini-value { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
-    .bgn-mini-hint { font-size: 11.5px; color: var(--text-3); line-height: 1.45; margin-top: 4px; }
+    .bgn-mini-hint {
+      font-size: 11.5px; color: var(--text-3); line-height: 1.45; margin-top: 0;
+      max-height: 0; opacity: 0; overflow: hidden;
+      transition: max-height 260ms ease, opacity 180ms ease, margin 180ms ease;
+    }
+    .bgn-mini-card.is-open .bgn-mini-hint { max-height: 70px; opacity: 1; margin-top: 6px; }
 
     /* ── Sections ── */
     .bgn-section { margin-bottom: 20px; }
@@ -114,11 +203,21 @@ export function beginnerDashboardPage(): string {
     .bgn-bar-label { font-size: 13.5px; font-weight: 600; color: var(--text); }
     .bgn-bar-value { font-size: 12.5px; color: var(--text-2); font-weight: 600; white-space: nowrap; }
     .bgn-bar-track { width: 100%; height: 12px; background: rgba(255,255,255,0.05); border-radius: 999px; overflow: hidden; }
-    .bgn-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #34A871, #5CC08F); transition: width 0.6s ease; }
+    .bgn-bar-fill {
+      height: 100%; width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #34A871, #5CC08F);
+      transition: width 900ms cubic-bezier(0.22, 0.61, 0.36, 1);
+      background-size: 200% 100%;
+    }
     .bgn-bar-fill.warning { background: linear-gradient(90deg, #C77A1F, #E0A050); }
     .bgn-bar-fill.danger  { background: linear-gradient(90deg, #E2604F, #EB9186); }
     .bgn-bar-fill.blue    { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-    .bgn-bar-fill.gold    { background: linear-gradient(90deg, #C4903E, #E6BD7A); }
+    .bgn-bar-fill.gold    {
+      background: linear-gradient(90deg, #C4903E, #E6BD7A, #C4903E);
+      background-size: 200% 100%;
+      animation: bgn-wave 2.8s linear infinite;
+    }
     .bgn-bar-hint { font-size: 11.5px; color: var(--text-3); margin-top: 6px; line-height: 1.45; }
 
     /* ── Issue notice ── */
@@ -127,7 +226,9 @@ export function beginnerDashboardPage(): string {
       border: 1px solid rgba(226,96,79,0.22);
       border-radius: 14px; padding: 16px 18px;
       display: flex; gap: 12px; align-items: flex-start;
+      transition: transform 200ms ease, border-color 200ms ease;
     }
+    .bgn-issue-card:hover { transform: translateY(-1px); }
     .bgn-issue-card.warn {
       background: rgba(199,122,31,0.06);
       border-color: rgba(199,122,31,0.22);
@@ -141,7 +242,9 @@ export function beginnerDashboardPage(): string {
       background: linear-gradient(135deg, rgba(217,167,89,0.10) 0%, var(--surface) 100%);
       border: 1px solid rgba(217,167,89,0.30);
       border-radius: 16px; padding: 18px 20px;
+      transition: box-shadow 220ms ease, border-color 220ms ease;
     }
+    .bgn-action-card:hover { border-color: rgba(217,167,89,0.5); box-shadow: 0 10px 30px rgba(217,167,89,0.08); }
     .bgn-action-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
     .bgn-action-emoji { font-size: 28px; line-height: 1; flex-shrink: 0; }
     .bgn-action-title { font-size: 13px; font-weight: 700; color: var(--accent-2); margin-bottom: 4px; }
@@ -153,9 +256,10 @@ export function beginnerDashboardPage(): string {
       font-size: 13px; font-weight: 700;
       text-decoration: none; border: none; cursor: pointer;
       font-family: inherit;
-      transition: background var(--transition), transform var(--transition);
+      transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease;
     }
-    .bgn-action-cta:hover { background: var(--accent-2); transform: translateY(-1px); }
+    .bgn-action-cta:hover { background: var(--accent-2); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(217,167,89,0.28); }
+    .bgn-action-cta:active { transform: scale(0.98); }
     .bgn-action-cta.secondary {
       background: rgba(255,255,255,0.06); color: var(--text);
       border: 1px solid var(--border);
@@ -173,10 +277,12 @@ export function beginnerDashboardPage(): string {
       padding: 12px 14px; border-radius: 12px;
       background: var(--surface); border: 1px solid var(--border);
       color: var(--text-2); font-size: 13px; font-weight: 600;
-      text-decoration: none; transition: all var(--transition);
+      text-decoration: none; transition: all 180ms ease;
     }
-    .bgn-quick-link:hover { border-color: rgba(217,167,89,0.35); color: var(--accent-2); background: rgba(217,167,89,0.06); }
-    .bgn-quick-link span { font-size: 16px; }
+    .bgn-quick-link:hover { border-color: rgba(217,167,89,0.35); color: var(--accent-2); background: rgba(217,167,89,0.06); transform: translateY(-2px); }
+    .bgn-quick-link:active { transform: scale(0.98); }
+    .bgn-quick-link span { font-size: 16px; transition: transform 200ms ease; }
+    .bgn-quick-link:hover span { transform: scale(1.12); }
 
     /* ── Empty / loading ── */
     .bgn-empty { text-align: center; padding: 64px 24px; background: var(--surface); border: 1px dashed var(--border-2); border-radius: 18px; }
@@ -200,15 +306,21 @@ export function beginnerDashboardPage(): string {
       </div>
 
       <div id="bgn-main" style="display:none;">
-        <div class="bgn-greeting">
+        <div class="bgn-greeting bgn-anim d1">
           <div class="bgn-greeting-emoji">👋</div>
           <div class="bgn-greeting-text-wrap">
             <div class="bgn-greeting-title" id="bgn-greeting-title">مرحباً بك!</div>
             <div class="bgn-greeting-sub" id="bgn-greeting-sub">ها هي نظرة سريعة على حملاتك.</div>
-            <div class="bgn-greeting-meta" id="bgn-last-updated"></div>
+            <div class="bgn-greeting-meta">
+              <span id="bgn-last-updated"></span>
+              <button type="button" class="bgn-refresh-btn" id="bgn-refresh-btn" title="تحديث الآن">
+                <svg class="bgn-refresh-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                تحديث
+              </button>
+            </div>
           </div>
           <div class="bgn-status-wrap">
-            <span id="bgn-status-pill" class="bgn-status-pill gray">
+            <span id="bgn-status-pill" class="bgn-status-pill gray" title="حالة صحة الحساب">
               <span class="bgn-dot"></span>
               <span id="bgn-status-text">—</span>
             </span>
@@ -216,7 +328,7 @@ export function beginnerDashboardPage(): string {
           </div>
         </div>
 
-        <div class="bgn-summary" id="bgn-summary">
+        <div class="bgn-summary bgn-anim d2" id="bgn-summary">
           <div class="bgn-summary-icon">📋</div>
           <div style="flex:1;">
             <div class="bgn-summary-label">ما يحدث الآن</div>
@@ -224,10 +336,10 @@ export function beginnerDashboardPage(): string {
           </div>
         </div>
 
-        <div class="bgn-metric-grid" id="bgn-metric-grid"></div>
-        <div class="bgn-mini-cards" id="bgn-mini-cards"></div>
+        <div class="bgn-metric-grid bgn-anim d3" id="bgn-metric-grid"></div>
+        <div class="bgn-mini-cards bgn-anim d4" id="bgn-mini-cards"></div>
 
-        <div class="bgn-section">
+        <div class="bgn-section bgn-anim d5">
           <div class="bgn-section-head">
             <span class="bgn-section-emoji">🩺</span>
             <h2 class="bgn-section-title">حالة حسابك</h2>
@@ -236,7 +348,7 @@ export function beginnerDashboardPage(): string {
           <div class="bgn-bar-card" id="bgn-progress-card"></div>
         </div>
 
-        <div class="bgn-section" id="bgn-issue-section" style="display:none;">
+        <div class="bgn-section bgn-anim d6" id="bgn-issue-section" style="display:none;">
           <div class="bgn-section-head">
             <span class="bgn-section-emoji">⚠️</span>
             <h2 class="bgn-section-title">ملاحظة مهمة</h2>
@@ -244,7 +356,7 @@ export function beginnerDashboardPage(): string {
           <div class="bgn-issue-card" id="bgn-issue-card"></div>
         </div>
 
-        <div class="bgn-section" id="bgn-action-section">
+        <div class="bgn-section bgn-anim d6" id="bgn-action-section">
           <div class="bgn-section-head">
             <span class="bgn-section-emoji">✨</span>
             <h2 class="bgn-section-title">الخطوة التالية</h2>
@@ -252,7 +364,7 @@ export function beginnerDashboardPage(): string {
           <div class="bgn-action-card" id="bgn-action-card"></div>
         </div>
 
-        <div class="bgn-section">
+        <div class="bgn-section bgn-anim d7">
           <div class="bgn-section-head">
             <span class="bgn-section-emoji">🔗</span>
             <h2 class="bgn-section-title">انتقل إلى</h2>
@@ -405,6 +517,10 @@ export function beginnerDashboardPage(): string {
     if (subEl) subEl.textContent = 'لوحة مبسّطة — كل ما تحتاج معرفته في مكان واحد.';
   }
 
+  function escAttr(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  }
+
   function renderMetricCards(dash, currency, factor) {
     var grid = document.getElementById('bgn-metric-grid');
     if (!grid) return;
@@ -432,9 +548,9 @@ export function beginnerDashboardPage(): string {
         var pctText = c.deltaPct != null ? (' ' + Math.round(Math.abs(Number(c.deltaPct) * 100)) + '٪') : '';
         trendHtml = '<div class="bgn-metric-trend ' + c.delta.cls + '">' + c.delta.sym + ' ' + c.delta.label + pctText + '</div>';
       }
-      return '<div class="bgn-metric-card ' + c.tone + '">'
-        + '<div class="bgn-metric-top"><div class="bgn-metric-icon">' + c.emoji + '</div><div class="bgn-metric-label">' + c.label + '</div></div>'
-        + '<div class="bgn-metric-value">' + c.value + '</div>'
+      return '<div class="bgn-metric-card ' + c.tone + '" role="button" tabindex="0" aria-expanded="false">'
+        + '<div class="bgn-metric-top"><div class="bgn-metric-icon">' + c.emoji + '</div><div class="bgn-metric-label">' + c.label + '</div><span class="bgn-metric-expand">شرح</span></div>'
+        + '<div class="bgn-metric-value" data-tick="' + escAttr(c.value) + '">٠</div>'
         + trendHtml
         + '<div class="bgn-metric-hint">' + c.hint + '</div>'
       + '</div>';
@@ -453,9 +569,9 @@ export function beginnerDashboardPage(): string {
         hint: 'كم شخصاً ضغط على إعلانك من بين من شاهدوه.' },
     ];
     mini.innerHTML = cards.map(function (c) {
-      return '<div class="bgn-mini-card">'
+      return '<div class="bgn-mini-card" role="button" tabindex="0" aria-expanded="false">'
         + '<div class="bgn-mini-top"><div class="bgn-mini-emoji">' + c.emoji + '</div><div class="bgn-mini-label">' + c.label + '</div></div>'
-        + '<div class="bgn-mini-value">' + c.value + '</div>'
+        + '<div class="bgn-mini-value" data-tick="' + escAttr(c.value) + '">٠</div>'
         + '<div class="bgn-mini-hint">' + c.hint + '</div>'
       + '</div>';
     }).join('');
@@ -470,6 +586,7 @@ export function beginnerDashboardPage(): string {
     var active = activeCampaignCount(dash);
     var target = 3;
     var campPct = Math.min(100, Math.round((active / target) * 100));
+    var scorePct = Math.max(0, Math.min(100, Math.round(score)));
     var pulse = dash.brain && dash.brain.livePulse;
     var todayHtml = '';
 
@@ -479,7 +596,7 @@ export function beginnerDashboardPage(): string {
         '<div class="bgn-bar-block">'
           + '<div class="bgn-bar-row"><span class="bgn-bar-label">⏱️ ميزانية اليوم</span>'
           + '<span class="bgn-bar-value">' + fmtSimplePct(dayPct) + ' مستخدمة</span></div>'
-          + '<div class="bgn-bar-track"><div class="bgn-bar-fill gold" style="width:' + dayPct + '%;"></div></div>'
+          + '<div class="bgn-bar-track"><div class="bgn-bar-fill gold" data-width="' + dayPct + '"></div></div>'
           + '<div class="bgn-bar-hint">نسبة ما أُنفق اليوم من الميزانية اليومية لحملاتك.</div>'
         + '</div>';
     }
@@ -488,13 +605,13 @@ export function beginnerDashboardPage(): string {
       + '<div class="bgn-bar-block">'
         + '<div class="bgn-bar-row"><span class="bgn-bar-label">🩺 صحة الحساب</span>'
         + '<span class="bgn-bar-value">' + Math.round(score) + ' من ١٠٠</span></div>'
-        + '<div class="bgn-bar-track"><div class="bgn-bar-fill ' + scoreCls + '" style="width:' + Math.max(0, Math.min(100, Math.round(score))) + '%;"></div></div>'
+        + '<div class="bgn-bar-track"><div class="bgn-bar-fill ' + scoreCls + '" data-width="' + scorePct + '"></div></div>'
         + '<div class="bgn-bar-hint">' + healthBandHint(band, score) + '</div>'
       + '</div>'
       + '<div class="bgn-bar-block">'
         + '<div class="bgn-bar-row"><span class="bgn-bar-label">📣 الحملات النشطة</span>'
         + '<span class="bgn-bar-value">' + fmtSimpleCount(active) + ' / ' + fmtSimpleCount(target) + '</span></div>'
-        + '<div class="bgn-bar-track"><div class="bgn-bar-fill blue" style="width:' + campPct + '%;"></div></div>'
+        + '<div class="bgn-bar-track"><div class="bgn-bar-fill blue" data-width="' + campPct + '"></div></div>'
         + '<div class="bgn-bar-hint">يُنصح بتشغيل ٣ حملات على الأقل لنتائج أفضل.</div>'
       + '</div>';
   }
@@ -560,7 +677,38 @@ export function beginnerDashboardPage(): string {
     } catch (e) { el.textContent = ''; }
   }
 
-  function renderBeginnerDashboard(dash) {
+  function animateBars() {
+    document.querySelectorAll('.bgn-bar-fill[data-width]').forEach(function (bar) {
+      bar.style.width = '0%';
+    });
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.querySelectorAll('.bgn-bar-fill[data-width]').forEach(function (bar) {
+          bar.style.width = (bar.getAttribute('data-width') || '0') + '%';
+        });
+      });
+    });
+  }
+
+  function tickValues() {
+    if (typeof tickText !== 'function') {
+      document.querySelectorAll('[data-tick]').forEach(function (el) {
+        el.textContent = el.getAttribute('data-tick') || el.textContent;
+      });
+      return;
+    }
+    document.querySelectorAll('[data-tick]').forEach(function (el) {
+      var target = el.getAttribute('data-tick');
+      if (target != null) tickText(el, target);
+    });
+  }
+
+  function playInteractions() {
+    animateBars();
+    tickValues();
+  }
+
+  function renderBeginnerDashboard(dash, opts) {
     var currency = dash.workspace.currency || 'USD';
     var factor = currency === 'IQD' ? 1
       : (dash.workspace.currencyMinorFactor != null && dash.workspace.currencyMinorFactor > 0
@@ -574,19 +722,50 @@ export function beginnerDashboardPage(): string {
     renderTopIssue(dash);
     renderNextStep(dash);
     updateBgnLastUpdated(dash);
+    playInteractions();
   }
+
+  // Event delegation so expandable cards keep working after auto-refresh re-renders.
+  document.addEventListener('click', function (e) {
+    var card = e.target && e.target.closest ? e.target.closest('.bgn-metric-card, .bgn-mini-card') : null;
+    if (!card || !document.getElementById('bgn-main') || !document.getElementById('bgn-main').contains(card)) return;
+    var open = card.classList.toggle('is-open');
+    card.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var card = e.target && e.target.closest ? e.target.closest('.bgn-metric-card, .bgn-mini-card') : null;
+    if (!card) return;
+    e.preventDefault();
+    var open = card.classList.toggle('is-open');
+    card.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
 
   var BGN_REFRESH_MS = 90000;
   var bgnRefreshTimer = null;
+  var bgnWsId = null;
+
+  async function refreshBeginnerDashboard(manual) {
+    if (!bgnWsId) return;
+    var btn = document.getElementById('bgn-refresh-btn');
+    if (manual && btn) btn.classList.add('is-busy');
+    try {
+      var dash = await apiFetch('/api/dashboard/' + bgnWsId);
+      if (!dash || dash.empty || !dash.workspace) return;
+      renderBeginnerDashboard(dash, { refresh: true });
+      if (manual && typeof toast === 'function') toast('تم تحديث اللوحة', 'success');
+    } catch (e) {
+      if (manual && typeof toast === 'function') toast('تعذّر التحديث', 'error');
+    } finally {
+      if (btn) btn.classList.remove('is-busy');
+    }
+  }
 
   function startBgnAutoRefresh(wsId) {
+    bgnWsId = wsId;
     async function refresh() {
       if (document.hidden) return;
-      try {
-        var dash = await apiFetch('/api/dashboard/' + wsId);
-        if (!dash || dash.empty || !dash.workspace) return;
-        renderBeginnerDashboard(dash);
-      } catch (e) { /* silent */ }
+      await refreshBeginnerDashboard(false);
     }
     function armTimer() {
       if (bgnRefreshTimer) clearInterval(bgnRefreshTimer);
@@ -596,6 +775,10 @@ export function beginnerDashboardPage(): string {
       if (!document.hidden) { refresh(); armTimer(); }
       else if (bgnRefreshTimer) { clearInterval(bgnRefreshTimer); bgnRefreshTimer = null; }
     });
+    var refreshBtn = document.getElementById('bgn-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function () { refreshBeginnerDashboard(true); });
+    }
     armTimer();
   }
 
