@@ -152,8 +152,8 @@ export function settingsPage(): string {
               <div id="billing-expiry-line" class="settings-session-meta" style="display:none;"></div>
             </div>
             <div id="billing-owner-actions" style="display:none;margin-top:20px;">
-              <button id="upgrade-premium-btn" class="btn btn-primary" style="width:100%;">Upgrade to Premium — $10 / month</button>
-              <div class="form-hint" style="margin-top:8px;">Powered by Stripe. Sandbox: card 4242 4242 4242 4242.</div>
+              <button id="upgrade-premium-btn" class="btn btn-primary" style="width:100%;">الترقية إلى Premium</button>
+              <div class="form-hint" style="margin-top:8px;">الدفع عبر Stripe أو واتساب حسب إعدادات المنصة.</div>
             </div>
             <div id="billing-non-owner-note" style="display:none;margin-top:16px;" class="form-hint">Only the workspace owner can manage billing.</div>
             <div class="settings-divider"></div>
@@ -406,17 +406,22 @@ export function settingsPage(): string {
       const bodyEl = document.getElementById('billing-body');
       const errEl = document.getElementById('billing-error');
       try {
-        const ws = await apiFetch('/api/workspaces/' + wsId);
+        const [ws, offer] = await Promise.all([
+          apiFetch('/api/workspaces/' + wsId),
+          apiFetch('/api/billing/offer').catch(function () { return null; }),
+        ]);
         const badge = document.getElementById('billing-tier-badge');
         badge.className = 'badge ' + (ws.tier === 'PREMIUM' ? 'badge-green' : 'badge-gray');
         badge.textContent = ws.tier || 'FREE';
-        document.getElementById('billing-status-line').textContent = 'Status: ' + (ws.subscriptionStatus || 'NONE');
+        document.getElementById('billing-status-line').textContent = 'الحالة: ' + (ws.subscriptionStatus || 'NONE');
         if (ws.subscriptionExpiresAt) {
           const expEl = document.getElementById('billing-expiry-line');
-          expEl.textContent = 'Expires: ' + new Date(ws.subscriptionExpiresAt).toLocaleDateString();
+          expEl.textContent = 'ينتهي: ' + new Date(ws.subscriptionExpiresAt).toLocaleDateString('ar-u-nu-latn');
           expEl.style.display = 'block';
         }
-        if (wsM && wsM.role === 'OWNER' && ws.tier !== 'PREMIUM') {
+        const upgradeBtn = document.getElementById('upgrade-premium-btn');
+        if (offer && offer.ctaLabel) upgradeBtn.textContent = offer.ctaLabel;
+        if (wsM && wsM.role === 'OWNER' && !(ws.tier === 'PREMIUM' && ws.subscriptionStatus === 'ACTIVE')) {
           document.getElementById('billing-owner-actions').style.display = 'block';
         } else if (!wsM || wsM.role !== 'OWNER') {
           document.getElementById('billing-non-owner-note').style.display = 'block';

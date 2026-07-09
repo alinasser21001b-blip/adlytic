@@ -128,6 +128,13 @@ export function adminConsolePage(): string {
     }
     .empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
     .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+    .form-group.full { grid-column: 1 / -1; }
+    .hint { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+    .status-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .toast {
       position: fixed; bottom: 20px; left: 20px; z-index: 60; padding: 12px 16px; border-radius: 10px;
       background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
@@ -147,7 +154,8 @@ export function adminConsolePage(): string {
     </div>
     <nav class="nav">
       <div class="nav-label">الإيرادات</div>
-      <a class="nav-item active" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
+      <a class="nav-item active" href="#settings" data-tab="settings">إعدادات التسعير</a>
+      <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
       <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
       <div class="nav-label">أخرى</div>
       <a class="nav-item" href="/dashboard">لوحة التحكم</a>
@@ -160,7 +168,7 @@ export function adminConsolePage(): string {
 
   <div class="main">
     <header class="topbar">
-      <h1 id="page-heading">الاشتراكات</h1>
+      <h1 id="page-heading">إعدادات التسعير</h1>
       <div class="topbar-actions">
         <button class="btn btn-secondary btn-sm" id="btn-refresh">تحديث</button>
       </div>
@@ -176,7 +184,59 @@ export function adminConsolePage(): string {
         <div class="kpi"><div class="kpi-label">زبائن نشطون</div><div class="kpi-value" id="kpi-active">—</div></div>
       </div>
 
-      <section class="panel view" id="view-subscriptions">
+      <section class="panel view" id="view-settings">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">إعدادات الإيرادات</div>
+            <div class="panel-sub">سعر Premium الظاهر للزبائن · رقم واتساب للدفع اليدوي</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form id="revenue-form" class="form-grid">
+            <div class="form-group">
+              <label>سعر Premium</label>
+              <input class="field" name="premiumPriceAmount" type="number" min="0" max="100000" step="0.01" required />
+            </div>
+            <div class="form-group">
+              <label>العملة</label>
+              <select class="field" name="premiumPriceCurrency">
+                <option value="USD">USD</option>
+                <option value="IQD">IQD</option>
+                <option value="AED">AED</option>
+                <option value="SAR">SAR</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>الفترة</label>
+              <select class="field" name="premiumPricePeriod">
+                <option value="month">شهري</option>
+                <option value="year">سنوي</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>رقم واتساب الدعم</label>
+              <input class="field" name="supportWhatsappNumber" placeholder="+9647XXXXXXXX" />
+            </div>
+            <div class="form-group full">
+              <div class="hint" id="cta-preview">معاينة زر الترقية: —</div>
+              <div class="status-row">
+                <span class="badge badge-muted" id="badge-stripe">Stripe: —</span>
+                <span class="badge badge-muted" id="badge-wa">واتساب: —</span>
+              </div>
+              <div class="hint" style="margin-top:10px;">
+                سعر العرض يظهر في صفحة إعدادات الزبون. خصم Stripe الفعلي يبقى مضبوطاً عبر
+                <code>STRIPE_PREMIUM_PRICE_ID</code> في بيئة السيرفر.
+              </div>
+            </div>
+            <div class="form-group full actions">
+              <button class="btn btn-primary" type="submit" id="revenue-save">حفظ إعدادات الإيرادات</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel view" id="view-subscriptions" style="display:none;">
         <div class="panel-head">
           <div>
             <div class="panel-title">الاشتراكات</div>
@@ -247,7 +307,7 @@ export function adminConsolePage(): string {
 
 <script>
 (function () {
-  var state = { subscriptions: [], events: [], overview: null };
+  var state = { subscriptions: [], events: [], overview: null, settings: null };
 
   function token() { try { return localStorage.getItem('adlytic_token'); } catch (e) { return null; } }
   function logout() {
@@ -311,10 +371,11 @@ export function adminConsolePage(): string {
       el.classList.toggle('active', el.getAttribute('data-tab') === name);
     });
     var map = {
+      settings: ['view-settings', 'إعدادات التسعير'],
       subscriptions: ['view-subscriptions', 'الاشتراكات'],
       ledger: ['view-ledger', 'سجل المدفوعات'],
     };
-    var conf = map[name] || map.subscriptions;
+    var conf = map[name] || map.settings;
     document.getElementById(conf[0]).style.display = '';
     document.getElementById('page-heading').textContent = conf[1];
   }
@@ -341,6 +402,22 @@ export function adminConsolePage(): string {
     document.getElementById('kpi-workspaces').textContent = o.workspacesTotal;
     document.getElementById('kpi-payments').textContent = o.paymentEvents7d;
     document.getElementById('kpi-active').textContent = o.usersActive;
+  }
+
+  function fillRevenueForm(payload) {
+    var s = (payload && payload.settings) || {};
+    var form = document.getElementById('revenue-form');
+    form.premiumPriceAmount.value = s.premiumPriceAmount != null ? s.premiumPriceAmount : 10;
+    form.premiumPriceCurrency.value = s.premiumPriceCurrency || 'USD';
+    form.premiumPricePeriod.value = s.premiumPricePeriod || 'month';
+    form.supportWhatsappNumber.value = s.supportWhatsappNumber || '';
+    document.getElementById('cta-preview').textContent = 'معاينة زر الترقية: ' + (payload.ctaLabel || '—');
+    var stripeBadge = document.getElementById('badge-stripe');
+    stripeBadge.textContent = s.stripeConfigured ? 'Stripe: مفعّل' : 'Stripe: غير مضبوط';
+    stripeBadge.className = 'badge ' + (s.stripeConfigured ? 'badge-ok' : 'badge-warn');
+    var waBadge = document.getElementById('badge-wa');
+    waBadge.textContent = s.whatsappConfigured ? 'واتساب: مفعّل' : 'واتساب: غير مضبوط';
+    waBadge.className = 'badge ' + (s.whatsappConfigured ? 'badge-ok' : 'badge-warn');
   }
 
   function filteredSubscriptions() {
@@ -409,13 +486,16 @@ export function adminConsolePage(): string {
         api('/api/admin/overview'),
         api('/api/admin/subscriptions?take=100'),
         api('/api/admin/payment-events?take=50'),
+        api('/api/admin/revenue-settings'),
       ]);
       state.overview = results[0];
       state.subscriptions = results[1].subscriptions || [];
       state.events = results[2].events || [];
+      state.settings = results[3];
       renderOverview(state.overview);
       renderSubscriptions();
       renderLedger(state.events);
+      fillRevenueForm(state.settings);
     } catch (e) {
       gate.style.display = '';
       if (e.status === 403 || e.status === 503) {
@@ -463,6 +543,31 @@ export function adminConsolePage(): string {
     });
   });
 
+  document.getElementById('revenue-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    var btn = document.getElementById('revenue-save');
+    btn.disabled = true;
+    try {
+      var res = await api('/api/admin/revenue-settings', {
+        method: 'PUT',
+        body: {
+          premiumPriceAmount: Number(fd.get('premiumPriceAmount')),
+          premiumPriceCurrency: fd.get('premiumPriceCurrency'),
+          premiumPricePeriod: fd.get('premiumPricePeriod'),
+          supportWhatsappNumber: String(fd.get('supportWhatsappNumber') || '').trim() || null,
+        },
+      });
+      state.settings = res;
+      fillRevenueForm(res);
+      toast('تم حفظ إعدادات الإيرادات', 'ok');
+    } catch (err) {
+      toast(err.message || 'فشل الحفظ', 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   document.body.addEventListener('click', function (e) {
     var t = e.target.closest('[data-grant],[data-cancel]');
     if (!t) return;
@@ -473,7 +578,7 @@ export function adminConsolePage(): string {
   });
 
   if (!token()) { window.location.href = '/login'; return; }
-  showView('subscriptions');
+  showView('settings');
   loadAll();
 })();
 </script>

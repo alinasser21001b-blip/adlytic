@@ -17,12 +17,25 @@ const WA_BASE = 'https://wa.me';
 export interface WhatsappLinkInput {
   workspaceId: string;
   userEmail: string;
+  /** Optional override (digits or E.164). When omitted, reads SUPPORT_WHATSAPP_NUMBER. */
+  supportNumber?: string;
 }
 
 export interface WhatsappLinkResult {
   url: string;
   /** The exact text inserted into the deep link, before URL encoding. */
   message: string;
+}
+
+/**
+ * Sanitise a phone number to `wa.me` digits-only format.
+ */
+export function sanitiseWhatsappNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 8) {
+    throw new Error(`WhatsApp number appears malformed: "${raw}"`);
+  }
+  return digits;
 }
 
 /**
@@ -35,16 +48,13 @@ export function getSupportWhatsappNumber(): string {
   if (!raw || raw.trim().length === 0) {
     throw new Error('SUPPORT_WHATSAPP_NUMBER is not set');
   }
-  // Strip everything except digits — handles "+964 770 ..." style input.
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length < 8) {
-    throw new Error(`SUPPORT_WHATSAPP_NUMBER appears malformed: "${raw}"`);
-  }
-  return digits;
+  return sanitiseWhatsappNumber(raw);
 }
 
 export function buildWhatsappLink(input: WhatsappLinkInput): WhatsappLinkResult {
-  const number = getSupportWhatsappNumber();
+  const number = input.supportNumber
+    ? sanitiseWhatsappNumber(input.supportNumber)
+    : getSupportWhatsappNumber();
   const message = buildMessage(input);
   const url = `${WA_BASE}/${number}?text=${encodeURIComponent(message)}`;
   return { url, message };

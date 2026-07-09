@@ -909,6 +909,17 @@ enum PaymentEventSource {
   WHATSAPP_MANUAL
 }
 
+/// Key/value store for platform-owner revenue settings (price, WhatsApp, etc.).
+/// Values are plain strings; typed parsing lives in `revenueSettings.ts`.
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by")
+
+  @@map("platform_settings")
+}
+
 // ════════════════════════════════════════════════════════════════════════
 //  Background Sync Pipeline — SyncJob
 //
