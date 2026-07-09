@@ -242,35 +242,107 @@ input, select, textarea { font-family: inherit; }
 .nav-item.nav-item--muted { color: var(--text-3); font-weight: 500; }
 .nav-item.nav-item--muted:hover { color: var(--text-2); }
 .sidebar-footer {
-  padding: 12px 10px 14px;
+  padding: 10px 10px 14px;
   border-top: 1px solid var(--border);
-  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.12));
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.14) 100%);
+}
+.sidebar-footer-label {
+  padding-bottom: 8px;
+}
+.sidebar-footer-card {
+  border-radius: 13px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 .sidebar-user {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 11px;
-  border-radius: 11px;
+  border-radius: 0;
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition);
-  border: 1px solid transparent;
-  margin-bottom: 6px;
+  transition: background var(--transition), color var(--transition);
+  border: none;
+  text-decoration: none;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
 }
 .sidebar-user:hover {
-  background: rgba(255,255,255,0.03);
-  border-color: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.04);
 }
+.sidebar-user:hover .sidebar-user-chevron { opacity: 0.75; color: var(--accent-2); }
 .avatar {
-  width: 32px; height: 32px;
+  position: relative;
+  width: 36px; height: 36px;
   background: var(--grad-accent);
-  border-radius: 10px;
+  border-radius: 11px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: #100E0D;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(217,167,89,0.25);
+  box-shadow: 0 4px 14px rgba(217,167,89,0.28);
+  border: 2px solid rgba(255,255,255,0.12);
+}
+.avatar-initials {
+  font-size: 12px; font-weight: 800; color: #100E0D; line-height: 1;
+}
+.avatar-status {
+  position: absolute;
+  bottom: -1px; inset-inline-end: -1px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px rgba(52,168,113,0.35);
 }
 .sidebar-user-info { flex: 1; min-width: 0; }
-.sidebar-user-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-user-email { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.sidebar-user-email { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.sidebar-user-chevron {
+  flex-shrink: 0;
+  opacity: 0.35;
+  color: var(--text-3);
+  transition: opacity var(--transition), color var(--transition), transform var(--transition);
+}
+.sidebar-user-chevron svg { width: 14px; height: 14px; display: block; }
+[dir="rtl"] .sidebar-user-chevron svg { transform: scaleX(-1); }
+.sidebar-footer-divider {
+  height: 1px;
+  margin: 0 11px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+}
+.sidebar-logout {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 9px 11px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px; font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  text-align: inherit;
+}
+.sidebar-logout:hover {
+  background: rgba(226,96,79,0.08);
+  color: #E8A49A;
+}
+.sidebar-logout:active { transform: scale(0.99); }
+.sidebar-logout-icon {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+  transition: background var(--transition), border-color var(--transition);
+}
+.sidebar-logout:hover .sidebar-logout-icon {
+  background: rgba(226,96,79,0.12);
+  border-color: rgba(226,96,79,0.22);
+}
+.sidebar-logout svg { width: 16px; height: 16px; opacity: 0.85; }
 
 /* Page enter — subtle fade when navigating between shell pages */
 @keyframes shell-page-in {
@@ -291,38 +363,90 @@ input, select, textarea { font-family: inherit; }
 /* ── Topbar ──────────────────────────────────────────────────────── */
 .topbar {
   height: var(--topbar-h);
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, rgba(217,167,89,0.03) 0%, transparent 42%),
+    var(--surface);
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center;
-  padding: 0 24px;
+  padding: 0 20px;
   gap: 12px;
   position: sticky; top: 0; z-index: 90;
+  backdrop-filter: blur(10px);
 }
-.topbar-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; }
+.topbar::after {
+  content: "";
+  position: absolute; inset: auto 20px 0 20px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(217,167,89,0.22), transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.topbar-title { font-size: 15px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; letter-spacing: -0.01em; }
+.topbar-actions {
+  display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0;
+}
 .topbar-ws {
-  display: flex; align-items: center; gap: 7px;
-  padding: 5px 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 10px 6px 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
   font-size: 12.5px; color: var(--text-2);
   cursor: pointer;
   transition: all var(--transition);
-  max-width: 200px;
+  max-width: 220px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
-.topbar-ws:hover { border-color: var(--border-2); color: var(--text); }
-.topbar-ws-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-ws:hover {
+  border-color: rgba(217,167,89,0.28);
+  color: var(--text);
+  background: rgba(217,167,89,0.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 14px rgba(0,0,0,0.12);
+}
+.topbar-ws-icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(217,167,89,0.12);
+  border: 1px solid rgba(217,167,89,0.22);
+  color: var(--accent-2);
+  flex-shrink: 0;
+}
+.topbar-ws-icon svg { width: 13px; height: 13px; }
+.topbar-ws-copy {
+  display: flex; flex-direction: column; gap: 1px;
+  min-width: 0; flex: 1;
+}
+.topbar-ws-label {
+  font-size: 9.5px; font-weight: 700; color: var(--text-3);
+  letter-spacing: 0.04em; text-transform: uppercase; line-height: 1;
+}
+.topbar-ws-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--text); line-height: 1.2; }
+.topbar-ws-chevron {
+  flex-shrink: 0; opacity: 0.45; color: var(--text-3);
+  transition: opacity var(--transition), transform var(--transition);
+}
+.topbar-ws:hover .topbar-ws-chevron { opacity: 0.85; color: var(--accent-2); }
+.topbar-ws-chevron svg { width: 13px; height: 13px; display: block; }
 .topbar-btn {
-  width: 32px; height: 32px;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 11px;
   display: flex; align-items: center; justify-content: center;
   color: var(--text-2);
   transition: all var(--transition);
+  flex-shrink: 0;
 }
-.topbar-btn:hover { background: var(--surface-hover); color: var(--text); border-color: var(--border-2); }
-.topbar-btn svg { width: 15px; height: 15px; }
+.topbar-btn:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+.topbar-btn:active { transform: scale(0.96); }
+.topbar-btn svg { width: 16px; height: 16px; }
+.topbar-btn--menu { margin-inline-end: 0; }
 
 /* ── Page content ────────────────────────────────────────────────── */
 .page-content {
@@ -1024,25 +1148,41 @@ select.form-input { cursor: pointer; }
 
 /* ── Dashboard mode toggle (Pro / Beginner) ──────────────────────────── */
 .mode-toggle {
+  position: relative;
   display: inline-flex; align-items: center;
   padding: 3px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
   border-radius: 999px;
-  margin-right: 8px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+.mode-toggle-indicator {
+  position: absolute;
+  top: 3px; bottom: 3px;
+  inset-inline-start: 3px;
+  border-radius: 999px;
+  background: var(--grad-accent);
+  box-shadow: 0 4px 14px rgba(217,167,89,0.35);
+  pointer-events: none;
+  transition:
+    transform 280ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    width 280ms cubic-bezier(0.34, 1.2, 0.64, 1);
+  z-index: 0;
 }
 .mode-toggle-btn {
-  padding: 5px 12px;
-  font-size: 12px; font-weight: 600;
+  position: relative; z-index: 1;
+  padding: 6px 13px;
+  font-size: 12px; font-weight: 700;
   color: var(--text-3);
   background: transparent;
   border: none; border-radius: 999px;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: color 200ms ease;
   font-family: inherit;
+  white-space: nowrap;
 }
 .mode-toggle-btn:hover { color: var(--text); }
-.mode-toggle-btn.active { background: var(--accent); color: #fff; }
+.mode-toggle-btn.active { color: #100E0D; }
 
 /* ── RTL Support ────────────────────────────────────────────────── */
 [dir="rtl"] .sidebar { left: auto; right: 0; border-right: none; border-left: 1px solid var(--border); }
@@ -1058,8 +1198,14 @@ select.form-input { cursor: pointer; }
 [dir="rtl"] #toast-container { right: auto; left: 20px; }
 [dir="rtl"] .kpi-value, [dir="rtl"] .health-number { font-feature-settings: 'tnum'; direction: ltr; }
 [dir="rtl"] .sync-status-meta { margin-left: 0; margin-right: auto; }
-[dir="rtl"] .mode-toggle { margin-right: 0; margin-left: 8px; }
-[dir="rtl"] .topbar-btn.mobile-menu-btn { margin-right: 0; margin-left: 8px; }
+[dir="rtl"] .mode-toggle { margin-right: 0; margin-left: 0; }
+[dir="rtl"] .topbar-btn.mobile-menu-btn { margin-right: 0; margin-left: 0; }
+@media (max-width: 768px) {
+  .topbar-actions { gap: 6px; }
+  .topbar-ws-label { display: none; }
+  .topbar-ws { max-width: 140px; padding: 5px 8px; }
+  .mode-toggle-btn { padding: 6px 10px; font-size: 11px; }
+}
 @media (max-width: 768px) {
   [dir="rtl"] .sidebar { transform: translateX(100%); z-index: 100; }
   [dir="rtl"] .sidebar.open { transform: translateX(0); }
@@ -1597,7 +1743,7 @@ function shellInitials(name) {
 function populateAppShell(me) {
   var nameEl = document.getElementById('user-name');
   var emailEl = document.getElementById('user-email');
-  var avEl = document.getElementById('user-avatar');
+  var avEl = document.getElementById('user-avatar-initials');
   var wsEl = document.getElementById('ws-name');
   if (!me) {
     if (nameEl && nameEl.textContent === SHELL_LOADING) nameEl.textContent = 'مستخدم';
@@ -2286,6 +2432,27 @@ function initSidebarNav() {
   });
 }
 
+function initModeToggle() {
+  var toggle = document.querySelector('.mode-toggle');
+  var indicator = document.getElementById('mode-toggle-indicator');
+  if (!toggle || !indicator) return;
+
+  function moveTo(btn) {
+    if (!btn) return;
+    indicator.style.width = btn.offsetWidth + 'px';
+    indicator.style.transform = 'translateX(' + btn.offsetLeft + 'px)';
+    indicator.style.opacity = '1';
+  }
+
+  var active = toggle.querySelector('.mode-toggle-btn.active');
+  if (active) moveTo(active);
+
+  window.addEventListener('resize', function () {
+    var act = toggle.querySelector('.mode-toggle-btn.active');
+    if (act) moveTo(act);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
@@ -2313,6 +2480,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTokenDecryptBanner();
     startShellLoadingFallback(5000);
     initSidebarNav();
+    initModeToggle();
   }
   // PWA Service Worker registration
   if ('serviceWorker' in navigator) {
@@ -2356,17 +2524,25 @@ export function sidebar(active: string): string {
     </div>
   </nav>
   <div class="sidebar-footer">
-    <div class="sidebar-user" id="sidebar-user">
-      <div class="avatar" id="user-avatar">?</div>
-      <div class="sidebar-user-info">
-        <div class="sidebar-user-name" id="user-name">Loading…</div>
-        <div class="sidebar-user-email" id="user-email"></div>
-      </div>
+    <div class="nav-section-label sidebar-footer-label">الحساب</div>
+    <div class="sidebar-footer-card">
+      <a href="/settings" class="sidebar-user" id="sidebar-user" aria-label="إعدادات الحساب">
+        <div class="avatar" id="user-avatar">
+          <span class="avatar-initials" id="user-avatar-initials">?</span>
+          <span class="avatar-status" title="متصل"></span>
+        </div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="user-name">Loading…</div>
+          <div class="sidebar-user-email" id="user-email"></div>
+        </div>
+        <span class="sidebar-user-chevron" aria-hidden="true">${ICONS['chevron']}</span>
+      </a>
+      <div class="sidebar-footer-divider" aria-hidden="true"></div>
+      <button type="button" class="sidebar-logout" id="logout-btn">
+        <span class="sidebar-logout-icon" aria-hidden="true">${ICONS['logout']}</span>
+        <span>تسجيل الخروج</span>
+      </button>
     </div>
-    <a class="nav-item nav-item--muted" id="logout-btn" role="button" tabindex="0">
-      <span class="nav-item-icon" aria-hidden="true">${ICONS['logout']}</span>
-      <span class="nav-item-label">تسجيل الخروج</span>
-    </a>
   </div>
 </aside>`;
 }
@@ -2390,24 +2566,32 @@ function mobileBottomNav(active: string): string {
 // where the toggle is irrelevant — settings, login, register, etc.).
 export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): string {
   const toggle = currentMode
-    ? `<div class="mode-toggle" role="group" aria-label="Dashboard mode">
-        <button class="mode-toggle-btn ${currentMode === 'pro' ? 'active' : ''}" data-mode="pro" id="mode-btn-pro">احترافي</button>
-        <button class="mode-toggle-btn ${currentMode === 'beginner' ? 'active' : ''}" data-mode="beginner" id="mode-btn-beginner">مبتدئ</button>
+    ? `<div class="mode-toggle" role="group" aria-label="وضع لوحة التحكم">
+        <div class="mode-toggle-indicator" id="mode-toggle-indicator" aria-hidden="true"></div>
+        <button class="mode-toggle-btn ${currentMode === 'pro' ? 'active' : ''}" data-mode="pro" id="mode-btn-pro" type="button">احترافي</button>
+        <button class="mode-toggle-btn ${currentMode === 'beginner' ? 'active' : ''}" data-mode="beginner" id="mode-btn-beginner" type="button">مبتدئ</button>
       </div>`
     : '';
   return `
 <header class="topbar">
-  <button class="topbar-btn mobile-menu-btn" id="mobile-menu-btn" style="margin-right:8px;">
+  <button class="topbar-btn topbar-btn--menu mobile-menu-btn" id="mobile-menu-btn" type="button" aria-label="فتح القائمة">
     ${ICONS['menu']}
   </button>
   <span class="topbar-title">${pageTitle}</span>
-  ${toggle}
-  <div class="topbar-ws" id="ws-selector" title="Switch workspace">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-    <span class="topbar-ws-name" id="ws-name">جارٍ التحميل…</span>
-    ${ICONS['chevron']}
+  <div class="topbar-actions">
+    ${toggle}
+    <div class="topbar-ws" id="ws-selector" title="تبديل مساحة العمل" role="button" tabindex="0">
+      <span class="topbar-ws-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </span>
+      <span class="topbar-ws-copy">
+        <span class="topbar-ws-label">مساحة العمل</span>
+        <span class="topbar-ws-name" id="ws-name">جارٍ التحميل…</span>
+      </span>
+      <span class="topbar-ws-chevron" aria-hidden="true">${ICONS['chevron']}</span>
+    </div>
+    <button class="topbar-btn topbar-btn--bell" type="button" title="الإشعارات" aria-label="الإشعارات">${ICONS['bell']}</button>
   </div>
-  <button class="topbar-btn" title="Notifications">${ICONS['bell']}</button>
 </header>`;
 }
 
