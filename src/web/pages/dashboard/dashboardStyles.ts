@@ -7,8 +7,13 @@
 // ════════════════════════════════════════════════════════════════════════
 
 export const dashboardStyles = `<style>
-    /* Dashboard shell — clearer reading rhythm */
-    #dashboard-content { max-width: 1180px; margin: 0 auto; }
+    /* Dashboard shell — centered reading column inside already-centered page-content */
+    #dashboard-content {
+      max-width: 1180px;
+      width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+    }
     #dashboard-content .page-header { margin-bottom: 18px; }
     #dashboard-content .page-title { font-size: 24px; letter-spacing: -0.03em; }
     #dashboard-content .page-subtitle { font-size: 13px; color: var(--text-3); margin-top: 4px; }
