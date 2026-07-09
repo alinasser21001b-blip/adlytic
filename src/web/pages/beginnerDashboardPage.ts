@@ -178,6 +178,126 @@ export function beginnerDashboardPage(): string {
     .bgn-quick-link:hover { border-color: rgba(217,167,89,0.35); color: var(--accent-2); background: rgba(217,167,89,0.06); }
     .bgn-quick-link span { font-size: 16px; }
 
+    /* ── Account overview pills ── */
+    .bgn-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .bgn-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 12px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--border);
+      font-size: 12px; font-weight: 600; color: var(--text-2);
+    }
+    .bgn-pill strong { color: var(--text); font-weight: 800; }
+    .bgn-pill.gold { border-color: rgba(217,167,89,0.3); background: rgba(217,167,89,0.08); color: var(--accent-2); }
+    .bgn-pill.green { border-color: rgba(52,168,113,0.3); background: rgba(52,168,113,0.08); color: #5CC08F; }
+    .bgn-pill.warn { border-color: rgba(199,122,31,0.3); background: rgba(199,122,31,0.08); color: #E0A050; }
+
+    /* ── 7-day trend bars ── */
+    .bgn-trend-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px 18px 18px; margin-bottom: 18px;
+    }
+    .bgn-trend-bars {
+      display: flex; align-items: flex-end; gap: 6px;
+      height: 72px; margin-top: 10px;
+    }
+    .bgn-trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+    .bgn-trend-bar-wrap { width: 100%; height: 56px; display: flex; align-items: flex-end; justify-content: center; }
+    .bgn-trend-bar {
+      width: 100%; max-width: 28px; min-height: 3px;
+      border-radius: 6px 6px 3px 3px;
+      background: linear-gradient(180deg, var(--accent-2), var(--accent));
+      transition: height 0.5s ease;
+    }
+    .bgn-trend-day { font-size: 10px; color: var(--text-3); white-space: nowrap; }
+    .bgn-trend-legend { font-size: 11.5px; color: var(--text-3); margin-top: 8px; line-height: 1.45; }
+
+    /* ── Benchmark verdicts ── */
+    .bgn-bench-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
+    @media (max-width: 600px) { .bgn-bench-grid { grid-template-columns: 1fr; } }
+    .bgn-bench-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .bgn-bench-card.positive { border-color: rgba(52,168,113,0.28); background: rgba(52,168,113,0.05); }
+    .bgn-bench-card.negative { border-color: rgba(226,96,79,0.22); background: rgba(226,96,79,0.04); }
+    .bgn-bench-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+    .bgn-bench-label { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 2px; }
+    .bgn-bench-value { font-size: 16px; font-weight: 800; color: var(--text); }
+    .bgn-bench-verdict { font-size: 11.5px; color: var(--text-3); margin-top: 3px; line-height: 1.4; }
+
+    /* ── Campaign spotlight ── */
+    .bgn-camp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 18px; }
+    @media (max-width: 700px) { .bgn-camp-grid { grid-template-columns: 1fr; } }
+    .bgn-camp-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px;
+    }
+    .bgn-camp-card.best { border-color: rgba(52,168,113,0.28); }
+    .bgn-camp-card.worst { border-color: rgba(226,96,79,0.22); }
+    .bgn-camp-badge { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; margin-bottom: 6px; }
+    .bgn-camp-card.best .bgn-camp-badge { color: #5CC08F; }
+    .bgn-camp-card.worst .bgn-camp-badge { color: #EB9186; }
+    .bgn-camp-name { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; line-height: 1.35; }
+    .bgn-camp-stats { font-size: 12px; color: var(--text-2); line-height: 1.55; }
+    .bgn-camp-link { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--accent-2); text-decoration: none; }
+    .bgn-camp-link:hover { color: var(--text); }
+
+    /* ── Issues list ── */
+    .bgn-issues-list { display: flex; flex-direction: column; gap: 10px; }
+    .bgn-issue-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 14px;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .bgn-issue-item.high { border-color: rgba(226,96,79,0.25); background: rgba(226,96,79,0.05); }
+    .bgn-issue-item.mid { border-color: rgba(199,122,31,0.22); background: rgba(199,122,31,0.04); }
+
+    /* ── Insight tips ── */
+    .bgn-tips { display: flex; flex-direction: column; gap: 10px; }
+    .bgn-tip {
+      background: rgba(217,167,89,0.06); border: 1px solid rgba(217,167,89,0.18);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .bgn-tip-title { font-size: 13px; font-weight: 700; color: var(--accent-2); margin-bottom: 3px; }
+    .bgn-tip-body { font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+
+    /* ── AI prompt chips ── */
+    .bgn-prompts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bgn-prompt {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 13px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--border);
+      font-size: 12.5px; font-weight: 600; color: var(--text-2);
+      text-decoration: none; transition: all var(--transition);
+    }
+    .bgn-prompt:hover { border-color: rgba(217,167,89,0.35); color: var(--accent-2); background: rgba(217,167,89,0.06); }
+
+    /* ── FAQ accordion ── */
+    .bgn-faq { display: flex; flex-direction: column; gap: 8px; }
+    .bgn-faq-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .bgn-faq-q {
+      width: 100%; padding: 12px 14px; border: none; background: transparent;
+      text-align: right; font-family: inherit; font-size: 13px; font-weight: 700;
+      color: var(--text); cursor: pointer; display: flex; align-items: center;
+      justify-content: space-between; gap: 10px;
+    }
+    .bgn-faq-q:hover { background: rgba(255,255,255,0.02); }
+    .bgn-faq-q span { font-size: 11px; color: var(--text-3); transition: transform 0.2s; }
+    .bgn-faq-item.open .bgn-faq-q span { transform: rotate(180deg); }
+    .bgn-faq-a {
+      display: none; padding: 0 14px 12px;
+      font-size: 12.5px; color: var(--text-2); line-height: 1.6;
+    }
+    .bgn-faq-item.open .bgn-faq-a { display: block; }
+
+    /* ── Extra metric row ── */
+    .bgn-extra-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+    @media (max-width: 760px) { .bgn-extra-grid { grid-template-columns: 1fr; } }
+
     /* ── Empty / loading ── */
     .bgn-empty { text-align: center; padding: 64px 24px; background: var(--surface); border: 1px dashed var(--border-2); border-radius: 18px; }
     .bgn-empty-emoji { font-size: 54px; opacity: 0.6; margin-bottom: 12px; }
@@ -224,8 +344,38 @@ export function beginnerDashboardPage(): string {
           </div>
         </div>
 
+        <div class="bgn-pills" id="bgn-pills"></div>
+
         <div class="bgn-metric-grid" id="bgn-metric-grid"></div>
+
+        <div class="bgn-extra-grid" id="bgn-extra-grid"></div>
+
+        <div class="bgn-section" id="bgn-trend-section" style="display:none;">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">📈</span>
+            <h2 class="bgn-section-title">آخر ٧ أيام — الرسائل</h2>
+          </div>
+          <div class="bgn-trend-card" id="bgn-trend-card"></div>
+        </div>
+
         <div class="bgn-mini-cards" id="bgn-mini-cards"></div>
+
+        <div class="bgn-section" id="bgn-bench-section" style="display:none;">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">✅</span>
+            <h2 class="bgn-section-title">هل الأرقام جيدة؟</h2>
+            <span class="bgn-section-sub">مقارنة بسيطة</span>
+          </div>
+          <div class="bgn-bench-grid" id="bgn-bench-grid"></div>
+        </div>
+
+        <div class="bgn-section" id="bgn-camp-section" style="display:none;">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">🏆</span>
+            <h2 class="bgn-section-title">حملاتك</h2>
+          </div>
+          <div class="bgn-camp-grid" id="bgn-camp-grid"></div>
+        </div>
 
         <div class="bgn-section">
           <div class="bgn-section-head">
@@ -239,9 +389,18 @@ export function beginnerDashboardPage(): string {
         <div class="bgn-section" id="bgn-issue-section" style="display:none;">
           <div class="bgn-section-head">
             <span class="bgn-section-emoji">⚠️</span>
-            <h2 class="bgn-section-title">ملاحظة مهمة</h2>
+            <h2 class="bgn-section-title">ملاحظات تحتاج متابعة</h2>
+            <span class="bgn-section-sub" id="bgn-issue-count"></span>
           </div>
-          <div class="bgn-issue-card" id="bgn-issue-card"></div>
+          <div class="bgn-issues-list" id="bgn-issues-list"></div>
+        </div>
+
+        <div class="bgn-section" id="bgn-tips-section" style="display:none;">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">💬</span>
+            <h2 class="bgn-section-title">نصائح سريعة</h2>
+          </div>
+          <div class="bgn-tips" id="bgn-tips"></div>
         </div>
 
         <div class="bgn-section" id="bgn-action-section">
@@ -262,6 +421,22 @@ export function beginnerDashboardPage(): string {
             <a href="/campaigns" class="bgn-quick-link"><span>📣</span> الحملات</a>
             <a href="/ai" class="bgn-quick-link"><span>🤖</span> المساعد الذكي</a>
           </div>
+        </div>
+
+        <div class="bgn-section">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">❓</span>
+            <h2 class="bgn-section-title">اسأل المساعد</h2>
+          </div>
+          <div class="bgn-prompts" id="bgn-prompts"></div>
+        </div>
+
+        <div class="bgn-section">
+          <div class="bgn-section-head">
+            <span class="bgn-section-emoji">📖</span>
+            <h2 class="bgn-section-title">شرح المصطلحات</h2>
+          </div>
+          <div class="bgn-faq" id="bgn-faq"></div>
         </div>
       </div>
     </div>
@@ -499,19 +674,248 @@ export function beginnerDashboardPage(): string {
       + '</div>';
   }
 
-  function renderTopIssue(dash) {
-    var sec = document.getElementById('bgn-issue-section');
-    var card = document.getElementById('bgn-issue-card');
+  function costPerMessage(dash, currency, factor) {
+    var spend = getKpi(dash, 'spend');
+    var msgs = getKpi(dash, 'messages');
+    if (!spend || !msgs || !Number(msgs.value)) return null;
+    var f = factor || 100;
+    var major = Number(spend.value) / f;
+    return major / Number(msgs.value);
+  }
+
+  function bandLabelAr(b) {
+    var map = { excellent: 'ممتاز', good: 'جيد', attention: 'يحتاج انتباه', poor: 'ضعيف', none: '—' };
+    return map[b] || b || '—';
+  }
+
+  function renderAccountPills(dash) {
+    var el = document.getElementById('bgn-pills');
+    if (!el) return;
+    var cc = dash.workspace && dash.workspace.campaignCounts;
+    if (!cc) { el.innerHTML = ''; return; }
+    var pills = [
+      { cls: '', icon: '📁', label: 'إجمالي الحملات', val: cc.total },
+      { cls: 'green', icon: '▶️', label: 'تعمل الآن', val: cc.deliveringInWindow },
+      { cls: 'gold', icon: '💸', label: 'تنفق اليوم', val: cc.spendingToday },
+      { cls: cc.dormantActive > 0 ? 'warn' : '', icon: '⏸️', label: 'نشطة بدون إنفاق', val: cc.dormantActive },
+      { cls: '', icon: '⏯️', label: 'متوقفة', val: cc.paused },
+    ];
+    el.innerHTML = pills.filter(function (p) { return p.val > 0 || p.label === 'تعمل الآن'; }).map(function (p) {
+      return '<span class="bgn-pill ' + p.cls + '">' + p.icon + ' ' + p.label + ': <strong>' + fmtSimpleCount(p.val) + '</strong></span>';
+    }).join('');
+  }
+
+  function renderExtraMetrics(dash, currency, factor) {
+    var grid = document.getElementById('bgn-extra-grid');
+    if (!grid) return;
+    var cpm = getKpi(dash, 'cpm');
+    var freq = getKpi(dash, 'frequency');
+    var cpr = costPerMessage(dash, currency, factor);
+    var cards = [
+      { emoji: '💬', label: 'تكلفة كل رسالة', tone: 'green',
+        value: cpr != null ? fmtSimpleMoney(Math.round(cpr * factor), currency, factor) : '—',
+        hint: 'كم دفعت في المتوسط مقابل كل رسالة من عميل.' },
+      { emoji: '👁️', label: 'تكلفة ألف ظهور (CPM)', tone: 'blue',
+        value: (cpm && cpm.display && cpm.display !== '—') ? String(cpm.display).replace(/USD/g, arabicCurrencyWord(currency)) : '—',
+        hint: 'سعر الوصول لألف شخص — كلما انخفض كان أفضل.' },
+      { emoji: '🔁', label: 'تكرار الظهور', tone: 'purple',
+        value: freq && freq.value != null && isFinite(Number(freq.value)) ? Number(freq.value).toFixed(1) : '—',
+        hint: 'كم مرة شاهد نفس الشخص إعلانك — الأعلى من ٣ قد يُ tired الجمهور.' },
+    ];
+    grid.innerHTML = cards.map(function (c) {
+      return '<div class="bgn-mini-card">'
+        + '<div class="bgn-mini-top"><div class="bgn-mini-emoji">' + c.emoji + '</div><div class="bgn-mini-label">' + c.label + '</div></div>'
+        + '<div class="bgn-mini-value">' + c.value + '</div>'
+        + '<div class="bgn-mini-hint">' + c.hint + '</div>'
+      + '</div>';
+    }).join('');
+  }
+
+  function renderWeekTrend(dash) {
+    var sec = document.getElementById('bgn-trend-section');
+    var card = document.getElementById('bgn-trend-card');
     if (!sec || !card) return;
-    var issue = pickTopIssue(dash);
-    if (!issue) { sec.style.display = 'none'; return; }
-    var isWarn = issue.severity === 'MEDIUM' || issue.severity === 'LOW';
-    card.className = 'bgn-issue-card' + (isWarn ? ' warn' : '');
-    var body = (issue.recommendations && issue.recommendations[0]) || issue.title || '';
-    card.innerHTML = '<div class="bgn-issue-icon">' + (isWarn ? '💡' : '⚠️') + '</div>'
-      + '<div><div class="bgn-issue-title">' + (issue.title || 'ملاحظة') + '</div>'
-      + '<div class="bgn-issue-body">' + body + '</div></div>';
+    var ts = dash.trendSeries;
+    if (!ts || !ts.dates || ts.dates.length < 2) { sec.style.display = 'none'; return; }
+    var series = (ts.results && ts.results.length) ? ts.results : (ts.messages || []);
+    var n = Math.min(7, series.length);
+    var slice = series.slice(-n);
+    var dates = ts.dates.slice(-n);
+    var max = Math.max.apply(null, slice.map(function (v) { return Number(v) || 0; }).concat([1]));
+    var total = slice.reduce(function (s, v) { return s + (Number(v) || 0); }, 0);
+    var bars = slice.map(function (v, i) {
+      var h = Math.max(4, Math.round(((Number(v) || 0) / max) * 52));
+      var d = dates[i] || '';
+      var dayLabel = d.length >= 10 ? d.slice(8, 10) + '/' + d.slice(5, 7) : d;
+      return '<div class="bgn-trend-col"><div class="bgn-trend-bar-wrap"><div class="bgn-trend-bar" style="height:' + h + 'px;" title="' + fmtSimpleCount(v) + '"></div></div><div class="bgn-trend-day">' + dayLabel + '</div></div>';
+    }).join('');
+    card.innerHTML = bars
+      + '<div class="bgn-trend-legend">المجموع: ' + fmtSimpleCount(total) + ' نتيجة خلال آخر ' + fmtSimpleCount(n) + ' أيام. كل عمود = يوم واحد.</div>';
     sec.style.display = 'block';
+  }
+
+  function renderBenchmarks(dash) {
+    var sec = document.getElementById('bgn-bench-section');
+    var grid = document.getElementById('bgn-bench-grid');
+    if (!sec || !grid) return;
+    var items = [];
+    var steady = dash.steadyState;
+    if (steady && steady.benchmarks && steady.benchmarks.length) {
+      steady.benchmarks.forEach(function (b) {
+        items.push({ icon: b.positive ? '✅' : '⚠️', label: b.label, value: b.valueDisplay, verdict: b.verdict, positive: b.positive });
+      });
+    } else {
+      var ctr = getKpi(dash, 'ctr');
+      if (ctr && ctr.value != null) {
+        var good = Number(ctr.value) >= 1.5;
+        items.push({ icon: good ? '✅' : '⚠️', label: 'نسبة النقر', value: fmtSimplePct(ctr.value),
+          verdict: good ? 'فوق المعيار الجيد (١.٥٪+)' : 'تحت المعيار — جرّب تحسين الإعلان', positive: good });
+      }
+      var cpr = costPerMessage(dash, dash.workspace.currency, dash.workspace.currencyMinorFactor);
+      if (cpr != null) {
+        var cprGood = cpr <= 5;
+        items.push({ icon: cprGood ? '✅' : '⚠️', label: 'تكلفة الرسالة', value: fmtSimpleMoney(Math.round(cpr * (dash.workspace.currencyMinorFactor || 100)), dash.workspace.currency, dash.workspace.currencyMinorFactor),
+          verdict: cprGood ? 'ضمن نطاق صحي' : 'مرتفعة — راقب الإنفاق', positive: cprGood });
+      }
+    }
+    if (!items.length) { sec.style.display = 'none'; return; }
+    grid.innerHTML = items.map(function (b) {
+      return '<div class="bgn-bench-card ' + (b.positive ? 'positive' : 'negative') + '">'
+        + '<div class="bgn-bench-icon">' + b.icon + '</div>'
+        + '<div><div class="bgn-bench-label">' + b.label + '</div>'
+        + '<div class="bgn-bench-value">' + b.value + '</div>'
+        + '<div class="bgn-bench-verdict">' + b.verdict + '</div></div>'
+      + '</div>';
+    }).join('');
+    sec.style.display = 'block';
+  }
+
+  function renderCampaignSpotlight(dash) {
+    var sec = document.getElementById('bgn-camp-section');
+    var grid = document.getElementById('bgn-camp-grid');
+    if (!sec || !grid) return;
+    var best = dash.bestCampaign;
+    var worst = dash.worstCampaign;
+    if (!best && !worst) { sec.style.display = 'none'; return; }
+    function campCard(c, kind) {
+      if (!c) return '';
+      var msgs = fmtSimpleCount(c.messages || 0);
+      var ctr = c.ctr != null ? Number(c.ctr).toFixed(1) + '٪' : '—';
+      return '<div class="bgn-camp-card ' + kind + '">'
+        + '<div class="bgn-camp-badge">' + (kind === 'best' ? '🏆 أفضل حملة' : '⚡ تحتاج اهتمام') + '</div>'
+        + '<div class="bgn-camp-name">' + (c.name || '—') + '</div>'
+        + '<div class="bgn-camp-stats">صحة: ' + Math.round(c.health || 0) + '/١٠٠ (' + bandLabelAr(c.band) + ')<br>'
+        + 'رسائل: ' + msgs + ' · نقر: ' + ctr + '</div>'
+        + '<a href="/campaigns?id=' + encodeURIComponent(c.id || c.metaId || '') + '" class="bgn-camp-link">عرض التفاصيل ←</a>'
+      + '</div>';
+    }
+    grid.innerHTML = campCard(best, 'best') + campCard(worst, 'worst');
+    sec.style.display = 'block';
+  }
+
+  function renderAllIssues(dash) {
+    var sec = document.getElementById('bgn-issue-section');
+    var list = document.getElementById('bgn-issues-list');
+    var countEl = document.getElementById('bgn-issue-count');
+    if (!sec || !list) return;
+    var issues = (dash.issues || []).slice();
+    if (!issues.length) { sec.style.display = 'none'; return; }
+    var rank = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+    issues.sort(function (a, b) {
+      return (rank[a.severity] != null ? rank[a.severity] : 9) - (rank[b.severity] != null ? rank[b.severity] : 9);
+    });
+    var show = issues.slice(0, 4);
+    if (countEl) countEl.textContent = fmtSimpleCount(issues.length) + ' ملاحظة';
+    list.innerHTML = show.map(function (issue) {
+      var cls = issue.severity === 'CRITICAL' || issue.severity === 'HIGH' ? 'high' : 'mid';
+      var body = (issue.recommendations && issue.recommendations[0]) || '';
+      return '<div class="bgn-issue-item ' + cls + '">'
+        + '<div class="bgn-issue-icon">' + (cls === 'high' ? '⚠️' : '💡') + '</div>'
+        + '<div><div class="bgn-issue-title">' + (issue.title || 'ملاحظة') + '</div>'
+        + (body ? '<div class="bgn-issue-body">' + body + '</div>' : '')
+        + '</div></div>';
+    }).join('');
+    sec.style.display = 'block';
+  }
+
+  function renderTips(dash) {
+    var sec = document.getElementById('bgn-tips-section');
+    var el = document.getElementById('bgn-tips');
+    if (!sec || !el) return;
+    var tips = [];
+    var steady = dash.steadyState;
+    if (steady && steady.insights && steady.insights.length) {
+      steady.insights.slice(0, 3).forEach(function (ins) {
+        tips.push({ title: ins.title, body: ins.body });
+      });
+    }
+    var feed = dash.brain && dash.brain.cmoFeedV2;
+    if (feed && feed.length && tips.length < 3) {
+      feed.slice(0, 3 - tips.length).forEach(function (item) {
+        var body = item.summary || item.headline || item.title || '';
+        if (body) tips.push({ title: 'من المراقبة الذكية', body: body });
+      });
+    }
+    if (steady && steady.backgroundSummary && tips.length < 3) {
+      tips.push({ title: 'الوضع العام', body: steady.backgroundSummary });
+    }
+    if (!tips.length) { sec.style.display = 'none'; return; }
+    el.innerHTML = tips.map(function (t) {
+      return '<div class="bgn-tip"><div class="bgn-tip-title">' + t.title + '</div><div class="bgn-tip-body">' + t.body + '</div></div>';
+    }).join('');
+    sec.style.display = 'block';
+  }
+
+  function buildAiPrompts(dash) {
+    var prompts = [];
+    var band = (dash.health && dash.health.band) || 'none';
+    var active = activeCampaignCount(dash);
+    if (band === 'poor' || band === 'attention') {
+      prompts.push('لماذا صحة حسابي ضعيفة؟');
+      prompts.push('ما الخطوة الأولى لتحسين الأداء؟');
+    }
+    if (active < 3) prompts.push('كيف أشغّل حملات أكثر بأمان؟');
+    var msgs = getKpi(dash, 'messages');
+    if (msgs && Number(msgs.value) > 0) prompts.push('كيف أزيد عدد الرسائل؟');
+    var ctr = getKpi(dash, 'ctr');
+    if (ctr && Number(ctr.value) < 1.5) prompts.push('كيف أحسّن نسبة النقر على إعلاناتي؟');
+    if (dash.priorityAction && dash.priorityAction.text) {
+      prompts.unshift('اشرح لي: ' + dash.priorityAction.text.slice(0, 60));
+    }
+    prompts.push('لخص لي أداء حسابي بلغة بسيطة');
+    return prompts.slice(0, 5);
+  }
+
+  function renderAiPrompts(dash) {
+    var el = document.getElementById('bgn-prompts');
+    if (!el) return;
+    el.innerHTML = buildAiPrompts(dash).map(function (q) {
+      return '<a href="/ai?q=' + encodeURIComponent(q) + '" class="bgn-prompt">💬 ' + q + '</a>';
+    }).join('');
+  }
+
+  var BGN_FAQ = [
+    { q: 'ما معنى صحة الحساب؟', a: 'رقم من ٠ إلى ١٠٠ يجمع أداء حملاتك: الإنفاق، النتائج، والتفاعل. كلما ارتفع كان حسابك أفضل.' },
+    { q: 'ما الفرق بين «حملات تعمل» و«تنفق اليوم»؟', a: '«تعمل» = حملات أُنفق عليها مؤخراً. «تنفق اليوم» = حملات أنفقت مالاً فعلياً اليوم.' },
+    { q: 'ما هي نسبة النقر (CTR)؟', a: 'نسبة الأشخاص الذين ضغطوا على إعلانك من بين من شاهدوه. ٢٪ يعني ٢ من كل ١٠٠ شخص.' },
+    { q: 'ما تكلفة الرسالة؟', a: 'مجموع الإنفاق ÷ عدد الرسائل. تخبرك كم تدفع مقابل كل عميل يتواصل معك.' },
+    { q: 'لماذا يظهر «ضعيف» رغم وجود رسائل؟', a: 'الرسائل جزء واحد. الصحة تراجع أيضاً التكلفة، التفاعل، وتنوع الحملات.' },
+  ];
+
+  function renderFaq() {
+    var el = document.getElementById('bgn-faq');
+    if (!el) return;
+    el.innerHTML = BGN_FAQ.map(function (item, i) {
+      return '<div class="bgn-faq-item" id="bgn-faq-' + i + '">'
+        + '<button type="button" class="bgn-faq-q" data-faq="' + i + '">' + item.q + '<span>▼</span></button>'
+        + '<div class="bgn-faq-a">' + item.a + '</div></div>';
+    }).join('');
+    el.querySelectorAll('.bgn-faq-q').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var item = document.getElementById('bgn-faq-' + btn.getAttribute('data-faq'));
+        if (item) item.classList.toggle('open');
+      });
+    });
   }
 
   function renderNextStep(dash) {
@@ -568,11 +972,18 @@ export function beginnerDashboardPage(): string {
     renderGreeting(dash);
     renderStatus(dash);
     renderSummary(dash);
+    renderAccountPills(dash);
     renderMetricCards(dash, currency, factor);
+    renderExtraMetrics(dash, currency, factor);
+    renderWeekTrend(dash);
     renderMiniCards(dash);
+    renderBenchmarks(dash);
+    renderCampaignSpotlight(dash);
     renderProgressCard(dash);
-    renderTopIssue(dash);
+    renderAllIssues(dash);
+    renderTips(dash);
     renderNextStep(dash);
+    renderAiPrompts(dash);
     updateBgnLastUpdated(dash);
   }
 
@@ -619,7 +1030,10 @@ export function beginnerDashboardPage(): string {
     }
   }
 
-  document.addEventListener('DOMContentLoaded', loadBeginnerDashboard);
+  document.addEventListener('DOMContentLoaded', function () {
+    renderFaq();
+    loadBeginnerDashboard();
+  });
   </script>`;
 
   return layout({
