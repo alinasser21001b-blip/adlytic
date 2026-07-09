@@ -175,3 +175,39 @@ Quick scan run on install:
 | majiayu000/claude-skill-registry | https://github.com/majiayu000/claude-skill-registry |
 | ananddtyagi/cc-marketplace | https://github.com/ananddtyagi/cc-marketplace |
 | anthropics/skills (already mirrored) | https://github.com/anthropics/skills |
+
+---
+
+## 5) Additional download batch (installed locally)
+
+These were downloaded in a second pass after the first PR commit:
+
+### UI / Magic UI / Tremor / Admin
+
+| Skill | Source |
+|---|---|
+| `frontend-magic-ui` | claude-skill-registry `skills/data/frontend-magic-ui` |
+| `magicui` / `magic-ui-generator` / `magicui-magic-ui` | registry + magicuidesign/magicui |
+| `magicui-patterns` | Component sources from https://github.com/magicuidesign/magicui (number-ticker, blur-fade, border-beam, …) |
+| `tremor-patterns` | Component sources from https://github.com/tremorlabs/tremor (BarList, Tracker, SparkChart, …) |
+| `tremor-design-system` | registry `skills/design/tremor-design-system` |
+| `creating-dashboards` | registry `skills/design/creating-dashboards` |
+| `aceternity-ui` / `frontend-aceternity` | registry |
+| `admin-dashboard` / `admin-dashboard-qa` / `admin-design` / `admin-crud` | registry |
+| `frontend-shadcn` / `shadcn` / `frontend-master` | registry |
+| `dashboard-creator` / `kpi-dashboard-template` / `visualization-expert` / `add-metric` | registry |
+
+**ZIP sources:**
+- https://github.com/magicuidesign/magicui/archive/refs/heads/main.zip
+- https://github.com/tremorlabs/tremor/archive/refs/heads/main.zip
+- https://github.com/majiayu000/claude-skill-registry/archive/refs/heads/main.zip
+
+### SaaS growth / analytics extras
+
+| Skill | Source |
+|---|---|
+| `signup-flow-cro` / `page-cro` / `revenue-operations` / `channel-economics` | borghei/Claude-Skills |
+| `activation-funnel` / `growth-marketer` / `ab-test-setup` / `ux-researcher-designer` | borghei/Claude-Skills |
+| `stripe-integration` | registry `skills/data/6-stripe-integration` |
+
+All of the above are already present under `.claude/skills/` — no manual download needed.
