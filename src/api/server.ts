@@ -121,6 +121,7 @@ import {
   signalGoodDirection,
   type ObjectiveKpiFamily,
   type SignalMetricKey,
+  type WindowTotals,
 } from '../lib/objectiveKpis';
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
@@ -1933,7 +1934,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           // MAJOR units (or null). List UI multiplies by currencyMinorFactor for money keys.
           costPerResult: costPerResultMajor,
           ctrWindow: impressions > 0 ? +((clicks / impressions) * 100).toFixed(2) : null,
-          spark: sparkIso.map((d) => sparkByCampaign.get(camp.id)?.get(d) ?? 0),
+          spark: sparkIso.map((d) => {
+            const v = sparkByCampaign.get(camp.id)?.get(d);
+            return v == null ? null : v;
+          }),
         };
       })
         .filter((row) => matchesCampaignScope(row.deliveryTier, scope)),
@@ -2395,6 +2399,46 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         narration:        s.narrationJson,
       })),
       signals: { positive, negative },
+      // Per-campaign daily series for inspector charts (already loaded above).
+      // Ascending calendar order; null efficiency when that day had zero results.
+      trendSeries: (() => {
+        const asc = [...dailyStats].sort(
+          (a, b) => a.date.getTime() - b.date.getTime(),
+        );
+        const dayTotalsOf = (d: (typeof asc)[number]): WindowTotals => ({
+          spendMinor: Number(d.spend),
+          impressions: Number(d.impressions),
+          reach: Number(d.reach),
+          clicks: Number(d.clicks),
+          messages: Number(d.messages),
+          purchases: Number(d.purchases),
+          leads: Number(d.leads),
+          revenueMinor: Number(d.revenueMinor),
+        });
+        return {
+          dates: asc.map((d) => d.date.toISOString().slice(0, 10)),
+          spendMinor: asc.map((d) => Number(d.spend)),
+          results: asc.map((d) => resultCountForObjective(purposeKey, dayTotalsOf(d))),
+          costPerResult: asc.map((d) =>
+            efficiencyForObjective(purposeKey, dayTotalsOf(d), factor),
+          ),
+          ctr: asc.map((d) =>
+            d.ctr == null || !Number.isFinite(d.ctr) ? null : d.ctr,
+          ),
+          cpm: asc.map((d) =>
+            d.cpm == null || !Number.isFinite(d.cpm) ? null : d.cpm,
+          ),
+          frequency: asc.map((d) =>
+            d.frequency == null || !Number.isFinite(d.frequency)
+              ? null
+              : d.frequency,
+          ),
+          resultKey: kpiSpec.resultKey,
+          resultLabelAr: kpiSpec.resultLabelAr,
+          efficiencyKey: kpiSpec.efficiencyKey,
+          efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+        };
+      })(),
       // Phase 5 Creatives tab. Each entry = one Ad with its (optionally
       // shared) creative joined. The cordon discipline from creativeMapper
       // already normalized Meta's vocabulary into the AdCreative columns
@@ -2996,7 +3040,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         console.error('[adlytic:ai-chat] V5 context error, falling back to V1:', err);
       }
       if (!context) {
-        context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+        context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
       }
       if (primaryAccount) {
         const campaignCtx = await buildAiCampaignContext(

@@ -123,13 +123,13 @@ export function campaignsPage(): string {
         </span>
         <span class="camp-trends-copy">
           <span class="camp-trends-title">اتجاهات الحساب</span>
-          <span class="camp-trends-hint">إنفاق · نتائج · تفاعل · تكرار</span>
+          <span class="camp-trends-hint">إنفاق · نتائج · كفاءة · تفاعل</span>
         </span>
       </span>
       <span class="camp-trends-action">عرض الرسوم</span>
     </summary>
     <p class="camp-trends-note">بيانات الحساب بالكامل — ليست لحملة واحدة. الأيام بلا مزامنة تظهر كفجوة وليست صفراً.</p>
-    <div class="camp-chart-grid">
+    <div class="camp-chart-grid camp-chart-grid--perf">
       <div class="chart-card" id="spend-chart-card">
         <div class="chart-card-header">
           <div class="chart-card-title">الإنفاق اليومي</div>
@@ -148,6 +148,26 @@ export function campaignsPage(): string {
         <div class="chart-canvas-wrap">
           <canvas id="chart-results"></canvas>
           <div class="chart-empty" id="chart-results-empty" style="display:none;">لا توجد نتائج في هذه الفترة</div>
+        </div>
+      </div>
+      <div class="chart-card" id="cpr-chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">تكلفة النتيجة</div>
+          <div class="chart-card-sub">الإنفاق ÷ النتائج · فارغ إن لم تُسجَّل نتيجة</div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-cpr"></canvas>
+          <div class="chart-empty" id="chart-cpr-empty" style="display:none;">لا توجد تكلفة نتيجة في هذه الفترة</div>
+        </div>
+      </div>
+      <div class="chart-card" id="cpm-chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">تكلفة الألف ظهور (CPM)</div>
+          <div class="chart-card-sub">كفاءة التوصيل · هل يرتفع سعر الظهور؟</div>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-cpm"></canvas>
+          <div class="chart-empty" id="chart-cpm-empty" style="display:none;">لا توجد بيانات CPM في هذه الفترة</div>
         </div>
       </div>
       <div class="chart-card" id="ctr-chart-card">
@@ -331,12 +351,24 @@ export function campaignsPage(): string {
       transform: rotate(225deg); margin-top: 3px;
     }
     .camp-trends .camp-chart-grid { padding: 0 16px 16px; margin-bottom: 0; }
+    .camp-chart-grid--perf { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .camp-trends-note {
       margin: 0 16px 12px; padding: 0;
       font-size: 11.5px; color: var(--text-3); line-height: 1.45; direction: rtl;
     }
     .chart-card-sub {
       font-size: 11px; color: var(--text-3); margin-top: 2px; font-weight: 500; line-height: 1.35;
+    }
+    .insp-chart-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .insp-chart-grid .chart-canvas-wrap {
+      height: 160px; max-height: 160px; min-height: 160px;
+    }
+    @media (max-width: 900px) {
+      .camp-chart-grid--perf, .insp-chart-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 640px) {
       .camp-trends-hint { display: none; }
@@ -878,6 +910,11 @@ export function campaignsPage(): string {
     ctrChart: null,
     resultsChart: null,
     frequencyChart: null,
+    cpmChart: null,
+    cprChart: null,
+    inspSpendChart: null,
+    inspResultsChart: null,
+    inspEffChart: null,
     workspaceId: null,
     // Currency context — hydrated from /api/workspaces/:id once it returns.
     // Defaults are safe for the common case (USD-style 2-decimal currencies).
@@ -920,6 +957,7 @@ export function campaignsPage(): string {
 
   var chartResizeBound = false;
   var CHART_CARD_H = 220;
+  var INSP_CHART_H = 160;
 
   function lockChartBox(canvasId, heightPx) {
     var canvas = document.getElementById(canvasId);
@@ -944,7 +982,7 @@ export function campaignsPage(): string {
     window.addEventListener('resize', function () {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
-        [state.spendChart, state.ctrChart, state.resultsChart, state.frequencyChart].forEach(function (c) {
+        [state.spendChart, state.ctrChart, state.resultsChart, state.frequencyChart, state.cpmChart, state.cprChart, state.inspSpendChart, state.inspResultsChart, state.inspEffChart].forEach(function (c) {
           if (c) try { c.resize(); } catch (e) {}
         });
       }, 150);
@@ -954,7 +992,7 @@ export function campaignsPage(): string {
   function makeLineChart(canvasId, labels, datasets) {
     var canvas = document.getElementById(canvasId);
     if (!canvas) return null;
-    lockChartBox(canvasId, CHART_CARD_H);
+    lockChartBox(canvasId, canvasId.indexOf('insp-') === 0 ? INSP_CHART_H : CHART_CARD_H);
     var ctx = canvas.getContext('2d');
     applyGradients(canvasId, datasets);
     datasets.forEach(function (ds) {
@@ -1107,6 +1145,8 @@ export function campaignsPage(): string {
     if (!rows.some(function (r) { return r; })) {
       showChartEmpty('chart-spend', true);
       showChartEmpty('chart-results', true);
+      showChartEmpty('chart-cpr', true);
+      showChartEmpty('chart-cpm', true);
       showChartEmpty('chart-ctr', true);
       showChartEmpty('chart-frequency', true);
       return;
@@ -1116,6 +1156,17 @@ export function campaignsPage(): string {
       return d ? (Number(d.spend) || 0) / state.minorFactor : null;
     });
     var resultsData = rows.map(function (d) { return dayResults(d); });
+    var cprData = rows.map(function (d) {
+      if (!d) return null;
+      var results = dayResults(d);
+      if (results == null || results <= 0) return null;
+      return (Number(d.spend) || 0) / state.minorFactor / results;
+    });
+    var cpmData = rows.map(function (d) {
+      if (!d || d.cpm == null) return null;
+      var v = Number(d.cpm);
+      return Number.isFinite(v) ? v : null;
+    });
     var ctrData = rows.map(function (d) {
       if (!d) return null;
       var v = Number(d.ctr);
@@ -1127,9 +1178,19 @@ export function campaignsPage(): string {
       return Number.isFinite(v) ? v : null;
     });
 
+    function upsertLine(stateKey, canvasId, datasets) {
+      if (state[stateKey]) {
+        state[stateKey].data.labels = labels;
+        state[stateKey].data.datasets = applyGradients(canvasId, datasets);
+        state[stateKey].update();
+      } else {
+        destroyChartInstance(state[stateKey]);
+        state[stateKey] = makeLineChart(canvasId, labels, datasets);
+      }
+    }
+
     var hasSpendData = spendData.some(function (v) { return v != null && v > 0; });
     showChartEmpty('chart-spend', !hasSpendData);
-
     if (hasSpendData) {
       var spendDatasets = [{
         label: 'الإنفاق (' + state.currency + ')',
@@ -1166,20 +1227,13 @@ export function campaignsPage(): string {
       }
       var markerDataset = buildIssueMarkerDataset(labels, isoDates, state.lastIssueDates);
       if (markerDataset) spendDatasets.push(markerDataset);
-
-      if (state.spendChart) {
-        state.spendChart.data.labels = labels;
-        state.spendChart.data.datasets = applyGradients('chart-spend', spendDatasets);
-        state.spendChart.update();
-      } else {
-        state.spendChart = makeLineChart('chart-spend', labels, spendDatasets);
-      }
+      upsertLine('spendChart', 'chart-spend', spendDatasets);
     }
 
     var hasResultsData = resultsData.some(function (v) { return v != null && v > 0; });
     showChartEmpty('chart-results', !hasResultsData);
     if (hasResultsData) {
-      var resultsDatasets = [{
+      upsertLine('resultsChart', 'chart-results', [{
         label: 'النتائج',
         data: resultsData,
         borderColor: '#2DD4BF',
@@ -1188,21 +1242,43 @@ export function campaignsPage(): string {
         fill: true, tension: 0.35,
         spanGaps: false,
         pointBackgroundColor: '#2DD4BF',
-      }];
-      if (state.resultsChart) {
-        state.resultsChart.data.labels = labels;
-        state.resultsChart.data.datasets = applyGradients('chart-results', resultsDatasets);
-        state.resultsChart.update();
-      } else {
-        destroyChartInstance(state.resultsChart);
-        state.resultsChart = makeLineChart('chart-results', labels, resultsDatasets);
-      }
+      }]);
+    }
+
+    var hasCprData = cprData.some(function (v) { return v != null && v > 0; });
+    showChartEmpty('chart-cpr', !hasCprData);
+    if (hasCprData) {
+      upsertLine('cprChart', 'chart-cpr', [{
+        label: 'تكلفة النتيجة (' + state.currency + ')',
+        data: cprData,
+        borderColor: '#60A5FA',
+        _rgb: [96, 165, 250],
+        _fmt: 'currency',
+        fill: true, tension: 0.35,
+        spanGaps: false,
+        pointBackgroundColor: '#60A5FA',
+      }]);
+    }
+
+    var hasCpmData = cpmData.some(function (v) { return v != null && v > 0; });
+    showChartEmpty('chart-cpm', !hasCpmData);
+    if (hasCpmData) {
+      upsertLine('cpmChart', 'chart-cpm', [{
+        label: 'CPM (' + state.currency + ')',
+        data: cpmData,
+        borderColor: '#C77A1F',
+        _rgb: [199, 122, 31],
+        _fmt: 'currency',
+        fill: true, tension: 0.35,
+        spanGaps: false,
+        pointBackgroundColor: '#C77A1F',
+      }]);
     }
 
     var hasCtrData = ctrData.some(function (v) { return v != null && v > 0; });
     showChartEmpty('chart-ctr', !hasCtrData);
     if (hasCtrData) {
-      var ctrDatasets = [{
+      upsertLine('ctrChart', 'chart-ctr', [{
         label: 'نسبة النقر (%)',
         data: ctrData,
         borderColor: '#34A871',
@@ -1211,21 +1287,13 @@ export function campaignsPage(): string {
         fill: true, tension: 0.35,
         spanGaps: false,
         pointBackgroundColor: '#34A871',
-      }];
-      if (state.ctrChart) {
-        state.ctrChart.data.labels = labels;
-        state.ctrChart.data.datasets = applyGradients('chart-ctr', ctrDatasets);
-        state.ctrChart.update('none');
-      } else {
-        destroyChartInstance(state.ctrChart);
-        state.ctrChart = makeLineChart('chart-ctr', labels, ctrDatasets);
-      }
+      }]);
     }
 
     var hasFreqData = freqData.some(function (v) { return v != null && v > 0; });
     showChartEmpty('chart-frequency', !hasFreqData);
     if (hasFreqData) {
-      var freqDatasets = [{
+      upsertLine('frequencyChart', 'chart-frequency', [{
         label: 'التكرار',
         data: freqData,
         borderColor: '#FB7185',
@@ -1234,15 +1302,7 @@ export function campaignsPage(): string {
         fill: true, tension: 0.35,
         spanGaps: false,
         pointBackgroundColor: '#FB7185',
-      }];
-      if (state.frequencyChart) {
-        state.frequencyChart.data.labels = labels;
-        state.frequencyChart.data.datasets = applyGradients('chart-frequency', freqDatasets);
-        state.frequencyChart.update();
-      } else {
-        destroyChartInstance(state.frequencyChart);
-        state.frequencyChart = makeLineChart('chart-frequency', labels, freqDatasets);
-      }
+      }]);
     }
     } catch (chartErr) {
       console.error('[campaigns] chart render failed:', chartErr);
@@ -1378,32 +1438,74 @@ export function campaignsPage(): string {
   }
 
   // Draw every .spark-cell canvas from its data-spark JSON (7 daily values).
+  // Null = unsynced day: break the line instead of inventing a zero dip.
   function drawSparklines() {
     document.querySelectorAll('.spark-cell canvas').forEach(function (cv) {
       var vals;
       try { vals = JSON.parse(cv.getAttribute('data-spark') || '[]'); } catch (e) { vals = []; }
       var ctx = cv.getContext('2d');
       ctx.clearRect(0, 0, cv.width, cv.height);
-      if (!vals.length || !vals.some(function (v) { return v > 0; })) {
+      var hasReal = vals.some(function (v) { return v != null && Number(v) > 0; });
+      if (!vals.length || !hasReal) {
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.beginPath(); ctx.moveTo(4, cv.height / 2); ctx.lineTo(cv.width - 4, cv.height / 2); ctx.stroke();
         return;
       }
-      var max = Math.max.apply(null, vals), pad = 6;
-      var stepX = (cv.width - pad * 2) / (vals.length - 1);
+      var numeric = vals.map(function (v) { return v == null ? null : Number(v); });
+      var max = Math.max.apply(null, numeric.filter(function (v) { return v != null; }).concat([0.0001]));
+      var pad = 6;
+      var stepX = (cv.width - pad * 2) / Math.max(1, vals.length - 1);
       var y = function (v) { return cv.height - pad - (v / max) * (cv.height - pad * 2); };
-      // area fill
+
+      // area fill across contiguous segments only
+      var segStart = -1;
+      function flushArea(endIdx) {
+        if (segStart < 0 || endIdx <= segStart) return;
+        ctx.beginPath();
+        for (var i = segStart; i <= endIdx; i++) {
+          var px = pad + i * stepX;
+          if (i === segStart) ctx.moveTo(px, y(numeric[i]));
+          else ctx.lineTo(px, y(numeric[i]));
+        }
+        ctx.lineTo(pad + endIdx * stepX, cv.height - 2);
+        ctx.lineTo(pad + segStart * stepX, cv.height - 2);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(217,167,89,0.16)';
+        ctx.fill();
+      }
+      for (var i = 0; i < numeric.length; i++) {
+        if (numeric[i] == null) {
+          flushArea(i - 1);
+          segStart = -1;
+        } else if (segStart < 0) {
+          segStart = i;
+        }
+      }
+      flushArea(numeric.length - 1);
+
+      // stroke segments
+      ctx.strokeStyle = '#D9A759';
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      vals.forEach(function (v, i) { var px = pad + i * stepX; i ? ctx.lineTo(px, y(v)) : ctx.moveTo(px, y(v)); });
-      ctx.lineTo(pad + (vals.length - 1) * stepX, cv.height - 2); ctx.lineTo(pad, cv.height - 2); ctx.closePath();
-      ctx.fillStyle = 'rgba(217,167,89,0.16)'; ctx.fill();
-      // line
-      ctx.beginPath();
-      vals.forEach(function (v, i) { var px = pad + i * stepX; i ? ctx.lineTo(px, y(v)) : ctx.moveTo(px, y(v)); });
-      ctx.strokeStyle = '#D9A759'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
-      // latest-day dot
-      ctx.beginPath(); ctx.arc(pad + (vals.length - 1) * stepX, y(vals[vals.length - 1]), 3, 0, Math.PI * 2);
-      ctx.fillStyle = '#E6BD7A'; ctx.fill();
+      var drawing = false;
+      for (var j = 0; j < numeric.length; j++) {
+        if (numeric[j] == null) { drawing = false; continue; }
+        var x = pad + j * stepX;
+        if (!drawing) { ctx.moveTo(x, y(numeric[j])); drawing = true; }
+        else ctx.lineTo(x, y(numeric[j]));
+      }
+      ctx.stroke();
+
+      // latest real-day dot
+      for (var k = numeric.length - 1; k >= 0; k--) {
+        if (numeric[k] == null) continue;
+        ctx.beginPath();
+        ctx.arc(pad + k * stepX, y(numeric[k]), 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#E6BD7A';
+        ctx.fill();
+        break;
+      }
     });
   }
 
@@ -1983,6 +2085,24 @@ export function campaignsPage(): string {
     var overviewHtml =
       purposeBanner
     + sectionBlock('نتائج الهدف', 'كما يعرضها مدير إعلانات Meta لهذا النوع', kpiHtml)
+    + sectionBlock('اتجاه الأداء', 'إنفاق · نتائج الهدف · الكفاءة — أيام بلا بيانات تظهر كفجوة',
+        '<div class="insp-chart-grid">'
+      +   '<div class="chart-card">'
+      +     '<div class="chart-card-header"><div class="chart-card-title">الإنفاق</div></div>'
+      +     '<div class="chart-canvas-wrap"><canvas id="insp-chart-spend"></canvas>'
+      +       '<div class="chart-empty" id="insp-chart-spend-empty" style="display:none;">لا إنفاق</div></div>'
+      +   '</div>'
+      +   '<div class="chart-card">'
+      +     '<div class="chart-card-header"><div class="chart-card-title">' + escHtml(resultLabel) + '</div></div>'
+      +     '<div class="chart-canvas-wrap"><canvas id="insp-chart-results"></canvas>'
+      +       '<div class="chart-empty" id="insp-chart-results-empty" style="display:none;">لا نتائج</div></div>'
+      +   '</div>'
+      +   '<div class="chart-card">'
+      +     '<div class="chart-card-header"><div class="chart-card-title">' + escHtml(efficiencyLabel) + '</div></div>'
+      +     '<div class="chart-canvas-wrap"><canvas id="insp-chart-eff"></canvas>'
+      +       '<div class="chart-empty" id="insp-chart-eff-empty" style="display:none;">لا كفاءة يومية</div></div>'
+      +   '</div>'
+      + '</div>')
     + sectionBlock('تغيّر الأداء', 'مقارنة آخر 7 أيام بالـ 7 التي قبلها', signalsHtml)
     + sectionBlock('نصائح الذكاء الاصطناعي', null, timelineHtml);
 
@@ -1993,6 +2113,7 @@ export function campaignsPage(): string {
     // position). The renderer owns all Arabic translation of Meta vocabulary.
     var audienceHtml = renderAudienceTab(data.breakdowns || {}, a, s.kpiFamily || 'messaging');
 
+    destroyInspectorCharts();
     document.getElementById('inspector-body').innerHTML =
         '<div data-tab-panel="overview">'  + overviewHtml  + '</div>'
       + '<div data-tab-panel="creatives" style="display:none;">' + creativesHtml + '</div>'
@@ -2003,6 +2124,98 @@ export function campaignsPage(): string {
 
     // Reset the active tab to Overview every time we render new data.
     switchInspectorTab('overview');
+    requestAnimationFrame(function () {
+      renderInspectorCharts(data.trendSeries || null, a);
+    });
+  }
+
+  function destroyInspectorCharts() {
+    ['inspSpendChart', 'inspResultsChart', 'inspEffChart'].forEach(function (k) {
+      destroyChartInstance(state[k]);
+      state[k] = null;
+    });
+  }
+
+  function renderInspectorCharts(ts, account) {
+    destroyInspectorCharts();
+    if (!ts || !Array.isArray(ts.dates) || !ts.dates.length) {
+      showChartEmpty('insp-chart-spend', true);
+      showChartEmpty('insp-chart-results', true);
+      showChartEmpty('insp-chart-eff', true);
+      return;
+    }
+    var factor = (account && account.currencyMinorFactor) || state.minorFactor || 100;
+    var currency = (account && account.currency) || state.currency || 'USD';
+    var byDate = {};
+    ts.dates.forEach(function (iso, i) {
+      byDate[String(iso).slice(0, 10)] = i;
+    });
+    var end = new Date();
+    end.setHours(12, 0, 0, 0);
+    var start = new Date(end);
+    start.setDate(start.getDate() - 29);
+    var labels = [];
+    var spendData = [];
+    var resultsData = [];
+    var effData = [];
+    for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      var key = d.toISOString().slice(0, 10);
+      labels.push(fmtShortDate(key));
+      var idx = byDate[key];
+      if (idx == null) {
+        spendData.push(null);
+        resultsData.push(null);
+        effData.push(null);
+        continue;
+      }
+      var spendMinor = Array.isArray(ts.spendMinor) ? Number(ts.spendMinor[idx]) : NaN;
+      spendData.push(Number.isFinite(spendMinor) ? spendMinor / factor : null);
+      var res = Array.isArray(ts.results) ? Number(ts.results[idx]) : NaN;
+      resultsData.push(Number.isFinite(res) ? res : null);
+      var cpr = Array.isArray(ts.costPerResult) ? ts.costPerResult[idx] : null;
+      effData.push(cpr == null || !Number.isFinite(Number(cpr)) ? null : Number(cpr));
+    }
+
+    var hasSpend = spendData.some(function (v) { return v != null && v > 0; });
+    var hasResults = resultsData.some(function (v) { return v != null && v > 0; });
+    var hasEff = effData.some(function (v) { return v != null && v > 0; });
+    showChartEmpty('insp-chart-spend', !hasSpend);
+    showChartEmpty('insp-chart-results', !hasResults);
+    showChartEmpty('insp-chart-eff', !hasEff);
+
+    if (hasSpend) {
+      state.inspSpendChart = makeLineChart('insp-chart-spend', labels, [{
+        label: 'الإنفاق (' + currency + ')',
+        data: spendData,
+        borderColor: '#D9A759',
+        _rgb: [217, 167, 89],
+        _fmt: 'currency',
+        fill: true, tension: 0.35, spanGaps: false,
+        pointBackgroundColor: '#D9A759',
+      }]);
+    }
+    if (hasResults) {
+      state.inspResultsChart = makeLineChart('insp-chart-results', labels, [{
+        label: ts.resultLabelAr || 'النتائج',
+        data: resultsData,
+        borderColor: '#2DD4BF',
+        _rgb: [45, 212, 191],
+        _fmt: 'int',
+        fill: true, tension: 0.35, spanGaps: false,
+        pointBackgroundColor: '#2DD4BF',
+      }]);
+    }
+    if (hasEff) {
+      state.inspEffChart = makeLineChart('insp-chart-eff', labels, [{
+        label: (ts.efficiencyLabelAr || 'الكفاءة') + ' (' + currency + ')',
+        data: effData,
+        borderColor: '#60A5FA',
+        _rgb: [96, 165, 250],
+        _fmt: 'currency',
+        fill: true, tension: 0.35, spanGaps: false,
+        pointBackgroundColor: '#60A5FA',
+      }]);
+    }
   }
 
   // ── AI Investigation tab (Phase 3 IFA §1) ───────────────────────────────
@@ -2303,7 +2516,10 @@ export function campaignsPage(): string {
   }
 
   function showInspectorModal() { document.getElementById('campaign-inspector-modal').style.display = 'flex'; }
-  function hideInspectorModal() { document.getElementById('campaign-inspector-modal').style.display = 'none'; }
+  function hideInspectorModal() {
+    destroyInspectorCharts();
+    document.getElementById('campaign-inspector-modal').style.display = 'none';
+  }
 
   async function openInspector(campaignId, initialTab) {
     if (!state.workspaceId || !campaignId) return;
@@ -2580,7 +2796,7 @@ export function campaignsPage(): string {
         if (!trendsEl.open) return;
         requestAnimationFrame(function() {
           updateCharts(state.insights);
-          [state.spendChart, state.ctrChart, state.resultsChart, state.frequencyChart].forEach(function(c) {
+          [state.spendChart, state.ctrChart, state.resultsChart, state.frequencyChart, state.cpmChart, state.cprChart].forEach(function(c) {
             if (c) try { c.resize(); } catch (e) {}
           });
         });
