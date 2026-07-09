@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
+import type { PrismaClient } from '@prisma/client';
 
 import { buildCuratedTrendSummary, getIndustryTrends } from './data/industry-trends';
 import {
@@ -8,15 +9,26 @@ import {
 } from './assessment-prompt';
 import { buildFallbackAssessment } from './fallback-assessment';
 import { getTrendContext, type TrendInsights } from './meta-ad-library';
-import { assessRequestSchema, assessmentResultSchema, campaignGoalSchema, type AssessmentResultPayload } from './schemas';
+import {
+  assessRequestSchema,
+  assessmentResultSchema,
+  campaignGoalSchema,
+  type AssessmentResultPayload,
+  type AssessRequest,
+} from './schemas';
 import type { CampaignGoal } from './types';
 import { config } from '../config';
+import {
+  assembleAdlyticAssessmentContext,
+  type AdlyticAssessmentContext,
+} from './adlyticContext';
 
 const SERVICE_UNAVAILABLE = 'الخدمة غير متوفرة مؤقتاً';
 
 type AssessmentApiResponse = AssessmentResultPayload & {
   trendContext: ReturnType<typeof toTrendContextPayload>;
   analysisMode: 'ai' | 'curated_fallback';
+  dataContext?: AdlyticAssessmentContext | null;
 };
 
 function buildCuratedTrendContext(industry: string, goal: CampaignGoal): TrendInsights {
@@ -74,17 +86,119 @@ const RESPONSE_SCHEMA_HINT = `Return JSON with this exact structure:
   "actionItems": [{"ar": string, "en": string}] (3-5 items),
   "industryTips": [{"ar": string, "en": string}] (2-4 items),
   "strengths": [{"ar": string, "en": string}] (2-3 items),
-  "performanceInsight"?: {"ar": string, "en": string} (only if metrics provided)
+  "performanceInsight"?: {"ar": string, "en": string} (required when Adlytic live metrics or manual metrics exist)
 }`;
+
+function applyAdlyticPrefill(
+  data: AssessRequest,
+  ctx: AdlyticAssessmentContext,
+): AssessRequest {
+  const next: AssessRequest = { ...data, creative: { ...data.creative } };
+
+  if (ctx.industryHint && (!next.industry || next.industry === 'other')) {
+    next.industry = ctx.industryHint;
+  }
+  if (ctx.goalHint) next.goal = ctx.goalHint;
+
+  if (ctx.creative) {
+    if (!next.creative.primaryText && ctx.creative.primaryText) {
+      next.creative.primaryText = ctx.creative.primaryText;
+    }
+    if (!next.creative.headline && ctx.creative.headline) {
+      next.creative.headline = ctx.creative.headline;
+    }
+    if (!next.creative.desiredAction && ctx.creative.callToActionType) {
+      next.creative.desiredAction = ctx.creative.callToActionType;
+    }
+  }
+
+  const m = ctx.metrics;
+  const conversions =
+    next.goal === 'leads'
+      ? m.leads
+      : next.goal === 'sales'
+        ? m.purchases
+        : m.messages;
+  next.metrics = {
+    spend: m.spendMajor,
+    impressions: m.impressions,
+    clicks: m.clicks,
+    conversions,
+    currency: m.currency,
+    roasOrCpl: m.costPerMessage ?? undefined,
+  };
+  next.hasMetrics = m.impressions > 0 || m.spendMajor > 0 || conversions > 0;
+
+  return next;
+}
+
+function enrichFallbackWithAdlytic(
+  fallback: AssessmentResultPayload,
+  ctx: AdlyticAssessmentContext,
+): AssessmentResultPayload {
+  const m = ctx.metrics;
+  const parts: string[] = [];
+  parts.push(
+    `خلال آخر ${m.windowDays} يوماً أنفقت حملة «${ctx.campaignName}» ${m.spendMajor} ${m.currency}`,
+  );
+  if (m.ctr != null) parts.push(`وتفاعل الإعلان ${m.ctr}%`);
+  if (m.frequency != null) parts.push(`بتكرار ظهور ${m.frequency}`);
+  if (m.costPerMessage != null) {
+    parts.push(`وتكلفة النتيجة حوالي ${m.costPerMessage} ${m.currency}`);
+  }
+  if (ctx.healthScore != null) {
+    parts.push(`وصحة الحملة ${ctx.healthScore}/100`);
+  }
+  if (ctx.diagnoses[0]) {
+    parts.push(`وأبرز ملاحظة: ${ctx.diagnoses[0].title}`);
+  }
+
+  fallback.performanceInsight = {
+    ar: parts.join('، ') + '.',
+    en:
+      `In the last ${m.windowDays} days, campaign "${ctx.campaignName}" spent ${m.spendMajor} ${m.currency}` +
+      (m.ctr != null ? ` with CTR ${m.ctr}%` : '') +
+      '.',
+  };
+
+  const grounded: Array<{ ar: string; en: string }> = [];
+  for (const d of ctx.diagnoses.slice(0, 2)) {
+    grounded.push({ ar: d.action, en: d.action });
+  }
+  if (ctx.brain?.arabicNarration) {
+    grounded.push({
+      ar: ctx.brain.arabicTitle
+        ? `${ctx.brain.arabicTitle}: راجع التوصية في لوحة الحملات.`
+        : 'راجع توصية مراقب الذكاء الاصطناعي لهذه الحملة.',
+      en: 'Review the AI monitor recommendation for this campaign.',
+    });
+  }
+  if (ctx.selfBenchmark?.recommendations[0]) {
+    grounded.push({
+      ar: ctx.selfBenchmark.recommendations[0],
+      en: ctx.selfBenchmark.recommendations[0],
+    });
+  }
+  if (grounded.length >= 2) {
+    const merged = [...grounded, ...fallback.actionItems].slice(0, 5);
+    while (merged.length < 3) {
+      merged.push(fallback.actionItems[merged.length] || grounded[0]!);
+    }
+    fallback.actionItems = merged.slice(0, 5);
+  }
+
+  return fallback;
+}
 
 async function callOpenAI(
   openai: OpenAI,
   data: Parameters<typeof buildAssessmentUserPrompt>[0],
   trendContext: TrendInsights,
+  adlyticContext: AdlyticAssessmentContext | null,
   extraInstruction?: string,
 ): Promise<string | null> {
   const userContent: OpenAI.Chat.ChatCompletionContentPart[] = [
-    { type: 'text', text: buildAssessmentUserPrompt(data, trendContext) },
+    { type: 'text', text: buildAssessmentUserPrompt(data, trendContext, adlyticContext) },
   ];
 
   if (data.imageBase64 && data.imageMimeType) {
@@ -102,7 +216,7 @@ async function callOpenAI(
     temperature: 0.5,
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: buildAssessmentSystemPrompt() },
+      { role: 'system', content: buildAssessmentSystemPrompt(Boolean(adlyticContext)) },
       { role: 'user', content: userContent },
       {
         role: 'system',
@@ -143,7 +257,10 @@ export type AssessResult =
   | { ok: true; data: AssessmentApiResponse }
   | { ok: false; status: number; error: string; details?: unknown };
 
-export async function runAdAssessment(body: unknown): Promise<AssessResult> {
+export async function runAdAssessment(
+  body: unknown,
+  opts?: { prisma?: PrismaClient; workspaceId?: string; adAccountId?: string },
+): Promise<AssessResult> {
   const parsedBody = assessRequestSchema.safeParse(body);
 
   if (!parsedBody.success) {
@@ -156,7 +273,28 @@ export async function runAdAssessment(body: unknown): Promise<AssessResult> {
     };
   }
 
-  const data = parsedBody.data;
+  let data = parsedBody.data;
+  let adlyticContext: AdlyticAssessmentContext | null = null;
+
+  const workspaceId = opts?.workspaceId || data.workspaceId;
+  const campaignId = data.campaignId;
+  if (opts?.prisma && workspaceId && opts.adAccountId && campaignId) {
+    try {
+      adlyticContext = await assembleAdlyticAssessmentContext({
+        prisma: opts.prisma,
+        workspaceId,
+        adAccountId: opts.adAccountId,
+        campaignId,
+        adId: data.adId,
+        windowDays: data.windowDays,
+      });
+      if (adlyticContext) {
+        data = applyAdlyticPrefill(data, adlyticContext);
+      }
+    } catch (e) {
+      console.warn('[ad-assessor] failed to assemble Adlytic context:', e);
+    }
+  }
 
   try {
     const trendContext = await loadTrendContext(data.industry, data.goal);
@@ -164,13 +302,15 @@ export async function runAdAssessment(body: unknown): Promise<AssessResult> {
 
     if (!apiKey) {
       console.error('[ad-assessor] OPENAI_API_KEY not configured — using curated fallback');
-      const fallback = buildFallbackAssessment(data, trendContext);
+      let fallback = buildFallbackAssessment(data, trendContext);
+      if (adlyticContext) fallback = enrichFallbackWithAdlytic(fallback, adlyticContext);
       return {
         ok: true,
         data: {
           ...fallback,
           trendContext: toTrendContextPayload(trendContext),
           analysisMode: 'curated_fallback',
+          dataContext: adlyticContext,
         },
       };
     }
@@ -178,16 +318,18 @@ export async function runAdAssessment(body: unknown): Promise<AssessResult> {
     const openai = new OpenAI({ apiKey });
 
     try {
-      let raw = await callOpenAI(openai, data, trendContext);
+      let raw = await callOpenAI(openai, data, trendContext, adlyticContext);
       if (!raw) {
         console.error('[ad-assessor] OpenAI returned empty content — using curated fallback');
-        const fallback = buildFallbackAssessment(data, trendContext);
+        let fallback = buildFallbackAssessment(data, trendContext);
+        if (adlyticContext) fallback = enrichFallbackWithAdlytic(fallback, adlyticContext);
         return {
           ok: true,
           data: {
             ...fallback,
             trendContext: toTrendContextPayload(trendContext),
             analysisMode: 'curated_fallback',
+            dataContext: adlyticContext,
           },
         };
       }
@@ -202,7 +344,9 @@ export async function runAdAssessment(body: unknown): Promise<AssessResult> {
           openai,
           data,
           trendContext,
-          'Ensure actionItems has 3-5 items, strengths has 2-3, industryTips has 2-4, all scores are 0-100.',
+          adlyticContext,
+          'Ensure actionItems has 3-5 items, strengths has 2-3, industryTips has 2-4, all scores are 0-100.' +
+            (adlyticContext ? ' Include performanceInsight citing Adlytic live metrics.' : ''),
         );
         if (raw) {
           result = parseAssessmentResponse(raw);
@@ -210,12 +354,17 @@ export async function runAdAssessment(body: unknown): Promise<AssessResult> {
       }
 
       if (result.success) {
+        const payload = result.data;
+        if (adlyticContext && !payload.performanceInsight) {
+          enrichFallbackWithAdlytic(payload, adlyticContext);
+        }
         return {
           ok: true,
           data: {
-            ...result.data,
+            ...payload,
             trendContext: toTrendContextPayload(trendContext),
             analysisMode: 'ai',
+            dataContext: adlyticContext,
           },
         };
       }
@@ -224,26 +373,30 @@ export async function runAdAssessment(body: unknown): Promise<AssessResult> {
         '[ad-assessor] AI response still invalid after retry — using curated fallback:',
         result.error?.flatten?.(),
       );
-      const fallback = buildFallbackAssessment(data, trendContext);
+      let fallback = buildFallbackAssessment(data, trendContext);
+      if (adlyticContext) fallback = enrichFallbackWithAdlytic(fallback, adlyticContext);
       return {
         ok: true,
         data: {
           ...fallback,
           trendContext: toTrendContextPayload(trendContext),
           analysisMode: 'curated_fallback',
+          dataContext: adlyticContext,
         },
       };
     } catch (error) {
       logOpenAIError(error);
 
       if (isOpenAIUnavailable(error)) {
-        const fallback = buildFallbackAssessment(data, trendContext);
+        let fallback = buildFallbackAssessment(data, trendContext);
+        if (adlyticContext) fallback = enrichFallbackWithAdlytic(fallback, adlyticContext);
         return {
           ok: true,
           data: {
             ...fallback,
             trendContext: toTrendContextPayload(trendContext),
             analysisMode: 'curated_fallback',
+            dataContext: adlyticContext,
           },
         };
       }

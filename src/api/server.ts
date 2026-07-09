@@ -73,6 +73,10 @@ import { workspacePage } from '../web/pages/workspacePage';
 import { aiPage } from '../web/pages/aiPage';
 import { adAnalysisPage } from '../web/pages/adAnalysisPage';
 import { runAdAssessment, searchAdLibraryTrends } from '../adAssessor/assessService';
+import {
+  assembleAdlyticAssessmentContext,
+  listCampaignsForAssessor,
+} from '../adAssessor/adlyticContext';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { welcomePage } from '../web/pages/welcomePage';
@@ -2710,21 +2714,82 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   //  AD ASSESSOR — Meta Ad creative analysis (تحليل الإعلان)
   // ════════════════════════════════════════════════════════════════════════
 
-  /** POST /api/ad-assessor/assess — AI-powered creative assessment. */
+  /** POST /api/ad-assessor/assess — AI-powered creative assessment (optional Adlytic grounding). */
   app.post('/api/ad-assessor/assess', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
 
-    const result = await runAdAssessment(req.body);
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    const workspaceId = typeof body['workspaceId'] === 'string' ? body['workspaceId'] : undefined;
+    let adAccountId: string | undefined;
+    if (workspaceId) {
+      if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+      const { account } = await getAccount(workspaceId);
+      if (!account) return c.json({ error: 'Not found' }, 404);
+      adAccountId = account.id;
+    }
+
+    const result = await runAdAssessment(body, {
+      prisma,
+      workspaceId,
+      adAccountId,
+    });
     if (!result.ok) {
       return c.json(
         { error: result.error, ...(result.details ? { details: result.details } : {}) },
         result.status as 400 | 503,
       );
     }
-    return c.json(result.data);
+    return c.json(safeJson(result.data));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/ad-assessor/campaigns
+   * Campaign picker for advanced (Adlytic-grounded) analysis.
+   */
+  app.get('/api/workspaces/:workspaceId/ad-assessor/campaigns', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
+
+    const campaigns = await listCampaignsForAssessor(prisma, account.id);
+    return c.json(safeJson({ campaigns }));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/ad-assessor/context?campaignId=&adId=
+   * Prefill payload: live metrics, creative, diagnoses, brain, self-benchmark.
+   */
+  app.get('/api/workspaces/:workspaceId/ad-assessor/context', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
+
+    const campaignId = c.req.query('campaignId');
+    if (!campaignId) return c.json({ error: 'campaignId required' }, 400);
+    const adId = c.req.query('adId') || null;
+    const days = Math.max(7, Math.min(90, Number(c.req.query('days') ?? 30)));
+
+    const ctx = await assembleAdlyticAssessmentContext({
+      prisma,
+      workspaceId: req.params['workspaceId'],
+      adAccountId: account.id,
+      campaignId,
+      adId,
+      windowDays: days,
+    });
+    if (!ctx) return c.json({ error: 'Not found' }, 404);
+    return c.json(safeJson(ctx));
   });
 
   /** POST /api/ad-assessor/ad-library/search — live Ad Library trend lookup. */

@@ -31,6 +31,11 @@ export const assessRequestSchema = z.object({
   hasMetrics: z.boolean().default(false),
   imageBase64: z.string().optional(),
   imageMimeType: z.string().optional(),
+  /** When set, assessment is grounded in live Adlytic campaign data. */
+  workspaceId: z.string().optional(),
+  campaignId: z.string().optional(),
+  adId: z.string().optional(),
+  windowDays: z.number().int().min(7).max(90).optional(),
 });
 
 export type AssessRequest = z.infer<typeof assessRequestSchema>;
