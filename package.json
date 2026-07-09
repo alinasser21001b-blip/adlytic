@@ -29,6 +29,7 @@
     "test:evidence-consistency": "tsx test_evidence_consistency.ts",
     "test:objective-kpis": "tsx test_objective_kpis.ts",
     "test:meta-standards": "tsx test_meta_objective_standards.ts",
+    "test:campaign-purpose": "tsx test_campaign_purpose.ts",
     "test:historical": "tsx test_historical.ts",
     "test:currency": "tsx test_currency.ts",
     "test:csv": "tsx test_csv_export.ts",
