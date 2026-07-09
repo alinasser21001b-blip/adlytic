@@ -139,7 +139,7 @@ export interface DashboardDTO {
     ctr: Array<number | null>;
     /** Daily frequency when present; null when Meta did not return it. */
     frequency: Array<number | null>;
-    /** Daily CPM in major currency units; null when unavailable. */
+    /** Daily CPM in major currency units; null when unavailable. Recomputed from spend÷impressions (stored DailyStat.cpm is minor). */
     cpm: Array<number | null>;
     /**
      * Daily cost-per-result in major units (spend / results).
@@ -576,6 +576,10 @@ export async function getDashboard(
   ];
 
   // 6. Trend series for charts — outcomes + efficiency, honest nulls for gaps.
+  // CPM is stored in MINOR units (insightMapper). Charts expect MAJOR — always
+  // recompute from spend÷impressions so cents never plot as dollars
+  // (e.g. Meta CPM $3.21 stored as 321 → wrongly shown as $321).
+  // CTR / frequency: null when the day had no delivery — never invent 0% / 0×.
   const trendSeries = {
     dates: daily.map((d: any) => d.date.toISOString().slice(0, 10)),
     messages: daily.map((d: any) => Number(d.messages)),
@@ -583,17 +587,25 @@ export async function getDashboard(
       Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0),
     ),
     spend: daily.map((d: any) => Number(d.spend)),
-    ctr: daily.map((d: any) =>
-      d.ctr == null || !Number.isFinite(Number(d.ctr)) ? null : Number(d.ctr),
-    ),
-    frequency: daily.map((d: any) =>
-      d.frequency == null || !Number.isFinite(Number(d.frequency))
-        ? null
-        : Number(d.frequency),
-    ),
-    cpm: daily.map((d: any) =>
-      d.cpm == null || !Number.isFinite(Number(d.cpm)) ? null : Number(d.cpm),
-    ),
+    ctr: daily.map((d: any) => {
+      const imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
+      if (d.ctr == null || !Number.isFinite(Number(d.ctr))) return null;
+      return Number(d.ctr);
+    }),
+    frequency: daily.map((d: any) => {
+      const imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
+      if (d.frequency == null || !Number.isFinite(Number(d.frequency))) return null;
+      return Number(d.frequency);
+    }),
+    cpm: daily.map((d: any) => {
+      const imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
+      const spendMajor = Number(d.spend) / factor;
+      if (!Number.isFinite(spendMajor)) return null;
+      return (spendMajor / imp) * 1000;
+    }),
     costPerResult: daily.map((d: any) => {
       const results =
         Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0);

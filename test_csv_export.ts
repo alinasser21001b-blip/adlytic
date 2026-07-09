@@ -53,5 +53,16 @@ assert(insCsv.includes('الإنفاق (IQD)'), 'header carries the account curr
 assert(insLines[1]!.startsWith('2026-07-01'), 'rows sorted oldest → newest');
 assert(insCsv.includes('3000') && !insCsv.includes('30.00'), 'IQD spend is whole-unit (no /100)');
 
+console.log('CSV export — insights CPM is major units (USD factor 100)');
+const usdIns = insightsToCsv(
+  [
+    // Meta CPM $3.21 is stored as 321 minor units — CSV must export 3.21, not 321.
+    { date: '2026-06-21', spend: 2202, impressions: 6850, reach: 5000, clicks: 80, ctr: 1.17, cpm: 321.3, messages: 12, purchases: 0 },
+  ],
+  usd,
+);
+assert(usdIns.includes('3.21'), 'CPM 321.3 minor → 3.21 major in CSV');
+assert(!/,321(?:\.|,|\r|$)/.test(usdIns.replace('3.21', '')), 'raw minor CPM 321 must not appear as a cell');
+
 console.log(failures === 0 ? '\nALL PASSED' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

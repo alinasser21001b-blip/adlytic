@@ -2422,17 +2422,25 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           costPerResult: asc.map((d) =>
             efficiencyForObjective(purposeKey, dayTotalsOf(d), factor),
           ),
-          ctr: asc.map((d) =>
-            d.ctr == null || !Number.isFinite(d.ctr) ? null : d.ctr,
-          ),
-          cpm: asc.map((d) =>
-            d.cpm == null || !Number.isFinite(d.cpm) ? null : d.cpm,
-          ),
-          frequency: asc.map((d) =>
-            d.frequency == null || !Number.isFinite(d.frequency)
+          cpm: asc.map((d) => {
+            const imp = Number(d.impressions) || 0;
+            if (imp <= 0) return null;
+            const spendMajor = Number(d.spend) / factor;
+            if (!Number.isFinite(spendMajor) || spendMajor <= 0) return null;
+            return (spendMajor / imp) * 1000;
+          }),
+          frequency: asc.map((d) => {
+            const imp = Number(d.impressions) || 0;
+            if (imp <= 0) return null;
+            return d.frequency == null || !Number.isFinite(d.frequency)
               ? null
-              : d.frequency,
-          ),
+              : d.frequency;
+          }),
+          ctr: asc.map((d) => {
+            const imp = Number(d.impressions) || 0;
+            if (imp <= 0) return null;
+            return d.ctr == null || !Number.isFinite(d.ctr) ? null : d.ctr;
+          }),
           resultKey: kpiSpec.resultKey,
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyKey: kpiSpec.efficiencyKey,

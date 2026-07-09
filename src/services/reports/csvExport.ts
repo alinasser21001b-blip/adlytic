@@ -151,7 +151,8 @@ export function insightsToCsv(insights: CsvInsight[], account: CsvAccount): stri
     num(d.reach),
     num(d.clicks),
     d.ctr == null ? '' : d.ctr.toFixed(2),
-    d.cpm == null ? '' : d.cpm.toFixed(2),
+    // CPM is stored in minor units — export major so CSV matches Ads Manager.
+    d.cpm == null ? '' : (Number(d.cpm) / factor).toFixed(2),
     num(d.messages),
     num(d.purchases),
   ]);
