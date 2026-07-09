@@ -236,22 +236,40 @@ export function dashboardPage(): string {
 
           <div id="attribution-section" style="display:none;"></div>
 
-          <div id="diagnoses-section" style="display:none;">
-            <div class="section-header" style="margin-bottom:16px;"><div class="section-header-title">التشخيص والتوصيات</div></div>
+          <div id="diagnoses-section" class="adv-block" style="display:none;">
+            <div class="adv-block-head">
+              <div class="adv-block-title">التشخيص والتوصيات</div>
+              <div class="adv-block-sub">لماذا تغيّرت النتائج · وماذا تفعل الآن</div>
+            </div>
             <div class="diagnosis-grid" id="diagnoses-grid"></div>
           </div>
 
-          <div class="card section-gap">
-            <div class="section-header" style="margin-bottom:14px;"><div class="section-header-title">التنبيهات والمشاكل</div></div>
-            <div id="issues-list"><div class="text-3 text-sm">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div></div>
+          <div class="adv-block section-gap">
+            <div class="adv-block-head">
+              <div class="adv-block-title">التنبيهات والمشاكل</div>
+              <div class="adv-block-sub">ملاحظات مرتبة حسب الأولوية</div>
+            </div>
+            <div id="issues-list"><div class="adv-empty-ok">لا توجد مشاكل — حسابك يعمل بشكل جيد.</div></div>
           </div>
 
-          <div class="table-wrap">
-            <div class="table-header"><div class="table-title">أداء الحملات</div></div>
-            <table>
-              <thead><tr><th>الحملة</th><th>الحالة</th><th>الميزانية</th><th>ملاحظة</th></tr></thead>
+          <div class="adv-block table-wrap adv-campaigns-wrap">
+            <div class="adv-block-head" style="padding:0 0 12px;">
+              <div class="adv-block-title">أداء الحملات</div>
+              <div class="adv-block-sub">الأفضل والأسوأ أولاً، ثم الأعلى إنفاقاً</div>
+            </div>
+            <table class="adv-campaigns-table">
+              <thead>
+                <tr>
+                  <th>الحملة</th>
+                  <th>الحالة</th>
+                  <th>الإنفاق</th>
+                  <th>النتائج</th>
+                  <th>التفاعل</th>
+                  <th>ملاحظة</th>
+                </tr>
+              </thead>
               <tbody id="campaigns-tbody">
-                <tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">جارٍ التحميل…</td></tr>
+                <tr><td colspan="6" class="text-3" style="text-align:center;padding:18px;">جارٍ التحميل…</td></tr>
               </tbody>
             </table>
           </div>
@@ -927,13 +945,13 @@ export function dashboardPage(): string {
     section.style.display = 'block';
     var DRIVER_AR = { impressions: 'الظهور', ctr: 'نسبة النقر', cvr: 'نسبة التحويل' };
     var factors = [
-      { key: 'impressions', label: 'الظهور (Impressions)', delta: attr.drivers.impressions.change, contribution: attr.drivers.impressions.contribution },
-      { key: 'ctr', label: 'نسبة النقر (CTR)', delta: attr.drivers.ctr.change, contribution: attr.drivers.ctr.contribution },
-      { key: 'cvr', label: 'نسبة التحويل (CVR)', delta: attr.drivers.cvr.change, contribution: attr.drivers.cvr.contribution },
+      { key: 'impressions', label: 'الظهور', delta: attr.drivers.impressions.change, contribution: attr.drivers.impressions.contribution },
+      { key: 'ctr', label: 'نسبة النقر', delta: attr.drivers.ctr.change, contribution: attr.drivers.ctr.contribution },
+      { key: 'cvr', label: 'نسبة التحويل', delta: attr.drivers.cvr.change, contribution: attr.drivers.cvr.contribution },
     ];
     var totalDir = attr.totalChange >= 0 ? 'ارتفعت' : 'انخفضت';
     section.innerHTML = '<div class="attribution-card">'
-      + '<div class="attribution-title">تحليل أسباب تغيّر النتائج</div>'
+      + '<div class="attribution-title">لماذا تغيّرت النتائج؟</div>'
       + '<div class="attribution-bars">'
       + factors.map(function (f) {
           var cls = f.delta > 0.02 ? 'positive' : f.delta < -0.02 ? 'negative' : 'neutral';
@@ -952,7 +970,7 @@ export function dashboardPage(): string {
       + '</div>'
       + '<div class="attribution-narrative">' + escHtml(
           attr.drivers
-            ? ('النتائج ' + totalDir + ' ' + Math.abs(attr.totalChange * 100).toFixed(0) + '% — التفصيل: '
+            ? ('النتائج ' + totalDir + ' ' + Math.abs(attr.totalChange * 100).toFixed(0) + '% — '
               + 'الظهور ' + (attr.drivers.impressions.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.impressions.change * 100).toFixed(0) + '%، '
               + 'نسبة النقر ' + (attr.drivers.ctr.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.ctr.change * 100).toFixed(0) + '%، '
               + 'نسبة التحويل ' + (attr.drivers.cvr.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.cvr.change * 100).toFixed(0) + '%. '
@@ -964,26 +982,73 @@ export function dashboardPage(): string {
 
   function renderCampaignsTable(best, worst, allCampaigns) {
     var tbody = document.getElementById('campaigns-tbody');
+    var byId = {};
+    (allCampaigns || []).forEach(function (c) { if (c && c.id) byId[c.id] = c; });
+    function enrich(c) {
+      if (!c) return null;
+      var full = byId[c.id] || {};
+      return Object.assign({}, full, c, {
+        spendWindowMinor: full.spendWindowMinor != null ? full.spendWindowMinor : c.spendWindowMinor,
+        messagesWindow: full.messagesWindow != null ? full.messagesWindow : (c.messages != null ? c.messages : null),
+        ctrWindow: full.ctrWindow != null ? full.ctrWindow : c.ctr,
+        dailyBudget: full.dailyBudget != null ? full.dailyBudget : c.dailyBudget,
+        objective: full.objective || c.objective,
+        status: full.status || c.status,
+        deliveryTier: full.deliveryTier || c.deliveryTier,
+        isCurrentlySpending: full.isCurrentlySpending != null ? full.isCurrentlySpending : c.isCurrentlySpending,
+        isDormantActive: full.isDormantActive != null ? full.isDormantActive : c.isDormantActive,
+      });
+    }
+    best = enrich(best);
+    worst = enrich(worst);
     var rows = [];
-    function row(c, note) {
-      var budget = c.dailyBudget
-        ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
-        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' إجمالي' : '—');
+    function noteFor(c, forced) {
+      if (forced) return forced;
+      if (c.isCurrentlySpending) return 'تنفق الآن';
+      if (c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) return 'تحتاج مراجعة';
+      if (c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW') return 'تعمل';
+      if ((c.status || '').toUpperCase() === 'PAUSED') return 'متوقفة';
+      return '';
+    }
+    function noteClass(note) {
+      if (note === 'الأفضل') return 'note-best';
+      if (note === 'الأسوأ') return 'note-worst';
+      if (note === 'تنفق الآن') return 'note-hot';
+      if (note === 'تحتاج مراجعة') return 'note-watch';
+      return 'note-muted';
+    }
+    function row(c, forcedNote) {
+      var note = noteFor(c, forcedNote);
+      var spend = c.spendWindowMinor != null ? fmtCurrencyMinor(c.spendWindowMinor)
+        : (c.dailyBudget != null ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم' : '—');
+      var msgs = c.messagesWindow != null ? Number(c.messagesWindow).toLocaleString('en-US')
+        : (c.messages != null ? Number(c.messages).toLocaleString('en-US') : '—');
+      var ctr = c.ctrWindow != null ? Number(c.ctrWindow).toFixed(2) + '%'
+        : (c.ctr != null ? Number(c.ctr).toFixed(2) + '%' : '—');
       return '<tr>'
-        + '<td><div style="font-weight:600;">' + escHtml(c.name || '—') + '</div>'
-          + '<div class="text-xs text-3">' + escHtml(c.objective || '') + '</div></td>'
+        + '<td><div class="adv-camp-name">' + escHtml(c.name || '—') + '</div>'
+          + '<div class="adv-camp-obj">' + escHtml(translateObjective(c.objective)) + '</div></td>'
         + '<td>' + statusBadge(c.status || 'UNKNOWN') + '</td>'
-        + '<td>' + escHtml(budget) + '</td>'
-        + '<td class="text-xs text-3">' + escHtml(note || '') + '</td>'
+        + '<td class="adv-camp-num">' + escHtml(spend) + '</td>'
+        + '<td class="adv-camp-num">' + escHtml(String(msgs)) + '</td>'
+        + '<td class="adv-camp-num">' + escHtml(ctr) + '</td>'
+        + '<td><span class="adv-camp-note ' + noteClass(note) + '">' + escHtml(note || '—') + '</span></td>'
       + '</tr>';
     }
-    if (best)  rows.push(row(best,  '⭐ الأفضل'));
-    if (worst) rows.push(row(worst, '⚠ الأسوأ'));
+    if (best)  rows.push(row(best,  'الأفضل'));
+    if (worst && (!best || worst.id !== best.id)) rows.push(row(worst, 'الأسوأ'));
     var seen = new Set([best && best.id, worst && worst.id].filter(Boolean));
-    (allCampaigns || []).forEach(function (c) { if (!seen.has(c.id)) rows.push(row(c, '')); });
+    var rest = (allCampaigns || []).filter(function (c) { return c && c.id && !seen.has(c.id); });
+    rest.sort(function (a, b) {
+      var as = Number(a.spendWindowMinor) || 0;
+      var bs = Number(b.spendWindowMinor) || 0;
+      if (bs !== as) return bs - as;
+      return (Number(b.messagesWindow) || 0) - (Number(a.messagesWindow) || 0);
+    });
+    rest.slice(0, 40).forEach(function (c) { rows.push(row(c, '')); });
     tbody.innerHTML = rows.length
       ? rows.join('')
-      : '<tr><td colspan="4" class="text-3" style="text-align:center;padding:18px;">لا توجد حملات.</td></tr>';
+      : '<tr><td colspan="6" class="text-3" style="text-align:center;padding:18px;">لا توجد حملات.</td></tr>';
   }
 
   // ── Tier 1: Executive Pulse Banner ──────────────────────────────────────

@@ -924,27 +924,82 @@ select.form-input { cursor: pointer; }
 }
 
 /* ── Diagnosis cards ────────────────────────────────────────────── */
-.diagnosis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.diagnosis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-bottom: 8px; }
 .diagnosis-card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+  border-inline-start: 3px solid var(--accent);
+  direction: rtl;
   transition: border-color var(--transition);
 }
-.diagnosis-card:hover { border-color: var(--border-2); }
-.diagnosis-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.diagnosis-name { font-size: 14px; font-weight: 700; color: var(--text); }
-.diagnosis-confidence { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.diagnosis-card:hover { border-color: rgba(217,167,89,0.28); }
+.diagnosis-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.diagnosis-name { font-size: 14.5px; font-weight: 800; color: var(--text); line-height: 1.35; }
+.diagnosis-confidence { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
 .diagnosis-confidence.high { background: var(--success-dim); color: var(--success); }
 .diagnosis-confidence.medium { background: var(--warning-dim); color: var(--warning); }
 .diagnosis-confidence.low { background: rgba(255,255,255,0.06); color: var(--text-3); }
-.diagnosis-narrative { font-size: 13px; color: var(--text-2); line-height: 1.65; margin-bottom: 12px; }
+.diagnosis-narrative { font-size: 13.5px; color: var(--text-2); line-height: 1.65; margin-bottom: 12px; }
 .diagnosis-action {
-  font-size: 12.5px; color: var(--accent-2); background: var(--accent-dim);
-  padding: 10px 14px; border-radius: var(--radius-sm); line-height: 1.55;
+  font-size: 13px; color: var(--text); background: rgba(217,167,89,0.07);
+  border: 1px solid rgba(217,167,89,0.16);
+  padding: 11px 13px; border-radius: 12px; line-height: 1.55;
 }
-.diagnosis-action-label { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; color: var(--accent); }
+.diagnosis-action-label { font-weight: 800; font-size: 11px; margin-bottom: 4px; color: var(--accent-2); }
+
+/* Advanced analytics section chrome */
+.adv-block { margin-bottom: 22px; direction: rtl; }
+.adv-block-head { margin-bottom: 12px; }
+.adv-block-title {
+  font-size: 13px; font-weight: 800; color: var(--text);
+  padding-inline-start: 10px; border-inline-start: 3px solid var(--accent);
+}
+.adv-block-sub { font-size: 12px; color: var(--text-3); margin-top: 4px; padding-inline-start: 13px; }
+.adv-empty-ok {
+  font-size: 13px; color: var(--text-2); padding: 14px 16px;
+  background: rgba(52,168,113,0.06); border: 1px solid rgba(52,168,113,0.18);
+  border-radius: 12px;
+}
+.adv-issues-list { display: flex; flex-direction: column; gap: 0; }
+.adv-issue-row { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.adv-issue-row:last-child { border-bottom: none; }
+.adv-issue-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.adv-issue-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.adv-issue-sev {
+  font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+}
+.adv-issue-sev.critical { background: var(--error-dim); color: var(--error); }
+.adv-issue-sev.high { background: rgba(199,122,31,0.12); color: var(--warning); }
+.adv-issue-sev.medium { background: rgba(217,167,89,0.1); color: var(--accent-2); }
+.adv-issue-sev.low { background: rgba(255,255,255,0.05); color: var(--text-3); }
+.adv-issue-why { font-size: 12.5px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
+.adv-issue-action { font-size: 12.5px; color: var(--accent-2); margin-top: 6px; line-height: 1.5; }
+.adv-campaigns-wrap {
+  padding: 16px 16px 8px; background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; overflow: hidden;
+}
+.adv-campaigns-table { width: 100%; border-collapse: collapse; direction: rtl; }
+.adv-campaigns-table th {
+  text-align: start; font-size: 11px; font-weight: 700; color: var(--text-3);
+  padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); white-space: nowrap;
+}
+.adv-campaigns-table td {
+  padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 13px; color: var(--text); vertical-align: top;
+}
+.adv-camp-name { font-weight: 700; line-height: 1.35; }
+.adv-camp-obj { font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
+.adv-camp-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.adv-camp-note {
+  display: inline-flex; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+}
+.adv-camp-note.note-best { background: var(--success-dim); color: var(--success); }
+.adv-camp-note.note-worst { background: var(--error-dim); color: var(--error); }
+.adv-camp-note.note-hot { background: rgba(217,167,89,0.14); color: var(--accent-2); }
+.adv-camp-note.note-watch { background: rgba(199,122,31,0.12); color: var(--warning); }
+.adv-camp-note.note-muted { background: rgba(255,255,255,0.04); color: var(--text-3); }
 
 /* ── Attribution bar ────────────────────────────────────────────── */
 .attribution-card {
@@ -954,7 +1009,7 @@ select.form-input { cursor: pointer; }
   padding: 18px 20px;
   margin-bottom: 24px;
 }
-.attribution-title { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+.attribution-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 14px; }
 .attribution-bars { display: flex; gap: 16px; flex-wrap: wrap; }
 .attribution-factor { flex: 1; min-width: 120px; }
 .attribution-factor-label { font-size: 12px; color: var(--text-2); margin-bottom: 6px; font-weight: 500; }
@@ -987,6 +1042,7 @@ select.form-input { cursor: pointer; }
 @media (max-width: 768px) {
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .table-wrap table { min-width: 700px; }
+  .adv-campaigns-table { min-width: 720px; }
   .account-cards { grid-template-columns: 1fr !important; }
   .rec-grid { grid-template-columns: 1fr !important; }
   .settings-grid { grid-template-columns: 1fr !important; }

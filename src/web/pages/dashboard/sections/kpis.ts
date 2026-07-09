@@ -11,7 +11,7 @@ export const renderKpisJs = `
   function renderKpis(kpis) {
     var grid = document.getElementById('kpi-grid');
     if (!grid) return;
-    if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">No KPI data available.</div>'; return; }
+    if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">لا توجد مؤشرات حالياً.</div>'; return; }
     grid.innerHTML = kpis.map(function (k) {
       var deltaClass = 'flat', arrow = '→';
       if (k.deltaPct != null) {
