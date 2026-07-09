@@ -1587,6 +1587,9 @@ function friendlyApiError(err) {
   if (/Another sync is already in progress/i.test(msg)) {
     return 'المزامنة قيد التشغيل — ستتحدّث بياناتك تلقائياً عند الانتهاء.';
   }
+  if (/DASHBOARD_TIMEOUT|dashboard timed out|انتهت مهلة تحميل اللوحة/i.test(msg) || err.code === 'DASHBOARD_TIMEOUT') {
+    return 'انتهت مهلة تحميل اللوحة — حاول مجدداً بعد لحظات.';
+  }
   if (/timed out/i.test(msg)) return 'انتهت مهلة الطلب — تحقق من اتصالك وحاول مجدداً.';
   if (/non-JSON response/i.test(msg)) return 'استجابة غير متوقعة من الخادم — أعد تحميل الصفحة.';
   if (/token has expired|please reconnect/i.test(msg)) {
