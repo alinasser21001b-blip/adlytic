@@ -828,6 +828,16 @@ export function campaignsPage(): string {
     }) + ' ' + state.currency;
   }
 
+  /** Chart tip money — value is already MAJOR units; no currency in the label. */
+  function fmtChartMoney(major) {
+    if (major == null || !Number.isFinite(Number(major))) return '—';
+    var decimals = state.minorFactor === 1 ? 0 : 2;
+    return Number(major).toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }) + ' ' + state.currency;
+  }
+
   // /insights returns DailyStat rows ordered date DESC. Charts and the
   // "last N days" summary want the newest N rows in chronological order.
   // slice(-N) on a desc array keeps the OLDEST N rows — silently excluding
@@ -1027,11 +1037,15 @@ export function campaignsPage(): string {
                 var v = item.parsed.y;
                 if (v == null || Number.isNaN(v)) return 'لا بيانات لهذا اليوم';
                 var f = item.dataset && item.dataset._fmt;
-                var txt = f === 'currency' ? fmtCurrencyMinor(v * state.minorFactor)
+                var txt = f === 'currency' ? fmtChartMoney(v)
                   : f === 'pct' ? (Number(v).toFixed(2) + '%')
                   : f === 'freq' ? Number(v).toFixed(2)
                   : Number(v).toLocaleString('en-US');
-                return (item.dataset.label || '') + ': ' + txt;
+                // Labels already include the metric name; avoid "الإنفاق (USD): 22 USD".
+                var name = item.dataset && item.dataset._tipLabel
+                  ? item.dataset._tipLabel
+                  : (item.dataset && item.dataset.label ? String(item.dataset.label).replace(/\s*\([^)]*\)\s*$/, '') : '');
+                return name ? (name + ': ' + txt) : txt;
               },
             },
           }
@@ -1153,29 +1167,46 @@ export function campaignsPage(): string {
     }
 
     var spendData = rows.map(function (d) {
-      return d ? (Number(d.spend) || 0) / state.minorFactor : null;
+      // Idle synced day (spend 0) → null so the line gaps instead of crashing to 0.
+      if (!d) return null;
+      var maj = (Number(d.spend) || 0) / state.minorFactor;
+      return maj > 0 ? maj : null;
     });
-    var resultsData = rows.map(function (d) { return dayResults(d); });
+    var resultsData = rows.map(function (d) {
+      if (!d) return null;
+      var r = dayResults(d);
+      return r != null && r > 0 ? r : null;
+    });
     var cprData = rows.map(function (d) {
       if (!d) return null;
       var results = dayResults(d);
       if (results == null || results <= 0) return null;
-      return (Number(d.spend) || 0) / state.minorFactor / results;
+      var spendMaj = (Number(d.spend) || 0) / state.minorFactor;
+      if (!(spendMaj > 0)) return null;
+      return spendMaj / results;
     });
+    // CPM is stored in MINOR units — always recompute from spend÷impressions in MAJOR.
     var cpmData = rows.map(function (d) {
-      if (!d || d.cpm == null) return null;
-      var v = Number(d.cpm);
-      return Number.isFinite(v) ? v : null;
+      if (!d) return null;
+      var imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
+      var spendMaj = (Number(d.spend) || 0) / state.minorFactor;
+      if (!Number.isFinite(spendMaj)) return null;
+      return (spendMaj / imp) * 1000;
     });
     var ctrData = rows.map(function (d) {
       if (!d) return null;
+      var imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
       var v = Number(d.ctr);
       return Number.isFinite(v) ? v : null;
     });
     var freqData = rows.map(function (d) {
       if (!d || d.frequency == null) return null;
+      var imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
       var v = Number(d.frequency);
-      return Number.isFinite(v) ? v : null;
+      return Number.isFinite(v) && v > 0 ? v : null;
     });
 
     function upsertLine(stateKey, canvasId, datasets) {
@@ -1193,7 +1224,8 @@ export function campaignsPage(): string {
     showChartEmpty('chart-spend', !hasSpendData);
     if (hasSpendData) {
       var spendDatasets = [{
-        label: 'الإنفاق (' + state.currency + ')',
+        label: 'الإنفاق',
+        _tipLabel: 'الإنفاق',
         data: spendData,
         borderColor: '#D9A759',
         _rgb: [217, 167, 89],
@@ -1213,7 +1245,8 @@ export function campaignsPage(): string {
           return window.reduce(function (a, b) { return a + b; }, 0) / window.length;
         });
         spendDatasets.push({
-          label: 'المتوسط (أيام متاحة)',
+          label: 'المتوسط',
+          _tipLabel: 'المتوسط (أيام متاحة)',
           data: ma,
           borderColor: 'rgba(230,189,122,0.55)',
           borderDash: [6, 5],
@@ -1249,7 +1282,8 @@ export function campaignsPage(): string {
     showChartEmpty('chart-cpr', !hasCprData);
     if (hasCprData) {
       upsertLine('cprChart', 'chart-cpr', [{
-        label: 'تكلفة النتيجة (' + state.currency + ')',
+        label: 'تكلفة النتيجة',
+        _tipLabel: 'تكلفة النتيجة',
         data: cprData,
         borderColor: '#60A5FA',
         _rgb: [96, 165, 250],
@@ -1264,7 +1298,8 @@ export function campaignsPage(): string {
     showChartEmpty('chart-cpm', !hasCpmData);
     if (hasCpmData) {
       upsertLine('cpmChart', 'chart-cpm', [{
-        label: 'CPM (' + state.currency + ')',
+        label: 'CPM',
+        _tipLabel: 'CPM',
         data: cpmData,
         borderColor: '#C77A1F',
         _rgb: [199, 122, 31],
@@ -2145,7 +2180,6 @@ export function campaignsPage(): string {
       return;
     }
     var factor = (account && account.currencyMinorFactor) || state.minorFactor || 100;
-    var currency = (account && account.currency) || state.currency || 'USD';
     var byDate = {};
     ts.dates.forEach(function (iso, i) {
       byDate[String(iso).slice(0, 10)] = i;
@@ -2169,11 +2203,12 @@ export function campaignsPage(): string {
         continue;
       }
       var spendMinor = Array.isArray(ts.spendMinor) ? Number(ts.spendMinor[idx]) : NaN;
-      spendData.push(Number.isFinite(spendMinor) ? spendMinor / factor : null);
+      var spendMaj = Number.isFinite(spendMinor) ? spendMinor / factor : null;
+      spendData.push(spendMaj != null && spendMaj > 0 ? spendMaj : null);
       var res = Array.isArray(ts.results) ? Number(ts.results[idx]) : NaN;
-      resultsData.push(Number.isFinite(res) ? res : null);
+      resultsData.push(Number.isFinite(res) && res > 0 ? res : null);
       var cpr = Array.isArray(ts.costPerResult) ? ts.costPerResult[idx] : null;
-      effData.push(cpr == null || !Number.isFinite(Number(cpr)) ? null : Number(cpr));
+      effData.push(cpr == null || !Number.isFinite(Number(cpr)) || Number(cpr) <= 0 ? null : Number(cpr));
     }
 
     var hasSpend = spendData.some(function (v) { return v != null && v > 0; });
@@ -2185,7 +2220,8 @@ export function campaignsPage(): string {
 
     if (hasSpend) {
       state.inspSpendChart = makeLineChart('insp-chart-spend', labels, [{
-        label: 'الإنفاق (' + currency + ')',
+        label: 'الإنفاق',
+        _tipLabel: 'الإنفاق',
         data: spendData,
         borderColor: '#D9A759',
         _rgb: [217, 167, 89],
@@ -2197,6 +2233,7 @@ export function campaignsPage(): string {
     if (hasResults) {
       state.inspResultsChart = makeLineChart('insp-chart-results', labels, [{
         label: ts.resultLabelAr || 'النتائج',
+        _tipLabel: ts.resultLabelAr || 'النتائج',
         data: resultsData,
         borderColor: '#2DD4BF',
         _rgb: [45, 212, 191],
@@ -2207,7 +2244,8 @@ export function campaignsPage(): string {
     }
     if (hasEff) {
       state.inspEffChart = makeLineChart('insp-chart-eff', labels, [{
-        label: (ts.efficiencyLabelAr || 'الكفاءة') + ' (' + currency + ')',
+        label: ts.efficiencyLabelAr || 'الكفاءة',
+        _tipLabel: ts.efficiencyLabelAr || 'الكفاءة',
         data: effData,
         borderColor: '#60A5FA',
         _rgb: [96, 165, 250],

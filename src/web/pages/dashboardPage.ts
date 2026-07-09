@@ -441,20 +441,23 @@ export function dashboardPage(): string {
     var v = item.parsed.y;
     if (v == null || Number.isNaN(v)) return 'لا بيانات لهذا اليوم';
     var f = item.dataset && item.dataset._fmt;
+    var txt;
     if (f === 'currency') {
-      try {
-        return new Intl.NumberFormat('ar-SA', {
-          style: 'currency',
-          currency: state.currency || 'SAR',
-          maximumFractionDigits: v >= 100 ? 0 : 2,
-        }).format(v);
-      } catch (e) {
-        return Number(v).toFixed(2) + ' ' + (state.currency || '');
-      }
+      var decimals = state.minorFactor === 1 ? 0 : 2;
+      txt = Number(v).toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      }) + ' ' + (state.currency || '');
+    } else if (f === 'pct') {
+      txt = Number(v).toFixed(2) + '%';
+    } else if (f === 'freq') {
+      txt = Number(v).toFixed(2);
+    } else {
+      txt = Number(v).toLocaleString('en-US');
     }
-    if (f === 'pct') return Number(v).toFixed(2) + '%';
-    if (f === 'freq') return Number(v).toFixed(2);
-    return Number(v).toLocaleString('en-US');
+    var rawLabel = item.dataset && item.dataset.label ? String(item.dataset.label) : '';
+    var name = rawLabel.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    return name ? (name + ': ' + txt) : txt;
   }
 
   function makeLineChart(canvasId, labels, datasets, opts) {
@@ -2008,20 +2011,27 @@ export function dashboardPage(): string {
           cprSeries.push(null);
         } else {
           var spendMaj = (Number(row.spend) || 0) / state.minorFactor;
-          spendSeriesMajor.push(spendMaj);
-          var ctrV = Number(row.ctr);
-          ctrSeries.push(Number.isFinite(ctrV) ? ctrV : null);
+          var imp = Number(row.impressions) || 0;
+          // Idle day → null (gap), not a fake crash to zero.
+          spendSeriesMajor.push(spendMaj > 0 ? spendMaj : null);
           var dayRes = (Number(row.messages) || 0) + (Number(row.purchases) || 0) + (Number(row.leads) || 0);
-          resultsSeries.push(dayRes);
-          freqSeries.push(
-            row.frequency == null || !Number.isFinite(Number(row.frequency))
-              ? null
-              : Number(row.frequency),
-          );
-          cpmSeries.push(
-            row.cpm == null || !Number.isFinite(Number(row.cpm)) ? null : Number(row.cpm),
-          );
-          cprSeries.push(dayRes > 0 ? spendMaj / dayRes : null);
+          resultsSeries.push(dayRes > 0 ? dayRes : null);
+          if (imp <= 0) {
+            ctrSeries.push(null);
+            freqSeries.push(null);
+            cpmSeries.push(null);
+          } else {
+            var ctrV = Number(row.ctr);
+            ctrSeries.push(Number.isFinite(ctrV) ? ctrV : null);
+            freqSeries.push(
+              row.frequency == null || !Number.isFinite(Number(row.frequency))
+                ? null
+                : Number(row.frequency),
+            );
+            // Recompute CPM in MAJOR — stored row.cpm is minor units.
+            cpmSeries.push(Number.isFinite(spendMaj) ? (spendMaj / imp) * 1000 : null);
+          }
+          cprSeries.push(dayRes > 0 && spendMaj > 0 ? spendMaj / dayRes : null);
         }
       }
 
@@ -2036,7 +2046,8 @@ export function dashboardPage(): string {
         spendSeriesMajor = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
           if (i == null || !Array.isArray(ts.spend) || ts.spend[i] == null) return null;
-          return Number(ts.spend[i]) / state.minorFactor;
+          var maj = Number(ts.spend[i]) / state.minorFactor;
+          return maj > 0 ? maj : null;
         });
         ctrSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
@@ -2047,32 +2058,34 @@ export function dashboardPage(): string {
         resultsSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
           if (i == null) return null;
-          if (Array.isArray(ts.results) && ts.results[i] != null) return Number(ts.results[i]);
-          if (Array.isArray(ts.messages) && ts.messages[i] != null) return Number(ts.messages[i]);
-          return null;
+          var v = null;
+          if (Array.isArray(ts.results) && ts.results[i] != null) v = Number(ts.results[i]);
+          else if (Array.isArray(ts.messages) && ts.messages[i] != null) v = Number(ts.messages[i]);
+          return v != null && v > 0 ? v : null;
         });
         freqSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
           if (i == null || !Array.isArray(ts.frequency) || ts.frequency[i] == null) return null;
           var v = Number(ts.frequency[i]);
-          return Number.isFinite(v) ? v : null;
+          return Number.isFinite(v) && v > 0 ? v : null;
         });
+        // trendSeries.cpm is already MAJOR after getDashboard fix.
         cpmSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
           if (i == null || !Array.isArray(ts.cpm) || ts.cpm[i] == null) return null;
           var v = Number(ts.cpm[i]);
-          return Number.isFinite(v) ? v : null;
+          return Number.isFinite(v) && v > 0 ? v : null;
         });
         cprSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
           if (i == null) return null;
           if (Array.isArray(ts.costPerResult) && ts.costPerResult[i] != null) {
             var cprV = Number(ts.costPerResult[i]);
-            return Number.isFinite(cprV) ? cprV : null;
+            return Number.isFinite(cprV) && cprV > 0 ? cprV : null;
           }
           var res = resultsSeries[isoDates.indexOf(iso)];
           var sp = spendSeriesMajor[isoDates.indexOf(iso)];
-          if (res != null && res > 0 && sp != null) return sp / res;
+          if (res != null && res > 0 && sp != null && sp > 0) return sp / res;
           return null;
         });
         labels = isoDates.map(function (iso) {
