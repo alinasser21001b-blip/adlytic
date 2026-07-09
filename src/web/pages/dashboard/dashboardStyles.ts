@@ -325,9 +325,15 @@ export const dashboardStyles = `<style>
 
     /* Re-used V2 / V6 sections (only what isn't in SHARED_CSS) */
     .v2-section { margin-bottom: 26px; }
-    .v2-section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-    .v2-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
-    .v2-section-meta  { font-size: 12px; color: var(--text-3); }
+    .v2-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .v2-section-kicker {
+      font-size: 11px; font-weight: 800; color: var(--accent-2);
+      letter-spacing: 0.04em; margin-bottom: 4px;
+    }
+    .v2-section-title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+    .v2-section-sub { font-size: 12.5px; color: var(--text-3); margin-top: 4px; line-height: 1.4; }
+    .v2-section-meta  { font-size: 12px; color: var(--text-3); flex-shrink: 0; padding-top: 4px; }
+    #main-move-section.main-move-above-fold .v2-section-title { font-size: 20px; }
 
     .v2-actions, .v2-recovery-card, .v2-spotlight, .v2-insight {
       background: var(--surface);

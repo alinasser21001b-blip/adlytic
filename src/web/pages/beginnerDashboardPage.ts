@@ -383,9 +383,9 @@ export function beginnerDashboardPage(): string {
 
         <div class="bgn-section bgn-anim d6" id="bgn-action-section">
           <div class="bgn-section-head">
-            <span class="bgn-section-emoji">✅</span>
-            <h2 class="bgn-section-title">مهمتك الآن</h2>
-            <span class="bgn-section-sub">فهم → قرار → فعل → تحقق</span>
+            <span class="bgn-section-emoji">🩺</span>
+            <h2 class="bgn-section-title">التشخيص والتوصيات</h2>
+            <span class="bgn-section-sub">لماذا تغيّرت النتائج · وماذا تفعل الآن</span>
           </div>
           <div class="bgn-action-card" id="bgn-action-card"></div>
         </div>
@@ -518,6 +518,26 @@ export function beginnerDashboardPage(): string {
   function pickTopTask(dash) {
     var tasks = Array.isArray(dash.merchantTasks) ? dash.merchantTasks.filter(Boolean) : [];
     if (tasks.length) return tasks[0];
+    var diagnoses = Array.isArray(dash.diagnoses) ? dash.diagnoses.filter(Boolean) : [];
+    if (diagnoses.length) {
+      var d = diagnoses[0];
+      var issueCode = (d.contributingIssues && d.contributingIssues[0]) || null;
+      return {
+        itemKey: issueCode ? ('issue:' + issueCode) : ('diagnosis:' + d.code),
+        issueCode: issueCode,
+        diagnosisCode: d.code,
+        actionCode: dash.priorityAction && dash.priorityAction.actionCode ? dash.priorityAction.actionCode : null,
+        severity: 'HIGH',
+        severityLabel: 'مهم',
+        confidence: d.confidence,
+        title: d.name,
+        why: d.narrative,
+        action: d.action,
+        steps: [],
+        expect: '',
+        askAi: 'اشرح لي ببساطة التشخيص «' + d.name + '». ماذا أفعل الآن؟ ومتى أراجع؟',
+      };
+    }
     var issue = pickTopIssue(dash);
     if (!issue) return null;
     return {
@@ -526,6 +546,7 @@ export function beginnerDashboardPage(): string {
       actionCode: dash.priorityAction && dash.priorityAction.actionCode ? dash.priorityAction.actionCode : null,
       severity: issue.severity || 'MEDIUM',
       severityLabel: issue.severity === 'CRITICAL' ? 'مستعجل' : issue.severity === 'HIGH' ? 'مهم' : issue.severity === 'MEDIUM' ? 'للمتابعة' : 'معلومة',
+      confidence: null,
       title: issue.title || 'ملاحظة على الحساب',
       why: (issue.causes && issue.causes[0]) || 'راجع الحملة واتخذ خطوة بسيطة اليوم.',
       action: (issue.recommendations && issue.recommendations[0]) || (dash.priorityAction && dash.priorityAction.text) || 'افتح الحملات وطبّق تعديلاً واحداً',
@@ -687,30 +708,36 @@ export function beginnerDashboardPage(): string {
       return;
     }
 
-    var steps = Array.isArray(task.steps) && task.steps.length
-      ? task.steps
-      : [task.action, 'طبّق التعديل في مدير إعلانات فيسبوك.', 'راجع النتيجة بعد بضعة أيام.'];
-    var sevColor = task.severity === 'CRITICAL' ? 'var(--critical, #E2604F)'
-      : task.severity === 'HIGH' ? 'var(--error, #E2604F)'
-      : task.severity === 'MEDIUM' ? 'var(--warning, #C77A1F)'
-      : 'var(--text-3)';
     var ask = task.askAi || ('اشرح لي ببساطة: ' + task.title + '. ماذا أفعل الآن خطوة بخطوة؟ ومتى أراجع النتيجة؟');
+    var conf = task.confidence;
+    var confHtml = '';
+    if (conf != null && isFinite(Number(conf))) {
+      var c = Number(conf);
+      if (c > 1) c = c / 100;
+      c = Math.max(0, Math.min(1, c));
+      var confLevel = c >= 0.75 ? 'high' : c >= 0.5 ? 'medium' : 'low';
+      var confLabel = c >= 0.75 ? 'ثقة عالية' : c >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
+      confHtml = '<span class="diagnosis-confidence ' + confLevel + '">' + escBgn(confLabel + ' ' + Math.round(c * 100) + '%') + '</span>';
+    }
 
-    card.innerHTML = '<div class="bgn-task-loop" aria-hidden="true"><span>١ فهم</span><span class="sep">→</span><span>٢ قرار</span><span class="sep">→</span><span>٣ فعل</span><span class="sep">→</span><span>٤ تحقق</span></div>'
-      + '<span class="bgn-task-sev" style="background:' + sevColor + '22;color:' + sevColor + ';">' + escBgn(task.severityLabel || 'مهم') + '</span>'
-      + '<div class="bgn-task-title">' + escBgn(task.title) + '</div>'
-      + '<div class="bgn-task-block"><div class="bgn-task-label">١ · ماذا يحدث؟</div><div class="bgn-task-text">' + escBgn(task.why) + '</div></div>'
-      + '<div class="bgn-task-action"><div class="bgn-task-label">٢ · ماذا تفعل الآن؟</div><div class="bgn-task-text">' + escBgn(task.action) + '</div></div>'
-      + '<div class="bgn-task-block"><div class="bgn-task-label">٣ · الخطوات</div><ol class="bgn-task-steps">'
-      + steps.map(function (s) { return '<li>' + escBgn(s) + '</li>'; }).join('')
-      + '</ol></div>'
-      + '<div class="bgn-task-expect"><b>٤ · تحقق:</b> ' + escBgn(task.expect) + '</div>'
-      + '<div class="bgn-task-actions">'
+    // Ideal diagnosis card: title + confidence + evidence + ماذا تفعل الآن
+    card.innerHTML = '<article class="diagnosis-card diagnosis-card--hero" dir="auto">'
+      + '<div class="diagnosis-header">'
+      +   '<div class="diagnosis-name">' + escBgn(task.title) + '</div>'
+      +   confHtml
+      + '</div>'
+      + '<div class="diagnosis-narrative">' + escBgn(task.why) + '</div>'
+      + '<div class="diagnosis-action">'
+      +   '<div class="diagnosis-action-label">ماذا تفعل الآن؟</div>'
+      +   escBgn(task.action)
+      +   (task.expect ? '<div class="diagnosis-expect">' + escBgn(task.expect) + '</div>' : '')
+      + '</div>'
+      + '<div class="bgn-task-actions" style="margin-top:14px;">'
       +   '<button type="button" class="bgn-action-cta" id="bgn-task-do" data-item-key="' + escBgn(task.itemKey) + '" data-action-code="' + escBgn(task.actionCode || '') + '" data-title="' + escBgn(task.title) + '">نفّذت المهمة</button>'
       +   '<a href="/campaigns" class="bgn-action-cta secondary">افتح الحملات</a>'
       +   '<a href="/ai?q=' + encodeURIComponent(ask) + '" class="bgn-action-cta ghost">اسأل المساعد</a>'
-      +   '<a href="/recommendations" class="bgn-action-cta ghost">كل المهام</a>'
-      + '</div>';
+      + '</div>'
+      + '</article>';
   }
 
   function updateBgnLastUpdated(dash) {
