@@ -77,8 +77,19 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
 
-      <!-- 1 ▸ Financial hero cards -->
-      <section class="hero-grid" id="hero-grid">
+      <!-- 1 ▸ Today's task FIRST — the page thesis (visible without scrolling) -->
+      <section class="v2-section main-move-above-fold" id="main-move-section">
+        <div class="v2-section-head">
+          <div class="v2-section-title" id="main-move-label">مهمتك الآن</div>
+          <div class="v2-section-meta" id="main-move-meta">—</div>
+        </div>
+        <div class="main-move-card" id="main-move-card">
+          <div class="main-move-empty" id="main-move-empty">جارٍ التحميل…</div>
+        </div>
+      </section>
+
+      <!-- 2 ▸ Compact spend strip (secondary to the task) -->
+      <section class="hero-grid hero-grid-compact" id="hero-grid">
         <div class="hero-card" id="hero-30">
           <div class="hero-label">إنفاق 30 يوماً <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           <div class="hero-value" id="hero-30-val">—</div>
@@ -99,23 +110,12 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 2 ▸ Today's task — ABOVE THE FOLD (must be visible without scrolling) -->
-      <section class="v2-section main-move-above-fold" id="main-move-section">
-        <div class="v2-section-head">
-          <div class="v2-section-title" id="main-move-label">مهمتك الآن</div>
-          <div class="v2-section-meta" id="main-move-meta">—</div>
-        </div>
-        <div class="main-move-card" id="main-move-card">
-          <div class="main-move-empty" id="main-move-empty">جارٍ التحميل…</div>
-        </div>
-      </section>
-
-      <!-- 3 ▸ Executive Pulse Banner (Tier 1) -->
+      <!-- 3 ▸ Executive Pulse — hidden when a primary task owns the status -->
       <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
         <div class="exec-pulse-text" id="exec-pulse-text">—</div>
       </section>
 
-      <!-- 4 ▸ AI Motion Ticker -->
+      <!-- 4 ▸ AI Motion Ticker — demoted when a primary task is showing -->
       <section class="ticker-wrap" id="ticker-wrap" style="display:none;" dir="auto">
         <div class="ticker-header">
           <div class="ticker-header-left">
@@ -825,13 +825,34 @@ export function dashboardPage(): string {
     }
     return items;
   }
+  function hasPrimaryMerchantTask(dashData) {
+    var tasks = dashData && Array.isArray(dashData.merchantTasks) ? dashData.merchantTasks.filter(Boolean) : [];
+    if (tasks.length) return true;
+    var issues = dashData && Array.isArray(dashData.issues) ? dashData.issues.filter(Boolean) : [];
+    if (issues.length) return true;
+    if (dashData && dashData.priorityAction) return true;
+    return false;
+  }
+
   function renderTicker(items, dashData) {
-    if (!items || items.length === 0) return;
     var wrap = document.getElementById('ticker-wrap');
     var track = document.getElementById('ticker-track');
     var titleEl = document.getElementById('ticker-title');
     var freshnessEl = document.getElementById('ticker-freshness');
     if (!wrap || !track) return;
+
+    // When a primary task owns the first viewport, hide the monitor strip —
+    // it competed with «مهمتك الآن» and made the page feel unchanged.
+    if (hasPrimaryMerchantTask(dashData)) {
+      wrap.style.display = 'none';
+      track.innerHTML = '';
+      return;
+    }
+
+    if (!items || items.length === 0) {
+      wrap.style.display = 'none';
+      return;
+    }
 
     if (titleEl) titleEl.textContent = lbl('AI Monitor', 'مراقب الذكاء الاصطناعي');
 
@@ -902,6 +923,8 @@ export function dashboardPage(): string {
       ctxInterval.innerHTML = '<div class="ai-ctx-label">' + lbl('Auto-sync', 'المزامنة التلقائية') + '</div>'
         + '<div class="ai-ctx-value">' + lbl('Every 15 minutes', 'كل 15 دقيقة') + '</div>';
     }
+    // Keep the strip, but demote visual weight when the task owns the fold.
+    strip.classList.toggle('ai-context-strip--quiet', hasPrimaryMerchantTask(dashData));
     strip.style.display = 'grid';
   }
 
@@ -1358,6 +1381,11 @@ export function dashboardPage(): string {
     var sec = document.getElementById('exec-pulse-section');
     var el = document.getElementById('exec-pulse-text');
     if (!sec || !el) return;
+    // Status lives inside the task card when a task is present — avoid a second banner.
+    if (hasPrimaryMerchantTask(dashData)) {
+      sec.style.display = 'none';
+      return;
+    }
     var health = deriveBusinessHealth(dashData);
     sec.className = 'exec-pulse-banner ' + health.level;
     el.textContent = health.text;
@@ -1597,7 +1625,12 @@ export function dashboardPage(): string {
 
     var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
       + '<div class="main-move-loop" aria-hidden="true"><span>١ فهم</span><span class="sep">→</span><span>٢ قرار</span><span class="sep">→</span><span>٣ فعل</span><span class="sep">→</span><span>٤ تحقق</span></div>'
-      + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 task", 'مهمتك الأولى اليوم')) + '</div>'
+      + '<div class="main-move-tag-row">'
+        + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 task", 'مهمتك الأولى اليوم')) + '</div>'
+        + (task && task.severityLabel
+          ? '<span class="main-move-sev-pill">' + escHtml(task.severityLabel) + '</span>'
+          : '')
+      + '</div>'
       + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
       + impactHtml
       + (why ? '<div class="main-move-block"><div class="main-move-block-label">' + escHtml(lbl('1 · What is happening?', '١ · ماذا يحدث؟')) + '</div><div class="main-move-why">' + escHtml(why) + '</div></div>' : '')
@@ -1903,7 +1936,7 @@ export function dashboardPage(): string {
     var contentEl = document.getElementById('dashboard-content');
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) contentEl.style.display = 'block';
-    staggerReveal(['.hero-grid', '#exec-pulse-section', '.ticker-wrap', '.active-section', '.split-grid', '#main-move-section']);
+    staggerReveal(['#main-move-section', '.hero-grid', '#exec-pulse-section', '.ticker-wrap', '.active-section', '.split-grid']);
   }
 
   /** Safety net if init hangs — do not rely on layout SHARED_JS globals. */
@@ -2061,6 +2094,10 @@ export function dashboardPage(): string {
       state.lastSyncedAt = (dashData.workspace && dashData.workspace.lastSyncedAt) || null;
       state.lastIssues = Array.isArray(dashData.issues) ? dashData.issues : [];
 
+      var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
+      var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
+      // Task first — then supporting surfaces.
+      safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('hero', function () { renderHero(dashData, insights); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
       safeRender('ticker', function () { renderTicker(buildTickerItems(dashData), dashData); });
@@ -2071,10 +2108,6 @@ export function dashboardPage(): string {
       if (dashData.brain) {
         safeRender('brainSection', function () { renderBrainSection(dashData.brain, dashData); });
       }
-
-      var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
-      var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
-      safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
       safeRender('kpis', function () { renderKpis(kpis); });
 
