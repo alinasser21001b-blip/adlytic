@@ -2,32 +2,33 @@
 //  src/web/pages/authShared.ts  —  Shared auth page styles & logo
 // ════════════════════════════════════════════════════════════════════════
 
-export function logoSvg(size: number): string {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="auth-logo-svg">
+export function logoSvg(size: number, idPrefix = 'logo'): string {
+  const ring = `${idPrefix}-ring`;
+  const fill = `${idPrefix}-fill`;
+  const glow = `${idPrefix}-glow`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="adlytic-logo-svg" aria-hidden="true">
   <defs>
-    <linearGradient id="logo-ring" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+    <linearGradient id="${ring}" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#D9A759"/>
       <stop offset="50%" stop-color="#E6BD7A"/>
       <stop offset="100%" stop-color="#C4903E"/>
     </linearGradient>
-    <linearGradient id="logo-fill" x1="30" y1="20" x2="90" y2="100" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#D9A759"/>
-      <stop offset="100%" stop-color="#C4903E"/>
+    <linearGradient id="${fill}" x1="30" y1="20" x2="90" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E6BD7A"/>
+      <stop offset="45%" stop-color="#D9A759"/>
+      <stop offset="100%" stop-color="#A87432"/>
     </linearGradient>
-    <filter id="logo-glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="4"/>
+    <filter id="${glow}" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.5"/>
     </filter>
   </defs>
-  <!-- Outer ring -->
-  <rect x="3" y="3" width="114" height="114" rx="28" stroke="url(#logo-ring)" stroke-width="2.5" fill="none" opacity="0.5"/>
-  <!-- Inner fill -->
+  <rect x="3" y="3" width="114" height="114" rx="28" stroke="url(#${ring})" stroke-width="2.5" fill="none" opacity="0.55"/>
   <rect x="10" y="10" width="100" height="100" rx="22" fill="#100E0D"/>
-  <!-- Glow behind letter -->
-  <text x="60" y="76" text-anchor="middle" font-family="'El Messiri', serif" font-size="62" font-weight="700" fill="url(#logo-fill)" filter="url(#logo-glow)" opacity="0.3">A</text>
-  <!-- Main letter -->
-  <text x="60" y="76" text-anchor="middle" font-family="'El Messiri', serif" font-size="62" font-weight="700" fill="url(#logo-fill)">A</text>
-  <!-- Accent bar -->
-  <rect x="36" y="84" width="48" height="2.5" rx="1.25" fill="url(#logo-fill)" opacity="0.6"/>
+  <rect x="10" y="10" width="100" height="100" rx="22" fill="url(#${fill})" opacity="0.06"/>
+  <path d="M34 88 L60 28 L86 88 Z" fill="url(#${fill})" filter="url(#${glow})" opacity="0.12"/>
+  <path d="M38 82 L60 34 L82 82 Z" stroke="url(#${fill})" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
+  <path d="M48 68 L72 68" stroke="url(#${fill})" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="60" cy="52" r="3.5" fill="url(#${fill})" opacity="0.9"/>
 </svg>`;
 }
 
@@ -84,7 +85,8 @@ body {
   position: relative;
   max-width: 360px;
 }
-.auth-brand-inner .auth-logo-svg {
+.auth-brand-inner .auth-logo-svg,
+.auth-brand-inner .adlytic-logo-svg {
   margin-bottom: 28px;
 }
 .auth-brand-title {
