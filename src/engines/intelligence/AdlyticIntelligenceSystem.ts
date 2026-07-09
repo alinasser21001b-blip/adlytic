@@ -25,6 +25,13 @@
 //    - No new DB queries beyond what AnalyticsEngine already does.
 //    - Reuses existing calculators (calculateCtrTrend et al.) — same math.
 //    - evidence is string[], not JSON. Enables `evidence.join('\n')` in AI prompts.
+//
+//  DRIFT MANIFEST (do not silently diverge):
+//    Canonical detectors live in src/engines/rules/detectors.ts (ALL_DETECTORS).
+//    V5 re-implements the same five patterns inline for shadow writes only.
+//    Known divergence: V5 rising-cost uses CPM↑ + flat results; canonical
+//    detectRisingCostPerResult uses resultsTrend − spendTrend divergence.
+//    Prefer tuning thresholds in rules/detect*.ts; mirror here deliberately.
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient } from "@prisma/client";

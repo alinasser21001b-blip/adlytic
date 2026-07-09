@@ -18,21 +18,9 @@
 import { PrismaClient, EntityType } from "@prisma/client";
 import { DetectedIssuesRepo, type IssueRecord } from "../../repositories/detectedIssuesRepo";
 import type { Detector, Signals } from "./types";
-import { detectLowCtr } from "./detectLowCtr";
-import { detectHighFrequency } from "./detectHighFrequency";
-import { detectAudienceFatigue } from "./detectAudienceFatigue";
-import { detectDecliningResults } from "./detectDecliningResults";
-import { detectRisingCostPerResult } from "./detectRisingCostPerResult";
-import { diagnose, type Diagnosis } from "./diagnose";
-
-/** The full detector registry. Adding a new rule = adding to this list. */
-export const ALL_DETECTORS: Detector[] = [
-  detectAudienceFatigue,   // composite — runs first so its evidence is most authoritative
-  detectDecliningResults,
-  detectRisingCostPerResult,
-  detectHighFrequency,
-  detectLowCtr,
-];
+import { ALL_DETECTORS } from "./detectors";
+import { runDetectorPipeline } from "./runDetectorPipeline";
+import type { Diagnosis } from "./diagnose";
 
 export interface RulesOptions {
   /** "as of" date for the run. Must match the date used by AnalyticsEngine. */
@@ -78,21 +66,14 @@ export class RulesEngine {
 
     try {
       const signals = await this.buildSignals(entityType, entityId, asOf, windowDays, lag);
-
-      // Run every detector. Each is a pure function — order doesn't change outputs,
-      // only the array order of issues returned.
-      const issues: IssueRecord[] = [];
-      for (const detect of detectors) {
-        const issue = detect(signals);
-        if (issue) issues.push(issue);
-      }
+      const { issues, diagnoses } = runDetectorPipeline(signals, detectors);
 
       await this.issuesRepo.replaceForDate({
         entityType, entityId, date: asOf, issues,
       });
 
       result.issues = issues;
-      result.diagnoses = diagnose(issues, signals);
+      result.diagnoses = diagnoses;
       result.ok = true;
     } catch (e) {
       result.ok = false;

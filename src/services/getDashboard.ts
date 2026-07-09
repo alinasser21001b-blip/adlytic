@@ -688,6 +688,9 @@ export async function getDashboard(
     severity: d.severity,
     evidence: (d.evidenceJson as Record<string, unknown>) ?? {},
   }));
+  // Align currentResults with RulesEngine.buildSignals (sum of conversions),
+  // not messages — so diagnose() evidence matches what detectors persisted.
+  const totalConversions = sum(daily, "conversions");
   const signals: Signals = {
     ctrTrend: (latestTrend as any)?.ctrTrend ?? null,
     cpmTrend: (latestTrend as any)?.cpmTrend ?? null,
@@ -697,7 +700,7 @@ export async function getDashboard(
     currentCtr: ctrWindow,
     currentCpm: cpmWindow,
     currentFrequency: freqAvg,
-    currentResults: totalMsgs,
+    currentResults: totalConversions,
     currentSpend: totalSpendMinor,
   };
   const diagnoses = diagnose(issueRecords, signals);

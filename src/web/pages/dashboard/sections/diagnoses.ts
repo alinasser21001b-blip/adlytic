@@ -22,6 +22,9 @@ export const renderDiagnosesJs = `
       AUCTION_PRESSURE: 'ارتفاع تكلفة الوصول',
       POST_CLICK_PROBLEM: 'مشكلة بعد النقر',
       RISING_COST_PER_RESULT: 'ارتفاع تكلفة النتيجة',
+      WEAK_CREATIVE: 'ضعف التفاعل مع الإعلان',
+      HIGH_FREQUENCY_PRESSURE: 'تكرار ظهور مرتفع',
+      DECLINING_OUTCOMES: 'تراجع النتائج',
     };
     function simplifyDiagText(text) {
       if (!text) return '';

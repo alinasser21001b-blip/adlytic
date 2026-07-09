@@ -44,6 +44,19 @@ export function diagnose(issues: IssueRecord[], signals: Signals): Diagnosis[] {
   const efficiency = diagnoseEfficiencyDrop(m, signals);
   if (efficiency) out.push(efficiency);
 
+  // Single-signal patterns — only when no richer multi-signal diagnosis fired.
+  // These close the gap where detectors fire but diagnose() previously returned [].
+  if (out.length === 0) {
+    const weakCreative = diagnoseWeakCreative(m, signals);
+    if (weakCreative) out.push(weakCreative);
+
+    const highFreq = diagnoseHighFrequencyAlone(m, signals);
+    if (highFreq) out.push(highFreq);
+
+    const declining = diagnoseDecliningResultsAlone(m, signals);
+    if (declining) out.push(declining);
+  }
+
   return out;
 }
 
@@ -153,5 +166,65 @@ function diagnoseEfficiencyDrop(m: IssueMap, s: Signals): Diagnosis | null {
     action:
       `راجع الحملات ذات الفجوة الأكبر في التكلفة، وأوقف أو عدّل الأضعف. إن كانت المشكلة على مستوى الحساب كله، تأكد أن الحملات لا تتنافس على نفس الجمهور.`,
     contributingIssues: ["RISING_COST_PER_RESULT", ...(m.has("DECLINING_RESULTS") ? ["DECLINING_RESULTS"] : [])],
+  };
+}
+
+// ── Pattern 6: Weak creative (LOW_CTR alone) ───────────────────────────
+function diagnoseWeakCreative(m: IssueMap, s: Signals): Diagnosis | null {
+  const low = m.get("LOW_CTR");
+  if (!low) return null;
+
+  const ctr = s.currentCtr != null ? `${s.currentCtr.toFixed(1)}%` : "؟";
+
+  return {
+    name: "ضعف التفاعل مع الإعلان",
+    code: "WEAK_CREATIVE",
+    confidence: (low.evidence.confidence as number) ?? 0.75,
+    narrative:
+      `نسبة النقر الحالية حوالي ${ctr} — أقل من المستوى المعتاد للإعلانات الفعّالة. ` +
+      `كثير من الناس يرون الإعلان ويمرّون دون اهتمام كافٍ.`,
+    action:
+      `جدّد الافتتاحية أو الصورة خلال هذا الأسبوع، واجعل العرض أو الدعوة أوضح في أول ثانيتين.`,
+    contributingIssues: ["LOW_CTR"],
+  };
+}
+
+// ── Pattern 7: High frequency alone ───────────────────────────────────
+function diagnoseHighFrequencyAlone(m: IssueMap, s: Signals): Diagnosis | null {
+  const hf = m.get("HIGH_FREQUENCY");
+  if (!hf) return null;
+
+  const freq = s.currentFrequency != null ? s.currentFrequency.toFixed(1) : "؟";
+
+  return {
+    name: "تكرار ظهور مرتفع",
+    code: "HIGH_FREQUENCY_PRESSURE",
+    confidence: (hf.evidence.confidence as number) ?? 0.65,
+    narrative:
+      `نفس الأشخاص يرون الإعلان بمعدل تكرار حوالي ${freq}. ` +
+      `هذا قد يكون طبيعياً لجمهور ضيق، لكنه غالباً بداية تعب إن استمر دون تجديد.`,
+    action:
+      `راقب التفاعل يومياً. إن بدأ النقر بالانخفاض، جدّد الإبداع أو وسّع الجمهور قليلاً.`,
+    contributingIssues: ["HIGH_FREQUENCY"],
+  };
+}
+
+// ── Pattern 8: Declining results alone ────────────────────────────────
+function diagnoseDecliningResultsAlone(m: IssueMap, s: Signals): Diagnosis | null {
+  const dec = m.get("DECLINING_RESULTS");
+  if (!dec) return null;
+
+  const resultsDrop = s.resultsTrend != null ? `${Math.abs(s.resultsTrend * 100).toFixed(0)}%` : "؟";
+
+  return {
+    name: "تراجع النتائج",
+    code: "DECLINING_OUTCOMES",
+    confidence: (dec.evidence.confidence as number) ?? 0.8,
+    narrative:
+      `النتائج انخفضت حوالي ${resultsDrop} مقارنة بالمستوى المرجعي. ` +
+      `لم يتضح بعد إن كان السبب الإبداع أو الجمهور أو العرض — لكن الاتجاه يستحق انتباهاً.`,
+    action:
+      `راجع أقوى إعلان في الحملة، وقارن التكلفة لكل نتيجة مع حملاتك الأخرى، ثم عدّل الأضعف أولاً.`,
+    contributingIssues: ["DECLINING_RESULTS"],
   };
 }

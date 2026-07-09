@@ -115,6 +115,13 @@ import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 import { isCurrentlySpending, accountLocalTodayFloor } from '../lib/campaignSpending';
 import { classifyCampaignDelivery, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
+import {
+  efficiencyForObjective,
+  getObjectiveKpiSpec,
+  resultCountForObjective,
+  signalGoodDirection,
+  type SignalMetricKey,
+} from '../lib/objectiveKpis';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
@@ -1784,7 +1791,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               entityId: { in: campaignIds },
               date: { gte: sinceDate },
             },
-            _sum: { spend: true, messages: true, impressions: true, clicks: true },
+            _sum: {
+              spend: true,
+              messages: true,
+              impressions: true,
+              clicks: true,
+              purchases: true,
+              leads: true,
+              revenueMinor: true,
+            },
+            _max: { reach: true },
           }),
           prisma.dailyStat.findMany({
             where: {
@@ -1808,7 +1824,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const spendTodayByCampaign = new Map(
       todayStats.map((s) => [s.entityId, Number(s.spend)]),
     );
-    const aggByCampaign = new Map(windowAgg.map((a) => [a.entityId, a._sum]));
+    const aggByCampaign = new Map(
+      windowAgg.map((a) => [a.entityId, { sum: a._sum, maxReach: a._max.reach }]),
+    );
     const sparkIso: string[] = [];
     for (let i = sparkDays - 1; i >= 0; i--) {
       sparkIso.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
@@ -1826,11 +1844,31 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       campaigns
         .map((camp) => {
         const row = safeJson(camp) as Record<string, unknown>;
-        const sum = aggByCampaign.get(camp.id);
+        const agg = aggByCampaign.get(camp.id);
+        const sum = agg?.sum;
         const impressions = Number(sum?.impressions ?? 0);
         const clicks = Number(sum?.clicks ?? 0);
+        const messages = Number(sum?.messages ?? 0);
+        const purchases = Number(sum?.purchases ?? 0);
+        const leads = Number(sum?.leads ?? 0);
+        const revenueMinor = Number(sum?.revenueMinor ?? 0);
+        const reach = Number(agg?.maxReach ?? 0); // best-effort unique (max daily reach)
         const spendTodayMinor = spendTodayByCampaign.get(camp.id) ?? 0;
         const spendWindowMinor = Number(sum?.spend ?? 0);
+        const factor = resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor);
+        const windowTotals = {
+          spendMinor: spendWindowMinor,
+          impressions,
+          reach,
+          clicks,
+          messages,
+          purchases,
+          leads,
+          revenueMinor,
+        };
+        const kpiSpec = getObjectiveKpiSpec(camp.objective);
+        const resultsWindow = resultCountForObjective(camp.objective, windowTotals);
+        const costPerResultMajor = efficiencyForObjective(camp.objective, windowTotals, factor);
         const deliveryTier = classifyCampaignDelivery({
           status: camp.status,
           spendTodayMinor,
@@ -1848,7 +1886,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           lastSpendDate: lastSpendByCampaign.get(camp.id) ?? null,
           windowDays,
           spendWindowMinor,
-          messagesWindow: Number(sum?.messages ?? 0),
+          // Legacy alias — kept so older clients don't break. Prefer resultsWindow.
+          messagesWindow: messages,
+          impressionsWindow: impressions,
+          clicksWindow: clicks,
+          purchasesWindow: purchases,
+          leadsWindow: leads,
+          reachWindow: reach,
+          resultsWindow,
+          resultLabelAr: kpiSpec.resultLabelAr,
+          efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+          kpiFamily: kpiSpec.family,
+          // MAJOR units (or null). List UI multiplies by currencyMinorFactor for money keys.
+          costPerResult: costPerResultMajor,
           ctrWindow: impressions > 0 ? +((clicks / impressions) * 100).toFixed(2) : null,
           spark: sparkIso.map((d) => sparkByCampaign.get(camp.id)?.get(d) ?? 0),
         };
@@ -2040,7 +2090,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let clicks       = 0n;
     let messages     = 0n;
     let purchases    = 0n;
+    let leads        = 0n;
     let revenueMinor = 0n;
+    let maxReach     = 0n;
     let freqSum = 0, freqCount = 0;
     for (const d of dailyStats) {
       spendMinor   += d.spend;
@@ -2048,7 +2100,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       clicks       += d.clicks;
       messages     += d.messages;
       purchases    += d.purchases;
+      leads        += d.leads;
       revenueMinor += d.revenueMinor;
+      if (d.reach > maxReach) maxReach = d.reach;
       if (d.frequency != null && Number.isFinite(d.frequency)) {
         freqSum += d.frequency;
         freqCount++;
@@ -2064,6 +2118,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const impressionsN  = Number(impressions);
     const clicksN       = Number(clicks);
     const messagesN     = Number(messages);
+    const purchasesN    = Number(purchases);
+    const leadsN        = Number(leads);
+    const reachN        = Number(maxReach);
 
     /** Safe divide: returns null on zero/non-finite denominator. */
     const safeDiv = (num: number, den: number): number | null =>
@@ -2074,7 +2131,23 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const avgCpc            = safeDiv(spendMajor, clicksN);                     // major units / click
     const avgCpm            = safeDiv(spendMajor * 1000, impressionsN);         // major units / 1000 impressions
     const avgCostPerMessage = safeDiv(spendMajor, messagesN);                   // major units / message
+    const avgCostPerPurchase = safeDiv(spendMajor, purchasesN);
+    const avgCostPerLead     = safeDiv(spendMajor, leadsN);
     const avgFrequency      = freqCount > 0 ? freqSum / freqCount : null;
+
+    const kpiSpec = getObjectiveKpiSpec(campaign.objective);
+    const windowTotals = {
+      spendMinor: Number(spendMinor),
+      impressions: impressionsN,
+      reach: reachN,
+      clicks: clicksN,
+      messages: messagesN,
+      purchases: purchasesN,
+      leads: leadsN,
+      revenueMinor: Number(revenueMinor),
+    };
+    const resultsCount = resultCountForObjective(campaign.objective, windowTotals);
+    const avgCostPerResult = efficiencyForObjective(campaign.objective, windowTotals, factor);
 
     // ── Positive / negative signals: 7d vs prior 7d ──────────────────────
     // Daily rows are date-desc, so the first ≤7 are "recent", the next ≤7
@@ -2101,6 +2174,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return {
         ctr:            ctrRatio != null ? ctrRatio * 100 : null,   // %, matches summary + UI
         cpm:            safeDiv(spendMajorW * 1000, Number(imp)),
+        cpc:            safeDiv(spendMajorW, Number(clk)),
         costPerMessage: safeDiv(spendMajorW,         Number(msg)),
         frequency:      fqN > 0 ? fq / fqN : null,
       };
@@ -2112,14 +2186,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       if (curr == null || base == null || base === 0) return null;
       return ((curr - base) / base) * 100;
     }
-    // Metric → which-direction-is-good ("up" or "down"); keys match the
-    // Arabic SIGNAL_LABELS map on the client.
-    const signalSpecs: Array<{ key: 'ctr' | 'frequency' | 'cpm' | 'costPerMessage'; good: 'up' | 'down' }> = [
-      { key: 'ctr',            good: 'up'   },
-      { key: 'frequency',      good: 'down' },
-      { key: 'cpm',            good: 'down' },
-      { key: 'costPerMessage', good: 'down' },
-    ];
+    // Objective-aware signal set — awareness never surfaces costPerMessage.
+    const signalSpecs = kpiSpec.signalKeys.map((key) => ({
+      key,
+      good: signalGoodDirection(key as SignalMetricKey),
+    }));
     for (const spec of signalSpecs) {
       const curr = recentR[spec.key];
       const base = priorR[spec.key];
@@ -2244,9 +2315,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         spendMinor,
         revenueMinor,
         impressions,
+        reach: maxReach,
         clicks,
         messages,
         purchases,
+        leads,
+        // Objective-aware primary result + efficiency (replaces hard-coded messages KPIs).
+        results: resultsCount,
+        resultKey: kpiSpec.resultKey,
+        resultLabelAr: kpiSpec.resultLabelAr,
+        efficiencyKey: kpiSpec.efficiencyKey,
+        efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+        kpiFamily: kpiSpec.family,
+        avgCostPerResult,
         // All ratios derived from the windowed totals (see comment above the
         // aggregation block). avgCtr is a percentage; CPC / CPM / cost-per-
         // message are in MAJOR currency units, matching the frontend formatter
@@ -2256,6 +2337,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         avgCpc,
         avgFrequency,
         avgCostPerMessage,
+        avgCostPerPurchase,
+        avgCostPerLead,
       },
       timeline: snapshots.map((s) => ({
         tickDate:         s.tickDate,

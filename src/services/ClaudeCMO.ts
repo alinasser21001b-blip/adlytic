@@ -13,9 +13,14 @@
 //   { arabicTitle, arabicNarration, creativeDirective? }
 
 import { BrainTickResult } from '../engine/AdlyticBrain';
-import { buildDeterministicNarration } from '../lib/insightQualityGate';
+import {
+  buildDeterministicNarration,
+  scoreInsightQuality,
+  upgradeGenericNarration,
+} from '../lib/insightQualityGate';
 import { DecisionAction } from '../engine/DecisionEngine';
 import { sanitizeObjectForLlm, scrubString } from '../lib/dataSanitizer';
+import type { RuleGrounding } from '../engines/rules/ruleGrounding';
 
 // ════════════════════════════════════════════════════════════════════════
 // Public output contract — persisted to narrationJson (campaignId omitted at write)
@@ -110,6 +115,9 @@ interface CmoPayload {
       lessonArabic: string;
     }>;
   };
+
+  /** Deterministic diagnose() patterns — already merchant Arabic. */
+  ruleGrounding?: RuleGrounding;
 }
 
 /** Closed-set historical context block — assembled by the narration cron caller. */
@@ -178,6 +186,16 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
         alignmentScore: b.v2.resonance.audienceAlignmentScore,
         directive: b.v2.resonance.creativeDirective,
       },
+    };
+  }
+
+  if (b.ruleGrounding && (b.ruleGrounding.diagnoses.length > 0 || b.ruleGrounding.issues.length > 0)) {
+    // Truncate for LLM token budget only — shape owned by ruleGrounding.ts.
+    payload.ruleGrounding = {
+      primaryCode: b.ruleGrounding.primaryCode,
+      diagnoses: b.ruleGrounding.diagnoses.slice(0, 3),
+      issues: b.ruleGrounding.issues.slice(0, 5),
+      evidenceSource: b.ruleGrounding.evidenceSource,
     };
   }
 
@@ -349,6 +367,25 @@ comparative sentence into arabicNarration — for example:
   the historical sentence replaces one generic sentence, not an addition.
 
 ═══════════════════════════════════════════════════════════════
+RULE GROUNDING (apply only if "ruleGrounding" is present)
+═══════════════════════════════════════════════════════════════
+ruleGrounding.diagnoses[] are deterministic Arabic explanations of WHY the
+account/campaign looks the way it does (creative fatigue, auction pressure,
+post-click problems, etc.). They are already merchant-facing Arabic.
+- Prefer the primary diagnosis (first item / primaryCode) as the "why" behind
+  decision.action — weave its meaning into arabicNarration without copying
+  long paragraphs verbatim.
+- You MAY reuse diagnosis.name as a short phrase, and you SHOULD reflect
+  diagnosis.action as the concrete next step when it aligns with decision.action.
+- Do NOT invent a conflicting root cause. If decision.action is REFRESH_CREATIVE
+  and diagnosis says CREATIVE_FATIGUE / WEAK_CREATIVE, say the creative is tired.
+- If diagnosis says POST_CLICK_PROBLEM, emphasize the page/offer/response — not
+  the ad image — even if decision.action is HOLD_AND_MONITOR.
+- Never quote diagnosis.code, issue severity enums, or evidenceSource in merchant prose.
+- If evidenceSource is "absolute_levels", avoid claiming week-over-week movement;
+  speak about the current level only. If "period_trends", qualitative movement is OK.
+
+═══════════════════════════════════════════════════════════════
 LENGTH
 ═══════════════════════════════════════════════════════════════
 - arabicTitle: 3–7 كلمات عربية واضحة، غير تقنية، مطمئنة
@@ -441,12 +478,51 @@ export async function generateMerchantNarration(
     const responseText = await llmClientCall(SYSTEM_PROMPT, userPrompt);
     const parsed = parseLlmNarrationOutput(JSON.parse(stripMarkdownFences(responseText)));
 
-    const out: CmoNarration = {
+    let out: CmoNarration = {
       campaignId: brainResult.campaignId,
       arabicTitle: parsed.arabicTitle,
       arabicNarration: parsed.arabicNarration,
     };
     attachCreativeDirective(out, brainResult, parsed.creativeDirective);
+
+    // Write-time quality: if the LLM slipped into a generic template, replace
+    // immediately so the DB never stores useless identical cards.
+    const upgraded = upgradeGenericNarration(
+      out,
+      brainResult,
+      brainResult.campaignName,
+      brainResult.decision.action,
+    );
+    if (upgraded.upgraded) {
+      out = {
+        campaignId: brainResult.campaignId,
+        arabicTitle: upgraded.narration.arabicTitle,
+        arabicNarration: upgraded.narration.arabicNarration,
+        ...(upgraded.narration.creativeDirective
+          ? { creativeDirective: upgraded.narration.creativeDirective }
+          : out.creativeDirective
+            ? { creativeDirective: out.creativeDirective }
+            : {}),
+      };
+    } else {
+      // Soft score gate: weak/vague copy on high-stakes actions → deterministic.
+      // Skip when campaign name is empty — includes() against "" is always true
+      // and would falsely mark every body as campaign-specific.
+      const namePrefix = brainResult.campaignName.trim().slice(0, 12);
+      const q = scoreInsightQuality({
+        title: out.arabicTitle,
+        body: out.arabicNarration,
+        action: brainResult.decision.action,
+        generatedAt: new Date().toISOString(),
+        hasCampaignSpecifics: namePrefix.length > 0 && out.arabicNarration.includes(namePrefix),
+      });
+      if (
+        !q.isUseful &&
+        (brainResult.decision.priority === 'CRITICAL' || brainResult.decision.priority === 'HIGH')
+      ) {
+        return buildFallbackNarration(brainResult);
+      }
+    }
 
     return out;
   } catch (error) {

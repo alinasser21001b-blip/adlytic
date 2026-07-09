@@ -10,7 +10,10 @@
 import { EntityType, type PrismaClient } from '@prisma/client';
 import { resolveCurrencyMinorFactor } from '../lib/currency';
 import { diagnose, type Diagnosis } from '../engines/rules/diagnose';
-import type { Signals } from '../engines/rules/types';
+import {
+  absoluteLevelSignals,
+  issuesCompatibleWithSignals,
+} from '../engines/rules/campaignSignals';
 import type { IssueRecord } from '../repositories/detectedIssuesRepo';
 import { INDUSTRIES } from './data/meta-metrics';
 import { campaignGoalSchema, type CampaignGoal } from './schemas';
@@ -439,22 +442,20 @@ export async function assembleAdlyticAssessmentContext(opts: {
         : {},
   }));
 
-  const signals: Signals = {
-    ctrTrend: null,
-    cpmTrend: null,
-    frequencyTrend: null,
-    resultsTrend: null,
-    spendTrend: null,
+  // Absolute-only signals (same honesty contract as brain rule-grounding).
+  // Filter trend-dependent account issues so we never narrate "انخفضت ؟%".
+  const signals = absoluteLevelSignals({
     currentCtr: metrics.ctr,
     currentFrequency: metrics.frequency,
     currentCpm: metrics.cpm != null ? metrics.cpm * minorFactor : null,
     currentResults: metrics.messages + metrics.purchases + metrics.leads,
     currentSpend: metrics.spendMajor * minorFactor,
-  };
+  });
+  const compatibleIssues = issuesCompatibleWithSignals(issueRecords, signals);
 
   let diagnoses: Diagnosis[] = [];
   try {
-    diagnoses = diagnose(issueRecords, signals).slice(0, 4);
+    diagnoses = diagnose(compatibleIssues, signals).slice(0, 4);
   } catch {
     diagnoses = [];
   }
