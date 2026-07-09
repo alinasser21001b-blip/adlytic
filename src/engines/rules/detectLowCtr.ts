@@ -8,32 +8,31 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { IssueCode } from "@prisma/client";
+import { lowCtrFloorForObjective } from "../../knowledge/metaObjectiveStandards";
 import type { Detector } from "./types";
 import { severityFromMagnitude } from "./severity";
 
 /**
- * Threshold: CTR < 1.0%.
+ * Objective-aware CTR floor from Meta 2025–2026 benchmarks:
+ *   awareness ~0.6% (brand/reach CTRs are naturally lower)
+ *   traffic / messaging / sales ~1.0%
+ *   leads ~1.2% (lead-gen typically higher engagement)
  *
- * because:
- *   Across Meta's published benchmarks for messaging/lead objectives, ~1.0%
- *   is roughly the line between "engaged audience" and "scroll-past". Below
- *   it, almost any creative refresh is worth trying. This is GENERIC, not
- *   industry-aware — the cosmetics override in knowledge_rules already
- *   handles industry-specific recommendation text; the *detection*
- *   threshold can stay universal at this stage.
- *
- *   Move to industry_profiles.knowledgeJson.ctrBenchmark once we have real
- *   data showing furniture and cosmetics need different LOW_CTR floors.
+ * Industry overrides can still refine recommendation text; detection uses
+ * the Meta objective floor so awareness campaigns are not falsely flagged.
  */
-const LOW_CTR_THRESHOLD = 1.0; // percent
+const DEFAULT_LOW_CTR_THRESHOLD = 1.0; // percent — messaging/traffic fallback
 
 export const detectLowCtr: Detector = (s) => {
   if (s.currentCtr == null) return null;
-  if (s.currentCtr >= LOW_CTR_THRESHOLD) return null;
+  const threshold =
+    s.objective != null && String(s.objective).trim() !== ""
+      ? lowCtrFloorForObjective(s.objective)
+      : DEFAULT_LOW_CTR_THRESHOLD;
+  if (s.currentCtr >= threshold) return null;
 
   // Severity scales with how far below the threshold we are.
-  // E.g. CTR 0.7% is 30% below the 1.0% line → MEDIUM.
-  const gap = (LOW_CTR_THRESHOLD - s.currentCtr) / LOW_CTR_THRESHOLD;
+  const gap = (threshold - s.currentCtr) / threshold;
   const severity = severityFromMagnitude(gap);
 
   return {
@@ -41,7 +40,8 @@ export const detectLowCtr: Detector = (s) => {
     severity,
     evidence: {
       currentCtr: s.currentCtr,
-      threshold: LOW_CTR_THRESHOLD,
+      threshold,
+      objective: s.objective ?? null,
       gapBelowThreshold: +gap.toFixed(3),
       confidence: 0.80, // current-level signal is direct, not inferred
     },

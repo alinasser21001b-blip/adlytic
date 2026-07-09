@@ -601,11 +601,16 @@ export async function getDashboard(
   });
 
   // Meta Ads KB — query live KPI metrics FIRST; merge verbatim actions into issues.
+  // Account-level dashboard has mixed objectives; keep shared delivery metrics
+  // (ctr/cpm/frequency) and only include cost_per_message when messages exist.
+  // Per-campaign objective filtering happens in campaign inspector / brain path.
   const kbMetrics: CampaignMetrics = {
     ctr: ctrWindow,
     cpm: cpmWindow,
     frequency: freqAvg,
-    cost_per_message: totalMsgs > 0 ? totalSpendMinor / totalMsgs : null,
+    ...(totalMsgs > 0
+      ? { cost_per_message: totalSpendMinor / totalMsgs }
+      : {}),
   };
   const kbBreaches = evaluateCampaign(kbMetrics);
   const resolvedIndustry = resolveBenchmarkIndustryFromContext({ workspace: ws });

@@ -4,12 +4,18 @@ import { PHYSICS_CONFIG } from './physicsConfig';
 export interface CampaignRawData {
   campaignId: string;
   campaignName: string;
+  /** Meta objective string when known (OUTCOME_AWARENESS, MESSAGES, …). */
+  objective?: string | null;
   spend: number;
   impressions: number;
   clicks: number;
   ctr: number;
   frequency: number;
   messages: number;
+  /** Optional richer counters for objective-aware result selection. */
+  purchases?: number;
+  leads?: number;
+  reach?: number;
   cpm: number;
   cpc: number;
 }
