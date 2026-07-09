@@ -1159,7 +1159,7 @@ select.form-input { cursor: pointer; }
 .mode-toggle-indicator {
   position: absolute;
   top: 3px; bottom: 3px;
-  inset-inline-start: 3px;
+  left: 0;
   border-radius: 999px;
   background: var(--grad-accent);
   box-shadow: 0 4px 14px rgba(217,167,89,0.35);
@@ -2439,8 +2439,11 @@ function initModeToggle() {
 
   function moveTo(btn) {
     if (!btn) return;
-    indicator.style.width = btn.offsetWidth + 'px';
-    indicator.style.transform = 'translateX(' + btn.offsetLeft + 'px)';
+    var toggleRect = toggle.getBoundingClientRect();
+    var btnRect = btn.getBoundingClientRect();
+    var offset = btnRect.left - toggleRect.left;
+    indicator.style.width = btnRect.width + 'px';
+    indicator.style.transform = 'translateX(' + offset + 'px)';
     indicator.style.opacity = '1';
   }
 
