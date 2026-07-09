@@ -113,6 +113,19 @@ function qualitativeSpendPressure(payload: unknown): 'high' | 'normal' | null {
   return 'normal';
 }
 
+/** Short Arabic diagnosis name from rule grounding, if present. */
+function readDiagnosisHint(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const rg = (payload as Record<string, unknown>).ruleGrounding;
+  if (!rg || typeof rg !== 'object') return null;
+  const diagnoses = (rg as Record<string, unknown>).diagnoses;
+  if (!Array.isArray(diagnoses) || diagnoses.length === 0) return null;
+  const first = diagnoses[0];
+  if (!first || typeof first !== 'object') return null;
+  const name = (first as Record<string, unknown>).name;
+  return typeof name === 'string' && name.trim() ? name.trim() : null;
+}
+
 /**
  * Deterministic Arabic narration grounded in brain action + qualitative signals.
  * Used when LLM fails — never emit the generic "تحديث أداء الحملة" template.
@@ -139,6 +152,7 @@ export function buildDeterministicNarration(
   const shortName = campaignName.length > 42 ? campaignName.slice(0, 40) + '…' : campaignName;
   const ctrDir = qualitativeCtr(payload);
   const spendPressure = qualitativeSpendPressure(payload);
+  const diagnosisHint = readDiagnosisHint(payload);
   const ctrHint =
     ctrDir === 'down'
       ? ' التفاعل مع الإعلان تراجع.'
@@ -146,6 +160,7 @@ export function buildDeterministicNarration(
         ? ' التفاعل مع الإعلان يتحسّن.'
         : '';
   const spendHint = spendPressure === 'high' ? ' سرعة الإنفاق مرتفعة حالياً.' : '';
+  const whyHint = diagnosisHint ? ` السبب الأرجح: ${diagnosisHint}.` : '';
 
   const directive =
     payload &&
@@ -161,6 +176,7 @@ export function buildDeterministicNarration(
         arabicNarration:
           `أوقفنا حملة «${shortName}» لأن الإنفاق يرتفع دون نتائج كافية.` +
           spendHint +
+          whyHint +
           ` راجع الإبداع والاستهداف قبل إعادة التشغيل.`,
         creativeDirective: directive,
       };
@@ -170,6 +186,7 @@ export function buildDeterministicNarration(
         arabicNarration:
           `حملة «${shortName}» تستهلك ميزانية دون عائد واضح.` +
           ctrHint +
+          whyHint +
           ` أوقفها مؤقتاً وراجع التصميم أو الجمهور قبل إعادة الإطلاق.`,
         creativeDirective: directive,
       };
@@ -179,6 +196,7 @@ export function buildDeterministicNarration(
         arabicNarration:
           `جمهور حملة «${shortName}» بدأ يتعب من نفس التصميم.` +
           ctrHint +
+          whyHint +
           ` جدّد الصورة أو الفيديو أو الجملة الافتتاحية خلال هذا الأسبوع.`,
         creativeDirective: directive,
       };
@@ -188,6 +206,7 @@ export function buildDeterministicNarration(
         arabicNarration:
           `حملة «${shortName}» ضعيفة لكن فيها إشارة إنقاذ محتملة.` +
           ctrHint +
+          whyHint +
           ` لا توقفها الآن — راقب النتائج يومياً قبل اتخاذ قرار.`,
         creativeDirective: directive,
       };
@@ -216,6 +235,7 @@ export function buildDeterministicNarration(
           `حملة «${shortName}» لا تحتاج تدخلاً عاجلاً الآن.` +
           ctrHint +
           spendHint +
+          whyHint +
           ` نتابع المؤشرات وسننبّهك إذا تغيّر الوضع.`,
         creativeDirective: directive,
       };

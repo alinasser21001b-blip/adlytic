@@ -5,6 +5,11 @@ import { evaluateCampaignConfidence, ConfidenceAnalysis } from './ConfidenceEngi
 import { recognizeCampaignPattern, PatternAnalysis } from './PatternEngine';
 import { evaluateRecoveryPotential, RecoveryAnalysis } from './RecoveryGate';
 import { decideCampaignAction, CampaignDecision } from './DecisionEngine';
+import {
+  applyRuleGroundingToDecision,
+  buildRuleGrounding,
+  type RuleGrounding,
+} from '../engines/rules/ruleGrounding';
 
 // ── V2 wiring ────────────────────────────────────────────────────────────
 import type {
@@ -50,6 +55,8 @@ export interface BrainTickResult {
   recovery: RecoveryAnalysis;
   decision: CampaignDecision;
   v2?: BrainV2Extension;
+  /** Rule-engine diagnoses grounded against account baseline (understanding layer). */
+  ruleGrounding?: RuleGrounding;
 }
 
 /**
@@ -77,6 +84,11 @@ export function runBrainForCampaign(
 
   // Layer 4: Decision Engine — الترجمة إلى Action قابل للتنفيذ (يبقى أعمى ونقياً)
   let decision = decideCampaignAction(physics, confidence, pattern, recovery);
+
+  // Layer 4b: Rule grounding — fuse diagnose() patterns into the decision.
+  // Pure, baseline-relative; does not replace V2 emergency override below.
+  const ruleGrounding = buildRuleGrounding(raw, baseline);
+  decision = applyRuleGroundingToDecision(decision, ruleGrounding);
 
   let v2Extension: BrainV2Extension | undefined;
 
@@ -129,6 +141,9 @@ export function runBrainForCampaign(
     recovery,
     decision,
     ...(v2Extension && { v2: v2Extension }),
+    ...(ruleGrounding.diagnoses.length > 0 || ruleGrounding.issues.length > 0
+      ? { ruleGrounding }
+      : {}),
   };
 }
 
