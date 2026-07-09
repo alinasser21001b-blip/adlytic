@@ -101,11 +101,15 @@ export function buildSystemPrompt(opts: SystemPromptOptions): string {
       lines.push('- Register: warm and direct. Prefer plain Arabic business terms over literal English idioms.');
     }
     lines.push('- Latin digits (0-9), not Arabic-Indic digits (٠-٩).');
-    lines.push('- Metric acronyms in Latin; first use: "CTR (نسبة النقر)".');
+    lines.push('- NEVER show internal codes (LOW_CTR, REFRESH_CREATIVES, RESCUE_WATCH, etc.). Use plain Arabic only.');
+    lines.push('- Prefer Arabic metric nouns: نسبة النقر، تكلفة الوصول، مرات الظهور، تكلفة النتيجة، العائد على الإنفاق.');
+    lines.push('- If you must mention a Latin acronym once, gloss it immediately: "نسبة النقر (CTR)" — then stay in Arabic.');
+    lines.push('- Structure the answer as a TASK loop: فهم → قرار → خطوات (1–3) → تحقق (متى تراجع).');
   } else {
     lines.push('## Language & tone');
     lines.push('- Reply in clear professional English. Warm and direct.');
-    lines.push('- Metric acronyms (CTR, CPM, ROAS) are fine as-is.');
+    lines.push('- Prefer plain metric names; avoid internal engine codes.');
+    lines.push('- Structure as: Understand → Decide → Steps (1–3) → Verify.');
   }
 
   // Terseness
@@ -140,4 +144,4 @@ export function buildSystemPrompt(opts: SystemPromptOptions): string {
 }
 
 /** Locked reference for tests + eval — bump when prompt contract changes. */
-export const SYSTEM_PROMPT_VERSION = '2026-07-08-v2-global' as const;
+export const SYSTEM_PROMPT_VERSION = '2026-07-09-v3-plain-arabic-tasks' as const;
