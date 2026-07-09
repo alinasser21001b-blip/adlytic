@@ -691,6 +691,9 @@ export function campaignsPage(): string {
       background: var(--surface-2, rgba(255,255,255,0.02));
       color: var(--text-2); font-size: 13.5px; line-height: 1.55;
     }
+    .insp-stable.is-neutral .insp-stable-icon {
+      background: rgba(148,163,184,0.12); color: var(--text-3);
+    }
     .insp-stable-icon {
       width: 28px; height: 28px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
@@ -853,7 +856,34 @@ export function campaignsPage(): string {
   }
   function fmtShortDate(s) {
     if (!s) return '';
-    return new Date(s).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' });
+    // Parse YYYY-MM-DD as UTC noon so labels don't shift a day in RTL locales.
+    var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    var d = m
+      ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12))
+      : new Date(s);
+    return d.toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+
+  /** UTC YYYY-MM-DD — matches inspector / getDashboard date keys. */
+  function isoUtcDay(d) {
+    var y = d.getUTCFullYear();
+    var m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    var day = String(d.getUTCDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  /** Rolling UTC calendar ending today (UTC), length = days. */
+  function buildUtcCalendar(days) {
+    var n = Math.max(1, Number(days) || 30);
+    var end = new Date();
+    var endKey = isoUtcDay(end);
+    var endParts = endKey.split('-').map(Number);
+    var cursor = Date.UTC(endParts[0], endParts[1] - 1, endParts[2], 12);
+    var keys = [];
+    for (var i = n - 1; i >= 0; i--) {
+      keys.push(isoUtcDay(new Date(cursor - i * 86400000)));
+    }
+    return keys;
   }
   function initials(name) {
     if (!name) return '?';
@@ -1007,8 +1037,15 @@ export function campaignsPage(): string {
     applyGradients(canvasId, datasets);
     datasets.forEach(function (ds) {
       if (ds.spanGaps === undefined) ds.spanGaps = false;
-      if (ds.pointRadius === undefined && !ds.isIssueMarkers) ds.pointRadius = 0;
+      var numericPts = (ds.data || []).filter(function (v) {
+        return v != null && Number.isFinite(Number(v));
+      }).length;
+      // Sparse series: show dots so a few real days aren't invisible (pointRadius 0).
+      if (ds.pointRadius === undefined && !ds.isIssueMarkers) {
+        ds.pointRadius = numericPts > 0 && numericPts < 8 ? 3 : 0;
+      }
       if (ds.pointHoverRadius === undefined && !ds.isIssueMarkers) ds.pointHoverRadius = 4;
+      if (ds.borderWidth === undefined) ds.borderWidth = 2;
     });
     var chart = new Chart(ctx, {
       type: 'line',
@@ -1126,21 +1163,15 @@ export function campaignsPage(): string {
   function toChartCalendar(insights, days) {
     var byDate = {};
     (insights || []).forEach(function (d) {
-      byDate[new Date(d.date).toISOString().slice(0, 10)] = d;
+      var raw = d && d.date;
+      var key = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)
+        ? String(raw).slice(0, 10)
+        : isoUtcDay(new Date(raw));
+      byDate[key] = d;
     });
-    var end = new Date();
-    end.setHours(12, 0, 0, 0);
-    var start = new Date(end);
-    start.setDate(start.getDate() - (days - 1));
-    var labels = [];
-    var isoDates = [];
-    var rows = [];
-    for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      var key = d.toISOString().slice(0, 10);
-      isoDates.push(key);
-      labels.push(fmtShortDate(key));
-      rows.push(byDate[key] || null);
-    }
+    var isoDates = buildUtcCalendar(days);
+    var labels = isoDates.map(function (key) { return fmtShortDate(key); });
+    var rows = isoDates.map(function (key) { return byDate[key] || null; });
     return { labels: labels, isoDates: isoDates, rows: rows };
   }
 
@@ -1854,11 +1885,15 @@ export function campaignsPage(): string {
   // The API returns raw keys; i18n stays on the client so the API doesn't
   // have to decide a locale.
   var SIGNAL_LABELS_AR = {
+    spend:          'الإنفاق',
+    results:        'نتائج الهدف',
     ctr:            'تفاعل الإعلان',
     frequency:      'تكرار ظهور الإعلان',
     cpm:            'تكلفة الوصول لألف شخص',
     cpc:            'تكلفة النقرة',
     costPerMessage: 'تكلفة الرسالة',
+    costPerLead:    'تكلفة العميل المحتمل',
+    costPerPurchase:'تكلفة الشراء',
   };
 
   // Map EntityStatus enum → Arabic so we never expose ACTIVE/PAUSED/etc.
@@ -1881,8 +1916,21 @@ export function campaignsPage(): string {
     var label   = SIGNAL_LABELS_AR[s.key] || s.key;
     var arrow   = (s.deltaPct >= 0 ? '▲' : '▼');
     var color   = isPositive ? 'var(--success)' : 'var(--error)';
-    var current = s.key === 'ctr' ? fmtNum(s.current, 2) + '%' : fmtNum(s.current, 2);
-    var prior   = s.key === 'ctr' ? fmtNum(s.prior,   2) + '%' : fmtNum(s.prior,   2);
+    var current;
+    var prior;
+    if (s.key === 'ctr') {
+      current = fmtNum(s.current, 2) + '%';
+      prior = fmtNum(s.prior, 2) + '%';
+    } else if (s.key === 'spend') {
+      current = fmtNum(s.current, state.minorFactor === 1 ? 0 : 2) + (state.currency ? ' ' + state.currency : '');
+      prior = fmtNum(s.prior, state.minorFactor === 1 ? 0 : 2) + (state.currency ? ' ' + state.currency : '');
+    } else if (s.key === 'results') {
+      current = fmtNum(s.current, 0);
+      prior = fmtNum(s.prior, 0);
+    } else {
+      current = fmtNum(s.current, 2);
+      prior = fmtNum(s.prior, 2);
+    }
     return '<li>'
       +    '<span style="color:' + color + ';font-weight:700;">' + arrow + ' ' + fmtPct(s.deltaPct) + '</span>'
       +    ' <span style="color:var(--text);">' + escHtml(label) + '</span>'
@@ -2036,13 +2084,29 @@ export function campaignsPage(): string {
     // ── Signals block ──────────────────────────────────────────────────────
     var hasPos = sig.positive && sig.positive.length > 0;
     var hasNeg = sig.negative && sig.negative.length > 0;
+    var sigMeta = sig.meta || {};
     var signalsHtml;
     if (!hasPos && !hasNeg) {
-      signalsHtml =
-        '<div class="insp-stable">'
-      +   '<div class="insp-stable-icon" aria-hidden="true">✓</div>'
-      +   '<div>الأداء مستقر خلال آخر 7 أيام — لا توجد تغيّرات حادة تستحق تدخلاً الآن.</div>'
-      + '</div>';
+      var comparable = sigMeta.comparable === true;
+      if (!comparable) {
+        var reason = 'بيانات غير كافية لمقارنة آخر 7 أيام بالـ 7 التي قبلها.';
+        if ((sigMeta.recentDays || 0) < 3 || (sigMeta.priorDays || 0) < 3) {
+          reason = 'الحملة تحتاج أياماً أكثر بمزامنة كاملة قبل الحكم على تغيّر الأداء.';
+        } else if (!(sigMeta.recentSpendMajor > 0 || sigMeta.recentResults > 0)) {
+          reason = 'لا يوجد إنفاق أو نتائج كافية في الأيام الأخيرة للمقارنة.';
+        }
+        signalsHtml =
+          '<div class="insp-stable is-neutral">'
+        +   '<div class="insp-stable-icon" aria-hidden="true">–</div>'
+        +   '<div>' + escHtml(reason) + '</div>'
+        + '</div>';
+      } else {
+        signalsHtml =
+          '<div class="insp-stable">'
+        +   '<div class="insp-stable-icon" aria-hidden="true">✓</div>'
+        +   '<div>تغيّر الأداء طفيف خلال آخر 7 أيام (أقل من 3٪ في الإنفاق والنتائج والمعدلات) — لا توجد تغيّرات حادة تستحق تدخلاً الآن.</div>'
+        + '</div>';
+      }
     } else {
       var posBody = hasPos
         ? '<ul class="insp-signal-list">' + sig.positive.map(function(x){ return signalLine(x, true); }).join('') + '</ul>'
@@ -2179,28 +2243,27 @@ export function campaignsPage(): string {
       showChartEmpty('insp-chart-eff', true);
       return;
     }
+    var currency = (account && account.currency) || state.currency || '';
     var factor = (account && account.currencyMinorFactor) || state.minorFactor || 100;
+    if (currency === 'IQD') factor = 1;
     var byDate = {};
     ts.dates.forEach(function (iso, i) {
       byDate[String(iso).slice(0, 10)] = i;
     });
-    var end = new Date();
-    end.setHours(12, 0, 0, 0);
-    var start = new Date(end);
-    start.setDate(start.getDate() - 29);
+    var windowDays = Math.max(7, Math.min(90, Number(ts.windowDays) || state.days || 30));
+    var isoKeys = buildUtcCalendar(windowDays);
     var labels = [];
     var spendData = [];
     var resultsData = [];
     var effData = [];
-    for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      var key = d.toISOString().slice(0, 10);
+    isoKeys.forEach(function (key) {
       labels.push(fmtShortDate(key));
       var idx = byDate[key];
       if (idx == null) {
         spendData.push(null);
         resultsData.push(null);
         effData.push(null);
-        continue;
+        return;
       }
       var spendMinor = Array.isArray(ts.spendMinor) ? Number(ts.spendMinor[idx]) : NaN;
       var spendMaj = Number.isFinite(spendMinor) ? spendMinor / factor : null;
@@ -2209,7 +2272,7 @@ export function campaignsPage(): string {
       resultsData.push(Number.isFinite(res) && res > 0 ? res : null);
       var cpr = Array.isArray(ts.costPerResult) ? ts.costPerResult[idx] : null;
       effData.push(cpr == null || !Number.isFinite(Number(cpr)) || Number(cpr) <= 0 ? null : Number(cpr));
-    }
+    });
 
     var hasSpend = spendData.some(function (v) { return v != null && v > 0; });
     var hasResults = resultsData.some(function (v) { return v != null && v > 0; });
@@ -3000,10 +3063,11 @@ export function campaignsPage(): string {
       document.getElementById('loading-state').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
 
-      // Defer chart creation to the next frame so the browser has painted
-      // the layout and canvas dimensions are resolved.
+      // Account trends live inside a collapsed <details>. Skip Chart.js while
+      // closed (0×0 canvas); the init toggle handler redraws on first open.
+      var trendsEl = document.getElementById('camp-trends');
       requestAnimationFrame(function() {
-        updateCharts(state.insights);
+        if (trendsEl && trendsEl.open) updateCharts(state.insights);
         runDataObserver(workspaceId);
       });
       staggerReveal(['.camp-kpi-row', '#data-observer-banner', '#fresh-strip', '.camp-trends', '.table-wrap']);

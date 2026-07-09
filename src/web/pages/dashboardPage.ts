@@ -430,6 +430,9 @@ export function dashboardPage(): string {
   }
 
   function buildDataset(label, data, color, bg, fillArea, fmt) {
+    var numericPts = (data || []).filter(function (v) {
+      return v != null && Number.isFinite(Number(v));
+    }).length;
     return {
       label: label,
       data: data,
@@ -438,7 +441,7 @@ export function dashboardPage(): string {
       fill: fillArea !== false,
       tension: 0.35,
       borderWidth: 2,
-      pointRadius: 0,
+      pointRadius: numericPts > 0 && numericPts < 8 ? 3 : 0,
       pointHoverRadius: 4,
       spanGaps: false,
       _fmt: fmt || 'num',
@@ -2185,12 +2188,16 @@ export function dashboardPage(): string {
       var last30 = recentAsc(insights, 30);
       var byDate = {};
       last30.forEach(function (d) {
-        byDate[new Date(d.date).toISOString().slice(0, 10)] = d;
+        var raw = d && d.date;
+        var key = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(String(raw))
+          ? String(raw).slice(0, 10)
+          : new Date(raw).toISOString().slice(0, 10);
+        byDate[key] = d;
       });
-      var end = new Date();
-      end.setHours(12, 0, 0, 0);
-      var start = new Date(end);
-      start.setDate(start.getDate() - 29);
+      // UTC calendar — matches getDashboard trendSeries date keys.
+      var endKey = new Date().toISOString().slice(0, 10);
+      var endParts = endKey.split('-').map(Number);
+      var endMs = Date.UTC(endParts[0], endParts[1] - 1, endParts[2], 12);
       var labels = [];
       var isoDates = [];
       var spendSeriesMajor = [];
@@ -2199,10 +2206,12 @@ export function dashboardPage(): string {
       var freqSeries = [];
       var cpmSeries = [];
       var cprSeries = [];
-      for (var cal = new Date(start); cal <= end; cal.setDate(cal.getDate() + 1)) {
-        var key = cal.toISOString().slice(0, 10);
+      for (var i = 29; i >= 0; i--) {
+        var key = new Date(endMs - i * 86400000).toISOString().slice(0, 10);
         isoDates.push(key);
-        labels.push(new Date(key).toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' }));
+        var keyParts = key.split('-').map(Number);
+        labels.push(new Date(Date.UTC(keyParts[0], keyParts[1] - 1, keyParts[2], 12))
+          .toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric', timeZone: 'UTC' }));
         var row = byDate[key] || null;
         if (!row) {
           spendSeriesMajor.push(null);
@@ -2240,6 +2249,7 @@ export function dashboardPage(): string {
       if (dashData.trendSeries && Array.isArray(dashData.trendSeries.dates) && dashData.trendSeries.dates.length) {
         var ts = dashData.trendSeries;
         var tsIso = ts.dates.map(function (d) {
+          if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
           var dateVal = d && typeof d === 'object' ? d.date : d;
           return new Date(dateVal).toISOString().slice(0, 10);
         });

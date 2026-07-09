@@ -619,7 +619,14 @@ export async function getDashboard(
   // (e.g. Meta CPM $3.21 stored as 321 → wrongly shown as $321).
   // CTR / frequency: null when the day had no delivery — never invent 0% / 0×.
   const trendSeries = {
-    dates: daily.map((d: any) => d.date.toISOString().slice(0, 10)),
+    // UTC YYYY-MM-DD — matches client calendar mappers (no local TZ drift).
+    dates: daily.map((d: any) => {
+      const dt: Date = d.date instanceof Date ? d.date : new Date(d.date);
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(dt.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }),
     messages: daily.map((d: any) => Number(d.messages)),
     results: daily.map((d: any) =>
       Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0),

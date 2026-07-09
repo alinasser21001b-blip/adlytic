@@ -2200,52 +2200,106 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // Daily rows are date-desc, so the first ≤7 are "recent", the next ≤7
     // are "prior". Same correctness rule as the window summary: ratios are
     // derived from each sub-window's totals, NOT averaged from daily rates.
+    //
+    // Volume metrics (spend / results) are included so "مستقر" cannot appear
+    // when delivery moved sharply but rate metrics stayed flat. When the
+    // prior window is too thin, we mark comparable=false so the UI shows
+    // "بيانات غير كافية" instead of a false-stable green check.
     const recent = dailyStats.slice(0, 7);
     const prior  = dailyStats.slice(7, 14);
     const positive: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
     const negative: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
 
-    /** Window totals → derived ratios. Mirrors the summary block above. */
-    function deriveRatios(rows: typeof dailyStats) {
-      let sM = 0n, imp = 0n, clk = 0n, msg = 0n;
+    /** Window totals → volume + derived ratios. Mirrors the summary block above. */
+    function deriveWindowMetrics(rows: typeof dailyStats) {
+      let sM = 0n, imp = 0n, clk = 0n, msg = 0n, purch = 0n, leadsW = 0n, rev = 0n;
+      let reachMax = 0n;
       let fq = 0, fqN = 0;
       for (const r of rows) {
         sM  += r.spend;
         imp += r.impressions;
         clk += r.clicks;
         msg += r.messages;
+        purch += r.purchases;
+        leadsW += r.leads;
+        rev += r.revenueMinor;
+        if (r.reach > reachMax) reachMax = r.reach;
         if (r.frequency != null && Number.isFinite(r.frequency)) { fq += r.frequency; fqN++; }
       }
       const spendMajorW = Number(sM) / factor;
+      const windowTotalsW: WindowTotals = {
+        spendMinor: Number(sM),
+        impressions: Number(imp),
+        reach: Number(reachMax),
+        clicks: Number(clk),
+        messages: Number(msg),
+        purchases: Number(purch),
+        leads: Number(leadsW),
+        revenueMinor: Number(rev),
+      };
       const ctrRatio = safeDiv(Number(clk), Number(imp));
       return {
+        spend: spendMajorW,
+        results: resultCountForObjective(purposeKey, windowTotalsW),
         ctr:            ctrRatio != null ? ctrRatio * 100 : null,   // %, matches summary + UI
         cpm:            safeDiv(spendMajorW * 1000, Number(imp)),
         cpc:            safeDiv(spendMajorW, Number(clk)),
         costPerMessage: safeDiv(spendMajorW,         Number(msg)),
+        costPerLead:    safeDiv(spendMajorW, Number(leadsW)),
+        costPerPurchase: safeDiv(spendMajorW, Number(purch)),
         frequency:      fqN > 0 ? fq / fqN : null,
       };
     }
-    const recentR = deriveRatios(recent);
-    const priorR  = deriveRatios(prior);
+    const recentR = deriveWindowMetrics(recent);
+    const priorR  = deriveWindowMetrics(prior);
 
     function pctChange(curr: number | null, base: number | null): number | null {
-      if (curr == null || base == null || base === 0) return null;
+      if (curr == null || base == null || !Number.isFinite(curr) || !Number.isFinite(base)) return null;
+      if (base === 0) {
+        // New activity from a zero base is a material change, not "stable".
+        return curr === 0 ? 0 : 100;
+      }
       return ((curr - base) / base) * 100;
     }
-    // Objective-aware signal set — awareness never surfaces costPerMessage.
-    const signalSpecs = kpiSpec.signalKeys.map((key) => ({
-      key,
-      good: signalGoodDirection(key as SignalMetricKey),
-    }));
-    for (const spec of signalSpecs) {
-      const curr = recentR[spec.key];
-      const base = priorR[spec.key];
-      const delta = pctChange(curr, base);
-      if (delta == null || Math.abs(delta) < 3) continue;            // ignore noise
-      const improved = spec.good === 'up' ? delta > 0 : delta < 0;
-      (improved ? positive : negative).push({ key: spec.key, current: curr, prior: base, deltaPct: delta });
+    // Objective-aware rate signals + volume (spend / results) for honesty.
+    const signalSpecs: Array<{ key: string; good: 'up' | 'down' }> = [
+      { key: 'spend', good: 'up' },
+      { key: 'results', good: 'up' },
+      ...kpiSpec.signalKeys.map((key) => ({
+        key,
+        good: signalGoodDirection(key as SignalMetricKey),
+      })),
+    ];
+    const recentDays = recent.length;
+    const priorDays = prior.length;
+    const recentSpend = Number(recentR.spend) || 0;
+    const priorSpend = Number(priorR.spend) || 0;
+    // Need both windows with real delivery before claiming "stable".
+    const comparable =
+      recentDays >= 3 &&
+      priorDays >= 3 &&
+      (recentSpend > 0 || recentR.results > 0) &&
+      (priorSpend > 0 || priorR.results > 0);
+
+    if (comparable) {
+      for (const spec of signalSpecs) {
+        const curr = (recentR as Record<string, number | null>)[spec.key] ?? null;
+        const base = (priorR as Record<string, number | null>)[spec.key] ?? null;
+        const delta = pctChange(curr, base);
+        if (delta == null || Math.abs(delta) < 3) continue;            // ignore noise
+        const improved = spec.good === 'up' ? delta > 0 : delta < 0;
+        (improved ? positive : negative).push({ key: spec.key, current: curr, prior: base, deltaPct: delta });
+      }
     }
+    const signalsMeta = {
+      recentDays,
+      priorDays,
+      comparable,
+      recentSpendMajor: recentSpend,
+      priorSpendMajor: priorSpend,
+      recentResults: recentR.results,
+      priorResults: priorR.results,
+    };
 
     // ── Audience breakdowns (Phase 5 Pass C) ──────────────────────────────
     //
@@ -2400,9 +2454,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         finalScore:       s.finalScore,
         narration:        s.narrationJson,
       })),
-      signals: { positive, negative },
+      signals: { positive, negative, meta: signalsMeta },
       // Per-campaign daily series for inspector charts (already loaded above).
       // Ascending calendar order; null efficiency when that day had zero results.
+      // Dates are UTC YYYY-MM-DD to match the client calendar mapper.
       trendSeries: (() => {
         const asc = [...dailyStats].sort(
           (a, b) => a.date.getTime() - b.date.getTime(),
@@ -2417,8 +2472,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           leads: Number(d.leads),
           revenueMinor: Number(d.revenueMinor),
         });
+        const isoUtc = (d: Date): string => {
+          const y = d.getUTCFullYear();
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(d.getUTCDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
         return {
-          dates: asc.map((d) => d.date.toISOString().slice(0, 10)),
+          dates: asc.map((d) => isoUtc(d.date)),
+          windowDays: days,
           spendMinor: asc.map((d) => Number(d.spend)),
           results: asc.map((d) => resultCountForObjective(purposeKey, dayTotalsOf(d))),
           costPerResult: asc.map((d) =>
