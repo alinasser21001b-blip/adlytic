@@ -567,6 +567,9 @@ export function adminInboxPage(): string {
   }).catch(function() {});
   loadCounts();
   loadTickets();
+
+  // Auto-refresh every 15 seconds for real-time inbox updates
+  setInterval(function() { loadCounts(); loadTickets(); }, 15000);
 })();
 </script>
 </body>
