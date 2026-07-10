@@ -471,7 +471,7 @@ export function metaReadinessPage(): string {
       // Server-side gating on /api/admin/meta-usage is the real boundary — this
       // is only a friendly UI guard so non-admins see a clear message.
       if (!me.isPlatformAdmin) {
-        showError('This page is reserved for platform administrators.');
+        window.location.href = '/dashboard';
         return;
       }
       var userName = me.name || me.email || 'Admin';

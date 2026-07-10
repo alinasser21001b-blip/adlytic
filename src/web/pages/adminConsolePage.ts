@@ -758,8 +758,7 @@ export function adminConsolePage(): string {
     try {
       var me = await api('/api/auth/me');
       if (!me || !me.isPlatformAdmin) {
-        gate.style.display = '';
-        gate.textContent = 'هذه الصفحة خاصة بمالك المنصة فقط. أضف بريدك إلى PLATFORM_ADMIN_EMAILS.';
+        window.location.href = '/dashboard';
         return;
       }
       document.getElementById('admin-email').textContent = me.email || me.user && me.user.email || '';

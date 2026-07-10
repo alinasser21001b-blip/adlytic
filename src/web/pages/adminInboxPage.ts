@@ -21,7 +21,7 @@ export function adminInboxPage(): string {
     a { color: inherit; text-decoration: none; }
     button, input, select, textarea { font: inherit; color: inherit; }
     button { cursor: pointer; border: none; background: none; }
-    .app { display: flex; min-height: 100vh; }
+    .app { display: none; min-height: 100vh; }
     .sidebar {
       width: 240px; flex-shrink: 0; background: linear-gradient(180deg, #1A1613, #14110F);
       border-left: 1px solid var(--border); display: flex; flex-direction: column;
@@ -560,16 +560,21 @@ export function adminInboxPage(): string {
     if (sel) ticketAction('priority', sel.value);
   });
 
-  // Init
+  // Init — admin guard: only platform admins may access this page
   if (!token()) { window.location.href = '/login'; return; }
   api('/api/auth/me').then(function(me) {
-    if (me) document.getElementById('admin-email').textContent = me.email || '';
-  }).catch(function() {});
-  loadCounts();
-  loadTickets();
-
-  // Auto-refresh every 15 seconds for real-time inbox updates
-  setInterval(function() { loadCounts(); loadTickets(); }, 15000);
+    if (!me || !me.isPlatformAdmin) {
+      window.location.href = '/support';
+      return;
+    }
+    document.getElementById('admin-email').textContent = me.email || '';
+    document.querySelector('.app').style.display = '';
+    loadCounts();
+    loadTickets();
+    setInterval(function() { loadCounts(); loadTickets(); }, 15000);
+  }).catch(function() {
+    window.location.href = '/login';
+  });
 })();
 </script>
 </body>
