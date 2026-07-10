@@ -177,6 +177,30 @@ export function loginPage(): string {
           return;
         }
 
+        // ── Full client-state reset before adopting the new identity ──────
+        // Switching accounts must not inherit ANY state from a previous
+        // session (token, workspace, cached selections, sync state, service
+        // worker shell caches). Otherwise a stale workspaceId or cached page
+        // could mix data between accounts. Clear everything, THEN set the new
+        // identity as the single source of truth.
+        try {
+          const keep = new Set();
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.indexOf('adlytic_') === 0 && !keep.has(k)) localStorage.removeItem(k);
+          }
+          for (let i = sessionStorage.length - 1; i >= 0; i--) {
+            const k = sessionStorage.key(i);
+            if (k && k.indexOf('adlytic_') === 0) sessionStorage.removeItem(k);
+          }
+          // Defensively expire any legacy session cookie (server no longer reads it).
+          document.cookie = 'adlytic_session=; Path=/; Max-Age=0; SameSite=Lax';
+          // Drop cached HTML shells so the next account never sees a prior shell.
+          if (window.caches && caches.keys) {
+            caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
+          }
+        } catch (e) { /* storage may be unavailable; non-fatal */ }
+
         localStorage.setItem('adlytic_token', data.token);
         const firstWs = data.user?.memberships?.[0]?.workspaceId;
 

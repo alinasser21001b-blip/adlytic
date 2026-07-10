@@ -1508,9 +1508,42 @@ function getToken() { return localStorage.getItem('adlytic_token') || ''; }
 function getWsId()  { return localStorage.getItem('adlytic_workspace_id') || ''; }
 function setWsId(id) { localStorage.setItem('adlytic_workspace_id', id); }
 
+// Reconcile the stored active workspace against the authenticated user's real
+// memberships (from /api/auth/me). If the stored id is missing or does not
+// belong to this account, reset it to the first membership (or clear it).
+// This is the client-side single-source-of-truth guard against workspace mixing.
+function reconcileWorkspace(me) {
+  try {
+    var memberships = (me && Array.isArray(me.memberships)) ? me.memberships : [];
+    var ids = memberships.map(function (m) { return m.workspaceId || (m.workspace && m.workspace.id); }).filter(Boolean);
+    var stored = getWsId();
+    if (stored && ids.indexOf(stored) !== -1) return stored; // valid — keep it
+    var next = ids.length ? ids[0] : '';
+    if (next) setWsId(next);
+    else localStorage.removeItem('adlytic_workspace_id');
+    return next;
+  } catch (e) { return getWsId(); }
+}
+
+function clearClientIdentity() {
+  try {
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var lk = localStorage.key(i);
+      if (lk && lk.indexOf('adlytic_') === 0) localStorage.removeItem(lk);
+    }
+    for (var j = sessionStorage.length - 1; j >= 0; j--) {
+      var sk = sessionStorage.key(j);
+      if (sk && sk.indexOf('adlytic_') === 0) sessionStorage.removeItem(sk);
+    }
+    document.cookie = 'adlytic_session=; Path=/; Max-Age=0; SameSite=Lax';
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }).catch(function () {});
+    }
+  } catch (e) { /* non-fatal */ }
+}
+
 function logout() {
-  localStorage.removeItem('adlytic_token');
-  localStorage.removeItem('adlytic_workspace_id');
+  clearClientIdentity();
   window.location.href = '/login';
 }
 
@@ -1837,6 +1870,13 @@ function initAppShell() {
         window.location.href = '/pending-activation';
         return null;
       }
+      // ── Single source of truth for the active workspace ────────────────
+      // /api/auth/me is authoritative for which workspaces this token owns.
+      // If the stored adlytic_workspace_id is NOT one of them (a stale value
+      // left over from a previous account, or never set), reset it to the
+      // user's first membership. This prevents workspace-mixing where API
+      // calls carry a workspaceId that belongs to a different account.
+      reconcileWorkspace(me);
       shellState.me = me;
       populateAppShell(me);
       return me;

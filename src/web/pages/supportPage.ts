@@ -374,8 +374,24 @@ function showToast(msg) {
 }
 
 // ── Init ──
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if (!getToken()) { location.href = '/login'; return; }
+
+  // Verify identity and reconcile the active workspace against the token's
+  // real memberships BEFORE loading any tickets. This runs independently of
+  // the shared shell init (which registers its DOMContentLoaded handler after
+  // this one) so we never query /api/support with a workspaceId inherited
+  // from a previous account. Uses an explicit fetch to avoid depending on
+  // which global apiFetch definition wins.
+  try {
+    const r = await fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (r.status === 401) { location.href = '/login'; return; }
+    if (r.ok) {
+      const me = await r.json();
+      if (typeof reconcileWorkspace === 'function') reconcileWorkspace(me);
+    }
+  } catch (e) { /* offline / transient — loadTickets will surface any error */ }
+
   loadTickets();
 
   document.getElementById('create-subject')?.addEventListener('input', checkCreateForm);

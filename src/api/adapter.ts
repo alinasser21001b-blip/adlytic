@@ -7,9 +7,15 @@
 //  ApiResponse — zero Hono imports inside the handlers. The adapter here
 //  is the only file that knows about Hono's Context.
 //
-//  Protected routes accept credentials from either:
-//    • Authorization: Bearer <token>    (preferred)
-//    • adlytic_session cookie           (browser fallback)
+//  Protected routes accept credentials from exactly ONE source:
+//    • Authorization: Bearer <token>
+//
+//  There is deliberately no cookie fallback. The browser client is a
+//  bearer-token SPA (token in localStorage, sent on every fetch). A cookie
+//  identity source that the client never sets and `logout()` never clears
+//  would be a latent identity-confusion vector: a stale session cookie could
+//  outlive a logout and be silently trusted on any request that happened to
+//  omit the Authorization header. One source of truth only.
 // ════════════════════════════════════════════════════════════════════════
 
 import type { Context } from 'hono';
@@ -32,8 +38,8 @@ export interface ApiRequest {
   /** Parsed cookies. */
   cookies: Record<string, string>;
   /**
-   * Resolved bearer token. Populated from the Authorization header first,
-   * then the adlytic_session cookie. Null when neither is present.
+   * Resolved bearer token, from the Authorization header only. Null when
+   * absent. There is no cookie fallback — see the file header.
    */
   bearerToken: string | null;
 }
@@ -94,13 +100,11 @@ export async function honoToApiRequest(c: Context): Promise<ApiRequest> {
     }
   }
 
-  // Bearer token resolution
+  // Bearer token resolution — Authorization header only, no cookie fallback.
   const authHeader = c.req.header('authorization') ?? '';
   let bearerToken: string | null = null;
   if (authHeader.startsWith('Bearer ')) {
     bearerToken = authHeader.slice(7).trim() || null;
-  } else if (cookies['adlytic_session']) {
-    bearerToken = cookies['adlytic_session'];
   }
 
   return {
