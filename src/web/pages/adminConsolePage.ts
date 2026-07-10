@@ -75,8 +75,6 @@ export function adminConsolePage(): string {
     .btn-secondary { background: var(--surface-2); border-color: var(--border); color: var(--text); }
     .btn-secondary:hover { border-color: var(--accent); }
     .btn-danger { background: rgba(226,96,79,0.12); border-color: rgba(226,96,79,0.35); color: var(--error); }
-    .btn-danger-solid { background: var(--error); color: #fff; }
-    .btn-danger-solid:hover { filter: brightness(1.08); }
     .btn-success { background: rgba(52,168,113,0.14); border-color: rgba(52,168,113,0.35); color: var(--success); }
     .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
@@ -163,15 +161,6 @@ export function adminConsolePage(): string {
     .toast.ok { border-color: rgba(52,168,113,0.4); }
     .toast.err { border-color: rgba(226,96,79,0.4); color: #ffb4a8; }
     .actions { display: flex; gap: 6px; flex-wrap: wrap; }
-    .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 70;
-      display: none; align-items: center; justify-content: center; padding: 20px;
-    }
-    .modal-backdrop.open { display: flex; }
-    .modal { width: min(440px, 100%); background: var(--surface); border: 1px solid rgba(226,96,79,0.35); border-radius: 14px; padding: 20px; }
-    .modal-title { font-size: 16px; font-weight: 800; color: var(--error); margin-bottom: 8px; }
-    .modal-text { font-size: 13px; color: var(--text-2); margin-bottom: 14px; line-height: 1.6; }
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
   </style>
 </head>
 <body>
@@ -425,26 +414,11 @@ export function adminConsolePage(): string {
   </div>
 </div>
 
-<div class="modal-backdrop" id="delete-modal">
-  <div class="modal">
-    <div class="modal-title">حذف الحساب نهائياً</div>
-    <div class="modal-text" id="delete-modal-text"></div>
-    <div class="form-group">
-      <label>اكتب البريد الإلكتروني للتأكيد</label>
-      <input class="field" id="delete-confirm-input" placeholder="name@example.com" autocomplete="off" />
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="delete-modal-cancel">إلغاء</button>
-      <button class="btn btn-danger-solid" id="delete-modal-confirm" disabled>حذف نهائياً</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
 (function () {
-  var state = { customers: [], subscriptions: [], events: [], settings: [], overview: null, detail: null, deleteTarget: null };
+  var state = { customers: [], subscriptions: [], events: [], settings: [], overview: null, detail: null };
 
   function token() { try { return localStorage.getItem('adlytic_token'); } catch (e) { return null; } }
   function logout() {
@@ -572,7 +546,7 @@ export function adminConsolePage(): string {
         +   (u.isActive
               ? '<button class="btn btn-danger btn-sm" data-deactivate="' + esc(u.id) + '">إيقاف</button>'
               : '<button class="btn btn-success btn-sm" data-activate="' + esc(u.id) + '">تفعيل</button>')
-        +   '<button class="btn btn-danger btn-sm" data-delete="' + esc(u.id) + '" data-delete-email="' + esc(u.email) + '">حذف</button>'
+        +   '<button class="btn btn-danger btn-sm" data-delete="' + esc(u.id) + '">حذف</button>'
         + '</div></td>'
         + '</tr>';
     }).join('');
@@ -698,8 +672,7 @@ export function adminConsolePage(): string {
         + '<div class="muted" style="margin:12px 0 8px;">محادثات المساعد</div>' + aiHtml
         + '</div>'
         + '<div class="section danger"><h3>منطقة الخطر</h3>'
-        + '<div class="muted" style="margin-bottom:10px;">حذف الحساب نهائياً يحذف مساحات عمله المملوكة وكل بياناتها (حسابات Meta، الحملات، الاشتراكات، سجل المدفوعات، محادثات الذكاء الاصطناعي). لا يمكن التراجع.</div>'
-        + '<button class="btn btn-danger btn-sm" data-delete="' + esc(d.user.id) + '" data-delete-email="' + esc(d.user.email) + '">حذف الحساب نهائياً</button>'
+        + '<button class="btn btn-danger btn-sm" data-delete="' + esc(d.user.id) + '">حذف الحساب</button>'
         + '</div>';
     } catch (e) {
       body.innerHTML = '<div class="error-box">' + esc(e.message || 'تعذّر التحميل') + '</div>';
@@ -910,39 +883,13 @@ export function adminConsolePage(): string {
     }
   }
 
-  function openDeleteModal(userId, email) {
-    state.deleteTarget = { userId: userId, email: email };
-    document.getElementById('delete-modal-text').textContent =
-      'سيتم حذف حساب ' + email + ' نهائياً مع كل مساحات عمله المملوكة وبياناتها. هذا الإجراء لا يمكن التراجع عنه.';
-    document.getElementById('delete-confirm-input').value = '';
-    document.getElementById('delete-modal-confirm').disabled = true;
-    document.getElementById('delete-modal-confirm').textContent = 'حذف نهائياً';
-    document.getElementById('delete-modal').classList.add('open');
-    document.getElementById('delete-confirm-input').focus();
-  }
-  function closeDeleteModal() {
-    state.deleteTarget = null;
-    document.getElementById('delete-modal').classList.remove('open');
-  }
-  async function confirmDelete() {
-    if (!state.deleteTarget) return;
-    var btn = document.getElementById('delete-modal-confirm');
-    btn.disabled = true;
-    btn.textContent = 'جارٍ الحذف…';
-    try {
-      await api('/api/admin/customers/' + encodeURIComponent(state.deleteTarget.userId), {
-        method: 'DELETE',
-        body: { confirmEmail: document.getElementById('delete-confirm-input').value.trim() },
-      });
-      toast('تم حذف الحساب نهائياً', 'ok');
-      closeDeleteModal();
-      document.getElementById('drawer').classList.remove('open');
-      await loadAll();
-    } catch (err) {
-      toast(err.message || 'فشل الحذف', 'err');
-      btn.disabled = false;
-      btn.textContent = 'حذف نهائياً';
-    }
+  async function deleteCustomerNow(userId) {
+    await api('/api/admin/customers/' + encodeURIComponent(userId), {
+      method: 'DELETE',
+    });
+    toast('تم حذف الحساب', 'ok');
+    document.getElementById('drawer').classList.remove('open');
+    await loadAll();
   }
 
   document.getElementById('btn-logout').addEventListener('click', logout);
@@ -960,18 +907,6 @@ export function adminConsolePage(): string {
   });
   document.getElementById('drawer').addEventListener('click', function (e) {
     if (e.target.id === 'drawer') document.getElementById('drawer').classList.remove('open');
-  });
-  document.getElementById('delete-modal-cancel').addEventListener('click', closeDeleteModal);
-  document.getElementById('delete-modal').addEventListener('click', function (e) {
-    if (e.target.id === 'delete-modal') closeDeleteModal();
-  });
-  document.getElementById('delete-confirm-input').addEventListener('input', function (e) {
-    var target = state.deleteTarget;
-    document.getElementById('delete-modal-confirm').disabled =
-      !target || e.target.value.trim().toLowerCase() !== target.email.trim().toLowerCase();
-  });
-  document.getElementById('delete-modal-confirm').addEventListener('click', function () {
-    confirmDelete().catch(function (err) { toast(err.message, 'err'); });
   });
 
   document.querySelectorAll('.nav-item[data-tab]').forEach(function (el) {
@@ -1001,7 +936,9 @@ export function adminConsolePage(): string {
     else if (ext) extendSub(ext).catch(function (err) { toast(err.message, 'err'); });
     else if (editSet) editSetting(editSet).catch(function (err) { toast(err.message, 'err'); });
     else if (delSet) delSetting(delSet).catch(function (err) { toast(err.message, 'err'); });
-    else if (del) openDeleteModal(del, t.getAttribute('data-delete-email') || '');
+    else if (del) {
+      deleteCustomerNow(del).catch(function (err) { toast(err.message, 'err'); });
+    }
   });
 
   document.getElementById('create-form').addEventListener('submit', async function (e) {
