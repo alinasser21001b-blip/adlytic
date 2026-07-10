@@ -478,7 +478,7 @@ export function adminDashboardPage(): string {
       // friendly UI guard so non-admins who somehow land on /admin see a clear
       // message instead of just an empty card.
       if (!me.isPlatformAdmin) {
-        showError('This page is reserved for platform administrators.');
+        window.location.href = '/dashboard';
         return;
       }
       var userName = me.name || me.email || 'Admin';
