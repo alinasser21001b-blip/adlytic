@@ -37,7 +37,18 @@ export function adminConsolePage(): string {
     a { color: inherit; text-decoration: none; }
     button, input, select, textarea { font: inherit; color: inherit; }
     button { cursor: pointer; border: none; background: none; }
-    .app { display: flex; min-height: 100vh; }
+    .app { display: none; min-height: 100vh; }
+    .access-gate {
+      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--text-2); font-size: 14px; font-weight: 600;
+    }
+    .access-gate.hidden { display: none; }
+    .access-gate .gate-spinner {
+      width: 30px; height: 30px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
+    }
+    @keyframes gate-spin { to { transform: rotate(360deg); } }
     .sidebar {
       width: 240px; flex-shrink: 0; background: linear-gradient(180deg, #1A1613, #14110F);
       border-left: 1px solid var(--border); display: flex; flex-direction: column;
@@ -164,6 +175,10 @@ export function adminConsolePage(): string {
   </style>
 </head>
 <body>
+<div class="access-gate" id="access-gate">
+  <div class="gate-spinner"></div>
+  <div>جارٍ التحقق من الصلاحية…</div>
+</div>
 <div class="app">
   <aside class="sidebar">
     <div class="logo">
@@ -752,16 +767,34 @@ export function adminConsolePage(): string {
     }
   }
 
+  // Reveal the admin shell only after ensureAdmin() has confirmed the viewer
+  // is a platform admin. The shell ships display:none behind a full-screen
+  // access gate, so a customer never sees any admin structure before the
+  // /api/auth/me check redirects them.
+  async function ensureAdmin() {
+    try {
+      var me = await api('/api/auth/me');
+      if (!me || !me.isPlatformAdmin) { window.location.replace('/dashboard'); return false; }
+      var accessGate = document.getElementById('access-gate');
+      if (accessGate) accessGate.classList.add('hidden');
+      document.querySelector('.app').style.display = 'flex';
+      document.getElementById('admin-email').textContent = me.email || (me.user && me.user.email) || '';
+      return true;
+    } catch (e) {
+      // 401 already redirected inside api(). For any other failure we cannot
+      // confirm admin status — show a retry on the gate rather than reveal
+      // admin chrome to an unverified viewer.
+      if (e && e.message === 'Unauthorized') return false;
+      var g = document.getElementById('access-gate');
+      if (g) g.innerHTML = '<div style="max-width:320px;text-align:center;line-height:1.8;">تعذّر التحقق من الصلاحية. تحقق من اتصالك ثم <a href="javascript:location.reload()" style="color:var(--accent);text-decoration:underline;">أعد المحاولة</a>.</div>';
+      return false;
+    }
+  }
+
   async function loadAll() {
     var gate = document.getElementById('gate-error');
     gate.style.display = 'none';
     try {
-      var me = await api('/api/auth/me');
-      if (!me || !me.isPlatformAdmin) {
-        window.location.href = '/dashboard';
-        return;
-      }
-      document.getElementById('admin-email').textContent = me.email || me.user && me.user.email || '';
       var q = document.getElementById('search-q').value.trim();
       var status = document.getElementById('filter-status').value;
       var tier = document.getElementById('filter-tier').value;
@@ -1078,10 +1111,13 @@ export function adminConsolePage(): string {
   document.getElementById('btn-seed-settings').addEventListener('click', function () { seedSettings(); });
   document.getElementById('btn-add-setting').addEventListener('click', function () { addSetting(); });
 
-  if (!token()) { window.location.href = '/login'; return; }
-  showView('overview');
-  loadAll();
-  loadSettings();
+  if (!token()) { window.location.replace('/login'); return; }
+  ensureAdmin().then(function (ok) {
+    if (!ok) return;
+    showView('overview');
+    loadAll();
+    loadSettings();
+  });
 })();
 </script>
 </body>

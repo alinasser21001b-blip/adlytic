@@ -43,7 +43,18 @@ export function adminDashboardPage(): string {
     a { color: inherit; text-decoration: none; }
     button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
 
-    .app { display: flex; height: 100vh; overflow: hidden; }
+    .app { display: none; height: 100vh; overflow: hidden; }
+    .access-gate {
+      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--text-2); font-size: 14px; font-weight: 600;
+    }
+    .access-gate.hidden { display: none; }
+    .access-gate .gate-spinner {
+      width: 30px; height: 30px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
+    }
+    @keyframes gate-spin { to { transform: rotate(360deg); } }
 
     .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
     .sidebar-logo { padding: 20px 20px 16px; font-size: 18px; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border); letter-spacing: -0.3px; }
@@ -111,6 +122,10 @@ export function adminDashboardPage(): string {
   </style>
 </head>
 <body>
+<div class="access-gate" id="access-gate">
+  <div class="gate-spinner"></div>
+  <div>Verifying access…</div>
+</div>
 <div class="app">
   <aside class="sidebar">
     <div class="sidebar-logo">Ad<span>lytic</span></div>
@@ -466,21 +481,24 @@ export function adminDashboardPage(): string {
 
   async function init() {
     var token = getToken();
-    if (!token) { window.location.href = '/login'; return; }
+    if (!token) { window.location.replace('/login'); return; }
     document.getElementById('btn-logout').addEventListener('click', logout);
     document.getElementById('btn-refresh').addEventListener('click', function(e) {
       bustAndReload(e.currentTarget);
     });
 
+    // Admin gate — the shell ships display:none behind a full-screen access
+    // gate; reveal it only after /api/auth/me confirms isPlatformAdmin, so a
+    // customer never sees admin structure before being redirected.
     try {
       var me = await apiFetch('/api/auth/me');
-      // Server-side gating is what actually protects /api/admin/* — this is a
-      // friendly UI guard so non-admins who somehow land on /admin see a clear
-      // message instead of just an empty card.
-      if (!me.isPlatformAdmin) {
-        window.location.href = '/dashboard';
+      if (!me || !me.isPlatformAdmin) {
+        window.location.replace('/dashboard');
         return;
       }
+      var accessGate = document.getElementById('access-gate');
+      if (accessGate) accessGate.classList.add('hidden');
+      document.querySelector('.app').style.display = 'flex';
       var userName = me.name || me.email || 'Admin';
       document.getElementById('sidebar-avatar').textContent = initials(userName);
       document.getElementById('top-avatar').textContent = initials(userName);
@@ -489,7 +507,14 @@ export function adminDashboardPage(): string {
       await loadStats();
       await loadUsers();
     } catch (err) {
-      showError('Failed to load admin stats: ' + (err.message || String(err)));
+      if (err && err.message === 'Unauthorized') return; // api() already redirected
+      var g = document.getElementById('access-gate');
+      if (g && !g.classList.contains('hidden')) {
+        // Could not verify admin status — show retry on the gate, never reveal chrome.
+        g.innerHTML = '<div style="max-width:320px;text-align:center;line-height:1.8;">Could not verify access. Check your connection and <a href="javascript:location.reload()" style="color:var(--accent);text-decoration:underline;">retry</a>.</div>';
+      } else {
+        showError('Failed to load admin stats: ' + (err.message || String(err)));
+      }
     }
   }
 

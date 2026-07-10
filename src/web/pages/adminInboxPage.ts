@@ -22,6 +22,17 @@ export function adminInboxPage(): string {
     button, input, select, textarea { font: inherit; color: inherit; }
     button { cursor: pointer; border: none; background: none; }
     .app { display: none; min-height: 100vh; }
+    .access-gate {
+      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--text-2); font-size: 14px; font-weight: 600;
+    }
+    .access-gate.hidden { display: none; }
+    .access-gate .gate-spinner {
+      width: 30px; height: 30px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
+    }
+    @keyframes gate-spin { to { transform: rotate(360deg); } }
     .sidebar {
       width: 240px; flex-shrink: 0; background: linear-gradient(180deg, #1A1613, #14110F);
       border-left: 1px solid var(--border); display: flex; flex-direction: column;
@@ -157,6 +168,10 @@ export function adminInboxPage(): string {
   </style>
 </head>
 <body>
+<div class="access-gate" id="access-gate">
+  <div class="gate-spinner"></div>
+  <div>جارٍ التحقق من الصلاحية…</div>
+</div>
 <div class="app">
   <aside class="sidebar">
     <div class="logo">
@@ -560,20 +575,29 @@ export function adminInboxPage(): string {
     if (sel) ticketAction('priority', sel.value);
   });
 
-  // Init — admin guard: only platform admins may access this page
-  if (!token()) { window.location.href = '/login'; return; }
+  // Init — admin guard: only platform admins may see this page. The admin
+  // shell (.app) stays display:none and a neutral "checking access" gate
+  // covers the screen until /api/auth/me confirms isPlatformAdmin, so a
+  // customer never sees any admin structure — not even for a frame — before
+  // being redirected. Use location.replace so the blocked URL is not left in
+  // history for a back-button return.
+  if (!token()) { window.location.replace('/login'); return; }
   api('/api/auth/me').then(function(me) {
     if (!me || !me.isPlatformAdmin) {
-      window.location.href = '/support';
+      window.location.replace('/support');
       return;
     }
     document.getElementById('admin-email').textContent = me.email || '';
-    document.querySelector('.app').style.display = '';
+    var gate = document.getElementById('access-gate');
+    if (gate) gate.classList.add('hidden');
+    document.querySelector('.app').style.display = 'flex';
     loadCounts();
     loadTickets();
     setInterval(function() { loadCounts(); loadTickets(); }, 15000);
-  }).catch(function() {
-    window.location.href = '/login';
+  }).catch(function(err) {
+    // 401 already redirected inside api(); anything else → send home, never
+    // leave the admin gate spinning or reveal the shell.
+    if (!err || err.message !== 'Unauthorized') window.location.replace('/support');
   });
 })();
 </script>
