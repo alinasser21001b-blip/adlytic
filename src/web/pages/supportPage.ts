@@ -182,7 +182,9 @@ async function apiFetch(path, opts = {}) {
     headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json', ...(opts.headers||{}) },
   });
   if (r.status === 401) { location.href = '/login'; return null; }
-  return r.json();
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { return { error: data.error || 'حدث خطأ في الخادم (' + r.status + ')' }; }
+  return data;
 }
 
 // ── Ticket list ──
@@ -253,12 +255,16 @@ function closeCreateDialog() {
 async function submitTicket() {
   const btn = document.getElementById('btn-create-submit');
   btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+  const wsId = getWsId();
+  if (!wsId) { showToast('لم يتم تحديد مساحة العمل — أعد تسجيل الدخول'); btn.disabled = false; btn.textContent = 'إرسال'; return; }
   const body = {
-    workspaceId: getWsId(),
+    workspaceId: wsId,
     category: selectedCategory,
     subject: document.getElementById('create-subject').value.trim(),
     message: document.getElementById('create-message').value.trim(),
     priority: document.getElementById('create-priority').value,
+    userAgent: navigator.userAgent,
+    language: navigator.language,
   };
   const data = await apiFetch('/api/support/tickets', { method: 'POST', body: JSON.stringify(body) });
   btn.textContent = 'إرسال';
