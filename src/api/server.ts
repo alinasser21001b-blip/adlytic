@@ -70,8 +70,16 @@ import { buildActivationWhatsappLink } from '../services/activationWhatsappLink'
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { adminConsolePage } from '../web/pages/adminConsolePage';
+import { adminInboxPage } from '../web/pages/adminInboxPage';
+import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
 import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
+import {
+  createTicket, replyToTicket, getTicketWithMessages, adminListTickets,
+  adminInboxCounts, customerListTickets, updateTicketStatus, updateTicketPriority,
+  toggleTicketPin, toggleTicketStar, markMessagesRead, getUnreadCount,
+} from '../services/supportService';
+import type { TicketCategory, TicketStatus, TicketPriority } from '@prisma/client';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
@@ -485,7 +493,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/workspace',      (c) => c.html(workspacePage()));
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
+  app.get('/support',        (c) => c.html(supportPage()));
   app.get('/admin',          (c) => c.html(adminConsolePage()));
+  app.get('/admin/inbox',    (c) => c.html(adminInboxPage()));
   app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
   app.get('/admin/meta-readiness', (c) => c.html(metaReadinessPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
@@ -1598,6 +1608,187 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const count = await seedDefaults(prisma, gate.userId);
     return c.json({ ok: true, seeded: count });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  SUPPORT — Customer communication center
+  //
+  //  Customer-side: create tickets, list own tickets, reply, view thread.
+  //  Admin-side: inbox counts, list/filter tickets, reply, change status,
+  //  toggle pin/star, internal notes, mark read.
+  // ════════════════════════════════════════════════════════════════════════
+
+  // ── Customer-side routes ────────────────────────────────────────────────
+
+  app.post('/api/support/tickets', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const body = req.body as {
+      workspaceId?: string; category?: TicketCategory; subject?: string;
+      message?: string; priority?: TicketPriority;
+      linkedEntityType?: string; linkedEntityId?: string;
+      userAgent?: string; language?: string;
+    };
+    if (!body.workspaceId?.trim()) return c.json({ error: 'workspaceId is required' }, 400);
+    if (!body.category) return c.json({ error: 'category is required' }, 400);
+    if (!body.subject?.trim()) return c.json({ error: 'subject is required' }, 400);
+    if (!body.message?.trim()) return c.json({ error: 'message is required' }, 400);
+
+    const member = await checkMember(userId, body.workspaceId);
+    if (!member) return c.json({ error: 'Not a member of this workspace' }, 403);
+
+    const ticket = await createTicket(prisma, {
+      userId,
+      workspaceId: body.workspaceId,
+      category: body.category,
+      subject: body.subject,
+      message: body.message,
+      priority: body.priority,
+      linkedEntityType: body.linkedEntityType,
+      linkedEntityId: body.linkedEntityId,
+      clientInfo: { userAgent: body.userAgent, language: body.language },
+    });
+    return c.json(safeJson({ ok: true, ticket }), 201);
+  });
+
+  app.get('/api/support/tickets', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const workspaceId = c.req.query('workspaceId');
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Forbidden' }, 403);
+
+    const tickets = await customerListTickets(prisma, userId, workspaceId);
+    return c.json(safeJson({ tickets }));
+  });
+
+  app.get('/api/support/tickets/:ticketId', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+
+    const ticket = await getTicketWithMessages(prisma, ticketId, false);
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+    if (ticket.userId !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+    await markMessagesRead(prisma, ticketId, 'USER');
+    return c.json(safeJson({ ticket }));
+  });
+
+  app.post('/api/support/tickets/:ticketId/reply', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+    const body = req.body as { content?: string };
+    if (!body.content?.trim()) return c.json({ error: 'content is required' }, 400);
+
+    const ticket = await prisma.supportTicket.findUnique({
+      where: { id: ticketId }, select: { userId: true, status: true },
+    });
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+    if (ticket.userId !== userId) return c.json({ error: 'Forbidden' }, 403);
+    if (ticket.status === 'CLOSED') return c.json({ error: 'Ticket is closed' }, 400);
+
+    const msg = await replyToTicket(prisma, {
+      ticketId, senderId: userId, senderType: 'USER', content: body.content,
+    });
+    return c.json(safeJson({ ok: true, message: msg }));
+  });
+
+  // ── Admin-side support routes ───────────────────────────────────────────
+
+  app.get('/api/admin/support/counts', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const counts = await adminInboxCounts(prisma);
+    const unread = await getUnreadCount(prisma, 'ADMIN');
+    return c.json({ ...counts, unread });
+  });
+
+  app.get('/api/admin/support/tickets', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const result = await adminListTickets(prisma, {
+      status: (c.req.query('status') as TicketStatus) || 'all',
+      category: (c.req.query('category') as TicketCategory) || 'all',
+      priority: (c.req.query('priority') as TicketPriority) || 'all',
+      q: c.req.query('q') || '',
+      take: Number(c.req.query('take') ?? 50),
+      skip: Number(c.req.query('skip') ?? 0),
+    });
+    return c.json(safeJson(result));
+  });
+
+  app.get('/api/admin/support/tickets/:ticketId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+
+    const ticket = await getTicketWithMessages(prisma, ticketId, true);
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+
+    await markMessagesRead(prisma, ticketId, 'ADMIN');
+    return c.json(safeJson({ ticket }));
+  });
+
+  app.post('/api/admin/support/tickets/:ticketId/reply', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+    const body = req.body as { content?: string; isInternal?: boolean };
+    if (!body.content?.trim()) return c.json({ error: 'content is required' }, 400);
+
+    const msg = await replyToTicket(prisma, {
+      ticketId,
+      senderId: gate.userId,
+      senderType: 'ADMIN',
+      content: body.content,
+      isInternal: body.isInternal,
+    });
+    return c.json(safeJson({ ok: true, message: msg }));
+  });
+
+  app.patch('/api/admin/support/tickets/:ticketId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+    const body = req.body as { status?: TicketStatus; priority?: TicketPriority; pin?: boolean; star?: boolean };
+
+    let result: unknown = null;
+    if (body.status) result = await updateTicketStatus(prisma, ticketId, body.status, gate.userId);
+    if (body.priority) result = await updateTicketPriority(prisma, ticketId, body.priority);
+    if (body.pin !== undefined) result = await toggleTicketPin(prisma, ticketId);
+    if (body.star !== undefined) result = await toggleTicketStar(prisma, ticketId);
+
+    if (!result) return c.json({ error: 'No action taken' }, 400);
+    return c.json(safeJson({ ok: true, ticket: result }));
   });
 
   // ════════════════════════════════════════════════════════════════════════
