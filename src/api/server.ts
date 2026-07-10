@@ -1390,10 +1390,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    *
    * Irreversible: purges every workspace the user OWNS (ad accounts,
    * campaigns, ads, analytics, payment ledger, AI history) and the user
-   * row itself. Requires the caller to echo the customer's exact email in
-   * the request body as a confirmation guard against misclicks — the same
-   * "type the name to confirm" pattern used for destructive actions
-   * elsewhere (GitHub repo deletion, etc).
+   * row itself. Platform-admin only; no extra confirmation step.
    */
   app.delete('/api/admin/customers/:userId', async (c) => {
     const req = await honoToApiRequest(c);
@@ -1404,12 +1401,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
     if (!target) return c.json({ error: 'User not found' }, 404);
-
-    const body = req.body as { confirmEmail?: string };
-    const confirmEmail = (body.confirmEmail ?? '').trim().toLowerCase();
-    if (confirmEmail !== target.email.trim().toLowerCase()) {
-      return c.json({ error: 'confirmEmail must match the customer\'s email exactly', code: 'CONFIRM_MISMATCH' }, 400);
-    }
 
     try {
       const result = await deleteCustomer(prisma, userId);
