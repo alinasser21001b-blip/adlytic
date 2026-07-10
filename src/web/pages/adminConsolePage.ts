@@ -187,6 +187,7 @@ export function adminConsolePage(): string {
       <a class="nav-item" href="#create" data-tab="create">إنشاء حساب</a>
       <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
       <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
+      <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
       <div class="nav-label">أخرى</div>
       <a class="nav-item" href="/admin/observability">مراقبة المنصة</a>
       <a class="nav-item" href="/admin/meta-readiness">جاهزية Meta</a>
@@ -376,6 +377,37 @@ export function adminConsolePage(): string {
           </table>
         </div>
       </section>
+
+      <!-- Settings -->
+      <section class="panel view" id="view-settings" style="display:none;">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">إعدادات المنصة</div>
+            <div class="panel-sub">أعلام الميزات · فترات المزامنة · الحدود · التكوين</div>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-secondary btn-sm" id="btn-seed-settings">تحميل الافتراضيات</button>
+            <button class="btn btn-primary btn-sm" id="btn-add-setting">+ إعداد جديد</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div id="settings-empty" class="empty" style="display:none;">لا إعدادات بعد. اضغط "تحميل الافتراضيات" لإضافتها.</div>
+          <table class="data" id="settings-table">
+            <thead>
+              <tr>
+                <th>المفتاح</th>
+                <th>القيمة</th>
+                <th>النوع</th>
+                <th>المجموعة</th>
+                <th>الوصف</th>
+                <th>آخر تعديل</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="settings-tbody"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
   </div>
 </div>
@@ -412,7 +444,7 @@ export function adminConsolePage(): string {
 
 <script>
 (function () {
-  var state = { customers: [], subscriptions: [], events: [], overview: null, detail: null, deleteTarget: null };
+  var state = { customers: [], subscriptions: [], events: [], settings: [], overview: null, detail: null, deleteTarget: null };
 
   function token() { try { return localStorage.getItem('adlytic_token'); } catch (e) { return null; } }
   function logout() {
@@ -485,6 +517,7 @@ export function adminConsolePage(): string {
       create: ['view-create', 'إنشاء حساب زبون'],
       subscriptions: ['view-subscriptions', 'الاشتراكات'],
       ledger: ['view-ledger', 'سجل المدفوعات'],
+      settings: ['view-settings', 'إعدادات المنصة'],
     };
     var conf = map[name] || map.customers;
     document.getElementById(conf[0]).style.display = '';
@@ -575,6 +608,7 @@ export function adminConsolePage(): string {
         + '<td class="muted">' + esc(fmtShort(w.subscriptionExpiresAt)) + '</td>'
         + '<td><div class="actions">'
         +   '<button class="btn btn-success btn-sm" data-grant="' + esc(w.id) + '">' + (w.subscriptionStatus === 'ACTIVE' ? 'تجديد' : 'تفعيل') + ' Premium</button>'
+        +   (w.subscriptionStatus === 'ACTIVE' ? '<button class="btn btn-secondary btn-sm" data-extend="' + esc(w.id) + '">تمديد</button>' : '')
         +   '<button class="btn btn-danger btn-sm" data-cancel="' + esc(w.id) + '">إلغاء</button>'
         + '</div></td>'
         + '</tr>';
@@ -611,6 +645,7 @@ export function adminConsolePage(): string {
           + '<div class="muted">الحالة: ' + esc(w.subscriptionStatus) + ' · طريقة الدفع: ' + esc(payMethodLabel(w.paymentMethod)) + ' · ينتهي: ' + esc(fmtShort(w.subscriptionExpiresAt)) + '</div>'
           + '<div class="actions" style="margin-top:8px;">'
           +   '<button class="btn btn-success btn-sm" data-grant="' + esc(w.id) + '">' + (w.subscriptionStatus === 'ACTIVE' ? 'تجديد' : 'تفعيل') + ' Premium</button>'
+          +   (w.subscriptionStatus === 'ACTIVE' ? '<button class="btn btn-secondary btn-sm" data-extend="' + esc(w.id) + '">تمديد</button>' : '')
           +   '<button class="btn btn-danger btn-sm" data-cancel="' + esc(w.id) + '">إلغاء الاشتراك</button>'
           + '</div>'
           + ((w.adAccounts || []).length
@@ -753,6 +788,128 @@ export function adminConsolePage(): string {
     if (state.detail) openDetail(state.detail.user.id);
   }
 
+  async function extendSub(workspaceId) {
+    var days = prompt('تمديد لكم يوم إضافي؟', '30');
+    if (!days) return;
+    var n = Math.max(1, Math.min(730, Number(days) || 30));
+    var newExpiresAt = new Date(Date.now() + n * 864e5).toISOString();
+    var note = prompt('ملاحظة (اختياري):', 'تمديد يدوي من لوحة المالك') || '';
+    await api('/api/admin/subscriptions/extend', {
+      method: 'POST',
+      body: { workspaceId: workspaceId, newExpiresAt: newExpiresAt, note: note },
+    });
+    toast('تم تمديد الاشتراك', 'ok');
+    await loadAll();
+    if (state.detail) openDetail(state.detail.user.id);
+  }
+
+  function renderSettings(rows) {
+    var tbody = document.getElementById('settings-tbody');
+    var empty = document.getElementById('settings-empty');
+    var table = document.getElementById('settings-table');
+    if (!rows || !rows.length) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      table.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    table.style.display = '';
+    tbody.innerHTML = rows.map(function (s) {
+      var valDisplay = s.value;
+      if (s.valueType === 'boolean') valDisplay = s.value === 'true' ? 'مُفعّل' : 'مُعطّل';
+      var valBadge = s.valueType === 'boolean'
+        ? (s.value === 'true' ? '<span class="badge badge-ok">' + esc(valDisplay) + '</span>' : '<span class="badge badge-err">' + esc(valDisplay) + '</span>')
+        : '<span style="font-weight:700;">' + esc(valDisplay) + '</span>';
+      return '<tr>'
+        + '<td><div style="font-weight:700;font-size:12px;font-family:monospace;direction:ltr;text-align:left;">' + esc(s.key) + '</div>'
+        + (s.label ? '<div class="muted">' + esc(s.label) + '</div>' : '') + '</td>'
+        + '<td>' + valBadge + '</td>'
+        + '<td class="muted">' + esc(s.valueType) + '</td>'
+        + '<td class="muted">' + esc(s.group) + '</td>'
+        + '<td class="muted" style="max-width:200px;">' + esc(s.description || '—') + '</td>'
+        + '<td class="muted">' + esc(fmtDate(s.updatedAt)) + '</td>'
+        + '<td><div class="actions">'
+        +   '<button class="btn btn-secondary btn-sm" data-edit-setting="' + esc(s.key) + '">تعديل</button>'
+        +   '<button class="btn btn-danger btn-sm" data-del-setting="' + esc(s.key) + '">حذف</button>'
+        + '</div></td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  async function loadSettings() {
+    try {
+      var data = await api('/api/admin/settings');
+      state.settings = data.settings || [];
+      renderSettings(state.settings);
+    } catch (e) {
+      toast(e.message || 'فشل تحميل الإعدادات', 'err');
+    }
+  }
+
+  async function editSetting(key) {
+    var existing = state.settings.find(function (s) { return s.key === key; });
+    var val = existing ? existing.value : '';
+    var newVal;
+    if (existing && existing.valueType === 'boolean') {
+      newVal = val === 'true' ? 'false' : 'true';
+    } else {
+      newVal = prompt('القيمة الجديدة لـ ' + key + ':', val);
+      if (newVal === null) return;
+    }
+    try {
+      await api('/api/admin/settings/' + encodeURIComponent(key), {
+        method: 'PUT',
+        body: { value: newVal },
+      });
+      toast('تم تحديث ' + key, 'ok');
+      await loadSettings();
+    } catch (e) {
+      toast(e.message || 'فشل التحديث', 'err');
+    }
+  }
+
+  async function addSetting() {
+    var key = prompt('مفتاح الإعداد (مثل: features.myFlag):');
+    if (!key) return;
+    var val = prompt('القيمة:', '');
+    if (val === null) return;
+    var vt = prompt('النوع (string / number / boolean):', 'string') || 'string';
+    var group = prompt('المجموعة (features / sync / limits / general):', 'general') || 'general';
+    var label = prompt('العنوان (اختياري):', '') || undefined;
+    try {
+      await api('/api/admin/settings/' + encodeURIComponent(key), {
+        method: 'PUT',
+        body: { value: val, valueType: vt, group: group, label: label },
+      });
+      toast('تم إضافة الإعداد', 'ok');
+      await loadSettings();
+    } catch (e) {
+      toast(e.message || 'فشل الإضافة', 'err');
+    }
+  }
+
+  async function delSetting(key) {
+    if (!confirm('حذف الإعداد ' + key + '؟')) return;
+    try {
+      await api('/api/admin/settings/' + encodeURIComponent(key), { method: 'DELETE' });
+      toast('تم حذف الإعداد', 'ok');
+      await loadSettings();
+    } catch (e) {
+      toast(e.message || 'فشل الحذف', 'err');
+    }
+  }
+
+  async function seedSettings() {
+    try {
+      var res = await api('/api/admin/settings/seed', { method: 'POST' });
+      toast('تم تحميل ' + (res.seeded || 0) + ' إعداد افتراضي', 'ok');
+      await loadSettings();
+    } catch (e) {
+      toast(e.message || 'فشل التحميل', 'err');
+    }
+  }
+
   function openDeleteModal(userId, email) {
     state.deleteTarget = { userId: userId, email: email };
     document.getElementById('delete-modal-text').textContent =
@@ -825,7 +982,7 @@ export function adminConsolePage(): string {
   });
 
   document.body.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-open],[data-activate],[data-deactivate],[data-grant],[data-cancel],[data-delete]');
+    var t = e.target.closest('[data-open],[data-activate],[data-deactivate],[data-grant],[data-cancel],[data-delete],[data-extend],[data-edit-setting],[data-del-setting]');
     if (!t) return;
     var openId = t.getAttribute('data-open');
     var act = t.getAttribute('data-activate');
@@ -833,11 +990,17 @@ export function adminConsolePage(): string {
     var grant = t.getAttribute('data-grant');
     var cancel = t.getAttribute('data-cancel');
     var del = t.getAttribute('data-delete');
+    var ext = t.getAttribute('data-extend');
+    var editSet = t.getAttribute('data-edit-setting');
+    var delSet = t.getAttribute('data-del-setting');
     if (openId) openDetail(openId);
     else if (act) activateUser(act).catch(function (err) { toast(err.message, 'err'); });
     else if (deact) deactivateUser(deact).catch(function (err) { toast(err.message, 'err'); });
     else if (grant) grantPremium(grant).catch(function (err) { toast(err.message, 'err'); });
     else if (cancel) cancelSub(cancel).catch(function (err) { toast(err.message, 'err'); });
+    else if (ext) extendSub(ext).catch(function (err) { toast(err.message, 'err'); });
+    else if (editSet) editSetting(editSet).catch(function (err) { toast(err.message, 'err'); });
+    else if (delSet) delSetting(delSet).catch(function (err) { toast(err.message, 'err'); });
     else if (del) openDeleteModal(del, t.getAttribute('data-delete-email') || '');
   });
 
@@ -903,9 +1066,13 @@ export function adminConsolePage(): string {
     }
   });
 
+  document.getElementById('btn-seed-settings').addEventListener('click', function () { seedSettings(); });
+  document.getElementById('btn-add-setting').addEventListener('click', function () { addSetting(); });
+
   if (!token()) { window.location.href = '/login'; return; }
   showView('customers');
   loadAll();
+  loadSettings();
 })();
 </script>
 </body>

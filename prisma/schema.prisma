@@ -675,6 +675,29 @@ model CampaignBrainSnapshot {
   @@map("campaign_brain_snapshots")
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  PlatformSetting — key/value runtime configuration store
+//
+//  Holds feature flags, sync intervals, rate limits, and any other
+//  server-side configuration that a platform admin should be able to
+//  change at runtime without a redeploy. Each row is a typed key/value
+//  pair with optional description. The `group` column enables grouping
+//  in the admin UI (e.g. "sync", "limits", "features").
+// ════════════════════════════════════════════════════════════════════════
+model PlatformSetting {
+  key         String   @id
+  value       String
+  valueType   String   @default("string") @map("value_type")
+  group       String   @default("general")
+  label       String?
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedBy   String?  @map("updated_by")
+
+  @@index([group])
+  @@map("platform_settings")
+}
+
 enum Platform {
   META
 }

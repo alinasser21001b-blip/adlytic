@@ -146,6 +146,47 @@ export async function cancelManual(
   });
 }
 
+// ── Extend / renew subscription (admin console) ───────────────────────
+
+export interface ExtendSubscriptionInput {
+  workspaceId: string;
+  newExpiresAt: Date;
+  note?: string;
+  amountMinor?: bigint;
+  currency?: string;
+  triggeredBy: string;
+}
+
+export async function extendSubscription(
+  prisma: PrismaClient,
+  input: ExtendSubscriptionInput,
+): Promise<ApplyResult> {
+  return prisma.$transaction(async (tx) => {
+    const ws = await tx.workspace.update({
+      where: { id: input.workspaceId },
+      data: {
+        subscriptionStatus: 'ACTIVE',
+        subscriptionExpiresAt: input.newExpiresAt,
+      },
+      select: { id: true, tier: true, subscriptionStatus: true },
+    });
+    await tx.paymentEvent.create({
+      data: {
+        workspaceId: ws.id,
+        eventType: 'RENEWED',
+        source: 'WHATSAPP_MANUAL',
+        tierAfter: ws.tier,
+        note: input.note ?? 'Extended by platform admin',
+        externalRef: null,
+        amountMinor: input.amountMinor ?? null,
+        currency: input.currency ?? null,
+        triggeredBy: input.triggeredBy,
+      },
+    });
+    return { ok: true, workspaceId: ws.id, status: ws.subscriptionStatus, tier: ws.tier };
+  });
+}
+
 // ── Stripe webhook router ───────────────────────────────────────────────
 
 /**

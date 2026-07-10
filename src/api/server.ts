@@ -52,7 +52,7 @@ import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatfor
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
-import { handleStripeWebhookEvent, activateManual, cancelManual } from '../services/subscriptionService';
+import { handleStripeWebhookEvent, activateManual, cancelManual, extendSubscription } from '../services/subscriptionService';
 import {
   createCustomer,
   listCustomers,
@@ -71,6 +71,7 @@ import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { adminConsolePage } from '../web/pages/adminConsolePage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
+import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
@@ -1464,6 +1465,148 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       triggeredBy: gate.userId,
     });
     return c.json(result);
+  });
+
+  /**
+   * POST /api/admin/subscriptions/activate-manual — grant Premium to a workspace.
+   */
+  app.post('/api/admin/subscriptions/activate-manual', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as {
+      workspaceId?: string;
+      tier?: string;
+      expiresAt?: string;
+      note?: string;
+      externalRef?: string;
+      amountMinor?: number;
+      currency?: string;
+    };
+    const workspaceId = body.workspaceId?.trim();
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+    const exists = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+    if (!exists) return c.json({ error: 'Workspace not found' }, 404);
+
+    const expiresAt = body.expiresAt ? new Date(body.expiresAt) : new Date(Date.now() + 30 * 864e5);
+    if (isNaN(expiresAt.getTime())) return c.json({ error: 'Invalid expiresAt date' }, 400);
+
+    const result = await activateManual(prisma, {
+      workspaceId,
+      tier: 'PREMIUM',
+      expiresAt,
+      note: body.note,
+      externalRef: body.externalRef,
+      amountMinor: body.amountMinor != null ? BigInt(body.amountMinor) : undefined,
+      currency: body.currency,
+      triggeredBy: gate.userId,
+    });
+    return c.json(result);
+  });
+
+  /**
+   * POST /api/admin/subscriptions/extend — push expiry forward on an active subscription.
+   */
+  app.post('/api/admin/subscriptions/extend', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as {
+      workspaceId?: string;
+      newExpiresAt?: string;
+      note?: string;
+      amountMinor?: number;
+      currency?: string;
+    };
+    const workspaceId = body.workspaceId?.trim();
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+
+    const ws = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { id: true, tier: true, subscriptionStatus: true },
+    });
+    if (!ws) return c.json({ error: 'Workspace not found' }, 404);
+
+    const newExpiresAt = body.newExpiresAt ? new Date(body.newExpiresAt) : null;
+    if (!newExpiresAt || isNaN(newExpiresAt.getTime())) {
+      return c.json({ error: 'newExpiresAt is required (ISO date string)' }, 400);
+    }
+    if (newExpiresAt <= new Date()) {
+      return c.json({ error: 'newExpiresAt must be in the future' }, 400);
+    }
+
+    const result = await extendSubscription(prisma, {
+      workspaceId,
+      newExpiresAt,
+      note: body.note,
+      amountMinor: body.amountMinor != null ? BigInt(body.amountMinor) : undefined,
+      currency: body.currency,
+      triggeredBy: gate.userId,
+    });
+    return c.json(result);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  PLATFORM SETTINGS — runtime config CRUD for feature flags, sync
+  //  intervals, rate limits, and other server-side parameters.
+  // ════════════════════════════════════════════════════════════════════════
+
+  app.get('/api/admin/settings', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const group = c.req.query('group') || undefined;
+    const settings = await listSettings(prisma, group);
+    return c.json(safeJson({ settings, defaults: SETTING_DEFAULTS }));
+  });
+
+  app.get('/api/admin/settings/:key', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const key = req.params['key'];
+    if (!key) return c.json({ error: 'Missing key' }, 400);
+    const value = await getSetting(prisma, key);
+    if (value === null) return c.json({ error: 'Setting not found' }, 404);
+    return c.json({ key, value });
+  });
+
+  app.put('/api/admin/settings/:key', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const key = req.params['key'];
+    if (!key) return c.json({ error: 'Missing key' }, 400);
+    const body = req.body as { value?: string; label?: string; description?: string; group?: string; valueType?: string };
+    if (body.value == null) return c.json({ error: 'value is required' }, 400);
+    const setting = await upsertSetting(prisma, key, String(body.value), gate.userId, {
+      label: body.label,
+      description: body.description,
+      group: body.group,
+      valueType: body.valueType,
+    });
+    return c.json(safeJson({ ok: true, setting }));
+  });
+
+  app.delete('/api/admin/settings/:key', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const key = req.params['key'];
+    if (!key) return c.json({ error: 'Missing key' }, 400);
+    const ok = await deleteSetting(prisma, key);
+    if (!ok) return c.json({ error: 'Setting not found' }, 404);
+    return c.json({ ok: true });
+  });
+
+  app.post('/api/admin/settings/seed', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const count = await seedDefaults(prisma, gate.userId);
+    return c.json({ ok: true, seeded: count });
   });
 
   // ════════════════════════════════════════════════════════════════════════
