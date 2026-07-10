@@ -177,6 +177,8 @@ export function adminConsolePage(): string {
       <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
       <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
       <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
+      <div class="nav-label">التواصل</div>
+      <a class="nav-item" href="/admin/inbox">صندوق بريد العملاء</a>
       <div class="nav-label">أخرى</div>
       <a class="nav-item" href="/admin/observability">مراقبة المنصة</a>
       <a class="nav-item" href="/admin/meta-readiness">جاهزية Meta</a>
