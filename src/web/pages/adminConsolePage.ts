@@ -171,17 +171,19 @@ export function adminConsolePage(): string {
       <div class="logo-sub">لوحة المالك · إدارة المنصة</div>
     </div>
     <nav class="nav">
-      <div class="nav-label">الإدارة</div>
-      <a class="nav-item active" href="#customers" data-tab="customers">الزبائن</a>
+      <div class="nav-label">📊 النظرة العامة</div>
+      <a class="nav-item active" href="#overview" data-tab="overview">لوحة الحالة</a>
+      <div class="nav-label">⚙️ العمليات</div>
+      <a class="nav-item" href="#customers" data-tab="customers">الزبائن</a>
       <a class="nav-item" href="#create" data-tab="create">إنشاء حساب</a>
       <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
       <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
-      <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
-      <div class="nav-label">التواصل</div>
       <a class="nav-item" href="/admin/inbox">صندوق بريد العملاء</a>
-      <div class="nav-label">أخرى</div>
+      <div class="nav-label">🔧 البنية التحتية</div>
       <a class="nav-item" href="/admin/observability">مراقبة المنصة</a>
       <a class="nav-item" href="/admin/meta-readiness">جاهزية Meta</a>
+      <div class="nav-label">🎛️ الإعدادات والتحكم</div>
+      <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
       <a class="nav-item" href="/dashboard">لوحة التحكم</a>
     </nav>
     <div class="nav-foot">
@@ -192,7 +194,7 @@ export function adminConsolePage(): string {
 
   <div class="main">
     <header class="topbar">
-      <h1 id="page-heading">إدارة الزبائن</h1>
+      <h1 id="page-heading">النظرة العامة</h1>
       <div class="topbar-actions">
         <button class="btn btn-secondary btn-sm" id="btn-refresh">تحديث</button>
         <button class="btn btn-primary btn-sm" id="btn-open-create">+ زبون جديد</button>
@@ -202,12 +204,45 @@ export function adminConsolePage(): string {
     <main class="content">
       <div id="gate-error" class="error-box" style="display:none;"></div>
 
-      <div class="kpi-grid" id="kpi-grid">
-        <div class="kpi"><div class="kpi-label">إجمالي الزبائن</div><div class="kpi-value" id="kpi-users">—</div></div>
-        <div class="kpi"><div class="kpi-label">نشطون</div><div class="kpi-value" id="kpi-active">—</div></div>
-        <div class="kpi"><div class="kpi-label">بانتظار التفعيل</div><div class="kpi-value" id="kpi-pending">—</div></div>
-        <div class="kpi"><div class="kpi-label">اشتراكات Premium</div><div class="kpi-value gold" id="kpi-premium">—</div></div>
-      </div>
+      <!-- Overview -->
+      <section class="panel view" id="view-overview">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">النظرة العامة</div>
+            <div class="panel-sub">حالة المنصة · المؤشرات الرئيسية · النشاط الحي · التنبيهات</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="kpi-grid" id="kpi-grid">
+            <div class="kpi"><div class="kpi-label">إجمالي الزبائن</div><div class="kpi-value" id="kpi-users">—</div></div>
+            <div class="kpi"><div class="kpi-label">نشطون</div><div class="kpi-value" id="kpi-active">—</div></div>
+            <div class="kpi"><div class="kpi-label">بانتظار التفعيل</div><div class="kpi-value" id="kpi-pending">—</div></div>
+            <div class="kpi"><div class="kpi-label">اشتراكات Premium</div><div class="kpi-value gold" id="kpi-premium">—</div></div>
+          </div>
+
+          <div class="kpi-grid" id="kpi-grid-2" style="margin-top:16px;">
+            <div class="kpi"><div class="kpi-label">مساحات العمل</div><div class="kpi-value" id="kpi-workspaces">—</div></div>
+            <div class="kpi"><div class="kpi-label">المزامنة (7 أيام)</div><div class="kpi-value" id="kpi-syncs">—</div></div>
+            <div class="kpi"><div class="kpi-label">محادثات AI (7 أيام)</div><div class="kpi-value" id="kpi-ai">—</div></div>
+            <div class="kpi"><div class="kpi-label">أحداث الدفع (7 أيام)</div><div class="kpi-value" id="kpi-payments">—</div></div>
+          </div>
+
+          <div style="margin-top:20px;">
+            <div class="panel-title" style="font-size:14px;margin-bottom:12px;">الدعم الفني</div>
+            <div class="kpi-grid" id="kpi-support">
+              <div class="kpi"><div class="kpi-label">تحتاج رد</div><div class="kpi-value" id="kpi-support-open" style="color:var(--error);">—</div></div>
+              <div class="kpi"><div class="kpi-label">بانتظار العميل</div><div class="kpi-value" id="kpi-support-awaiting" style="color:var(--accent);">—</div></div>
+              <div class="kpi"><div class="kpi-label">عاجل</div><div class="kpi-value" id="kpi-support-urgent" style="color:var(--error);">—</div></div>
+              <div class="kpi"><div class="kpi-label">تم الحل</div><div class="kpi-value" id="kpi-support-resolved">—</div></div>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;">
+            <div class="panel-title" style="font-size:14px;margin-bottom:12px;">تنبيهات مهمة</div>
+            <div id="overview-alerts" style="color:var(--text-2);font-size:13px;">جاري التحميل...</div>
+          </div>
+        </div>
+      </section>
 
       <!-- Customers -->
       <section class="panel view" id="view-customers">
@@ -489,13 +524,15 @@ export function adminConsolePage(): string {
       el.classList.toggle('active', el.getAttribute('data-tab') === name);
     });
     var map = {
+      overview: ['view-overview', 'النظرة العامة'],
       customers: ['view-customers', 'إدارة الزبائن'],
       create: ['view-create', 'إنشاء حساب زبون'],
       subscriptions: ['view-subscriptions', 'الاشتراكات'],
       ledger: ['view-ledger', 'سجل المدفوعات'],
       settings: ['view-settings', 'إعدادات المنصة'],
     };
-    var conf = map[name] || map.customers;
+    var conf = map[name] || map.overview;
+    if (name === 'overview') loadOverviewData();
     document.getElementById(conf[0]).style.display = '';
     document.getElementById('page-heading').textContent = conf[1];
   }
@@ -521,6 +558,40 @@ export function adminConsolePage(): string {
     document.getElementById('kpi-active').textContent = o.usersActive;
     document.getElementById('kpi-pending').textContent = o.usersPending;
     document.getElementById('kpi-premium').textContent = o.premiumActive;
+    var ws = document.getElementById('kpi-workspaces');
+    if (ws) ws.textContent = o.workspacesTotal || '—';
+    var sy = document.getElementById('kpi-syncs');
+    if (sy) sy.textContent = o.syncs7d || '—';
+    var ai = document.getElementById('kpi-ai');
+    if (ai) ai.textContent = o.aiConvos7d || '—';
+    var pay = document.getElementById('kpi-payments');
+    if (pay) pay.textContent = o.paymentEvents7d || '—';
+  }
+
+  async function loadOverviewData() {
+    try {
+      var counts = await api('/api/admin/support/counts');
+      if (counts) {
+        var el = function(id) { return document.getElementById(id); };
+        if (el('kpi-support-open')) el('kpi-support-open').textContent = counts.open || 0;
+        if (el('kpi-support-awaiting')) el('kpi-support-awaiting').textContent = counts.awaiting || 0;
+        if (el('kpi-support-urgent')) el('kpi-support-urgent').textContent = counts.urgent || 0;
+        if (el('kpi-support-resolved')) el('kpi-support-resolved').textContent = counts.resolved || 0;
+      }
+
+      var alerts = [];
+      if (counts && counts.urgent > 0) alerts.push('⚠️ ' + counts.urgent + ' طلبات دعم عاجلة تحتاج ردّ فوري');
+      if (counts && counts.open > 5) alerts.push('📬 ' + counts.open + ' طلبات مفتوحة في صندوق البريد');
+      if (state.overview) {
+        if (state.overview.usersPending > 0) alerts.push('👤 ' + state.overview.usersPending + ' حسابات بانتظار التفعيل');
+      }
+      var alertsEl = document.getElementById('overview-alerts');
+      if (alertsEl) {
+        alertsEl.innerHTML = alerts.length
+          ? alerts.map(function(a) { return '<div style="padding:6px 0;border-bottom:1px solid var(--border);">' + esc(a) + '</div>'; }).join('')
+          : '<div style="color:var(--success);">✓ لا توجد تنبيهات — كل شيء يعمل بشكل طبيعي</div>';
+      }
+    } catch (e) { /* silent */ }
   }
 
   function renderCustomers(rows) {
@@ -1009,7 +1080,7 @@ export function adminConsolePage(): string {
   document.getElementById('btn-add-setting').addEventListener('click', function () { addSetting(); });
 
   if (!token()) { window.location.href = '/login'; return; }
-  showView('customers');
+  showView('overview');
   loadAll();
   loadSettings();
 })();
