@@ -71,6 +71,7 @@ import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { adminConsolePage } from '../web/pages/adminConsolePage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
+import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
 import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
 import {
@@ -492,6 +493,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/workspace',      (c) => c.html(workspacePage()));
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
+  app.get('/support',        (c) => c.html(supportPage()));
   app.get('/admin',          (c) => c.html(adminConsolePage()));
   app.get('/admin/inbox',    (c) => c.html(adminInboxPage()));
   app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
