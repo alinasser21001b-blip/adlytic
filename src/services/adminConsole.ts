@@ -6,7 +6,7 @@
 //  All mutations are intended for requirePlatformAdmin routes only.
 // ════════════════════════════════════════════════════════════════════════
 
-import type { PrismaClient, Locale, SubscriptionTier } from '@prisma/client';
+import { EntityType, type PrismaClient, type Locale, type SubscriptionTier } from '@prisma/client';
 import { hashPassword } from './jwtAuth';
 import { activateManual } from './subscriptionService';
 
@@ -401,6 +401,79 @@ export async function adminResetPassword(
     },
     select: { id: true, email: true, name: true },
   });
+}
+
+export interface DeleteCustomerResult {
+  deletedUserId: string;
+  deletedWorkspaces: number;
+}
+
+/**
+ * Permanently deletes a customer: purges every workspace they OWN (their
+ * ad accounts, campaigns, ads, creatives, connections, payment ledger, AI
+ * conversations, and the analytics tables that key on entityId rather than
+ * a real FK) and then the User row itself, whose cascade removes any
+ * remaining memberships in workspaces they don't own.
+ *
+ * Mirrors the GDPR-cleanup pattern used by the ad-account disconnect route:
+ * RawInsight/DailyStat/BreakdownStat/MetricTrend/DetectedIssue/Recommendation/
+ * HealthScore and CampaignBrainSnapshot store entityId/workspaceId as plain
+ * strings (no FK), so Prisma's relation cascade never reaches them — they
+ * must be purged explicitly before the workspace row goes away.
+ */
+export async function deleteCustomer(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<DeleteCustomerResult> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      memberships: { where: { role: 'OWNER' }, select: { workspaceId: true } },
+    },
+  });
+  if (!user) throw new Error('USER_NOT_FOUND');
+
+  const ownedWorkspaceIds = user.memberships.map((m) => m.workspaceId);
+
+  if (ownedWorkspaceIds.length > 0) {
+    const [adAccounts, campaigns] = await Promise.all([
+      prisma.adAccount.findMany({ where: { workspaceId: { in: ownedWorkspaceIds } }, select: { id: true } }),
+      prisma.campaign.findMany({ where: { adAccount: { workspaceId: { in: ownedWorkspaceIds } } }, select: { id: true } }),
+    ]);
+    const adAccountIds = adAccounts.map((a) => a.id);
+    const campaignIds = campaigns.map((c) => c.id);
+
+    await prisma.$transaction([
+      ...(adAccountIds.length ? [
+        prisma.rawInsight.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
+        prisma.dailyStat.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
+        prisma.breakdownStat.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
+        prisma.metricTrend.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
+        prisma.detectedIssue.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
+        prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
+        prisma.healthScore.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
+      ] : []),
+      ...(campaignIds.length ? [
+        prisma.rawInsight.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+        prisma.dailyStat.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+        prisma.breakdownStat.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+        prisma.metricTrend.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+        prisma.detectedIssue.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+        prisma.recommendation.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+        prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
+      ] : []),
+      prisma.campaignBrainSnapshot.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      // Cascades AdAccount→Campaign→AdSet→Ad→AdCreative, WorkspaceMember,
+      // MetaConnection, PaymentEvent, RecommendationExecution, AiConversation.
+      prisma.workspace.deleteMany({ where: { id: { in: ownedWorkspaceIds } } }),
+    ]);
+  }
+
+  // Cascades any remaining memberships in workspaces this user doesn't own.
+  await prisma.user.delete({ where: { id: userId } });
+
+  return { deletedUserId: userId, deletedWorkspaces: ownedWorkspaceIds.length };
 }
 
 export async function listSubscriptions(prisma: PrismaClient, take = 100) {

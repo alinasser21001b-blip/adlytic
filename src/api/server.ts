@@ -60,6 +60,7 @@ import {
   updateCustomerUser,
   setCustomerActive,
   adminResetPassword,
+  deleteCustomer,
   listSubscriptions,
   listRecentPaymentEvents,
   adminOverview,
@@ -1380,6 +1381,42 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         return c.json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل', code }, 400);
       }
       return c.json({ error: 'تعذّر إعادة تعيين كلمة المرور', code }, 400);
+    }
+  });
+
+  /**
+   * DELETE /api/admin/customers/:userId — permanently delete a customer.
+   *
+   * Irreversible: purges every workspace the user OWNS (ad accounts,
+   * campaigns, ads, analytics, payment ledger, AI history) and the user
+   * row itself. Requires the caller to echo the customer's exact email in
+   * the request body as a confirmation guard against misclicks — the same
+   * "type the name to confirm" pattern used for destructive actions
+   * elsewhere (GitHub repo deletion, etc).
+   */
+  app.delete('/api/admin/customers/:userId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+
+    const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+    if (!target) return c.json({ error: 'User not found' }, 404);
+
+    const body = req.body as { confirmEmail?: string };
+    const confirmEmail = (body.confirmEmail ?? '').trim().toLowerCase();
+    if (confirmEmail !== target.email.trim().toLowerCase()) {
+      return c.json({ error: 'confirmEmail must match the customer\'s email exactly', code: 'CONFIRM_MISMATCH' }, 400);
+    }
+
+    try {
+      const result = await deleteCustomer(prisma, userId);
+      return c.json(safeJson({ ok: true, ...result }));
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'DELETE_FAILED';
+      if (code === 'USER_NOT_FOUND') return c.json({ error: 'User not found', code }, 404);
+      return c.json({ error: 'تعذّر حذف الحساب', code }, 500);
     }
   });
 
