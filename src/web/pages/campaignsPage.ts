@@ -890,7 +890,7 @@ export function campaignsPage(): string {
     return name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0, 2);
   }
   function escHtml(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
   // escHtml + quote escaping — safe for use inside double-quoted HTML attributes
   // (e.g. an <img src="..."> built from a Meta CDN URL).
@@ -902,8 +902,8 @@ export function campaignsPage(): string {
   function getWorkspaceId() { return localStorage.getItem('adlytic_workspace_id'); }
   function setWorkspaceId(id) { localStorage.setItem('adlytic_workspace_id', id); }
   function logout() {
-    localStorage.removeItem('adlytic_token');
-    localStorage.removeItem('adlytic_workspace_id');
+    if (typeof clearClientIdentity === 'function') { clearClientIdentity(); }
+    else { localStorage.removeItem('adlytic_token'); localStorage.removeItem('adlytic_workspace_id'); }
     window.location.href = '/login';
   }
 

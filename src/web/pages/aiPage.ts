@@ -193,7 +193,7 @@ export function aiPage(): string {
 
   const scripts = `<script>
 (async () => {
-  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   const token = localStorage.getItem('adlytic_token');
   if (!token) { window.location.href = '/login'; return; }
   if (!(await ensureAccountActive())) return;

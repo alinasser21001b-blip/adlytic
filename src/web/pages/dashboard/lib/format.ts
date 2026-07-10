@@ -9,7 +9,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 export const formatHelpersJs = `
-  function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function fmtNum(n, d) {
     if (n == null || isNaN(n)) return '—';
     if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';

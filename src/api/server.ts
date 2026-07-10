@@ -229,6 +229,8 @@ const _loginRateMap    = new Map<string, RateEntry>(); // 10 req / 15 min per IP
 const _registerRateMap = new Map<string, RateEntry>(); // 5 req  / 60 min per IP
 const _passwordRateMap = new Map<string, RateEntry>(); // 5 req  / 15 min per user
 const _aiRateMap       = new Map<string, RateEntry>(); // LLM endpoints per user
+const _supportRateMap  = new Map<string, RateEntry>(); // 10 tickets / 60 min per user
+const _syncRateMap     = new Map<string, RateEntry>(); // 3 syncs / 15 min per workspace
 
 function checkRateLimit(
   map: Map<string, RateEntry>,
@@ -764,7 +766,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const body = await c.req.json() as { email?: string; password?: string; name?: string };
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
     if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    if (body.password.length > 128) return c.json({ error: 'Password too long' }, 400);
     const email = body.email.toLowerCase().trim();
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return c.json({ error: 'Invalid email address' }, 400);
+    }
+    if (body.name && body.name.length > 100) return c.json({ error: 'Name too long (max 100 chars)' }, 400);
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return c.json({ error: 'Email already in use' }, 409);
     const passwordHash = await hashPassword(body.password);
@@ -790,6 +797,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     const body = await c.req.json() as { email?: string; password?: string };
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
+    if (body.password.length > 128) return c.json({ error: 'Invalid credentials' }, 401);
     const email = body.email.toLowerCase().trim();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -1625,6 +1633,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!checkRateLimit(_supportRateMap, userId, 10, 60 * 60_000)) {
+      return c.json({ error: 'Too many tickets created. Please try again later.' }, 429);
+    }
 
     const body = req.body as {
       workspaceId?: string; category?: TicketCategory; subject?: string;
@@ -1636,6 +1647,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!body.category) return c.json({ error: 'category is required' }, 400);
     if (!body.subject?.trim()) return c.json({ error: 'subject is required' }, 400);
     if (!body.message?.trim()) return c.json({ error: 'message is required' }, 400);
+    if (body.subject!.length > 200) return c.json({ error: 'Subject too long (max 200 chars)' }, 400);
+    if (body.message!.length > 5000) return c.json({ error: 'Message too long (max 5000 chars)' }, 400);
 
     const member = await checkMember(userId, body.workspaceId);
     if (!member) return c.json({ error: 'Not a member of this workspace' }, 403);
@@ -1644,8 +1657,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       userId,
       workspaceId: body.workspaceId,
       category: body.category,
-      subject: body.subject,
-      message: body.message,
+      subject: body.subject.slice(0, 200),
+      message: body.message.slice(0, 5000),
       priority: body.priority,
       linkedEntityType: body.linkedEntityType,
       linkedEntityId: body.linkedEntityId,
@@ -1691,11 +1704,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!checkRateLimit(_supportRateMap, 'reply:' + userId, 30, 60 * 60_000)) {
+      return c.json({ error: 'Too many messages. Please try again later.' }, 429);
+    }
 
     const ticketId = req.params['ticketId'];
     if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
     const body = req.body as { content?: string };
     if (!body.content?.trim()) return c.json({ error: 'content is required' }, 400);
+    if (body.content!.length > 5000) return c.json({ error: 'Message too long (max 5000 chars)' }, 400);
 
     const ticket = await prisma.supportTicket.findUnique({
       where: { id: ticketId }, select: { userId: true, status: true },
@@ -1705,7 +1722,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (ticket.status === 'CLOSED') return c.json({ error: 'Ticket is closed' }, 400);
 
     const msg = await replyToTicket(prisma, {
-      ticketId, senderId: userId, senderType: 'USER', content: body.content,
+      ticketId, senderId: userId, senderType: 'USER', content: body.content.slice(0, 5000),
     });
     return c.json(safeJson({ ok: true, message: msg }));
   });
@@ -3661,7 +3678,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
     const body = req.body as { message?: string };
     // Preserve original casing so metric names (CTR, CPC, CPM) survive to the LLM.
-    const message = (body.message ?? '').trim();
+    const message = (body.message ?? '').trim().slice(0, 2000);
     if (!message) return c.json({ error: 'Message is required' }, 400);
 
     // Load live data for context
@@ -4906,6 +4923,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const wsm = await checkMember(userId, req.params['workspaceId']);
     if (!wsm) return c.json({ error: 'Access denied' }, 403);
     if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions — only Owners and Managers can trigger sync' }, 403);
+    if (!checkRateLimit(_syncRateMap, req.params['workspaceId'], 3, 15 * 60_000)) {
+      return c.json({ error: 'Sync rate limited — please wait before triggering another sync.' }, 429);
+    }
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json({ error: 'No ad account found for this workspace' }, 404);
 
