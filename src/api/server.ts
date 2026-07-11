@@ -1001,6 +1001,22 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   // ════════════════════════════════════════════════════════════════════════
+  //  CLIENT ERROR REPORTING
+  // ════════════════════════════════════════════════════════════════════════
+
+  app.post('/api/client-errors', async (c) => {
+    const req = await honoToApiRequest(c);
+    const userId = req.bearerToken ? await getUserId(req.bearerToken) : null;
+    const body = req.body as { errors?: Array<{ msg?: string; src?: string; line?: number }>; url?: string } | null;
+    if (!body?.errors?.length) return c.json({ ok: true }, 200);
+    const tag = `[client-error] user=${userId ?? 'anon'} page=${body.url ?? '?'}`;
+    for (const err of body.errors.slice(0, 5)) {
+      console.warn(`${tag} ${err.msg ?? '?'} (${err.src ?? ''}:${err.line ?? 0})`);
+    }
+    return c.json({ ok: true }, 200);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
   //  HEALTH
   // ════════════════════════════════════════════════════════════════════════
 

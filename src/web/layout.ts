@@ -1500,6 +1500,26 @@ const ICONS: Record<string, string> = {
 export const SHARED_JS = `
 const API = '';
 
+(function () {
+  var _errQueue = [];
+  function _reportErr(msg, src, line) {
+    if (_errQueue.length > 5) return;
+    _errQueue.push({ msg: String(msg).slice(0, 200), src: src, line: line, ts: Date.now() });
+    if (_errQueue.length === 1) setTimeout(function () {
+      var batch = _errQueue.splice(0);
+      var t = localStorage.getItem('adlytic_token');
+      if (!t) return;
+      fetch('/api/client-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+        body: JSON.stringify({ errors: batch, url: location.pathname }),
+      }).catch(function () {});
+    }, 2000);
+  }
+  window.onerror = function (msg, src, line) { _reportErr(msg, src, line); };
+  window.onunhandledrejection = function (e) { _reportErr(e.reason && e.reason.message || String(e.reason), '', 0); };
+})();
+
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
