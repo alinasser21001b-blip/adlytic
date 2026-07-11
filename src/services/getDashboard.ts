@@ -690,7 +690,7 @@ export async function getDashboard(
     cpm: cpmWindow,
     frequency: freqAvg,
     ...(totalMsgs > 0
-      ? { cost_per_message: totalSpendMinor / totalMsgs }
+      ? { cost_per_message: totalSpendMajor / totalMsgs }
       : {}),
   };
   const kbBreaches = evaluateCampaign(kbMetrics);

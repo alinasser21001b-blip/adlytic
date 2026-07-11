@@ -165,6 +165,7 @@ export async function extendSubscription(
     const ws = await tx.workspace.update({
       where: { id: input.workspaceId },
       data: {
+        tier: 'PREMIUM',
         subscriptionStatus: 'ACTIVE',
         subscriptionExpiresAt: input.newExpiresAt,
       },
@@ -175,7 +176,7 @@ export async function extendSubscription(
         workspaceId: ws.id,
         eventType: 'RENEWED',
         source: 'WHATSAPP_MANUAL',
-        tierAfter: ws.tier,
+        tierAfter: 'PREMIUM',
         note: input.note ?? 'Extended by platform admin',
         externalRef: null,
         amountMinor: input.amountMinor ?? null,
@@ -398,16 +399,20 @@ async function handleSubscriptionUpdated(
 
   try {
     await runDedupedTx(prisma, event, async (tx) => {
+      const tierUpdate = nextStatus === 'CANCELED' ? 'FREE' as const : undefined;
       await tx.workspace.update({
         where: { id: ws.id },
-        data: { subscriptionStatus: nextStatus },
+        data: {
+          subscriptionStatus: nextStatus,
+          ...(tierUpdate ? { tier: tierUpdate } : {}),
+        },
       });
       await tx.paymentEvent.create({
         data: {
           workspaceId: ws.id,
           eventType: nextStatus === 'PAST_DUE' ? 'EXPIRED' : 'RENEWED',
           source: 'STRIPE',
-          tierAfter: ws.tier,
+          tierAfter: tierUpdate ?? ws.tier,
           externalRef: event.id,
           note: `Subscription updated → ${sub.status}`,
         },

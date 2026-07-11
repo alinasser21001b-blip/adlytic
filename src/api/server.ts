@@ -761,7 +761,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!checkRateLimit(_registerRateMap, clientIp, 5, 60 * 60_000)) {
       return c.json({ error: 'Too many registration attempts. Please try again later.' }, 429);
     }
-    const body = await c.req.json() as { email?: string; password?: string; name?: string };
+    let body: { email?: string; password?: string; name?: string };
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid request body' }, 400); }
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
     if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
     if (body.password.length > 128) return c.json({ error: 'Password too long' }, 400);
@@ -773,16 +774,23 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return c.json({ error: 'Email already in use' }, 409);
     const passwordHash = await hashPassword(body.password);
-    const user = await prisma.user.create({
-      data: { email, name: body.name ?? email.split('@')[0], passwordHash },
-    });
-    // Create a default workspace for the new user
-    const workspace = await prisma.workspace.create({
-      data: {
-        name: `${body.name ?? email.split('@')[0]}'s Workspace`,
-        members: { create: { userId: user.id, role: WorkspaceRole.OWNER } },
-      },
-    });
+    let user, workspace;
+    try {
+      user = await prisma.user.create({
+        data: { email, name: body.name ?? email.split('@')[0], passwordHash },
+      });
+      workspace = await prisma.workspace.create({
+        data: {
+          name: `${body.name ?? email.split('@')[0]}'s Workspace`,
+          members: { create: { userId: user.id, role: WorkspaceRole.OWNER } },
+        },
+      });
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') {
+        return c.json({ error: 'Email already in use' }, 409);
+      }
+      throw err;
+    }
     const token = signToken({ sub: user.id, email: user.email, ver: user.tokenVersion });
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name ?? null }, workspaceId: workspace.id }, 201);
   });
@@ -793,7 +801,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!checkRateLimit(_loginRateMap, clientIp, 10, 15 * 60_000)) {
       return c.json({ error: 'Too many login attempts. Please try again in 15 minutes.' }, 429);
     }
-    const body = await c.req.json() as { email?: string; password?: string };
+    let body: { email?: string; password?: string };
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid request body' }, 400); }
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
     if (body.password.length > 128) return c.json({ error: 'Invalid credentials' }, 401);
     const email = body.email.toLowerCase().trim();
@@ -894,6 +903,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const body = req.body as { currentPassword?: string; newPassword?: string };
     if (!body.currentPassword || !body.newPassword) return c.json({ error: 'Both passwords are required' }, 400);
     if (body.newPassword.length < 8) return c.json({ error: 'New password must be at least 8 characters' }, 400);
+    if (body.newPassword.length > 128) return c.json({ error: 'Password too long' }, 400);
+    if (body.currentPassword.length > 128) return c.json({ error: 'Password too long' }, 400);
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
     const { ok } = await verifyPassword(body.currentPassword, user.passwordHash);
@@ -2245,12 +2256,22 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!callerMs) return c.json({ error: 'Access denied' }, 403);
     if (callerMs.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { userId: string; role?: string };
+    if (!body.userId?.trim()) return c.json({ error: 'userId is required' }, 400);
     const role: WorkspaceRole =
       body.role === 'OWNER' ? WorkspaceRole.OWNER
       : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
       : WorkspaceRole.VIEWER;
+    if (role === WorkspaceRole.OWNER && callerMs.role !== 'OWNER') {
+      return c.json({ error: 'Only owners can assign the owner role' }, 403);
+    }
+    const targetUser = await prisma.user.findUnique({ where: { id: body.userId.trim() }, select: { id: true } });
+    if (!targetUser) return c.json({ error: 'User not found' }, 404);
+    const existing = await prisma.workspaceMember.findFirst({
+      where: { workspaceId: req.params['workspaceId'], userId: body.userId.trim() },
+    });
+    if (existing) return c.json({ error: 'User is already a member of this workspace' }, 409);
     const member = await prisma.workspaceMember.create({
-      data: { workspaceId: req.params['workspaceId'], userId: body.userId, role },
+      data: { workspaceId: req.params['workspaceId'], userId: body.userId.trim(), role },
       include: { user: { select: { id: true, email: true, name: true } } },
     });
     return c.json(safeJson(member), 201);
@@ -2267,16 +2288,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (callerMs.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { email: string; role?: string };
     if (!body.email?.trim()) return c.json({ error: 'Email is required' }, 400);
+    const role: WorkspaceRole =
+      body.role === 'OWNER' ? WorkspaceRole.OWNER
+      : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
+      : WorkspaceRole.VIEWER;
+    if (role === WorkspaceRole.OWNER && callerMs.role !== 'OWNER') {
+      return c.json({ error: 'Only owners can assign the owner role' }, 403);
+    }
     const user = await prisma.user.findUnique({ where: { email: body.email.toLowerCase().trim() } });
     if (!user) return c.json({ error: `No Adlytic account found for ${body.email}` }, 404);
     const existing = await prisma.workspaceMember.findFirst({
       where: { workspaceId: req.params['workspaceId'], userId: user.id },
     });
     if (existing) return c.json({ error: 'User is already a member of this workspace' }, 409);
-    const role: WorkspaceRole =
-      body.role === 'OWNER' ? WorkspaceRole.OWNER
-      : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
-      : WorkspaceRole.VIEWER;
     const member = await prisma.workspaceMember.create({
       data: { workspaceId: req.params['workspaceId'], userId: user.id, role },
       include: { user: { select: { id: true, email: true, name: true } } },
@@ -2298,6 +2322,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       body.role === 'OWNER' ? WorkspaceRole.OWNER
       : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
       : WorkspaceRole.VIEWER;
+    if (role === WorkspaceRole.OWNER && callerMembership.role !== 'OWNER') {
+      return c.json({ error: 'Only owners can assign the owner role' }, 403);
+    }
     // Verify the target memberId actually belongs to this workspace (scope check)
     const target = await prisma.workspaceMember.findFirst({
       where: { id: req.params['memberId'], workspaceId: req.params['workspaceId'] },
