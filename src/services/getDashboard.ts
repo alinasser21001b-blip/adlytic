@@ -1585,7 +1585,7 @@ async function buildBrainSection(
   workspaceId: string,
   adAccountId: string,
   currency: string,
-  currencyMinorFactor: number,
+  _currencyMinorFactor: number,
   appliedItemKeys: Set<string> = new Set(),
 ): Promise<BrainSection | null> {
   // Today @ UTC midnight, matching BrainPersistence.toUtcMidnight semantics.

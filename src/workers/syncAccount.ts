@@ -57,12 +57,6 @@ const INTER_CHUNK_DELAY_MS = 150;
 /** Parallel campaign-insight fetches. 5 balances throughput vs Meta rate limits. */
 const CAMPAIGN_CONCURRENCY = 5;
 
-function parseMetaDateTime(raw: unknown): Date | null {
-  if (raw == null || raw === "") return null;
-  const d = new Date(String(raw));
-  return Number.isFinite(d.getTime()) ? d : null;
-}
-
 function isTerminalStatus(status: EntityStatus): boolean {
   return status === EntityStatus.PAUSED || status === EntityStatus.ARCHIVED;
 }

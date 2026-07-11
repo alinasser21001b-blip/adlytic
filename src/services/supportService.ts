@@ -307,7 +307,7 @@ export async function markMessagesRead(prisma: PrismaClient, ticketId: string, r
   });
 }
 
-export async function getUnreadCount(prisma: PrismaClient, forType: 'ADMIN') {
+export async function getUnreadCount(prisma: PrismaClient, _forType: 'ADMIN') {
   return prisma.supportMessage.count({
     where: { senderType: 'USER', readAt: null, isInternal: false },
   });

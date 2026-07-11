@@ -12,7 +12,6 @@
 import {
   PrismaClient,
   EntityType,
-  EntityStatus,
   Prisma,
 } from "@prisma/client";
 import { MetaClient } from "../services/metaClient";

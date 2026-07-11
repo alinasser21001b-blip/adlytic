@@ -27,7 +27,7 @@ import type { ToolResult } from './envelope';
 import type { ToolHandler } from './dispatcher';
 import { ToolDispatcher } from './dispatcher';
 import { buildAgentToolHandlers } from './tools';
-import { handlersToAnthropicTools, type AnthropicToolDef } from './anthropicTools';
+import { handlersToAnthropicTools } from './anthropicTools';
 import { buildSystemPrompt } from './prompts';
 import { postCheckReply, buildRetryNudge } from './postcheck';
 

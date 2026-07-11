@@ -41,8 +41,8 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { EntityType, WorkspaceRole, SyncJobStatus, type Locale } from '@prisma/client';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
@@ -112,7 +112,6 @@ import { askClaude } from '../services/claudeClient';
 import { buildAiUnavailableReply } from '../services/aiOfflineReply';
 import { classifyLlmError } from '../lib/llmErrors';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
-import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
 import { recordMetaAuditEvent, listMetaAuditEvents } from '../services/metaAudit';
 import {
   getCachedWorkspaceTokenHealth,
@@ -123,14 +122,13 @@ import {
   getOAuthSession,
   deleteOAuthSession,
   pruneOAuthSessions,
-  type OAuthSession,
 } from '../services/oauthSessionStore';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWebhook';
 import { config } from '../config';
 import { enqueueOrFallback, getQueues } from '../lib/queue';
 import { kickoffInitialSync as kickoffInitialSyncImpl } from '../lib/initialSync';
-import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
+import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 import { ExecutionService } from '../services/execution.service';

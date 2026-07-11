@@ -379,7 +379,7 @@ export class AdlyticIntelligenceSystem {
     await this.upsert(adAccountId, now, healthScore, signals, issues, recs);
   }
 
-  private extractSignals(cur: DailyPoint[], prior: DailyPoint[], entityId: string): Signal[] {
+  private extractSignals(cur: DailyPoint[], prior: DailyPoint[], _entityId: string): Signal[] {
     const ctrTrend = calculateCtrTrend(cur, prior);
     const cpmTrend = calculateCpmTrend(cur, prior);
     const freqTrend = calculateFrequencyTrend(cur, prior);

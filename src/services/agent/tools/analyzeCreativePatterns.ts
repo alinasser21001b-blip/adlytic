@@ -12,7 +12,7 @@
 //  compare your own creatives against each other to find winning patterns.
 // ════════════════════════════════════════════════════════════════════════
 
-import { EntityType, type PrismaClient } from '@prisma/client';
+import { EntityType } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
@@ -336,7 +336,7 @@ export function analyzeCreativePatternsHandler(): ToolHandler<AnalyzeCreativePat
   };
 }
 
-function formatMetric(value: number, metric: Metric, factor: number): string {
+function formatMetric(value: number, metric: Metric, _factor: number): string {
   switch (metric) {
     case 'ctr': return value.toFixed(2) + '%';
     case 'cpm': return '$' + value.toFixed(2);
