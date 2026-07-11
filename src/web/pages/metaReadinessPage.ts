@@ -353,7 +353,9 @@ export function metaReadinessPage(): string {
       try { var j = await res.json(); if (j && j.error) msg = j.error; } catch (e) {}
       throw new Error(msg);
     }
-    return res.json();
+    return res.json().catch(function() {
+      throw new Error('Server returned a non-JSON response from ' + url);
+    });
   }
 
   function showError(msg) {

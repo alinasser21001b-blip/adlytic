@@ -181,7 +181,11 @@ async function apiFetch(path, opts = {}) {
     ...opts,
     headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json', ...(opts.headers||{}) },
   });
-  if (r.status === 401) { location.href = '/login'; return null; }
+  if (r.status === 401) { logout(); return null; }
+  if (r.status === 403) {
+    const err = await r.json().catch(() => ({}));
+    if (err.code === 'ACCOUNT_INACTIVE') { window.location.href = err.redirect || '/pending-activation'; return null; }
+  }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) { return { error: data.error || 'حدث خطأ في الخادم (' + r.status + ')' }; }
   return data;

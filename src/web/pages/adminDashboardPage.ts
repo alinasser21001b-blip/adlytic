@@ -318,16 +318,15 @@ export function adminDashboardPage(): string {
       'Authorization': 'Bearer ' + (token || ''),
     });
     var res = await fetch(url, Object.assign({}, opts, { headers: headers }));
-    if (res.status === 401) {
-      logout();
-      throw new Error('Unauthorized');
-    }
+    if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
     if (!res.ok) {
       var msg = 'Request failed (' + res.status + ')';
       try { var j = await res.json(); if (j && j.error) msg = j.error; } catch (e) {}
       throw new Error(msg);
     }
-    return res.json();
+    return res.json().catch(function() {
+      throw new Error('Server returned a non-JSON response from ' + url);
+    });
   }
 
   function showError(msg) {

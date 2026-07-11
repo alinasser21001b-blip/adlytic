@@ -618,27 +618,7 @@ export function dashboardPage(): string {
     }
   }
 
-  function buildIssueMarkerDataset(labels, isoDates, issueDates) {
-    if (!Array.isArray(issueDates) || !issueDates.length) return null;
-    var severityColor = { CRITICAL: '#C7382A', HIGH: '#E2604F', MEDIUM: '#C77A1F', LOW: '#746A5C' };
-    var isoToIndex = {};
-    isoDates.forEach(function (d, i) { isoToIndex[d] = i; });
-    var points = [], pointDates = [], colors = [];
-    issueDates.forEach(function (iss) {
-      var idx = isoToIndex[iss.date];
-      if (idx == null) return;
-      points.push({ x: labels[idx], y: 0 });
-      pointDates.push(iss.date);
-      colors.push(severityColor[iss.severity] || '#746A5C');
-    });
-    if (!points.length) return null;
-    return {
-      type: 'scatter', label: 'مشاكل مكتشفة', data: points,
-      pointDates: pointDates, isIssueMarkers: true,
-      backgroundColor: colors, pointRadius: 6, pointHoverRadius: 8,
-      showLine: false, order: 0,
-    };
-  }
+  // buildIssueMarkerDataset — provided by SHARED_JS (layout.ts).
   var state = {
     currency: 'USD',
     minorFactor: 100,

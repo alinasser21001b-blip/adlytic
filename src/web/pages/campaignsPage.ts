@@ -897,43 +897,10 @@ export function campaignsPage(): string {
   function escAttr(s) {
     return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+  // getToken, logout, apiFetch, sleep, pollSyncJob — provided by SHARED_JS (layout.ts).
   // creativeImgFailed / creativeImgLoaded — provided by SHARED_JS (layout.ts, C-2 CDN fallbacks).
-  function getToken() { return localStorage.getItem('adlytic_token'); }
   function getWorkspaceId() { return localStorage.getItem('adlytic_workspace_id'); }
   function setWorkspaceId(id) { localStorage.setItem('adlytic_workspace_id', id); }
-  function logout() {
-    if (typeof clearClientIdentity === 'function') { clearClientIdentity(); }
-    else { localStorage.removeItem('adlytic_token'); localStorage.removeItem('adlytic_workspace_id'); }
-    window.location.href = '/login';
-  }
-
-  async function apiFetch(path, opts) {
-    opts = opts || {};
-    var token = getToken();
-    var res = await fetch(path, {
-      method: opts.method || 'GET',
-      body: opts.body,
-      headers: Object.assign(
-        { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        opts.headers || {}
-      ),
-      signal: opts.signal,
-    });
-    if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
-    if (!res.ok) {
-      var errBody = await res.json().catch(function() { return { error: 'API error ' + res.status }; });
-      var err = new Error(errBody.error || ('API error ' + res.status + ' on ' + path));
-      if (errBody.code) err.code = errBody.code;
-      if (errBody.reconnectUrl) err.reconnectUrl = errBody.reconnectUrl;
-      if (errBody.reconnectLabel) err.reconnectLabel = errBody.reconnectLabel;
-      throw err;
-    }
-    return res.json().catch(function() {
-      throw new Error('Server returned a non-JSON response from ' + path);
-    });
-  }
-
-  // sleep() and pollSyncJob() are provided by SHARED_JS (layout.ts).
 
   function showError(msg) {
     document.getElementById('loading-state').style.display = 'none';
@@ -1130,27 +1097,7 @@ export function campaignsPage(): string {
 
   // Timeline Explorer — see PHASE3_IFA_DESIGN.md §3 / dashboardPage.ts's
   // twin implementation for chart-spend-main.
-  function buildIssueMarkerDataset(labels, isoDates, issueDates) {
-    if (!Array.isArray(issueDates) || !issueDates.length) return null;
-    var severityColor = { CRITICAL: '#C7382A', HIGH: '#E2604F', MEDIUM: '#C77A1F', LOW: '#746A5C' };
-    var isoToIndex = {};
-    isoDates.forEach(function (d, i) { isoToIndex[d] = i; });
-    var points = [], pointDates = [], colors = [];
-    issueDates.forEach(function (iss) {
-      var idx = isoToIndex[iss.date];
-      if (idx == null) return;
-      points.push({ x: labels[idx], y: 0 });
-      pointDates.push(iss.date);
-      colors.push(severityColor[iss.severity] || '#746A5C');
-    });
-    if (!points.length) return null;
-    return {
-      type: 'scatter', label: 'مشاكل مكتشفة', data: points,
-      pointDates: pointDates, isIssueMarkers: true,
-      backgroundColor: colors, pointRadius: 6, pointHoverRadius: 8,
-      showLine: false, order: 0,
-    };
-  }
+  // buildIssueMarkerDataset — provided by SHARED_JS (layout.ts).
 
   function showChartEmpty(chartId, show) {
     var el = document.getElementById(chartId + '-empty');
