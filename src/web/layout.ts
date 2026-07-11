@@ -1328,6 +1328,7 @@ body:has(.app-shell--beginner) .sidebar-overlay {
 }
 .adv-camp-note.note-best { background: var(--success-dim); color: var(--success); }
 .adv-camp-note.note-worst { background: var(--error-dim); color: var(--error); }
+.adv-camp-note.note-danger { background: rgba(211,47,47,0.14); color: var(--error); }
 .adv-camp-note.note-hot { background: rgba(217,167,89,0.14); color: var(--accent-2); }
 .adv-camp-note.note-watch { background: rgba(199,122,31,0.12); color: var(--warning); }
 .adv-camp-note.note-muted { background: rgba(255,255,255,0.04); color: var(--text-3); }

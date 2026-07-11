@@ -434,6 +434,9 @@ export class SyncAccountWorker {
       const name = String(mc["name"] ?? "(unnamed)");
       const objective = mc["objective"] != null ? String(mc["objective"]) : null;
       const status = resolveCampaignStatusFromMeta(mc, { now });
+      const metaEffectiveStatus = mc["effective_status"] != null
+        ? String(mc["effective_status"]).toUpperCase()
+        : null;
       const dailyBudget = mc["daily_budget"] != null
         ? BigInt(String(mc["daily_budget"]))
         : null;
@@ -457,6 +460,7 @@ export class SyncAccountWorker {
           name,
           objective,
           status,
+          metaEffectiveStatus,
           dailyBudget,
           lifetimeBudget,
         },
@@ -464,6 +468,7 @@ export class SyncAccountWorker {
           name,
           objective,
           status,
+          metaEffectiveStatus,
           dailyBudget,
           lifetimeBudget,
         },

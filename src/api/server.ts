@@ -2506,6 +2506,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const costPerResultMajor = efficiencyForObjective(purposeKey, windowTotals, factor);
         const deliveryTier = classifyCampaignDelivery({
           status: camp.status,
+          metaEffectiveStatus: camp.metaEffectiveStatus,
           spendTodayMinor,
           spendWindowMinor,
         });

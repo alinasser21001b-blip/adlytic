@@ -1248,7 +1248,8 @@ export function dashboardPage(): string {
       var tier = c.deliveryTier || '';
       if (c.isCurrentlySpending || tier === 'DELIVERING_TODAY') return { text: 'تنفق الآن', cls: 'note-hot' };
       if (tier === 'DELIVERING_WINDOW') return { text: 'تعمل', cls: 'note-best' };
-      if (tier === 'DORMANT_ACTIVE' || c.isDormantActive) return { text: 'تحتاج مراجعة', cls: 'note-watch' };
+      if (tier === 'NOT_DELIVERING') return { text: 'لا تعمل', cls: 'note-danger' };
+      if (tier === 'DORMANT_ACTIVE' || c.isDormantActive) return { text: 'نشطة بدون إنفاق', cls: 'note-watch' };
       if (tier === 'PAUSED' || (c.status || '').toUpperCase() === 'PAUSED') return { text: 'متوقفة', cls: 'note-muted' };
       if (tier === 'ARCHIVED' || (c.status || '').toUpperCase() === 'ARCHIVED') return { text: 'مؤرشفة', cls: 'note-muted' };
       return { text: '—', cls: 'note-muted' };
@@ -1261,7 +1262,8 @@ export function dashboardPage(): string {
       if (note === 'الأفضل') return 'note-best';
       if (note === 'الأسوأ') return 'note-worst';
       if (note === 'تنفق الآن') return 'note-hot';
-      if (note === 'تحتاج مراجعة') return 'note-watch';
+      if (note === 'لا تعمل') return 'note-danger';
+      if (note === 'تحتاج مراجعة' || note === 'نشطة بدون إنفاق') return 'note-watch';
       if (note === 'تعمل') return 'note-best';
       return 'note-muted';
     }

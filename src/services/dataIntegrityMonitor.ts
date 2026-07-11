@@ -64,7 +64,7 @@ export async function runDataIntegrityCheck(
 
   const knownCampaigns = await prisma.campaign.findMany({
     where: { adAccountId: account.id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, metaEffectiveStatus: true },
   });
   const campaignIdSet = new Set(knownCampaigns.map((c) => c.id));
 
@@ -105,6 +105,7 @@ export async function runDataIntegrityCheck(
   for (const c of knownCampaigns) {
     const tier = classifyCampaignDelivery({
       status: c.status,
+      metaEffectiveStatus: c.metaEffectiveStatus,
       spendWindowMinor: spendWindowByCampaign.get(c.id) ?? 0,
     });
     if (tier === 'DORMANT_ACTIVE') staleActiveCount += 1;

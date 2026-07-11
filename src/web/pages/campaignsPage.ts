@@ -462,6 +462,7 @@ export function campaignsPage(): string {
     }
     .delivery-status.today { background: rgba(217,167,89,0.16); color: var(--accent-2); }
     .delivery-status.delivering { background: rgba(52,168,113,0.14); color: var(--success); }
+    .delivery-status.not-delivering { background: rgba(211,47,47,0.14); color: var(--danger, #d32f2f); }
     .delivery-status.dormant { background: rgba(199,122,31,0.14); color: #C77A1F; }
     .delivery-status.paused { background: rgba(116,106,92,0.16); color: var(--text-3); }
     .delivery-status.archived { background: rgba(116,106,92,0.12); color: var(--text-3); }
@@ -518,6 +519,7 @@ export function campaignsPage(): string {
     .camp-card[data-delivery="DELIVERING_TODAY"] { border-inline-start-color: var(--accent); }
     .camp-card[data-delivery="DELIVERING_WINDOW"] { border-inline-start-color: var(--success); }
     .camp-card[data-delivery="DORMANT_ACTIVE"] { border-inline-start-color: #C77A1F; }
+    .camp-card[data-delivery="NOT_DELIVERING"] { border-inline-start-color: var(--danger, #d32f2f); }
     .camp-card[data-delivery="PAUSED"],
     .camp-card[data-delivery="ARCHIVED"] { border-inline-start-color: var(--text-3); }
     .camp-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
@@ -1330,14 +1332,17 @@ export function campaignsPage(): string {
     if (tier === 'DELIVERING_WINDOW') {
       return { cls: 'delivering', text: 'تعمل', rank: 2 };
     }
+    if (tier === 'NOT_DELIVERING') {
+      return { cls: 'not-delivering', text: 'لا تعمل', rank: 3 };
+    }
     if (tier === 'DORMANT_ACTIVE' || c.isDormantActive) {
-      return { cls: 'dormant', text: 'تحتاج مراجعة', rank: 3 };
+      return { cls: 'dormant', text: 'نشطة بدون إنفاق', rank: 4 };
     }
     if (tier === 'PAUSED' || (c.status || '').toUpperCase() === 'PAUSED') {
-      return { cls: 'paused', text: 'متوقفة', rank: 4 };
+      return { cls: 'paused', text: 'متوقفة', rank: 5 };
     }
     if (tier === 'ARCHIVED' || (c.status || '').toUpperCase() === 'ARCHIVED') {
-      return { cls: 'archived', text: 'مؤرشفة', rank: 5 };
+      return { cls: 'archived', text: 'مؤرشفة', rank: 6 };
     }
     return { cls: 'paused', text: 'غير معروفة', rank: 9 };
   }
@@ -1372,6 +1377,7 @@ export function campaignsPage(): string {
     if (filter === 'ALL') return true;
     if (filter === 'DELIVERING') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
     if (filter === 'TODAY') return tier === 'DELIVERING_TODAY' || !!c.isCurrentlySpending;
+    if (filter === 'NOT_DELIVERING') return tier === 'NOT_DELIVERING';
     if (filter === 'REVIEW' || filter === 'DORMANT') return tier === 'DORMANT_ACTIVE' || !!c.isDormantActive;
     if (filter === 'ACTIVE') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW' || tier === 'DORMANT_ACTIVE';
     if (filter === 'PAUSED') return tier === 'PAUSED';
@@ -1684,6 +1690,7 @@ export function campaignsPage(): string {
     var score = Math.log10(spend + 1) * 10;
     if (c.isCurrentlySpending) score += 1000;
     else if (c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW') score += 700;
+    else if (c.deliveryTier === 'NOT_DELIVERING') score += 500;
     else if (c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) score += 450;
     else if ((c.status || '').toUpperCase() === 'ACTIVE') score += 200;
     else if ((c.status || '').toUpperCase() === 'PAUSED') score += 50;

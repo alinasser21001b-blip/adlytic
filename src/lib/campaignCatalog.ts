@@ -56,7 +56,7 @@ export async function getCampaignCounts(
 ): Promise<CampaignCounts> {
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId, status: { not: 'DELETED' } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, metaEffectiveStatus: true },
   });
 
   if (!campaigns.length) {
@@ -120,6 +120,7 @@ export async function getCampaignCounts(
     const spendWindow = spendWindowByCampaign.get(c.id) ?? 0;
     const tier = classifyCampaignDelivery({
       status: c.status,
+      metaEffectiveStatus: c.metaEffectiveStatus,
       spendTodayMinor: spendToday,
       spendWindowMinor: spendWindow,
     });
@@ -156,6 +157,7 @@ export async function getCampaignCatalog(
       name: true,
       externalCampaignId: true,
       status: true,
+      metaEffectiveStatus: true,
     },
   });
 
@@ -205,6 +207,7 @@ export async function getCampaignCatalog(
     });
     const deliveryTier = classifyCampaignDelivery({
       status: c.status,
+      metaEffectiveStatus: c.metaEffectiveStatus,
       spendTodayMinor: spendToday,
       spendWindowMinor: spendWindow,
     });

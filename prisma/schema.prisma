@@ -241,19 +241,20 @@ model MetaAuditLog {
 }
 
 model Campaign {
-  id                 String       @id @default(cuid())
-  adAccountId        String       @map("ad_account_id")
-  externalCampaignId String       @map("external_campaign_id")
-  name               String
-  objective          String?
-  status             EntityStatus @default(ACTIVE)
-  dailyBudget        BigInt?      @map("daily_budget")
-  lifetimeBudget     BigInt?      @map("lifetime_budget")
-  createdAt          DateTime     @default(now()) @map("created_at")
-  updatedAt          DateTime     @updatedAt @map("updated_at")
-  adSets             AdSet[]
-  adAccount          AdAccount    @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
-  historySnapshot    CampaignHistorySnapshot?
+  id                  String       @id @default(cuid())
+  adAccountId         String       @map("ad_account_id")
+  externalCampaignId  String       @map("external_campaign_id")
+  name                String
+  objective           String?
+  status              EntityStatus @default(ACTIVE)
+  metaEffectiveStatus String?      @map("meta_effective_status")
+  dailyBudget         BigInt?      @map("daily_budget")
+  lifetimeBudget      BigInt?      @map("lifetime_budget")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  adSets              AdSet[]
+  adAccount           AdAccount    @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  historySnapshot     CampaignHistorySnapshot?
 
   @@unique([adAccountId, externalCampaignId])
   @@index([adAccountId])

@@ -5,7 +5,7 @@
 // deploys, which could serve a stale UI). Sensitive/identity-bearing surfaces
 // (/admin*, /support) are NEVER cached, so a shell rendered for one role can
 // never be replayed from cache to another.
-const CACHE_NAME = 'adlytic-v3';
+const CACHE_NAME = 'adlytic-v4';
 const SHELL_ASSETS = [
   '/dashboard',
   '/campaigns',
