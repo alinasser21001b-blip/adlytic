@@ -1002,7 +1002,6 @@ export function dashboardPage(): string {
   function renderCommandBar(dashData) {
     var pill = document.getElementById('cmd-health-pill');
     var healthLabel = document.getElementById('cmd-health-label');
-    var healthDot = document.getElementById('cmd-health-dot');
     var activeEl = document.getElementById('cmd-active-count');
     var spendEl = document.getElementById('cmd-today-spend');
     var syncEl = document.getElementById('cmd-sync-time');
@@ -1019,25 +1018,34 @@ export function dashboardPage(): string {
 
     var cc = dashData && dashData.workspace && dashData.workspace.campaignCounts;
     if (activeEl) {
-      var delivering = cc ? (cc.spendingToday || cc.deliveringInWindow || 0) : 0;
-      activeEl.querySelector('span').textContent = delivering + ' ' + lbl('active', 'نشطة');
+      var activeSpan = activeEl.querySelector('span');
+      if (activeSpan) {
+        var delivering = cc ? (cc.spendingToday || cc.deliveringInWindow || 0) : 0;
+        activeSpan.textContent = delivering + ' ' + lbl('active', 'نشطة');
+      }
     }
 
     if (spendEl) {
-      var pulse = dashData && dashData.brain && dashData.brain.livePulse;
-      var todaySpend = '—';
-      if (pulse && pulse.intraDaySpendPct != null) {
-        todaySpend = pulse.intraDaySpendPct.toFixed(0) + '% ' + lbl('budget', 'ميزانية');
+      var spendSpan = spendEl.querySelector('span');
+      if (spendSpan) {
+        var pulse = dashData && dashData.brain && dashData.brain.livePulse;
+        var todaySpend = '—';
+        if (pulse && pulse.intraDaySpendPct != null) {
+          todaySpend = pulse.intraDaySpendPct.toFixed(0) + '% ' + lbl('budget', 'ميزانية');
+        }
+        spendSpan.textContent = todaySpend;
       }
-      spendEl.querySelector('span').textContent = todaySpend;
     }
 
     if (syncEl) {
-      var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
-      if (synced) {
-        var ago = Math.round((Date.now() - new Date(synced).getTime()) / 60000);
-        var agoText = ago < 2 ? lbl('Now', 'الآن') : ago < 60 ? ago + lbl('m', 'د') : Math.round(ago / 60) + lbl('h', 'س');
-        syncEl.querySelector('span').textContent = agoText;
+      var syncSpan = syncEl.querySelector('span');
+      if (syncSpan) {
+        var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
+        if (synced) {
+          var ago = Math.round((Date.now() - new Date(synced).getTime()) / 60000);
+          var agoText = ago < 2 ? lbl('Now', 'الآن') : ago < 60 ? ago + lbl('m', 'د') : Math.round(ago / 60) + lbl('h', 'س');
+          syncSpan.textContent = agoText;
+        }
       }
     }
   }
@@ -1061,9 +1069,12 @@ export function dashboardPage(): string {
     var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
     issues.slice(0, 3).forEach(function (iss) {
       var sev = (iss.severity || 'medium').toLowerCase();
+      var issTime = iss.detectedAt || iss.createdAt || iss.updatedAt;
+      var parsed = issTime ? new Date(issTime) : new Date();
+      if (isNaN(parsed.getTime())) parsed = new Date();
       events.push({
         type: sev === 'critical' ? 'critical' : 'alert',
-        time: iss.detectedAt ? new Date(iss.detectedAt) : new Date(),
+        time: parsed,
         text: '<b>' + escHtml(lbl('Alert', 'تنبيه')) + ':</b> ' + escHtml(iss.title || iss.code || ''),
       });
     });
@@ -1072,14 +1083,22 @@ export function dashboardPage(): string {
     feed.slice(0, 2).forEach(function (it) {
       if (!it.title || !it.generatedAt) return;
       if (isGenericInsightCopy(it.title, it.body)) return;
+      var feedTime = new Date(it.generatedAt);
+      if (isNaN(feedTime.getTime())) feedTime = new Date();
       events.push({
         type: 'campaign',
-        time: new Date(it.generatedAt),
+        time: feedTime,
         text: '<b>' + escHtml(lbl('AI', 'ذكاء')) + ':</b> ' + escHtml(it.title),
       });
     });
 
-    events.sort(function (a, b) { return b.time.getTime() - a.time.getTime(); });
+    events.sort(function (a, b) {
+      var ta = a.time.getTime(), tb = b.time.getTime();
+      if (isNaN(ta) && isNaN(tb)) return 0;
+      if (isNaN(ta)) return 1;
+      if (isNaN(tb)) return -1;
+      return tb - ta;
+    });
 
     if (events.length === 0) {
       section.style.display = 'none';
@@ -1102,8 +1121,6 @@ export function dashboardPage(): string {
   // ── KPI INSIGHTS — AI interpretation text in each card ──────────────
   function renderKpiInsights(dashData, kpis) {
     var kpiList = Array.isArray(kpis) ? kpis : [];
-    var best = dashData && dashData.bestCampaign;
-    var worst = dashData && dashData.worstCampaign;
 
     function setInsight(id, text) {
       var el = document.getElementById(id);
