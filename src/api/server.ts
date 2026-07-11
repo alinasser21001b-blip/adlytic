@@ -1493,44 +1493,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   /**
-   * POST /api/admin/subscriptions/activate-manual — grant Premium to a workspace.
-   */
-  app.post('/api/admin/subscriptions/activate-manual', async (c) => {
-    const req = await honoToApiRequest(c);
-    const gate = await requirePlatformAdmin(req, prisma);
-    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
-
-    const body = req.body as {
-      workspaceId?: string;
-      tier?: string;
-      expiresAt?: string;
-      note?: string;
-      externalRef?: string;
-      amountMinor?: number;
-      currency?: string;
-    };
-    const workspaceId = body.workspaceId?.trim();
-    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
-    const exists = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
-    if (!exists) return c.json({ error: 'Workspace not found' }, 404);
-
-    const expiresAt = body.expiresAt ? new Date(body.expiresAt) : new Date(Date.now() + 30 * 864e5);
-    if (isNaN(expiresAt.getTime())) return c.json({ error: 'Invalid expiresAt date' }, 400);
-
-    const result = await activateManual(prisma, {
-      workspaceId,
-      tier: 'PREMIUM',
-      expiresAt,
-      note: body.note,
-      externalRef: body.externalRef,
-      amountMinor: body.amountMinor != null ? BigInt(body.amountMinor) : undefined,
-      currency: body.currency,
-      triggeredBy: gate.userId,
-    });
-    return c.json(result);
-  });
-
-  /**
    * POST /api/admin/subscriptions/extend — push expiry forward on an active subscription.
    */
   app.post('/api/admin/subscriptions/extend', async (c) => {
