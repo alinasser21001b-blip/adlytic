@@ -74,9 +74,11 @@ export const SHARED_CSS = `
   --radius-sm: 5px;
   --radius-lg: 12px;
   --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.25);
+  --shadow-xl: 0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
   --shadow-accent: 0 4px 14px rgba(217,167,89,0.32);
   --shadow-glow: 0 0 0 1px rgba(217,167,89,0.15), 0 8px 24px rgba(217,167,89,0.18);
+  --shadow-inner-glow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.03);
   --transition: 150ms cubic-bezier(0.4,0,0.2,1);
   --transition-slow: 260ms cubic-bezier(0.34,1.56,0.64,1);
 }
@@ -461,9 +463,10 @@ input, select, textarea { font-family: inherit; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  box-shadow: var(--shadow-inner-glow);
   transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
-.card:hover { border-color: var(--border-2); box-shadow: var(--shadow-lg); }
+.card:hover { border-color: var(--border-2); box-shadow: var(--shadow-lg), var(--shadow-inner-glow); }
 /* Optional gradient top-edge accent: add class .card-accent */
 .card-accent::before {
   content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
@@ -491,17 +494,18 @@ input, select, textarea { font-family: inherit; }
   border-radius: var(--radius-lg);
   padding: 16px 18px;
   overflow: hidden;
-  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+  box-shadow: var(--shadow-inner-glow);
+  transition: border-color var(--transition), box-shadow 0.22s ease, transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
 }
 .kpi-card::before {
   content: ""; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 3px;
   background: var(--grad-accent);
   opacity: 0; transition: opacity var(--transition);
 }
-.kpi-card:hover { border-color: var(--border-2); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.kpi-card:hover { border-color: var(--border-2); transform: translateY(-3px); box-shadow: var(--shadow-xl), var(--shadow-inner-glow); }
 .kpi-card:hover::before { opacity: 1; }
 .kpi-label { font-size: 11.5px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-.kpi-value { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; line-height: 1.2; }
+.kpi-value { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .kpi-delta {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 11.5px; font-weight: 600;
@@ -536,12 +540,13 @@ input, select, textarea { font-family: inherit; }
   border-radius: var(--radius-lg);
   padding: 18px 20px;
   overflow: hidden;
-  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+  box-shadow: var(--shadow-inner-glow);
+  transition: border-color var(--transition), box-shadow 0.22s ease, transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
 }
 .camp-kpi:hover {
   border-color: var(--border-2);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-xl), var(--shadow-inner-glow);
 }
 .camp-kpi-icon {
   flex-shrink: 0;
@@ -571,11 +576,13 @@ input, select, textarea { font-family: inherit; }
   white-space: nowrap;
 }
 .camp-kpi-value {
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.5px;
   line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 .camp-kpi-sub {
   font-size: 11px;
@@ -603,16 +610,21 @@ input, select, textarea { font-family: inherit; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
-  min-width: 0; /* let the grid track shrink below the canvas's intrinsic width */
+  min-width: 0;
+  box-shadow: var(--shadow-inner-glow);
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
+.chart-card:hover { border-color: var(--border-2); box-shadow: var(--shadow-lg), var(--shadow-inner-glow); }
 .chart-card-header {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
   margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.chart-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.chart-card-title { font-family: var(--font-display); font-size: 13.5px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
 .chart-card-sub {
   font-size: 11px;
   color: var(--text-3);
@@ -664,7 +676,7 @@ td {
   vertical-align: middle;
 }
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: var(--surface-hover); }
+tr:hover td { background: var(--surface-hover); transition: background 0.12s ease; }
 
 /* ── Badges ──────────────────────────────────────────────────────── */
 .badge {
@@ -1461,6 +1473,11 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   .reveal.reveal-in {
     animation: blur-fade-in .45s cubic-bezier(.22,.61,.36,1) forwards;
   }
+  .reveal.reveal-d1 { animation-delay: 60ms; }
+  .reveal.reveal-d2 { animation-delay: 120ms; }
+  .reveal.reveal-d3 { animation-delay: 180ms; }
+  .reveal.reveal-d4 { animation-delay: 240ms; }
+  .reveal.reveal-d5 { animation-delay: 300ms; }
   @keyframes blur-fade-in {
     from { opacity: 0; transform: translateY(8px); filter: blur(6px); }
     to   { opacity: 1; transform: none;            filter: none; }

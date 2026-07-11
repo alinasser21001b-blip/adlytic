@@ -36,11 +36,12 @@ export const dashboardStyles = `<style>
       background: linear-gradient(180deg, var(--accent), transparent);
       opacity: 0.85; pointer-events: none;
     }
-    .hero-card:hover { border-color: rgba(217,167,89,0.35); box-shadow: 0 10px 28px rgba(0,0,0,0.22); transform: translateY(-2px); }
+    .hero-card:hover { border-color: rgba(217,167,89,0.35); box-shadow: 0 10px 28px rgba(0,0,0,0.22), var(--shadow-inner-glow); transform: translateY(-3px); }
     .hero-card.success::before { background: linear-gradient(180deg, var(--success), transparent); }
     .hero-card.warning::before { background: linear-gradient(180deg, var(--warning), transparent); }
     .hero-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--text-3); }
     .hero-value {
+      font-family: var(--font-display);
       font-size: 30px; font-weight: 800; color: var(--accent-2);
       letter-spacing: -0.04em; margin-top: 10px; line-height: 1.05;
       font-variant-numeric: tabular-nums;
@@ -69,6 +70,7 @@ export const dashboardStyles = `<style>
       padding: 0;
       margin-bottom: 18px;
       overflow: hidden;
+      box-shadow: var(--shadow-inner-glow);
     }
     .ticker-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -236,6 +238,7 @@ export const dashboardStyles = `<style>
       padding: 16px 16px 14px;
       display: flex; flex-direction: column; gap: 10px;
       max-height: 420px; overflow-y: auto;
+      box-shadow: var(--shadow-inner-glow);
     }
     .brain-box-head {
       display: flex; align-items: center; gap: 10px;
@@ -249,7 +252,7 @@ export const dashboardStyles = `<style>
       color: var(--accent-2); font-weight: 800; font-size: 11px;
       letter-spacing: 0.04em;
     }
-    .brain-box-title { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+    .brain-box-title { font-family: var(--font-display); font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
     .brain-box-sub {
       font-size: 11px; color: var(--text-3); margin-inline-start: auto;
       padding: 3px 9px; border-radius: 999px;
@@ -263,7 +266,9 @@ export const dashboardStyles = `<style>
       padding: 12px 13px;
       display: flex; flex-direction: column; gap: 6px;
       border-inline-start: 3px solid transparent;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
     }
+    .strategy-card:hover { background: rgba(255,255,255,0.035); transform: translateX(-2px); }
     .strategy-card.high     { border-inline-start-color: var(--warning); }
     .strategy-card.critical { border-inline-start-color: var(--error); }
     .strategy-card.medium   { border-inline-start-color: var(--accent); }
@@ -280,7 +285,7 @@ export const dashboardStyles = `<style>
     .strategy-card.low .strategy-sev { color: var(--success); background: var(--success-dim); }
     .strategy-body  { font-size: 12px; color: var(--text-2); line-height: 1.55; }
     .strategy-metric {
-      margin-top: 2px; font-size: 15px; font-weight: 800; color: var(--accent-2);
+      margin-top: 2px; font-family: var(--font-display); font-size: 15px; font-weight: 800; color: var(--accent-2);
       letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
     }
 
@@ -292,14 +297,17 @@ export const dashboardStyles = `<style>
       display: block;
       align-self: stretch;
       overflow: hidden;
+      box-shadow: var(--shadow-inner-glow);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
+    .chart-panel:hover { border-color: rgba(255,255,255,0.12); box-shadow: var(--shadow-lg), var(--shadow-inner-glow); }
     .chart-panel-head {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 12px; gap: 10px;
       padding-bottom: 10px;
       border-bottom: 1px solid rgba(255,255,255,0.05);
     }
-    .chart-panel-title { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+    .chart-panel-title { font-family: var(--font-display); font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
     .chart-panel-meta  { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
     .chart-panel-canvas {
       position: relative;
@@ -418,7 +426,10 @@ export const dashboardStyles = `<style>
       border-radius: 16px;
       padding: 18px 18px 16px;
       width: 100%;
+      box-shadow: var(--shadow-inner-glow);
+      transition: border-color 0.2s ease;
     }
+    .adv-panel:hover { border-color: rgba(255,255,255,0.1); }
     .adv-panel-head {
       display: flex; align-items: flex-start; justify-content: space-between;
       gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
@@ -427,7 +438,7 @@ export const dashboardStyles = `<style>
       font-size: 10.5px; font-weight: 800; color: var(--accent-2);
       letter-spacing: 0.04em; margin-bottom: 4px;
     }
-    .adv-panel-title { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+    .adv-panel-title { font-family: var(--font-display); font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
     .adv-panel-sub { font-size: 12.5px; color: var(--text-3); margin-top: 4px; line-height: 1.45; }
     .adv-panel-meta {
       font-size: 11.5px; color: var(--text-3);
@@ -453,6 +464,7 @@ export const dashboardStyles = `<style>
     }
     .adv-pulse-label { font-size: 11.5px; font-weight: 700; color: var(--text-3); margin-bottom: 8px; }
     .adv-pulse-value {
+      font-family: var(--font-display);
       font-size: 22px; font-weight: 800; color: var(--accent-2);
       letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1;
     }
@@ -540,7 +552,7 @@ export const dashboardStyles = `<style>
       display: flex; align-items: center; justify-content: center;
       font-size: 26px;
     }
-    .onboarding-title { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    .onboarding-title { font-family: var(--font-display); font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
     .onboarding-msg { font-size: 14px; color: var(--text-2); line-height: 1.6; min-height: 44px; margin-bottom: 20px; }
     .onboarding-progress {
       height: 6px; background: var(--surface-2);
@@ -655,6 +667,7 @@ export const dashboardStyles = `<style>
     .main-move-loop span { font-size: 11px; font-weight: 800; color: var(--accent-2); }
     .main-move-loop .sep { color: var(--text-3); font-weight: 600; }
     .main-move-title {
+      font-family: var(--font-display);
       font-size: 22px; font-weight: 800; color: var(--text);
       line-height: 1.3; letter-spacing: -0.025em;
     }

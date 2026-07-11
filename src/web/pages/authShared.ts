@@ -175,6 +175,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 36px 32px 32px;
+  box-shadow: var(--shadow-inner-glow), 0 8px 32px rgba(0,0,0,0.25);
 }
 .auth-card-header {
   margin-bottom: 28px;
@@ -240,8 +241,8 @@ body {
   box-shadow: 0 2px 12px rgba(217,167,89,0.2);
 }
 .auth-submit:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(217,167,89,0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(217,167,89,0.35);
 }
 .auth-submit:active {
   transform: translateY(0);

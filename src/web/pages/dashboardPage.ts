@@ -501,12 +501,15 @@ export function dashboardPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(12,12,14,0.96)',
-            borderColor: 'rgba(201,168,76,0.25)',
+            backgroundColor: 'rgba(16,14,13,0.97)',
+            borderColor: 'rgba(217,167,89,0.35)',
             borderWidth: 1,
-            titleColor: '#e8e6e0',
-            bodyColor: '#C9A84C',
-            padding: 10,
+            titleColor: '#F3EFE7',
+            bodyColor: '#D9A759',
+            padding: { top: 10, bottom: 10, left: 14, right: 14 },
+            cornerRadius: 10,
+            titleFont: { size: 13, weight: '700', family: "'El Messiri', 'Tajawal', sans-serif" },
+            bodyFont: { size: 12, weight: '600' },
             displayColors: false,
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
             callbacks: {
@@ -522,25 +525,25 @@ export function dashboardPage(): string {
             grid: { display: false },
             border: { display: false },
             ticks: {
-              color: 'rgba(148,163,184,0.55)',
+              color: 'rgba(148,163,184,0.5)',
               maxTicksLimit: (opts && opts.maxTicks) || 7,
-              font: { size: 10 },
+              font: { size: 10, weight: '500' },
               maxRotation: 0,
             },
           },
           y: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
+            grid: { color: 'rgba(255,255,255,0.035)', lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'rgba(148,163,184,0.55)',
-              font: { size: 10 },
+              color: 'rgba(148,163,184,0.5)',
+              font: { size: 10, weight: '500' },
               maxTicksLimit: 4,
             },
             beginAtZero: true,
             grace: '8%',
           }
         },
-        elements: { point: { radius: 0, hoverRadius: 4 } },
+        elements: { point: { radius: 0, hoverRadius: 5, hoverBorderWidth: 2 } },
         onClick: function (evt, elements, chart) {
           if (!elements || !elements.length) return;
           var el = elements[0];

@@ -1025,15 +1025,15 @@ export function campaignsPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(12,12,14,0.96)',
-            borderColor: 'rgba(201,168,76,0.25)',
+            backgroundColor: 'rgba(16,14,13,0.97)',
+            borderColor: 'rgba(217,167,89,0.35)',
             borderWidth: 1,
-            titleColor: '#e8e6e0',
-            bodyColor: '#C9A84C',
-            padding: 12,
-            cornerRadius: 8,
-            titleFont: { size: 13, weight: '600' },
-            bodyFont: { size: 12 },
+            titleColor: '#F3EFE7',
+            bodyColor: '#D9A759',
+            padding: { top: 10, bottom: 10, left: 14, right: 14 },
+            cornerRadius: 10,
+            titleFont: { size: 13, weight: '700', family: "'El Messiri', 'Tajawal', sans-serif" },
+            bodyFont: { size: 12, weight: '600' },
             displayColors: false,
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
             callbacks: {
@@ -1058,16 +1058,16 @@ export function campaignsPage(): string {
           x: {
             grid: { display: false },
             border: { display: false },
-            ticks: { color: 'rgba(148,163,184,0.55)', maxTicksLimit: 7, font: { size: 10 }, maxRotation: 0 }
+            ticks: { color: 'rgba(148,163,184,0.5)', maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
           },
           y: {
             beginAtZero: true,
             grace: '8%',
-            grid: { color: 'rgba(255,255,255,0.04)', lineWidth: 1 },
+            grid: { color: 'rgba(255,255,255,0.035)', lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'rgba(148,163,184,0.55)',
-              font: { size: 10 },
+              color: 'rgba(148,163,184,0.5)',
+              font: { size: 10, weight: '500' },
               maxTicksLimit: 4,
               callback: function(v) {
                 if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
@@ -1078,8 +1078,8 @@ export function campaignsPage(): string {
           }
         },
         elements: {
-          point: { radius: 0, hoverRadius: 4, hoverBorderWidth: 2, hitRadius: 8 },
-          line: { borderWidth: 2 }
+          point: { radius: 0, hoverRadius: 5, hoverBorderWidth: 2, hitRadius: 8 },
+          line: { borderWidth: 2, tension: 0.3 }
         },
         onClick: function (evt, elements, chart) {
           if (!elements || !elements.length) return;

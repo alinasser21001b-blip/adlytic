@@ -32,7 +32,7 @@ export function aiPage(): string {
   .chat-main {
     flex:1; display:flex; flex-direction:column; background:var(--surface);
     border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden;
-    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18), var(--shadow-inner-glow);
   }
   .chat-header {
     padding:14px 18px; border-bottom:1px solid var(--border);
@@ -81,7 +81,10 @@ export function aiPage(): string {
     width:42px;height:42px;background:linear-gradient(135deg, var(--accent), var(--accent-2));
     border:none;border-radius:12px;color:#1A1613;cursor:pointer;display:flex;align-items:center;
     justify-content:center;flex-shrink:0;font-weight:800;
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 10px rgba(217,167,89,0.2);
   }
+  .chat-send-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow: 0 4px 16px rgba(217,167,89,0.35); }
   .chat-send-btn:disabled { opacity:0.4;cursor:not-allowed; }
   .suggested-card {
     background:var(--surface); border:1px solid var(--border); border-radius:12px;
