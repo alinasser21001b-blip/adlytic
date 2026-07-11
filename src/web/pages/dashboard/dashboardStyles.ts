@@ -515,6 +515,263 @@ export const dashboardStyles = `<style>
     .adv-shell .adv-campaigns-wrap { overflow: hidden; }
     .adv-shell .adv-campaigns-table { min-width: 680px; }
 
+    /* ═══ COMMAND BAR ═══ */
+    .cmd-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      box-shadow: var(--shadow-inner-glow);
+      direction: rtl;
+    }
+    .cmd-bar-right { display: flex; align-items: center; gap: 10px; }
+    .cmd-bar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cmd-health-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 999px;
+      font-size: 11.5px; font-weight: 700;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .cmd-health-pill.healthy { border-color: rgba(52,168,113,0.35); background: var(--success-dim); color: var(--success); }
+    .cmd-health-pill.warning { border-color: rgba(199,122,31,0.35); background: rgba(199,122,31,0.1); color: var(--warning); }
+    .cmd-health-pill.critical { border-color: rgba(226,96,79,0.35); background: var(--error-dim); color: var(--error); }
+    .cmd-health-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text-3); flex-shrink: 0;
+    }
+    .cmd-health-pill.healthy .cmd-health-dot { background: var(--success); box-shadow: 0 0 0 3px rgba(52,168,113,0.15); }
+    .cmd-health-pill.warning .cmd-health-dot { background: var(--warning); }
+    .cmd-health-pill.critical .cmd-health-dot { background: var(--error); animation: blink-pulse 1.6s infinite; }
+    .cmd-stat {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 600; color: var(--text-2);
+      padding: 4px 10px; border-radius: 999px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .cmd-stat svg { color: var(--text-3); flex-shrink: 0; }
+    .cmd-refresh-btn {
+      width: 32px; height: 32px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text-2); cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    .cmd-refresh-btn:hover { background: var(--accent-dim); border-color: rgba(217,167,89,0.35); color: var(--accent-2); }
+    .cmd-refresh-btn:active { transform: scale(0.92); }
+    .cmd-refresh-btn.spinning svg { animation: cmd-spin 0.8s linear infinite; }
+    @keyframes cmd-spin { to { transform: rotate(360deg); } }
+    @media (max-width: 768px) {
+      .cmd-bar { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+      .cmd-bar-left { gap: 6px; }
+      .cmd-stat { font-size: 11px; padding: 3px 8px; }
+      .cmd-stat-sync { display: none; }
+    }
+
+    /* ═══ KPI COMMAND GRID ═══ */
+    .kpi-command-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+      direction: rtl;
+    }
+    @media (max-width: 900px) { .kpi-command-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .kpi-command-grid { grid-template-columns: 1fr; gap: 10px; } }
+    .kpi-cmd-card {
+      position: relative;
+      background: linear-gradient(160deg, rgba(255,255,255,0.03) 0%, var(--surface) 45%, var(--surface-2) 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 16px 18px 14px;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+    .kpi-cmd-card:hover {
+      border-color: rgba(217,167,89,0.3);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18), var(--shadow-inner-glow);
+      transform: translateY(-2px);
+    }
+    .kpi-cmd-top {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .kpi-cmd-icon {
+      width: 28px; height: 28px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--accent-dim); color: var(--accent-2);
+      flex-shrink: 0;
+    }
+    .kpi-cmd-icon.success { background: var(--success-dim); color: var(--success); }
+    .kpi-cmd-icon.warning { background: rgba(199,122,31,0.1); color: var(--warning); }
+    .kpi-cmd-icon.accent { background: var(--accent-dim); color: var(--accent-2); }
+    .kpi-cmd-icon.ctr { background: rgba(96,165,250,0.1); color: #60A5FA; }
+    .kpi-cmd-icon.cpm { background: rgba(45,212,191,0.1); color: #2DD4BF; }
+    .kpi-cmd-bottom {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 8px;
+    }
+    .kpi-cmd-insight {
+      font-size: 11.5px;
+      color: var(--text-3);
+      line-height: 1.45;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      min-height: 0;
+      transition: opacity 0.25s;
+    }
+    .kpi-cmd-insight:empty { display: none; }
+    @media (max-width: 520px) {
+      .kpi-cmd-card { padding: 14px 16px 12px; }
+      .kpi-cmd-card .hero-value { font-size: 24px; }
+    }
+
+    /* ═══ LIVE INSIGHTS ═══ */
+    .live-insights-section {
+      background:
+        linear-gradient(165deg, rgba(217,167,89,0.05), transparent 40%),
+        var(--surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 0;
+      margin-bottom: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow-inner-glow);
+    }
+    .live-insights-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .live-insights-title-row { display: flex; align-items: center; gap: 8px; }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+      box-shadow: 0 0 0 4px rgba(52,168,113,0.14);
+      animation: ticker-pulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    .live-insights-title { font-size: 12px; font-weight: 800; letter-spacing: 0.02em; color: var(--text); }
+    .live-insights-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px 14px 14px;
+    }
+    @media (max-width: 980px) { .live-insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .live-insights-grid { grid-template-columns: 1fr; } }
+    .live-insight-card {
+      display: flex; flex-direction: column; gap: 8px;
+      font-size: 13px; color: var(--text);
+      padding: 12px 13px; border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      transition: border-color 0.15s, background 0.15s, transform 0.15s;
+      cursor: default; position: relative;
+    }
+    .live-insight-card:hover {
+      border-color: rgba(217,167,89,0.28);
+      background: rgba(217,167,89,0.05);
+      transform: translateY(-1px);
+    }
+    .live-insight-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .live-insight-icon {
+      width: 28px; height: 28px; border-radius: 9px;
+      display: grid; place-items: center;
+      font-size: 13px; flex-shrink: 0;
+    }
+    .live-insight-icon.positive { background: var(--success-dim); color: var(--success); }
+    .live-insight-icon.negative { background: var(--error-dim); color: var(--error); }
+    .live-insight-icon.neutral { background: rgba(217,167,89,0.1); color: var(--accent-2); }
+    .live-insight-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+      padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+      color: var(--text-3); background: rgba(255,255,255,0.05);
+    }
+    .live-insight-text {
+      font-size: 13.5px; font-weight: 650; color: var(--text);
+      line-height: 1.4; letter-spacing: -0.01em;
+    }
+    .live-insight-sub {
+      font-size: 11px; color: var(--text-3); line-height: 1.4;
+    }
+
+    /* ═══ SMART TIMELINE ═══ */
+    .timeline-section {
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .timeline-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+      color: var(--text-3);
+    }
+    .timeline-title { font-size: 12px; font-weight: 800; letter-spacing: 0.02em; color: var(--text); }
+    .timeline-track {
+      display: flex; flex-direction: column; gap: 0;
+      position: relative;
+      padding-inline-start: 16px;
+    }
+    .timeline-track::before {
+      content: '';
+      position: absolute;
+      inset-inline-start: 4px;
+      top: 4px;
+      bottom: 4px;
+      width: 2px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+    }
+    .timeline-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0;
+      position: relative;
+      font-size: 12.5px;
+      color: var(--text-2);
+      line-height: 1.45;
+    }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      inset-inline-start: -16px;
+      top: 14px;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      border: 2px solid var(--surface);
+      z-index: 1;
+    }
+    .timeline-item.event-sync::before { background: var(--success); }
+    .timeline-item.event-alert::before { background: var(--warning); }
+    .timeline-item.event-critical::before { background: var(--error); }
+    .timeline-item.event-campaign::before { background: var(--accent); }
+    .timeline-time {
+      font-size: 11px; color: var(--text-3); white-space: nowrap;
+      min-width: 55px; flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .timeline-text { flex: 1; min-width: 0; }
+    .timeline-text b { color: var(--text); font-weight: 650; }
+    @media (max-width: 560px) {
+      .timeline-section { padding: 12px 14px; }
+      .timeline-item { font-size: 12px; gap: 8px; padding: 6px 0; }
+    }
+
     /* Loading skeleton (presentational — no data bindings) */
     .dash-skeleton { width: 100%; padding: 4px 0; }
     .skeleton-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
@@ -852,10 +1109,12 @@ export const dashboardStyles = `<style>
        force its track wider than the screen and cause horizontal scroll on
        mobile. min-width:0 lets these tracks shrink to the viewport. This was
        the root cause of the chart bleeding off the right edge on phones. */
-    .split-grid, .active-grid, .v2-spotlight-grid, .v2-recovery-grid, .v2-insights { min-width: 0; }
+    .split-grid, .active-grid, .v2-spotlight-grid, .v2-recovery-grid, .v2-insights, .kpi-command-grid, .live-insights-grid { min-width: 0; }
     .split-grid > *, .active-card, .hero-card, .chart-panel, .brain-box,
     .main-move-card, .ticker-wrap, .exec-pulse-banner, .v2-action-body,
-    .main-move-secondary-body, .v2-spotlight, .strategy-card { min-width: 0; }
+    .main-move-secondary-body, .v2-spotlight, .strategy-card,
+    .cmd-bar, .kpi-cmd-card, .live-insights-section, .live-insight-card,
+    .timeline-section { min-width: 0; }
     .chart-panel-canvas { max-width: 100%; }
     .chart-panel-canvas canvas { max-width: 100% !important; }
     .exec-pulse-text, .ticker-tooltip, .strategy-body, .main-move-why,
@@ -914,6 +1173,16 @@ export const dashboardStyles = `<style>
 
       .exec-pulse-banner { padding: 12px 14px; margin-bottom: 14px; }
       .exec-pulse-text { font-size: 13px; }
+
+      .kpi-command-grid { gap: 10px; margin-bottom: 12px; }
+      .kpi-cmd-card { padding: 14px 16px 12px; }
+      .kpi-cmd-card .hero-value { font-size: 24px; }
+      .kpi-cmd-insight { font-size: 11px; }
+      .live-insights-section { margin-bottom: 12px; }
+      .live-insights-header { padding: 10px 12px 8px; }
+      .live-insight-card { padding: 10px 12px; }
+      .live-insight-text { font-size: 12.5px; }
+      .timeline-section { margin-bottom: 12px; }
     }
 
     @media (max-width: 480px) {

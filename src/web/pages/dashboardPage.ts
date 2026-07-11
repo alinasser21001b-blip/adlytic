@@ -63,9 +63,36 @@ export function dashboardPage(): string {
     </div>
 
     <div id="dashboard-content" style="display:none;">
-      <div class="page-header">
-        <div class="page-title">لوحة التحكم</div>
-        <div class="page-subtitle" id="dash-subtitle">نظرة عامة على أداء إعلاناتك · <span id="dash-last-updated" class="text-3">—</span></div>
+
+      <!-- ═══ COMMAND BAR ═══ -->
+      <div class="cmd-bar" id="cmd-bar">
+        <div class="cmd-bar-right">
+          <div class="page-title" style="font-size:22px;margin:0;">مركز القيادة</div>
+          <div class="page-subtitle" id="dash-subtitle" style="margin:0;font-size:12px;">
+            <span id="dash-last-updated" class="text-3">—</span>
+          </div>
+        </div>
+        <div class="cmd-bar-left">
+          <div class="cmd-health-pill" id="cmd-health-pill">
+            <span class="cmd-health-dot" id="cmd-health-dot"></span>
+            <span id="cmd-health-label">—</span>
+          </div>
+          <div class="cmd-stat" id="cmd-active-count" title="حملات نشطة">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 4v4l3 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span>—</span>
+          </div>
+          <div class="cmd-stat" id="cmd-today-spend" title="إنفاق اليوم">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M4 4h5.5a2.5 2.5 0 010 5H4M4 9h6.5a2.5 2.5 0 010 5H4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span>—</span>
+          </div>
+          <div class="cmd-stat cmd-stat-sync" id="cmd-sync-time" title="آخر مزامنة">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8a7 7 0 0113.2-3.2M15 8a7 7 0 01-13.2 3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M14 1v4h-4M2 15v-4h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>—</span>
+          </div>
+          <button class="cmd-refresh-btn" id="cmd-refresh-btn" title="تحديث البيانات">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8a7 7 0 0113.2-3.2M15 8a7 7 0 01-13.2 3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 1v4h-4M2 15v-4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
       </div>
 
       <!-- Stale-data banner -->
@@ -77,7 +104,102 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
 
-      <!-- 1 ▸ Diagnosis thesis FIRST — the product's ideal card (visible without scrolling) -->
+      <!-- ═══ KPI CARDS — promoted to main view ═══ -->
+      <section class="kpi-command-grid" id="hero-grid">
+        <div class="kpi-cmd-card" id="hero-30" data-kpi="spend">
+          <div class="kpi-cmd-top">
+            <div class="kpi-cmd-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M4 4h5.5a2.5 2.5 0 010 5H4M4 9h6.5a2.5 2.5 0 010 5H4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+            <div class="hero-label">إنفاق 30 يوماً <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          </div>
+          <div class="hero-value" id="hero-30-val">—</div>
+          <div class="kpi-cmd-bottom">
+            <span class="hero-delta flat" id="hero-30-delta">→ —</span>
+          </div>
+          <div class="kpi-cmd-insight" id="kpi-insight-spend" dir="auto"></div>
+        </div>
+        <div class="kpi-cmd-card" id="hero-7" data-kpi="spend7">
+          <div class="kpi-cmd-top">
+            <div class="kpi-cmd-icon success"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 12l4-5 3 3 5-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="hero-label">إنفاق 7 أيام <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          </div>
+          <div class="hero-value" id="hero-7-val">—</div>
+          <div class="kpi-cmd-bottom">
+            <span class="hero-delta flat" id="hero-7-delta">→ —</span>
+          </div>
+          <div class="kpi-cmd-insight" id="kpi-insight-spend7" dir="auto"></div>
+        </div>
+        <div class="kpi-cmd-card" id="hero-life" data-kpi="lifetime">
+          <div class="kpi-cmd-top">
+            <div class="kpi-cmd-icon warning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 10V7M8 10V5M11 10V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <div class="hero-label">الإنفاق الكلي <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          </div>
+          <div class="hero-value" id="hero-life-val">—</div>
+          <div class="kpi-cmd-bottom">
+            <span class="hero-delta flat" id="hero-life-sub">إجمالي الحساب</span>
+          </div>
+          <div class="kpi-cmd-insight" id="kpi-insight-lifetime" dir="auto"></div>
+        </div>
+        <div class="kpi-cmd-card" id="kpi-ctr-card" data-kpi="ctr">
+          <div class="kpi-cmd-top">
+            <div class="kpi-cmd-icon accent"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg></div>
+            <div class="hero-label">تفاعل الإعلان CTR <button type="button" class="info-btn" data-metric-info="ctr" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          </div>
+          <div class="hero-value" id="kpi-ctr-val">—</div>
+          <div class="kpi-cmd-bottom">
+            <span class="hero-delta flat" id="kpi-ctr-delta">→ —</span>
+          </div>
+          <div class="kpi-cmd-insight" id="kpi-insight-ctr" dir="auto"></div>
+        </div>
+        <div class="kpi-cmd-card" id="kpi-messages-card" data-kpi="messages">
+          <div class="kpi-cmd-top">
+            <div class="kpi-cmd-icon ctr"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H6l-3 2v-2a2 2 0 01-1-1.7V4z" stroke="currentColor" stroke-width="1.3"/><path d="M5 6h6M5 9h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg></div>
+            <div class="hero-label">الرسائل <button type="button" class="info-btn" data-metric-info="messages" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          </div>
+          <div class="hero-value" id="kpi-messages-val">—</div>
+          <div class="kpi-cmd-bottom">
+            <span class="hero-delta flat" id="kpi-messages-delta">→ —</span>
+          </div>
+          <div class="kpi-cmd-insight" id="kpi-insight-messages" dir="auto"></div>
+        </div>
+        <div class="kpi-cmd-card" id="kpi-cpm-card" data-kpi="cpm">
+          <div class="kpi-cmd-top">
+            <div class="kpi-cmd-icon cpm"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1112 0A6 6 0 012 8z" stroke="currentColor" stroke-width="1.3"/><path d="M8 5v6M6 7h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+            <div class="hero-label">تكلفة الرسالة <button type="button" class="info-btn" data-metric-info="cpm" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+          </div>
+          <div class="hero-value" id="kpi-cpm-val">—</div>
+          <div class="kpi-cmd-bottom">
+            <span class="hero-delta flat" id="kpi-cpm-delta">→ —</span>
+          </div>
+          <div class="kpi-cmd-insight" id="kpi-insight-cpm" dir="auto"></div>
+        </div>
+      </section>
+
+      <!-- ═══ EXECUTIVE PULSE ═══ -->
+      <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
+        <div class="exec-pulse-text" id="exec-pulse-text">—</div>
+      </section>
+
+      <!-- ═══ LIVE INSIGHTS — "What's happening now?" ═══ -->
+      <section class="live-insights-section" id="live-insights-section" style="display:none;">
+        <div class="live-insights-header">
+          <div class="live-insights-title-row">
+            <span class="live-dot"></span>
+            <span class="live-insights-title">ماذا يحدث الآن؟</span>
+          </div>
+          <div class="ticker-freshness" id="ticker-freshness"></div>
+        </div>
+        <div class="live-insights-grid" id="live-insights-grid" dir="auto"></div>
+      </section>
+
+      <!-- ═══ AI CONTEXT STRIP ═══ -->
+      <div class="ai-context-strip" id="ai-context-strip" style="display:none;" dir="auto">
+        <div class="ai-ctx-pill ai-ctx-pill-primary" id="ai-ctx-campaigns"></div>
+        <div class="ai-ctx-pill" id="ai-ctx-window"></div>
+        <div class="ai-ctx-pill" id="ai-ctx-sync"></div>
+        <div class="ai-ctx-pill ai-ctx-pill-muted" id="ai-ctx-interval"></div>
+      </div>
+
+      <!-- ═══ DIAGNOSIS + RECOMMENDATIONS (main move) ═══ -->
       <section class="v2-section main-move-above-fold" id="main-move-section">
         <div class="v2-section-head">
           <div>
@@ -92,56 +214,7 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- 2 ▸ Compact spend strip (secondary to the task) -->
-      <section class="hero-grid hero-grid-compact" id="hero-grid">
-        <div class="hero-card" id="hero-30">
-          <div class="hero-label">إنفاق 30 يوماً <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
-          <div class="hero-value" id="hero-30-val">—</div>
-          <div class="hero-sub">آخر 30 يوماً</div>
-          <span class="hero-delta flat" id="hero-30-delta">→ —</span>
-        </div>
-        <div class="hero-card success" id="hero-7">
-          <div class="hero-label">إنفاق 7 أيام <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
-          <div class="hero-value" id="hero-7-val">—</div>
-          <div class="hero-sub">آخر 7 أيام</div>
-          <span class="hero-delta flat" id="hero-7-delta">→ —</span>
-        </div>
-        <div class="hero-card warning" id="hero-life">
-          <div class="hero-label">الإنفاق الكلي <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
-          <div class="hero-value" id="hero-life-val">—</div>
-          <div class="hero-sub" id="hero-life-sub">سجل الحساب (نافذة 90 يوماً)</div>
-          <span class="hero-delta flat">إجمالي الحساب</span>
-        </div>
-      </section>
-
-      <!-- 3 ▸ Executive Pulse — hidden when a primary task owns the status -->
-      <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
-        <div class="exec-pulse-text" id="exec-pulse-text">—</div>
-      </section>
-
-      <!-- 4 ▸ AI Motion Ticker — demoted when a primary task is showing -->
-      <section class="ticker-wrap" id="ticker-wrap" style="display:none;" dir="auto">
-        <div class="ticker-header">
-          <div class="ticker-header-left">
-            <span class="ticker-live-dot"></span>
-            <span class="ticker-header-title" id="ticker-title">مراقب الذكاء الاصطناعي</span>
-          </div>
-          <div class="ticker-freshness" id="ticker-freshness"></div>
-        </div>
-        <div class="ticker-scroll-area">
-          <div class="ticker-track" id="ticker-track" dir="auto"></div>
-        </div>
-      </section>
-
-      <!-- 4b ▸ AI Context Strip — account snapshot for AI monitoring -->
-      <div class="ai-context-strip" id="ai-context-strip" style="display:none;" dir="auto">
-        <div class="ai-ctx-pill ai-ctx-pill-primary" id="ai-ctx-campaigns"></div>
-        <div class="ai-ctx-pill" id="ai-ctx-window"></div>
-        <div class="ai-ctx-pill" id="ai-ctx-sync"></div>
-        <div class="ai-ctx-pill ai-ctx-pill-muted" id="ai-ctx-interval"></div>
-      </div>
-
-      <!-- 5 ▸ Active Ads Showcase -->
+      <!-- ═══ ACTIVE ADS + SPEND CHART SPLIT ═══ -->
       <section class="active-section" id="active-section" style="display:none;">
         <div class="active-header">
           <div class="active-title">إعلانات نشطة · تُنفق الآن</div>
@@ -150,7 +223,6 @@ export function dashboardPage(): string {
         <div class="active-grid" id="active-grid"></div>
       </section>
 
-      <!-- 6 ▸ Split Panel — secondary insights + Spend chart -->
       <section class="split-grid">
         <div class="brain-box">
           <div class="brain-box-head">
@@ -171,6 +243,15 @@ export function dashboardPage(): string {
         </div>
       </section>
 
+      <!-- ═══ SMART TIMELINE ═══ -->
+      <section class="timeline-section" id="timeline-section" style="display:none;">
+        <div class="timeline-header">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <span class="timeline-title">آخر الأحداث</span>
+        </div>
+        <div class="timeline-track" id="timeline-track"></div>
+      </section>
+
       <section class="v2-section below-chart-section" id="v2-spotlight-section" style="display:none;">
         <div class="v2-spotlight-grid" id="v2-spotlight"></div>
       </section>
@@ -188,7 +269,7 @@ export function dashboardPage(): string {
         </div>
       </div>
 
-      <!-- 7 ▸ Advanced Analytics (collapsed) -->
+      <!-- ═══ ADVANCED ANALYTICS ═══ -->
       <details class="v2-advanced">
         <summary>
           التحليلات المتقدمة
@@ -728,6 +809,38 @@ export function dashboardPage(): string {
           ? lbl('Meta account lifetime total', 'إجمالي حساب Meta الكلي')
           : ('Account history (' + days + '-day window)');
     }
+
+    // Populate CTR, Messages, CPM KPI cards
+    var ctrKpi = findKpi(dashData, 'ctr');
+    var ctrEl = document.getElementById('kpi-ctr-val');
+    var ctrDelta = document.getElementById('kpi-ctr-delta');
+    if (ctrEl) {
+      tickText(ctrEl, ctrKpi && ctrKpi.display ? ctrKpi.display : '—');
+    }
+    if (ctrDelta && ctrKpi) {
+      applyDelta(ctrDelta, ctrKpi.deltaPct != null ? Number(ctrKpi.deltaPct) * 100 : null, true);
+    }
+
+    var msgKpi = findKpi(dashData, 'messages');
+    var msgEl = document.getElementById('kpi-messages-val');
+    var msgDelta = document.getElementById('kpi-messages-delta');
+    if (msgEl) {
+      tickText(msgEl, msgKpi && msgKpi.display ? msgKpi.display : '—');
+    }
+    if (msgDelta && msgKpi) {
+      applyDelta(msgDelta, msgKpi.deltaPct != null ? Number(msgKpi.deltaPct) * 100 : null, true);
+    }
+
+    var cpmKpi = findKpi(dashData, 'cpm');
+    if (!cpmKpi) cpmKpi = findKpi(dashData, 'cpc');
+    var cpmEl = document.getElementById('kpi-cpm-val');
+    var cpmDelta = document.getElementById('kpi-cpm-delta');
+    if (cpmEl) {
+      tickText(cpmEl, cpmKpi && cpmKpi.display ? cpmKpi.display : '—');
+    }
+    if (cpmDelta && cpmKpi) {
+      applyDelta(cpmDelta, cpmKpi.deltaPct != null ? Number(cpmKpi.deltaPct) * 100 : null, false);
+    }
   }
 
   // Client-side cognitive filter: drop identical generic insight twins that
@@ -829,26 +942,25 @@ export function dashboardPage(): string {
   }
 
   function renderTicker(items, dashData) {
-    var wrap = document.getElementById('ticker-wrap');
-    var track = document.getElementById('ticker-track');
-    var titleEl = document.getElementById('ticker-title');
+    renderLiveInsights(items, dashData);
+  }
+
+  // ── LIVE INSIGHTS — human-readable "what's happening now?" ──────────
+  function renderLiveInsights(items, dashData) {
+    var section = document.getElementById('live-insights-section');
+    var grid = document.getElementById('live-insights-grid');
     var freshnessEl = document.getElementById('ticker-freshness');
-    if (!wrap || !track) return;
+    if (!section || !grid) return;
 
-    // When a primary task owns the first viewport, hide the monitor strip —
-    // it competed with «مهمتك الآن» and made the page feel unchanged.
     if (hasPrimaryMerchantTask(dashData)) {
-      wrap.style.display = 'none';
-      track.innerHTML = '';
+      section.style.display = 'none';
+      grid.innerHTML = '';
       return;
     }
-
     if (!items || items.length === 0) {
-      wrap.style.display = 'none';
+      section.style.display = 'none';
       return;
     }
-
-    if (titleEl) titleEl.textContent = lbl('AI Monitor', 'مراقب الذكاء الاصطناعي');
 
     if (freshnessEl) {
       var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
@@ -863,24 +975,178 @@ export function dashboardPage(): string {
       }
     }
 
-    var catIcon = { strategy: '🎯', alert: '⚠️', performance: '📊', insight: '💡' };
+    var sentimentIcon = function (sev) {
+      if (sev === 'critical') return '<span class="live-insight-icon negative">!</span>';
+      if (sev === 'warning') return '<span class="live-insight-icon negative">!</span>';
+      if (sev === 'success') return '<span class="live-insight-icon positive">&#10003;</span>';
+      return '<span class="live-insight-icon neutral">i</span>';
+    };
     var shown = items.slice(0, 4);
-    track.innerHTML = shown.map(function (it) {
-      var icon = catIcon[it.category] || '•';
-      var catCls = 'cat-' + (it.category || 'insight');
-      var explain = it.explain
-        ? '<div class="ticker-explain" dir="auto">' + escHtml(it.explain) + '</div>'
+    grid.innerHTML = shown.map(function (it) {
+      var sub = it.explain
+        ? '<div class="live-insight-sub" dir="auto">' + escHtml(it.explain) + '</div>'
         : '';
-      return '<div class="ticker-item">'
-        + '<div class="ticker-item-top">'
-          + '<span class="ticker-icon">' + icon + '</span>'
-          + '<span class="ticker-badge ' + catCls + '">' + escHtml(it.badge) + '</span>'
+      return '<div class="live-insight-card">'
+        + '<div class="live-insight-top">'
+          + sentimentIcon(it.severity)
+          + '<span class="live-insight-badge">' + escHtml(it.badge) + '</span>'
         + '</div>'
-        + '<div class="ticker-text" dir="auto">' + escHtml(it.text) + '</div>'
-        + explain
+        + '<div class="live-insight-text" dir="auto">' + escHtml(it.text) + '</div>'
+        + sub
       + '</div>';
     }).join('');
-    wrap.style.display = 'block';
+    section.style.display = 'block';
+  }
+
+  // ── COMMAND BAR — health pill, active count, today spend, sync ──────
+  function renderCommandBar(dashData) {
+    var pill = document.getElementById('cmd-health-pill');
+    var healthLabel = document.getElementById('cmd-health-label');
+    var healthDot = document.getElementById('cmd-health-dot');
+    var activeEl = document.getElementById('cmd-active-count');
+    var spendEl = document.getElementById('cmd-today-spend');
+    var syncEl = document.getElementById('cmd-sync-time');
+    if (!pill) return;
+
+    var health = deriveBusinessHealth(dashData);
+    pill.className = 'cmd-health-pill ' + health.level;
+    if (healthLabel) {
+      var levelLabel = health.level === 'critical' ? lbl('Critical', 'حرج')
+        : health.level === 'warning' ? lbl('Attention', 'انتبه')
+        : lbl('Healthy', 'جيد');
+      healthLabel.textContent = levelLabel;
+    }
+
+    var cc = dashData && dashData.workspace && dashData.workspace.campaignCounts;
+    if (activeEl) {
+      var delivering = cc ? (cc.spendingToday || cc.deliveringInWindow || 0) : 0;
+      activeEl.querySelector('span').textContent = delivering + ' ' + lbl('active', 'نشطة');
+    }
+
+    if (spendEl) {
+      var pulse = dashData && dashData.brain && dashData.brain.livePulse;
+      var todaySpend = '—';
+      if (pulse && pulse.intraDaySpendPct != null) {
+        todaySpend = pulse.intraDaySpendPct.toFixed(0) + '% ' + lbl('budget', 'ميزانية');
+      }
+      spendEl.querySelector('span').textContent = todaySpend;
+    }
+
+    if (syncEl) {
+      var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
+      if (synced) {
+        var ago = Math.round((Date.now() - new Date(synced).getTime()) / 60000);
+        var agoText = ago < 2 ? lbl('Now', 'الآن') : ago < 60 ? ago + lbl('m', 'د') : Math.round(ago / 60) + lbl('h', 'س');
+        syncEl.querySelector('span').textContent = agoText;
+      }
+    }
+  }
+
+  // ── SMART TIMELINE — recent events ──────────────────────────────────
+  function renderTimeline(dashData) {
+    var section = document.getElementById('timeline-section');
+    var track = document.getElementById('timeline-track');
+    if (!section || !track) return;
+
+    var events = [];
+    var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
+    if (synced) {
+      events.push({
+        type: 'sync',
+        time: new Date(synced),
+        text: lbl('Data synced successfully', 'تمت مزامنة البيانات بنجاح'),
+      });
+    }
+
+    var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
+    issues.slice(0, 3).forEach(function (iss) {
+      var sev = (iss.severity || 'medium').toLowerCase();
+      events.push({
+        type: sev === 'critical' ? 'critical' : 'alert',
+        time: iss.detectedAt ? new Date(iss.detectedAt) : new Date(),
+        text: '<b>' + escHtml(lbl('Alert', 'تنبيه')) + ':</b> ' + escHtml(iss.title || iss.code || ''),
+      });
+    });
+
+    var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
+    feed.slice(0, 2).forEach(function (it) {
+      if (!it.title || !it.generatedAt) return;
+      if (isGenericInsightCopy(it.title, it.body)) return;
+      events.push({
+        type: 'campaign',
+        time: new Date(it.generatedAt),
+        text: '<b>' + escHtml(lbl('AI', 'ذكاء')) + ':</b> ' + escHtml(it.title),
+      });
+    });
+
+    events.sort(function (a, b) { return b.time.getTime() - a.time.getTime(); });
+
+    if (events.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    track.innerHTML = events.slice(0, 5).map(function (ev) {
+      var timeStr;
+      try {
+        timeStr = ev.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      } catch (e) { timeStr = '—'; }
+      return '<div class="timeline-item event-' + ev.type + '">'
+        + '<span class="timeline-time">' + escHtml(timeStr) + '</span>'
+        + '<span class="timeline-text" dir="auto">' + ev.text + '</span>'
+      + '</div>';
+    }).join('');
+    section.style.display = 'block';
+  }
+
+  // ── KPI INSIGHTS — AI interpretation text in each card ──────────────
+  function renderKpiInsights(dashData, kpis) {
+    var kpiList = Array.isArray(kpis) ? kpis : [];
+    var best = dashData && dashData.bestCampaign;
+    var worst = dashData && dashData.worstCampaign;
+
+    function setInsight(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = text || '';
+    }
+
+    var spendKpi = kpiList.find(function (k) { return k && k.key === 'spend'; });
+    if (spendKpi && spendKpi.deltaPct != null) {
+      var d = Number(spendKpi.deltaPct) * 100;
+      setInsight('kpi-insight-spend', d > 5
+        ? lbl('Spend increased vs prior period — review active budgets', 'الإنفاق ارتفع مقارنة بالفترة السابقة — راجع الميزانيات')
+        : d < -5
+          ? lbl('Spend decreased — some campaigns may need more budget', 'الإنفاق انخفض — بعض الحملات قد تحتاج ميزانية أكبر')
+          : lbl('Spend is stable — budget allocation is consistent', 'الإنفاق مستقر — توزيع الميزانية ثابت'));
+    }
+
+    var ctrKpi = kpiList.find(function (k) { return k && k.key === 'ctr'; });
+    if (ctrKpi) {
+      var ctrVal = Number(ctrKpi.value || 0);
+      setInsight('kpi-insight-ctr', ctrVal >= 2
+        ? lbl('Good click rate — ads are attracting attention', 'نسبة نقر جيدة — الإعلانات تجذب الانتباه')
+        : ctrVal >= 1
+          ? lbl('Average CTR — consider testing new creatives', 'نسبة نقر متوسطة — جرّب صور ونصوص جديدة')
+          : ctrVal > 0
+            ? lbl('Low CTR — ads need stronger headlines or images', 'نسبة نقر منخفضة — الإعلانات تحتاج عناوين أو صور أقوى')
+            : '');
+    }
+
+    var msgKpi = kpiList.find(function (k) { return k && k.key === 'messages'; });
+    if (msgKpi) {
+      var msgs = Number(msgKpi.value || 0);
+      setInsight('kpi-insight-messages', msgs > 0
+        ? msgs + ' ' + lbl('conversations started — each is a potential customer', 'محادثة بدأت — كل واحدة عميل محتمل')
+        : lbl('No messages yet this period', 'لا توجد رسائل في هذه الفترة'));
+    }
+
+    var cpmKpi = kpiList.find(function (k) { return k && k.key === 'cpm'; });
+    if (cpmKpi) {
+      var cpmVal = Number(cpmKpi.value || 0);
+      setInsight('kpi-insight-cpm', cpmVal > 0
+        ? lbl('Cost per message — lower is better for your budget', 'تكلفة الرسالة — الأقل أفضل لميزانيتك')
+        : '');
+    }
   }
   function renderAiContextStrip(dashData, campaigns) {
     var strip = document.getElementById('ai-context-strip');
@@ -1995,7 +2261,7 @@ export function dashboardPage(): string {
     var contentEl = document.getElementById('dashboard-content');
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) contentEl.style.display = 'block';
-    staggerReveal(['#main-move-section', '.hero-grid', '#exec-pulse-section', '.ticker-wrap', '.active-section', '.split-grid']);
+    staggerReveal(['.cmd-bar', '.kpi-command-grid', '#exec-pulse-section', '#main-move-section', '#live-insights-section', '.active-section', '.split-grid', '#timeline-section']);
   }
 
   /** Safety net if init hangs — do not rely on layout SHARED_JS globals. */
@@ -2155,14 +2421,17 @@ export function dashboardPage(): string {
 
       var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
       var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
-      // Task first — then supporting surfaces.
+      // Command bar + KPI cards first, then task surfaces.
+      safeRender('commandBar', function () { renderCommandBar(dashData); });
       safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('hero', function () { renderHero(dashData, insights); });
+      safeRender('kpiInsights', function () { renderKpiInsights(dashData, kpis); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
-      safeRender('ticker', function () { renderTicker(buildTickerItems(dashData), dashData); });
+      safeRender('liveInsights', function () { renderTicker(buildTickerItems(dashData), dashData); });
       safeRender('aiContext', function () { renderAiContextStrip(dashData, campaigns); });
       safeRender('activeAds', function () { renderActiveAds(campaigns, dashData.workspace && dashData.workspace.campaignCounts); });
       safeRender('brainBox', function () { renderBrainBox(dashData); });
+      safeRender('timeline', function () { renderTimeline(dashData); });
 
       if (dashData.brain) {
         safeRender('brainSection', function () { renderBrainSection(dashData.brain, dashData); });
@@ -2338,6 +2607,18 @@ export function dashboardPage(): string {
       var advDetails = document.querySelector('details.v2-advanced');
       if (advDetails) advDetails.addEventListener('toggle', renderAdvancedChartsIfOpen);
       startLoadingSafetyTimeout(5000);
+
+      // Wire refresh button
+      var refreshBtn = document.getElementById('cmd-refresh-btn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+          if (!state.workspaceId || refreshInFlight) return;
+          refreshBtn.classList.add('spinning');
+          refreshDashboardData(state.workspaceId, { force: true })
+            .catch(function () { /* silent */ })
+            .finally(function () { refreshBtn.classList.remove('spinning'); });
+        });
+      }
 
       var token = getToken();
       if (!token) { window.location.href = '/login'; return; }
