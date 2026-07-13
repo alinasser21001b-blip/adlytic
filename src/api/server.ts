@@ -1722,7 +1722,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const counts = await adminInboxCounts(prisma);
     const unread = await getUnreadCount(prisma, 'ADMIN');
-    return c.json({ ...counts, unread });
+    return c.json(safeJson({ ...counts, unread }));
   });
 
   app.get('/api/admin/support/tickets', async (c) => {
@@ -2035,7 +2035,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       ...(body.currency ? { currency: body.currency } : {}),
       triggeredBy: gate.userId,
     });
-    return c.json(result);
+    return c.json(safeJson(result));
   });
 
   /**
@@ -2052,7 +2052,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getMetaUsageStats();
-    return c.json(stats);
+    return c.json(safeJson(stats));
   });
 
   // Platform-admin: Meta account lifecycle audit trail (connected / disconnected
@@ -2069,7 +2069,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       workspaceId,
       limit: Number.isFinite(limit) ? limit : undefined,
     });
-    return c.json({ events });
+    return c.json(safeJson({ events }));
   });
 
   /**
@@ -2224,7 +2224,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         ...(body.industryProfileId !== undefined && { industryProfileId: body.industryProfileId }),
       },
     });
-    return c.json(ws);
+    return c.json(safeJson(ws));
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -3347,7 +3347,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       campaignId, date: dateParam, metric: 'spend', limit: 3,
     });
     if (!result.ok) return c.json({ error: result.error.message }, 404);
-    return c.json(result.data);
+    return c.json(safeJson(result.data));
   });
 
   /** GET /api/workspaces/:workspaceId/insights/trends — metric trends. */
@@ -3570,6 +3570,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!checkRateLimit(_aiRateMap, 'assess:' + userId, 10, 10 * 60_000)) {
+      return c.json({ error: 'Rate limit exceeded — try again in a few minutes' }, 429);
+    }
 
     const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
     const workspaceId = typeof body['workspaceId'] === 'string' ? body['workspaceId'] : undefined;
@@ -3656,7 +3659,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         result.status as 400 | 503,
       );
     }
-    return c.json(result.data);
+    return c.json(safeJson(result.data));
   });
 
   // ════════════════════════════════════════════════════════════════════════

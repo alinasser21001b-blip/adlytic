@@ -69,32 +69,40 @@ import type { Signals } from "../engines/rules/types";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
-// ── Module-level Prisma client (used when no client is passed in).
+// ── Lazy-initialized standalone Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
 // instance is injected via opts.prisma to avoid a duplicate connection pool.
 // This standalone client exists for scripts, tests, and CLI tools that call
-// getDashboard without a server context.
-const _dbUrl = process.env['DATABASE_URL'];
-if (!_dbUrl) {
-  throw new Error(
-    'getDashboard: DATABASE_URL is not set. ' +
-    'Start the server with --env-file=.env or set DATABASE_URL in the environment.'
-  );
+// getDashboard without a server context. Lazy-init avoids crashing importers
+// that never call getDashboard (e.g. tests without DATABASE_URL).
+let _standalonePrisma: PrismaClient | null = null;
+
+function getStandalonePrisma(): PrismaClient {
+  if (_standalonePrisma) return _standalonePrisma;
+  const dbUrl = process.env['DATABASE_URL'];
+  if (!dbUrl) {
+    throw new Error(
+      'getDashboard: DATABASE_URL is not set. ' +
+      'Start the server with --env-file=.env or set DATABASE_URL in the environment.'
+    );
+  }
+  const parsed = new URL(dbUrl);
+  const isInternal = parsed.hostname.endsWith('.railway.internal');
+  const caCert = process.env['DATABASE_CA_CERT'];
+  const pool = new pg.Pool({
+    host:     parsed.hostname,
+    port:     Number(parsed.port) || 5432,
+    user:     decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.replace(/^\//, ''),
+    ssl:      isInternal ? false : { rejectUnauthorized: true, ...(caCert ? { ca: caCert } : {}) },
+    max: Number(process.env['PG_POOL_MAX'] ?? 20),
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+  });
+  _standalonePrisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+  return _standalonePrisma;
 }
-const _parsed  = new URL(_dbUrl);
-const _isInternal = _parsed.hostname.endsWith('.railway.internal');
-const _pool    = new pg.Pool({
-  host:     _parsed.hostname,
-  port:     Number(_parsed.port) || 5432,
-  user:     decodeURIComponent(_parsed.username),
-  password: decodeURIComponent(_parsed.password),
-  database: _parsed.pathname.replace(/^\//, ''),
-  ssl:      _isInternal ? false : { rejectUnauthorized: false },
-  max: Number(process.env['PG_POOL_MAX'] ?? 20),
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
-});
-const _standalonePrisma = new PrismaClient({ adapter: new PrismaPg(_pool) });
 
 // ── The public shape. This is the contract every consumer codes against. ──
 export interface DashboardDTO {
@@ -465,7 +473,7 @@ export async function getDashboard(
 ): Promise<DashboardDTO> {
   // Use the caller's prisma instance (e.g. from the HTTP server) when provided.
   // Fallback to the module-level standalone client for scripts and tests.
-  const prisma = opts.prisma ?? _standalonePrisma;
+  const prisma = opts.prisma ?? getStandalonePrisma();
   const knowledge = new KnowledgeEngine(prisma);
   const recService = new RecommendationService(prisma);
   const windowDays = opts.windowDays ?? 30;
@@ -1730,7 +1738,7 @@ export async function getDashboardPulse(
   workspaceId: string,
   opts: { prisma?: PrismaClient } = {},
 ): Promise<DashboardPulseDTO | null> {
-  const prisma = opts.prisma ?? _standalonePrisma;
+  const prisma = opts.prisma ?? getStandalonePrisma();
 
   // Account context — same Phase-1 "one account per workspace" assumption.
   const ws = await prisma.workspace.findUnique({

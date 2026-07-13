@@ -56,7 +56,10 @@ async function main(): Promise<void> {
   // SSL: require for external hosts (Railway proxy, Supabase, etc.)
   //       skip for Railway's private internal network (*.railway.internal)
   const isInternalHost = parsed.hostname.endsWith('.railway.internal');
-  const sslConfig = isInternalHost ? false : { rejectUnauthorized: false };
+  const caCert = process.env['DATABASE_CA_CERT'];
+  const sslConfig = isInternalHost
+    ? false
+    : { rejectUnauthorized: true, ...(caCert ? { ca: caCert } : {}) };
   const pool   = new pg.Pool({
     host:     parsed.hostname,
     port:     Number(parsed.port) || 5432,

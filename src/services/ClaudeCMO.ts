@@ -526,7 +526,9 @@ export async function generateMerchantNarration(
     : buildPayload(brainResult);
   const payload = sanitizeObjectForLlm({
     ...rawPayload,
-    campaignName: scrubString(rawPayload.campaignName),
+    campaignName: scrubString(rawPayload.campaignName ?? '')
+      .replace(/[{}"\\]/g, '')
+      .slice(0, 200),
   });
   const coaching = rawPayload.objective?.coachingAr
     ? `\n\n── Meta objective coaching (follow strictly) ──\n${rawPayload.objective.coachingAr}\n`

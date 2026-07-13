@@ -13,7 +13,7 @@
 //    6. Return { conversationId, reply, toolCalls[] }.
 //
 //  Bounds enforced:
-//    - MAX_ITERATIONS (6)  → cost & runaway prevention.
+//    - MAX_ITERATIONS (5)  → cost & runaway prevention.
 //    - MAX_TOKENS   (2048) → per Anthropic response.
 //    - Overall Promise.race → 60s hard cap.
 //
@@ -124,12 +124,13 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     conversationId = created.id;
   }
 
-  // 3. Load message history.
-  const historyMessages = await prisma.aiMessage.findMany({
+  // 3. Load message history (most recent N messages, then reverse to chronological).
+  const historyDesc = await prisma.aiMessage.findMany({
     where: { conversationId },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
     take: MAX_HISTORY_MESSAGES,
   });
+  const historyMessages = historyDesc.reverse();
 
   // 4. Persist the incoming USER message.
   const userMsgRow = await prisma.aiMessage.create({
@@ -417,13 +418,30 @@ async function callAnthropicWithTimeout(
   params: Anthropic.MessageCreateParamsNonStreaming,
   timeoutMs: number,
 ): Promise<Anthropic.Message> {
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('anthropic_timeout')), Math.max(1000, timeoutMs)),
-  );
-  return Promise.race([
-    client.messages.create(params),
-    timeoutPromise,
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('anthropic_timeout')), Math.max(1000, timeoutMs));
+  });
+
+  const attempt = async (retriesLeft: number): Promise<Anthropic.Message> => {
+    try {
+      return await Promise.race([client.messages.create(params), timeoutPromise]);
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status;
+      const isRetryable = status === 429 || status === 500 || status === 503 || status === 529;
+      if (isRetryable && retriesLeft > 0) {
+        await new Promise(r => setTimeout(r, status === 429 ? 2000 : 1000));
+        return attempt(retriesLeft - 1);
+      }
+      throw err;
+    }
+  };
+
+  try {
+    return await attempt(2);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // ── graceful reply templates ────────────────────────────────────────────

@@ -593,7 +593,17 @@ export function adminInboxPage(): string {
     document.querySelector('.app').style.display = 'flex';
     loadCounts();
     loadTickets();
-    setInterval(function() { loadCounts(); loadTickets(); }, 15000);
+    var pollId = setInterval(function() { loadCounts(); loadTickets(); }, 15000);
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        clearInterval(pollId);
+        pollId = 0;
+      } else if (!pollId) {
+        loadCounts();
+        loadTickets();
+        pollId = setInterval(function() { loadCounts(); loadTickets(); }, 15000);
+      }
+    });
   }).catch(function(err) {
     // 401 already redirected inside api(); anything else → send home, never
     // leave the admin gate spinning or reveal the shell.

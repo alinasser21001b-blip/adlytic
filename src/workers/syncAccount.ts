@@ -182,20 +182,12 @@ export class SyncAccountWorker {
   async sync(adAccountId: string, opts: SyncOptions = {}): Promise<SyncResult> {
     const lockId = advisoryLockId(adAccountId);
 
-    // Release any stale lock for THIS account on the pooled connection, then
-    // acquire. Using pg_advisory_unlock($1) instead of pg_advisory_unlock_all()
-    // so we only release the specific per-account lock — not unrelated locks
-    // (e.g. the auto-sync pass lock from serve.ts) that may share the connection.
-    const [, lockRows] = await this.prisma.$transaction([
-      this.prisma.$queryRawUnsafe<unknown[]>(
-        `SELECT pg_advisory_unlock($1)`,
-        lockId,
-      ),
-      this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
-        `SELECT pg_try_advisory_lock($1)`,
-        lockId,
-      ),
-    ]);
+    // Try to acquire the advisory lock. Session-scoped advisory locks auto-release
+    // on connection drop, so stale locks from crashed processes clean up on their own.
+    const lockRows = await this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
+      `SELECT pg_try_advisory_lock($1)`,
+      lockId,
+    );
     const acquired = lockRows[0]!.pg_try_advisory_lock;
 
     if (!acquired) {
@@ -1244,20 +1236,12 @@ export class SyncAccountWorker {
     const lockId = advisoryLockId(adAccountId);
     const tag = `[syncChunked:${jobId.slice(0, 8)}]`;
 
-    // Release any stale lock for THIS account on the pooled connection, then
-    // acquire. Using targeted pg_advisory_unlock($1) instead of unlock_all so
-    // we don't accidentally release unrelated locks (e.g. the auto-sync pass
-    // lock) that may share the same pooled connection.
-    const [, lockRows] = await this.prisma.$transaction([
-      this.prisma.$queryRawUnsafe<unknown[]>(
-        `SELECT pg_advisory_unlock($1)`,
-        lockId,
-      ),
-      this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
-        `SELECT pg_try_advisory_lock($1)`,
-        lockId,
-      ),
-    ]);
+    // Try to acquire the advisory lock. Session-scoped advisory locks auto-release
+    // on connection drop, so stale locks from crashed processes clean up on their own.
+    const lockRows = await this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
+      `SELECT pg_try_advisory_lock($1)`,
+      lockId,
+    );
     const acquired = lockRows[0]!.pg_try_advisory_lock;
 
     if (!acquired) {

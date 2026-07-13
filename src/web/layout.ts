@@ -1990,10 +1990,12 @@ function forceRevealAfterTimeout(loadingId, contentId, ms) {
 }
 
 function toast(msg, type = 'info') {
+  var container = document.getElementById('toast-container');
+  if (!container) return;
   const el = document.createElement('div');
   el.className = 'toast ' + type;
   el.textContent = msg;
-  document.getElementById('toast-container').appendChild(el);
+  container.appendChild(el);
   setTimeout(() => el.remove(), 3500);
 }
 
@@ -2428,7 +2430,7 @@ function renderAttributionCardHtml(attr, titleText) {
         + '</div>';
       }).join('')
     + '</div>'
-    + '<div class="attribution-narrative">' + attr.narrative + '</div>'
+    + '<div class="attribution-narrative">' + escHtml(attr.narrative || '') + '</div>'
   + '</div>';
 }
 
