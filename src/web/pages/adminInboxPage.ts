@@ -285,7 +285,9 @@ export function adminInboxPage(): string {
   }
   function fmtRel(v) {
     if (!v) return '';
-    var d = Date.now() - new Date(v).getTime();
+    var parsed = new Date(v);
+    if (isNaN(parsed.getTime())) return '';
+    var d = Date.now() - parsed.getTime();
     if (d < 6e4) return 'الآن';
     if (d < 36e5) return Math.floor(d/6e4) + ' د';
     if (d < 864e5) return Math.floor(d/36e5) + ' س';

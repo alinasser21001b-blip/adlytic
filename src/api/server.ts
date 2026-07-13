@@ -958,7 +958,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
     c.header('Content-Disposition', `attachment; filename="adlytic-export-${userId}.json"`);
-    return c.json({ exportedAt: new Date().toISOString(), user });
+    return c.json(safeJson({ exportedAt: new Date().toISOString(), user }));
   });
 
   /** DELETE /api/auth/account — permanently delete the authenticated user. */
@@ -1126,7 +1126,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
     try {
       const dto = await getDashboard(workspaceId, { prisma, locale: user?.locale });
-      return c.json(dto);
+      return c.json(safeJson(dto));
     } catch (e: any) {
       if (e?.message?.includes('no ad account') || e?.code === 'P2025') {
         return c.json({ empty: true, workspace: { id: workspaceId } }, 200);
@@ -1135,13 +1135,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // Return 504 with the offending stage so the client stops spinning and
       // can show an error state, and so logs pinpoint the bottleneck.
       if (e instanceof DashboardStageTimeoutError) {
-        console.error(`[api:dashboard] timeout serving ${workspaceId}: ${e.message}`);
+        console.error(`[api:dashboard] timeout serving ${workspaceId}: stage=${e.stage} timeoutMs=${e.timeoutMs}`);
         return c.json(
           {
             error: 'Dashboard timed out while loading live data.',
             code: 'DASHBOARD_TIMEOUT',
-            stage: e.stage,
-            timeoutMs: e.timeoutMs,
           },
           504,
         );
@@ -1168,7 +1166,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!member) return c.json({ error: 'Access denied' }, 403);
     const pulse = await getDashboardPulse(workspaceId, { prisma });
     if (!pulse) return c.json({ empty: true, workspaceId }, 200);
-    return c.json(pulse);
+    return c.json(safeJson(pulse));
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1187,7 +1185,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getPlatformStats(prisma);
-    return c.json(stats);
+    return c.json(safeJson(stats));
   });
 
   /**
@@ -1888,7 +1886,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     } catch (e) {
       if (e instanceof StripeNotConfiguredError) {
         console.error('[stripe-webhook] not configured:', e.message);
-        return c.json({ error: e.message }, 503);
+        return c.json({ error: 'Payment service unavailable' }, 503);
       }
       throw e;
     }

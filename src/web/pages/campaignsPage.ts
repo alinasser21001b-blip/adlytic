@@ -1113,10 +1113,14 @@ export function campaignsPage(): string {
     var byDate = {};
     (insights || []).forEach(function (d) {
       var raw = d && d.date;
-      var key = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)
-        ? String(raw).slice(0, 10)
-        : isoUtcDay(new Date(raw));
-      byDate[key] = d;
+      var key;
+      if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        key = raw.slice(0, 10);
+      } else if (raw) {
+        var p = new Date(raw);
+        key = isNaN(p.getTime()) ? null : isoUtcDay(p);
+      }
+      if (key) byDate[key] = d;
     });
     var isoDates = buildUtcCalendar(days);
     var labels = isoDates.map(function (key) { return fmtShortDate(key); });
@@ -1536,7 +1540,15 @@ export function campaignsPage(): string {
     if (!wrap || !track) return;
     if (!Array.isArray(insights) || insights.length === 0) { wrap.style.display = 'none'; return; }
     var have = {};
-    insights.forEach(function (d) { have[new Date(d.date).toISOString().slice(0, 10)] = true; });
+    insights.forEach(function (d) {
+      var raw = d && d.date;
+      if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        have[raw.slice(0, 10)] = true;
+      } else if (raw) {
+        var p = new Date(raw);
+        if (!isNaN(p.getTime())) have[p.toISOString().slice(0, 10)] = true;
+      }
+    });
     var segs = '';
     for (var i = 29; i >= 0; i--) {
       var dt = new Date(Date.now() - i * 864e5);
@@ -1779,8 +1791,10 @@ export function campaignsPage(): string {
   // ── Date tab switch ───────────────────────────────────────────────────────
   // Charts/summary re-slice locally; the per-campaign window columns need the
   // server (aggregated in daily_stats), so re-fetch the list with ?days=.
+  var _setDaysGen = 0;
   function setDays(days) {
     state.days = days;
+    var gen = ++_setDaysGen;
     document.querySelectorAll('.tab').forEach(function(btn) {
       if (btn.dataset.days != null) btn.classList.toggle('active', Number(btn.dataset.days) === days);
     });
@@ -1791,6 +1805,7 @@ export function campaignsPage(): string {
     if (!state.workspaceId) return;
     apiFetchWithTimeout('/api/workspaces/' + state.workspaceId + '/campaigns?days=' + days, {}, 12000)
       .then(function(camps) {
+        if (gen !== _setDaysGen) return;
         if (Array.isArray(camps)) {
           state.campaigns = camps;
           updateSummary(state.campaigns, state.insights);
@@ -2631,7 +2646,8 @@ export function campaignsPage(): string {
     var workspaceId = state.workspaceId;
     if (!workspaceId) return;
 
-    var results = await Promise.all([
+    var results;
+    try { results = await Promise.all([
       apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns?days=' + state.days, {}, 12000),
       apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 12000),
       apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 8000).catch(function() { return null; }),
@@ -2660,6 +2676,9 @@ export function campaignsPage(): string {
     updateCharts(state.insights);
     renderFreshnessStrip(state.insights);
     runDataObserver(workspaceId);
+    } catch (err) {
+      console.error('[campaigns] loadCampaignData failed:', err);
+    }
   }
 
   // ── Data observer — detect and report account/campaign divergence ─────

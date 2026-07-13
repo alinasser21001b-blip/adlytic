@@ -135,13 +135,13 @@ export interface DashboardDTO {
     };
   };
   health: {
-    score: number;
+    score: number | null;
     band: "excellent" | "good" | "attention" | "poor" | "none";
   };
   kpis: Array<{
     key: string;          // "spend" | "messages" | "ctr" | "cpm" | "frequency" | "reach"
     label: string;
-    value: number;
+    value: number | null;
     display: string;      // formatted for direct rendering
     deltaPct: number | null;
     direction: "up" | "down" | "flat";
@@ -306,7 +306,8 @@ export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────
-function band(score: number): "excellent" | "good" | "attention" | "poor" {
+function band(score: number | null): "excellent" | "good" | "attention" | "poor" | "none" {
+  if (score === null) return "none";
   if (score >= 90) return "excellent";
   if (score >= 70) return "good";
   if (score >= 50) return "attention";
@@ -552,7 +553,7 @@ export async function getDashboard(
   const sinceMs = sinceDate.getTime();
   const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
   const priorDaily = allDaily.filter((d) => d.date.getTime() < sinceMs);
-  const score = healthRow?.score ?? 0;
+  const score = healthRow?.score ?? null;
 
   // 4. KPI badge deltas — 30d window totals vs prior 30d (not metric_trends 7d).
   const windowTrends = computeWindowTrendDeltas(daily, priorDaily, factor);
@@ -608,13 +609,13 @@ export async function getDashboard(
       deltaPct: windowTrends.spendTrend, direction: dir(windowTrends.spendTrend), goodWhenUp: false },
     { key: "messages", label: kpiLabel("messages", locale), value: totalMsgs, display: totalMsgs.toLocaleString(),
       deltaPct: windowTrends.resultsTrend, direction: dir(windowTrends.resultsTrend), goodWhenUp: true },
-    { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? 0,
+    { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? null,
       display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
       deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true },
-    { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? 0,
+    { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? null,
       display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
       deltaPct: windowTrends.cpmTrend, direction: dir(windowTrends.cpmTrend), goodWhenUp: false },
-    { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? 0,
+    { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? null,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
       deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false },
     { key: "reach", label: kpiLabel("reach", locale), value: totalReach, display: totalReach.toLocaleString(),
@@ -1040,7 +1041,7 @@ function buildSteadyStateSummary(input: {
   cpm: number | null;
   costPerMessage: number | null;
   roas: number | null;
-  healthScore: number;
+  healthScore: number | null;
   healthBand: ReturnType<typeof band>;
   activeCampaigns: number;
   campaignCounts?: CampaignCounts;

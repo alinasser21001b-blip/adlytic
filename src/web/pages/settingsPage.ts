@@ -726,8 +726,13 @@ export function settingsPage(): string {
         document.getElementById('ws-campaigns').textContent = campaigns;
         document.getElementById('ws-members').textContent = members;
         if (ws.lastSyncAt) {
-          const ago = Math.round((Date.now() - new Date(ws.lastSyncAt).getTime()) / 60000);
-          document.getElementById('ws-syncs').textContent = ago < 60 ? ago + ' د' : Math.round(ago/60) + ' س';
+          const syncDate = new Date(ws.lastSyncAt);
+          if (!isNaN(syncDate.getTime())) {
+            const ago = Math.round((Date.now() - syncDate.getTime()) / 60000);
+            document.getElementById('ws-syncs').textContent = ago < 60 ? ago + ' د' : Math.round(ago/60) + ' س';
+          } else {
+            document.getElementById('ws-syncs').textContent = '—';
+          }
         } else {
           document.getElementById('ws-syncs').textContent = '—';
         }
@@ -757,8 +762,8 @@ export function settingsPage(): string {
                   <svg viewBox="0 0 16 16" fill="none"><path d="M8 1a7 7 0 100 14A7 7 0 008 1z" fill="#fff"/><path d="M10.5 5.5H9.2c-.4 0-.7.3-.7.7V7h2l-.3 2h-1.7v4H7V9H5.5V7H7V6a2 2 0 012-2h1.5v1.5z" fill="#1877F2"/></svg>
                 </div>
                 <div>
-                  <div class="settings-account-name">\${acc.name || acc.externalAccountId}</div>
-                  <div class="settings-account-id">ID: \${acc.externalAccountId}</div>
+                  <div class="settings-account-name">\${escHtml(acc.name || acc.externalAccountId)}</div>
+                  <div class="settings-account-id">ID: \${escHtml(acc.externalAccountId)}</div>
                 </div>
               </div>
               <span class="settings-account-status \${acc.status === 'ACTIVE' ? 'active' : 'paused'}">\${acc.status === 'ACTIVE' ? 'متصل' : 'متوقف'}</span>

@@ -176,6 +176,17 @@ const PRIORITY_LABELS = { LOW: 'منخفضة', NORMAL: 'عادية', HIGH: 'عا
 let tickets = [];
 let currentTicket = null;
 
+function fmtDateSafe(v) {
+  if (!v) return '—';
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('ar');
+}
+function fmtDateTimeSafe(v) {
+  if (!v) return '—';
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleString('ar');
+}
+
 async function apiFetch(path, opts = {}) {
   const r = await fetch(API + path, {
     ...opts,
@@ -213,16 +224,16 @@ function renderTickets() {
     return;
   }
   el.innerHTML = tickets.map(t => \`
-    <div class="ticket-card" onclick="openTicket('\${t.id}')">
+    <div class="ticket-card" onclick="openTicket('\${escHtml(t.id)}')">
       <div class="ticket-card-top">
-        <span class="ticket-category \${t.category}">\${CATEGORY_LABELS[t.category] || t.category}</span>
-        <span class="ticket-status \${t.status}">\${STATUS_LABELS[t.status] || t.status}</span>
+        <span class="ticket-category">\${escHtml(CATEGORY_LABELS[t.category] || t.category)}</span>
+        <span class="ticket-status">\${escHtml(STATUS_LABELS[t.status] || t.status)}</span>
       </div>
       <div class="ticket-subject">\${escHtml(t.subject)}</div>
       <div class="ticket-meta">
         <span>\${t._count?.messages || 0} رسالة</span>
-        <span>\${new Date(t.createdAt).toLocaleDateString('ar')}</span>
-        <span class="ticket-category" style="font-size:10px;">\${PRIORITY_LABELS[t.priority]||t.priority}</span>
+        <span>\${fmtDateSafe(t.createdAt)}</span>
+        <span class="ticket-category" style="font-size:10px;">\${escHtml(PRIORITY_LABELS[t.priority]||t.priority)}</span>
       </div>
     </div>
   \`).join('');
@@ -302,7 +313,7 @@ function renderThread() {
     <div class="msg-bubble \${m.senderType === 'USER' ? 'user' : 'admin'}">
       <div class="msg-sender">\${m.senderType === 'ADMIN' ? 'فريق الدعم' : escHtml(m.sender?.name || 'أنت')}</div>
       <div>\${escHtml(m.content)}</div>
-      <div class="msg-time">\${new Date(m.createdAt).toLocaleString('ar')}</div>
+      <div class="msg-time">\${fmtDateTimeSafe(m.createdAt)}</div>
     </div>
   \`).join('');
 
@@ -315,13 +326,13 @@ function renderThread() {
     </button>
     <div class="thread-header">
       <div class="thread-header-top">
-        <span class="ticket-category \${t.category}">\${CATEGORY_LABELS[t.category] || t.category}</span>
-        <span class="ticket-status \${t.status}">\${STATUS_LABELS[t.status] || t.status}</span>
+        <span class="ticket-category">\${escHtml(CATEGORY_LABELS[t.category] || t.category)}</span>
+        <span class="ticket-status">\${escHtml(STATUS_LABELS[t.status] || t.status)}</span>
       </div>
       <div class="thread-subject">\${escHtml(t.subject)}</div>
       <div class="thread-info">
-        <span>\${PRIORITY_LABELS[t.priority]||t.priority}</span>
-        <span>\${new Date(t.createdAt).toLocaleDateString('ar')}</span>
+        <span>\${escHtml(PRIORITY_LABELS[t.priority]||t.priority)}</span>
+        <span>\${fmtDateSafe(t.createdAt)}</span>
       </div>
     </div>
     <div class="messages-list">\${msgs}</div>

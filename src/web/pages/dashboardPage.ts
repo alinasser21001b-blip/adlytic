@@ -1495,8 +1495,8 @@ export function dashboardPage(): string {
         }).join('')
       + '</div>'
       + '<div class="attribution-narrative">' + escHtml(
-          attr.drivers
-            ? ('النتائج ' + totalDir + ' ' + Math.abs(attr.totalChange * 100).toFixed(0) + '% — '
+          attr.drivers && attr.drivers.impressions && attr.drivers.ctr && attr.drivers.cvr
+            ? ('النتائج ' + totalDir + ' ' + Math.abs((attr.totalChange || 0) * 100).toFixed(0) + '% — '
               + 'الظهور ' + (attr.drivers.impressions.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.impressions.change * 100).toFixed(0) + '%، '
               + 'نسبة النقر ' + (attr.drivers.ctr.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.ctr.change * 100).toFixed(0) + '%، '
               + 'نسبة التحويل ' + (attr.drivers.cvr.change >= 0 ? '+' : '−') + Math.abs(attr.drivers.cvr.change * 100).toFixed(0) + '%. '
@@ -2460,9 +2460,14 @@ export function dashboardPage(): string {
       var byDate = {};
       last30.forEach(function (d) {
         var raw = d && d.date;
-        var key = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(String(raw))
-          ? String(raw).slice(0, 10)
-          : new Date(raw).toISOString().slice(0, 10);
+        var key;
+        if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+          key = raw.slice(0, 10);
+        } else {
+          var parsed = new Date(raw);
+          key = isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+        }
+        if (!key) return;
         byDate[key] = d;
       });
       // UTC calendar — matches getDashboard trendSeries date keys.
@@ -2522,7 +2527,8 @@ export function dashboardPage(): string {
         var tsIso = ts.dates.map(function (d) {
           if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
           var dateVal = d && typeof d === 'object' ? d.date : d;
-          return new Date(dateVal).toISOString().slice(0, 10);
+          var pd = new Date(dateVal);
+          return isNaN(pd.getTime()) ? '' : pd.toISOString().slice(0, 10);
         });
         var tsByIdx = {};
         tsIso.forEach(function (iso, i) { tsByIdx[iso] = i; });
