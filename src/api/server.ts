@@ -47,6 +47,7 @@ import { signToken, verifyToken, verifyPassword, hashPassword } from '../service
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse, DashboardStageTimeoutError } from '../services/getDashboard';
+import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
@@ -1167,6 +1168,20 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const pulse = await getDashboardPulse(workspaceId, { prisma });
     if (!pulse) return c.json({ empty: true, workspaceId }, 200);
     return c.json(safeJson(pulse));
+  });
+
+  app.get('/api/weekly-report/:workspaceId', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
+    const report = await generateWeeklyReport(prisma, workspaceId);
+    if (!report) return c.json({ empty: true }, 200);
+    return c.json(safeJson(report));
   });
 
   // ════════════════════════════════════════════════════════════════════════

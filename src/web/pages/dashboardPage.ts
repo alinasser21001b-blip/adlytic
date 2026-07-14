@@ -256,6 +256,48 @@ export function dashboardPage(): string {
         <div class="v2-spotlight-grid" id="v2-spotlight"></div>
       </section>
 
+      <!-- ═══ PREDICTIONS ═══ -->
+      <section class="v2-section" id="predictions-section" style="display:none;">
+        <div class="adv-panel">
+          <div class="adv-panel-head">
+            <div>
+              <div class="adv-panel-kicker">تنبؤات</div>
+              <div class="adv-panel-title">تحذيرات مبكرة</div>
+              <div class="adv-panel-sub">متى ستنفد الميزانية · متى سيتعب الإبداع</div>
+            </div>
+          </div>
+          <div id="predictions-grid" class="predictions-grid"></div>
+        </div>
+      </section>
+
+      <!-- ═══ AI RECOMMENDATIONS ═══ -->
+      <section class="v2-section" id="ai-recs-section" style="display:none;">
+        <div class="adv-panel">
+          <div class="adv-panel-head">
+            <div>
+              <div class="adv-panel-kicker">توصيات ذكية</div>
+              <div class="adv-panel-title">خطوات مقترحة</div>
+              <div class="adv-panel-sub">مبنية على تحليل أنماط حملاتك</div>
+            </div>
+          </div>
+          <div id="ai-recs-grid" class="ai-recs-grid"></div>
+        </div>
+      </section>
+
+      <!-- ═══ WEEKLY REPORT ═══ -->
+      <section class="v2-section" id="weekly-report-section" style="display:none;">
+        <div class="adv-panel">
+          <div class="adv-panel-head">
+            <div>
+              <div class="adv-panel-kicker">التقرير الأسبوعي</div>
+              <div class="adv-panel-title">ملخص الأداء</div>
+              <div class="adv-panel-sub">مقارنة هذا الأسبوع بالأسبوع الماضي</div>
+            </div>
+          </div>
+          <div id="weekly-report-content"></div>
+        </div>
+      </section>
+
       <!-- Main Move action modal (remediation workflow) -->
       <div id="main-move-action-modal" class="modal-overlay" style="display:none;">
         <div class="modal" role="dialog" aria-labelledby="action-modal-title" style="max-width:520px;width:92%;">
@@ -2148,6 +2190,174 @@ export function dashboardPage(): string {
     }
     el.innerHTML = parts.join('');
   }
+  // ── Predictions ──────────────────────────────────────────────────────────
+  function renderPredictions(pred) {
+    var section = document.getElementById('predictions-section');
+    var grid = document.getElementById('predictions-grid');
+    if (!section || !grid) return;
+    if (!pred) { section.style.display = 'none'; return; }
+
+    var budget = (pred.budgetExhaustion || []);
+    var fatigue = (pred.creativeFatigue || []);
+    if (budget.length === 0 && fatigue.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = 'block';
+
+    var cards = [];
+    budget.forEach(function (b) {
+      var sev = b.severity === 'critical' ? 'danger' : 'warn';
+      var icon = b.severity === 'critical' ? '⚠️' : '⏳';
+      var hrs = b.hoursUntilExhaustion != null ? b.hoursUntilExhaustion.toFixed(1) : '?';
+      cards.push(
+        '<div class="pred-card pred-' + sev + '">'
+          + '<div class="pred-icon">' + icon + '</div>'
+          + '<div class="pred-body">'
+            + '<div class="pred-title">' + escHtml(b.campaignName || '—') + '</div>'
+            + '<div class="pred-detail">'
+              + lbl('Budget exhausts in ', 'الميزانية ستنفد خلال ')
+              + '<b>' + escHtml(hrs) + '</b> '
+              + lbl('hours', 'ساعة')
+            + '</div>'
+            + '<div class="pred-meta">'
+              + lbl('Burn rate: ', 'سرعة الإنفاق: ')
+              + escHtml(String(b.burnRatePerHour)) + '/h'
+            + '</div>'
+          + '</div>'
+        + '</div>'
+      );
+    });
+    fatigue.forEach(function (f) {
+      var sev = f.severity === 'critical' ? 'danger' : 'warn';
+      var icon = f.severity === 'critical' ? '🚨' : '🎨';
+      var days = f.daysUntilThreshold != null ? String(f.daysUntilThreshold) : '?';
+      cards.push(
+        '<div class="pred-card pred-' + sev + '">'
+          + '<div class="pred-icon">' + icon + '</div>'
+          + '<div class="pred-body">'
+            + '<div class="pred-title">' + escHtml(f.campaignName || '—') + '</div>'
+            + '<div class="pred-detail">'
+              + lbl('Creative fatigue in ', 'إرهاق الإبداع خلال ')
+              + '<b>' + escHtml(days) + '</b> '
+              + lbl('days', 'يوم')
+            + '</div>'
+            + '<div class="pred-meta">'
+              + 'CTR: ' + escHtml(String(f.currentCtr)) + '% → '
+              + lbl('baseline ', 'خط الأساس ')
+              + escHtml(String(f.baselineCtr)) + '%'
+            + '</div>'
+          + '</div>'
+        + '</div>'
+      );
+    });
+    grid.innerHTML = cards.join('');
+  }
+
+  // ── AI Recommendations ─────────────────────────────────────────────────
+  function renderAIRecommendations(recs) {
+    var section = document.getElementById('ai-recs-section');
+    var grid = document.getElementById('ai-recs-grid');
+    if (!section || !grid) return;
+    if (!recs || !recs.recommendations || recs.recommendations.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = 'block';
+
+    var catIcons = { scale: '🚀', fix: '🔧', pause: '⏸️', watch: '👁️', optimize: '⚙️' };
+    var priColors = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--text-3)' };
+    var priLabels = { high: lbl('High', 'عالية'), medium: lbl('Medium', 'متوسطة'), low: lbl('Low', 'منخفضة') };
+
+    var cards = recs.recommendations.map(function (r) {
+      var icon = catIcons[r.category] || '⚙️';
+      var priColor = priColors[r.priority] || 'var(--text-3)';
+      var priLabel = priLabels[r.priority] || r.priority;
+      return '<div class="ai-rec-card">'
+        + '<div class="ai-rec-header">'
+          + '<span class="ai-rec-icon">' + icon + '</span>'
+          + '<span class="ai-rec-title">' + escHtml(r.titleAr || '') + '</span>'
+          + '<span class="ai-rec-pri" style="color:' + priColor + ';">' + escHtml(priLabel) + '</span>'
+        + '</div>'
+        + '<div class="ai-rec-body">' + escHtml(r.bodyAr || '') + '</div>'
+      + '</div>';
+    });
+    grid.innerHTML = cards.join('');
+  }
+
+  // ── Weekly Report ──────────────────────────────────────────────────────
+  function renderWeeklyReport(report) {
+    var section = document.getElementById('weekly-report-section');
+    var container = document.getElementById('weekly-report-content');
+    if (!section || !container) return;
+    if (!report) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+
+    var tw = report.thisWeek || {};
+    var lw = report.lastWeek || {};
+    var d = report.delta || {};
+
+    function deltaChip(val) {
+      if (val == null) return '';
+      var cls = val > 0 ? 'up' : val < 0 ? 'down' : 'flat';
+      var arrow = val > 0 ? '↑' : val < 0 ? '↓' : '→';
+      return '<span class="hero-delta ' + cls + '" style="font-size:12px;">' + arrow + ' ' + Math.abs(val).toFixed(1) + '%</span>';
+    }
+
+    var metricsGrid =
+      '<div class="weekly-metrics-grid">'
+        + '<div class="weekly-metric"><div class="weekly-metric-label">' + lbl('Spend', 'الإنفاق') + '</div><div class="weekly-metric-val">' + escHtml(tw.spendDisplay || '—') + '</div>' + deltaChip(d.spendPct) + '</div>'
+        + '<div class="weekly-metric"><div class="weekly-metric-label">' + lbl('Results', 'النتائج') + '</div><div class="weekly-metric-val">' + escHtml(String(tw.results != null ? tw.results : '—')) + '</div>' + deltaChip(d.resultsPct) + '</div>'
+        + '<div class="weekly-metric"><div class="weekly-metric-label">CTR</div><div class="weekly-metric-val">' + (tw.ctr != null ? tw.ctr + '%' : '—') + '</div>' + deltaChip(d.ctrPct) + '</div>'
+        + '<div class="weekly-metric"><div class="weekly-metric-label">' + lbl('Cost/Result', 'تكلفة/نتيجة') + '</div><div class="weekly-metric-val">' + (tw.costPerResult != null ? tw.costPerResult : '—') + '</div>' + deltaChip(d.costPerResultPct) + '</div>'
+      + '</div>';
+
+    var summary = '<div class="weekly-summary" dir="rtl">' + escHtml(report.summaryAr || '') + '</div>';
+
+    var recsHtml = '';
+    if (report.recommendationsAr && report.recommendationsAr.length > 0) {
+      recsHtml = '<ul class="weekly-recs" dir="rtl">'
+        + report.recommendationsAr.map(function (r) { return '<li>' + escHtml(r) + '</li>'; }).join('')
+        + '</ul>';
+    }
+
+    var best = report.bestCampaign;
+    var worst = report.worstCampaign;
+    var highlights = '';
+    if (best || worst) {
+      highlights = '<div class="weekly-highlights">';
+      if (best) {
+        highlights += '<div class="weekly-highlight best"><span class="highlight-tag">' + lbl('Best', 'الأفضل') + '</span> ' + escHtml(best.campaignName || '') + ' <span class="text-3">(CTR ' + (best.ctr != null ? best.ctr + '%' : '—') + ')</span></div>';
+      }
+      if (worst && (!best || worst.campaignId !== best.campaignId)) {
+        highlights += '<div class="weekly-highlight worst"><span class="highlight-tag">' + lbl('Needs attention', 'يحتاج مراجعة') + '</span> ' + escHtml(worst.campaignName || '') + ' <span class="text-3">(CTR ' + (worst.ctr != null ? worst.ctr + '%' : '—') + ')</span></div>';
+      }
+      highlights += '</div>';
+    }
+
+    var brainActions = report.brainActions || {};
+    var brainLine = '';
+    var brainParts = [];
+    if (brainActions.scaled) brainParts.push(lbl('Scaled: ', 'تم رفع: ') + brainActions.scaled);
+    if (brainActions.paused) brainParts.push(lbl('Paused: ', 'تم إيقاف: ') + brainActions.paused);
+    if (brainActions.refreshed) brainParts.push(lbl('Refreshed: ', 'تم تجديد: ') + brainActions.refreshed);
+    if (brainActions.watching) brainParts.push(lbl('Watching: ', 'قيد المراقبة: ') + brainActions.watching);
+    if (brainParts.length) {
+      brainLine = '<div class="weekly-brain-actions">' + lbl('Brain actions: ', 'إجراءات الدماغ: ') + brainParts.join(' · ') + '</div>';
+    }
+
+    var period = escHtml((report.weekStart || '') + ' → ' + (report.weekEnd || ''));
+    var sourceLabel = report.source === 'ai' ? '🤖 AI' : '📊';
+
+    container.innerHTML =
+      '<div class="weekly-period">' + period + ' <span class="text-3">' + sourceLabel + '</span></div>'
+      + metricsGrid
+      + highlights
+      + summary
+      + recsHtml
+      + brainLine;
+  }
+
   function renderBrainSection(brain, dashData) {
     if (!brain) return;
     applyPulse(brain.livePulse);
@@ -2455,6 +2665,9 @@ export function dashboardPage(): string {
       }
       safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
       safeRender('kpis', function () { renderKpis(kpis); });
+      safeRender('predictions', function () { renderPredictions(dashData.predictions); });
+      safeRender('aiRecs', function () { renderAIRecommendations(dashData.aiRecommendations); });
+      safeRender('weeklyReport', function () { renderWeeklyReport(dashData.weeklyReport); });
 
       var last30 = recentAsc(insights, 30);
       var byDate = {};

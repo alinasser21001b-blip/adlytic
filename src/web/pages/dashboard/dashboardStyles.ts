@@ -1194,4 +1194,109 @@ export const dashboardStyles = `<style>
       .chart-panel-canvas { height: 220px; }
     }
 
+    /* ═══ Predictions ═══ */
+    .predictions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      padding: 0 4px 4px;
+    }
+    .pred-card {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+    }
+    .pred-danger { border-color: var(--red); background: color-mix(in srgb, var(--red) 6%, var(--surface-1)); }
+    .pred-warn   { border-color: var(--amber); background: color-mix(in srgb, var(--amber) 6%, var(--surface-1)); }
+    .pred-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+    .pred-body { flex: 1; min-width: 0; }
+    .pred-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .pred-detail { font-size: 13px; color: var(--text-2); }
+    .pred-detail b { color: var(--text-1); }
+    .pred-meta { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+    /* ═══ AI Recommendations ═══ */
+    .ai-recs-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: 0 4px 4px;
+    }
+    .ai-rec-card {
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+    }
+    .ai-rec-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ai-rec-icon { font-size: 18px; flex-shrink: 0; }
+    .ai-rec-title { font-weight: 600; font-size: 14px; flex: 1; }
+    .ai-rec-pri { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .ai-rec-body { font-size: 13px; color: var(--text-2); line-height: 1.6; }
+
+    /* ═══ Weekly Report ═══ */
+    .weekly-period { font-size: 12px; color: var(--text-3); margin-bottom: 12px; padding: 0 4px; }
+    .weekly-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+      padding: 0 4px;
+    }
+    .weekly-metric {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+      text-align: center;
+    }
+    .weekly-metric-label { font-size: 11px; color: var(--text-3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .weekly-metric-val { font-size: 18px; font-weight: 700; color: var(--text-1); margin-bottom: 2px; }
+    .weekly-summary {
+      font-size: 14px; line-height: 1.7;
+      color: var(--text-2);
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      margin: 12px 4px;
+    }
+    .weekly-recs {
+      padding: 0 20px;
+      margin: 10px 4px;
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.8;
+    }
+    .weekly-recs li { margin-bottom: 4px; }
+    .weekly-highlights {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      padding: 0 4px;
+      margin-bottom: 8px;
+    }
+    .weekly-highlight {
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+    }
+    .highlight-tag {
+      font-weight: 600; font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 6px;
+    }
+    .weekly-highlight.best .highlight-tag { color: var(--green); }
+    .weekly-highlight.worst .highlight-tag { color: var(--red); }
+    .weekly-brain-actions {
+      font-size: 12px; color: var(--text-3);
+      padding: 8px 4px 0;
+    }
+
   </style>`;

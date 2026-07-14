@@ -58,6 +58,9 @@ import { getCampaignCounts, type CampaignCounts } from "../lib/campaignCatalog";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
+import { computePredictions, type PredictionsDTO } from "./predictions";
+import { computeAIRecommendations, type AIRecommendationsDTO } from "./aiRecommendations";
+import { generateWeeklyReport, type WeeklyReportDTO } from "./weeklyReport";
 import { diagnose, type Diagnosis } from "../engines/rules/diagnose";
 import {
   isGenericInsightNarration,
@@ -203,6 +206,10 @@ export interface DashboardDTO {
 
   /** Rich steady-state content when no critical actions remain (optional). */
   steadyState?: SteadyStateSummary;
+
+  predictions?: PredictionsDTO;
+  aiRecommendations?: AIRecommendationsDTO;
+  weeklyReport?: WeeklyReportDTO;
 }
 
 /** Stable-account snapshot for Main Move + AI Assistant when no actions are pending. */
@@ -947,8 +954,8 @@ export async function getDashboard(
     );
   }
 
-  // 9–10. Campaign cards + brain section in parallel (independent after account context).
-  const [cards, brain] = await Promise.all([
+  // 9–10. Campaign cards + brain section + AI features in parallel.
+  const [cards, brain, predictions, aiRecommendations, weeklyReport] = await Promise.all([
     timedStage('campaignCards', () =>
       buildCampaignCards(account.id, prisma, sinceDate, factor),
     ),
@@ -961,6 +968,24 @@ export async function getDashboard(
         account.currencyMinorFactor,
         appliedItemKeys,
       ),
+    ),
+    timedStage('predictions', () =>
+      computePredictions(prisma, ws.id, account.id, curr, factor).catch((err) => {
+        console.warn('[dashboard] predictions failed:', err);
+        return null;
+      }),
+    ),
+    timedStage('aiRecommendations', () =>
+      computeAIRecommendations(prisma, ws.id).catch((err) => {
+        console.warn('[dashboard] aiRecommendations failed:', err);
+        return null;
+      }),
+    ),
+    timedStage('weeklyReport', () =>
+      generateWeeklyReport(prisma, ws.id).catch((err) => {
+        console.warn('[dashboard] weeklyReport failed:', err);
+        return null;
+      }),
     ),
   ]);
 
@@ -1024,6 +1049,9 @@ export async function getDashboard(
     lifetimeSpend,
     ...(brain && { brain }),
     ...(steadyState && { steadyState }),
+    ...(predictions && { predictions }),
+    ...(aiRecommendations && { aiRecommendations }),
+    ...(weeklyReport && { weeklyReport }),
   };
 }
 
