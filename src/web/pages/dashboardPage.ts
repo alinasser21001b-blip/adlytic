@@ -265,7 +265,9 @@ export function dashboardPage(): string {
               <div class="adv-panel-title">تحذيرات مبكرة</div>
               <div class="adv-panel-sub">متى ستنفد الميزانية · متى سيتعب الإبداع</div>
             </div>
+            <div class="adv-panel-meta" id="pred-count-badge">—</div>
           </div>
+          <div class="section-filters" id="pred-filters"></div>
           <div id="predictions-grid" class="predictions-grid"></div>
         </div>
       </section>
@@ -279,7 +281,9 @@ export function dashboardPage(): string {
               <div class="adv-panel-title">خطوات مقترحة</div>
               <div class="adv-panel-sub">مبنية على تحليل أنماط حملاتك</div>
             </div>
+            <div class="adv-panel-meta" id="ai-recs-source-badge">—</div>
           </div>
+          <div class="section-filters" id="ai-recs-filters"></div>
           <div id="ai-recs-grid" class="ai-recs-grid"></div>
         </div>
       </section>
@@ -2191,9 +2195,14 @@ export function dashboardPage(): string {
     el.innerHTML = parts.join('');
   }
   // ── Predictions ──────────────────────────────────────────────────────────
+  var _predAllCards = [];
+  var _predActiveFilter = 'all';
+
   function renderPredictions(pred) {
     var section = document.getElementById('predictions-section');
     var grid = document.getElementById('predictions-grid');
+    var filtersEl = document.getElementById('pred-filters');
+    var countBadge = document.getElementById('pred-count-badge');
     if (!section || !grid) return;
     if (!pred) { section.style.display = 'none'; return; }
 
@@ -2204,85 +2213,313 @@ export function dashboardPage(): string {
       return;
     }
     section.style.display = 'block';
+    section.classList.add('section-enter');
 
-    var cards = [];
+    var total = budget.length + fatigue.length;
+    var critCount = budget.filter(function(b) { return b.severity === 'critical'; }).length
+      + fatigue.filter(function(f) { return f.severity === 'critical'; }).length;
+    var warnCount = total - critCount;
+
+    if (countBadge) {
+      countBadge.textContent = total + ' ' + lbl('alerts', 'تنبيه');
+    }
+
+    _predAllCards = [];
     budget.forEach(function (b) {
       var sev = b.severity === 'critical' ? 'danger' : 'warn';
-      var icon = b.severity === 'critical' ? '⚠️' : '⏳';
+      var spentPct = (b.dailyBudgetMajor > 0)
+        ? Math.min(100, Math.round((b.spentTodayMajor / b.dailyBudgetMajor) * 100))
+        : 0;
       var hrs = b.hoursUntilExhaustion != null ? b.hoursUntilExhaustion.toFixed(1) : '?';
-      cards.push(
-        '<div class="pred-card pred-' + sev + '">'
-          + '<div class="pred-icon">' + icon + '</div>'
-          + '<div class="pred-body">'
-            + '<div class="pred-title">' + escHtml(b.campaignName || '—') + '</div>'
+      var exhaustLabel = b.exhaustionTime
+        ? new Date(b.exhaustionTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        : '';
+      var html =
+        '<div class="pred-card pred-' + sev + '" data-severity="' + b.severity + '" data-campaign="' + escHtml(b.campaignId || '') + '">'
+          + '<div class="pred-sev-stripe"></div>'
+          + '<div class="pred-card-top">'
+            + '<div class="pred-icon">' + (b.severity === 'critical' ? '⚠️' : '⏳') + '</div>'
+            + '<div class="pred-body">'
+              + '<div class="pred-title">' + escHtml(b.campaignName || '—') + '</div>'
+            + '</div>'
+            + '<span class="pred-type-tag">' + lbl('BUDGET', 'ميزانية') + '</span>'
+          + '</div>'
+          + '<div class="pred-card-body">'
             + '<div class="pred-detail">'
               + lbl('Budget exhausts in ', 'الميزانية ستنفد خلال ')
               + '<b>' + escHtml(hrs) + '</b> '
               + lbl('hours', 'ساعة')
+              + (exhaustLabel ? ' <span style="color:var(--text-3);">(' + escHtml(exhaustLabel) + ')</span>' : '')
             + '</div>'
-            + '<div class="pred-meta">'
-              + lbl('Burn rate: ', 'سرعة الإنفاق: ')
-              + escHtml(String(b.burnRatePerHour)) + '/h'
+            + '<div class="pred-progress-wrap">'
+              + '<div class="pred-progress-header">'
+                + '<span class="pred-progress-label">' + lbl('Spent today', 'أُنفق اليوم') + '</span>'
+                + '<span class="pred-progress-val">' + spentPct + '%</span>'
+              + '</div>'
+              + '<div class="pred-progress-bar">'
+                + '<div class="pred-progress-fill" style="width:' + spentPct + '%;"></div>'
+              + '</div>'
+            + '</div>'
+            + '<div class="pred-meta-row">'
+              + '<span class="pred-meta-item">' + lbl('Rate', 'السرعة') + ' <b>' + escHtml(String(b.burnRatePerHour)) + '/h</b></span>'
+              + '<span class="pred-meta-item">' + lbl('Spent', 'أُنفق') + ' <b>' + escHtml(String(b.spentTodayMajor)) + '</b></span>'
+              + '<span class="pred-meta-item">' + lbl('Budget', 'الميزانية') + ' <b>' + escHtml(String(b.dailyBudgetMajor)) + '</b></span>'
+            + '</div>'
+            + '<div class="pred-investigate">'
+              + lbl('Investigate', 'تحقيق') + ' →'
             + '</div>'
           + '</div>'
-        + '</div>'
-      );
+        + '</div>';
+      _predAllCards.push({ severity: b.severity, html: html, campaignId: b.campaignId });
     });
+
     fatigue.forEach(function (f) {
       var sev = f.severity === 'critical' ? 'danger' : 'warn';
-      var icon = f.severity === 'critical' ? '🚨' : '🎨';
       var days = f.daysUntilThreshold != null ? String(f.daysUntilThreshold) : '?';
-      cards.push(
-        '<div class="pred-card pred-' + sev + '">'
-          + '<div class="pred-icon">' + icon + '</div>'
-          + '<div class="pred-body">'
-            + '<div class="pred-title">' + escHtml(f.campaignName || '—') + '</div>'
+      var declinePct = f.baselineCtr > 0
+        ? Math.round(((f.baselineCtr - f.currentCtr) / f.baselineCtr) * 100)
+        : 0;
+      var sparkPts = [];
+      if (f.ctrDeclineDays > 0 && f.baselineCtr > 0) {
+        var step = (f.baselineCtr - f.currentCtr) / Math.max(f.ctrDeclineDays, 1);
+        for (var i = 0; i <= f.ctrDeclineDays; i++) {
+          sparkPts.push(f.baselineCtr - step * i);
+        }
+      }
+      var sparkSvg = '';
+      if (sparkPts.length >= 2) {
+        var maxV = Math.max.apply(null, sparkPts);
+        var minV = Math.min.apply(null, sparkPts);
+        var range = maxV - minV || 1;
+        var w = 100;
+        var h = 28;
+        var pts = sparkPts.map(function(v, idx) {
+          var x = (idx / (sparkPts.length - 1)) * w;
+          var y = h - ((v - minV) / range) * (h - 4) - 2;
+          return x.toFixed(1) + ',' + y.toFixed(1);
+        }).join(' ');
+        sparkSvg = '<div class="pred-sparkline">'
+          + '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">'
+          + '<polyline points="' + pts + '" fill="none" stroke="' + (f.severity === 'critical' ? '#E2604F' : '#C77A1F') + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+          + '</svg></div>';
+      }
+      var html =
+        '<div class="pred-card pred-' + sev + '" data-severity="' + f.severity + '" data-campaign="' + escHtml(f.campaignId || '') + '">'
+          + '<div class="pred-sev-stripe"></div>'
+          + '<div class="pred-card-top">'
+            + '<div class="pred-icon">' + (f.severity === 'critical' ? '🚨' : '🎨') + '</div>'
+            + '<div class="pred-body">'
+              + '<div class="pred-title">' + escHtml(f.campaignName || '—') + '</div>'
+            + '</div>'
+            + '<span class="pred-type-tag">' + lbl('FATIGUE', 'إرهاق') + '</span>'
+          + '</div>'
+          + '<div class="pred-card-body">'
             + '<div class="pred-detail">'
               + lbl('Creative fatigue in ', 'إرهاق الإبداع خلال ')
               + '<b>' + escHtml(days) + '</b> '
               + lbl('days', 'يوم')
+              + ' <span style="color:var(--text-3);">(' + lbl('declined ', 'انخفض ') + declinePct + '%)</span>'
             + '</div>'
-            + '<div class="pred-meta">'
-              + 'CTR: ' + escHtml(String(f.currentCtr)) + '% → '
-              + lbl('baseline ', 'خط الأساس ')
-              + escHtml(String(f.baselineCtr)) + '%'
+            + sparkSvg
+            + '<div class="pred-progress-wrap">'
+              + '<div class="pred-progress-header">'
+                + '<span class="pred-progress-label">CTR ' + lbl('decline', 'الانخفاض') + '</span>'
+                + '<span class="pred-progress-val">' + escHtml(String(f.currentCtr)) + '% → ' + escHtml(String(f.baselineCtr)) + '%</span>'
+              + '</div>'
+              + '<div class="pred-progress-bar">'
+                + '<div class="pred-progress-fill" style="width:' + Math.min(100, declinePct) + '%;"></div>'
+              + '</div>'
+            + '</div>'
+            + '<div class="pred-meta-row">'
+              + '<span class="pred-meta-item">' + lbl('Decline days', 'أيام الانخفاض') + ' <b>' + f.ctrDeclineDays + '</b></span>'
+              + '<span class="pred-meta-item">' + lbl('Current CTR', 'CTR الحالي') + ' <b>' + escHtml(String(f.currentCtr)) + '%</b></span>'
+            + '</div>'
+            + '<div class="pred-investigate">'
+              + lbl('Investigate', 'تحقيق') + ' →'
             + '</div>'
           + '</div>'
-        + '</div>'
-      );
+        + '</div>';
+      _predAllCards.push({ severity: f.severity, html: html, campaignId: f.campaignId });
     });
-    grid.innerHTML = cards.join('');
+
+    if (filtersEl) {
+      filtersEl.innerHTML =
+        '<button type="button" class="section-filter-tab active" data-pred-filter="all">'
+          + lbl('All', 'الكل') + '<span class="section-filter-count">' + total + '</span>'
+        + '</button>'
+        + (critCount > 0 ? '<button type="button" class="section-filter-tab" data-pred-filter="critical">'
+          + lbl('Critical', 'حرجة') + '<span class="section-filter-count">' + critCount + '</span></button>' : '')
+        + (warnCount > 0 ? '<button type="button" class="section-filter-tab" data-pred-filter="warning">'
+          + lbl('Warning', 'تحذير') + '<span class="section-filter-count">' + warnCount + '</span></button>' : '');
+      filtersEl.addEventListener('click', function (e) {
+        var tab = e.target.closest('[data-pred-filter]');
+        if (!tab) return;
+        _predActiveFilter = tab.getAttribute('data-pred-filter');
+        filtersEl.querySelectorAll('.section-filter-tab').forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        applyPredFilter(grid);
+      });
+    }
+
+    grid.addEventListener('click', function (e) {
+      var card = e.target.closest('.pred-card');
+      if (!card) return;
+      var cid = card.getAttribute('data-campaign');
+      if (cid) {
+        var q = lbl('Investigate campaign ' + cid, 'حلّل الحملة ' + cid);
+        window.location.href = '/ai?q=' + encodeURIComponent(q);
+      }
+    });
+
+    applyPredFilter(grid);
+  }
+
+  function applyPredFilter(grid) {
+    var filtered = _predAllCards.filter(function (c) {
+      if (_predActiveFilter === 'all') return true;
+      return c.severity === _predActiveFilter;
+    });
+    if (filtered.length === 0) {
+      grid.innerHTML = '<div class="pred-empty"><div class="pred-empty-icon">✓</div>'
+        + lbl('No predictions matching this filter', 'لا توجد تنبؤات تطابق هذا الفلتر') + '</div>';
+    } else {
+      grid.innerHTML = filtered.map(function (c) { return c.html; }).join('');
+    }
   }
 
   // ── AI Recommendations ─────────────────────────────────────────────────
+  var _recsAllCards = [];
+  var _recsActiveFilter = 'all';
+
   function renderAIRecommendations(recs) {
     var section = document.getElementById('ai-recs-section');
     var grid = document.getElementById('ai-recs-grid');
+    var filtersEl = document.getElementById('ai-recs-filters');
+    var sourceBadge = document.getElementById('ai-recs-source-badge');
     if (!section || !grid) return;
     if (!recs || !recs.recommendations || recs.recommendations.length === 0) {
       section.style.display = 'none';
       return;
     }
     section.style.display = 'block';
+    section.classList.add('section-enter', 'section-enter-delay-1');
+
+    if (sourceBadge) {
+      sourceBadge.textContent = recs.source === 'ai' ? '🤖 AI' : '📊 ' + lbl('Rule-based', 'قواعد');
+    }
 
     var catIcons = { scale: '🚀', fix: '🔧', pause: '⏸️', watch: '👁️', optimize: '⚙️' };
-    var priColors = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--text-3)' };
+    var catLabels = {
+      scale: lbl('Scale', 'توسيع'),
+      fix: lbl('Fix', 'إصلاح'),
+      pause: lbl('Pause', 'إيقاف'),
+      watch: lbl('Watch', 'مراقبة'),
+      optimize: lbl('Optimize', 'تحسين'),
+    };
     var priLabels = { high: lbl('High', 'عالية'), medium: lbl('Medium', 'متوسطة'), low: lbl('Low', 'منخفضة') };
 
-    var cards = recs.recommendations.map(function (r) {
-      var icon = catIcons[r.category] || '⚙️';
-      var priColor = priColors[r.priority] || 'var(--text-3)';
-      var priLabel = priLabels[r.priority] || r.priority;
-      return '<div class="ai-rec-card">'
-        + '<div class="ai-rec-header">'
-          + '<span class="ai-rec-icon">' + icon + '</span>'
-          + '<span class="ai-rec-title">' + escHtml(r.titleAr || '') + '</span>'
-          + '<span class="ai-rec-pri" style="color:' + priColor + ';">' + escHtml(priLabel) + '</span>'
-        + '</div>'
-        + '<div class="ai-rec-body">' + escHtml(r.bodyAr || '') + '</div>'
-      + '</div>';
+    var catCounts = {};
+    recs.recommendations.forEach(function (r) {
+      var cat = r.category || 'optimize';
+      catCounts[cat] = (catCounts[cat] || 0) + 1;
     });
-    grid.innerHTML = cards.join('');
+
+    _recsAllCards = [];
+    recs.recommendations.forEach(function (r) {
+      var icon = catIcons[r.category] || '⚙️';
+      var priLabel = priLabels[r.priority] || r.priority;
+      var catLabel = catLabels[r.category] || r.category;
+      var confPct = r.confidence != null ? Math.round(r.confidence * 100) : null;
+
+      var campaignTags = '';
+      if (r.campaignIds && r.campaignIds.length > 0) {
+        var tags = r.campaignIds.slice(0, 3).map(function (cid) {
+          var name = findCampaignName(cid);
+          return '<span class="ai-rec-campaign-tag" title="' + escHtml(cid) + '">' + escHtml(name || cid.slice(0, 12) + '…') + '</span>';
+        });
+        if (r.campaignIds.length > 3) {
+          tags.push('<span class="ai-rec-campaign-tag">+' + (r.campaignIds.length - 3) + '</span>');
+        }
+        campaignTags = '<div class="ai-rec-campaigns">' + tags.join('') + '</div>';
+      }
+
+      var confHtml = '';
+      if (confPct != null) {
+        confHtml = '<div class="ai-rec-confidence">'
+          + '<div class="ai-rec-conf-bar"><div class="ai-rec-conf-fill" style="width:' + confPct + '%;"></div></div>'
+          + '<span class="ai-rec-conf-label">' + confPct + '% ' + lbl('confidence', 'ثقة') + '</span>'
+        + '</div>';
+      }
+
+      var html = '<div class="ai-rec-card" data-category="' + escHtml(r.category || '') + '" data-campaign-ids="' + escHtml((r.campaignIds || []).join(',')) + '">'
+        + '<div class="ai-rec-header">'
+          + '<div class="ai-rec-icon ' + escHtml(r.category || '') + '">' + icon + '</div>'
+          + '<div class="ai-rec-title-wrap">'
+            + '<div class="ai-rec-title">' + escHtml(r.titleAr || '') + '</div>'
+            + '<div class="ai-rec-cat-label">' + escHtml(catLabel) + '</div>'
+          + '</div>'
+          + '<span class="ai-rec-pri ' + escHtml(r.priority || '') + '">' + escHtml(priLabel) + '</span>'
+        + '</div>'
+        + '<div class="ai-rec-body-wrap">'
+          + '<div class="ai-rec-body">' + escHtml(r.bodyAr || '') + '</div>'
+          + confHtml
+          + campaignTags
+          + '<div class="ai-rec-investigate">'
+            + lbl('Investigate', 'تحقيق') + ' →'
+          + '</div>'
+        + '</div>'
+      + '</div>';
+      _recsAllCards.push({ category: r.category || 'optimize', html: html, campaignIds: r.campaignIds || [] });
+    });
+
+    if (filtersEl) {
+      var filterHtml = '<button type="button" class="section-filter-tab active" data-rec-filter="all">'
+        + lbl('All', 'الكل') + '<span class="section-filter-count">' + recs.recommendations.length + '</span></button>';
+      Object.keys(catCounts).forEach(function (cat) {
+        var catIcon = catIcons[cat] || '⚙️';
+        filterHtml += '<button type="button" class="section-filter-tab" data-rec-filter="' + escHtml(cat) + '">'
+          + catIcon + ' ' + escHtml(catLabels[cat] || cat) + '<span class="section-filter-count">' + catCounts[cat] + '</span></button>';
+      });
+      filtersEl.innerHTML = filterHtml;
+      filtersEl.addEventListener('click', function (e) {
+        var tab = e.target.closest('[data-rec-filter]');
+        if (!tab) return;
+        _recsActiveFilter = tab.getAttribute('data-rec-filter');
+        filtersEl.querySelectorAll('.section-filter-tab').forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        applyRecFilter(grid);
+      });
+    }
+
+    grid.addEventListener('click', function (e) {
+      var card = e.target.closest('.ai-rec-card');
+      if (!card) return;
+      var cids = (card.getAttribute('data-campaign-ids') || '').split(',').filter(Boolean);
+      if (cids.length > 0) {
+        var q = lbl('Investigate campaign ' + cids[0], 'حلّل الحملة ' + cids[0]);
+        window.location.href = '/ai?q=' + encodeURIComponent(q);
+      }
+    });
+
+    applyRecFilter(grid);
+  }
+
+  function findCampaignName(campaignId) {
+    var camps = state.lastCampaigns || [];
+    for (var i = 0; i < camps.length; i++) {
+      if (camps[i].id === campaignId || camps[i].metaId === campaignId) {
+        return camps[i].name;
+      }
+    }
+    return null;
+  }
+
+  function applyRecFilter(grid) {
+    var filtered = _recsAllCards.filter(function (c) {
+      if (_recsActiveFilter === 'all') return true;
+      return c.category === _recsActiveFilter;
+    });
+    grid.innerHTML = filtered.map(function (c) { return c.html; }).join('');
   }
 
   // ── Weekly Report ──────────────────────────────────────────────────────
@@ -2292,32 +2529,68 @@ export function dashboardPage(): string {
     if (!section || !container) return;
     if (!report) { section.style.display = 'none'; return; }
     section.style.display = 'block';
+    section.classList.add('section-enter', 'section-enter-delay-2');
 
     var tw = report.thisWeek || {};
     var lw = report.lastWeek || {};
     var d = report.delta || {};
 
-    function deltaChip(val) {
+    function deltaChip(val, goodWhenUp) {
       if (val == null) return '';
-      var cls = val > 0 ? 'up' : val < 0 ? 'down' : 'flat';
-      var arrow = val > 0 ? '↑' : val < 0 ? '↓' : '→';
-      return '<span class="hero-delta ' + cls + '" style="font-size:12px;">' + arrow + ' ' + Math.abs(val).toFixed(1) + '%</span>';
+      var up = val > 0;
+      var arrow = up ? '↑' : val < 0 ? '↓' : '→';
+      var cls;
+      if (val === 0) cls = 'flat';
+      else if (goodWhenUp) cls = up ? 'up' : 'down';
+      else cls = up ? 'down' : 'up';
+      return '<span class="hero-delta ' + cls + '" style="font-size:11px;padding:3px 8px;">' + arrow + ' ' + Math.abs(val).toFixed(1) + '%</span>';
     }
 
-    var metricsGrid =
-      '<div class="weekly-metrics-grid">'
-        + '<div class="weekly-metric"><div class="weekly-metric-label">' + lbl('Spend', 'الإنفاق') + '</div><div class="weekly-metric-val">' + escHtml(tw.spendDisplay || '—') + '</div>' + deltaChip(d.spendPct) + '</div>'
-        + '<div class="weekly-metric"><div class="weekly-metric-label">' + lbl('Results', 'النتائج') + '</div><div class="weekly-metric-val">' + escHtml(String(tw.results != null ? tw.results : '—')) + '</div>' + deltaChip(d.resultsPct) + '</div>'
-        + '<div class="weekly-metric"><div class="weekly-metric-label">CTR</div><div class="weekly-metric-val">' + (tw.ctr != null ? tw.ctr + '%' : '—') + '</div>' + deltaChip(d.ctrPct) + '</div>'
-        + '<div class="weekly-metric"><div class="weekly-metric-label">' + lbl('Cost/Result', 'تكلفة/نتيجة') + '</div><div class="weekly-metric-val">' + (tw.costPerResult != null ? tw.costPerResult : '—') + '</div>' + deltaChip(d.costPerResultPct) + '</div>'
-      + '</div>';
+    function compBar(thisVal, lastVal) {
+      if (thisVal == null || lastVal == null) return '';
+      var maxV = Math.max(thisVal, lastVal, 1);
+      var thisPct = Math.round((thisVal / maxV) * 100);
+      var lastPct = Math.round((lastVal / maxV) * 100);
+      return '<div class="weekly-metric-bar">'
+        + '<div class="weekly-metric-bar-inner">'
+          + '<div class="weekly-metric-bar-this" style="width:' + thisPct + '%;"></div>'
+          + '<div class="weekly-metric-bar-last" style="width:' + (100 - thisPct) + '%;"></div>'
+        + '</div></div>';
+    }
 
-    var summary = '<div class="weekly-summary" dir="rtl">' + escHtml(report.summaryAr || '') + '</div>';
+    function metricCard(label, val, lastVal, lastDisplay, delta, goodWhenUp) {
+      return '<div class="weekly-metric">'
+        + '<div class="weekly-metric-label">' + label + '</div>'
+        + '<div class="weekly-metric-val">' + escHtml(String(val != null ? val : '—')) + '</div>'
+        + (lastDisplay ? '<div class="weekly-metric-prev">' + lbl('prev: ', 'سابق: ') + escHtml(String(lastDisplay)) + '</div>' : '')
+        + deltaChip(delta, goodWhenUp)
+        + compBar(val, lastVal)
+      + '</div>';
+    }
+
+    var metricsGrid = '<div class="weekly-metrics-grid">'
+      + metricCard(lbl('Spend', 'الإنفاق'), tw.spendDisplay || '—', null, lw.spendDisplay, d.spendPct, false)
+      + metricCard(lbl('Results', 'النتائج'), tw.results, lw.results, lw.results, d.resultsPct, true)
+      + metricCard('CTR', tw.ctr != null ? tw.ctr + '%' : '—', lw.ctr, lw.ctr != null ? lw.ctr + '%' : null, d.ctrPct, true)
+      + metricCard(lbl('Cost/Result', 'تكلفة/نتيجة'), tw.costPerResult, lw.costPerResult, lw.costPerResult, d.costPerResultPct, false)
+      + metricCard('CPM', tw.cpm != null ? tw.cpm : '—', lw.cpm, lw.cpm, null, false)
+      + metricCard(lbl('Impressions', 'الظهور'), tw.impressions != null ? Number(tw.impressions).toLocaleString() : '—', lw.impressions, lw.impressions != null ? Number(lw.impressions).toLocaleString() : null, null, true)
+    + '</div>';
+
+    var summary = report.summaryAr
+      ? '<div class="weekly-summary" dir="rtl">' + escHtml(report.summaryAr) + '</div>'
+      : '';
 
     var recsHtml = '';
     if (report.recommendationsAr && report.recommendationsAr.length > 0) {
+      var recIcons = ['💡', '🎯', '📊', '⚡'];
       recsHtml = '<ul class="weekly-recs" dir="rtl">'
-        + report.recommendationsAr.map(function (r) { return '<li>' + escHtml(r) + '</li>'; }).join('')
+        + report.recommendationsAr.map(function (r, i) {
+          return '<li>'
+            + '<span class="weekly-rec-icon">' + (recIcons[i % recIcons.length]) + '</span>'
+            + '<span>' + escHtml(r) + '</span>'
+          + '</li>';
+        }).join('')
         + '</ul>';
     }
 
@@ -2327,35 +2600,63 @@ export function dashboardPage(): string {
     if (best || worst) {
       highlights = '<div class="weekly-highlights">';
       if (best) {
-        highlights += '<div class="weekly-highlight best"><span class="highlight-tag">' + lbl('Best', 'الأفضل') + '</span> ' + escHtml(best.campaignName || '') + ' <span class="text-3">(CTR ' + (best.ctr != null ? best.ctr + '%' : '—') + ')</span></div>';
+        highlights += '<div class="weekly-highlight best">'
+          + '<span class="highlight-tag">' + lbl('BEST PERFORMER', 'الأفضل أداءً') + '</span>'
+          + '<div class="weekly-highlight-name">' + escHtml(best.campaignName || '') + '</div>'
+          + '<div class="weekly-highlight-stats">'
+            + '<span>CTR <b>' + (best.ctr != null ? best.ctr + '%' : '—') + '</b></span>'
+            + '<span>' + lbl('Spend', 'إنفاق') + ' <b>' + escHtml(String(best.spend || '—')) + '</b></span>'
+            + '<span>' + lbl('Results', 'نتائج') + ' <b>' + escHtml(String(best.results || '—')) + '</b></span>'
+          + '</div>'
+        + '</div>';
       }
       if (worst && (!best || worst.campaignId !== best.campaignId)) {
-        highlights += '<div class="weekly-highlight worst"><span class="highlight-tag">' + lbl('Needs attention', 'يحتاج مراجعة') + '</span> ' + escHtml(worst.campaignName || '') + ' <span class="text-3">(CTR ' + (worst.ctr != null ? worst.ctr + '%' : '—') + ')</span></div>';
+        highlights += '<div class="weekly-highlight worst">'
+          + '<span class="highlight-tag">' + lbl('NEEDS ATTENTION', 'يحتاج مراجعة') + '</span>'
+          + '<div class="weekly-highlight-name">' + escHtml(worst.campaignName || '') + '</div>'
+          + '<div class="weekly-highlight-stats">'
+            + '<span>CTR <b>' + (worst.ctr != null ? worst.ctr + '%' : '—') + '</b></span>'
+            + '<span>' + lbl('Spend', 'إنفاق') + ' <b>' + escHtml(String(worst.spend || '—')) + '</b></span>'
+            + '<span>' + lbl('Results', 'نتائج') + ' <b>' + escHtml(String(worst.results || '—')) + '</b></span>'
+          + '</div>'
+        + '</div>';
       }
       highlights += '</div>';
     }
 
     var brainActions = report.brainActions || {};
     var brainLine = '';
-    var brainParts = [];
-    if (brainActions.scaled) brainParts.push(lbl('Scaled: ', 'تم رفع: ') + brainActions.scaled);
-    if (brainActions.paused) brainParts.push(lbl('Paused: ', 'تم إيقاف: ') + brainActions.paused);
-    if (brainActions.refreshed) brainParts.push(lbl('Refreshed: ', 'تم تجديد: ') + brainActions.refreshed);
-    if (brainActions.watching) brainParts.push(lbl('Watching: ', 'قيد المراقبة: ') + brainActions.watching);
-    if (brainParts.length) {
-      brainLine = '<div class="weekly-brain-actions">' + lbl('Brain actions: ', 'إجراءات الدماغ: ') + brainParts.join(' · ') + '</div>';
+    var brainPills = [];
+    if (brainActions.scaled) {
+      brainPills.push('<div class="weekly-brain-pill"><span class="weekly-brain-pill-icon">📈</span>' + lbl('Scaled', 'تم رفع') + ' <span class="weekly-brain-pill-count">' + brainActions.scaled + '</span></div>');
+    }
+    if (brainActions.paused) {
+      brainPills.push('<div class="weekly-brain-pill"><span class="weekly-brain-pill-icon">⏸️</span>' + lbl('Paused', 'تم إيقاف') + ' <span class="weekly-brain-pill-count">' + brainActions.paused + '</span></div>');
+    }
+    if (brainActions.refreshed) {
+      brainPills.push('<div class="weekly-brain-pill"><span class="weekly-brain-pill-icon">🔄</span>' + lbl('Refreshed', 'تم تجديد') + ' <span class="weekly-brain-pill-count">' + brainActions.refreshed + '</span></div>');
+    }
+    if (brainActions.watching) {
+      brainPills.push('<div class="weekly-brain-pill"><span class="weekly-brain-pill-icon">👁️</span>' + lbl('Watching', 'مراقبة') + ' <span class="weekly-brain-pill-count">' + brainActions.watching + '</span></div>');
+    }
+    if (brainPills.length) {
+      brainLine = '<div class="weekly-brain-actions">' + brainPills.join('') + '</div>';
     }
 
-    var period = escHtml((report.weekStart || '') + ' → ' + (report.weekEnd || ''));
     var sourceLabel = report.source === 'ai' ? '🤖 AI' : '📊';
+    var header = '<div class="weekly-header">'
+      + '<div class="weekly-period">'
+        + '<span class="weekly-period-dates">' + escHtml(report.weekStart || '') + ' → ' + escHtml(report.weekEnd || '') + '</span>'
+      + '</div>'
+      + '<span class="weekly-source-badge">' + sourceLabel + ' ' + lbl('Generated', 'تم التوليد') + '</span>'
+    + '</div>';
 
-    container.innerHTML =
-      '<div class="weekly-period">' + period + ' <span class="text-3">' + sourceLabel + '</span></div>'
-      + metricsGrid
-      + highlights
-      + summary
-      + recsHtml
-      + brainLine;
+    var campaignSummary = '<div style="display:flex;gap:12px;font-size:12px;color:var(--text-3);margin-bottom:14px;">'
+      + '<span>' + lbl('Active', 'نشطة') + ': <b style="color:var(--success);">' + (report.activeCampaigns || 0) + '</b></span>'
+      + '<span>' + lbl('Paused', 'متوقفة') + ': <b style="color:var(--text-2);">' + (report.pausedCampaigns || 0) + '</b></span>'
+    + '</div>';
+
+    container.innerHTML = header + campaignSummary + metricsGrid + highlights + summary + recsHtml + brainLine;
   }
 
   function renderBrainSection(brain, dashData) {
