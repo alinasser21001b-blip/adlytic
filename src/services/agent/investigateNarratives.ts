@@ -52,6 +52,33 @@ function statusAr(status: unknown): string {
   }
 }
 
+function objectiveAr(obj: unknown): string {
+  switch (String(obj || '').toUpperCase()) {
+    case 'MESSAGES':
+      return 'رسائل';
+    case 'CONVERSIONS':
+      return 'تحويلات';
+    case 'TRAFFIC':
+    case 'LINK_CLICKS':
+      return 'زيارات';
+    case 'ENGAGEMENT':
+    case 'POST_ENGAGEMENT':
+      return 'تفاعل';
+    case 'REACH':
+      return 'وصول';
+    case 'BRAND_AWARENESS':
+      return 'وعي بالعلامة';
+    case 'VIDEO_VIEWS':
+      return 'مشاهدات فيديو';
+    case 'LEAD_GENERATION':
+      return 'توليد عملاء';
+    case 'APP_INSTALLS':
+      return 'تثبيت تطبيقات';
+    default:
+      return String(obj || '—');
+  }
+}
+
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
@@ -86,29 +113,74 @@ function structureNarrative(data: unknown): string {
   const name = campaign?.['name'] ? String(campaign['name']) : null;
   const status = campaign ? statusAr(campaign['status']) : null;
   const objective = campaign?.['objective'] ? String(campaign['objective']) : null;
-  const spend = num(metricCurrent(metrics, 'spend'), 0);
-  const ctr = num(metricCurrent(metrics, 'ctr'), 2);
-  const spendDelta = pct(metricDelta(metrics, 'spend'));
+  const objAr = objective ? objectiveAr(objective) : null;
+
+  const spend = metricCurrent(metrics, 'spend');
+  const spendStr = num(spend, 0);
+  const ctr = metricCurrent(metrics, 'ctr');
+  const ctrStr = num(ctr, 2);
+  const impressions = metricCurrent(metrics, 'impressions');
+  const impressionsStr = int(impressions);
+  const messages = metricCurrent(metrics, 'messages');
+  const messagesStr = int(messages);
+  const cpm = metricCurrent(metrics, 'cpm');
+  const cpmStr = num(cpm, 2);
+  const spendDelta = metricDelta(metrics, 'spend');
+  const spendDeltaStr = pct(spendDelta);
+  const ctrDelta = metricDelta(metrics, 'ctr');
+  const ctrDeltaStr = pct(ctrDelta);
 
   const evidence = joinSentences([
-    name ? `الحملة «${name}» حالتها ${status || '—'}${objective ? ` وهدفها ${objective}` : ''}.` : null,
-    spend != null ? `إنفاق النافذة الحالية ${spend}${spendDelta ? ` (${spendDelta} مقابل الفترة السابقة)` : ''}.` : null,
-    ctr != null ? `معدل التفاعل الحالي ${ctr}%.` : null,
+    name ? `الحملة «${name}» حالتها ${status || '—'}، هدفها ${objAr || objective || '—'}.` : null,
+    spendStr != null ? `إنفاق النافذة الحالية ${spendStr}${spendDeltaStr ? ` (${spendDeltaStr} مقابل الفترة السابقة)` : ''}.` : null,
+    impressionsStr != null ? `عدد مرات الظهور ${impressionsStr}.` : null,
+    ctrStr != null ? `معدل التفاعل (CTR) ${ctrStr}%${ctrDeltaStr ? ` (${ctrDeltaStr})` : ''}.` : null,
+    messagesStr != null ? `إجمالي الرسائل/النتائج ${messagesStr}.` : null,
+    cpmStr != null ? `تكلفة الألف ظهور (CPM) ${cpmStr}.` : null,
   ]);
 
-  const topIssue = asRecord(issues[0]);
-  const diagnosis = topIssue
-    ? `أبرز إشارة مكتشفة: ${String(topIssue['code'] || 'مشكلة')}${
-        Array.isArray(topIssue['evidence']) && topIssue['evidence'][0]
-          ? ` — ${String(topIssue['evidence'][0])}`
-          : ''
-      }.`
-    : 'لا توجد مشاكل مكتشفة بقوة عالية في هذه النافذة.';
+  // Build specific diagnosis from issues
+  let diagnosis: string;
+  if (issues.length > 0) {
+    const issueTexts = issues.slice(0, 3).map((iss) => {
+      const r = asRecord(iss);
+      if (!r) return null;
+      const code = String(r['code'] || '');
+      const evidenceArr = Array.isArray(r['evidence']) ? r['evidence'] : [];
+      const severity = String(r['severity'] || '');
+      const sevAr = severity === 'high' ? '(عالية)' : severity === 'medium' ? '(متوسطة)' : '';
+      return `${code}${sevAr}${evidenceArr[0] ? ` — ${String(evidenceArr[0])}` : ''}`;
+    }).filter(Boolean);
+    diagnosis = issueTexts.length
+      ? `المشاكل المكتشفة: ${issueTexts.join('؛ ')}.`
+      : 'لا توجد مشاكل مكتشفة بقوة عالية في هذه النافذة.';
+  } else {
+    // No issues — give a data-driven status summary
+    if (status === 'متوقفة') {
+      diagnosis = 'الحملة متوقفة حالياً ولا تستقبل ظهوراً جديداً.';
+    } else if (ctr != null && ctr < 0.5) {
+      diagnosis = `معدل التفاعل ${ctrStr}% منخفض — قد يحتاج الإبداع أو الاستهداف مراجعة.`;
+    } else if (ctr != null && ctr > 3) {
+      diagnosis = `معدل التفاعل ${ctrStr}% مرتفع وجيد.`;
+    } else {
+      diagnosis = 'لا توجد مشاكل واضحة في هذه النافذة.';
+    }
+  }
 
+  // Build action from recommendations or data
+  let action: string;
   const topRec = asRecord(recs[0]);
-  const action = topRec?.['text']
-    ? `الخطوة التالية المقترحة: ${String(topRec['text'])}.`
-    : 'راجع تبويب النظرة العامة ثم طبّق أول مهمة واضحة من لوحة التحكم.';
+  if (topRec?.['text']) {
+    action = `الخطوة التالية المقترحة: ${String(topRec['text'])}.`;
+  } else if (ctrDelta != null && ctrDelta <= -20) {
+    action = `التفاعل تراجع بنسبة ${pct(ctrDelta)} — راجع الإبداعات والجمهور المستهدف.`;
+  } else if (spendDelta != null && spendDelta >= 50) {
+    action = `الإنفاق ارتفع بنسبة ${pct(spendDelta)} — تأكد أن الزيادة مقصودة ومتناسبة مع النتائج.`;
+  } else if (status === 'متوقفة') {
+    action = 'فعّل الحملة مجدداً أو أنشئ حملة بديلة إذا كان الإيقاف مؤقتاً.';
+  } else {
+    action = 'استمر في المراقبة وقارن نتائج هذه الفترة بالفترة السابقة.';
+  }
 
   return joinSentences([evidence, diagnosis, action]);
 }
@@ -116,32 +188,69 @@ function structureNarrative(data: unknown): string {
 function budgetNarrative(data: unknown): string {
   const pacing = asRecord(data);
   if (!pacing) return NO_DATA;
-  const today = num(pacing['todaySpend'], 0);
-  const budget = num(pacing['dailyBudget'], 0);
-  const pctOf = num(pacing['pctOfBudget'], 0);
-  const burn = num(pacing['burnRatePerHour'], 2);
+  const todaySpend = Number(pacing['todaySpend'] ?? NaN);
+  const dailyBudget = Number(pacing['dailyBudget'] ?? NaN);
+  const pctOfBudget = Number(pacing['pctOfBudget'] ?? NaN);
+  const burnRate = Number(pacing['burnRatePerHour'] ?? NaN);
 
-  if (today == null && budget == null) return NO_DATA;
+  const todayStr = num(todaySpend, 0);
+  const budgetStr = num(dailyBudget, 0);
+  const pctStr = num(pctOfBudget, 0);
+  const burnStr = num(burnRate, 2);
+
+  if (todayStr == null && budgetStr == null) return NO_DATA;
 
   const evidence = joinSentences([
-    today != null ? `إنفاق اليوم حتى الآن ${today}.` : null,
-    budget != null ? `الميزانية اليومية ${budget}.` : null,
-    pctOf != null ? `نسبة الاستهلاك ${pctOf}% من الميزانية اليومية.` : null,
-    burn != null ? `معدل الحرق التقريبي ${burn} لكل ساعة.` : null,
+    todayStr != null && budgetStr != null
+      ? `إنفاق اليوم ${todayStr} من أصل ميزانية يومية ${budgetStr}.`
+      : todayStr != null ? `إنفاق اليوم حتى الآن ${todayStr}.` : `الميزانية اليومية ${budgetStr}.`,
+    pctStr != null ? `نسبة الاستهلاك ${pctStr}% من الميزانية اليومية.` : null,
+    burnStr != null ? `معدل الحرق ${burnStr} لكل ساعة.` : null,
   ]);
 
-  let diagnosis: string | null = null;
-  const pctN = pacing['pctOfBudget'] == null ? null : Number(pacing['pctOfBudget']);
-  if (pctN != null && Number.isFinite(pctN)) {
-    if (pctN >= 90) diagnosis = 'الاستهلاك مرتفع جداً وقد ينفد الميزان قبل نهاية اليوم.';
-    else if (pctN <= 20) diagnosis = 'الاستهلاك منخفض — قد تكون الحملة محدودة بالتعلّم أو بالجمهور أو بالإيقاف الجزئي.';
-    else diagnosis = 'وتيرة الإنفاق ضمن نطاق معقول مقارنة بالميزانية اليومية.';
-  }
+  let diagnosis: string;
+  let action: string;
+  const currentHour = new Date().getUTCHours();
 
-  const action =
-    pctN != null && pctN >= 90
-      ? 'راجع الميزانية اليومية أو قيّد الاستهداف/المواضع الأغلى قبل نفاد الرصيد.'
-      : 'راقب الإنفاق حتى نهاية اليوم وقارنه بنتائج الهدف في تبويب النظرة العامة.';
+  if (Number.isFinite(pctOfBudget)) {
+    if (pctOfBudget >= 95) {
+      diagnosis = 'الميزانية شبه مستنفدة — الحملة قد توقفت أو ستتوقف قريباً عن التسليم اليوم.';
+      action = budgetStr != null
+        ? `ارفع الميزانية اليومية (حالياً ${budgetStr}) إذا أردت استمرار التسليم، أو انتظر اليوم التالي.`
+        : 'ارفع الميزانية اليومية إذا أردت استمرار التسليم.';
+    } else if (pctOfBudget >= 80) {
+      const remainingBudget = Number.isFinite(dailyBudget) && Number.isFinite(todaySpend)
+        ? num(dailyBudget - todaySpend, 0) : null;
+      diagnosis = `الاستهلاك مرتفع (${pctStr}%) — ${remainingBudget != null ? `المتبقي حوالي ${remainingBudget}` : 'قد ينفد الرصيد قبل نهاية اليوم'}.`;
+      if (Number.isFinite(burnRate) && burnRate > 0) {
+        const hoursLeft = (dailyBudget - todaySpend) / burnRate;
+        action = hoursLeft < 3
+          ? `بمعدل الحرق الحالي (${burnStr}/ساعة)، المتبقي يكفي لأقل من ${Math.ceil(hoursLeft)} ساعات. قلّل الإنفاق على المواضع الأغلى أو ارفع الميزانية.`
+          : `بمعدل الحرق الحالي (${burnStr}/ساعة)، المتبقي يكفي لحوالي ${Math.round(hoursLeft)} ساعات.`;
+      } else {
+        action = 'راقب الإنفاق خلال الساعات القادمة وقرر ما إذا تحتاج رفع الميزانية.';
+      }
+    } else if (pctOfBudget <= 15 && currentHour >= 12) {
+      diagnosis = `الاستهلاك منخفض جداً (${pctStr}%) رغم مرور أكثر من نصف اليوم.`;
+      action = 'تحقق من حالة الحملة — قد تكون متوقفة، أو الجمهور المستهدف ضيق جداً، أو مجموعات الإعلانات في مرحلة التعلّم.';
+    } else if (pctOfBudget <= 30) {
+      diagnosis = `وتيرة الإنفاق هادئة (${pctStr}%).`;
+      action = Number.isFinite(burnRate) && burnRate > 0
+        ? `بمعدل ${burnStr}/ساعة، الميزانية كافية لباقي اليوم.`
+        : 'وتيرة الإنفاق ضمن النطاق الطبيعي.';
+    } else {
+      diagnosis = `وتيرة الإنفاق معتدلة (${pctStr}%).`;
+      if (Number.isFinite(burnRate) && burnRate > 0 && Number.isFinite(dailyBudget) && Number.isFinite(todaySpend)) {
+        const hoursLeft = (dailyBudget - todaySpend) / burnRate;
+        action = `بمعدل الحرق الحالي (${burnStr}/ساعة)، الميزانية تكفي لحوالي ${Math.round(hoursLeft)} ساعات.`;
+      } else {
+        action = 'الإنفاق يسير بوتيرة مناسبة مقارنة بالميزانية اليومية.';
+      }
+    }
+  } else {
+    diagnosis = 'لا يمكن حساب نسبة الاستهلاك — تأكد من إعداد الميزانية اليومية.';
+    action = 'راجع إعدادات الميزانية اليومية في الحملة.';
+  }
 
   return joinSentences([evidence, diagnosis, action]);
 }
@@ -162,14 +271,28 @@ function learningNarrative(data: unknown): string {
 
   const inL = Number(lp['inLearning'] || 0);
   const lim = Number(lp['learningLimited'] || 0);
-  let diagnosis = 'مرحلة التعلّم مستقرة نسبياً.';
-  if (lim > 0) diagnosis = 'يوجد مجموعات محدودة التعلّم — غالباً بسبب تعديلات متكررة أو ميزانية/أحداث غير كافية.';
-  else if (inL > 0) diagnosis = 'ما زالت بعض المجموعات داخل مرحلة التعلّم؛ النتائج قد تتذبذب حتى تخرج منها.';
+  const suc = Number(lp['success'] || 0);
+  let diagnosis: string;
+  if (lim > 0 && inL > 0) {
+    diagnosis = `${limited} مجموعة محدودة التعلّم و${inLearning} لا تزال في التعلّم — الأداء غير مستقر ومعرّض للتذبذب.`;
+  } else if (lim > 0) {
+    diagnosis = `${limited} مجموعة محدودة التعلّم — غالباً بسبب تعديلات متكررة أو ميزانية/أحداث غير كافية.`;
+  } else if (inL > 0) {
+    diagnosis = `${inLearning} مجموعة لا تزال في مرحلة التعلّم — النتائج ستتذبذب حتى اكتمال التعلّم.`;
+  } else if (suc > 0) {
+    diagnosis = `جميع المجموعات المُبلّغة (${success}) خرجت من التعلّم بنجاح — التسليم مستقر.`;
+  } else {
+    diagnosis = 'مرحلة التعلّم مستقرة نسبياً.';
+  }
 
-  const action =
-    lim > 0
-      ? 'قلّل التعديلات الكبيرة لمدة 3–5 أيام وامنح كل مجموعة ميزانية كافية للأحداث.'
-      : 'تجنّب تغيير الجمهور أو الإبداع بشكل جذري حتى تخرج المجموعات من التعلّم.';
+  let action: string;
+  if (lim > 0) {
+    action = `قلّل التعديلات الكبيرة لمدة 3–5 أيام. المجموعات المحدودة (${limited}) تحتاج ميزانية كافية لتحقيق 50 حدثاً أسبوعياً.`;
+  } else if (inL > 0) {
+    action = `لا تعدّل المجموعات التي في التعلّم (${inLearning}) — انتظر حتى تخرج أو تتحول لمحدودة قبل أي تغيير.`;
+  } else {
+    action = 'التعلّم مكتمل. يمكنك إجراء تعديلات محسوبة دون خطر إعادة التعلّم.';
+  }
 
   return joinSentences([evidence, diagnosis, action]);
 }
@@ -180,39 +303,76 @@ function audienceOrPlacementNarrative(data: unknown, kind: 'audience' | 'placeme
   const best = asRecord(root['best']);
   const worst = asRecord(root['worst']);
   const verdict = root['concentrationVerdict'] ? String(root['concentrationVerdict']) : null;
+  const concentration = root['concentrationIndex'] != null ? Number(root['concentrationIndex']) : null;
   const segments = Array.isArray(root['segments']) ? root['segments'] : [];
+  const dimension = root['dimension'] ? String(root['dimension']) : kind;
 
-  const bestReason = best?.['reason'] ? String(best['reason']) : null;
-  const worstReason = worst?.['reason'] ? String(worst['reason']) : null;
-  const top = asRecord(segments[0]);
-  const topShare = top ? num(top['shareOfSpendPct'], 0) : null;
-  const topName = top?.['segment'] ? String(top['segment']) : null;
+  if (segments.length === 0) return NO_DATA;
 
-  const label = kind === 'placement' ? 'المواضع' : 'شرائح الجمهور';
+  const label = kind === 'placement' ? 'المواضع' : 'الشرائح العمرية';
+  const labelSingle = kind === 'placement' ? 'موضع' : 'شريحة';
+
+  // Build segment breakdown listing (top 3)
+  const topSegments = segments.slice(0, 3).map((seg) => {
+    const s = asRecord(seg);
+    if (!s) return null;
+    const name = String(s['segment'] || '—');
+    const share = num(s['shareOfSpendPct'], 0);
+    const display = s['metricDisplay'] ? String(s['metricDisplay']) : null;
+    return share != null
+      ? `${name} (${share}% من الإنفاق${display ? `، ${display}` : ''})`
+      : name;
+  }).filter(Boolean);
+
   const evidence = joinSentences([
-    bestReason,
-    worstReason,
-    topName && topShare != null ? `أعلى حصة إنفاق في ${label}: ${topName} بنسبة ${topShare}%.` : null,
-    verdict === 'narrow'
-      ? 'التركيز ضيق على شريحة/موضع واحد.'
-      : verdict === 'broad'
-        ? 'التوزيع واسع عبر عدة شرائح/مواضع.'
-        : verdict === 'balanced'
-          ? 'التوزيع متوازن نسبياً.'
-          : null,
+    `عدد ${label} بالبيانات: ${segments.length}.`,
+    topSegments.length > 0
+      ? `أعلى ${label}: ${topSegments.join('، ')}.`
+      : null,
+    best?.['reason'] ? String(best['reason']) + '.' : null,
+    worst?.['reason'] ? String(worst['reason']) + '.' : null,
   ]);
 
-  if (evidence === NO_DATA) return NO_DATA;
+  // Build diagnosis from concentration + best/worst gap
+  let diagnosis: string;
+  const bestSeg = asRecord(segments[0]);
+  const bestShare = bestSeg ? Number(bestSeg['shareOfSpendPct'] ?? 0) : 0;
 
-  const diagnosis =
-    bestReason && worstReason
-      ? 'هناك فرق واضح بين أفضل وأسوأ شريحة — هذا يستحق إعادة توزيع الميزانية.'
-      : 'بيانات الشرائح محدودة؛ اعتمد على أعلى حصة إنفاق كنقطة بداية.';
+  if (verdict === 'narrow') {
+    const topName = bestSeg ? String(bestSeg['segment'] || '—') : '—';
+    diagnosis = `التركيز ضيق — ${labelSingle} «${topName}» يستحوذ على ${num(bestShare, 0)}% من الإنفاق.${concentration != null ? ` مؤشر التركيز ${num(concentration, 2)}.` : ''}`;
+  } else if (verdict === 'broad') {
+    diagnosis = `التوزيع واسع عبر ${segments.length} ${labelSingle}، لا يوجد ${labelSingle} واحد مهيمن.`;
+  } else {
+    diagnosis = `التوزيع متوازن نسبياً بين ${label}.`;
+  }
 
-  const action =
-    kind === 'placement'
-      ? 'اختبر تقليل الإنفاق على الموضع الأسوأ لمدة 48–72 ساعة وراقب تكلفة النتيجة.'
-      : 'وسّع أو قلّص الشريحة الأضعف حسب الدليل أعلاه، ثم راجع النتائج بعد يومين.';
+  // Add best vs worst comparison if both exist
+  if (best && worst && best['segment'] !== worst['segment']) {
+    const bestName = String(best['segment']);
+    const worstName = String(worst['segment']);
+    diagnosis += ` فارق واضح بين «${bestName}» (الأفضل) و«${worstName}» (الأضعف).`;
+  }
+
+  // Build specific action
+  let action: string;
+  if (kind === 'placement') {
+    if (worst?.['segment']) {
+      action = `اختبر تقليل الإنفاق على «${String(worst['segment'])}» (الأضعف أداءً) لمدة 48–72 ساعة وراقب تأثيره على تكلفة النتيجة.`;
+    } else if (verdict === 'narrow' && bestSeg) {
+      action = `الإنفاق مركّز على «${String(bestSeg['segment'] || '—')}». اختبر إضافة مواضع أخرى لتوسيع الوصول وخفض التكلفة.`;
+    } else {
+      action = 'راقب أداء المواضع خلال الأيام القادمة وأوقف أي موضع يرفع التكلفة دون نتائج.';
+    }
+  } else {
+    if (worst?.['segment']) {
+      action = `راجع أداء الشريحة «${String(worst['segment'])}» (الأضعف) — قد تحتاج استبعادها أو تعديل الاستهداف.`;
+    } else if (verdict === 'narrow' && bestSeg) {
+      action = `الإنفاق مركّز على شريحة «${String(bestSeg['segment'] || '—')}». اختبر توسيع الفئة العمرية لاكتشاف شرائح جديدة.`;
+    } else {
+      action = 'التوزيع سليم. راقب الشرائح ذات الأداء الأضعف في حال تراجعها.';
+    }
+  }
 
   return joinSentences([evidence, diagnosis, action]);
 }
@@ -226,19 +386,29 @@ function creativeNarrative(data: unknown): string {
   const correlations =
     creative && Array.isArray(creative['featureCorrelations']) ? creative['featureCorrelations'] : [];
   const anomalies = anomaly && Array.isArray(anomaly['anomalies']) ? anomaly['anomalies'] : [];
-  const totalAds = creative ? int(creative['totalAdsWithData']) : null;
+  const totalAds = creative ? Number(creative['totalAdsWithData'] ?? 0) : 0;
+
+  if (totalAds === 0 && ranked.length === 0) return NO_DATA;
 
   const top = asRecord(ranked[0]);
+  const second = asRecord(ranked[1]);
+  const bottom = ranked.length >= 2 ? asRecord(ranked[ranked.length - 1]) : null;
   const corr = asRecord(correlations[0]);
   const ctrWorse = anomalies
     .map(asRecord)
     .filter((a) => a && a['metric'] === 'ctr' && a['direction'] === 'worse');
 
+  // Build detailed evidence
   const evidence = joinSentences([
-    totalAds != null ? `عدد الإعلانات ذات البيانات: ${totalAds}.` : null,
+    `عدد الإعلانات ذات البيانات: ${int(totalAds)}.`,
     top?.['adName']
-      ? `أفضل إعلان حالياً «${String(top['adName'])}»${
+      ? `أفضل إعلان: «${String(top['adName'])}»${
           top['metricDisplay'] ? ` بمقياس ${String(top['metricDisplay'])}` : ''
+        }${top['shareOfSpendPct'] != null ? ` (${num(top['shareOfSpendPct'], 0)}% من الإنفاق)` : ''}.`
+      : null,
+    bottom?.['adName'] && bottom['adName'] !== top?.['adName']
+      ? `أضعف إعلان: «${String(bottom['adName'])}»${
+          bottom['metricDisplay'] ? ` بمقياس ${String(bottom['metricDisplay'])}` : ''
         }.`
       : null,
     corr?.['note'] ? String(corr['note']) : null,
@@ -249,15 +419,48 @@ function creativeNarrative(data: unknown): string {
 
   if (evidence === NO_DATA) return NO_DATA;
 
-  const diagnosis =
-    ctrWorse.length > 0 || (ranked.length >= 2 && top)
-      ? 'قد يكون هناك تعب إبداعي أو تفاوت كبير بين الإعلانات.'
-      : 'لا توجد إشارة قوية لتعب إبداعي من البيانات الحالية.';
+  // Specific diagnosis
+  let diagnosis: string;
+  if (ctrWorse.length > 0) {
+    const affectedAd = ctrWorse[0]?.['entityName'] ? ` في «${String(ctrWorse[0]!['entityName'])}»` : '';
+    diagnosis = `تراجع غير طبيعي في التفاعل${affectedAd} — علامة محتملة على تعب إبداعي أو تشبّع الجمهور.`;
+  } else if (top && bottom && top['adName'] !== bottom['adName']) {
+    const topMetric = top['metricValue'] != null ? Number(top['metricValue']) : null;
+    const bottomMetric = bottom['metricValue'] != null ? Number(bottom['metricValue']) : null;
+    if (topMetric != null && bottomMetric != null && bottomMetric > 0) {
+      const ratio = topMetric / bottomMetric;
+      if (ratio >= 3) {
+        diagnosis = `فجوة كبيرة بين أفضل وأضعف إعلان (${num(ratio, 1)}x) — الإعلان الأضعف يهدر الميزانية.`;
+      } else if (ratio >= 1.5) {
+        diagnosis = `فارق ملحوظ بين أفضل وأضعف إعلان (${num(ratio, 1)}x).`;
+      } else {
+        diagnosis = 'الإعلانات متقاربة في الأداء — لا تعب إبداعي واضح.';
+      }
+    } else {
+      diagnosis = `يوجد ${int(totalAds)} إعلان نشط — لا إشارة قوية لتعب إبداعي.`;
+    }
+  } else {
+    diagnosis = ranked.length === 1
+      ? 'إعلان واحد فقط نشط — لا توجد مقارنة. اختبر إبداعاً ثانياً لقياس الأداء.'
+      : `لا توجد إشارة قوية لتعب إبداعي بين ${int(totalAds)} إعلان.`;
+  }
 
-  const action =
-    ctrWorse.length > 0
-      ? 'أوقف أو قلّل الإعلان المتعب، وانشر إبداعاً جديداً ثم راجع بعد 48–72 ساعة.'
-      : 'أبقِ أفضل إعلان نشطاً واختبر نسخة واحدة جديدة فقط حتى لا تعيد مرحلة التعلّم.';
+  // Specific action
+  let action: string;
+  if (ctrWorse.length > 0 && bottom?.['adName']) {
+    action = `أوقف «${String(bottom['adName'])}» (الأضعف أداءً) وانشر إبداعاً جديداً بدلاً منه.`;
+  } else if (bottom?.['adName'] && top?.['adName'] && bottom['adName'] !== top['adName']) {
+    const bottomShare = bottom['shareOfSpendPct'] != null ? Number(bottom['shareOfSpendPct']) : null;
+    if (bottomShare != null && bottomShare > 30) {
+      action = `«${String(bottom['adName'])}» يستهلك ${num(bottomShare, 0)}% من الإنفاق رغم ضعف أدائه — فكّر في إيقافه.`;
+    } else {
+      action = `أبقِ «${String(top['adName'])}» (الأفضل) نشطاً واختبر نسخة محسّنة من «${String(bottom['adName'])}» (الأضعف).`;
+    }
+  } else if (ranked.length === 1 && top?.['adName']) {
+    action = `أنشئ إعلاناً ثانياً بجانب «${String(top['adName'])}» لإجراء A/B test.`;
+  } else {
+    action = 'استمر بالإعلانات الحالية وراقب أي تراجع في التفاعل خلال الأيام القادمة.';
+  }
 
   return joinSentences([evidence, diagnosis, action]);
 }
@@ -278,22 +481,27 @@ function pixelNarrative(data: unknown): string {
     cov != null
       ? `تغطية حدث الشراء ${cov}%${goal != null ? ` (الهدف ${goal}%)` : ''}.`
       : coverage.length
-        ? `عدد أحداث التغطية المعروضة: ${coverage.length}.`
+        ? `عدد الأحداث المتتبّعة: ${coverage.length}.`
         : null,
   ]);
 
-  let diagnosis = 'حالة التتبّع تحتاج مراجعة سريعة في Events Manager.';
+  let diagnosis: string;
   if (cov != null && goal != null && Number(purchase?.['coveragePct']) < Number(purchase?.['goalPct'])) {
-    diagnosis = 'تغطية التحويل أقل من الهدف — قد تكون النتائج أقل اكتمالاً مما تبدو.';
+    const gap = Number(purchase?.['goalPct']) - Number(purchase?.['coveragePct']);
+    diagnosis = `تغطية التحويل أقل من الهدف بـ ${num(gap, 0)}% — النتائج المسجّلة أقل من الفعلية.`;
+  } else if (cov != null && Number(purchase?.['coveragePct']) >= 90) {
+    diagnosis = `تغطية التحويل ممتازة (${cov}%) — البيانات موثوقة.`;
   } else if (last) {
-    diagnosis = 'التتبّع يستقبل أحداثاً؛ راقب تغطية الأحداث الحرجة.';
+    diagnosis = 'التتبّع نشط ويستقبل أحداثاً.';
+  } else {
+    diagnosis = 'حالة التتبّع تحتاج مراجعة — لم يُسجّل نشاط حديث.';
   }
 
-  return joinSentences([
-    evidence,
-    diagnosis,
-    'تحقق من Pixel / Conversions API في Meta Events Manager وتأكد أن أحداث الشراء أو الرسائل تصل بانتظام.',
-  ]);
+  const action = cov != null && goal != null && Number(purchase?.['coveragePct']) < Number(purchase?.['goalPct'])
+    ? `فعّل Conversions API في Events Manager لرفع تغطية الشراء من ${cov}% إلى ${goal}%.`
+    : 'تحقق من إعدادات Pixel/Conversions API في Meta Events Manager.';
+
+  return joinSentences([evidence, diagnosis, action]);
 }
 
 function historicalNarrative(data: unknown): string {
@@ -305,35 +513,64 @@ function historicalNarrative(data: unknown): string {
 
   const days = baseline ? int(baseline['days']) : null;
   const ctrMean = baseline ? num(baseline['ctrMean'], 2) : null;
-  const ctrPct = vs ? pct(vs['ctrPct']) : null;
-  const spendPct = vs ? pct(vs['spendPct']) : null;
-  const msgPct = vs ? pct(vs['messagesPct']) : null;
-  const cpmPct = vs ? pct(vs['cpmPct']) : null;
+  const ctrPctVal = vs ? Number(vs['ctrPct'] ?? NaN) : NaN;
+  const ctrPctStr = vs ? pct(vs['ctrPct']) : null;
+  const spendPctVal = vs ? Number(vs['spendPct'] ?? NaN) : NaN;
+  const spendPctStr = vs ? pct(vs['spendPct']) : null;
+  const msgPctVal = vs ? Number(vs['messagesPct'] ?? NaN) : NaN;
+  const msgPctStr = vs ? pct(vs['messagesPct']) : null;
+  const cpmPctStr = vs ? pct(vs['cpmPct']) : null;
+  const cpmPctVal = vs ? Number(vs['cpmPct'] ?? NaN) : NaN;
 
   const evidence = joinSentences([
     days != null ? `خط الأساس التاريخي مبني على ${days} يوماً.` : null,
     ctrMean != null ? `متوسط التفاعل التاريخي ${ctrMean}%.` : null,
-    ctrPct != null ? `التفاعل الحالي مقابل الأساس ${ctrPct}.` : null,
-    spendPct != null ? `الإنفاق مقابل الأساس ${spendPct}.` : null,
-    msgPct != null ? `النتائج/الرسائل مقابل الأساس ${msgPct}.` : null,
-    cpmPct != null ? `تكلفة الألف ظهور مقابل الأساس ${cpmPct}.` : null,
+    ctrPctStr != null ? `التفاعل الحالي مقابل الأساس ${ctrPctStr}.` : null,
+    spendPctStr != null ? `الإنفاق مقابل الأساس ${spendPctStr}.` : null,
+    msgPctStr != null ? `النتائج/الرسائل مقابل الأساس ${msgPctStr}.` : null,
+    cpmPctStr != null ? `تكلفة الألف ظهور مقابل الأساس ${cpmPctStr}.` : null,
   ]);
 
   if (evidence === NO_DATA) return NO_DATA;
 
-  const ctrN = vs?.['ctrPct'] == null ? null : Number(vs['ctrPct']);
-  const diagnosis =
-    ctrN != null && ctrN <= -15
-      ? 'الأداء الحالي أضعف من خط الأساس التاريخي للحملة نفسها.'
-      : ctrN != null && ctrN >= 15
-        ? 'الأداء الحالي أفضل من خط الأساس التاريخي.'
-        : 'الانحراف عن خط الأساس محدود حتى الآن.';
+  // Build nuanced diagnosis comparing multiple metrics
+  let diagnosis: string;
+  const ctrDown = Number.isFinite(ctrPctVal) && ctrPctVal <= -15;
+  const ctrUp = Number.isFinite(ctrPctVal) && ctrPctVal >= 15;
+  const spendUp = Number.isFinite(spendPctVal) && spendPctVal >= 20;
+  const spendDown = Number.isFinite(spendPctVal) && spendPctVal <= -20;
+  const msgDown = Number.isFinite(msgPctVal) && msgPctVal <= -15;
+  const cpmUp = Number.isFinite(cpmPctVal) && cpmPctVal >= 20;
 
-  return joinSentences([
-    evidence,
-    diagnosis,
-    'قارن آخر 7 أيام بالأساس التاريخي قبل أي تعديل كبير على الميزانية أو الجمهور.',
-  ]);
+  if (ctrDown && spendUp) {
+    diagnosis = `تراجع التفاعل بنسبة ${ctrPctStr} مع ارتفاع الإنفاق بنسبة ${spendPctStr} — إنفاق أكثر بنتائج أقل.`;
+  } else if (ctrDown && msgDown) {
+    diagnosis = `التفاعل (${ctrPctStr}) والنتائج (${msgPctStr}) كلاهما أقل من خط الأساس — انحدار واضح في الأداء.`;
+  } else if (ctrUp && cpmUp) {
+    diagnosis = `التفاعل تحسّن (${ctrPctStr}) لكن تكلفة الظهور ارتفعت (${cpmPctStr}) — التحسّن قد يكون مكلفاً.`;
+  } else if (ctrDown) {
+    diagnosis = `الأداء الحالي أضعف من خط الأساس بنسبة ${ctrPctStr}.`;
+  } else if (ctrUp) {
+    diagnosis = `الأداء الحالي أفضل من خط الأساس بنسبة ${ctrPctStr}.`;
+  } else if (spendDown) {
+    diagnosis = `الإنفاق انخفض بنسبة ${spendPctStr} مقابل الأساس — تحقق من سبب التراجع.`;
+  } else {
+    diagnosis = 'الأداء الحالي قريب من خط الأساس التاريخي — لا انحراف جوهري.';
+  }
+
+  // Build specific action
+  let action: string;
+  if (ctrDown && spendUp) {
+    action = 'راجع التغييرات الأخيرة في الجمهور أو الإبداع — الإنفاق الإضافي لا يحقق عائداً مكافئاً.';
+  } else if (ctrDown) {
+    action = `بما أن التفاعل تراجع (${ctrPctStr})، راجع الإبداعات والمواضع التي تغيرت مؤخراً.`;
+  } else if (ctrUp) {
+    action = 'الأداء جيد مقارنة بالأساس التاريخي. حافظ على الإعدادات الحالية.';
+  } else {
+    action = 'راقب الاتجاه خلال الأيام القادمة قبل إجراء تعديلات كبيرة.';
+  }
+
+  return joinSentences([evidence, diagnosis, action]);
 }
 
 /**

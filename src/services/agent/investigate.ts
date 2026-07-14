@@ -89,9 +89,10 @@ export async function investigateCampaign(args: {
     { prisma, workspaceId, userId },
   );
 
-  const [details, anomaly, audience, creative, hourly, pixel] = await Promise.all([
+  const [details, anomaly, audienceAge, placement, creative, hourly, pixel] = await Promise.all([
     dispatcher.dispatch('get_campaign_details', { campaignId }),
     dispatcher.dispatch('detect_anomaly', { scope: 'campaign', campaignId }),
+    dispatcher.dispatch('get_audience_breakdown', { campaignId, dimension: 'age' }),
     dispatcher.dispatch('get_audience_breakdown', { campaignId, dimension: 'placement' }),
     dispatcher.dispatch('get_creative_performance', { campaignId }),
     dispatcher.dispatch('get_hourly_pattern', { scope: 'campaign', campaignId }),
@@ -101,7 +102,8 @@ export async function investigateCampaign(args: {
   const toolResults = [
     { toolName: 'get_campaign_details', result: details },
     { toolName: 'detect_anomaly', result: anomaly },
-    { toolName: 'get_audience_breakdown', result: audience },
+    { toolName: 'get_audience_breakdown', result: audienceAge },
+    { toolName: 'get_audience_breakdown_placement', result: placement },
     { toolName: 'get_creative_performance', result: creative },
     { toolName: 'get_hourly_pattern', result: hourly },
     { toolName: 'check_pixel_health', result: pixel },
@@ -124,12 +126,12 @@ export async function investigateCampaign(args: {
     structure: details.ok ? details.data : null,
     budget: details.ok ? (details.data as { spendPacing?: unknown }).spendPacing ?? null : null,
     learning_phase: learningPhaseForPrompt,
-    audience: audience.ok ? audience.data : null,
+    audience: audienceAge.ok ? audienceAge.data : null,
     creative_fatigue: {
       creative: creative.ok ? creative.data : null,
       anomaly: anomaly.ok ? anomaly.data : null,
     },
-    placement: audience.ok ? audience.data : null,
+    placement: placement.ok ? placement.data : null,
     pixel_health: pixel.ok ? pixel.data : null,
     historical_trend: details.ok ? (details.data as { historicalBaseline?: unknown; vsBaseline?: unknown }) : null,
   };
