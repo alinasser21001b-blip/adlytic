@@ -4,73 +4,64 @@
 //  The AI agent's tool-use loop. Per HTTP request:
 //    1. Load conversation history from AiMessage.
 //    2. Persist the incoming USER message.
-//    3. Call Anthropic with system + history + tools[].
-//    4. While stop_reason == 'tool_use':
-//         - Dispatch each tool_use block through the ToolDispatcher.
+//    3. Call AI with system + history + tools[].
+//    4. While finishReason == 'tool_calls':
+//         - Dispatch each tool call through the ToolDispatcher.
 //         - Persist a TOOL message per call.
-//         - Feed tool_result blocks back and continue.
+//         - Feed tool results back and continue.
 //    5. Persist the final ASSISTANT message.
 //    6. Return { conversationId, reply, toolCalls[] }.
 //
+//  Provider-agnostic — routes through AIService → ProviderManager.
+//  Switching between OpenAI and Anthropic requires only env var changes.
+//
 //  Bounds enforced:
 //    - MAX_ITERATIONS (5)  → cost & runaway prevention.
-//    - MAX_TOKENS   (2048) → per Anthropic response.
-//    - Overall Promise.race → 60s hard cap.
-//
-//  NOTE: This is a synchronous JSON response (no SSE streaming yet). SSE
-//  wiring is Phase 2.6 per the design doc §13.
+//    - MAX_TOKENS   (2048) → per AI response.
+//    - Overall deadline    → 45s hard cap.
 // ════════════════════════════════════════════════════════════════════════
 
-import Anthropic from '@anthropic-ai/sdk';
 import { AiMessageRole, Prisma, type PrismaClient, type Locale } from '@prisma/client';
 import type { ToolResult } from './envelope';
 import type { ToolHandler } from './dispatcher';
 import { ToolDispatcher } from './dispatcher';
 import { buildAgentToolHandlers } from './tools';
-import { handlersToAnthropicTools } from './anthropicTools';
+import { handlersToAIToolDefs } from './agentTools';
 import { buildSystemPrompt } from './prompts';
 import { postCheckReply, buildRetryNudge } from './postcheck';
+import {
+  generateText,
+  generateWithTools,
+  isAIAvailable,
+  type AIMessage,
+  type AIToolDef,
+  type AIToolCall,
+} from '../ai/aiService';
+import { getActiveProviderName } from '../ai/providerManager';
 
-/** Bounds — matches PHASE2_AI_AGENT_DESIGN.md §5 */
 const MAX_ITERATIONS = 5;
 const MAX_TOKENS = 2048;
-const MAX_HISTORY_MESSAGES = 40;   // ~20 turn pairs
+const MAX_HISTORY_MESSAGES = 40;
 const OVERALL_TIMEOUT_MS = 45_000;
-const ANALYST_MODEL = process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5';
-/** Anti-hallucination rewind attempts before we degrade to fallback. §20. */
 const MAX_POSTCHECK_RETRIES = 2;
-/** After tools return, force one text-only synthesis if the model stays silent. */
+
 const SYNTHESIS_NUDGE_AR =
   'لديك الآن نتائج الأدوات. اكتب الرد النهائي للتاجر الآن فقط — بدون استدعاء أدوات جديدة. استخدم الهيكل: الوضع | الدليل | التشخيص | التوصية | الثقة. كل رقم يجب أن يظهر في نتائج الأدوات.';
 const SYNTHESIS_NUDGE_EN =
   'You now have tool results. Write the final merchant-facing answer NOW — no more tool calls. Use: Situation | Evidence | Diagnosis | Recommendation | Confidence. Every number must appear in the tool results.';
 
-let _client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!_client) {
-    const apiKey = process.env['ANTHROPIC_API_KEY'];
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
-    _client = new Anthropic({ apiKey });
-  }
-  return _client;
-}
-
 export interface RunAgentTurnArgs {
   prisma: PrismaClient;
   workspaceId: string;
   userId: string;
-  /** Existing conversation to append to; if null, a new one is created. */
   conversationId: string | null;
-  /** The merchant's message. */
   userMessage: string;
-  /** Session context envelope (§23) — currently only surfaces to the system prompt. */
   sessionContext?: Record<string, unknown> | undefined;
 }
 
 export interface RunAgentTurnResult {
   conversationId: string;
   reply: string;
-  /** Tool calls made during the turn — surfaced to the UI for the citation modal. */
   toolCalls: Array<{
     toolName: string;
     args: unknown;
@@ -82,15 +73,14 @@ export interface RunAgentTurnResult {
   tokensOut: number;
 }
 
-/**
- * Run one turn of the AI agent. Persists all state to AiConversation +
- * AiMessage as it goes so a crash mid-loop still leaves an audit trail.
- */
 export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurnResult> {
   const { prisma, workspaceId, userId, userMessage } = args;
   const startedAt = Date.now();
 
-  // 1. Load user preferences for the system prompt.
+  if (!isAIAvailable()) {
+    throw new Error('No AI provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.');
+  }
+
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
     select: {
@@ -101,16 +91,10 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
       aiPersonality: true,
     },
   });
-  // §32 — reply in the language of THIS message, not the conversation's
-  // stored default. A merchant whose account locale defaults to EN (Prisma's
-  // schema default, or simply never set) but who types in Arabic must get an
-  // Arabic reply — the stored preference is a fallback for language-neutral
-  // turns (e.g. "ok" or a pure number), not an override of what they actually
-  // wrote this turn.
+
   const storedLocale: Locale = user.aiLocale ?? user.locale;
   const promptLocale: Locale = detectMessageLocale(userMessage) ?? storedLocale;
 
-  // 2. Load or create conversation.
   let conversationId = args.conversationId;
   if (!conversationId) {
     const created = await prisma.aiConversation.create({
@@ -124,7 +108,6 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     conversationId = created.id;
   }
 
-  // 3. Load message history (most recent N messages, then reverse to chronological).
   const historyDesc = await prisma.aiMessage.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'desc' },
@@ -132,7 +115,6 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   });
   const historyMessages = historyDesc.reverse();
 
-  // 4. Persist the incoming USER message.
   const userMsgRow = await prisma.aiMessage.create({
     data: {
       conversationId,
@@ -141,7 +123,6 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     },
   });
 
-  // 5. Read account.lastSyncedAt for the staleness hint in the system prompt.
   const account = await prisma.workspace.findUniqueOrThrow({
     where: { id: workspaceId },
     include: { adAccounts: { orderBy: { createdAt: 'asc' }, take: 1 } },
@@ -150,15 +131,13 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     ? Math.round((Date.now() - account.adAccounts[0].lastSyncedAt.getTime()) / 60_000)
     : null;
 
-  // 6. Build dispatcher + Anthropic tool defs.
   const handlers = buildAgentToolHandlers();
   const dispatcher = new ToolDispatcher(
     handlers as unknown as ToolHandler<unknown, unknown>[],
     { prisma, workspaceId, userId },
   );
-  const anthropicTools = handlersToAnthropicTools(handlers as unknown as ToolHandler<unknown, unknown>[]);
+  const toolDefs = handlersToAIToolDefs(handlers as unknown as ToolHandler<unknown, unknown>[]);
 
-  // 7. Build the message array Anthropic sees.
   const systemPrompt = buildSystemPrompt({
     locale: promptLocale,
     dialect: user.aiDialect,
@@ -167,13 +146,12 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     stalenessMinutes,
   });
 
-  const anthropicMessages = mapHistoryToAnthropic([
+  const messages: AIMessage[] = mapHistoryToMessages([
     ...historyMessages,
     userMsgRow,
   ]);
 
-  // 8. Run the loop.
-  const client = getClient();
+  const modelName = getActiveProviderName('chat-agent');
   const toolCallLog: RunAgentTurnResult['toolCalls'] = [];
   let totalTokensIn = 0;
   let totalTokensOut = 0;
@@ -192,121 +170,117 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
       break;
     }
 
-    // After tools have returned evidence, prefer a text-only synthesis pass
-    // (no tools) so the merchant always gets a useful answer instead of an
-    // empty "see tool chips" placeholder.
     const forceTextOnly = synthesisForced || toolRounds >= 2;
-    const response = await callAnthropicWithTimeout(client, {
-      model: ANALYST_MODEL,
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      messages: anthropicMessages,
-      ...(forceTextOnly
-        ? {}
-        : { tools: anthropicTools as unknown as Anthropic.Tool[] }),
-    }, overallDeadline - Date.now());
+    const remainingMs = overallDeadline - Date.now();
 
-    totalTokensIn += response.usage?.input_tokens ?? 0;
-    totalTokensOut += response.usage?.output_tokens ?? 0;
+    let responseText: string;
+    let responseToolCalls: AIToolCall[] = [];
+    let responseTokensIn = 0;
+    let responseTokensOut = 0;
+    let finishReason: string;
 
-    // Collect text + tool_use blocks from the response.
-    const assistantBlocks = response.content;
-    const textBlocks = assistantBlocks.filter((b): b is Anthropic.TextBlock => b.type === 'text');
-    const toolUseBlocks = forceTextOnly
-      ? []
-      : assistantBlocks.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+    if (forceTextOnly) {
+      const response = await generateText({
+        task: 'chat-agent',
+        system: systemPrompt,
+        messages,
+        maxTokens: MAX_TOKENS,
+        timeoutMs: remainingMs,
+      });
+      responseText = response.text;
+      responseTokensIn = response.tokensIn;
+      responseTokensOut = response.tokensOut;
+      finishReason = response.finishReason;
+    } else {
+      const response = await generateWithTools({
+        task: 'chat-agent',
+        system: systemPrompt,
+        messages,
+        tools: toolDefs,
+        maxTokens: MAX_TOKENS,
+        timeoutMs: remainingMs,
+      });
+      responseText = response.text;
+      responseToolCalls = response.toolCalls;
+      responseTokensIn = response.tokensIn;
+      responseTokensOut = response.tokensOut;
+      finishReason = response.finishReason;
+    }
 
-    // Persist assistant message even when it also contains tool_use blocks.
-    // Content = concatenated text (may be empty when the model went straight
-    // to tools); toolCallsJson = the tool_use blocks for the audit trail.
-    const assistantText = textBlocks.map((b) => b.text).join('\n').trim();
+    totalTokensIn += responseTokensIn;
+    totalTokensOut += responseTokensOut;
+
+    const assistantText = responseText.trim();
+
     await prisma.aiMessage.create({
       data: {
         conversationId,
         role: AiMessageRole.ASSISTANT,
         content: assistantText,
-        toolCallsJson: toolUseBlocks.length
-          ? (toolUseBlocks.map((b) => ({ id: b.id, name: b.name, input: b.input })) as unknown as Prisma.InputJsonValue)
+        toolCallsJson: responseToolCalls.length
+          ? (responseToolCalls.map((tc) => ({ id: tc.id, name: tc.name, input: tc.arguments })) as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
-        model: ANALYST_MODEL,
-        tokensIn: response.usage?.input_tokens ?? null,
-        tokensOut: response.usage?.output_tokens ?? null,
+        model: modelName,
+        tokensIn: responseTokensIn,
+        tokensOut: responseTokensOut,
       },
     });
 
-    // Feed the assistant response back onto the conversation array.
-    anthropicMessages.push({
-      role: 'assistant',
-      content: assistantBlocks as unknown as Anthropic.MessageParam['content'],
-    });
+    messages.push({ role: 'assistant', content: assistantText });
 
-    // If Claude wants tools, dispatch them all in parallel (bounded by 4 per iteration).
-    if (response.stop_reason === 'tool_use' && toolUseBlocks.length > 0) {
+    if (finishReason === 'tool_calls' && responseToolCalls.length > 0) {
       toolRounds++;
-      const capped = toolUseBlocks.slice(0, 4);
-      const toolResultBlocks: Anthropic.ToolResultBlockParam[] = [];
+      const capped = responseToolCalls.slice(0, 4);
 
       const results = await Promise.all(
-        capped.map(async (block) => {
-          const result = await dispatcher.dispatch(block.name, block.input as Record<string, unknown>);
+        capped.map(async (tc) => {
+          const result = await dispatcher.dispatch(tc.name, tc.arguments);
           const toolMsg = await prisma.aiMessage.create({
             data: {
               conversationId,
               role: AiMessageRole.TOOL,
               content: '',
-              toolResultsJson: { toolName: block.name, toolUseId: block.id, result } as unknown as object,
+              toolResultsJson: { toolName: tc.name, toolUseId: tc.id, result } as unknown as object,
             },
           });
           toolCallLog.push({
-            toolName: block.name,
-            args: block.input,
+            toolName: tc.name,
+            args: tc.arguments,
             result,
             aiMessageId: toolMsg.id,
           });
-          return { block, result };
+          return { tc, result };
         }),
       );
 
-      for (const { block, result } of results) {
-        toolResultBlocks.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
+      for (const { tc, result } of results) {
+        messages.push({
+          role: 'tool',
           content: JSON.stringify(result),
-          ...(!result.ok ? { is_error: true } : {}),
+          toolCallId: tc.id,
         });
       }
 
-      anthropicMessages.push({
-        role: 'user',
-        content: toolResultBlocks,
-      });
-
-      // After the first successful tool round, nudge a final answer next.
-      // This cuts latency and prevents "tools ran, no text" dead ends.
-      if (toolCallLog.some((tc) => tc.result.ok) && !synthesisForced) {
+      if (toolCallLog.some((t) => t.result.ok) && !synthesisForced) {
         synthesisForced = true;
-        anthropicMessages.push({
+        messages.push({
           role: 'user',
           content: promptLocale === 'AR' ? SYNTHESIS_NUDGE_AR : SYNTHESIS_NUDGE_EN,
         });
       }
 
-      // Continue the loop — Claude has more to say.
       continue;
     }
 
-    // Empty final text after tools → force one synthesis retry, then deterministic fallback.
     if (!assistantText && toolCallLog.length > 0 && !synthesisForced) {
       synthesisForced = true;
-      anthropicMessages.push({
+      messages.push({
         role: 'user',
         content: promptLocale === 'AR' ? SYNTHESIS_NUDGE_AR : SYNTHESIS_NUDGE_EN,
       });
       continue;
     }
 
-    // No tool use requested — this is the (candidate) final answer.
-    // Run the anti-hallucination post-check before we ship it.
     if (assistantText) {
       const check = postCheckReply({
         reply: assistantText,
@@ -314,20 +288,17 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
         toolResults: toolCallLog.map((tc) => ({ toolName: tc.toolName, result: tc.result })),
       });
       if (!check.ok && postCheckRetries < MAX_POSTCHECK_RETRIES) {
-        // Rewind: append a system-flavored user message spelling out the
-        // offending tokens; loop again for a corrected reply.
         postCheckRetries++;
         console.warn(
           `[ai-agent:postcheck] iteration=${iterations} retry=${postCheckRetries} offenders=${check.offendingTokens.join(',')}`,
         );
-        anthropicMessages.push({
+        messages.push({
           role: 'user',
           content: buildRetryNudge(check.offendingTokens, promptLocale === 'AR' ? 'AR' : 'EN'),
         });
         continue;
       }
       if (!check.ok) {
-        // Exhausted retries — prefer a structured tool-grounded summary over a dead-end.
         console.error(
           `[ai-agent:postcheck] max_retries_exhausted offenders=${check.offendingTokens.join(',')}`,
         );
@@ -373,75 +344,24 @@ interface AiMessageRow {
   toolResultsJson: unknown;
 }
 
-/** Convert stored AiMessage rows back to Anthropic's messages[] shape. TOOL
- *  messages become user messages with a tool_result block; ASSISTANT
- *  messages preserve their original text + tool_use blocks. */
-function mapHistoryToAnthropic(rows: AiMessageRow[]): Anthropic.MessageParam[] {
-  const out: Anthropic.MessageParam[] = [];
+function mapHistoryToMessages(rows: AiMessageRow[]): AIMessage[] {
+  const out: AIMessage[] = [];
   for (const row of rows) {
     if (row.role === AiMessageRole.USER) {
       out.push({ role: 'user', content: row.content });
     } else if (row.role === AiMessageRole.ASSISTANT) {
-      const blocks: Anthropic.ContentBlockParam[] = [];
-      if (row.content) blocks.push({ type: 'text', text: row.content });
-      const tc = row.toolCallsJson as Array<{ id: string; name: string; input: unknown }> | null;
-      if (tc && tc.length > 0) {
-        for (const t of tc) {
-          blocks.push({ type: 'tool_use', id: t.id, name: t.name, input: t.input as Record<string, unknown> });
-        }
-      }
-      if (blocks.length > 0) out.push({ role: 'assistant', content: blocks });
+      out.push({ role: 'assistant', content: row.content });
     } else if (row.role === AiMessageRole.TOOL) {
       const tr = row.toolResultsJson as { toolName: string; toolUseId: string; result: ToolResult<unknown> } | null;
       if (!tr) continue;
       out.push({
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: tr.toolUseId,
-            content: JSON.stringify(tr.result),
-            ...(!tr.result.ok ? { is_error: true } : {}),
-          },
-        ],
+        role: 'tool',
+        content: JSON.stringify(tr.result),
+        toolCallId: tr.toolUseId,
       });
     }
-    // SYSTEM rows: skip; system prompt is passed separately.
   }
   return out;
-}
-
-// ── Anthropic call with per-request timeout ─────────────────────────────
-
-async function callAnthropicWithTimeout(
-  client: Anthropic,
-  params: Anthropic.MessageCreateParamsNonStreaming,
-  timeoutMs: number,
-): Promise<Anthropic.Message> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('anthropic_timeout')), Math.max(1000, timeoutMs));
-  });
-
-  const attempt = async (retriesLeft: number): Promise<Anthropic.Message> => {
-    try {
-      return await Promise.race([client.messages.create(params), timeoutPromise]);
-    } catch (err: unknown) {
-      const status = (err as { status?: number }).status;
-      const isRetryable = status === 429 || status === 500 || status === 503 || status === 529;
-      if (isRetryable && retriesLeft > 0) {
-        await new Promise(r => setTimeout(r, status === 429 ? 2000 : 1000));
-        return attempt(retriesLeft - 1);
-      }
-      throw err;
-    }
-  };
-
-  try {
-    return await attempt(2);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 // ── graceful reply templates ────────────────────────────────────────────
@@ -458,24 +378,14 @@ function buildBudgetExhaustedReply(locale: Locale): string {
     : "I've reached the analysis budget for this turn. A narrower question would let me go deeper.";
 }
 
-/**
- * Detect the language of a single message. Returns null when the message is
- * too short or too neutral to tell (e.g. "ok", "5", an emoji) — callers
- * should fall back to the stored preference in that case rather than force
- * a locale from no evidence.
- *
- * Threshold-based, not a full language-ID model: counts Arabic-block
- * characters vs Latin letters and requires a clear majority (not just one
- * stray character) before overriding the stored default.
- */
 function detectMessageLocale(message: string): Locale | null {
   const arabicChars = message.match(/[؀-ۿ]/g)?.length ?? 0;
   const latinChars = message.match(/[a-zA-Z]/g)?.length ?? 0;
   const total = arabicChars + latinChars;
-  if (total < 3) return null;   // too little signal — don't override
+  if (total < 3) return null;
   if (arabicChars > latinChars) return 'AR' as Locale;
   if (latinChars > arabicChars) return 'EN' as Locale;
-  return null;   // tie — ambiguous, defer to stored preference
+  return null;
 }
 
 function buildEmptyReplyPlaceholder(locale: Locale): string {
@@ -484,18 +394,12 @@ function buildEmptyReplyPlaceholder(locale: Locale): string {
     : "I reviewed the data but couldn't form a reliable summary this turn. Ask a narrower question (one campaign or one metric) and I'll answer directly.";
 }
 
-/** Final fallback when the anti-hallucination check keeps failing.
- *  Better to say "I can't answer cleanly" than to ship claims we can't verify. */
 function buildHallucinationFallback(locale: Locale): string {
   return locale === 'AR'
     ? 'ما قدرت أعطيك جواباً بأرقام موثوقة الآن. جرب سؤالاً أضيق أو أعد المحاولة، وسأتحقق مرة أخرى من البيانات.'
     : "I couldn't produce a numerically verifiable answer this turn. Please narrow the question or try again.";
 }
 
-/**
- * Deterministic merchant-facing summary when the model returns tools but no
- * text. Pulls only fields already present in tool results — never invents.
- */
 function synthesizeReplyFromTools(
   toolCalls: RunAgentTurnResult['toolCalls'],
   locale: Locale,

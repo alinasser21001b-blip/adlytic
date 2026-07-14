@@ -16,7 +16,6 @@
 //  verdict. See PHASE3_IFA_DESIGN.md §1.3.
 // ════════════════════════════════════════════════════════════════════════
 
-import Anthropic from '@anthropic-ai/sdk';
 import type { PrismaClient } from '@prisma/client';
 import type { ToolHandler } from './dispatcher';
 import { ToolDispatcher } from './dispatcher';
@@ -24,19 +23,10 @@ import { buildAgentToolHandlers } from './tools';
 import { postCheckReply, buildRetryNudge } from './postcheck';
 import { buildDeterministicInvestigationNarratives } from './investigateNarratives';
 import { classifyLlmError } from '../../lib/llmErrors';
+import { generateStructured, isAIAvailable } from '../ai/aiService';
 
-const ANALYST_MODEL = process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5';
-const MAX_TOKENS = 1536;
 const MAX_POSTCHECK_RETRIES = 2;
 const OVERALL_TIMEOUT_MS = 45_000;
-
-let _client: Anthropic | null = null;
-function tryGetClient(): Anthropic | null {
-  const apiKey = process.env['ANTHROPIC_API_KEY'];
-  if (!apiKey) return null;
-  if (!_client) _client = new Anthropic({ apiKey });
-  return _client;
-}
 
 export interface InvestigationSection {
   key: string;
@@ -143,7 +133,7 @@ export async function investigateCampaign(args: {
   let narratives: Record<string, string> = {};
   let usedOffline = false;
   let offlineCode: string | undefined;
-  const llmEnabled = process.env['AI_AGENT_V2_ENABLED'] === 'true' && !!process.env['ANTHROPIC_API_KEY'];
+  const llmEnabled = process.env['AI_AGENT_V2_ENABLED'] === 'true' && isAIAvailable();
   if (llmEnabled) {
     try {
       narratives = await writeNarratives(availableKeys, dataForPrompt, toolResults);
@@ -155,7 +145,7 @@ export async function investigateCampaign(args: {
     }
   } else {
     usedOffline = true;
-    offlineCode = process.env['ANTHROPIC_API_KEY'] ? 'AI_UNAVAILABLE' : 'AI_AUTH_FAILED';
+    offlineCode = isAIAvailable() ? 'AI_UNAVAILABLE' : 'AI_AUTH_FAILED';
   }
 
   const offlineNarratives = buildDeterministicInvestigationNarratives(dataForPrompt, availableKeys);
@@ -221,11 +211,8 @@ async function writeNarratives(
   dataForPrompt: Record<string, unknown>,
   toolResults: Array<{ toolName: string; result: unknown }>,
 ): Promise<Record<string, string>> {
-  const client = tryGetClient();
-  if (!client) {
-    // No API key — caller fills from deterministic narratives.
-    return {};
-  }
+  if (!isAIAvailable()) return {};
+
   const system = [
     'You are writing a structured campaign investigation report for an Arabic-speaking Meta Ads merchant.',
     'Follow global media-buyer standards: evidence → diagnosis → recommended check. Write 2-3 short sentences per section in Modern Standard Arabic.',
@@ -238,51 +225,39 @@ async function writeNarratives(
   ].join('\n');
 
   const userContent = JSON.stringify(dataForPrompt);
-  const deadline = Date.now() + OVERALL_TIMEOUT_MS;
-  let messages: Anthropic.MessageParam[] = [{ role: 'user', content: userContent }];
-  let attempt = 0;
 
-  while (attempt <= MAX_POSTCHECK_RETRIES) {
-    attempt++;
-    const response = await Promise.race([
-      client.messages.create({
-        model: ANALYST_MODEL,
-        max_tokens: MAX_TOKENS,
-        system,
-        messages,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('investigation_llm_timeout')), Math.max(1000, deadline - Date.now())),
-      ),
-    ]);
+  try {
+    const result = await generateStructured<Record<string, string>>({
+      task: 'investigation',
+      system,
+      messages: [{ role: 'user', content: userContent }],
+      parse: (raw: string) => {
+        const obj = JSON.parse(raw) as Record<string, unknown>;
+        const out: Record<string, string> = {};
+        for (const k of keys) {
+          const v = obj[k];
+          if (typeof v === 'string' && v.trim()) out[k] = v.trim();
+        }
+        if (Object.keys(out).length === 0) throw new Error('No valid section narratives parsed');
+        return out;
+      },
+      maxTokens: 1536,
+      timeoutMs: OVERALL_TIMEOUT_MS,
+      jsonMode: true,
+    });
 
-    const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    const raw = textBlock?.text?.trim() ?? '';
-    const parsed = parseNarrativeJson(raw, keys);
-    if (!parsed) {
-      // Unparseable — treat like a failed post-check and nudge once, then degrade.
-      if (attempt > MAX_POSTCHECK_RETRIES) return {};
-      messages = [...messages, { role: 'assistant', content: raw }, {
-        role: 'user',
-        content: 'Your last reply was not valid JSON. Output ONLY the JSON object, nothing else.',
-      }];
-      continue;
-    }
-
-    const combinedReply = Object.values(parsed).join('\n\n');
+    const combinedReply = Object.values(result.data).join('\n\n');
     const check = postCheckReply({
       reply: combinedReply,
       userMessage: '',
       toolResults: toolResults as Array<{ toolName: string; result: import('./envelope').ToolResult<unknown> }>,
     });
-    if (check.ok) return parsed;
-    if (attempt > MAX_POSTCHECK_RETRIES) return {};
-    messages = [...messages, { role: 'assistant', content: raw }, {
-      role: 'user',
-      content: buildRetryNudge(check.offendingTokens, 'AR'),
-    }];
+    if (check.ok) return result.data;
+
+    return {};
+  } catch {
+    return {};
   }
-  return {};
 }
 
 function parseNarrativeJson(raw: string, keys: string[]): Record<string, string> | null {

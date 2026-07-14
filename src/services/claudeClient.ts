@@ -1,23 +1,15 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/services/claudeClient.ts
 //
-//  Thin wrapper around @anthropic-ai/sdk.
-//  Reads ANTHROPIC_API_KEY from env. Returns the assistant text reply.
+//  Provider-agnostic AI text generation.
+//  Routes through AIService → ProviderManager (OpenAI or Anthropic
+//  depending on env config). Returns the assistant text reply.
 // ════════════════════════════════════════════════════════════════════════
 
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, isAIAvailable } from './ai/aiService';
 import { getExpertSystemPrompt } from './aiKnowledgeContext';
 import { sanitizeLlmUserContent } from '../lib/dataSanitizer';
 
-const MODEL   = process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5';
-// Detailed, evidence-based analysis (live value vs benchmark + a fix) needs more
-// room than a one-line answer — especially in Arabic, which runs longer per idea.
-const MAX_TOKENS = 1024;
-
-// Prepended to the system prompt when the user is writing in Arabic. The base
-// prompt already asks the model to reply in the user's language, but the entire
-// knowledge base is in English so answers drift toward English phrasing. This
-// override forces Arabic-only prose and pins the tone.
 const ARABIC_LANGUAGE_OVERRIDE = `
 
 LANGUAGE OVERRIDE (highest priority)
@@ -29,66 +21,44 @@ LANGUAGE OVERRIDE (highest priority)
 - Use Latin digits (0-9), not Arabic-Indic digits (٠-٩) — the dashboard renders Latin digits.
 - Sound like a warm, direct Arab e-commerce advisor: no filler, no marketing jargon.`;
 
-/** Presence of any character in the Arabic Unicode block (U+0600..U+06FF). */
 function looksArabic(s: string): boolean {
-  return /[\u0600-\u06FF]/.test(s);
-}
-
-let _client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!_client) {
-    const apiKey = process.env['ANTHROPIC_API_KEY'];
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not set');
-    }
-    _client = new Anthropic({ apiKey });
-  }
-  return _client;
+  return /[؀-ۿ]/.test(s);
 }
 
 export async function askClaude(context: string): Promise<string> {
-  const client = getClient();
+  if (!isAIAvailable()) {
+    throw new Error('No AI provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.');
+  }
+
   const system = looksArabic(context)
     ? getExpertSystemPrompt() + ARABIC_LANGUAGE_OVERRIDE
     : getExpertSystemPrompt();
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
+
+  const response = await generateText({
+    task: 'general',
     system,
     messages: [{ role: 'user', content: sanitizeLlmUserContent(context) }],
+    maxTokens: 1024,
   });
 
-  const block = message.content[0];
-  if (block?.type === 'text') return block.text;
-  return 'Sorry, I could not generate a response.';
+  return response.text || 'Sorry, I could not generate a response.';
 }
 
-/**
- * Lower-level variant used when the caller owns the system prompt (e.g. ClaudeCMO's
- * strict anti-hallucination contract). Mirrors the signature ClaudeCMO expects:
- *   `(systemPrompt, userPrompt) => Promise<string>`.
- *
- * `maxTokens` defaults higher than `askClaude` because narration payloads
- * (Arabic title + multi-sentence narration + optional creative directive) can
- * legitimately exceed the conversational-default 512-token budget.
- */
 export async function askClaudeWithSystem(
   systemPrompt: string,
   userPrompt: string,
   opts: { maxTokens?: number } = {},
 ): Promise<string> {
-  const client = getClient();
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: opts.maxTokens ?? 800,
+  if (!isAIAvailable()) {
+    return '';
+  }
+
+  const response = await generateText({
+    task: 'narration',
     system: systemPrompt,
     messages: [{ role: 'user', content: sanitizeLlmUserContent(userPrompt) }],
+    maxTokens: opts.maxTokens ?? 800,
   });
 
-  const block = message.content[0];
-  if (block?.type === 'text') return block.text;
-  // ClaudeCMO's caller is responsible for fallback narration — return empty
-  // string here so its JSON.parse hits the catch path cleanly.
-  return '';
+  return response.text || '';
 }

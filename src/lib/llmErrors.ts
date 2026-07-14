@@ -75,7 +75,7 @@ export function classifyLlmError(err: unknown): ClassifiedLlmError {
     };
   }
 
-  if (/invalid.?api.?key|authentication|unauthorized|401|permission/.test(lower) && /anthropic|api.?key/i.test(blob)) {
+  if (/invalid.?api.?key|authentication|unauthorized|401|permission/.test(lower) && /anthropic|openai|api.?key/i.test(blob)) {
     return {
       code: 'AI_AUTH_FAILED',
       messageAr: 'إعدادات المساعد الذكي غير مكتملة حالياً. جرّب لاحقاً أو راجع لوحة التحكم.',
