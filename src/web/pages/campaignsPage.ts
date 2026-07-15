@@ -2369,6 +2369,37 @@ export function campaignsPage(): string {
     }
   }
 
+  // ── On-demand creative fetch for campaigns the scheduled sync skips ──────
+  // (paused + no recent spend). See server route discover-creatives for why.
+  async function discoverCreativesNow(btn) {
+    var campaignId = state.currentInspectorCampaignId;
+    if (!campaignId || !state.workspaceId) return;
+    var statusEl = btn.parentElement ? btn.parentElement.querySelector('.js-discover-creatives-status') : null;
+    btn.disabled = true;
+    btn.textContent = 'جارٍ الجلب…';
+    if (statusEl) statusEl.textContent = '';
+    try {
+      var res = await apiFetch(
+        '/api/workspaces/' + state.workspaceId + '/campaigns/' + encodeURIComponent(campaignId) + '/discover-creatives',
+        { method: 'POST' },
+      );
+      if (res && res.adsUpserted > 0) {
+        // Refresh the whole inspector so metrics tabs pick up the new
+        // ad-level insight rows too, not just the creatives grid.
+        await openInspector(campaignId, 'creatives');
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'جلب بيانات الإعلانات الآن';
+        if (statusEl) statusEl.textContent = 'لم يُعثر على إعلانات لهذه الحملة على Meta.';
+      }
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'جلب بيانات الإعلانات الآن';
+      var msg = (typeof friendlyApiError === 'function') ? friendlyApiError(err) : ((err && err.message) || 'تعذّر الجلب');
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--error);">' + escHtml(msg) + '</span>';
+    }
+  }
+
   /**
    * Render the Creatives tab — a responsive grid of Ad cards. Each card
    * shows the thumbnail (or a 🎨 fallback), the Ad name + status badge,
@@ -2379,11 +2410,19 @@ export function campaignsPage(): string {
    */
   function renderCreativesTab(creatives) {
     if (!creatives.length) {
+      // Honest empty state: a paused campaign with no recent spend is
+      // permanently skipped by the scheduled sync (protects Meta's API
+      // budget), so "will appear once sync completes" would be a lie for it.
+      // Offer an explicit on-demand fetch instead of a passive promise.
       return ''
-        + '<div style="border:1px dashed var(--border-2);border-radius:10px;padding:32px;text-align:center;direction:rtl;color:var(--text-3);">'
+        + '<div class="creatives-empty" style="border:1px dashed var(--border-2);border-radius:10px;padding:32px;text-align:center;direction:rtl;color:var(--text-3);">'
         +   '<div style="font-size:32px;margin-bottom:8px;">🎨</div>'
         +   '<div style="font-weight:700;color:var(--text);font-size:14px;margin-bottom:6px;">لا توجد إبداعات بعد</div>'
-        +   '<div style="font-size:13px;line-height:1.7;">ستظهر هنا صور وفيديوهات الإعلانات بمجرد اكتمال مزامنة بيانات الحملة من Meta.</div>'
+        +   '<div style="font-size:13px;line-height:1.7;margin-bottom:14px;">'
+        +     'حملات متوقفة بلا إنفاق حديث لا تُزامَن تلقائياً لتوفير حدّ الطلبات مع Meta. اجلب بياناتها الآن مباشرة.'
+        +   '</div>'
+        +   '<button type="button" class="btn btn-primary btn-sm js-discover-creatives-btn">جلب بيانات الإعلانات الآن</button>'
+        +   '<div class="js-discover-creatives-status" style="margin-top:10px;font-size:12.5px;"></div>'
         + '</div>';
     }
 
@@ -2991,6 +3030,14 @@ export function campaignsPage(): string {
       if (name === 'investigate' && state.currentInspectorCampaignId) {
         loadInvestigation(state.currentInspectorCampaignId);
       }
+    });
+
+    // On-demand creative fetch — delegated to #inspector-body (persists
+    // across renderInspector() rewriting its innerHTML each open/refresh).
+    document.getElementById('inspector-body').addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest && e.target.closest('.js-discover-creatives-btn');
+      if (!btn) return;
+      discoverCreativesNow(btn);
     });
 
     // Close handlers: explicit button, backdrop click, and Escape key.

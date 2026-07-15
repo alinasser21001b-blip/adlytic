@@ -626,6 +626,193 @@ export class SyncAccountWorker {
   //       try/catch around each ad-set fetch so one bad campaign cannot
   //       abort the whole pass. Errors are logged with context.
   // ════════════════════════════════════════════════════════════════════════
+  /**
+   * Discover ad-sets, ads, and creatives for ONE campaign (Pass A+B body).
+   * Extracted so both the batch pass (syncAdSetsAndAds, eligibility-filtered
+   * for Meta's call-volume ceiling) and the on-demand single-campaign path
+   * (discoverCampaignOnDemand, used when a merchant opens the inspector for
+   * a campaign the batch pass skipped) share one implementation — no drift.
+   */
+  private async discoverOneCampaign(
+    adAccountId: string,
+    camp: { id: string; externalCampaignId: string },
+    creativeIdCache: Map<string, string>,
+  ): Promise<{ localAdSets: number; localAds: number; localCreatives: number }> {
+    const metaAdSets = await withCode17Retry(
+      `listAdSets(${camp.externalCampaignId})`,
+      () => this.meta.listAdSets(camp.externalCampaignId),
+    );
+    let localAdSets = 0;
+    let localAds = 0;
+    let localCreatives = 0;
+
+    for (const rawAdSet of metaAdSets) {
+      const norm = mapMetaAdSet(rawAdSet);
+      const adSetRow = await this.prisma.adSet.upsert({
+        where: {
+          campaignId_externalAdSetId: {
+            campaignId: camp.id,
+            externalAdSetId: norm.externalAdSetId,
+          },
+        },
+        create: {
+          campaignId: camp.id,
+          externalAdSetId: norm.externalAdSetId,
+          name: norm.name,
+          status: mapMetaEntityStatus(norm.status),
+          dailyBudget: norm.dailyBudgetMinor,
+          optimizationGoal: norm.optimizationGoal,
+          targetingJson: norm.targeting as Prisma.InputJsonValue ?? Prisma.JsonNull,
+          learningPhaseStatus: norm.learningPhaseStatus,
+        },
+        update: {
+          name: norm.name,
+          status: mapMetaEntityStatus(norm.status),
+          dailyBudget: norm.dailyBudgetMinor,
+          optimizationGoal: norm.optimizationGoal,
+          targetingJson: norm.targeting as Prisma.InputJsonValue ?? Prisma.JsonNull,
+          learningPhaseStatus: norm.learningPhaseStatus,
+        },
+        select: { id: true },
+      });
+      localAdSets++;
+
+      // ── Pass B: Ads under this ad-set (+ inline creatives) ──────
+      const metaAds = await withCode17Retry(
+        `listAds(${norm.externalAdSetId})`,
+        () => this.meta.listAds(norm.externalAdSetId),
+      );
+
+      for (const rawAd of metaAds) {
+        const adNorm = mapMetaAd(rawAd);
+
+        // Resolve/upsert creative FIRST so we have its internal id
+        // for the Ad.creativeId FK.
+        let creativeInternalId: string | null = null;
+        if (adNorm.creative) {
+          const cached = creativeIdCache.get(adNorm.creative.externalCreativeId);
+          if (cached) {
+            creativeInternalId = cached;
+          } else {
+            const cRow = await this.prisma.adCreative.upsert({
+              where: {
+                adAccountId_externalCreativeId: {
+                  adAccountId,
+                  externalCreativeId: adNorm.creative.externalCreativeId,
+                },
+              },
+              create: {
+                adAccountId,
+                externalCreativeId: adNorm.creative.externalCreativeId,
+                name: adNorm.creative.name,
+                thumbnailUrl: adNorm.creative.thumbnailUrl,
+                imageHash: adNorm.creative.imageHash,
+                videoId: adNorm.creative.videoId,
+                primaryText: adNorm.creative.primaryText,
+                headline: adNorm.creative.headline,
+                description: adNorm.creative.description,
+                callToActionType: adNorm.creative.callToActionType,
+                raw: adNorm.creative.raw as Prisma.InputJsonValue,
+              },
+              update: {
+                name: adNorm.creative.name,
+                thumbnailUrl: adNorm.creative.thumbnailUrl,
+                imageHash: adNorm.creative.imageHash,
+                videoId: adNorm.creative.videoId,
+                primaryText: adNorm.creative.primaryText,
+                headline: adNorm.creative.headline,
+                description: adNorm.creative.description,
+                callToActionType: adNorm.creative.callToActionType,
+                raw: adNorm.creative.raw as Prisma.InputJsonValue,
+              },
+              select: { id: true },
+            });
+            creativeInternalId = cRow.id;
+            creativeIdCache.set(adNorm.creative.externalCreativeId, cRow.id);
+            localCreatives++;
+          }
+        }
+
+        await this.prisma.ad.upsert({
+          where: {
+            adSetId_externalAdId: {
+              adSetId: adSetRow.id,
+              externalAdId: adNorm.externalAdId,
+            },
+          },
+          create: {
+            adSetId: adSetRow.id,
+            externalAdId: adNorm.externalAdId,
+            name: adNorm.name,
+            status: mapMetaEntityStatus(adNorm.status),
+            creativeId: creativeInternalId,
+            // Keep the legacy blob populated until consumers migrate fully.
+            creativeJson: (adNorm.creative?.raw as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+          },
+          update: {
+            name: adNorm.name,
+            status: mapMetaEntityStatus(adNorm.status),
+            creativeId: creativeInternalId,
+            creativeJson: (adNorm.creative?.raw as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+          },
+        });
+        localAds++;
+      }
+    }
+
+    return { localAdSets, localAds, localCreatives };
+  }
+
+  /**
+   * On-demand discovery for ONE campaign, bypassing the batch eligibility
+   * filter (ACTIVE OR recently-spent) that protects Meta's per-account call
+   * ceiling. Used when a merchant explicitly opens a campaign the batch pass
+   * skipped (e.g. paused with no spend in the sync window) — the inspector
+   * would otherwise show "no creatives yet" forever, which is dishonest: the
+   * scheduled sync will never revisit that campaign under the batch filter.
+   *
+   * Read-only against Meta (GET ad-sets/ads/insights) — writes only to our
+   * own DB. Not a Meta write-action, so it carries none of those risks.
+   * Bounded to a handful of Meta calls (one campaign, not the whole account).
+   */
+  async discoverCampaignOnDemand(
+    adAccountId: string,
+    campaignId: string,
+    opts: { insightsSince?: Date; insightsUntil?: Date } = {},
+  ): Promise<{
+    found: boolean;
+    adSetsUpserted: number;
+    adsUpserted: number;
+    creativesUpserted: number;
+    insightRows: number;
+  }> {
+    const [camp, acct] = await Promise.all([
+      this.prisma.campaign.findFirst({
+        where: { id: campaignId, adAccountId },
+        select: { id: true, externalCampaignId: true },
+      }),
+      this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } }),
+    ]);
+    if (!camp) {
+      return { found: false, adSetsUpserted: 0, adsUpserted: 0, creativesUpserted: 0, insightRows: 0 };
+    }
+
+    const creativeIdCache = new Map<string, string>();
+    const { localAdSets, localAds, localCreatives } = await this.discoverOneCampaign(adAccountId, camp, creativeIdCache);
+
+    const until = opts.insightsUntil ?? new Date();
+    const since = opts.insightsSince ?? new Date(until.getTime() - 30 * 86400 * 1000);
+    const { localRows } = await this.syncOneCampaignAdInsights(acct, camp, { since, until });
+
+    return {
+      found: true,
+      adSetsUpserted: localAdSets,
+      adsUpserted: localAds,
+      creativesUpserted: localCreatives,
+      insightRows: localRows,
+    };
+  }
+
   async syncAdSetsAndAds(
     adAccountId: string,
     opts: { since?: Date } = {}
@@ -709,131 +896,8 @@ export class SyncAccountWorker {
           // burst into Meta from being three simultaneous calls when this
           // promise.allSettled fires. Cheap, big budget savings on hot accounts.
           if (sliceIdx > 0) await sleep(INTER_CAMPAIGN_DELAY_MS);
-
-          // ── Pass A: AdSets ─────────────────────────────────────────────
-          const metaAdSets = await withCode17Retry(
-            `listAdSets(${camp.externalCampaignId})`,
-            () => this.meta.listAdSets(camp.externalCampaignId),
-          );
-          let localAdSets = 0;
-          let localAds = 0;
-          let localCreatives = 0;
-
-          for (const rawAdSet of metaAdSets) {
-            const norm = mapMetaAdSet(rawAdSet);
-            const adSetRow = await this.prisma.adSet.upsert({
-              where: {
-                campaignId_externalAdSetId: {
-                  campaignId: camp.id,
-                  externalAdSetId: norm.externalAdSetId,
-                },
-              },
-              create: {
-                campaignId: camp.id,
-                externalAdSetId: norm.externalAdSetId,
-                name: norm.name,
-                status: mapMetaEntityStatus(norm.status),
-                dailyBudget: norm.dailyBudgetMinor,
-                optimizationGoal: norm.optimizationGoal,
-                targetingJson: norm.targeting as Prisma.InputJsonValue ?? Prisma.JsonNull,
-                learningPhaseStatus: norm.learningPhaseStatus,
-              },
-              update: {
-                name: norm.name,
-                status: mapMetaEntityStatus(norm.status),
-                dailyBudget: norm.dailyBudgetMinor,
-                optimizationGoal: norm.optimizationGoal,
-                targetingJson: norm.targeting as Prisma.InputJsonValue ?? Prisma.JsonNull,
-                learningPhaseStatus: norm.learningPhaseStatus,
-              },
-              select: { id: true },
-            });
-            localAdSets++;
-
-            // ── Pass B: Ads under this ad-set (+ inline creatives) ──────
-            const metaAds = await withCode17Retry(
-              `listAds(${norm.externalAdSetId})`,
-              () => this.meta.listAds(norm.externalAdSetId),
-            );
-
-            for (const rawAd of metaAds) {
-              const adNorm = mapMetaAd(rawAd);
-
-              // Resolve/upsert creative FIRST so we have its internal id
-              // for the Ad.creativeId FK.
-              let creativeInternalId: string | null = null;
-              if (adNorm.creative) {
-                const cached = creativeIdCache.get(adNorm.creative.externalCreativeId);
-                if (cached) {
-                  creativeInternalId = cached;
-                } else {
-                  const cRow = await this.prisma.adCreative.upsert({
-                    where: {
-                      adAccountId_externalCreativeId: {
-                        adAccountId,
-                        externalCreativeId: adNorm.creative.externalCreativeId,
-                      },
-                    },
-                    create: {
-                      adAccountId,
-                      externalCreativeId: adNorm.creative.externalCreativeId,
-                      name: adNorm.creative.name,
-                      thumbnailUrl: adNorm.creative.thumbnailUrl,
-                      imageHash: adNorm.creative.imageHash,
-                      videoId: adNorm.creative.videoId,
-                      primaryText: adNorm.creative.primaryText,
-                      headline: adNorm.creative.headline,
-                      description: adNorm.creative.description,
-                      callToActionType: adNorm.creative.callToActionType,
-                      raw: adNorm.creative.raw as Prisma.InputJsonValue,
-                    },
-                    update: {
-                      name: adNorm.creative.name,
-                      thumbnailUrl: adNorm.creative.thumbnailUrl,
-                      imageHash: adNorm.creative.imageHash,
-                      videoId: adNorm.creative.videoId,
-                      primaryText: adNorm.creative.primaryText,
-                      headline: adNorm.creative.headline,
-                      description: adNorm.creative.description,
-                      callToActionType: adNorm.creative.callToActionType,
-                      raw: adNorm.creative.raw as Prisma.InputJsonValue,
-                    },
-                    select: { id: true },
-                  });
-                  creativeInternalId = cRow.id;
-                  creativeIdCache.set(adNorm.creative.externalCreativeId, cRow.id);
-                  localCreatives++;
-                }
-              }
-
-              await this.prisma.ad.upsert({
-                where: {
-                  adSetId_externalAdId: {
-                    adSetId: adSetRow.id,
-                    externalAdId: adNorm.externalAdId,
-                  },
-                },
-                create: {
-                  adSetId: adSetRow.id,
-                  externalAdId: adNorm.externalAdId,
-                  name: adNorm.name,
-                  status: mapMetaEntityStatus(adNorm.status),
-                  creativeId: creativeInternalId,
-                  // Keep the legacy blob populated until consumers migrate fully.
-                  creativeJson: (adNorm.creative?.raw as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-                },
-                update: {
-                  name: adNorm.name,
-                  status: mapMetaEntityStatus(adNorm.status),
-                  creativeId: creativeInternalId,
-                  creativeJson: (adNorm.creative?.raw as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-                },
-              });
-              localAds++;
-            }
-          }
-
-          return { localAdSets, localAds, localCreatives, campLabel: camp.externalCampaignId };
+          const result = await this.discoverOneCampaign(adAccountId, camp, creativeIdCache);
+          return { ...result, campLabel: camp.externalCampaignId };
         })
       );
 
@@ -885,6 +949,76 @@ export class SyncAccountWorker {
   //  Same eligibility filter as syncAdSetsAndAds (ACTIVE OR recently-spent)
   //  to stay inside Meta's per-account call-volume ceiling (error code 17).
   // ════════════════════════════════════════════════════════════════════════
+  /**
+   * Pull + persist ad-level insights for ONE campaign. Extracted so the batch
+   * pass (syncAdInsights) and the on-demand single-campaign path
+   * (discoverCampaignOnDemand) share one implementation.
+   */
+  private async syncOneCampaignAdInsights(
+    acct: { currency: string; currencyMinorFactor: number; externalAccountId: string },
+    camp: { id: string; externalCampaignId: string },
+    opts: { since: Date; until: Date },
+    adLevelFields?: string,
+  ): Promise<{ localRows: number; localUnmatched: number }> {
+    const fields = adLevelFields ?? [...DEFAULT_INSIGHT_FIELDS, 'ad_id', ...AD_RELEVANCE_FIELDS].join(',');
+    const tag = `[syncAdInsights:${acct.externalAccountId}]`;
+
+    // Build the external→internal Ad id map for THIS campaign only —
+    // bounded query, avoids loading the whole account's ads into memory.
+    const ads = await this.prisma.ad.findMany({
+      where: { adSet: { campaignId: camp.id } },
+      select: { id: true, externalAdId: true },
+    });
+    if (ads.length === 0) return { localRows: 0, localUnmatched: 0 };
+    const adIdMap = new Map(ads.map((a) => [a.externalAdId, a.id]));
+
+    const rows = await withCode17Retry(
+      `getInsights(${camp.externalCampaignId}, level=ad)`,
+      () => this.meta.getInsights({
+        externalId: camp.externalCampaignId,
+        level: 'ad',
+        since: opts.since,
+        until: opts.until,
+        fields,
+      }),
+    );
+    if (rows.length === 0) return { localRows: 0, localUnmatched: 0 };
+
+    let localUnmatched = 0;
+    const dailyBatch: Array<{ entityType: EntityType; entityId: string; insight: ReturnType<typeof mapMetaInsight> }> = [];
+    // Latest relevance grade per ad — Meta returns it per row; keep the
+    // most recent day's value so the Ad row reflects current delivery.
+    const relByAd = new Map<string, { rel: ReturnType<typeof mapAdRelevance>; date: string }>();
+    for (const r of rows) {
+      const externalAdId = String((r as Record<string, unknown>)['ad_id'] ?? '');
+      const internalAdId = externalAdId ? adIdMap.get(externalAdId) : undefined;
+      if (!internalAdId) {
+        localUnmatched++;
+        continue;
+      }
+      dailyBatch.push({
+        entityType: EntityType.AD,
+        entityId: internalAdId,
+        insight: mapMetaInsight(r, {
+          currencyMinorFactor: currencyFactorForMapper(
+            acct.currency,
+            acct.currencyMinorFactor,
+            `${tag} ad insights`,
+          ),
+        }),
+      });
+      const rel = mapAdRelevance(r);
+      if (rel) {
+        const rowDate = String((r as Record<string, unknown>)['date_start'] ?? '');
+        const prev = relByAd.get(internalAdId);
+        if (!prev || rowDate >= prev.date) relByAd.set(internalAdId, { rel, date: rowDate });
+      }
+    }
+    if (dailyBatch.length > 0) await this.dailyRepo.upsertMany(dailyBatch);
+    await this.persistAdRelevance(relByAd);
+    return { localRows: dailyBatch.length, localUnmatched };
+  }
+
   async syncAdInsights(
     adAccountId: string,
     opts: { since: Date; until: Date }
@@ -932,61 +1066,7 @@ export class SyncAccountWorker {
       const settled = await Promise.allSettled(
         slice.map(async (camp, sliceIdx) => {
           if (sliceIdx > 0) await sleep(INTER_CAMPAIGN_DELAY_MS);
-
-          // Build the external→internal Ad id map for THIS campaign only —
-          // bounded query, avoids loading the whole account's ads into memory.
-          const ads = await this.prisma.ad.findMany({
-            where: { adSet: { campaignId: camp.id } },
-            select: { id: true, externalAdId: true },
-          });
-          if (ads.length === 0) return { localRows: 0, localUnmatched: 0 };
-          const adIdMap = new Map(ads.map((a) => [a.externalAdId, a.id]));
-
-          const rows = await withCode17Retry(
-            `getInsights(${camp.externalCampaignId}, level=ad)`,
-            () => this.meta.getInsights({
-              externalId: camp.externalCampaignId,
-              level: 'ad',
-              since: opts.since,
-              until: opts.until,
-              fields: adLevelFields,
-            }),
-          );
-          if (rows.length === 0) return { localRows: 0, localUnmatched: 0 };
-
-          let localUnmatched = 0;
-          const dailyBatch: Array<{ entityType: EntityType; entityId: string; insight: ReturnType<typeof mapMetaInsight> }> = [];
-          // Latest relevance grade per ad — Meta returns it per row; keep the
-          // most recent day's value so the Ad row reflects current delivery.
-          const relByAd = new Map<string, { rel: ReturnType<typeof mapAdRelevance>; date: string }>();
-          for (const r of rows) {
-            const externalAdId = String((r as Record<string, unknown>)['ad_id'] ?? '');
-            const internalAdId = externalAdId ? adIdMap.get(externalAdId) : undefined;
-            if (!internalAdId) {
-              localUnmatched++;
-              continue;
-            }
-            dailyBatch.push({
-              entityType: EntityType.AD,
-              entityId: internalAdId,
-              insight: mapMetaInsight(r, {
-                currencyMinorFactor: currencyFactorForMapper(
-                  acct.currency,
-                  acct.currencyMinorFactor,
-                  `${tag} ad insights`,
-                ),
-              }),
-            });
-            const rel = mapAdRelevance(r);
-            if (rel) {
-              const rowDate = String((r as Record<string, unknown>)['date_start'] ?? '');
-              const prev = relByAd.get(internalAdId);
-              if (!prev || rowDate >= prev.date) relByAd.set(internalAdId, { rel, date: rowDate });
-            }
-          }
-          if (dailyBatch.length > 0) await this.dailyRepo.upsertMany(dailyBatch);
-          await this.persistAdRelevance(relByAd);
-          return { localRows: dailyBatch.length, localUnmatched };
+          return this.syncOneCampaignAdInsights(acct, camp, opts, adLevelFields);
         })
       );
 

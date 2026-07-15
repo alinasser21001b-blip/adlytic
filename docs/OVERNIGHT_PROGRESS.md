@@ -49,6 +49,30 @@ new surfaces light up automatically.
 - **Guardrailed write-actions** (Wave 3.2): safety-gated — pause/budget edits
   to live accounts must be opt-in and human-reviewed.
 
+## Round 2 — real bug fix from your screenshot
+
+Your screenshot showed a paused campaign (#44) stuck on "لا توجد إبداعات بعد"
+with copy implying it would resolve itself. It never would: the scheduled
+sync deliberately skips campaigns that are paused AND had no spend in the
+last 30 days (protects Meta's per-account API call ceiling — otherwise a
+70-campaign account burns its whole budget refreshing dead creatives). That
+campaign was permanently excluded, so the promise in the UI was false.
+
+Fix: refactored the per-campaign discovery/insight-sync logic out of the
+batch loops into reusable methods (zero behavior change for the batch path —
+pure extraction, verified line-by-line), then added an on-demand path:
+- `SyncAccountWorker.discoverCampaignOnDemand()` — bypasses the batch filter
+  for ONE campaign, read-only against Meta (GET ad-sets/ads/insights), writes
+  only to our DB. Not a Meta write-action.
+- `POST /api/workspaces/:id/campaigns/:id/discover-creatives` — rate-limited
+  (5/15min/campaign), reuses the same token-decrypt + 190-handling pattern as
+  manual sync.
+- Inspector empty state now says WHY (rate-limit protection, not "still
+  syncing") and offers "جلب بيانات الإعلانات الآن" — one click fetches that
+  campaign's ad-sets/ads/creatives/insights and refreshes the inspector.
+
+tsc clean · embedded JS parses · empty-state visually verified.
+
 ## Verify quickly when you wake
 ```
 npx tsc --noEmit              # clean

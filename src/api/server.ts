@@ -231,6 +231,7 @@ const _passwordRateMap = new Map<string, RateEntry>(); // 5 req  / 15 min per us
 const _aiRateMap       = new Map<string, RateEntry>(); // LLM endpoints per user
 const _supportRateMap  = new Map<string, RateEntry>(); // 10 tickets / 60 min per user
 const _syncRateMap     = new Map<string, RateEntry>(); // 3 syncs / 15 min per workspace
+const _discoverRateMap = new Map<string, RateEntry>(); // 5 on-demand creative fetches / 15 min per campaign
 const _clientErrRateMap = new Map<string, RateEntry>(); // 30 error posts / 5 min per IP
 
 function checkRateLimit(
@@ -3209,6 +3210,90 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // client maps them to Arabic at render time.
       breakdowns,
     }));
+  });
+
+  /**
+   * POST /api/workspaces/:workspaceId/campaigns/:campaignId/discover-creatives
+   *
+   * On-demand ad-set/ad/creative + ad-level-insight fetch for ONE campaign.
+   *
+   * Why this exists: the scheduled sync only walks campaigns that are ACTIVE
+   * or spent within the sync window (protects Meta's per-account call-volume
+   * ceiling — see syncAccount.ts). A paused campaign with no recent spend is
+   * permanently skipped, so its inspector "الإبداعات" tab would show
+   * "no creatives yet — they'll appear once sync completes" forever, which is
+   * false: the batch sync will never revisit it. This endpoint lets the
+   * merchant explicitly pull that ONE campaign's data on demand.
+   *
+   * Read-only against Meta (GET ad-sets/ads/insights) — not a write-action,
+   * writes only to our own DB. Bounded to one campaign's worth of calls.
+   */
+  app.post('/api/workspaces/:workspaceId/campaigns/:campaignId/discover-creatives', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_discoverRateMap, req.params['campaignId'], 5, 15 * 60_000)) {
+      return c.json({ error: 'جرّبت هذا كثيراً — انتظر قليلاً قبل إعادة المحاولة.' }, 429);
+    }
+
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account found for this workspace' }, 404);
+
+    const campaign = await prisma.campaign.findFirst({
+      where: { id: req.params['campaignId'], adAccountId: account.id },
+      select: { id: true },
+    });
+    if (!campaign) return c.json({ error: 'Campaign not found' }, 404);
+
+    const resolvedToken = await resolveAccountToken(prisma, account);
+    if (!resolvedToken.encrypted) {
+      return c.json({ error: 'No access token configured — connect a Meta account first' }, 422);
+    }
+    if (!resolvedToken.isSystemUser && account.tokenExpiresAt && account.tokenExpiresAt < new Date()) {
+      return c.json({ error: 'انتهت صلاحية رمز الوصول لحساب Meta — أعد الربط من مساحة العمل.', code: 'TOKEN_EXPIRED' }, 422);
+    }
+
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(resolvedToken.encrypted);
+    } catch (decErr) {
+      if (decErr instanceof TokenDecryptError) {
+        return c.json(tokenDecryptErrorJson(), 500);
+      }
+      throw decErr;
+    }
+
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const worker = new SyncAccountWorker(prisma, metaClient);
+    try {
+      const result = await worker.discoverCampaignOnDemand(account.id, campaign.id);
+      if (!result.found) return c.json({ error: 'Campaign not found' }, 404);
+      return c.json({
+        ok: true,
+        adSetsUpserted: result.adSetsUpserted,
+        adsUpserted: result.adsUpserted,
+        creativesUpserted: result.creativesUpserted,
+        insightRows: result.insightRows,
+      });
+    } catch (err) {
+      if (err instanceof MetaApiError) {
+        if (err.status === 401 || err.status === 190 || (err.body as any)?.error?.code === 190) {
+          await handleMeta190(prisma, {
+            accountId: account.id,
+            externalAccountId: account.externalAccountId,
+            isSystemUser: resolvedToken.isSystemUser,
+            connectionId: resolvedToken.connectionId,
+            workspaceId: account.workspaceId,
+          });
+          return c.json({ error: 'انتهت صلاحية رمز الوصول لحساب Meta — أعد الربط من مساحة العمل.', code: 'TOKEN_EXPIRED' }, 422);
+        }
+        return c.json({ error: `Meta ${err.status}: ${err.message}` }, 502);
+      }
+      console.error('[discover-creatives] failed:', err);
+      return c.json({ error: 'تعذّر جلب بيانات هذه الحملة الآن — حاول لاحقاً.' }, 500);
+    }
   });
 
   // ════════════════════════════════════════════════════════════════════════
