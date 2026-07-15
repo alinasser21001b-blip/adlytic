@@ -39,7 +39,14 @@ export function dashboardPage(): string {
   const content = `
     <div class="loading-overlay" id="loading-state">
       <div class="dash-skeleton" id="dash-skeleton" aria-hidden="true">
+        <div class="skeleton-block skeleton-cmd-bar" style="height:48px;margin-bottom:12px;border-radius:14px;"></div>
         <div class="skeleton-block skeleton-gauge"></div>
+        <div class="skeleton-qa-row" style="display:flex;gap:8px;margin-bottom:14px;">
+          <div class="skeleton-block" style="width:100px;height:36px;border-radius:12px;flex-shrink:0;"></div>
+          <div class="skeleton-block" style="width:110px;height:36px;border-radius:12px;flex-shrink:0;"></div>
+          <div class="skeleton-block" style="width:95px;height:36px;border-radius:12px;flex-shrink:0;"></div>
+          <div class="skeleton-block" style="width:85px;height:36px;border-radius:12px;flex-shrink:0;"></div>
+        </div>
         <div class="skeleton-hero-grid">
           <div class="skeleton-block skeleton-hero"></div>
           <div class="skeleton-block skeleton-hero"></div>
@@ -72,7 +79,7 @@ export function dashboardPage(): string {
       <!-- ═══ COMMAND BAR ═══ -->
       <div class="cmd-bar" id="cmd-bar">
         <div class="cmd-bar-right">
-          <div class="page-title" style="font-size:22px;margin:0;">مركز القيادة</div>
+          <div class="page-title" style="font-size:22px;margin:0;" id="dash-greeting">مركز القيادة</div>
           <div class="page-subtitle" id="dash-subtitle" style="margin:0;font-size:12px;">
             <span id="dash-last-updated" class="text-3">—</span>
           </div>
@@ -3138,11 +3145,24 @@ export function dashboardPage(): string {
     ];
   }
 
+  function setGreeting() {
+    var el = document.getElementById('dash-greeting');
+    if (!el) return;
+    var h = new Date().getHours();
+    var greeting;
+    if (h < 6) greeting = lbl('Late night command center', 'مركز القيادة الليلي');
+    else if (h < 12) greeting = lbl('Good morning', 'صباح الخير');
+    else if (h < 17) greeting = lbl('Good afternoon', 'مساء الخير');
+    else greeting = lbl('Good evening', 'مساء الخير');
+    el.textContent = greeting + ' 👋';
+  }
+
   function hideLoadingShowDashboard() {
     var loadingEl = document.getElementById('loading-state');
     var contentEl = document.getElementById('dashboard-content');
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) contentEl.style.display = 'block';
+    setGreeting();
     staggerReveal(['.cmd-bar', '.health-gauge-section', '#exec-pulse-section', '#quick-actions-bar', '.kpi-command-grid', '#main-move-section', '#live-insights-section', '.active-section', '.split-grid', '#timeline-section']);
   }
 
