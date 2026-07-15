@@ -163,7 +163,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="hero-30-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="hero-30-delta">→ —</span>
-            <canvas class="kpi-spark" width="140" height="34" data-spark="spend" data-good="down"></canvas>
+            <canvas class="kpi-spark" width="140" height="34" data-spark="spend" data-good="neutral"></canvas>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-spend" dir="auto"></div>
         </div>
@@ -175,7 +175,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="hero-7-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="hero-7-delta">→ —</span>
-            <canvas class="kpi-spark" width="140" height="34" data-spark="spend7" data-good="down"></canvas>
+            <canvas class="kpi-spark" width="140" height="34" data-spark="spend7" data-good="neutral"></canvas>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-spend7" dir="auto"></div>
         </div>
@@ -1024,11 +1024,16 @@ export function dashboardPage(): string {
       var stepX = (W - pad * 2) / Math.max(1, vals.length - 1);
       var y = function (v) { return H - pad - ((v - min) / span) * (H - pad * 2); };
 
-      // Direction over the visible window decides colour.
+      // Direction over the visible window decides colour — but only for
+      // metrics with an unambiguous "good" direction. Spend rising or falling
+      // is neither good nor bad without context, so it stays neutral gold.
       var first = real[0], last = real[real.length - 1];
       var rising = last > first;
       var flat = Math.abs(last - first) < span * 0.05;
-      var color = flat ? '#8A8378' : ((rising === (good === 'up')) ? '#34A871' : '#E2604F');
+      var color;
+      if (good === 'neutral') color = '#D9A759';
+      else if (flat) color = '#8A8378';
+      else color = (rising === (good === 'up')) ? '#34A871' : '#E2604F';
 
       // Area under the line (very light), then the stroke — contiguous segments only.
       var startIdx = -1;
@@ -2518,7 +2523,9 @@ export function dashboardPage(): string {
     if (gradEnd) gradEnd.setAttribute('stop-color', c.end);
 
     var scoreText = document.getElementById('hg-score-num');
-    if (scoreText) scoreText.textContent = String(Math.round(score));
+    // A leading "~" signals the number is an approximation, not the server's
+    // authoritative score — so it doesn't read as exact then "jump" on sync.
+    if (scoreText) scoreText.textContent = (isEstimated ? '~' : '') + String(Math.round(score));
 
     var bandLabels = {
       excellent: lbl('Excellent', 'ممتاز'),

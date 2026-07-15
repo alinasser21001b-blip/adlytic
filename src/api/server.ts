@@ -230,6 +230,7 @@ const _passwordRateMap = new Map<string, RateEntry>(); // 5 req  / 15 min per us
 const _aiRateMap       = new Map<string, RateEntry>(); // LLM endpoints per user
 const _supportRateMap  = new Map<string, RateEntry>(); // 10 tickets / 60 min per user
 const _syncRateMap     = new Map<string, RateEntry>(); // 3 syncs / 15 min per workspace
+const _clientErrRateMap = new Map<string, RateEntry>(); // 30 error posts / 5 min per IP
 
 function checkRateLimit(
   map: Map<string, RateEntry>,
@@ -1015,6 +1016,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // ════════════════════════════════════════════════════════════════════════
 
   app.post('/api/client-errors', async (c) => {
+    // Unauthenticated by design (errors fire before/around auth), so cap by IP
+    // to keep it from becoming a log-flood vector. Silent 200 on limit — a
+    // noisy client must never learn it is being throttled.
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (!checkRateLimit(_clientErrRateMap, clientIp, 30, 5 * 60_000)) {
+      return c.json({ ok: true }, 200);
+    }
     const req = await honoToApiRequest(c);
     const userId = req.bearerToken ? await getUserId(req.bearerToken) : null;
     const body = req.body as { errors?: Array<{ msg?: string; src?: string; line?: number }>; url?: string } | null;
