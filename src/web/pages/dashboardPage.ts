@@ -95,8 +95,8 @@ export function dashboardPage(): string {
             <span>—</span>
           </div>
           <div class="mode-toggle" id="mode-toggle">
-            <button class="mode-btn active" data-mode="quick" id="mode-quick-btn">سريع</button>
-            <button class="mode-btn" data-mode="advanced" id="mode-adv-btn">متقدم</button>
+            <button class="mode-btn" data-mode="quick" id="mode-quick-btn">سريع</button>
+            <button class="mode-btn active" data-mode="advanced" id="mode-adv-btn">متقدم</button>
           </div>
           <button class="cmd-refresh-btn" id="cmd-refresh-btn" title="تحديث البيانات">
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8a7 7 0 0113.2-3.2M15 8a7 7 0 01-13.2 3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 1v4h-4M2 15v-4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -217,7 +217,15 @@ export function dashboardPage(): string {
 
       <!-- ═══ EXECUTIVE PULSE ═══ -->
       <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
-        <div class="exec-pulse-text" id="exec-pulse-text">—</div>
+        <div class="exec-pulse-main">
+          <div class="exec-pulse-text" id="exec-pulse-text">—</div>
+          <div class="exec-pulse-detail" id="exec-pulse-detail"></div>
+        </div>
+        <div class="exec-pulse-score-chip" id="exec-pulse-score" style="display:none;">
+          <span class="exec-pulse-score-num" id="exec-pulse-score-num">—</span>
+          <span class="exec-pulse-score-lbl" id="exec-pulse-score-lbl"></span>
+        </div>
+        <a class="exec-pulse-cta" id="exec-pulse-cta" href="#" style="display:none;"></a>
       </section>
 
       <!-- ═══ LIVE INSIGHTS — "What's happening now?" ═══ -->
@@ -334,9 +342,9 @@ export function dashboardPage(): string {
         <div class="adv-panel">
           <div class="adv-panel-head">
             <div>
-              <div class="adv-panel-kicker">التقرير الأسبوعي</div>
-              <div class="adv-panel-title">ملخص الأداء</div>
-              <div class="adv-panel-sub">مقارنة هذا الأسبوع بالأسبوع الماضي</div>
+              <div class="adv-panel-kicker">تقريرك الأسبوعي</div>
+              <div class="adv-panel-title">ماذا حدث هذا الأسبوع؟</div>
+              <div class="adv-panel-sub">ملخص + مقارنة + خطوات مقترحة</div>
             </div>
           </div>
           <div id="weekly-report-content"></div>
@@ -1747,7 +1755,6 @@ export function dashboardPage(): string {
     var sec = document.getElementById('exec-pulse-section');
     var el = document.getElementById('exec-pulse-text');
     if (!sec || !el) return;
-    // Status lives inside the task card when a task is present — avoid a second banner.
     if (hasPrimaryMerchantTask(dashData)) {
       sec.style.display = 'none';
       return;
@@ -1755,6 +1762,56 @@ export function dashboardPage(): string {
     var health = deriveBusinessHealth(dashData);
     sec.className = 'exec-pulse-banner ' + health.level;
     el.textContent = health.text;
+
+    var detailEl = document.getElementById('exec-pulse-detail');
+    var scoreChip = document.getElementById('exec-pulse-score');
+    var scoreNum = document.getElementById('exec-pulse-score-num');
+    var scoreLbl = document.getElementById('exec-pulse-score-lbl');
+    var ctaEl = document.getElementById('exec-pulse-cta');
+
+    if (detailEl && dashData.health) {
+      var recs = dashData.aiRecommendations;
+      var urgentCount = 0;
+      if (Array.isArray(recs)) {
+        for (var ri = 0; ri < recs.length; ri++) {
+          if (recs[ri].priority === 'high' || recs[ri].priority === 'urgent') urgentCount++;
+        }
+      }
+      var detailParts = [];
+      if (urgentCount > 0) {
+        detailParts.push(urgentCount + ' ' + lbl('urgent actions', 'إجراء عاجل'));
+      }
+      var predCount = dashData.predictions ? (dashData.predictions.budgetPredictions || []).length + (dashData.predictions.fatiguePredictions || []).length : 0;
+      if (predCount > 0) {
+        detailParts.push(predCount + ' ' + lbl('alerts', 'تنبيه'));
+      }
+      detailEl.textContent = detailParts.length ? detailParts.join(' · ') : '';
+    }
+
+    if (scoreChip && scoreNum && scoreLbl && dashData.health && dashData.health.score != null) {
+      scoreNum.textContent = String(dashData.health.score);
+      var bandLabels = { excellent: lbl('Excellent', 'ممتاز'), good: lbl('Good', 'جيد'), attention: lbl('Attention', 'انتبه'), poor: lbl('ضعيف', 'ضعيف'), none: '' };
+      scoreLbl.textContent = bandLabels[dashData.health.band] || '';
+      scoreChip.style.display = 'flex';
+      scoreChip.className = 'exec-pulse-score-chip band-' + (dashData.health.band || 'none');
+    }
+
+    if (ctaEl) {
+      if (health.level === 'critical') {
+        ctaEl.textContent = lbl('Fix now', 'عالج الآن');
+        ctaEl.href = '/ai?q=' + encodeURIComponent(lbl('What is wrong with my campaigns?', 'ما مشكلة حملاتي؟'));
+        ctaEl.style.display = 'inline-flex';
+        ctaEl.className = 'exec-pulse-cta cta-critical';
+      } else if (health.level === 'warning') {
+        ctaEl.textContent = lbl('Review', 'راجع');
+        ctaEl.href = '/ai?q=' + encodeURIComponent(lbl('What needs attention today?', 'ماذا يحتاج اهتمام اليوم؟'));
+        ctaEl.style.display = 'inline-flex';
+        ctaEl.className = 'exec-pulse-cta cta-warning';
+      } else {
+        ctaEl.style.display = 'none';
+      }
+    }
+
     sec.style.display = 'flex';
   }
 
@@ -2445,8 +2502,17 @@ export function dashboardPage(): string {
               + '<span class="pred-meta-item">' + lbl('Spent', 'أُنفق') + ' <b>' + escHtml(String(b.spentTodayMajor)) + '</b></span>'
               + '<span class="pred-meta-item">' + lbl('Budget', 'الميزانية') + ' <b>' + escHtml(String(b.dailyBudgetMajor)) + '</b></span>'
             + '</div>'
-            + '<div class="pred-investigate">'
-              + lbl('Investigate', 'تحقيق') + ' →'
+            + '<div class="pred-actions">'
+              + '<a class="pred-action-btn budget" href="/ai?q=' + encodeURIComponent(
+                  lbl('Review budget for campaign ' + (b.campaignName || b.campaignId), 'راجع ميزانية حملة ' + (b.campaignName || b.campaignId))
+                ) + '">'
+                + '💰 ' + lbl('Review Budget', 'راجع الميزانية')
+              + '</a>'
+              + '<a class="pred-detail-btn" href="/ai?q=' + encodeURIComponent(
+                  lbl('Investigate campaign ' + (b.campaignId || ''), 'حلّل الحملة ' + (b.campaignId || ''))
+                ) + '">'
+                + lbl('Details', 'تفاصيل') + ' →'
+              + '</a>'
             + '</div>'
           + '</div>'
         + '</div>';
@@ -2514,8 +2580,17 @@ export function dashboardPage(): string {
               + '<span class="pred-meta-item">' + lbl('Decline days', 'أيام الانخفاض') + ' <b>' + f.ctrDeclineDays + '</b></span>'
               + '<span class="pred-meta-item">' + lbl('Current CTR', 'CTR الحالي') + ' <b>' + escHtml(String(f.currentCtr)) + '%</b></span>'
             + '</div>'
-            + '<div class="pred-investigate">'
-              + lbl('Investigate', 'تحقيق') + ' →'
+            + '<div class="pred-actions">'
+              + '<a class="pred-action-btn fatigue" href="/ai?q=' + encodeURIComponent(
+                  lbl('Refresh creative for campaign ' + (f.campaignName || f.campaignId), 'جدّد إعلان حملة ' + (f.campaignName || f.campaignId))
+                ) + '">'
+                + '🎨 ' + lbl('Refresh Creative', 'جدّد الإعلان')
+              + '</a>'
+              + '<a class="pred-detail-btn" href="/ai?q=' + encodeURIComponent(
+                  lbl('Investigate campaign ' + (f.campaignId || ''), 'حلّل الحملة ' + (f.campaignId || ''))
+                ) + '">'
+                + lbl('Details', 'تفاصيل') + ' →'
+              + '</a>'
             + '</div>'
           + '</div>'
         + '</div>';
@@ -2542,6 +2617,7 @@ export function dashboardPage(): string {
     }
 
     grid.addEventListener('click', function (e) {
+      if (e.target.closest('a')) return;
       var card = e.target.closest('.pred-card');
       if (!card) return;
       var cid = card.getAttribute('data-campaign');
@@ -2786,11 +2862,15 @@ export function dashboardPage(): string {
     var recsHtml = '';
     if (report.recommendationsAr && report.recommendationsAr.length > 0) {
       var recIcons = ['💡', '🎯', '📊', '⚡'];
-      recsHtml = '<ul class="weekly-recs" dir="rtl">'
+      recsHtml = '<div class="weekly-recs-header">' + lbl('Recommendations', 'التوصيات') + '</div>'
+        + '<ul class="weekly-recs" dir="rtl">'
         + report.recommendationsAr.map(function (r, i) {
           return '<li>'
             + '<span class="weekly-rec-icon">' + (recIcons[i % recIcons.length]) + '</span>'
-            + '<span>' + escHtml(r) + '</span>'
+            + '<span class="weekly-rec-text">' + escHtml(r) + '</span>'
+            + '<a class="weekly-rec-action" href="/ai?q=' + encodeURIComponent(r) + '">'
+              + lbl('Ask AI', 'اسأل') + ' →'
+            + '</a>'
           + '</li>';
         }).join('')
         + '</ul>';
@@ -2810,6 +2890,9 @@ export function dashboardPage(): string {
             + '<span>' + lbl('Spend', 'إنفاق') + ' <b>' + escHtml(String(best.spend || '—')) + '</b></span>'
             + '<span>' + lbl('Results', 'نتائج') + ' <b>' + escHtml(String(best.results || '—')) + '</b></span>'
           + '</div>'
+          + '<a class="weekly-highlight-action best-action" href="/ai?q=' + encodeURIComponent('زيادة ميزانية حملة ' + (best.campaignName || '')) + '">'
+            + lbl('Scale this', 'وسّع هذه') + ' 📈'
+          + '</a>'
         + '</div>';
       }
       if (worst && (!best || worst.campaignId !== best.campaignId)) {
@@ -2821,6 +2904,9 @@ export function dashboardPage(): string {
             + '<span>' + lbl('Spend', 'إنفاق') + ' <b>' + escHtml(String(worst.spend || '—')) + '</b></span>'
             + '<span>' + lbl('Results', 'نتائج') + ' <b>' + escHtml(String(worst.results || '—')) + '</b></span>'
           + '</div>'
+          + '<a class="weekly-highlight-action worst-action" href="/ai?q=' + encodeURIComponent('حلل مشاكل حملة ' + (worst.campaignName || '')) + '">'
+            + lbl('Diagnose', 'حلّل المشكلة') + ' 🔍'
+          + '</a>'
         + '</div>';
       }
       highlights += '</div>';

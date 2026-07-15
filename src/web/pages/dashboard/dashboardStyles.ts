@@ -866,7 +866,71 @@ export const dashboardStyles = `<style>
       background: var(--error-dim);
     }
     .exec-pulse-banner.critical::before { background: var(--error); animation: blink-pulse 1.6s infinite; }
+    .exec-pulse-main { flex: 1; min-width: 0; }
     .exec-pulse-text { font-size: 14px; font-weight: 650; color: var(--text); line-height: 1.5; }
+    .exec-pulse-detail {
+      font-size: 12px; color: var(--text-3); font-weight: 500; margin-top: 2px;
+    }
+    .exec-pulse-score-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 6px 14px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .exec-pulse-score-num {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+    }
+    .exec-pulse-score-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .band-excellent .exec-pulse-score-num { color: var(--success); }
+    .band-excellent .exec-pulse-score-lbl { color: var(--success); }
+    .band-good .exec-pulse-score-num { color: #7bc67e; }
+    .band-good .exec-pulse-score-lbl { color: #7bc67e; }
+    .band-attention .exec-pulse-score-num { color: var(--warning); }
+    .band-attention .exec-pulse-score-lbl { color: var(--warning); }
+    .band-poor .exec-pulse-score-num { color: var(--error); }
+    .band-poor .exec-pulse-score-lbl { color: var(--error); }
+    .exec-pulse-cta {
+      flex-shrink: 0;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .exec-pulse-cta.cta-critical {
+      color: #fff;
+      background: var(--error);
+      box-shadow: 0 2px 8px rgba(226,96,79,0.3);
+    }
+    .exec-pulse-cta.cta-critical:hover {
+      background: #c8503f;
+      box-shadow: 0 4px 14px rgba(226,96,79,0.4);
+    }
+    .exec-pulse-cta.cta-warning {
+      color: var(--warning);
+      background: rgba(199,122,31,0.12);
+      border: 1px solid rgba(199,122,31,0.25);
+    }
+    .exec-pulse-cta.cta-warning:hover {
+      background: rgba(199,122,31,0.22);
+      border-color: rgba(199,122,31,0.4);
+    }
 
     /* Tier 2 — Main Move unified focus card */
     .main-move-card {
@@ -1177,8 +1241,11 @@ export const dashboardStyles = `<style>
       .v2-action-row { flex-wrap: wrap; padding: 12px 14px; }
       .v2-action-btn { width: 100%; }
 
-      .exec-pulse-banner { padding: 12px 14px; margin-bottom: 14px; }
+      .exec-pulse-banner { padding: 12px 14px; margin-bottom: 14px; flex-wrap: wrap; }
       .exec-pulse-text { font-size: 13px; }
+      .exec-pulse-score-chip { padding: 4px 10px; }
+      .exec-pulse-score-num { font-size: 18px; }
+      .exec-pulse-cta { font-size: 11px; padding: 5px 10px; }
 
       .kpi-command-grid { gap: 10px; margin-bottom: 12px; }
       .kpi-cmd-card { padding: 14px 16px 12px; }
@@ -1213,7 +1280,9 @@ export const dashboardStyles = `<style>
       .weekly-metric-val { font-size: 17px; }
       .weekly-highlights { grid-template-columns: 1fr; gap: 8px; }
       .weekly-summary { padding: 12px 14px; font-size: 13px; }
-      .weekly-recs li { font-size: 12px; padding: 8px 12px; }
+      .weekly-recs li { font-size: 12px; padding: 8px 12px; flex-wrap: wrap; }
+      .weekly-rec-action { font-size: 10.5px; padding: 3px 8px; }
+      .weekly-highlight-action { font-size: 11px; padding: 4px 10px; }
       .weekly-brain-actions { gap: 8px; }
       .weekly-brain-pill { font-size: 11px; padding: 5px 10px; }
     }
@@ -1351,14 +1420,37 @@ export const dashboardStyles = `<style>
       display: flex; align-items: center; gap: 4px;
     }
     .pred-meta-item b { color: var(--text-2); font-weight: 600; }
-    .pred-investigate {
-      display: flex; align-items: center; gap: 4px;
-      margin-top: 10px; padding-top: 10px;
+    .pred-actions {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 10px; padding-top: 12px;
       border-top: 1px solid rgba(255,255,255,0.05);
-      font-size: 11.5px; font-weight: 600; color: var(--accent-2);
-      opacity: 0; transition: opacity 0.15s;
+      flex-wrap: wrap;
     }
-    .pred-card:hover .pred-investigate { opacity: 1; }
+    .pred-action-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 14px; border-radius: 10px;
+      font-size: 12px; font-weight: 700;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+    }
+    .pred-action-btn.budget {
+      background: rgba(199,122,31,0.12); color: var(--warning);
+      border-color: rgba(199,122,31,0.2);
+    }
+    .pred-action-btn.budget:hover { background: rgba(199,122,31,0.22); border-color: rgba(199,122,31,0.4); }
+    .pred-action-btn.fatigue {
+      background: rgba(96,165,250,0.1); color: #60A5FA;
+      border-color: rgba(96,165,250,0.2);
+    }
+    .pred-action-btn.fatigue:hover { background: rgba(96,165,250,0.2); border-color: rgba(96,165,250,0.35); }
+    .pred-detail-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11.5px; font-weight: 600; color: var(--text-3);
+      text-decoration: none; padding: 7px 10px; border-radius: 8px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .pred-detail-btn:hover { color: var(--accent-2); background: rgba(255,255,255,0.04); }
     .pred-empty {
       text-align: center; padding: 24px;
       color: var(--text-3); font-size: 13px;
@@ -1632,6 +1724,65 @@ export const dashboardStyles = `<style>
     }
     .weekly-brain-pill-icon { font-size: 12px; }
 
+    .weekly-recs-header {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+    .weekly-rec-text { flex: 1; min-width: 0; }
+    .weekly-rec-action {
+      flex-shrink: 0;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--accent-2);
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: rgba(217,167,89,0.08);
+      border: 1px solid rgba(217,167,89,0.15);
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .weekly-rec-action:hover {
+      background: rgba(217,167,89,0.18);
+      border-color: rgba(217,167,89,0.3);
+      color: var(--accent);
+    }
+    .weekly-highlight-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 5px 12px;
+      border-radius: 8px;
+      margin-top: 4px;
+      transition: all 0.15s ease;
+      align-self: flex-start;
+    }
+    .weekly-highlight-action.best-action {
+      color: var(--success);
+      background: rgba(52,168,113,0.08);
+      border: 1px solid rgba(52,168,113,0.18);
+    }
+    .weekly-highlight-action.best-action:hover {
+      background: rgba(52,168,113,0.18);
+      border-color: rgba(52,168,113,0.3);
+    }
+    .weekly-highlight-action.worst-action {
+      color: var(--error);
+      background: rgba(226,96,79,0.08);
+      border: 1px solid rgba(226,96,79,0.18);
+    }
+    .weekly-highlight-action.worst-action:hover {
+      background: rgba(226,96,79,0.18);
+      border-color: rgba(226,96,79,0.3);
+    }
+
     /* ═══ Mode Toggle ═══ */
     .mode-toggle {
       display: inline-flex;
@@ -1663,7 +1814,6 @@ export const dashboardStyles = `<style>
 
     /* ═══ Quick Mode — hide advanced sections ═══ */
     [data-dash-mode="quick"] .kpi-command-grid,
-    [data-dash-mode="quick"] .exec-pulse-banner,
     [data-dash-mode="quick"] .live-insights-section,
     [data-dash-mode="quick"] .ai-context-strip,
     [data-dash-mode="quick"] .main-move-above-fold,
