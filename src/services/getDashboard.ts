@@ -52,6 +52,8 @@ import {
   toBenchmarkEvaluationOptions,
 } from "../knowledge/industryRouting";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
+import { diagnoseRelevance } from "../knowledge/adRelevanceIntelligence";
+import { EntityStatus } from "@prisma/client";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { getCampaignCounts, type CampaignCounts } from "../lib/campaignCatalog";
@@ -141,6 +143,9 @@ export interface DashboardDTO {
     score: number | null;
     band: "excellent" | "good" | "attention" | "poor" | "none";
   };
+  /** Account creative-health from Meta's ad-relevance grades. Null when no ad
+   *  is graded yet; the UI card hides unless `needAttention > 0`. */
+  creativeHealth?: CreativeHealthSummary | null;
   kpis: Array<{
     key: string;          // "spend" | "messages" | "ctr" | "cpm" | "frequency" | "reach"
     label: string;
@@ -448,6 +453,54 @@ export class DashboardStageTimeoutError extends Error {
  * unblocks the request and surfaces the exact stall site. The dangling query
  * settles later harmlessly.
  */
+/** Account creative-health summary from Meta's own ad-relevance grades.
+ *  Bounded, single indexed query; enrichment only (null on any error, and the
+ *  card hides when nothing needs attention). Never blocks the dashboard. */
+export interface CreativeHealthSummary {
+  gradedAds: number;
+  needAttention: number;
+  worst: { adName: string; titleAr: string; severity: string; code: string } | null;
+}
+async function buildCreativeHealth(
+  prisma: PrismaClient,
+  accountId: string,
+): Promise<CreativeHealthSummary | null> {
+  const ads = await prisma.ad.findMany({
+    where: {
+      rankingsSyncedAt: { not: null },
+      status: EntityStatus.ACTIVE,
+      adSet: { campaign: { adAccountId: accountId } },
+    },
+    select: {
+      name: true,
+      qualityRanking: true,
+      engagementRanking: true,
+      conversionRanking: true,
+    },
+    take: 300, // hard cap — a busy account never stalls this stage
+  });
+  if (ads.length === 0) return null;
+
+  const sevRank: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 };
+  let needAttention = 0;
+  let worst: CreativeHealthSummary["worst"] = null;
+  let worstRank = 99;
+  for (const ad of ads) {
+    const d = diagnoseRelevance({
+      quality: (ad.qualityRanking ?? "unknown") as never,
+      engagement: (ad.engagementRanking ?? "unknown") as never,
+      conversion: (ad.conversionRanking ?? "unknown") as never,
+    });
+    if (d.severity === "high" || d.severity === "medium") needAttention++;
+    const r = sevRank[d.severity] ?? 9;
+    if (r < worstRank && (d.severity === "high" || d.severity === "medium")) {
+      worstRank = r;
+      worst = { adName: ad.name, titleAr: d.titleAr, severity: d.severity, code: d.code };
+    }
+  }
+  return { gradedAds: ads.length, needAttention, worst };
+}
+
 async function timedStage<T>(stage: string, work: () => Promise<T>): Promise<T> {
   const start = performance.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -955,7 +1008,7 @@ export async function getDashboard(
   }
 
   // 9–10. Campaign cards + brain section + AI features in parallel.
-  const [cards, brain, predictions, aiRecommendations, weeklyReport] = await Promise.all([
+  const [cards, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
     timedStage('campaignCards', () =>
       buildCampaignCards(account.id, prisma, sinceDate, factor),
     ),
@@ -984,6 +1037,12 @@ export async function getDashboard(
     timedStage('weeklyReport', () =>
       generateWeeklyReport(prisma, ws.id).catch((err) => {
         console.warn('[dashboard] weeklyReport failed:', err);
+        return null;
+      }),
+    ),
+    timedStage('creativeHealth', () =>
+      buildCreativeHealth(prisma, account.id).catch((err) => {
+        console.warn('[dashboard] creativeHealth failed:', err);
         return null;
       }),
     ),
@@ -1036,6 +1095,7 @@ export async function getDashboard(
       campaignCounts,
     },
     health: { score, band: band(score) },
+    creativeHealth,
     kpis,
     trendSeries,
     issues: filteredIssues,

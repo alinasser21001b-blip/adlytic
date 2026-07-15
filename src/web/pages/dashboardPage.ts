@@ -367,6 +367,16 @@ export function dashboardPage(): string {
         </div>
       </section>
 
+      <!-- ═══ CREATIVE HEALTH (Meta relevance grades) ═══ -->
+      <a class="creative-health-strip" id="creative-health-strip" href="/campaigns" style="display:none;" dir="rtl">
+        <span class="ch-icon" id="ch-icon">🎨</span>
+        <div class="ch-body">
+          <div class="ch-title" id="ch-title">—</div>
+          <div class="ch-sub" id="ch-sub">—</div>
+        </div>
+        <span class="ch-cta">راجع الإبداعات →</span>
+      </a>
+
       <!-- ═══ WEEKLY REPORT ═══ -->
       <section class="v2-section" id="weekly-report-section" style="display:none;">
         <div class="adv-panel">
@@ -2981,6 +2991,31 @@ export function dashboardPage(): string {
     applyRecFilter(grid);
   }
 
+  // ── Creative Health strip — Meta's own ad-relevance grades, summarized ──
+  function renderCreativeHealth(ch) {
+    var el = document.getElementById('creative-health-strip');
+    if (!el) return;
+    // Hide unless Meta graded ads AND at least one needs attention.
+    if (!ch || !ch.needAttention || ch.needAttention < 1) { el.style.display = 'none'; return; }
+    var iconEl = document.getElementById('ch-icon');
+    var titleEl = document.getElementById('ch-title');
+    var subEl = document.getElementById('ch-sub');
+    var high = ch.worst && ch.worst.severity === 'high';
+    el.className = 'creative-health-strip ' + (high ? 'ch-high' : 'ch-mid');
+    if (iconEl) iconEl.textContent = high ? '⚠️' : '🎨';
+    if (titleEl) {
+      titleEl.textContent = ch.needAttention === 1
+        ? lbl('1 ad needs creative attention', 'إعلان واحد يحتاج مراجعة إبداعية')
+        : ch.needAttention + ' ' + lbl('ads need creative attention', 'إعلانات تحتاج مراجعة إبداعية');
+    }
+    if (subEl) {
+      subEl.textContent = ch.worst && ch.worst.titleAr
+        ? (lbl('Worst: ', 'الأسوأ: ') + ch.worst.titleAr)
+        : lbl('Based on Meta quality grades.', 'حسب تقييم Meta لجودة إعلاناتك.');
+    }
+    el.style.display = 'flex';
+  }
+
   function findCampaignName(campaignId) {
     var camps = state.lastCampaigns || [];
     for (var i = 0; i < camps.length; i++) {
@@ -3466,6 +3501,7 @@ export function dashboardPage(): string {
       safeRender('kpis', function () { renderKpis(kpis); });
       safeRender('predictions', function () { renderPredictions(dashData.predictions); });
       safeRender('aiRecs', function () { renderAIRecommendations(dashData.aiRecommendations); });
+      safeRender('creativeHealth', function () { renderCreativeHealth(dashData.creativeHealth); });
       safeRender('weeklyReport', function () { renderWeeklyReport(dashData.weeklyReport); });
 
       var last30 = recentAsc(insights, 30);

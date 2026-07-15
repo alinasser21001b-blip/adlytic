@@ -15,7 +15,8 @@ default-OFF flag with no enablement, pending human review.
 | 1 | Ad Relevance Intelligence — pure module + tests | ✅ done (16/16 tests) |
 | 2 | Relevance rankings: schema + Meta sync + persist | ✅ done (additive migration, cordon-safe) |
 | 3 | Surface relevance in inspector UI + creative AI tool | ✅ done (server-translated, no raw enums) |
-| 4 | Insight language module + wire into diagnoses | ⏳ next |
+| 4 | Creative Health strip on main dashboard (from relevance) | ✅ done (visual-verified) |
+| 5 | Insight language module + wire into diagnoses | ⏳ next |
 | 5 | Decision Center (unify 4 "what to do" surfaces) | pending |
 | 6 | Creative/video intelligence (hook rate, fatigue leading indicators) | pending |
 | 7 | Nightly health-score job | pending |

@@ -951,6 +951,39 @@ export const dashboardStyles = `<style>
       border-color: rgba(199,122,31,0.4);
     }
 
+    /* ═══ Creative Health strip ═══ */
+    .creative-health-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      border-radius: 14px;
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface);
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .creative-health-strip:hover { transform: translateY(-1px); }
+    .creative-health-strip.ch-high { border-color: rgba(226,96,79,0.3); background: rgba(226,96,79,0.05); }
+    .creative-health-strip.ch-mid  { border-color: rgba(199,122,31,0.28); background: rgba(199,122,31,0.05); }
+    .ch-icon { font-size: 20px; flex-shrink: 0; }
+    .ch-body { flex: 1; min-width: 0; }
+    .ch-title { font-size: 14px; font-weight: 800; color: var(--text); }
+    .ch-sub {
+      font-size: 12.5px; color: var(--text-3); margin-top: 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ch-cta {
+      flex-shrink: 0; font-size: 12.5px; font-weight: 700; color: var(--accent-2);
+      white-space: nowrap;
+    }
+    .creative-health-strip:hover .ch-cta { color: var(--accent); }
+    @media (max-width: 560px) {
+      .creative-health-strip { flex-wrap: wrap; }
+      .ch-cta { width: 100%; }
+    }
+
     /* ═══ Quick Actions Bar ═══ */
     .quick-actions-bar {
       display: flex;
