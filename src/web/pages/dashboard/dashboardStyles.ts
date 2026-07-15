@@ -726,6 +726,17 @@ export const dashboardStyles = `<style>
     .live-insight-sub {
       font-size: 11px; color: var(--text-3); line-height: 1.4;
     }
+    .live-insight-action {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-2);
+      text-decoration: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      align-self: flex-end;
+    }
+    .live-insight-card:hover .live-insight-action { opacity: 1; }
+    .live-insight-action:hover { color: var(--accent); }
 
     /* ═══ SMART TIMELINE ═══ */
     .timeline-section {

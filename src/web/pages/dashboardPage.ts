@@ -1113,6 +1113,9 @@ export function dashboardPage(): string {
         + '</div>'
         + '<div class="live-insight-text" dir="auto">' + escHtml(it.text) + '</div>'
         + sub
+        + '<a class="live-insight-action" href="/ai?q=' + encodeURIComponent(it.text || '') + '">'
+          + lbl('Ask AI', 'اسأل') + ' →'
+        + '</a>'
       + '</div>';
     }).join('');
     section.style.display = 'block';
