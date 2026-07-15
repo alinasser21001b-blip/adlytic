@@ -133,20 +133,21 @@ export function dashboardPage(): string {
               </defs>
               <circle cx="100" cy="100" r="76" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14" stroke-dasharray="358.14 477.52" transform="rotate(135 100 100)" stroke-linecap="round"/>
               <circle cx="100" cy="100" r="76" fill="none" stroke="url(#gauge-grad)" stroke-width="14" stroke-dasharray="0 477.52" transform="rotate(135 100 100)" stroke-linecap="round" id="health-gauge-arc" style="transition: stroke-dasharray 1.2s cubic-bezier(0.4,0,0.2,1);"/>
-              <text x="100" y="90" text-anchor="middle" class="hg-score-num" id="hg-score-num">—</text>
-              <text x="100" y="112" text-anchor="middle" class="hg-band-label" id="hg-band-label">—</text>
+              <text x="100" y="100" text-anchor="middle" dominant-baseline="middle" class="hg-score-num" id="hg-score-num">—</text>
+              <text x="100" y="128" text-anchor="middle" class="hg-score-max">/ 100</text>
             </svg>
           </div>
           <div class="health-gauge-right">
             <div class="hg-header">
               <div class="hg-title">صحة الحساب</div>
+              <span class="hg-band-chip" id="hg-band-label">—</span>
               <div class="hg-subtitle" id="hg-subtitle">—</div>
             </div>
             <div class="hg-status" id="hg-status" dir="auto">—</div>
             <div class="hg-metrics" id="hg-metrics"></div>
             <a class="hg-action-link" id="hg-action-link" href="/ai" style="display:none;">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 12l4-4-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span id="hg-action-text">اسأل الذكاء الاصطناعي</span>
+              <span id="hg-action-text">اعرض ما يحتاج مراجعة</span>
             </a>
           </div>
         </div>
@@ -157,7 +158,7 @@ export function dashboardPage(): string {
         <div class="kpi-cmd-card" id="hero-30" data-kpi="spend">
           <div class="kpi-cmd-top">
             <div class="kpi-cmd-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M4 4h5.5a2.5 2.5 0 010 5H4M4 9h6.5a2.5 2.5 0 010 5H4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
-            <div class="hero-label">إنفاق 30 يوماً <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+            <div class="hero-label">المبلغ المنفق · 30 يوماً <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           </div>
           <div class="hero-value" id="hero-30-val">—</div>
           <div class="kpi-cmd-bottom">
@@ -168,7 +169,7 @@ export function dashboardPage(): string {
         <div class="kpi-cmd-card" id="hero-7" data-kpi="spend7">
           <div class="kpi-cmd-top">
             <div class="kpi-cmd-icon success"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 12l4-5 3 3 5-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div class="hero-label">إنفاق 7 أيام <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+            <div class="hero-label">المبلغ المنفق · 7 أيام <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           </div>
           <div class="hero-value" id="hero-7-val">—</div>
           <div class="kpi-cmd-bottom">
@@ -179,7 +180,7 @@ export function dashboardPage(): string {
         <div class="kpi-cmd-card" id="hero-life" data-kpi="lifetime">
           <div class="kpi-cmd-top">
             <div class="kpi-cmd-icon warning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 10V7M8 10V5M11 10V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
-            <div class="hero-label">الإنفاق الكلي <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+            <div class="hero-label">إجمالي المبلغ المنفق <button type="button" class="info-btn" data-metric-info="spend" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           </div>
           <div class="hero-value" id="hero-life-val">—</div>
           <div class="kpi-cmd-bottom">
@@ -190,7 +191,7 @@ export function dashboardPage(): string {
         <div class="kpi-cmd-card" id="kpi-ctr-card" data-kpi="ctr">
           <div class="kpi-cmd-top">
             <div class="kpi-cmd-icon accent"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg></div>
-            <div class="hero-label">تفاعل الإعلان CTR <button type="button" class="info-btn" data-metric-info="ctr" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+            <div class="hero-label">معدل النقر (CTR) <button type="button" class="info-btn" data-metric-info="ctr" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           </div>
           <div class="hero-value" id="kpi-ctr-val">—</div>
           <div class="kpi-cmd-bottom">
@@ -201,7 +202,7 @@ export function dashboardPage(): string {
         <div class="kpi-cmd-card" id="kpi-messages-card" data-kpi="messages">
           <div class="kpi-cmd-top">
             <div class="kpi-cmd-icon ctr"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H6l-3 2v-2a2 2 0 01-1-1.7V4z" stroke="currentColor" stroke-width="1.3"/><path d="M5 6h6M5 9h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg></div>
-            <div class="hero-label">الرسائل <button type="button" class="info-btn" data-metric-info="messages" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+            <div class="hero-label">محادثات الرسائل <button type="button" class="info-btn" data-metric-info="messages" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           </div>
           <div class="hero-value" id="kpi-messages-val">—</div>
           <div class="kpi-cmd-bottom">
@@ -212,7 +213,7 @@ export function dashboardPage(): string {
         <div class="kpi-cmd-card" id="kpi-cpm-card" data-kpi="cpm">
           <div class="kpi-cmd-top">
             <div class="kpi-cmd-icon cpm"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1112 0A6 6 0 012 8z" stroke="currentColor" stroke-width="1.3"/><path d="M8 5v6M6 7h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
-            <div class="hero-label">تكلفة الرسالة <button type="button" class="info-btn" data-metric-info="cpm" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+            <div class="hero-label">التكلفة لكل 1000 ظهور (CPM) <button type="button" class="info-btn" data-metric-info="cpm" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
           </div>
           <div class="hero-value" id="kpi-cpm-val">—</div>
           <div class="kpi-cmd-bottom">
@@ -467,8 +468,8 @@ export function dashboardPage(): string {
                 </div>
                 <div class="chart-card" id="adv-cpr-card">
                   <div class="chart-card-header">
-                    <div class="chart-card-title">تكلفة النتيجة</div>
-                    <div class="chart-card-sub">الإنفاق ÷ النتائج · فارغ إن لم تُسجَّل نتيجة</div>
+                    <div class="chart-card-title">التكلفة لكل نتيجة</div>
+                    <div class="chart-card-sub">كم تدفع مقابل كل نتيجة — صعود الخط يعني تراجع الكفاءة</div>
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-cpr"></canvas>
@@ -477,8 +478,8 @@ export function dashboardPage(): string {
                 </div>
                 <div class="chart-card" id="adv-cpm-card">
                   <div class="chart-card-header">
-                    <div class="chart-card-title">تكلفة الألف ظهور (CPM)</div>
-                    <div class="chart-card-sub">كفاءة التوصيل</div>
+                    <div class="chart-card-title">التكلفة لكل 1000 ظهور (CPM)</div>
+                    <div class="chart-card-sub">كم تدفع ليظهر إعلانك 1000 مرة — الأقل أفضل</div>
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-cpm"></canvas>
@@ -487,8 +488,8 @@ export function dashboardPage(): string {
                 </div>
                 <div class="chart-card" id="adv-ctr-card">
                   <div class="chart-card-header">
-                    <div class="chart-card-title" id="chart-ctr-title">نسبة النقر (CTR)</div>
-                    <div class="chart-card-sub">جودة التفاعل مع الإعلان</div>
+                    <div class="chart-card-title" id="chart-ctr-title">معدل النقر إلى الظهور (CTR)</div>
+                    <div class="chart-card-sub">من كل من رأى إعلانك — كم نسبة من نقر عليه</div>
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-ctr"></canvas>
@@ -497,8 +498,8 @@ export function dashboardPage(): string {
                 </div>
                 <div class="chart-card" id="adv-freq-card">
                   <div class="chart-card-header">
-                    <div class="chart-card-title" id="chart-freq-title">التكرار اليومي</div>
-                    <div class="chart-card-sub">مؤشر إرهاق الجمهور</div>
+                    <div class="chart-card-title" id="chart-freq-title">معدل التكرار</div>
+                    <div class="chart-card-sub">كم مرة يرى الشخص الواحد إعلانك — فوق 3 يبدأ الملل</div>
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-frequency"></canvas>
@@ -811,7 +812,7 @@ export function dashboardPage(): string {
     }
     if (hasCpr) {
       makeLineChart('chart-cpr', p.labels, [
-        buildDataset(lbl('Cost per result', 'تكلفة النتيجة'), p.cprSeries, '#60A5FA', 'rgba(96,165,250,0.12)', true, 'currency'),
+        buildDataset(lbl('Cost per result', 'التكلفة لكل نتيجة'), p.cprSeries, '#60A5FA', 'rgba(96,165,250,0.12)', true, 'currency'),
       ]);
     }
     if (hasCpm) {
@@ -821,7 +822,7 @@ export function dashboardPage(): string {
     }
     if (hasCtr) {
       makeLineChart('chart-ctr', p.labels, [
-        buildDataset(lbl('CTR (%)', 'نسبة النقر (٪)'), p.ctrSeries, '#34A871', 'rgba(52,168,113,0.08)', true, 'pct'),
+        buildDataset(lbl('CTR (%)', 'معدل النقر (٪)'), p.ctrSeries, '#34A871', 'rgba(52,168,113,0.08)', true, 'pct'),
       ]);
     }
     if (hasFreq) {
@@ -1122,9 +1123,6 @@ export function dashboardPage(): string {
         + '</div>'
         + '<div class="live-insight-text" dir="auto">' + escHtml(it.text) + '</div>'
         + sub
-        + '<a class="live-insight-action" href="/ai?q=' + encodeURIComponent(it.text || '') + '">'
-          + lbl('Ask AI', 'اسأل') + ' →'
-        + '</a>'
       + '</div>';
     }).join('');
     section.style.display = 'block';
@@ -1275,11 +1273,11 @@ export function dashboardPage(): string {
     if (ctrKpi) {
       var ctrVal = Number(ctrKpi.value || 0);
       setInsight('kpi-insight-ctr', ctrVal >= 2
-        ? lbl('Good click rate — ads are attracting attention', 'نسبة نقر جيدة — الإعلانات تجذب الانتباه')
+        ? lbl('Good click-through rate — ads are attracting attention', 'معدل نقر جيد — إعلاناتك تجذب الانتباه')
         : ctrVal >= 1
-          ? lbl('Average CTR — consider testing new creatives', 'نسبة نقر متوسطة — جرّب صور ونصوص جديدة')
+          ? lbl('Average CTR — test new ad creatives', 'معدل نقر متوسط — جرّب تصميمات إعلانية جديدة')
           : ctrVal > 0
-            ? lbl('Low CTR — ads need stronger headlines or images', 'نسبة نقر منخفضة — الإعلانات تحتاج عناوين أو صور أقوى')
+            ? lbl('Low CTR — ads need stronger headlines or images', 'معدل نقر منخفض — إعلاناتك تحتاج عناوين أو صوراً أقوى')
             : '');
     }
 
@@ -1295,7 +1293,7 @@ export function dashboardPage(): string {
     if (cpmKpi) {
       var cpmVal = Number(cpmKpi.value || 0);
       setInsight('kpi-insight-cpm', cpmVal > 0
-        ? lbl('Cost per message — lower is better for your budget', 'تكلفة الرسالة — الأقل أفضل لميزانيتك')
+        ? lbl('What you pay for every 1,000 impressions — lower means your budget reaches more people', 'ما تدفعه مقابل كل 1000 ظهور — كلما انخفض وصل إعلانك لعدد أكبر بنفس الميزانية')
         : '');
     }
   }
@@ -2422,7 +2420,8 @@ export function dashboardPage(): string {
     var bandText = document.getElementById('hg-band-label');
     if (bandText) {
       bandText.textContent = bandLabels[band] || band;
-      bandText.setAttribute('fill', c.start);
+      bandText.style.color = c.start;
+      bandText.style.borderColor = c.start + '44';
     }
 
     var subtitleEl = document.getElementById('hg-subtitle');
@@ -2445,9 +2444,13 @@ export function dashboardPage(): string {
       var recs = dashData.aiRecommendations;
       var preds = dashData.predictions;
       var cc = dashData.workspace && dashData.workspace.campaignCounts;
-      var activeCount = cc ? (cc.spendingToday || cc.deliveringInWindow || 0) : 0;
-      var recCount = recs ? (recs.items || []).length : 0;
-      var predCount = preds ? ((preds.budgetExhaustion || preds.budget || []).length + (preds.fatigue || []).length) : 0;
+      var activeCount = cc
+        ? (cc.deliveringInWindow || cc.spendingToday || cc.active || 0)
+        : (dashData.weeklyReport && dashData.weeklyReport.activeCampaigns) || 0;
+      var recCount = recs && Array.isArray(recs.recommendations) ? recs.recommendations.length : 0;
+      var predCount = preds
+        ? ((preds.budgetExhaustion || []).length + (preds.creativeFatigue || []).length)
+        : 0;
 
       var bandClass = band === 'excellent' ? 'hg-m-success' : band === 'good' ? 'hg-m-accent' : band === 'attention' ? 'hg-m-warning' : 'hg-m-error';
       metricsEl.innerHTML =
@@ -2470,7 +2473,7 @@ export function dashboardPage(): string {
     if (actionLink && actionText) {
       if (band === 'poor' || band === 'attention') {
         actionLink.style.display = '';
-        actionText.textContent = lbl('Get AI advice', 'احصل على نصيحة الذكاء الاصطناعي');
+        actionText.textContent = lbl('See what needs review', 'اعرض ما يحتاج مراجعة');
         actionLink.href = '/ai?q=' + encodeURIComponent(
           band === 'poor'
             ? lbl('My account health score is low. What should I fix first?', 'نقاط صحة حسابي منخفضة. ماذا يجب أن أصلح أولاً؟')
@@ -2510,28 +2513,6 @@ export function dashboardPage(): string {
       ab.className = 'mode-btn' + (_dashMode === 'advanced' ? ' active' : '');
       ab.addEventListener('click', function () { setDashMode('advanced'); });
     }
-  })();
-
-  (function initKpiDrillDown() {
-    var grid = document.getElementById('hero-grid');
-    if (!grid) return;
-    var kpiQuestions = {
-      spend: lbl('Analyze my spending trends', 'حلّل اتجاهات إنفاقي'),
-      spend7: lbl('How was my spending this week?', 'كيف كان إنفاقي هذا الأسبوع؟'),
-      lifetime: lbl('Give me a lifetime spending summary', 'أعطني ملخص الإنفاق الكلي'),
-      ctr: lbl('Why is my CTR changing?', 'لماذا يتغير معدل النقر؟'),
-      messages: lbl('Analyze my messaging performance', 'حلّل أداء الرسائل'),
-      cpm: lbl('Is my CPM competitive?', 'هل تكلفة الألف ظهور تنافسية؟'),
-    };
-    grid.addEventListener('click', function (e) {
-      if (e.target.closest('.info-btn')) return;
-      var card = e.target.closest('.kpi-cmd-card');
-      if (!card) return;
-      var kpi = card.getAttribute('data-kpi');
-      var q = kpiQuestions[kpi];
-      if (q) window.location.href = '/ai?q=' + encodeURIComponent(q);
-    });
-    grid.querySelectorAll('.kpi-cmd-card').forEach(function (c) { c.style.cursor = 'pointer'; });
   })();
 
   // ── Predictions ──────────────────────────────────────────────────────────
@@ -2617,11 +2598,6 @@ export function dashboardPage(): string {
                 ) + '">'
                 + '💰 ' + lbl('Review Budget', 'راجع الميزانية')
               + '</a>'
-              + '<a class="pred-detail-btn" href="/ai?q=' + encodeURIComponent(
-                  lbl('Investigate campaign ' + (b.campaignId || ''), 'حلّل الحملة ' + (b.campaignId || ''))
-                ) + '">'
-                + lbl('Details', 'تفاصيل') + ' →'
-              + '</a>'
             + '</div>'
           + '</div>'
         + '</div>';
@@ -2694,11 +2670,6 @@ export function dashboardPage(): string {
                   lbl('Refresh creative for campaign ' + (f.campaignName || f.campaignId), 'جدّد إعلان حملة ' + (f.campaignName || f.campaignId))
                 ) + '">'
                 + '🎨 ' + lbl('Refresh Creative', 'جدّد الإعلان')
-              + '</a>'
-              + '<a class="pred-detail-btn" href="/ai?q=' + encodeURIComponent(
-                  lbl('Investigate campaign ' + (f.campaignId || ''), 'حلّل الحملة ' + (f.campaignId || ''))
-                ) + '">'
-                + lbl('Details', 'تفاصيل') + ' →'
               + '</a>'
             + '</div>'
           + '</div>'
@@ -2855,13 +2826,6 @@ export function dashboardPage(): string {
             + '<a class="ai-rec-action-btn ' + escHtml(r.category || '') + '" href="/ai?q=' + encodeURIComponent(actionQuery) + '">'
               + icon + ' ' + escHtml(actionBtnLabel)
             + '</a>'
-            + '<a class="ai-rec-investigate-btn" href="/ai?q=' + encodeURIComponent(
-                r.campaignIds && r.campaignIds.length > 0
-                  ? lbl('Investigate campaign ' + r.campaignIds[0], 'حلّل الحملة ' + r.campaignIds[0])
-                  : lbl('Tell me more about: ' + (r.titleAr || ''), 'أخبرني المزيد عن: ' + (r.titleAr || ''))
-              ) + '">'
-              + lbl('Details', 'تفاصيل') + ' →'
-            + '</a>'
           + '</div>'
         + '</div>'
       + '</div>';
@@ -2971,7 +2935,7 @@ export function dashboardPage(): string {
       + metricCard(lbl('Spend', 'الإنفاق'), tw.spendDisplay || '—', null, lw.spendDisplay, d.spendPct, false)
       + metricCard(lbl('Results', 'النتائج'), tw.results, lw.results, lw.results, d.resultsPct, true)
       + metricCard('CTR', tw.ctr != null ? tw.ctr + '%' : '—', lw.ctr, lw.ctr != null ? lw.ctr + '%' : null, d.ctrPct, true)
-      + metricCard(lbl('Cost/Result', 'تكلفة/نتيجة'), tw.costPerResult, lw.costPerResult, lw.costPerResult, d.costPerResultPct, false)
+      + metricCard(lbl('Cost/Result', 'التكلفة لكل نتيجة'), tw.costPerResult, lw.costPerResult, lw.costPerResult, d.costPerResultPct, false)
     + '</div>';
 
     var summary = report.summaryAr
@@ -2987,9 +2951,6 @@ export function dashboardPage(): string {
           return '<li>'
             + '<span class="weekly-rec-icon">' + (recIcons[i % recIcons.length]) + '</span>'
             + '<span class="weekly-rec-text">' + escHtml(r) + '</span>'
-            + '<a class="weekly-rec-action" href="/ai?q=' + encodeURIComponent(r) + '">'
-              + lbl('Ask AI', 'اسأل') + ' →'
-            + '</a>'
           + '</li>';
         }).join('')
         + '</ul>';

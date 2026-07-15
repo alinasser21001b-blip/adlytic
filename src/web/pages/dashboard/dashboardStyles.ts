@@ -600,29 +600,12 @@ export const dashboardStyles = `<style>
       padding: 16px 18px 14px;
       overflow: hidden;
       transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-      cursor: pointer;
-    }
-    .kpi-cmd-card::after {
-      content: 'اسأل AI →';
-      position: absolute;
-      bottom: 6px;
-      left: 50%;
-      transform: translateX(-50%) translateY(4px);
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--accent-2);
-      opacity: 0;
-      transition: opacity 0.2s, transform 0.2s;
-      pointer-events: none;
+      cursor: default;
     }
     .kpi-cmd-card:hover {
       border-color: rgba(217,167,89,0.3);
       box-shadow: 0 8px 24px rgba(0,0,0,0.18), var(--shadow-inner-glow);
       transform: translateY(-2px);
-    }
-    .kpi-cmd-card:hover::after {
-      opacity: 0.7;
-      transform: translateX(-50%) translateY(0);
     }
     .kpi-cmd-top {
       display: flex; align-items: center; gap: 8px;
@@ -727,18 +710,6 @@ export const dashboardStyles = `<style>
     .live-insight-sub {
       font-size: 11px; color: var(--text-3); line-height: 1.4;
     }
-    .live-insight-action {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--accent-2);
-      text-decoration: none;
-      opacity: 0;
-      transition: opacity 0.15s ease;
-      align-self: flex-end;
-    }
-    .live-insight-card:hover .live-insight-action { opacity: 1; }
-    .live-insight-action:hover { color: var(--accent); }
-
     /* ═══ SMART TIMELINE ═══ */
     .timeline-section {
       background: var(--surface);
@@ -1349,7 +1320,6 @@ export const dashboardStyles = `<style>
       .weekly-highlights { grid-template-columns: 1fr; gap: 8px; }
       .weekly-summary { padding: 12px 14px; font-size: 13px; }
       .weekly-recs li { font-size: 12px; padding: 8px 12px; flex-wrap: wrap; }
-      .weekly-rec-action { font-size: 10.5px; padding: 3px 8px; }
       .weekly-highlight-action { font-size: 11px; padding: 4px 10px; }
       .weekly-brain-actions { gap: 8px; }
       .weekly-brain-pill { font-size: 11px; padding: 5px 10px; }
@@ -1512,13 +1482,6 @@ export const dashboardStyles = `<style>
       border-color: rgba(96,165,250,0.2);
     }
     .pred-action-btn.fatigue:hover { background: rgba(96,165,250,0.2); border-color: rgba(96,165,250,0.35); }
-    .pred-detail-btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 11.5px; font-weight: 600; color: var(--text-3);
-      text-decoration: none; padding: 7px 10px; border-radius: 8px;
-      transition: color 0.15s, background 0.15s;
-    }
-    .pred-detail-btn:hover { color: var(--accent-2); background: rgba(255,255,255,0.04); }
     .pred-empty {
       text-align: center; padding: 24px;
       color: var(--text-3); font-size: 13px;
@@ -1648,16 +1611,6 @@ export const dashboardStyles = `<style>
     .ai-rec-action-btn.watch:hover, .ai-rec-action-btn.optimize:hover {
       background: rgba(217,167,89,0.2); border-color: rgba(217,167,89,0.35);
     }
-    .ai-rec-investigate-btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 11.5px; font-weight: 600; color: var(--text-3);
-      text-decoration: none;
-      padding: 7px 10px;
-      border-radius: 8px;
-      transition: color 0.15s, background 0.15s;
-    }
-    .ai-rec-investigate-btn:hover { color: var(--accent-2); background: rgba(255,255,255,0.04); }
-
     /* ═══ Weekly Report ═══ */
     .weekly-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -1801,24 +1754,6 @@ export const dashboardStyles = `<style>
       letter-spacing: -0.01em;
     }
     .weekly-rec-text { flex: 1; min-width: 0; }
-    .weekly-rec-action {
-      flex-shrink: 0;
-      font-size: 11.5px;
-      font-weight: 700;
-      color: var(--accent-2);
-      text-decoration: none;
-      padding: 4px 10px;
-      border-radius: 8px;
-      background: rgba(217,167,89,0.08);
-      border: 1px solid rgba(217,167,89,0.15);
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-    .weekly-rec-action:hover {
-      background: rgba(217,167,89,0.18);
-      border-color: rgba(217,167,89,0.3);
-      color: var(--accent);
-    }
     .weekly-highlight-action {
       display: inline-flex;
       align-items: center;
@@ -1940,11 +1875,20 @@ export const dashboardStyles = `<style>
       fill: var(--text);
       letter-spacing: -0.04em;
     }
-    .hg-band-label {
-      font-size: 13px;
+    .hg-score-max {
+      font-size: 11px;
+      font-weight: 600;
+      fill: var(--text-3);
+      letter-spacing: 0.02em;
+    }
+    .hg-band-chip {
+      font-size: 12px;
       font-weight: 700;
-      fill: var(--accent-2);
-      letter-spacing: 0.01em;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.03);
+      white-space: nowrap;
     }
 
     .health-gauge-right {

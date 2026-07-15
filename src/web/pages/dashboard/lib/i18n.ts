@@ -15,9 +15,11 @@ export const i18nHelpersJs = `
     spend: 'Spend', impressions: 'Impressions', reach: 'Reach (latest day)',
     clicks: 'Clicks', ctr: 'CTR', cpc: 'CPC', cpm: 'CPM', messages: 'Messages',
   };
+  // Arabic labels follow Meta Ads Manager's official terminology.
   var KPI_LABELS_AR = {
-    spend: 'الإنفاق', impressions: 'مرات الظهور', reach: 'الوصول (آخر يوم)',
-    clicks: 'النقرات', ctr: 'تفاعل الإعلان', cpc: 'تكلفة النقرة', cpm: 'تكلفة الوصول لألف شخص', messages: 'الرسائل',
+    spend: 'المبلغ المنفق', impressions: 'مرات الظهور', reach: 'الوصول (آخر يوم)',
+    clicks: 'النقرات', ctr: 'معدل النقر (CTR)', cpc: 'التكلفة لكل نقرة (CPC)',
+    cpm: 'التكلفة لكل 1000 ظهور (CPM)', messages: 'محادثات الرسائل',
   };
   function kpiLabel(key) {
     var map = isArabic() ? KPI_LABELS_AR : KPI_LABELS_EN;
