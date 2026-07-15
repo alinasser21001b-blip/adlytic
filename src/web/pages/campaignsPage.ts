@@ -735,6 +735,26 @@ export function campaignsPage(): string {
       display: flex;
       flex-direction: column;
     }
+    .inspector-rel {
+      border-radius: 9px;
+      padding: 9px 11px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+    }
+    .inspector-rel-title { font-weight: 800; font-size: 12.5px; margin-bottom: 3px; }
+    .inspector-rel-body { color: var(--text-2); line-height: 1.5; }
+    .inspector-rel-grades {
+      display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px;
+      font-size: 10.5px; color: var(--text-3);
+    }
+    .inspector-rel-grades b { color: var(--text-2); font-weight: 700; }
+    .inspector-rel.rel-high { border-color: rgba(226,96,79,0.28); background: rgba(226,96,79,0.06); }
+    .inspector-rel.rel-high .inspector-rel-title { color: var(--error, #E2604F); }
+    .inspector-rel.rel-mid { border-color: rgba(199,122,31,0.28); background: rgba(199,122,31,0.06); }
+    .inspector-rel.rel-mid .inspector-rel-title { color: var(--warning, #C77A1F); }
+    .inspector-rel.rel-ok { border-color: rgba(52,168,113,0.24); background: rgba(52,168,113,0.05); }
+    .inspector-rel.rel-ok .inspector-rel-title { color: var(--success, #34A871); }
     .inspector-creative-thumb {
       width: 100%;
       aspect-ratio: 1 / 1;
@@ -2397,6 +2417,25 @@ export function campaignsPage(): string {
           + '</div>'
         : '<div style="color:var(--text-3);font-size:12px;direction:rtl;text-align:right;font-style:italic;">—</div>';
 
+      // Meta's own relevance verdict — server-translated, null unless graded.
+      var rel = item.relevance;
+      var relHtml = '';
+      if (rel && rel.titleAr) {
+        var sevClass = rel.severity === 'high' ? 'rel-high' : rel.severity === 'medium' ? 'rel-mid' : 'rel-ok';
+        relHtml = ''
+          + '<div class="inspector-rel ' + sevClass + '" dir="rtl">'
+          +   '<div class="inspector-rel-title">🔎 ' + escHtml(rel.titleAr) + '</div>'
+          +   '<div class="inspector-rel-body">' + escHtml(rel.bodyAr || '') + '</div>'
+          +   (rel.grades
+              ? '<div class="inspector-rel-grades">'
+                +   '<span>الجودة: <b>' + escHtml(rel.grades.quality) + '</b></span>'
+                +   '<span>التفاعل: <b>' + escHtml(rel.grades.engagement) + '</b></span>'
+                +   '<span>التحويل: <b>' + escHtml(rel.grades.conversion) + '</b></span>'
+                + '</div>'
+              : '')
+          + '</div>';
+      }
+
       return ''
         + '<div class="inspector-creative-card">'
         +   '<div class="inspector-creative-thumb">' + thumbInner + videoBadge + '</div>'
@@ -2408,6 +2447,7 @@ export function campaignsPage(): string {
         +       '</div>'
         +       statusBadge
         +     '</div>'
+        +     relHtml
         +     copyHtml
         +     (state.currentInspectorCampaignId
           ? '<a class="btn btn-ghost btn-sm" style="align-self:flex-start;" href="/ad-analysis?campaignId='

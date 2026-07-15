@@ -18,6 +18,7 @@ import { EntityType, type PrismaClient } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
+import { diagnoseRelevance } from '../../../knowledge/adRelevanceIntelligence';
 
 type Metric = 'cost_per_message' | 'ctr' | 'cpm' | 'spend' | 'messages';
 
@@ -58,6 +59,16 @@ interface RankedAd {
   spend: number;
   messages: number;
   features: CreativeFeatures;
+  /** Meta's own relevance verdict for this ad, if graded. Lets the AI cite
+   *  the platform's diagnosis (e.g. "Meta grades this ad's post-click
+   *  conversion in the bottom 20%") instead of only our derived metrics. */
+  relevance: {
+    cause: string;
+    titleAr: string;
+    quality: string;
+    engagement: string;
+    conversion: string;
+  } | null;
 }
 
 interface FeatureCorrelation {
@@ -195,6 +206,26 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
         const metricValue = computeMetric(args.metric, { spend, messages, impressions, clicks, spendMajor });
         const features = extractFeatures(ad.creative);
 
+        // Meta's own relevance grades (persisted on the Ad by sync). Only
+        // include when Meta actually graded the ad (not RELEVANCE_UNKNOWN).
+        let relevance: RankedAd['relevance'] = null;
+        if (ad.qualityRanking || ad.engagementRanking || ad.conversionRanking) {
+          const d = diagnoseRelevance({
+            quality: ad.qualityRanking ?? 'unknown',
+            engagement: ad.engagementRanking ?? 'unknown',
+            conversion: ad.conversionRanking ?? 'unknown',
+          } as any);
+          if (d.code !== 'RELEVANCE_UNKNOWN') {
+            relevance = {
+              cause: d.code,
+              titleAr: d.titleAr,
+              quality: ad.qualityRanking ?? 'unknown',
+              engagement: ad.engagementRanking ?? 'unknown',
+              conversion: ad.conversionRanking ?? 'unknown',
+            };
+          }
+        }
+
         items.push({
           rank: 0,   // assigned after sort
           adId: ad.id,
@@ -206,6 +237,7 @@ export function getCreativePerformanceHandler(): ToolHandler<GetCreativePerforma
           spend,
           messages,
           features,
+          relevance,
         });
       }
 

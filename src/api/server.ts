@@ -47,6 +47,7 @@ import { signToken, verifyToken, verifyPassword, hashPassword } from '../service
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse, DashboardStageTimeoutError } from '../services/getDashboard';
+import { diagnoseRelevance, rankingLabel } from '../knowledge/adRelevanceIntelligence';
 import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
@@ -296,6 +297,43 @@ function safeJson(obj: unknown): unknown {
     console.error('[safeJson] serialization failed — returning error sentinel:', e);
     return { _serializationError: true };
   }
+}
+
+/**
+ * Server-computed relevance view for an Ad row. Translates Meta's raw grades
+ * into an advisor diagnosis so the client renders a sentence, never an enum.
+ * Returns null when Meta hasn't graded the ad (keeps the UI quiet).
+ */
+function buildAdRelevanceView(ad: {
+  qualityRanking: string | null;
+  engagementRanking: string | null;
+  conversionRanking: string | null;
+  rankingsSyncedAt: Date | null;
+}): {
+  code: string; severity: string; confidence: number;
+  titleAr: string; bodyAr: string; actionAr: string;
+  grades: { quality: string; engagement: string; conversion: string };
+} | null {
+  if (!ad.qualityRanking && !ad.engagementRanking && !ad.conversionRanking) return null;
+  const d = diagnoseRelevance({
+    quality: (ad.qualityRanking ?? 'unknown') as any,
+    engagement: (ad.engagementRanking ?? 'unknown') as any,
+    conversion: (ad.conversionRanking ?? 'unknown') as any,
+  });
+  if (d.code === 'RELEVANCE_UNKNOWN') return null;
+  return {
+    code: d.code,
+    severity: d.severity,
+    confidence: d.confidence,
+    titleAr: d.titleAr,
+    bodyAr: d.bodyAr,
+    actionAr: d.actionAr,
+    grades: {
+      quality: rankingLabel((ad.qualityRanking ?? 'unknown') as any, 'AR'),
+      engagement: rankingLabel((ad.engagementRanking ?? 'unknown') as any, 'AR'),
+      conversion: rankingLabel((ad.conversionRanking ?? 'unknown') as any, 'AR'),
+    },
+  };
 }
 
 /**
@@ -3147,6 +3185,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         adName:       ad.name,
         status:       ad.status,
         adSet:        ad.adSet ? { id: ad.adSet.id, name: ad.adSet.name } : null,
+        // Meta's own relevance verdict (server-computed so the client stays
+        // dumb). Null unless Meta graded the ad — never exposes raw enums.
+        relevance:    buildAdRelevanceView(ad),
         creative: ad.creative
           ? {
               id:                 ad.creative.id,
