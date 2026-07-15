@@ -380,6 +380,15 @@ export function dashboardPage(): string {
         </div>
       </div>
 
+      <!-- ═══ AI FLOATING ACTION BUTTON ═══ -->
+      <a class="ai-fab" href="/ai" id="ai-fab" title="اسأل المساعد الذكي">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a7 7 0 017 7c0 3-2 5-4 6v2H9v-2c-2-1-4-3-4-6a7 7 0 017-7z"/>
+          <path d="M9 21h6M10 17h4"/>
+        </svg>
+        <span class="ai-fab-label">اسأل AI</span>
+      </a>
+
       <!-- ═══ ADVANCED ANALYTICS ═══ -->
       <details class="v2-advanced">
         <summary>
@@ -2447,6 +2456,28 @@ export function dashboardPage(): string {
     }
   })();
 
+  (function initKpiDrillDown() {
+    var grid = document.getElementById('hero-grid');
+    if (!grid) return;
+    var kpiQuestions = {
+      spend: lbl('Analyze my spending trends', 'حلّل اتجاهات إنفاقي'),
+      spend7: lbl('How was my spending this week?', 'كيف كان إنفاقي هذا الأسبوع؟'),
+      lifetime: lbl('Give me a lifetime spending summary', 'أعطني ملخص الإنفاق الكلي'),
+      ctr: lbl('Why is my CTR changing?', 'لماذا يتغير معدل النقر؟'),
+      messages: lbl('Analyze my messaging performance', 'حلّل أداء الرسائل'),
+      cpm: lbl('Is my CPM competitive?', 'هل تكلفة الألف ظهور تنافسية؟'),
+    };
+    grid.addEventListener('click', function (e) {
+      if (e.target.closest('.info-btn')) return;
+      var card = e.target.closest('.kpi-cmd-card');
+      if (!card) return;
+      var kpi = card.getAttribute('data-kpi');
+      var q = kpiQuestions[kpi];
+      if (q) window.location.href = '/ai?q=' + encodeURIComponent(q);
+    });
+    grid.querySelectorAll('.kpi-cmd-card').forEach(function (c) { c.style.cursor = 'pointer'; });
+  })();
+
   // ── Predictions ──────────────────────────────────────────────────────────
   var _predAllCards = [];
   var _predActiveFilter = 'all';
@@ -3109,7 +3140,7 @@ export function dashboardPage(): string {
     var contentEl = document.getElementById('dashboard-content');
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) contentEl.style.display = 'block';
-    staggerReveal(['.cmd-bar', '.kpi-command-grid', '#exec-pulse-section', '#main-move-section', '#live-insights-section', '.active-section', '.split-grid', '#timeline-section']);
+    staggerReveal(['.cmd-bar', '.health-gauge-section', '#exec-pulse-section', '#quick-actions-bar', '.kpi-command-grid', '#main-move-section', '#live-insights-section', '.active-section', '.split-grid', '#timeline-section']);
   }
 
   /** Safety net if init hangs — do not rely on layout SHARED_JS globals. */

@@ -599,12 +599,29 @@ export const dashboardStyles = `<style>
       padding: 16px 18px 14px;
       overflow: hidden;
       transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-      cursor: default;
+      cursor: pointer;
+    }
+    .kpi-cmd-card::after {
+      content: 'اسأل AI →';
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent-2);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
     }
     .kpi-cmd-card:hover {
       border-color: rgba(217,167,89,0.3);
       box-shadow: 0 8px 24px rgba(0,0,0,0.18), var(--shadow-inner-glow);
       transform: translateY(-2px);
+    }
+    .kpi-cmd-card:hover::after {
+      opacity: 0.7;
+      transform: translateX(-50%) translateY(0);
     }
     .kpi-cmd-top {
       display: flex; align-items: center; gap: 8px;
@@ -2014,6 +2031,40 @@ export const dashboardStyles = `<style>
       .hg-metrics { justify-content: center; }
       .hg-action-link { justify-content: center; }
       .mode-toggle { order: -1; }
+    }
+
+    /* ═══ AI Floating Action Button ═══ */
+    .ai-fab {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent) 0%, #c49038 100%);
+      color: #1a1613;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 800;
+      box-shadow: 0 4px 20px rgba(217,167,89,0.35), 0 2px 8px rgba(0,0,0,0.3);
+      transition: all 0.2s ease;
+      animation: fab-entrance 0.5s ease-out 1s both;
+    }
+    .ai-fab:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 8px 30px rgba(217,167,89,0.45), 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .ai-fab svg { flex-shrink: 0; }
+    @keyframes fab-entrance {
+      from { opacity: 0; transform: translateY(20px) scale(0.9); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @media (max-width: 560px) {
+      .ai-fab { bottom: 16px; left: 16px; padding: 10px 14px; font-size: 12px; border-radius: 14px; }
+      .ai-fab-label { display: none; }
     }
 
     /* ═══ Section Empty State ═══ */
