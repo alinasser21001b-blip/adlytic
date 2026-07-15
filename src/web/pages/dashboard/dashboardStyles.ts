@@ -148,38 +148,6 @@ export const dashboardStyles = `<style>
     @media (max-width: 560px) { .ticker-track { grid-template-columns: 1fr; } }
 
     /* AI Context Strip — structured account snapshot tiles */
-    .ai-context-strip {
-      display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 10px;
-      margin-bottom: 18px; direction: rtl;
-    }
-    .ai-context-strip--quiet {
-      opacity: 0.72;
-      margin-bottom: 12px;
-    }
-    .ai-context-strip--quiet .ai-ctx-pill {
-      padding: 9px 12px;
-      background: transparent;
-      border-color: rgba(255,255,255,0.05);
-    }
-    @media (max-width: 900px) { .ai-context-strip { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 520px) { .ai-context-strip { grid-template-columns: 1fr; } }
-    .ai-ctx-pill {
-      display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-      font-size: 12px; color: var(--text-2);
-      padding: 12px 14px; border-radius: 14px;
-      background: var(--surface); border: 1px solid rgba(255,255,255,0.07);
-      min-width: 0;
-    }
-    .ai-ctx-pill-primary {
-      border-color: rgba(217,167,89,0.28);
-      background: linear-gradient(145deg, rgba(217,167,89,0.1), rgba(255,255,255,0.02));
-      color: var(--text);
-    }
-    .ai-ctx-pill-muted { opacity: 0.92; }
-    .ai-ctx-pill b { color: var(--accent-2); font-weight: 800; font-variant-numeric: tabular-nums; }
-    .ai-ctx-icon { font-size: 12px; line-height: 1; opacity: 0.8; }
-    .ai-ctx-label { font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.04em; }
-    .ai-ctx-value { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.35; }
 
     /* Active Ads Showcase Grid */
     .active-section { margin-bottom: 22px; }
@@ -344,7 +312,7 @@ export const dashboardStyles = `<style>
     .v2-section-meta  { font-size: 12px; color: var(--text-3); flex-shrink: 0; padding-top: 4px; }
     #main-move-section.main-move-above-fold .v2-section-title { font-size: 20px; }
 
-    .v2-actions, .v2-recovery-card, .v2-spotlight, .v2-insight {
+    .v2-actions, .v2-recovery-card, .v2-insight {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
@@ -371,17 +339,6 @@ export const dashboardStyles = `<style>
     .v2-recovery-step { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); padding: 6px 8px; border-radius: 6px; background: var(--surface-2); margin-bottom: 5px; }
     .v2-recovery-step b { color: var(--text); font-weight: 600; }
 
-    .v2-spotlight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 800px) { .v2-spotlight-grid { grid-template-columns: 1fr; } }
-    .v2-spotlight { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
-    .v2-spotlight-tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
-    .v2-winner .v2-spotlight-tag { color: var(--success); }
-    .v2-opportunity .v2-spotlight-tag { color: var(--accent-2); }
-    .v2-spotlight-name { font-size: 15px; font-weight: 700; color: var(--text); }
-    .v2-spotlight-reason { font-size: 12.5px; color: var(--text-2); }
-    .v2-spotlight-stat { display: flex; gap: 16px; font-size: 12px; color: var(--text-3); }
-    .v2-spotlight-stat b { color: var(--text); font-weight: 700; }
-    .v2-spotlight-empty { font-size: 12.5px; color: var(--text-3); padding: 4px 0; }
 
     .v2-insights { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
     .v2-insight { padding: 12px 14px; }
@@ -515,8 +472,6 @@ export const dashboardStyles = `<style>
     .adv-shell .attribution-card {
       margin: 0; border: none; background: transparent; padding: 0;
     }
-    .adv-shell .adv-campaigns-wrap { overflow: hidden; }
-    .adv-shell .adv-campaigns-table { min-width: 680px; }
 
     /* ═══ COMMAND BAR ═══ */
     .cmd-bar {
@@ -1206,8 +1161,6 @@ export const dashboardStyles = `<style>
 
     .main-move-cta:disabled { opacity: 0.55; cursor: default; filter: none; }
 
-    .below-chart-section { margin-top: 4px; }
-    .below-chart-section + .below-chart-section { margin-top: 18px; }
     #main-move-section { margin-top: 4px; }
     #main-move-section.main-move-above-fold {
       margin-top: 0;
@@ -1270,10 +1223,10 @@ export const dashboardStyles = `<style>
        force its track wider than the screen and cause horizontal scroll on
        mobile. min-width:0 lets these tracks shrink to the viewport. This was
        the root cause of the chart bleeding off the right edge on phones. */
-    .split-grid, .active-grid, .v2-spotlight-grid, .v2-recovery-grid, .v2-insights, .kpi-command-grid, .live-insights-grid { min-width: 0; }
+    .split-grid, .active-grid, .v2-recovery-grid, .v2-insights, .kpi-command-grid, .live-insights-grid { min-width: 0; }
     .split-grid > *, .active-card, .hero-card, .chart-panel, .brain-box,
     .main-move-card, .ticker-wrap, .exec-pulse-banner, .v2-action-body,
-    .main-move-secondary-body, .v2-spotlight, .strategy-card,
+    .main-move-secondary-body, .strategy-card,
     .cmd-bar, .kpi-cmd-card, .live-insights-section, .live-insight-card,
     .timeline-section { min-width: 0; }
     .chart-panel-canvas { max-width: 100%; }
@@ -1303,7 +1256,6 @@ export const dashboardStyles = `<style>
       .ticker-text { font-size: 12.5px; }
       .ticker-badge { font-size: 9.5px; padding: 2px 7px; }
 
-      .ai-context-strip { margin-bottom: 12px; gap: 8px; }
 
       .active-grid { gap: 8px; }
       .active-card { padding: 12px 14px; }
@@ -1868,14 +1820,15 @@ export const dashboardStyles = `<style>
     }
 
     /* ═══ Quick Mode — hide advanced sections ═══ */
+    /* Quick mode = the executive layer of the hierarchy: summary, health,
+       THE decision (main move), alerts, opportunities. Everything evidential
+       (metrics, charts, timeline, weekly, deep-dive) is advanced-only. */
     [data-dash-mode="quick"] .kpi-command-grid,
     [data-dash-mode="quick"] .live-insights-section,
-    [data-dash-mode="quick"] .ai-context-strip,
-    [data-dash-mode="quick"] .main-move-above-fold,
     [data-dash-mode="quick"] .active-section,
+    [data-dash-mode="quick"] .split-grid,
     [data-dash-mode="quick"] .chart-twin-section,
     [data-dash-mode="quick"] .timeline-section,
-    [data-dash-mode="quick"] .below-chart-section,
     [data-dash-mode="quick"] #weekly-report-section,
     [data-dash-mode="quick"] .v2-advanced,
     [data-dash-mode="quick"] #v2-brain-section {

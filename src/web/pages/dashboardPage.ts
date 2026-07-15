@@ -120,6 +120,19 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
 
+      <!-- ═══ EXECUTIVE PULSE ═══ -->
+      <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
+        <div class="exec-pulse-main">
+          <div class="exec-pulse-text" id="exec-pulse-text">—</div>
+          <div class="exec-pulse-detail" id="exec-pulse-detail"></div>
+        </div>
+        <div class="exec-pulse-score-chip" id="exec-pulse-score" style="display:none;">
+          <span class="exec-pulse-score-num" id="exec-pulse-score-num">—</span>
+          <span class="exec-pulse-score-lbl" id="exec-pulse-score-lbl"></span>
+        </div>
+        <a class="exec-pulse-cta" id="exec-pulse-cta" href="#" style="display:none;"></a>
+      </section>
+
       <!-- ═══ HEALTH SCORE GAUGE ═══ -->
       <section class="health-gauge-section" id="health-gauge-section" style="display:none;">
         <div class="health-gauge-card">
@@ -151,6 +164,91 @@ export function dashboardPage(): string {
             </a>
           </div>
         </div>
+      </section>
+
+      <!-- ═══ DIAGNOSIS + RECOMMENDATIONS (main move) ═══ -->
+      <section class="v2-section main-move-above-fold" id="main-move-section">
+        <div class="v2-section-head">
+          <div>
+            <div class="v2-section-kicker" id="main-move-kicker">أهم شيء الآن</div>
+            <div class="v2-section-title" id="main-move-label">تشخيص + حل</div>
+            <div class="v2-section-sub" id="main-move-sub">ماذا حصل · لماذا · وماذا تفعل</div>
+          </div>
+          <div class="v2-section-meta" id="main-move-meta">—</div>
+        </div>
+        <div class="main-move-card" id="main-move-card">
+          <div class="main-move-empty" id="main-move-empty">جارٍ التحميل…</div>
+        </div>
+      </section>
+
+      <!-- ═══ PREDICTIONS ═══ -->
+      <section class="v2-section" id="predictions-section" style="display:none;">
+        <div class="adv-panel">
+          <div class="adv-panel-head">
+            <div>
+              <div class="adv-panel-kicker">مراقبة مبكرة</div>
+              <div class="adv-panel-title">تنبيهات ذكية</div>
+              <div class="adv-panel-sub">نراقب ميزانيتك وأداء الإعلانات قبل أن تتأثر</div>
+            </div>
+            <div class="adv-panel-meta" id="pred-count-badge">—</div>
+          </div>
+          <div class="section-filters" id="pred-filters"></div>
+          <div id="predictions-grid" class="predictions-grid"></div>
+        </div>
+      </section>
+
+      <!-- ═══ AI RECOMMENDATIONS ═══ -->
+      <section class="v2-section" id="ai-recs-section" style="display:none;">
+        <div class="adv-panel">
+          <div class="adv-panel-head">
+            <div>
+              <div class="adv-panel-kicker">خطواتك القادمة</div>
+              <div class="adv-panel-title">نفّذ الآن</div>
+              <div class="adv-panel-sub">إجراءات مبنية على تحليل الذكاء الاصطناعي لحملاتك</div>
+            </div>
+            <div class="adv-panel-meta" id="ai-recs-source-badge">—</div>
+          </div>
+          <div class="section-filters" id="ai-recs-filters"></div>
+          <div id="ai-recs-grid" class="ai-recs-grid"></div>
+        </div>
+      </section>
+
+      <!-- ═══ CREATIVE HEALTH (Meta relevance grades) ═══ -->
+      <a class="creative-health-strip" id="creative-health-strip" href="/campaigns" style="display:none;" dir="rtl">
+        <span class="ch-icon" id="ch-icon">🎨</span>
+        <div class="ch-body">
+          <div class="ch-title" id="ch-title">—</div>
+          <div class="ch-sub" id="ch-sub">—</div>
+        </div>
+        <span class="ch-cta">راجع الإبداعات →</span>
+      </a>
+
+      <!-- ═══ QUICK ACTIONS BAR ═══ -->
+      <div class="quick-actions-bar" id="quick-actions-bar" dir="rtl">
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما أفضل حملة لزيادة ميزانيتها؟')}">
+          <span class="qa-icon">📈</span><span class="qa-label">وسّع الأفضل</span>
+        </a>
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما الحملات التي يجب إيقافها؟')}">
+          <span class="qa-icon">⏸️</span><span class="qa-label">أوقف الخاسرة</span>
+        </a>
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('حلل أداء الإعلانات الإبداعية')}">
+          <span class="qa-icon">🎨</span><span class="qa-label">حلل الإبداعات</span>
+        </a>
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما تقرير أداء حملاتي اليوم؟')}">
+          <span class="qa-icon">📊</span><span class="qa-label">تقرير سريع</span>
+        </a>
+      </div>
+
+      <!-- ═══ LIVE INSIGHTS — "What's happening now?" ═══ -->
+      <section class="live-insights-section" id="live-insights-section" style="display:none;">
+        <div class="live-insights-header">
+          <div class="live-insights-title-row">
+            <span class="live-dot"></span>
+            <span class="live-insights-title">ماذا يحدث الآن؟</span>
+          </div>
+          <div class="ticker-freshness" id="ticker-freshness"></div>
+        </div>
+        <div class="live-insights-grid" id="live-insights-grid" dir="auto"></div>
       </section>
 
       <!-- ═══ KPI CARDS — promoted to main view ═══ -->
@@ -229,70 +327,6 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- ═══ EXECUTIVE PULSE ═══ -->
-      <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
-        <div class="exec-pulse-main">
-          <div class="exec-pulse-text" id="exec-pulse-text">—</div>
-          <div class="exec-pulse-detail" id="exec-pulse-detail"></div>
-        </div>
-        <div class="exec-pulse-score-chip" id="exec-pulse-score" style="display:none;">
-          <span class="exec-pulse-score-num" id="exec-pulse-score-num">—</span>
-          <span class="exec-pulse-score-lbl" id="exec-pulse-score-lbl"></span>
-        </div>
-        <a class="exec-pulse-cta" id="exec-pulse-cta" href="#" style="display:none;"></a>
-      </section>
-
-      <!-- ═══ QUICK ACTIONS BAR ═══ -->
-      <div class="quick-actions-bar" id="quick-actions-bar" dir="rtl">
-        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما أفضل حملة لزيادة ميزانيتها؟')}">
-          <span class="qa-icon">📈</span><span class="qa-label">وسّع الأفضل</span>
-        </a>
-        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما الحملات التي يجب إيقافها؟')}">
-          <span class="qa-icon">⏸️</span><span class="qa-label">أوقف الخاسرة</span>
-        </a>
-        <a class="qa-chip" href="/ai?q=${encodeURIComponent('حلل أداء الإعلانات الإبداعية')}">
-          <span class="qa-icon">🎨</span><span class="qa-label">حلل الإبداعات</span>
-        </a>
-        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما تقرير أداء حملاتي اليوم؟')}">
-          <span class="qa-icon">📊</span><span class="qa-label">تقرير سريع</span>
-        </a>
-      </div>
-
-      <!-- ═══ LIVE INSIGHTS — "What's happening now?" ═══ -->
-      <section class="live-insights-section" id="live-insights-section" style="display:none;">
-        <div class="live-insights-header">
-          <div class="live-insights-title-row">
-            <span class="live-dot"></span>
-            <span class="live-insights-title">ماذا يحدث الآن؟</span>
-          </div>
-          <div class="ticker-freshness" id="ticker-freshness"></div>
-        </div>
-        <div class="live-insights-grid" id="live-insights-grid" dir="auto"></div>
-      </section>
-
-      <!-- ═══ AI CONTEXT STRIP ═══ -->
-      <div class="ai-context-strip" id="ai-context-strip" style="display:none;" dir="auto">
-        <div class="ai-ctx-pill ai-ctx-pill-primary" id="ai-ctx-campaigns"></div>
-        <div class="ai-ctx-pill" id="ai-ctx-window"></div>
-        <div class="ai-ctx-pill" id="ai-ctx-sync"></div>
-        <div class="ai-ctx-pill ai-ctx-pill-muted" id="ai-ctx-interval"></div>
-      </div>
-
-      <!-- ═══ DIAGNOSIS + RECOMMENDATIONS (main move) ═══ -->
-      <section class="v2-section main-move-above-fold" id="main-move-section">
-        <div class="v2-section-head">
-          <div>
-            <div class="v2-section-kicker" id="main-move-kicker">أهم شيء الآن</div>
-            <div class="v2-section-title" id="main-move-label">تشخيص + حل</div>
-            <div class="v2-section-sub" id="main-move-sub">ماذا حصل · لماذا · وماذا تفعل</div>
-          </div>
-          <div class="v2-section-meta" id="main-move-meta">—</div>
-        </div>
-        <div class="main-move-card" id="main-move-card">
-          <div class="main-move-empty" id="main-move-empty">جارٍ التحميل…</div>
-        </div>
-      </section>
-
       <!-- ═══ ACTIVE ADS + SPEND CHART SPLIT ═══ -->
       <section class="active-section" id="active-section" style="display:none;">
         <div class="active-header">
@@ -330,52 +364,6 @@ export function dashboardPage(): string {
         </div>
         <div class="timeline-track" id="timeline-track"></div>
       </section>
-
-      <section class="v2-section below-chart-section" id="v2-spotlight-section" style="display:none;">
-        <div class="v2-spotlight-grid" id="v2-spotlight"></div>
-      </section>
-
-      <!-- ═══ PREDICTIONS ═══ -->
-      <section class="v2-section" id="predictions-section" style="display:none;">
-        <div class="adv-panel">
-          <div class="adv-panel-head">
-            <div>
-              <div class="adv-panel-kicker">مراقبة مبكرة</div>
-              <div class="adv-panel-title">تنبيهات ذكية</div>
-              <div class="adv-panel-sub">نراقب ميزانيتك وأداء الإعلانات قبل أن تتأثر</div>
-            </div>
-            <div class="adv-panel-meta" id="pred-count-badge">—</div>
-          </div>
-          <div class="section-filters" id="pred-filters"></div>
-          <div id="predictions-grid" class="predictions-grid"></div>
-        </div>
-      </section>
-
-      <!-- ═══ AI RECOMMENDATIONS ═══ -->
-      <section class="v2-section" id="ai-recs-section" style="display:none;">
-        <div class="adv-panel">
-          <div class="adv-panel-head">
-            <div>
-              <div class="adv-panel-kicker">خطواتك القادمة</div>
-              <div class="adv-panel-title">نفّذ الآن</div>
-              <div class="adv-panel-sub">إجراءات مبنية على تحليل الذكاء الاصطناعي لحملاتك</div>
-            </div>
-            <div class="adv-panel-meta" id="ai-recs-source-badge">—</div>
-          </div>
-          <div class="section-filters" id="ai-recs-filters"></div>
-          <div id="ai-recs-grid" class="ai-recs-grid"></div>
-        </div>
-      </section>
-
-      <!-- ═══ CREATIVE HEALTH (Meta relevance grades) ═══ -->
-      <a class="creative-health-strip" id="creative-health-strip" href="/campaigns" style="display:none;" dir="rtl">
-        <span class="ch-icon" id="ch-icon">🎨</span>
-        <div class="ch-body">
-          <div class="ch-title" id="ch-title">—</div>
-          <div class="ch-sub" id="ch-sub">—</div>
-        </div>
-        <span class="ch-cta">راجع الإبداعات →</span>
-      </a>
 
       <!-- ═══ WEEKLY REPORT ═══ -->
       <section class="v2-section" id="weekly-report-section" style="display:none;">
@@ -417,7 +405,7 @@ export function dashboardPage(): string {
       <details class="v2-advanced">
         <summary>
           التحليلات المتقدمة
-          <span>نبض مباشر · مؤشرات · اتجاهات · تشخيص · حملات</span>
+          <span>نبض مباشر · مؤشرات · اتجاهات · تشخيص</span>
         </summary>
         <div class="v2-advanced-body">
           <div class="adv-shell">
@@ -553,33 +541,6 @@ export function dashboardPage(): string {
             </section>
 
             <!-- 7. Campaigns -->
-            <section class="adv-panel adv-campaigns-wrap">
-              <div class="adv-panel-head">
-                <div>
-                  <div class="adv-panel-kicker">الحساب</div>
-                  <div class="adv-panel-title">أداء الحملات</div>
-                  <div class="adv-panel-sub">الأفضل والأسوأ أولاً، ثم الأعلى إنفاقاً</div>
-                </div>
-                <a href="/campaigns" class="btn btn-ghost btn-sm">عرض الكل</a>
-              </div>
-              <div class="table-wrap" style="border:none;background:transparent;overflow-x:auto;">
-                <table class="adv-campaigns-table">
-                  <thead>
-                    <tr>
-                      <th>الحملة</th>
-                      <th>حالة التسليم</th>
-                      <th>الإنفاق</th>
-                      <th>النتائج</th>
-                      <th>تفاعل الإعلان</th>
-                      <th>ملاحظة</th>
-                    </tr>
-                  </thead>
-                  <tbody id="campaigns-tbody">
-                    <tr><td colspan="6" class="text-3" style="text-align:center;padding:18px;">جارٍ التحميل…</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
 
           </div>
         </div>
@@ -1421,45 +1382,6 @@ export function dashboardPage(): string {
         : '');
     }
   }
-  function renderAiContextStrip(dashData, campaigns) {
-    var strip = document.getElementById('ai-context-strip');
-    if (!strip) return;
-    var cc = dashData && dashData.workspace && dashData.workspace.campaignCounts;
-    var delivering = cc ? cc.deliveringInWindow : 0;
-    var spendingToday = cc ? cc.spendingToday : 0;
-    var dormant = cc ? cc.dormantActive : 0;
-    var total = cc ? cc.total : (Array.isArray(campaigns) ? campaigns.length : 0);
-    var synced = dashData && dashData.workspace && dashData.workspace.lastSyncedAt;
-    var ctxCampaigns = document.getElementById('ai-ctx-campaigns');
-    var ctxWindow = document.getElementById('ai-ctx-window');
-    var ctxSync = document.getElementById('ai-ctx-sync');
-    var ctxInterval = document.getElementById('ai-ctx-interval');
-    if (ctxCampaigns) {
-      ctxCampaigns.innerHTML = '<div class="ai-ctx-label">' + lbl('Campaigns', 'الحملات') + '</div>'
-        + '<div class="ai-ctx-value"><b>' + delivering + '</b> ' + lbl('delivering', 'تعمل')
-        + ' · ' + spendingToday + ' ' + lbl('today', 'اليوم')
-        + ' · ' + dormant + ' ' + lbl('dormant', 'بدون إنفاق')
-        + ' / ' + total + ' ' + lbl('total', 'إجمالي') + '</div>';
-    }
-    if (ctxWindow) {
-      ctxWindow.innerHTML = '<div class="ai-ctx-label">' + lbl('Analysis window', 'نافذة التحليل') + '</div>'
-        + '<div class="ai-ctx-value">' + lbl('Last 30 days', 'آخر 30 يوماً') + '</div>';
-    }
-    if (ctxSync) {
-      var syncTxt = synced
-        ? formatLastUpdated(synced)
-        : lbl('Awaiting sync', 'بانتظار المزامنة');
-      ctxSync.innerHTML = '<div class="ai-ctx-label">' + lbl('Last sync', 'آخر مزامنة') + '</div>'
-        + '<div class="ai-ctx-value">' + escHtml(syncTxt) + '</div>';
-    }
-    if (ctxInterval) {
-      ctxInterval.innerHTML = '<div class="ai-ctx-label">' + lbl('Auto-sync', 'المزامنة التلقائية') + '</div>'
-        + '<div class="ai-ctx-value">' + lbl('Every 15 minutes', 'كل 15 دقيقة') + '</div>';
-    }
-    // Keep the strip, but demote visual weight when the task owns the fold.
-    strip.classList.toggle('ai-context-strip--quiet', hasPrimaryMerchantTask(dashData));
-    strip.style.display = 'grid';
-  }
 
   // ── Active Ads Showcase ─────────────────────────────────────────────────
   function renderActiveAds(campaigns, campaignCounts) {
@@ -1762,86 +1684,6 @@ export function dashboardPage(): string {
               + 'السبب الرئيسي: ' + (DRIVER_AR[attr.primaryDriver] || attr.primaryDriver) + '.')
             : attr.narrative
         ) + '</div>';
-  }
-
-  function renderCampaignsTable(best, worst, allCampaigns) {
-    var tbody = document.getElementById('campaigns-tbody');
-    var byId = {};
-    (allCampaigns || []).forEach(function (c) { if (c && c.id) byId[c.id] = c; });
-    function enrich(c) {
-      if (!c) return null;
-      var full = byId[c.id] || {};
-      return Object.assign({}, full, c, {
-        spendWindowMinor: full.spendWindowMinor != null ? full.spendWindowMinor : c.spendWindowMinor,
-        messagesWindow: full.messagesWindow != null ? full.messagesWindow : (c.messages != null ? c.messages : null),
-        ctrWindow: full.ctrWindow != null ? full.ctrWindow : c.ctr,
-        dailyBudget: full.dailyBudget != null ? full.dailyBudget : c.dailyBudget,
-        objective: full.objective || c.objective,
-        status: full.status || c.status,
-        deliveryTier: full.deliveryTier || c.deliveryTier,
-        isCurrentlySpending: full.isCurrentlySpending != null ? full.isCurrentlySpending : c.isCurrentlySpending,
-        isDormantActive: full.isDormantActive != null ? full.isDormantActive : c.isDormantActive,
-      });
-    }
-    best = enrich(best);
-    worst = enrich(worst);
-    var rows = [];
-    function deliveryLabel(c) {
-      var tier = c.deliveryTier || '';
-      if (c.isCurrentlySpending || tier === 'DELIVERING_TODAY') return { text: 'تنفق الآن', cls: 'note-hot' };
-      if (tier === 'DELIVERING_WINDOW') return { text: 'تعمل', cls: 'note-best' };
-      if (tier === 'NOT_DELIVERING') return { text: 'لا تعمل', cls: 'note-danger' };
-      if (tier === 'DORMANT_ACTIVE' || c.isDormantActive) return { text: 'نشطة بدون إنفاق', cls: 'note-watch' };
-      if (tier === 'PAUSED' || (c.status || '').toUpperCase() === 'PAUSED') return { text: 'متوقفة', cls: 'note-muted' };
-      if (tier === 'ARCHIVED' || (c.status || '').toUpperCase() === 'ARCHIVED') return { text: 'مؤرشفة', cls: 'note-muted' };
-      return { text: '—', cls: 'note-muted' };
-    }
-    function noteFor(c, forced) {
-      if (forced) return forced;
-      return deliveryLabel(c).text;
-    }
-    function noteClass(note) {
-      if (note === 'الأفضل') return 'note-best';
-      if (note === 'الأسوأ') return 'note-worst';
-      if (note === 'تنفق الآن') return 'note-hot';
-      if (note === 'لا تعمل') return 'note-danger';
-      if (note === 'تحتاج مراجعة' || note === 'نشطة بدون إنفاق') return 'note-watch';
-      if (note === 'تعمل') return 'note-best';
-      return 'note-muted';
-    }
-    function row(c, forcedNote) {
-      var note = noteFor(c, forcedNote);
-      var delivery = deliveryLabel(c);
-      var spend = c.spendWindowMinor != null ? fmtCurrencyMinor(c.spendWindowMinor)
-        : (c.dailyBudget != null ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم' : '—');
-      var msgs = c.messagesWindow != null ? Number(c.messagesWindow).toLocaleString('en-US')
-        : (c.messages != null ? Number(c.messages).toLocaleString('en-US') : '—');
-      var ctr = c.ctrWindow != null ? Number(c.ctrWindow).toFixed(2) + '%'
-        : (c.ctr != null ? Number(c.ctr).toFixed(2) + '%' : '—');
-      return '<tr>'
-        + '<td><div class="adv-camp-name">' + escHtml(c.name || '—') + '</div>'
-          + '<div class="adv-camp-obj">' + escHtml(translateObjective(c.objective)) + '</div></td>'
-        + '<td><span class="adv-camp-note ' + delivery.cls + '">' + escHtml(delivery.text) + '</span></td>'
-        + '<td class="adv-camp-num">' + escHtml(spend) + '</td>'
-        + '<td class="adv-camp-num">' + escHtml(String(msgs)) + '</td>'
-        + '<td class="adv-camp-num">' + escHtml(ctr) + '</td>'
-        + '<td><span class="adv-camp-note ' + noteClass(note) + '">' + escHtml(note || '—') + '</span></td>'
-      + '</tr>';
-    }
-    if (best)  rows.push(row(best,  'الأفضل'));
-    if (worst && (!best || worst.id !== best.id)) rows.push(row(worst, 'الأسوأ'));
-    var seen = new Set([best && best.id, worst && worst.id].filter(Boolean));
-    var rest = (allCampaigns || []).filter(function (c) { return c && c.id && !seen.has(c.id); });
-    rest.sort(function (a, b) {
-      var as = Number(a.spendWindowMinor) || 0;
-      var bs = Number(b.spendWindowMinor) || 0;
-      if (bs !== as) return bs - as;
-      return (Number(b.messagesWindow) || 0) - (Number(a.messagesWindow) || 0);
-    });
-    rest.slice(0, 40).forEach(function (c) { rows.push(row(c, '')); });
-    tbody.innerHTML = rows.length
-      ? rows.join('')
-      : '<tr><td colspan="6" class="text-3" style="text-align:center;padding:18px;">لا توجد حملات.</td></tr>';
   }
 
   // ── Tier 1: Executive Pulse Banner ──────────────────────────────────────
@@ -2413,56 +2255,6 @@ export function dashboardPage(): string {
       var m = document.getElementById('main-move-action-modal');
       if (m && m.style.display !== 'none') closeActionModal();
     });
-  }
-
-  // ── V2: Spotlight ───────────────────────────────────────────────────────
-  function deriveOpportunity(dashData) {
-    if (!dashData || !dashData.opportunity) return null;
-    return dashData.opportunity;
-  }
-  function renderSpotlight(winner, opportunity) {
-    var section = document.getElementById('v2-spotlight-section');
-    var el = document.getElementById('v2-spotlight');
-    if (!el) return;
-    var hasWinner = !!(winner && (winner.name || winner.campaignName));
-    var hasOpportunity = !!(opportunity && opportunity.title);
-    if (!hasWinner && !hasOpportunity) {
-      if (section) section.style.display = 'none';
-      el.innerHTML = '';
-      return;
-    }
-    if (section) section.style.display = 'block';
-    var parts = [];
-    if (hasWinner) {
-      var reason = winner.reason || ('Top performer · ' + (winner.objective || 'this period'));
-      var conf = winner.confidence || 90;
-      var score = winner.score != null ? winner.score : (winner.health != null ? winner.health : '—');
-      parts.push(
-        '<div class="v2-spotlight v2-winner">'
-          + '<div class="v2-spotlight-tag">' + escHtml(lbl('Best Campaign', 'أفضل حملة')) + '</div>'
-          + '<div class="v2-spotlight-name">' + escHtml(winner.name || winner.campaignName || '—') + '</div>'
-          + '<div class="v2-spotlight-reason">' + escHtml(reason) + '</div>'
-          + '<div class="v2-spotlight-stat">'
-            + '<span>' + escHtml(lbl('Score', 'النتيجة')) + ' <b>' + escHtml(String(score)) + '</b></span>'
-            + '<span>' + escHtml(lbl('Confidence', 'الثقة')) + ' <b>' + escHtml(String(conf)) + '%</b></span>'
-          + '</div>'
-        + '</div>'
-      );
-    }
-    if (hasOpportunity) {
-      parts.push(
-        '<div class="v2-spotlight v2-opportunity">'
-          + '<div class="v2-spotlight-tag">' + escHtml(lbl('Opportunity', 'فرصة')) + '</div>'
-          + '<div class="v2-spotlight-name">' + escHtml(opportunity.title) + '</div>'
-          + '<div class="v2-spotlight-reason">' + escHtml(opportunity.reason || '') + '</div>'
-          + '<div class="v2-spotlight-stat">'
-            + '<span>' + escHtml(lbl('Expected gain', 'الربح المتوقع')) + ' <b>' + escHtml(opportunity.expectedGain || '+0%') + '</b></span>'
-            + '<span>' + escHtml(lbl('Confidence', 'الثقة')) + ' <b>' + escHtml(String(opportunity.confidence || 80)) + '%</b></span>'
-          + '</div>'
-        + '</div>'
-      );
-    }
-    el.innerHTML = parts.join('');
   }
   // ── Health Score Gauge ──────────────────────────────────────────────────
   function estimateHealthScore(dashData) {
@@ -3331,7 +3123,9 @@ export function dashboardPage(): string {
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) contentEl.style.display = 'block';
     setGreeting();
-    staggerReveal(['.cmd-bar', '.health-gauge-section', '#exec-pulse-section', '#quick-actions-bar', '.kpi-command-grid', '#main-move-section', '#live-insights-section', '.active-section', '.split-grid', '#timeline-section']);
+    // Reveal order mirrors the decision hierarchy: summary → health →
+    // decision → shortcuts → context → metrics → evidence.
+    staggerReveal(['.cmd-bar', '#exec-pulse-section', '.health-gauge-section', '#main-move-section', '#quick-actions-bar', '#live-insights-section', '.kpi-command-grid', '.active-section', '.split-grid', '#timeline-section']);
   }
 
   /** Safety net if init hangs — do not rely on layout SHARED_JS globals. */
@@ -3499,7 +3293,6 @@ export function dashboardPage(): string {
       safeRender('kpiInsights', function () { renderKpiInsights(dashData, kpis); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
       safeRender('liveInsights', function () { renderTicker(buildTickerItems(dashData), dashData); });
-      safeRender('aiContext', function () { renderAiContextStrip(dashData, campaigns); });
       safeRender('activeAds', function () { renderActiveAds(campaigns, dashData.workspace && dashData.workspace.campaignCounts); });
       safeRender('brainBox', function () { renderBrainBox(dashData); });
       safeRender('timeline', function () { renderTimeline(dashData); });
@@ -3507,7 +3300,6 @@ export function dashboardPage(): string {
       if (dashData.brain) {
         safeRender('brainSection', function () { renderBrainSection(dashData.brain, dashData); });
       }
-      safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
       safeRender('kpis', function () { renderKpis(kpis); });
       safeRender('predictions', function () { renderPredictions(dashData.predictions); });
       safeRender('aiRecs', function () { renderAIRecommendations(dashData.aiRecommendations); });
@@ -3674,7 +3466,6 @@ export function dashboardPage(): string {
       safeRender('attribution', function () { renderAttribution(dashData.attribution || null); });
       safeRender('diagnoses', function () { renderDiagnoses(Array.isArray(dashData.diagnoses) ? dashData.diagnoses : []); });
       safeRender('issues', function () { renderIssues(Array.isArray(dashData.issues) ? dashData.issues : []); });
-      safeRender('campaignsTable', function () { renderCampaignsTable(dashData.bestCampaign, dashData.worstCampaign, campaigns); });
     } catch (e) {
       console.error('[dashboard] applyDashboardData failed:', e);
       if (isInitial) throw e;
