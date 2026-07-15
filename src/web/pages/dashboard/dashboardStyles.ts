@@ -332,7 +332,7 @@ export const dashboardStyles = `<style>
     #stale-banner { display: none; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 
     /* Re-used V2 / V6 sections (only what isn't in SHARED_CSS) */
-    .v2-section { margin-bottom: 26px; }
+    .v2-section { margin-bottom: 22px; }
     .v2-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
     .v2-section-kicker {
       font-size: 11px; font-weight: 800; color: var(--accent-2);
@@ -421,15 +421,17 @@ export const dashboardStyles = `<style>
       direction: rtl;
     }
     .adv-panel {
-      background: var(--surface);
+      background:
+        linear-gradient(175deg, rgba(255,255,255,0.015) 0%, transparent 40%),
+        var(--surface);
       border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 16px;
-      padding: 18px 18px 16px;
+      border-radius: 18px;
+      padding: 20px 20px 18px;
       width: 100%;
       box-shadow: var(--shadow-inner-glow);
-      transition: border-color 0.2s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    .adv-panel:hover { border-color: rgba(255,255,255,0.1); }
+    .adv-panel:hover { border-color: rgba(255,255,255,0.12); box-shadow: 0 6px 24px rgba(0,0,0,0.15), var(--shadow-inner-glow); }
     .adv-panel-head {
       display: flex; align-items: flex-start; justify-content: space-between;
       gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
@@ -774,17 +776,21 @@ export const dashboardStyles = `<style>
 
     /* Loading skeleton (presentational — no data bindings) */
     .dash-skeleton { width: 100%; padding: 4px 0; }
-    .skeleton-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
-    @media (max-width: 800px) { .skeleton-hero-grid { grid-template-columns: 1fr; } }
     .skeleton-block {
-      background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-hover) 50%, var(--surface-2) 75%);
-      background-size: 200% 100%;
-      animation: skeleton-shimmer 1.2s ease-in-out infinite;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
+      background: linear-gradient(90deg, var(--surface-2) 25%, rgba(255,255,255,0.04) 50%, var(--surface-2) 75%);
+      background-size: 400% 100%;
+      animation: skeleton-shimmer 2s ease-in-out infinite;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.06);
     }
+    .skeleton-gauge { height: 140px; margin-bottom: 16px; border-radius: 20px; }
+    .skeleton-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+    @media (max-width: 800px) { .skeleton-hero-grid { grid-template-columns: 1fr; } }
     .skeleton-hero { height: 112px; }
-    .skeleton-chart { height: 300px; }
+    .skeleton-chart { height: 280px; margin-bottom: 16px; }
+    .skeleton-cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .skeleton-card-sm { height: 160px; }
+    @media (max-width: 768px) { .skeleton-cards-grid { grid-template-columns: 1fr; } }
     @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
     /* Onboarding sync overlay */
@@ -1261,9 +1267,9 @@ export const dashboardStyles = `<style>
     @media (max-width: 720px) { .predictions-grid { grid-template-columns: 1fr; } }
     .pred-card {
       display: flex; flex-direction: column; gap: 0;
-      border-radius: 14px;
+      border-radius: 16px;
       border: 1px solid rgba(255,255,255,0.07);
-      background: var(--surface);
+      background: linear-gradient(170deg, rgba(255,255,255,0.02) 0%, var(--surface) 50%);
       overflow: hidden;
       transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
       cursor: pointer;
@@ -1367,9 +1373,9 @@ export const dashboardStyles = `<style>
     }
     @media (max-width: 720px) { .ai-recs-grid { grid-template-columns: 1fr; } }
     .ai-rec-card {
-      border-radius: 14px;
+      border-radius: 16px;
       border: 1px solid rgba(255,255,255,0.07);
-      background: var(--surface);
+      background: linear-gradient(170deg, rgba(255,255,255,0.02) 0%, var(--surface) 50%);
       overflow: hidden;
       transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
       cursor: pointer;
@@ -1445,14 +1451,52 @@ export const dashboardStyles = `<style>
       max-width: 160px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .ai-rec-investigate {
-      display: flex; align-items: center; gap: 4px;
-      padding-top: 10px;
+    .ai-rec-actions {
+      display: flex; align-items: center; gap: 8px;
+      padding-top: 12px;
       border-top: 1px solid rgba(255,255,255,0.05);
-      font-size: 11.5px; font-weight: 600; color: var(--accent-2);
-      opacity: 0; transition: opacity 0.15s;
+      flex-wrap: wrap;
     }
-    .ai-rec-card:hover .ai-rec-investigate { opacity: 1; }
+    .ai-rec-action-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-size: 12px; font-weight: 700;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+    }
+    .ai-rec-action-btn.scale {
+      background: rgba(52,168,113,0.12); color: var(--success);
+      border-color: rgba(52,168,113,0.2);
+    }
+    .ai-rec-action-btn.scale:hover { background: rgba(52,168,113,0.22); border-color: rgba(52,168,113,0.4); }
+    .ai-rec-action-btn.fix {
+      background: rgba(226,96,79,0.12); color: var(--error);
+      border-color: rgba(226,96,79,0.2);
+    }
+    .ai-rec-action-btn.fix:hover { background: rgba(226,96,79,0.22); border-color: rgba(226,96,79,0.4); }
+    .ai-rec-action-btn.pause {
+      background: rgba(199,122,31,0.12); color: var(--warning);
+      border-color: rgba(199,122,31,0.2);
+    }
+    .ai-rec-action-btn.pause:hover { background: rgba(199,122,31,0.22); border-color: rgba(199,122,31,0.4); }
+    .ai-rec-action-btn.watch, .ai-rec-action-btn.optimize {
+      background: rgba(217,167,89,0.1); color: var(--accent-2);
+      border-color: rgba(217,167,89,0.2);
+    }
+    .ai-rec-action-btn.watch:hover, .ai-rec-action-btn.optimize:hover {
+      background: rgba(217,167,89,0.2); border-color: rgba(217,167,89,0.35);
+    }
+    .ai-rec-investigate-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11.5px; font-weight: 600; color: var(--text-3);
+      text-decoration: none;
+      padding: 7px 10px;
+      border-radius: 8px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .ai-rec-investigate-btn:hover { color: var(--accent-2); background: rgba(255,255,255,0.04); }
 
     /* ═══ Weekly Report ═══ */
     .weekly-header {
@@ -1587,6 +1631,201 @@ export const dashboardStyles = `<style>
       font-variant-numeric: tabular-nums;
     }
     .weekly-brain-pill-icon { font-size: 12px; }
+
+    /* ═══ Mode Toggle ═══ */
+    .mode-toggle {
+      display: inline-flex;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .mode-btn {
+      padding: 5px 14px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-3);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+    }
+    .mode-btn:hover { color: var(--text-2); background: rgba(255,255,255,0.04); }
+    .mode-btn.active {
+      color: var(--bg);
+      background: var(--accent);
+      box-shadow: 0 2px 8px rgba(217,167,89,0.25);
+    }
+
+    /* ═══ Quick Mode — hide advanced sections ═══ */
+    [data-dash-mode="quick"] .kpi-command-grid,
+    [data-dash-mode="quick"] .exec-pulse-banner,
+    [data-dash-mode="quick"] .live-insights-section,
+    [data-dash-mode="quick"] .ai-context-strip,
+    [data-dash-mode="quick"] .main-move-above-fold,
+    [data-dash-mode="quick"] .active-section,
+    [data-dash-mode="quick"] .chart-twin-section,
+    [data-dash-mode="quick"] .timeline-section,
+    [data-dash-mode="quick"] .below-chart-section,
+    [data-dash-mode="quick"] #weekly-report-section,
+    [data-dash-mode="quick"] .v2-advanced,
+    [data-dash-mode="quick"] #v2-brain-section {
+      display: none !important;
+    }
+
+    /* ═══ Health Score Gauge ═══ */
+    .health-gauge-section {
+      margin-bottom: 18px;
+    }
+    .health-gauge-card {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      background:
+        linear-gradient(165deg, rgba(217,167,89,0.06), transparent 50%),
+        linear-gradient(340deg, rgba(52,168,113,0.04), transparent 40%),
+        var(--surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 24px 28px;
+      direction: rtl;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-inner-glow);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .health-gauge-card:hover {
+      border-color: rgba(217,167,89,0.2);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18), var(--shadow-inner-glow);
+    }
+    .health-gauge-left {
+      flex-shrink: 0;
+      width: 160px;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .health-gauge-svg {
+      width: 160px;
+      height: 140px;
+      overflow: visible;
+    }
+    .hg-score-num {
+      font-family: var(--font-display);
+      font-size: 42px;
+      font-weight: 800;
+      fill: var(--text);
+      letter-spacing: -0.04em;
+    }
+    .hg-band-label {
+      font-size: 13px;
+      font-weight: 700;
+      fill: var(--accent-2);
+      letter-spacing: 0.01em;
+    }
+
+    .health-gauge-right {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hg-header {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .hg-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .hg-subtitle {
+      font-size: 12px;
+      color: var(--text-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .hg-status {
+      font-size: 14px;
+      color: var(--text-2);
+      line-height: 1.5;
+    }
+
+    .hg-metrics {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .hg-metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      min-width: 80px;
+      transition: border-color 0.15s ease;
+    }
+    .hg-metric:hover { border-color: rgba(255,255,255,0.12); }
+    .hg-metric-val {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+    }
+    .hg-metric-lbl {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-3);
+      letter-spacing: 0.02em;
+    }
+    .hg-m-success .hg-metric-val { color: var(--success); }
+    .hg-m-accent .hg-metric-val { color: var(--accent-2); }
+    .hg-m-warning .hg-metric-val { color: var(--warning); }
+    .hg-m-error .hg-metric-val { color: var(--error); }
+
+    .hg-action-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-2);
+      text-decoration: none;
+      padding: 6px 0;
+      transition: color 0.15s ease;
+    }
+    .hg-action-link:hover { color: var(--accent); }
+    .hg-action-link svg { flex-shrink: 0; }
+
+    @media (max-width: 768px) {
+      .health-gauge-card {
+        flex-direction: column;
+        padding: 20px 16px;
+        gap: 16px;
+        text-align: center;
+      }
+      .health-gauge-left { width: 140px; height: 120px; }
+      .health-gauge-svg { width: 140px; height: 120px; }
+      .hg-score-num { font-size: 36px; }
+      .hg-header { justify-content: center; }
+      .hg-status { text-align: center; }
+      .hg-metrics { justify-content: center; }
+      .hg-action-link { justify-content: center; }
+      .mode-toggle { order: -1; }
+    }
 
     /* ═══ Section entrance animation ═══ */
     @keyframes section-enter {

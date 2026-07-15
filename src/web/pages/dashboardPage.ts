@@ -39,12 +39,17 @@ export function dashboardPage(): string {
   const content = `
     <div class="loading-overlay" id="loading-state">
       <div class="dash-skeleton" id="dash-skeleton" aria-hidden="true">
+        <div class="skeleton-block skeleton-gauge"></div>
         <div class="skeleton-hero-grid">
           <div class="skeleton-block skeleton-hero"></div>
           <div class="skeleton-block skeleton-hero"></div>
           <div class="skeleton-block skeleton-hero"></div>
         </div>
         <div class="skeleton-block skeleton-chart"></div>
+        <div class="skeleton-cards-grid">
+          <div class="skeleton-block skeleton-card-sm"></div>
+          <div class="skeleton-block skeleton-card-sm"></div>
+        </div>
       </div>
     </div>
 
@@ -89,6 +94,10 @@ export function dashboardPage(): string {
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8a7 7 0 0113.2-3.2M15 8a7 7 0 01-13.2 3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M14 1v4h-4M2 15v-4h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span>—</span>
           </div>
+          <div class="mode-toggle" id="mode-toggle">
+            <button class="mode-btn active" data-mode="quick" id="mode-quick-btn">سريع</button>
+            <button class="mode-btn" data-mode="advanced" id="mode-adv-btn">متقدم</button>
+          </div>
           <button class="cmd-refresh-btn" id="cmd-refresh-btn" title="تحديث البيانات">
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8a7 7 0 0113.2-3.2M15 8a7 7 0 01-13.2 3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 1v4h-4M2 15v-4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
@@ -103,6 +112,38 @@ export function dashboardPage(): string {
         </div>
         <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
+
+      <!-- ═══ HEALTH SCORE GAUGE ═══ -->
+      <section class="health-gauge-section" id="health-gauge-section" style="display:none;">
+        <div class="health-gauge-card">
+          <div class="health-gauge-left">
+            <svg class="health-gauge-svg" viewBox="0 0 200 170" id="health-gauge-svg">
+              <defs>
+                <linearGradient id="gauge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" id="gauge-grad-start" stop-color="rgba(255,255,255,0.1)"/>
+                  <stop offset="100%" id="gauge-grad-end" stop-color="rgba(255,255,255,0.1)"/>
+                </linearGradient>
+              </defs>
+              <circle cx="100" cy="100" r="76" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14" stroke-dasharray="358.14 477.52" transform="rotate(135 100 100)" stroke-linecap="round"/>
+              <circle cx="100" cy="100" r="76" fill="none" stroke="url(#gauge-grad)" stroke-width="14" stroke-dasharray="0 477.52" transform="rotate(135 100 100)" stroke-linecap="round" id="health-gauge-arc" style="transition: stroke-dasharray 1.2s cubic-bezier(0.4,0,0.2,1);"/>
+              <text x="100" y="90" text-anchor="middle" class="hg-score-num" id="hg-score-num">—</text>
+              <text x="100" y="112" text-anchor="middle" class="hg-band-label" id="hg-band-label">—</text>
+            </svg>
+          </div>
+          <div class="health-gauge-right">
+            <div class="hg-header">
+              <div class="hg-title">صحة الحساب</div>
+              <div class="hg-subtitle" id="hg-subtitle">—</div>
+            </div>
+            <div class="hg-status" id="hg-status" dir="auto">—</div>
+            <div class="hg-metrics" id="hg-metrics"></div>
+            <a class="hg-action-link" id="hg-action-link" href="/ai" style="display:none;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 12l4-4-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="hg-action-text">اسأل الذكاء الاصطناعي</span>
+            </a>
+          </div>
+        </div>
+      </section>
 
       <!-- ═══ KPI CARDS — promoted to main view ═══ -->
       <section class="kpi-command-grid" id="hero-grid">
@@ -261,9 +302,9 @@ export function dashboardPage(): string {
         <div class="adv-panel">
           <div class="adv-panel-head">
             <div>
-              <div class="adv-panel-kicker">تنبؤات</div>
-              <div class="adv-panel-title">تحذيرات مبكرة</div>
-              <div class="adv-panel-sub">متى ستنفد الميزانية · متى سيتعب الإبداع</div>
+              <div class="adv-panel-kicker">مراقبة مبكرة</div>
+              <div class="adv-panel-title">تنبيهات ذكية</div>
+              <div class="adv-panel-sub">نراقب ميزانيتك وأداء الإعلانات قبل أن تتأثر</div>
             </div>
             <div class="adv-panel-meta" id="pred-count-badge">—</div>
           </div>
@@ -277,9 +318,9 @@ export function dashboardPage(): string {
         <div class="adv-panel">
           <div class="adv-panel-head">
             <div>
-              <div class="adv-panel-kicker">توصيات ذكية</div>
-              <div class="adv-panel-title">خطوات مقترحة</div>
-              <div class="adv-panel-sub">مبنية على تحليل أنماط حملاتك</div>
+              <div class="adv-panel-kicker">خطواتك القادمة</div>
+              <div class="adv-panel-title">نفّذ الآن</div>
+              <div class="adv-panel-sub">إجراءات مبنية على تحليل الذكاء الاصطناعي لحملاتك</div>
             </div>
             <div class="adv-panel-meta" id="ai-recs-source-badge">—</div>
           </div>
@@ -2194,6 +2235,145 @@ export function dashboardPage(): string {
     }
     el.innerHTML = parts.join('');
   }
+  // ── Health Score Gauge ──────────────────────────────────────────────────
+  function renderHealthGauge(dashData) {
+    var section = document.getElementById('health-gauge-section');
+    if (!section) return;
+
+    var health = dashData && dashData.health;
+    var score = health ? health.score : null;
+    var band = health ? health.band : 'none';
+
+    if (score == null || band === 'none') {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = '';
+    section.classList.add('section-enter');
+
+    var colors = {
+      excellent: { start: '#34A871', end: '#2DD4A0' },
+      good:      { start: '#D9A759', end: '#E8C97A' },
+      attention: { start: '#C77A1F', end: '#E89C3F' },
+      poor:      { start: '#E2604F', end: '#F07C6F' }
+    };
+    var c = colors[band] || colors.attention;
+
+    var ARC_LEN = 358.14;
+    var filled = ARC_LEN * (score / 100);
+    var arc = document.getElementById('health-gauge-arc');
+    if (arc) {
+      arc.setAttribute('stroke', 'url(#gauge-grad)');
+      setTimeout(function () {
+        arc.setAttribute('stroke-dasharray', filled + ' 477.52');
+      }, 60);
+    }
+
+    var gradStart = document.getElementById('gauge-grad-start');
+    var gradEnd = document.getElementById('gauge-grad-end');
+    if (gradStart) gradStart.setAttribute('stop-color', c.start);
+    if (gradEnd) gradEnd.setAttribute('stop-color', c.end);
+
+    var scoreText = document.getElementById('hg-score-num');
+    if (scoreText) scoreText.textContent = String(Math.round(score));
+
+    var bandLabels = {
+      excellent: lbl('Excellent', 'ممتاز'),
+      good: lbl('Good', 'جيد'),
+      attention: lbl('Needs Attention', 'يحتاج انتباه'),
+      poor: lbl('Poor', 'ضعيف')
+    };
+    var bandText = document.getElementById('hg-band-label');
+    if (bandText) {
+      bandText.textContent = bandLabels[band] || band;
+      bandText.setAttribute('fill', c.start);
+    }
+
+    var subtitleEl = document.getElementById('hg-subtitle');
+    if (subtitleEl) subtitleEl.textContent = lbl('Score: ', 'النقاط: ') + Math.round(score) + '/100';
+
+    var statusMessages = {
+      excellent: lbl('Your campaigns are in great shape. Keep it up!', 'حملاتك في أفضل حالاتها. استمر!'),
+      good: lbl('Good performance overall. A few tweaks could help.', 'أداء جيد بشكل عام. بعض التعديلات قد تساعد.'),
+      attention: lbl('Some campaigns need your attention soon.', 'بعض الحملات تحتاج انتباهك قريباً.'),
+      poor: lbl('Urgent: several campaigns need immediate fixes.', 'عاجل: عدة حملات تحتاج إصلاحات فورية.')
+    };
+    var statusEl = document.getElementById('hg-status');
+    if (statusEl) statusEl.textContent = statusMessages[band] || '';
+
+    var metricsEl = document.getElementById('hg-metrics');
+    if (metricsEl) {
+      var recs = dashData.aiRecommendations;
+      var preds = dashData.predictions;
+      var cc = dashData.workspace && dashData.workspace.campaignCounts;
+      var activeCount = cc ? (cc.spendingToday || cc.deliveringInWindow || 0) : 0;
+      var recCount = recs ? (recs.items || []).length : 0;
+      var predCount = preds ? ((preds.budgetExhaustion || preds.budget || []).length + (preds.fatigue || []).length) : 0;
+
+      var bandClass = band === 'excellent' ? 'hg-m-success' : band === 'good' ? 'hg-m-accent' : band === 'attention' ? 'hg-m-warning' : 'hg-m-error';
+      metricsEl.innerHTML =
+        '<div class="hg-metric ' + bandClass + '">'
+        + '<span class="hg-metric-val">' + activeCount + '</span>'
+        + '<span class="hg-metric-lbl">' + lbl('Active', 'نشطة') + '</span>'
+        + '</div>'
+        + '<div class="hg-metric">'
+        + '<span class="hg-metric-val">' + recCount + '</span>'
+        + '<span class="hg-metric-lbl">' + lbl('Recommendations', 'توصيات') + '</span>'
+        + '</div>'
+        + '<div class="hg-metric">'
+        + '<span class="hg-metric-val">' + predCount + '</span>'
+        + '<span class="hg-metric-lbl">' + lbl('Warnings', 'تحذيرات') + '</span>'
+        + '</div>';
+    }
+
+    var actionLink = document.getElementById('hg-action-link');
+    var actionText = document.getElementById('hg-action-text');
+    if (actionLink && actionText) {
+      if (band === 'poor' || band === 'attention') {
+        actionLink.style.display = '';
+        actionText.textContent = lbl('Get AI advice', 'احصل على نصيحة الذكاء الاصطناعي');
+        actionLink.href = '/ai?q=' + encodeURIComponent(
+          band === 'poor'
+            ? lbl('My account health score is low. What should I fix first?', 'نقاط صحة حسابي منخفضة. ماذا يجب أن أصلح أولاً؟')
+            : lbl('What can I improve in my campaigns?', 'ما الذي يمكنني تحسينه في حملاتي؟')
+        );
+      } else {
+        actionLink.style.display = 'none';
+      }
+    }
+  }
+
+  // ── Quick / Advanced Mode Toggle ──────────────────────────────────────
+  var _dashMode = 'advanced';
+  try { _dashMode = localStorage.getItem('adlytic_dash_mode') || 'advanced'; } catch (e) {}
+
+  function setDashMode(mode) {
+    _dashMode = mode;
+    try { localStorage.setItem('adlytic_dash_mode', mode); } catch (e) {}
+    var dc = document.getElementById('dashboard-content');
+    if (dc) dc.setAttribute('data-dash-mode', mode);
+    var qb = document.getElementById('mode-quick-btn');
+    var ab = document.getElementById('mode-adv-btn');
+    if (qb) qb.className = 'mode-btn' + (mode === 'quick' ? ' active' : '');
+    if (ab) ab.className = 'mode-btn' + (mode === 'advanced' ? ' active' : '');
+  }
+
+  (function initModeToggle() {
+    var dc = document.getElementById('dashboard-content');
+    if (dc) dc.setAttribute('data-dash-mode', _dashMode);
+    var qb = document.getElementById('mode-quick-btn');
+    var ab = document.getElementById('mode-adv-btn');
+    if (qb) {
+      qb.className = 'mode-btn' + (_dashMode === 'quick' ? ' active' : '');
+      qb.addEventListener('click', function () { setDashMode('quick'); });
+    }
+    if (ab) {
+      ab.className = 'mode-btn' + (_dashMode === 'advanced' ? ' active' : '');
+      ab.addEventListener('click', function () { setDashMode('advanced'); });
+    }
+  })();
+
   // ── Predictions ──────────────────────────────────────────────────────────
   var _predAllCards = [];
   var _predActiveFilter = 'all';
@@ -2410,13 +2590,20 @@ export function dashboardPage(): string {
 
     var catIcons = { scale: '🚀', fix: '🔧', pause: '⏸️', watch: '👁️', optimize: '⚙️' };
     var catLabels = {
-      scale: lbl('Scale', 'توسيع'),
-      fix: lbl('Fix', 'إصلاح'),
-      pause: lbl('Pause', 'إيقاف'),
-      watch: lbl('Watch', 'مراقبة'),
-      optimize: lbl('Optimize', 'تحسين'),
+      scale: lbl('Scale Budget', 'وسّع الميزانية'),
+      fix: lbl('Fix Now', 'أصلح الآن'),
+      pause: lbl('Pause Campaign', 'أوقف الحملة'),
+      watch: lbl('Watch Closely', 'تابع عن كثب'),
+      optimize: lbl('Optimize', 'حسّن الأداء'),
     };
-    var priLabels = { high: lbl('High', 'عالية'), medium: lbl('Medium', 'متوسطة'), low: lbl('Low', 'منخفضة') };
+    var catActions = {
+      scale: lbl('Scale', 'وسّع'),
+      fix: lbl('Fix', 'أصلح'),
+      pause: lbl('Pause', 'أوقف'),
+      watch: lbl('Monitor', 'راقب'),
+      optimize: lbl('Optimize', 'حسّن'),
+    };
+    var priLabels = { high: lbl('Urgent', 'عاجل'), medium: lbl('Recommended', 'مُوصى'), low: lbl('Optional', 'اختياري') };
 
     var catCounts = {};
     recs.recommendations.forEach(function (r) {
@@ -2451,6 +2638,11 @@ export function dashboardPage(): string {
         + '</div>';
       }
 
+      var actionBtnLabel = catActions[r.category] || catActions.optimize;
+      var actionQuery = r.campaignIds && r.campaignIds.length > 0
+        ? lbl(catLabel + ' campaign ' + r.campaignIds[0], catLabel + ' الحملة ' + r.campaignIds[0])
+        : lbl(catLabel + ': ' + (r.titleAr || ''), catLabel + ': ' + (r.titleAr || ''));
+
       var html = '<div class="ai-rec-card" data-category="' + escHtml(r.category || '') + '" data-campaign-ids="' + escHtml((r.campaignIds || []).join(',')) + '">'
         + '<div class="ai-rec-header">'
           + '<div class="ai-rec-icon ' + escHtml(r.category || '') + '">' + icon + '</div>'
@@ -2464,8 +2656,17 @@ export function dashboardPage(): string {
           + '<div class="ai-rec-body">' + escHtml(r.bodyAr || '') + '</div>'
           + confHtml
           + campaignTags
-          + '<div class="ai-rec-investigate">'
-            + lbl('Investigate', 'تحقيق') + ' →'
+          + '<div class="ai-rec-actions">'
+            + '<a class="ai-rec-action-btn ' + escHtml(r.category || '') + '" href="/ai?q=' + encodeURIComponent(actionQuery) + '">'
+              + icon + ' ' + escHtml(actionBtnLabel)
+            + '</a>'
+            + '<a class="ai-rec-investigate-btn" href="/ai?q=' + encodeURIComponent(
+                r.campaignIds && r.campaignIds.length > 0
+                  ? lbl('Investigate campaign ' + r.campaignIds[0], 'حلّل الحملة ' + r.campaignIds[0])
+                  : lbl('Tell me more about: ' + (r.titleAr || ''), 'أخبرني المزيد عن: ' + (r.titleAr || ''))
+              ) + '">'
+              + lbl('Details', 'تفاصيل') + ' →'
+            + '</a>'
           + '</div>'
         + '</div>'
       + '</div>';
@@ -2492,6 +2693,7 @@ export function dashboardPage(): string {
     }
 
     grid.addEventListener('click', function (e) {
+      if (e.target.closest('a')) return;
       var card = e.target.closest('.ai-rec-card');
       if (!card) return;
       var cids = (card.getAttribute('data-campaign-ids') || '').split(',').filter(Boolean);
@@ -2951,6 +3153,7 @@ export function dashboardPage(): string {
       var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
       // Command bar + KPI cards first, then task surfaces.
       safeRender('commandBar', function () { renderCommandBar(dashData); });
+      safeRender('healthGauge', function () { renderHealthGauge(dashData); });
       safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('hero', function () { renderHero(dashData, insights); });
       safeRender('kpiInsights', function () { renderKpiInsights(dashData, kpis); });
