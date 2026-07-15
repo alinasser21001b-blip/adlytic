@@ -16,8 +16,9 @@
 //  The caller (server.ts AI chat route) swaps the import when ready.
 // ════════════════════════════════════════════════════════════════════════
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, EntityStatus } from "@prisma/client";
 import { sanitizeLlmUserContent, scrubString } from "../lib/dataSanitizer";
+import { diagnoseRelevance } from "../knowledge/adRelevanceIntelligence";
 import {
   issueTitleAr,
   sanitizePriorityActionText,
@@ -202,6 +203,51 @@ export async function buildAiContextV5(
     }
   } else {
     lines.push("## Recommended Actions: none at this time");
+  }
+
+  // ── Creative relevance — Meta's OWN grades (highest-signal, zero inference).
+  // Lets Claude cite the platform's verdict on specific ads, e.g. "Meta ranks
+  // this ad's post-click conversion in the bottom 20%". Bounded, best-effort.
+  try {
+    const gradedAds = await prisma.ad.findMany({
+      where: {
+        rankingsSyncedAt: { not: null },
+        status: EntityStatus.ACTIVE,
+        adSet: { campaign: { adAccountId } },
+      },
+      select: {
+        name: true,
+        qualityRanking: true,
+        engagementRanking: true,
+        conversionRanking: true,
+      },
+      take: 200,
+    });
+    const flagged = gradedAds
+      .map((a) => ({
+        name: a.name,
+        d: diagnoseRelevance({
+          quality: (a.qualityRanking ?? "unknown") as never,
+          engagement: (a.engagementRanking ?? "unknown") as never,
+          conversion: (a.conversionRanking ?? "unknown") as never,
+        }),
+      }))
+      .filter((x) => x.d.severity === "high" || x.d.severity === "medium")
+      .sort((a, b) => (a.d.severity === "high" ? 0 : 1) - (b.d.severity === "high" ? 0 : 1))
+      .slice(0, 5);
+    if (flagged.length > 0) {
+      lines.push(
+        `## Creative relevance — Meta's own grades (${flagged.length} ad(s) flagged; cite as Meta's verdict, use the Arabic title)`,
+      );
+      for (const f of flagged) {
+        lines.push(`### ${scrubString(f.name)} | ${f.d.titleAr} | ثقة ${Math.round(f.d.confidence * 100)}%`);
+        lines.push(`- ${f.d.bodyAr}`);
+        lines.push(`- ماذا تفعل: ${f.d.actionAr}`);
+      }
+    }
+  } catch (e) {
+    // Enrichment only — never fail the context on a relevance query error.
+    console.warn("[aiContextV5] relevance section skipped:", e instanceof Error ? e.message : String(e));
   }
 
   lines.push("", `## Question: ${safeMessage}`);
