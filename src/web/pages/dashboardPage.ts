@@ -163,6 +163,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="hero-30-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="hero-30-delta">→ —</span>
+            <canvas class="kpi-spark" width="140" height="34" data-spark="spend" data-good="down"></canvas>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-spend" dir="auto"></div>
         </div>
@@ -174,6 +175,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="hero-7-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="hero-7-delta">→ —</span>
+            <canvas class="kpi-spark" width="140" height="34" data-spark="spend7" data-good="down"></canvas>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-spend7" dir="auto"></div>
         </div>
@@ -192,10 +194,12 @@ export function dashboardPage(): string {
           <div class="kpi-cmd-top">
             <div class="kpi-cmd-icon accent"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg></div>
             <div class="hero-label">معدل النقر (CTR) <button type="button" class="info-btn" data-metric-info="ctr" title="ما هذا؟" aria-label="شرح المؤشر">i</button></div>
+            <span class="kpi-bench" id="kpi-bench-ctr"></span>
           </div>
           <div class="hero-value" id="kpi-ctr-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="kpi-ctr-delta">→ —</span>
+            <canvas class="kpi-spark" width="140" height="34" data-spark="ctr" data-good="up"></canvas>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-ctr" dir="auto"></div>
         </div>
@@ -207,6 +211,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="kpi-messages-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="kpi-messages-delta">→ —</span>
+            <canvas class="kpi-spark" width="140" height="34" data-spark="messages" data-good="up"></canvas>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-messages" dir="auto"></div>
         </div>
@@ -218,6 +223,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="kpi-cpm-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="kpi-cpm-delta">→ —</span>
+            <canvas class="kpi-spark" width="140" height="34" data-spark="cpm" data-good="down"></canvas>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-cpm" dir="auto"></div>
         </div>
@@ -971,6 +977,109 @@ export function dashboardPage(): string {
     if (cpmDelta && cpmKpi) {
       applyDelta(cpmDelta, cpmKpi.deltaPct != null ? Number(cpmKpi.deltaPct) * 100 : null, false);
     }
+
+    try { drawKpiSparks(dashData); } catch (e) { console.error('[dashboard] kpi sparks failed:', e); }
+    try { renderCtrBenchmark(dashData); } catch (e) { console.error('[dashboard] ctr benchmark failed:', e); }
+  }
+
+  // ── KPI sparklines — 30-day trend shape from real daily series ──────────
+  // Colour follows meaning: a line moving the "good" way is green, the bad
+  // way red, flat is neutral gold. Null days (unsynced) break the line
+  // rather than inventing a zero dip.
+  function drawKpiSparks(dashData) {
+    var ts = dashData && dashData.trendSeries;
+    if (!ts) return;
+    var seriesFor = {
+      spend: ts.spend, spend7: Array.isArray(ts.spend) ? ts.spend.slice(-7) : null,
+      ctr: ts.ctr, cpm: ts.cpm, messages: ts.messages,
+    };
+    document.querySelectorAll('.kpi-spark').forEach(function (cv) {
+      var key = cv.getAttribute('data-spark');
+      var good = cv.getAttribute('data-good'); // 'up' | 'down'
+      var raw = seriesFor[key];
+      var ctx = cv.getContext('2d');
+      if (!ctx) return;
+
+      // Crisp on retina: scale the backing store, keep CSS box fixed.
+      var dpr = window.devicePixelRatio || 1;
+      var cssW = cv.width, cssH = cv.height;
+      if (cv._dpr !== dpr) {
+        cv.width = cssW * dpr; cv.height = cssH * dpr;
+        cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+        cv._dpr = dpr; cv._cssW = cssW; cv._cssH = cssH;
+      }
+      var W = cv._cssW, H = cv._cssH;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+
+      var vals = Array.isArray(raw) ? raw.map(function (v) { return v == null ? null : Number(v); }) : [];
+      var real = vals.filter(function (v) { return v != null && isFinite(v); });
+      if (real.length < 2) { cv.style.display = 'none'; return; }
+      cv.style.display = '';
+
+      var max = Math.max.apply(null, real);
+      var min = Math.min.apply(null, real);
+      var span = (max - min) || Math.abs(max) || 1;
+      var pad = 3;
+      var stepX = (W - pad * 2) / Math.max(1, vals.length - 1);
+      var y = function (v) { return H - pad - ((v - min) / span) * (H - pad * 2); };
+
+      // Direction over the visible window decides colour.
+      var first = real[0], last = real[real.length - 1];
+      var rising = last > first;
+      var flat = Math.abs(last - first) < span * 0.05;
+      var color = flat ? '#8A8378' : ((rising === (good === 'up')) ? '#34A871' : '#E2604F');
+
+      // Area under the line (very light), then the stroke — contiguous segments only.
+      var startIdx = -1;
+      function flush(endIdx, mode) {
+        if (startIdx < 0 || endIdx < startIdx) return;
+        ctx.beginPath();
+        for (var i = startIdx; i <= endIdx; i++) {
+          var px = pad + i * stepX;
+          if (i === startIdx) ctx.moveTo(px, y(vals[i])); else ctx.lineTo(px, y(vals[i]));
+        }
+        if (mode === 'area') {
+          ctx.lineTo(pad + endIdx * stepX, H); ctx.lineTo(pad + startIdx * stepX, H); ctx.closePath();
+          ctx.globalAlpha = 0.12; ctx.fillStyle = color; ctx.fill(); ctx.globalAlpha = 1;
+        } else {
+          ctx.strokeStyle = color; ctx.lineWidth = 1.75; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+        }
+      }
+      ['area', 'line'].forEach(function (mode) {
+        startIdx = -1;
+        for (var i = 0; i < vals.length; i++) {
+          if (vals[i] == null) { flush(i - 1, mode); startIdx = -1; }
+          else if (startIdx < 0) startIdx = i;
+        }
+        flush(vals.length - 1, mode);
+      });
+
+      // Endpoint dot on the latest value.
+      var lastRealIdx = -1;
+      for (var k = vals.length - 1; k >= 0; k--) { if (vals[k] != null) { lastRealIdx = k; break; } }
+      if (lastRealIdx >= 0) {
+        ctx.beginPath();
+        ctx.arc(pad + lastRealIdx * stepX, y(vals[lastRealIdx]), 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+      }
+    });
+  }
+
+  // ── CTR benchmark chip — Meta's published healthy range, honest verdict ──
+  function renderCtrBenchmark(dashData) {
+    var el = document.getElementById('kpi-bench-ctr');
+    if (!el) return;
+    var ctrKpi = findKpi(dashData, 'ctr');
+    var v = ctrKpi && ctrKpi.value != null ? Number(ctrKpi.value) : null;
+    if (v == null || !isFinite(v) || v <= 0) { el.textContent = ''; el.className = 'kpi-bench'; return; }
+    var verdict, cls;
+    if (v >= 1.5) { verdict = lbl('Good', 'جيد'); cls = 'good'; }
+    else if (v >= 1.0) { verdict = lbl('Average', 'متوسط'); cls = 'mid'; }
+    else { verdict = lbl('Low', 'منخفض'); cls = 'low'; }
+    el.textContent = verdict;
+    el.className = 'kpi-bench ' + cls;
+    el.title = lbl('Meta healthy range: 1.5%+ good, 1–1.5% average', 'النطاق الصحي حسب Meta: 1.5%+ جيد، 1–1.5% متوسط');
   }
 
   // Client-side cognitive filter: drop identical generic insight twins that

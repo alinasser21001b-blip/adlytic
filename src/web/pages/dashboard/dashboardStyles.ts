@@ -623,9 +623,28 @@ export const dashboardStyles = `<style>
     .kpi-cmd-icon.ctr { background: rgba(96,165,250,0.1); color: #60A5FA; }
     .kpi-cmd-icon.cpm { background: rgba(45,212,191,0.1); color: #2DD4BF; }
     .kpi-cmd-bottom {
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
       margin-top: 8px;
     }
+    .kpi-spark {
+      flex-shrink: 0;
+      opacity: 0.9;
+      /* Trend charts read left→right even in an RTL page. */
+      direction: ltr;
+    }
+    .kpi-bench {
+      margin-inline-start: auto;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .kpi-bench:empty { display: none; }
+    .kpi-bench.good { color: var(--success); background: var(--success-dim); }
+    .kpi-bench.mid  { color: var(--warning); background: rgba(199,122,31,0.12); }
+    .kpi-bench.low  { color: var(--error); background: var(--error-dim); }
     .kpi-cmd-insight {
       font-size: 11.5px;
       color: var(--text-3);
