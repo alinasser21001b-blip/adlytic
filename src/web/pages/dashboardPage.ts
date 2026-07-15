@@ -2931,8 +2931,13 @@ export function dashboardPage(): string {
       }
 
       var actionBtnLabel = catActions[r.category] || catActions.optimize;
-      var actionQuery = r.campaignIds && r.campaignIds.length > 0
-        ? lbl(catLabel + ' campaign ' + r.campaignIds[0], catLabel + ' الحملة ' + r.campaignIds[0])
+      // Resolve the campaign NAME for the AI deep-link — a raw internal id
+      // (cmrcvu7yq…) means nothing to the merchant or the assistant.
+      var firstCampaignName = r.campaignIds && r.campaignIds.length > 0
+        ? (findCampaignName(r.campaignIds[0]) || null)
+        : null;
+      var actionQuery = firstCampaignName
+        ? lbl(catLabel + ' campaign "' + firstCampaignName + '"', catLabel + ' حملة «' + firstCampaignName + '»')
         : lbl(catLabel + ': ' + (r.titleAr || ''), catLabel + ': ' + (r.titleAr || ''));
 
       var html = '<div class="ai-rec-card" data-category="' + escHtml(r.category || '') + '" data-campaign-ids="' + escHtml((r.campaignIds || []).join(',')) + '">'
@@ -2983,7 +2988,12 @@ export function dashboardPage(): string {
       if (!card) return;
       var cids = (card.getAttribute('data-campaign-ids') || '').split(',').filter(Boolean);
       if (cids.length > 0) {
-        var q = lbl('Investigate campaign ' + cids[0], 'حلّل الحملة ' + cids[0]);
+        // Name, never the raw internal id — the assistant (and the merchant)
+        // can only reason about a campaign they can recognize.
+        var cName = findCampaignName(cids[0]);
+        var q = cName
+          ? lbl('Investigate campaign "' + cName + '"', 'حلّل حملة «' + cName + '»')
+          : lbl('Investigate my weakest campaign', 'حلّل أضعف حملة عندي');
         window.location.href = '/ai?q=' + encodeURIComponent(q);
       }
     });
