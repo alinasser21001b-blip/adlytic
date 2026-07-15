@@ -297,6 +297,14 @@ model Ad {
   /// FK into normalized + deduped AdCreative table. Many ads can share one
   /// creative (Meta's `object_story_id`), so this is N:1, NOT 1:1.
   creativeId   String?      @map("creative_id")
+  /// Meta's own relevance grades (latest synced value). Raw enum strings:
+  /// above_average | average | below_average_35 | below_average_20.
+  /// Nullable — Meta only grades ads with enough delivery. Translated into
+  /// advice by knowledge/adRelevanceIntelligence.ts (never shown raw).
+  qualityRanking    String?   @map("quality_ranking")
+  engagementRanking String?   @map("engagement_ranking")
+  conversionRanking String?   @map("conversion_ranking")
+  rankingsSyncedAt  DateTime? @map("rankings_synced_at")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   adSet        AdSet        @relation(fields: [adSetId], references: [id], onDelete: Cascade)

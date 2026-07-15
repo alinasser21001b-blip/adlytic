@@ -13,6 +13,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { MetaInsightRow } from "../services/metaClient";
+import { normalizeRanking, type MetaRanking } from "../knowledge/adRelevanceIntelligence";
 
 /** The neutral metric vocabulary every connector translates INTO. */
 export interface NormalizedInsight {
@@ -108,6 +109,33 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
     costPerMessage,
     frequency: nullableFloat(row.frequency),
     roas,
+  };
+}
+
+/** Neutral ad-relevance triple (Meta's own grades), normalized. All three
+ *  are 'unknown' when Meta hasn't graded the ad yet. */
+export interface NormalizedAdRelevance {
+  quality: MetaRanking;
+  engagement: MetaRanking;
+  conversion: MetaRanking;
+}
+
+/**
+ * Extract Meta's relevance grades from an ad-level insight row. Returns null
+ * when the row carries no ranking keys at all (e.g. account/campaign level),
+ * so callers can skip cheaply. Meta field names never escape this cordon.
+ */
+export function mapAdRelevance(row: MetaInsightRow): NormalizedAdRelevance | null {
+  const r = row as Record<string, unknown>;
+  const hasAny =
+    "quality_ranking" in r ||
+    "engagement_rate_ranking" in r ||
+    "conversion_rate_ranking" in r;
+  if (!hasAny) return null;
+  return {
+    quality: normalizeRanking(r["quality_ranking"]),
+    engagement: normalizeRanking(r["engagement_rate_ranking"]),
+    conversion: normalizeRanking(r["conversion_rate_ranking"]),
   };
 }
 

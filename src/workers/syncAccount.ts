@@ -20,8 +20,8 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient, EntityType, EntityStatus, SyncJobStatus, Prisma } from "@prisma/client";
-import { MetaClient, MetaApiError, DEFAULT_INSIGHT_FIELDS } from "../services/metaClient";
-import { mapMetaInsight, mapMetaBreakdownInsight } from "../mappers/insightMapper";
+import { MetaClient, MetaApiError, DEFAULT_INSIGHT_FIELDS, AD_RELEVANCE_FIELDS } from "../services/metaClient";
+import { mapMetaInsight, mapMetaBreakdownInsight, mapAdRelevance } from "../mappers/insightMapper";
 import { mapMetaAdSet, mapMetaAd } from "../mappers/creativeMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
@@ -921,7 +921,7 @@ export class SyncAccountWorker {
       return { campaignsProcessed: 0, rowsUpserted: 0, unmatchedAdIds: 0 };
     }
 
-    const adLevelFields = [...DEFAULT_INSIGHT_FIELDS, 'ad_id'].join(',');
+    const adLevelFields = [...DEFAULT_INSIGHT_FIELDS, 'ad_id', ...AD_RELEVANCE_FIELDS].join(',');
     let rowsUpserted = 0;
     let unmatchedAdIds = 0;
     let campaignsProcessed = 0;
@@ -956,6 +956,9 @@ export class SyncAccountWorker {
 
           let localUnmatched = 0;
           const dailyBatch: Array<{ entityType: EntityType; entityId: string; insight: ReturnType<typeof mapMetaInsight> }> = [];
+          // Latest relevance grade per ad — Meta returns it per row; keep the
+          // most recent day's value so the Ad row reflects current delivery.
+          const relByAd = new Map<string, { rel: ReturnType<typeof mapAdRelevance>; date: string }>();
           for (const r of rows) {
             const externalAdId = String((r as Record<string, unknown>)['ad_id'] ?? '');
             const internalAdId = externalAdId ? adIdMap.get(externalAdId) : undefined;
@@ -974,8 +977,15 @@ export class SyncAccountWorker {
                 ),
               }),
             });
+            const rel = mapAdRelevance(r);
+            if (rel) {
+              const rowDate = String((r as Record<string, unknown>)['date_start'] ?? '');
+              const prev = relByAd.get(internalAdId);
+              if (!prev || rowDate >= prev.date) relByAd.set(internalAdId, { rel, date: rowDate });
+            }
           }
           if (dailyBatch.length > 0) await this.dailyRepo.upsertMany(dailyBatch);
+          await this.persistAdRelevance(relByAd);
           return { localRows: dailyBatch.length, localUnmatched };
         })
       );
@@ -1006,6 +1016,37 @@ export class SyncAccountWorker {
     }
     console.log(`${tag} done — ${campaignsProcessed} campaigns, ${rowsUpserted} ad-level daily rows`);
     return { campaignsProcessed, rowsUpserted, unmatchedAdIds };
+  }
+
+  /**
+   * Persist Meta's latest relevance grades onto Ad rows. Enrichment only —
+   * wrapped so any failure logs and returns without failing the core sync.
+   * Raw enum strings are stored; translation to advice happens at read time
+   * in knowledge/adRelevanceIntelligence.ts.
+   */
+  private async persistAdRelevance(
+    relByAd: Map<string, { rel: { quality: string; engagement: string; conversion: string } | null; date: string }>,
+  ): Promise<void> {
+    if (relByAd.size === 0) return;
+    const now = new Date();
+    try {
+      await Promise.all(
+        Array.from(relByAd.entries()).map(([adId, { rel }]) => {
+          if (!rel) return Promise.resolve(null);
+          return this.prisma.ad.update({
+            where: { id: adId },
+            data: {
+              qualityRanking: rel.quality,
+              engagementRanking: rel.engagement,
+              conversionRanking: rel.conversion,
+              rankingsSyncedAt: now,
+            },
+          }).catch(() => null); // ad may have been deleted between discovery and now
+        }),
+      );
+    } catch (e) {
+      console.warn(`[sync] persistAdRelevance skipped: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════

@@ -44,6 +44,15 @@ export const DEFAULT_INSIGHT_FIELDS = [
 
 const DEFAULT_FIELDS = DEFAULT_INSIGHT_FIELDS.join(",");
 
+/** Ad-relevance diagnostics — Meta's own grades vs competing ads. Only
+ *  meaningful at level=ad, so callers add these to ad-level requests only.
+ *  Each is: above_average | average | below_average_35 | below_average_20. */
+export const AD_RELEVANCE_FIELDS = [
+  "quality_ranking",
+  "engagement_rate_ranking",
+  "conversion_rate_ranking",
+] as const;
+
 export class MetaClient {
   private base: string;
   private token: string;
