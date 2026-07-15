@@ -2475,10 +2475,17 @@ export function dashboardPage(): string {
       var spentPct = (b.dailyBudgetMajor > 0)
         ? Math.min(100, Math.round((b.spentTodayMajor / b.dailyBudgetMajor) * 100))
         : 0;
-      var hrs = b.hoursUntilExhaustion != null ? b.hoursUntilExhaustion.toFixed(1) : '?';
       var exhaustLabel = b.exhaustionTime
         ? new Date(b.exhaustionTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
         : '';
+      // Null hours = the server couldn't project an ETA — say the honest
+      // thing ("burning fast") instead of the broken "خلال ? ساعة".
+      var etaLine = b.hoursUntilExhaustion != null
+        ? lbl('Budget exhausts in ', 'الميزانية ستنفد خلال ')
+          + '<b>' + escHtml(b.hoursUntilExhaustion.toFixed(1)) + '</b> '
+          + lbl('hours', 'ساعة')
+          + (exhaustLabel ? ' <span style="color:var(--text-3);">(' + escHtml(exhaustLabel) + ')</span>' : '')
+        : lbl('Budget is burning fast — review the pace', 'الميزانية تُستهلك بوتيرة سريعة — راجع الإنفاق');
       var html =
         '<div class="pred-card pred-' + sev + '" data-severity="' + b.severity + '" data-campaign="' + escHtml(b.campaignId || '') + '">'
           + '<div class="pred-sev-stripe"></div>'
@@ -2490,12 +2497,7 @@ export function dashboardPage(): string {
             + '<span class="pred-type-tag">' + lbl('BUDGET', 'ميزانية') + '</span>'
           + '</div>'
           + '<div class="pred-card-body">'
-            + '<div class="pred-detail">'
-              + lbl('Budget exhausts in ', 'الميزانية ستنفد خلال ')
-              + '<b>' + escHtml(hrs) + '</b> '
-              + lbl('hours', 'ساعة')
-              + (exhaustLabel ? ' <span style="color:var(--text-3);">(' + escHtml(exhaustLabel) + ')</span>' : '')
-            + '</div>'
+            + '<div class="pred-detail">' + etaLine + '</div>'
             + '<div class="pred-progress-wrap">'
               + '<div class="pred-progress-header">'
                 + '<span class="pred-progress-label">' + lbl('Spent today', 'أُنفق اليوم') + '</span>'
