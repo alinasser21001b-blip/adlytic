@@ -228,6 +228,22 @@ export function dashboardPage(): string {
         <a class="exec-pulse-cta" id="exec-pulse-cta" href="#" style="display:none;"></a>
       </section>
 
+      <!-- ═══ QUICK ACTIONS BAR ═══ -->
+      <div class="quick-actions-bar" id="quick-actions-bar" dir="rtl">
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما أفضل حملة لزيادة ميزانيتها؟')}">
+          <span class="qa-icon">📈</span><span class="qa-label">وسّع الأفضل</span>
+        </a>
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما الحملات التي يجب إيقافها؟')}">
+          <span class="qa-icon">⏸️</span><span class="qa-label">أوقف الخاسرة</span>
+        </a>
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('حلل أداء الإعلانات الإبداعية')}">
+          <span class="qa-icon">🎨</span><span class="qa-label">حلل الإبداعات</span>
+        </a>
+        <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما تقرير أداء حملاتي اليوم؟')}">
+          <span class="qa-icon">📊</span><span class="qa-label">تقرير سريع</span>
+        </a>
+      </div>
+
       <!-- ═══ LIVE INSIGHTS — "What's happening now?" ═══ -->
       <section class="live-insights-section" id="live-insights-section" style="display:none;">
         <div class="live-insights-header">
@@ -252,9 +268,9 @@ export function dashboardPage(): string {
       <section class="v2-section main-move-above-fold" id="main-move-section">
         <div class="v2-section-head">
           <div>
-            <div class="v2-section-kicker" id="main-move-kicker">الخطوة التالية</div>
-            <div class="v2-section-title" id="main-move-label">التشخيص والتوصيات</div>
-            <div class="v2-section-sub" id="main-move-sub">لماذا تغيّرت النتائج · وماذا تفعل الآن</div>
+            <div class="v2-section-kicker" id="main-move-kicker">أهم شيء الآن</div>
+            <div class="v2-section-title" id="main-move-label">تشخيص + حل</div>
+            <div class="v2-section-sub" id="main-move-sub">ماذا حصل · لماذا · وماذا تفعل</div>
           </div>
           <div class="v2-section-meta" id="main-move-meta">—</div>
         </div>
@@ -481,9 +497,9 @@ export function dashboardPage(): string {
             <section id="diagnoses-section" class="adv-panel" style="display:none;">
               <div class="adv-panel-head">
                 <div>
-                  <div class="adv-panel-kicker">الخطوة التالية</div>
-                  <div class="adv-panel-title">التشخيص والتوصيات</div>
-                  <div class="adv-panel-sub">لماذا تغيّرت النتائج · وماذا تفعل الآن</div>
+                  <div class="adv-panel-kicker">أهم شيء الآن</div>
+                  <div class="adv-panel-title">تشخيص + حل</div>
+                  <div class="adv-panel-sub">ماذا حصل · لماذا · وماذا تفعل</div>
                 </div>
               </div>
               <div class="diagnosis-grid" id="diagnoses-grid"></div>
@@ -1996,8 +2012,8 @@ export function dashboardPage(): string {
     var sub = document.getElementById('main-move-sub');
     if (!card) return;
     try {
-    if (kicker) kicker.textContent = lbl('Next step', 'الخطوة التالية');
-    if (label) label.textContent = lbl('Diagnosis & recommendations', 'التشخيص والتوصيات');
+    if (kicker) kicker.textContent = lbl('Top priority', 'أهم شيء الآن');
+    if (label) label.textContent = lbl('Diagnosis + fix', 'تشخيص + حل');
     if (sub) sub.textContent = lbl('Why results changed · what to do now', 'لماذا تغيّرت النتائج · وماذا تفعل الآن');
     var merchantTasks = Array.isArray(dashData.merchantTasks) ? dashData.merchantTasks.filter(Boolean) : [];
     var diagnoses = Array.isArray(dashData.diagnoses) ? dashData.diagnoses.filter(Boolean) : [];
@@ -2441,12 +2457,18 @@ export function dashboardPage(): string {
     var filtersEl = document.getElementById('pred-filters');
     var countBadge = document.getElementById('pred-count-badge');
     if (!section || !grid) return;
-    if (!pred) { section.style.display = 'none'; return; }
-
-    var budget = (pred.budgetExhaustion || []);
-    var fatigue = (pred.creativeFatigue || []);
+    var budget = pred ? (pred.budgetExhaustion || []) : [];
+    var fatigue = pred ? (pred.creativeFatigue || []) : [];
     if (budget.length === 0 && fatigue.length === 0) {
-      section.style.display = 'none';
+      section.style.display = 'block';
+      section.classList.add('section-enter');
+      grid.innerHTML = '<div class="section-empty-state">'
+        + '<span class="section-empty-icon">🛡️</span>'
+        + '<div class="section-empty-title">' + lbl('No alerts', 'لا توجد تنبيهات') + '</div>'
+        + '<div class="section-empty-sub">' + lbl('Your campaigns are running smoothly.', 'حملاتك تعمل بسلاسة.') + '</div>'
+      + '</div>';
+      if (filtersEl) filtersEl.innerHTML = '';
+      if (countBadge) countBadge.textContent = '0 ' + lbl('alerts', 'تنبيه');
       return;
     }
     section.style.display = 'block';
@@ -2654,7 +2676,17 @@ export function dashboardPage(): string {
     var sourceBadge = document.getElementById('ai-recs-source-badge');
     if (!section || !grid) return;
     if (!recs || !recs.recommendations || recs.recommendations.length === 0) {
-      section.style.display = 'none';
+      section.style.display = 'block';
+      section.classList.add('section-enter', 'section-enter-delay-1');
+      grid.innerHTML = '<div class="section-empty-state">'
+        + '<span class="section-empty-icon">✅</span>'
+        + '<div class="section-empty-title">' + lbl('All clear!', 'كل شيء على ما يرام!') + '</div>'
+        + '<div class="section-empty-sub">' + lbl('No urgent actions needed right now.', 'لا توجد إجراءات عاجلة حاليًا.') + '</div>'
+        + '<a class="section-empty-cta" href="/ai?q=' + encodeURIComponent(lbl('Give me a full account review', 'أعطني مراجعة شاملة لحسابي')) + '">'
+          + lbl('Request full review', 'اطلب مراجعة شاملة') + ' →'
+        + '</a>'
+      + '</div>';
+      if (filtersEl) filtersEl.innerHTML = '';
       return;
     }
     section.style.display = 'block';

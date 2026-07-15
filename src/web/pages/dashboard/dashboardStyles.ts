@@ -932,6 +932,45 @@ export const dashboardStyles = `<style>
       border-color: rgba(199,122,31,0.4);
     }
 
+    /* ═══ Quick Actions Bar ═══ */
+    .quick-actions-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .quick-actions-bar::-webkit-scrollbar { display: none; }
+    .qa-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-2);
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.18s ease;
+    }
+    .qa-chip:hover {
+      background: rgba(217,167,89,0.08);
+      border-color: rgba(217,167,89,0.2);
+      color: var(--accent-2);
+      transform: translateY(-1px);
+    }
+    .qa-icon { font-size: 14px; }
+    .qa-label { letter-spacing: -0.01em; }
+    @media (max-width: 560px) {
+      .qa-chip { padding: 6px 10px; font-size: 11.5px; }
+    }
+
     /* Tier 2 — Main Move unified focus card */
     .main-move-card {
       background:
@@ -1975,6 +2014,48 @@ export const dashboardStyles = `<style>
       .hg-metrics { justify-content: center; }
       .hg-action-link { justify-content: center; }
       .mode-toggle { order: -1; }
+    }
+
+    /* ═══ Section Empty State ═══ */
+    .section-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 32px 16px;
+      text-align: center;
+    }
+    .section-empty-icon { font-size: 28px; opacity: 0.8; }
+    .section-empty-title {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .section-empty-sub {
+      font-size: 13px;
+      color: var(--text-3);
+      max-width: 280px;
+    }
+    .section-empty-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--accent-2);
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: rgba(217,167,89,0.08);
+      border: 1px solid rgba(217,167,89,0.15);
+      transition: all 0.15s ease;
+    }
+    .section-empty-cta:hover {
+      background: rgba(217,167,89,0.18);
+      border-color: rgba(217,167,89,0.3);
     }
 
     /* ═══ Section entrance animation ═══ */
