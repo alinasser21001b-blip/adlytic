@@ -11,7 +11,11 @@ export const renderKpisJs = `
   function renderKpis(kpis) {
     var grid = document.getElementById('kpi-grid');
     if (!grid) return;
-    if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">لا توجد مؤشرات حالياً.</div>'; return; }
+    // Spend/CTR/messages/CPM already live in the hero grid above the fold —
+    // this panel only shows what the hero does NOT: reach, frequency, clicks, CPC.
+    var HERO_KEYS = { spend: 1, ctr: 1, messages: 1, cpm: 1 };
+    kpis = (kpis || []).filter(function (k) { return !HERO_KEYS[k.key]; });
+    if (!kpis || kpis.length === 0) { grid.innerHTML = '<div class="text-3 text-sm">لا توجد مؤشرات إضافية حالياً.</div>'; return; }
     grid.innerHTML = kpis.map(function (k) {
       var deltaClass = 'flat', arrow = '→';
       if (k.deltaPct != null) {

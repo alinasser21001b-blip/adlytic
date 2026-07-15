@@ -433,12 +433,13 @@ export function dashboardPage(): string {
               </div>
             </section>
 
-            <!-- 2. Window KPIs -->
+            <!-- 2. Window KPIs — only metrics NOT shown in the hero grid -->
             <section class="adv-panel">
               <div class="adv-panel-head">
                 <div>
                   <div class="adv-panel-kicker">آخر 30 يوماً</div>
-                  <div class="adv-panel-title">مؤشرات النافذة</div>
+                  <div class="adv-panel-title">الوصول والتكرار</div>
+                  <div class="adv-panel-sub">كم شخصاً رأى إعلانك وكم مرة — مؤشرات لا تظهر في الأعلى</div>
                 </div>
               </div>
               <div class="kpi-grid adv-kpi-grid" id="kpi-grid"></div>
@@ -450,6 +451,7 @@ export function dashboardPage(): string {
                 <div>
                   <div class="adv-panel-kicker">آخر 30 يوماً</div>
                   <div class="adv-panel-title">الاتجاهات</div>
+                  <div class="adv-panel-sub">اقرأ الميل لا الرقم — صعود تكلفة النتيجة يعني تراجع الكفاءة حتى لو زادت النتائج</div>
                 </div>
               </div>
               <div class="chart-grid adv-chart-grid">
@@ -1230,7 +1232,9 @@ export function dashboardPage(): string {
       return tb - ta;
     });
 
-    if (events.length === 0) {
+    // A lone "data synced" ping carries no information — the sync time already
+    // shows in the command bar. Only render when there are real events.
+    if (events.length === 0 || (events.length === 1 && events[0].type === 'sync')) {
       section.style.display = 'none';
       return;
     }
@@ -1479,6 +1483,10 @@ export function dashboardPage(): string {
     var list = document.getElementById('strategy-list');
     var sub  = document.getElementById('brain-box-sub');
     var titleEl = document.getElementById('brain-box-title');
+    var splitGridEl = document.querySelector('.split-grid');
+    var brainBoxEl = splitGridEl ? splitGridEl.querySelector('.brain-box') : null;
+    if (brainBoxEl) brainBoxEl.style.display = '';
+    if (splitGridEl) splitGridEl.classList.remove('chart-only');
     var cards = [];
     var merchantTasks = Array.isArray(dashData.merchantTasks) ? dashData.merchantTasks.filter(Boolean) : [];
     var mainPrimary = buildAllMoveItems(dashData)[0];
@@ -1542,11 +1550,10 @@ export function dashboardPage(): string {
     if (cards.length === 0) {
       // Never paint fake "مستقر" when a primary task exists above.
       if (hasPrimaryTask) {
-        list.innerHTML = '<div class="v2-action-empty">' + escHtml(lbl(
-          'Focus on the task above. More tasks will appear here when ready.',
-          'ركّز على المهمة أعلاه. ستظهر هنا مهام إضافية عند توفرها.'
-        )) + '</div>';
-        if (sub) sub.textContent = lbl('Primary task above', 'المهمة الأساسية أعلاه');
+        // Nothing beyond the primary task — hide the box entirely instead of
+        // leaving a tall near-empty card next to the chart.
+        if (brainBoxEl) brainBoxEl.style.display = 'none';
+        if (splitGridEl) splitGridEl.classList.add('chart-only');
         return;
       }
       var steadyForBrain = getSteadyState(dashData);
@@ -1823,12 +1830,20 @@ export function dashboardPage(): string {
       detailEl.textContent = detailParts.length ? detailParts.join(' · ') : '';
     }
 
-    if (scoreChip && scoreNum && scoreLbl && dashData.health && dashData.health.score != null) {
-      scoreNum.textContent = String(dashData.health.score);
-      var bandLabels = { excellent: lbl('Excellent', 'ممتاز'), good: lbl('Good', 'جيد'), attention: lbl('Attention', 'انتبه'), poor: lbl('ضعيف', 'ضعيف'), none: '' };
-      scoreLbl.textContent = bandLabels[dashData.health.band] || '';
-      scoreChip.style.display = 'flex';
-      scoreChip.className = 'exec-pulse-score-chip band-' + (dashData.health.band || 'none');
+    // The gauge above already shows the score big — only repeat it here
+    // when the gauge is hidden, otherwise it reads as duplicated data.
+    var gaugeEl = document.getElementById('health-gauge-section');
+    var gaugeVisible = gaugeEl && gaugeEl.style.display !== 'none';
+    if (scoreChip) {
+      if (!gaugeVisible && scoreNum && scoreLbl && dashData.health && dashData.health.score != null) {
+        scoreNum.textContent = String(dashData.health.score);
+        var bandLabels = { excellent: lbl('Excellent', 'ممتاز'), good: lbl('Good', 'جيد'), attention: lbl('Attention', 'انتبه'), poor: lbl('Poor', 'ضعيف'), none: '' };
+        scoreLbl.textContent = bandLabels[dashData.health.band] || '';
+        scoreChip.style.display = 'flex';
+        scoreChip.className = 'exec-pulse-score-chip band-' + (dashData.health.band || 'none');
+      } else {
+        scoreChip.style.display = 'none';
+      }
     }
 
     if (ctaEl) {
@@ -2328,6 +2343,28 @@ export function dashboardPage(): string {
     el.innerHTML = parts.join('');
   }
   // ── Health Score Gauge ──────────────────────────────────────────────────
+  function estimateHealthScore(dashData) {
+    if (!dashData) return null;
+    var cc = dashData.workspace && dashData.workspace.campaignCounts;
+    var hasActivity = cc && ((cc.deliveringInWindow || 0) > 0 || (cc.spendingToday || 0) > 0);
+    var hasKpis = Array.isArray(dashData.kpis) && dashData.kpis.length > 0;
+    if (!hasActivity && !hasKpis) return null;
+    var level = deriveBusinessHealth(dashData).level;
+    var score = level === 'critical' ? 35 : level === 'warning' ? 58 : 78;
+    var issues = Array.isArray(dashData.issues) ? dashData.issues : [];
+    issues.forEach(function (i) {
+      var s = (i.severity || '').toLowerCase();
+      if (s === 'critical') score -= 8;
+      else if (s === 'high') score -= 4;
+      else score -= 1;
+    });
+    var recs = dashData.aiRecommendations && dashData.aiRecommendations.recommendations;
+    if (Array.isArray(recs)) {
+      recs.forEach(function (r) { if (r.category === 'scale') score += 2; });
+    }
+    return Math.max(15, Math.min(92, Math.round(score)));
+  }
+
   function renderHealthGauge(dashData) {
     var section = document.getElementById('health-gauge-section');
     if (!section) return;
@@ -2335,10 +2372,16 @@ export function dashboardPage(): string {
     var health = dashData && dashData.health;
     var score = health ? health.score : null;
     var band = health ? health.band : 'none';
+    var isEstimated = false;
 
     if (score == null || band === 'none') {
-      section.style.display = 'none';
-      return;
+      // Server score not computed yet — estimate client-side from the same
+      // signals the pulse uses, and label it as estimated.
+      var est = estimateHealthScore(dashData);
+      if (est == null) { section.style.display = 'none'; return; }
+      score = est;
+      band = score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'attention' : 'poor';
+      isEstimated = true;
     }
 
     section.style.display = '';
@@ -2383,7 +2426,10 @@ export function dashboardPage(): string {
     }
 
     var subtitleEl = document.getElementById('hg-subtitle');
-    if (subtitleEl) subtitleEl.textContent = lbl('Score: ', 'النقاط: ') + Math.round(score) + '/100';
+    if (subtitleEl) {
+      subtitleEl.textContent = lbl('Score: ', 'النقاط: ') + Math.round(score) + '/100'
+        + (isEstimated ? lbl(' · estimated', ' · تقديري') : '');
+    }
 
     var statusMessages = {
       excellent: lbl('Your campaigns are in great shape. Keep it up!', 'حملاتك في أفضل حالاتها. استمر!'),
@@ -2919,13 +2965,13 @@ export function dashboardPage(): string {
       + '</div>';
     }
 
+    // Only the four metrics where week-over-week comparison changes a decision.
+    // CPM/impressions live in the KPI grid and trend charts — no need to repeat.
     var metricsGrid = '<div class="weekly-metrics-grid">'
       + metricCard(lbl('Spend', 'الإنفاق'), tw.spendDisplay || '—', null, lw.spendDisplay, d.spendPct, false)
       + metricCard(lbl('Results', 'النتائج'), tw.results, lw.results, lw.results, d.resultsPct, true)
       + metricCard('CTR', tw.ctr != null ? tw.ctr + '%' : '—', lw.ctr, lw.ctr != null ? lw.ctr + '%' : null, d.ctrPct, true)
       + metricCard(lbl('Cost/Result', 'تكلفة/نتيجة'), tw.costPerResult, lw.costPerResult, lw.costPerResult, d.costPerResultPct, false)
-      + metricCard('CPM', tw.cpm != null ? tw.cpm : '—', lw.cpm, lw.cpm, null, false)
-      + metricCard(lbl('Impressions', 'الظهور'), tw.impressions != null ? Number(tw.impressions).toLocaleString() : '—', lw.impressions, lw.impressions != null ? Number(lw.impressions).toLocaleString() : null, null, true)
     + '</div>';
 
     var summary = report.summaryAr

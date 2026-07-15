@@ -229,6 +229,7 @@ export const dashboardStyles = `<style>
       align-items: stretch;
     }
     @media (max-width: 1000px) { .split-grid { grid-template-columns: 1fr; } }
+    .split-grid.chart-only { grid-template-columns: 1fr; }
     .brain-box {
       background:
         linear-gradient(165deg, rgba(217,167,89,0.04), transparent 38%),
@@ -2078,46 +2079,52 @@ export const dashboardStyles = `<style>
       .ai-fab-label { display: none; }
     }
 
-    /* ═══ Section Empty State ═══ */
+    /* ═══ Section Empty State — compact strip, never a tall box ═══ */
     .section-empty-state {
+      grid-column: 1 / -1;
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 32px 16px;
-      text-align: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: rgba(52,168,113,0.04);
+      border: 1px dashed rgba(255,255,255,0.1);
     }
-    .section-empty-icon { font-size: 28px; opacity: 0.8; }
+    .section-empty-icon { font-size: 18px; flex-shrink: 0; }
     .section-empty-title {
-      font-family: var(--font-display);
-      font-size: 15px;
+      font-size: 13.5px;
       font-weight: 700;
       color: var(--text);
+      white-space: nowrap;
     }
     .section-empty-sub {
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--text-3);
-      max-width: 280px;
+      flex: 1;
+      min-width: 0;
     }
     .section-empty-cta {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      margin-top: 6px;
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: 700;
       color: var(--accent-2);
       text-decoration: none;
-      padding: 6px 14px;
+      padding: 5px 12px;
       border-radius: 8px;
       background: rgba(217,167,89,0.08);
       border: 1px solid rgba(217,167,89,0.15);
       transition: all 0.15s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .section-empty-cta:hover {
       background: rgba(217,167,89,0.18);
       border-color: rgba(217,167,89,0.3);
+    }
+    @media (max-width: 560px) {
+      .section-empty-state { flex-wrap: wrap; }
     }
 
     /* ═══ Section entrance animation ═══ */
