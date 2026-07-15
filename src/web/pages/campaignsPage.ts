@@ -473,6 +473,17 @@ export function campaignsPage(): string {
     }
     .view-btn.active { color: var(--accent-2); border-color: rgba(217,167,89,0.45); background: var(--accent-dim); }
     .action-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    .camp-ai-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; padding: 0; border-radius: 8px;
+      background: rgba(217,167,89,0.08); border: 1px solid rgba(217,167,89,0.15);
+      text-decoration: none; font-size: 14px;
+      transition: all 0.15s ease;
+    }
+    .camp-ai-btn:hover {
+      background: rgba(217,167,89,0.2); border-color: rgba(217,167,89,0.35);
+      transform: scale(1.05);
+    }
     .camp-cards-only .table-wrap table,
     .camp-cards-only #table-container { display: none !important; }
     .camp-table-only #campaigns-cards { display: none !important; }
@@ -1648,6 +1659,7 @@ export function campaignsPage(): string {
         + '<td class="cell-num">' + escHtml(budget) + '</td>'
         + '<td><div class="action-group">'
         +   '<button class="btn btn-secondary btn-sm js-inspect-btn" data-campaign-id="' + escHtml(c.id) + '" data-tab="overview">عرض</button>'
+        +   '<a class="btn btn-sm camp-ai-btn" href="/ai?q=' + encodeURIComponent('حلّل حملة ' + (c.name || c.id)) + '" title="اسأل AI">🤖</a>'
         + '</div></td>'
         + '</tr>';
     }).join('');
