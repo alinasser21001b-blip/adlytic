@@ -274,28 +274,37 @@ export function aiPage(): string {
   }
 
   function renderContextChips(d) {
-    const chips = [];
+    const out = [];
+    function textChip(t) { return '<span class="data-chip">' + esc(t) + '</span>'; }
+    function htmlChip(inner) { return '<span class="data-chip">' + inner + '</span>'; }
+    // Isolate each number with <bdi> so it stays glued to its OWN label. In an
+    // RTL string, Western digits + "·" separators can visually reorder (the
+    // Unicode bidi algorithm), making a count appear next to the wrong word —
+    // e.g. "13 dormant" reading as "13 today". Numbers are coerced with Number()
+    // so nothing but a numeric literal is ever inlined.
+    function num(v) { return '<bdi>' + (v != null ? String(Number(v)) : '—') + '</bdi>'; }
+
     if (d.health) {
-      chips.push((isAr ? 'الصحة: ' : 'Health: ') + d.health.score + ' (' + d.health.band + ')');
+      out.push(textChip((isAr ? 'الصحة: ' : 'Health: ') + d.health.score + ' (' + d.health.band + ')'));
     }
     const cc = d.workspace && d.workspace.campaignCounts;
     if (cc) {
-      chips.push(
-        (cc.deliveringInWindow != null ? cc.deliveringInWindow : '—') + (isAr ? ' تعمل' : ' delivering') +
-        ' · ' + (cc.spendingToday != null ? cc.spendingToday : '—') + (isAr ? ' اليوم' : ' today') +
-        ' · ' + (cc.dormantActive != null ? cc.dormantActive : '—') + (isAr ? ' بدون إنفاق' : ' dormant')
-      );
+      out.push(htmlChip(
+        num(cc.deliveringInWindow) + ' ' + esc(isAr ? 'تعمل' : 'delivering') + ' · ' +
+        num(cc.spendingToday) + ' ' + esc(isAr ? 'اليوم' : 'today') + ' · ' +
+        num(cc.dormantActive) + ' ' + esc(isAr ? 'بدون إنفاق' : 'dormant')
+      ));
     } else if (d.workspace && d.workspace.activeCampaigns != null) {
-      chips.push(d.workspace.activeCampaigns + (isAr ? ' تعمل' : ' delivering'));
+      out.push(htmlChip(num(d.workspace.activeCampaigns) + ' ' + esc(isAr ? 'تعمل' : 'delivering')));
     }
     if (d.issues && d.issues.length) {
-      chips.push(d.issues.length + (isAr ? ' ملاحظة' : ' issue' + (d.issues.length > 1 ? 's' : '')));
+      out.push(textChip(d.issues.length + (isAr ? ' ملاحظة' : ' issue' + (d.issues.length > 1 ? 's' : ''))));
     }
     if (d.workspace && d.workspace.lastSyncedAt) {
-      chips.push((isAr ? 'آخر مزامنة ' : 'Synced ') + new Date(d.workspace.lastSyncedAt).toLocaleString(isAr ? 'ar' : 'en'));
+      out.push(textChip((isAr ? 'آخر مزامنة ' : 'Synced ') + new Date(d.workspace.lastSyncedAt).toLocaleString(isAr ? 'ar' : 'en')));
     }
-    document.getElementById('context-chips').innerHTML = chips.length
-      ? chips.map(function (c) { return '<span class="data-chip">' + esc(c) + '</span>'; }).join('')
+    document.getElementById('context-chips').innerHTML = out.length
+      ? out.join('')
       : '<span style="font-size:12px;color:var(--text-3);">' + (isAr ? 'لا توجد بيانات حملات بعد' : 'No campaign data yet') + '</span>';
   }
 
