@@ -75,6 +75,20 @@ export function classifyLlmError(err: unknown): ClassifiedLlmError {
     };
   }
 
+  // Configured model ID doesn't exist (retired snapshot, typo'd CLAUDE_MODEL /
+  // OPENAI_MODEL env). A setup problem — name it, don't say "try again".
+  if (/not_found_error|model.{0,30}not (found|exist|supported)|404/i.test(blob) && /model/i.test(blob)) {
+    return {
+      code: 'AI_AUTH_FAILED',
+      messageAr:
+        'إعدادات المساعد الذكي على الخادم تشير إلى موديل غير متوفر. حدّث قيمة الموديل في إعدادات الخادم أو احذفها لاستخدام الافتراضي.',
+      messageEn:
+        'The AI model configured on the server does not exist. Update the model setting on the server or remove it to use the default.',
+      httpStatus: 503,
+      providerMessage: blob.slice(0, 400),
+    };
+  }
+
   // Provider not configured at all (no ANTHROPIC_API_KEY/OPENAI_API_KEY on the
   // server). This is a SETUP problem, not a transient one — say so honestly
   // instead of "try again shortly", which would send the user in circles.

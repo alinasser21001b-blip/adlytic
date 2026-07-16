@@ -501,6 +501,31 @@ async function buildCreativeHealth(
 }
 
 /**
+ * Current truth of account issues — the LATEST detector run only, deduped.
+ *
+ * Detectors write a full replacement set per (entity, date), so the newest
+ * date IS the current state. Reading all dates re-surfaced the same issue
+ * once per day it was detected — five identical "low CTR" cards, alerts and
+ * timeline rows, and an inflated issue count. One issueCode → one row.
+ */
+export async function loadCurrentIssues(prisma: PrismaClient, accountId: string) {
+  const latest = await prisma.detectedIssue.findFirst({
+    where: { entityType: EntityType.ACCOUNT, entityId: accountId },
+    orderBy: { date: "desc" },
+    select: { date: true },
+  });
+  if (!latest) return [];
+  const rows = await prisma.detectedIssue.findMany({
+    where: { entityType: EntityType.ACCOUNT, entityId: accountId, date: latest.date },
+    orderBy: { severity: "desc" },
+  });
+  const seen = new Set<string>();
+  return rows.filter((r) =>
+    seen.has(r.issueCode) ? false : (seen.add(r.issueCode), true),
+  );
+}
+
+/**
  * Enrichment-stage wrapper: like timedStage, but a timeout DEGRADES to a
  * fallback instead of failing the whole dashboard with a 504. The core
  * decision layer (health, KPIs, main move) must always render even when a
@@ -610,10 +635,7 @@ export async function getDashboard(
       }),
     ),
     timedStage('detectedIssues', () =>
-      prisma.detectedIssue.findMany({
-        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-        orderBy: { severity: "desc" },
-      }),
+      loadCurrentIssues(prisma, account.id),
     ),
     timedStage('latestTrend', () =>
       prisma.metricTrend.findFirst({

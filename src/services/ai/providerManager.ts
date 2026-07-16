@@ -69,6 +69,13 @@ export function resolveProvider(task: AITask): { adapter: AIProviderAdapter; con
   return { adapter: adapters[provider], config };
 }
 
+/** Known-good default model per provider — the rescue target when a
+ *  misconfigured model ID (retired/typo'd env var) 404s at call time. */
+export const SAFE_DEFAULT_MODEL: Record<AIProvider, string> = {
+  openai: 'gpt-4o-mini',
+  anthropic: 'claude-haiku-4-5',
+};
+
 function buildConfig(provider: AIProvider): ProviderConfig | null {
   if (provider === 'openai') {
     const apiKey = process.env['OPENAI_API_KEY'];
@@ -76,7 +83,7 @@ function buildConfig(provider: AIProvider): ProviderConfig | null {
     return {
       provider: 'openai',
       apiKey,
-      model: process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini',
+      model: process.env['OPENAI_MODEL'] ?? SAFE_DEFAULT_MODEL.openai,
     };
   }
   if (provider === 'anthropic') {
@@ -87,10 +94,33 @@ function buildConfig(provider: AIProvider): ProviderConfig | null {
       apiKey,
       // Cheapest capable tier by default to keep spend low. Override with
       // CLAUDE_MODEL on the server for deeper reasoning when needed.
-      model: process.env['CLAUDE_MODEL'] ?? 'claude-haiku-4-5',
+      model: process.env['CLAUDE_MODEL'] ?? SAFE_DEFAULT_MODEL.anthropic,
     };
   }
   return null;
+}
+
+/** Cross-provider config for call-time failover: the OTHER configured
+ *  provider, or null when only one key exists. */
+export function buildAlternateConfig(
+  failed: AIProvider,
+): { adapter: AIProviderAdapter; config: ProviderConfig } | null {
+  const other: AIProvider = failed === 'openai' ? 'anthropic' : 'openai';
+  const config = buildConfig(other);
+  return config ? { adapter: adapters[other], config } : null;
+}
+
+/** Same provider, safe default model — rescue for invalid CLAUDE_MODEL /
+ *  OPENAI_MODEL env values that 404 at call time. */
+export function buildSafeModelConfig(
+  failed: ProviderConfig,
+): { adapter: AIProviderAdapter; config: ProviderConfig } | null {
+  const safeModel = SAFE_DEFAULT_MODEL[failed.provider];
+  if (!safeModel || failed.model === safeModel) return null;
+  return {
+    adapter: adapters[failed.provider],
+    config: { ...failed, model: safeModel },
+  };
 }
 
 /** Check if any AI provider is available. */

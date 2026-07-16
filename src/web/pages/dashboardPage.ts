@@ -1315,6 +1315,15 @@ export function dashboardPage(): string {
       return tb - ta;
     });
 
+    // One line per distinct event — three copies of the same alert tell the
+    // merchant nothing extra, they just bury the feed.
+    var seenEventText = {};
+    events = events.filter(function (ev) {
+      if (seenEventText[ev.text]) return false;
+      seenEventText[ev.text] = true;
+      return true;
+    });
+
     // A lone "data synced" ping carries no information — the sync time already
     // shows in the command bar. Only render when there are real events.
     if (events.length === 0 || (events.length === 1 && events[0].type === 'sync')) {
@@ -1542,12 +1551,17 @@ export function dashboardPage(): string {
       return textsOverlap(title, skipTitle) || textsOverlap(body, skipTitle);
     }
 
-    // Prefer remaining merchant tasks after #1.
+    // Prefer remaining merchant tasks after #1 — one card per distinct advice.
+    var seenTaskFp = {};
     merchantTasks.slice(1, 6).forEach(function (t) {
+      var body = t.action || t.why || '';
+      var fp = insightCopyFingerprint(t.title, body);
+      if (seenTaskFp[fp]) return;
+      seenTaskFp[fp] = true;
       cards.push({
         sev: String(t.severity || 'medium').toLowerCase(),
         title: t.title,
-        body: t.action || t.why || '',
+        body: body,
         isTask: true,
       });
     });
@@ -2984,9 +2998,9 @@ export function dashboardPage(): string {
 
   function renderBrainSection(brain, dashData) {
     if (!brain) return;
-    applyPulse(brain.livePulse);
+    var hasSignal = applyPulse(brain.livePulse);
     var pulseSection = document.getElementById('brain-pulse-section');
-    if (pulseSection && brain.livePulse) pulseSection.style.display = 'block';
+    if (pulseSection) pulseSection.style.display = hasSignal ? 'block' : 'none';
   }
   function updatePulseLabels() {
     var el;
@@ -3003,9 +3017,15 @@ export function dashboardPage(): string {
     el = document.getElementById('brain-pulse-dna-meta');
     if (el) el.textContent = lbl('compared to your top past campaigns', 'مقارنة بأفضل حملاتك السابقة');
   }
+  /** Paint the live pulse. Returns true only when there is a real signal —
+   *  a wall of "USD 0.00 / 0.0% / —" is noise, not analytics, so callers
+   *  hide the panel when this returns false. */
   function applyPulse(pulse) {
     updatePulseLabels();
-    if (!pulse) return;
+    if (!pulse) return false;
+    var hasSignal = (pulse.campaignsObserved || 0) > 0
+      || (pulse.intraDaySpendPct != null && pulse.intraDaySpendPct > 0)
+      || pulse.dnaMatchPct != null;
     var burn = document.getElementById('brain-pulse-burn');
     var burnN = document.getElementById('brain-pulse-burn-n');
     var spendPct = document.getElementById('brain-pulse-spendpct');
@@ -3016,6 +3036,7 @@ export function dashboardPage(): string {
     if (spendPct) spendPct.textContent = (pulse.intraDaySpendPct != null) ? pulse.intraDaySpendPct.toFixed(1) + '%' : '—';
     if (dna) dna.textContent = (pulse.dnaMatchPct != null) ? pulse.dnaMatchPct.toFixed(1) + '%' : '—';
     if (tick) tick.textContent = pulse.tickDate || lbl('no tick yet today', 'لا يوجد تحديث اليوم');
+    return hasSignal;
   }
 
   /** Shared full refresh — used by auto-refresh, visibility, and post-sync onComplete. */
@@ -3049,9 +3070,9 @@ export function dashboardPage(): string {
     try {
       var pulse = await apiFetchWithTimeout('/api/dashboard/pulse/' + workspaceId, {}, 8000);
       if (!pulse) return;
-      applyPulse(pulse);
+      var hasSignal = applyPulse(pulse);
       var pulseSection = document.getElementById('brain-pulse-section');
-      if (pulseSection) pulseSection.style.display = 'block';
+      if (pulseSection) pulseSection.style.display = hasSignal ? 'block' : 'none';
     } catch (e) { /* silent pulse */ }
   }
 

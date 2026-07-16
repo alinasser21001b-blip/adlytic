@@ -273,6 +273,20 @@ export function aiPage(): string {
       (isAr ? 'لا توجد بيانات محمّلة' : 'No data loaded') + '</span>';
   }
 
+  /** Short human label for WHY the cloud model was skipped — so the merchant
+   *  (and support) can tell a credits problem from a setup problem at a
+   *  glance instead of guessing from a generic "offline" tag. */
+  function offlineReasonLabel(code) {
+    var map = {
+      AI_CREDITS_EXHAUSTED: isAr ? 'نفاد رصيد مزوّد الذكاء' : 'AI provider credits exhausted',
+      AI_RATE_LIMITED: isAr ? 'ضغط طلبات مؤقت' : 'Temporary rate limit',
+      AI_AUTH_FAILED: isAr ? 'مشكلة إعداد المفتاح أو الموديل على الخادم' : 'Server key/model configuration issue',
+      AI_TIMEOUT: isAr ? 'انتهت مهلة الرد' : 'Response timed out',
+      AI_UNAVAILABLE: isAr ? 'انقطاع مؤقت لدى المزوّد' : 'Provider temporarily unavailable'
+    };
+    return map[code] || '';
+  }
+
   function renderContextChips(d) {
     const out = [];
     function textChip(t) { return '<span class="data-chip">' + esc(t) + '</span>'; }
@@ -455,6 +469,10 @@ export function aiPage(): string {
           if (res.usedOffline) {
             pills += '<span class="evidence-pill"><b>' + (isAr ? 'المصدر' : 'Source') + '</b> ' +
               (isAr ? 'تشخيص الحساب (بدون نموذج سحابي)' : 'Account diagnosis (offline)') + '</span>';
+            var reason = offlineReasonLabel(res.code);
+            if (reason) {
+              pills += '<span class="evidence-pill"><b>' + (isAr ? 'السبب' : 'Reason') + '</b> ' + esc(reason) + '</span>';
+            }
           }
           if (res.latencyMs != null) {
             pills += '<span class="evidence-pill"><b>' + (isAr ? 'الوقت' : 'Latency') + '</b> ' +

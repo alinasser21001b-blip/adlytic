@@ -20,6 +20,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { pgSslFor } from '../lib/pgSsl';
 import pg from 'pg';
 import { buildRoutes, ROUTE_COUNT } from './server';
+import { getActiveProviderName } from '../services/ai/providerManager';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 import { config, reportConfig } from '../config';
 import { shutdownQueueWorkers } from '../workers/queue';
@@ -99,6 +100,10 @@ async function main(): Promise<void> {
           ? `every ${SYNC_INTERVAL_MS >= 3600000 ? `${Math.round(SYNC_INTERVAL_MS / 3600000)}h` : `${Math.round(SYNC_INTERVAL_MS / 60000)}m`} (role=${config.role})`
           : 'delegated to worker service (SERVICE_ROLE=api)'
       }`);
+
+      // AI provider diagnostic — one honest boot line beats an hour of guessing
+      // why chat fell back to offline mode.
+      console.log(`[adlytic] AI chat provider: ${getActiveProviderName('chat-agent')} (call-time failover armed)`);
 
       // Meta OAuth diagnostic: surface the reason at boot when it is unusable,
       // so operators see why "Connect Meta Ads" falls back to the manual modal.

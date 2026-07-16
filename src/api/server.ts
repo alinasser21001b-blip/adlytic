@@ -46,7 +46,7 @@ import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
-import { getDashboard, getDashboardPulse, DashboardStageTimeoutError } from '../services/getDashboard';
+import { getDashboard, getDashboardPulse, loadCurrentIssues, DashboardStageTimeoutError } from '../services/getDashboard';
 import { diagnoseRelevance, rankingLabel } from '../knowledge/adRelevanceIntelligence';
 import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
@@ -3691,7 +3691,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json(safeJson(updated));
   });
 
-  /** GET /api/workspaces/:workspaceId/issues — detected issues (Rules Engine output). */
+  /** GET /api/workspaces/:workspaceId/issues — detected issues (Rules Engine output).
+   *  Latest detector run only, one row per issueCode — detectors write a full
+   *  replacement set per date, so reading all dates duplicated every issue. */
   app.get('/api/workspaces/:workspaceId/issues', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
@@ -3700,10 +3702,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
-    const issues = await prisma.detectedIssue.findMany({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-      orderBy: [{ severity: 'desc' }, { date: 'desc' }],
-    });
+    const issues = await loadCurrentIssues(prisma, account.id);
     return c.json(safeJson(issues));
   });
 
