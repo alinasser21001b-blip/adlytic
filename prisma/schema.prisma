@@ -313,6 +313,10 @@ model Ad {
   @@unique([adSetId, externalAdId])
   @@index([adSetId])
   @@index([creativeId])
+  /// Speeds the creative-health dashboard stage: it scans ACTIVE ads that Meta
+  /// has graded (rankings_synced_at IS NOT NULL). Equality on status + range on
+  /// rankingsSyncedAt matches this index's column order.
+  @@index([status, rankingsSyncedAt])
   @@map("ads")
 }
 

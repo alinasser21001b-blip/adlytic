@@ -500,6 +500,26 @@ async function buildCreativeHealth(
   return { gradedAds: ads.length, needAttention, worst };
 }
 
+/**
+ * Enrichment-stage wrapper: like timedStage, but a timeout DEGRADES to a
+ * fallback instead of failing the whole dashboard with a 504. The core
+ * decision layer (health, KPIs, main move) must always render even when a
+ * secondary panel (predictions, recommendations, weekly, creative health) is
+ * slow — a blank dashboard is worse than a missing side card. Non-timeout
+ * errors are already swallowed by each builder's own `.catch(() => null)`.
+ */
+async function softStage<T>(stage: string, fallback: T, work: () => Promise<T>): Promise<T> {
+  try {
+    return await timedStage(stage, work);
+  } catch (err) {
+    if (err instanceof DashboardStageTimeoutError) {
+      console.warn(`[dashboard] soft stage "${stage}" exceeded ${STAGE_TIMEOUT_MS}ms — degrading gracefully`);
+      return fallback;
+    }
+    throw err;
+  }
+}
+
 async function timedStage<T>(stage: string, work: () => Promise<T>): Promise<T> {
   const start = performance.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1007,11 +1027,17 @@ export async function getDashboard(
   }
 
   // 9–10. Campaign cards + brain section + AI features in parallel.
+  // campaignCards is the essential decision layer — it stays a hard stage, so a
+  // genuine stall there surfaces as an honest 504 rather than a silently empty
+  // board. Everything else here is enrichment (brain feed, predictions, AI recs,
+  // weekly report, creative health): a slow secondary panel must degrade to null,
+  // never blank the whole dashboard. softStage() turns a stage timeout into the
+  // fallback; each builder's own `.catch(() => null)` handles non-timeout errors.
   const [cards, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
     timedStage('campaignCards', () =>
       buildCampaignCards(account.id, prisma, sinceDate, factor),
     ),
-    timedStage('brainSection', () =>
+    softStage('brainSection', null, () =>
       buildBrainSection(
         prisma,
         ws.id,
@@ -1019,27 +1045,30 @@ export async function getDashboard(
         account.currency,
         account.currencyMinorFactor,
         appliedItemKeys,
-      ),
+      ).catch((err) => {
+        console.warn('[dashboard] brainSection failed:', err);
+        return null;
+      }),
     ),
-    timedStage('predictions', () =>
+    softStage('predictions', null, () =>
       computePredictions(prisma, ws.id, account.id, curr, factor).catch((err) => {
         console.warn('[dashboard] predictions failed:', err);
         return null;
       }),
     ),
-    timedStage('aiRecommendations', () =>
+    softStage('aiRecommendations', null, () =>
       computeAIRecommendations(prisma, ws.id).catch((err) => {
         console.warn('[dashboard] aiRecommendations failed:', err);
         return null;
       }),
     ),
-    timedStage('weeklyReport', () =>
+    softStage('weeklyReport', null, () =>
       generateWeeklyReport(prisma, ws.id).catch((err) => {
         console.warn('[dashboard] weeklyReport failed:', err);
         return null;
       }),
     ),
-    timedStage('creativeHealth', () =>
+    softStage('creativeHealth', null, () =>
       buildCreativeHealth(prisma, account.id).catch((err) => {
         console.warn('[dashboard] creativeHealth failed:', err);
         return null;
