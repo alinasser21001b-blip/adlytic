@@ -96,22 +96,26 @@ function compareAgainstRange(value: number, range: BenchmarkRange): "below" | "w
   return "within";
 }
 
+// Merchant-facing Arabic — this text flows straight into dashboard
+// recommendations and offline AI replies; English here leaks a broken
+// bilingual sentence into the product voice.
 function describeComparison(
   metricLabel: string,
   value: number,
   benchmarkText: string,
   comparison: "below" | "within" | "above" | "unscored",
 ): string {
+  const v = value.toFixed(2);
   if (comparison === "below") {
-    return `${metricLabel} at ${value.toFixed(2)} is below benchmark (${benchmarkText}). Prioritize first-order fixes before scaling budget.`;
+    return `«${metricLabel}» عند ${v} أدنى من معيار الصناعة (${benchmarkText}). عالج أساسيات الإعلان والصفحة قبل زيادة الميزانية.`;
   }
   if (comparison === "above") {
-    return `${metricLabel} at ${value.toFixed(2)} is above benchmark (${benchmarkText}). This may signal auction pressure or inefficiency and needs cross-metric validation.`;
+    return `«${metricLabel}» عند ${v} أعلى من معيار الصناعة (${benchmarkText}). قد يدل على ضغط مزادات أو هدر — تحقق من بقية المؤشرات قبل أي قرار.`;
   }
   if (comparison === "within") {
-    return `${metricLabel} at ${value.toFixed(2)} is within benchmark (${benchmarkText}). Keep monitoring trend direction before changing strategy.`;
+    return `«${metricLabel}» عند ${v} ضمن معيار الصناعة (${benchmarkText}). راقب اتجاه المؤشر قبل تغيير الاستراتيجية.`;
   }
-  return `${metricLabel} at ${value.toFixed(2)} has no numeric benchmark range in the source (${benchmarkText}); use account-relative trend scoring.`;
+  return `لا يوجد نطاق رقمي لمعيار «${metricLabel}» في المصدر (${benchmarkText}) — قيّمه نسبةً إلى تاريخ حسابك.`;
 }
 
 function confidenceForComparison(comparison: "below" | "within" | "above" | "unscored"): "low" | "medium" | "high" {

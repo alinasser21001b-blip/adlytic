@@ -163,10 +163,20 @@ export function buildOfflineDiagnosisReply(
   const taskArabic = mostlyArabic(task?.title) && mostlyArabic(task?.why ?? task?.action ?? '');
   const useTask = !!task && (taskArabic || !diagnosis);
 
-  const title = (useTask ? task?.title : diagnosis?.name) || diagnosis?.name || null;
-  const why = (useTask ? task?.why : diagnosis?.narrative) || diagnosis?.narrative || null;
-  const action = (useTask ? task?.action : diagnosis?.action) || diagnosis?.action || null;
-  const expect = useTask ? task?.expect ?? null : null;
+  // Gate EVERY field individually: a task can carry an Arabic title/why but a
+  // half-English action (e.g. raw benchmark text "at 0.57 is below benchmark
+  // (£10–£18)…"). One broken bilingual line ruins the whole reply — fall back
+  // per field to the Arabic-first diagnosis, or drop the field.
+  const arabicOr = (primary: string | null | undefined, fallback: string | null | undefined): string | null => {
+    if (primary && mostlyArabic(primary)) return primary;
+    if (fallback && mostlyArabic(fallback)) return fallback;
+    return null;
+  };
+
+  const title = arabicOr(useTask ? task?.title : diagnosis?.name, diagnosis?.name);
+  const why = arabicOr(useTask ? task?.why : diagnosis?.narrative, diagnosis?.narrative);
+  const action = arabicOr(useTask ? task?.action : diagnosis?.action, diagnosis?.action);
+  const expect = arabicOr(useTask ? task?.expect ?? null : null, null);
   const confidence = (useTask ? task?.confidence : diagnosis?.confidence) ?? diagnosis?.confidence ?? null;
 
   if (!title || (!why && !action)) return null;

@@ -849,8 +849,14 @@ export async function getDashboard(
 
   // Benchmark-only insights: emit additional contextual guidance even when
   // no hard KB threshold is breached, so the dashboard explains relative gaps.
+  // Currency-denominated metrics are excluded: the KB ranges are in the
+  // source market's currency (£/$), so comparing this account's CPM/CPC in
+  // its own currency against them is noise, not intelligence ("0.57 below
+  // £10–£18"). Ratio metrics (CTR, frequency) are unit-less and compare fair.
+  const CURRENCY_METRIC_KEYS = new Set(["cpm", "cpc", "cpa", "cost_per_message", "cost_per_result"]);
   for (const insight of benchmarkInsights) {
     if (insight.comparison === "within") continue;
+    if (CURRENCY_METRIC_KEYS.has(insight.metricKey)) continue;
     const code = METRIC_ISSUE_CODE[insight.metricKey] ?? IssueCode.LOW_CTR;
     const existing = issues.find(i => i.code === code);
     const recText =

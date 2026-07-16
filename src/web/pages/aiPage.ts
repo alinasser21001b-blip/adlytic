@@ -273,6 +273,27 @@ export function aiPage(): string {
       (isAr ? 'لا توجد بيانات محمّلة' : 'No data loaded') + '</span>';
   }
 
+  /** When a reply came back offline, ask the server's live AI self-test WHY
+   *  and print the verdict under the reply — the exact cause (missing key on
+   *  this service, dead key, retired model, no credits) with zero log access. */
+  function appendAiHealthDiagnosis(metaBar) {
+    if (!metaBar) return;
+    apiFetchWithTimeout('/api/health/ai', {}, 15000).then(function (h) {
+      if (!h || h.ok) return; // ok=true means the outage was transient — nothing to explain
+      var parts = [];
+      if (h.reasonAr) parts.push(h.reasonAr);
+      if (h.anthropicKeyPresent === false && h.openaiKeyPresent === false) {
+        parts.push(isAr ? '(لم يُعثر على أي مفتاح على خدمة الويب)' : '(no AI key found on the web service)');
+      }
+      if (!parts.length) return;
+      var div = document.createElement('div');
+      div.className = 'evidence-pill';
+      div.style.cssText = 'display:block;margin-top:6px;white-space:normal;color:var(--warning,#e8a33d);';
+      div.innerHTML = '<b>' + (isAr ? 'فحص الخادم' : 'Server check') + '</b> ' + esc(parts.join(' '));
+      metaBar.appendChild(div);
+    }).catch(function () { /* diagnosis is best-effort */ });
+  }
+
   /** Short human label for WHY the cloud model was skipped — so the merchant
    *  (and support) can tell a credits problem from a setup problem at a
    *  glance instead of guessing from a generic "offline" tag. */
@@ -473,6 +494,7 @@ export function aiPage(): string {
             if (reason) {
               pills += '<span class="evidence-pill"><b>' + (isAr ? 'السبب' : 'Reason') + '</b> ' + esc(reason) + '</span>';
             }
+            appendAiHealthDiagnosis(metaBar);
           }
           if (res.latencyMs != null) {
             pills += '<span class="evidence-pill"><b>' + (isAr ? 'الوقت' : 'Latency') + '</b> ' +

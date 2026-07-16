@@ -112,6 +112,8 @@ import { buildAiContextV5 } from '../services/aiContextBuilderV5';
 import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
 import { askClaude } from '../services/claudeClient';
 import { buildAiUnavailableReply } from '../services/aiOfflineReply';
+import { generateText, isAIAvailable } from '../services/ai/aiService';
+import { getActiveProviderName } from '../services/ai/providerManager';
 import { classifyLlmError } from '../lib/llmErrors';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
 import { recordMetaAuditEvent, listMetaAuditEvents } from '../services/metaAudit';
@@ -1106,6 +1108,57 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         ...roleInfo,
       }, 503);
     }
+  });
+
+  /** GET /api/health/ai — live AI provider self-test.
+   *
+   *  The one endpoint that ends "why is the assistant offline?" guessing:
+   *  it reports which keys exist on THIS service, which provider/model chat
+   *  resolves to, and the classified result of a real 8-token ping — so a
+   *  worker-has-key-but-api-doesn't split, a dead key, or a retired model ID
+   *  is visible in one browser tab without Railway log access. No secrets:
+   *  booleans + classified codes; provider text is truncated and key-redacted.
+   *  Result cached 5 minutes so it cannot be used to burn credits. */
+  let aiHealthCache: { at: number; body: Record<string, unknown> } | null = null;
+  app.get('/api/health/ai', async (c) => {
+    if (aiHealthCache && Date.now() - aiHealthCache.at < 5 * 60_000) {
+      return c.json(aiHealthCache.body);
+    }
+    const body: Record<string, unknown> = {
+      service: config.role,
+      anthropicKeyPresent: !!process.env['ANTHROPIC_API_KEY'],
+      openaiKeyPresent: !!process.env['OPENAI_API_KEY'],
+      chatProvider: getActiveProviderName('chat-agent'),
+      checkedAt: new Date().toISOString(),
+    };
+    if (!isAIAvailable()) {
+      body['ok'] = false;
+      body['code'] = 'AI_AUTH_FAILED';
+      body['reasonAr'] = 'لا يوجد مفتاح ذكاء اصطناعي على خدمة الويب — أضف ANTHROPIC_API_KEY لهذه الخدمة تحديداً في Railway (وليس فقط لخدمة الـ worker).';
+    } else {
+      try {
+        const ping = await generateText({
+          task: 'chat-agent',
+          system: 'Reply with the single word OK.',
+          messages: [{ role: 'user', content: 'ping' }],
+          maxTokens: 8,
+          timeoutMs: 12_000,
+        });
+        body['ok'] = true;
+        body['provider'] = ping.provider;
+        body['model'] = ping.model;
+      } catch (err) {
+        const classified = classifyLlmError(err);
+        body['ok'] = false;
+        body['code'] = classified.code;
+        body['reasonAr'] = classified.messageAr;
+        body['providerMessage'] = classified.providerMessage
+          .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-***')
+          .slice(0, 200);
+      }
+    }
+    aiHealthCache = { at: Date.now(), body };
+    return c.json(body);
   });
 
   // ════════════════════════════════════════════════════════════════════════
