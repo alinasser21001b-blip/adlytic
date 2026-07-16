@@ -53,6 +53,7 @@ import {
 } from "../knowledge/industryRouting";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { diagnoseRelevance } from "../knowledge/adRelevanceIntelligence";
+import { pgSslFor } from "../lib/pgSsl";
 import { EntityStatus } from "@prisma/client";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
@@ -92,15 +93,13 @@ function getStandalonePrisma(): PrismaClient {
     );
   }
   const parsed = new URL(dbUrl);
-  const isInternal = parsed.hostname.endsWith('.railway.internal');
-  const caCert = process.env['DATABASE_CA_CERT'];
   const pool = new pg.Pool({
     host:     parsed.hostname,
     port:     Number(parsed.port) || 5432,
     user:     decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
     database: parsed.pathname.replace(/^\//, ''),
-    ssl:      isInternal ? false : { rejectUnauthorized: true, ...(caCert ? { ca: caCert } : {}) },
+    ssl:      pgSslFor(parsed.hostname),
     max: Number(process.env['PG_POOL_MAX'] ?? 20),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,

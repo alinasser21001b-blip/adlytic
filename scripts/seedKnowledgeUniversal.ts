@@ -1,12 +1,13 @@
 // Seeds universal (non-industry-specific) knowledge rules for all issue codes.
 // Safe to re-run — uses upsert on (issueCode, locale, industryProfileId=null).
 import { PrismaClient, IssueCode, Locale } from "@prisma/client";
+import { pgSslFor } from '../src/lib/pgSsl';
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
 const dbUrl = process.env['DATABASE_URL']!;
 const parsed = new URL(dbUrl);
-const pool = new pg.Pool({ host: parsed.hostname, port: Number(parsed.port) || 5432, user: decodeURIComponent(parsed.username), password: decodeURIComponent(parsed.password), database: parsed.pathname.replace(/^\//, ''), ssl: { rejectUnauthorized: false } });
+const pool = new pg.Pool({ host: parsed.hostname, port: Number(parsed.port) || 5432, user: decodeURIComponent(parsed.username), password: decodeURIComponent(parsed.password), database: parsed.pathname.replace(/^\//, ''), ssl: pgSslFor(parsed.hostname) });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 const EN_RULES: Record<IssueCode, { title: string; causes: string[]; recommendations: string[] }> = {

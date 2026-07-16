@@ -914,7 +914,7 @@ export function dashboardPage(): string {
       hLifeSub.textContent =
         (dashData.lifetimeSpend && dashData.lifetimeSpend.syncedAt)
           ? lbl('Meta account lifetime total', 'إجمالي حساب Meta الكلي')
-          : ('Account history (' + days + '-day window)');
+          : lbl('Account history (' + days + '-day window)', 'تاريخ الحساب (آخر ' + days + ' يوماً)');
     }
 
     // Populate CTR, Messages, CPM KPI cards

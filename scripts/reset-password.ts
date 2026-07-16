@@ -29,6 +29,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { Writable } from 'node:stream';
+import { pgSslFor } from '../src/lib/pgSsl';
 import { createInterface } from 'node:readline/promises';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -89,7 +90,7 @@ async function main(): Promise<void> {
 
   // ── DB ────────────────────────────────────────────────────────────────────
   const parsed = new URL(dbUrl);
-  const ssl = parsed.hostname.endsWith('.railway.internal') ? false : { rejectUnauthorized: false };
+  const ssl = pgSslFor(parsed.hostname);
   const pool = new pg.Pool({
     host: parsed.hostname, port: Number(parsed.port) || 5432,
     user: decodeURIComponent(parsed.username), password: decodeURIComponent(parsed.password),

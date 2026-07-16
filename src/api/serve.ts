@@ -17,6 +17,7 @@
 import { serve } from '@hono/node-server';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { pgSslFor } from '../lib/pgSsl';
 import pg from 'pg';
 import { buildRoutes, ROUTE_COUNT } from './server';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
@@ -53,13 +54,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const parsed = new URL(dbUrl);
-  // SSL: require for external hosts (Railway proxy, Supabase, etc.)
-  //       skip for Railway's private internal network (*.railway.internal)
-  const isInternalHost = parsed.hostname.endsWith('.railway.internal');
-  const caCert = process.env['DATABASE_CA_CERT'];
-  const sslConfig = isInternalHost
-    ? false
-    : { rejectUnauthorized: true, ...(caCert ? { ca: caCert } : {}) };
+  // SSL decision lives in ONE place (lib/pgSsl): TLS for external hosts,
+  // none for Railway's private network or localhost dev databases.
+  const sslConfig = pgSslFor(parsed.hostname);
   const pool   = new pg.Pool({
     host:     parsed.hostname,
     port:     Number(parsed.port) || 5432,

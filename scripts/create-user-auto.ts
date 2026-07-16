@@ -11,6 +11,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { createHash } from 'node:crypto';
+import { pgSslFor } from '../src/lib/pgSsl';
 import { PrismaClient, WorkspaceRole } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
@@ -38,7 +39,7 @@ function buildPrisma(dbUrl: string): { prisma: PrismaClient; pool: pg.Pool } {
     user:     decodeURIComponent(p.username),
     password: decodeURIComponent(p.password),
     database: p.pathname.replace(/^\//, ''),
-    ssl:      { rejectUnauthorized: false },
+    ssl: pgSslFor(p.hostname),
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
   return { prisma, pool };

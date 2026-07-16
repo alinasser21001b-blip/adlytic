@@ -16,14 +16,14 @@ export const currencyHelpersJs = `
     if (minorVal == null || isNaN(Number(minorVal))) return '—';
     var major = Number(minorVal) / state.minorFactor;
     if (state.minorFactor === 1) major = Math.round(major);
-    return major.toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
+    return major.toLocaleString('en-US', { useGrouping: true, minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
   }
   function fmtCurrencyMajor(n) {
     if (n == null || isNaN(n)) return '—';
     if (state.minorFactor === 1) {
-      return Math.round(Number(n)).toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ' + state.currency;
+      return Math.round(Number(n)).toLocaleString('en-US', { useGrouping: true, minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ' + state.currency;
     }
-    return Number(n).toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
+    return Number(n).toLocaleString('en-US', { useGrouping: true, minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + state.currency;
   }
   // Prefer dashboard DTO (authoritative) then workspace adAccounts for currency state.
   function hydrateCurrencyState(dashData, wsData) {

@@ -18,6 +18,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { pgSslFor } from '../lib/pgSsl';
 import pg from 'pg';
 import { runBrainNarrationCron } from './brainNarrationCron';
 
@@ -42,11 +43,7 @@ async function main(): Promise<void> {
   }
 
   const parsed = new URL(dbUrl);
-  const isInternalHost = parsed.hostname.endsWith('.railway.internal');
-  const caCert = process.env['DATABASE_CA_CERT'];
-  const sslConfig = isInternalHost
-    ? false
-    : { rejectUnauthorized: true, ...(caCert ? { ca: caCert } : {}) };
+  const sslConfig = pgSslFor(parsed.hostname);
   const pool = new pg.Pool({
     host:     parsed.hostname,
     port:     Number(parsed.port) || 5432,

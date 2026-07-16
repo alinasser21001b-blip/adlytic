@@ -12,6 +12,7 @@
  * Never prints the password.
  */
 import { PrismaClient } from '@prisma/client';
+import { pgSslFor } from '../src/lib/pgSsl';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import { hashPassword, verifyPassword } from '../src/services/jwtAuth';
@@ -39,7 +40,7 @@ async function main() {
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
     database: u.pathname.replace(/^\//, ''),
-    ssl: { rejectUnauthorized: false },
+    ssl: pgSslFor(u.hostname),
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
