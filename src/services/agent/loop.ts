@@ -39,9 +39,11 @@ import {
 } from '../ai/aiService';
 import { getActiveProviderName } from '../ai/providerManager';
 
-const MAX_ITERATIONS = 5;
+const MAX_ITERATIONS = 4;
 const MAX_TOKENS = 2048;
-const MAX_HISTORY_MESSAGES = 40;
+// Resent on every turn — keep the window tight to hold input tokens (and cost)
+// down. 16 messages ≈ 8 exchanges, ample context for a support chat.
+const MAX_HISTORY_MESSAGES = 16;
 const OVERALL_TIMEOUT_MS = 45_000;
 const MAX_POSTCHECK_RETRIES = 2;
 

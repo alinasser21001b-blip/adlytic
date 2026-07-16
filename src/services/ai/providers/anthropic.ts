@@ -31,6 +31,34 @@ function mapFinishReason(reason: string | null): AITextResponse['finishReason'] 
   return 'unknown';
 }
 
+// The 4.6+ / 5 generation (Sonnet 5, Opus 4.6/4.7/4.8, Fable/Mythos 5) uses
+// adaptive thinking and REJECTS sampling params — sending `temperature`,
+// `top_p`, or `top_k` returns HTTP 400, which would silently drop the whole
+// AI feature into its offline fallback. Older models (claude-3-*, sonnet-4-5,
+// haiku-4-5) still accept them. Guard here so callers can keep passing a
+// temperature without knowing the target model's generation.
+function modelRejectsSampling(model: string): boolean {
+  return /(fable-5|mythos-5|sonnet-5|sonnet-4-6|opus-4-[6789]|opus-[5-9])/.test(model);
+}
+
+/** Only forward a temperature when the target model actually accepts one. */
+function samplingParams(model: string, temperature?: number): { temperature?: number } {
+  if (temperature == null || modelRejectsSampling(model)) return {};
+  return { temperature };
+}
+
+// Mark the system prompt as cacheable. Render order is tools → system →
+// messages, so a single breakpoint on the system block caches the whole stable
+// prefix (tool schemas + system prompt). The tool-use loop resends that prefix
+// on every iteration within seconds, and repeat questions reuse it within the
+// 5-minute window — cached reads bill at ~10% of input, a large saving on the
+// agent's dominant cost. Below the model's minimum cacheable prefix it's a
+// silent no-op, never an error.
+function cacheableSystem(system: string | undefined): Anthropic.TextBlockParam[] | undefined {
+  if (!system) return undefined;
+  return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+}
+
 export const anthropicProvider: AIProviderAdapter = {
   provider: 'anthropic',
 
@@ -42,10 +70,10 @@ export const anthropicProvider: AIProviderAdapter = {
       client,
       {
         model: config.model,
-        system: opts.system,
+        ...(opts.system ? { system: cacheableSystem(opts.system) } : {}),
         messages,
         max_tokens: opts.maxTokens ?? 1024,
-        ...(opts.temperature != null ? { temperature: opts.temperature } : {}),
+        ...samplingParams(config.model, opts.temperature),
       },
       opts.timeoutMs ?? 30_000,
     );
@@ -84,11 +112,11 @@ export const anthropicProvider: AIProviderAdapter = {
       client,
       {
         model: config.model,
-        system: opts.system,
+        ...(opts.system ? { system: cacheableSystem(opts.system) } : {}),
         messages,
         tools,
         max_tokens: opts.maxTokens ?? 2048,
-        ...(opts.temperature != null ? { temperature: opts.temperature } : {}),
+        ...samplingParams(config.model, opts.temperature),
       },
       opts.timeoutMs ?? 45_000,
     );

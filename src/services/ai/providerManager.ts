@@ -4,14 +4,16 @@
 // Switching providers requires only env var changes, not code changes.
 //
 // ENV VARS:
-//   AI_DEFAULT_PROVIDER   = 'openai' | 'anthropic'  (default: 'openai')
+//   AI_DEFAULT_PROVIDER   = 'openai' | 'anthropic'
+//     (unset → auto: prefer whichever provider key is present, Anthropic first)
 //   AI_CHAT_PROVIDER      = override for chat-agent task
 //   AI_NARRATION_PROVIDER  = override for narration task
 //   AI_INVESTIGATION_PROVIDER = override for investigation task
 //   OPENAI_API_KEY        = required when using openai
 //   OPENAI_MODEL          = default: 'gpt-4o-mini'
 //   ANTHROPIC_API_KEY     = required when using anthropic
-//   CLAUDE_MODEL          = default: 'claude-sonnet-5'
+//   CLAUDE_MODEL          = default: 'claude-haiku-4-5' (cheapest tier;
+//                           set to claude-sonnet-5 / claude-opus-4-8 for more depth)
 
 import type { AIProvider, AIProviderAdapter, AITask, ProviderConfig } from './types';
 import { openaiProvider } from './providers/openai';
@@ -29,7 +31,16 @@ function envProvider(key: string): AIProvider | null {
 }
 
 function getDefaultProvider(): AIProvider {
-  return envProvider('AI_DEFAULT_PROVIDER') ?? 'openai';
+  // Explicit operator choice always wins.
+  const explicit = envProvider('AI_DEFAULT_PROVIDER');
+  if (explicit) return explicit;
+  // Otherwise auto-detect from the keys actually present. This app is
+  // Claude-first (models default to claude-*), so prefer Anthropic when its
+  // key exists — that way a stale/empty OPENAI_API_KEY can never shadow a
+  // working Anthropic key and silently push chat into the offline fallback.
+  if (process.env['ANTHROPIC_API_KEY']) return 'anthropic';
+  if (process.env['OPENAI_API_KEY']) return 'openai';
+  return 'anthropic';
 }
 
 const TASK_ENV_MAP: Partial<Record<AITask, string>> = {
@@ -74,7 +85,9 @@ function buildConfig(provider: AIProvider): ProviderConfig | null {
     return {
       provider: 'anthropic',
       apiKey,
-      model: process.env['CLAUDE_MODEL'] ?? 'claude-sonnet-5',
+      // Cheapest capable tier by default to keep spend low. Override with
+      // CLAUDE_MODEL on the server for deeper reasoning when needed.
+      model: process.env['CLAUDE_MODEL'] ?? 'claude-haiku-4-5',
     };
   }
   return null;
