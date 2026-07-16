@@ -75,11 +75,24 @@ export function classifyLlmError(err: unknown): ClassifiedLlmError {
     };
   }
 
+  // Provider not configured at all (no ANTHROPIC_API_KEY/OPENAI_API_KEY on the
+  // server). This is a SETUP problem, not a transient one — say so honestly
+  // instead of "try again shortly", which would send the user in circles.
+  if (/no ai provider configured|not configured|set (openai|anthropic)_api_key|missing.*api.?key/i.test(blob)) {
+    return {
+      code: 'AI_AUTH_FAILED',
+      messageAr: 'المساعد الذكي غير مُفعّل على الخادم بعد (مفتاح مزوّد الذكاء الاصطناعي غير مضبوط). التشخيص والتوصيات في لوحة التحكم تعمل بالكامل الآن.',
+      messageEn: 'The AI assistant is not yet enabled on the server (the AI provider key is not set). Dashboard diagnosis and recommendations work fully in the meantime.',
+      httpStatus: 503,
+      providerMessage: blob.slice(0, 400),
+    };
+  }
+
   if (/invalid.?api.?key|authentication|unauthorized|401|permission/.test(lower) && /anthropic|openai|api.?key/i.test(blob)) {
     return {
       code: 'AI_AUTH_FAILED',
-      messageAr: 'إعدادات المساعد الذكي غير مكتملة حالياً. جرّب لاحقاً أو راجع لوحة التحكم.',
-      messageEn: 'AI assistant configuration is incomplete right now. Try later or use the dashboard.',
+      messageAr: 'إعدادات المساعد الذكي غير مكتملة حالياً (مفتاح غير صالح). راجع الإعداد أو جرّب لاحقاً.',
+      messageEn: 'AI assistant configuration is invalid right now (bad key). Check setup or try later.',
       httpStatus: 503,
       providerMessage: blob.slice(0, 400),
     };
