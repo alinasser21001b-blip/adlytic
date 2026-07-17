@@ -210,9 +210,6 @@ export function recommendationsPage(): string {
     margin-bottom: 5px; letter-spacing: 0.03em;
     display: flex; align-items: center; gap: 6px;
   }
-  .rec-section-text {
-    font-size: 13.5px; color: var(--text-2); line-height: 1.7;
-  }
 
   .rec-benchmark-box {
     background: rgba(24,119,242,0.05); border: 1px solid rgba(24,119,242,0.15);
@@ -230,19 +227,6 @@ export function recommendationsPage(): string {
   .rec-benchmark-source {
     font-size: 10.5px; color: var(--text-3); margin-top: 6px;
     font-style: italic;
-  }
-
-  .rec-action-box {
-    background: linear-gradient(135deg, rgba(217,167,89,0.08), rgba(217,167,89,0.03));
-    border: 1px solid rgba(217,167,89,0.22);
-    border-radius: 14px; padding: 14px 16px; margin-bottom: 14px;
-  }
-  .rec-action-label {
-    font-size: 10.5px; font-weight: 800; color: var(--accent-2);
-    margin-bottom: 5px; letter-spacing: 0.03em;
-  }
-  .rec-action-text {
-    font-size: 14.5px; font-weight: 700; color: var(--text); line-height: 1.5;
   }
 
   .rec-steps { margin: 0; padding-inline-start: 0; list-style: none; counter-reset: step; }
@@ -566,9 +550,11 @@ export function recommendationsPage(): string {
       +   '<div class="rec-card-title">' + escHtml(task.title) + '</div>'
       +   '<span class="rec-sev-badge" style="background:' + sev.color + '1a;color:' + sev.color + ';">' + escHtml(sev.text) + '</span>'
       + '</div>'
-      + '<div class="rec-section"><div class="rec-section-label">لماذا هذا مهم؟</div><div class="rec-section-text">' + escHtml(task.why) + '</div></div>'
+      + '<div class="thread"><div class="thread-steps">'
+      +   '<div class="thread-step"><div class="thread-step-label">لماذا هذا مهم؟</div>' + escHtml(task.why) + '</div>'
+      +   '<div class="thread-step thread-step--action"><div class="thread-step-label">الإجراء المطلوب</div>' + escHtml(task.action) + '</div>'
+      + '</div></div>'
       + benchmarkHtml
-      + '<div class="rec-action-box"><div class="rec-action-label">الإجراء المطلوب</div><div class="rec-action-text">' + escHtml(task.action) + '</div></div>'
       + '<div class="rec-section"><div class="rec-section-label">الخطوات</div>' + stepsHtml + '</div>'
       + '<div class="rec-expect-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>' + escHtml(task.expect) + '</span></div>'
       + '<div class="rec-card-footer">'
