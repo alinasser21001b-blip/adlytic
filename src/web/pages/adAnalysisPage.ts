@@ -579,9 +579,15 @@ export function adAnalysisPage(): string {
         + (ctx.healthScore != null ? '<span class="adlytic-kpi">صحة: <b>' + esc(String(ctx.healthScore)) + '/100</b></span>' : '')
         + '</div>';
       if (ctx.diagnoses && ctx.diagnoses.length) {
+        // "قراءة Adlytic" — the golden thread (same .thread/.thread-step as
+        // the dashboard hero and AI assistant): diagnosis flowing into the
+        // recommendation as one line, not two disconnected paragraphs.
         ctx.diagnoses.forEach(function(d) {
-          html += '<div class="ctx-card"><h4>' + esc(d.title) + '</h4><p>' + esc(d.explanation) + '</p>'
-            + (d.action ? '<p style="margin-top:6px;color:var(--accent-2);font-weight:700;">' + esc(d.action) + '</p>' : '')
+          html += '<div class="ctx-card"><h4>' + esc(d.title) + '</h4>'
+            + '<div class="thread"><div class="thread-steps">'
+            + '<div class="thread-step"><div class="thread-step-label">التشخيص</div>' + esc(d.explanation) + '</div>'
+            + (d.action ? '<div class="thread-step thread-step--action"><div class="thread-step-label">التوصية</div>' + esc(d.action) + '</div>' : '')
+            + '</div></div>'
             + '</div>';
         });
       }
