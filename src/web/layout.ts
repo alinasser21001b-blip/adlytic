@@ -1277,15 +1277,24 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   border-color: rgba(217,167,89,0.28);
   box-shadow: 0 14px 40px rgba(0,0,0,0.22);
 }
-.diagnosis-card--hero .diagnosis-name {
-  font-family: var(--font-display); font-weight: 700;
-  font-size: 21px; line-height: 1.45; letter-spacing: -0.01em;
-  margin-bottom: 14px;
-}
+.diagnosis-card--hero .diagnosis-name { font-size: 20px; letter-spacing: -0.02em; }
+.diagnosis-card--hero .diagnosis-narrative { font-size: 14px; margin-bottom: 14px; }
 .diagnosis-card--hero .diagnosis-action { font-size: 13.5px; padding: 13px 14px; }
 .diagnosis-cta-row { margin-top: 14px; }
 .diagnosis-card--hero.has-critical { border-inline-start-color: var(--error); }
 .diagnosis-card--hero.has-warning { border-inline-start-color: var(--warning); }
+/* Standalone headline used ONLY by the redesigned pro dashboard's hero
+   (dashboardPage.ts renderMainMove) — sits below the header row rather than
+   inline with the confidence badge, so it needs its own class rather than
+   reusing .diagnosis-name (which beginnerDashboardPage.ts still renders
+   INSIDE .diagnosis-header, inline with its badge — giving it this same
+   large/display treatment would break that page's header alignment). */
+.diagnosis-headline {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 21px; line-height: 1.45; letter-spacing: -0.01em;
+  color: var(--text);
+  margin-bottom: 14px;
+}
 
 /* ── The golden thread — signature narrative treatment ────────────────────
    A vertical connector linking the read (evidence + diagnosis) to the

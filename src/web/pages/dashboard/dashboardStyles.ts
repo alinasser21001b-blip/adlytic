@@ -1204,7 +1204,7 @@ export const dashboardStyles = `<style>
     .chart-panel-canvas { max-width: 100%; }
     .chart-panel-canvas canvas { max-width: 100% !important; }
     .exec-pulse-text, .ticker-tooltip, .strategy-body, .main-move-why,
-    .active-name, .v2-action-title, .main-move-title { overflow-wrap: anywhere; }
+    .v2-action-title, .main-move-title, .thread-step { overflow-wrap: anywhere; }
 
     /* ── Mobile Dashboard Optimizations ──────────────────────────────── */
     @media (max-width: 768px) {

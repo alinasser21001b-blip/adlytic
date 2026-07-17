@@ -2144,10 +2144,8 @@ export function dashboardPage(): string {
     + '</div>';
 
     var html = '<article class="diagnosis-card diagnosis-card--hero ' + sevCls + '" dir="auto">'
-      + '<div class="diagnosis-header">'
-        + badgeHtml
-      + '</div>'
-      + '<div class="diagnosis-name">' + escHtml(primary.title) + '</div>'
+      + (badgeHtml ? '<div class="diagnosis-header">' + badgeHtml + '</div>' : '')
+      + '<div class="diagnosis-headline">' + escHtml(primary.title) + '</div>'
       + '<div class="thread"><div class="thread-steps">' + threadSteps + '</div></div>'
       + '<div class="main-move-cta-row diagnosis-cta-row">'
         + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText || lbl('Do this task', 'نفّذ المهمة')) + '</button>'
