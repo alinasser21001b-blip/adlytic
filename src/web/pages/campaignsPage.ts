@@ -58,8 +58,12 @@ export function campaignsPage(): string {
     </div>
   </div>
 
-  <!-- Hero KPIs — three merchant signals only (Ads Manager clarity) -->
-  <div class="camp-kpi-row camp-kpi-row--hero">
+  <!-- Hero row: total spend (unique figure) + the unified honest status
+       strip (reused from the dashboard — see .status-strip-* in layout.ts).
+       The strip replaces what used to be two separate KPI cards ("حملات
+       تعمل" / "تحتاج مراجعة") with one connected read built from the exact
+       same counts, so the same number is never split across two cards. -->
+  <div class="camp-kpi-row camp-kpi-row--hero camp-kpi-row--single">
     <div class="camp-kpi" data-accent="blue">
       <div class="camp-kpi-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -70,26 +74,13 @@ export function campaignsPage(): string {
         <div class="camp-kpi-sub" id="spend-period">آخر 30 يوماً</div>
       </div>
     </div>
-    <div class="camp-kpi" data-accent="green">
-      <div class="camp-kpi-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-      </div>
-      <div class="camp-kpi-body">
-        <div class="camp-kpi-label">حملات تعمل</div>
-        <div class="camp-kpi-value" id="active-campaigns">—</div>
-        <div class="camp-kpi-sub" id="active-sub"></div>
-      </div>
+  </div>
+  <div class="camp-status-strip">
+    <div class="active-header">
+      <div class="active-title" id="camp-status-strip-title">حملاتك — أين تقف فعلًا؟</div>
     </div>
-    <div class="camp-kpi" data-accent="amber">
-      <div class="camp-kpi-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
-      </div>
-      <div class="camp-kpi-body">
-        <div class="camp-kpi-label">تحتاج مراجعة</div>
-        <div class="camp-kpi-value" id="review-campaigns">—</div>
-        <div class="camp-kpi-sub" id="review-sub"></div>
-      </div>
-    </div>
+    <div class="status-strip-bar" id="camp-status-strip-bar"></div>
+    <div class="status-strip-legend" id="camp-status-strip-legend"></div>
   </div>
 
   <!-- Data observer banner — shown when account-level and campaign-level totals diverge -->
@@ -282,6 +273,11 @@ export function campaignsPage(): string {
 
     /* ── Ads Manager hero KPIs ─────────────────────────────────────────── */
     .camp-kpi-row--hero { grid-template-columns: repeat(3, 1fr); }
+    .camp-kpi-row--single { grid-template-columns: 1fr; max-width: 340px; margin-bottom: 14px; }
+    .camp-status-strip {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 20px;
+    }
 
     /* ── Collapsible account trends (high-contrast control) ───────────── */
     .camp-trends {
@@ -1421,7 +1417,7 @@ export function campaignsPage(): string {
   // ── Summary cards ─────────────────────────────────────────────────────────
   // Three merchant-facing signals: spend, delivering, needs review.
   function updateSummary(campaigns, insights) {
-    var delivering = campaigns.filter(function(c) {
+    var deliveringInWindow = campaigns.filter(function(c) {
       return c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW';
     }).length;
     var spendingToday = campaigns.filter(function(c) {
@@ -1434,19 +1430,38 @@ export function campaignsPage(): string {
     var insightsSlice = recentAsc(insights, state.days);
     var totalSpendMinor = insightsSlice.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
 
-    tickText(document.getElementById('active-campaigns'), String(delivering));
-    var activeSub = document.getElementById('active-sub');
-    if (activeSub) {
-      activeSub.textContent = spendingToday + ' تنفق اليوم · من أصل ' + campaigns.length + ' حملة';
-    }
-    tickText(document.getElementById('review-campaigns'), String(needsReview));
-    var reviewSub = document.getElementById('review-sub');
-    if (reviewSub) {
-      reviewSub.textContent = paused + ' متوقفة · بدون إنفاق رغم أنها نشطة';
-    }
     tickText(document.getElementById('total-spend'), fmtCurrencyMinor(totalSpendMinor));
     var spendPeriod = document.getElementById('spend-period');
     if (spendPeriod) spendPeriod.textContent = 'آخر ' + state.days + ' يوماً';
+
+    renderCampStatusStrip(campaigns.length, spendingToday, deliveringInWindow, needsReview, paused);
+  }
+
+  // One connected strip in place of the old "حملات تعمل"/"تحتاج مراجعة"
+  // KPI cards — same non-overlapping segmentation as the dashboard's own
+  // status strip (see renderCampaignStatusStrip in dashboardPage.ts), reused
+  // here so the exact same counts never read differently on two pages.
+  function renderCampStatusStrip(total, spendingToday, deliveringInWindow, dormant, paused) {
+    var bar = document.getElementById('camp-status-strip-bar');
+    var legend = document.getElementById('camp-status-strip-legend');
+    var titleEl = document.getElementById('camp-status-strip-title');
+    if (!bar || !legend) return;
+    if (!total) { bar.innerHTML = ''; legend.innerHTML = ''; return; }
+    var restDelivering = Math.max(0, deliveringInWindow - spendingToday);
+    var segs = [
+      { n: spendingToday, color: 'var(--success)', label: 'تنفق اليوم' },
+      { n: restDelivering, color: 'var(--accent)', label: 'تعمل فعلًا' },
+      { n: dormant, color: 'var(--warning)', label: 'بدون إنفاق' },
+      { n: paused, color: 'var(--border-2)', label: 'متوقفة' },
+    ];
+    if (titleEl) titleEl.textContent = 'حملاتك الـ' + total + ' — أين تقف فعلًا؟';
+    bar.innerHTML = segs.filter(function (s) { return s.n > 0; }).map(function (s) {
+      return '<span style="flex:' + s.n + ';background:' + s.color + '"></span>';
+    }).join('');
+    legend.innerHTML = segs.map(function (s) {
+      return '<span class="status-strip-item"><span class="status-strip-dot" style="background:' + s.color + '"></span>'
+        + escHtml(s.label) + ' <bdi>' + s.n + '</bdi></span>';
+    }).join('');
   }
 
   // ── Objective translation ──────────────────────────────────────────────────
