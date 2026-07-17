@@ -327,13 +327,19 @@ export function dashboardPage(): string {
         </div>
       </section>
 
-      <!-- ═══ ACTIVE ADS + SPEND CHART SPLIT ═══ -->
+      <!-- ═══ UNIFIED CAMPAIGN STATUS STRIP ═══
+           One connected read on where every campaign stands — replaces the
+           old scattered Active-Ads grid + separate counters. Segments are
+           proportional to real campaignCounts; "بدون إنفاق" reads as Meta-
+           active-but-dormant, never as "working". -->
       <section class="active-section" id="active-section" style="display:none;">
         <div class="active-header">
-          <div class="active-title">إعلانات نشطة · تُنفق الآن</div>
-          <div class="active-meta" id="active-meta">—</div>
+          <div class="active-title" id="status-strip-title">حملاتك — أين تقف فعلًا؟</div>
+          <a class="active-meta" id="active-meta" href="/campaigns">التفاصيل</a>
         </div>
-        <div class="active-grid" id="active-grid"></div>
+        <div class="status-strip-bar" id="status-strip-bar"></div>
+        <div class="status-strip-legend" id="status-strip-legend"></div>
+        <div class="status-strip-note" id="status-strip-note"></div>
       </section>
 
       <section class="split-grid">
@@ -1393,39 +1399,49 @@ export function dashboardPage(): string {
   }
 
   // ── Active Ads Showcase ─────────────────────────────────────────────────
-  function renderActiveAds(campaigns, campaignCounts) {
-    var active = (campaigns || []).filter(function (c) { return c.isCurrentlySpending === true; });
+  // One connected strip in place of the old scattered active-ads grid +
+  // separate counters. Segments are proportional to real campaignCounts —
+  // never invented — so "بدون إنفاق" (Meta-active, zero spend) always reads
+  // as dormant, not as "working". See lib/campaignCatalog.ts for the
+  // deliveringInWindow / spendingToday / dormantActive / paused contract.
+  function renderCampaignStatusStrip(campaigns, campaignCounts) {
     var sec = document.getElementById('active-section');
-    var grid = document.getElementById('active-grid');
-    var meta = document.getElementById('active-meta');
-    if (!sec || !grid) return;
-    if (active.length === 0) { sec.style.display = 'none'; return; }
-    // SaaS attention order: highest spend first among campaigns spending now.
-    active = active.slice().sort(function (a, b) {
-      return (Number(b.spendWindowMinor) || 0) - (Number(a.spendWindowMinor) || 0);
-    });
+    var bar = document.getElementById('status-strip-bar');
+    var legend = document.getElementById('status-strip-legend');
+    var note = document.getElementById('status-strip-note');
+    var titleEl = document.getElementById('status-strip-title');
+    if (!sec || !bar || !legend) return;
+    var cc = campaignCounts;
+    if (!cc || !cc.total) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
-    if (meta) {
-      if (campaignCounts) {
-        meta.textContent = campaignCounts.deliveringInWindow + ' ' + lbl('delivering', 'تعمل')
-          + ' · ' + campaignCounts.spendingToday + ' ' + lbl('spending today', 'تنفق اليوم')
-          + ' · ' + campaignCounts.dormantActive + ' ' + lbl('dormant', 'بدون إنفاق');
-      } else {
-        meta.textContent = active.length + ' ' + lbl('spending today', 'حملة تُنفق اليوم');
-      }
+
+    // Order matches what matters most to the merchant: spending today (the
+    // strongest signal of actually delivering, per classifyCampaignDelivery)
+    // first, then the rest of the delivering window, then dormant, then
+    // stopped. Every count here is real — never invented.
+    var delivering = Math.max(0, cc.deliveringInWindow - cc.spendingToday);
+    var segs = [
+      { n: cc.spendingToday || 0, color: 'var(--success)', label: lbl('spending today', 'تنفق اليوم') },
+      { n: delivering, color: 'var(--accent)', label: lbl('delivering', 'تعمل فعلًا') },
+      { n: cc.dormantActive || 0, color: 'var(--warning)', label: lbl('no spend', 'بدون إنفاق') },
+      { n: (cc.paused || 0) + (cc.archived || 0), color: 'var(--border-2)', label: lbl('stopped', 'متوقفة') },
+    ];
+
+    if (titleEl) {
+      titleEl.textContent = lbl('Your ' + cc.total + ' campaigns — where do they really stand?', 'حملاتك الـ' + cc.total + ' — أين تقف فعلًا؟');
     }
-    grid.innerHTML = active.slice(0, 12).map(function (c) {
-      var budget = c.dailyBudget
-        ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
-        : (c.lifetimeBudget ? fmtCurrencyMinor(c.lifetimeBudget) + ' ' + lbl('total', 'إجمالي') : lbl('No budget set', 'بدون ميزانية محددة'));
-      return '<div class="active-card">'
-        + '<div class="active-top">'
-          + '<span class="blink-dot"></span>'
-          + '<span class="active-name" dir="auto" title="' + escHtml(c.name) + '">' + escHtml(c.name || '—') + '</span>'
-        + '</div>'
-        + '<div class="active-meta-row"><span>' + escHtml(translateObjective(c.objective)) + '</span><b>' + escHtml(budget) + '</b></div>'
-      + '</div>';
+    bar.innerHTML = segs.filter(function (s) { return s.n > 0; }).map(function (s) {
+      return '<span style="flex:' + s.n + ';background:' + s.color + '"></span>';
     }).join('');
+    legend.innerHTML = segs.map(function (s) {
+      return '<span class="status-strip-item"><span class="status-strip-dot" style="background:' + s.color + '"></span>'
+        + escHtml(s.label) + ' <bdi>' + s.n + '</bdi></span>';
+    }).join('');
+    if (note) {
+      note.textContent = cc.dormantActive > 0
+        ? lbl('"No spend" looks active in Meta but is not spending anything — not counted as delivering.', '«بدون إنفاق» تبدو نشطة في Meta لكنها لا تصرف شيئًا — لا تُحسب ضمن ما يعمل.')
+        : '';
+    }
   }
 
   // ── Steady-state helpers (rich content when no actions pending) ─────────
@@ -2110,18 +2126,29 @@ export function dashboardPage(): string {
       ? '<span class="diagnosis-confidence ' + badge.level + '">' + escHtml(badge.label + ' ' + badge.pct + '%') + '</span>'
       : '';
 
-    // Ideal product card: title + confidence + evidence narrative + ماذا تفعل الآن
+    // Signature card: headline + confidence, then the golden thread —
+    // evidence/diagnosis flowing into the recommendation as one continuous
+    // line of reasoning (see .thread in layout.ts). Every step here is real
+    // product data (why/decision/expect) — never invented sub-steps.
+    var threadSteps = '';
+    if (why) {
+      threadSteps += '<div class="thread-step">'
+        + '<div class="thread-step-label">' + escHtml(lbl('Evidence & diagnosis', 'الدليل والتشخيص')) + '</div>'
+        + escHtml(why)
+      + '</div>';
+    }
+    threadSteps += '<div class="thread-step thread-step--action">'
+      + '<div class="thread-step-label">' + escHtml(lbl('Recommendation', 'التوصية')) + '</div>'
+      + escHtml(primary.decision || primary.title)
+      + (expect ? '<div class="thread-step-sub">' + escHtml(expect) + '</div>' : '')
+    + '</div>';
+
     var html = '<article class="diagnosis-card diagnosis-card--hero ' + sevCls + '" dir="auto">'
       + '<div class="diagnosis-header">'
-        + '<div class="diagnosis-name">' + escHtml(primary.title) + '</div>'
         + badgeHtml
       + '</div>'
-      + (why ? '<div class="diagnosis-narrative">' + escHtml(why) + '</div>' : '')
-      + '<div class="diagnosis-action">'
-        + '<div class="diagnosis-action-label">' + escHtml(lbl('What to do now?', 'ماذا تفعل الآن؟')) + '</div>'
-        + escHtml(primary.decision || primary.title)
-        + (expect ? '<div class="diagnosis-expect">' + escHtml(expect) + '</div>' : '')
-      + '</div>'
+      + '<div class="diagnosis-name">' + escHtml(primary.title) + '</div>'
+      + '<div class="thread"><div class="thread-steps">' + threadSteps + '</div></div>'
       + '<div class="main-move-cta-row diagnosis-cta-row">'
         + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText || lbl('Do this task', 'نفّذ المهمة')) + '</button>'
         + '<a class="btn btn-secondary btn-sm" href="/ai?q=' + encodeURIComponent(mainMoveAiQuestion(primary)) + '">' + escHtml(lbl('Ask AI', 'اسأل المساعد')) + '</a>'
@@ -3316,7 +3343,7 @@ export function dashboardPage(): string {
       safeRender('kpiInsights', function () { renderKpiInsights(dashData, kpis); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
       safeRender('liveInsights', function () { renderTicker(buildTickerItems(dashData), dashData); });
-      safeRender('activeAds', function () { renderActiveAds(campaigns, dashData.workspace && dashData.workspace.campaignCounts); });
+      safeRender('activeAds', function () { renderCampaignStatusStrip(campaigns, dashData.workspace && dashData.workspace.campaignCounts); });
       safeRender('brainBox', function () { renderBrainBox(dashData); });
       safeRender('timeline', function () { renderTimeline(dashData); });
 

@@ -1277,12 +1277,51 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   border-color: rgba(217,167,89,0.28);
   box-shadow: 0 14px 40px rgba(0,0,0,0.22);
 }
-.diagnosis-card--hero .diagnosis-name { font-size: 20px; letter-spacing: -0.02em; }
-.diagnosis-card--hero .diagnosis-narrative { font-size: 14px; margin-bottom: 14px; }
+.diagnosis-card--hero .diagnosis-name {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 21px; line-height: 1.45; letter-spacing: -0.01em;
+  margin-bottom: 14px;
+}
 .diagnosis-card--hero .diagnosis-action { font-size: 13.5px; padding: 13px 14px; }
 .diagnosis-cta-row { margin-top: 14px; }
 .diagnosis-card--hero.has-critical { border-inline-start-color: var(--error); }
 .diagnosis-card--hero.has-warning { border-inline-start-color: var(--warning); }
+
+/* ── The golden thread — signature narrative treatment ────────────────────
+   A vertical connector linking the read (evidence + diagnosis) to the
+   recommendation, so a decision reads as one continuous line of reasoning
+   instead of stacked, disconnected paragraphs. Reused wherever the product
+   narrates a diagnosis: dashboard hero, AI assistant replies, ad analysis,
+   tasks. The final step's dot is filled solid — it's where the reasoning
+   resolves into an action. */
+.thread { position: relative; padding-inline-start: 22px; }
+.thread::before {
+  content: ""; position: absolute; inset-inline-start: 5px; top: 5px; bottom: 5px;
+  width: 2px; border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent), rgba(217,167,89,0.1));
+}
+.thread-steps { display: flex; flex-direction: column; gap: 12px; }
+.thread-step { position: relative; font-size: 13px; line-height: 1.6; color: var(--text); }
+.thread-step::before {
+  content: ""; position: absolute; inset-inline-start: -22px; top: 4px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--bg); border: 2px solid rgba(217,167,89,0.6);
+}
+.thread-step-label { display: block; font-size: 10px; font-weight: 800; color: var(--accent-2); margin-bottom: 3px; }
+.thread-step-sub { margin-top: 6px; font-size: 12px; color: var(--text-2); }
+.thread-step--action::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(217,167,89,0.5); }
+
+/* ── Unified honest status strip — one connected read on where every
+   campaign actually stands, replacing scattered counters. Segments are
+   proportional to real counts; "بدون إنفاق" (Meta-ACTIVE, zero spend) is
+   rendered in --warning, never counted as delivering — see
+   lib/campaignCatalog.ts for the counts contract this renders. ─────────── */
+.status-strip-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; gap: 2px; background: var(--surface-2); }
+.status-strip-bar > span { display: block; min-width: 2px; }
+.status-strip-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 9px; font-size: 10.5px; color: var(--text-2); font-weight: 700; }
+.status-strip-item { display: flex; align-items: center; gap: 5px; }
+.status-strip-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.status-strip-note { margin-top: 7px; font-size: 10.5px; color: var(--text-3); line-height: 1.5; }
 
 /* Advanced analytics section chrome (shared) */
 .adv-block { margin-bottom: 22px; direction: rtl; }
@@ -2712,13 +2751,18 @@ export function sidebar(active: string): string {
 }
 
 // ── Mobile Bottom Navigation ────────────────────────────────────────────
+// Order matches the redesigned information architecture: the decision surface
+// (dashboard), where the money goes (campaigns), the conversational shortcut
+// (assistant), the creative diagnosis (ad analysis), and the execution list
+// (tasks). Settings/support move to the topbar gear (see topbar()) so they
+// stay one tap away without spending one of five scarce tab slots on them.
 function mobileBottomNav(active: string): string {
   const items = [
-    { id: 'dashboard', label: 'الرئيسية', href: '/dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>' },
-    { id: 'campaigns', label: 'الحملات', href: '/campaigns', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' },
-    { id: 'recommendations', label: 'المهام', href: '/recommendations', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7z"/><path d="M22 19H2"/></svg>' },
-    { id: 'ai', label: 'الذكاء', href: '/ai', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93"/><path d="M8 6a4 4 0 018 0"/><path d="M12 22v-4"/><circle cx="12" cy="14" r="4"/><path d="M5 18a7 7 0 0114 0"/></svg>' },
-    { id: 'settings', label: 'الإعدادات', href: '/settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z"/></svg>' },
+    { id: 'dashboard', label: 'اللوحة', href: '/dashboard', icon: ICONS['dashboard'] },
+    { id: 'campaigns', label: 'الحملات', href: '/campaigns', icon: ICONS['campaigns'] },
+    { id: 'ai', label: 'المساعد', href: '/ai', icon: ICONS['ai'] },
+    { id: 'ad-analysis', label: 'التحليل', href: '/ad-analysis', icon: ICONS['ad-analysis'] },
+    { id: 'recommendations', label: 'المهام', href: '/recommendations', icon: ICONS['recommendations'] },
   ];
   return `<nav class="mobile-bottom-nav" aria-label="Mobile navigation">${items.map(it =>
     `<a href="${it.href}" class="mobile-nav-item${active === it.id ? ' active' : ''}">${it.icon}<span>${it.label}</span></a>`
@@ -2742,6 +2786,12 @@ export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): str
   const beginnerLogout = isBeginner
     ? `<button class="topbar-btn" type="button" id="logout-btn" title="تسجيل الخروج" aria-label="تسجيل الخروج">${ICONS['logout']}</button>`
     : `<button class="topbar-btn topbar-btn--bell" type="button" title="الإشعارات" aria-label="الإشعارات">${ICONS['bell']}</button>`;
+  // Settings moved out of the 5-slot mobile bottom nav (see mobileBottomNav) to
+  // make room for ad-analysis/tasks — this gear keeps it one tap away on every
+  // page, mobile and desktop alike, without removing the sidebar's own link.
+  const settingsBtn = isBeginner
+    ? ''
+    : `<a class="topbar-btn topbar-btn--settings" href="/settings" title="الإعدادات" aria-label="الإعدادات">${ICONS['settings']}</a>`;
   const menuBtn = isBeginner
     ? ''
     : `<button class="topbar-btn topbar-btn--menu mobile-menu-btn" id="mobile-menu-btn" type="button" aria-label="فتح القائمة">
@@ -2763,6 +2813,7 @@ export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): str
       </span>
       <span class="topbar-ws-chevron" aria-hidden="true">${ICONS['chevron']}</span>
     </div>
+    ${settingsBtn}
     ${beginnerLogout}
   </div>
 </header>`;

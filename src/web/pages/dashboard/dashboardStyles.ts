@@ -149,44 +149,16 @@ export const dashboardStyles = `<style>
 
     /* AI Context Strip — structured account snapshot tiles */
 
-    /* Active Ads Showcase Grid */
+    /* Unified campaign status strip — see .status-strip-* in layout.ts
+       SHARED_CSS for the bar/legend; this file only lays out its header. */
     .active-section { margin-bottom: 22px; }
     .active-header {
       display: flex; align-items: baseline; justify-content: space-between;
       margin-bottom: 12px; gap: 10px;
     }
-    .active-title { font-size: 12px; font-weight: 800; color: var(--text-3); letter-spacing: 0.06em; }
-    .active-meta  { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-    .active-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 10px;
-    }
-    .active-card {
-      background: var(--surface);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 14px;
-      padding: 13px 14px;
-      display: flex; flex-direction: column; gap: 8px;
-      transition: border-color 0.15s ease, transform 0.15s ease;
-    }
-    .active-card:hover { border-color: rgba(217,167,89,0.3); transform: translateY(-1px); }
-    .active-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .blink-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 0 0 rgba(52,168,113,0.5);
-      animation: blink-pulse 1.6s infinite;
-      flex-shrink: 0;
-    }
-    @keyframes blink-pulse {
-      0%   { box-shadow: 0 0 0 0 rgba(52,168,113,0.55); }
-      70%  { box-shadow: 0 0 0 8px rgba(52,168,113,0); }
-      100% { box-shadow: 0 0 0 0 rgba(52,168,113,0); }
-    }
-    .active-name { font-size: 13.5px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.45; }
-    .active-meta-row { font-size: 12px; color: var(--text-3); display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
-    .active-meta-row b { color: var(--accent-2); font-weight: 700; }
+    .active-title { font-size: 13px; font-weight: 800; color: var(--text); }
+    .active-meta  { font-size: 12px; font-weight: 700; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+    .active-meta:hover { color: var(--text); }
 
     /* Bottom Split Panel */
     .split-grid {
@@ -1223,8 +1195,8 @@ export const dashboardStyles = `<style>
        force its track wider than the screen and cause horizontal scroll on
        mobile. min-width:0 lets these tracks shrink to the viewport. This was
        the root cause of the chart bleeding off the right edge on phones. */
-    .split-grid, .active-grid, .v2-recovery-grid, .v2-insights, .kpi-command-grid, .live-insights-grid { min-width: 0; }
-    .split-grid > *, .active-card, .hero-card, .chart-panel, .brain-box,
+    .split-grid, .v2-recovery-grid, .v2-insights, .kpi-command-grid, .live-insights-grid { min-width: 0; }
+    .split-grid > *, .hero-card, .chart-panel, .brain-box,
     .main-move-card, .ticker-wrap, .exec-pulse-banner, .v2-action-body,
     .main-move-secondary-body, .strategy-card,
     .cmd-bar, .kpi-cmd-card, .live-insights-section, .live-insight-card,
@@ -1255,11 +1227,6 @@ export const dashboardStyles = `<style>
       .ticker-item { padding: 11px 12px; gap: 7px; }
       .ticker-text { font-size: 12.5px; }
       .ticker-badge { font-size: 9.5px; padding: 2px 7px; }
-
-
-      .active-grid { gap: 8px; }
-      .active-card { padding: 12px 14px; }
-      .active-name { font-size: 12px; }
 
       /* Chart: single column already (split-grid collapses at 1000px); make it
          a comfortable phone height and let the canvas fill the card width. */
@@ -1334,7 +1301,6 @@ export const dashboardStyles = `<style>
       .hero-grid { grid-template-columns: 1fr; gap: 10px; }
       .hero-card { padding: 16px 18px; }
       .hero-value { font-size: 26px; }
-      .active-grid { grid-template-columns: 1fr !important; }
       .chart-panel-canvas { height: 220px; }
     }
 
