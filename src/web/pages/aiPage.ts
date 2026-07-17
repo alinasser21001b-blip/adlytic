@@ -405,6 +405,58 @@ export function aiPage(): string {
     return addMsg('assistant', '<span class="typing-dots"><span>●</span><span>●</span><span>●</span></span>');
   }
 
+  // Recognized section labels — matches the headers aiOfflineReply.ts always
+  // emits (## الوضع / ## الدليل / التشخيص / ## التوصية…) and the labels the
+  // live model's system prompt is instructed to prefer. Prefix-matched since
+  // labels can carry a suffix (e.g. "الوضع — حملة «X»").
+  var THREAD_LABEL_RE = /^(?:الوضع|الدليل|التشخيص|التوصية|متى تراجع|الثقة|المتابعة|Situation|Evidence|Diagnosis|Recommendation|Confidence|Follow-up)/;
+
+  // Re-render a reply's labelled sections as the golden thread (see .thread
+  // in layout.ts) instead of plain bold-then-paragraph. Best-effort: only
+  // transforms a RUN of 2+ consecutive recognized-label paragraphs, and
+  // leaves everything else — single labels, prose, bullet lists, anything
+  // the live model phrases differently — completely untouched. Never
+  // invents structure the reply doesn't already have.
+  function applyThreadFormatting(html) {
+    try {
+      var parts = String(html || '').split(/(<p>[\\s\\S]*?<\\/p>)/g);
+      var out = [];
+      var run = []; // { raw, step } — step only valid once .thread wraps it
+      function flushRun() {
+        if (run.length >= 2) {
+          out.push('<div class="thread"><div class="thread-steps">' + run.map(function (r) { return r.step; }).join('') + '</div></div>');
+        } else {
+          // A lone matched label has no .thread ancestor to supply the
+          // indent its dot is positioned against — render it as the plain
+          // paragraph it already was rather than an orphaned, misaligned dot.
+          run.forEach(function (r) { out.push(r.raw); });
+        }
+        run = [];
+      }
+      parts.forEach(function (part) {
+        if (!part) return;
+        var m = /^<p><strong>([^<]+)<\\/strong>\\s*([\\s\\S]*?)<\\/p>$/.exec(part);
+        if (m && THREAD_LABEL_RE.test(m[1])) {
+          var isAction = /^(?:التوصية|Recommendation)/.test(m[1]);
+          run.push({
+            raw: part,
+            step: '<div class="thread-step' + (isAction ? ' thread-step--action' : '') + '">'
+              + '<div class="thread-step-label">' + m[1] + '</div>'
+              + m[2]
+              + '</div>',
+          });
+        } else {
+          flushRun();
+          out.push(part);
+        }
+      });
+      flushRun();
+      return out.join('');
+    } catch (e) {
+      return html;
+    }
+  }
+
   function mdToHtml(text) {
     return String(text || '')
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -478,7 +530,7 @@ export function aiPage(): string {
         : (isAr
           ? 'راجعت البيانات لكن الرد لم يكتمل. أعد السؤال أو اختر حملة واحدة محددة.'
           : 'I reviewed the data but the answer did not complete. Retry or ask about one specific campaign.');
-      const bubbleWrapper = addMsg('assistant', mdToHtml(answer));
+      const bubbleWrapper = addMsg('assistant', applyThreadFormatting(mdToHtml(answer)));
       if (usedV2 && res) {
         if (res.conversationId) conversationId = res.conversationId;
         renderToolChips(bubbleWrapper, res.toolCalls);
