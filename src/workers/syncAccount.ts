@@ -400,7 +400,7 @@ export class SyncAccountWorker {
   async reconcileCampaignStatuses(
     adAccountId: string,
     opts: { now?: Date } = {},
-  ): Promise<{ campaignsUpserted: number; frozen: number }> {
+  ): Promise<{ campaignsUpserted: number; frozen: number; campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] }> {
     const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
     const tag = `[reconcileCampaigns:${acct.externalAccountId}]`;
     const now = opts.now ?? new Date();
@@ -411,7 +411,7 @@ export class SyncAccountWorker {
 
     const existingCampaigns = await this.prisma.campaign.findMany({
       where: { adAccountId },
-      select: { id: true, externalCampaignId: true, status: true },
+      select: { id: true, externalCampaignId: true, status: true, dailyBudget: true, lifetimeBudget: true },
     });
     const priorByExternal = new Map(
       existingCampaigns.map((c) => [c.externalCampaignId, c]),
@@ -419,6 +419,11 @@ export class SyncAccountWorker {
 
     const freezeCandidateIds: string[] = [];
     const returnedExternalIds: string[] = [];
+    // Smart Refresh Engine: campaign-level transitions detected against the
+    // prior DB row (created / paused / activated / budget changed). Consumed
+    // by refreshEngine to auto-complete matching recommendations and to
+    // decide whether anything actually changed this sync.
+    const campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] = [];
 
     const upserts = metaCampaigns.map((mc) => {
       const externalId = String(mc["id"]);
@@ -442,6 +447,31 @@ export class SyncAccountWorker {
         newStatus: status,
       })) {
         freezeCandidateIds.push(externalId);
+      }
+
+      // Detect merchant-side transitions (edits made directly in Meta).
+      if (!prior) {
+        campaignChanges.push({ campaignId: '', externalCampaignId: externalId, name, kind: 'CampaignCreated' });
+      } else {
+        if (prior.status !== status) {
+          if (status === EntityStatus.PAUSED) {
+            campaignChanges.push({ campaignId: prior.id, externalCampaignId: externalId, name, kind: 'CampaignPaused' });
+          } else if (status === EntityStatus.ACTIVE) {
+            campaignChanges.push({ campaignId: prior.id, externalCampaignId: externalId, name, kind: 'CampaignActivated' });
+          }
+        }
+        const priorBudget = prior.dailyBudget ?? prior.lifetimeBudget;
+        const newBudget = dailyBudget ?? lifetimeBudget;
+        if (priorBudget != null && newBudget != null && priorBudget !== newBudget) {
+          campaignChanges.push({
+            campaignId: prior.id,
+            externalCampaignId: externalId,
+            name,
+            kind: 'BudgetChanged',
+            prevBudgetMinor: priorBudget.toString(),
+            newBudgetMinor: newBudget.toString(),
+          });
+        }
       }
 
       return this.prisma.campaign.upsert({
@@ -505,7 +535,15 @@ export class SyncAccountWorker {
       }
     }
 
-    return { campaignsUpserted: campaigns.length, frozen };
+    // Resolve internal ids for campaigns that were created this run (their
+    // change rows were collected before the upsert existed).
+    if (campaignChanges.some((c) => !c.campaignId)) {
+      const idByExternal = new Map(campaigns.map((c) => [c.externalCampaignId, c.id]));
+      for (const change of campaignChanges) {
+        if (!change.campaignId) change.campaignId = idByExternal.get(change.externalCampaignId) ?? '';
+      }
+    }
+    return { campaignsUpserted: campaigns.length, frozen, campaignChanges };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -531,12 +569,12 @@ export class SyncAccountWorker {
   async syncCampaigns(
     adAccountId: string,
     opts: { since: Date; until: Date; now?: Date }
-  ): Promise<{ campaignsUpserted: number; dailyRowsUpserted: number; frozen: number }> {
+  ): Promise<{ campaignsUpserted: number; dailyRowsUpserted: number; frozen: number; campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] }> {
     const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
     const tag = `[syncCampaigns:${acct.externalAccountId}]`;
     const now = opts.now ?? new Date();
 
-    const { campaignsUpserted, frozen } = await this.reconcileCampaignStatuses(adAccountId, { now });
+    const { campaignsUpserted, frozen, campaignChanges } = await this.reconcileCampaignStatuses(adAccountId, { now });
 
     const campaigns = await this.prisma.campaign.findMany({ where: { adAccountId } });
     console.log(`${tag} ${campaigns.length} campaign row(s) — now pulling daily insights…`);
@@ -597,7 +635,7 @@ export class SyncAccountWorker {
 
     console.log(`${tag} done — ${campaigns.length} campaigns, ${totalDailyUpserted} daily rows`);
 
-    return { campaignsUpserted, dailyRowsUpserted: totalDailyUpserted, frozen };
+    return { campaignsUpserted, dailyRowsUpserted: totalDailyUpserted, frozen, campaignChanges };
   }
 
   // ════════════════════════════════════════════════════════════════════════

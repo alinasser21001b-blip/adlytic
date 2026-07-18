@@ -960,6 +960,42 @@ enum PaymentEventSource {
 //  The HTTP route returns immediately with a jobId; the worker processes
 //  chunks in the background and updates progress/chunksDone/cursorDate.
 // ════════════════════════════════════════════════════════════════════════
+/// Smart Refresh Engine — dirty-state per entity. Which entities have
+/// pending recalculation, and when each source of change last touched them.
+model RefreshState {
+  id                            String     @id @default(cuid())
+  entityType                    EntityType @map("entity_type")
+  entityId                      String     @map("entity_id")
+  isDirty                       Boolean    @default(false) @map("is_dirty")
+  lastCalculatedAt              DateTime?  @map("last_calculated_at")
+  lastMetaSyncAt                DateTime?  @map("last_meta_sync_at")
+  lastUserChangeAt              DateTime?  @map("last_user_change_at")
+  lastRecommendationExecutionAt DateTime?  @map("last_recommendation_execution_at")
+  updatedAt                     DateTime   @updatedAt @map("updated_at")
+
+  @@unique([entityType, entityId])
+  @@map("refresh_states")
+}
+
+/// Smart Refresh Engine — one row per refresh run: what triggered it, which
+/// components ran (with per-component durations), what was skipped and why,
+/// and any errors. The debugging/performance contract for the sync layer.
+model RefreshLog {
+  id                 String   @id @default(cuid())
+  adAccountId        String   @map("ad_account_id")
+  trigger            String
+  sourceEvent        Json     @map("source_event")
+  componentsUpdated  Json     @map("components_updated")
+  componentDurations Json     @map("component_durations")
+  skipped            Json
+  errors             Json
+  durationMs         Int      @map("duration_ms")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([adAccountId, createdAt])
+  @@map("refresh_logs")
+}
+
 model SyncJob {
   id           String        @id @default(cuid())
   adAccountId  String        @map("ad_account_id")

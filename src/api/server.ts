@@ -85,6 +85,7 @@ import type { TicketCategory, TicketStatus, TicketPriority } from '@prisma/clien
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
+import { runRefresh } from '../services/refresh/refreshEngine';
 import { MetaClient, MetaApiError } from '../services/metaClient';
 import { getMetaUsageStats } from '../services/metaUsageTracker';
 import { loginPage } from '../web/pages/loginPage';
@@ -3722,7 +3723,41 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       title: body.title ?? null,
       metricsSnapshot,
     });
-    return c.json(safeJson(log));
+
+    // Smart Refresh Engine — recalculate intelligence NOW, not on next sync.
+    // Synchronous by design: the client refetches the dashboard right after
+    // this response, and that refetch must see recommendations/health that
+    // already reflect the action. Scoped: only the engines a user action can
+    // affect run (see planRefresh); DB-only work, bounded to a few seconds.
+    let refresh: Awaited<ReturnType<typeof runRefresh>> | null = null;
+    if (account) {
+      refresh = await runRefresh(prisma, null, {
+        type: action === 'EXECUTED' ? 'RecommendationExecuted' : 'RecommendationDismissed',
+        adAccountId: account.id,
+        workspaceId,
+        itemKey: body.itemKey,
+      });
+    }
+    return c.json(safeJson({ ...log, refresh: refresh ? { targetsRun: refresh.targetsRun, durationMs: refresh.durationMs } : null }));
+  });
+
+  /** GET /api/workspaces/:workspaceId/refresh-log — Smart Refresh Engine
+   *  observability: the last refresh runs for this workspace's account
+   *  (trigger, components run + per-component durations, skips, errors). */
+  app.get('/api/workspaces/:workspaceId/refresh-log', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json([]);
+    const logs = await prisma.refreshLog.findMany({
+      where: { adAccountId: account.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    return c.json(safeJson(logs));
   });
 
   /** POST /api/workspaces/:workspaceId/recommendations/:logId/action

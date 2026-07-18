@@ -19,8 +19,7 @@ import { SyncAccountWorker } from './syncAccount';
 import { MetaClient, MetaApiError } from '../services/metaClient';
 import { decryptToken, TokenDecryptError } from '../services/tokenEncryption';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
-import { runEngines } from './runEngines';
-import { runBrainOrchestrator } from './runBrainOrchestrator';
+import { runRefresh } from '../services/refresh/refreshEngine';
 import { config } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
 import {
@@ -157,13 +156,20 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
         }
         continue;
       }
+      // Smart Refresh Engine inputs: total rows written this sync + campaign
+      // transitions detected against the prior DB state. When BOTH are zero
+      // the refresh engine skips every recalculation and logs why.
+      let changedRows = syncResult.rowsUpserted;
+      let campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] = [];
 
       // Phase 2: Campaign-level daily stats + status reconciliation
       const since = new Date(Date.now() - 28 * 864e5);
       const until = new Date();
       try {
         const campResult = await worker.syncCampaigns(acct.id, { since, until });
-        console.log(`${tag} campaigns: ${campResult.dailyRowsUpserted} daily rows`);
+        changedRows += campResult.dailyRowsUpserted;
+        campaignChanges = campResult.campaignChanges;
+        console.log(`${tag} campaigns: ${campResult.dailyRowsUpserted} daily rows, ${campaignChanges.length} transition(s)`);
       } catch (campErr) {
         console.error(`${tag} syncCampaigns failed (non-fatal):`, campErr instanceof Error ? campErr.message : campErr);
       }
@@ -179,6 +185,7 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
       // Phase 4: Ad-level daily stats (feeds get_creative_performance)
       try {
         const adInsResult = await worker.syncAdInsights(acct.id, { since, until });
+        changedRows += adInsResult.rowsUpserted;
         console.log(`${tag} ad insights: ${adInsResult.rowsUpserted} rows`);
       } catch (aiErr) {
         console.error(`${tag} syncAdInsights failed (non-fatal):`, aiErr instanceof Error ? aiErr.message : aiErr);
@@ -192,13 +199,16 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
         console.error(`${tag} syncBreakdowns failed (non-fatal):`, bdErr instanceof Error ? bdErr.message : bdErr);
       }
 
-      // Phase 6: Engines + Brain
-      await runEngines(prisma, acct.id);
-      try {
-        await runBrainOrchestrator(prisma, metaClient, acct.id);
-      } catch (brainErr) {
-        console.error(`${tag} brain refresh failed:`, brainErr instanceof Error ? brainErr.message : brainErr);
-      }
+      // Phase 6: Smart Refresh Engine — event-driven recalculation.
+      // Runs engines + brain ONLY when this sync actually changed data,
+      // auto-completes recommendations the merchant already applied in Meta,
+      // and writes a refresh_logs row either way (observability).
+      await runRefresh(prisma, metaClient, {
+        type: 'MetaSyncCompleted',
+        adAccountId: acct.id,
+        changedRows,
+        campaignChanges,
+      });
 
       console.log(`${tag} ✓ full sync done (${Date.now() - syncStart}ms)`);
     } catch (err) {
