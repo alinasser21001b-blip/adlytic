@@ -562,7 +562,7 @@ export function dashboardPage(): string {
 
   // ── State ───────────────────────────────────────────────────────────────
   var PULSE_MS = 30000;
-  var FULL_REFRESH_MS = 300000; // full DTO every 5 min; pulse fills the gaps
+  var FULL_REFRESH_MS = 180000; // full DTO every 3 min; pulse fills the gaps
   var refreshTimer = null;
   var fullRefreshTimer = null;
   var refreshGeneration = 0;
@@ -3368,8 +3368,11 @@ export function dashboardPage(): string {
         if (!key) return;
         byDate[key] = d;
       });
-      // UTC calendar — matches getDashboard trendSeries date keys.
-      var endKey = new Date().toISOString().slice(0, 10);
+      // Day axis anchored to the AD ACCOUNT's calendar (workspace.accountToday,
+      // computed server-side in the Meta reporting timezone) — the viewer's
+      // clock or UTC can disagree with it around midnight and the newest day
+      // would vanish from the chart.
+      var endKey = (dashData.workspace && dashData.workspace.accountToday) || new Date().toISOString().slice(0, 10);
       var endParts = endKey.split('-').map(Number);
       var endMs = Date.UTC(endParts[0], endParts[1] - 1, endParts[2], 12);
       var labels = [];

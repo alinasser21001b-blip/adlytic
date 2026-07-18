@@ -140,7 +140,7 @@ import { ExecutionService } from '../services/execution.service';
 import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
-import { isCurrentlySpending, accountLocalTodayFloor } from '../lib/campaignSpending';
+import { isCurrentlySpending, accountLocalTodayFloor, accountLocalDateFloor, getAccountLocalDateString } from '../lib/campaignSpending';
 import { classifyCampaignDelivery, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
 import {
   efficiencyForObjective,
@@ -2511,11 +2511,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const scopeRaw = String(req.query['scope'] ?? 'all').toLowerCase();
     const scope: CampaignScopeFilter =
       scopeRaw === 'live' || scopeRaw === 'historical' ? scopeRaw : 'all';
-    const sinceDate = new Date(new Date(Date.now() - windowDays * 864e5).toISOString().slice(0, 10));
+    const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
     // Sparkline window: last 7 days of per-campaign daily spend, zero-filled
     // so every campaign gets exactly 7 chronological points.
     const sparkDays = 7;
-    const sparkSince = new Date(new Date(Date.now() - (sparkDays - 1) * 864e5).toISOString().slice(0, 10));
+    const sparkSince = accountLocalDateFloor(account.timezone, sparkDays - 1);
     const [todayStats, windowAgg, sparkRows, lastSpendRows] = campaigns.length
       ? await Promise.all([
           prisma.dailyStat.findMany({
@@ -2571,7 +2571,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     );
     const sparkIso: string[] = [];
     for (let i = sparkDays - 1; i >= 0; i--) {
-      sparkIso.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+      sparkIso.push(accountLocalDateFloor(account.timezone, i).toISOString().slice(0, 10));
     }
     const sparkByCampaign = new Map<string, Map<string, number>>();
     for (const r of sparkRows) {
@@ -2706,7 +2706,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json({ error: 'No ad account connected' }, 404);
     const days = Math.min(Number(req.query['days'] ?? '90'), 365);
-    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
+    const sinceDate = accountLocalDateFloor(account.timezone, days);
     const stats = await prisma.dailyStat.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       orderBy: { date: 'desc' },
@@ -3325,7 +3325,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       throw decErr;
     }
 
-    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken, timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
     try {
       const result = await worker.discoverCampaignOnDemand(account.id, campaign.id);
@@ -3453,7 +3453,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const days = Math.min(Number(req.query['days'] ?? '30'), 90);
-    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
+    const sinceDate = accountLocalDateFloor(account.timezone, days);
     const stats = await prisma.dailyStat.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       orderBy: { date: 'desc' },
@@ -3477,7 +3477,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const days = Math.min(Number(req.query['days'] ?? '30'), 90);
-    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
+    const sinceDate = accountLocalDateFloor(account.timezone, days);
     const rows = await prisma.detectedIssue.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       orderBy: { date: 'asc' },
@@ -5112,7 +5112,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       throw decErr;
     }
 
-    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken, timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
     enqueueOrFallback(
       () =>
@@ -5265,7 +5265,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       throw decErr;
     }
-    const metaClient = new MetaClient({ apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion, accessToken, timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
 
     // On a Meta 190 (expired/invalid token): SYSTEM_USER accounts flag the

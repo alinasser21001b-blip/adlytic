@@ -7,6 +7,7 @@ import {
   findGloballyOrphanedCampaignEntityIds,
 } from '../lib/campaignDataIsolation';
 import { classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
+import { accountLocalDateFloor } from '../lib/campaignSpending';
 
 export type IntegritySeverity = 'OK' | 'INFO' | 'WARN' | 'CRITICAL';
 
@@ -59,7 +60,7 @@ export async function runDataIntegrityCheck(
   opts: { windowDays?: number } = {},
 ): Promise<DataIntegrityReport> {
   const windowDays = opts.windowDays ?? DELIVERY_WINDOW_DAYS;
-  const sinceDate = new Date(new Date(Date.now() - windowDays * 864e5).toISOString().slice(0, 10));
+  const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
   const checks: IntegrityCheck[] = [];
 
   const knownCampaigns = await prisma.campaign.findMany({

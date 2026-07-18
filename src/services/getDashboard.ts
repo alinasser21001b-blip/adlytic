@@ -58,6 +58,7 @@ import { EntityStatus } from "@prisma/client";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { getCampaignCounts, type CampaignCounts } from "../lib/campaignCatalog";
+import { accountLocalDateFloor, getAccountLocalDateString } from "../lib/campaignSpending";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
@@ -123,6 +124,12 @@ export interface DashboardDTO {
      *  IQD-vs-everything-else rule. */
     currencyMinorFactor: number;
     lastSyncedAt: string | null;
+    /** "Today" (YYYY-MM-DD) in the ad account's Meta reporting timezone.
+     *  Charts anchor their day axis to THIS, not the viewer's or UTC's clock,
+     *  so the newest day never disappears around midnight. */
+    accountToday: string;
+    /** IANA reporting timezone of the ad account (Meta timezone_name). */
+    accountTimezone: string;
     /** Campaigns delivering spend in the window — primary operational "active" count. */
     activeCampaigns: number;
     /** Unified counts — same source used by AI + UI chips. */
@@ -338,12 +345,6 @@ const sum = (rows: { [k: string]: any }[], f: string) =>
 function avg(rows: { [k: string]: any }[], f: string): number | null {
   const vals = rows.map((r) => r[f]).filter((v) => v != null) as number[];
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-}
-
-/** UTC date floor aligned with getDashboard / insights route window math. */
-function utcDateFloor(daysAgo: number): Date {
-  const since = new Date(Date.now() - daysAgo * 864e5);
-  return new Date(since.toISOString().slice(0, 10));
 }
 
 /** Window-total CTR = Σclicks / Σimpressions × 100 (matches KPI aggregate math). */
@@ -613,8 +614,11 @@ export async function getDashboard(
 
   const curr = account.currency;
   const factor = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
-  const sinceDate = utcDateFloor(windowDays);
-  const priorSinceDate = utcDateFloor(windowDays * 2);
+  // Windows follow the account's reporting calendar — DailyStat dates come
+  // from Meta in the account timezone, so a UTC window boundary drops or
+  // shifts the newest day around the account's midnight.
+  const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
+  const priorSinceDate = accountLocalDateFloor(account.timezone, windowDays * 2);
 
   // 2. Independent account reads in parallel (biggest latency win).
   const [allDaily, healthRow, detected, latestTrend, rec] = await Promise.all([
@@ -1147,6 +1151,8 @@ export async function getDashboard(
       currency: curr,
       currencyMinorFactor: factor,
       lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
+      accountToday: getAccountLocalDateString(account.timezone),
+      accountTimezone: account.timezone,
       activeCampaigns,
       campaignCounts,
     },

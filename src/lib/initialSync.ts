@@ -68,7 +68,7 @@ export async function kickoffInitialSync(
   }
 
   const apiVersion = config.meta.apiVersion;
-  const metaClient = new MetaClient({ apiVersion, accessToken });
+  const metaClient = new MetaClient({ apiVersion, accessToken , timezone: account.timezone });
   const worker = new SyncAccountWorker(prisma, metaClient);
   const now = new Date();
   const since = new Date(now.getTime() - (INITIAL_BACKFILL_DAYS - 1) * 86400 * 1000);

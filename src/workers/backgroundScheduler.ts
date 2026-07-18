@@ -92,6 +92,7 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
         accessTokenEncrypted: true,
         tokenSource: true,
         connectionId: true,
+        timezone: true,
         connection: { select: { id: true, status: true, accessTokenEncrypted: true } },
       },
     });
@@ -135,7 +136,7 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
     });
 
     try {
-      const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken });
+      const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken, timezone: acct.timezone });
       const worker = new SyncAccountWorker(prisma, metaClient);
       const tag = `[adlytic:auto-sync:${acct.externalAccountId}]`;
       const syncStart = Date.now();

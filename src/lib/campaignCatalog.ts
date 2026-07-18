@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { EntityType } from '@prisma/client';
 
-import { accountLocalTodayFloor, isCurrentlySpending } from './campaignSpending';
+import { accountLocalTodayFloor, accountLocalDateFloor, isCurrentlySpending } from './campaignSpending';
 import { classifyCampaignDelivery, type DeliveryTier } from './campaignLifecycle';
 
 export interface CampaignCounts {
@@ -75,9 +75,7 @@ export async function getCampaignCounts(
 
   const activeRows = campaigns.filter((c) => c.status === 'ACTIVE');
   const tickToday = accountLocalTodayFloor(timezone);
-  const sinceDate = new Date(
-    new Date(Date.now() - deliveryWindowDays * 864e5).toISOString().slice(0, 10),
-  );
+  const sinceDate = accountLocalDateFloor(timezone, deliveryWindowDays);
   const campaignIds = campaigns.map((c) => c.id);
 
   const [todayStats, windowAgg] = await Promise.all([
@@ -165,7 +163,7 @@ export async function getCampaignCatalog(
 
   const activeIds = campaigns.filter((c) => c.status === 'ACTIVE').map((c) => c.id);
   const tickToday = accountLocalTodayFloor(timezone);
-  const sinceDate = new Date(new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10));
+  const sinceDate = accountLocalDateFloor(timezone, 30);
   const allIds = campaigns.map((c) => c.id);
   const [todayStats, windowAgg] = await Promise.all([
     activeIds.length

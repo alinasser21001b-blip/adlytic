@@ -18,6 +18,14 @@ export interface MetaClientConfig {
   maxRetries?: number;
   retryBaseMs?: number;
   fetchImpl?: typeof fetch;    // injectable for tests
+  /**
+   * Ad account reporting timezone (Meta `timezone_name`, e.g. "Asia/Baghdad").
+   * Meta interprets time_range dates in THIS timezone, so since/until must be
+   * converted to the account's calendar day — a UTC conversion asks for the
+   * wrong day around the account's midnight and today's data never arrives.
+   * Defaults to UTC when unknown.
+   */
+  timezone?: string;
 }
 
 /** Raw Meta insight row — kept as-is, never reshaped here. */
@@ -59,6 +67,7 @@ export class MetaClient {
   private maxRetries: number;
   private retryBaseMs: number;
   private fetchFn: typeof fetch;
+  private timezone: string;
 
   constructor(cfg: MetaClientConfig) {
     this.base = `${cfg.baseUrl ?? "https://graph.facebook.com"}/${cfg.apiVersion}`;
@@ -66,6 +75,21 @@ export class MetaClient {
     this.maxRetries = cfg.maxRetries ?? 5;
     this.retryBaseMs = cfg.retryBaseMs ?? 500;
     this.fetchFn = cfg.fetchImpl ?? fetch;
+    this.timezone = cfg.timezone ?? "UTC";
+  }
+
+  /** Calendar day of `d` in the ad account's reporting timezone (YYYY-MM-DD). */
+  private localYmd(d: Date): string {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: this.timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
+    } catch {
+      return ymd(d);
+    }
   }
 
   /**
@@ -87,8 +111,8 @@ export class MetaClient {
       time_increment: "1",            // one row per day
       fields: args.fields ?? DEFAULT_FIELDS,
       time_range: JSON.stringify({
-        since: ymd(args.since),
-        until: ymd(args.until),
+        since: this.localYmd(args.since),
+        until: this.localYmd(args.until),
       }),
       access_token: this.token,
       limit: "500",

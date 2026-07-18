@@ -82,7 +82,7 @@ export function createSyncAccountProcessor(prisma: PrismaClient) {
       throw err;
     }
 
-    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken , timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
 
     const handle190 = (): Promise<void> =>

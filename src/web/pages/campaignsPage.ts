@@ -1587,7 +1587,9 @@ export function campaignsPage(): string {
     var segs = '';
     for (var i = 29; i >= 0; i--) {
       var dt = new Date(Date.now() - i * 864e5);
-      var iso = dt.toISOString().slice(0, 10);
+      // Local calendar day, not UTC — around midnight UTC lags the merchant's
+      // clock and the strip would mark the newest synced day as missing.
+      var iso = dt.toLocaleDateString('en-CA');
       var label = dt.toLocaleDateString('ar-u-nu-latn', { day: 'numeric', month: 'short' });
       segs += '<div class="fresh-seg' + (have[iso] ? ' ok' : '') + '" title="' + escAttr(label + (have[iso] ? ' — مُزامَن' : ' — لا بيانات')) + '"></div>';
     }
