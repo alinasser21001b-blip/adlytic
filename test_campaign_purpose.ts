@@ -50,14 +50,14 @@ const postEng = resolveCampaignPurpose({
 assert.equal(postEng.family, 'engagement');
 assert.equal(postEng.kpi.resultKey, 'clicks');
 
-// Soft fallback: engagement + messages, no opt goal → messaging
+// Evidence fallback: engagement + real conversations, no opt goal → messaging
 const soft = resolveCampaignPurpose({
   objective: 'OUTCOME_ENGAGEMENT',
   optimizationGoals: [],
   messagesWindow: 13,
 });
 assert.equal(soft.family, 'messaging');
-assert.equal(soft.reason, 'soft:engagement_with_messages');
+assert.ok(soft.reason.startsWith('evidence:'));
 
 // Soft must NOT override awareness even if messages somehow present
 const awarenessSoft = resolveCampaignPurpose({
@@ -66,6 +66,64 @@ const awarenessSoft = resolveCampaignPurpose({
   messagesWindow: 5,
 });
 assert.equal(awarenessSoft.family, 'awareness');
+
+// ── destination_type — THE authoritative click-to-message signal ─────────
+// The production mislabel: ODAX engagement shell + LINK_CLICKS optimization,
+// but ads open WhatsApp. objective AND optimization_goal both say the wrong
+// thing; destination_type is what Ads Manager actually keys messaging off.
+const whatsappClicks = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['LINK_CLICKS'],
+  destinationTypes: ['WHATSAPP'],
+  messagesWindow: 0, // even before any conversation lands
+  clicksWindow: 50,
+});
+assert.equal(whatsappClicks.family, 'messaging');
+assert.equal(whatsappClicks.destinationType, 'WHATSAPP');
+assert.ok(whatsappClicks.reason.startsWith('destination:'));
+assert.ok(whatsappClicks.reasonAr.includes('واتساب'));
+
+// destination beats POST_ENGAGEMENT optimization too
+const messengerPostEng = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  destinationTypes: ['MESSENGER'],
+  messagesWindow: 30,
+  clicksWindow: 30,
+});
+assert.equal(messengerPostEng.family, 'messaging');
+
+// WEBSITE destination is NOT messaging — classification falls through
+const websiteDest = resolveCampaignPurpose({
+  objective: 'OUTCOME_TRAFFIC',
+  optimizationGoals: ['LINK_CLICKS'],
+  destinationTypes: ['WEBSITE'],
+  messagesWindow: 0,
+  clicksWindow: 200,
+});
+assert.equal(websiteDest.family, 'traffic');
+assert.equal(websiteDest.destinationType, null);
+
+// Evidence rung: engagement-optimized but results ARE conversations
+// (destination not synced yet on an old row) → messaging
+const evidenceMsgs = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  messagesWindow: 30,
+  clicksWindow: 30,
+});
+assert.equal(evidenceMsgs.family, 'messaging');
+assert.ok(evidenceMsgs.reason.startsWith('evidence:'));
+
+// Guard: a genuine boosted post with 2 incidental page messages and lots of
+// clicks must STAY engagement — never flip on noise.
+const boostedPost = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  messagesWindow: 2,
+  clicksWindow: 500,
+});
+assert.equal(boostedPost.family, 'engagement');
 
 // KPI math for messaging purpose
 const totals = {

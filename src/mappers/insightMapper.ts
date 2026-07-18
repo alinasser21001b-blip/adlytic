@@ -230,16 +230,24 @@ export function mapMetaBreakdownInsight(
 // the count ~1.9× in production (163 reported vs 87 in Meta Ads Manager).
 const MESSAGE_ACTION_TYPES = new Set([
   "onsite_conversion.messaging_conversation_started_7d",
+  // Newer "Messaging connections" event — Ads Manager's primary result for
+  // many click-to-WhatsApp / welcome-message campaigns. Without it those
+  // campaigns report 0 messages here, which cascades into a WRONG purpose
+  // classification (messages campaign displayed as "تفاعل").
+  "onsite_conversion.total_messaging_connection",
   // legacy:
   "messaging_conversation_started",
 ]);
 
 // Strict preference order for pickMessages — NEVER summed. The first
 // action_type present on the row wins; this guarantees parity with what Meta
-// Ads Manager itself reports as "Messaging conversations started".
+// Ads Manager itself reports as "Messaging conversations started" (falling
+// back to "Messaging connections" only when conversation-started is absent —
+// summing the two would double-count, since a connection includes the start).
 const MESSAGE_ACTION_PREFERENCE: readonly string[] = [
   "onsite_conversion.messaging_conversation_started_7d",
   "messaging_conversation_started",
+  "onsite_conversion.total_messaging_connection",
 ];
 
 function pickMessages(actions: ActionRow[]): number {

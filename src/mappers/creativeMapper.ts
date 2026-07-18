@@ -21,6 +21,10 @@ export interface NormalizedAdSet {
   status: string;                  // raw Meta string; status mapping happens in syncAccount
   dailyBudgetMinor: bigint | null;  // null when Meta doesn't expose one (e.g. campaign-budget-optimized)
   optimizationGoal: string | null;
+  /** Meta destination_type (MESSENGER / WHATSAPP / INSTAGRAM_DIRECT / WEBSITE / …).
+   *  The honest click-to-message signal when objective+optimization both say
+   *  "engagement" — see lib/campaignPurpose.ts. Null when Meta omits it. */
+  destinationType: string | null;
   targeting: unknown;               // forensic blob — written into Json column verbatim
   /** Meta's learning_stage_info.status, verbatim. Null when Meta omits the field. */
   learningPhaseStatus: string | null;
@@ -46,6 +50,7 @@ export function mapMetaAdSet(row: MetaInsightRow): NormalizedAdSet {
     status: String(row['effective_status'] ?? row['status'] ?? ''),
     dailyBudgetMinor,
     optimizationGoal: row['optimization_goal'] != null ? String(row['optimization_goal']) : null,
+    destinationType: row['destination_type'] != null ? String(row['destination_type']) : null,
     targeting: row['targeting'] ?? null,
     learningPhaseStatus,
   };

@@ -315,7 +315,7 @@ async function loadRawDataForCampaigns(
       externalCampaignId: true,
       name: true,
       objective: true,
-      adSets: { select: { optimizationGoal: true } },
+      adSets: { select: { optimizationGoal: true, destinationType: true } },
     },
   });
   const byId = new Map(camps.map(c => [c.id, c]));
@@ -335,7 +335,9 @@ async function loadRawDataForCampaigns(
     const purpose = resolveCampaignPurpose({
       objective: c.objective,
       optimizationGoals: c.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: c.adSets.map((a) => a.destinationType),
       messagesWindow: Number(r.messages),
+      clicksWindow: Number(r.clicks),
     });
     const effectiveObjective =
       purpose.family === 'messaging' ? 'MESSAGES'

@@ -2498,7 +2498,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       where: { adAccountId: account.id },
       orderBy: { createdAt: 'desc' },
       include: {
-        adSets: { select: { optimizationGoal: true } },
+        adSets: { select: { optimizationGoal: true, destinationType: true } },
       },
     });
     const tickToday = accountLocalTodayFloor(account.timezone);
@@ -2611,7 +2611,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const purpose = resolveCampaignPurpose({
           objective: camp.objective,
           optimizationGoals: (camp.adSets ?? []).map((a) => a.optimizationGoal),
+          destinationTypes: (camp.adSets ?? []).map((a) => a.destinationType),
           messagesWindow: messages,
+          clicksWindow: clicks,
         });
         const kpiSpec = purpose.kpi;
         const purposeKey = purposeToObjectiveKey(purpose.family, camp.objective);
@@ -2767,7 +2769,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const campaign = await prisma.campaign.findFirst({
       where: { id: req.params['campaignId'], adAccountId: account.id },
-      include: { adSets: { select: { optimizationGoal: true } } },
+      include: { adSets: { select: { optimizationGoal: true, destinationType: true } } },
     });
     if (!campaign) return c.json({ error: 'Not found' }, 404);
 
@@ -2907,7 +2909,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const purpose = resolveCampaignPurpose({
       objective: campaign.objective,
       optimizationGoals: campaign.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: campaign.adSets.map((a) => a.destinationType),
       messagesWindow: messagesN,
+      clicksWindow: clicksN,
     });
     const kpiSpec = purpose.kpi;
     const purposeKey = purposeToObjectiveKey(purpose.family, campaign.objective);
@@ -3124,7 +3128,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         purposeLabelAr: purpose.labelAr,
         purposeFamily: purpose.family,
         purposeReason: purpose.reason,
+        purposeReasonAr: purpose.reasonAr,
         optimizationGoal: purpose.optimizationGoal,
+        destinationType: purpose.destinationType,
         dailyBudgetMinor: campaign.dailyBudget,
         lifetimeBudgetMinor: campaign.lifetimeBudget,
         createdAt: campaign.createdAt,

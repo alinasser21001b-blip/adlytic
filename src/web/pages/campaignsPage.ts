@@ -2029,6 +2029,13 @@ export function campaignsPage(): string {
       : '—';
     var spendText = fmtMinor(s.spendMinor, a.currencyMinorFactor, a.currency);
     var purposeFrame = purposeFrameCopy(family, resultLabel, efficiencyLabel);
+    // Why this classification — from the server-side purpose resolver
+    // (destination_type / optimization_goal / evidence). Shown so a merchant
+    // whose "messages" campaign was ever mislabeled can SEE the basis and
+    // trust the correction.
+    var purposeReasonLine = c.purposeReasonAr
+      ? '<div class="insp-purpose-text" style="margin-top:3px;color:var(--text-3);font-size:11px;">' + escHtml(c.purposeReasonAr) + '</div>'
+      : '';
 
     var purposeBanner =
       '<div class="insp-purpose">'
@@ -2036,6 +2043,7 @@ export function campaignsPage(): string {
     +   '<div>'
     +     '<div class="insp-purpose-title">معيار العرض · ' + escHtml(purposeText || 'الحملة') + '</div>'
     +     '<div class="insp-purpose-text">' + escHtml(purposeFrame) + '</div>'
+    +     purposeReasonLine
     +   '</div>'
     + '</div>';
 

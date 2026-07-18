@@ -269,6 +269,11 @@ model AdSet {
   status           EntityStatus @default(ACTIVE)
   dailyBudget      BigInt?      @map("daily_budget")
   optimizationGoal String?      @map("optimization_goal")
+  /// Meta ad-set destination_type (MESSENGER / WHATSAPP / INSTAGRAM_DIRECT /
+  /// WEBSITE / …). THE authoritative click-to-message signal: an ODAX
+  /// engagement campaign whose ads land in WhatsApp is a MESSAGES campaign
+  /// even when optimization_goal is LINK_CLICKS or POST_ENGAGEMENT.
+  destinationType  String?      @map("destination_type")
   targetingJson    Json?        @map("targeting_json")
   /// Meta's learning_stage_info.status, verbatim ("LEARNING",
   /// "LEARNING_LIMITED", "SUCCESS", ...). Null when Meta doesn't return the

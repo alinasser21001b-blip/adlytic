@@ -26,26 +26,44 @@ export interface CampaignPurposeInput {
   /** Distinct optimization_goal values from the campaign's ad sets. */
   optimizationGoals?: Array<string | null | undefined> | null;
   /**
-   * Soft signal: window message count. Used ONLY when objective is engagement
-   * (or unknown) and no optimization goals are available — never overrides a
-   * clear REACH / LINK_CLICKS / PURCHASE optimization.
+   * Ad-set destination_type values (MESSENGER / WHATSAPP / INSTAGRAM_DIRECT /
+   * WEBSITE / …). THE authoritative click-to-message signal: an ODAX
+   * engagement campaign whose ads open a chat is a MESSAGES campaign even
+   * when its ad sets optimize LINK_CLICKS or POST_ENGAGEMENT — Ads Manager
+   * itself reports messaging results for these. Wins over everything else.
+   */
+  destinationTypes?: Array<string | null | undefined> | null;
+  /**
+   * Soft signal: window message count. Used ONLY when the campaign would
+   * otherwise land on "engagement" — never overrides a clear
+   * REACH / PURCHASE / LEADS optimization.
    */
   messagesWindow?: number | null;
+  /**
+   * Companion to messagesWindow for the evidence guard: incidental page
+   * messages on a genuine boosted post must NOT flip it to "messages", so
+   * the soft rule requires messages to be meaningful relative to clicks.
+   */
+  clicksWindow?: number | null;
 }
 
 export interface CampaignPurpose {
-  /** Effective KPI family after optimization-goal override. */
+  /** Effective KPI family after destination/optimization-goal overrides. */
   family: ObjectiveKpiFamily;
   /** Raw Meta campaign objective (unchanged). */
   objective: string | null;
   /** Primary optimization goal that drove the override (if any). */
   optimizationGoal: string | null;
+  /** Messaging destination that drove the override (if any). */
+  destinationType: string | null;
   /** KPI spec for presentation + efficiency math. */
   kpi: ObjectiveKpiSpec;
   /** Arabic badge for the merchant (رسائل / وعي بالعلامة / …). */
   labelAr: string;
   /** Why we classified this way — for debugging / inspector. */
   reason: string;
+  /** Merchant-facing Arabic explanation of the classification basis. */
+  reasonAr: string;
 }
 
 const FAMILY_LABEL_AR: Record<ObjectiveKpiFamily, string> = {
@@ -57,6 +75,25 @@ const FAMILY_LABEL_AR: Record<ObjectiveKpiFamily, string> = {
   messaging: 'رسائل',
   app: 'ترويج تطبيق',
 };
+
+/** Ad destinations that open a chat — the campaign is a MESSAGES campaign
+ *  regardless of objective/optimization labels (Ads Manager behaves the same). */
+const MESSAGING_DESTINATIONS = new Set([
+  'MESSENGER',
+  'WHATSAPP',
+  'INSTAGRAM_DIRECT',
+  'MESSAGING_APPS', // multi-destination click-to-message
+]);
+
+function pickMessagingDestination(
+  destinations: Array<string | null | undefined> | null | undefined,
+): string | null {
+  for (const d of destinations ?? []) {
+    const norm = normalizeGoal(d);
+    if (MESSAGING_DESTINATIONS.has(norm)) return norm;
+  }
+  return null;
+}
 
 /** Optimization goals that mean "this is a messaging / conversations campaign". */
 const MESSAGING_OPT_GOALS = new Set([
@@ -144,46 +181,76 @@ export function familyFromOptimizationGoal(
   return null;
 }
 
+/** Merchant-facing Arabic names for messaging destinations. */
+const DESTINATION_LABEL_AR: Record<string, string> = {
+  MESSENGER: 'ماسنجر',
+  WHATSAPP: 'واتساب',
+  INSTAGRAM_DIRECT: 'رسائل إنستغرام',
+  MESSAGING_APPS: 'تطبيقات المراسلة',
+};
+
 /**
  * Resolve merchant-facing purpose BEFORE choosing KPIs or Arabic labels.
  *
- * Priority:
- *   1. Messaging optimization goal → messaging (even if objective is ENGAGEMENT)
- *   2. Other clear optimization goals → that family
- *   3. Campaign objective family
- *   4. Soft: engagement/unknown + messages > 0 → messaging
+ * Priority (each rung fixes a real production mislabel):
+ *   1. Messaging destination_type → messaging. THE authoritative signal:
+ *      a click-to-WhatsApp campaign stays a messages campaign even when its
+ *      ad sets optimize LINK_CLICKS or POST_ENGAGEMENT (Ads Manager agrees).
+ *   2. Messaging optimization goal → messaging (even if objective is ENGAGEMENT)
+ *   3. Other clear optimization goals → that family
+ *   4. Campaign objective family
+ *   5. Evidence: would-be-"engagement" campaign whose actual results are
+ *      dominated by messaging conversations → messaging. Guarded against
+ *      incidental page messages on genuine boosted posts (see below).
  */
 export function resolveCampaignPurpose(input: CampaignPurposeInput): CampaignPurpose {
   const objective = input.objective != null ? String(input.objective) : null;
   const optGoal = pickPrimaryOptimizationGoal(input.optimizationGoals);
+  const destination = pickMessagingDestination(input.destinationTypes);
   const fromOpt = familyFromOptimizationGoal(optGoal);
   const fromObj = objectiveKpiFamily(objective);
 
   let family: ObjectiveKpiFamily = fromObj;
   let reason = `objective:${fromObj}`;
+  let reasonAr = 'حسب هدف الحملة المُعلن في Meta';
 
-  if (fromOpt === 'messaging') {
+  if (destination) {
+    family = 'messaging';
+    reason = `destination:${destination}`;
+    reasonAr = `إعلانات هذه الحملة تفتح محادثة (${DESTINATION_LABEL_AR[destination] ?? destination}) — تُقاس بالرسائل لا بالتفاعل`;
+  } else if (fromOpt === 'messaging') {
     family = 'messaging';
     reason = `optimization_goal:${optGoal}`;
+    reasonAr = 'مجموعات الإعلانات مُحسَّنة لبدء المحادثات — تُقاس بالرسائل';
   } else if (fromOpt != null) {
     // Optimization goal wins when it clearly disagrees with a vague engagement
     // objective, or when objective is missing.
     if (fromObj === 'engagement' || fromObj === 'messaging' || !objective) {
       family = fromOpt;
       reason = `optimization_goal:${optGoal}`;
+      reasonAr = 'حسب هدف التحسين الفعلي لمجموعات الإعلانات';
     } else if (fromOpt !== fromObj) {
       // Strong opt goals (reach / purchase / leads) still win over mismatched objective.
       family = fromOpt;
       reason = `optimization_goal_override:${optGoal}`;
+      reasonAr = 'حسب هدف التحسين الفعلي لمجموعات الإعلانات';
     }
-  } else if (
-    (fromObj === 'engagement' || !objective) &&
-    Number(input.messagesWindow) > 0
-  ) {
-    // Soft fallback for older syncs missing optimization_goal: if Meta stored
-    // messaging conversations and the shell objective is engagement, treat as messages.
-    family = 'messaging';
-    reason = 'soft:engagement_with_messages';
+  }
+
+  // Evidence rung: the campaign landed on "engagement" (vague ODAX shell, or a
+  // POST_ENGAGEMENT ad set on a click-to-message campaign whose destination
+  // wasn't synced yet) but its ACTUAL results are messaging conversations.
+  // Guard: messages must be meaningful — at least 3 AND at least 20% of clicks
+  // — so a boosted post with two incidental page messages never flips.
+  if (family === 'engagement') {
+    const messages = Number(input.messagesWindow) || 0;
+    const clicks = Number(input.clicksWindow) || 0;
+    const meaningful = messages >= 3 && (clicks <= 0 || messages >= clicks * 0.2);
+    if (meaningful) {
+      family = 'messaging';
+      reason = `evidence:messages=${messages},clicks=${clicks}`;
+      reasonAr = 'نتائج الحملة الفعلية محادثات رسائل — صُنّفت كحملة رسائل';
+    }
   }
 
   const kpi = getObjectiveKpiSpec(
@@ -197,9 +264,11 @@ export function resolveCampaignPurpose(input: CampaignPurposeInput): CampaignPur
     family,
     objective,
     optimizationGoal: optGoal,
+    destinationType: destination,
     kpi: kpiForced,
     labelAr: FAMILY_LABEL_AR[family],
     reason,
+    reasonAr,
   };
 }
 

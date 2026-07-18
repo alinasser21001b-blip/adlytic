@@ -180,7 +180,7 @@ export class MetaClient {
   /** List ad sets under a campaign — used for AdSet discovery (Phase 5 Pass A). */
   async listAdSets(externalCampaignId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
-      fields: "id,name,status,effective_status,daily_budget,optimization_goal,targeting,learning_stage_info{status}",
+      fields: "id,name,status,effective_status,daily_budget,optimization_goal,destination_type,targeting,learning_stage_info{status}",
       access_token: this.token,
       limit: "200",
     });
