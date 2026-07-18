@@ -1241,7 +1241,7 @@ export function dashboardPage(): string {
     if (activeEl) {
       var activeSpan = activeEl.querySelector('span');
       if (activeSpan) {
-        var delivering = cc ? (cc.spendingToday || cc.deliveringInWindow || 0) : 0;
+        var delivering = cc ? (cc.deliveringInWindow || cc.spendingToday || 0) : 0;
         activeSpan.textContent = delivering + ' ' + lbl('active', 'نشطة');
       }
     }

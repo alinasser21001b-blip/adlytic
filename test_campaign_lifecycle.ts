@@ -48,5 +48,33 @@ check('DELIVERING filter matches today + window', matchesDeliveryFilter('DELIVER
 check('DELIVERING filter excludes dormant', !matchesDeliveryFilter('DORMANT_ACTIVE', 'DELIVERING'));
 check('DORMANT filter', matchesDeliveryFilter('DORMANT_ACTIVE', 'DORMANT'));
 
+// Regression: just after account-timezone midnight, today's spend is 0 for
+// every campaign (Meta has not reported the new day yet) but the campaign is
+// running in Meta. It must stay "delivering", never drop to zero.
+check(
+  'midnight: active + window spend + zero today stays delivering',
+  classifyCampaignDelivery({
+    status: 'ACTIVE',
+    metaEffectiveStatus: 'ACTIVE',
+    spendTodayMinor: 0,
+    spendWindowMinor: 1_250_000,
+  }) === 'DELIVERING_WINDOW',
+);
+check(
+  'midnight: Meta-paused campaign with window spend is NOT delivering',
+  classifyCampaignDelivery({
+    status: 'ACTIVE',
+    metaEffectiveStatus: 'ADSET_PAUSED',
+    spendTodayMinor: 0,
+    spendWindowMinor: 1_250_000,
+  }) === 'NOT_DELIVERING',
+);
+check(
+  'isDeliveringCampaign covers window tier',
+  isDeliveringCampaign('DELIVERING_WINDOW') && isDeliveringCampaign('DELIVERING_TODAY') && !isDeliveringCampaign('DORMANT_ACTIVE'),
+);
+check('ACTIVE filter includes window tier', matchesDeliveryFilter('DELIVERING_WINDOW', 'ACTIVE'));
+check('TODAY filter stays today-only', !matchesDeliveryFilter('DELIVERING_WINDOW', 'TODAY'));
+
 console.log(`\n════ ${pass} passed, ${fail} failed ════`);
 process.exit(fail > 0 ? 1 : 0);

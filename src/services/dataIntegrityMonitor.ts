@@ -157,6 +157,24 @@ export async function runDataIntegrityCheck(
     });
   }
 
+  // The exact "Meta says running, Adlytic says zero" symptom: campaigns are
+  // ACTIVE and the account spent inside the window, yet no campaign carries
+  // window spend — campaign-level daily stats are missing or lagging behind
+  // account-level stats. This is a sync gap, never a normal state.
+  if (
+    campaignCounts.activeStatus > 0 &&
+    campaignCounts.deliveringInWindow === 0 &&
+    accountTotalSpend > 0
+  ) {
+    checks.push({
+      code: 'ACTIVE_ZERO_DELIVERING_MISMATCH',
+      severity: 'WARN',
+      message: `${campaignCounts.activeStatus} Meta-ACTIVE campaign(s) show zero delivering while the account spent in the ${windowDays}d window — campaign daily stats missing or lagging`,
+      messageAr: `${campaignCounts.activeStatus} حملة نشطة في Meta لكن لا تظهر أي حملة "تعمل" رغم وجود إنفاق خلال ${windowDays} يوماً — بيانات الحملات اليومية ناقصة أو متأخرة`,
+      value: campaignCounts.activeStatus,
+    });
+  }
+
   if (staleActiveCount > 0 && campaignCounts.activeStatus > campaignCounts.deliveringInWindow) {
     checks.push({
       code: 'DORMANT_ACTIVE_INFLATION',

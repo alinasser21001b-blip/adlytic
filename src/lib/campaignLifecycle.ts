@@ -41,7 +41,9 @@ export type CampaignDeliveryInput = {
 /**
  * Classify a campaign for UI + AI based on Meta's actual delivery state.
  * Only reports "delivering" when Meta confirms ACTIVE effective_status AND
- * there is real spend evidence. Historical spend alone no longer suffices.
+ * there is real spend evidence: today's spend → DELIVERING_TODAY, otherwise
+ * spend inside the delivery window → DELIVERING_WINDOW. ACTIVE with zero
+ * spend across the whole window is DORMANT_ACTIVE.
  */
 export function classifyCampaignDelivery(input: CampaignDeliveryInput): DeliveryTier {
   const status = String(input.status ?? '').toUpperCase();
@@ -60,19 +62,25 @@ export function classifyCampaignDelivery(input: CampaignDeliveryInput): Delivery
     return 'NOT_DELIVERING';
   }
 
-  // Only show "delivering" when there's actual TODAY spend — confirms live delivery.
   const today = Number(input.spendTodayMinor ?? 0);
   if (today > 0) return 'DELIVERING_TODAY';
 
-  // Campaign is ACTIVE in Meta but not spending today. If it had spend in
-  // the window, it's dormant-active (was delivering recently but not right now).
-  if (status === EntityStatus.ACTIVE || status === 'ACTIVE') return 'DORMANT_ACTIVE';
+  const isActive = status === EntityStatus.ACTIVE || status === 'ACTIVE';
+
+  // "Today" resets at the account-timezone midnight, hours before Meta
+  // reports the new day's first spend — a campaign that is ACTIVE and spent
+  // inside the window is still delivering, not dormant. Without this tier
+  // every dashboard "active" count drops to zero right after midnight.
+  const window = Number(input.spendWindowMinor ?? 0);
+  if (isActive && window > 0) return 'DELIVERING_WINDOW';
+
+  if (isActive) return 'DORMANT_ACTIVE';
   return 'PAUSED';
 }
 
-/** True when the campaign is actively delivering (confirmed by today's spend). */
+/** True when the campaign is actively delivering (today's or window spend). */
 export function isDeliveringCampaign(tier: DeliveryTier): boolean {
-  return tier === 'DELIVERING_TODAY';
+  return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
 }
 
 /** True for live operational views — excludes archived/deleted history. */
@@ -135,13 +143,13 @@ export function matchesDeliveryFilter(tier: DeliveryTier, filter: DeliveryFilter
     case 'ALL':
       return true;
     case 'DELIVERING':
-      return tier === 'DELIVERING_TODAY';
+      return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
     case 'TODAY':
       return tier === 'DELIVERING_TODAY';
     case 'DORMANT':
       return tier === 'DORMANT_ACTIVE';
     case 'ACTIVE':
-      return tier === 'DELIVERING_TODAY' || tier === 'DORMANT_ACTIVE';
+      return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW' || tier === 'DORMANT_ACTIVE';
     case 'PAUSED':
       return tier === 'PAUSED';
     case 'NOT_DELIVERING':
