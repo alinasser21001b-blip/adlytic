@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CarePlus Pharmacy — Health & Wellness Catalog</title>
+  <meta name="description" content="Browse our pharmacy catalog and order instantly via WhatsApp. Vitamins, skin care, baby care and more — trusted pharmacist advice." />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="trust-bar">
+    <div class="container">
+      <span>✅ Licensed Pharmacy</span>
+      <span>🚚 Fast Delivery</span>
+      <span>💬 Pharmacist Advice on WhatsApp</span>
+      <span>🔒 100% Original Products</span>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="index.html">Care<span>Plus</span> ➕</a>
+      <div class="search-box">
+        <input id="search" type="search" placeholder="Search products, e.g. vitamin c, sunscreen…" aria-label="Search products" />
+        <span class="search-icon">🔍</span>
+      </div>
+      <a class="header-wa" id="header-wa" target="_blank" rel="noopener">💬 <span class="wa-label">Ask a Pharmacist</span></a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Your Health, One Message Away</h1>
+      <p>Discover trusted products, get honest pharmacist advice, and order in seconds — all through WhatsApp. No accounts. No checkout. Just care.</p>
+      <a class="cta" id="hero-wa" target="_blank" rel="noopener">💬 Chat with our Pharmacist</a>
+    </div>
+  </section>
+
+  <main class="container">
+    <div class="chips" id="chips"></div>
+
+    <section class="section" id="results-section">
+      <div class="section-head">
+        <h2 id="results-title">All Products</h2>
+        <span class="hint" id="results-count"></span>
+      </div>
+      <div class="grid" id="results"></div>
+      <div class="empty-state" id="empty" style="display:none">
+        <p>😕 No products match your search.</p>
+        <p><a id="empty-wa" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">Ask us on WhatsApp</a> — we probably have it in store!</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>🔥 Trending This Week</h2></div>
+      <div class="rail" id="trending"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>👨‍⚕️ Top Pharmacist Picks</h2><span class="hint">Hand-selected by our team</span></div>
+      <div class="rail" id="picks"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>👀 Recently Viewed</h2></div>
+      <div class="rail" id="viewed"></div>
+    </section>
+  </main>
+
+  <a class="wa-float" id="float-wa" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">💬</a>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div>
+        <h4>CarePlus Pharmacy</h4>
+        <p>Trusted health & wellness products with professional pharmacist guidance.</p>
+      </div>
+      <div>
+        <h4>Order & Support</h4>
+        <p>💬 WhatsApp: fastest way to order<br />🕘 Daily 9:00 AM – 11:00 PM</p>
+      </div>
+      <div>
+        <h4>Why order via WhatsApp?</h4>
+        <p>Talk to a real pharmacist, confirm availability instantly,<br />and get delivery arranged in one conversation.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/products.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Wire general WhatsApp links
+    for (const id of ["header-wa", "hero-wa", "float-wa", "empty-wa"]) {
+      document.getElementById(id).href = waGeneralLink();
+    }
+
+    // Category chips
+    const cats = ["All", ...new Set(PRODUCTS.map((p) => p.category))];
+    let activeCat = "All";
+    const chipsEl = document.getElementById("chips");
+    function renderChips() {
+      chipsEl.innerHTML = cats
+        .map((c) => `<button class="chip ${c === activeCat ? "active" : ""}" onclick="setCat('${c}')">${c}</button>`)
+        .join("");
+    }
+    function setCat(c) { activeCat = c; renderChips(); renderResults(); }
+
+    // Search + filter
+    const searchEl = document.getElementById("search");
+    searchEl.addEventListener("input", renderResults);
+
+    function renderResults() {
+      const q = searchEl.value.trim().toLowerCase();
+      let list = PRODUCTS;
+      if (activeCat !== "All") list = list.filter((p) => p.category === activeCat);
+      if (q) {
+        list = list.filter((p) =>
+          [p.name, p.brand, p.summary, p.category, ...(p.tags || [])].join(" ").toLowerCase().includes(q)
+        );
+      }
+      document.getElementById("results-title").textContent =
+        q ? `Results for “${searchEl.value.trim()}”` : activeCat === "All" ? "All Products" : activeCat;
+      document.getElementById("results-count").textContent = `${list.length} product${list.length === 1 ? "" : "s"}`;
+      document.getElementById("results").innerHTML = list.map(productCard).join("");
+      document.getElementById("empty").style.display = list.length ? "none" : "block";
+    }
+
+    // Support ?q= handoff from the product page search box
+    const initialQ = new URLSearchParams(location.search).get("q");
+    if (initialQ) searchEl.value = initialQ;
+
+    renderChips();
+    renderResults();
+    renderRail("trending", PRODUCTS.filter((p) => p.badge === "Trending" || p.badge === "Best Seller"));
+    renderRail("picks", PRODUCTS.filter((p) => p.badge === "Pharmacist Pick"));
+    renderRail("viewed", getViewed().map(byId).filter(Boolean));
+  </script>
+</body>
+</html>
