@@ -7,7 +7,7 @@
   <meta name="description" content="صيدلية در الشارقة — منتجات العناية بالشعر والبشرة والفيتامينات ومستلزمات الأم والطفل، مع استشارة صيدلانية وطلب مباشر عبر واتساب." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Amiri:wght@700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=El+Messiri:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -23,7 +23,7 @@
   <header class="site-header">
     <div class="container header-inner">
       <a class="logo" href="index.html">
-        <img class="mark-img" src="images/logo.svg" alt="شعار صيدلية در الشارقة" />
+        <img class="mark-img" src="images/logo.png" alt="شعار صيدلية در الشارقة" />
         <span class="txt"><b>صيدلية در الشارقة</b><small>DUR AL SHARIQA PHARMACY</small></span>
       </a>
       <div class="search-box">
@@ -34,9 +34,15 @@
     </div>
   </header>
 
+  <a class="live-strip" id="live-strip" target="_blank" rel="noopener">
+    <span class="live-dot"></span>
+    <span class="live-text">الصيدلي متصل الآن — يرد خلال دقائق</span>
+    <span class="live-cta">ابدأ محادثة ←</span>
+  </a>
+
   <section class="hero">
     <div class="container">
-      <img class="hero-logo" src="images/logo.svg" alt="صيدلية در الشارقة" />
+      <img class="hero-logo" src="images/logo.png" alt="صيدلية در الشارقة" />
       <span class="kicker">🌿 نهتم بصحتك · We care about your health</span>
       <h1>صحتكِ وجمالكِ يستحقان <em>عناية استثنائية</em></h1>
       <p>اكتشف منتجات مختارة بعناية صيادلتنا — من العناية بالشعر والبشرة إلى الفيتامينات وصحة العائلة — واطلبها برسالة واتساب واحدة.</p>
@@ -95,7 +101,7 @@
   <footer class="site-footer">
     <div class="container cols">
       <div>
-        <img class="footer-logo" src="images/logo.svg" alt="" />
+        <img class="footer-logo" src="images/logo.png" alt="" />
         <h4>صيدلية در الشارقة</h4>
         <p>وجهتك الموثوقة للصحة والجمال — منتجات أصلية، استشارة صيدلانية، وتوصيل لكل العراق.</p>
         <p style="margin-top:8px"><a id="ig-link" target="_blank" rel="noopener">📸 تابعنا على إنستغرام @dur_alshariqh</a></p>
@@ -121,6 +127,7 @@
       document.getElementById(id).href = waGeneralLink();
     }
     document.getElementById("ig-link").href = STORE_CONFIG.instagram;
+    document.getElementById("live-strip").href = waGeneralLink();
     document.getElementById("footer-phones").innerHTML =
       "📞 " + STORE_CONFIG.phones.map((p) => `<bdo dir="ltr">${p}</bdo>`).join(" · ");
 
