@@ -3,30 +3,41 @@
    الألوان مشتقة من شعار الصيدلية: أخضر زيتوني، عاجي، ذهبي
    ============================================================ */
 :root {
-  --green: #45633c;          /* الأخضر الزيتوني من الشعار */
-  --green-deep: #33492c;
-  --green-soft: #eef2ea;
+  --green: #3f5f36;          /* الأخضر الزيتوني من الشعار */
+  --green-deep: #2b3f24;
+  --green-soft: #edf2e9;
   --gold: #b1926f;           /* الذهبي الترابي من وجه الشعار */
+  --gold-deep: #96794f;
   --gold-soft: #f5efe6;
-  --ivory: #faf8f2;          /* خلفية عاجية */
+  --ivory: #f8f6ef;          /* خلفية عاجية */
   --card: #ffffff;
-  --ink: #22301f;
+  --ink: #1e2b1b;
   --muted: #6b7566;
-  --line: #e6e4da;
+  --line: #e7e4d9;
   --wa: #25d366;
   --wa-dark: #1ebe5b;
-  --radius: 18px;
-  --radius-sm: 12px;
-  --shadow: 0 2px 14px rgba(51, 73, 44, 0.08);
-  --shadow-lg: 0 14px 40px rgba(51, 73, 44, 0.16);
+  --radius: 20px;
+  --radius-sm: 13px;
+  --shadow-xs: 0 1px 3px rgba(43, 63, 36, 0.06);
+  --shadow: 0 4px 18px rgba(43, 63, 36, 0.08);
+  --shadow-lg: 0 18px 48px rgba(43, 63, 36, 0.16);
+  --shadow-gold: 0 10px 30px rgba(150, 121, 79, 0.22);
+  --ring: 0 0 0 4px var(--green-soft);
+  --grad-green: linear-gradient(135deg, #4a6b40, #2b3f24);
+  --grad-gold: linear-gradient(120deg, #c8ab84, #a4855c);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 body {
   font-family: "Tajawal", "Segoe UI", system-ui, sans-serif;
-  background: var(--ivory);
+  background:
+    radial-gradient(60% 40% at 100% 0%, rgba(177,146,111,0.06), transparent 60%),
+    radial-gradient(50% 40% at 0% 12%, rgba(63,95,54,0.05), transparent 55%),
+    var(--ivory);
+  background-attachment: fixed;
   color: var(--ink);
   line-height: 1.75;
   -webkit-font-smoothing: antialiased;
@@ -107,12 +118,13 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 .hero > .container { position: relative; z-index: 1; }
 .hero .kicker {
   display: inline-flex; align-items: center; gap: 8px;
-  background: #fff; border: 1px solid var(--gold); color: var(--green-deep);
-  padding: 6px 18px; border-radius: 999px; font-size: 0.82rem; font-weight: 700;
-  margin-bottom: 18px; box-shadow: var(--shadow);
+  background: rgba(255,255,255,0.75); backdrop-filter: blur(6px);
+  border: 1px solid rgba(177,146,111,0.5); color: var(--green-deep);
+  padding: 7px 20px; border-radius: 999px; font-size: 0.82rem; font-weight: 700;
+  margin-bottom: 20px; box-shadow: var(--shadow-xs);
 }
-.hero h1 { font-size: clamp(1.8rem, 5vw, 3rem); color: var(--green-deep); margin-bottom: 12px; line-height: 1.35; }
-.hero h1 em { font-style: normal; color: var(--gold); }
+.hero h1 { font-size: clamp(2rem, 5.4vw, 3.4rem); color: var(--green-deep); margin-bottom: 14px; line-height: 1.3; letter-spacing: -0.015em; }
+.hero h1 em { font-style: normal; background: var(--grad-gold); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .hero p { color: var(--muted); max-width: 580px; margin: 0 auto 26px; font-size: 1.05rem; }
 .hero .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
@@ -144,8 +156,10 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 /* ---------- عدّادات الثقة ---------- */
 .stats { display: flex; justify-content: center; gap: clamp(24px, 6vw, 70px); flex-wrap: wrap; padding: 34px 0 8px; }
 .stat { text-align: center; }
-.stat b { display: block; font-size: 1.9rem; color: var(--green-deep); font-family: "Amiri", serif; }
+.stat b { display: block; font-size: 2.2rem; color: var(--green-deep); font-family: "Amiri", serif; line-height: 1.1; }
 .stat span { font-size: 0.85rem; color: var(--muted); }
+.stat + .stat { position: relative; }
+.stat + .stat::before { content: ""; position: absolute; inset-inline-start: calc(-1 * clamp(12px, 3vw, 35px)); top: 12%; bottom: 12%; width: 1px; background: linear-gradient(transparent, var(--line), transparent); }
 
 /* ---------- تصنيفات ---------- */
 .chips { display: flex; gap: 10px; overflow-x: auto; padding: 24px 0 8px; scrollbar-width: none; }
@@ -157,15 +171,16 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
   transition: all 0.3s var(--ease); display: inline-flex; align-items: center; gap: 7px;
 }
 .chip:hover { border-color: var(--green); transform: translateY(-2px); box-shadow: var(--shadow); }
-.chip.active { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 8px 20px rgba(69, 99, 60, 0.3); }
+.chip.active { background: var(--grad-green); color: #fff; border-color: var(--green-deep); box-shadow: 0 8px 22px rgba(43, 63, 36, 0.28); }
 
 /* ---------- الأقسام ---------- */
 .section { padding: 34px 0 8px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-.section-head h2 { font-size: 1.45rem; color: var(--green-deep); position: relative; padding-inline-start: 16px; }
+.section-head h2 { font-size: 1.55rem; color: var(--green-deep); position: relative; padding-inline-start: 18px; letter-spacing: -0.01em; }
 .section-head h2::before {
-  content: ""; position: absolute; inset-inline-start: 0; top: 8px; bottom: 8px;
+  content: ""; position: absolute; inset-inline-start: 0; top: 6px; bottom: 6px;
   width: 5px; border-radius: 4px; background: linear-gradient(var(--gold), var(--green));
+  box-shadow: var(--shadow-gold);
 }
 .section-head .hint { color: var(--muted); font-size: 0.85rem; }
 
@@ -176,20 +191,29 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 /* بطاقة المنتج */
 .card {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column;
-  transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease);
+  overflow: hidden; box-shadow: var(--shadow-xs); display: flex; flex-direction: column;
+  transition: transform 0.45s var(--ease), box-shadow 0.45s var(--ease), border-color 0.45s var(--ease);
   position: relative;
 }
-.card:hover { transform: translateY(-7px); box-shadow: var(--shadow-lg); }
+.card::before {
+  content: ""; position: absolute; inset-inline: 0; top: 0; height: 3px; z-index: 3;
+  background: var(--grad-gold); opacity: 0; transition: opacity 0.4s var(--ease);
+}
+.card:hover { transform: translateY(-9px); box-shadow: var(--shadow-lg); border-color: #dcd6c6; }
+.card:hover::before { opacity: 1; }
 .card .thumb {
-  height: 168px; position: relative; overflow: hidden;
-  background: radial-gradient(circle at 30% 25%, #ffffff, var(--gold-soft) 60%, #efe7d8);
+  height: 210px; position: relative; overflow: hidden;
+  background: linear-gradient(160deg, #ffffff, #f7f4ec);
   display: flex; align-items: center; justify-content: center;
 }
-.card .thumb .emoji { font-size: 3.6rem; filter: drop-shadow(0 8px 14px rgba(51,73,44,0.18)); transition: transform 0.45s var(--ease); }
-.card:hover .thumb .emoji { transform: scale(1.12) rotate(-4deg); }
-.card .thumb img { width: 100%; height: 100%; object-fit: contain; padding: 12px; transition: transform 0.45s var(--ease); }
-.card:hover .thumb img { transform: scale(1.06); }
+.card .thumb::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, transparent 62%, rgba(34,48,31,0.06));
+}
+.card .thumb .emoji { font-size: 4rem; filter: drop-shadow(0 8px 14px rgba(51,73,44,0.18)); transition: transform 0.55s var(--ease); }
+.card:hover .thumb .emoji { transform: scale(1.14) rotate(-4deg); }
+.card .thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--ease); }
+.card:hover .thumb img { transform: scale(1.07); }
 .card .thumb .brand-tag {
   position: absolute; bottom: 10px; inset-inline-start: 12px;
   background: rgba(255,255,255,0.9); color: var(--green-deep);
@@ -197,10 +221,11 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
   border: 1px solid var(--line);
 }
 .card .badge {
-  position: absolute; top: 12px; inset-inline-start: 12px; z-index: 2;
-  background: linear-gradient(120deg, var(--gold), #c8ab84); color: #fff;
-  font-size: 0.7rem; font-weight: 800; padding: 4px 12px; border-radius: 999px;
-  box-shadow: 0 4px 12px rgba(177, 146, 111, 0.4);
+  position: absolute; top: 12px; inset-inline-start: 12px; z-index: 4;
+  background: var(--grad-gold); color: #fff;
+  font-size: 0.7rem; font-weight: 800; padding: 5px 13px; border-radius: 999px;
+  box-shadow: var(--shadow-gold); letter-spacing: 0.01em;
+  border: 1px solid rgba(255,255,255,0.25);
 }
 .card .quick-actions {
   position: absolute; top: 10px; inset-inline-end: 10px; z-index: 2;
@@ -217,18 +242,26 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
   box-shadow: var(--shadow); transition: transform 0.25s var(--ease), border-color 0.25s;
 }
 .icon-btn:hover { transform: scale(1.12); border-color: var(--green); }
-.card .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
-.card .cat { font-size: 0.72rem; color: var(--gold); font-weight: 800; }
-.card h3 { font-size: 1.02rem; line-height: 1.5; font-family: "Tajawal", sans-serif; font-weight: 700; }
-.card .sum { font-size: 0.83rem; color: var(--muted); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.card .price-note { font-size: 0.8rem; color: var(--green); font-weight: 700; margin-top: auto; display: flex; align-items: center; gap: 5px; }
+.card .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.card .cat { font-size: 0.7rem; color: var(--gold-deep); font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; }
+.card h3 { font-size: 1.04rem; line-height: 1.55; font-family: "Tajawal", sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+.card .sum { font-size: 0.84rem; color: var(--muted); line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .price-note { font-size: 0.8rem; color: var(--green); font-weight: 700; margin-top: auto; padding-top: 4px; display: flex; align-items: center; gap: 5px; }
 .card .wa-order {
   display: flex; align-items: center; justify-content: center; gap: 7px;
-  background: var(--wa); color: #fff; font-weight: 800; font-size: 0.9rem;
-  padding: 11px; border-radius: var(--radius-sm); margin-top: 9px; border: none; cursor: pointer;
-  transition: background 0.25s, transform 0.25s var(--ease);
+  background: var(--wa); color: #fff; font-weight: 800; font-size: 0.92rem;
+  padding: 12px; border-radius: var(--radius-sm); margin-top: 10px; border: none; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(37, 211, 102, 0.28);
+  transition: background 0.25s, transform 0.3s var(--ease), box-shadow 0.3s;
+  position: relative; overflow: hidden;
 }
-.card .wa-order:hover { background: var(--wa-dark); transform: scale(1.02); }
+.card .wa-order::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.4) 50%, transparent 60%);
+  transform: translateX(-120%);
+}
+.card .wa-order:hover { background: var(--wa-dark); transform: translateY(-2px); box-shadow: 0 10px 22px rgba(37, 211, 102, 0.38); }
+.card .wa-order:hover::after { transform: translateX(120%); transition: transform 0.7s ease; }
 
 /* هياكل التحميل */
 .skeleton { border-radius: var(--radius); overflow: hidden; background: var(--card); border: 1px solid var(--line); }
@@ -246,17 +279,22 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 
 /* ---------- بانر أسلوب حياة ---------- */
 .banner {
-  border-radius: 24px; overflow: hidden; position: relative;
-  background: linear-gradient(120deg, var(--green-deep), var(--green) 55%, #5d7a50);
-  color: #fff; padding: 44px clamp(22px, 6vw, 60px); margin: 34px 0;
+  border-radius: 26px; overflow: hidden; position: relative;
+  background: linear-gradient(125deg, #2b3f24, #3f5f36 52%, #566f47);
+  color: #fff; padding: 48px clamp(24px, 6vw, 64px); margin: 40px 0;
   box-shadow: var(--shadow-lg);
+}
+.banner::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 140% at 90% -20%, rgba(200,171,132,0.35), transparent 45%);
 }
 .banner::after {
   content: "❊"; position: absolute; inset-inline-end: -30px; top: -40px;
-  font-size: 15rem; opacity: 0.08; transform: rotate(15deg);
+  font-size: 15rem; opacity: 0.1; transform: rotate(15deg);
+  color: var(--gold);
 }
-.banner h2 { font-size: clamp(1.3rem, 3.4vw, 2rem); margin-bottom: 8px; }
-.banner p { opacity: 0.85; max-width: 520px; margin-bottom: 20px; }
+.banner h2 { font-size: clamp(1.4rem, 3.6vw, 2.1rem); margin-bottom: 10px; position: relative; }
+.banner p { opacity: 0.9; max-width: 540px; margin-bottom: 22px; position: relative; }
 
 /* ---------- صفحة المنتج ---------- */
 .breadcrumb { font-size: 0.85rem; color: var(--muted); padding: 18px 0 0; }
@@ -264,13 +302,18 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 .product-top { display: grid; grid-template-columns: 1fr 1.25fr; gap: 36px; padding: 24px 0; }
 @media (max-width: 780px) { .product-top { grid-template-columns: 1fr; } }
 .gallery-main {
-  border-radius: 24px; height: 340px; position: relative; overflow: hidden;
-  background: radial-gradient(circle at 32% 28%, #ffffff, var(--gold-soft) 62%, #ece2cf);
+  border-radius: 24px; height: 400px; position: relative; overflow: hidden;
+  background: linear-gradient(165deg, #ffffff, #f6f2e9);
+  border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-lg);
+}
+.gallery-main::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 80% at 50% 8%, rgba(255,255,255,0.9), transparent 55%);
 }
 .gallery-main .emoji { font-size: 7.5rem; filter: drop-shadow(0 16px 26px rgba(51,73,44,0.22)); animation: floatOrb 6s ease-in-out infinite; }
-.gallery-main img { width: 100%; height: 100%; object-fit: contain; padding: 24px; }
+.gallery-main img { width: 100%; height: 100%; object-fit: contain; padding: 20px; }
 .p-info .brand { color: var(--gold); font-weight: 800; font-size: 0.9rem; }
 .p-info h1 { font-size: clamp(1.4rem, 3.5vw, 2rem); line-height: 1.4; margin: 4px 0 2px; color: var(--green-deep); }
 .p-info .en-name { color: var(--muted); font-size: 0.88rem; margin-bottom: 12px; }
@@ -287,9 +330,11 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 
 .detail-card {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 22px 24px; margin-bottom: 18px; box-shadow: var(--shadow);
+  padding: 24px 26px; margin-bottom: 18px; box-shadow: var(--shadow-xs);
+  transition: box-shadow 0.4s var(--ease), transform 0.4s var(--ease);
 }
-.detail-card h2 { font-size: 1.12rem; margin-bottom: 12px; display: flex; align-items: center; gap: 9px; color: var(--green-deep); }
+.detail-card:hover { box-shadow: var(--shadow); }
+.detail-card h2 { font-size: 1.15rem; margin-bottom: 14px; display: flex; align-items: center; gap: 9px; color: var(--green-deep); padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .detail-card ul { padding-inline-start: 22px; }
 .detail-card li { margin-bottom: 6px; }
 .pill-list { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0 !important; }
