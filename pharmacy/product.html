@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product — CarePlus Pharmacy</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="has-sticky">
+  <div class="trust-bar">
+    <div class="container">
+      <span>✅ Licensed Pharmacy</span>
+      <span>🚚 Fast Delivery</span>
+      <span>💬 Pharmacist Advice on WhatsApp</span>
+      <span>🔒 100% Original Products</span>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="index.html">Care<span>Plus</span> ➕</a>
+      <div class="search-box">
+        <input type="search" placeholder="Search products…" aria-label="Search products"
+               onkeydown="if(event.key==='Enter')location.href='index.html?q='+encodeURIComponent(this.value)" />
+        <span class="search-icon">🔍</span>
+      </div>
+      <a class="header-wa" id="header-wa" target="_blank" rel="noopener">💬 <span class="wa-label">Ask a Pharmacist</span></a>
+    </div>
+  </header>
+
+  <main class="container" id="page"></main>
+
+  <div class="sticky-cta enabled" id="sticky-cta"></div>
+  <a class="wa-float" id="float-wa" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">💬</a>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div><h4>CarePlus Pharmacy</h4><p>Trusted health & wellness products with professional pharmacist guidance.</p></div>
+      <div><h4>Order & Support</h4><p>💬 WhatsApp: fastest way to order<br />🕘 Daily 9:00 AM – 11:00 PM</p></div>
+    </div>
+  </footer>
+
+  <script src="js/products.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const product = byId(params.get("id"));
+    const page = document.getElementById("page");
+    document.getElementById("header-wa").href = waGeneralLink();
+    document.getElementById("float-wa").href = waGeneralLink();
+
+    if (!product) {
+      page.innerHTML = `<div class="empty-state"><p>Product not found.</p><p><a href="index.html" style="color:var(--green);font-weight:700">← Back to catalog</a></p></div>`;
+      document.getElementById("sticky-cta").remove();
+    } else {
+      renderProduct(product);
+    }
+
+    function listHtml(items) { return items.map((i) => `<li>${i}</li>`).join(""); }
+
+    function renderProduct(p) {
+      document.title = `${p.name} — CarePlus Pharmacy`;
+      trackView(p.id);
+      const waLink = waOrderLink(p, location.href);
+      const fav = getFavs().includes(p.id) ? "❤️" : "🤍";
+
+      page.innerHTML = `
+      <nav class="breadcrumb"><a href="index.html">Home</a> › ${p.category} › ${p.name}</nav>
+
+      <section class="product-top">
+        <div>
+          <div class="gallery-main" id="g-main">${p.images[0]}</div>
+          <div class="gallery-thumbs">
+            ${p.images.map((img, i) => `<button class="${i === 0 ? "active" : ""}" onclick="setImg(this,'${img}')">${img}</button>`).join("")}
+          </div>
+        </div>
+        <div class="p-info">
+          <span class="brand">${p.brand} · ${p.category}</span>
+          <h1>${p.name}</h1>
+          ${starHtml(p.rating, p.reviewCount)}
+          <div class="price">${fmtPrice(p.price)}</div>
+          <p class="summary">${p.summary}</p>
+          <div class="p-cta-row">
+            <a class="btn-wa" href="${waLink}" target="_blank" rel="noopener">💬 Order via WhatsApp</a>
+            <button class="btn-ghost" onclick="shareProduct(byId('${p.id}'))">🔗 Share</button>
+            <button class="btn-ghost" data-fav="${p.id}" onclick="toggleFav('${p.id}')">${fav}</button>
+          </div>
+          <div class="avail-note"><span class="dot"></span> A pharmacist replies within minutes to confirm availability & delivery.</div>
+        </div>
+      </section>
+
+      <section class="detail-card"><h2>📋 Description</h2><p>${p.description}</p></section>
+      <section class="detail-card"><h2>✨ Benefits</h2><ul>${listHtml(p.benefits)}</ul></section>
+      <section class="detail-card"><h2>🧪 Ingredients</h2><ul>${listHtml(p.ingredients)}</ul></section>
+      <section class="detail-card"><h2>📖 How to Use</h2><p>${p.usage}</p></section>
+      <section class="detail-card"><h2>👥 Suitable For</h2><ul class="pill-list">${listHtml(p.suitableFor)}</ul></section>
+      <section class="detail-card warn-card"><h2>⚠️ Warnings</h2><ul>${listHtml(p.warnings)}</ul></section>
+
+      <section class="detail-card">
+        <h2>❓ Frequently Asked Questions</h2>
+        ${p.faqs.map((f) => `
+          <div class="faq-item">
+            <button class="faq-q" onclick="this.parentElement.classList.toggle('open')">${f.q} <span>⌄</span></button>
+            <div class="faq-a">${f.a}</div>
+          </div>`).join("")}
+        <p style="margin-top:10px;font-size:0.9rem">Still have a question? <a href="${waGeneralLink()}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">Ask our pharmacist on WhatsApp →</a></p>
+      </section>
+
+      ${p.reviews?.length ? `
+      <section class="detail-card">
+        <h2>⭐ Customer Reviews</h2>
+        ${p.reviews.map((r) => `
+          <div class="review">
+            <span class="who">${r.name}</span>
+            <span class="stars">${"★".repeat(r.stars)}${"☆".repeat(5 - r.stars)}</span>
+            <p>${r.text}</p>
+          </div>`).join("")}
+      </section>` : ""}
+
+      ${railSection("🛒 Frequently Bought Together", p.frequentlyBoughtWith)}
+      ${railSection("💚 You May Also Need", p.related)}
+      ${railSection("🔄 Best Alternatives", p.alternatives)}
+      ${railSection("👀 Customers Also Viewed", getViewed().filter((id) => id !== p.id).slice(0, 6))}
+      `;
+
+      // Sticky mobile CTA
+      document.getElementById("sticky-cta").innerHTML = `
+        <div class="info"><div class="nm">${p.name}</div><div class="pr">${fmtPrice(p.price)}</div></div>
+        <a class="btn-wa" href="${waLink}" target="_blank" rel="noopener">💬 Order via WhatsApp</a>`;
+
+      // SEO structured data
+      const ld = document.createElement("script");
+      ld.type = "application/ld+json";
+      ld.textContent = JSON.stringify({
+        "@context": "https://schema.org", "@type": "Product",
+        name: p.name, description: p.summary, brand: { "@type": "Brand", name: p.brand },
+        aggregateRating: { "@type": "AggregateRating", ratingValue: p.rating, reviewCount: p.reviewCount },
+        offers: { "@type": "Offer", price: p.price, priceCurrency: STORE_CONFIG.currency, availability: "https://schema.org/InStock" },
+      });
+      document.head.appendChild(ld);
+    }
+
+    function railSection(title, ids) {
+      const items = (ids || []).map(byId).filter(Boolean);
+      if (!items.length) return "";
+      return `<section class="section"><div class="section-head"><h2>${title}</h2></div>
+        <div class="rail">${items.map(productCard).join("")}</div></section>`;
+    }
+
+    function setImg(btn, img) {
+      document.getElementById("g-main").textContent = img;
+      document.querySelectorAll(".gallery-thumbs button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+    }
+  </script>
+</body>
+</html>
