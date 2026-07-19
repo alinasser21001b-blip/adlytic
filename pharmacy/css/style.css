@@ -202,18 +202,39 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 .card:hover { transform: translateY(-9px); box-shadow: var(--shadow-lg); border-color: #dcd6c6; }
 .card:hover::before { opacity: 1; }
 .card .thumb {
-  height: 210px; position: relative; overflow: hidden;
-  background: linear-gradient(160deg, #ffffff, #f7f4ec);
+  height: 220px; position: relative; overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #ffffff, #f6f3ea 70%, #efe9dc);
   display: flex; align-items: center; justify-content: center;
 }
 .card .thumb::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(180deg, transparent 62%, rgba(34,48,31,0.06));
+  background: linear-gradient(180deg, transparent 66%, rgba(34,48,31,0.05));
 }
-.card .thumb .emoji { font-size: 4rem; filter: drop-shadow(0 8px 14px rgba(51,73,44,0.18)); transition: transform 0.55s var(--ease); }
-.card:hover .thumb .emoji { transform: scale(1.14) rotate(-4deg); }
-.card .thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--ease); }
-.card:hover .thumb img { transform: scale(1.07); }
+.card .thumb .prod-img {
+  width: 100%; height: 100%; object-fit: contain; padding: 20px;
+  filter: drop-shadow(0 12px 16px rgba(43,63,36,0.16));
+  transition: transform 0.6s var(--ease);
+}
+.card:hover .thumb .prod-img { transform: scale(1.07) translateY(-3px); }
+
+/* بديل المنتج الأنيق */
+.prod-ph {
+  width: 100%; height: 100%; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: linear-gradient(155deg, #e8efe2, #f3efe4 55%, #efe6d6);
+}
+.prod-ph .ph-leaf { font-size: 1.5rem; opacity: 0.5; margin-bottom: 2px; }
+.prod-ph .ph-letter {
+  font-family: "Amiri", serif; font-size: 3.4rem; font-weight: 700;
+  color: var(--green); line-height: 1; opacity: 0.85;
+  text-shadow: 0 3px 8px rgba(43,63,36,0.15);
+}
+.prod-ph .ph-ribbon {
+  margin-top: 12px; font-size: 0.72rem; font-weight: 700; color: var(--gold-deep);
+  background: rgba(255,255,255,0.75); border: 1px solid #e2d9c6;
+  padding: 3px 12px; border-radius: 999px;
+}
 .card .thumb .brand-tag {
   position: absolute; bottom: 10px; inset-inline-start: 12px;
   background: rgba(255,255,255,0.9); color: var(--green-deep);
@@ -377,6 +398,10 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 }
 .order-product .op-emoji { font-size: 2rem; }
 .order-product .op-emoji img { width: 44px; height: 44px; object-fit: contain; }
+.order-product .op-emoji .prod-ph { width: 44px; height: 44px; border-radius: 8px; }
+.order-product .op-emoji .ph-letter { font-size: 1.4rem; }
+.order-product .op-emoji .ph-leaf, .order-product .op-emoji .ph-ribbon { display: none; }
+.qv-thumb .prod-ph { border-radius: var(--radius-sm); }
 .order-product b { font-size: 0.95rem; display: block; }
 .order-product small { color: var(--muted); }
 .field { margin-bottom: 14px; }

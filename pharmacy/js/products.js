@@ -29,6 +29,7 @@ const PRODUCTS = [
   /* ---------------- العناية بالشعر ---------------- */
   {
     id: "acm-novophane-set",
+    img: "https://cdnprd.marjanemall.ma/cn0picture0products0mm/ACM1685755222578_img1.webp",
     name: "مجموعة ACM نوفوفان لتساقط الشعر",
     en: "ACM Novophane Anti-Hair Loss Set",
     brand: "ACM Laboratoire",
@@ -48,6 +49,7 @@ const PRODUCTS = [
   },
   {
     id: "novophane-caps",
+    img: "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ACM/acm-novophane-ongles-et-cheveux-%E2%80%93-60-capsules/images/Etui-seul-G%C3%A9lules-bovines-Boite-de-60.jpg",
     name: "نوفوفان كبسولات — تغذية الشعر والأظافر",
     en: "Novophane Hair & Nails Capsules",
     brand: "ACM Laboratoire",
@@ -101,6 +103,7 @@ const PRODUCTS = [
   },
   {
     id: "ecrinal",
+    img: "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ECRINAL/ecrinal-%E2%80%93-lotion-femme-soin-intensif-des-cheveux-%C3%A0-l%E2%80%99anp2%2B-%E2%80%93-200-ml/images/3323037286009.jpg",
     name: "إكرينال للعناية بالشعر",
     en: "ECRINAL Hair Care",
     brand: "ECRINAL",
@@ -316,6 +319,7 @@ const PRODUCTS = [
   /* ---------------- العناية بالبشرة ---------------- */
   {
     id: "skin1004-mask",
+    img: "https://cdn.shopify.com/s/files/1/0515/4589/9157/files/skin1004-madagascar-centella-poremizing-quick-clay-stick-mask-27g-1000x1000.webp?v=1771443379",
     name: "ماسك الطين سكين 1004 سنتيلا",
     en: "SKIN1004 Centella Clay Mask",
     brand: "SKIN1004",
@@ -354,6 +358,7 @@ const PRODUCTS = [
   },
   {
     id: "kahi-balm",
+    img: "https://cdn.shopify.com/s/files/1/0515/4589/9157/files/KAHI_Wrinkle_Bounce_Multi_Balm_9g.png?v=1771864346",
     name: "كاهي رينكل باونس مالتي بالم",
     en: "KAHI Wrinkle Bounce Multi Balm",
     brand: "KAHI Seoul",
@@ -391,6 +396,7 @@ const PRODUCTS = [
   },
   {
     id: "bioderma-gel",
+    img: "https://ecombe.nahdionline.com/media/catalog/product/b/i/bioderma-sensibio-gel-moussant-200-ml_1.jpg",
     name: "بيوديرما سنسيبيو جل موسان",
     en: "Bioderma Sensibio Gel Moussant",
     brand: "Bioderma",
@@ -410,6 +416,7 @@ const PRODUCTS = [
   },
   {
     id: "avene-spray",
+    img: "https://cdn.notinoimg.com/detail_main_hq/avene/3282779003131_01-o/eau-thermale-thermal-spring-water___241206.jpg",
     name: "افين — الماء الحراري المهدئ",
     en: "Avène Eau Thermale Spray",
     brand: "Avène",
@@ -447,6 +454,7 @@ const PRODUCTS = [
 
   {
     id: "centella-ampoule",
+    img: "https://skin1004.com/cdn/shop/products/skin1004-madagascar-centella-ampoule-100ml-01_800x.jpg?v=1681198572",
     name: "سكين 1004 أمبولة السنتيلا",
     en: "SKIN1004 Madagascar Centella Ampoule",
     brand: "SKIN1004",
@@ -542,6 +550,7 @@ const PRODUCTS = [
   },
   {
     id: "pregnacare",
+    img: "https://cdn.shopify.com/s/files/1/0257/1046/0991/files/Vitabiotics-Pregnacare-Tablets__40563__10074.1740667823.386.513_bb799f56-02a9-49d6-bb72-24cce1cbd646.jpg?v=1756386066",
     name: "بريجناكير أوريجينال",
     en: "Pregnacare Original",
     brand: "Vitabiotics",

@@ -75,9 +75,19 @@ function imgSources(p) {
 }
 
 function thumbHtml(p, cls = "") {
-  return `<img src="${imgSources(p)[0]}" alt="${p.name}" loading="lazy" class="${cls}"
-    data-id="${p.id}" data-emoji="${p.emoji || "🛍️"}" data-cls="${cls}"
+  return `<img src="${imgSources(p)[0]}" alt="${p.name}" loading="lazy" class="prod-img ${cls}"
+    data-id="${p.id}" data-cls="${cls}"
     data-i="0" onerror="imgFallbackStep(this)" referrerpolicy="no-referrer" />`;
+}
+
+/* بديل أنيق بهوية الصيدلية بدل الرمز البدائي */
+function placeholderMarkup(p, cls = "") {
+  const letter = (p.en || p.name || "؟").trim().charAt(0).toUpperCase();
+  return `<span class="prod-ph ${cls}" role="img" aria-label="${p.name}">
+    <span class="ph-leaf">🌿</span>
+    <span class="ph-letter">${letter}</span>
+    <span class="ph-ribbon">الصورة قريباً</span>
+  </span>`;
 }
 
 function imgFallbackStep(el) {
@@ -87,11 +97,10 @@ function imgFallbackStep(el) {
   if (next < sources.length) {
     el.dataset.i = next;
     el.src = sources[next];
-  } else {
-    const s = document.createElement("span");
-    s.className = ("emoji " + (el.dataset.cls || "")).trim();
-    s.textContent = el.dataset.emoji;
-    el.replaceWith(s);
+  } else if (p) {
+    const wrap = document.createElement("span");
+    wrap.innerHTML = placeholderMarkup(p, el.dataset.cls || "");
+    el.replaceWith(wrap.firstElementChild);
   }
 }
 
