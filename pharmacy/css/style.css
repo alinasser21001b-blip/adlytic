@@ -200,9 +200,16 @@ h1, h2, h3, .display { font-family: "El Messiri", "Tajawal", serif; }
 .chip.active { background: var(--grad-green); color: #fff; border-color: var(--green-deep); box-shadow: 0 8px 22px rgba(43, 63, 36, 0.28); }
 
 /* ---------- الأقسام ---------- */
-.section { padding: 34px 0 8px; }
-.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-.section-head h2 { font-size: 1.55rem; color: var(--green-deep); position: relative; padding-inline-start: 18px; letter-spacing: -0.01em; }
+.section { padding: 30px 0 6px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.section-head h2 { font-size: 1.45rem; color: var(--green-deep); position: relative; padding-inline-start: 16px; letter-spacing: -0.01em; }
+@media (max-width: 620px) {
+  .section { padding: 22px 0 4px; }
+  .section-head { margin-bottom: 14px; }
+  .section-head h2 { font-size: 1.2rem; padding-inline-start: 13px; }
+  .section-head .hint { display: none; }
+  .chips { padding: 16px 0 6px; }
+}
 .section-head h2::before {
   content: ""; position: absolute; inset-inline-start: 0; top: 6px; bottom: 6px;
   width: 5px; border-radius: 4px; background: linear-gradient(var(--gold), var(--green));
@@ -211,8 +218,13 @@ h1, h2, h3, .display { font-family: "El Messiri", "Tajawal", serif; }
 .section-head .hint { color: var(--muted); font-size: 0.85rem; }
 
 /* ---------- شبكة المنتجات ---------- */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
-.rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 258px); gap: 16px; overflow-x: auto; padding: 4px 2px 16px; scrollbar-width: thin; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
+.rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 240px); gap: 14px; overflow-x: auto; padding: 4px 2px 16px; scrollbar-width: thin; scroll-snap-type: x mandatory; }
+.rail > .card { scroll-snap-align: start; }
+@media (max-width: 620px) {
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .rail { grid-auto-columns: 66%; gap: 12px; }
+}
 
 /* بطاقة المنتج */
 .card {
@@ -289,10 +301,26 @@ h1, h2, h3, .display { font-family: "El Messiri", "Tajawal", serif; }
   box-shadow: var(--shadow); transition: transform 0.25s var(--ease), border-color 0.25s;
 }
 .icon-btn:hover { transform: scale(1.12); border-color: var(--green); }
-.card .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-.card .cat { font-size: 0.7rem; color: var(--gold-deep); font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; }
-.card h3 { font-size: 1.04rem; line-height: 1.55; font-family: "Tajawal", sans-serif; font-weight: 700; letter-spacing: -0.01em; }
-.card .sum { font-size: 0.84rem; color: var(--muted); line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.card .cat { font-size: 0.68rem; color: var(--gold-deep); font-weight: 800; letter-spacing: 0.03em; }
+.card h3 {
+  font-size: 1rem; line-height: 1.5; font-family: "Tajawal", sans-serif; font-weight: 700; letter-spacing: -0.01em;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 3em;
+}
+.card .sum { font-size: 0.82rem; color: var(--muted); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
+/* الشريط "الصورة قريباً" يظهر فقط في معرض صفحة المنتج، لا على البطاقات (تقليل الازدحام) */
+.card .thumb .prod-ph .ph-ribbon { display: none; }
+
+@media (max-width: 620px) {
+  .card .thumb { height: 150px; }
+  .card .thumb .prod-img { padding: 14px; }
+  .card .body { padding: 11px 12px 13px; gap: 5px; }
+  .card h3 { font-size: 0.9rem; min-height: 2.7em; }
+  .card .sum { display: none; }
+  .card:hover { transform: translateY(-4px); }
+  .prod-ph .ph-letter { font-size: 2.6rem; }
+  .prod-ph .ph-leaf { font-size: 1.15rem; }
+}
 .card .price-note { font-size: 0.8rem; color: var(--green); font-weight: 700; margin-top: auto; padding-top: 4px; display: flex; align-items: center; gap: 5px; }
 .card .wa-order {
   display: flex; align-items: center; justify-content: center; gap: 7px;
