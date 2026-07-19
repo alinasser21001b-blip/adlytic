@@ -320,8 +320,11 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 /* ---------- صفحة المنتج ---------- */
 .breadcrumb { font-size: 0.85rem; color: var(--muted); padding: 18px 0 0; }
 .breadcrumb a { color: var(--green); font-weight: 700; }
-.product-top { display: grid; grid-template-columns: 1fr 1.25fr; gap: 36px; padding: 24px 0; }
-@media (max-width: 780px) { .product-top { grid-template-columns: 1fr; } }
+.product-top { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 40px; padding: 24px 0; align-items: start; }
+@media (max-width: 780px) { .product-top { grid-template-columns: 1fr; gap: 22px; } }
+@media (min-width: 781px) {
+  .product-top > div:first-child { position: sticky; top: 88px; align-self: start; }
+}
 .gallery-main {
   border-radius: 24px; height: 400px; position: relative; overflow: hidden;
   background: linear-gradient(165deg, #ffffff, #f6f2e9);
@@ -348,6 +351,17 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
 .avail-note { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 0.86rem; margin-top: 16px; }
 .avail-note .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--wa); animation: pulse 1.6s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+
+.assurance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+.as-item {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 12px 8px; text-align: center; box-shadow: var(--shadow-xs);
+  transition: transform 0.3s var(--ease), box-shadow 0.3s;
+}
+.as-item:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.as-item span { font-size: 1.4rem; display: block; }
+.as-item b { display: block; font-size: 0.86rem; color: var(--green-deep); margin-top: 3px; }
+.as-item small { color: var(--muted); font-size: 0.74rem; }
 
 .detail-card {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
