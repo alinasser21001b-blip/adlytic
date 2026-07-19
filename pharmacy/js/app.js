@@ -62,25 +62,31 @@ function trackView(id) {
 }
 
 /* ---------- عناصر العرض ---------- */
-/* نظام الصور التلقائي:
-   أي ملف يُرفع إلى images/ باسم معرّف المنتج (مثل kahi-balm.png)
-   يظهر فوراً دون تعديل أي كود. التسلسل: img المحدد يدوياً ←
-   <id>.png ← <id>.jpg ← <id>.webp ← الرمز التعبيري. */
+/* نظام الصور متعدد المصادر بالأولوية:
+   1) ملف محلي مرفوع باسم معرّف المنتج (png ثم jpg ثم webp) — يتغلب دائماً
+   2) رابط الصورة الرسمية البعيد (حقل img في المنتج)
+   3) الرمز التعبيري بديلاً أخيراً — لا شيء ينكسر أبداً */
 const IMG_EXTS = ["png", "jpg", "webp"];
 
+function imgSources(p) {
+  const list = IMG_EXTS.map((e) => `images/${p.id}.${e}`);
+  if (p.img) list.push(p.img);
+  return list;
+}
+
 function thumbHtml(p, cls = "") {
-  const explicit = !!p.img;
-  const src = explicit ? p.img : `images/${p.id}.${IMG_EXTS[0]}`;
-  return `<img src="${src}" alt="${p.name}" loading="lazy" class="${cls}"
+  return `<img src="${imgSources(p)[0]}" alt="${p.name}" loading="lazy" class="${cls}"
     data-id="${p.id}" data-emoji="${p.emoji || "🛍️"}" data-cls="${cls}"
-    data-step="${explicit ? IMG_EXTS.length : 1}" onerror="imgFallbackStep(this)" />`;
+    data-i="0" onerror="imgFallbackStep(this)" referrerpolicy="no-referrer" />`;
 }
 
 function imgFallbackStep(el) {
-  const step = +el.dataset.step;
-  if (step < IMG_EXTS.length) {
-    el.dataset.step = step + 1;
-    el.src = `images/${el.dataset.id}.${IMG_EXTS[step]}`;
+  const p = byId(el.dataset.id);
+  const sources = p ? imgSources(p) : [];
+  const next = +el.dataset.i + 1;
+  if (next < sources.length) {
+    el.dataset.i = next;
+    el.src = sources[next];
   } else {
     const s = document.createElement("span");
     s.className = ("emoji " + (el.dataset.cls || "")).trim();

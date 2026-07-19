@@ -81,20 +81,46 @@
     const rowsEl = document.getElementById("rows");
     let filter = "all", found = 0, checked = 0;
 
-    function probe(id) {
-      // نجرّب الامتدادات بالتسلسل ونعيد أول صورة موجودة
+    function probeOne(src) {
       return new Promise((resolve) => {
-        let i = 0;
-        const tryNext = () => {
-          if (i >= EXTS.length) return resolve(null);
-          const src = `images/${id}.${EXTS[i++]}`;
-          const im = new Image();
-          im.onload = () => resolve(src);
-          im.onerror = tryNext;
-          im.src = src;
-        };
-        tryNext();
+        const im = new Image();
+        im.referrerPolicy = "no-referrer";
+        im.onload = () => resolve(src);
+        im.onerror = () => resolve(null);
+        im.src = src;
       });
+    }
+
+    async function probe(p) {
+      // الأولوية: ملف محلي ← الرابط الرسمي البعيد
+      for (const e of EXTS) {
+        const hit = await probeOne(`images/${p.id}.${e}`);
+        if (hit) return { src: hit, kind: "local" };
+      }
+      if (p.img) {
+        const hit = await probeOne(p.img);
+        if (hit) return { src: hit, kind: "remote" };
+      }
+      return null;
+    }
+
+    async function saveLocal(btn, id, url) {
+      // تنزيل نسخة محلية من الصورة البعيدة بالاسم الصحيح لرفعها إلى GitHub
+      btn.textContent = "…";
+      try {
+        const r = await fetch(url, { referrerPolicy: "no-referrer" });
+        const blob = await r.blob();
+        const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${id}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        btn.textContent = "✓ حُفظت";
+      } catch (_) {
+        btn.textContent = "المصدر يمنع الحفظ";
+        setTimeout(() => (btn.textContent = "حفظ نسخة"), 2500);
+      }
     }
 
     function render() {
@@ -116,22 +142,29 @@
     }
 
     (async () => {
+      let locals = 0, remotes = 0;
       for (const p of PRODUCTS) {
-        const src = p.img || await probe(p.id);
+        const hit = await probe(p);
         checked++;
-        if (src) found++;
+        if (hit) found++;
+        if (hit?.kind === "local") locals++;
+        if (hit?.kind === "remote") remotes++;
         const fname = `${p.id}.png`;
         const row = document.createElement("div");
-        row.className = "img-row " + (src ? "ok" : "missing");
+        row.className = "img-row " + (hit ? "ok" : "missing");
+        const st = !hit ? "⏳" : hit.kind === "local" ? "✅" : "🌐";
+        const actions = hit?.kind === "remote"
+          ? `<button class="copy" onclick="saveLocal(this,'${p.id}','${hit.src.replace(/'/g, "%27")}')">حفظ نسخة</button>`
+          : `<button class="copy" onclick="copyName(this,'${fname}')">نسخ الاسم</button>`;
         row.innerHTML = `
-          <span class="st">${src ? "✅" : "⏳"}</span>
-          <span class="preview">${src ? `<img src="${src}" alt="">` : (p.emoji || "🛍️")}</span>
+          <span class="st" title="${!hit ? "بلا صورة" : hit.kind === "local" ? "صورة محلية دائمة" : "صورة من الإنترنت"}">${st}</span>
+          <span class="preview">${hit ? `<img src="${hit.src}" alt="" referrerpolicy="no-referrer">` : (p.emoji || "🛍️")}</span>
           <div class="info"><b>${p.name}</b><code>${fname}</code></div>
-          <button class="copy" onclick="copyName(this,'${fname}')">نسخ الاسم</button>`;
+          ${actions}`;
         rowsEl.appendChild(row);
         document.getElementById("bar").style.width = `${Math.round((found / PRODUCTS.length) * 100)}%`;
         document.getElementById("progress-label").textContent =
-          `${found} من ${PRODUCTS.length} منتجاً له صورة — ${PRODUCTS.length - found} بانتظار الرفع`;
+          `✅ ${locals} محلية دائمة · 🌐 ${remotes} من الإنترنت · ⏳ ${PRODUCTS.length - found} بلا صورة`;
       }
       render();
     })();
