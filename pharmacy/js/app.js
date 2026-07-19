@@ -62,10 +62,31 @@ function trackView(id) {
 }
 
 /* ---------- عناصر العرض ---------- */
+/* نظام الصور التلقائي:
+   أي ملف يُرفع إلى images/ باسم معرّف المنتج (مثل kahi-balm.png)
+   يظهر فوراً دون تعديل أي كود. التسلسل: img المحدد يدوياً ←
+   <id>.png ← <id>.jpg ← <id>.webp ← الرمز التعبيري. */
+const IMG_EXTS = ["png", "jpg", "webp"];
+
 function thumbHtml(p, cls = "") {
-  return p.img
-    ? `<img src="${p.img}" alt="${p.name}" loading="lazy" class="${cls}" />`
-    : `<span class="emoji ${cls}">${p.emoji || "🛍️"}</span>`;
+  const explicit = !!p.img;
+  const src = explicit ? p.img : `images/${p.id}.${IMG_EXTS[0]}`;
+  return `<img src="${src}" alt="${p.name}" loading="lazy" class="${cls}"
+    data-id="${p.id}" data-emoji="${p.emoji || "🛍️"}" data-cls="${cls}"
+    data-step="${explicit ? IMG_EXTS.length : 1}" onerror="imgFallbackStep(this)" />`;
+}
+
+function imgFallbackStep(el) {
+  const step = +el.dataset.step;
+  if (step < IMG_EXTS.length) {
+    el.dataset.step = step + 1;
+    el.src = `images/${el.dataset.id}.${IMG_EXTS[step]}`;
+  } else {
+    const s = document.createElement("span");
+    s.className = ("emoji " + (el.dataset.cls || "")).trim();
+    s.textContent = el.dataset.emoji;
+    el.replaceWith(s);
+  }
 }
 
 function productCard(p) {
@@ -211,7 +232,7 @@ function openOrderDialog(id) {
   ensureDialogs();
   orderProduct = byId(id);
   document.getElementById("order-product").innerHTML = `
-    <span class="op-emoji">${orderProduct.img ? `<img src="${orderProduct.img}" alt="" style="width:44px;height:44px;object-fit:contain">` : orderProduct.emoji || "🛍️"}</span>
+    <span class="op-emoji">${thumbHtml(orderProduct)}</span>
     <div><b>${orderProduct.name}</b><small>${orderProduct.brand} · ${catName(orderProduct.category)}</small></div>`;
   // استرجاع بيانات العميل المحفوظة
   try {

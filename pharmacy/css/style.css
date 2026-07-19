@@ -331,6 +331,7 @@ h1, h2, h3, .display { font-family: "Amiri", "Tajawal", serif; }
   padding: 10px 14px; margin-bottom: 18px;
 }
 .order-product .op-emoji { font-size: 2rem; }
+.order-product .op-emoji img { width: 44px; height: 44px; object-fit: contain; }
 .order-product b { font-size: 0.95rem; display: block; }
 .order-product small { color: var(--muted); }
 .field { margin-bottom: 14px; }

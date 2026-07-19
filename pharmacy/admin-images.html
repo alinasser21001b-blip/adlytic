@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة صور المنتجات — صيدلية در الشارقة</title>
+  <meta name="robots" content="noindex" />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .admin-wrap { max-width: 860px; margin: 0 auto; padding: 26px 18px 60px; }
+    .admin-hero { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
+    .admin-hero h1 { color: var(--green-deep); font-size: 1.3rem; margin-bottom: 8px; font-family: "Tajawal", sans-serif; }
+    .admin-hero ol { padding-inline-start: 22px; color: var(--muted); font-size: 0.95rem; }
+    .admin-hero ol li { margin-bottom: 6px; }
+    .upload-link {
+      display: inline-flex; align-items: center; gap: 8px; margin-top: 14px;
+      background: var(--green); color: #fff; font-weight: 800;
+      padding: 12px 24px; border-radius: 999px;
+    }
+    .progress-bar { background: var(--line); border-radius: 999px; height: 12px; overflow: hidden; margin: 14px 0 4px; }
+    .progress-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--green), #6d8a5b); border-radius: 999px; transition: width 0.6s var(--ease); }
+    .progress-label { font-size: 0.85rem; color: var(--muted); }
+    .img-row {
+      display: flex; align-items: center; gap: 14px;
+      background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm);
+      padding: 10px 14px; margin-bottom: 10px;
+    }
+    .img-row .st { font-size: 1.3rem; width: 30px; text-align: center; }
+    .img-row .preview { width: 52px; height: 52px; border-radius: 10px; background: var(--gold-soft); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; overflow: hidden; flex-shrink: 0; }
+    .img-row .preview img { width: 100%; height: 100%; object-fit: contain; }
+    .img-row .info { flex: 1; min-width: 0; }
+    .img-row .info b { display: block; font-size: 0.92rem; }
+    .img-row .info code { font-size: 0.8rem; color: var(--green-deep); background: var(--green-soft); padding: 2px 8px; border-radius: 6px; direction: ltr; display: inline-block; }
+    .img-row .copy { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 14px; cursor: pointer; font-weight: 700; font-size: 0.82rem; white-space: nowrap; }
+    .img-row .copy:hover { border-color: var(--green); }
+    .img-row.ok { border-inline-start: 4px solid var(--wa); }
+    .img-row.missing { border-inline-start: 4px solid var(--gold); }
+    .filter-row { display: flex; gap: 10px; margin: 18px 0 14px; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="index.html">
+        <img class="mark-img" src="images/logo.svg" alt="" />
+        <span class="txt"><b>لوحة صور المنتجات</b><small>ADMIN — IMAGES</small></span>
+      </a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    <div class="admin-hero">
+      <h1>📸 كيف تضيف صور المنتجات (بدون أي برمجة)</h1>
+      <ol>
+        <li>صوّر المنتج أو احصل على صورته الرسمية (يفضَّل خلفية بيضاء أو شفافة PNG).</li>
+        <li>أعد تسمية الملف <b>بالاسم المطلوب بالضبط</b> كما في القائمة أدناه (مثال: <code style="direction:ltr">kahi-balm.png</code>).</li>
+        <li>اضغط الزر الأخضر، ثم اسحب الصور وأفلتها في صفحة GitHub واضغط <b>Commit changes</b>.</li>
+        <li>خلال دقيقة تظهر الصور تلقائياً في الموقع مكان الرموز — بدون أي خطوة أخرى.</li>
+      </ol>
+      <a class="upload-link" id="upload-link" target="_blank" rel="noopener">⬆️ افتح صفحة رفع الصور على GitHub</a>
+      <div class="progress-bar"><i id="bar" style="width:0%"></i></div>
+      <div class="progress-label" id="progress-label">جارٍ الفحص…</div>
+    </div>
+
+    <div class="filter-row">
+      <button class="chip active" data-f="all" onclick="setFilter(this)">الكل</button>
+      <button class="chip" data-f="missing" onclick="setFilter(this)">⏳ ينقصها صورة</button>
+      <button class="chip" data-f="ok" onclick="setFilter(this)">✅ جاهزة</button>
+    </div>
+
+    <div id="rows"></div>
+  </div>
+
+  <script src="js/products.js"></script>
+  <script>
+    const UPLOAD_URL = "https://github.com/alinasser21001b-blip/adlytic/upload/claude/laughing-hawking-j2u13w/pharmacy/images";
+    document.getElementById("upload-link").href = UPLOAD_URL;
+
+    const EXTS = ["png", "jpg", "webp"];
+    const rowsEl = document.getElementById("rows");
+    let filter = "all", found = 0, checked = 0;
+
+    function probe(id) {
+      // نجرّب الامتدادات بالتسلسل ونعيد أول صورة موجودة
+      return new Promise((resolve) => {
+        let i = 0;
+        const tryNext = () => {
+          if (i >= EXTS.length) return resolve(null);
+          const src = `images/${id}.${EXTS[i++]}`;
+          const im = new Image();
+          im.onload = () => resolve(src);
+          im.onerror = tryNext;
+          im.src = src;
+        };
+        tryNext();
+      });
+    }
+
+    function render() {
+      rowsEl.querySelectorAll(".img-row").forEach((r) => {
+        r.style.display = filter === "all" || r.classList.contains(filter) ? "flex" : "none";
+      });
+    }
+    function setFilter(btn) {
+      document.querySelectorAll(".filter-row .chip").forEach((c) => c.classList.remove("active"));
+      btn.classList.add("active");
+      filter = btn.dataset.f;
+      render();
+    }
+
+    async function copyName(btn, name) {
+      await navigator.clipboard.writeText(name);
+      btn.textContent = "✓ نُسخ";
+      setTimeout(() => (btn.textContent = "نسخ الاسم"), 1500);
+    }
+
+    (async () => {
+      for (const p of PRODUCTS) {
+        const src = p.img || await probe(p.id);
+        checked++;
+        if (src) found++;
+        const fname = `${p.id}.png`;
+        const row = document.createElement("div");
+        row.className = "img-row " + (src ? "ok" : "missing");
+        row.innerHTML = `
+          <span class="st">${src ? "✅" : "⏳"}</span>
+          <span class="preview">${src ? `<img src="${src}" alt="">` : (p.emoji || "🛍️")}</span>
+          <div class="info"><b>${p.name}</b><code>${fname}</code></div>
+          <button class="copy" onclick="copyName(this,'${fname}')">نسخ الاسم</button>`;
+        rowsEl.appendChild(row);
+        document.getElementById("bar").style.width = `${Math.round((found / PRODUCTS.length) * 100)}%`;
+        document.getElementById("progress-label").textContent =
+          `${found} من ${PRODUCTS.length} منتجاً له صورة — ${PRODUCTS.length - found} بانتظار الرفع`;
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>
