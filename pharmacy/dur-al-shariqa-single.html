@@ -1978,13 +1978,18 @@ document.getElementById("ig-link").href = STORE_CONFIG.instagram;
   const hero = document.getElementById("hero");
   const v = hero && hero.querySelector(".hero-video");
   if (!v) return;
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) v.removeAttribute("autoplay");
+  v.muted = true; v.defaultMuted = true; v.setAttribute("muted", "");
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { v.removeAttribute("autoplay"); return; }
   const show = () => hero.classList.add("has-video");
-  if (v.readyState >= 2) show();
-  v.addEventListener("loadeddata", show);
-  v.addEventListener("canplay", show);
+  const tryPlay = () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); };
+  const go = () => { show(); tryPlay(); };
+  if (v.readyState >= 2) go();
+  v.addEventListener("loadeddata", go);
+  v.addEventListener("canplay", go);
+  v.addEventListener("playing", show);
   v.addEventListener("error", () => hero.classList.remove("has-video"));
-  const pl = v.play && v.play(); if (pl && pl.catch) pl.catch(() => {});
+  ["touchstart", "pointerdown", "scroll", "keydown"].forEach((ev) =>
+    window.addEventListener(ev, tryPlay, { once: true, passive: true }));
 })();
 document.querySelectorAll(".footer-phones").forEach((el) =>
   el.innerHTML = "📞 " + STORE_CONFIG.phones.map((p) => `<bdo dir="ltr">${p}</bdo>`).join(" · "));
