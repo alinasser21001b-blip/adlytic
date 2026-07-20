@@ -41,7 +41,12 @@
     <span class="live-cta">ابدأ محادثة ←</span>
   </a>
 
-  <section class="hero">
+  <section class="hero" id="hero">
+    <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="images/hero-poster.jpg" aria-hidden="true">
+      <source src="videos/hero.webm" type="video/webm" />
+      <source src="videos/hero.mp4" type="video/mp4" />
+    </video>
+    <div class="hero-veil"></div>
     <div class="container">
       <img class="hero-logo" src="images/logo.png" alt="صيدلية در الشارقة" />
       <span class="kicker">🌿 نهتم بصحتك · We care about your health</span>
@@ -154,6 +159,15 @@
     }
     document.getElementById("ig-link").href = STORE_CONFIG.instagram;
     document.getElementById("live-strip").href = waGeneralLink();
+    // تفعيل فيديو الـHero فقط إن توفّر الملف (وإلا يبقى التدرّج الأنيق)
+    (function () {
+      const hero = document.getElementById("hero");
+      const v = hero && hero.querySelector(".hero-video");
+      if (!v) return;
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) { v.removeAttribute("autoplay"); }
+      v.addEventListener("loadeddata", () => hero.classList.add("has-video"));
+      v.addEventListener("error", () => hero.classList.remove("has-video"));
+    })();
     document.getElementById("footer-phones").innerHTML =
       "📞 " + STORE_CONFIG.phones.map((p) => `<bdo dir="ltr">${p}</bdo>`).join(" · ");
 

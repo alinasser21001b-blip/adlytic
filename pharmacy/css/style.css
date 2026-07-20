@@ -222,6 +222,16 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
 .hero::before { width: 340px; height: 340px; background: #cddbc2; opacity: 0.35; top: -120px; inset-inline-start: -80px; }
 .hero::after { width: 300px; height: 300px; background: #e5d3b8; opacity: 0.35; bottom: -130px; inset-inline-end: -60px; animation-delay: -5s; }
 @keyframes floatOrb { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(26px); } }
+/* فيديو الـHero السينمائي (يظهر فقط عند توفّر ملف الفيديو) */
+.hero-video {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  opacity: 0; transition: opacity 0.8s var(--ease); z-index: 0; pointer-events: none;
+}
+.hero.has-video .hero-video { opacity: 1; }
+.hero-veil { position: absolute; inset: 0; z-index: 0; opacity: 0; transition: opacity 0.8s var(--ease); pointer-events: none;
+  background: linear-gradient(180deg, rgba(248,246,239,0.72), rgba(238,240,223,0.82) 60%, rgba(248,246,239,0.9)); }
+.hero.has-video .hero-veil { opacity: 1; }
+.hero.has-video::before, .hero.has-video::after { opacity: 0.12; }
 .hero > .container { position: relative; z-index: 1; }
 .hero .kicker {
   display: inline-flex; align-items: center; gap: 8px;
