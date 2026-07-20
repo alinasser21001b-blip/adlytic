@@ -240,10 +240,14 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
 .hero-video {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
   opacity: 0; transition: opacity 0.8s var(--ease); z-index: 0; pointer-events: none;
+  filter: saturate(1.18) contrast(1.06) brightness(1.02);
 }
 .hero.has-video .hero-video { opacity: 1; }
+/* طبقة خفيفة: تُظهر ألوان الفيديو بحيوية، وتبقي منطقة النص فقط مقروءة */
 .hero-veil { position: absolute; inset: 0; z-index: 0; opacity: 0; transition: opacity 0.8s var(--ease); pointer-events: none;
-  background: linear-gradient(180deg, rgba(248,246,239,0.82), rgba(240,242,226,0.88) 55%, rgba(248,246,239,0.96)); }
+  background:
+    radial-gradient(120% 78% at 50% 46%, rgba(248,246,239,0.66), rgba(248,246,239,0.14) 62%, transparent 78%),
+    linear-gradient(180deg, rgba(248,246,239,0.28), rgba(248,246,239,0.10) 40%, rgba(248,246,239,0.34)); }
 .hero.has-video .hero-veil { opacity: 1; }
 .hero.has-video::before, .hero.has-video::after { opacity: 0.12; }
 .hero > .container { position: relative; z-index: 1; }
@@ -257,7 +261,9 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
 .hero h1 { font-size: clamp(2.1rem, 5.4vw, 3.5rem); color: var(--green-deep); margin-bottom: 14px; line-height: 1.28; letter-spacing: -0.02em; font-weight: 700; }
 .hero h1 em { font-style: normal; color: var(--gold-strong, #8a6f2e); position: relative; }
 .hero h1 em::after { content: ""; position: absolute; inset-inline: 0; bottom: 0.06em; height: 0.14em; background: linear-gradient(90deg, transparent, rgba(154,125,60,0.45), transparent); border-radius: 2px; }
-.hero.has-video h1 { text-shadow: 0 1px 18px rgba(248,246,239,0.9); }
+.hero.has-video h1 { text-shadow: 0 2px 20px rgba(248,246,239,0.95), 0 1px 3px rgba(248,246,239,0.85); }
+.hero.has-video p { color: var(--ink); text-shadow: 0 1px 12px rgba(248,246,239,0.95); font-weight: 500; }
+.hero.has-video .hero-logo { box-shadow: 0 14px 40px rgba(43,63,36,0.28); }
 .hero p { color: var(--muted); max-width: 580px; margin: 0 auto 26px; font-size: 1.05rem; }
 .hero .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
