@@ -182,8 +182,8 @@ function openCheckout() {
       </div>
       <div class="field" id="co-phone-f">
         <label>رقم الهاتف</label>
-        <input type="tel" id="co-phone" dir="ltr" style="text-align:right" value="${saved.phone || ""}" placeholder="07xxxxxxxxx" />
-        <div class="err">أدخل رقماً عراقياً صحيحاً يبدأ بـ 07</div>
+        <input type="tel" id="co-phone" dir="ltr" style="text-align:right" value="${saved.phone || ""}" placeholder="07xxxxxxxxx" inputmode="numeric" />
+        <div class="err">أدخل رقم هاتف عراقي صحيح يبدأ بـ 07</div>
       </div>
       <div class="field" id="co-city-f">
         <label>المنطقة / الحي</label>
@@ -214,7 +214,7 @@ function submitCheckout() {
   const notes = document.getElementById("co-notes").value.trim();
   const pickup = (document.querySelector('input[name="pickup"]:checked') || {}).value || "توصيل";
 
-  const phoneOk = !phone || /^07\d{8,9}$/.test(phone.replace(/\s/g, ""));
+  const phoneOk = /^07\d{8,9}$/.test(phone.replace(/\s/g, ""));
   document.getElementById("co-name-f").classList.toggle("invalid", !name);
   document.getElementById("co-city-f").classList.toggle("invalid", !city);
   document.getElementById("co-phone-f").classList.toggle("invalid", !phoneOk);

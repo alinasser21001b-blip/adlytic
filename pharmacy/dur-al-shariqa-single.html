@@ -231,8 +231,8 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
   content: ""; position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.5;
   animation: floatOrb 11s ease-in-out infinite;
 }
-.hero::before { width: 340px; height: 340px; background: #cddbc2; top: -120px; inset-inline-start: -80px; }
-.hero::after { width: 300px; height: 300px; background: #e5d3b8; bottom: -130px; inset-inline-end: -60px; animation-delay: -5s; }
+.hero::before { width: 340px; height: 340px; background: #cddbc2; opacity: 0.35; top: -120px; inset-inline-start: -80px; }
+.hero::after { width: 300px; height: 300px; background: #e5d3b8; opacity: 0.35; bottom: -130px; inset-inline-end: -60px; animation-delay: -5s; }
 @keyframes floatOrb { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(26px); } }
 .hero > .container { position: relative; z-index: 1; }
 .hero .kicker {
@@ -271,6 +271,64 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
   transition: all 0.3s var(--ease);
 }
 .btn-outline:hover { background: var(--green); color: #fff; transform: translateY(-2px); }
+
+/* ---------- ثلاثي الثقة تحت البطل ---------- */
+.trust-triplet { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; padding: 26px 0 4px; }
+.trust-triplet span {
+  background: rgba(255,255,255,0.7); border: 1px solid var(--line); color: var(--green-deep);
+  font-weight: 700; font-size: 0.85rem; padding: 8px 16px; border-radius: 999px; box-shadow: var(--shadow-xs);
+}
+
+/* ---------- كيف تطلب؟ ---------- */
+.how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.how-step {
+  position: relative; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 26px 20px 22px; text-align: center; box-shadow: var(--shadow-xs);
+  transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease);
+}
+.how-step:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
+.how-num {
+  position: absolute; top: -14px; inset-inline-start: 50%; transform: translateX(50%);
+  width: 30px; height: 30px; border-radius: 50%; background: var(--grad-gold); color: #fff;
+  font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-gold);
+}
+.how-ic { font-size: 2.2rem; margin-bottom: 8px; }
+.how-step b { display: block; color: var(--green-deep); margin-bottom: 4px; font-size: 1.05rem; }
+.how-step p { color: var(--muted); font-size: 0.88rem; }
+.how-step::after {
+  content: "←"; position: absolute; inset-inline-start: -14px; top: 50%; transform: translateY(-50%);
+  color: var(--gold); font-size: 1.3rem; font-weight: 800;
+}
+.how-step:first-child::after { display: none; }
+
+/* ---------- لماذا نحن؟ ---------- */
+.feat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.feat {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 16px; text-align: center;
+  box-shadow: var(--shadow-xs); transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease);
+}
+.feat:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.feat-ic { font-size: 1.9rem; margin-bottom: 8px; }
+.feat b { display: block; color: var(--green-deep); font-size: 0.98rem; margin-bottom: 3px; }
+.feat p { color: var(--muted); font-size: 0.82rem; }
+
+/* ---------- CTA نهائي ---------- */
+.final-cta {
+  text-align: center; margin: 40px 0 8px; padding: 44px clamp(22px, 6vw, 60px); border-radius: 26px;
+  background: linear-gradient(125deg, #f2efe4, var(--green-soft) 55%, #efe9db);
+  border: 1px solid var(--line); position: relative; overflow: hidden;
+}
+.final-cta::after { content: "🌿"; position: absolute; inset-inline-end: -10px; bottom: -20px; font-size: 8rem; opacity: 0.08; }
+.final-cta h2 { color: var(--green-deep); font-size: clamp(1.3rem, 3.4vw, 1.9rem); margin-bottom: 8px; }
+.final-cta p { color: var(--muted); max-width: 480px; margin: 0 auto 20px; }
+.final-cta .btn-wa { position: relative; }
+
+@media (max-width: 620px) {
+  .how-grid { grid-template-columns: 1fr; gap: 22px; }
+  .how-step::after { content: "↓"; inset-inline-start: 50%; top: auto; bottom: -18px; transform: translateX(50%); }
+  .feat-grid { grid-template-columns: repeat(2, 1fr); }
+  .trust-triplet span { font-size: 0.78rem; padding: 7px 13px; }
+}
 
 /* ---------- عدّادات الثقة ---------- */
 .stats { display: flex; justify-content: center; gap: clamp(24px, 6vw, 70px); flex-wrap: wrap; padding: 34px 0 8px; }
@@ -651,7 +709,7 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
       <span>✅ منتجات أصلية 100%</span>
       <span>🚚 توصيل لكافة محافظات العراق</span>
       <span>👩‍⚕️ استشارة صيدلانية مجانية</span>
-      <span>💬 نرد خلال دقائق</span>
+      <span>💬 طلب واستشارة عبر واتساب</span>
     </div>
   </div>
 
@@ -672,7 +730,7 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
 
   <a class="live-strip" id="live-strip" target="_blank" rel="noopener">
     <span class="live-dot"></span>
-    <span class="live-text">الصيدلي متصل الآن — يرد خلال دقائق</span>
+    <span class="live-text">تواصل مع صيدليّنا على واتساب لأي استفسار</span>
     <span class="live-cta">ابدأ محادثة ←</span>
   </a>
 
@@ -684,14 +742,23 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
         <h1>صحتكِ وجمالكِ يستحقان <em>عناية استثنائية</em></h1>
         <p>اكتشف منتجات مختارة بعناية صيادلتنا — من العناية بالشعر والبشرة إلى الفيتامينات وصحة العائلة — واطلبها برسالة واتساب واحدة.</p>
         <div class="cta-row">
-          <a class="btn-wa" id="hero-wa" target="_blank" rel="noopener">💬 تحدث مع صيدلي الآن</a>
-          <a class="btn-outline" href="#catalog">تصفح المنتجات ↓</a>
+          <a class="btn-outline" href="#catalog">🛍️ تصفّح المنتجات</a>
+          <a class="btn-wa" id="hero-wa" target="_blank" rel="noopener">💬 استشارة عبر واتساب</a>
         </div>
-        <div class="stats">
-          <div class="stat reveal"><b data-count="500" data-suffix="+">0</b><span>منتج أصلي</span></div>
-          <div class="stat reveal"><b data-count="18" data-suffix="">0</b><span>محافظة نوصل إليها</span></div>
-          <div class="stat reveal"><b data-count="1000" data-suffix="+">0</b><span>عميل يثق بنا</span></div>
+        <div class="trust-triplet">
+          <span>✅ منتجات أصلية</span>
+          <span>👩‍⚕️ استشارة صيدلانية</span>
+          <span>🛒 طلب سهل عبر واتساب</span>
         </div>
+      </div>
+    </section>
+
+    <section class="section how-to reveal">
+      <div class="section-head"><h2>🛒 كيف تطلب؟ ٣ خطوات بسيطة</h2></div>
+      <div class="how-grid">
+        <div class="how-step"><span class="how-num">1</span><div class="how-ic">🔍</div><b>تصفّح واختر</b><p>ابحث أو تصفّح التصنيفات واعثر على ما يناسبك.</p></div>
+        <div class="how-step"><span class="how-num">2</span><div class="how-ic">🛒</div><b>أضف للسلة</b><p>اجمع منتجاتك في سلة واحدة وعدّل الكميات.</p></div>
+        <div class="how-step"><span class="how-num">3</span><div class="how-ic">💬</div><b>أكمل عبر واتساب</b><p>أرسل طلبك، ونؤكّد التوفر والسعر والتوصيل معك.</p></div>
       </div>
     </section>
 
@@ -714,6 +781,20 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
         <a class="btn-wa" id="banner-wa" target="_blank" rel="noopener" style="background:#fff;color:var(--green-deep);box-shadow:none">💬 استشارة مجانية الآن</a>
       </div>
       <section class="section"><div class="section-head"><h2>👀 شاهدتها مؤخراً</h2></div><div class="rail" id="viewed"></div></section>
+      <section class="section trust-feats reveal">
+        <div class="section-head"><h2>🌿 لماذا صيدلية در الشارقة؟</h2></div>
+        <div class="feat-grid">
+          <div class="feat"><div class="feat-ic">✅</div><b>منتجات أصلية</b><p>من موزّعين معتمدين.</p></div>
+          <div class="feat"><div class="feat-ic">📦</div><b>تأكيد التوفر</b><p>نؤكّد توفّر طلبك قبل التجهيز.</p></div>
+          <div class="feat"><div class="feat-ic">🛒</div><b>سلة موحّدة</b><p>اطلب عدة منتجات برسالة واحدة.</p></div>
+          <div class="feat"><div class="feat-ic">👩‍⚕️</div><b>استشارة صيدلانية</b><p>اسأل صيدلياً على واتساب قبل الشراء.</p></div>
+        </div>
+      </section>
+      <section class="final-cta reveal">
+        <h2>تحتاج مساعدة في اختيار المنتج المناسب؟</h2>
+        <p>صيادلتنا جاهزون لمساعدتك — صف حالتك وسنرشّح لك الأنسب.</p>
+        <a class="btn-wa" id="finalcta-wa" target="_blank" rel="noopener">💬 تواصل معنا على واتساب</a>
+      </section>
     </main>
   </section>
 
@@ -1544,8 +1625,8 @@ function openCheckout() {
       </div>
       <div class="field" id="co-phone-f">
         <label>رقم الهاتف</label>
-        <input type="tel" id="co-phone" dir="ltr" style="text-align:right" value="${saved.phone || ""}" placeholder="07xxxxxxxxx" />
-        <div class="err">أدخل رقماً عراقياً صحيحاً يبدأ بـ 07</div>
+        <input type="tel" id="co-phone" dir="ltr" style="text-align:right" value="${saved.phone || ""}" placeholder="07xxxxxxxxx" inputmode="numeric" />
+        <div class="err">أدخل رقم هاتف عراقي صحيح يبدأ بـ 07</div>
       </div>
       <div class="field" id="co-city-f">
         <label>المنطقة / الحي</label>
@@ -1576,7 +1657,7 @@ function submitCheckout() {
   const notes = document.getElementById("co-notes").value.trim();
   const pickup = (document.querySelector('input[name="pickup"]:checked') || {}).value || "توصيل";
 
-  const phoneOk = !phone || /^07\d{8,9}$/.test(phone.replace(/\s/g, ""));
+  const phoneOk = /^07\d{8,9}$/.test(phone.replace(/\s/g, ""));
   document.getElementById("co-name-f").classList.toggle("invalid", !name);
   document.getElementById("co-city-f").classList.toggle("invalid", !city);
   document.getElementById("co-phone-f").classList.toggle("invalid", !phoneOk);
@@ -1864,7 +1945,7 @@ const productView = document.getElementById("product-view");
 const stickyCta = document.getElementById("sticky-cta");
 
 // روابط واتساب العامة
-for (const id of ["header-wa", "hero-wa", "float-wa", "empty-wa", "banner-wa", "live-strip"]) {
+for (const id of ["header-wa", "hero-wa", "float-wa", "empty-wa", "banner-wa", "live-strip", "finalcta-wa"]) {
   const el = document.getElementById(id); if (el) el.href = waGeneralLink();
 }
 document.getElementById("ig-link").href = STORE_CONFIG.instagram;
