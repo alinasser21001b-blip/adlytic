@@ -78,6 +78,26 @@
     </div>
   </section>
 
+  <section class="section advisor-section reveal" id="advisor">
+    <div class="container">
+      <div class="advisor-head">
+        <span class="advisor-kicker">مستشار صحي ذكي · مبني على مراجع علمية دولية</span>
+        <h2>لست متأكداً أيّ مكمّل يناسبك؟</h2>
+        <p>أجب عن أسئلة قصيرة، ويقترح لك النظام مغذّيات قد تناسب أهدافك — مع شرح الأسباب ومصادرها العلمية (WHO · NIH · EFSA). النتيجة تثقيفية، والقرار النهائي مع صيدلينا.</p>
+      </div>
+      <div id="advisor-mount" class="advisor-mount">
+        <div class="adv-card adv-intro">
+          <div class="adv-intro-badges">
+            <span>WHO</span><span>NIH ODS</span><span>EFSA</span><span>IOM · DRI</span>
+          </div>
+          <h3 class="adv-q">مستشار المكمّلات التثقيفي</h3>
+          <p class="adv-note">٥–٧ أسئلة قصيرة · بدون تسجيل · بدون بيانات شخصية · لا يشخّص ولا يصف علاجاً.</p>
+          <button class="btn-pill" onclick="Advisor.mount('advisor-mount')">ابدأ الاستشارة</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <main class="container" id="catalog">
     <div class="chips" id="chips"></div>
 
@@ -157,6 +177,8 @@
 
   <script src="js/products.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/advisor-kb.js"></script>
+  <script src="js/advisor.js"></script>
   <script>
     // روابط واتساب العامة
     for (const id of ["header-wa", "hero-wa", "float-wa", "empty-wa", "banner-wa", "finalcta-wa"]) {
