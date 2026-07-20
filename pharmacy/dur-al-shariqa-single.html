@@ -747,6 +747,8 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
   <section id="home-view">
     <section class="hero" id="hero">
       <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="images/hero-poster.jpg" aria-hidden="true">
+        <source src="https://videos.pexels.com/video-files/5998402/5998402-hd_1920_1080_30fps.mp4" type="video/mp4" />
+        <source src="https://videos.pexels.com/video-files/5998403/5998403-hd_1080_1920_30fps.mp4" type="video/mp4" />
         <source src="videos/hero.webm" type="video/webm" />
         <source src="videos/hero.mp4" type="video/mp4" />
       </video>
@@ -1969,8 +1971,12 @@ document.getElementById("ig-link").href = STORE_CONFIG.instagram;
   const v = hero && hero.querySelector(".hero-video");
   if (!v) return;
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) v.removeAttribute("autoplay");
-  v.addEventListener("loadeddata", () => hero.classList.add("has-video"));
+  const show = () => hero.classList.add("has-video");
+  if (v.readyState >= 2) show();
+  v.addEventListener("loadeddata", show);
+  v.addEventListener("canplay", show);
   v.addEventListener("error", () => hero.classList.remove("has-video"));
+  const pl = v.play && v.play(); if (pl && pl.catch) pl.catch(() => {});
 })();
 document.querySelectorAll(".footer-phones").forEach((el) =>
   el.innerHTML = "📞 " + STORE_CONFIG.phones.map((p) => `<bdo dir="ltr">${p}</bdo>`).join(" · "));
