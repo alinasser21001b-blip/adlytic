@@ -241,6 +241,36 @@ t("سؤال الفرز الإنذاري إجباري (safety gate)", () => {
   assert(q && q.isSafetyGate, "q_redflags ليس بوابة أمان");
 });
 
+/* ---------- 8) الاستنتاج المنطقي للسياق ---------- */
+t("اختيار هدف الحمل يستنتج الجنس ولا يسأل عنه", () => {
+  const s = core.newState();
+  answer(s, "q_goal", ["pregnancy"]);
+  assert(s.facts.has("demo:female"), "لم تُسجَّل أنثى تلقائياً");
+  const sexQ = KB.questions.find((q) => q.id === "q_sex");
+  assert(!core.questionVisible(sexQ, s), "سؤال الجنس ظهر رغم هدف الحمل");
+});
+
+t("إجابة «حامل» تسجّل الجنس أنثى أيضاً", () => {
+  const s = core.newState();
+  answer(s, "q_goal", ["energy"]);
+  answer(s, "q_sex", ["female"]);
+  answer(s, "q_age", ["adult"]);
+  answer(s, "q_pregnancy_safety", ["preg"]);
+  assert(s.facts.has("demo:female") && s.facts.has("flag:pregnancy"));
+});
+
+t("مسار هدف الحمل يصل لتوصية البريناتال دون سؤال الجنس", () => {
+  const s = core.newState();
+  answer(s, "q_goal", ["pregnancy"]);
+  answer(s, "q_age", ["adult"]);
+  answer(s, "q_pregnancy_safety", ["preg"]);
+  answer(s, "q_conditions", ["none"]);
+  answer(s, "q_redflags", ["none"]);
+  core._setState(s);
+  const recs = core.buildRecommendations(s);
+  assert(recs.length && recs[0].nutrient.id === "prenatal", "البريناتال ليست الأولى: " + (recs[0] && recs[0].nutrient.id));
+});
+
 /* ---------- النتيجة ---------- */
 console.log(`\nالنتيجة: ${pass} نجح · ${fail} فشل\n`);
 process.exit(fail ? 1 : 0);

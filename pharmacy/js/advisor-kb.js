@@ -554,15 +554,15 @@ const ADVISOR_KB = {
         { id: "bones",     label: "🦴 عظام",                 facts: ["goal:bones"] },
         { id: "skin",      label: "✨ نضارة البشرة",         facts: ["goal:skin"] },
         { id: "digestion", label: "🌱 صحة الهضم",           facts: ["goal:digestion"] },
-        { id: "pregnancy", label: "🤰 حمل أو تخطيط له",      facts: ["goal:pregnancy", "flag:planning_pregnancy"] },
+        { id: "pregnancy", label: "🤰 حمل أو تخطيط له",      facts: ["goal:pregnancy", "flag:planning_pregnancy", "demo:female"] },
       ],
     },
     /* ---- الملف الديموغرافي (إجباري): الجرعات المرجعية الدولية (DRI)
        تختلف حسب الجنس والفئة العمرية — لذا نسأل عنهما قبل أي توصية. ---- */
     {
       id: "q_sex", priority: 9.6, type: "single", isSafetyGate: true,
-      text: "لعرض الكميات المرجعية الدولية الدقيقة (DRI) — ما جنسك؟",
-      appearWhen: [], skipWhen: ["answered:q_sex"], relatedNutrients: [],
+      text: "لعرض الكميات المرجعية الدقيقة حسب الفئة — ما جنسك؟",
+      appearWhen: [], skipWhen: ["answered:q_sex", "demo:female", "demo:male"], relatedNutrients: [],
       options: [
         { id: "female", label: "أنثى", facts: ["demo:female"] },
         { id: "male",   label: "ذكر", facts: ["demo:male", "flag:male_adult"] },
@@ -581,12 +581,12 @@ const ADVISOR_KB = {
     },
     {
       id: "q_pregnancy_safety", priority: 9, type: "single", isSafetyGate: true,
-      text: "قبل أي توصية — هل أنتِ حامل حالياً أو مرضعة؟",
+      text: "للسلامة قبل أي اقتراح — هل أنتِ حامل حالياً أو مرضعة؟",
       appearWhen: [], skipWhen: ["answered:q_pregnancy_safety", "demo:male"], relatedNutrients: ["prenatal"], safetyRelevance: ["pregnancy"],
       options: [
         { id: "no",   label: "لا", facts: [] },
-        { id: "preg", label: "نعم، حامل", facts: ["flag:pregnancy", "goal:pregnancy"] },
-        { id: "nurse",label: "نعم، مرضعة", facts: ["flag:nursing"] },
+        { id: "preg", label: "نعم، حامل", facts: ["flag:pregnancy", "goal:pregnancy", "demo:female"] },
+        { id: "nurse",label: "نعم، مرضعة", facts: ["flag:nursing", "demo:female"] },
         { id: "na",   label: "لا ينطبق", facts: [] },
       ],
     },
@@ -721,7 +721,7 @@ const ADVISOR_KB = {
     },
     {
       id: "q_digestion", priority: 6, type: "multi",
-      text: "ما الذي يزعجك في هضمك؟ (اختر ما ينطبق)",
+      text: "ما الذي يزعجك في الهضم؟ (اختر كل ما ينطبق)",
       appearWhen: ["goal:digestion"], skipWhen: ["answered:q_digestion"], relatedNutrients: ["probiotics"],
       options: [
         { id: "bloat",  label: "انتفاخ وغازات", facts: ["symptom:bloating"] },
@@ -741,7 +741,7 @@ const ADVISOR_KB = {
     },
     {
       id: "q_period", priority: 5, type: "single",
-      text: "هل تعانين من دورة شهرية غزيرة؟ (اختياري — يخص الحديد)",
+      text: "هل دورتك الشهرية غزيرة؟ (سؤال يخص احتياج الحديد)",
       appearWhen: ["goal:energy", "goal:hair"], skipWhen: ["answered:q_period", "flag:pregnancy", "demo:male"], relatedNutrients: ["iron"],
       options: [
         { id: "yes", label: "نعم", facts: ["symptom:heavy_period", "lifestyle:heavy_period"] },
