@@ -435,6 +435,9 @@
     _clickProduct(pid) { Analytics.event("advisor_product_click", { product: pid }); },
     _clickWa() { Analytics.event("advisor_to_whatsapp", {}); },
     _debug() { return { STATE, KB }; },
+    // نواة المحرك مكشوفة للاختبارات الآلية فقط — لا تُستخدم من الواجهة
+    _core: { newState, applyAnswer, nextQuestion, readyToRecommend, recompute, buildRecommendations,
+             questionVisible, _setState(s) { STATE = s; } },
   };
   window.Advisor = Advisor;
 })();

@@ -573,8 +573,19 @@ const ADVISOR_KB = {
       appearWhen: ["goal:energy", "goal:focus"], skipWhen: ["answered:q_fatigue"], relatedNutrients: ["vitamin_d", "iron", "b12"],
       options: [
         { id: "often", label: "نعم، كثيراً", facts: ["symptom:fatigue"] },
+        { id: "pale",  label: "نعم، مع شحوب أو دوخة عند الوقوف", facts: ["symptom:fatigue", "symptom:pale"] },
         { id: "some",  label: "أحياناً", facts: ["symptom:fatigue"] },
         { id: "no",    label: "لا", facts: [] },
+      ],
+    },
+    {
+      id: "q_neuro", priority: 6, type: "multi",
+      text: "هل تلاحظ أياً من التالي؟ (اختر ما ينطبق)",
+      appearWhen: ["goal:focus", "symptom:fatigue"], skipWhen: ["answered:q_neuro"], relatedNutrients: ["b12", "omega3"],
+      options: [
+        { id: "fog",     label: "تشتّت ذهني / صعوبة تركيز", facts: ["symptom:brain_fog"] },
+        { id: "tingle",  label: "تنميل أو وخز في الأطراف", facts: ["symptom:tingling"] },
+        { id: "none",    label: "لا شيء مما سبق", facts: [] },
       ],
     },
     {
@@ -623,7 +634,19 @@ const ADVISOR_KB = {
       appearWhen: ["goal:immunity"], skipWhen: ["answered:q_immunity"], relatedNutrients: ["vitamin_d", "zinc"],
       options: [
         { id: "often", label: "نعم، متكرر", facts: ["symptom:frequent_colds"] },
+        { id: "heal",  label: "جروحي تلتئم ببطء", facts: ["symptom:slow_healing"] },
+        { id: "both",  label: "الاثنان معاً", facts: ["symptom:frequent_colds", "symptom:slow_healing"] },
         { id: "no",    label: "لا", facts: [] },
+      ],
+    },
+    {
+      id: "q_bones", priority: 6, type: "single",
+      text: "هل تشعر بآلام في العظام أو المفاصل؟",
+      appearWhen: ["goal:bones"], skipWhen: ["answered:q_bones"], relatedNutrients: ["vitamin_d", "calcium"],
+      options: [
+        { id: "yes", label: "نعم، بشكل متكرر", facts: ["symptom:bone_pain"] },
+        { id: "some",label: "أحياناً", facts: ["symptom:bone_pain"] },
+        { id: "no",  label: "لا، وقاية فقط", facts: [] },
       ],
     },
     {
