@@ -134,6 +134,24 @@ const ADVISOR_KB = {
       reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "High",
       url: "https://ods.od.nih.gov/factsheets/Calcium-HealthProfessional/",
     },
+    nih_vite: {
+      org: "NIH Office of Dietary Supplements", title: "Vitamin E — Fact Sheet for Health Professionals",
+      type: "Dietary Reference Intake", year: 2023, version: "2023.1",
+      reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "Moderate",
+      url: "https://ods.od.nih.gov/factsheets/VitaminE-HealthProfessional/",
+    },
+    nih_potassium: {
+      org: "NIH Office of Dietary Supplements", title: "Potassium — Fact Sheet for Health Professionals",
+      type: "Adequate Intake", year: 2022, version: "2022.1",
+      reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "Moderate",
+      url: "https://ods.od.nih.gov/factsheets/Potassium-HealthProfessional/",
+    },
+    nih_probiotics: {
+      org: "NIH Office of Dietary Supplements", title: "Probiotics — Fact Sheet for Health Professionals",
+      type: "Scientific Review", year: 2023, version: "2023.1",
+      reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "Moderate",
+      url: "https://ods.od.nih.gov/factsheets/Probiotics-HealthProfessional/",
+    },
     clin_collagen: {
       org: "Peer-reviewed clinical reviews (PubMed)",
       title: "Oral collagen peptide supplementation and skin/appendage outcomes — systematic review",
@@ -153,7 +171,8 @@ const ADVISOR_KB = {
     { id: "immunity",  name: "دعم المناعة", icon: "🛡️", nutrients: ["vitamin_d", "zinc", "vitamin_c"] },
     { id: "sleep",     name: "النوم والاسترخاء", icon: "🌙", nutrients: ["magnesium"] },
     { id: "bones",     name: "صحة العظام", icon: "🦴", nutrients: ["vitamin_d", "calcium"] },
-    { id: "skin",      name: "نضارة البشرة", icon: "✨", nutrients: ["collagen", "vitamin_c"] },
+    { id: "skin",      name: "نضارة البشرة", icon: "✨", nutrients: ["collagen", "vitamin_c", "vitamin_e"] },
+    { id: "digestion", name: "صحة الهضم", icon: "🌱", nutrients: ["probiotics"] },
     { id: "pregnancy", name: "الحمل والتخطيط له", icon: "🤰", nutrients: ["prenatal"] },
   ],
 
@@ -391,6 +410,63 @@ const ADVISOR_KB = {
       ],
     },
     {
+      id: "vitamin_e", name: "فيتامين E", primaryRef: "nih_vite",
+      blurb: "مضاد أكسدة يحمي الخلايا ويُستخدم لدعم صحة البشرة.",
+      dosage: {
+        rda: "15 ملغ/يوم للبالغين.",
+        upperLimit: "الحد الأعلى 1000 ملغ/يوم من المكملات للبالغين.",
+        ref: "nih_vite", ulRef: "nih_vite",
+      },
+      indicationRules: [
+        { when: "goal:skin",         weight: 2, evidenceLevel: "Moderate", ref: "nih_vite" },
+        { when: "symptom:dull_skin", weight: 2, evidenceLevel: "Limited",  ref: "nih_vite" },
+      ],
+      contraindications: [
+        { flag: "blood_thinner", action: "flag", ref: "nih_vite",
+          note: "الجرعات العالية قد تزيد خطر النزف مع مميّعات الدم — راجع الطبيب." },
+      ],
+    },
+    {
+      id: "potassium", name: "البوتاسيوم", primaryRef: "nih_potassium",
+      blurb: "كهرل أساسي لوظيفة العضلات والأعصاب وضغط الدم الصحي.",
+      dosage: {
+        rda: "الكفاية الغذائية 2600 ملغ/يوم للنساء و3400 ملغ/يوم للرجال.",
+        rows: [
+          { when: ["demo:male"],   rda: "3400 ملغ/يوم (ذكور بالغون)" },
+          { when: ["demo:female"], rda: "2600 ملغ/يوم (إناث بالغات)" },
+        ],
+        upperLimit: "لا حدّ أعلى من الغذاء؛ المكملات تُصرف بحذر ويفضَّل تغطية الاحتياج غذائياً.",
+        ref: "nih_potassium", ulRef: "nih_potassium",
+      },
+      indicationRules: [
+        { when: "symptom:cramps",       weight: 2, evidenceLevel: "Moderate", ref: "nih_potassium" },
+        { when: "lifestyle:low_fruit",  weight: 2, evidenceLevel: "Moderate", ref: "nih_potassium" },
+      ],
+      contraindications: [
+        { flag: "kidney_disease", action: "exclude", ref: "nih_potassium",
+          note: "قصور الكلى مانع — خطر فرط بوتاسيوم الدم." },
+      ],
+    },
+    {
+      id: "probiotics", name: "البروبيوتيك", primaryRef: "nih_probiotics",
+      blurb: "بكتيريا نافعة تدعم توازن الجهاز الهضمي وقد تخفف الانتفاخ واضطراب الأمعاء.",
+      dosage: {
+        rda: "لا RDA رسمي؛ الدراسات استخدمت سلالات وجرعات متعددة (وحدات CFU) — الاختيار حسب السلالة والغرض.",
+        upperLimit: "يُعتبر آمناً عموماً للأصحاء؛ يُراجع الطبيب لذوي المناعة الضعيفة.",
+        ref: "nih_probiotics", ulRef: "nih_probiotics",
+      },
+      indicationRules: [
+        { when: "goal:digestion",       weight: 3, evidenceLevel: "Moderate", ref: "nih_probiotics" },
+        { when: "symptom:bloating",     weight: 3, evidenceLevel: "Moderate", ref: "nih_probiotics" },
+        { when: "symptom:irregular_gut",weight: 2, evidenceLevel: "Moderate", ref: "nih_probiotics" },
+        { when: "flag:recent_antibiotics", weight: 3, evidenceLevel: "Moderate", ref: "nih_probiotics" },
+      ],
+      contraindications: [
+        { flag: "immunocompromised", action: "flag", ref: "nih_probiotics",
+          note: "لذوي المناعة الضعيفة: يُراجع الطبيب قبل البروبيوتيك." },
+      ],
+    },
+    {
       id: "prenatal", name: "فيتامينات الحمل (حمض الفوليك)", primaryRef: "cdc_folate",
       blurb: "حمض الفوليك والحديد والمعادن الأساسية لدعم الحمل الصحي والتخطيط له.",
       dosage: {
@@ -420,6 +496,9 @@ const ADVISOR_KB = {
     prenatal:    ["pregnacare", "well-pregna", "mamacare-plus", "pregnancy-pack"],
     vitamin_c:   ["multi-nrg-women"],
     calcium:     [],
+    vitamin_e:   [],
+    potassium:   [],
+    probiotics:  [],
   },
 
   /* ---- شجرة الأسئلة التكيّفية ---- */
@@ -436,6 +515,7 @@ const ADVISOR_KB = {
         { id: "sleep",     label: "🌙 نوم واسترخاء",         facts: ["goal:sleep"] },
         { id: "bones",     label: "🦴 عظام",                 facts: ["goal:bones"] },
         { id: "skin",      label: "✨ نضارة البشرة",         facts: ["goal:skin"] },
+        { id: "digestion", label: "🌱 صحة الهضم",           facts: ["goal:digestion"] },
         { id: "pregnancy", label: "🤰 حمل أو تخطيط له",      facts: ["goal:pregnancy", "flag:planning_pregnancy"] },
       ],
     },
@@ -484,6 +564,7 @@ const ADVISOR_KB = {
         { id: "iron_ov",label: "زيادة حديد / هيموكروماتوز", facts: ["flag:iron_overload"] },
         { id: "highcal",label: "ارتفاع كالسيوم الدم", facts: ["flag:hypercalcemia"] },
         { id: "labs",   label: "لديّ تحاليل دم قريباً", facts: ["flag:lab_tests_soon"] },
+        { id: "immune", label: "ضعف مناعة / علاج مثبّط للمناعة", facts: ["flag:immunocompromised"] },
       ],
     },
     {
@@ -561,6 +642,26 @@ const ADVISOR_KB = {
       options: [
         { id: "yes", label: "نعم", facts: ["lifestyle:smoker"] },
         { id: "no",  label: "لا", facts: [] },
+      ],
+    },
+    {
+      id: "q_digestion", priority: 6, type: "multi",
+      text: "ما الذي يزعجك في هضمك؟ (اختر ما ينطبق)",
+      appearWhen: ["goal:digestion"], skipWhen: ["answered:q_digestion"], relatedNutrients: ["probiotics"],
+      options: [
+        { id: "bloat",  label: "انتفاخ وغازات", facts: ["symptom:bloating"] },
+        { id: "irreg",  label: "اضطراب/عدم انتظام الأمعاء", facts: ["symptom:irregular_gut"] },
+        { id: "antib",  label: "أخذت مضاداً حيوياً مؤخراً", facts: ["flag:recent_antibiotics"] },
+        { id: "none",   label: "أستكشف فقط", facts: [] },
+      ],
+    },
+    {
+      id: "q_fruit", priority: 5, type: "single",
+      text: "هل تتناول الخضار والفواكه يومياً؟",
+      appearWhen: ["goal:energy", "goal:sleep"], skipWhen: ["answered:q_fruit"], relatedNutrients: ["potassium", "vitamin_c"],
+      options: [
+        { id: "rare",  label: "نادراً", facts: ["lifestyle:low_fruit"] },
+        { id: "daily", label: "يومياً تقريباً", facts: [] },
       ],
     },
     {
