@@ -41,27 +41,29 @@
     <span class="live-cta">ابدأ محادثة ←</span>
   </a>
 
-  <section class="hero" id="hero">
-    <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="images/hero-poster.jpg" aria-hidden="true">
-      <!-- الفيديو الذي رفعه صاحب الصيدلية (المصدر الأساسي) -->
-      <source src="videos/hero.mp4" type="video/mp4" />
-      <!-- بدائل احتياطية -->
-      <source src="videos/hero.webm" type="video/webm" />
-    </video>
-    <div class="hero-veil"></div>
+  <section class="hero-wrap">
     <div class="container">
-      <img class="hero-logo" src="images/logo.png" alt="صيدلية در الشارقة" />
-      <span class="kicker">نهتم بصحتك · We care about your health</span>
-      <h1>صحتكِ وجمالكِ يستحقان <em>عناية استثنائية</em></h1>
-      <p>اكتشف منتجات مختارة بعناية صيادلتنا — من العناية بالشعر والبشرة إلى الفيتامينات وصحة العائلة — واطلبها برسالة واتساب واحدة.</p>
-      <div class="cta-row">
-        <a class="btn-outline" href="#catalog">تصفّح المنتجات</a>
-        <a class="btn-wa" id="hero-wa" target="_blank" rel="noopener"><svg class="wa-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.09c-.24.68-1.42 1.32-1.95 1.36-.5.05-.95.23-3.2-.67-2.7-1.06-4.42-3.8-4.55-3.98-.13-.18-1.1-1.46-1.1-2.78 0-1.32.7-1.97.94-2.24.24-.27.53-.34.7-.34.18 0 .35.01.5.01.16.01.38-.06.59.45.24.58.8 2 .87 2.14.07.14.12.31.02.49-.09.18-.14.29-.27.45-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.72 1.19 1.55 1.93 1.06.95 1.96 1.24 2.24 1.38.27.14.43.12.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.6-.14.24.09 1.55.73 1.81.86.27.14.45.2.51.31.07.11.07.63-.17 1.31z"/></svg>استشارة عبر واتساب</a>
+      <div class="hero-block" id="hero">
+        <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="images/hero-poster.jpg" aria-hidden="true">
+          <source src="videos/hero.mp4" type="video/mp4" />
+          <source src="videos/hero.webm" type="video/webm" />
+        </video>
+        <div class="hero-veil"></div>
+        <div class="hero-content">
+          <span class="kicker">نهتم بصحتك · We care about your health</span>
+          <h1>صحتكِ وجمالكِ يستحقان <em>عناية استثنائية</em></h1>
+          <p>منتجات مختارة بعناية صيادلتنا — من العناية بالشعر والبشرة إلى الفيتامينات وصحة العائلة — واطلبها برسالة واتساب واحدة.</p>
+          <div class="cta-row">
+            <a class="btn-pill" href="#catalog">تسوّق المنتجات <span class="arr">←</span></a>
+            <a class="btn-pill ghost" id="hero-wa" target="_blank" rel="noopener"><svg class="wa-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.09c-.24.68-1.42 1.32-1.95 1.36-.5.05-.95.23-3.2-.67-2.7-1.06-4.42-3.8-4.55-3.98-.13-.18-1.1-1.46-1.1-2.78 0-1.32.7-1.97.94-2.24.24-.27.53-.34.7-.34.18 0 .35.01.5.01.16.01.38-.06.59.45.24.58.8 2 .87 2.14.07.14.12.31.02.49-.09.18-.14.29-.27.45-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.72 1.19 1.55 1.93 1.06.95 1.96 1.24 2.24 1.38.27.14.43.12.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.6-.14.24.09 1.55.73 1.81.86.27.14.45.2.51.31.07.11.07.63-.17 1.31z"/></svg>استشارة عبر واتساب</a>
+          </div>
+        </div>
       </div>
-      <div class="trust-triplet">
-        <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg> منتجات أصلية</span>
-        <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5 8.5 8.5 0 1 1 21 11.5z"/><path d="M12 8.2v5.6M9.2 11h5.6"/></svg> استشارة صيدلانية</span>
-        <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12a1.6 1.6 0 0 0 1.6 1.3h8.2a1.6 1.6 0 0 0 1.6-1.3L22 7H6.2"/></svg> طلب سهل عبر واتساب</span>
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee-track">
+          <span>منتجات أصلية 100%</span><i>✦</i><span>توصيل لكافة محافظات العراق</span><i>✦</i><span>استشارة صيدلانية مجانية</span><i>✦</i><span>طلب سهل عبر واتساب</span><i>✦</i><span>موزّعون معتمدون</span><i>✦</i>
+          <span>منتجات أصلية 100%</span><i>✦</i><span>توصيل لكافة محافظات العراق</span><i>✦</i><span>استشارة صيدلانية مجانية</span><i>✦</i><span>طلب سهل عبر واتساب</span><i>✦</i><span>موزّعون معتمدون</span><i>✦</i>
+        </div>
       </div>
     </div>
   </section>
