@@ -128,6 +128,19 @@ for (const nid of nutrientIds)
   if (!(nid in (KB.nutrientProducts || {})))
     warn(`nutrient ${nid}: بلا مدخل في nutrientProducts (سيظهر مسار الصيدلي دائماً)`);
 
+/* ---------- أعراض الخطورة ---------- */
+for (const [i, rf] of (KB.redFlags || []).entries()) {
+  checkRef(`redFlags[${i}] (${rf.fact})`, rf.ref);
+  if (!rf.label || !rf.advice) err(`redFlags[${i}]: بلا نص/نصيحة`);
+  if (!producibleFacts.has(rf.fact))
+    err(`redFlags[${i}]: الحقيقة "${rf.fact}" لا يُنتجها أي سؤال — فرز ميت`);
+}
+if (!(KB.redFlags || []).length) err("لا قسم أعراض خطورة (redFlags)");
+// وكل حقيقة redflag: ينتجها سؤال يجب أن يكون لها مدخل في redFlags
+for (const f of producibleFacts)
+  if (f.startsWith("redflag:") && !(KB.redFlags || []).some((r) => r.fact === f))
+    err(`الحقيقة "${f}" تُنتج من سؤال لكن لا مدخل لها في redFlags`);
+
 /* ---------- الأسئلة ---------- */
 const qIds = new Set((KB.questions || []).map((q) => q.id));
 let safetyGates = 0;

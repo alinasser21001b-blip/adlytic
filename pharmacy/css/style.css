@@ -844,3 +844,14 @@ html[dir="rtl"] .marquee-track { animation-name: marquee-rtl; }
   .adv-card { padding: 18px; }
   .adv-conf { width: 120px; }
 }
+
+/* إحالة للطبيب — أعراض الخطورة */
+.adv-doctor { text-align: right; }
+.adv-doctor-ic { font-size: 2rem; text-align: center; }
+.adv-doctor .adv-q { text-align: center; color: #8a3b2e; }
+.adv-doctor-lead { color: var(--ink); line-height: 1.9; font-size: .92rem;
+  background: #fdf1ec; border: 1px solid #f0d4c8; border-radius: 12px; padding: 12px 14px; }
+.adv-red-item { border: 1px solid #f0d4c8; border-right: 4px solid #c0563f;
+  border-radius: 12px; padding: 11px 14px; margin-top: 10px; background: #fff; }
+.adv-red-item b { color: #8a3b2e; }
+.adv-red-item p { color: var(--muted); font-size: .85rem; line-height: 1.8; margin: 4px 0; }

@@ -152,6 +152,20 @@ const ADVISOR_KB = {
       reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "Moderate",
       url: "https://ods.od.nih.gov/factsheets/Probiotics-HealthProfessional/",
     },
+    nice_ng12: {
+      org: "NICE (المعهد الوطني البريطاني للتميز الصحي)",
+      title: "Suspected cancer: recognition and referral — NG12 (أعراض إنذارية تستوجب تقييماً طبياً)",
+      type: "Clinical Guideline", year: 2023, version: "NG12-2023",
+      reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "High",
+      url: "https://www.nice.org.uk/guidance/ng12",
+    },
+    aha_chestpain: {
+      org: "AHA/ACC (جمعية القلب الأمريكية)",
+      title: "Guideline for the Evaluation and Diagnosis of Chest Pain",
+      type: "Clinical Guideline", year: 2021, version: "2021",
+      reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "High",
+      url: "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001029",
+    },
     clin_collagen: {
       org: "Peer-reviewed clinical reviews (PubMed)",
       title: "Oral collagen peptide supplementation and skin/appendage outcomes — systematic review",
@@ -501,6 +515,30 @@ const ADVISOR_KB = {
     probiotics:  [],
   },
 
+  /* ---- أعراض الخطورة (Red Flags) ----
+     وجود أيٍّ منها = لا توصية بمكملات؛ نصيحة صريحة بمراجعة الطبيب.
+     كل عرض يستشهد بإرشاد سريري دولي.                                  */
+  redFlags: [
+    { fact: "redflag:weight_loss", label: "نزول وزن غير مفسَّر",
+      advice: "نزول الوزن غير المقصود عرض يستوجب تقييماً طبياً وليس مكملات غذائية.",
+      ref: "nice_ng12" },
+    { fact: "redflag:bleeding", label: "نزف غير طبيعي (براز/بول/سعال مدمّى)",
+      advice: "أي نزف غير مفسَّر يحتاج فحصاً طبياً عاجلاً.",
+      ref: "nice_ng12" },
+    { fact: "redflag:chest_pain", label: "ألم صدر أو ضيق تنفس عند الجهد",
+      advice: "ألم الصدر وضيق التنفس يستوجبان تقييماً طبياً — لا تؤجّل.",
+      ref: "aha_chestpain" },
+    { fact: "redflag:lump", label: "كتلة أو تضخّم جديد",
+      advice: "أي كتلة جديدة تحتاج فحصاً سريرياً.",
+      ref: "nice_ng12" },
+    { fact: "redflag:persistent_fever", label: "حمّى أو تعرّق ليلي مستمر",
+      advice: "الحمّى المستمرة والتعرّق الليلي يحتاجان تقييماً طبياً.",
+      ref: "nice_ng12" },
+    { fact: "redflag:severe_fatigue", label: "إرهاق شديد مفاجئ يمنع النشاط اليومي",
+      advice: "الإرهاق الشديد المفاجئ قد يشير لحالة تحتاج فحصاً مخبرياً وطبياً.",
+      ref: "nice_ng12" },
+  ],
+
   /* ---- شجرة الأسئلة التكيّفية ---- */
   questions: [
     {
@@ -565,6 +603,20 @@ const ADVISOR_KB = {
         { id: "highcal",label: "ارتفاع كالسيوم الدم", facts: ["flag:hypercalcemia"] },
         { id: "labs",   label: "لديّ تحاليل دم قريباً", facts: ["flag:lab_tests_soon"] },
         { id: "immune", label: "ضعف مناعة / علاج مثبّط للمناعة", facts: ["flag:immunocompromised"] },
+      ],
+    },
+    {
+      id: "q_redflags", priority: 7.5, type: "multi", isSafetyGate: true,
+      text: "أخيراً للاطمئنان — هل لديك أي من هذه الأعراض حالياً؟ (اختر ما ينطبق أو «لا شيء»)",
+      appearWhen: [], skipWhen: ["answered:q_redflags"], relatedNutrients: [],
+      options: [
+        { id: "none",   label: "لا شيء مما يلي ✓", facts: [] },
+        { id: "weight", label: "نزول وزن واضح دون سبب", facts: ["redflag:weight_loss"] },
+        { id: "bleed",  label: "نزف غير طبيعي (براز/بول/سعال مدمّى)", facts: ["redflag:bleeding"] },
+        { id: "chest",  label: "ألم صدر أو ضيق تنفس عند الجهد", facts: ["redflag:chest_pain"] },
+        { id: "lump",   label: "كتلة أو تضخّم جديد", facts: ["redflag:lump"] },
+        { id: "fever",  label: "حمّى أو تعرّق ليلي مستمر", facts: ["redflag:persistent_fever"] },
+        { id: "sudden", label: "إرهاق شديد مفاجئ يمنع نشاطي اليومي", facts: ["redflag:severe_fatigue"] },
       ],
     },
     {

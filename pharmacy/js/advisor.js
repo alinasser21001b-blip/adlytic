@@ -102,6 +102,10 @@
     return KB.questions.find((q) => q.isSafetyGate && questionVisible(q, state));
   }
 
+  function activeRedFlags(state) {
+    return (KB.redFlags || []).filter((rf) => state.facts.has(rf.fact));
+  }
+
   function activeGoals(state) {
     return [...state.facts].filter((f) => f.startsWith("goal:")).map((f) => f.slice(5));
   }
@@ -136,6 +140,7 @@
   /* ---------- قاعدة التوقّف / توقيت التوصية ---------- */
   function readyToRecommend(state) {
     if (pendingSafetyGate(state)) return false;
+    if (activeRedFlags(state).length) return true; // خطورة: نتوقف فوراً وننصح بالطبيب
     if (state.askedCount >= M.maxQuestions) return true;
     if (!nextQuestion(state)) return true; // لا مزيد من الأسئلة ذات الصلة
     return (
@@ -299,7 +304,45 @@
       </a>`;
   }
 
+  function renderDoctorReferral(reds) {
+    Analytics.event("advisor_results", {
+      goals: activeGoals(STATE), nutrients: [], questions: STATE.askedCount,
+      topConfidence: 0, redFlags: reds.map((r) => r.fact),
+    });
+    const items = reds.map((rf) => {
+      const ref = refOf(rf.ref) || {};
+      return `<div class="adv-red-item">
+        <b>${rf.label}</b>
+        <p>${rf.advice}</p>
+        <small class="adv-cite">المرجع: ${ref.org || ""} — ${ref.title || ""} (${ref.year || ""})</small>
+      </div>`;
+    }).join("");
+    MOUNT.innerHTML = `
+      <div class="adv-card adv-results">
+        <div class="adv-doctor">
+          <div class="adv-doctor-ic">🩺</div>
+          <h3 class="adv-q">ننصحك بمراجعة طبيب — هذه الأعراض لا تُعالَج بالمكملات</h3>
+          <p class="adv-doctor-lead">بناءً على إجاباتك، ذكرت عرضاً (أو أكثر) تصنّفه الإرشادات
+            السريرية الدولية كعرض يستوجب تقييماً طبياً. المكملات الغذائية ليست العلاج
+            المناسب هنا، والأولوية هي الفحص الطبي.</p>
+          ${items}
+          <div class="adv-handoff">
+            <p>صيدلينا يستطيع توجيهك — أرسل حالتك كاملة وسيرشدك للخطوة الصحيحة:</p>
+            <a class="btn-pill" target="_blank" rel="noopener"
+               href="${waConsult([])}" onclick="Advisor._clickWa()">
+              <svg class="wa-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2z"/></svg>
+              أرسل حالتي لصيدلي الآن
+            </a>
+            <button class="adv-restart" onclick="Advisor.restart()">ابدأ استشارة جديدة</button>
+          </div>
+          <p class="adv-note">${KB.meta.disclaimerAr}</p>
+        </div>
+      </div>`;
+  }
+
   function renderResults() {
+    const reds = activeRedFlags(STATE);
+    if (reds.length) return renderDoctorReferral(reds);
     const recs = buildRecommendations(STATE);
     Analytics.event("advisor_results", {
       goals: activeGoals(STATE),
@@ -389,16 +432,45 @@
       </div>`;
   }
 
+  function factsByPrefix(prefix) {
+    return [...STATE.facts].filter((f) => f.startsWith(prefix)).map(factLabel);
+  }
+
+  // تقرير الاستشارة الكامل للصيدلي — كل ما سأله النظام وحالة الزبون
   function waConsult(recs) {
     const goals = activeGoals(STATE).map((g) => {
       const go = KB.goals.find((x) => x.id === g); return go ? go.name : g;
     });
-    const nutr = recs.map((r) => r.nutrient.name);
+    const demo = [];
+    if (STATE.facts.has("demo:male")) demo.push("ذكر");
+    if (STATE.facts.has("demo:female")) demo.push("أنثى");
+    if (STATE.facts.has("demo:age_14_18")) demo.push("14–18 سنة");
+    if (STATE.facts.has("demo:age_19_50")) demo.push("19–50 سنة");
+    if (STATE.facts.has("demo:age_51_70")) demo.push("51–70 سنة");
+    if (STATE.facts.has("demo:age_70_plus")) demo.push("فوق 70 سنة");
+    const symptoms = factsByPrefix("symptom:");
+    const lifestyle = factsByPrefix("lifestyle:");
+    const flags = factsByPrefix("flag:");
+    const reds = activeRedFlags(STATE).map((rf) => rf.label);
+    const nutr = recs.map((r) => `${r.nutrient.name} (ملاءمة ${Math.round(r.confidence * 100)}%)`);
+
     const lines = [
-      "*استشارة مكمّلات — صيدلية در الشارقة*",
+      "*استشارة المستشار الصحي — صيدلية در الشارقة*",
+      "───────────────",
+      demo.length ? "الفئة: " + demo.join("، ") : "",
       goals.length ? "الأهداف: " + goals.join("، ") : "",
-      nutr.length ? "اقتراحات تثقيفية للمناقشة: " + nutr.join("، ") : "",
-      "أرغب بمعرفة الأنسب لحالتي والجرعة والتوفّر والسعر.",
+      symptoms.length ? "الأعراض المذكورة: " + symptoms.join("، ") : "",
+      lifestyle.length ? "نمط الحياة: " + lifestyle.join("، ") : "",
+      flags.length ? "⚠️ أعلام الأمان: " + flags.join("، ") : "أعلام الأمان: لا يوجد",
+      reds.length ? "🚨 أعراض إنذارية: " + reds.join("، ") : "",
+      reds.length ? "أوصى النظام بمراجعة الطبيب وعدم الاكتفاء بالمكملات." : "",
+      "───────────────",
+      nutr.length ? "اقتراحات النظام (تثقيفية): " + nutr.join("، ") : "",
+      `عدد الأسئلة المُجابة: ${STATE.askedCount}`,
+      "───────────────",
+      reds.length
+        ? "أرغب بنصيحتكم حول حالتي وما إذا كنت أحتاج مراجعة طبيب."
+        : "أرغب بتأكيد الأنسب لحالتي والجرعة والتوفّر والسعر.",
     ].filter(Boolean);
     const num = (typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.whatsappNumber) || "9647710595805";
     return `https://wa.me/${num}?text=${encodeURIComponent(lines.join("\n"))}`;

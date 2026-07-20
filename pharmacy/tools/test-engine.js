@@ -179,6 +179,7 @@ t("يتوقف عند الحد الأقصى بعد استيفاء أسئلة ال
   answer(s, "q_age", ["adult"]);
   answer(s, "q_pregnancy_safety", ["no"]);
   answer(s, "q_conditions", ["none"]);
+  answer(s, "q_redflags", ["none"]);
   s.askedCount = KB.meta.maxQuestions;
   assert(core.readyToRecommend(s), "لم يتوقف عند الحد رغم استيفاء الأمان");
 });
@@ -212,6 +213,32 @@ t("كل توصية تحمل أثر شرح ومرجعاً أساسياً صالح
     assert(r.trace.safetyChecked.length > 0, r.nutrient.id + ": بلا فحص أمان");
     assert(KB.references[r.nutrient.primaryRef], r.nutrient.id + ": مرجع أساسي مفقود");
   });
+});
+
+/* ---------- 7) أعراض الخطورة ---------- */
+t("عرض إنذاري يوقف المحادثة فوراً بعد استيفاء بوابات الأمان", () => {
+  const s = core.newState();
+  answer(s, "q_goal", ["energy"]);
+  answer(s, "q_sex", ["male"]);
+  answer(s, "q_age", ["adult"]);
+  answer(s, "q_conditions", ["none"]);
+  answer(s, "q_redflags", ["weight"]);
+  assert(core.readyToRecommend(s), "لم يتوقف رغم عرض إنذاري");
+});
+
+t("كل حقائق redflag لها مدخل في KB.redFlags بمرجع سريري", () => {
+  const q = KB.questions.find((x) => x.id === "q_redflags");
+  const facts = q.options.flatMap((o) => o.facts || []);
+  facts.forEach((f) => {
+    const rf = (KB.redFlags || []).find((r) => r.fact === f);
+    assert(rf, f + ": بلا مدخل redFlags");
+    assert(KB.references[rf.ref], f + ": مرجع غير موجود");
+  });
+});
+
+t("سؤال الفرز الإنذاري إجباري (safety gate)", () => {
+  const q = KB.questions.find((x) => x.id === "q_redflags");
+  assert(q && q.isSafetyGate, "q_redflags ليس بوابة أمان");
 });
 
 /* ---------- النتيجة ---------- */
