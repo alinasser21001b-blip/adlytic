@@ -51,9 +51,10 @@ img { max-width: 100%; display: block; }
 h1, h2, h3, .display { font-family: "El Messiri", "Tajawal", serif; }
 
 /* ---------- شريط الثقة ---------- */
-.trust-bar { background: var(--green-deep); color: #e9efe4; font-size: 0.8rem; }
-.trust-bar .container { display: flex; gap: 26px; justify-content: center; padding: 7px 18px; flex-wrap: wrap; }
-.trust-bar span { display: inline-flex; align-items: center; gap: 6px; }
+.trust-bar { background: var(--green-deep); color: #dbe4d3; font-size: 0.78rem; letter-spacing: 0.01em; }
+.trust-bar .container { display: flex; gap: 22px; justify-content: center; padding: 8px 18px; flex-wrap: wrap; }
+.trust-bar span { display: inline-flex; align-items: center; gap: 6px; position: relative; }
+.trust-bar span + span::before { content: ""; position: absolute; inset-inline-start: -11px; top: 50%; transform: translateY(-50%); width: 3px; height: 3px; border-radius: 50%; background: var(--gold); opacity: 0.7; }
 
 /* ---------- الترويسة ---------- */
 .site-header {
@@ -264,6 +265,7 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
 }
 .btn-wa:hover { background: var(--wa-dark); transform: translateY(-3px); box-shadow: 0 14px 32px rgba(37, 211, 102, 0.45); }
 .btn-wa:hover::after { transform: translateX(120%); transition: transform 0.7s ease; }
+.wa-glyph { width: 1.15em; height: 1.15em; flex-shrink: 0; }
 .btn-outline {
   display: inline-flex; align-items: center; gap: 8px;
   background: #fff; color: var(--green-deep); font-weight: 700;
@@ -360,7 +362,7 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
 /* ---------- الأقسام ---------- */
 .section { padding: 30px 0 6px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.section-head h2 { font-size: 1.45rem; color: var(--green-deep); position: relative; padding-inline-start: 16px; letter-spacing: -0.01em; }
+.section-head h2 { font-size: 1.5rem; color: var(--green-deep); position: relative; padding-inline-start: 14px; letter-spacing: -0.02em; font-weight: 700; }
 @media (max-width: 620px) {
   .section { padding: 22px 0 4px; }
   .section-head { margin-bottom: 14px; }
@@ -369,9 +371,8 @@ html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
   .chips { padding: 16px 0 6px; }
 }
 .section-head h2::before {
-  content: ""; position: absolute; inset-inline-start: 0; top: 6px; bottom: 6px;
-  width: 5px; border-radius: 4px; background: linear-gradient(var(--gold), var(--green));
-  box-shadow: var(--shadow-gold);
+  content: ""; position: absolute; inset-inline-start: 0; top: 12%; bottom: 12%;
+  width: 3px; border-radius: 3px; background: var(--gold);
 }
 .section-head .hint { color: var(--muted); font-size: 0.85rem; }
 
