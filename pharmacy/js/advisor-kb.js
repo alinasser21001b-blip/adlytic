@@ -35,7 +35,7 @@ const ADVISOR_KB = {
       "هذه المعلومات تثقيفية عامة مستمدّة من مراجع علمية دولية معتمدة، وليست " +
       "تشخيصاً ولا وصفة علاجية. الجرعات والحدود القصوى مذكورة كما وردت في مصادرها " +
       "الرسمية. لأي قرار يخص صحتك أو جرعتك، راجع صيدلياً أو طبيباً.",
-    maxQuestions: 7,
+    maxQuestions: 9,
     confidenceThreshold: 0.7,
     confidenceGap: 0.12,
     evidenceFactor: { High: 1.0, Moderate: 0.75, Limited: 0.5 },
@@ -122,6 +122,18 @@ const ADVISOR_KB = {
       reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "High",
       url: "https://www.cdc.gov/folic-acid/about/",
     },
+    nih_vitc: {
+      org: "NIH Office of Dietary Supplements", title: "Vitamin C — Fact Sheet for Health Professionals",
+      type: "Dietary Reference Intake", year: 2024, version: "2024.1",
+      reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "High",
+      url: "https://ods.od.nih.gov/factsheets/VitaminC-HealthProfessional/",
+    },
+    nih_calcium: {
+      org: "NIH Office of Dietary Supplements", title: "Calcium — Fact Sheet for Health Professionals",
+      type: "Dietary Reference Intake", year: 2024, version: "2024.1",
+      reviewed: "2026-07-20", lastVerified: "2026-07-20", evidenceLevel: "High",
+      url: "https://ods.od.nih.gov/factsheets/Calcium-HealthProfessional/",
+    },
     clin_collagen: {
       org: "Peer-reviewed clinical reviews (PubMed)",
       title: "Oral collagen peptide supplementation and skin/appendage outcomes — systematic review",
@@ -138,10 +150,10 @@ const ADVISOR_KB = {
     { id: "energy",    name: "زيادة الطاقة ومقاومة الإرهاق", icon: "⚡", nutrients: ["vitamin_d", "b12", "iron", "magnesium"] },
     { id: "focus",     name: "التركيز والذاكرة", icon: "🧠", nutrients: ["omega3", "b12"] },
     { id: "hair",      name: "صحة الشعر والأظافر", icon: "💇", nutrients: ["biotin_hair", "collagen", "iron"] },
-    { id: "immunity",  name: "دعم المناعة", icon: "🛡️", nutrients: ["vitamin_d", "zinc"] },
+    { id: "immunity",  name: "دعم المناعة", icon: "🛡️", nutrients: ["vitamin_d", "zinc", "vitamin_c"] },
     { id: "sleep",     name: "النوم والاسترخاء", icon: "🌙", nutrients: ["magnesium"] },
-    { id: "bones",     name: "صحة العظام", icon: "🦴", nutrients: ["vitamin_d"] },
-    { id: "skin",      name: "نضارة البشرة", icon: "✨", nutrients: ["collagen"] },
+    { id: "bones",     name: "صحة العظام", icon: "🦴", nutrients: ["vitamin_d", "calcium"] },
+    { id: "skin",      name: "نضارة البشرة", icon: "✨", nutrients: ["collagen", "vitamin_c"] },
     { id: "pregnancy", name: "الحمل والتخطيط له", icon: "🤰", nutrients: ["prenatal"] },
   ],
 
@@ -154,7 +166,11 @@ const ADVISOR_KB = {
       id: "vitamin_d", name: "فيتامين د", primaryRef: "nih_vitd",
       blurb: "يدعم امتصاص الكالسيوم وصحة العظام والمناعة ووظيفة العضلات.",
       dosage: {
-        rda: "الكمية اليومية الموصى بها 600 وحدة دولية (15 ميكروغرام) للبالغين، و800 وحدة فوق 70 سنة.",
+        rda: "600–800 وحدة دولية/يوم حسب العمر.",
+        rows: [
+          { when: ["demo:age_70_plus"], rda: "800 وحدة دولية (20 مكغ)/يوم (فوق 70 سنة)" },
+          { when: [], rda: "600 وحدة دولية (15 مكغ)/يوم (حتى 70 سنة)" },
+        ],
         upperLimit: "الحد الأعلى المسموح 4000 وحدة/يوم للبالغين.",
         ref: "nih_vitd", ulRef: "efsa_ul",
       },
@@ -178,7 +194,16 @@ const ADVISOR_KB = {
       id: "iron", name: "الحديد", primaryRef: "nih_iron",
       blurb: "ضروري لنقل الأكسجين في الدم؛ نقصه سبب شائع للإرهاق خصوصاً لدى النساء.",
       dosage: {
-        rda: "الكمية الموصى بها 8 ملغ/يوم للرجال و18 ملغ/يوم للنساء (19–50 سنة).",
+        rda: "8–18 ملغ/يوم للبالغين حسب الجنس والعمر (انظر فئتك).",
+        rows: [
+          { when: ["demo:female", "demo:age_14_18"], rda: "15 ملغ/يوم (إناث 14–18)" },
+          { when: ["demo:male",   "demo:age_14_18"], rda: "11 ملغ/يوم (ذكور 14–18)" },
+          { when: ["demo:female", "demo:age_19_50"], rda: "18 ملغ/يوم (إناث 19–50)" },
+          { when: ["demo:male",   "demo:age_19_50"], rda: "8 ملغ/يوم (ذكور 19–50)" },
+          { when: ["demo:age_51_70"],  rda: "8 ملغ/يوم (51–70 سنة)" },
+          { when: ["demo:age_70_plus"],rda: "8 ملغ/يوم (فوق 70 سنة)" },
+          { when: ["flag:pregnancy"],  rda: "27 ملغ/يوم أثناء الحمل" },
+        ],
         upperLimit: "الحد الأعلى 45 ملغ/يوم للبالغين؛ يفضّل تأكيد النقص مخبرياً قبل البدء.",
         ref: "nih_iron", ulRef: "nih_iron", guidelineRef: "who_anaemia",
       },
@@ -221,7 +246,13 @@ const ADVISOR_KB = {
       id: "magnesium", name: "المغنيسيوم", primaryRef: "nih_mag",
       blurb: "يشارك في مئات التفاعلات — وظيفة العضلات والأعصاب، والاسترخاء، وجودة النوم.",
       dosage: {
-        rda: "الكمية الموصى بها 310–420 ملغ/يوم للبالغين حسب العمر والجنس.",
+        rda: "310–420 ملغ/يوم حسب الجنس والعمر.",
+        rows: [
+          { when: ["demo:male",   "demo:age_19_50"], rda: "400–420 ملغ/يوم (ذكور بالغون)" },
+          { when: ["demo:female", "demo:age_19_50"], rda: "310–320 ملغ/يوم (إناث بالغات)" },
+          { when: ["demo:male"],   rda: "420 ملغ/يوم (ذكور فوق 30)" },
+          { when: ["demo:female"], rda: "320 ملغ/يوم (إناث فوق 30)" },
+        ],
         upperLimit: "الحد الأعلى من المكملات 350 ملغ/يوم للبالغين (لا يشمل مغنيسيوم الغذاء).",
         ref: "nih_mag", ulRef: "iom_dri",
       },
@@ -259,7 +290,11 @@ const ADVISOR_KB = {
       id: "zinc", name: "الزنك", primaryRef: "nih_zinc",
       blurb: "معدن يدعم المناعة والتئام الجروح وصحة الجلد.",
       dosage: {
-        rda: "الكمية الموصى بها 8–11 ملغ/يوم للبالغين.",
+        rda: "8–11 ملغ/يوم حسب الجنس.",
+        rows: [
+          { when: ["demo:male"],   rda: "11 ملغ/يوم (ذكور)" },
+          { when: ["demo:female"], rda: "8 ملغ/يوم (إناث)" },
+        ],
         upperLimit: "الحد الأعلى 40 ملغ/يوم للبالغين — الجرعات العالية تعيق امتصاص النحاس.",
         ref: "nih_zinc", ulRef: "efsa_ul",
       },
@@ -304,6 +339,58 @@ const ADVISOR_KB = {
       contraindications: [],
     },
     {
+      id: "vitamin_c", name: "فيتامين C", primaryRef: "nih_vitc",
+      blurb: "مضاد أكسدة يدعم المناعة وتصنيع الكولاجين وامتصاص الحديد النباتي.",
+      dosage: {
+        rda: "75–90 ملغ/يوم حسب الجنس (يزيد 35 ملغ للمدخنين).",
+        rows: [
+          { when: ["demo:male"],   rda: "90 ملغ/يوم (ذكور بالغون)" },
+          { when: ["demo:female"], rda: "75 ملغ/يوم (إناث بالغات)" },
+        ],
+        upperLimit: "الحد الأعلى 2000 ملغ/يوم للبالغين.",
+        ref: "nih_vitc", ulRef: "nih_vitc",
+      },
+      indicationRules: [
+        { when: "goal:immunity",          weight: 2, evidenceLevel: "Moderate", ref: "nih_vitc" },
+        { when: "goal:skin",              weight: 2, evidenceLevel: "Moderate", ref: "nih_vitc" },
+        { when: "symptom:frequent_colds", weight: 2, evidenceLevel: "Moderate", ref: "nih_vitc" },
+        { when: "symptom:slow_healing",   weight: 2, evidenceLevel: "Moderate", ref: "nih_vitc" },
+        { when: "lifestyle:smoker",       weight: 2, evidenceLevel: "High",     ref: "nih_vitc" },
+      ],
+      contraindications: [
+        { flag: "kidney_disease", action: "flag", ref: "nih_vitc",
+          note: "الجرعات العالية قد ترفع خطر حصى الكلى لدى المهيّئين — راجع الطبيب." },
+      ],
+    },
+    {
+      id: "calcium", name: "الكالسيوم", primaryRef: "nih_calcium",
+      blurb: "المعدن الأساسي لبنية العظام والأسنان — احتياجه يزداد مع التقدّم بالعمر.",
+      dosage: {
+        rda: "1000–1200 ملغ/يوم حسب العمر والجنس.",
+        rows: [
+          { when: ["demo:age_14_18"],  rda: "1300 ملغ/يوم (14–18 سنة)" },
+          { when: ["demo:female", "demo:age_51_70"], rda: "1200 ملغ/يوم (إناث 51–70)" },
+          { when: ["demo:age_70_plus"],rda: "1200 ملغ/يوم (فوق 70 سنة)" },
+          { when: [], rda: "1000 ملغ/يوم (بالغون 19–50)" },
+        ],
+        upperLimit: "الحد الأعلى 2000–2500 ملغ/يوم حسب العمر.",
+        ref: "nih_calcium", ulRef: "nih_calcium",
+      },
+      indicationRules: [
+        { when: "goal:bones",         weight: 4, evidenceLevel: "High",     ref: "nih_calcium" },
+        { when: "symptom:bone_pain",  weight: 2, evidenceLevel: "Moderate", ref: "nih_calcium" },
+        { when: "demo:age_51_70",     weight: 1, evidenceLevel: "High",     ref: "nih_calcium" },
+        { when: "demo:age_70_plus",   weight: 2, evidenceLevel: "High",     ref: "nih_calcium" },
+        { when: "lifestyle:low_dairy",weight: 2, evidenceLevel: "High",     ref: "nih_calcium" },
+      ],
+      contraindications: [
+        { flag: "hypercalcemia", action: "exclude", ref: "nih_calcium",
+          note: "ارتفاع كالسيوم الدم مانع تام." },
+        { flag: "kidney_disease", action: "flag", ref: "nih_calcium",
+          note: "أمراض الكلى تتطلب مراجعة طبية قبل مكملات الكالسيوم." },
+      ],
+    },
+    {
       id: "prenatal", name: "فيتامينات الحمل (حمض الفوليك)", primaryRef: "cdc_folate",
       blurb: "حمض الفوليك والحديد والمعادن الأساسية لدعم الحمل الصحي والتخطيط له.",
       dosage: {
@@ -331,6 +418,8 @@ const ADVISOR_KB = {
     biotin_hair: ["novophane-caps", "acm-novophane-set", "skinage-hair"],
     collagen:    ["maddox-collagen"],
     prenatal:    ["pregnacare", "well-pregna", "mamacare-plus", "pregnancy-pack"],
+    vitamin_c:   ["multi-nrg-women"],
+    calcium:     [],
   },
 
   /* ---- شجرة الأسئلة التكيّفية ---- */
@@ -350,10 +439,32 @@ const ADVISOR_KB = {
         { id: "pregnancy", label: "🤰 حمل أو تخطيط له",      facts: ["goal:pregnancy", "flag:planning_pregnancy"] },
       ],
     },
+    /* ---- الملف الديموغرافي (إجباري): الجرعات المرجعية الدولية (DRI)
+       تختلف حسب الجنس والفئة العمرية — لذا نسأل عنهما قبل أي توصية. ---- */
+    {
+      id: "q_sex", priority: 9.6, type: "single", isSafetyGate: true,
+      text: "لعرض الكميات المرجعية الدولية الدقيقة (DRI) — ما جنسك؟",
+      appearWhen: [], skipWhen: ["answered:q_sex"], relatedNutrients: [],
+      options: [
+        { id: "female", label: "أنثى", facts: ["demo:female"] },
+        { id: "male",   label: "ذكر", facts: ["demo:male", "flag:male_adult"] },
+      ],
+    },
+    {
+      id: "q_age", priority: 9.5, type: "single", isSafetyGate: true,
+      text: "ما فئتك العمرية؟",
+      appearWhen: [], skipWhen: ["answered:q_age"], relatedNutrients: [],
+      options: [
+        { id: "teen",  label: "14–18 سنة", facts: ["demo:age_14_18", "flag:minor"] },
+        { id: "adult", label: "19–50 سنة", facts: ["demo:age_19_50"] },
+        { id: "mid",   label: "51–70 سنة", facts: ["demo:age_51_70"] },
+        { id: "senior",label: "فوق 70 سنة", facts: ["demo:age_70_plus"] },
+      ],
+    },
     {
       id: "q_pregnancy_safety", priority: 9, type: "single", isSafetyGate: true,
       text: "قبل أي توصية — هل أنتِ حامل حالياً أو مرضعة؟",
-      appearWhen: [], skipWhen: ["answered:q_pregnancy_safety"], relatedNutrients: ["prenatal"], safetyRelevance: ["pregnancy"],
+      appearWhen: [], skipWhen: ["answered:q_pregnancy_safety", "demo:male"], relatedNutrients: ["prenatal"], safetyRelevance: ["pregnancy"],
       options: [
         { id: "no",   label: "لا", facts: [] },
         { id: "preg", label: "نعم، حامل", facts: ["flag:pregnancy", "goal:pregnancy"] },
@@ -435,9 +546,27 @@ const ADVISOR_KB = {
       ],
     },
     {
+      id: "q_dairy", priority: 6, type: "single",
+      text: "هل تتناول منتجات الألبان (حليب/لبن/جبن) بانتظام؟",
+      appearWhen: ["goal:bones"], skipWhen: ["answered:q_dairy"], relatedNutrients: ["calcium", "vitamin_d"],
+      options: [
+        { id: "rare",  label: "نادراً أو لا أتناولها", facts: ["lifestyle:low_dairy"] },
+        { id: "daily", label: "بانتظام", facts: [] },
+      ],
+    },
+    {
+      id: "q_smoke", priority: 5, type: "single",
+      text: "هل تدخّن؟ (يرفع احتياج الجسم من مضادات الأكسدة)",
+      appearWhen: ["goal:immunity", "goal:skin"], skipWhen: ["answered:q_smoke"], relatedNutrients: ["vitamin_c"],
+      options: [
+        { id: "yes", label: "نعم", facts: ["lifestyle:smoker"] },
+        { id: "no",  label: "لا", facts: [] },
+      ],
+    },
+    {
       id: "q_period", priority: 5, type: "single",
       text: "هل تعانين من دورة شهرية غزيرة؟ (اختياري — يخص الحديد)",
-      appearWhen: ["goal:energy", "goal:hair"], skipWhen: ["answered:q_period", "flag:pregnancy"], relatedNutrients: ["iron"],
+      appearWhen: ["goal:energy", "goal:hair"], skipWhen: ["answered:q_period", "flag:pregnancy", "demo:male"], relatedNutrients: ["iron"],
       options: [
         { id: "yes", label: "نعم", facts: ["symptom:heavy_period", "lifestyle:heavy_period"] },
         { id: "no",  label: "لا", facts: [] },

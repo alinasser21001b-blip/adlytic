@@ -324,6 +324,10 @@
       const n = r.nutrient;
       const ev = refOf(n.primaryRef) || {};          // مرجع Layer 1
       const dose = n.dosage || {};
+      // اختيار صف الجرعة المطابق للفئة الديموغرافية من جداول DRI — حتمي:
+      // أول صف تتحقق كل شروطه؛ الصف بلا شروط هو الافتراضي. لا اختراع للقيم.
+      const row = (dose.rows || []).find((r) => (r.when || []).every((t) => STATE.facts.has(t)));
+      const rdaText = (row && row.rda) || dose.rda;
       const doseRef = refOf(dose.ref) || ev;
       const ulRef = refOf(dose.ulRef) || doseRef;
       const prods = r.products.length
@@ -340,7 +344,7 @@
         <p class="adv-blurb">${n.blurb}</p>
         ${cautions}
         <div class="adv-dose">
-          <div><b>الكمية المرجعية:</b> ${dose.rda || "راجع الصيدلي"}
+          <div><b>الكمية المرجعية لفئتك:</b> ${rdaText || "راجع الصيدلي"}
             <span class="adv-cite">(${(doseRef.org || "")}${doseRef.year ? "، " + doseRef.year : ""})</span></div>
           <div><b>الحد الأعلى:</b> ${dose.upperLimit || "راجع الصيدلي"}
             <span class="adv-cite">(${(ulRef.org || "")}${ulRef.year ? "، " + ulRef.year : ""})</span></div>
