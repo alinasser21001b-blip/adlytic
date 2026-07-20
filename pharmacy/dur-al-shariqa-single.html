@@ -133,6 +133,15 @@ h1, h2, h3, .display { font-family: "El Messiri", "Tajawal", serif; }
   transition: border-color 0.25s var(--ease), transform 0.25s var(--ease);
 }
 .cart-btn:hover { border-color: var(--green); transform: translateY(-2px); }
+.icon-link {
+  background: #fff; border: 1.5px solid var(--line); color: var(--green-deep);
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: border-color 0.25s var(--ease), transform 0.25s var(--ease), color 0.25s;
+}
+.icon-link svg { width: 20px; height: 20px; }
+.icon-link:hover { border-color: var(--gold); color: var(--gold-deep); transform: translateY(-2px); }
+@media (max-width: 760px) { .icon-link { order: 2; } }
 .cart-badge {
   position: absolute; top: -4px; inset-inline-end: -4px; min-width: 20px; height: 20px;
   padding: 0 5px; border-radius: 999px; background: var(--grad-gold); color: #fff;
@@ -773,6 +782,7 @@ html[dir="rtl"] .marquee-track { animation-name: marquee-rtl; }
         <input id="search" type="search" placeholder="ابحث عن منتج… مثال: كولاجين، فيتامين د، تساقط الشعر" aria-label="بحث" />
         <span class="search-icon">🔍</span>
       </div>
+      <a class="icon-link" href="https://www.instagram.com/dur_alshariqh" target="_blank" rel="noopener" aria-label="إنستغرام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
       <button class="cart-btn" onclick="openCart()" aria-label="سلة الطلبات">🛒<span class="cart-badge" style="display:none">0</span></button>
       <a class="header-wa" id="header-wa" target="_blank" rel="noopener"><svg class="wa-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.09c-.24.68-1.42 1.32-1.95 1.36-.5.05-.95.23-3.2-.67-2.7-1.06-4.42-3.8-4.55-3.98-.13-.18-1.1-1.46-1.1-2.78 0-1.32.7-1.97.94-2.24.24-.27.53-.34.7-.34.18 0 .35.01.5.01.16.01.38-.06.59.45.24.58.8 2 .87 2.14.07.14.12.31.02.49-.09.18-.14.29-.27.45-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.72 1.19 1.55 1.93 1.06.95 1.96 1.24 2.24 1.38.27.14.43.12.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.6-.14.24.09 1.55.73 1.81.86.27.14.45.2.51.31.07.11.07.63-.17 1.31z"/></svg><span class="wa-label">استشر صيدلياً</span></a>
     </div>

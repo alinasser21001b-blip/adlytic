@@ -121,6 +121,15 @@ h1, h2, h3, .display { font-family: "El Messiri", "Tajawal", serif; }
   transition: border-color 0.25s var(--ease), transform 0.25s var(--ease);
 }
 .cart-btn:hover { border-color: var(--green); transform: translateY(-2px); }
+.icon-link {
+  background: #fff; border: 1.5px solid var(--line); color: var(--green-deep);
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: border-color 0.25s var(--ease), transform 0.25s var(--ease), color 0.25s;
+}
+.icon-link svg { width: 20px; height: 20px; }
+.icon-link:hover { border-color: var(--gold); color: var(--gold-deep); transform: translateY(-2px); }
+@media (max-width: 760px) { .icon-link { order: 2; } }
 .cart-badge {
   position: absolute; top: -4px; inset-inline-end: -4px; min-width: 20px; height: 20px;
   padding: 0 5px; border-radius: 999px; background: var(--grad-gold); color: #fff;
