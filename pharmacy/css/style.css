@@ -111,6 +111,87 @@ h1, h2, h3, .display { font-family: "El Messiri", "Tajawal", serif; }
   .search-box { order: 3; flex: 1 0 100%; max-width: none; margin: 0; }
 }
 
+/* ---------- زر السلة + الشارة ---------- */
+.cart-btn {
+  position: relative; background: #fff; border: 1.5px solid var(--line);
+  width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.15rem;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: border-color 0.25s var(--ease), transform 0.25s var(--ease);
+}
+.cart-btn:hover { border-color: var(--green); transform: translateY(-2px); }
+.cart-badge {
+  position: absolute; top: -4px; inset-inline-end: -4px; min-width: 20px; height: 20px;
+  padding: 0 5px; border-radius: 999px; background: var(--grad-gold); color: #fff;
+  font-size: 0.72rem; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-gold); border: 1.5px solid #fff;
+}
+.cart-badge.pop { animation: badgePop 0.4s var(--ease-spring); }
+@keyframes badgePop { 0% { transform: scale(0.4); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* ---------- درج السلة ---------- */
+.drawer-overlay {
+  position: fixed; inset: 0; z-index: 95; background: rgba(34,48,31,0.5); backdrop-filter: blur(5px);
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.drawer-overlay.open { opacity: 1; pointer-events: auto; }
+.cart-drawer {
+  position: absolute; top: 0; inset-inline-end: 0; height: 100%; width: min(420px, 92vw);
+  background: var(--ivory); display: flex; flex-direction: column;
+  box-shadow: -18px 0 48px rgba(0,0,0,0.22);
+  transform: translateX(100%); transition: transform 0.38s var(--ease);
+}
+html[dir="rtl"] .cart-drawer { transform: translateX(-100%); }
+.drawer-overlay.open .cart-drawer { transform: none; }
+.cart-head {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--grad-green); color: #fff; padding: 18px 22px;
+}
+.cart-head h3 { font-size: 1.15rem; }
+.cart-body { flex: 1; overflow-y: auto; padding: 16px 18px; }
+.cart-foot { padding: 14px 18px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: #fff; display: flex; flex-direction: column; gap: 10px; }
+.cart-foot .btn-outline { width: 100%; justify-content: center; }
+.cart-foot .btn-wa { width: 100%; }
+.cart-total { display: flex; justify-content: space-between; font-weight: 700; color: var(--green-deep); font-size: 0.9rem; }
+.cart-empty { text-align: center; color: var(--muted); padding: 50px 0; }
+.cart-empty .big { font-size: 2.8rem; margin-bottom: 10px; }
+.cart-empty .btn-outline { margin-top: 14px; }
+
+.cart-item {
+  display: flex; gap: 12px; align-items: center; background: #fff;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px;
+}
+.ci-thumb { width: 56px; height: 56px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: radial-gradient(circle at 30% 25%, #fff, var(--gold-soft)); display: flex; align-items: center; justify-content: center; }
+.ci-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.ci-thumb .prod-ph .ph-leaf, .ci-thumb .prod-ph .ph-ribbon { display: none; }
+.ci-thumb .prod-ph .ph-letter { font-size: 1.5rem; }
+.ci-info { flex: 1; min-width: 0; }
+.ci-info b { font-size: 0.9rem; display: block; line-height: 1.4; }
+.ci-info small { color: var(--muted); font-size: 0.76rem; }
+.ci-remove { background: none; border: none; cursor: pointer; font-size: 1.05rem; opacity: 0.7; }
+.ci-remove:hover { opacity: 1; }
+.qty-stepper { display: inline-flex; align-items: center; gap: 0; margin-top: 6px; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; }
+.qty-stepper button { width: 30px; height: 30px; border: none; background: #fff; cursor: pointer; font-size: 1.1rem; font-weight: 700; color: var(--green-deep); }
+.qty-stepper button:hover { background: var(--green-soft); }
+.qty-stepper span { min-width: 34px; text-align: center; font-weight: 800; }
+
+/* Checkout داخل الدرج */
+.checkout .field { margin-bottom: 14px; }
+.checkout label { display: block; font-weight: 700; font-size: 0.87rem; margin-bottom: 6px; color: var(--green-deep); }
+.checkout .opt { color: var(--muted); font-weight: 400; font-size: 0.78rem; }
+.checkout input, .checkout textarea {
+  width: 100%; padding: 11px 14px; border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 0.95rem; background: #fff; outline: none; transition: border-color 0.25s, box-shadow 0.25s;
+}
+.checkout input:focus, .checkout textarea:focus { border-color: var(--green); box-shadow: var(--ring); }
+.checkout textarea { resize: vertical; min-height: 62px; }
+.checkout .err { color: #b3442f; font-size: 0.78rem; margin-top: 4px; display: none; }
+.checkout .field.invalid input { border-color: #c9573f; }
+.checkout .field.invalid .err { display: block; }
+.seg { display: flex; gap: 8px; }
+.seg-opt { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); padding: 10px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
+.seg-opt:has(input:checked) { border-color: var(--green); background: var(--green-soft); color: var(--green-deep); }
+.seg-opt input { accent-color: var(--green); }
+
 /* ---------- شريط الصيدلي المتصل ---------- */
 .live-strip {
   display: flex; align-items: center; gap: 9px;

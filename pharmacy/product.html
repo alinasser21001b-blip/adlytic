@@ -29,6 +29,7 @@
                onkeydown="if(event.key==='Enter')location.href='index.html?q='+encodeURIComponent(this.value)" />
         <span class="search-icon">🔍</span>
       </div>
+      <button class="cart-btn" onclick="openCart()" aria-label="سلة الطلبات">🛒<span class="cart-badge" style="display:none">0</span></button>
       <a class="header-wa" id="header-wa" target="_blank" rel="noopener">💬 <span class="wa-label">استشر صيدلياً</span></a>
     </div>
   </header>
@@ -96,7 +97,7 @@
           <p class="summary">${p.summary}</p>
           ${p.highlights?.length ? `<div class="highlight-pills">${p.highlights.map((h) => `<span>✦ ${h}</span>`).join("")}</div>` : ""}
           <div class="p-cta-row">
-            <button class="btn-wa" onclick="openOrderDialog('${p.id}')">🟢 اطلب عبر واتساب</button>
+            <button class="btn-wa" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>
             <button class="btn-outline" onclick="shareProduct('${p.id}')">🔗 مشاركة</button>
             <button class="btn-outline" data-fav="${p.id}" onclick="toggleFav('${p.id}')">${fav}</button>
           </div>
@@ -129,7 +130,7 @@
       // الشريط الثابت للجوال
       document.getElementById("sticky-cta").innerHTML = `
         <div class="info"><div class="nm">${p.name}</div><div class="pr">💬 اسأل عن السعر والتوفر</div></div>
-        <button class="btn-wa" onclick="openOrderDialog('${p.id}')">🟢 اطلب الآن</button>`;
+        <button class="btn-wa" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>`;
 
       // بيانات منظمة لمحركات البحث
       const ld = document.createElement("script");

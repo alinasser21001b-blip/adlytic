@@ -52,6 +52,185 @@ function toggleFav(id) {
   toast(favs.includes(id) ? "أُضيف إلى المفضلة" : "أُزيل من المفضلة");
 }
 
+/* ============================================================
+   السلة (طلب متعدد المنتجات)
+   ============================================================ */
+const CART_KEY = "dur_v2_cart";
+const getCart = () => { try { return JSON.parse(localStorage.getItem(CART_KEY) || "[]"); } catch (_) { return []; } };
+function saveCart(c) { try { localStorage.setItem(CART_KEY, JSON.stringify(c)); } catch (_) {} updateCartBadge(); }
+const cartCount = () => getCart().reduce((n, r) => n + r.qty, 0);
+
+function addToCart(id, qty = 1) {
+  const cart = getCart();
+  const row = cart.find((r) => r.id === id);
+  if (row) row.qty = Math.min(20, row.qty + qty);
+  else cart.push({ id, qty: Math.min(20, Math.max(1, qty)) });
+  saveCart(cart);
+  toast("أُضيف إلى السلة 🛒");
+  openCart();
+}
+function setQty(id, qty) {
+  const cart = getCart();
+  const r = cart.find((x) => x.id === id);
+  if (!r) return;
+  r.qty = Math.max(1, Math.min(20, qty));
+  saveCart(cart);
+  renderCart();
+}
+function removeFromCart(id) { saveCart(getCart().filter((r) => r.id !== id)); renderCart(); }
+
+function updateCartBadge() {
+  const n = cartCount();
+  document.querySelectorAll(".cart-badge").forEach((b) => {
+    b.textContent = n; b.style.display = n ? "flex" : "none";
+    if (n) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+  });
+}
+
+function ensureCart() {
+  if (document.getElementById("cart-overlay")) return;
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+  <div class="drawer-overlay" id="cart-overlay" onclick="if(event.target===this)closeCart()">
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="سلة الطلبات">
+      <div class="cart-head">
+        <h3>🛒 سلة الطلبات</h3>
+        <button class="dialog-close" onclick="closeCart()" aria-label="إغلاق">✕</button>
+      </div>
+      <div class="cart-body" id="cart-body"></div>
+      <div class="cart-foot" id="cart-foot"></div>
+    </aside>
+  </div>`;
+  document.body.append(wrap.firstElementChild);
+}
+
+function openCart() { ensureCart(); renderCart(); document.getElementById("cart-overlay").classList.add("open"); document.body.style.overflow = "hidden"; }
+function closeCart() { document.getElementById("cart-overlay")?.classList.remove("open"); document.body.style.overflow = ""; }
+
+function renderCart() {
+  const body = document.getElementById("cart-body");
+  const foot = document.getElementById("cart-foot");
+  if (!body) return;
+  const cart = getCart();
+  if (!cart.length) {
+    body.innerHTML = `<div class="cart-empty"><div class="big">🛒</div><p>سلتك فارغة</p><button class="btn-outline" onclick="closeCart()">تصفّح المنتجات</button></div>`;
+    foot.innerHTML = "";
+    return;
+  }
+  body.innerHTML = cart.map((row) => {
+    const p = byId(row.id); if (!p) return "";
+    return `<div class="cart-item">
+      <span class="ci-thumb">${thumbHtml(p)}</span>
+      <div class="ci-info">
+        <b>${p.name}</b>
+        <small>${p.brand}</small>
+        <div class="qty-stepper">
+          <button onclick="setQty('${p.id}', ${row.qty - 1})" aria-label="إنقاص">−</button>
+          <span>${row.qty}</span>
+          <button onclick="setQty('${p.id}', ${row.qty + 1})" aria-label="زيادة">+</button>
+        </div>
+      </div>
+      <button class="ci-remove" onclick="removeFromCart('${p.id}')" aria-label="حذف">🗑️</button>
+    </div>`;
+  }).join("");
+  foot.innerHTML = `
+    <div class="cart-total"><span>${cartCount()} قطعة</span><span>السعر يُؤكَّد عبر واتساب</span></div>
+    <button class="btn-wa" onclick="openCheckout()">🟢 إتمام الطلب عبر واتساب</button>`;
+}
+
+/* ---------- إتمام الطلب (Checkout) ---------- */
+function genOrderId() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  const rnd = Math.floor(1000 + Math.random() * 9000);
+  return `DS-${p(d.getDate())}${p(d.getMonth() + 1)}${String(d.getFullYear()).slice(2)}-${rnd}`;
+}
+
+function buildCartMessage(cart, form) {
+  const items = cart.map((r, i) => {
+    const p = byId(r.id);
+    return `${i + 1}) ${p.name} — الكمية: ${r.qty}`;
+  }).join("\n");
+  const lines = [
+    `🟢 طلب جديد — ${STORE_CONFIG.name}`,
+    `رقم الطلب: ${form.orderId}`,
+    "",
+    "📦 المنتجات:",
+    items,
+    "",
+    `👤 العميل: ${form.name}`,
+  ];
+  if (form.phone) lines.push(`📱 الهاتف: ${form.phone}`);
+  lines.push(`📍 المنطقة: ${form.city}`);
+  lines.push(`🚚 الاستلام: ${form.pickup}`);
+  if (form.notes) lines.push(`💬 ملاحظات: ${form.notes}`);
+  lines.push("", "يرجى تأكيد التوفر والسعر النهائي ووقت التوصيل. شكراً لكم 🙏");
+  return lines.join("\n");
+}
+
+function openCheckout() {
+  if (!getCart().length) { toast("سلتك فارغة"); return; }
+  ensureCart();
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(CUSTOMER_KEY) || "{}"); } catch (_) {}
+  document.getElementById("cart-body").innerHTML = `
+    <div class="checkout">
+      <div class="field" id="co-name-f">
+        <label>الاسم الكامل</label>
+        <input type="text" id="co-name" value="${saved.name || ""}" placeholder="مثال: أحمد علي" />
+        <div class="err">نحتاج اسمك لتجهيز الطلب</div>
+      </div>
+      <div class="field" id="co-phone-f">
+        <label>رقم الهاتف</label>
+        <input type="tel" id="co-phone" dir="ltr" style="text-align:right" value="${saved.phone || ""}" placeholder="07xxxxxxxxx" />
+        <div class="err">أدخل رقماً عراقياً صحيحاً يبدأ بـ 07</div>
+      </div>
+      <div class="field" id="co-city-f">
+        <label>المنطقة / الحي</label>
+        <input type="text" id="co-city" value="${saved.city || ""}" placeholder="مثال: بغداد — الكرادة" />
+        <div class="err">نحتاج منطقتك لترتيب الاستلام</div>
+      </div>
+      <div class="field">
+        <label>طريقة الاستلام</label>
+        <div class="seg">
+          <label class="seg-opt"><input type="radio" name="pickup" value="توصيل" checked> 🚚 توصيل</label>
+          <label class="seg-opt"><input type="radio" name="pickup" value="استلام من الصيدلية"> 🏪 استلام من الصيدلية</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>ملاحظات <span class="opt">(اختياري)</span></label>
+        <textarea id="co-notes" placeholder="وقت مناسب، بديل إن لم يتوفر…"></textarea>
+      </div>
+    </div>`;
+  document.getElementById("cart-foot").innerHTML = `
+    <button class="btn-outline" onclick="renderCart()">→ رجوع للسلة</button>
+    <button class="btn-wa" onclick="submitCheckout()">🟢 إرسال عبر واتساب</button>`;
+}
+
+function submitCheckout() {
+  const name = document.getElementById("co-name").value.trim();
+  const phone = document.getElementById("co-phone").value.trim();
+  const city = document.getElementById("co-city").value.trim();
+  const notes = document.getElementById("co-notes").value.trim();
+  const pickup = (document.querySelector('input[name="pickup"]:checked') || {}).value || "توصيل";
+
+  const phoneOk = !phone || /^07\d{8,9}$/.test(phone.replace(/\s/g, ""));
+  document.getElementById("co-name-f").classList.toggle("invalid", !name);
+  document.getElementById("co-city-f").classList.toggle("invalid", !city);
+  document.getElementById("co-phone-f").classList.toggle("invalid", !phoneOk);
+  if (!name || !city || !phoneOk) return;
+
+  try { localStorage.setItem(CUSTOMER_KEY, JSON.stringify({ name, phone, city })); } catch (_) {}
+  const cart = getCart();
+  const orderId = genOrderId();
+  const msg = buildCartMessage(cart, { name, phone, city, notes, pickup, orderId });
+  try { localStorage.setItem("dur_v2_lastorder", JSON.stringify({ orderId, cart, at: Date.now() })); } catch (_) {}
+  closeCart();
+  toast("جارٍ فتح واتساب… 💬");
+  const w = window.open(waLink(msg), "_blank", "noopener");
+  if (!w) { navigator.clipboard?.writeText(msg); toast("تم نسخ الطلب — الصقه في واتساب"); }
+}
+
 /* ---------- سجل التصفح ---------- */
 const VIEW_KEY = "dur_viewed";
 const getViewed = () => JSON.parse(localStorage.getItem(VIEW_KEY) || "[]");
@@ -122,7 +301,7 @@ function productCard(p) {
       <a href="product.html?id=${p.id}"><h3>${p.name}</h3></a>
       <p class="sum">${p.summary}</p>
       <span class="price-note">💬 اسأل عن السعر والتوفر</span>
-      <button class="wa-order" onclick="openOrderDialog('${p.id}')">🟢 اطلب عبر واتساب</button>
+      <button class="wa-order" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>
     </div>
   </article>`;
 }
@@ -296,7 +475,7 @@ function openQuickView(id) {
     <ul>${p.benefits.slice(0, 3).map((b) => `<li>${b}</li>`).join("")}</ul>
     <div class="qv-actions">
       <a class="btn-outline" href="product.html?id=${p.id}">التفاصيل الكاملة</a>
-      <button class="btn-wa" onclick="closeQuickView();openOrderDialog('${p.id}')">🟢 اطلب الآن</button>
+      <button class="btn-wa" onclick="closeQuickView();addToCart('${p.id}')">🛒 أضف للسلة</button>
     </div>`;
   document.getElementById("qv-overlay").classList.add("open");
   document.body.style.overflow = "hidden";
@@ -308,7 +487,9 @@ function closeQuickView() {
 }
 
 /* إغلاق النوافذ بمفتاح Escape + تظليل الترويسة عند التمرير */
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeOrderDialog(); closeQuickView(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeOrderDialog(); closeQuickView(); closeCart(); } });
 window.addEventListener("scroll", () => {
   document.querySelector(".site-header")?.classList.toggle("scrolled", scrollY > 8);
 }, { passive: true });
+
+updateCartBadge();
