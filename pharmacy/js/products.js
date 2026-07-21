@@ -300,6 +300,7 @@ const PRODUCTS = [
   },
   {
     id: "ensure",
+    img: "images/ensure.webp",
     name: "إنشور — مكمل غذائي متكامل",
     en: "Ensure Complete Nutrition",
     brand: "Abbott",
@@ -550,14 +551,13 @@ const PRODUCTS = [
   },
   {
     id: "pregnacare",
-    img: "https://cdn.shopify.com/s/files/1/0257/1046/0991/files/Vitabiotics-Pregnacare-Tablets__40563__10074.1740667823.386.513_bb799f56-02a9-49d6-bb72-24cce1cbd646.jpg?v=1756386066",
+    img: "images/pregnacare.webp",
     name: "بريجناكير أوريجينال",
     en: "Pregnacare Original",
     brand: "Vitabiotics",
     category: "mother",
     badge: "الأشهر عالمياً",
     emoji: "🌷",
-    img: "https://cdn.shopify.com/s/files/1/0257/1046/0991/files/Vitabiotics-Pregnacare-Tablets__40563__10074.1740667823.386.513_bb799f56-02a9-49d6-bb72-24cce1cbd646.jpg?v=1756386066",
     summary: "فيتامينات الحمل الأشهر من فيتابيوتيكس البريطانية — حمض الفوليك والحديد وفيتامين D لدعم الأم والجنين.",
     description: "بريجناكير أوريجينال التركيبة البريطانية المرجعية لفترة الحمل: 400 ميكروغرام حمض فوليك بالجرعة الموصى بها، مع الحديد وفيتامين D وB12 و19 عنصراً مدروساً بعناية — بلا فيتامين A الزائد غير المناسب للحمل.",
     benefits: ["حمض فوليك بالجرعة الموصى بها", "حديد لدعم دم الأم", "فيتامين D لعظام الأم والجنين", "تركيبة آمنة مخصصة للحمل"],

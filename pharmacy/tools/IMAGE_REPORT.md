@@ -2,16 +2,16 @@
 
 | البند | العدد |
 |---|---|
-| صور محلية موجودة مسبقاً | 2 |
+| صور محلية موجودة مسبقاً | 4 |
 | اعتُمدت آلياً (ثقة ≥ 90%) | 2 |
 | تحتاج مراجعة يدوية (ثقة أقل) | 7 |
-| بلا صورة (لا مرشّح صالح) | 21 |
+| بلا صورة (لا مرشّح صالح) | 19 |
 
 ## ✅ اعتُمدت آلياً
-- `omega3` — أوميغا 3 — زيت السمك المركّز (ثقة 95%)
-  - https://images.openfoodfacts.org/images/products/073/373/901/6508/front_en.11.full.jpg
-- `bioderma-gel` — بيوديرما سنسيبيو جل موسان (ثقة 95%)
-  - https://images.openbeautyfacts.org/images/products/340/138/150/7565/front_en.16.full.jpg
+- `ensure` — إنشور — مكمل غذائي متكامل (ثقة 95%)
+  - https://images.openfoodfacts.org/images/products/007/007/468/0606/front_en.3.full.jpg
+- `pregnacare` — بريجناكير أوريجينال (ثقة 95%)
+  - https://images.openfoodfacts.org/images/products/501/005/808/9785/front_en.14.full.jpg
 
 ## ⚠️ مراجعة يدوية (لم تُعتمد — الثقة تحت البوابة)
 أضف `"verified": true` للمرشّح في image-candidates.json بعد التأكد بالعين.
@@ -36,7 +36,6 @@
 - `students-pack` — باقة التركيز للطلاب — أوميغا 3 + B12
 - `vitarix` — فيتاركس — فيتامينات وفتح شهية
 - `dynamogen` — دايناموجين — فاتح شهية
-- `ensure` — إنشور — مكمل غذائي متكامل
 - `skin1004-mask` — ماسك الطين سكين 1004 سنتيلا
 - `medicube-mask` — ميديكيوب ماسك السيكا الأخضر المهدئ
 - `kahi-balm` — كاهي رينكل باونس مالتي بالم
@@ -48,7 +47,6 @@
 - `cosmo-body` — مجموعة كوزمو للاستحمام والجسم
 - `floxia-deo` — فلوكسيا سيروم مزيل العرق
 - `pregnancy-pack` — مجموعة العناية بالحمل
-- `pregnacare` — بريجناكير أوريجينال — أسباب: دقة منخفضة (305x400)
 - `well-pregna` — ويل بريجنا
 - `mamacare-plus` — ماماكير بلس
 - `apiddox-junior` — أبيدوكس جونيور — شهية ونمو أفضل

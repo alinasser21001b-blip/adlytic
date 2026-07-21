@@ -379,6 +379,13 @@
       "source": "world.openfoodfacts.org",
       "apiName": "Pregnacare Original Tablets",
       "verified": true
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/501/005/808/9785/front_en.14.full.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Pregnacare Original Tablets",
+      "verified": true
     }
   ],
   "skinage-hair": [
@@ -971,6 +978,27 @@
       "tier": 5,
       "source": "bargesupply.com",
       "w": 500
+    }
+  ],
+  "ensure": [
+    {
+      "url": "https://images.openfoodfacts.org/images/products/007/007/468/0606/front_en.3.full.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Ensure nutrition shake COMPLETE",
+      "verified": true
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/007/007/468/0576/front_en.14.full.jpg",
+      "tier": 4,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Complete nutrition shake Chocolate"
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/007/007/468/0545/front_en.9.full.jpg",
+      "tier": 4,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Ensure Complete nutrition shake"
     }
   ]
 }
