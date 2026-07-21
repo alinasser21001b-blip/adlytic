@@ -315,6 +315,12 @@
       "tier": 4,
       "source": "world.openbeautyfacts.org",
       "apiName": "Life In B12 Vitamin 60 Tablet"
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/405/817/292/2077/front_en.22.full.jpg",
+      "tier": 4,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Vitamin B12"
     }
   ],
   "bioderma-gel": [

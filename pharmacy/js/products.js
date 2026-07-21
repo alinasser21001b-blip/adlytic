@@ -67,6 +67,7 @@ const PRODUCTS = [
   },
   {
     id: "skinage-hair",
+    img: "images/skinage-hair.webp",
     price: 50000,
     name: "سكينج هير بوست مع سيناتين",
     en: "Yasenka Skinage Hair Boost Cynatine HNS",
@@ -233,6 +234,7 @@ const PRODUCTS = [
   },
   {
     id: "omega3",
+    img: "images/omega3.webp",
     price: 25000,
     name: "أوميغا 3 — زيت السمك المركّز",
     en: "AMS Omega-3 1000mg Pure Icelandic Fish Oil",
@@ -554,6 +556,7 @@ const PRODUCTS = [
   },
   {
     id: "pregnacare",
+    img: "images/pregnacare.webp",
     price: 29000,
     name: "بريجناكير بلس أوميغا-3",
     en: "Vitabiotics Pregnacare Plus Omega-3",
