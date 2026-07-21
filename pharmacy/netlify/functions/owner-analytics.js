@@ -8,7 +8,7 @@
    لواتساب، وأكثر الأهداف والمنتجات طلباً. ملخّص تقريبي (آخر 500
    حدث) لا إحصاء تاريخي كامل — كافٍ لصورة سريعة داخل اللوحة.
    ============================================================ */
-import { verifyToken } from "./owner-auth.js";
+const { verifyToken } = require("./owner-auth.js");
 
 function requireAuth(event) {
   const h = event.headers.authorization || event.headers.Authorization || "";
@@ -20,7 +20,7 @@ function top(counter, n = 5) {
   return Object.entries(counter).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => ({ key: k, count: v }));
 }
 
-export async function handler(event) {
+async function handler(event) {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "Method Not Allowed" };
   if (!requireAuth(event)) return { statusCode: 401, body: JSON.stringify({ error: "غير مخوَّل" }) };
 
@@ -72,3 +72,5 @@ export async function handler(event) {
     return { statusCode: 502, body: JSON.stringify({ error: "فشل القراءة", detail: String(e.message || e) }) };
   }
 }
+
+module.exports = { handler };

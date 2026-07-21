@@ -14,7 +14,7 @@
    بدون SUPABASE_URL/SUPABASE_SERVICE_KEY: GET يرجع بيانات فارغة
    بصمت (الموقع يعمل بكتالوجه الأساسي)، وPOST يُرفض بوضوح.
    ============================================================ */
-import { verifyToken } from "./owner-auth.js";
+const { verifyToken } = require("./owner-auth.js");
 
 const PRODUCT_FIELDS = ["price", "discount_price", "description", "summary", "img", "available", "featured"];
 
@@ -145,8 +145,10 @@ async function handlePost(event) {
   }
 }
 
-export async function handler(event) {
+async function handler(event) {
   if (event.httpMethod === "GET") return handleGet();
   if (event.httpMethod === "POST") return handlePost(event);
   return { statusCode: 405, body: "Method Not Allowed" };
 }
+
+module.exports = { handler };

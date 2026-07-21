@@ -11,7 +11,7 @@
      OWNER_SECRET  = نص عشوائي طويل لتوقيع التوكن (اختياري، وإلا يُستخدم OWNER_PIN)
    بدون OWNER_PIN: كل محاولة دخول تُرفض (فشل آمن — لا "PIN افتراضي").
    ============================================================ */
-import crypto from "node:crypto";
+const crypto = require("crypto");
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6 ساعات
 
@@ -26,13 +26,13 @@ function timingSafeEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-export function signToken(exp) {
+function signToken(exp) {
   const secret = process.env.OWNER_SECRET || process.env.OWNER_PIN || "";
   const mac = crypto.createHmac("sha256", secret).update(String(exp)).digest("hex");
   return `${exp}.${mac}`;
 }
 
-export function verifyToken(token) {
+function verifyToken(token) {
   if (!token || typeof token !== "string" || !token.includes(".")) return false;
   const [expStr, mac] = token.split(".");
   const exp = Number(expStr);
@@ -41,7 +41,7 @@ export function verifyToken(token) {
   return timingSafeEqual(mac, expected);
 }
 
-export async function handler(event) {
+async function handler(event) {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
 
   const PIN = process.env.OWNER_PIN;
@@ -67,3 +67,5 @@ export async function handler(event) {
     body: JSON.stringify({ token: signToken(exp), expiresAt: exp }),
   };
 }
+
+module.exports = { handler, signToken, verifyToken };
