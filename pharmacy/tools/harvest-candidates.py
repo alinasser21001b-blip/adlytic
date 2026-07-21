@@ -44,16 +44,28 @@ DDG_TIMEOUT = 15            # ثانية لبحث DuckDuckGo (احتياط)
 API_PAGE_SIZE = 12          # نتائج لكل استعلام Facts
 
 # نطاقات موثوقة معروفة (تُستخدم لتصنيف نتائج DDG الاحتياطية)
+# المستوى ≤ TRUSTED_VERIFY_TIER ⇒ مصدر تجاري رسمي موثوق ⇒ اعتماد آلي.
+TRUSTED_VERIFY_TIER = 3
 DOMAIN_TIERS = {
+    # Tier 1 — مصنّعون رسميون
     "vitabiotics.com": 1, "acm-laboratoire.com": 1, "ecrinal.com": 1,
     "abbott.com": 1, "ensure.com": 1, "bioderma.com": 1,
     "eau-thermale-avene.com": 1, "avene.com": 1, "skin1004.com": 1,
     "medicube.com": 1, "kahi.com": 1, "numbuzin.com": 1, "asepta.com": 1,
+    "vichy.com": 1, "laroche-posay.com": 1, "cerave.com": 1,
+    # Tier 2 — موزّعون رسميون خليجيون/عرب
     "nahdionline.com": 2, "aldawaeya.com": 2, "adamonline.com": 2,
+    "al-dawaa.com": 2, "aldawaa.com": 2, "seif-online.com": 2,
+    "whites.com.eg": 2, "elezaby.com": 2, "care-pharmacy.com": 2,
+    "beautytocare.com": 2, "trustbeautykuwait.com": 2, "goldpharma.com": 2,
+    # Tier 3 — صيدليات رسمية عالمية
     "boots.com": 3, "pharmacy2u.co.uk": 3, "chemistwarehouse.com.au": 3,
-    "lloydspharmacy.com": 3, "unitedpharmacies.com": 3,
+    "lloydspharmacy.com": 3, "unitedpharmacies.com": 3, "well.co.uk": 3,
+    "rowlandspharmacy.co.uk": 3, "pharmica.co.uk": 3, "dokteronline.com": 3,
+    # Tier 4 — كتالوجات دوائية (لا تُعتمد آلياً — للمراجعة)
     "medino.com": 4, "newpharma.be": 4, "shop-pharmacie.fr": 4,
     "marjanemall.ma": 4, "1mg.com": 4, "cocooncenter.com": 4,
+    "egyptdwa.com": 4, "iherb.com": 4, "amazon.com": 4,
 }
 BLOCK_URL_WORDS = ["lifestyle", "model", "person", "hands", "banner", "advert",
                    "promo", "screenshot", "watermark", "gettyimages", "shutterstock",
@@ -223,23 +235,54 @@ def ddg_search_with_timeout(ddgs, query, timeout_sec=DDG_TIMEOUT):
     return result[0] or []
 
 
+def name_matches_url(p, url, title):
+    """
+    تأكيد أن نتيجة مصدر موثوق تخصّ هذا المنتج فعلاً — عبر الرابط أو
+    عنوان النتيجة. يكفي أحد أمرين:
+      • العلامة + كلمة مميّزة، أو
+      • كلمتان مميّزتان (لأن روابط بعض المتاجر مشفّرة بلا اسم).
+    """
+    hay = (url + " " + (title or "")).lower()
+    hay_toks = set(re.findall(r"[a-z0-9]+", hay))
+    brand = set(ascii_tokens(p["brand"]))
+    name = set(ascii_tokens(p["en"]))
+    brand_ok = bool(brand and (brand & hay_toks))
+    distinctive = (name & hay_toks) - GENERIC
+    return (brand_ok and bool(distinctive)) or len(distinctive) >= 2
+
+
 def search_ddg(p, ddgs):
     if ddgs is None:
         return []
     brand = " ".join(ascii_tokens(p["brand"]))
     en = p["en"].strip()
-    q = f"{brand} {en} product package".strip()
-    hits = ddg_search_with_timeout(ddgs, q)
-    scored = []
-    seen = set()
-    for h in hits:
-        u = h.get("image", "")
-        if not u or u in seen or blocked(u):
-            continue
-        seen.add(u)
-        scored.append({"url": u, "tier": tier_of(u), "source": domain_of(u),
-                       "w": int(h.get("width", 0) or 0)})
-    scored.sort(key=lambda c: (c["tier"], -c.get("w", 0)))
+    # عدة صيغ للبحث لرفع فرصة العثور على مصدر موثوق
+    queries = [q for q in [
+        f"{brand} {en} product package".strip(),
+        f"{brand} {en} pharmacy".strip(),
+        f"{en} box".strip(),
+    ] if q]
+    seen, scored = set(), []
+    for q in queries:
+        for h in ddg_search_with_timeout(ddgs, q):
+            u = h.get("image", "")
+            if not u or u in seen or blocked(u):
+                continue
+            seen.add(u)
+            tier = tier_of(u)
+            cand = {"url": u, "tier": tier, "source": domain_of(u),
+                    "w": int(h.get("width", 0) or 0),
+                    "title": (h.get("title") or "")[:80]}
+            # مصدر تجاري رسمي موثوق (مصنّع/موزّع/صيدلية) + تأكيد الاسم
+            # في الرابط/العنوان ⇒ اعتماد آلي (نثق بالمصدر بدل رؤية الصورة).
+            if tier <= TRUSTED_VERIFY_TIER and name_matches_url(p, u, h.get("title")):
+                cand["verified"] = True
+            scored.append(cand)
+        # إن وجدنا مرشّحاً موثوقاً، لا داعي لاستنزاف بقية الصيغ
+        if any(c.get("verified") for c in scored):
+            break
+    scored.sort(key=lambda c: (0 if c.get("verified") else 1,
+                               c["tier"], -c.get("w", 0)))
     return scored
 
 
@@ -278,6 +321,8 @@ def main():
         for c in found:
             if c["url"] not in merged:
                 merged[c["url"]] = c
+            elif c.get("verified") and not merged[c["url"]].get("verified"):
+                merged[c["url"]] = c   # ترقية مرشّح سابق إلى موثوق عند إعادة التشغيل
 
         if merged:
             existing[pid] = list(merged.values())
