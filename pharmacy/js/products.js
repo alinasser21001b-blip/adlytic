@@ -49,7 +49,7 @@ const PRODUCTS = [
   },
   {
     id: "novophane-caps",
-    img: "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ACM/acm-novophane-ongles-et-cheveux-%E2%80%93-60-capsules/images/Etui-seul-G%C3%A9lules-bovines-Boite-de-60.jpg",
+    img: "images/novophane-caps.webp",
     name: "نوفوفان كبسولات — تغذية الشعر والأظافر",
     en: "Novophane Hair & Nails Capsules",
     brand: "ACM Laboratoire",
@@ -103,7 +103,7 @@ const PRODUCTS = [
   },
   {
     id: "ecrinal",
-    img: "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ECRINAL/ecrinal-%E2%80%93-lotion-femme-soin-intensif-des-cheveux-%C3%A0-l%E2%80%99anp2%2B-%E2%80%93-200-ml/images/3323037286009.jpg",
+    img: "images/ecrinal.webp",
     name: "إكرينال للعناية بالشعر",
     en: "ECRINAL Hair Care",
     brand: "ECRINAL",
