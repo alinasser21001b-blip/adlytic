@@ -44,7 +44,8 @@ function verifyToken(token) {
 async function handler(event) {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
 
-  const PIN = process.env.OWNER_PIN;
+  // نُزيل المسافات من الطرفين تحسّباً لمسافة زائدة أُدخلت سهواً في متغيّر البيئة
+  const PIN = (process.env.OWNER_PIN || "").trim();
   if (!PIN) {
     return { statusCode: 403, body: JSON.stringify({ error: "الإعداد غير مكتمل — لم يُضبط OWNER_PIN" }) };
   }
@@ -53,7 +54,7 @@ async function handler(event) {
   try { body = JSON.parse(event.body || "{}"); }
   catch { return { statusCode: 400, body: "Bad JSON" }; }
 
-  const pin = String(body.pin || "");
+  const pin = String(body.pin || "").trim();
   if (!pin || !timingSafeEqual(pin, PIN)) {
     // تأخير بسيط يعيق التخمين الآلي السريع
     await new Promise((r) => setTimeout(r, 400));
