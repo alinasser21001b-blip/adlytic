@@ -23,7 +23,7 @@
     python3 pharmacy/tools/harvest-candidates.py
 ============================================================
 """
-import json, os, re, sys
+import json, os, re, sys, threading, signal
 from urllib.parse import urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,6 +32,7 @@ PRODUCTS_JS = os.path.join(ROOT, "js", "products.js")
 
 RESULTS_PER_QUERY = 20      # 3 استعلامات ⇒ حتى ~50 نتيجة خام لكل منتج
 KEEP_PER_PRODUCT = 8        # أفضل المرشّحين بعد التصنيف
+SEARCH_TIMEOUT = 15         # ثانية لكل query قبل skip
 
 # خريطة المصادر الموثوقة: نطاق ← مستوى (وسّعها بحرية)
 DOMAIN_TIERS = {
@@ -99,6 +100,22 @@ def queries_for(p):
     q.append(f"{en or name} pharmacy product".strip())
     return [x for i, x in enumerate(q) if x and x not in q[:i]]
 
+def search_with_timeout(ddgs, query, timeout_sec=SEARCH_TIMEOUT):
+    """Search with timeout handling."""
+    result = [None]
+    def search():
+        try:
+            result[0] = ddgs.images(query, max_results=RESULTS_PER_QUERY) or []
+        except Exception as e:
+            result[0] = []
+
+    thread = threading.Thread(target=search, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_sec)
+    if thread.is_alive():
+        return []  # timed out
+    return result[0] if result[0] is not None else []
+
 def main():
     try:
         from duckduckgo_search import DDGS
@@ -108,23 +125,26 @@ def main():
     existing = json.load(open(CANDIDATES, encoding="utf-8")) if os.path.exists(CANDIDATES) else {}
     products = read_products()
     ddgs = DDGS()
-    stats = {"products": 0, "raw": 0, "kept": 0}
+    stats = {"products": 0, "raw": 0, "kept": 0, "skipped": 0}
 
-    for p in products:
+    for idx, p in enumerate(products, 1):
         pid = p["id"]
         if os.path.exists(os.path.join(ROOT, "images", pid + ".webp")):
             continue
         stats["products"] += 1
+        print(f"[{idx}/{len(products)}] {pid}: جلب المرشّحين...")
         # مرشّحون موجودون (يدويون/سابقون) يُحفظون — خصوصاً verified
         merged = {c["url"]: c for c in existing.get(pid, [])}
 
         raw = []
-        for q in queries_for(p):
-            try:
-                hits = ddgs.images(q, max_results=RESULTS_PER_QUERY) or []
-            except Exception as e:
-                print(f"  بحث فشل ({pid}): {e}"); hits = []
+        for q_idx, q in enumerate(queries_for(p), 1):
+            hits = search_with_timeout(ddgs, q, SEARCH_TIMEOUT)
+            if not hits:
+                print(f"    Query {q_idx}: timeout أو فشل")
+                stats["skipped"] += 1
+                continue
             raw.extend(hits)
+            print(f"    Query {q_idx}: {len(hits)} نتيجة")
         stats["raw"] += len(raw)
 
         # تصفية + تصنيف
@@ -148,11 +168,11 @@ def main():
             existing[pid] = list(merged.values())
             stats["kept"] += len(merged)
             t1 = sum(1 for c in merged.values() if c.get("tier") == 1)
-            print(f"{pid}: {len(merged)} مرشّح (منها {t1} من مصنّع رسمي)")
+            print(f"  ✓ {len(merged)} مرشّح (منها {t1} من مصنّع رسمي)\n")
 
     json.dump(existing, open(CANDIDATES, "w", encoding="utf-8"),
               ensure_ascii=False, indent=2)
-    print(f"\n✔ منتجات بلا صورة: {stats['products']} · نتائج خام: {stats['raw']} · مرشّحون معتمدون: {stats['kept']}")
+    print(f"\n✔ منتجات بلا صورة: {stats['products']} · نتائج خام: {stats['raw']} · مرشّحون معتمدون: {stats['kept']} · محاولات timeout: {stats['skipped']}")
     print("التالي: python3 pharmacy/tools/image-pipeline.py")
 
 if __name__ == "__main__":
