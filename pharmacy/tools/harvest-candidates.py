@@ -53,6 +53,7 @@ DOMAIN_TIERS = {
     "eau-thermale-avene.com": 1, "avene.com": 1, "skin1004.com": 1,
     "medicube.com": 1, "kahi.com": 1, "numbuzin.com": 1, "asepta.com": 1,
     "vichy.com": 1, "laroche-posay.com": 1, "cerave.com": 1,
+    "maddoxpharmaswiss.com": 1, "maddoxswiss.com": 1,
     # Tier 2 — موزّعون رسميون خليجيون/عرب
     "nahdionline.com": 2, "aldawaeya.com": 2, "adamonline.com": 2,
     "al-dawaa.com": 2, "aldawaa.com": 2, "seif-online.com": 2,

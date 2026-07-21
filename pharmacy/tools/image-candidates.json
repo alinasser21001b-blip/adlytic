@@ -390,6 +390,13 @@
   ],
   "skinage-hair": [
     {
+      "url": "https://trustbeautykuwait.com/cdn/shop/files/Skinage_Hair_Boost_15_ampoules.png?v=1773584491&width=1500",
+      "tier": 5,
+      "source": "trustbeautykuwait.com (اعتماد مصدر)",
+      "w": 1080,
+      "verified": true
+    },
+    {
       "url": "https://i.pinimg.com/originals/12/63/f4/1263f496c8cdf5d560c6c2709522a7fc.jpg",
       "tier": 5,
       "source": "i.pinimg.com",
@@ -400,12 +407,6 @@
       "tier": 5,
       "source": "beauty-era.com",
       "w": 1400
-    },
-    {
-      "url": "https://trustbeautykuwait.com/cdn/shop/files/Skinage_Hair_Boost_15_ampoules.png?v=1773584491&width=1500",
-      "tier": 5,
-      "source": "trustbeautykuwait.com",
-      "w": 1080
     },
     {
       "url": "https://trustbeautykuwait.com/cdn/shop/files/Skinage_Hair_Boost_15_ampoules2.png?v=1773584491&width=1500",
@@ -636,8 +637,9 @@
     {
       "url": "https://ecombe.nahdionline.com/media/catalog/product/a/m/ams-women-multi-nrg-vitamin-45-tablet-0fjpg.jpg",
       "tier": 2,
-      "source": "ecombe.nahdionline.com",
-      "w": 476
+      "source": "ecombe.nahdionline.com (اعتماد مصدر)",
+      "w": 476,
+      "verified": true
     },
     {
       "url": "https://i5.walmartimages.com/seo/Equate-One-Daily-Women-s-Multivitamin-Multimineral-Supplement-Tablets-for-Women-s-Health-100-Count_8f517bba-c59e-42b8-b69b-105f70e9bd4e.cee40f3fcf5b62f3a2b22c61ecbd4606.jpeg",
@@ -756,6 +758,13 @@
   ],
   "maddox-collagen": [
     {
+      "url": "https://maddoxpharmaswiss.com/sites/default/files/2024-08/1522_CollagenBeauty_1200x1200px.png",
+      "tier": 5,
+      "source": "maddoxpharmaswiss.com (اعتماد مصدر)",
+      "w": 1200,
+      "verified": true
+    },
+    {
       "url": "https://www.ecolebensmittel.com/images/thumbnails/2143/1500/detailed/905/71UxNqGPJzL._AC_SL1500_.jpg",
       "tier": 5,
       "source": "ecolebensmittel.com",
@@ -790,12 +799,6 @@
       "tier": 5,
       "source": "i.ytimg.com",
       "w": 1280
-    },
-    {
-      "url": "https://maddoxpharmaswiss.com/sites/default/files/2024-08/1522_CollagenBeauty_1200x1200px.png",
-      "tier": 5,
-      "source": "maddoxpharmaswiss.com",
-      "w": 1200
     },
     {
       "url": "https://lookaside.fbsbx.com/lookaside/crawler/media/?media_id=1318314663657209",
