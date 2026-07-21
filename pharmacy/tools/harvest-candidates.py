@@ -162,6 +162,15 @@ def match_strength(p, api_name, api_brand):
     return None
 
 
+def full_res(url):
+    """
+    ترقية رابط صورة Open Facts من نسخة العرض (100/200/400px) إلى
+    النسخة الكاملة (full) لتتجاوز حدّ الدقة 450px.
+    مثال: .../front_en.3.400.jpg ⇒ .../front_en.3.full.jpg
+    """
+    return re.sub(r"\.(100|200|400)\.jpg$", ".full.jpg", url or "")
+
+
 def search_facts(p, base, category_tier):
     """
     يستعلم Open Beauty/Food Facts ويرجع مرشّحين بصور أمامية.
@@ -179,7 +188,7 @@ def search_facts(p, base, category_tier):
             print(f"    [{base.split('.')[1]}] فشل: {str(e)[:60]}")
             continue
         for prod in data.get("products", []):
-            img = prod.get("image_front_url") or prod.get("image_url")
+            img = full_res(prod.get("image_front_url") or prod.get("image_url"))
             if not img:
                 continue
             strength = match_strength(p, prod.get("product_name", ""),
