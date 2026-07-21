@@ -230,6 +230,7 @@ const PRODUCTS = [
   },
   {
     id: "omega3",
+    img: "images/omega3.webp",
     name: "أوميغا 3 — زيت السمك المركّز",
     en: "Omega-3 Fish Oil",
     brand: "NOW وأخرى",
@@ -396,14 +397,13 @@ const PRODUCTS = [
   },
   {
     id: "bioderma-gel",
-    img: "https://ecombe.nahdionline.com/media/catalog/product/b/i/bioderma-sensibio-gel-moussant-200-ml_1.jpg",
+    img: "images/bioderma-gel.webp",
     name: "بيوديرما سنسيبيو جل موسان",
     en: "Bioderma Sensibio Gel Moussant",
     brand: "Bioderma",
     category: "skin",
     badge: "للبشرة الحساسة",
     emoji: "🫧",
-    img: "https://ecombe.nahdionline.com/media/catalog/product/b/i/bioderma-sensibio-gel-moussant-200-ml_1.jpg?width=600&height=600&canvas=600,600&optimize=high&bg-color=255,255,255&fit=bounds",
     summary: "غسول الوجه الفرنسي الألطف — تنظيف ناعم يحافظ على حاجز البشرة الحساسة دون جفاف أو شد.",
     description: "جل التنظيف الرغوي من بيوديرما مصمم خصيصاً للبشرة الحساسة: ينظف بلطف من الشوائب وبقايا المكياج الخفيف مع الحفاظ على توازن البشرة الطبيعي، دون رائحة عطرية مهيجة ودون إحساس بالشد بعد الغسل.",
     benefits: ["تنظيف لطيف يومي", "يحافظ على حاجز البشرة", "بدون شد أو جفاف", "مناسب للاستخدام الصباحي والمسائي"],
