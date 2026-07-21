@@ -29,7 +29,7 @@ jobs:
       - name: Install deps
         run: pip install pillow duckduckgo_search
 
-      - name: Harvest candidates from trusted sources
+      - name: Harvest candidates (Open Beauty/Food Facts + DDG fallback)
         run: python3 pharmacy/tools/harvest-candidates.py || true
 
       - name: Run image pipeline (confidence gate 90%)

@@ -4,55 +4,57 @@
 المرحلة 1 — محرك البحث عن الصور (Image Search Engine)
 يملأ image-candidates.json آلياً بالكامل — لا إدخال يدوي.
 
-    products.js ← يقرأ الأسماء/العلامة/التركيز
-        ↓
-    يبني 3 استعلامات لكل منتج (دقيق ← علامة ← عام)
-        ↓
-    يجمع 20–50 نتيجة صورة لكل منتج من الإنترنت
-        ↓
-    يصنّفها حسب مستوى المصدر:
-      Tier 1 مصنّع رسمي · Tier 2 موزّع · Tier 3 صيدلية رسمية
-      Tier 4 كتالوج دوائي · Tier 5 غير مصنّف (احتياط أخير)
-        ↓
+المصادر (مرتبة بالموثوقية، كلها بلا مفاتيح وتعمل من GitHub Actions):
+
+  1) Open Beauty Facts  — قاعدة بيانات مفتوحة لمنتجات التجميل/العناية
+     (بيوديرما، أفين، الكوري skin1004/medicube، مزيلات العرق…)
+     صور أمامية رسمية بخلفية بيضاء + حقول منظّمة (اسم/علامة/باركود).
+  2) Open Food Facts    — نفس المنصّة للمكملات الغذائية والتغذية
+     (أوميغا3، B12، D3، إنشور، بريجناكير…)
+  3) DuckDuckGo Images  — احتياط أخير فقط (كثيراً ما يُحجب من CI).
+
+لماذا هذه أفضل من بحث الصور العام؟
+  نطابق على الحقول المنظّمة للـAPI (اسم المنتج + العلامة) لا على
+  الرابط أو تخمين بصري — فإذا تطابقت العلامة + كلمة مميّزة من الاسم
+  اعتبرنا الصورة موثوقة (verified) وتُعتمد آلياً. المطابقة الضعيفة
+  تبقى مرشّحاً للمراجعة اليدوية. "صورة خاطئة أسوأ من مفقودة."
+
+    products.js ← يقرأ الأسماء/العلامة
+        ↓  يبني استعلامات (علامة + اسم إنجليزي)
+    OBF + OFF (+ DDG احتياط) ← نتائج بصور أمامية
+        ↓  مطابقة على الحقول المنظّمة ← verified/مراجعة
     يكتب tools/image-candidates.json
         ↓
     المرحلة 2+3: image-pipeline.py (ثقة/جودة ← WebP ← products.js)
 
-التشغيل (شبكة مفتوحة — جهازك أو GitHub Actions):
-    pip install duckduckgo_search
+التشغيل:
     python3 pharmacy/tools/harvest-candidates.py
 ============================================================
 """
-import json, os, re, sys, threading, signal
+import json, os, re, sys, threading, urllib.parse, urllib.request
 from urllib.parse import urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CANDIDATES = os.path.join(ROOT, "tools", "image-candidates.json")
 PRODUCTS_JS = os.path.join(ROOT, "js", "products.js")
 
-RESULTS_PER_QUERY = 20      # 3 استعلامات ⇒ حتى ~50 نتيجة خام لكل منتج
 KEEP_PER_PRODUCT = 8        # أفضل المرشّحين بعد التصنيف
-SEARCH_TIMEOUT = 15         # ثانية لكل query قبل skip
+API_TIMEOUT = 20            # ثانية لكل استعلام API
+DDG_TIMEOUT = 15            # ثانية لبحث DuckDuckGo (احتياط)
+API_PAGE_SIZE = 12          # نتائج لكل استعلام Facts
 
-# خريطة المصادر الموثوقة: نطاق ← مستوى (وسّعها بحرية)
+# نطاقات موثوقة معروفة (تُستخدم لتصنيف نتائج DDG الاحتياطية)
 DOMAIN_TIERS = {
-    # Tier 1 — مصنّعون رسميون
     "vitabiotics.com": 1, "acm-laboratoire.com": 1, "ecrinal.com": 1,
     "abbott.com": 1, "ensure.com": 1, "bioderma.com": 1,
     "eau-thermale-avene.com": 1, "avene.com": 1, "skin1004.com": 1,
     "medicube.com": 1, "kahi.com": 1, "numbuzin.com": 1, "asepta.com": 1,
-    # Tier 2 — موزّعون رسميون
     "nahdionline.com": 2, "aldawaeya.com": 2, "adamonline.com": 2,
-    # Tier 3 — صيدليات رسمية
     "boots.com": 3, "pharmacy2u.co.uk": 3, "chemistwarehouse.com.au": 3,
-    "thehealthpharmacy.co.uk": 3, "care-pharmacy.com": 3, "rowlandspharmacy.co.uk": 3,
     "lloydspharmacy.com": 3, "unitedpharmacies.com": 3,
-    # Tier 4 — كتالوجات دوائية عالية الجودة
-    "medino.com": 4, "farmaline.be": 4, "newpharma.be": 4,
-    "shop-pharmacie.fr": 4, "marjanemall.ma": 4, "1mg.com": 4,
-    "pharmacie-du-polygone.com": 4, "cocooncenter.com": 4, "santediscount.com": 4,
+    "medino.com": 4, "newpharma.be": 4, "shop-pharmacie.fr": 4,
+    "marjanemall.ma": 4, "1mg.com": 4, "cocooncenter.com": 4,
 }
-# ما يُستبعد فوراً (لايف ستايل/إعلانات/مخازن صور/ذكاء اصطناعي)
 BLOCK_URL_WORDS = ["lifestyle", "model", "person", "hands", "banner", "advert",
                    "promo", "screenshot", "watermark", "gettyimages", "shutterstock",
                    "istockphoto", "alamy", "dreamstime", "midjourney", "dall-e",
@@ -60,6 +62,14 @@ BLOCK_URL_WORDS = ["lifestyle", "model", "person", "hands", "banner", "advert",
 BLOCK_DOMAINS = ["pinterest.", "facebook.", "instagram.", "tiktok.", "youtube.",
                  "gettyimages.", "shutterstock.", "istockphoto.", "alamy.",
                  "dreamstime.", "freepik.", "ebay."]
+
+# كلمات عامة لا تُحسب كلمة "مميّزة" عند المطابقة
+GENERIC = {"the", "and", "for", "with", "plus", "care", "hair", "skin", "body",
+           "gel", "cream", "mask", "spray", "drink", "oil", "set", "pack",
+           "range", "collection", "complete", "nutrition", "daily", "one",
+           "formula", "complex", "vitamin", "support", "beauty", "original",
+           "junior", "extra", "boost", "eau", "no", "ml", "iu"}
+
 
 def read_products():
     src = open(PRODUCTS_JS, encoding="utf-8").read()
@@ -72,6 +82,19 @@ def read_products():
         out.append({"id": pid, "en": g("en"), "brand": g("brand"), "name": g("name")})
     return out
 
+
+def ascii_tokens(s):
+    """كلمات لاتينية/رقمية فقط (نتجاهل العربي في المطابقة الإنجليزية)."""
+    return [t for t in re.findall(r"[a-z0-9]+", (s or "").lower()) if len(t) >= 2]
+
+
+def get_json(url, timeout=API_TIMEOUT):
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "duralshariqh-pharmacy-image-bot/1.0 (+contact via repo)"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
 def domain_of(url):
     try:
         host = urlparse(url).netloc.lower()
@@ -79,101 +102,194 @@ def domain_of(url):
     except Exception:
         return ""
 
+
 def tier_of(url):
     d = domain_of(url)
     for known, t in DOMAIN_TIERS.items():
         if d.endswith(known):
             return t
-    return 5  # غير مصنّف — احتياط أخير فقط
+    return 5
+
 
 def blocked(url):
     low = url.lower()
     d = domain_of(url)
-    return any(w in low for w in BLOCK_URL_WORDS) or any(d.startswith(b) or b in d for b in BLOCK_DOMAINS)
+    return any(w in low for w in BLOCK_URL_WORDS) or \
+        any(d.startswith(b) or b in d for b in BLOCK_DOMAINS)
 
-def queries_for(p):
-    """3 استعلامات: من الأدق (يشمل التركيز/الشكل) إلى الأعم."""
-    en, brand, name = p["en"].strip(), p["brand"].strip(), p["name"].strip()
-    q = []
-    if en:    q.append(f"{brand} {en} product package".strip())
-    if brand: q.append(f"{brand} {en or name} box white background".strip())
-    q.append(f"{en or name} pharmacy product".strip())
-    return [x for i, x in enumerate(q) if x and x not in q[:i]]
 
-def search_with_timeout(ddgs, query, timeout_sec=SEARCH_TIMEOUT):
-    """Search with timeout handling."""
-    result = [None]
-    def search():
+# ----------------------- المصدر 1+2: Open *Facts -----------------------
+
+def facts_query_terms(p):
+    """أفضل نص بحث: العلامة اللاتينية + الاسم الإنجليزي (بلا عربي)."""
+    brand = " ".join(ascii_tokens(p["brand"]))
+    en = p["en"].strip()
+    en_toks = set(ascii_tokens(en))
+    terms = []
+    # لا نكرّر العلامة إن كانت مضمّنة أصلاً في الاسم الإنجليزي
+    if brand and en and not set(ascii_tokens(brand)).issubset(en_toks):
+        terms.append(f"{brand} {en}")
+    if en:
+        terms.append(en)
+    if brand and not terms:
+        terms.append(brand)
+    # إزالة التكرار مع الحفاظ على الترتيب
+    seen, out = set(), []
+    for t in terms:
+        k = t.lower()
+        if t and k not in seen:
+            seen.add(k); out.append(t)
+    return out
+
+
+def match_strength(p, api_name, api_brand):
+    """
+    قوة تطابق المنتج مع سجلّ الـAPI المنظّم.
+    يرجع: 'strong' (علامة + كلمة مميّزة) / 'moderate' (كلمتان) / None.
+    """
+    our_name = set(ascii_tokens(p["en"]))
+    our_brand = set(ascii_tokens(p["brand"]))
+    api = set(ascii_tokens(api_name)) | set(ascii_tokens(api_brand))
+    if not api:
+        return None
+    brand_ok = bool(our_brand and (our_brand & api))
+    distinctive = (our_name & api) - GENERIC
+    name_overlap = len(our_name & api)
+    if brand_ok and distinctive:
+        return "strong"
+    if name_overlap >= 2:
+        return "moderate"
+    return None
+
+
+def search_facts(p, base, category_tier):
+    """
+    يستعلم Open Beauty/Food Facts ويرجع مرشّحين بصور أمامية.
+    base: 'world.openbeautyfacts.org' أو 'world.openfoodfacts.org'
+    """
+    out = []
+    for term in facts_query_terms(p):
+        url = (f"https://{base}/cgi/search.pl?search_terms="
+               f"{urllib.parse.quote(term)}&search_simple=1&action=process"
+               f"&json=1&page_size={API_PAGE_SIZE}"
+               f"&fields=product_name,brands,image_front_url,image_url")
         try:
-            result[0] = ddgs.images(query, max_results=RESULTS_PER_QUERY) or []
+            data = get_json(url)
         except Exception as e:
-            result[0] = []
+            print(f"    [{base.split('.')[1]}] فشل: {str(e)[:60]}")
+            continue
+        for prod in data.get("products", []):
+            img = prod.get("image_front_url") or prod.get("image_url")
+            if not img:
+                continue
+            strength = match_strength(p, prod.get("product_name", ""),
+                                      prod.get("brands", ""))
+            if not strength:
+                continue
+            cand = {
+                "url": img,
+                "tier": category_tier if strength == "strong" else 4,
+                "source": base,
+                "apiName": (prod.get("product_name") or "")[:80],
+            }
+            if strength == "strong":
+                cand["verified"] = True     # تطابق منظّم قوي ⇒ اعتماد آلي
+            out.append(cand)
+        if out:
+            break   # أول استعلام ناجح يكفي
+    return out
 
-    thread = threading.Thread(target=search, daemon=True)
-    thread.start()
-    thread.join(timeout=timeout_sec)
-    if thread.is_alive():
-        return []  # timed out
-    return result[0] if result[0] is not None else []
+
+# ----------------------- المصدر 3: DuckDuckGo (احتياط) -----------------------
+
+def ddg_search_with_timeout(ddgs, query, timeout_sec=DDG_TIMEOUT):
+    result = [None]
+    def run():
+        try:
+            result[0] = ddgs.images(query, max_results=20) or []
+        except Exception:
+            result[0] = []
+    th = threading.Thread(target=run, daemon=True)
+    th.start(); th.join(timeout=timeout_sec)
+    return result[0] or []
+
+
+def search_ddg(p, ddgs):
+    if ddgs is None:
+        return []
+    brand = " ".join(ascii_tokens(p["brand"]))
+    en = p["en"].strip()
+    q = f"{brand} {en} product package".strip()
+    hits = ddg_search_with_timeout(ddgs, q)
+    scored = []
+    seen = set()
+    for h in hits:
+        u = h.get("image", "")
+        if not u or u in seen or blocked(u):
+            continue
+        seen.add(u)
+        scored.append({"url": u, "tier": tier_of(u), "source": domain_of(u),
+                       "w": int(h.get("width", 0) or 0)})
+    scored.sort(key=lambda c: (c["tier"], -c.get("w", 0)))
+    return scored
+
+
+# ----------------------------- التشغيل -----------------------------
 
 def main():
     try:
         from duckduckgo_search import DDGS
-    except ImportError:
-        print("⚠ ثبّت أولاً: pip install duckduckgo_search"); sys.exit(1)
+        ddgs = DDGS()
+    except Exception:
+        ddgs = None   # الاحتياط غير متاح — لا بأس، المصادر الأساسية تكفي
 
     existing = json.load(open(CANDIDATES, encoding="utf-8")) if os.path.exists(CANDIDATES) else {}
     products = read_products()
-    ddgs = DDGS()
-    stats = {"products": 0, "raw": 0, "kept": 0, "skipped": 0}
+    stats = {"products": 0, "auto": 0, "review": 0, "empty": 0}
 
     for idx, p in enumerate(products, 1):
         pid = p["id"]
         if os.path.exists(os.path.join(ROOT, "images", pid + ".webp")):
             continue
         stats["products"] += 1
-        print(f"[{idx}/{len(products)}] {pid}: جلب المرشّحين...")
-        # مرشّحون موجودون (يدويون/سابقون) يُحفظون — خصوصاً verified
+        print(f"[{idx}/{len(products)}] {pid}: {p['brand']} — {p['en']}")
+
+        # نحفظ المرشّحين الموجودين (خصوصاً verified اليدويين)
         merged = {c["url"]: c for c in existing.get(pid, [])}
 
-        raw = []
-        for q_idx, q in enumerate(queries_for(p), 1):
-            hits = search_with_timeout(ddgs, q, SEARCH_TIMEOUT)
-            if not hits:
-                print(f"    Query {q_idx}: timeout أو فشل")
-                stats["skipped"] += 1
-                continue
-            raw.extend(hits)
-            print(f"    Query {q_idx}: {len(hits)} نتيجة")
-        stats["raw"] += len(raw)
+        found = []
+        # 1) Open Beauty Facts (تجميل/عناية) — tier 2 عند التطابق القوي
+        found += search_facts(p, "world.openbeautyfacts.org", 2)
+        # 2) Open Food Facts (مكملات/تغذية) — tier 3 عند التطابق القوي
+        found += search_facts(p, "world.openfoodfacts.org", 3)
+        # 3) احتياط أخير: DuckDuckGo (قد يُحجب من CI)
+        if not any(c.get("verified") for c in found):
+            found += search_ddg(p, ddgs)
 
-        # تصفية + تصنيف
-        scored = []
-        seen = set()
-        for h in raw:
-            url = h.get("image", "")
-            if not url or url in seen or blocked(url):
-                continue
-            seen.add(url)
-            t = tier_of(url)
-            w = int(h.get("width", 0) or 0)
-            scored.append({"url": url, "tier": t, "source": domain_of(url),
-                           "w": w, "title": (h.get("title") or "")[:80]})
-        # الترتيب: المستوى الأوثق أولاً ثم الدقة الأعلى
-        scored.sort(key=lambda c: (c["tier"], -c["w"]))
-        for c in scored[:KEEP_PER_PRODUCT]:
+        for c in found:
             if c["url"] not in merged:
                 merged[c["url"]] = c
+
         if merged:
             existing[pid] = list(merged.values())
-            stats["kept"] += len(merged)
-            t1 = sum(1 for c in merged.values() if c.get("tier") == 1)
-            print(f"  ✓ {len(merged)} مرشّح (منها {t1} من مصنّع رسمي)\n")
+            v = sum(1 for c in merged.values() if c.get("verified"))
+            if v:
+                stats["auto"] += 1
+                print(f"  ✓ {len(merged)} مرشّح — منها {v} موثوق (اعتماد آلي)")
+            else:
+                stats["review"] += 1
+                print(f"  ~ {len(merged)} مرشّح (مراجعة يدوية)")
+        else:
+            stats["empty"] += 1
+            print("  ✗ لا مرشّح")
 
     json.dump(existing, open(CANDIDATES, "w", encoding="utf-8"),
               ensure_ascii=False, indent=2)
-    print(f"\n✔ منتجات بلا صورة: {stats['products']} · نتائج خام: {stats['raw']} · مرشّحون معتمدون: {stats['kept']} · محاولات timeout: {stats['skipped']}")
+    print(f"\n✔ منتجات بلا صورة: {stats['products']} · "
+          f"موثوق (آلي): {stats['auto']} · مراجعة: {stats['review']} · "
+          f"بلا مرشّح: {stats['empty']}")
     print("التالي: python3 pharmacy/tools/image-pipeline.py")
+
 
 if __name__ == "__main__":
     main()
