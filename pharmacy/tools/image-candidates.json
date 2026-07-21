@@ -192,6 +192,13 @@
       "tier": 4,
       "source": "world.openfoodfacts.org",
       "apiName": "Vitamin B12"
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/073/373/900/4680/front_fr.3.full.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Now Vitamin B12 Lozenges",
+      "verified": true
     }
   ],
   "bioderma-gel": [
