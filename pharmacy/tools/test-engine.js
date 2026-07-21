@@ -19,7 +19,9 @@ const ctx = {
 ctx.globalThis = ctx;
 vm.createContext(ctx);
 const load = (f) => vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", f), "utf8"), ctx);
+load("../js/products.js".replace("../js/", ""));  // products.js
 load("advisor-kb.js");
+load("advisor-brain.js");
 load("advisor.js");
 
 const KB = vm.runInContext("ADVISOR_KB", ctx);
@@ -269,6 +271,30 @@ t("مسار هدف الحمل يصل لتوصية البريناتال دون س
   core._setState(s);
   const recs = core.buildRecommendations(s);
   assert(recs.length && recs[0].nutrient.id === "prenatal", "البريناتال ليست الأولى: " + (recs[0] && recs[0].nutrient.id));
+});
+
+/* ---------- 9) عقل المستشار (Knowledge Graph) ---------- */
+const Brain = ctx.window.AdvisorBrain;
+t("العقل يُبنى عند التشغيل ويقرأ كل المنتجات", () => {
+  assert(Brain, "العقل غير موجود");
+  assert(Brain.stats.products >= 30, "لم يقرأ المنتجات: " + Brain.stats.products);
+  assert(Brain.stats.rules > 50, "قواعد قليلة: " + Brain.stats.rules);
+});
+
+t("الربط التلقائي: منتج جلايسيماج يرتبط بالمغنيسيوم عبر المرادفات", () => {
+  assert(Brain.productsFor("magnesium").includes("glycimag"));
+});
+
+t("الربط التلقائي يكتشف روابط غير مذكورة صراحة", () => {
+  assert(Brain.stats.autoLinks > 0, "لا روابط تلقائية");
+});
+
+t("حذف منتج من الكتالوج لا يكسر العقل (روابط صريحة ميتة تُتجاهل)", () => {
+  // كل منتج يعيده العقل موجود فعلاً في الكتالوج
+  const allIds = new Set(vm.runInContext("PRODUCTS", ctx).map((p) => p.id));
+  KB.nutrients.forEach((n) =>
+    Brain.productsFor(n.id).forEach((pid) =>
+      assert(allIds.has(pid), n.id + " يشير لمنتج غير موجود: " + pid)));
 });
 
 /* ---------- النتيجة ---------- */

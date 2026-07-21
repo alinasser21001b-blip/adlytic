@@ -91,7 +91,8 @@
             <span>WHO</span><span>NIH ODS</span><span>EFSA</span><span>IOM · DRI</span>
           </div>
           <h3 class="adv-q">مستشار المكمّلات التثقيفي</h3>
-          <p class="adv-note">٥–٧ أسئلة قصيرة · بدون تسجيل · بدون بيانات شخصية · لا يشخّص ولا يصف علاجاً.</p>
+          <p class="adv-note">٥–٩ أسئلة قصيرة · بدون تسجيل · بدون بيانات شخصية · لا يشخّص ولا يصف علاجاً.</p>
+          <p class="adv-brain-stats" id="adv-brain-stats"></p>
           <button class="btn-pill" onclick="Advisor.mount('advisor-mount')">ابدأ الاستشارة</button>
         </div>
       </div>
@@ -184,8 +185,15 @@
   <script src="js/products.js"></script>
   <script src="js/app.js"></script>
   <script src="js/advisor-kb.js"></script>
+  <script src="js/advisor-brain.js"></script>
   <script src="js/advisor.js"></script>
   <script>
+    // إحصاءات عقل المستشار (تُبنى عند التشغيل)
+    if (window.AdvisorBrain) {
+      const st = AdvisorBrain.stats;
+      document.getElementById("adv-brain-stats").textContent =
+        `قاعدة المعرفة الحية: ${st.products} منتجاً · ${st.nutrients} مادة فعّالة · ${st.rules} قاعدة موثّقة بـ${st.references} مرجعاً دولياً`;
+    }
     // روابط واتساب العامة
     for (const id of ["header-wa", "hero-wa", "float-wa", "empty-wa", "banner-wa", "finalcta-wa"]) {
       document.getElementById(id).href = waGeneralLink();

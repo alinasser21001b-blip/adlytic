@@ -166,8 +166,10 @@
           .slice(0, 3)
           .map((r) => ({ label: factLabel(r.when), weight: r.weight, level: r.evidenceLevel }));
         const comp = completeness(id, state);
-        // المنتجات المتوفّرة لهذا المغذّي
-        const prodIds = (KB.nutrientProducts[id] || []);
+        // المنتجات المتوفّرة لهذا المغذّي — من العقل (صريح + تلقائي) إن وُجد
+        const prodIds = (typeof AdvisorBrain !== "undefined")
+          ? AdvisorBrain.productsFor(id)
+          : (KB.nutrientProducts[id] || []);
         const products = prodIds.map((pid) => (typeof byId === "function" ? byId(pid) : null))
           .filter((p) => p); // موجود في الكتالوج
         return {

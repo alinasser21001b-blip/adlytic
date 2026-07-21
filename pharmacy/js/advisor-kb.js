@@ -197,6 +197,7 @@ const ADVISOR_KB = {
   nutrients: [
     {
       id: "vitamin_d", name: "فيتامين د", primaryRef: "nih_vitd",
+      aliases: ["فيتامين د", "فيتامين d", "vitamin d", "d3", "cholecalciferol", "كوليكالسيفيرول"],
       blurb: "يدعم امتصاص الكالسيوم وصحة العظام والمناعة ووظيفة العضلات.",
       dosage: {
         rda: "600–800 وحدة دولية/يوم حسب العمر.",
@@ -225,6 +226,7 @@ const ADVISOR_KB = {
     },
     {
       id: "iron", name: "الحديد", primaryRef: "nih_iron",
+      aliases: ["الحديد", "حديد", "iron", "ferrous", "فيروس", "هيموغلوبين"],
       blurb: "ضروري لنقل الأكسجين في الدم؛ نقصه سبب شائع للإرهاق خصوصاً لدى النساء.",
       dosage: {
         rda: "8–18 ملغ/يوم للبالغين حسب الجنس والعمر (انظر فئتك).",
@@ -258,6 +260,7 @@ const ADVISOR_KB = {
     },
     {
       id: "b12", name: "فيتامين ب12", primaryRef: "nih_b12",
+      aliases: ["ب12", "b12", "فيتامين ب12", "cobalamin", "كوبالامين", "methylcobalamin"],
       blurb: "يدعم إنتاج الطاقة الخلوية، صحة الأعصاب، وتكوين خلايا الدم الحمراء.",
       dosage: {
         rda: "الكمية الموصى بها 2.4 ميكروغرام/يوم للبالغين.",
@@ -277,6 +280,7 @@ const ADVISOR_KB = {
     },
     {
       id: "magnesium", name: "المغنيسيوم", primaryRef: "nih_mag",
+      aliases: ["مغنيسيوم", "المغنيسيوم", "magnesium", "جلايسينات", "glycinate", "glycimag"],
       blurb: "يشارك في مئات التفاعلات — وظيفة العضلات والأعصاب، والاسترخاء، وجودة النوم.",
       dosage: {
         rda: "310–420 ملغ/يوم حسب الجنس والعمر.",
@@ -303,6 +307,7 @@ const ADVISOR_KB = {
     },
     {
       id: "omega3", name: "أوميغا-3", primaryRef: "nih_omega3",
+      aliases: ["أوميغا", "اوميغا", "omega", "زيت السمك", "fish oil", "epa", "dha"],
       blurb: "أحماض دهنية أساسية تدعم صحة القلب والدماغ والتركيز.",
       dosage: {
         rda: "لا RDA رسمي؛ الكفاية الغذائية (ALA) 1.1–1.6 غ/يوم للبالغين.",
@@ -321,6 +326,7 @@ const ADVISOR_KB = {
     },
     {
       id: "zinc", name: "الزنك", primaryRef: "nih_zinc",
+      aliases: ["زنك", "الزنك", "zinc"],
       blurb: "معدن يدعم المناعة والتئام الجروح وصحة الجلد.",
       dosage: {
         rda: "8–11 ملغ/يوم حسب الجنس.",
@@ -340,6 +346,7 @@ const ADVISOR_KB = {
     },
     {
       id: "biotin_hair", name: "بيوتين ومغذّيات الشعر", primaryRef: "nih_biotin",
+      aliases: ["بيوتين", "biotin", "كيراتين", "keratin", "cynatine", "سيناتين", "الشعر والأظافر", "hair", "novophane", "نوفوفان"],
       blurb: "البيوتين وفيتامينات B تدعم دورة نمو الشعر والأظافر.",
       dosage: {
         rda: "الكفاية الغذائية للبيوتين 30 ميكروغرام/يوم للبالغين.",
@@ -358,6 +365,7 @@ const ADVISOR_KB = {
     },
     {
       id: "collagen", name: "الكولاجين", primaryRef: "clin_collagen",
+      aliases: ["كولاجين", "الكولاجين", "collagen", "ببتيدات"],
       blurb: "بروتين بنيوي يُستخدم لدعم نضارة البشرة ومرونتها وصحة الشعر.",
       dosage: {
         rda: "لا RDA رسمي؛ الدراسات السريرية استخدمت 2.5–10 غ/يوم من ببتيدات الكولاجين.",
@@ -373,6 +381,7 @@ const ADVISOR_KB = {
     },
     {
       id: "vitamin_c", name: "فيتامين C", primaryRef: "nih_vitc",
+      aliases: ["فيتامين سي", "فيتامين c", "vitamin c", "ascorbic", "أسكوربيك"],
       blurb: "مضاد أكسدة يدعم المناعة وتصنيع الكولاجين وامتصاص الحديد النباتي.",
       dosage: {
         rda: "75–90 ملغ/يوم حسب الجنس (يزيد 35 ملغ للمدخنين).",
@@ -397,6 +406,7 @@ const ADVISOR_KB = {
     },
     {
       id: "calcium", name: "الكالسيوم", primaryRef: "nih_calcium",
+      aliases: ["كالسيوم", "الكالسيوم", "calcium"],
       blurb: "المعدن الأساسي لبنية العظام والأسنان — احتياجه يزداد مع التقدّم بالعمر.",
       dosage: {
         rda: "1000–1200 ملغ/يوم حسب العمر والجنس.",
@@ -425,6 +435,7 @@ const ADVISOR_KB = {
     },
     {
       id: "vitamin_e", name: "فيتامين E", primaryRef: "nih_vite",
+      aliases: ["فيتامين إي", "فيتامين e", "vitamin e", "tocopherol", "توكوفيرول"],
       blurb: "مضاد أكسدة يحمي الخلايا ويُستخدم لدعم صحة البشرة.",
       dosage: {
         rda: "15 ملغ/يوم للبالغين.",
@@ -442,6 +453,7 @@ const ADVISOR_KB = {
     },
     {
       id: "potassium", name: "البوتاسيوم", primaryRef: "nih_potassium",
+      aliases: ["بوتاسيوم", "البوتاسيوم", "potassium"],
       blurb: "كهرل أساسي لوظيفة العضلات والأعصاب وضغط الدم الصحي.",
       dosage: {
         rda: "الكفاية الغذائية 2600 ملغ/يوم للنساء و3400 ملغ/يوم للرجال.",
@@ -463,6 +475,7 @@ const ADVISOR_KB = {
     },
     {
       id: "probiotics", name: "البروبيوتيك", primaryRef: "nih_probiotics",
+      aliases: ["بروبيوتيك", "البروبيوتيك", "probiotic", "بكتيريا نافعة", "lactobacillus"],
       blurb: "بكتيريا نافعة تدعم توازن الجهاز الهضمي وقد تخفف الانتفاخ واضطراب الأمعاء.",
       dosage: {
         rda: "لا RDA رسمي؛ الدراسات استخدمت سلالات وجرعات متعددة (وحدات CFU) — الاختيار حسب السلالة والغرض.",
@@ -482,6 +495,7 @@ const ADVISOR_KB = {
     },
     {
       id: "prenatal", name: "فيتامينات الحمل (حمض الفوليك)", primaryRef: "cdc_folate",
+      aliases: ["حمل", "الحامل", "بريجنا", "pregna", "folic", "فوليك", "prenatal", "بريناتال"],
       blurb: "حمض الفوليك والحديد والمعادن الأساسية لدعم الحمل الصحي والتخطيط له.",
       dosage: {
         rda: "يوصى بـ 400 ميكروغرام/يوم من حمض الفوليك لكل امرأة قادرة على الإنجاب، و600 ميكروغرام أثناء الحمل.",

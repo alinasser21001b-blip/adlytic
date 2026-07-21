@@ -867,3 +867,4 @@ html[dir="rtl"] .marquee-track { animation-name: marquee-rtl; }
   border-radius: 12px; padding: 11px 14px; margin-top: 10px; background: #fff; }
 .adv-red-item b { color: #8a3b2e; }
 .adv-red-item p { color: var(--muted); font-size: .85rem; line-height: 1.8; margin: 4px 0; }
+.adv-brain-stats { color: var(--gold-strong); font-size: .74rem; font-weight: 700; margin: 6px 0 12px; }
