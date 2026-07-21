@@ -1,107 +1,35 @@
 {
   "acm-novophane-set": {
-    "source": "NIH DSLD",
-    "sourceId": "315175",
-    "manufacturer": "Wonder Laboratories",
-    "activeIngredients": [],
-    "dosageForm": "Tablet or Pill",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.5,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "novophane-caps": {
-    "source": "NIH DSLD",
-    "sourceId": "316901",
-    "manufacturer": "Ron Teeguarden's Dragon Herbs",
-    "activeIngredients": [],
-    "dosageForm": "Capsule",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.5,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "skinage-hair": {
-    "source": "NIH DSLD",
-    "sourceId": "213525",
-    "manufacturer": "ResVitale",
-    "activeIngredients": [],
-    "dosageForm": "Capsule",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.5,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "praborin": {
-    "source": "NIH DSLD",
-    "sourceId": "270970",
-    "manufacturer": "Rise-N-Shine",
-    "activeIngredients": [],
-    "dosageForm": "Softgel Capsule",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.58,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "ecrinal": {
-    "source": "NIH DSLD",
-    "sourceId": "22374",
-    "manufacturer": "SimplySupplements",
-    "activeIngredients": [],
-    "dosageForm": "Capsule",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.5,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "multi-nrg-women": {
-    "source": "NIH DSLD",
-    "sourceId": "240262",
-    "manufacturer": "NATURELO Premium Supplements",
-    "activeIngredients": [],
-    "dosageForm": "Capsule",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.5,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "maddox-collagen": {
-    "source": "NIH DSLD",
-    "sourceId": "245457",
-    "manufacturer": "Higher Nature Aeterna Gold",
-    "activeIngredients": [],
-    "dosageForm": "Powder",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.5,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "glycimag": {
-    "source": "NIH DSLD",
-    "sourceId": "33919",
-    "manufacturer": "Vinco's",
-    "activeIngredients": [],
-    "dosageForm": "Powder",
-    "servingSize": "",
-    "therapeuticCategory": "مكمل غذائي",
-    "upc": "",
-    "warningsRaw": [],
-    "matchScore": 0.5,
-    "status": "review"
+    "status": "missing",
+    "note": "لا نتيجة من DSLD/openFDA — يُدخل الصيدلي البيانات يدوياً"
   },
   "d3-50000": {
     "source": "NIH DSLD",

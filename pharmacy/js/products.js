@@ -29,14 +29,13 @@ const PRODUCTS = [
   /* ---------------- العناية بالشعر ---------------- */
   {
     id: "acm-novophane-set",
-    img: "https://cdnprd.marjanemall.ma/cn0picture0products0mm/ACM1685755222578_img1.webp",
+    img: "images/acm-novophane-set.webp",
     name: "مجموعة ACM نوفوفان لتساقط الشعر",
     en: "ACM Novophane Anti-Hair Loss Set",
     brand: "ACM Laboratoire",
     category: "hair",
     badge: "الأكثر طلباً",
     emoji: "🧪",
-    img: "https://cdnprd.marjanemall.ma/cn0picture0products0mm/ACM1685755222578_img1.webp",
     summary: "المجموعة الفرنسية المتكاملة لعلاج تساقط الشعر موضعياً وداخلياً — لوشن مضاد للتساقط مع كبسولات مغذية.",
     description: "مجموعة نوفوفان من مختبرات ACM الفرنسية تعالج تساقط الشعر من جهتين: اللوشن الموضعي المضاد للتساقط يعمل مباشرة على فروة الرأس، بينما تدعم الكبسولات تغذية بصيلات الشعر من الداخل. مناسبة للتساقط الموسمي والتساقط الناتج عن الإجهاد.",
     benefits: ["يقلل تساقط الشعر تدريجياً", "يدعم كثافة الشعر ولمعانه", "تغذية مزدوجة: موضعية وداخلية", "تركيبة فرنسية موثوقة"],

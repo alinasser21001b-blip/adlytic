@@ -3,15 +3,16 @@
 | البند | العدد |
 |---|---|
 | صور محلية موجودة مسبقاً | 6 |
-| اعتُمدت آلياً (ثقة ≥ 90%) | 0 |
-| تحتاج مراجعة يدوية (ثقة أقل) | 5 |
+| اعتُمدت آلياً (ثقة ≥ 90%) | 1 |
+| تحتاج مراجعة يدوية (ثقة أقل) | 4 |
 | بلا صورة (لا مرشّح صالح) | 40 |
 
+## ✅ اعتُمدت آلياً
+- `acm-novophane-set` — مجموعة ACM نوفوفان لتساقط الشعر (ثقة 95%)
+  - https://ecombe.nahdionline.com/media/catalog/product/1/0/103862640_a66faf4829d7419df_23936.jpg
 
 ## ⚠️ مراجعة يدوية (لم تُعتمد — الثقة تحت البوابة)
 أضف `"verified": true` للمرشّح في image-candidates.json بعد التأكد بالعين.
-- `acm-novophane-set` — مجموعة ACM نوفوفان لتساقط الشعر (ثقة 62%)
-  - https://mfparis.vn/wp-content/uploads/2023/11/uong-moc-toc-laboratoire-acm-novophane-hair-and-nail1.jpg
 - `praborin` — برابورين N / برابورين إكسترا (ثقة 61%)
   - https://ecombe.nahdionline.com/media/catalog/product/1/0/103991679_a063d9034fd76eed6_73462.png
 - `maddox-collagen` — شراب الكولاجين من مادوكس (ثقة 53%)
