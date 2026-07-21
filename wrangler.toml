@@ -2,6 +2,9 @@ name = "adlytic"
 type = "service"
 main = "dist/src/api/serve.js"
 
+build = { command = "npm install && npm run build" }
+build_cwd = "."
+
 [env.production]
 name = "adlytic"
 
