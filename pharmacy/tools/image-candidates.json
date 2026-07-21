@@ -877,5 +877,14 @@
       "source": "world.openfoodfacts.org",
       "apiName": "Ensure Complete nutrition shake"
     }
+  ],
+  "perfectil": [
+    {
+      "url": "https://images.openfoodfacts.org/images/products/502/126/522/0038/front_ar.14.full.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Perfectil Triple Active For Skin Hair & Nails",
+      "verified": true
+    }
   ]
 }
