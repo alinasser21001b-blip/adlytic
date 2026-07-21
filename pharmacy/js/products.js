@@ -67,6 +67,7 @@ const PRODUCTS = [
   },
   {
     id: "skinage-hair",
+    img: "images/skinage-hair.webp",
     name: "سكينج هير بوست مع سيناتين",
     en: "Skinage Hair Boost + Cynatine",
     brand: "Skinage",
@@ -123,6 +124,7 @@ const PRODUCTS = [
   /* ---------------- الفيتامينات والمكملات ---------------- */
   {
     id: "multi-nrg-women",
+    img: "images/multi-nrg-women.webp",
     name: "ملتي إن آر جي للنساء — حبة واحدة يومياً",
     en: "Multi-NRG Women One Daily",
     brand: "VAMS",

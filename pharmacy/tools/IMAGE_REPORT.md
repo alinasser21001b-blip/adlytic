@@ -2,27 +2,23 @@
 
 | البند | العدد |
 |---|---|
-| صور محلية موجودة مسبقاً | 4 |
+| صور محلية موجودة مسبقاً | 6 |
 | اعتُمدت آلياً (ثقة ≥ 90%) | 2 |
-| تحتاج مراجعة يدوية (ثقة أقل) | 7 |
+| تحتاج مراجعة يدوية (ثقة أقل) | 5 |
 | بلا صورة (لا مرشّح صالح) | 19 |
 
 ## ✅ اعتُمدت آلياً
-- `ensure` — إنشور — مكمل غذائي متكامل (ثقة 95%)
-  - https://images.openfoodfacts.org/images/products/007/007/468/0606/front_en.3.full.jpg
-- `pregnacare` — بريجناكير أوريجينال (ثقة 95%)
-  - https://images.openfoodfacts.org/images/products/501/005/808/9785/front_en.14.full.jpg
+- `skinage-hair` — سكينج هير بوست مع سيناتين (ثقة 95%)
+  - https://trustbeautykuwait.com/cdn/shop/files/Skinage_Hair_Boost_15_ampoules.png?v=1773584491&width=1500
+- `multi-nrg-women` — ملتي إن آر جي للنساء — حبة واحدة يومياً (ثقة 95%)
+  - https://ecombe.nahdionline.com/media/catalog/product/a/m/ams-women-multi-nrg-vitamin-45-tablet-0fjpg.jpg
 
 ## ⚠️ مراجعة يدوية (لم تُعتمد — الثقة تحت البوابة)
 أضف `"verified": true` للمرشّح في image-candidates.json بعد التأكد بالعين.
 - `acm-novophane-set` — مجموعة ACM نوفوفان لتساقط الشعر (ثقة 62%)
   - https://mfparis.vn/wp-content/uploads/2023/11/uong-moc-toc-laboratoire-acm-novophane-hair-and-nail1.jpg
-- `skinage-hair` — سكينج هير بوست مع سيناتين (ثقة 58%)
-  - https://trustbeautykuwait.com/cdn/shop/files/Skinage_Hair_Boost_15_ampoules.png?v=1773584491&width=1500
 - `praborin` — برابورين N / برابورين إكسترا (ثقة 61%)
   - https://ecombe.nahdionline.com/media/catalog/product/1/0/103991679_a063d9034fd76eed6_73462.png
-- `multi-nrg-women` — ملتي إن آر جي للنساء — حبة واحدة يومياً (ثقة 76%)
-  - https://ecombe.nahdionline.com/media/catalog/product/a/m/ams-women-multi-nrg-vitamin-45-tablet-0fjpg.jpg
 - `maddox-collagen` — شراب الكولاجين من مادوكس (ثقة 53%)
   - https://egyptdwa.com/dwa/collagen-beauty-maddox-15-drinkable-amp-x-25-ml-16642.jpg
 - `glycimag` — جلايسيماج — مغنيسيوم جلايسينات 450 (ثقة 58%)
