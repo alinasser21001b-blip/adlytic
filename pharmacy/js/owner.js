@@ -187,12 +187,20 @@ const Owner = (() => {
       <div class="panel">
         <div class="panel-head">
           <h3 id="owner-dash-title">لوحة الإدارة</h3>
-          <button class="close-x" onclick="Owner.closeDash()">✕</button>
+          <button class="close-x" onclick="Owner.closeDash()" aria-label="إغلاق">✕</button>
         </div>
         <div class="panel-body" id="owner-dash-body"></div>
       </div>
     </div>`;
     document.body.append(wrap.firstElementChild);
+    // تتبّع التعديلات غير المحفوظة عبر تفويض حدث واحد (يعمل مع أي تبويب يُعاد رسمه)
+    document.getElementById("owner-dash-body").addEventListener("input", (e) => {
+      const row = e.target.closest(".owner-row");
+      if (!row) return;
+      row.classList.add("dirty");
+      const flag = row.querySelector(".or-saved-flag");
+      if (flag) flag.textContent = "● تعديل غير محفوظ";
+    });
   }
 
   async function enable() {
@@ -235,8 +243,9 @@ const Owner = (() => {
   /* ---------------- تبويب المنتجات / العروض ---------------- */
   function fieldRow(p, opts = {}) {
     const { offersOnly } = opts;
+    const searchKey = `${p.name} ${p.brand || ""} ${p.en || ""}`.toLowerCase();
     return `
-    <div class="owner-row" data-row="${p.id}">
+    <div class="owner-row" data-row="${p.id}" data-search="${searchKey.replace(/"/g, "&quot;")}">
       <span class="or-thumb">${typeof thumbHtml === "function" ? thumbHtml(p) : ""}</span>
       <div class="or-body">
         <b>${p.name}</b>
@@ -273,11 +282,51 @@ const Owner = (() => {
 
   function renderProductsTab(body, list, offersOnly) {
     const items = offersOnly ? list.filter((p) => p.price) : list;
+    const hiddenCount = items.filter((p) => p.available === false).length;
+    const featuredCount = items.filter((p) => p.badge === "الأكثر طلباً").length;
     body.innerHTML = `
       <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">
-        ${offersOnly ? "عدّل السعر أو أضف سعر خصم — يظهر فوراً على الموقع لكل الزوار." : `${items.length} منتجاً — عدّل أي حقل واضغط حفظ.`}
+        ${offersOnly ? "عدّل السعر أو أضف سعر خصم — يظهر فوراً على الموقع لكل الزوار." : "عدّل أي حقل واضغط حفظ. يظهر التعديل لكل الزوار فوراً."}
       </p>
-      ${items.map((p) => fieldRow(p, { offersOnly })).join("")}`;
+      <div class="owner-counts">
+        <span>📦 ${items.length} منتج${offersOnly ? "" : "اً"}</span>
+        <span>🚫 ${hiddenCount} غير متوفر</span>
+        ${!offersOnly ? `<span>⭐ ${featuredCount} مميّز</span>` : ""}
+      </div>
+      <div class="owner-search-wrap">
+        <span class="owner-search-ic">🔎</span>
+        <input type="text" class="owner-search" id="owner-products-search" placeholder="ابحث بالاسم أو العلامة…" />
+      </div>
+      <div id="owner-products-list">
+        ${items.map((p) => fieldRow(p, { offersOnly })).join("")}
+      </div>`;
+    bindSearchFilter("owner-products-search", "#owner-products-list .owner-row");
+  }
+
+  /* ---------------- بحث/تصفية عام داخل أي تبويب ---------------- */
+  function bindSearchFilter(inputId, rowSelector) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener("input", () => {
+      const term = input.value.trim().toLowerCase();
+      let visible = 0;
+      document.querySelectorAll(rowSelector).forEach((row) => {
+        const match = !term || (row.dataset.search || "").includes(term);
+        row.style.display = match ? "" : "none";
+        if (match) visible++;
+      });
+      let empty = input.closest(".panel-body")?.querySelector(".owner-search-empty");
+      if (!visible) {
+        if (!empty) {
+          empty = document.createElement("p");
+          empty.className = "owner-search-empty";
+          empty.textContent = "لا نتائج مطابقة للبحث.";
+          input.closest(".panel-body")?.append(empty);
+        }
+      } else {
+        empty?.remove();
+      }
+    });
   }
 
   function readRowPatch(id) {
@@ -308,6 +357,7 @@ const Owner = (() => {
       Object.assign(overrides.products, { [id]: { ...(overrides.products[id] || {}), ...patch } });
       applyOverrides();
       flag.textContent = "✅ حُفظ";
+      document.querySelector(`.owner-row[data-row="${id}"]`)?.classList.remove("dirty");
       refreshLiveViews(id);
     } catch (e) {
       flag.textContent = "⚠️ تعذّر الحفظ";
@@ -319,6 +369,7 @@ const Owner = (() => {
     try {
       await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, reset: true }) });
       delete overrides.products[id];
+      document.querySelector(`.owner-row[data-row="${id}"]`)?.classList.remove("dirty");
       toast?.("↩️ رجعنا للقيم الأصلية — أعد تحميل الصفحة لرؤية الأصل كاملاً");
     } catch (_) { toast?.("⚠️ تعذّر الاسترجاع"); }
   }
@@ -347,13 +398,26 @@ const Owner = (() => {
 
   /* ---------------- تبويب الصور ---------------- */
   function renderMediaTab(body) {
+    const missing = PRODUCTS.filter((p) => !p.img).length;
     body.innerHTML = `
       <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">استبدل رابط أي صورة منتج — يظهر فوراً.</p>
-      ${PRODUCTS.map((p) => `
-        <div class="owner-row" data-row-media="${p.id}">
+      <div class="owner-counts">
+        <span>🖼️ ${PRODUCTS.length} منتج</span>
+        <span>⚠️ ${missing} بلا صورة</span>
+      </div>
+      <div class="owner-search-wrap">
+        <span class="owner-search-ic">🔎</span>
+        <input type="text" class="owner-search" id="owner-media-search" placeholder="ابحث بالاسم أو العلامة…" />
+      </div>
+      <div id="owner-media-list">
+        ${PRODUCTS.map((p) => {
+          const searchKey = `${p.name} ${p.brand || ""} ${p.en || ""}`.toLowerCase();
+          return `
+        <div class="owner-row${p.img ? "" : " no-img"}" data-row-media="${p.id}" data-search="${searchKey.replace(/"/g, "&quot;")}">
           <span class="or-thumb">${thumbHtml(p)}</span>
           <div class="or-body">
             <b>${p.name}</b>
+            <small>${p.brand || ""}${!p.img ? " · بلا صورة حالياً" : ""}</small>
             <div class="or-fields">
               <input type="text" data-f="img" style="grid-column:1/-1" value="${p.img || ""}" placeholder="images/xxx.webp أو رابط كامل" />
               <div class="or-actions">
@@ -362,7 +426,10 @@ const Owner = (() => {
               </div>
             </div>
           </div>
-        </div>`).join("")}`;
+        </div>`;
+        }).join("")}
+      </div>`;
+    bindSearchFilter("owner-media-search", "#owner-media-list .owner-row");
   }
 
   async function saveImg(id) {
@@ -376,6 +443,7 @@ const Owner = (() => {
       overrides.products[id] = { ...(overrides.products[id] || {}), img };
       applyOverrides();
       flag.textContent = "✅ حُفظت";
+      row.classList.remove("dirty", "no-img");
       refreshLiveViews(id);
     } catch (_) { flag.textContent = "⚠️ تعذّر الحفظ"; }
   }
