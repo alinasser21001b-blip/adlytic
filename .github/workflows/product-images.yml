@@ -16,6 +16,11 @@ on:
 permissions:
   contents: write
 
+# تشغيل واحد فقط في نفس الوقت — يمنع سباق الدفع بين تشغيلين متوازيين
+concurrency:
+  group: product-sync-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   sync-images:
     runs-on: ubuntu-latest
@@ -45,4 +50,9 @@ jobs:
           git add pharmacy/images pharmacy/js/products.js pharmacy/tools/IMAGE_REPORT.md pharmacy/tools/image-candidates.json pharmacy/tools/enrichment.json
           git diff --cached --quiet && echo "لا صور جديدة" && exit 0
           git commit -m "صور منتجات: مزامنة آلية (بوابة ثقة 90%)"
+          # إعادة المحاولة مع rebase إن سبقنا دفعٌ آخر
+          for i in 1 2 3; do
+            git push && exit 0
+            git pull --rebase && sleep 3
+          done
           git push

@@ -31,7 +31,7 @@
     python3 pharmacy/tools/harvest-candidates.py
 ============================================================
 """
-import json, os, re, sys, threading, urllib.parse, urllib.request
+import json, os, re, sys, threading, time, urllib.parse, urllib.request
 from urllib.parse import urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -271,6 +271,7 @@ def search_ddg(p, ddgs):
     ] if q]
     seen, scored = set(), []
     for q in queries:
+        time.sleep(1.5)   # تهدئة — تجنّب حظر المعدل بعد عشرات الطلبات
         for h in ddg_search_with_timeout(ddgs, q):
             u = h.get("image", "")
             if not u or u in seen or blocked(u):
