@@ -108,6 +108,7 @@ import { welcomePage } from '../web/pages/welcomePage';
 import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { privacyPage } from '../web/pages/privacyPage';
 import { dataDeletionPage } from '../web/pages/dataDeletionPage';
+import { ownerPage } from '../web/pages/ownerPage';
 import { buildAiContext } from '../services/aiContextBuilder';
 import { buildAiContextV5 } from '../services/aiContextBuilderV5';
 import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
@@ -538,6 +539,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
   app.get('/support',        (c) => c.html(supportPage()));
+  app.get('/owner',          (c) => c.html(ownerPage()));
   app.get('/admin',          (c) => c.html(adminConsolePage()));
   app.get('/admin/inbox',    (c) => c.html(adminInboxPage()));
   app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
