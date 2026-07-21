@@ -390,11 +390,52 @@
   ],
   "skinage-hair": [
     {
+      "url": "https://mojafarmacija.ba/wp-content/uploads/2025/06/YASENKA_Skinage_hair_boost_500ml_moja_farmacija.png",
+      "tier": 5,
+      "source": "mojafarmacija.ba",
+      "w": 1080,
+      "verified": true
+    },
+    {
+      "url": "https://www.onlineapoteka.me/wp-content/uploads/Yasenka-skinage-HAIR-BOOST-500ml.webp",
+      "tier": 5,
+      "source": "onlineapoteka.me",
+      "w": 800,
+      "verified": true
+    },
+    {
+      "url": "https://apotekos.com/wp-content/uploads/2021/10/skinagehairboostyasenka.png",
+      "tier": 5,
+      "source": "apotekos.com",
+      "w": 800,
+      "verified": true
+    },
+    {
+      "url": "https://image.ceneostatic.pl/data/products/180784810/i-yasenka-skinage-hair-boost-suplement-diety-500ml.jpg",
+      "tier": 5,
+      "source": "image.ceneostatic.pl",
+      "w": 727,
+      "verified": true
+    },
+    {
+      "url": "https://www.ljekarne-dvorzak.hr/wp-content/uploads/2026/02/Art_YASENKA_SKINAGE_HAIR_BOOST_500ml_29042.jpg",
+      "tier": 5,
+      "source": "ljekarne-dvorzak.hr",
+      "w": 600,
+      "verified": true
+    },
+    {
+      "url": "https://www.phama.hr/images/6377/Main/img__ORIGINAL/YASENKA_Hair_boost_500ml.jpg",
+      "tier": 5,
+      "source": "phama.hr",
+      "w": 570,
+      "verified": true
+    },
+    {
       "url": "https://trustbeautykuwait.com/cdn/shop/files/Skinage_Hair_Boost_15_ampoules.png?v=1773584491&width=1500",
       "tier": 5,
       "source": "trustbeautykuwait.com (اعتماد مصدر)",
-      "w": 1080,
-      "verified": true
+      "w": 1080
     },
     {
       "url": "https://i.pinimg.com/originals/12/63/f4/1263f496c8cdf5d560c6c2709522a7fc.jpg",
@@ -415,12 +456,6 @@
       "w": 1080
     },
     {
-      "url": "https://mojafarmacija.ba/wp-content/uploads/2025/06/YASENKA_Skinage_hair_boost_500ml_moja_farmacija.png",
-      "tier": 5,
-      "source": "mojafarmacija.ba",
-      "w": 1080
-    },
-    {
       "url": "https://media.myaster.com/images/products/1067860/skinage-hair-boost-drinkable-ampoule-25ml-pack-of-15s/1067860_1.jpg",
       "tier": 5,
       "source": "media.myaster.com",
@@ -437,24 +472,6 @@
       "tier": 5,
       "source": "mtkdma.ly",
       "w": 810
-    },
-    {
-      "url": "https://www.onlineapoteka.me/wp-content/uploads/Yasenka-skinage-HAIR-BOOST-500ml.webp",
-      "tier": 5,
-      "source": "onlineapoteka.me",
-      "w": 800
-    },
-    {
-      "url": "https://apotekos.com/wp-content/uploads/2021/10/skinagehairboostyasenka.png",
-      "tier": 5,
-      "source": "apotekos.com",
-      "w": 800
-    },
-    {
-      "url": "https://image.ceneostatic.pl/data/products/180784810/i-yasenka-skinage-hair-boost-suplement-diety-500ml.jpg",
-      "tier": 5,
-      "source": "image.ceneostatic.pl",
-      "w": 727
     },
     {
       "url": "https://webljekarna.vasezdravlje.com/media/catalog/product/cache/05e8362bb919875d314315d1f0988113/y/a/yasenka_hair_boost.jpg",
@@ -481,12 +498,6 @@
       "w": 626
     },
     {
-      "url": "https://www.ljekarne-dvorzak.hr/wp-content/uploads/2026/02/Art_YASENKA_SKINAGE_HAIR_BOOST_500ml_29042.jpg",
-      "tier": 5,
-      "source": "ljekarne-dvorzak.hr",
-      "w": 600
-    },
-    {
       "url": "https://www.ljekarne-pavlic.hr/wp-content/uploads/2025/10/Yasenka-Skinage-Hair-Boost-tekuci-dodatak-prehrani.png",
       "tier": 5,
       "source": "ljekarne-pavlic.hr",
@@ -497,12 +508,6 @@
       "tier": 5,
       "source": "ljekarne-pavlic.hr",
       "w": 600
-    },
-    {
-      "url": "https://www.phama.hr/images/6377/Main/img__ORIGINAL/YASENKA_Hair_boost_500ml.jpg",
-      "tier": 5,
-      "source": "phama.hr",
-      "w": 570
     },
     {
       "url": "https://cdn.apotekaviva24.ba/photos/f05697aa2a0a11187f08d0c37f4c287d237a6ae2012d583acc92e996f47f85ce/product_show.png",

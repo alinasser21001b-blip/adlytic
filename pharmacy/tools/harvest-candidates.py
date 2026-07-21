@@ -54,6 +54,12 @@ DOMAIN_TIERS = {
     "medicube.com": 1, "kahi.com": 1, "numbuzin.com": 1, "asepta.com": 1,
     "vichy.com": 1, "laroche-posay.com": 1, "cerave.com": 1,
     "maddoxpharmaswiss.com": 1, "maddoxswiss.com": 1,
+    "americamedic.us": 1, "americamedic.com": 1,        # AMS
+    "doppelherz.com": 1, "doppelherz.de": 1,            # Doppelherz
+    "natrol.com": 1, "webbernaturals.com": 1,           # Natrol / Webber
+    "pharmanutra.it": 1, "sideralferro.com": 1,         # SiderAL
+    "mrtumee.com": 1, "yasenka.hr": 1,                  # Mr.Tumee / Yasenka
+    "vefailac.com.tr": 1, "vitaplife.com": 1,           # VEFA Vitap
     # Tier 2 — موزّعون رسميون خليجيون/عرب
     "nahdionline.com": 2, "aldawaeya.com": 2, "adamonline.com": 2,
     "al-dawaa.com": 2, "aldawaa.com": 2, "seif-online.com": 2,

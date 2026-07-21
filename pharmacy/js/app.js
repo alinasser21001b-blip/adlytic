@@ -30,6 +30,10 @@ function buildOrderMessage(product, form) {
   return lines.join("\n");
 }
 
+function fmtPrice(p) {
+  return p?.price ? `${Number(p.price).toLocaleString("en-US")} د.ع` : "";
+}
+
 function waLink(message) {
   return `https://wa.me/${STORE_CONFIG.whatsappNumber}?text=${encodeURIComponent(message)}`;
 }
@@ -123,7 +127,7 @@ function renderCart() {
       <span class="ci-thumb">${thumbHtml(p)}</span>
       <div class="ci-info">
         <b>${p.name}</b>
-        <small>${p.brand}</small>
+        <small>${p.brand}${p.price ? ` · ${fmtPrice(p)}` : ""}</small>
         <div class="qty-stepper">
           <button onclick="setQty('${p.id}', ${row.qty - 1})" aria-label="إنقاص">−</button>
           <span>${row.qty}</span>
@@ -133,8 +137,10 @@ function renderCart() {
       <button class="ci-remove" onclick="removeFromCart('${p.id}')" aria-label="حذف">🗑️</button>
     </div>`;
   }).join("");
+  const allPriced = cart.every((r) => byId(r.id)?.price);
+  const total = cart.reduce((s, r) => s + (byId(r.id)?.price || 0) * r.qty, 0);
   foot.innerHTML = `
-    <div class="cart-total"><span>${cartCount()} قطعة</span><span>السعر يُؤكَّد عبر واتساب</span></div>
+    <div class="cart-total"><span>${cartCount()} قطعة</span><span>${allPriced && total ? `الإجمالي: ${total.toLocaleString("en-US")} د.ع` : "السعر يُؤكَّد عبر واتساب"}</span></div>
     <button class="btn-wa" onclick="openCheckout()">🟢 إتمام الطلب عبر واتساب</button>`;
 }
 
@@ -149,14 +155,18 @@ function genOrderId() {
 function buildCartMessage(cart, form) {
   const items = cart.map((r, i) => {
     const p = byId(r.id);
-    return `${i + 1}) ${p.name} — الكمية: ${r.qty}`;
+    const pr = p.price ? ` — ${fmtPrice(p)}` : "";
+    return `${i + 1}) ${p.name} — الكمية: ${r.qty}${pr}`;
   }).join("\n");
+  const totalKnown = cart.reduce((s, r) => s + (byId(r.id)?.price || 0) * r.qty, 0);
+  const allPriced = cart.every((r) => byId(r.id)?.price);
   const lines = [
     `🟢 طلب جديد — ${STORE_CONFIG.name}`,
     `رقم الطلب: ${form.orderId}`,
     "",
     "📦 المنتجات:",
     items,
+    ...(allPriced && totalKnown ? [`💰 الإجمالي التقريبي: ${totalKnown.toLocaleString("en-US")} د.ع`] : []),
     "",
     `👤 العميل: ${form.name}`,
   ];
@@ -300,7 +310,7 @@ function productCard(p) {
       <span class="cat">${catIcon(p.category)} ${catName(p.category)}</span>
       <a href="product.html?id=${p.id}"><h3>${p.name}</h3></a>
       <p class="sum">${p.summary}</p>
-      <span class="price-note">💬 اسأل عن السعر والتوفر</span>
+      <span class="price-note">${p.price ? `💰 ${fmtPrice(p)}` : "💬 اسأل عن السعر والتوفر"}</span>
       <button class="wa-order" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>
     </div>
   </article>`;
@@ -471,6 +481,7 @@ function openQuickView(id) {
   document.getElementById("qv-body").innerHTML = `
     <div class="qv-thumb">${thumbHtml(p)}</div>
     <h4>${p.name}</h4>
+    ${p.price ? `<div style="color:var(--green);font-weight:800;margin:2px 0 6px">💰 ${fmtPrice(p)}</div>` : ""}
     <p class="sum">${p.summary}</p>
     <ul>${p.benefits.slice(0, 3).map((b) => `<li>${b}</li>`).join("")}</ul>
     <div class="qv-actions">

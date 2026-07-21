@@ -101,6 +101,7 @@
           <span class="brand">${p.brand} · ${catIcon(p.category)} ${catName(p.category)}</span>
           <h1>${p.name}</h1>
           <div class="en-name">${p.en || ""}</div>
+          ${p.price ? `<div style="font-size:1.45rem;font-weight:800;color:var(--green);margin:6px 0">💰 ${fmtPrice(p)}</div>` : ""}
           <p class="summary">${p.summary}</p>
           ${p.highlights?.length ? `<div class="highlight-pills">${p.highlights.map((h) => `<span>✦ ${h}</span>`).join("")}</div>` : ""}
           <div class="p-cta-row">
@@ -136,7 +137,7 @@
 
       // الشريط الثابت للجوال
       document.getElementById("sticky-cta").innerHTML = `
-        <div class="info"><div class="nm">${p.name}</div><div class="pr">💬 اسأل عن السعر والتوفر</div></div>
+        <div class="info"><div class="nm">${p.name}</div><div class="pr">${p.price ? `💰 ${fmtPrice(p)}` : "💬 اسأل عن السعر والتوفر"}</div></div>
         <button class="btn-wa" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>`;
 
       // بيانات منظمة لمحركات البحث
@@ -147,6 +148,7 @@
         name: p.name, alternateName: p.en, description: p.summary,
         brand: { "@type": "Brand", name: p.brand },
         offers: { "@type": "Offer", availability: "https://schema.org/InStock",
+          ...(p.price ? { price: p.price, priceCurrency: "IQD" } : {}),
           seller: { "@type": "Pharmacy", name: STORE_CONFIG.name } },
       });
       document.head.appendChild(ld);
