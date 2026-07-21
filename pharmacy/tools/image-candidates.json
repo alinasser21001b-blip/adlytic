@@ -1,14 +1,25 @@
 {
   "novophane-caps": [
-    { "url": "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ACM/acm-novophane-ongles-et-cheveux-%E2%80%93-60-capsules/images/Etui-seul-G%C3%A9lules-bovines-Boite-de-60.jpg",
-      "tier": 4, "source": "catalog-mirror", "verified": true }
+    {
+      "url": "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ACM/acm-novophane-ongles-et-cheveux-%E2%80%93-60-capsules/images/Etui-seul-G%C3%A9lules-bovines-Boite-de-60.jpg",
+      "tier": 4,
+      "source": "catalog-mirror",
+      "verified": true
+    }
   ],
   "ecrinal": [
-    { "url": "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ECRINAL/ecrinal-%E2%80%93-lotion-femme-soin-intensif-des-cheveux-%C3%A0-l%E2%80%99anp2%2B-%E2%80%93-200-ml/images/3323037286009.jpg",
-      "tier": 4, "source": "catalog-mirror", "verified": true }
+    {
+      "url": "https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ECRINAL/ecrinal-%E2%80%93-lotion-femme-soin-intensif-des-cheveux-%C3%A0-l%E2%80%99anp2%2B-%E2%80%93-200-ml/images/3323037286009.jpg",
+      "tier": 4,
+      "source": "catalog-mirror",
+      "verified": true
+    }
   ],
   "acm-novophane-set": [
-    { "url": "https://cdnprd.marjanemall.ma/cn0picture0products0mm/ACM1685755222578_img1.webp",
-      "tier": 4, "source": "marjanemall.ma" }
+    {
+      "url": "https://cdnprd.marjanemall.ma/cn0picture0products0mm/ACM1685755222578_img1.webp",
+      "tier": 4,
+      "source": "marjanemall.ma"
+    }
   ]
 }

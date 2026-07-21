@@ -2,19 +2,14 @@
 
 | البند | العدد |
 |---|---|
-| صور محلية موجودة مسبقاً | 0 |
-| اعتُمدت آلياً (ثقة ≥ 90%) | 2 |
+| صور محلية موجودة مسبقاً | 2 |
+| اعتُمدت آلياً (ثقة ≥ 90%) | 0 |
 | تحتاج مراجعة يدوية (ثقة أقل) | 0 |
 | بلا صورة (لا مرشّح صالح) | 30 |
 
-## ✅ اعتُمدت آلياً
-- `novophane-caps` — نوفوفان كبسولات — تغذية الشعر والأظافر (ثقة 95%)
-  - https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ACM/acm-novophane-ongles-et-cheveux-%E2%80%93-60-capsules/images/Etui-seul-G%C3%A9lules-bovines-Boite-de-60.jpg
-- `ecrinal` — إكرينال للعناية بالشعر (ثقة 95%)
-  - https://raw.githubusercontent.com/norshimself/awesome-soup-indeed/575ef650c7ac14282893edfa8dacb6cc0fa8a6e3/scrapped_products/ECRINAL/ecrinal-%E2%80%93-lotion-femme-soin-intensif-des-cheveux-%C3%A0-l%E2%80%99anp2%2B-%E2%80%93-200-ml/images/3323037286009.jpg
 
 ## ❌ بلا صورة
-- `acm-novophane-set` — مجموعة ACM نوفوفان لتساقط الشعر — أسباب: <urlopen error Tunnel connection failed: 403 Forbidden>
+- `acm-novophane-set` — مجموعة ACM نوفوفان لتساقط الشعر — أسباب: HTTP Error 403: Forbidden
 - `skinage-hair` — سكينج هير بوست مع سيناتين
 - `praborin` — برابورين N / برابورين إكسترا
 - `multi-nrg-women` — ملتي إن آر جي للنساء — حبة واحدة يومياً
