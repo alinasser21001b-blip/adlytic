@@ -45,3 +45,31 @@ alter table public.consult_events enable row level security;
 --     count(*) filter (where event_type='advisor_to_whatsapp')::float
 --     / nullif(count(*) filter (where event_type='advisor_results'),0) as wa_conversion
 --   from consult_events;
+
+-- ============================================================
+-- وضع المالك (Owner Mode) — تراكب حي فوق كتالوج products.js
+-- التعديلات (سعر/خصم/وصف/صورة/توفر/تمييز) تُخزَّن هنا وتُدمج مع
+-- الكتالوج الأساسي عند كل زيارة عبر دالة owner-overrides — بلا
+-- إعادة نشر الموقع. القراءة عامة (عبر الدالة فقط، لا اتصال مباشر
+-- من المتصفح)، والكتابة تتطلب توكن مالك موقّع (owner-auth).
+-- ============================================================
+create table if not exists public.product_overrides (
+  id             text primary key,   -- يطابق PRODUCTS[].id في products.js
+  price          integer,            -- null = يرث السعر من products.js
+  discount_price integer,            -- null = بلا خصم
+  description    text,
+  summary        text,
+  img            text,               -- رابط صورة بديل
+  available      boolean,
+  featured       boolean,
+  updated_at     timestamptz not null default now()
+);
+alter table public.product_overrides enable row level security;
+-- لا سياسات عامة = لا وصول مباشر من anon key؛ كل الوصول عبر service_role من الدوال.
+
+create table if not exists public.site_settings (
+  key        text primary key,       -- whatsappNumber | phones | tagline …
+  value      text not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.site_settings enable row level security;

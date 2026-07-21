@@ -30,8 +30,21 @@ function buildOrderMessage(product, form) {
   return lines.join("\n");
 }
 
+function effectivePrice(p) {
+  return p?.discountPrice && p.discountPrice > 0 && p.discountPrice < p.price ? p.discountPrice : p?.price || 0;
+}
+
 function fmtPrice(p) {
-  return p?.price ? `${Number(p.price).toLocaleString("en-US")} د.ع` : "";
+  const v = effectivePrice(p);
+  return v ? `${Number(v).toLocaleString("en-US")} د.ع` : "";
+}
+
+/* سعر مع شطب السعر الأصلي عند وجود خصم فعّال */
+function priceHtml(p) {
+  if (!p.price) return "💬 اسأل عن السعر والتوفر";
+  const hasDiscount = p.discountPrice && p.discountPrice > 0 && p.discountPrice < p.price;
+  if (!hasDiscount) return `💰 ${fmtPrice(p)}`;
+  return `<span class="price-old">${Number(p.price).toLocaleString("en-US")} د.ع</span> 🏷️ ${fmtPrice(p)}`;
 }
 
 function waLink(message) {
@@ -138,7 +151,7 @@ function renderCart() {
     </div>`;
   }).join("");
   const allPriced = cart.every((r) => byId(r.id)?.price);
-  const total = cart.reduce((s, r) => s + (byId(r.id)?.price || 0) * r.qty, 0);
+  const total = cart.reduce((s, r) => s + effectivePrice(byId(r.id) || {}) * r.qty, 0);
   foot.innerHTML = `
     <div class="cart-total"><span>${cartCount()} قطعة</span><span>${allPriced && total ? `الإجمالي: ${total.toLocaleString("en-US")} د.ع` : "السعر يُؤكَّد عبر واتساب"}</span></div>
     <button class="btn-wa" onclick="openCheckout()">🟢 إتمام الطلب عبر واتساب</button>`;
@@ -158,7 +171,7 @@ function buildCartMessage(cart, form) {
     const pr = p.price ? ` — ${fmtPrice(p)}` : "";
     return `${i + 1}) ${p.name} — الكمية: ${r.qty}${pr}`;
   }).join("\n");
-  const totalKnown = cart.reduce((s, r) => s + (byId(r.id)?.price || 0) * r.qty, 0);
+  const totalKnown = cart.reduce((s, r) => s + effectivePrice(byId(r.id) || {}) * r.qty, 0);
   const allPriced = cart.every((r) => byId(r.id)?.price);
   const lines = [
     `🟢 طلب جديد — ${STORE_CONFIG.name}`,
@@ -295,10 +308,12 @@ function imgFallbackStep(el) {
 
 function productCard(p) {
   const fav = getFavs().includes(p.id) ? "❤️" : "🤍";
+  const oos = p.available === false;
   return `
-  <article class="card reveal" data-id="${p.id}">
+  <article class="card reveal ${oos ? "is-oos" : ""}" data-id="${p.id}">
     ${p.badge ? `<span class="badge">${p.badge}</span>` : ""}
     <div class="quick-actions">
+      <button class="icon-btn owner-edit-btn" onclick="event.preventDefault();Owner.editProduct('${p.id}')" title="تعديل (المالك)" aria-label="تعديل المنتج">✏️</button>
       <button class="icon-btn" data-fav="${p.id}" onclick="toggleFav('${p.id}')" title="حفظ للمفضلة" aria-label="حفظ للمفضلة">${fav}</button>
       <button class="icon-btn" onclick="openQuickView('${p.id}')" title="عرض سريع" aria-label="عرض سريع">👁️</button>
       <button class="icon-btn" onclick="shareProduct('${p.id}')" title="مشاركة" aria-label="مشاركة">🔗</button>
@@ -309,9 +324,10 @@ function productCard(p) {
     <div class="body">
       <span class="cat">${catIcon(p.category)} ${catName(p.category)}</span>
       <a href="product.html?id=${p.id}"><h3>${p.name}</h3></a>
+      ${oos ? `<span class="oos-badge">غير متوفر حالياً</span>` : ""}
       <p class="sum">${p.summary}</p>
-      <span class="price-note">${p.price ? `💰 ${fmtPrice(p)}` : "💬 اسأل عن السعر والتوفر"}</span>
-      <button class="wa-order" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>
+      <span class="price-note">${priceHtml(p)}</span>
+      <button class="wa-order" ${oos ? "disabled" : ""} onclick="addToCart('${p.id}')">${oos ? "⏳ غير متوفر" : "🛒 أضف للسلة"}</button>
     </div>
   </article>`;
 }
@@ -481,7 +497,7 @@ function openQuickView(id) {
   document.getElementById("qv-body").innerHTML = `
     <div class="qv-thumb">${thumbHtml(p)}</div>
     <h4>${p.name}</h4>
-    ${p.price ? `<div style="color:var(--green);font-weight:800;margin:2px 0 6px">💰 ${fmtPrice(p)}</div>` : ""}
+    <div style="color:var(--green);font-weight:800;margin:2px 0 6px">${priceHtml(p)}</div>
     <p class="sum">${p.summary}</p>
     <ul>${p.benefits.slice(0, 3).map((b) => `<li>${b}</li>`).join("")}</ul>
     <div class="qv-actions">

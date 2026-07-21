@@ -56,21 +56,26 @@
 
   <script src="js/products.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/owner.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
-    const product = byId(params.get("id"));
     const page = document.getElementById("page");
-    document.getElementById("header-wa").href = waGeneralLink();
-    document.getElementById("float-wa").href = waGeneralLink();
-    document.getElementById("footer-phones").innerHTML =
-      "📞 " + STORE_CONFIG.phones.map((p) => `<bdo dir="ltr">${p}</bdo>`).join(" · ");
 
-    if (!product) {
-      page.innerHTML = `<div class="empty-state"><div class="big">😕</div><p>المنتج غير موجود.</p><p style="margin-top:8px"><a href="index.html" style="color:var(--green);font-weight:800">← العودة للكتالوج</a></p></div>`;
-      document.getElementById("sticky-cta").remove();
-    } else {
-      renderProduct(product);
-    }
+    Owner.ready().then(() => {
+      const product = byId(params.get("id"));
+      document.getElementById("header-wa").href = waGeneralLink();
+      document.getElementById("float-wa").href = waGeneralLink();
+      document.getElementById("footer-phones").innerHTML =
+        "📞 " + STORE_CONFIG.phones.map((p) => `<bdo dir="ltr">${p}</bdo>`).join(" · ");
+
+      if (!product) {
+        page.innerHTML = `<div class="empty-state"><div class="big">😕</div><p>المنتج غير موجود.</p><p style="margin-top:8px"><a href="index.html" style="color:var(--green);font-weight:800">← العودة للكتالوج</a></p></div>`;
+        document.getElementById("sticky-cta").remove();
+      } else {
+        renderProduct(product);
+      }
+      Owner.autoResume();
+    });
 
     function listHtml(items) { return (items || []).map((i) => `<li>${i}</li>`).join(""); }
 
@@ -101,13 +106,15 @@
           <span class="brand">${p.brand} · ${catIcon(p.category)} ${catName(p.category)}</span>
           <h1>${p.name}</h1>
           <div class="en-name">${p.en || ""}</div>
-          ${p.price ? `<div style="font-size:1.45rem;font-weight:800;color:var(--green);margin:6px 0">💰 ${fmtPrice(p)}</div>` : ""}
+          ${p.available === false ? `<span class="oos-badge">غير متوفر حالياً</span>` : ""}
+          <div style="font-size:1.45rem;font-weight:800;color:var(--green);margin:6px 0">${priceHtml(p)}</div>
           <p class="summary">${p.summary}</p>
           ${p.highlights?.length ? `<div class="highlight-pills">${p.highlights.map((h) => `<span>✦ ${h}</span>`).join("")}</div>` : ""}
           <div class="p-cta-row">
-            <button class="btn-wa" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>
+            <button class="btn-wa" ${p.available === false ? "disabled" : ""} onclick="addToCart('${p.id}')">${p.available === false ? "⏳ غير متوفر" : "🛒 أضف للسلة"}</button>
             <button class="btn-outline" onclick="shareProduct('${p.id}')">🔗 مشاركة</button>
             <button class="btn-outline" data-fav="${p.id}" onclick="toggleFav('${p.id}')">${fav}</button>
+            <button class="btn-outline owner-edit-btn" onclick="Owner.editProduct('${p.id}')">✏️ تعديل</button>
           </div>
           <div class="avail-note"><span class="dot"></span> صيدلي حقيقي يرد عليك خلال دقائق لتأكيد التوفر والسعر والتوصيل</div>
           <div class="assurance">
@@ -137,7 +144,7 @@
 
       // الشريط الثابت للجوال
       document.getElementById("sticky-cta").innerHTML = `
-        <div class="info"><div class="nm">${p.name}</div><div class="pr">${p.price ? `💰 ${fmtPrice(p)}` : "💬 اسأل عن السعر والتوفر"}</div></div>
+        <div class="info"><div class="nm">${p.name}</div><div class="pr">${priceHtml(p)}</div></div>
         <button class="btn-wa" onclick="addToCart('${p.id}')">🛒 أضف للسلة</button>`;
 
       // بيانات منظمة لمحركات البحث

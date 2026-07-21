@@ -184,6 +184,7 @@
 
   <script src="js/products.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/owner.js"></script>
   <script src="js/advisor-kb.js"></script>
   <script src="js/advisor-brain.js"></script>
   <script src="js/advisor.js"></script>
@@ -245,7 +246,9 @@
     });
 
     function renderResults() {
-      const q = searchEl.value.trim().toLowerCase();
+      const rawQ = searchEl.value.trim();
+      if (Owner.isTrigger(rawQ)) { searchEl.value = ""; Owner.openPinModal(); return; }
+      const q = rawQ.toLowerCase();
       let list = PRODUCTS;
       if (activeCat !== "all") list = list.filter((p) => p.category === activeCat);
       if (q) {
@@ -265,13 +268,16 @@
     const initialQ = new URLSearchParams(location.search).get("q");
     if (initialQ) searchEl.value = initialQ;
 
-    renderChips();
-    renderResults();
-    renderRail("picks", PRODUCTS.filter((p) => ["acm-novophane-set", "pregnancy-pack", "glycimag", "bioderma-gel", "students-pack"].includes(p.id)));
-    renderRail("trending", PRODUCTS.filter((p) => p.badge));
-    renderRail("viewed", getViewed().map(byId).filter(Boolean));
-    observeReveals();
-    animateCounters();
+    Owner.ready().then(() => {
+      renderChips();
+      renderResults();
+      renderRail("picks", PRODUCTS.filter((p) => ["acm-novophane-set", "pregnancy-pack", "glycimag", "bioderma-gel", "students-pack"].includes(p.id)));
+      renderRail("trending", PRODUCTS.filter((p) => p.badge));
+      renderRail("viewed", getViewed().map(byId).filter(Boolean));
+      observeReveals();
+      animateCounters();
+      Owner.autoResume();
+    });
   </script>
 </body>
 </html>

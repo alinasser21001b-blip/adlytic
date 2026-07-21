@@ -868,3 +868,80 @@ html[dir="rtl"] .marquee-track { animation-name: marquee-rtl; }
 .adv-red-item b { color: #8a3b2e; }
 .adv-red-item p { color: var(--muted); font-size: .85rem; line-height: 1.8; margin: 4px 0; }
 .adv-brain-stats { color: var(--gold-strong); font-size: .74rem; font-weight: 700; margin: 6px 0 12px; }
+
+/* ============================================================
+   وضع المالك (Owner Mode) — لوحة إدارة داخل نفس الموقع، بلا تحويل
+   ============================================================ */
+.price-old { color: var(--muted); text-decoration: line-through; font-weight: 600; font-size: 0.85em; margin-inline-end: 4px; }
+
+.owner-edit-btn { display: none; }
+body.owner-mode .owner-edit-btn { display: inline-flex; }
+
+/* شارة + شريط علوي عند تفعيل وضع المالك */
+#owner-bar {
+  position: sticky; top: 0; z-index: 60; display: none;
+  background: var(--grad-green); color: #fff; font-family: "Tajawal", sans-serif;
+  padding: 8px 14px; align-items: center; gap: 10px; flex-wrap: wrap;
+  box-shadow: var(--shadow);
+}
+body.owner-mode #owner-bar { display: flex; }
+#owner-bar .ob-badge { background: rgba(255,255,255,.18); padding: 3px 10px; border-radius: 999px; font-weight: 800; font-size: .78rem; }
+#owner-bar .ob-tabs { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+#owner-bar .ob-tab { background: transparent; border: 1px solid rgba(255,255,255,.35); color: #fff; border-radius: 999px; padding: 6px 14px; font-size: .82rem; cursor: pointer; font-weight: 700; }
+#owner-bar .ob-tab:hover, #owner-bar .ob-tab.active { background: rgba(255,255,255,.22); }
+#owner-bar .ob-actions { display: flex; gap: 6px; }
+#owner-bar .ob-actions button { background: rgba(0,0,0,.18); border: 0; color: #fff; border-radius: 999px; padding: 6px 12px; font-size: .78rem; cursor: pointer; font-weight: 700; }
+#owner-bar .ob-actions button:hover { background: rgba(0,0,0,.32); }
+
+/* نافذة PIN */
+.owner-overlay { position: fixed; inset: 0; background: rgba(20,26,15,.55); z-index: 200; display: none; align-items: center; justify-content: center; padding: 16px; }
+.owner-overlay.open { display: flex; }
+.owner-pin-box { background: #fff; border-radius: var(--radius); padding: 26px 24px; width: 100%; max-width: 320px; box-shadow: var(--shadow-lg); text-align: center; font-family: "Tajawal", sans-serif; }
+.owner-pin-box h3 { color: var(--green-deep); margin-bottom: 6px; }
+.owner-pin-box p { color: var(--muted); font-size: .85rem; margin-bottom: 14px; }
+.owner-pin-box input { width: 100%; text-align: center; letter-spacing: 8px; font-size: 1.3rem; padding: 12px; border: 1.5px solid var(--line); border-radius: 12px; margin-bottom: 10px; direction: ltr; }
+.owner-pin-box .err { color: #a12b2b; font-size: .82rem; min-height: 18px; margin-bottom: 6px; }
+.owner-pin-box .row { display: flex; gap: 8px; }
+.owner-pin-box button.go { flex: 1; background: var(--green); color: #fff; border: 0; border-radius: 12px; padding: 11px; font-weight: 800; cursor: pointer; }
+.owner-pin-box button.cancel { flex: 1; background: #fff; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px; font-weight: 700; cursor: pointer; }
+
+/* لوحة الإدارة (Dashboard) */
+.owner-dash { position: fixed; inset: 0; background: rgba(20,26,15,.5); z-index: 150; display: none; }
+.owner-dash.open { display: block; }
+.owner-dash .panel { position: absolute; inset-inline-end: 0; top: 0; bottom: 0; width: min(92vw, 640px); background: var(--ivory); box-shadow: var(--shadow-lg); overflow-y: auto; font-family: "Tajawal", sans-serif; }
+.owner-dash .panel-head { position: sticky; top: 0; background: #fff; border-bottom: 1px solid var(--line); padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; z-index: 2; }
+.owner-dash .panel-head h3 { color: var(--green-deep); font-size: 1.05rem; }
+.owner-dash .panel-body { padding: 16px 18px 60px; }
+.owner-dash .close-x { background: none; border: 0; font-size: 1.3rem; cursor: pointer; color: var(--muted); }
+
+.owner-row { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px; display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.owner-row .or-thumb { width: 52px; height: 52px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: var(--gold-soft); }
+.owner-row .or-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.owner-row .or-body { flex: 1; min-width: 200px; }
+.owner-row .or-body b { display: block; font-size: .92rem; }
+.owner-row .or-body small { color: var(--muted); }
+.owner-row .or-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-top: 8px; }
+.owner-row label.f { display: flex; flex-direction: column; gap: 3px; font-size: .74rem; color: var(--muted); font-weight: 700; }
+.owner-row input, .owner-row textarea { border: 1.5px solid var(--line); border-radius: 9px; padding: 7px 9px; font-size: .84rem; font-family: inherit; }
+.owner-row textarea { grid-column: 1 / -1; min-height: 56px; resize: vertical; }
+.owner-row .or-flags { display: flex; gap: 12px; align-items: center; grid-column: 1/-1; font-size: .8rem; }
+.owner-row .or-actions { grid-column: 1/-1; display: flex; gap: 8px; margin-top: 4px; }
+.owner-row .or-actions button { border: 0; border-radius: 999px; padding: 7px 16px; font-weight: 800; font-size: .8rem; cursor: pointer; }
+.owner-row .or-save { background: var(--green); color: #fff; }
+.owner-row .or-reset { background: #fff; border: 1.5px solid var(--line) !important; color: var(--muted); }
+.owner-row .or-saved-flag { font-size: .74rem; color: var(--green); font-weight: 800; align-self: center; }
+
+.owner-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+.owner-stat { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+.owner-stat b { display: block; font-size: 1.4rem; color: var(--green-deep); }
+.owner-stat span { font-size: .76rem; color: var(--muted); }
+.owner-list-mini { list-style: none; padding: 0; }
+.owner-list-mini li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: .85rem; }
+
+.owner-settings-form { display: flex; flex-direction: column; gap: 12px; }
+.owner-settings-form label { font-size: .82rem; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.owner-settings-form input { border: 1.5px solid var(--line); border-radius: 9px; padding: 9px 11px; font-family: inherit; }
+.owner-settings-form button { align-self: flex-start; background: var(--green); color: #fff; border: 0; border-radius: 999px; padding: 9px 20px; font-weight: 800; cursor: pointer; }
+
+.oos-badge { display: inline-block; background: #fbecec; color: #a12b2b; font-size: .74rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; margin-bottom: 4px; }
+.card.is-oos .thumb { filter: grayscale(.5); opacity: .75; }
