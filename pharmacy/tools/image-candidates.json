@@ -21,5 +21,128 @@
       "tier": 4,
       "source": "marjanemall.ma"
     }
+  ],
+  "omega3": [
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/009/661/922/4319/front_en.9.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "OMEGA-3 fish oil 1200mg"
+    },
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/074/561/770/1109/front_en.3.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Omega-3 fish oil"
+    },
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/062/527/303/8729/front_en.18.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Omega-3 Fish Oils 1000mg"
+    },
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/007/431/217/1307/front_en.4.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Odorless Fish Oil 2400mg 1200mg Of Omega-3"
+    },
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/003/398/402/0504/front_en.3.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "omega-3 fish oil"
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/073/373/901/6508/front_en.11.400.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Omega-3 Fish Oil",
+      "verified": true
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/073/373/901/6621/front_en.4.400.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Now Ultra Omega-3 Fish Oil",
+      "verified": true
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/073/373/901/6614/front_en.39.400.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Ultra Omega-3 Fish Oil",
+      "verified": true
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/073/373/901/6522/front_en.3.400.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Now Omega-3 Fish Oil Concentrate",
+      "verified": true
+    }
+  ],
+  "b12": [
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/402/508/908/3313/front_de.4.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Dental Med Zahncreme Vitamin B12"
+    },
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/426/048/633/6543/front_de.3.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Aktivkohle White Zahnpasta + Vitamin B12"
+    },
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/869/986/345/4369/front_en.4.400.jpg",
+      "tier": 4,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Life In B12 Vitamin 60 Tablet"
+    },
+    {
+      "url": "https://images.openfoodfacts.org/images/products/073/373/900/4680/front_fr.3.400.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Now Vitamin B12 Lozenges",
+      "verified": true
+    }
+  ],
+  "bioderma-gel": [
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/340/138/150/7565/front_en.16.400.jpg",
+      "tier": 2,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Bioderma sensibio gel moussant 200ml",
+      "verified": true
+    }
+  ],
+  "avene-spray": [
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/328/277/900/3131/front_fr.12.400.jpg",
+      "tier": 2,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "Eau thermale",
+      "verified": true
+    }
+  ],
+  "centella-ampoule": [
+    {
+      "url": "https://images.openbeautyfacts.org/images/products/880/957/626/0601/front_en.3.400.jpg",
+      "tier": 2,
+      "source": "world.openbeautyfacts.org",
+      "apiName": "SKIN1004 Madagascar Centella Ampoule 55ml",
+      "verified": true
+    }
+  ],
+  "pregnacare": [
+    {
+      "url": "https://images.openfoodfacts.org/images/products/501/005/808/9785/front_en.14.400.jpg",
+      "tier": 3,
+      "source": "world.openfoodfacts.org",
+      "apiName": "Pregnacare Original Tablets",
+      "verified": true
+    }
   ]
 }
