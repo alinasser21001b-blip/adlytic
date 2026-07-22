@@ -163,6 +163,20 @@ async function withCode17Retry<T>(label: string, fn: () => Promise<T>): Promise<
  *  Meta call volume more evenly over time. */
 const INTER_CAMPAIGN_DELAY_MS = 500;
 
+// ── Negative cache: breakdown dimensions Meta rejects for an account ────
+//
+// Meta refuses certain breakdown × field combinations at the platform layer
+// (HTTP 400, OAuthException #100) — a PERMANENT shape mismatch, most
+// consistently `platform_position` × the messaging-action field set. Without
+// a cache we re-issue the doomed call on EVERY sync for EVERY campaign, and
+// each rejection is an HTTP ≥400 counted against the Marketing API Access
+// Tier's <15% error-rate gate — a systematic self-inflicted error source.
+//
+// Keyed `${adAccountId}:${dim}`, process-lifetime: a deploy resets it, which
+// matches the only cadence at which our field list (the other half of the
+// combination) can change.
+const rejectedBreakdownDims = new Set<string>();
+
 export class SyncAccountWorker {
   private rawRepo: RawInsightsRepo;
   private dailyRepo: DailyStatsRepo;
@@ -923,6 +937,9 @@ export class SyncAccountWorker {
           let localRows = 0;
           for (let d = 0; d < DIMENSIONS.length; d++) {
             const dim = DIMENSIONS[d]!;
+            // Skip dimensions Meta already rejected for this account this
+            // process lifetime — re-asking guarantees another ≥400 error.
+            if (rejectedBreakdownDims.has(`${adAccountId}:${dim}`)) continue;
             try {
               const rows = await withCode17Retry(
                 `getInsights(${camp.externalCampaignId}, breakdown=${dim})`,
@@ -991,9 +1008,10 @@ export class SyncAccountWorker {
               // mismatch, not a transient outage, so escalating it as an
               // error spams the log and obscures real issues.
               if (isInvalidBreakdownCombination(err)) {
+                rejectedBreakdownDims.add(`${adAccountId}:${dim}`);
                 console.warn(
                   `${tag} campaign=${camp.externalCampaignId} dim=${dim} skipped — ` +
-                  `Meta rejects this breakdown combination`,
+                  `Meta rejects this breakdown combination (cached: no retry until next deploy)`,
                 );
               } else {
                 const msg = err instanceof MetaApiError
