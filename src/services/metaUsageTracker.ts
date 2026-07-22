@@ -3,10 +3,14 @@
 //
 //  Phase A2 — raw Meta API call counter + usage-header snapshot in Redis.
 //
-//  Tracks cumulative 2xx responses toward the 1500-call threshold Meta
-//  requires before upgrading an app from development (300/hr) to standard
-//  access (100K/hr). Also persists the latest x-app-usage /
-//  x-ad-account-usage / x-business-use-case-usage headers for ops visibility.
+//  Tracks cumulative 2xx responses toward the Marketing API Access Tier
+//  call threshold Meta requires before upgrading an app from development
+//  (300/hr) to standard access (100K/hr). Since Meta's May 2026 revision
+//  ("Ads Management Standard Access" → "Marketing API Access Tier") the
+//  gate is 500 successful calls in the trailing 15 days (was 1500), with
+//  an error rate below 15% over the last 500 calls. Also persists the
+//  latest x-app-usage / x-ad-account-usage / x-business-use-case-usage
+//  headers for ops visibility.
 //
 //  All Redis writes go through withRedis(); when Redis is unavailable every
 //  function degrades to a no-op (record) or zeroed stats (read).
@@ -19,7 +23,9 @@ const COUNT_KEY_PREFIX = 'meta:usage:count:';
 const ERROR_KEY_PREFIX = 'meta:usage:error:';
 const LATEST_KEY = 'meta:usage:latest';
 const COUNT_TTL_SECONDS = 30 * 86400;
-const UPGRADE_THRESHOLD = 1500;
+// Meta's Marketing API Access Tier gate (revised May 2026): 500 successful
+// calls in the trailing 15 days. Was 1500 before the revision.
+const UPGRADE_THRESHOLD = 500;
 // Meta requires a <10% error rate over the rolling 15-day window to qualify for
 // (and keep) the higher Marketing API access tier. Meta's formula: errors are HTTP
 // status ≥400 (client + server errors); successes are 2xx. The 10% threshold is
@@ -44,7 +50,9 @@ export interface MetaUsageStats {
     yesterday: number;
     last7Days: number;
     last15Days: number;
-    progressTo1500Pct: number;
+    /** The current Marketing API Access Tier call threshold (500 since May 2026). */
+    threshold: number;
+    progressToThresholdPct: number;
     errorsLast15Days: number;
     errorRatePct15d: number;
     meetsCallThreshold: boolean;
@@ -85,7 +93,8 @@ function emptyStats(redisAvailable: boolean): MetaUsageStats {
       yesterday: 0,
       last7Days: 0,
       last15Days: 0,
-      progressTo1500Pct: 0,
+      threshold: UPGRADE_THRESHOLD,
+      progressToThresholdPct: 0,
       errorsLast15Days: 0,
       errorRatePct15d: 0,
       meetsCallThreshold: false,
@@ -159,7 +168,7 @@ async function sumDayCounts(
 /**
  * Fire-and-forget hook from MetaClient after every fetch response. Per Meta's
  * tier-upgrade requirements: INCRs the daily success counter on 2xx responses
- * (toward the 1500-call threshold) and the daily error counter on status >= 400
+ * (toward the 500-call access-tier threshold) and the daily error counter on status >= 400
  * (client errors 4xx + server errors 5xx, including 429 rate-limits, used to
  * calculate the <10% error-rate gate). 3xx redirects are not counted as either
  * (only successful terminal responses are 2xx; only actual errors are ≥400).
@@ -276,7 +285,8 @@ export async function getMetaUsageStats(): Promise<MetaUsageStats> {
       yesterday: parseInt(data.yesterday ?? '0', 10),
       last7Days: data.last7Days,
       last15Days,
-      progressTo1500Pct: Math.round((last15Days / UPGRADE_THRESHOLD) * 1000) / 10,
+      threshold: UPGRADE_THRESHOLD,
+      progressToThresholdPct: Math.round((last15Days / UPGRADE_THRESHOLD) * 1000) / 10,
       errorsLast15Days,
       errorRatePct15d,
       meetsCallThreshold: last15Days >= UPGRADE_THRESHOLD,

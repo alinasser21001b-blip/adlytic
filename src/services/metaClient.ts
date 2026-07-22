@@ -39,12 +39,27 @@ const DEFAULT_FIELDS = [
   "purchase_roas",
 ].join(",");
 
+// ── Proactive pacing thresholds ─────────────────────────────────────────
+// Meta reports quota utilization (0-100%) on every response via x-app-usage
+// and x-ad-account-usage. Slowing down BEFORE hitting 100% avoids 429s
+// entirely — and that matters doubly: every 429 is an HTTP error that counts
+// against the <15% error-rate gate of the Marketing API Access Tier.
+const PACING_SOFT_PCT = 75;   // above this: add a small inter-call delay
+const PACING_HARD_PCT = 90;   // above this: add a long inter-call delay
+const PACING_SOFT_MS = 500;
+const PACING_HARD_MS = 2_000;
+/** Cap for honoring Retry-After from Meta on 429 responses. */
+const RETRY_AFTER_CAP_MS = 60_000;
+
 export class MetaClient {
   private base: string;
   private token: string;
   private maxRetries: number;
   private retryBaseMs: number;
   private fetchFn: typeof fetch;
+  /** Delay applied before the next request, derived from the last response's
+   *  usage headers. 0 when utilization is comfortably low. */
+  private pacingDelayMs = 0;
 
   constructor(cfg: MetaClientConfig) {
     this.base = `${cfg.baseUrl ?? "https://graph.facebook.com"}/${cfg.apiVersion}`;
@@ -213,12 +228,22 @@ export class MetaClient {
 
   private async requestWithRetry(url: string): Promise<MetaPage> {
     let lastErr: unknown;
+    let retryAfterMs: number | null = null;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
+        // Proactive pacing from the PREVIOUS response's utilization headers —
+        // slows the whole pipeline down smoothly instead of slamming into 429s.
+        if (this.pacingDelayMs > 0) await sleep(this.pacingDelayMs);
+
         const res = await this.fetchFn(url);
         void recordMetaResponseHeaders(res.headers, res.status).catch(() => {});
+        this.updatePacingFromHeaders(res.headers);
         if (res.status === 429 || res.status >= 500) {
-          // retryable: throw to trigger backoff
+          // retryable: throw to trigger backoff. Honor Retry-After when Meta
+          // sends one — its estimate of when quota recovers beats blind
+          // exponential backoff, and fewer failed retries means fewer ≥400
+          // responses counted against the access-tier error-rate gate.
+          retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'));
           const body = await safeJson(res);
           throw new MetaApiError(res.status, body, `Meta ${res.status}`);
         }
@@ -233,13 +258,62 @@ export class MetaClient {
         const retryable =
           e instanceof MetaApiError ? (e.status === 429 || e.status >= 500) : true;
         if (!retryable || attempt === this.maxRetries) throw e;
-        // exponential backoff with jitter
-        const wait = this.retryBaseMs * 2 ** attempt + Math.random() * 200;
+        // Retry-After (capped) when provided; else exponential backoff with jitter.
+        const wait = retryAfterMs !== null
+          ? Math.min(retryAfterMs, RETRY_AFTER_CAP_MS)
+          : this.retryBaseMs * 2 ** attempt + Math.random() * 200;
+        retryAfterMs = null;
         await sleep(wait);
       }
     }
     throw lastErr;
   }
+
+  /**
+   * Derive the inter-call pacing delay from Meta's utilization headers.
+   * Uses the WORST (highest) percentage across x-app-usage (call_count,
+   * total_time, total_cputime) and x-ad-account-usage (acc_id_util_pct).
+   * Malformed or absent headers leave pacing at 0 — never slows tests or
+   * mock transports.
+   */
+  private updatePacingFromHeaders(headers: Headers): void {
+    let worstPct = 0;
+    try {
+      const appUsageRaw = headers.get('x-app-usage');
+      if (appUsageRaw) {
+        const u = JSON.parse(appUsageRaw) as Record<string, unknown>;
+        for (const k of ['call_count', 'total_time', 'total_cputime']) {
+          const v = Number(u[k]);
+          if (Number.isFinite(v) && v > worstPct) worstPct = v;
+        }
+      }
+      const acctUsageRaw = headers.get('x-ad-account-usage');
+      if (acctUsageRaw) {
+        const u = JSON.parse(acctUsageRaw) as Record<string, unknown>;
+        const v = Number(u['acc_id_util_pct']);
+        if (Number.isFinite(v) && v > worstPct) worstPct = v;
+      }
+    } catch {
+      // Malformed header — keep current pacing rather than guessing.
+      return;
+    }
+    this.pacingDelayMs = worstPct >= PACING_HARD_PCT ? PACING_HARD_MS
+      : worstPct >= PACING_SOFT_PCT ? PACING_SOFT_MS
+      : 0;
+  }
+}
+
+/** Parse a Retry-After header (delta-seconds or HTTP-date) to milliseconds. */
+function parseRetryAfterMs(raw: string | null): number | null {
+  if (!raw) return null;
+  const secs = Number(raw);
+  if (Number.isFinite(secs) && secs >= 0) return Math.round(secs * 1000);
+  const when = Date.parse(raw);
+  if (Number.isFinite(when)) {
+    const delta = when - Date.now();
+    return delta > 0 ? delta : 0;
+  }
+  return null;
 }
 
 interface MetaPage {

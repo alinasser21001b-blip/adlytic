@@ -1274,7 +1274,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /**
    * GET /api/admin/meta-usage
-   * Returns current Meta API call counter (cumulative toward 1500
+   * Returns current Meta API call counter (cumulative toward the 500-call
    * upgrade threshold) and latest x-app-usage snapshot.
    *
    * Auth: requires authenticated user. No role gate — any logged-in
