@@ -320,9 +320,15 @@ const Owner = (() => {
         ${p.img ? `<img id="oe-img-preview" src="${p.img}" alt="" />` : `<div id="oe-img-preview" class="oe-noimg">🖼️ لا صورة</div>`}
       </div>
 
-      <label class="oe-field">📷 رابط الصورة
-        <input type="text" data-f="img" value="${(p.img || "").replace(/"/g, "&quot;")}" placeholder="الصق رابط الصورة هنا" dir="ltr" />
-      </label>
+      <div class="oe-imgpick">
+        <button type="button" class="oe-pick-btn" onclick="this.nextElementSibling.click()">📷 اختر صورة من الجهاز</button>
+        <input type="file" accept="image/*" hidden onchange="Owner.uploadImage(this)" />
+        <div class="oe-pick-status" data-pick-status></div>
+        <details class="oe-more">
+          <summary>أو الصق رابط الصورة يدوياً</summary>
+          <input type="text" data-f="img" class="oe-url" value="${(p.img || "").replace(/"/g, "&quot;")}" placeholder="رابط الصورة" dir="ltr" />
+        </details>
+      </div>
 
       <label class="oe-field">✏️ اسم المنتج
         <input type="text" data-f="name" value="${(p.name || "").replace(/"/g, "&quot;")}" />
@@ -361,6 +367,55 @@ const Owner = (() => {
           : `<button class="oe-reset" onclick="Owner.resetRow('${p.id}')">↩️ استرجاع الأصل</button>`}
       </div>
     </div>`;
+  }
+
+  /* ---------------- رفع صورة من الجهاز: تصغير + ضغط ثم رفع لدالة owner-upload ---------------- */
+  function downscaleToDataUrl(file, maxSide = 1000) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objUrl);
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff"; // خلفية بيضاء بدل الشفافية (JPEG لا يدعمها)
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(objUrl); reject(new Error("bad-image")); };
+      img.src = objUrl;
+    });
+  }
+
+  async function uploadImage(fileInput) {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    const box = fileInput.closest(".owner-edit");
+    const status = box?.querySelector("[data-pick-status]");
+    const setStatus = (t, cls) => { if (status) { status.textContent = t; status.className = "oe-pick-status" + (cls ? " " + cls : ""); } };
+    try {
+      setStatus("⏳ جارٍ تجهيز الصورة…");
+      const dataUrl = await downscaleToDataUrl(file);
+      setStatus("⏳ جارٍ رفع الصورة…");
+      const res = await authedFetch("/owner-upload", { method: "POST", body: JSON.stringify({ dataUrl }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setStatus("⚠️ " + (d.error || "تعذّر الرفع"), "err"); return; }
+      const urlInput = box.querySelector('[data-f="img"]');
+      if (urlInput) {
+        urlInput.value = d.url;
+        urlInput.dispatchEvent(new Event("input", { bubbles: true })); // يُحدّث المعاينة تلقائياً
+      }
+      setStatus("✅ تم رفع الصورة — اضغط حفظ لتثبيتها", "ok");
+    } catch (_) {
+      setStatus("⚠️ تعذّر الرفع — تحقّق من الإنترنت أو جرّب صورة أخرى", "err");
+    } finally {
+      fileInput.value = "";
+    }
   }
 
   function bindImgPreview() {
@@ -460,9 +515,15 @@ const Owner = (() => {
         <input type="number" min="0" id="add-price" placeholder="مثال: 25000" />
       </label>
 
-      <label class="oe-field">📷 رابط الصورة
-        <input type="text" id="add-img" placeholder="الصق رابط الصورة (اختياري)" dir="ltr" />
-      </label>
+      <div class="oe-imgpick">
+        <button type="button" class="oe-pick-btn" onclick="this.nextElementSibling.click()">📷 اختر صورة من الجهاز (اختياري)</button>
+        <input type="file" accept="image/*" hidden onchange="Owner.uploadImage(this)" />
+        <div class="oe-pick-status" data-pick-status></div>
+        <details class="oe-more">
+          <summary>أو الصق رابط الصورة يدوياً</summary>
+          <input type="text" id="add-img" data-f="img" class="oe-url" placeholder="رابط الصورة" dir="ltr" />
+        </details>
+      </div>
 
       <label class="oe-field">📂 القسم
         <select id="add-cat">
@@ -588,6 +649,6 @@ const Owner = (() => {
   return {
     ready, isTrigger, openPinModal, closePinModal, submitPin,
     openDash, closeDash, saveProduct, resetRow, addProduct, deleteForever,
-    saveSettings, editProduct, exitVisual, lock, logout, autoResume,
+    uploadImage, saveSettings, editProduct, exitVisual, lock, logout, autoResume,
   };
 })();

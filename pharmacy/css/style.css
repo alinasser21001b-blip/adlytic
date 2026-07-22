@@ -963,6 +963,13 @@ body.owner-mode #owner-bar { display: flex; }
 .oe-field .req { color: #a12b2b; }
 .oe-field input, .oe-field textarea, .oe-field select { border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 1rem; font-family: inherit; font-weight: 500; background: #fff; }
 .oe-field input:focus, .oe-field textarea:focus, .oe-field select:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); outline: none; }
+.oe-imgpick { display: flex; flex-direction: column; gap: 8px; }
+.oe-pick-btn { background: #fff; border: 2px dashed var(--green); color: var(--green-deep); border-radius: 14px; padding: 14px; font-size: 1rem; font-weight: 800; cursor: pointer; font-family: inherit; transition: background .15s; }
+.oe-pick-btn:hover { background: var(--green-soft); }
+.oe-pick-status { min-height: 20px; text-align: center; font-size: .84rem; font-weight: 800; color: var(--muted); }
+.oe-pick-status.ok { color: var(--green); }
+.oe-pick-status.err { color: #a12b2b; }
+.oe-url { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: .85rem; font-family: inherit; }
 .oe-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .oe-two { grid-template-columns: 1fr; } }
 .oe-toggles { display: flex; flex-direction: column; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
