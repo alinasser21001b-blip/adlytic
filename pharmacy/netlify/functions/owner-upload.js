@@ -23,8 +23,8 @@ async function handler(event) {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
   if (!requireAuth(event)) return { statusCode: 401, body: JSON.stringify({ error: "غير مخوَّل — سجّل الدخول مجدداً" }) };
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
+  const url = (process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  const key = (process.env.SUPABASE_SERVICE_KEY || "").trim();
   if (!url || !key) {
     return { statusCode: 503, body: JSON.stringify({ error: "التخزين غير مُعدّ (SUPABASE_URL/SUPABASE_SERVICE_KEY)" }) };
   }
@@ -42,26 +42,28 @@ async function handler(event) {
   }
 
   const path = `products/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  // ترويسة apikey إلزامية مع مفاتيح Supabase الجديدة (sb_secret_...)
+  const authHeaders = { apikey: key, Authorization: `Bearer ${key}` };
   const put = () => fetch(`${url}/storage/v1/object/${BUCKET}/${path}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": `image/${ext}`, "x-upsert": "true" },
+    headers: { ...authHeaders, "Content-Type": `image/${ext}`, "x-upsert": "true" },
     body: buffer,
   });
 
   try {
     let res = await put();
-    if (res.status === 400 || res.status === 404) {
-      // الباكت غير موجود بعد — ننشئه عاماً ثم نعيد المحاولة
+    if (!res.ok) {
+      // الباكت غير موجود بعد (أو رفض أول) — ننشئه عاماً ثم نعيد المحاولة مرة واحدة
       await fetch(`${url}/storage/v1/bucket`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        headers: { ...authHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({ id: BUCKET, name: BUCKET, public: true }),
-      });
+      }).catch(() => {});
       res = await put();
     }
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      return { statusCode: 502, body: JSON.stringify({ error: "فشل رفع الصورة", detail: detail.slice(0, 300) }) };
+      return { statusCode: 502, body: JSON.stringify({ error: "فشل رفع الصورة", detail: `HTTP ${res.status}: ${detail.slice(0, 300)}` }) };
     }
     return {
       statusCode: 200,

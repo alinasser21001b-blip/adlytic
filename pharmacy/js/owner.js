@@ -404,7 +404,7 @@ const Owner = (() => {
       setStatus("⏳ جارٍ رفع الصورة…");
       const res = await authedFetch("/owner-upload", { method: "POST", body: JSON.stringify({ dataUrl }) });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setStatus("⚠️ " + (d.error || "تعذّر الرفع"), "err"); return; }
+      if (!res.ok) { setStatus("⚠️ " + (d.error || "تعذّر الرفع") + (d.detail ? " — " + d.detail : ""), "err"); return; }
       const urlInput = box.querySelector('[data-f="img"]');
       if (urlInput) {
         urlInput.value = d.url;

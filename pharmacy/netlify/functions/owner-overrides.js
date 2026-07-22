@@ -19,8 +19,8 @@ const { verifyToken } = require("./owner-auth.js");
 const PRODUCT_FIELDS = ["price", "discount_price", "description", "summary", "img", "available", "featured", "name", "brand", "category", "deleted"];
 
 function supa() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
+  const url = (process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  const key = (process.env.SUPABASE_SERVICE_KEY || "").trim();
   if (!url || !key) return null;
   return { url, key };
 }
