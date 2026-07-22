@@ -455,7 +455,7 @@ const Owner = (() => {
     status.className = "oe-status";
     try {
       const res = await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, patch }) });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); status.textContent = "⚠️ " + (d.error || "تعذّر الحفظ"); status.classList.add("err"); return; }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); status.textContent = "⚠️ " + (d.error || "تعذّر الحفظ") + (d.detail ? " — " + d.detail : ""); status.classList.add("err"); return; }
       overrides.products[id] = { ...(overrides.products[id] || {}), ...patch };
       applyOverrides();
       status.textContent = "✅ تم الحفظ — يظهر للزبائن الآن";
@@ -553,7 +553,7 @@ const Owner = (() => {
     status.textContent = "⏳ جارٍ الإضافة…";
     try {
       const res = await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, patch }) });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); status.textContent = "⚠️ " + (d.error || "تعذّرت الإضافة"); status.classList.add("err"); return; }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); status.textContent = "⚠️ " + (d.error || "تعذّرت الإضافة") + (d.detail ? " — " + d.detail : ""); status.classList.add("err"); return; }
       overrides.products[id] = patch;
       applyOverrides();
       toast?.("✅ أُضيف المنتج — يظهر للزبائن الآن");
