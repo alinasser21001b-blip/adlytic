@@ -320,8 +320,35 @@ export class MetaOAuth {
     }
     const accounts = normalizeAndDedupeMetaAdAccounts(discovered);
     console.info(
-      `[Meta] System User account discovery counts: /me/adaccounts=${meAccountsCount}, owned_ad_accounts=${ownedAccountsCount}, client_ad_accounts=${clientAccountsCount}, businesses=${businessIds.size}, unique_total=${accounts.length}`,
+      `[Meta] System User account discovery counts: /me/adaccounts=${meAccountsCount}, owned_ad_accounts=${ownedAccountsCount}, client_ad_accounts=${clientAccountsCount}, businesses=${businessIds.size}, unique_total=${accounts.length}, token_type=${debug.type ?? 'unknown'}, scopes=[${debug.scopes.join(',')}]`,
     );
+    // Zero-account triage: the scopes on the token tell apart the three
+    // configuration failures that all end in "0 ad accounts", so the operator
+    // doesn't have to reverse-engineer this from the counts line.
+    if (accounts.length === 0) {
+      if (!debug.scopes.includes('ads_read') && !debug.scopes.includes('ads_management')) {
+        console.warn(
+          '[Meta] 0 accounts triage: token has NO ads scope — the Login Configuration ' +
+          '(META_LOGIN_CONFIG_ID) is missing the ads_read permission and/or the ' +
+          'Ad Accounts asset type. Fix the configuration in Meta for Developers → ' +
+          'Facebook Login for Business → Configurations.',
+        );
+      } else if (!debug.scopes.includes('business_management')) {
+        console.warn(
+          '[Meta] 0 accounts triage: token has an ads scope but NOT business_management — ' +
+          'business discovery (/me/businesses, owned/client_ad_accounts) is unavailable. ' +
+          'Add business_management to the Login Configuration, or assign the ad account ' +
+          'directly to this user/system user in Business Settings.',
+        );
+      } else {
+        console.warn(
+          '[Meta] 0 accounts triage: scopes look correct but no ad account is granted to ' +
+          'this identity. Either the ad account was not selected in the Facebook dialog, ' +
+          'or it is not assigned to this user/system user in Business Settings → ' +
+          'Ad Accounts / System Users → Assign assets.',
+        );
+      }
+    }
     const biz = accounts.find(a => a.business?.id)?.business ?? businesses[0];
 
     return {

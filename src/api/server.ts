@@ -245,6 +245,20 @@ function summarizeMetaAuthError(err: unknown): string {
   return msg.replace(/\s+/g, ' ').trim().slice(0, 280);
 }
 
+// ── Dead env-token negative cache ─────────────────────────────────────────
+// META_DIRECT_TOKEN / META_SYSTEM_USER_TOKEN can only change on a process
+// restart, so once Meta rejects one as PERMANENTLY invalid (expired, session
+// invalidated by logout, deauthorized) there is no point re-validating it on
+// every /start click — it just adds a Graph round-trip of latency and a
+// [META_AUTH_FAILURE] line per attempt. Keyed by token value; never logged.
+const deadEnvTokens = new Set<string>();
+
+/** True for Meta auth errors that are permanent for a given token string
+ *  (expiry / logout / invalidation), as opposed to transient network/5xx. */
+function isPermanentTokenError(msg: string): boolean {
+  return /error validating access token|session is invalid|session has expired|access token could not be decrypted|has not authorized application|token is not valid/i.test(msg);
+}
+
 // ── Application factory ───────────────────────────────────────────────────
 
 export function buildRoutes(prisma: PrismaClient): Hono {
@@ -2342,7 +2356,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // a working user token (e.g. from Graph API Explorer or a previous
     // long-lived exchange).
     const directToken = normalizeEnvAccessToken(config.meta.directToken);
-    if (directToken) {
+    if (directToken && deadEnvTokens.has(directToken)) {
+      // Known-dead token: skip the Graph round-trip entirely.
+      console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE skipped — META_DIRECT_TOKEN previously failed as permanently invalid. Remove or replace it in the environment.');
+      if (!config.meta.systemUserEnabled) {
+        return c.json({
+          configured: false,
+          reason: 'META_DIRECT_TOKEN is permanently invalid (expired or session logged out). Remove or replace it.',
+        });
+      }
+    } else if (directToken) {
       console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE — bypassing OAuth dialog, calling Graph API with env token');
       try {
         const apiVersion = config.meta.apiVersion;
@@ -2381,6 +2404,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         // Never log token values. Keep only sanitized upstream error text.
         const msg = summarizeMetaAuthError(err);
         console.error('[META_AUTH_FAILURE] direct-token start failed:', msg);
+        if (isPermanentTokenError(msg)) {
+          deadEnvTokens.add(directToken);
+          console.warn('[adlytic:meta-oauth] META_DIRECT_TOKEN marked permanently invalid — it will be skipped until the next deploy. Remove it from the environment.');
+        }
         if (!config.meta.systemUserEnabled) {
           return c.json({
             configured: false,
@@ -2403,7 +2430,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (config.meta.systemUserEnabled) {
       const sysToken = normalizeEnvAccessToken(config.meta.systemUserToken);
 
-      if (sysToken) {
+      if (sysToken && deadEnvTokens.has(sysToken)) {
+        console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE skipped — META_SYSTEM_USER_TOKEN previously failed as permanently invalid. Remove or replace it in the environment.');
+      } else if (sysToken) {
         console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE — bypassing OAuth dialog, using META_SYSTEM_USER_TOKEN');
         try {
           const apiVersion = config.meta.apiVersion;
@@ -2465,6 +2494,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           // Never log token values. Keep only sanitized upstream error text.
           const msg = summarizeMetaAuthError(err);
           console.error('[META_AUTH_FAILURE] system-user token start failed:', msg);
+          if (isPermanentTokenError(msg)) {
+            deadEnvTokens.add(sysToken);
+            console.warn('[adlytic:meta-oauth] META_SYSTEM_USER_TOKEN marked permanently invalid — it will be skipped until the next deploy. Remove or replace it in the environment.');
+          }
           console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE unavailable; falling back to FB Login for Business config_id flow');
         }
       }
