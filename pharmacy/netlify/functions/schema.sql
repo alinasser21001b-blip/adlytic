@@ -54,7 +54,7 @@ alter table public.consult_events enable row level security;
 -- من المتصفح)، والكتابة تتطلب توكن مالك موقّع (owner-auth).
 -- ============================================================
 create table if not exists public.product_overrides (
-  id             text primary key,   -- يطابق PRODUCTS[].id في products.js
+  id             text primary key,   -- يطابق PRODUCTS[].id في products.js (أو own-... لمنتج أضافه المالك)
   price          integer,            -- null = يرث السعر من products.js
   discount_price integer,            -- null = بلا خصم
   description    text,
@@ -62,8 +62,18 @@ create table if not exists public.product_overrides (
   img            text,               -- رابط صورة بديل
   available      boolean,
   featured       boolean,
+  name           text,               -- اسم المنتج (لمنتجات المالك الجديدة أو تعديل الاسم)
+  brand          text,               -- العلامة التجارية
+  category       text,               -- التصنيف (hair | vitamins | skin | body | mother)
+  deleted        boolean,            -- true = المنتج محذوف نهائياً من الموقع
   updated_at     timestamptz not null default now()
 );
+
+-- ترقية جدول قائم (نفّذها إن أنشأت الجدول قبل إضافة هذه الأعمدة):
+alter table public.product_overrides add column if not exists name text;
+alter table public.product_overrides add column if not exists brand text;
+alter table public.product_overrides add column if not exists category text;
+alter table public.product_overrides add column if not exists deleted boolean;
 alter table public.product_overrides enable row level security;
 -- لا سياسات عامة = لا وصول مباشر من anon key؛ كل الوصول عبر service_role من الدوال.
 

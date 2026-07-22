@@ -63,8 +63,16 @@ const Owner = (() => {
 
   function applyOverrides() {
     for (const [id, ov] of Object.entries(overrides.products || {})) {
-      const p = typeof byId === "function" ? byId(id) : null;
+      let p = typeof byId === "function" ? byId(id) : null;
+      // منتج أضافه المالك (غير موجود في الكتالوج الأساسي) → ننشئه
+      if (!p && ov.name && !ov.deleted) {
+        p = { id, name: ov.name, brand: ov.brand || "", en: "", category: ov.category || "vitamins", emoji: "🛍️", summary: "", description: "" };
+        PRODUCTS.push(p);
+      }
       if (!p) continue;
+      if ("name" in ov && ov.name) p.name = ov.name;
+      if ("brand" in ov && ov.brand) p.brand = ov.brand;
+      if ("category" in ov && ov.category) p.category = ov.category;
       if ("price" in ov) p.price = ov.price;
       if ("discountPrice" in ov) p.discountPrice = ov.discountPrice;
       if ("description" in ov) p.description = ov.description;
@@ -72,6 +80,12 @@ const Owner = (() => {
       if ("img" in ov) p.img = ov.img;
       if ("available" in ov) p.available = ov.available;
       if ("featured" in ov) p.badge = ov.featured ? "الأكثر طلباً" : undefined;
+    }
+    // المنتجات المحذوفة نهائياً تختفي من الكتالوج
+    for (const [id, ov] of Object.entries(overrides.products || {})) {
+      if (!ov.deleted) continue;
+      const i = PRODUCTS.findIndex((p) => p.id === id);
+      if (i >= 0) PRODUCTS.splice(i, 1);
     }
     const s = overrides.settings || {};
     if (typeof STORE_CONFIG !== "undefined") {
@@ -154,10 +168,8 @@ const Owner = (() => {
 
   /* ---------------- شريط المالك ---------------- */
   const TABS = [
-    { id: "products", label: "🛍️ المنتجات" },
-    { id: "offers", label: "🏷️ العروض" },
-    { id: "homepage", label: "🏠 الرئيسية" },
-    { id: "media", label: "🖼️ الصور" },
+    { id: "products", label: "🛍️ منتجاتي" },
+    { id: "add", label: "➕ إضافة منتج" },
     { id: "settings", label: "⚙️ الإعدادات" },
     { id: "analytics", label: "📊 التحليلات" },
   ];
@@ -193,13 +205,12 @@ const Owner = (() => {
       </div>
     </div>`;
     document.body.append(wrap.firstElementChild);
-    // تتبّع التعديلات غير المحفوظة عبر تفويض حدث واحد (يعمل مع أي تبويب يُعاد رسمه)
+    // تنبيه بسيط عند تعديل غير محفوظ في شاشة التعديل
     document.getElementById("owner-dash-body").addEventListener("input", (e) => {
-      const row = e.target.closest(".owner-row");
-      if (!row) return;
-      row.classList.add("dirty");
-      const flag = row.querySelector(".or-saved-flag");
-      if (flag) flag.textContent = "● تعديل غير محفوظ";
+      const box = e.target.closest(".owner-edit[data-edit]");
+      if (!box) return;
+      const status = document.getElementById("oe-status");
+      if (status && !status.textContent.startsWith("⏳")) { status.textContent = "● تعديل غير محفوظ — اضغط حفظ"; status.className = "oe-status warn"; }
     });
   }
 
@@ -232,75 +243,44 @@ const Owner = (() => {
 
   function renderDashBody() {
     const body = document.getElementById("owner-dash-body");
-    if (dashTab === "products") return renderProductsTab(body, PRODUCTS);
-    if (dashTab === "offers") return renderProductsTab(body, PRODUCTS, true);
-    if (dashTab === "homepage") return renderHomepageTab(body);
-    if (dashTab === "media") return renderMediaTab(body);
+    if (dashTab === "products") return renderProductsTab(body);
+    if (dashTab === "add") return renderAddTab(body);
     if (dashTab === "settings") return renderSettingsTab(body);
     if (dashTab === "analytics") return renderAnalyticsTab(body);
   }
 
-  /* ---------------- تبويب المنتجات / العروض ---------------- */
-  function fieldRow(p, opts = {}) {
-    const { offersOnly } = opts;
-    const searchKey = `${p.name} ${p.brand || ""} ${p.en || ""}`.toLowerCase();
+  /* ---------------- تبويب منتجاتي — قائمة بسيطة: صورة واسم وسعر وزر تعديل ---------------- */
+  function fmtPrice(p) {
+    if (p.price == null || p.price === "") return "بلا سعر";
+    const base = `${Number(p.price).toLocaleString("en")} د.ع`;
+    return p.discountPrice ? `<s>${base}</s> ← ${Number(p.discountPrice).toLocaleString("en")} د.ع` : base;
+  }
+
+  function simpleRow(p) {
+    const searchKey = `${p.name} ${p.brand || ""} ${p.en || ""}`.toLowerCase().replace(/"/g, "&quot;");
+    const off = p.available === false;
     return `
-    <div class="owner-row" data-row="${p.id}" data-search="${searchKey.replace(/"/g, "&quot;")}">
+    <div class="owner-item${off ? " is-off" : ""}" data-search="${searchKey}" onclick="Owner.editProduct('${p.id}')">
       <span class="or-thumb">${typeof thumbHtml === "function" ? thumbHtml(p) : ""}</span>
-      <div class="or-body">
+      <div class="oi-info">
         <b>${p.name}</b>
-        <small>${p.brand} — ${p.en || ""}</small>
-        <div class="or-fields">
-          <label class="f">السعر (د.ع)
-            <input type="number" min="0" data-f="price" value="${p.price || ""}" />
-          </label>
-          <label class="f">سعر الخصم (د.ع)
-            <input type="number" min="0" data-f="discountPrice" value="${p.discountPrice || ""}" placeholder="بلا خصم" />
-          </label>
-          ${!offersOnly ? `
-          <label class="f">رابط الصورة
-            <input type="text" data-f="img" value="${p.img || ""}" placeholder="images/xxx.webp أو رابط" />
-          </label>
-          <label class="f" style="grid-column:1/-1">الوصف المختصر (summary)
-            <input type="text" data-f="summary" value="${(p.summary || "").replace(/"/g, "&quot;")}" />
-          </label>
-          <textarea data-f="description" placeholder="الوصف الكامل">${p.description || ""}</textarea>
-          ` : ""}
-          <div class="or-flags">
-            <label><input type="checkbox" data-f="available" ${p.available === false ? "" : "checked"} /> متوفر</label>
-            <label><input type="checkbox" data-f="featured" ${p.badge === "الأكثر طلباً" ? "checked" : ""} /> مميّز (الأكثر طلباً)</label>
-          </div>
-          <div class="or-actions">
-            <button class="or-save" onclick="Owner.saveRow('${p.id}')">💾 حفظ</button>
-            <button class="or-reset" onclick="Owner.resetRow('${p.id}')">↩️ استرجاع الأصل</button>
-            <span class="or-saved-flag" id="saved-${p.id}"></span>
-          </div>
-        </div>
+        <small>${fmtPrice(p)}${off ? " · 🚫 مخفي عن الزبائن" : ""}${p.badge === "الأكثر طلباً" ? " · ⭐" : ""}</small>
       </div>
+      <span class="oi-edit">✏️ تعديل</span>
     </div>`;
   }
 
-  function renderProductsTab(body, list, offersOnly) {
-    const items = offersOnly ? list.filter((p) => p.price) : list;
-    const hiddenCount = items.filter((p) => p.available === false).length;
-    const featuredCount = items.filter((p) => p.badge === "الأكثر طلباً").length;
+  function renderProductsTab(body) {
     body.innerHTML = `
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">
-        ${offersOnly ? "عدّل السعر أو أضف سعر خصم — يظهر فوراً على الموقع لكل الزوار." : "عدّل أي حقل واضغط حفظ. يظهر التعديل لكل الزوار فوراً."}
-      </p>
-      <div class="owner-counts">
-        <span>📦 ${items.length} منتج${offersOnly ? "" : "اً"}</span>
-        <span>🚫 ${hiddenCount} غير متوفر</span>
-        ${!offersOnly ? `<span>⭐ ${featuredCount} مميّز</span>` : ""}
-      </div>
+      <p class="owner-hint">اضغط على أي منتج لتعديل سعره أو صورته — التعديل يظهر للزبائن فوراً.</p>
       <div class="owner-search-wrap">
         <span class="owner-search-ic">🔎</span>
-        <input type="text" class="owner-search" id="owner-products-search" placeholder="ابحث بالاسم أو العلامة…" />
+        <input type="text" class="owner-search" id="owner-products-search" placeholder="دوّر على منتج بالاسم…" />
       </div>
       <div id="owner-products-list">
-        ${items.map((p) => fieldRow(p, { offersOnly })).join("")}
+        ${PRODUCTS.map(simpleRow).join("")}
       </div>`;
-    bindSearchFilter("owner-products-search", "#owner-products-list .owner-row");
+    bindSearchFilter("owner-products-search", "#owner-products-list .owner-item");
   }
 
   /* ---------------- بحث/تصفية عام داخل أي تبويب ---------------- */
@@ -329,38 +309,106 @@ const Owner = (() => {
     });
   }
 
-  function readRowPatch(id) {
-    const row = document.querySelector(`.owner-row[data-row="${id}"]`);
-    if (!row) return null;
-    const g = (f) => row.querySelector(`[data-f="${f}"]`);
-    const patch = {};
-    const price = g("price")?.value;
-    if (price !== undefined) patch.price = price === "" ? null : Number(price);
-    const dp = g("discountPrice")?.value;
-    if (dp !== undefined) patch.discountPrice = dp === "" ? null : Number(dp);
-    if (g("img")) patch.img = g("img").value;
-    if (g("summary")) patch.summary = g("summary").value;
-    if (g("description")) patch.description = g("description").value;
-    if (g("available")) patch.available = g("available").checked;
-    if (g("featured")) patch.featured = g("featured").checked;
-    return patch;
+  /* ---------------- شاشة تعديل منتج واحد — بسيطة وكبيرة ---------------- */
+  function editForm(p) {
+    const isOwn = p.id.startsWith("own-");
+    return `
+    <div class="owner-edit" data-edit="${p.id}">
+      <button class="oe-back" onclick="Owner.openDash('products')">→ رجوع للقائمة</button>
+
+      <div class="oe-preview">
+        ${p.img ? `<img id="oe-img-preview" src="${p.img}" alt="" />` : `<div id="oe-img-preview" class="oe-noimg">🖼️ لا صورة</div>`}
+      </div>
+
+      <label class="oe-field">📷 رابط الصورة
+        <input type="text" data-f="img" value="${(p.img || "").replace(/"/g, "&quot;")}" placeholder="الصق رابط الصورة هنا" dir="ltr" />
+      </label>
+
+      <label class="oe-field">✏️ اسم المنتج
+        <input type="text" data-f="name" value="${(p.name || "").replace(/"/g, "&quot;")}" />
+      </label>
+
+      <div class="oe-two">
+        <label class="oe-field">💰 السعر (د.ع)
+          <input type="number" min="0" data-f="price" value="${p.price ?? ""}" placeholder="مثال: 25000" />
+        </label>
+        <label class="oe-field">🏷️ سعر بعد الخصم
+          <input type="number" min="0" data-f="discountPrice" value="${p.discountPrice ?? ""}" placeholder="اتركه فارغاً بلا خصم" />
+        </label>
+      </div>
+
+      <div class="oe-toggles">
+        <label class="oe-toggle"><input type="checkbox" data-f="available" ${p.available === false ? "" : "checked"} /> ✅ متوفر (يظهر للزبائن)</label>
+        <label class="oe-toggle"><input type="checkbox" data-f="featured" ${p.badge === "الأكثر طلباً" ? "checked" : ""} /> ⭐ مميّز — الأكثر طلباً</label>
+      </div>
+
+      <details class="oe-more">
+        <summary>تفاصيل إضافية (اختياري)</summary>
+        <label class="oe-field">وصف قصير
+          <input type="text" data-f="summary" value="${(p.summary || "").replace(/"/g, "&quot;")}" />
+        </label>
+        <label class="oe-field">الوصف الكامل
+          <textarea data-f="description" rows="4">${p.description || ""}</textarea>
+        </label>
+      </details>
+
+      <button class="oe-save" onclick="Owner.saveProduct('${p.id}')">💾 حفظ التعديلات</button>
+      <div class="oe-status" id="oe-status"></div>
+
+      <div class="oe-danger">
+        ${isOwn
+          ? `<button class="oe-del" onclick="Owner.deleteForever('${p.id}')">🗑️ حذف المنتج نهائياً</button>`
+          : `<button class="oe-reset" onclick="Owner.resetRow('${p.id}')">↩️ استرجاع الأصل</button>`}
+      </div>
+    </div>`;
   }
 
-  async function saveRow(id) {
-    const patch = readRowPatch(id);
-    if (!patch) return;
-    const flag = document.getElementById(`saved-${id}`);
-    flag.textContent = "جارٍ الحفظ…";
+  function bindImgPreview() {
+    const input = document.querySelector('.owner-edit [data-f="img"]');
+    if (!input) return;
+    input.addEventListener("input", () => {
+      const box = document.getElementById("oe-img-preview");
+      const url = input.value.trim();
+      if (!box) return;
+      if (url) {
+        if (box.tagName === "IMG") box.src = url;
+        else box.outerHTML = `<img id="oe-img-preview" src="${url}" alt="" />`;
+      }
+    });
+  }
+
+  async function saveProduct(id) {
+    const box = document.querySelector(`.owner-edit[data-edit="${id}"]`);
+    if (!box) return;
+    const g = (f) => box.querySelector(`[data-f="${f}"]`);
+    const p = byId(id);
+    const patch = {};
+    const price = g("price").value;
+    patch.price = price === "" ? null : Number(price);
+    const dp = g("discountPrice").value;
+    patch.discountPrice = dp === "" ? null : Number(dp);
+    patch.img = g("img").value.trim();
+    patch.summary = g("summary").value;
+    patch.description = g("description").value;
+    patch.available = g("available").checked;
+    patch.featured = g("featured").checked;
+    const newName = g("name").value.trim();
+    if (newName && newName !== (p?.name || "")) patch.name = newName;
+
+    const status = document.getElementById("oe-status");
+    status.textContent = "⏳ جارٍ الحفظ…";
+    status.className = "oe-status";
     try {
       const res = await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, patch }) });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); flag.textContent = "⚠️ " + (d.error || "فشل"); return; }
-      Object.assign(overrides.products, { [id]: { ...(overrides.products[id] || {}), ...patch } });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); status.textContent = "⚠️ " + (d.error || "تعذّر الحفظ"); status.classList.add("err"); return; }
+      overrides.products[id] = { ...(overrides.products[id] || {}), ...patch };
       applyOverrides();
-      flag.textContent = "✅ حُفظ";
-      document.querySelector(`.owner-row[data-row="${id}"]`)?.classList.remove("dirty");
+      status.textContent = "✅ تم الحفظ — يظهر للزبائن الآن";
+      status.classList.add("ok");
       refreshLiveViews(id);
-    } catch (e) {
-      flag.textContent = "⚠️ تعذّر الحفظ";
+    } catch (_) {
+      status.textContent = "⚠️ تعذّر الحفظ — تحقّق من الإنترنت";
+      status.classList.add("err");
     }
   }
 
@@ -369,9 +417,22 @@ const Owner = (() => {
     try {
       await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, reset: true }) });
       delete overrides.products[id];
-      document.querySelector(`.owner-row[data-row="${id}"]`)?.classList.remove("dirty");
-      toast?.("↩️ رجعنا للقيم الأصلية — أعد تحميل الصفحة لرؤية الأصل كاملاً");
+      toast?.("↩️ رجعنا للقيم الأصلية");
+      setTimeout(() => location.reload(), 600);
     } catch (_) { toast?.("⚠️ تعذّر الاسترجاع"); }
+  }
+
+  async function deleteForever(id) {
+    if (!confirm("حذف هذا المنتج نهائياً من الموقع؟ لا يمكن التراجع.")) return;
+    try {
+      const res = await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, patch: { deleted: true } }) });
+      if (!res.ok) throw new Error("failed");
+      const i = PRODUCTS.findIndex((p) => p.id === id);
+      if (i >= 0) PRODUCTS.splice(i, 1);
+      overrides.products[id] = { ...(overrides.products[id] || {}), deleted: true };
+      toast?.("🗑️ حُذف المنتج");
+      openDash("products");
+    } catch (_) { toast?.("⚠️ تعذّر الحذف"); }
   }
 
   function refreshLiveViews(id) {
@@ -384,68 +445,62 @@ const Owner = (() => {
     if (typeof renderProduct === "function" && params.get("id") === id) renderProduct(byId(id));
   }
 
-  /* ---------------- تبويب الرئيسية ---------------- */
-  function renderHomepageTab(body) {
-    const featured = PRODUCTS.filter((p) => p.badge === "الأكثر طلباً");
+  /* ---------------- تبويب إضافة منتج جديد — 3 حقول أساسية فقط ---------------- */
+  function renderAddTab(body) {
+    const cats = typeof CATEGORIES !== "undefined" ? CATEGORIES : [];
     body.innerHTML = `
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">
-        المنتجات المميّزة تظهر في قسم "الأكثر طلباً" بالصفحة الرئيسية. فعّلها من تبويب المنتجات (خانة "مميّز").
-      </p>
-      <ul class="owner-list-mini">
-        ${featured.length ? featured.map((p) => `<li>${p.name} <span>${p.brand}</span></li>`).join("") : `<li style="justify-content:center;color:var(--muted)">لا منتجات مميّزة حالياً</li>`}
-      </ul>`;
+    <div class="owner-edit">
+      <p class="owner-hint">ثلاث خطوات: الاسم، السعر، والصورة — ثم اضغط إضافة. يظهر المنتج للزبائن فوراً.</p>
+
+      <label class="oe-field">✏️ اسم المنتج <span class="req">*</span>
+        <input type="text" id="add-name" placeholder="مثال: فيتامين سي 1000" />
+      </label>
+
+      <label class="oe-field">💰 السعر (د.ع) <span class="req">*</span>
+        <input type="number" min="0" id="add-price" placeholder="مثال: 25000" />
+      </label>
+
+      <label class="oe-field">📷 رابط الصورة
+        <input type="text" id="add-img" placeholder="الصق رابط الصورة (اختياري)" dir="ltr" />
+      </label>
+
+      <label class="oe-field">📂 القسم
+        <select id="add-cat">
+          ${cats.map((c) => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join("")}
+        </select>
+      </label>
+
+      <button class="oe-save" onclick="Owner.addProduct()">➕ إضافة المنتج</button>
+      <div class="oe-status" id="add-status"></div>
+    </div>`;
   }
 
-  /* ---------------- تبويب الصور ---------------- */
-  function renderMediaTab(body) {
-    const missing = PRODUCTS.filter((p) => !p.img).length;
-    body.innerHTML = `
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">استبدل رابط أي صورة منتج — يظهر فوراً.</p>
-      <div class="owner-counts">
-        <span>🖼️ ${PRODUCTS.length} منتج</span>
-        <span>⚠️ ${missing} بلا صورة</span>
-      </div>
-      <div class="owner-search-wrap">
-        <span class="owner-search-ic">🔎</span>
-        <input type="text" class="owner-search" id="owner-media-search" placeholder="ابحث بالاسم أو العلامة…" />
-      </div>
-      <div id="owner-media-list">
-        ${PRODUCTS.map((p) => {
-          const searchKey = `${p.name} ${p.brand || ""} ${p.en || ""}`.toLowerCase();
-          return `
-        <div class="owner-row${p.img ? "" : " no-img"}" data-row-media="${p.id}" data-search="${searchKey.replace(/"/g, "&quot;")}">
-          <span class="or-thumb">${thumbHtml(p)}</span>
-          <div class="or-body">
-            <b>${p.name}</b>
-            <small>${p.brand || ""}${!p.img ? " · بلا صورة حالياً" : ""}</small>
-            <div class="or-fields">
-              <input type="text" data-f="img" style="grid-column:1/-1" value="${p.img || ""}" placeholder="images/xxx.webp أو رابط كامل" />
-              <div class="or-actions">
-                <button class="or-save" onclick="Owner.saveImg('${p.id}')">💾 حفظ الصورة</button>
-                <span class="or-saved-flag" id="saved-img-${p.id}"></span>
-              </div>
-            </div>
-          </div>
-        </div>`;
-        }).join("")}
-      </div>`;
-    bindSearchFilter("owner-media-search", "#owner-media-list .owner-row");
-  }
+  async function addProduct() {
+    const name = document.getElementById("add-name").value.trim();
+    const price = document.getElementById("add-price").value;
+    const img = document.getElementById("add-img").value.trim();
+    const category = document.getElementById("add-cat").value;
+    const status = document.getElementById("add-status");
+    status.className = "oe-status";
+    if (!name) { status.textContent = "⚠️ اكتب اسم المنتج أولاً"; status.classList.add("err"); return; }
+    if (!price) { status.textContent = "⚠️ اكتب السعر"; status.classList.add("err"); return; }
 
-  async function saveImg(id) {
-    const row = document.querySelector(`[data-row-media="${id}"]`);
-    const img = row.querySelector('[data-f="img"]').value;
-    const flag = document.getElementById(`saved-img-${id}`);
-    flag.textContent = "جارٍ الحفظ…";
+    const id = "own-" + Date.now().toString(36);
+    const patch = { name, category, price: Number(price), available: true };
+    if (img) patch.img = img;
+
+    status.textContent = "⏳ جارٍ الإضافة…";
     try {
-      const res = await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, patch: { img } }) });
-      if (!res.ok) { flag.textContent = "⚠️ فشل"; return; }
-      overrides.products[id] = { ...(overrides.products[id] || {}), img };
+      const res = await authedFetch("/owner-overrides", { method: "POST", body: JSON.stringify({ kind: "product", id, patch }) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); status.textContent = "⚠️ " + (d.error || "تعذّرت الإضافة"); status.classList.add("err"); return; }
+      overrides.products[id] = patch;
       applyOverrides();
-      flag.textContent = "✅ حُفظت";
-      row.classList.remove("dirty", "no-img");
-      refreshLiveViews(id);
-    } catch (_) { flag.textContent = "⚠️ تعذّر الحفظ"; }
+      toast?.("✅ أُضيف المنتج — يظهر للزبائن الآن");
+      openDash("products");
+    } catch (_) {
+      status.textContent = "⚠️ تعذّرت الإضافة — تحقّق من الإنترنت";
+      status.classList.add("err");
+    }
   }
 
   /* ---------------- تبويب الإعدادات ---------------- */
@@ -513,15 +568,16 @@ const Owner = (() => {
     }
   }
 
-  /* ---------------- تعديل منتج مفرد (من زر ✏️ على البطاقة) ---------------- */
+  /* ---------------- تعديل منتج مفرد (من القائمة أو زر ✏️ على البطاقة) ---------------- */
   function editProduct(id) {
     if (!hasSession()) { openPinModal(); return; }
     dashTab = "products";
     ensureDash();
-    document.getElementById("owner-dash-title").textContent = "تعديل منتج";
     const p = byId(id);
-    document.getElementById("owner-dash-body").innerHTML = p ? fieldRow(p) : "<p>المنتج غير موجود</p>";
+    document.getElementById("owner-dash-title").textContent = p ? `تعديل: ${p.name}` : "تعديل منتج";
+    document.getElementById("owner-dash-body").innerHTML = p ? editForm(p) : "<p>المنتج غير موجود</p>";
     document.getElementById("owner-dash").classList.add("open");
+    bindImgPreview();
   }
 
   /* ---------------- تفعيل تلقائي إن كانت الجلسة قائمة (بعد تنقّل بين الصفحات) ---------------- */
@@ -531,7 +587,7 @@ const Owner = (() => {
 
   return {
     ready, isTrigger, openPinModal, closePinModal, submitPin,
-    openDash, closeDash, saveRow, resetRow, saveImg, saveSettings,
-    editProduct, exitVisual, lock, logout, autoResume,
+    openDash, closeDash, saveProduct, resetRow, addProduct, deleteForever,
+    saveSettings, editProduct, exitVisual, lock, logout, autoResume,
   };
 })();

@@ -16,7 +16,7 @@
    ============================================================ */
 const { verifyToken } = require("./owner-auth.js");
 
-const PRODUCT_FIELDS = ["price", "discount_price", "description", "summary", "img", "available", "featured"];
+const PRODUCT_FIELDS = ["price", "discount_price", "description", "summary", "img", "available", "featured", "name", "brand", "category", "deleted"];
 
 function supa() {
   const url = process.env.SUPABASE_URL;
@@ -81,6 +81,10 @@ async function handleGet() {
       if (r.img) p.img = r.img;
       if (r.available != null) p.available = r.available;
       if (r.featured != null) p.featured = r.featured;
+      if (r.name) p.name = r.name;
+      if (r.brand) p.brand = r.brand;
+      if (r.category) p.category = r.category;
+      if (r.deleted) p.deleted = true;
       products[r.id] = p;
     }
     const settings = {};
@@ -122,6 +126,10 @@ async function handlePost(event) {
       if ("img" in patch) row.img = String(patch.img).slice(0, 500);
       if ("available" in patch) row.available = !!patch.available;
       if ("featured" in patch) row.featured = !!patch.featured;
+      if ("name" in patch) row.name = String(patch.name).slice(0, 200);
+      if ("brand" in patch) row.brand = String(patch.brand).slice(0, 120);
+      if ("category" in patch) row.category = String(patch.category).slice(0, 40);
+      if ("deleted" in patch) row.deleted = !!patch.deleted;
 
       const hasField = PRODUCT_FIELDS.some((f) => (f === "discount_price" ? "discountPrice" in patch : f in patch));
       if (!hasField) return { statusCode: 400, body: JSON.stringify({ error: "لا حقول للتحديث" }) };
