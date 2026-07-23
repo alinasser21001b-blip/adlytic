@@ -38,6 +38,7 @@ import {
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
+import { computePerformanceDrain } from "../lib/performanceDrain";
 import { isCurrentlySpending, accountLocalTodayFloor } from "../lib/campaignSpending";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
@@ -119,7 +120,26 @@ export interface DashboardDTO {
     priority: string;
     text: string;         // localized headline action
     details: Record<string, unknown> | null;
+    /** Money-framed weekly cost of the current degradation (account-level
+     *  drain, shown on the decision card). Null when nothing measurable. */
+    costDisplay?: string | null;
+    /** Outcome-memory expectation line: what similar executed
+     *  recommendations achieved in THIS workspace, or the honest fallback
+     *  ("we measure the effect automatically after 7 days"). Localized. */
+    expectation?: string;
+    /** Top corroborating issue titles (max 3) — the "evidence" row. */
+    evidence?: string[];
   } | null;
+  /** Account-level performance drain: last 7 days vs prior 7 days.
+   *  Null/absent when efficiency is flat or improving — no fake numbers. */
+  drain?: {
+    weeklyExcessMinor: number;
+    display: string;      // formatted for direct rendering, localized suffix
+    cprChangePct: number | null;
+  } | null;
+  /** Deterministic morning story: 2-3 localized sentences built from real
+   *  numbers (yesterday, 7-day window, drain, best/worst campaign). */
+  morningStory?: { text: string; date: string };
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
   /** Every active campaign with its window metrics, sorted by health desc. Powers
@@ -624,7 +644,7 @@ export async function getDashboard(
     (i) => !appliedItemKeys.has(`issue:${i.code}`),
   );
   const topIssue = activeIssues[0];
-  let priorityAction = rec
+  let priorityAction: DashboardDTO['priorityAction'] = rec
     ? {
         actionCode: rec.actionCode,
         priority: rec.priority,
@@ -694,6 +714,101 @@ export async function getDashboard(
     ),
   );
 
+  // ── Money-framing: what is the current degradation costing? ──────────
+  // ONE account-level figure (per-issue splits would double-count the same
+  // excess spend). Conservative: null when flat/improving or data-poor.
+  const drainRaw = computePerformanceDrain(
+    daily.map((d) => ({ spend: Number(d.spend), messages: Number(d.messages) })),
+  );
+  const drain = drainRaw
+    ? {
+        weeklyExcessMinor: drainRaw.weeklyExcessMinor,
+        display: locale === Locale.AR
+          ? `${money(drainRaw.weeklyExcessMinor)} أسبوعياً`
+          : `${money(drainRaw.weeklyExcessMinor)} / week`,
+        cprChangePct: drainRaw.cprChangePct,
+      }
+    : null;
+
+  // ── Outcome-memory expectation for the decision card ──────────────────
+  // Reads THIS workspace's own execution history (v1.1.5 Outcome Memory):
+  // "similar recommendations you executed improved performance by avg X%".
+  // Fewer than 2 evaluated executions → honest measurement promise instead.
+  let expectation: string | undefined;
+  if (priorityAction) {
+    const pastExecutions = await timedStage('outcomeMemory', () =>
+      prisma.recommendationExecution.findMany({
+        where: {
+          workspaceId: ws.id,
+          successScore: { not: null },
+          recommendation: { actionCode: priorityAction!.actionCode },
+        },
+        select: { successScore: true },
+      }),
+    );
+    const scores = pastExecutions
+      .map((e) => e.successScore)
+      .filter((s): s is number => s != null);
+    const avgScore = scores.length
+      ? scores.reduce((a, b) => a + b, 0) / scores.length
+      : 0;
+    if (scores.length >= 2 && avgScore > 0.03) {
+      const pct = Math.round(avgScore * 100);
+      expectation = locale === Locale.AR
+        ? `طبّقت ${scores.length} توصيات مشابهة سابقاً وتحسّن الأداء بمعدل +${pct}% خلال 7 أيام.`
+        : `You executed ${scores.length} similar recommendations before — performance improved by an average of +${pct}% within 7 days.`;
+    } else {
+      expectation = locale === Locale.AR
+        ? 'بعد التطبيق، نقيس أثر هذا الإجراء تلقائياً ونخبرك بالنتيجة خلال 7 أيام.'
+        : 'Once applied, we measure the effect automatically and report back within 7 days.';
+    }
+    priorityAction = {
+      ...priorityAction,
+      costDisplay: drain?.display ?? null,
+      expectation,
+      evidence: filteredIssues.slice(0, 3).map((i) => i.title),
+    };
+  }
+
+  // ── Morning story — deterministic, from real numbers only ─────────────
+  const yesterdayRow = daily.length ? daily[daily.length - 1]! : null;
+  let morningStory: DashboardDTO['morningStory'];
+  if (yesterdayRow) {
+    const ySpend = Number(yesterdayRow.spend);
+    const yMsgs = Number(yesterdayRow.messages);
+    const yCpr = yMsgs > 0 ? money(Math.round(ySpend / yMsgs)) : null;
+    const parts: string[] = [];
+    if (locale === Locale.AR) {
+      parts.push(
+        yMsgs > 0
+          ? `آخر يوم مُزامن: صرفت ${money(ySpend)} وجبت ${yMsgs} رسالة بكلفة ${yCpr} للرسالة.`
+          : `آخر يوم مُزامن: صرفت ${money(ySpend)} بدون رسائل — يستحق نظرة.`,
+      );
+      if (cards.best?.name) parts.push(`أفضل حملاتك حالياً: «${cards.best.name}».`);
+      if (drain) {
+        parts.push(`تنبيه: تراجع الكفاءة الحالي يكلفك ~${drain.display}.`);
+      } else if (cards.worst?.name && cards.worst.name !== cards.best?.name) {
+        parts.push(`حملة «${cards.worst.name}» تحتاج نظرة.`);
+      }
+    } else {
+      parts.push(
+        yMsgs > 0
+          ? `Last synced day: spent ${money(ySpend)} for ${yMsgs} messages at ${yCpr} each.`
+          : `Last synced day: spent ${money(ySpend)} with no messages — worth a look.`,
+      );
+      if (cards.best?.name) parts.push(`Your best campaign right now: “${cards.best.name}”.`);
+      if (drain) {
+        parts.push(`Heads-up: the current efficiency dip is costing you ~${drain.display}.`);
+      } else if (cards.worst?.name && cards.worst.name !== cards.best?.name) {
+        parts.push(`Campaign “${cards.worst.name}” needs a look.`);
+      }
+    }
+    morningStory = {
+      text: parts.join(' '),
+      date: yesterdayRow.date.toISOString().slice(0, 10),
+    };
+  }
+
   const hasActionItems =
     filteredIssues.length > 0 ||
     priorityAction != null ||
@@ -738,6 +853,8 @@ export async function getDashboard(
     trendSeries,
     issues: filteredIssues,
     priorityAction,
+    drain,
+    ...(morningStory && { morningStory }),
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
     campaigns: cards.all,

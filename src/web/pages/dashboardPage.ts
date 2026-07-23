@@ -331,6 +331,27 @@ export function dashboardPage(): string {
     .exec-pulse-text { font-size: 15px; font-weight: 650; color: var(--text); line-height: 1.55; letter-spacing: normal; }
 
     /* Tier 2 — Main Move unified focus card */
+    .morning-story {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 16px 18px; margin-bottom: 18px; border-radius: 14px;
+      background: linear-gradient(135deg, rgba(255, 196, 0, 0.10), rgba(255, 145, 0, 0.05));
+      border: 1px solid rgba(255, 180, 0, 0.25);
+    }
+    .morning-story-icon { font-size: 22px; line-height: 1.2; }
+    .morning-story-text { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.7; }
+    .morning-story-date { font-size: 11px; color: var(--text-3, #888); margin-top: 4px; }
+    .main-move-cost {
+      display: inline-block; margin-top: 8px; padding: 5px 12px; border-radius: 8px;
+      background: rgba(244, 67, 54, 0.10); border: 1px solid rgba(244, 67, 54, 0.30);
+      font-size: 13.5px; font-weight: 700; color: var(--error, #e53935);
+    }
+    .main-move-expect { margin-top: 8px; font-size: 13px; color: var(--text-2, #aaa); line-height: 1.6; }
+    .main-move-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .main-move-evidence-chip {
+      font-size: 11.5px; padding: 3px 10px; border-radius: 999px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text-2, #bbb);
+    }
     .main-move-card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -500,6 +521,15 @@ export function dashboardPage(): string {
         </div>
         <a href="/workspace" class="btn btn-primary btn-sm">Reconnect</a>
       </div>
+
+      <!-- 0 ▸ Morning story — what happened while you were away -->
+      <section class="morning-story" id="morning-story" style="display:none;" dir="auto">
+        <div class="morning-story-icon">☀️</div>
+        <div class="morning-story-body">
+          <div class="morning-story-text" id="morning-story-text">—</div>
+          <div class="morning-story-date" id="morning-story-date"></div>
+        </div>
+      </section>
 
       <!-- 1 ▸ Financial hero cards -->
       <section class="hero-grid" id="hero-grid">
@@ -1395,6 +1425,18 @@ export function dashboardPage(): string {
       return (primary && primary.decision) || '';
     }
   }
+  function renderMorningStory(dashData) {
+    var box = document.getElementById('morning-story');
+    var textEl = document.getElementById('morning-story-text');
+    var dateEl = document.getElementById('morning-story-date');
+    if (!box || !textEl) return;
+    var story = dashData && dashData.morningStory;
+    if (!story || !story.text) { box.style.display = 'none'; return; }
+    textEl.textContent = story.text;
+    if (dateEl) dateEl.textContent = story.date || '';
+    box.style.display = 'flex';
+  }
+
   function renderMainMove(dashData, kpis) {
     var card = document.getElementById('main-move-card');
     var meta = document.getElementById('main-move-meta');
@@ -1432,11 +1474,29 @@ export function dashboardPage(): string {
       ? '<div class="main-move-impact">' + escHtml(primary.impact) + '</div>'
       : '';
 
+    // Decision-card enrichment: money cost, corroborating evidence, and the
+    // outcome-memory expectation — all server-computed on priorityAction.
+    var pa = dashData && dashData.priorityAction ? dashData.priorityAction : null;
+    var costHtml = pa && pa.costDisplay
+      ? '<div class="main-move-cost">💸 ' + escHtml(lbl('Current dip is costing you ~', 'التراجع الحالي يكلفك ~') + pa.costDisplay) + '</div>'
+      : '';
+    var evidenceHtml = pa && pa.evidence && pa.evidence.length
+      ? '<div class="main-move-evidence">' + pa.evidence.map(function (t) {
+          return '<span class="main-move-evidence-chip">' + escHtml(t) + '</span>';
+        }).join('') + '</div>'
+      : '';
+    var expectationHtml = pa && pa.expectation
+      ? '<div class="main-move-expect">📈 ' + escHtml(pa.expectation) + '</div>'
+      : '';
+
     var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
       + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 priority", 'الأولوية الأولى اليوم')) + '</div>'
       + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
       + impactHtml
+      + costHtml
+      + evidenceHtml
       + (why ? '<div class="main-move-why">' + escHtml(why) + '</div>' : '')
+      + expectationHtml
       + '<div class="main-move-cta-row">'
         + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText) + '</button>'
         + '<span class="text-xs text-3">' + escHtml(lbl('Confidence', 'الثقة')) + ' ' + escHtml(String(primary.confidence)) + '%</span>'
@@ -1900,6 +1960,7 @@ export function dashboardPage(): string {
 
       var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
       var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
+      safeRender('morningStory', function () { renderMorningStory(dashData); });
       safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
       safeRender('kpis', function () { renderKpis(kpis); });
