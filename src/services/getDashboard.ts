@@ -39,6 +39,13 @@ import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { computePerformanceDrain } from "../lib/performanceDrain";
+import {
+  benchmarkCtr,
+  benchmarkFrequency,
+  computeForecast,
+  detectBleed,
+  type KpiBenchmark,
+} from "../lib/smartInsights";
 import { isCurrentlySpending, accountLocalTodayFloor } from "../lib/campaignSpending";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
@@ -100,6 +107,9 @@ export interface DashboardDTO {
     deltaPct: number | null;
     direction: "up" | "down" | "flat";
     goodWhenUp: boolean;  // lets the frontend colour without knowing the metric
+    /** Industry/global benchmark position (CTR & frequency only — currency
+     *  KPIs are never benchmarked against foreign-currency published data). */
+    benchmark?: KpiBenchmark | null;
   }>;
   trendSeries: {
     dates: string[];
@@ -140,6 +150,12 @@ export interface DashboardDTO {
   /** Deterministic morning story: 2-3 localized sentences built from real
    *  numbers (yesterday, 7-day window, drain, best/worst campaign). */
   morningStory?: { text: string; date: string };
+  /** Month-end linear projection from the recent daily pace. */
+  forecast?: { text: string } | null;
+  /** Best audience segment by cost-per-result, mined from breakdown_stats. */
+  audienceInsight?: { text: string } | null;
+  /** Red banner: today is spending with zero results (vs a producing norm). */
+  bleedAlert?: { text: string } | null;
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
   /** Every active campaign with its window metrics, sorted by health desc. Powers
@@ -413,6 +429,33 @@ async function timedStage<T>(stage: string, work: () => Promise<T>): Promise<T> 
 }
 
 // ════════════════════════════════════════════════════════════════════════
+// ── Audience-segment localization (Meta vocabulary → human labels) ───────
+function localizeSegment(key: string, value: string, ar: boolean): string {
+  if (key === 'gender') {
+    if (value === 'male') return ar ? 'الرجال' : 'Men';
+    if (value === 'female') return ar ? 'النساء' : 'Women';
+    return ar ? 'غير محدد' : 'Unknown';
+  }
+  if (key === 'age') return ar ? `أعمار ${value}` : `Ages ${value}`;
+  if (key === 'publisher_platform') {
+    const map: Record<string, [string, string]> = {
+      facebook: ['Facebook', 'فيسبوك'],
+      instagram: ['Instagram', 'انستغرام'],
+      messenger: ['Messenger', 'ماسنجر'],
+      audience_network: ['Audience Network', 'شبكة الجمهور'],
+    };
+    const hit = map[value.toLowerCase()];
+    return hit ? (ar ? hit[1] : hit[0]) : value;
+  }
+  return value;
+}
+
+function dimensionLabel(key: string, ar: boolean): string {
+  if (key === 'gender') return ar ? 'الجنس' : 'gender';
+  if (key === 'age') return ar ? 'الفئات العمرية' : 'age-group';
+  return ar ? 'المنصات' : 'platform';
+}
+
 export async function getDashboard(
   workspaceId: string,
   opts: { locale?: Locale; windowDays?: number; prisma?: PrismaClient } = {}
@@ -541,13 +584,15 @@ export async function getDashboard(
       deltaPct: windowTrends.resultsTrend, direction: dir(windowTrends.resultsTrend), goodWhenUp: true },
     { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? 0,
       display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
-      deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true },
+      deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true,
+      benchmark: benchmarkCtr(ctrWindow, ws.industryProfile?.name ?? null, locale === Locale.AR) },
     { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? 0,
       display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
       deltaPct: windowTrends.cpmTrend, direction: dir(windowTrends.cpmTrend), goodWhenUp: false },
     { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? 0,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
-      deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false },
+      deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false,
+      benchmark: benchmarkFrequency(freqAvg, locale === Locale.AR) },
     { key: "reach", label: kpiLabel("reach", locale), value: totalReach, display: totalReach.toLocaleString(),
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
@@ -809,6 +854,81 @@ export async function getDashboard(
     };
   }
 
+  // ── Forecast, bleed alert, audience insight ───────────────────────────
+  const drainRows = daily.map((d) => ({
+    date: d.date, spend: Number(d.spend), messages: Number(d.messages),
+  }));
+  const nowUtc = new Date();
+  const ar = locale === Locale.AR;
+
+  const forecastRaw = computeForecast(drainRows, nowUtc);
+  const forecast = forecastRaw && forecastRaw.daysLeft > 0
+    ? {
+        text: ar
+          ? `بالوتيرة الحالية: متوقع تُنهي الشهر بإنفاق ~${money(forecastRaw.projectedSpendMinor)} و~${forecastRaw.projectedMessages.toLocaleString()} رسالة (${forecastRaw.daysLeft} يوم متبقٍ).`
+          : `At the current pace: projected month-end ~${money(forecastRaw.projectedSpendMinor)} spend and ~${forecastRaw.projectedMessages.toLocaleString()} messages (${forecastRaw.daysLeft} days left).`,
+      }
+    : null;
+
+  const bleedRaw = detectBleed(drainRows, nowUtc);
+  const bleedAlert = bleedRaw
+    ? {
+        text: ar
+          ? `⚠️ اليوم: صرفت ${money(bleedRaw.spendTodayMinor)} حتى الآن بدون أي رسالة — افحص حملاتك النشطة.`
+          : `⚠️ Today: ${money(bleedRaw.spendTodayMinor)} spent so far with zero messages — check your active campaigns.`,
+      }
+    : null;
+
+  // Audience insight — mine breakdown_stats for the cheapest producing
+  // segment with meaningful volume (≥15% of segment-dimension messages).
+  let audienceInsight: DashboardDTO['audienceInsight'] = null;
+  const campaignIdsForBreakdown = cards.all.map((c) => c.id);
+  if (campaignIdsForBreakdown.length > 0) {
+    const segRows = await timedStage('audienceBreakdown', () =>
+      prisma.breakdownStat.groupBy({
+        by: ['breakdownKey', 'breakdownValue'],
+        where: {
+          entityType: EntityType.CAMPAIGN,
+          entityId: { in: campaignIdsForBreakdown },
+          date: { gte: sinceDate },
+          breakdownKey: { in: ['age', 'gender', 'publisher_platform'] },
+        },
+        _sum: { spend: true, messages: true },
+      }),
+    );
+    type Seg = { key: string; value: string; spend: number; msgs: number };
+    const segs: Seg[] = segRows.map((r) => ({
+      key: r.breakdownKey,
+      value: r.breakdownValue,
+      spend: Number(r._sum.spend ?? 0n),
+      msgs: Number(r._sum.messages ?? 0n),
+    }));
+    const totalMsgsByKey = new Map<string, number>();
+    for (const s of segs) totalMsgsByKey.set(s.key, (totalMsgsByKey.get(s.key) ?? 0) + s.msgs);
+    let best: (Seg & { cpr: number; share: number; avgCpr: number }) | null = null;
+    for (const s of segs) {
+      const keyTotalMsgs = totalMsgsByKey.get(s.key) ?? 0;
+      if (s.msgs <= 0 || keyTotalMsgs <= 0) continue;
+      const share = s.msgs / keyTotalMsgs;
+      if (share < 0.15) continue; // too small to brag about
+      const keySpend = segs.filter((x) => x.key === s.key).reduce((t, x) => t + x.spend, 0);
+      const avgCpr = keyTotalMsgs > 0 ? keySpend / keyTotalMsgs : 0;
+      const cpr = s.spend / s.msgs;
+      if (avgCpr <= 0 || cpr >= avgCpr * 0.85) continue; // must be ≥15% cheaper than its dimension average
+      if (!best || cpr / avgCpr < best.cpr / best.avgCpr) best = { ...s, cpr, share, avgCpr };
+    }
+    if (best) {
+      const savePct = Math.round((1 - best.cpr / best.avgCpr) * 100);
+      const sharePct = Math.round(best.share * 100);
+      const segLabel = localizeSegment(best.key, best.value, ar);
+      audienceInsight = {
+        text: ar
+          ? `أفضل شريحة عندك: ${segLabel} — ${sharePct}% من رسائلك بكلفة أقل بـ${savePct}% من متوسط ${dimensionLabel(best.key, ar)}.`
+          : `Your best segment: ${segLabel} — ${sharePct}% of your messages at ${savePct}% below the ${dimensionLabel(best.key, ar)} average cost.`,
+      };
+    }
+  }
+
   const hasActionItems =
     filteredIssues.length > 0 ||
     priorityAction != null ||
@@ -854,6 +974,9 @@ export async function getDashboard(
     issues: filteredIssues,
     priorityAction,
     drain,
+    forecast,
+    audienceInsight,
+    bleedAlert,
     ...(morningStory && { morningStory }),
     bestCampaign: cards.best,
     worstCampaign: cards.worst,

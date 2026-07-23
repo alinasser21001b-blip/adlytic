@@ -331,6 +331,25 @@ export function dashboardPage(): string {
     .exec-pulse-text { font-size: 15px; font-weight: 650; color: var(--text); line-height: 1.55; letter-spacing: normal; }
 
     /* Tier 2 — Main Move unified focus card */
+    .bleed-alert {
+      padding: 14px 18px; margin-bottom: 14px; border-radius: 12px;
+      background: rgba(244, 67, 54, 0.12); border: 1px solid rgba(244, 67, 54, 0.45);
+      color: var(--error, #ef5350); font-size: 14.5px; font-weight: 700; line-height: 1.6;
+    }
+    .insight-strip {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
+    }
+    .insight-chip {
+      flex: 1 1 280px; display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px; border-radius: 12px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);
+      font-size: 13px; color: var(--text-2, #bbb); line-height: 1.65;
+    }
+    .insight-chip .ic { font-size: 17px; line-height: 1.3; }
+    .kpi-benchmark { margin-top: 6px; font-size: 11px; line-height: 1.5; }
+    .kpi-benchmark.good { color: var(--success, #66bb6a); }
+    .kpi-benchmark.ok { color: var(--text-3, #999); }
+    .kpi-benchmark.low { color: var(--warning, #ffa726); }
     .morning-story {
       display: flex; align-items: flex-start; gap: 14px;
       padding: 16px 18px; margin-bottom: 18px; border-radius: 14px;
@@ -522,6 +541,9 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">Reconnect</a>
       </div>
 
+      <!-- 0a ▸ Bleed alert — spending with zero results TODAY -->
+      <section class="bleed-alert" id="bleed-alert" style="display:none;" dir="auto"></section>
+
       <!-- 0 ▸ Morning story — what happened while you were away -->
       <section class="morning-story" id="morning-story" style="display:none;" dir="auto">
         <div class="morning-story-icon">☀️</div>
@@ -530,6 +552,9 @@ export function dashboardPage(): string {
           <div class="morning-story-date" id="morning-story-date"></div>
         </div>
       </section>
+
+      <!-- 0b ▸ Insight strip — forecast + best audience segment -->
+      <section class="insight-strip" id="insight-strip" style="display:none;" dir="auto"></section>
 
       <!-- 1 ▸ Financial hero cards -->
       <section class="hero-grid" id="hero-grid">
@@ -1164,10 +1189,14 @@ export function dashboardPage(): string {
       var deltaHtml = k.deltaPct != null
         ? '<div class="kpi-delta ' + deltaClass + '">' + arrow + ' ' + Math.abs(Number(k.deltaPct) * 100).toFixed(1) + '%</div>'
         : '';
+      var benchHtml = k.benchmark && k.benchmark.text
+        ? '<div class="kpi-benchmark ' + escHtml(k.benchmark.position || 'ok') + '">' + escHtml(k.benchmark.text) + '</div>'
+        : '';
       return '<div class="kpi-card">'
         + '<div class="kpi-label">' + escHtml(k.label || k.key) + '</div>'
         + '<div class="kpi-value">' + escHtml(String(k.display || k.value || '—')) + '</div>'
         + deltaHtml
+        + benchHtml
       + '</div>';
     }).join('');
   }
@@ -1425,6 +1454,30 @@ export function dashboardPage(): string {
       return (primary && primary.decision) || '';
     }
   }
+  function renderBleedAlert(dashData) {
+    var box = document.getElementById('bleed-alert');
+    if (!box) return;
+    var alert = dashData && dashData.bleedAlert;
+    if (!alert || !alert.text) { box.style.display = 'none'; return; }
+    box.textContent = alert.text;
+    box.style.display = 'block';
+  }
+
+  function renderInsightStrip(dashData) {
+    var strip = document.getElementById('insight-strip');
+    if (!strip) return;
+    var chips = [];
+    if (dashData && dashData.audienceInsight && dashData.audienceInsight.text) {
+      chips.push('<div class="insight-chip"><span class="ic">🎯</span><span>' + escHtml(dashData.audienceInsight.text) + '</span></div>');
+    }
+    if (dashData && dashData.forecast && dashData.forecast.text) {
+      chips.push('<div class="insight-chip"><span class="ic">🔮</span><span>' + escHtml(dashData.forecast.text) + '</span></div>');
+    }
+    if (chips.length === 0) { strip.style.display = 'none'; return; }
+    strip.innerHTML = chips.join('');
+    strip.style.display = 'flex';
+  }
+
   function renderMorningStory(dashData) {
     var box = document.getElementById('morning-story');
     var textEl = document.getElementById('morning-story-text');
@@ -1960,7 +2013,9 @@ export function dashboardPage(): string {
 
       var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
       var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
+      safeRender('bleedAlert', function () { renderBleedAlert(dashData); });
       safeRender('morningStory', function () { renderMorningStory(dashData); });
+      safeRender('insightStrip', function () { renderInsightStrip(dashData); });
       safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
       safeRender('kpis', function () { renderKpis(kpis); });
