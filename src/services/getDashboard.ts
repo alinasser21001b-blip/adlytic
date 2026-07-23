@@ -762,8 +762,18 @@ export async function getDashboard(
   // ── Money-framing: what is the current degradation costing? ──────────
   // ONE account-level figure (per-issue splits would double-count the same
   // excess spend). Conservative: null when flat/improving or data-poor.
+  //
+  // Partial-day guard: the last row is often TODAY's incomplete data (the
+  // auto-sync runs every 6h). Comparing a half-day against full days would
+  // fabricate a regression, so drain and the morning story only ever look
+  // at COMPLETE days. The bleed alert is the one consumer that wants
+  // today's partial row — it keeps the full series.
+  const todayFloorMs = Date.UTC(
+    new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(),
+  );
+  const completeDaily = daily.filter((d) => d.date.getTime() < todayFloorMs);
   const drainRaw = computePerformanceDrain(
-    daily.map((d) => ({ spend: Number(d.spend), messages: Number(d.messages) })),
+    completeDaily.map((d) => ({ spend: Number(d.spend), messages: Number(d.messages) })),
   );
   const drain = drainRaw
     ? {
@@ -816,7 +826,9 @@ export async function getDashboard(
   }
 
   // ── Morning story — deterministic, from real numbers only ─────────────
-  const yesterdayRow = daily.length ? daily[daily.length - 1]! : null;
+  // Uses the last COMPLETE day (see partial-day guard above) so the story
+  // never reports a half-day's spend as if the day were finished.
+  const yesterdayRow = completeDaily.length ? completeDaily[completeDaily.length - 1]! : null;
   let morningStory: DashboardDTO['morningStory'];
   if (yesterdayRow) {
     const ySpend = Number(yesterdayRow.spend);
