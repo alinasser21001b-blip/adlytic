@@ -36,7 +36,7 @@ function sanitize(body) {
   return out;
 }
 
-export async function handler(event) {
+async function handler(event) {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
 
   let body;
@@ -46,29 +46,23 @@ export async function handler(event) {
   const row = sanitize(body);
   if (!row.type || !row.session_id) return { statusCode: 204, body: "" };
 
-  const URL = process.env.SUPABASE_URL;
-  const KEY = process.env.SUPABASE_SERVICE_KEY;
-  // بدون إعداد التخزين: لا نُفشل الطلب — التحليلات اختيارية
-  if (!URL || !KEY) return { statusCode: 204, body: "" };
-
+  // التخزين: Netlify Blobs — قائمة واحدة بآخر 1000 حدث (تحليلات تقريبية)
   try {
-    const res = await fetch(`${URL}/rest/v1/consult_events`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: KEY,
-        Authorization: `Bearer ${KEY}`,
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        session_id: row.session_id,
-        event_type: row.type,
-        payload: row.payload,
-      }),
+    const { getStore } = await import("@netlify/blobs");
+    const s = getStore({ name: "owner-data", consistency: "strong" });
+    const events = (await s.get("consult-events", { type: "json" }).catch(() => null)) || [];
+    events.unshift({
+      created_at: new Date().toISOString(),
+      session_id: row.session_id,
+      event_type: row.type,
+      payload: row.payload,
     });
-    if (!res.ok) return { statusCode: 502, body: "store error" };
+    await s.setJSON("consult-events", events.slice(0, 1000));
     return { statusCode: 204, body: "" };
   } catch (e) {
-    return { statusCode: 502, body: "network error" };
+    // التحليلات اختيارية — لا نُفشل الواجهة أبداً
+    return { statusCode: 204, body: "" };
   }
 }
+
+module.exports = { handler };

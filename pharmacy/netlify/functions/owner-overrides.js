@@ -1,58 +1,31 @@
 /* ============================================================
    Owner Mode — تراكب حي فوق كتالوج products.js
+   التخزين: Netlify Blobs (مدمج في Netlify — بلا إعدادات ولا مفاتيح)
+
    GET  /.netlify/functions/owner-overrides
         عام (بلا مصادقة) — يرجع كل التعديلات الحالية ليدمجها كل
-        زائر مع الكتالوج الأساسي عند التحميل. هذا ما يجعل تعديل
-        المالك يظهر فوراً لكل الزوار دون إعادة نشر الموقع.
+        زائر مع الكتالوج الأساسي عند التحميل.
 
    POST /.netlify/functions/owner-overrides
         يتطلب Authorization: Bearer <token> (من owner-auth)
         body: { kind: "product", id, patch } — تحديث/مسح حقول منتج
              | { kind: "product", id, reset: true } — إلغاء كل التعديلات لمنتج
              | { kind: "setting", key, value } — تحديث إعداد عام
-
-   بدون SUPABASE_URL/SUPABASE_SERVICE_KEY: GET يرجع بيانات فارغة
-   بصمت (الموقع يعمل بكتالوجه الأساسي)، وPOST يُرفض بوضوح.
    ============================================================ */
 const { verifyToken } = require("./owner-auth.js");
 
-const PRODUCT_FIELDS = ["price", "discount_price", "description", "summary", "img", "available", "featured", "name", "brand", "category", "deleted"];
+const KEY = "overrides";
 
-function supa() {
-  const url = (process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
-  const key = (process.env.SUPABASE_SERVICE_KEY || "").trim();
-  if (!url || !key) return null;
-  return { url, key };
+async function store() {
+  const { getStore } = await import("@netlify/blobs");
+  return getStore({ name: "owner-data", consistency: "strong" });
 }
 
-async function sGet(s, table, query = "") {
-  const res = await fetch(`${s.url}/rest/v1/${table}?select=*${query}`, {
-    headers: { apikey: s.key, Authorization: `Bearer ${s.key}` },
-  });
-  if (!res.ok) throw new Error(`supabase GET ${table} failed: ${res.status}`);
-  return res.json();
-}
-
-async function sUpsert(s, table, row, conflictKey) {
-  const res = await fetch(`${s.url}/rest/v1/${table}?on_conflict=${conflictKey}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: s.key,
-      Authorization: `Bearer ${s.key}`,
-      Prefer: "resolution=merge-duplicates,return=minimal",
-    },
-    body: JSON.stringify(row),
-  });
-  if (!res.ok) throw new Error(`supabase UPSERT ${table} failed: ${res.status} ${await res.text()}`);
-}
-
-async function sDelete(s, table, id) {
-  const res = await fetch(`${s.url}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: { apikey: s.key, Authorization: `Bearer ${s.key}`, Prefer: "return=minimal" },
-  });
-  if (!res.ok) throw new Error(`supabase DELETE ${table} failed: ${res.status}`);
+async function readAll(s) {
+  const data = await s.get(KEY, { type: "json" }).catch(() => null);
+  return data && typeof data === "object"
+    ? { products: data.products || {}, settings: data.settings || {} }
+    : { products: {}, settings: {} };
 }
 
 function requireAuth(event) {
@@ -61,36 +34,28 @@ function requireAuth(event) {
   return verifyToken(token);
 }
 
+function sanitizePatch(patch) {
+  const p = {};
+  if ("price" in patch) p.price = patch.price === null ? null : Number(patch.price);
+  if ("discountPrice" in patch) p.discountPrice = patch.discountPrice === null ? null : Number(patch.discountPrice);
+  if ("description" in patch) p.description = String(patch.description).slice(0, 2000);
+  if ("summary" in patch) p.summary = String(patch.summary).slice(0, 400);
+  if ("img" in patch) p.img = String(patch.img).slice(0, 500);
+  if ("available" in patch) p.available = !!patch.available;
+  if ("featured" in patch) p.featured = !!patch.featured;
+  if ("name" in patch) p.name = String(patch.name).slice(0, 200);
+  if ("brand" in patch) p.brand = String(patch.brand).slice(0, 120);
+  if ("category" in patch) p.category = String(patch.category).slice(0, 40);
+  if ("deleted" in patch) p.deleted = !!patch.deleted;
+  return p;
+}
+
 async function handleGet() {
-  const s = supa();
-  if (!s) {
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ products: {}, settings: {} }) };
-  }
   try {
-    const [prodRows, settingRows] = await Promise.all([
-      sGet(s, "product_overrides"),
-      sGet(s, "site_settings"),
-    ]);
-    const products = {};
-    for (const r of prodRows) {
-      const p = {};
-      if (r.price != null) p.price = r.price;
-      if (r.discount_price != null) p.discountPrice = r.discount_price;
-      if (r.description) p.description = r.description;
-      if (r.summary) p.summary = r.summary;
-      if (r.img) p.img = r.img;
-      if (r.available != null) p.available = r.available;
-      if (r.featured != null) p.featured = r.featured;
-      if (r.name) p.name = r.name;
-      if (r.brand) p.brand = r.brand;
-      if (r.category) p.category = r.category;
-      if (r.deleted) p.deleted = true;
-      products[r.id] = p;
-    }
-    const settings = {};
-    for (const r of settingRows) settings[r.key] = r.value;
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ products, settings }) };
-  } catch (e) {
+    const s = await store();
+    const data = await readAll(s);
+    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) };
+  } catch {
     // فشل صامت — الموقع يستمر بالكتالوج الأساسي
     return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ products: {}, settings: {} }) };
   }
@@ -100,50 +65,35 @@ async function handlePost(event) {
   if (!requireAuth(event)) {
     return { statusCode: 401, body: JSON.stringify({ error: "غير مخوَّل — سجّل الدخول مجدداً" }) };
   }
-  const s = supa();
-  if (!s) return { statusCode: 503, body: JSON.stringify({ error: "التخزين غير مُعدّ (SUPABASE_URL/SUPABASE_SERVICE_KEY)" }) };
 
   let body;
   try { body = JSON.parse(event.body || "{}"); }
   catch { return { statusCode: 400, body: "Bad JSON" }; }
 
   try {
+    const s = await store();
+    const data = await readAll(s);
+
     if (body.kind === "product") {
       const id = String(body.id || "").slice(0, 60);
       if (!id) return { statusCode: 400, body: JSON.stringify({ error: "id مفقود" }) };
 
       if (body.reset) {
-        await sDelete(s, "product_overrides", id);
-        return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+        delete data.products[id];
+      } else {
+        const p = sanitizePatch(body.patch || {});
+        if (!Object.keys(p).length) return { statusCode: 400, body: JSON.stringify({ error: "لا حقول للتحديث" }) };
+        data.products[id] = { ...(data.products[id] || {}), ...p };
       }
-
-      const patch = body.patch || {};
-      const row = { id, updated_at: new Date().toISOString() };
-      if ("price" in patch) row.price = patch.price === null ? null : Number(patch.price);
-      if ("discountPrice" in patch) row.discount_price = patch.discountPrice === null ? null : Number(patch.discountPrice);
-      if ("description" in patch) row.description = String(patch.description).slice(0, 2000);
-      if ("summary" in patch) row.summary = String(patch.summary).slice(0, 400);
-      if ("img" in patch) row.img = String(patch.img).slice(0, 500);
-      if ("available" in patch) row.available = !!patch.available;
-      if ("featured" in patch) row.featured = !!patch.featured;
-      if ("name" in patch) row.name = String(patch.name).slice(0, 200);
-      if ("brand" in patch) row.brand = String(patch.brand).slice(0, 120);
-      if ("category" in patch) row.category = String(patch.category).slice(0, 40);
-      if ("deleted" in patch) row.deleted = !!patch.deleted;
-
-      const hasField = PRODUCT_FIELDS.some((f) => (f === "discount_price" ? "discountPrice" in patch : f in patch));
-      if (!hasField) return { statusCode: 400, body: JSON.stringify({ error: "لا حقول للتحديث" }) };
-
-      await sUpsert(s, "product_overrides", row, "id");
+      await s.setJSON(KEY, data);
       return { statusCode: 200, body: JSON.stringify({ ok: true }) };
     }
 
     if (body.kind === "setting") {
       const key = String(body.key || "").slice(0, 60);
       if (!key) return { statusCode: 400, body: JSON.stringify({ error: "key مفقود" }) };
-      await sUpsert(s, "site_settings", {
-        key, value: String(body.value ?? "").slice(0, 500), updated_at: new Date().toISOString(),
-      }, "key");
+      data.settings[key] = String(body.value ?? "").slice(0, 500);
+      await s.setJSON(KEY, data);
       return { statusCode: 200, body: JSON.stringify({ ok: true }) };
     }
 

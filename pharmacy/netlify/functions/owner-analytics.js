@@ -24,19 +24,10 @@ async function handler(event) {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "Method Not Allowed" };
   if (!requireAuth(event)) return { statusCode: 401, body: JSON.stringify({ error: "غير مخوَّل" }) };
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) {
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ configured: false }) };
-  }
-
   try {
-    const res = await fetch(
-      `${url}/rest/v1/consult_events?select=event_type,payload,created_at&order=created_at.desc&limit=500`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
-    );
-    if (!res.ok) throw new Error(`supabase GET failed: ${res.status}`);
-    const rows = await res.json();
+    const { getStore } = await import("@netlify/blobs");
+    const s = getStore({ name: "owner-data", consistency: "strong" });
+    const rows = ((await s.get("consult-events", { type: "json" }).catch(() => null)) || []).slice(0, 500);
 
     let starts = 0, results = 0, clicks = 0, toWa = 0;
     const goals = {}, nutrients = {}, products = {};
