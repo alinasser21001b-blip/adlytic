@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>مراجعة الصور المقترحة — صيدلية در الشارقة</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../css/style.css" />
+<style>
+  .rv-wrap{max-width:1080px;margin:0 auto;padding:24px 18px 70px}
+  .rv-hero{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+           padding:20px 24px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .rv-hero h1{color:var(--green-deep);font-size:1.25rem;margin-bottom:8px;font-family:"Tajawal",sans-serif}
+  .rv-hero p{color:var(--muted);font-size:.94rem;margin:6px 0}
+  .rv-hero code{direction:ltr;background:var(--green-soft);color:var(--green-deep);
+                padding:2px 7px;border-radius:6px;font-size:.85rem}
+  .rv-bar{position:sticky;top:0;z-index:6;background:#fff;border:1px solid var(--line);
+          border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;box-shadow:var(--shadow);
+          display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  .rv-stats{font-size:.9rem;color:var(--muted)} .rv-stats b{color:var(--ink)}
+  .rv-dl{background:var(--green);color:#fff;border:0;border-radius:999px;padding:11px 22px;
+         font-weight:800;cursor:pointer;font-size:.9rem;font-family:"Tajawal",sans-serif}
+  .rv-dl:disabled{opacity:.45;cursor:default}
+  .prod{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+        padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .prod.review{border-inline-start:4px solid var(--gold)}
+  .prod.empty{border-inline-start:4px solid #d9534f}
+  .prod-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .prod-head .name{font-weight:800;font-size:1rem}
+  .prod-head .en{color:var(--muted);font-size:.85rem;display:block}
+  .pill{font-size:.72rem;padding:3px 11px;border-radius:999px;font-weight:800}
+  .pill.review{background:#fbf1d6;color:#8a6d1a}
+  .pill.empty{background:#fADADA;color:#a12b2b}
+  .cands{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-top:14px}
+  .cand{border:2px solid var(--line);border-radius:12px;overflow:hidden;background:#f7f7f5;
+        cursor:pointer;transition:border-color .15s,transform .1s;display:flex;flex-direction:column}
+  .cand:hover{transform:translateY(-2px)}
+  .cand.sel{border-color:var(--green)}
+  .cand img{width:100%;height:148px;object-fit:contain;background:#fff}
+  .cand .meta{padding:7px 9px;font-size:.72rem;color:var(--muted);display:flex;
+              justify-content:space-between;gap:6px;align-items:center}
+  .cand .src{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cand.sel .meta{background:var(--green-soft)}
+  .cand .broken{height:148px;display:flex;align-items:center;justify-content:center;
+                color:#a12b2b;font-size:.78rem;text-align:center;padding:8px;background:#fbecec}
+  .tflag{font-weight:800} .t1{color:#2e7d32}.t2{color:#0277bd}.t5{color:var(--muted)}
+  .addurl{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .addurl input{flex:1;min-width:220px;border:1.5px solid var(--line);border-radius:10px;
+                padding:10px 12px;font-size:.86rem;font-family:inherit;direction:ltr}
+  .addurl button{background:#fff;border:1.5px solid var(--line);border-radius:10px;
+                 padding:10px 16px;cursor:pointer;font-weight:700;font-size:.85rem;font-family:inherit}
+  .addurl button:hover{border-color:var(--green)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--green);
+         color:#fff;padding:11px 20px;border-radius:12px;font-weight:800;opacity:0;
+         transition:opacity .2s;pointer-events:none;z-index:20}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="logo" href="../index.html">
+      <img class="mark-img" src="../images/logo.svg" alt="" />
+      <span class="txt"><b>مراجعة الصور المقترحة</b><small>ADMIN — REVIEW</small></span>
+    </a>
+  </div>
+</header>
+
+<div class="rv-wrap">
+  <div class="rv-hero">
+    <h1>🔎 اعتماد الصور التي وجدها النظام آلياً</h1>
+    <p>النظام بحث في قواعد بيانات موثوقة (Open Beauty/Food Facts) ومصادر أخرى، وجمع صوراً
+       مرشّحة لم تتجاوز بوابة الثقة 90% تلقائياً — تحتاج <b>عينك أنت</b> لاعتمادها.</p>
+    <p><b>الخطوات:</b> اضغط الصورة الصحيحة لكل منتج (يظهر إطار أخضر) · للمنتجات بلا صورة الصق رابط صورة واضغط «إضافة» ·
+       ثم <b>⬇️ نزّل الملف</b> وارفعه مكان <code>pharmacy/tools/image-candidates.json</code>.</p>
+    <p style="color:#a12b2b">⚠️ لا تعتمد إلا صورة المنتج الصحيحة بخلفية نظيفة. «صورة خاطئة أسوأ من مفقودة».
+       للرفع اليدوي المباشر بالملفات: <a href="../admin-images.html">لوحة رفع الصور</a>.</p>
+  </div>
+
+  <div class="rv-bar">
+    <div class="rv-stats" id="stats">جارٍ التحميل…</div>
+    <button class="rv-dl" id="download" disabled>⬇️ تنزيل image-candidates.json</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../js/products.js"></script>
+<script>
+const state = { candidates: {}, chosen: {} };
+const el = (t,c)=>{const e=document.createElement(t); if(c) e.className=c; return e;};
+const $ = (s,r=document)=>r.querySelector(s);
+const toast = (m)=>{const t=$('#toast'); t.textContent=m; t.classList.add('show');
+                    setTimeout(()=>t.classList.remove('show'),1600);};
+const hasLocalImg = p => typeof p.img==='string' && p.img.startsWith('images/');
+
+async function boot(){
+  try{
+    const r = await fetch('image-candidates.json',{cache:'no-store'});
+    state.candidates = r.ok ? await r.json() : {};
+  }catch(e){ state.candidates={}; }
+  render();
+}
+
+function statusOf(p){
+  if(hasLocalImg(p)) return 'done';
+  return (state.candidates[p.id]||[]).length ? 'review' : 'empty';
+}
+
+function render(){
+  const list=$('#list'); list.innerHTML='';
+  let done=0,review=0,empty=0;
+  PRODUCTS.forEach(p=>{
+    const st=statusOf(p);
+    if(st==='done'){done++;return;}
+    if(st==='review')review++;else empty++;
+    const card=el('div','prod '+st);
+    const head=el('div','prod-head');
+    head.innerHTML=`<div><span class="name">${p.name||''}</span>
+        <span class="en">${p.en||''} · ${p.brand||''}</span></div>
+        <span class="pill ${st}">${st==='review'?'للمراجعة':'بلا صورة'}</span>`;
+    card.appendChild(head);
+    const cands=state.candidates[p.id]||[];
+    if(cands.length){
+      const grid=el('div','cands');
+      cands.forEach(c=>grid.appendChild(candCard(p.id,c)));
+      card.appendChild(grid);
+    }
+    card.appendChild(addUrlRow(p.id));
+    list.appendChild(card);
+  });
+  $('#stats').innerHTML=`مكتملة <b>${done}</b> · للمراجعة <b>${review}</b> · بلا صورة <b>${empty}</b> · اعتمدت الآن <b style="color:var(--green)">${Object.keys(state.chosen).length}</b>`;
+  $('#download').disabled = Object.keys(state.chosen).length===0;
+}
+
+function candCard(pid,c){
+  const d=el('div','cand');
+  if(state.chosen[pid]===c.url) d.classList.add('sel');
+  const img=el('img');
+  img.src=c.url; img.loading='lazy'; img.referrerPolicy='no-referrer';
+  const meta=el('div','meta');
+  const tier=c.tier||5;
+  meta.innerHTML=`<span class="src" title="${c.source||''}">${c.source||'—'}</span>
+                  <span class="tflag t${tier<=2?tier:5}">T${tier}</span>`;
+  img.onerror=()=>{ d.innerHTML=`<div class="broken">تعذّر تحميل الصورة<br>(افتح الرابط يدوياً)</div>`+meta.outerHTML; };
+  d.appendChild(img); d.appendChild(meta);
+  d.onclick=()=>{ if(state.chosen[pid]===c.url) delete state.chosen[pid]; else state.chosen[pid]=c.url; render(); };
+  return d;
+}
+
+function addUrlRow(pid){
+  const row=el('div','addurl');
+  const inp=el('input'); inp.placeholder='https://...  رابط صورة المنتج';
+  const btn=el('button'); btn.textContent='➕ إضافة';
+  const add=()=>{
+    const url=inp.value.trim();
+    if(!/^https?:\/\/.+/.test(url)){ toast('رابط غير صالح'); return; }
+    const arr=state.candidates[pid]=state.candidates[pid]||[];
+    if(!arr.some(c=>c.url===url)) arr.unshift({url,tier:1,source:'إدخال يدوي',verified:true});
+    state.chosen[pid]=url; inp.value=''; render();
+  };
+  btn.onclick=add;
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') add(); });
+  row.appendChild(inp); row.appendChild(btn);
+  return row;
+}
+
+function buildOutput(){
+  const out=JSON.parse(JSON.stringify(state.candidates));
+  Object.entries(state.chosen).forEach(([pid,url])=>{
+    const arr=out[pid]=out[pid]||[];
+    let hit=arr.find(c=>c.url===url);
+    if(!hit){ hit={url,tier:1,source:'إدخال يدوي'}; arr.unshift(hit); }
+    hit.verified=true;
+    out[pid]=[hit,...arr.filter(c=>c!==hit)];
+  });
+  return out;
+}
+
+$('#download').onclick=()=>{
+  const data=JSON.stringify(buildOutput(),null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=el('a'); a.href=URL.createObjectURL(blob);
+  a.download='image-candidates.json'; a.click();
+  toast('تم التنزيل — ارفعه مكان الملف القديم');
+};
+
+boot();
+</script>
+</body>
+</html>

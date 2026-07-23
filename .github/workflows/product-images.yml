@@ -1,0 +1,58 @@
+# ============================================================
+# مزامنة صور المنتجات آلياً — صيدلية در الشارقة
+# يعمل تلقائياً عند أي تعديل على كتالوج المنتجات (منتج جديد)،
+# أو يدوياً من تبويب Actions.
+# يبحث في المصادر الموثوقة، يحمّل، يحسّن إلى WebP، يحدّث
+# products.js، ويرفع commit بالنتائج + تقرير الصور.
+# ============================================================
+name: Product Sync (images + enrichment)
+
+on:
+  push:
+    branches: [claude/laughing-hawking-j2u13w, main]
+    paths: ["pharmacy/js/products.js"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# تشغيل واحد فقط في نفس الوقت — يمنع سباق الدفع بين تشغيلين متوازيين
+concurrency:
+  group: product-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install pillow duckduckgo_search
+
+      - name: Harvest candidates (Open Beauty/Food Facts + DDG fallback)
+        run: python3 pharmacy/tools/harvest-candidates.py || true
+
+      - name: Run image pipeline (confidence gate 90%)
+        run: python3 pharmacy/tools/image-pipeline.py
+
+      - name: Product enrichment (DSLD/openFDA)
+        run: python3 pharmacy/tools/enrich-products.py || true
+
+      - name: Commit results
+        run: |
+          git config user.name "product-images-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add pharmacy/images pharmacy/js/products.js pharmacy/tools/IMAGE_REPORT.md pharmacy/tools/image-candidates.json pharmacy/tools/enrichment.json
+          git diff --cached --quiet && echo "لا صور جديدة" && exit 0
+          git commit -m "صور منتجات: مزامنة آلية (بوابة ثقة 90%)"
+          # إعادة المحاولة مع rebase إن سبقنا دفعٌ آخر
+          for i in 1 2 3; do
+            git push && exit 0
+            git pull --rebase && sleep 3
+          done
+          git push

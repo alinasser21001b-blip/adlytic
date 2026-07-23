@@ -1,139 +1,283 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CarePlus Pharmacy — Health & Wellness Catalog</title>
-  <meta name="description" content="Browse our pharmacy catalog and order instantly via WhatsApp. Vitamins, skin care, baby care and more — trusted pharmacist advice." />
+  <title>صيدلية در الشارقة — نهتم بصحتك</title>
+  <meta name="description" content="صيدلية در الشارقة — منتجات العناية بالشعر والبشرة والفيتامينات ومستلزمات الأم والطفل، مع استشارة صيدلانية وطلب مباشر عبر واتساب." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=El+Messiri:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <div class="trust-bar">
     <div class="container">
-      <span>✅ Licensed Pharmacy</span>
-      <span>🚚 Fast Delivery</span>
-      <span>💬 Pharmacist Advice on WhatsApp</span>
-      <span>🔒 100% Original Products</span>
+      <span>منتجات أصلية 100%</span>
+      <span>توصيل لكافة محافظات العراق</span>
+      <span>استشارة صيدلانية مجانية</span>
+      <span>طلب واستشارة عبر واتساب</span>
     </div>
   </div>
 
   <header class="site-header">
     <div class="container header-inner">
-      <a class="logo" href="index.html">Care<span>Plus</span> ➕</a>
+      <a class="logo" href="index.html">
+        <img class="mark-img" src="images/logo.png" alt="شعار صيدلية در الشارقة" />
+        <span class="txt"><b>صيدلية در الشارقة</b><small>DUR AL SHARIQA PHARMACY</small></span>
+      </a>
       <div class="search-box">
-        <input id="search" type="search" placeholder="Search products, e.g. vitamin c, sunscreen…" aria-label="Search products" />
+        <input id="search" type="search" placeholder="ابحث عن منتج… مثال: كولاجين، فيتامين د، تساقط الشعر" aria-label="بحث" />
         <span class="search-icon">🔍</span>
       </div>
-      <a class="header-wa" id="header-wa" target="_blank" rel="noopener">💬 <span class="wa-label">Ask a Pharmacist</span></a>
+      <a class="icon-link" href="https://www.instagram.com/dur_alshariqh" target="_blank" rel="noopener" aria-label="إنستغرام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+      <button class="cart-btn" onclick="openCart()" aria-label="سلة الطلبات">🛒<span class="cart-badge" style="display:none">0</span></button>
+      <a class="header-wa" id="header-wa" target="_blank" rel="noopener"><svg class="wa-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.09c-.24.68-1.42 1.32-1.95 1.36-.5.05-.95.23-3.2-.67-2.7-1.06-4.42-3.8-4.55-3.98-.13-.18-1.1-1.46-1.1-2.78 0-1.32.7-1.97.94-2.24.24-.27.53-.34.7-.34.18 0 .35.01.5.01.16.01.38-.06.59.45.24.58.8 2 .87 2.14.07.14.12.31.02.49-.09.18-.14.29-.27.45-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.72 1.19 1.55 1.93 1.06.95 1.96 1.24 2.24 1.38.27.14.43.12.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.6-.14.24.09 1.55.73 1.81.86.27.14.45.2.51.31.07.11.07.63-.17 1.31z"/></svg><span class="wa-label">استشر صيدلياً</span></a>
     </div>
   </header>
 
-  <section class="hero">
+  <a class="live-strip" id="live-strip" target="_blank" rel="noopener">
+    <span class="live-dot"></span>
+    <span class="live-text">تواصل مع صيدليّنا على واتساب لأي استفسار</span>
+    <span class="live-cta">ابدأ محادثة ←</span>
+  </a>
+
+  <section class="hero-wrap">
     <div class="container">
-      <h1>Your Health, One Message Away</h1>
-      <p>Discover trusted products, get honest pharmacist advice, and order in seconds — all through WhatsApp. No accounts. No checkout. Just care.</p>
-      <a class="cta" id="hero-wa" target="_blank" rel="noopener">💬 Chat with our Pharmacist</a>
+      <div class="hero-block" id="hero">
+        <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="images/hero-poster.jpg" aria-hidden="true">
+          <source src="videos/hero.mp4" type="video/mp4" />
+          <source src="videos/hero.webm" type="video/webm" />
+        </video>
+        <div class="hero-veil"></div>
+        <div class="hero-content">
+          <span class="kicker">نهتم بصحتك · We care about your health</span>
+          <h1>صحتكِ وجمالكِ يستحقان <em>عناية استثنائية</em></h1>
+          <p>منتجات مختارة بعناية صيادلتنا — من العناية بالشعر والبشرة إلى الفيتامينات وصحة العائلة — واطلبها برسالة واتساب واحدة.</p>
+          <div class="cta-row">
+            <a class="btn-pill" href="#catalog">تسوّق المنتجات <span class="arr">←</span></a>
+            <a class="btn-pill ghost" id="hero-wa" target="_blank" rel="noopener"><svg class="wa-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.09c-.24.68-1.42 1.32-1.95 1.36-.5.05-.95.23-3.2-.67-2.7-1.06-4.42-3.8-4.55-3.98-.13-.18-1.1-1.46-1.1-2.78 0-1.32.7-1.97.94-2.24.24-.27.53-.34.7-.34.18 0 .35.01.5.01.16.01.38-.06.59.45.24.58.8 2 .87 2.14.07.14.12.31.02.49-.09.18-.14.29-.27.45-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.72 1.19 1.55 1.93 1.06.95 1.96 1.24 2.24 1.38.27.14.43.12.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.6-.14.24.09 1.55.73 1.81.86.27.14.45.2.51.31.07.11.07.63-.17 1.31z"/></svg>استشارة عبر واتساب</a>
+          </div>
+        </div>
+      </div>
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee-track">
+          <span>منتجات أصلية 100%</span><i>✦</i><span>توصيل لكافة محافظات العراق</span><i>✦</i><span>استشارة صيدلانية مجانية</span><i>✦</i><span>طلب سهل عبر واتساب</span><i>✦</i><span>موزّعون معتمدون</span><i>✦</i>
+          <span>منتجات أصلية 100%</span><i>✦</i><span>توصيل لكافة محافظات العراق</span><i>✦</i><span>استشارة صيدلانية مجانية</span><i>✦</i><span>طلب سهل عبر واتساب</span><i>✦</i><span>موزّعون معتمدون</span><i>✦</i>
+        </div>
+      </div>
     </div>
   </section>
 
-  <main class="container">
+  <section class="section how-to reveal">
+    <div class="section-head"><h2>كيف تطلب؟ ٣ خطوات بسيطة</h2></div>
+    <div class="how-grid">
+      <div class="how-step"><span class="how-num">1</span><div class="how-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div><b>تصفّح واختر</b><p>ابحث أو تصفّح التصنيفات واعثر على ما يناسبك.</p></div>
+      <div class="how-step"><span class="how-num">2</span><div class="how-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12a1.6 1.6 0 0 0 1.6 1.3h8.2a1.6 1.6 0 0 0 1.6-1.3L22 7H6.2"/></svg></div><b>أضف للسلة</b><p>اجمع منتجاتك في سلة واحدة وعدّل الكميات.</p></div>
+      <div class="how-step"><span class="how-num">3</span><div class="how-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><b>أكمل عبر واتساب</b><p>أرسل طلبك، ونؤكّد التوفر والسعر والتوصيل معك.</p></div>
+    </div>
+  </section>
+
+  <section class="section advisor-section reveal" id="advisor">
+    <div class="container">
+      <div class="advisor-head">
+        <span class="advisor-kicker">مستشار صحي ذكي · مبني على مراجع علمية دولية</span>
+        <h2>لست متأكداً أيّ مكمّل يناسبك؟</h2>
+        <p>أجب عن أسئلة قصيرة، ويقترح لك النظام مغذّيات قد تناسب أهدافك — مع شرح الأسباب ومصادرها العلمية (WHO · NIH · EFSA). النتيجة تثقيفية، والقرار النهائي مع صيدلينا.</p>
+      </div>
+      <div id="advisor-mount" class="advisor-mount">
+        <div class="adv-card adv-intro">
+          <div class="adv-intro-badges">
+            <span>WHO</span><span>NIH ODS</span><span>EFSA</span><span>IOM · DRI</span>
+          </div>
+          <h3 class="adv-q">مستشار المكمّلات التثقيفي</h3>
+          <p class="adv-note">٥–٩ أسئلة قصيرة · بدون تسجيل · بدون بيانات شخصية · لا يشخّص ولا يصف علاجاً.</p>
+          <p class="adv-brain-stats" id="adv-brain-stats"></p>
+          <button class="btn-pill" onclick="Advisor.mount('advisor-mount')">ابدأ الاستشارة</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="container" id="catalog">
     <div class="chips" id="chips"></div>
 
     <section class="section" id="results-section">
       <div class="section-head">
-        <h2 id="results-title">All Products</h2>
+        <h2 id="results-title">جميع المنتجات</h2>
         <span class="hint" id="results-count"></span>
       </div>
       <div class="grid" id="results"></div>
       <div class="empty-state" id="empty" style="display:none">
-        <p>😕 No products match your search.</p>
-        <p><a id="empty-wa" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">Ask us on WhatsApp</a> — we probably have it in store!</p>
+        <div class="big">🔎</div>
+        <p>لم نجد ما تبحث عنه في الموقع…</p>
+        <p style="margin-top:6px"><a id="empty-wa" target="_blank" rel="noopener" style="color:var(--green);font-weight:800">اسألنا على واتساب</a> — غالباً متوفر لدينا في الصيدلية!</p>
       </div>
     </section>
 
     <section class="section">
-      <div class="section-head"><h2>🔥 Trending This Week</h2></div>
-      <div class="rail" id="trending"></div>
-    </section>
-
-    <section class="section">
-      <div class="section-head"><h2>👨‍⚕️ Top Pharmacist Picks</h2><span class="hint">Hand-selected by our team</span></div>
+      <div class="section-head"><h2>ترشيحات صيادلتنا</h2><span class="hint">مختارة بعناية فريقنا</span></div>
       <div class="rail" id="picks"></div>
     </section>
 
     <section class="section">
-      <div class="section-head"><h2>👀 Recently Viewed</h2></div>
+      <div class="section-head"><h2>الأكثر رواجاً هذا الأسبوع</h2></div>
+      <div class="rail" id="trending"></div>
+    </section>
+
+    <div class="banner reveal">
+      <h2>غير متأكد أيّ منتج يناسبك؟</h2>
+      <p>صيادلتنا يقدمون استشارة مجانية عبر واتساب — صف حالتك وسنرشّح لك الأنسب من بين مئات المنتجات الأصلية.</p>
+      <a class="btn-wa" id="banner-wa" target="_blank" rel="noopener" style="background:#fff;color:var(--green-deep);box-shadow:none">استشارة مجانية عبر واتساب</a>
+    </div>
+
+    <section class="section">
+      <div class="section-head"><h2>شاهدتها مؤخراً</h2></div>
       <div class="rail" id="viewed"></div>
+    </section>
+
+    <section class="section trust-feats reveal">
+      <div class="section-head"><h2>لماذا صيدلية در الشارقة؟</h2></div>
+      <div class="feat-grid">
+        <div class="feat"><div class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 3v6c0 4.5-3 8.3-7 9.5C8 19.3 5 15.5 5 11V5z"/><path d="M9 12l2 2 4-4"/></svg></div><b>منتجات أصلية</b><p>من موزّعين معتمدين.</p></div>
+        <div class="feat"><div class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v8a2 2 0 0 1-1 1.73l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8"/><path d="M3.3 7l8.7 5 8.7-5M12 22V12"/></svg></div><b>تأكيد التوفر</b><p>نؤكّد توفّر طلبك قبل التجهيز.</p></div>
+        <div class="feat"><div class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12a1.6 1.6 0 0 0 1.6 1.3h8.2a1.6 1.6 0 0 0 1.6-1.3L22 7H6.2"/></svg></div><b>سلة موحّدة</b><p>اطلب عدة منتجات برسالة واحدة.</p></div>
+        <div class="feat"><div class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5 8.5 8.5 0 1 1 21 11.5z"/><path d="M12 8.2v5.6M9.2 11h5.6"/></svg></div><b>استشارة صيدلانية</b><p>اسأل صيدلياً على واتساب قبل الشراء.</p></div>
+      </div>
+    </section>
+
+    <section class="final-cta reveal">
+      <h2>تحتاج مساعدة في اختيار المنتج المناسب؟</h2>
+      <p>صيادلتنا جاهزون لمساعدتك — صف حالتك وسنرشّح لك الأنسب.</p>
+      <a class="btn-wa" id="finalcta-wa" target="_blank" rel="noopener">تواصل معنا على واتساب</a>
     </section>
   </main>
 
-  <a class="wa-float" id="float-wa" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">💬</a>
+  <a class="wa-float" id="float-wa" target="_blank" rel="noopener" aria-label="محادثة واتساب">💬</a>
 
   <footer class="site-footer">
-    <div class="container">
+    <div class="container cols">
       <div>
-        <h4>CarePlus Pharmacy</h4>
-        <p>Trusted health & wellness products with professional pharmacist guidance.</p>
+        <img class="footer-logo" src="images/logo.png" alt="" />
+        <h4>صيدلية در الشارقة</h4>
+        <p>وجهتك الموثوقة للصحة والجمال — منتجات أصلية، استشارة صيدلانية، وتوصيل لكل العراق.</p>
+        <p style="margin-top:8px"><a id="ig-link" target="_blank" rel="noopener">📸 تابعنا على إنستغرام @dur_alshariqh</a></p>
       </div>
       <div>
-        <h4>Order & Support</h4>
-        <p>💬 WhatsApp: fastest way to order<br />🕘 Daily 9:00 AM – 11:00 PM</p>
+        <h4>الطلب والتواصل</h4>
+        <p id="footer-phones"></p>
+        <p>💬 واتساب: أسرع طريقة للطلب والاستفسار</p>
       </div>
       <div>
-        <h4>Why order via WhatsApp?</h4>
-        <p>Talk to a real pharmacist, confirm availability instantly,<br />and get delivery arranged in one conversation.</p>
+        <h4>لماذا الطلب عبر واتساب؟</h4>
+        <p>تتحدث مع صيدلي حقيقي، تتأكد من التوفر والسعر فوراً، ويُرتَّب التوصيل في محادثة واحدة.</p>
       </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© صيدلية در الشارقة — نهتم بصحتك 🌿</span>
+      <a class="credit" href="https://wa.me/9647761902003" target="_blank" rel="noopener" aria-label="آدز بَلس — تواصل عبر واتساب">
+        <span class="credit-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h5l2.5-6 4 12 2.5-6H21"/></svg></span>
+        <span class="credit-txt">تطوير <b>آدز بَلس</b></span>
+      </a>
     </div>
   </footer>
 
   <script src="js/products.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/owner.js?v=3"></script>
+  <script src="js/advisor-kb.js"></script>
+  <script src="js/advisor-brain.js"></script>
+  <script src="js/advisor.js"></script>
   <script>
-    // Wire general WhatsApp links
-    for (const id of ["header-wa", "hero-wa", "float-wa", "empty-wa"]) {
+    // إحصاءات عقل المستشار (تُبنى عند التشغيل)
+    if (window.AdvisorBrain) {
+      const st = AdvisorBrain.stats;
+      document.getElementById("adv-brain-stats").textContent =
+        `قاعدة المعرفة الحية: ${st.products} منتجاً · ${st.nutrients} مادة فعّالة · ${st.rules} قاعدة موثّقة بـ${st.references} مرجعاً دولياً`;
+    }
+    // روابط واتساب العامة
+    for (const id of ["header-wa", "hero-wa", "float-wa", "empty-wa", "banner-wa", "finalcta-wa"]) {
       document.getElementById(id).href = waGeneralLink();
     }
+    document.getElementById("ig-link").href = STORE_CONFIG.instagram;
+    document.getElementById("live-strip").href = waGeneralLink();
+    // تفعيل فيديو الـHero فقط إن توفّر الملف (وإلا يبقى التدرّج الأنيق)
+    (function () {
+      const hero = document.getElementById("hero");
+      const v = hero && hero.querySelector(".hero-video");
+      if (!v) return;
+      // كتم إجباري (شرط التشغيل التلقائي في سفاري/iOS)
+      v.muted = true; v.defaultMuted = true; v.setAttribute("muted", "");
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) { v.removeAttribute("autoplay"); return; }
+      const show = () => hero.classList.add("has-video");
+      const tryPlay = () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); };
+      const go = () => { show(); tryPlay(); };
+      if (v.readyState >= 2) go();
+      v.addEventListener("loadeddata", go);
+      v.addEventListener("canplay", go);
+      v.addEventListener("playing", show);
+      v.addEventListener("error", () => hero.classList.remove("has-video"));
+      // احتياط: بعض المتصفحات تسمح بالتشغيل بعد أول تفاعل من المستخدم
+      ["touchstart", "pointerdown", "scroll", "keydown"].forEach((ev) =>
+        window.addEventListener(ev, tryPlay, { once: true, passive: true }));
+    })();
+    document.getElementById("footer-phones").innerHTML =
+      "📞 " + STORE_CONFIG.phones.map((p) => `<bdo dir="ltr">${p}</bdo>`).join(" · ");
 
-    // Category chips
-    const cats = ["All", ...new Set(PRODUCTS.map((p) => p.category))];
-    let activeCat = "All";
+    // شرائح التصنيفات
+    let activeCat = "all";
     const chipsEl = document.getElementById("chips");
     function renderChips() {
-      chipsEl.innerHTML = cats
-        .map((c) => `<button class="chip ${c === activeCat ? "active" : ""}" onclick="setCat('${c}')">${c}</button>`)
-        .join("");
+      chipsEl.innerHTML =
+        `<button class="chip ${activeCat === "all" ? "active" : ""}" onclick="setCat('all')">🌿 الكل</button>` +
+        CATEGORIES.map((c) =>
+          `<button class="chip ${c.id === activeCat ? "active" : ""}" onclick="setCat('${c.id}')">${c.icon} ${c.name}</button>`
+        ).join("");
     }
     function setCat(c) { activeCat = c; renderChips(); renderResults(); }
 
-    // Search + filter
+    // البحث مع هيكل تحميل قصير لسلاسة الإحساس
     const searchEl = document.getElementById("search");
-    searchEl.addEventListener("input", renderResults);
+    let searchTimer;
+    searchEl.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      document.getElementById("results").innerHTML = Array.from({ length: 4 }, skeletonCard).join("");
+      searchTimer = setTimeout(renderResults, 220);
+    });
 
     function renderResults() {
-      const q = searchEl.value.trim().toLowerCase();
+      const rawQ = searchEl.value.trim();
+      if (Owner.isTrigger(rawQ)) { searchEl.value = ""; Owner.openPinModal(); return; }
+      const q = rawQ.toLowerCase();
       let list = PRODUCTS;
-      if (activeCat !== "All") list = list.filter((p) => p.category === activeCat);
+      if (activeCat !== "all") list = list.filter((p) => p.category === activeCat);
       if (q) {
         list = list.filter((p) =>
-          [p.name, p.brand, p.summary, p.category, ...(p.tags || [])].join(" ").toLowerCase().includes(q)
+          [p.name, p.en, p.brand, p.summary, catName(p.category), ...(p.tags || [])].join(" ").toLowerCase().includes(q)
         );
       }
       document.getElementById("results-title").textContent =
-        q ? `Results for “${searchEl.value.trim()}”` : activeCat === "All" ? "All Products" : activeCat;
-      document.getElementById("results-count").textContent = `${list.length} product${list.length === 1 ? "" : "s"}`;
+        q ? `نتائج البحث عن «${searchEl.value.trim()}»` : activeCat === "all" ? "جميع المنتجات" : catName(activeCat);
+      document.getElementById("results-count").textContent = list.length ? `${list.length} منتجاً` : "";
       document.getElementById("results").innerHTML = list.map(productCard).join("");
       document.getElementById("empty").style.display = list.length ? "none" : "block";
+      observeReveals(document.getElementById("results"));
     }
 
-    // Support ?q= handoff from the product page search box
+    // دعم ?q= القادمة من صفحة المنتج
     const initialQ = new URLSearchParams(location.search).get("q");
     if (initialQ) searchEl.value = initialQ;
 
-    renderChips();
-    renderResults();
-    renderRail("trending", PRODUCTS.filter((p) => p.badge === "Trending" || p.badge === "Best Seller"));
-    renderRail("picks", PRODUCTS.filter((p) => p.badge === "Pharmacist Pick"));
-    renderRail("viewed", getViewed().map(byId).filter(Boolean));
+    Owner.ready().then(() => {
+      renderChips();
+      renderResults();
+      renderRail("picks", PRODUCTS.filter((p) => ["acm-novophane-set", "pregnancy-pack", "glycimag", "bioderma-gel", "students-pack"].includes(p.id)));
+      renderRail("trending", PRODUCTS.filter((p) => p.badge));
+      renderRail("viewed", getViewed().map(byId).filter(Boolean));
+      observeReveals();
+      animateCounters();
+      Owner.autoResume();
+    });
   </script>
 </body>
 </html>

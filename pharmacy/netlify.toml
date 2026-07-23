@@ -1,0 +1,10 @@
+# إعداد Netlify لموقع صيدلية در الشارقة
+# ملاحظة: في Netlify UI اجعل "Base directory" = pharmacy (لأن الموقع داخل مجلد فرعي).
+# عندها يُقرأ هذا الملف وتُنشر الدوال تلقائياً.
+
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# صفحة ثابتة بلا خطوة بناء
+# (لا build command — الموقع HTML/CSS/JS خام)

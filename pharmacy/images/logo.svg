@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" role="img" aria-label="صيدلية در الشارقة">
+  <!-- شعار در الشارقة — إعادة رسم رقمية؛ استبدله بملف الشعار الأصلي بنفس الاسم -->
+  <defs>
+    <linearGradient id="leafG" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#45633c"/>
+      <stop offset="1" stop-color="#6d8a5b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="150" cy="150" r="146" fill="#faf7ee"/>
+  <circle cx="150" cy="150" r="146" fill="none" stroke="#b1926f" stroke-width="3"/>
+  <circle cx="150" cy="150" r="138" fill="none" stroke="#e4d7c2" stroke-width="1"/>
+
+  <!-- DUR -->
+  <text x="143" y="150" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif" font-weight="700"
+        font-size="88" fill="#45633c" letter-spacing="2">DUR</text>
+
+  <!-- غصن ورقي -->
+  <g transform="translate(215 78) rotate(18)">
+    <path d="M0 30 Q6 12 2 -6" fill="none" stroke="#8a6f4d" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M2 6 Q14 2 18 -10 Q6 -8 2 6Z" fill="url(#leafG)"/>
+    <path d="M1 18 Q-11 14 -15 2 Q-3 4 1 18Z" fill="url(#leafG)" opacity="0.85"/>
+    <path d="M2 -4 Q10 -12 9 -22 Q0 -16 2 -4Z" fill="#b1926f"/>
+  </g>
+
+  <!-- الاسم -->
+  <text x="150" y="196" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif" font-weight="700"
+        font-size="27" fill="#45633c" letter-spacing="6">AL SHARIQA</text>
+  <text x="150" y="224" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="17" fill="#b1926f" letter-spacing="10">PHARMACY</text>
+
+  <!-- فاصل مع معيّن -->
+  <line x1="96" y1="240" x2="138" y2="240" stroke="#b1926f" stroke-width="1.6"/>
+  <line x1="162" y1="240" x2="204" y2="240" stroke="#b1926f" stroke-width="1.6"/>
+  <rect x="145" y="235" width="10" height="10" transform="rotate(45 150 240)" fill="#45633c"/>
+</svg>

@@ -1,0 +1,15 @@
+# ════════════════════════════════════════════════════════════════════════
+#  netlify.toml (جذر المستودع) — الملف الحاكم لنشر موقع صيدلية در الشارقة
+#
+#  الموقع داخل مجلد pharmacy/. هذا الملف في الجذر يُقرأ دائماً من Netlify،
+#  فيضمن نشر الصفحات الثابتة ودوال Netlify معاً — دون الاعتماد على ضبط
+#  "Base directory" يدوياً في واجهة Netlify.
+#
+#  المسارات نسبية لجذر المستودع:
+#    publish   → مجلد الموقع الثابت (pharmacy)
+#    functions → مجلد دوال Netlify (owner-auth / owner-overrides / owner-analytics / log-consult)
+# ════════════════════════════════════════════════════════════════════════
+
+[build]
+  publish = "pharmacy"
+  functions = "pharmacy/netlify/functions"
