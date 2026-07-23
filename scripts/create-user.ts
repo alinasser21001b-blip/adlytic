@@ -29,6 +29,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { createHash }     from 'node:crypto';
+import { pgSslFor } from '../src/lib/pgSsl';
 import { Writable }       from 'node:stream';
 import { createInterface } from 'node:readline/promises';
 import { PrismaClient }   from '@prisma/client';
@@ -222,7 +223,7 @@ async function main(): Promise<void> {
     user:     decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
     database: parsed.pathname.replace(/^\//, ''),
-    ssl:      { rejectUnauthorized: false },
+    ssl: pgSslFor(parsed.hostname),
   });
   const adapter = new PrismaPg(pool);
   const prisma  = new PrismaClient({ adapter });

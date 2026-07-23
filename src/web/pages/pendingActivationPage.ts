@@ -9,11 +9,12 @@ import { SHARED_CSS } from '../layout';
 
 export function pendingActivationPage(): string {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pending activation — Adlytic</title>
+  <meta name="theme-color" content="#100E0D">
+  <title>بانتظار التفعيل — Adlytic</title>
   <style>
     ${SHARED_CSS}
     body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); padding: 24px 16px; }
@@ -47,21 +48,21 @@ export function pendingActivationPage(): string {
     </div>
     <div class="auth-card">
       <div class="pending-icon">⏳</div>
-      <div class="auth-title">Account pending activation</div>
+      <div class="auth-title">الحساب بانتظار التفعيل</div>
       <div class="auth-subtitle">
-        Your account has been created. Contact our team on WhatsApp to activate access — we never ask for your password.
+        تم إنشاء حسابك. تواصل مع فريقنا عبر WhatsApp لتفعيل الوصول — لن نطلب كلمة مرورك أبداً.
       </div>
 
       <div id="error-msg" class="alert alert-error"></div>
       <div class="user-email" id="user-email"></div>
 
       <a id="wa-btn" class="wa-btn" href="#" target="_blank" rel="noopener noreferrer" style="display:none;">
-        Contact us on WhatsApp
+        تواصل معنا عبر WhatsApp
       </a>
-      <button type="button" class="wa-btn" id="wa-loading" disabled style="display:none;">Loading WhatsApp link…</button>
+      <button type="button" class="wa-btn" id="wa-loading" disabled style="display:none;">جارٍ تحميل رابط WhatsApp…</button>
 
       <div>
-        <button type="button" class="logout-link" id="logout-btn">Sign out</button>
+        <button type="button" class="logout-link" id="logout-btn">تسجيل الخروج</button>
       </div>
     </div>
   </div>
@@ -108,7 +109,7 @@ export function pendingActivationPage(): string {
 
         if (!linkRes.ok) {
           var err = await linkRes.json().catch(function () { return {}; });
-          showError(err.error || 'WhatsApp link is unavailable. Please try again later.');
+          showError(err.error || 'رابط WhatsApp غير متاح. حاول مرة أخرى لاحقاً.');
           return;
         }
 
@@ -118,7 +119,7 @@ export function pendingActivationPage(): string {
         btn.style.display = 'inline-flex';
       } catch (e) {
         document.getElementById('wa-loading').style.display = 'none';
-        showError(e.message || 'Something went wrong. Please refresh the page.');
+        showError(e.message || 'حدث خطأ. أعد تحميل الصفحة.');
       }
     })();
   </script>

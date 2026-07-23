@@ -18,6 +18,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaPg } from '@prisma/adapter-pg';
+import { pgSslFor } from '../src/lib/pgSsl';
 import pg from 'pg';
 import {
   PrismaClient,
@@ -44,7 +45,7 @@ const pool = new pg.Pool({
   user:     decodeURIComponent(parsed.username),
   password: decodeURIComponent(parsed.password),
   database: parsed.pathname.replace(/^\//, ''),
-  ssl:      { rejectUnauthorized: false },
+  ssl:      pgSslFor(parsed.hostname),
 });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 

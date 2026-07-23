@@ -14,3 +14,7 @@ dtos_min.json
 # Local-only helper scripts (contain user/repo identifiers or token-format outputs)
 push.sh
 scripts/diag2.ts
+
+# Playwright
+test-results/
+playwright-report/

@@ -28,6 +28,13 @@ export interface Signals {
   currentCpm: number | null;          // minor units
   currentResults: number;             // total in current window
   currentSpend: number;               // minor units total
+
+  /**
+   * Meta campaign objective (OUTCOME_AWARENESS, MESSAGES, …).
+   * Optional for backward compatibility; when set, detectors/diagnose use
+   * Meta objective standards (CTR floors, Arabic result vocabulary).
+   */
+  objective?: string | null;
 }
 
 export type Detector = (s: Signals) => IssueRecord | null;

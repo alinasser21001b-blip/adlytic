@@ -28,9 +28,14 @@ import { COMPOSITION_RULES, type CompositionRule } from "./compositionRules";
 import { matchCompositionRule } from "./matchCompositionRule";
 import {
   evaluateCampaign,
+  evaluateBenchmarks,
   findActionsForBreaches,
   type CampaignMetrics,
 } from "../../knowledge";
+import {
+  resolveBenchmarkIndustry,
+  toBenchmarkEvaluationOptions,
+} from "../../knowledge/industryRouting";
 
 export interface RecommendationOptions {
   /** "as of" date for the run. Matches what Rules wrote. */
@@ -79,7 +84,13 @@ export class RecommendationEngine {
 
       // Meta Ads KB FIRST — attach verbatim actions when live metrics breach thresholds.
       const metrics = await this.loadCampaignMetrics(entityType, entityId, asOf);
+      const industry =
+        entityType === EntityType.ACCOUNT
+          ? await resolveBenchmarkIndustry(this.prisma, { adAccountId: entityId })
+          : await resolveBenchmarkIndustry(this.prisma, {});
+      const benchmarkOptions = toBenchmarkEvaluationOptions(industry);
       const kbBreaches = evaluateCampaign(metrics);
+      const benchmarkInsights = evaluateBenchmarks(metrics, benchmarkOptions);
       const kbActions = findActionsForBreaches(kbBreaches);
 
       let recommendation: RecommendationRecord | null = null;
@@ -96,6 +107,7 @@ export class RecommendationEngine {
             source: "meta_ads_knowledge_base",
             metricBreaches: kbBreaches,
             recommended_optimization_actions: kbActions,
+            benchmarkInsights,
           },
         };
       } else if (chosen) {
@@ -141,6 +153,7 @@ export class RecommendationEngine {
     });
 
     let impTotal = 0;
+    let clickTotal = 0;
     let ctrNum = 0;
     let cpmNum = 0;
     const freqVals: number[] = [];
@@ -149,7 +162,9 @@ export class RecommendationEngine {
 
     for (const r of daily as any[]) {
       const imp = Number(r.impressions);
+      const clicks = Number(r.clicks ?? 0);
       impTotal += imp;
+      clickTotal += clicks;
       if (r.ctr != null && imp > 0) ctrNum += r.ctr * imp;
       if (r.cpm != null && imp > 0) cpmNum += r.cpm * imp;
       if (r.frequency != null) freqVals.push(r.frequency);
@@ -160,6 +175,7 @@ export class RecommendationEngine {
     return {
       ctr: impTotal > 0 ? +(ctrNum / impTotal).toFixed(4) : null,
       cpm: impTotal > 0 ? +(cpmNum / impTotal).toFixed(4) : null,
+      cpc: clickTotal > 0 ? +(spendSum / clickTotal).toFixed(4) : null,
       frequency: freqVals.length
         ? +(freqVals.reduce((a, b) => a + b, 0) / freqVals.length).toFixed(4)
         : null,
@@ -169,5 +185,6 @@ export class RecommendationEngine {
 }
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
-const dateOnly = (d: Date) => new Date(d.toISOString().slice(0, 10));
+const dateOnly = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400_000);

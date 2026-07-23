@@ -13,5 +13,5 @@ import { trend } from "./trend";
 export function calculateSpendTrend(current: DailyPoint[], prior: DailyPoint[]): number | null {
   const cur = sumCount(current, "spend");
   const prv = sumCount(prior, "spend");
-  return trend(cur, prv);
+  return trend(cur, prv, { minSignal: 3 });
 }

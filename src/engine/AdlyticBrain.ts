@@ -5,6 +5,12 @@ import { evaluateCampaignConfidence, ConfidenceAnalysis } from './ConfidenceEngi
 import { recognizeCampaignPattern, PatternAnalysis } from './PatternEngine';
 import { evaluateRecoveryPotential, RecoveryAnalysis } from './RecoveryGate';
 import { decideCampaignAction, CampaignDecision } from './DecisionEngine';
+import {
+  applyRuleGroundingToDecision,
+  buildRuleGrounding,
+  type RuleGrounding,
+} from '../engines/rules/ruleGrounding';
+import type { Signals } from '../engines/rules/types';
 
 // ── V2 wiring ────────────────────────────────────────────────────────────
 import type {
@@ -18,6 +24,15 @@ import { evaluateMarketPressure } from './v2/MarketPressureEngine';
 import { evaluateGoldStandard } from './v2/GoldStandardEngine';
 import { evaluateVelocity, DetailedHourlyVelocity } from './v2/VelocityTrackerEngine';
 import { evaluateCreativeResonance } from './v2/CreativeResonanceEngine';
+
+/**
+ * Optional extras for runBrainForCampaign beyond V2 market/DNA/velocity.
+ * Kept separate so V1 callers stay unchanged.
+ */
+export interface BrainGroundingInputs {
+  /** Real period-over-period Signals (from loadCampaignSignalsBatch). */
+  periodSignals?: Signals | null;
+}
 
 /**
  * مدخلات V2 الاختيارية — كل المحركات الأربعة الجديدة تستهلك من هنا.
@@ -44,12 +59,16 @@ export interface BrainV2Inputs {
 export interface BrainTickResult {
   campaignId: string;
   campaignName: string;
+  /** Meta objective when known — drives narration vocabulary + KPI framing. */
+  objective?: string | null;
   physics: CampaignPhysicsOutput;
   confidence: ConfidenceAnalysis;
   pattern: PatternAnalysis;
   recovery: RecoveryAnalysis;
   decision: CampaignDecision;
   v2?: BrainV2Extension;
+  /** Rule-engine diagnoses grounded against account baseline (understanding layer). */
+  ruleGrounding?: RuleGrounding;
 }
 
 /**
@@ -62,7 +81,8 @@ export interface BrainTickResult {
 export function runBrainForCampaign(
   raw: CampaignRawData,
   baseline: AccountBaseline,
-  v2Inputs?: BrainV2Inputs
+  v2Inputs?: BrainV2Inputs,
+  groundingInputs?: BrainGroundingInputs,
 ): BrainTickResult {
 
   // Layer 1: Physics Engine — الأرقام المجردة والدلتا الموزونة
@@ -77,6 +97,15 @@ export function runBrainForCampaign(
 
   // Layer 4: Decision Engine — الترجمة إلى Action قابل للتنفيذ (يبقى أعمى ونقياً)
   let decision = decideCampaignAction(physics, confidence, pattern, recovery);
+
+  // Layer 4b: Rule grounding — prefer real period Signals when available;
+  // otherwise absolute-only snapshot (no fabricated trends).
+  const ruleGrounding = buildRuleGrounding(
+    raw,
+    baseline,
+    groundingInputs?.periodSignals,
+  );
+  decision = applyRuleGroundingToDecision(decision, ruleGrounding);
 
   let v2Extension: BrainV2Extension | undefined;
 
@@ -123,12 +152,16 @@ export function runBrainForCampaign(
   return {
     campaignId: raw.campaignId,
     campaignName: raw.campaignName,
+    objective: raw.objective ?? null,
     physics,
     confidence,
     pattern,
     recovery,
     decision,
     ...(v2Extension && { v2: v2Extension }),
+    ...(ruleGrounding.diagnoses.length > 0 || ruleGrounding.issues.length > 0
+      ? { ruleGrounding }
+      : {}),
   };
 }
 
@@ -138,7 +171,14 @@ export function runBrainForCampaign(
  * وقد يحمل اختيارياً مدخلات V2 الخاصة بكل حملة.
  */
 export function runBrainBatch(
-  campaigns: Array<{ raw: CampaignRawData; baseline: AccountBaseline; v2Inputs?: BrainV2Inputs }>
+  campaigns: Array<{
+    raw: CampaignRawData;
+    baseline: AccountBaseline;
+    v2Inputs?: BrainV2Inputs;
+    groundingInputs?: BrainGroundingInputs;
+  }>
 ): BrainTickResult[] {
-  return campaigns.map(c => runBrainForCampaign(c.raw, c.baseline, c.v2Inputs));
+  return campaigns.map(c =>
+    runBrainForCampaign(c.raw, c.baseline, c.v2Inputs, c.groundingInputs),
+  );
 }

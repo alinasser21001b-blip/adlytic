@@ -25,6 +25,13 @@
 //    - No new DB queries beyond what AnalyticsEngine already does.
 //    - Reuses existing calculators (calculateCtrTrend et al.) — same math.
 //    - evidence is string[], not JSON. Enables `evidence.join('\n')` in AI prompts.
+//
+//  DRIFT MANIFEST (do not silently diverge):
+//    Canonical detectors live in src/engines/rules/detectors.ts (ALL_DETECTORS).
+//    V5 re-implements the same five patterns inline for shadow writes only.
+//    Known divergence: V5 rising-cost uses CPM↑ + flat results; canonical
+//    detectRisingCostPerResult uses resultsTrend − spendTrend divergence.
+//    Prefer tuning thresholds in rules/detect*.ts; mirror here deliberately.
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient } from "@prisma/client";
@@ -36,8 +43,12 @@ import { calculateCpmTrend } from "../analytics/calculateCpmTrend";
 import { calculateFrequencyTrend } from "../analytics/calculateFrequencyTrend";
 import { calculateResultsTrend } from "../analytics/calculateResultsTrend";
 import { calculateSpendTrend } from "../analytics/calculateSpendTrend";
-import { confidenceFromCorroboration } from "../rules/severity";
+import { confidenceFromCorroboration, severityFromMagnitude } from "../rules/severity";
 import { metaKnowledgeInsightEngine } from "../../knowledge/MetaKnowledgeInsightEngine";
+import {
+  resolveBenchmarkIndustry,
+  toBenchmarkEvaluationOptions,
+} from "../../knowledge/industryRouting";
 import type { CampaignMetrics } from "../../knowledge/types";
 
 // ── types ────────────────────────────────────────────────────────────────
@@ -66,11 +77,11 @@ interface RecommendationRow {
 
 // ── severity helpers ──────────────────────────────────────────────────────
 
+// Delegates to the single severity ladder in rules/severity.ts so tuning the
+// buckets there propagates to V5 too (no duplicate ladder to drift). The
+// Severity enum values ARE the string labels ("LOW"|"MEDIUM"|"HIGH"|"CRITICAL").
 function severityLabel(absMovement: number): string {
-  if (absMovement < 0.10) return "LOW";
-  if (absMovement < 0.25) return "MEDIUM";
-  if (absMovement < 0.50) return "HIGH";
-  return "CRITICAL";
+  return severityFromMagnitude(absMovement);
 }
 
 function priorityLabel(strength: number): string {
@@ -84,7 +95,9 @@ function priorityLabel(strength: number): string {
 
 function ymd(d: Date): string { return d.toISOString().slice(0, 10); }
 function addDays(d: Date, n: number): Date { return new Date(d.getTime() + n * 86_400_000); }
-function dateOnly(d: Date): Date { return new Date(d.toISOString().slice(0, 10)); }
+function dateOnly(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
 function pct(n: number): string { return `${(n * 100).toFixed(1)}%`; }
 
 // ── expert rules ──────────────────────────────────────────────────────────
@@ -231,13 +244,17 @@ function buildCampaignMetrics(cur: DailyPoint[]): CampaignMetrics {
   const curCpm = avgRate(cur, "cpm");
   const curFreq = avgRate(cur, "frequency");
   const curSpend = sumCount(cur, "spend");
+  const curClicks = sumCount(cur, "clicks");
   const curMessages = sumCount(cur, "messages");
   const costPerMessage =
     curMessages > 0 ? +(curSpend / curMessages).toFixed(4) : null;
+  const cpc =
+    curClicks > 0 ? +(curSpend / curClicks).toFixed(4) : null;
 
   return {
     ctr: curCtr,
     cpm: curCpm,
+    cpc,
     frequency: curFreq,
     cost_per_message: costPerMessage,
   };
@@ -342,7 +359,12 @@ export class AdlyticIntelligenceSystem {
 
     // KB FIRST — verbatim recommended_optimization_actions when thresholds breach.
     const metrics = buildCampaignMetrics(cur);
-    const kbRecs = metaKnowledgeInsightEngine.deriveRecommendations(metrics, adAccountId);
+    const industry = await resolveBenchmarkIndustry(this.prisma, { adAccountId });
+    const kbRecs = metaKnowledgeInsightEngine.deriveRecommendations(
+      metrics,
+      adAccountId,
+      toBenchmarkEvaluationOptions(industry),
+    );
     const recs: RecommendationRow[] = kbRecs.length > 0
       ? kbRecs.map(r => ({
           entityId: r.entityId,
@@ -357,7 +379,7 @@ export class AdlyticIntelligenceSystem {
     await this.upsert(adAccountId, now, healthScore, signals, issues, recs);
   }
 
-  private extractSignals(cur: DailyPoint[], prior: DailyPoint[], entityId: string): Signal[] {
+  private extractSignals(cur: DailyPoint[], prior: DailyPoint[], _entityId: string): Signal[] {
     const ctrTrend = calculateCtrTrend(cur, prior);
     const cpmTrend = calculateCpmTrend(cur, prior);
     const freqTrend = calculateFrequencyTrend(cur, prior);

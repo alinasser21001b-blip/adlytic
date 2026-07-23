@@ -24,7 +24,7 @@
 //  Validation + production fail-fast is centralized in `src/config.ts`.
 // ════════════════════════════════════════════════════════════════════════
 
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
@@ -73,7 +73,9 @@ export async function verifyPassword(
 ): Promise<{ ok: boolean; needsUpgrade: boolean }> {
   if (isLegacySha256(storedHash)) {
     const sha = createHash('sha256').update(plaintext).digest('hex');
-    return { ok: sha === storedHash, needsUpgrade: true };
+    const ok = sha.length === storedHash.length &&
+      timingSafeEqual(Buffer.from(sha), Buffer.from(storedHash));
+    return { ok, needsUpgrade: true };
   }
   const ok = await bcrypt.compare(plaintext, storedHash);
   return { ok, needsUpgrade: false };

@@ -120,7 +120,7 @@ const calls: Call[] = [];
 const scoreStore = new Map<string, any>();
 
 // Furniture fixture: the full bad-account story
-const furnitureTrend = { ctrTrend: -0.33, cpmTrend: 0, frequencyTrend: 0.46, resultsTrend: -0.33, spendTrend: 0 };
+const furnitureTrend = { date: new Date("2026-06-14"), ctrTrend: -0.33, cpmTrend: 0, frequencyTrend: 0.46, resultsTrend: -0.33, spendTrend: 0 };
 const furnitureDaily = ["2026-06-06","2026-06-07","2026-06-08","2026-06-09","2026-06-10","2026-06-11","2026-06-12"]
   .map(d => ({
     date: new Date(d),
@@ -130,7 +130,7 @@ const furnitureDaily = ["2026-06-06","2026-06-07","2026-06-08","2026-06-09","202
   }));
 const furnitureRec = { priority: "CRITICAL" };
 
-const cosmeticsTrend = { ctrTrend: -0.04, cpmTrend: 0.03, frequencyTrend: 0.10, resultsTrend: 0.08, spendTrend: 0.05 };
+const cosmeticsTrend = { date: new Date("2026-06-14"), ctrTrend: -0.04, cpmTrend: 0.03, frequencyTrend: 0.10, resultsTrend: 0.08, spendTrend: 0.05 };
 const cosmeticsDaily = ["2026-06-06","2026-06-07","2026-06-08","2026-06-09","2026-06-10","2026-06-11","2026-06-12"]
   .map(d => ({
     date: new Date(d),
@@ -224,7 +224,7 @@ async function main() {
   console.log("\n── No-recommendation case ──");
   currentRec = null;
   // Reset other fixtures to "healthy account"
-  currentTrend = { ctrTrend: 0.05, cpmTrend: -0.05, frequencyTrend: 0, resultsTrend: 0.10, spendTrend: 0.03 };
+  currentTrend = { date: new Date("2026-06-14"), ctrTrend: 0.05, cpmTrend: -0.05, frequencyTrend: 0, resultsTrend: 0.10, spendTrend: 0.03 };
   currentDaily = furnitureDaily.map(d => ({ ...d, ctr: 2.5, frequency: 2.5 }));
   const healthy = await engine.run(EntityType.ACCOUNT, "acc_healthy", {
     asOf: new Date("2026-06-14T14:00:00Z"),

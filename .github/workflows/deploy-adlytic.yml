@@ -1,0 +1,55 @@
+name: Deploy adlytic production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'nixpacks.toml'
+      - 'railway.json'
+      - 'railway.toml'
+      - '.npmrc'
+      - '.deploy/**'
+      - '.github/workflows/deploy-adlytic.yml'
+
+concurrency:
+  group: adlytic-production-deploy
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+
+  deploy-adlytic:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy adlytic service only
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN secret not set — skipping API deploy."
+            echo "Set GitHub secret RAILWAY_TOKEN (Railway account token, No Team)"
+            echo "OR in Railway UI: adlytic → Deploy Latest Commit after cancelling other queues."
+            exit 0
+          fi
+          RESP=$(curl -sS -X POST "https://backboard.railway.app/graphql/v2" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"mutation serviceInstanceDeploy($serviceId: String!, $environmentId: String!, $latestCommit: Boolean) { serviceInstanceDeploy(serviceId: $serviceId, environmentId: $environmentId, latestCommit: $latestCommit) }","variables":{"serviceId":"cc7cbf67-d757-4018-bf6d-9cec643222c3","environmentId":"89cdf3cb-15b7-4b92-b1ae-07e812333c37","latestCommit":true}}')
+          echo "$RESP"
+          echo "$RESP" | grep -q '"errors"' && exit 1 || true
+          echo "Triggered adlytic-only deploy."

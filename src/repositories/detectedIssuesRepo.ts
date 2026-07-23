@@ -56,5 +56,5 @@ export class DetectedIssuesRepo {
 }
 
 function dateOnly(d: Date): Date {
-  return new Date(d.toISOString().slice(0, 10));
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }

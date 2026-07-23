@@ -20,6 +20,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaPg } from '@prisma/adapter-pg';
+import { pgSslFor } from '../src/lib/pgSsl';
 import { PrismaClient, SyncJobStatus } from '@prisma/client';
 import pg from 'pg';
 
@@ -37,7 +38,7 @@ const pool = new pg.Pool({
   user:     decodeURIComponent(url.username),
   password: decodeURIComponent(url.password),
   database: url.pathname.replace(/^\//, ''),
-  ssl:      url.hostname.endsWith('.railway.internal') ? false : { rejectUnauthorized: false },
+  ssl:      pgSslFor(url.hostname),
 });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 

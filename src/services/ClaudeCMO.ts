@@ -13,8 +13,20 @@
 //   { arabicTitle, arabicNarration, creativeDirective? }
 
 import { BrainTickResult } from '../engine/AdlyticBrain';
+import {
+  buildDeterministicNarration,
+  scoreInsightQuality,
+  upgradeGenericNarration,
+} from '../lib/insightQualityGate';
 import { DecisionAction } from '../engine/DecisionEngine';
 import { sanitizeObjectForLlm, scrubString } from '../lib/dataSanitizer';
+import type { RuleGrounding } from '../engines/rules/ruleGrounding';
+import {
+  arabicEfficiencyPhrase,
+  arabicObjectiveCoachingBlock,
+  arabicResultPhrase,
+  getMetaObjectiveStandard,
+} from '../knowledge/metaObjectiveStandards';
 
 // ════════════════════════════════════════════════════════════════════════
 // Public output contract — persisted to narrationJson (campaignId omitted at write)
@@ -40,6 +52,15 @@ interface LlmNarrationOutput {
 interface CmoPayload {
   campaignName: string;
 
+  /** Meta objective + Arabic KPI framing for merchant narration. */
+  objective: {
+    raw: string | null;
+    family: string;
+    resultNounAr: string;
+    efficiencyNounAr: string;
+    coachingAr: string;
+  };
+
   decision: {
     action: DecisionAction;
     priority: 'CRITICAL' | 'HIGH' | 'NORMAL';
@@ -64,12 +85,16 @@ interface CmoPayload {
   };
 
   deltas: {
+    /** @deprecated Prefer efficiencyPercent — kept for older prompt caches. */
     costPerMessagePercent: number;
+    efficiencyPercent: number;
     ctrPercent: number;
   };
 
   absolutes: {
+    /** @deprecated Prefer efficiency — messaging-era field name. */
     costPerMessage: { current: number; baseline: number };
+    efficiency: { current: number; baseline: number; labelAr: string };
     ctr:            { current: number; baseline: number };
     frequency:      { current: number; baseline: number };
   };
@@ -109,6 +134,9 @@ interface CmoPayload {
       lessonArabic: string;
     }>;
   };
+
+  /** Deterministic diagnose() patterns — already merchant Arabic. */
+  ruleGrounding?: RuleGrounding;
 }
 
 /** Closed-set historical context block — assembled by the narration cron caller. */
@@ -122,8 +150,21 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
   const coldStart =
     b.confidence.gatingStatus === 'COLLECTING_DATA' || baselinesAllZero;
 
+  const objectiveRaw = b.objective ?? null;
+  const metaStd = getMetaObjectiveStandard(objectiveRaw);
+  const efficiencyDelta = b.physics.costPerMessage.delta;
+  const efficiencyCurrent = b.physics.costPerMessage.value;
+  const efficiencyBaseline = b.physics.costPerMessage.baseline;
+
   const payload: CmoPayload = {
     campaignName: b.campaignName,
+    objective: {
+      raw: objectiveRaw,
+      family: metaStd.family,
+      resultNounAr: arabicResultPhrase(objectiveRaw),
+      efficiencyNounAr: arabicEfficiencyPhrase(objectiveRaw),
+      coachingAr: arabicObjectiveCoachingBlock(objectiveRaw),
+    },
     decision: {
       action: b.decision.action,
       priority: b.decision.priority,
@@ -138,13 +179,19 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
       confidenceFinalScore: b.confidence.finalConfidenceScore,
     },
     deltas: {
-      costPerMessagePercent: b.physics.costPerMessage.delta,
+      costPerMessagePercent: efficiencyDelta,
+      efficiencyPercent: efficiencyDelta,
       ctrPercent: b.physics.ctr.delta,
     },
     absolutes: {
       costPerMessage: {
-        current:  b.physics.costPerMessage.value,
-        baseline: b.physics.costPerMessage.baseline,
+        current:  efficiencyCurrent,
+        baseline: efficiencyBaseline,
+      },
+      efficiency: {
+        current: efficiencyCurrent,
+        baseline: efficiencyBaseline,
+        labelAr: arabicEfficiencyPhrase(objectiveRaw),
       },
       ctr: {
         current:  b.physics.ctr.value,
@@ -180,6 +227,16 @@ export function buildPayload(b: BrainTickResult): CmoPayload {
     };
   }
 
+  if (b.ruleGrounding && (b.ruleGrounding.diagnoses.length > 0 || b.ruleGrounding.issues.length > 0)) {
+    // Truncate for LLM token budget only — shape owned by ruleGrounding.ts.
+    payload.ruleGrounding = {
+      primaryCode: b.ruleGrounding.primaryCode,
+      diagnoses: b.ruleGrounding.diagnoses.slice(0, 3),
+      issues: b.ruleGrounding.issues.slice(0, 5),
+      evidenceSource: b.ruleGrounding.evidenceSource,
+    };
+  }
+
   return payload;
 }
 
@@ -187,10 +244,11 @@ function buildEmergencyNarration(b: BrainTickResult): CmoNarration {
   const overridden = b.decision.overriddenAction
     ? ' تجاوزنا التوصية الأولية لأن الإنفاق كان مرتفعاً دون نتائج كافية.'
     : '';
+  const resultNoun = arabicResultPhrase(b.objective);
 
   const narration =
     `إيقاف فوري لحملة «${b.campaignName}». ` +
-    `رصدنا استهلاكاً سريعاً للميزانية دون رسائل كافية تبرّر هذا الإنفاق.` +
+    `رصدنا استهلاكاً سريعاً للميزانية دون ${resultNoun} كافية تبرّر هذا الإنفاق.` +
     overridden +
     ` أوقفنا الحملة لحماية ميزانيتك. ` +
     `راجع الإبداع والاستهداف قبل إعادة التشغيل.`;
@@ -230,7 +288,23 @@ ARABIC TONE OF VOICE (mandatory — applies to every output field)
     • "beast" / "legendary" → "أداء ممتاز" / "حملة ناجحة"
     • "إعدام الحملة" → "إيقاف الحملة" / "مراجعة الأداء"
 - Clarity: avoid dramatic, medical, or overly technical jargon. Prefer terms
-  merchants already use daily: ميزانية، رسائل، نقرات، إنفاق، حملة، إبداع، استهداف.
+  merchants already use daily: ميزانية، نتائج، نقرات، إنفاق، حملة، إبداع، استهداف، وصول.
+
+═══════════════════════════════════════════════════════════════
+OBJECTIVE VOCABULARY (mandatory — driven by payload.objective)
+═══════════════════════════════════════════════════════════════
+payload.objective tells you the Meta campaign family and the ONLY correct
+Arabic nouns for results/efficiency. Follow payload.objective.coachingAr.
+- Use objective.resultNounAr for outcomes (e.g. مرات الظهور / نقرات / رسائل / مشتريات).
+- Use objective.efficiencyNounAr for cost efficiency (e.g. تكلفة الوصول / تكلفة النقرة).
+- If family is "awareness": NEVER say رسائل، تكلفة الرسالة، مبيعات، عائد الإعلان.
+- If family is "traffic" or "engagement": NEVER default to messaging vocabulary.
+- If family is "sales": speak about مشتريات / عائد الإنفاق / ما بعد النقر — not messages.
+- If family is "leads": speak about عملاء محتملون / تكلفة العميل — not messages.
+- If family is "messaging": messages vocabulary is correct.
+- deltas.efficiencyPercent / absolutes.efficiency are the efficiency signal;
+  costPerMessage* fields are legacy aliases — do NOT assume they mean "messages"
+  when family ≠ messaging.
 
 ═══════════════════════════════════════════════════════════════
 LINGUISTIC SOFTENING — تسهيل لغوي وتجسيد للبيانات (mandatory)
@@ -248,8 +322,8 @@ SOFTEN METRICS:
 - Also forbidden as English loanwords in Arabic prose: burn rate, DNA match,
   impressions, reach, frequency — use plain Arabic equivalents instead.
 - Instead of "ROAS is 2.4" → "حملتك تحقق أرباحاً جيدة"
-- Instead of "تكلفة الرسالة 1.45 مقابل 1.10" → "تكلفة الوصول للعميل ارتفعت
-  قليلاً عن معدّلك المعتاد"
+- Instead of quoting raw efficiency floats → "تكلفة النتيجة ارتفعت قليلاً عن معدّلك المعتاد"
+  (use objective.efficiencyNounAr — e.g. تكلفة الوصول / تكلفة النقرة / تكلفة الرسالة)
 - Translate payload meaning into plain, reassuring Arabic a shop owner understands.
 
 RELATIVE CONTEXT (not exact percentages):
@@ -305,7 +379,8 @@ zero/missing or the confidence layer is still collecting data. In this mode:
   against a zero baseline and would mislead the merchant.
 - DO NOT use comparative phrasing such as "ارتفع", "انخفض", "مقارنة بالسابق".
 - DO NOT quote raw numbers from "absolutes.*" — describe early signals
-  qualitatively only (e.g. "الحملة بدأت تحقق رسائل" without citing decimals).
+  qualitatively only (e.g. "الحملة بدأت تحقق نتائج أولية" using
+  objective.resultNounAr — never force "رسائل" on awareness campaigns).
 - DO NOT use evaluative or promissory words ("مبشّر", "واعد", "ممتاز", "جيد",
   "ناجح") — we have NOT reached statistical confidence and must never promise an
   outcome before the baseline is established.
@@ -348,6 +423,25 @@ comparative sentence into arabicNarration — for example:
   the historical sentence replaces one generic sentence, not an addition.
 
 ═══════════════════════════════════════════════════════════════
+RULE GROUNDING (apply only if "ruleGrounding" is present)
+═══════════════════════════════════════════════════════════════
+ruleGrounding.diagnoses[] are deterministic Arabic explanations of WHY the
+account/campaign looks the way it does (creative fatigue, auction pressure,
+post-click problems, etc.). They are already merchant-facing Arabic.
+- Prefer the primary diagnosis (first item / primaryCode) as the "why" behind
+  decision.action — weave its meaning into arabicNarration without copying
+  long paragraphs verbatim.
+- You MAY reuse diagnosis.name as a short phrase, and you SHOULD reflect
+  diagnosis.action as the concrete next step when it aligns with decision.action.
+- Do NOT invent a conflicting root cause. If decision.action is REFRESH_CREATIVE
+  and diagnosis says CREATIVE_FATIGUE / WEAK_CREATIVE, say the creative is tired.
+- If diagnosis says POST_CLICK_PROBLEM, emphasize the page/offer/response — not
+  the ad image — even if decision.action is HOLD_AND_MONITOR.
+- Never quote diagnosis.code, issue severity enums, or evidenceSource in merchant prose.
+- If evidenceSource is "absolute_levels", avoid claiming week-over-week movement;
+  speak about the current level only. If "period_trends", qualitative movement is OK.
+
+═══════════════════════════════════════════════════════════════
 LENGTH
 ═══════════════════════════════════════════════════════════════
 - arabicTitle: 3–7 كلمات عربية واضحة، غير تقنية، مطمئنة
@@ -388,15 +482,18 @@ function parseLlmNarrationOutput(raw: unknown): LlmNarrationOutput {
 }
 
 function buildFallbackNarration(b: BrainTickResult): CmoNarration {
+  // Never emit the old campaign-agnostic template — merchants saw identical
+  // useless cards across every campaign when the LLM failed.
+  const det = buildDeterministicNarration(b);
   const fallback: CmoNarration = {
     campaignId: b.campaignId,
-    arabicTitle: 'تحديث أداء الحملة',
-    arabicNarration:
-      'راجعنا أداء حملتك وصدرت توصية جديدة بناءً على البيانات الحالية. ' +
-      'راجع تفاصيل الحملة في لوحة التحكم.',
+    arabicTitle: det.arabicTitle,
+    arabicNarration: det.arabicNarration,
   };
 
-  if (b.v2?.resonance.creativeDirective) {
+  if (det.creativeDirective) {
+    fallback.creativeDirective = det.creativeDirective;
+  } else if (b.v2?.resonance.creativeDirective) {
     fallback.creativeDirective = b.v2.resonance.creativeDirective;
   }
 
@@ -429,20 +526,64 @@ export async function generateMerchantNarration(
     : buildPayload(brainResult);
   const payload = sanitizeObjectForLlm({
     ...rawPayload,
-    campaignName: scrubString(rawPayload.campaignName),
+    campaignName: scrubString(rawPayload.campaignName ?? '')
+      .replace(/[{}"\\]/g, '')
+      .slice(0, 200),
   });
-  const userPrompt = JSON.stringify(payload, null, 2);
+  const coaching = rawPayload.objective?.coachingAr
+    ? `\n\n── Meta objective coaching (follow strictly) ──\n${rawPayload.objective.coachingAr}\n`
+    : '';
+  const userPrompt = coaching + JSON.stringify(payload, null, 2);
 
   try {
     const responseText = await llmClientCall(SYSTEM_PROMPT, userPrompt);
     const parsed = parseLlmNarrationOutput(JSON.parse(stripMarkdownFences(responseText)));
 
-    const out: CmoNarration = {
+    let out: CmoNarration = {
       campaignId: brainResult.campaignId,
       arabicTitle: parsed.arabicTitle,
       arabicNarration: parsed.arabicNarration,
     };
     attachCreativeDirective(out, brainResult, parsed.creativeDirective);
+
+    // Write-time quality: if the LLM slipped into a generic template, replace
+    // immediately so the DB never stores useless identical cards.
+    const upgraded = upgradeGenericNarration(
+      out,
+      brainResult,
+      brainResult.campaignName,
+      brainResult.decision.action,
+    );
+    if (upgraded.upgraded) {
+      out = {
+        campaignId: brainResult.campaignId,
+        arabicTitle: upgraded.narration.arabicTitle,
+        arabicNarration: upgraded.narration.arabicNarration,
+        ...(upgraded.narration.creativeDirective
+          ? { creativeDirective: upgraded.narration.creativeDirective }
+          : out.creativeDirective
+            ? { creativeDirective: out.creativeDirective }
+            : {}),
+      };
+    } else {
+      // Soft score gate: weak/vague copy on high-stakes actions → deterministic.
+      // Skip when campaign name is empty — includes() against "" is always true
+      // and would falsely mark every body as campaign-specific.
+      const namePrefix = brainResult.campaignName.trim().slice(0, 12);
+      const q = scoreInsightQuality({
+        title: out.arabicTitle,
+        body: out.arabicNarration,
+        action: brainResult.decision.action,
+        generatedAt: new Date().toISOString(),
+        hasCampaignSpecifics: namePrefix.length > 0 && out.arabicNarration.includes(namePrefix),
+      });
+      if (
+        !q.isUseful &&
+        (brainResult.decision.priority === 'CRITICAL' || brainResult.decision.priority === 'HIGH')
+      ) {
+        return buildFallbackNarration(brainResult);
+      }
+    }
 
     return out;
   } catch (error) {

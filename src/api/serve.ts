@@ -17,26 +17,19 @@
 import { serve } from '@hono/node-server';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { pgSslFor } from '../lib/pgSsl';
 import pg from 'pg';
 import { buildRoutes, ROUTE_COUNT } from './server';
-import { SyncAccountWorker } from '../workers/syncAccount';
-import { MetaClient, MetaApiError } from '../services/metaClient';
-import { decryptToken, TokenDecryptError } from '../services/tokenEncryption';
-import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
-import { runEngines } from '../workers/runEngines';
+import { getActiveProviderName } from '../services/ai/providerManager';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 import { config, reportConfig } from '../config';
-import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
-import { refreshExpiringMetaTokens } from '../workers/refreshMetaTokens';
-import { refreshCampaignHistoryRollups } from '../workers/rollupHistory';
-import { bootQueueWorkers, shutdownQueueWorkers } from '../workers/queue';
+import { shutdownQueueWorkers } from '../workers/queue';
+import { startBackgroundWork, cleanupOrphanedSyncJobs } from '../workers/backgroundScheduler';
 
 const PORT = config.port;
-// Background sync interval: default 6 hours (can be overridden via env)
+// Auto-sync tick (used only for the boot log; the loop itself lives in
+// backgroundScheduler and runs when this process is 'combined' role).
 const SYNC_INTERVAL_MS = config.sync.intervalMs;
-// Raw insights retention: delete rows older than this many days (default 90)
-const RAW_INSIGHTS_RETAIN_DAYS = config.sync.rawInsightsRetainDays;
-const API_VERSION = config.meta.apiVersion;
 
 // ── Global safety net: log unhandled rejections/exceptions instead of crashing ──
 process.on('unhandledRejection', (reason) => {
@@ -62,10 +55,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const parsed = new URL(dbUrl);
-  // SSL: require for external hosts (Railway proxy, Supabase, etc.)
-  //       skip for Railway's private internal network (*.railway.internal)
-  const isInternalHost = parsed.hostname.endsWith('.railway.internal');
-  const sslConfig = isInternalHost ? false : { rejectUnauthorized: false };
+  // SSL decision lives in ONE place (lib/pgSsl): TLS for external hosts,
+  // none for Railway's private network or localhost dev databases.
+  const sslConfig = pgSslFor(parsed.hostname);
   const pool   = new pg.Pool({
     host:     parsed.hostname,
     port:     Number(parsed.port) || 5432,
@@ -90,13 +82,11 @@ async function main(): Promise<void> {
     console.warn('[adlytic] Warning: database connection failed — DB-backed routes will error.', err);
   }
 
-  const app = buildRoutes(prisma);
+  // Clean up zombie SyncJobs left by a prior crash/deploy so new sync
+  // requests aren't blocked by the "reuse active job" logic.
+  await cleanupOrphanedSyncJobs(prisma);
 
-  // Phase 3-a: boot BullMQ workers IN-PROCESS. When BULLMQ_ENABLED is off,
-  // this is a no-op and the API behaves exactly as before. When on, the same
-  // process now drains the 4 queues (sync-account, maintenance,
-  // engines-and-brain, reconcile-campaigns) alongside serving HTTP traffic.
-  bootQueueWorkers(prisma);
+  const app = buildRoutes(prisma);
 
   serve(
     { fetch: app.fetch, port: PORT },
@@ -105,7 +95,15 @@ async function main(): Promise<void> {
       console.log(`[adlytic] Routes mounted: ${ROUTE_COUNT}`);
       console.log(`[adlytic] Health:     GET http://localhost:${info.port}/api/health`);
       console.log(`[adlytic] Dashboard:  GET http://localhost:${info.port}/api/dashboard/:workspaceId`);
-      console.log(`[adlytic] Auto-sync:  every ${Math.round(SYNC_INTERVAL_MS / 3600000)}h`);
+      console.log(`[adlytic] Auto-sync:  ${
+        config.role !== 'api'
+          ? `every ${SYNC_INTERVAL_MS >= 3600000 ? `${Math.round(SYNC_INTERVAL_MS / 3600000)}h` : `${Math.round(SYNC_INTERVAL_MS / 60000)}m`} (role=${config.role})`
+          : 'delegated to worker service (SERVICE_ROLE=api)'
+      }`);
+
+      // AI provider diagnostic — one honest boot line beats an hour of guessing
+      // why chat fell back to offline mode.
+      console.log(`[adlytic] AI chat provider: ${getActiveProviderName('chat-agent')} (call-time failover armed)`);
 
       // Meta OAuth diagnostic: surface the reason at boot when it is unusable,
       // so operators see why "Connect Meta Ads" falls back to the manual modal.
@@ -118,183 +116,20 @@ async function main(): Promise<void> {
     }
   );
 
-  // ── Background auto-sync ─────────────────────────────────────────────
-  async function syncAllAccounts(): Promise<void> {
-    const now = new Date();
-    let accounts;
-    try {
-      accounts = await prisma.adAccount.findMany({
-        where: {
-          status: 'ACTIVE',
-          OR: [
-            // Legacy / user-OAuth / manual / direct-token accounts: token lives
-            // on the account and may expire. Excludes SYSTEM_USER so behavior
-            // here is byte-for-byte identical to before when the flag is off
-            // (no SYSTEM_USER rows exist) and unchanged for existing rows
-            // (all default to USER_OAUTH).
-            {
-              tokenSource: { not: 'SYSTEM_USER' },
-              accessTokenEncrypted: { not: null },
-              OR: [
-                { tokenExpiresAt: null },
-                { tokenExpiresAt: { gt: now } },
-              ],
-            },
-            // Phase 2 — System User accounts: token lives on the MetaConnection
-            // and never expires. Only sync while the connection is ACTIVE so a
-            // NEEDS_REGRANT/REVOKED connection is skipped (no retry storm).
-            {
-              tokenSource: 'SYSTEM_USER',
-              connectionId: { not: null },
-              connection: { is: { status: 'ACTIVE', accessTokenEncrypted: { not: null } } },
-            },
-          ],
-        },
-        select: {
-          id: true,
-          workspaceId: true,
-          externalAccountId: true,
-          accessTokenEncrypted: true,
-          tokenSource: true,
-          connectionId: true,
-          connection: { select: { id: true, status: true, accessTokenEncrypted: true } },
-        },
-      });
-    } catch (err) {
-      console.error('[adlytic:auto-sync] Failed to list accounts:', err);
-      return;
-    }
-
-    if (accounts.length === 0) return;
-    console.log(`[adlytic:auto-sync] Syncing ${accounts.length} account(s)…`);
-
-    for (const acct of accounts) {
-      // Phase 2 — resolve the authoritative token via the shared helper.
-      // SYSTEM_USER accounts read the (non-expiring) token from their
-      // MetaConnection (selected inline above, so no extra query); everyone
-      // else uses the per-account token exactly as before.
-      const { encrypted, isSystemUser, connectionId } = await resolveAccountToken(prisma, acct);
-      if (!encrypted) continue;
-
-      // Decrypt up front so a TOKEN_ENCRYPTION_KEY mismatch is never mistaken
-      // for an expired/invalid Meta token (190). On decrypt failure, skip this
-      // account this cycle without touching its status/token.
-      let accessToken: string;
-      try {
-        accessToken = decryptToken(encrypted);
-      } catch (decErr) {
-        if (decErr instanceof TokenDecryptError) {
-          console.error(`[adlytic:auto-sync] Skipping ${acct.externalAccountId} — token decrypt failed (key mismatch, not a 190): ${decErr.message}`);
-          continue;
-        }
-        throw decErr;
-      }
-
-      // On a Meta 190 (expired/invalid token): legacy accounts are PAUSED and
-      // their token nulled (owner must reconnect). SYSTEM_USER accounts instead
-      // flag the MetaConnection NEEDS_REGRANT — the token is not "expired", the
-      // business must re-grant assets — and are left ACTIVE/untouched otherwise.
-      // Shared with the manual "Sync now" route via handleMeta190.
-      const handle190 = (): Promise<void> => handleMeta190(prisma, {
-        accountId: acct.id,
-        externalAccountId: acct.externalAccountId,
-        isSystemUser,
-        connectionId,
-        workspaceId: acct.workspaceId,
-      });
-
-      try {
-        const metaClient = new MetaClient({ apiVersion: API_VERSION, accessToken });
-        const worker = new SyncAccountWorker(prisma, metaClient);
-        const syncResult = await worker.sync(acct.id, { backfillDays: 7 });
-        if (syncResult.ok) {
-          await runEngines(prisma, acct.id);
-          console.log(`[adlytic:auto-sync] ✓ ${acct.externalAccountId} (${syncResult.rowsUpserted} rows, ${syncResult.durationMs}ms)`);
-        } else {
-          console.warn(`[adlytic:auto-sync] ✗ ${acct.externalAccountId}: ${syncResult.error}`);
-          if (syncResult.error && /code.*190|190.*code|OAuthException/.test(syncResult.error)) {
-            await handle190();
-          }
-        }
-      } catch (err) {
-        console.error(`[adlytic:auto-sync] Error syncing ${acct.externalAccountId}:`, err);
-        // Also catch MetaApiError code 190 thrown before SyncResult is produced
-        if (err instanceof MetaApiError) {
-          const body = err.body as Record<string, any>;
-          if (body?.error?.code === 190) {
-            await handle190();
-          }
-        }
-      }
-    }
+  // ── Background work ──────────────────────────────────────────────────
+  // One entrypoint, two behaviors chosen by SERVICE_ROLE:
+  //   • 'api'   → serve HTTP only; a separate worker service owns all Meta ETL,
+  //     so the API event loop is never blocked by a long sync.
+  //   • 'worker' or 'combined' → ALSO run the auto-sync loop, daily
+  //     maintenance, and BullMQ workers. Both still serve HTTP so Railway's
+  //     healthcheck passes on every service (a worker with no HTTP port would
+  //     fail the healthcheck and the deploy).
+  // Default (unset) = 'combined' = identical to the previous single-service deploy.
+  if (config.role !== 'api') {
+    startBackgroundWork(prisma);
+  } else {
+    console.log('[adlytic] SERVICE_ROLE=api — background sync/queues run in the worker service');
   }
-
-  // Recursive setTimeout so the next pass only starts after the previous one
-  // fully completes. setInterval would queue overlapping runs if a sync takes
-  // longer than SYNC_INTERVAL_MS (e.g. many accounts, slow Meta API).
-  async function runBackgroundPass(): Promise<void> {
-    const { acquired, lockId } = await tryAcquireAdvisoryLock(prisma, 'adlytic:auto-sync');
-    if (!acquired) {
-      console.log('[adlytic:auto-sync] Another instance holds the auto-sync lock — skipping this tick');
-      return;
-    }
-    try {
-      await refreshExpiringMetaTokens(prisma);
-      await syncAllAccounts();
-    } finally {
-      await releaseAdvisoryLock(prisma, lockId);
-    }
-  }
-
-  function scheduleSyncLoop(): void {
-    setTimeout(async () => {
-      await runBackgroundPass();
-      scheduleSyncLoop();
-    }, SYNC_INTERVAL_MS);
-  }
-  scheduleSyncLoop();
-
-  // ── Raw insights retention job ───────────────────────────────────────
-  // Runs once at startup (after a short delay) and then every 24 hours.
-  // Deletes raw_insight rows older than RAW_INSIGHTS_RETAIN_DAYS to prevent
-  // unbounded table growth. Processed data lives in daily_stats and is kept.
-  async function pruneRawInsights(): Promise<void> {
-    try {
-      const cutoff = new Date(Date.now() - RAW_INSIGHTS_RETAIN_DAYS * 864e5);
-      const result = await prisma.rawInsight.deleteMany({
-        where: { fetchedAt: { lt: cutoff } },
-      });
-      if (result.count > 0) {
-        console.log(`[adlytic:retention] Deleted ${result.count} raw_insight rows older than ${RAW_INSIGHTS_RETAIN_DAYS} days`);
-      }
-    } catch (err) {
-      console.error('[adlytic:retention] Failed to prune raw_insights:', err);
-    }
-  }
-
-  async function refreshHistoryRollups(): Promise<void> {
-    try {
-      const result = await refreshCampaignHistoryRollups(prisma);
-      if (result.upserted > 0) {
-        console.log(
-          `[adlytic:rollup] Refreshed ${result.upserted} rollup row(s) across ${result.workspaces} workspace(s)`,
-        );
-      }
-    } catch (err) {
-      console.error('[adlytic:rollup] Failed to refresh campaign history rollups:', err);
-    }
-  }
-
-  async function runDailyMaintenance(): Promise<void> {
-    await pruneRawInsights();
-    await refreshHistoryRollups();
-  }
-
-  // Delay initial run by 30s so startup traffic settles first
-  setTimeout(() => {
-    void runDailyMaintenance();
-    setInterval(() => { void runDailyMaintenance(); }, 24 * 60 * 60_000);
-  }, 30_000);
 
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {

@@ -63,7 +63,7 @@ export function createEnginesAndBrainProcessor(prisma: PrismaClient) {
       throw err;
     }
 
-    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken , timezone: account.timezone });
     await runEngines(prisma, account.id);
     await runBrainOrchestrator(prisma, metaClient, account.id);
   };

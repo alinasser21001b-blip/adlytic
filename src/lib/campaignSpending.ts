@@ -45,3 +45,17 @@ export function getAccountLocalDateString(timezone: string, now: Date = new Date
 export function accountLocalTodayFloor(timezone: string, now: Date = new Date()): Date {
   return new Date(getAccountLocalDateString(timezone, now));
 }
+
+/**
+ * UTC-midnight Date for the account-local calendar day `daysAgo` days back.
+ * Window starts (last 7/30/90 days) must use the account's calendar, not
+ * UTC's — around the account's midnight the two disagree and UTC windows
+ * silently drop or shift the newest day of data.
+ */
+export function accountLocalDateFloor(
+  timezone: string,
+  daysAgo: number,
+  now: Date = new Date(),
+): Date {
+  return new Date(getAccountLocalDateString(timezone, new Date(now.getTime() - daysAgo * 864e5)));
+}

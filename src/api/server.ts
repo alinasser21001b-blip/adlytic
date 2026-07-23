@@ -13,6 +13,7 @@
 //                  POST  /api/auth/password
 //                  DELETE /api/auth/account
 //    Health        GET  /api/health
+//    Data Observer GET  /api/workspaces/:workspaceId/data-health
 //    Dashboard     GET  /api/dashboard/:workspaceId
 //    Settings      GET  /api/workspaces/:workspaceId
 //                  PATCH /api/workspaces/:workspaceId
@@ -38,24 +39,53 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { createHash } from 'node:crypto';
-import { EntityType, WorkspaceRole, SyncJobStatus, type Locale } from '@prisma/client';
+import { bodyLimit } from 'hono/body-limit';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
-import { getDashboard, getDashboardPulse, DashboardStageTimeoutError } from '../services/getDashboard';
+import { getDashboard, getDashboardPulse, loadCurrentIssues, DashboardStageTimeoutError } from '../services/getDashboard';
+import { diagnoseRelevance, rankingLabel } from '../knowledge/adRelevanceIntelligence';
+import { generateWeeklyReport } from '../services/weeklyReport';
+import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
-import { handleStripeWebhookEvent, activateManual } from '../services/subscriptionService';
+import { handleStripeWebhookEvent, activateManual, cancelManual, extendSubscription } from '../services/subscriptionService';
+import {
+  createCustomer,
+  listCustomers,
+  getCustomerDetail,
+  updateCustomerUser,
+  setCustomerActive,
+  adminResetPassword,
+  deleteCustomer,
+  listSubscriptions,
+  listRecentPaymentEvents,
+  adminOverview,
+} from '../services/adminConsole';
 import { buildWhatsappLink } from '../services/whatsappLink';
 import { buildActivationWhatsappLink } from '../services/activationWhatsappLink';
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
+import { adminConsolePage } from '../web/pages/adminConsolePage';
+import { adminInboxPage } from '../web/pages/adminInboxPage';
+import { supportPage } from '../web/pages/supportPage';
+import { metaReadinessPage } from '../web/pages/metaReadinessPage';
+import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
+import {
+  createTicket, replyToTicket, getTicketWithMessages, adminListTickets,
+  adminInboxCounts, customerListTickets, updateTicketStatus, updateTicketPriority,
+  toggleTicketPin, toggleTicketStar, markMessagesRead, getUnreadCount,
+} from '../services/supportService';
+import type { TicketCategory, TicketStatus, TicketPriority } from '@prisma/client';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { runEngines } from '../workers/runEngines';
 import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
+import { runRefresh } from '../services/refresh/refreshEngine';
 import { MetaClient, MetaApiError } from '../services/metaClient';
 import { getMetaUsageStats } from '../services/metaUsageTracker';
 import { loginPage } from '../web/pages/loginPage';
@@ -66,18 +96,30 @@ import { campaignsPage } from '../web/pages/campaignsPage';
 import { recommendationsPage } from '../web/pages/recommendationsPage';
 import { workspacePage } from '../web/pages/workspacePage';
 import { aiPage } from '../web/pages/aiPage';
+import { adAnalysisPage } from '../web/pages/adAnalysisPage';
+import { runAdAssessment, searchAdLibraryTrends } from '../adAssessor/assessService';
+import {
+  assembleAdlyticAssessmentContext,
+  listCampaignsForAssessor,
+} from '../adAssessor/adlyticContext';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
-import { privacyPage } from '../web/pages/privacyPage';
-import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { purgeAccountAnalytics } from '../services/accountDataPurge';
 import { parseSignedRequest, handleMetaDataDeletion } from '../services/metaDataDeletion';
 import { welcomePage } from '../web/pages/welcomePage';
 import { pendingActivationPage } from '../web/pages/pendingActivationPage';
+import { privacyPage } from '../web/pages/privacyPage';
+import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { buildAiContext } from '../services/aiContextBuilder';
+import { buildAiContextV5 } from '../services/aiContextBuilderV5';
+import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
 import { askClaude } from '../services/claudeClient';
+import { buildAiUnavailableReply } from '../services/aiOfflineReply';
+import { generateText, isAIAvailable } from '../services/ai/aiService';
+import { getActiveProviderName } from '../services/ai/providerManager';
+import { classifyLlmError } from '../lib/llmErrors';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
-import { checkWorkspaceTokenHealth } from '../services/checkWorkspaceTokenHealth';
+import { recordMetaAuditEvent, listMetaAuditEvents } from '../services/metaAudit';
 import {
   getCachedWorkspaceTokenHealth,
   invalidateCachedTokenHealth,
@@ -87,21 +129,49 @@ import {
   getOAuthSession,
   deleteOAuthSession,
   pruneOAuthSessions,
-  type OAuthSession,
 } from '../services/oauthSessionStore';
 import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWebhook';
 import { config } from '../config';
 import { enqueueOrFallback, getQueues } from '../lib/queue';
 import { kickoffInitialSync as kickoffInitialSyncImpl } from '../lib/initialSync';
-import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth, type MetaAdAccountInfo } from '../services/metaOAuth';
+import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 import { ExecutionService } from '../services/execution.service';
 import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
-import { isCurrentlySpending, accountLocalTodayFloor } from '../lib/campaignSpending';
+import { isCurrentlySpending, accountLocalTodayFloor, accountLocalDateFloor, getAccountLocalDateString } from '../lib/campaignSpending';
+import { classifyCampaignDelivery, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
+import {
+  efficiencyForObjective,
+  resultCountForObjective,
+  signalGoodDirection,
+  type ObjectiveKpiFamily,
+  type SignalMetricKey,
+  type WindowTotals,
+} from '../lib/objectiveKpis';
+import { resolveCampaignPurpose } from '../lib/campaignPurpose';
+import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
+import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
+
+/** Map resolved purpose family → objective key for KPI math helpers. */
+function purposeToObjectiveKey(
+  family: ObjectiveKpiFamily,
+  fallbackObjective: string | null | undefined,
+): string {
+  switch (family) {
+    case 'awareness': return 'OUTCOME_AWARENESS';
+    case 'traffic': return 'OUTCOME_TRAFFIC';
+    case 'engagement': return 'OUTCOME_ENGAGEMENT';
+    case 'leads': return 'OUTCOME_LEADS';
+    case 'sales': return 'OUTCOME_SALES';
+    case 'messaging': return 'MESSAGES';
+    case 'app': return 'OUTCOME_APP_PROMOTION';
+    default: return fallbackObjective || 'MESSAGES';
+  }
+}
 
 // ── Background sync window policy ─────────────────────────────────────────
 /** Default window when a user triggers a "refresh" sync from the dashboard. */
@@ -160,8 +230,14 @@ export const ROUTE_COUNT = 57;
 // In-memory per-IP rate limiter. Single-instance; sufficient for Phase 1.
 
 interface RateEntry { count: number; resetAt: number; }
-const _loginRateMap    = new Map<string, RateEntry>(); // 10 req / 15 min
-const _registerRateMap = new Map<string, RateEntry>(); // 5 req  / 60 min
+const _loginRateMap    = new Map<string, RateEntry>(); // 10 req / 15 min per IP
+const _registerRateMap = new Map<string, RateEntry>(); // 5 req  / 60 min per IP
+const _passwordRateMap = new Map<string, RateEntry>(); // 5 req  / 15 min per user
+const _aiRateMap       = new Map<string, RateEntry>(); // LLM endpoints per user
+const _supportRateMap  = new Map<string, RateEntry>(); // 10 tickets / 60 min per user
+const _syncRateMap     = new Map<string, RateEntry>(); // 3 syncs / 15 min per workspace
+const _discoverRateMap = new Map<string, RateEntry>(); // 5 on-demand creative fetches / 15 min per campaign
+const _clientErrRateMap = new Map<string, RateEntry>(); // 30 error posts / 5 min per IP
 
 function checkRateLimit(
   map: Map<string, RateEntry>,
@@ -170,6 +246,12 @@ function checkRateLimit(
   windowMs: number,
 ): boolean {
   const now = Date.now();
+  // Bound memory: prune expired entries once the map grows past a few
+  // thousand keys (each new IP/user adds one entry that would otherwise
+  // live forever).
+  if (map.size > 5000) {
+    for (const [k, v] of map) if (v.resetAt < now) map.delete(k);
+  }
   const entry = map.get(key);
   if (!entry || entry.resetAt < now) {
     map.set(key, { count: 1, resetAt: now + windowMs });
@@ -224,6 +306,43 @@ function safeJson(obj: unknown): unknown {
 }
 
 /**
+ * Server-computed relevance view for an Ad row. Translates Meta's raw grades
+ * into an advisor diagnosis so the client renders a sentence, never an enum.
+ * Returns null when Meta hasn't graded the ad (keeps the UI quiet).
+ */
+function buildAdRelevanceView(ad: {
+  qualityRanking: string | null;
+  engagementRanking: string | null;
+  conversionRanking: string | null;
+  rankingsSyncedAt: Date | null;
+}): {
+  code: string; severity: string; confidence: number;
+  titleAr: string; bodyAr: string; actionAr: string;
+  grades: { quality: string; engagement: string; conversion: string };
+} | null {
+  if (!ad.qualityRanking && !ad.engagementRanking && !ad.conversionRanking) return null;
+  const d = diagnoseRelevance({
+    quality: (ad.qualityRanking ?? 'unknown') as any,
+    engagement: (ad.engagementRanking ?? 'unknown') as any,
+    conversion: (ad.conversionRanking ?? 'unknown') as any,
+  });
+  if (d.code === 'RELEVANCE_UNKNOWN') return null;
+  return {
+    code: d.code,
+    severity: d.severity,
+    confidence: d.confidence,
+    titleAr: d.titleAr,
+    bodyAr: d.bodyAr,
+    actionAr: d.actionAr,
+    grades: {
+      quality: rankingLabel((ad.qualityRanking ?? 'unknown') as any, 'AR'),
+      engagement: rankingLabel((ad.engagementRanking ?? 'unknown') as any, 'AR'),
+      conversion: rankingLabel((ad.conversionRanking ?? 'unknown') as any, 'AR'),
+    },
+  };
+}
+
+/**
  * Normalize operator-provided env tokens to reduce common formatting mistakes:
  * - trims surrounding whitespace/newlines
  * - strips wrapping single/double quotes
@@ -263,6 +382,44 @@ function isPermanentTokenError(msg: string): boolean {
   return /error validating access token|session is invalid|session has expired|access token could not be decrypted|has not authorized application|token is not valid/i.test(msg);
 }
 
+/**
+ * Verify + decode a Meta `signed_request` (used by the Data Deletion callback).
+ * Format is `<base64url-signature>.<base64url-json-payload>`; the signature is
+ * HMAC-SHA256(payload, appSecret). Uses a constant-time comparison to reject
+ * forged requests. Returns the decoded JSON payload on success.
+ */
+function parseMetaSignedRequest(
+  signedRequest: string,
+  appSecret: string,
+): { ok: true; payload: Record<string, unknown> } | { ok: false; reason: string } {
+  const parts = signedRequest.split('.');
+  if (parts.length !== 2) return { ok: false, reason: 'Malformed signed_request' };
+  const [encodedSig, encodedPayload] = parts as [string, string];
+
+  let expected: Buffer;
+  let provided: Buffer;
+  try {
+    provided = Buffer.from(encodedSig.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    expected = createHmac('sha256', appSecret).update(encodedPayload).digest();
+  } catch {
+    return { ok: false, reason: 'Invalid signature encoding' };
+  }
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+    return { ok: false, reason: 'Bad signature' };
+  }
+
+  try {
+    const json = Buffer.from(
+      encodedPayload.replace(/-/g, '+').replace(/_/g, '/'),
+      'base64',
+    ).toString('utf8');
+    const payload = JSON.parse(json) as Record<string, unknown>;
+    return { ok: true, payload };
+  } catch {
+    return { ok: false, reason: 'Invalid payload JSON' };
+  }
+}
+
 // ── Application factory ───────────────────────────────────────────────────
 
 export function buildRoutes(prisma: PrismaClient): Hono {
@@ -289,6 +446,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   app.use('*', logger());
 
+  // Cap API request bodies at 1 MB — the largest legitimate payload (AI chat
+  // history) is well under this; anything bigger is abuse or a bug.
+  app.use('/api/*', bodyLimit({
+    maxSize: 1024 * 1024,
+    onError: (c) => c.json({ error: 'Request body too large' }, 413),
+  }));
+
+  // ── Self-hosted fonts (Tajawal + El Messiri woff2) ────────────────────
+  // Self-hosted so the CSP below never needs a third-party font-src/style-src
+  // exception. Files live in ./public/fonts, resolved relative to process
+  // cwd — stable both under `tsx src/api/serve.ts` (dev) and the production
+  // start command `node dist/src/api/serve.js` (both run from the repo
+  // root). Immutable cache: filenames are content-stable per font version,
+  // never rewritten in place.
+  app.use('/fonts/*', serveStatic({ root: './public' }));
+  app.use('/fonts/*', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'public, max-age=31536000, immutable');
+  });
+
+  // PWA assets: manifest, service worker, icons
+  app.use('/manifest.json', serveStatic({ root: './public' }));
+  app.use('/sw.js', serveStatic({ root: './public' }));
+  app.use('/icons/*', serveStatic({ root: './public' }));
+  // Self-hosted JS libraries (Chart.js). Served same-origin so charts never
+  // depend on a third-party CDN — jsdelivr is unreachable on some regional
+  // mobile networks, which left every chart card empty while the rest of the
+  // page rendered fine.
+  app.use('/vendor/*', serveStatic({ root: './public' }));
+
   // ── Security headers ───────────────────────────────────────────────────
   app.use('*', async (c, next) => {
     await next();
@@ -304,8 +491,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     c.header(
       'Content-Security-Policy',
+      // script-src no longer needs cdn.jsdelivr.net — Chart.js is self-hosted
+      // under /vendor (same origin), so third-party script execution is now
+      // fully blocked.
       "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+      "script-src 'self' 'unsafe-inline'; " +
       "style-src 'self' 'unsafe-inline'; " +
       "font-src 'self' data:; " +
       "img-src 'self' data: https:; " +
@@ -326,6 +516,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/register',       (c) => c.html(registerPage()));
   app.get('/pending-activation', (c) => c.html(pendingActivationPage()));
   app.get('/welcome',        (c) => c.html(welcomePage()));
+  // Public legal pages — no auth. Required by Meta App Review (Privacy Policy URL
+  // + Data Deletion Instructions URL, both on the app's own domain).
+  app.get('/privacy',        (c) => c.html(privacyPage()));
+  app.get('/data-deletion',  (c) => c.html(dataDeletionPage(c.req.query('code') ?? undefined)));
   // /dashboard switches between the Pro view and the Beginner view based on a
   // dashboard_mode cookie. The cookie is per-user-agent (httpOnly=false so the
   // toggle JS can read it for the active-pill state on first load). Default is
@@ -354,17 +548,17 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json({ ok: true, mode });
   });
   app.get('/campaigns',      (c) => c.html(campaignsPage()));
+  app.get('/ad-analysis',    (c) => c.html(adAnalysisPage()));
   app.get('/recommendations',(c) => c.html(recommendationsPage()));
   app.get('/workspace',      (c) => c.html(workspacePage()));
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
-  app.get('/admin',          (c) => c.html(adminDashboardPage()));
+  app.get('/support',        (c) => c.html(supportPage()));
+  app.get('/admin',          (c) => c.html(adminConsolePage()));
+  app.get('/admin/inbox',    (c) => c.html(adminInboxPage()));
+  app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
+  app.get('/admin/meta-readiness', (c) => c.html(metaReadinessPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
-  // Public compliance pages — referenced from the Meta App Dashboard
-  // (Privacy Policy URL / Data Deletion Instructions URL). Must load with
-  // zero auth and zero app JS: reviewers open them cold.
-  app.get('/privacy',        (c) => c.html(privacyPage()));
-  app.get('/data-deletion',  (c) => c.html(dataDeletionPage(c.req.query('code') ?? undefined)));
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
 
@@ -627,23 +821,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!checkRateLimit(_registerRateMap, clientIp, 5, 60 * 60_000)) {
       return c.json({ error: 'Too many registration attempts. Please try again later.' }, 429);
     }
-    const body = await c.req.json() as { email?: string; password?: string; name?: string };
+    let body: { email?: string; password?: string; name?: string };
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid request body' }, 400); }
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
     if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    if (body.password.length > 128) return c.json({ error: 'Password too long' }, 400);
     const email = body.email.toLowerCase().trim();
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return c.json({ error: 'Invalid email address' }, 400);
+    }
+    if (body.name && body.name.length > 100) return c.json({ error: 'Name too long (max 100 chars)' }, 400);
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return c.json({ error: 'Email already in use' }, 409);
     const passwordHash = await hashPassword(body.password);
-    const user = await prisma.user.create({
-      data: { email, name: body.name ?? email.split('@')[0], passwordHash },
-    });
-    // Create a default workspace for the new user
-    const workspace = await prisma.workspace.create({
-      data: {
-        name: `${body.name ?? email.split('@')[0]}'s Workspace`,
-        members: { create: { userId: user.id, role: WorkspaceRole.OWNER } },
-      },
-    });
+    let user, workspace;
+    try {
+      user = await prisma.user.create({
+        data: { email, name: body.name ?? email.split('@')[0], passwordHash },
+      });
+      workspace = await prisma.workspace.create({
+        data: {
+          name: `${body.name ?? email.split('@')[0]}'s Workspace`,
+          members: { create: { userId: user.id, role: WorkspaceRole.OWNER } },
+        },
+      });
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') {
+        return c.json({ error: 'Email already in use' }, 409);
+      }
+      throw err;
+    }
     const token = signToken({ sub: user.id, email: user.email, ver: user.tokenVersion });
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name ?? null }, workspaceId: workspace.id }, 201);
   });
@@ -654,8 +861,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!checkRateLimit(_loginRateMap, clientIp, 10, 15 * 60_000)) {
       return c.json({ error: 'Too many login attempts. Please try again in 15 minutes.' }, 429);
     }
-    const body = await c.req.json() as { email?: string; password?: string };
+    let body: { email?: string; password?: string };
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid request body' }, 400); }
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
+    if (body.password.length > 128) return c.json({ error: 'Invalid credentials' }, 401);
     const email = body.email.toLowerCase().trim();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -746,9 +955,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    // Per-user limit: a stolen session token must not allow brute-forcing the
+    // current password out of this endpoint.
+    if (!checkRateLimit(_passwordRateMap, userId, 5, 15 * 60_000)) {
+      return c.json({ error: 'Too many attempts. Please try again in 15 minutes.' }, 429);
+    }
     const body = req.body as { currentPassword?: string; newPassword?: string };
     if (!body.currentPassword || !body.newPassword) return c.json({ error: 'Both passwords are required' }, 400);
     if (body.newPassword.length < 8) return c.json({ error: 'New password must be at least 8 characters' }, 400);
+    if (body.newPassword.length > 128) return c.json({ error: 'Password too long' }, 400);
+    if (body.currentPassword.length > 128) return c.json({ error: 'Password too long' }, 400);
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
     const { ok } = await verifyPassword(body.currentPassword, user.passwordHash);
@@ -802,7 +1018,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
     c.header('Content-Disposition', `attachment; filename="adlytic-export-${userId}.json"`);
-    return c.json({ exportedAt: new Date().toISOString(), user });
+    return c.json(safeJson({ exportedAt: new Date().toISOString(), user }));
   });
 
   /** DELETE /api/auth/account — permanently delete the authenticated user. */
@@ -841,11 +1057,41 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   // ════════════════════════════════════════════════════════════════════════
+  //  CLIENT ERROR REPORTING
+  // ════════════════════════════════════════════════════════════════════════
+
+  app.post('/api/client-errors', async (c) => {
+    // Unauthenticated by design (errors fire before/around auth), so cap by IP
+    // to keep it from becoming a log-flood vector. Silent 200 on limit — a
+    // noisy client must never learn it is being throttled.
+    const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (!checkRateLimit(_clientErrRateMap, clientIp, 30, 5 * 60_000)) {
+      return c.json({ ok: true }, 200);
+    }
+    const req = await honoToApiRequest(c);
+    const userId = req.bearerToken ? await getUserId(req.bearerToken) : null;
+    const body = req.body as { errors?: Array<{ msg?: string; src?: string; line?: number }>; url?: string } | null;
+    if (!body?.errors?.length) return c.json({ ok: true }, 200);
+    const tag = `[client-error] user=${userId ?? 'anon'} page=${body.url ?? '?'}`;
+    for (const err of body.errors.slice(0, 5)) {
+      console.warn(`${tag} ${err.msg ?? '?'} (${err.src ?? ''}:${err.line ?? 0})`);
+    }
+    return c.json({ ok: true }, 200);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
   //  HEALTH
   // ════════════════════════════════════════════════════════════════════════
 
   /** GET /api/health — process liveness + DB readiness. */
   app.get('/api/health', async (c) => {
+    // role/bullmq are surfaced so `curl /api/health` on each Railway service
+    // confirms which one is the API and which runs background sync.
+    const roleInfo = {
+      role: config.role,
+      runsBackgroundSync: config.role !== 'api',
+      bullmq: config.features.bullmqEnabled ? 'enabled' : 'disabled',
+    };
     try {
       await prisma.$queryRaw`SELECT 1`;
       return c.json({
@@ -854,6 +1100,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         version: '0.1.0',
         timestamp: new Date().toISOString(),
         db: 'ok',
+        ...roleInfo,
       });
     } catch {
       return c.json({
@@ -862,8 +1109,106 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         version: '0.1.0',
         timestamp: new Date().toISOString(),
         db: 'unavailable',
+        ...roleInfo,
       }, 503);
     }
+  });
+
+  /** GET /api/health/ai — live AI provider self-test.
+   *
+   *  The one endpoint that ends "why is the assistant offline?" guessing:
+   *  it reports which keys exist on THIS service, which provider/model chat
+   *  resolves to, and the classified result of a real 8-token ping — so a
+   *  worker-has-key-but-api-doesn't split, a dead key, or a retired model ID
+   *  is visible in one browser tab without Railway log access. No secrets:
+   *  booleans + classified codes; provider text is truncated and key-redacted.
+   *  Result cached 5 minutes so it cannot be used to burn credits. */
+  let aiHealthCache: { at: number; body: Record<string, unknown> } | null = null;
+  app.get('/api/health/ai', async (c) => {
+    if (aiHealthCache && Date.now() - aiHealthCache.at < 5 * 60_000) {
+      return c.json(aiHealthCache.body);
+    }
+    const body: Record<string, unknown> = {
+      service: config.role,
+      anthropicKeyPresent: !!process.env['ANTHROPIC_API_KEY'],
+      openaiKeyPresent: !!process.env['OPENAI_API_KEY'],
+      chatProvider: getActiveProviderName('chat-agent'),
+      checkedAt: new Date().toISOString(),
+    };
+    if (!isAIAvailable()) {
+      body['ok'] = false;
+      body['code'] = 'AI_AUTH_FAILED';
+      body['reasonAr'] = 'لا يوجد مفتاح ذكاء اصطناعي على خدمة الويب — أضف ANTHROPIC_API_KEY لهذه الخدمة تحديداً في Railway (وليس فقط لخدمة الـ worker).';
+    } else {
+      try {
+        const ping = await generateText({
+          task: 'chat-agent',
+          system: 'Reply with the single word OK.',
+          messages: [{ role: 'user', content: 'ping' }],
+          maxTokens: 8,
+          timeoutMs: 12_000,
+        });
+        body['ok'] = true;
+        body['provider'] = ping.provider;
+        body['model'] = ping.model;
+      } catch (err) {
+        const classified = classifyLlmError(err);
+        body['ok'] = false;
+        body['code'] = classified.code;
+        body['reasonAr'] = classified.messageAr;
+        body['providerMessage'] = classified.providerMessage
+          .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-***')
+          .slice(0, 200);
+      }
+    }
+    aiHealthCache = { at: Date.now(), body };
+    return c.json(body);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  DATA OBSERVER — reconciliation & cleanup
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * GET /api/workspaces/:workspaceId/data-health — data consistency observer.
+   * Compares account-level vs sum-of-campaign stats, dormant ACTIVE inflation,
+   * and orphaned historical rows. ?cleanup=true removes orphaned stats.
+   */
+  app.get('/api/workspaces/:workspaceId/data-health', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account linked' }, 404);
+
+    const doCleanup = req.query['cleanup'] === 'true';
+    const report = await runDataIntegrityCheck(prisma, req.params['workspaceId'], account);
+
+    let orphanedRowsDeleted = 0;
+    if (doCleanup && report.orphanedCount > 0) {
+      orphanedRowsDeleted = await cleanupOrphanedCampaignStats(prisma);
+    }
+
+    return c.json({
+      window: `${report.windowDays}d`,
+      accountId: report.accountId,
+      checkedAt: report.checkedAt,
+      overallStatus: report.overallStatus,
+      checks: report.checks,
+      campaignCounts: report.campaignCounts,
+      activeCampaigns: report.campaignCounts.deliveringInWindow,
+      metaActiveCampaigns: report.campaignCounts.activeStatus,
+      dormantActiveCampaigns: report.campaignCounts.dormantActive,
+      divergencePct: report.divergencePct,
+      divergenceStatus: report.divergenceStatus,
+      orphanedCampaignIds: report.orphanedCampaignIds,
+      orphanedCount: report.orphanedCount,
+      staleActiveCount: report.staleActiveCount,
+      syncAgeHours: report.syncAgeHours,
+      ...(doCleanup ? { orphanedRowsDeleted } : {}),
+    });
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -886,7 +1231,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
     try {
       const dto = await getDashboard(workspaceId, { prisma, locale: user?.locale });
-      return c.json(dto);
+      return c.json(safeJson(dto));
     } catch (e: any) {
       if (e?.message?.includes('no ad account') || e?.code === 'P2025') {
         return c.json({ empty: true, workspace: { id: workspaceId } }, 200);
@@ -895,13 +1240,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // Return 504 with the offending stage so the client stops spinning and
       // can show an error state, and so logs pinpoint the bottleneck.
       if (e instanceof DashboardStageTimeoutError) {
-        console.error(`[api:dashboard] timeout serving ${workspaceId}: ${e.message}`);
+        console.error(`[api:dashboard] timeout serving ${workspaceId}: stage=${e.stage} timeoutMs=${e.timeoutMs}`);
         return c.json(
           {
             error: 'Dashboard timed out while loading live data.',
             code: 'DASHBOARD_TIMEOUT',
-            stage: e.stage,
-            timeoutMs: e.timeoutMs,
           },
           504,
         );
@@ -928,7 +1271,21 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!member) return c.json({ error: 'Access denied' }, 403);
     const pulse = await getDashboardPulse(workspaceId, { prisma });
     if (!pulse) return c.json({ empty: true, workspaceId }, 200);
-    return c.json(pulse);
+    return c.json(safeJson(pulse));
+  });
+
+  app.get('/api/weekly-report/:workspaceId', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Access denied' }, 403);
+    const report = await generateWeeklyReport(prisma, workspaceId);
+    if (!report) return c.json({ empty: true }, 200);
+    return c.json(safeJson(report));
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -947,7 +1304,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getPlatformStats(prisma);
-    return c.json(stats);
+    return c.json(safeJson(stats));
   });
 
   /**
@@ -965,25 +1322,39 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /**
    * GET /api/admin/users — list users with activation status for manual review.
+   * Supports ?q=&status=active|pending|all&tier=FREE|PREMIUM|all&take=&skip=
    */
   app.get('/api/admin/users', async (c) => {
     const req = await honoToApiRequest(c);
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
 
-    const users = await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        activatedAt: true,
-        createdAt: true,
-      },
-    });
-    return c.json({ users: safeJson(users) });
+    const q = c.req.query('q') ?? undefined;
+    const statusRaw = c.req.query('status') ?? 'all';
+    const status = statusRaw === 'active' || statusRaw === 'pending' ? statusRaw : 'all';
+    const tierRaw = c.req.query('tier') ?? 'all';
+    const tier = tierRaw === 'FREE' || tierRaw === 'PREMIUM' ? tierRaw : 'all';
+    const take = Number(c.req.query('take') ?? 50);
+    const skip = Number(c.req.query('skip') ?? 0);
+
+    // Legacy shape for the old observability page: { users: [...] }
+    // New console prefers /api/admin/customers — keep this enriched.
+    const result = await listCustomers(prisma, { q, status, tier, take, skip });
+    return c.json(safeJson({
+      users: result.customers.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        isActive: u.isActive,
+        activatedAt: u.activatedAt,
+        createdAt: u.createdAt,
+        hasPremium: u.hasPremium,
+        workspaces: u.workspaces,
+      })),
+      total: result.total,
+      take: result.take,
+      skip: result.skip,
+    }));
   });
 
   /**
@@ -1007,22 +1378,538 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return c.json({ ok: true, alreadyActive: true, user: existing });
     }
 
-    const user = await prisma.user.update({
-      where: { id: targetUserId },
-      data: {
-        isActive: true,
-        activatedAt: new Date(),
-        activatedBy: gate.userId,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        activatedAt: true,
-      },
-    });
+    const user = await setCustomerActive(prisma, targetUserId, true, gate.userId);
     return c.json({ ok: true, user: safeJson(user) });
+  });
+
+  /**
+   * POST /api/admin/users/deactivate — suspend a customer account.
+   */
+  app.post('/api/admin/users/deactivate', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as { userId?: string };
+    const targetUserId = body.userId?.trim();
+    if (!targetUserId) return c.json({ error: 'userId is required' }, 400);
+    if (targetUserId === gate.userId) {
+      return c.json({ error: 'Cannot deactivate your own admin account' }, 400);
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true },
+    });
+    if (!existing) return c.json({ error: 'User not found' }, 404);
+
+    const user = await setCustomerActive(prisma, targetUserId, false, gate.userId);
+    return c.json({ ok: true, user: safeJson(user) });
+  });
+
+  /**
+   * GET /api/admin/overview — owner console KPI strip.
+   */
+  app.get('/api/admin/overview', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const overview = await adminOverview(prisma);
+    return c.json(safeJson(overview));
+  });
+
+  /**
+   * GET /api/admin/customers — searchable customer list for the owner console.
+   */
+  app.get('/api/admin/customers', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const q = c.req.query('q') ?? undefined;
+    const statusRaw = c.req.query('status') ?? 'all';
+    const status = statusRaw === 'active' || statusRaw === 'pending' ? statusRaw : 'all';
+    const tierRaw = c.req.query('tier') ?? 'all';
+    const tier = tierRaw === 'FREE' || tierRaw === 'PREMIUM' ? tierRaw : 'all';
+    const take = Number(c.req.query('take') ?? 50);
+    const skip = Number(c.req.query('skip') ?? 0);
+    const result = await listCustomers(prisma, { q, status, tier, take, skip });
+    return c.json(safeJson(result));
+  });
+
+  /**
+   * POST /api/admin/customers — create a customer account + workspace.
+   */
+  app.post('/api/admin/customers', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as {
+      email?: string;
+      name?: string;
+      password?: string;
+      workspaceName?: string;
+      locale?: 'AR' | 'EN';
+      activateAccount?: boolean;
+      grantPremium?: boolean;
+      premiumDays?: number;
+      premiumNote?: string;
+    };
+
+    try {
+      const premiumDays = Math.max(1, Math.min(730, Number(body.premiumDays ?? 30)));
+      const result = await createCustomer(prisma, {
+        email: body.email ?? '',
+        name: body.name ?? '',
+        password: body.password ?? '',
+        workspaceName: body.workspaceName ?? '',
+        locale: body.locale === 'EN' ? 'EN' : 'AR',
+        activateAccount: body.activateAccount !== false,
+        grantPremium: body.grantPremium === true,
+        premiumExpiresAt: body.grantPremium
+          ? new Date(Date.now() + premiumDays * 864e5)
+          : undefined,
+        premiumNote: body.premiumNote,
+        triggeredBy: gate.userId,
+      });
+      return c.json(safeJson({ ok: true, ...result }), 201);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'CREATE_FAILED';
+      const map: Record<string, { status: 400 | 409; error: string }> = {
+        INVALID_EMAIL: { status: 400, error: 'البريد الإلكتروني غير صالح' },
+        INVALID_NAME: { status: 400, error: 'الاسم مطلوب' },
+        WEAK_PASSWORD: { status: 400, error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' },
+        EMAIL_TAKEN: { status: 409, error: 'هذا البريد مسجّل مسبقاً' },
+      };
+      const mapped = map[code] ?? { status: 400 as const, error: 'تعذّر إنشاء الحساب' };
+      return c.json({ error: mapped.error, code }, mapped.status);
+    }
+  });
+
+  /**
+   * GET /api/admin/customers/:userId — customer detail + activity.
+   */
+  app.get('/api/admin/customers/:userId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+    const detail = await getCustomerDetail(prisma, userId);
+    if (!detail) return c.json({ error: 'User not found' }, 404);
+    return c.json(safeJson(detail));
+  });
+
+  /**
+   * PATCH /api/admin/customers/:userId — edit name/email/locale.
+   */
+  app.patch('/api/admin/customers/:userId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+    const body = req.body as { name?: string; email?: string; locale?: 'AR' | 'EN' };
+    try {
+      const user = await updateCustomerUser(prisma, userId, body);
+      return c.json(safeJson({ ok: true, user }));
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'UPDATE_FAILED';
+      if (code === 'EMAIL_TAKEN') return c.json({ error: 'هذا البريد مسجّل مسبقاً', code }, 409);
+      if (code === 'INVALID_EMAIL') return c.json({ error: 'البريد غير صالح', code }, 400);
+      if (code === 'INVALID_NAME') return c.json({ error: 'الاسم مطلوب', code }, 400);
+      return c.json({ error: 'تعذّر التحديث', code }, 400);
+    }
+  });
+
+  /**
+   * POST /api/admin/customers/:userId/reset-password
+   */
+  app.post('/api/admin/customers/:userId/reset-password', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+    const body = req.body as { password?: string };
+    try {
+      const user = await adminResetPassword(prisma, userId, body.password ?? '');
+      return c.json(safeJson({ ok: true, user }));
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'RESET_FAILED';
+      if (code === 'WEAK_PASSWORD') {
+        return c.json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل', code }, 400);
+      }
+      return c.json({ error: 'تعذّر إعادة تعيين كلمة المرور', code }, 400);
+    }
+  });
+
+  /**
+   * DELETE /api/admin/customers/:userId — permanently delete a customer.
+   *
+   * Irreversible: purges every workspace the user OWNS (ad accounts,
+   * campaigns, ads, analytics, payment ledger, AI history) and the user
+   * row itself. Platform-admin only; no extra confirmation step.
+   */
+  app.delete('/api/admin/customers/:userId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const userId = req.params['userId'];
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+
+    const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+    if (!target) return c.json({ error: 'User not found' }, 404);
+
+    try {
+      const result = await deleteCustomer(prisma, userId);
+      return c.json(safeJson({ ok: true, ...result }));
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'DELETE_FAILED';
+      if (code === 'USER_NOT_FOUND') return c.json({ error: 'User not found', code }, 404);
+      return c.json({ error: 'تعذّر حذف الحساب', code }, 500);
+    }
+  });
+
+  /**
+   * GET /api/admin/subscriptions — all workspaces with billing state.
+   */
+  app.get('/api/admin/subscriptions', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const take = Number(c.req.query('take') ?? 100);
+    const rows = await listSubscriptions(prisma, take);
+    return c.json(safeJson({ subscriptions: rows }));
+  });
+
+  /**
+   * GET /api/admin/payment-events — recent ledger rows.
+   */
+  app.get('/api/admin/payment-events', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const take = Number(c.req.query('take') ?? 50);
+    const events = await listRecentPaymentEvents(prisma, take);
+    return c.json(safeJson({ events }));
+  });
+
+  /**
+   * POST /api/admin/subscriptions/cancel-manual — revoke Premium / cancel.
+   */
+  app.post('/api/admin/subscriptions/cancel-manual', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as { workspaceId?: string; note?: string };
+    const workspaceId = body.workspaceId?.trim();
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+    const exists = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+    if (!exists) return c.json({ error: 'Workspace not found' }, 404);
+
+    const result = await cancelManual(prisma, {
+      workspaceId,
+      ...(body.note ? { note: body.note } : {}),
+      triggeredBy: gate.userId,
+    });
+    return c.json(result);
+  });
+
+  /**
+   * POST /api/admin/subscriptions/extend — push expiry forward on an active subscription.
+   */
+  app.post('/api/admin/subscriptions/extend', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as {
+      workspaceId?: string;
+      newExpiresAt?: string;
+      note?: string;
+      amountMinor?: number;
+      currency?: string;
+    };
+    const workspaceId = body.workspaceId?.trim();
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+
+    const ws = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { id: true, tier: true, subscriptionStatus: true },
+    });
+    if (!ws) return c.json({ error: 'Workspace not found' }, 404);
+
+    const newExpiresAt = body.newExpiresAt ? new Date(body.newExpiresAt) : null;
+    if (!newExpiresAt || isNaN(newExpiresAt.getTime())) {
+      return c.json({ error: 'newExpiresAt is required (ISO date string)' }, 400);
+    }
+    if (newExpiresAt <= new Date()) {
+      return c.json({ error: 'newExpiresAt must be in the future' }, 400);
+    }
+
+    const result = await extendSubscription(prisma, {
+      workspaceId,
+      newExpiresAt,
+      note: body.note,
+      amountMinor: body.amountMinor != null ? BigInt(body.amountMinor) : undefined,
+      currency: body.currency,
+      triggeredBy: gate.userId,
+    });
+    return c.json(result);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  PLATFORM SETTINGS — runtime config CRUD for feature flags, sync
+  //  intervals, rate limits, and other server-side parameters.
+  // ════════════════════════════════════════════════════════════════════════
+
+  app.get('/api/admin/settings', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const group = c.req.query('group') || undefined;
+    const settings = await listSettings(prisma, group);
+    return c.json(safeJson({ settings, defaults: SETTING_DEFAULTS }));
+  });
+
+  app.get('/api/admin/settings/:key', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const key = req.params['key'];
+    if (!key) return c.json({ error: 'Missing key' }, 400);
+    const value = await getSetting(prisma, key);
+    if (value === null) return c.json({ error: 'Setting not found' }, 404);
+    return c.json({ key, value });
+  });
+
+  app.put('/api/admin/settings/:key', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const key = req.params['key'];
+    if (!key) return c.json({ error: 'Missing key' }, 400);
+    const body = req.body as { value?: string; label?: string; description?: string; group?: string; valueType?: string };
+    if (body.value == null) return c.json({ error: 'value is required' }, 400);
+    const setting = await upsertSetting(prisma, key, String(body.value), gate.userId, {
+      label: body.label,
+      description: body.description,
+      group: body.group,
+      valueType: body.valueType,
+    });
+    return c.json(safeJson({ ok: true, setting }));
+  });
+
+  app.delete('/api/admin/settings/:key', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const key = req.params['key'];
+    if (!key) return c.json({ error: 'Missing key' }, 400);
+    const ok = await deleteSetting(prisma, key);
+    if (!ok) return c.json({ error: 'Setting not found' }, 404);
+    return c.json({ ok: true });
+  });
+
+  app.post('/api/admin/settings/seed', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const count = await seedDefaults(prisma, gate.userId);
+    return c.json({ ok: true, seeded: count });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  SUPPORT — Customer communication center
+  //
+  //  Customer-side: create tickets, list own tickets, reply, view thread.
+  //  Admin-side: inbox counts, list/filter tickets, reply, change status,
+  //  toggle pin/star, internal notes, mark read.
+  // ════════════════════════════════════════════════════════════════════════
+
+  // ── Customer-side routes ────────────────────────────────────────────────
+
+  app.post('/api/support/tickets', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!checkRateLimit(_supportRateMap, userId, 10, 60 * 60_000)) {
+      return c.json({ error: 'Too many tickets created. Please try again later.' }, 429);
+    }
+
+    const body = req.body as {
+      workspaceId?: string; category?: TicketCategory; subject?: string;
+      message?: string; priority?: TicketPriority;
+      linkedEntityType?: string; linkedEntityId?: string;
+      userAgent?: string; language?: string;
+    };
+    if (!body.workspaceId?.trim()) return c.json({ error: 'workspaceId is required' }, 400);
+    if (!body.category) return c.json({ error: 'category is required' }, 400);
+    if (!body.subject?.trim()) return c.json({ error: 'subject is required' }, 400);
+    if (!body.message?.trim()) return c.json({ error: 'message is required' }, 400);
+    if (body.subject!.length > 200) return c.json({ error: 'Subject too long (max 200 chars)' }, 400);
+    if (body.message!.length > 5000) return c.json({ error: 'Message too long (max 5000 chars)' }, 400);
+
+    const member = await checkMember(userId, body.workspaceId);
+    if (!member) return c.json({ error: 'Not a member of this workspace' }, 403);
+
+    const ticket = await createTicket(prisma, {
+      userId,
+      workspaceId: body.workspaceId,
+      category: body.category,
+      subject: body.subject.slice(0, 200),
+      message: body.message.slice(0, 5000),
+      priority: body.priority,
+      linkedEntityType: body.linkedEntityType,
+      linkedEntityId: body.linkedEntityId,
+      clientInfo: { userAgent: body.userAgent, language: body.language },
+    });
+    return c.json(safeJson({ ok: true, ticket }), 201);
+  });
+
+  app.get('/api/support/tickets', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const workspaceId = c.req.query('workspaceId');
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+    const member = await checkMember(userId, workspaceId);
+    if (!member) return c.json({ error: 'Forbidden' }, 403);
+
+    const tickets = await customerListTickets(prisma, userId, workspaceId);
+    return c.json(safeJson({ tickets }));
+  });
+
+  app.get('/api/support/tickets/:ticketId', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+
+    const ticket = await getTicketWithMessages(prisma, ticketId, false);
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+    if (ticket.userId !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+    await markMessagesRead(prisma, ticketId, 'USER');
+    return c.json(safeJson({ ticket }));
+  });
+
+  app.post('/api/support/tickets/:ticketId/reply', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!checkRateLimit(_supportRateMap, 'reply:' + userId, 30, 60 * 60_000)) {
+      return c.json({ error: 'Too many messages. Please try again later.' }, 429);
+    }
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+    const body = req.body as { content?: string };
+    if (!body.content?.trim()) return c.json({ error: 'content is required' }, 400);
+    if (body.content!.length > 5000) return c.json({ error: 'Message too long (max 5000 chars)' }, 400);
+
+    const ticket = await prisma.supportTicket.findUnique({
+      where: { id: ticketId }, select: { userId: true, status: true },
+    });
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+    if (ticket.userId !== userId) return c.json({ error: 'Forbidden' }, 403);
+    if (ticket.status === 'CLOSED') return c.json({ error: 'Ticket is closed' }, 400);
+
+    const msg = await replyToTicket(prisma, {
+      ticketId, senderId: userId, senderType: 'USER', content: body.content.slice(0, 5000),
+    });
+    return c.json(safeJson({ ok: true, message: msg }));
+  });
+
+  // ── Admin-side support routes ───────────────────────────────────────────
+
+  app.get('/api/admin/support/counts', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const counts = await adminInboxCounts(prisma);
+    const unread = await getUnreadCount(prisma, 'ADMIN');
+    return c.json(safeJson({ ...counts, unread }));
+  });
+
+  app.get('/api/admin/support/tickets', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const result = await adminListTickets(prisma, {
+      status: (c.req.query('status') as TicketStatus) || 'all',
+      category: (c.req.query('category') as TicketCategory) || 'all',
+      priority: (c.req.query('priority') as TicketPriority) || 'all',
+      q: c.req.query('q') || '',
+      take: Number(c.req.query('take') ?? 50),
+      skip: Number(c.req.query('skip') ?? 0),
+    });
+    return c.json(safeJson(result));
+  });
+
+  app.get('/api/admin/support/tickets/:ticketId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+
+    const ticket = await getTicketWithMessages(prisma, ticketId, true);
+    if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+
+    await markMessagesRead(prisma, ticketId, 'ADMIN');
+    return c.json(safeJson({ ticket }));
+  });
+
+  app.post('/api/admin/support/tickets/:ticketId/reply', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+    const body = req.body as { content?: string; isInternal?: boolean };
+    if (!body.content?.trim()) return c.json({ error: 'content is required' }, 400);
+
+    const msg = await replyToTicket(prisma, {
+      ticketId,
+      senderId: gate.userId,
+      senderType: 'ADMIN',
+      content: body.content,
+      isInternal: body.isInternal,
+    });
+    return c.json(safeJson({ ok: true, message: msg }));
+  });
+
+  app.patch('/api/admin/support/tickets/:ticketId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const ticketId = req.params['ticketId'];
+    if (!ticketId) return c.json({ error: 'Missing ticketId' }, 400);
+    const body = req.body as { status?: TicketStatus; priority?: TicketPriority; pin?: boolean; star?: boolean };
+
+    let result: unknown = null;
+    if (body.status) result = await updateTicketStatus(prisma, ticketId, body.status, gate.userId);
+    if (body.priority) result = await updateTicketPriority(prisma, ticketId, body.priority);
+    if (body.pin !== undefined) result = await toggleTicketPin(prisma, ticketId);
+    if (body.star !== undefined) result = await toggleTicketStar(prisma, ticketId);
+
+    if (!result) return c.json({ error: 'No action taken' }, 400);
+    return c.json(safeJson({ ok: true, ticket: result }));
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1118,7 +2005,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     } catch (e) {
       if (e instanceof StripeNotConfiguredError) {
         console.error('[stripe-webhook] not configured:', e.message);
-        return c.json({ error: e.message }, 503);
+        return c.json({ error: 'Payment service unavailable' }, 503);
       }
       throw e;
     }
@@ -1311,25 +2198,92 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       ...(body.currency ? { currency: body.currency } : {}),
       triggeredBy: gate.userId,
     });
-    return c.json(result);
+    return c.json(safeJson(result));
   });
 
   /**
    * GET /api/admin/meta-usage
-   * Returns current Meta API call counter (cumulative toward the 500-call
+   * Returns current Meta API call counter (cumulative toward the
    * upgrade threshold) and latest x-app-usage snapshot.
    *
-   * Auth: requires authenticated user. No role gate — any logged-in
-   * user can read this during the Ops quota-collection window. Tighten
-   * to OWNER-only after launch if needed.
+   * Auth: platform-admin (owner) only, via requirePlatformAdmin. The usage
+   * ledger exposes app-wide Meta quota consumption, so it is restricted to
+   * the platform owner rather than any authenticated user.
    */
   app.get('/api/admin/meta-usage', async (c) => {
     const req = await honoToApiRequest(c);
-    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
-    const userId = await getUserId(req.bearerToken);
-    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getMetaUsageStats();
-    return c.json(stats);
+    return c.json(safeJson(stats));
+  });
+
+  // Platform-admin: Meta account lifecycle audit trail (connected / disconnected
+  // / token expired / reconnect required). Read-only; newest first. Optional
+  // ?workspaceId= scopes to one workspace, ?limit= caps rows (default 100).
+  app.get('/api/admin/meta-audit', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const workspaceId = c.req.query('workspaceId') ?? undefined;
+    const limitRaw = c.req.query('limit');
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
+    const events = await listMetaAuditEvents(prisma, {
+      workspaceId,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    return c.json(safeJson({ events }));
+  });
+
+  /**
+   * POST /api/meta/data-deletion
+   * Meta's Data Deletion Callback. Meta POSTs a `signed_request` (form-encoded)
+   * when a user removes the app from their Facebook Business Integrations. We
+   * verify the HMAC-SHA256 signature with META_APP_SECRET, then respond with the
+   * `{ url, confirmation_code }` contract Meta requires.
+   *
+   * Adlytic stores only aggregated advertising metrics tied to an advertiser's
+   * ad account — never the individual Meta end-user's personal profile — so
+   * there is no per-end-user personal record to purge here. The request is
+   * logged (audit trail) and acknowledged with a trackable confirmation code
+   * pointing at the public /data-deletion status page.
+   */
+  app.post('/api/meta/data-deletion', async (c) => {
+    const appSecret = config.meta.appSecret;
+    if (!appSecret) {
+      return c.json({ error: 'Data deletion callback is not configured' }, 503);
+    }
+
+    // Meta sends application/x-www-form-urlencoded with a single field.
+    let signedRequest: string | undefined;
+    try {
+      const body = await c.req.parseBody();
+      const raw = body['signed_request'];
+      if (typeof raw === 'string') signedRequest = raw;
+    } catch {
+      /* fall through to 400 below */
+    }
+    if (!signedRequest) {
+      return c.json({ error: 'Missing signed_request' }, 400);
+    }
+
+    const parsed = parseMetaSignedRequest(signedRequest, appSecret);
+    if (!parsed.ok) {
+      return c.json({ error: parsed.reason }, 400);
+    }
+
+    const metaUserId = String(parsed.payload['user_id'] ?? 'unknown');
+    const confirmationCode = randomBytes(12).toString('hex');
+    console.log(
+      `[meta-data-deletion] request received user_id=${metaUserId} code=${confirmationCode}`,
+    );
+
+    const base = (config.meta.redirectUri || '')
+      .replace(/\/meta\/oauth\/callback\/?$/, '')
+      .replace(/\/$/, '');
+    const statusUrl = `${base}/data-deletion?code=${confirmationCode}`;
+
+    return c.json({ url: statusUrl, confirmation_code: confirmationCode });
   });
 
   /**
@@ -1433,7 +2387,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         ...(body.industryProfileId !== undefined && { industryProfileId: body.industryProfileId }),
       },
     });
-    return c.json(ws);
+    return c.json(safeJson(ws));
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1465,12 +2419,22 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!callerMs) return c.json({ error: 'Access denied' }, 403);
     if (callerMs.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { userId: string; role?: string };
+    if (!body.userId?.trim()) return c.json({ error: 'userId is required' }, 400);
     const role: WorkspaceRole =
       body.role === 'OWNER' ? WorkspaceRole.OWNER
       : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
       : WorkspaceRole.VIEWER;
+    if (role === WorkspaceRole.OWNER && callerMs.role !== 'OWNER') {
+      return c.json({ error: 'Only owners can assign the owner role' }, 403);
+    }
+    const targetUser = await prisma.user.findUnique({ where: { id: body.userId.trim() }, select: { id: true } });
+    if (!targetUser) return c.json({ error: 'User not found' }, 404);
+    const existing = await prisma.workspaceMember.findFirst({
+      where: { workspaceId: req.params['workspaceId'], userId: body.userId.trim() },
+    });
+    if (existing) return c.json({ error: 'User is already a member of this workspace' }, 409);
     const member = await prisma.workspaceMember.create({
-      data: { workspaceId: req.params['workspaceId'], userId: body.userId, role },
+      data: { workspaceId: req.params['workspaceId'], userId: body.userId.trim(), role },
       include: { user: { select: { id: true, email: true, name: true } } },
     });
     return c.json(safeJson(member), 201);
@@ -1487,16 +2451,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (callerMs.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
     const body = req.body as { email: string; role?: string };
     if (!body.email?.trim()) return c.json({ error: 'Email is required' }, 400);
+    const role: WorkspaceRole =
+      body.role === 'OWNER' ? WorkspaceRole.OWNER
+      : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
+      : WorkspaceRole.VIEWER;
+    if (role === WorkspaceRole.OWNER && callerMs.role !== 'OWNER') {
+      return c.json({ error: 'Only owners can assign the owner role' }, 403);
+    }
     const user = await prisma.user.findUnique({ where: { email: body.email.toLowerCase().trim() } });
     if (!user) return c.json({ error: `No Adlytic account found for ${body.email}` }, 404);
     const existing = await prisma.workspaceMember.findFirst({
       where: { workspaceId: req.params['workspaceId'], userId: user.id },
     });
     if (existing) return c.json({ error: 'User is already a member of this workspace' }, 409);
-    const role: WorkspaceRole =
-      body.role === 'OWNER' ? WorkspaceRole.OWNER
-      : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
-      : WorkspaceRole.VIEWER;
     const member = await prisma.workspaceMember.create({
       data: { workspaceId: req.params['workspaceId'], userId: user.id, role },
       include: { user: { select: { id: true, email: true, name: true } } },
@@ -1518,6 +2485,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       body.role === 'OWNER' ? WorkspaceRole.OWNER
       : body.role === 'MANAGER' ? WorkspaceRole.MANAGER
       : WorkspaceRole.VIEWER;
+    if (role === WorkspaceRole.OWNER && callerMembership.role !== 'OWNER') {
+      return c.json({ error: 'Only owners can assign the owner role' }, 403);
+    }
     // Verify the target memberId actually belongs to this workspace (scope check)
     const target = await prisma.workspaceMember.findFirst({
       where: { id: req.params['memberId'], workspaceId: req.params['workspaceId'] },
@@ -1577,33 +2547,224 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const campaigns = await prisma.campaign.findMany({
       where: { adAccountId: account.id },
       orderBy: { createdAt: 'desc' },
+      include: {
+        adSets: { select: { optimizationGoal: true, destinationType: true } },
+      },
     });
     const tickToday = accountLocalTodayFloor(account.timezone);
-    const todayStats = campaigns.length
-      ? await prisma.dailyStat.findMany({
-          where: {
-            entityType: EntityType.CAMPAIGN,
-            entityId: { in: campaigns.map((c) => c.id) },
-            date: tickToday,
-          },
-          select: { entityId: true, spend: true },
-        })
-      : [];
+    const campaignIds = campaigns.map((c) => c.id);
+    // Per-campaign performance window (?days=7|14|30|90, default 30) — powers
+    // the analytics columns in the campaigns table (spend / messages / CTR).
+    const rawDays = Number(req.query['days'] ?? '30');
+    const windowDays = Number.isFinite(rawDays) ? Math.min(Math.max(Math.trunc(rawDays), 1), 90) : 30;
+    const scopeRaw = String(req.query['scope'] ?? 'all').toLowerCase();
+    const scope: CampaignScopeFilter =
+      scopeRaw === 'live' || scopeRaw === 'historical' ? scopeRaw : 'all';
+    const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
+    // Sparkline window: last 7 days of per-campaign daily spend, zero-filled
+    // so every campaign gets exactly 7 chronological points.
+    const sparkDays = 7;
+    const sparkSince = accountLocalDateFloor(account.timezone, sparkDays - 1);
+    const [todayStats, windowAgg, sparkRows, lastSpendRows] = campaigns.length
+      ? await Promise.all([
+          prisma.dailyStat.findMany({
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              date: tickToday,
+            },
+            select: { entityId: true, spend: true },
+          }),
+          prisma.dailyStat.groupBy({
+            by: ['entityId'],
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              date: { gte: sinceDate },
+            },
+            _sum: {
+              spend: true,
+              messages: true,
+              impressions: true,
+              clicks: true,
+              purchases: true,
+              leads: true,
+              revenueMinor: true,
+            },
+            _max: { reach: true },
+          }),
+          prisma.dailyStat.findMany({
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              date: { gte: sparkSince },
+            },
+            select: { entityId: true, date: true, spend: true },
+          }),
+          prisma.dailyStat.groupBy({
+            by: ['entityId'],
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              spend: { gt: 0 },
+            },
+            _max: { date: true },
+          }),
+        ])
+      : [[], [], [], []];
     const spendTodayByCampaign = new Map(
       todayStats.map((s) => [s.entityId, Number(s.spend)]),
     );
+    const aggByCampaign = new Map(
+      windowAgg.map((a) => [a.entityId, { sum: a._sum, maxReach: a._max.reach }]),
+    );
+    const sparkIso: string[] = [];
+    for (let i = sparkDays - 1; i >= 0; i--) {
+      sparkIso.push(accountLocalDateFloor(account.timezone, i).toISOString().slice(0, 10));
+    }
+    const sparkByCampaign = new Map<string, Map<string, number>>();
+    for (const r of sparkRows) {
+      let m = sparkByCampaign.get(r.entityId);
+      if (!m) { m = new Map(); sparkByCampaign.set(r.entityId, m); }
+      m.set(r.date.toISOString().slice(0, 10), Number(r.spend));
+    }
+    const lastSpendByCampaign = new Map(
+      lastSpendRows.map((r) => [r.entityId, r._max.date?.toISOString().slice(0, 10) ?? null]),
+    );
     return c.json(
-      campaigns.map((camp) => {
+      campaigns
+        .map((camp) => {
         const row = safeJson(camp) as Record<string, unknown>;
+        const agg = aggByCampaign.get(camp.id);
+        const sum = agg?.sum;
+        const impressions = Number(sum?.impressions ?? 0);
+        const clicks = Number(sum?.clicks ?? 0);
+        const messages = Number(sum?.messages ?? 0);
+        const purchases = Number(sum?.purchases ?? 0);
+        const leads = Number(sum?.leads ?? 0);
+        const revenueMinor = Number(sum?.revenueMinor ?? 0);
+        const reach = Number(agg?.maxReach ?? 0); // best-effort unique (max daily reach)
+        const spendTodayMinor = spendTodayByCampaign.get(camp.id) ?? 0;
+        const spendWindowMinor = Number(sum?.spend ?? 0);
+        const factor = resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor);
+        const windowTotals = {
+          spendMinor: spendWindowMinor,
+          impressions,
+          reach,
+          clicks,
+          messages,
+          purchases,
+          leads,
+          revenueMinor,
+        };
+        // Purpose BEFORE KPIs: ENGAGEMENT + CONVERSATIONS → messaging, not clicks.
+        const purpose = resolveCampaignPurpose({
+          objective: camp.objective,
+          optimizationGoals: (camp.adSets ?? []).map((a) => a.optimizationGoal),
+          destinationTypes: (camp.adSets ?? []).map((a) => a.destinationType),
+          messagesWindow: messages,
+          clicksWindow: clicks,
+        });
+        const kpiSpec = purpose.kpi;
+        const purposeKey = purposeToObjectiveKey(purpose.family, camp.objective);
+        const resultsWindow = resultCountForObjective(purposeKey, windowTotals);
+        const costPerResultMajor = efficiencyForObjective(purposeKey, windowTotals, factor);
+        const deliveryTier = classifyCampaignDelivery({
+          status: camp.status,
+          metaEffectiveStatus: camp.metaEffectiveStatus,
+          spendTodayMinor,
+          spendWindowMinor,
+        });
+        // Strip nested adSets from list payload (include was for purpose only).
+        const { adSets: _adSets, ...campRow } = row as Record<string, unknown> & { adSets?: unknown };
         return {
-          ...row,
+          ...campRow,
+          deliveryTier,
+          deliveringInWindow: deliveryTier === 'DELIVERING_TODAY' || deliveryTier === 'DELIVERING_WINDOW',
+          isDormantActive: deliveryTier === 'DORMANT_ACTIVE',
           isCurrentlySpending: isCurrentlySpending({
             status: camp.status,
-            spendTodayMinor: spendTodayByCampaign.get(camp.id) ?? 0,
+            spendTodayMinor,
+          }),
+          lastSpendDate: lastSpendByCampaign.get(camp.id) ?? null,
+          windowDays,
+          spendWindowMinor,
+          // Legacy alias — kept so older clients don't break. Prefer resultsWindow.
+          messagesWindow: messages,
+          impressionsWindow: impressions,
+          clicksWindow: clicks,
+          purchasesWindow: purchases,
+          leadsWindow: leads,
+          reachWindow: reach,
+          resultsWindow,
+          resultLabelAr: kpiSpec.resultLabelAr,
+          efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+          kpiFamily: kpiSpec.family,
+          purposeLabelAr: purpose.labelAr,
+          purposeReason: purpose.reason,
+          optimizationGoal: purpose.optimizationGoal,
+          // MAJOR units (or null). List UI multiplies by currencyMinorFactor for money keys.
+          costPerResult: costPerResultMajor,
+          ctrWindow: impressions > 0 ? +((clicks / impressions) * 100).toFixed(2) : null,
+          spark: sparkIso.map((d) => {
+            const v = sparkByCampaign.get(camp.id)?.get(d);
+            return v == null ? null : v;
           }),
         };
-      }),
+      })
+        .filter((row) => matchesCampaignScope(row.deliveryTier, scope)),
     );
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/export/campaigns.csv — client-facing CSV
+   * of every campaign (name, status, objective, budgets, created). UTF-8 BOM +
+   * CRLF so Excel opens Arabic correctly. Auth via bearer (the frontend fetches
+   * with the header, then triggers a blob download).
+   */
+  app.get('/api/workspaces/:workspaceId/export/campaigns.csv', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const campaigns = await prisma.campaign.findMany({
+      where: { adAccountId: account.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const csv = campaignsToCsv(campaigns, account);
+    const stamp = new Date().toISOString().slice(0, 10);
+    c.header('Content-Type', 'text/csv; charset=utf-8');
+    c.header('Content-Disposition', `attachment; filename="campaigns-${stamp}.csv"`);
+    return c.body(csv);
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/export/insights.csv?days=90 — daily
+   * account-level metrics (spend, impressions, reach, clicks, CTR, CPM,
+   * messages, purchases) as CSV.
+   */
+  app.get('/api/workspaces/:workspaceId/export/insights.csv', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const days = Math.min(Number(req.query['days'] ?? '90'), 365);
+    const sinceDate = accountLocalDateFloor(account.timezone, days);
+    const stats = await prisma.dailyStat.findMany({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
+      orderBy: { date: 'desc' },
+    });
+    const csv = insightsToCsv(stats, account);
+    const stamp = new Date().toISOString().slice(0, 10);
+    c.header('Content-Type', 'text/csv; charset=utf-8');
+    c.header('Content-Disposition', `attachment; filename="insights-${stamp}.csv"`);
+    return c.body(csv);
   });
 
   /** GET /api/workspaces/:workspaceId/campaigns/:campaignId — single campaign. */
@@ -1658,6 +2819,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     const campaign = await prisma.campaign.findFirst({
       where: { id: req.params['campaignId'], adAccountId: account.id },
+      include: { adSets: { select: { optimizationGoal: true, destinationType: true } } },
     });
     if (!campaign) return c.json({ error: 'Not found' }, 404);
 
@@ -1738,7 +2900,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let clicks       = 0n;
     let messages     = 0n;
     let purchases    = 0n;
+    let leads        = 0n;
     let revenueMinor = 0n;
+    let maxReach     = 0n;
     let freqSum = 0, freqCount = 0;
     for (const d of dailyStats) {
       spendMinor   += d.spend;
@@ -1746,7 +2910,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       clicks       += d.clicks;
       messages     += d.messages;
       purchases    += d.purchases;
+      leads        += d.leads;
       revenueMinor += d.revenueMinor;
+      if (d.reach > maxReach) maxReach = d.reach;
       if (d.frequency != null && Number.isFinite(d.frequency)) {
         freqSum += d.frequency;
         freqCount++;
@@ -1762,6 +2928,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const impressionsN  = Number(impressions);
     const clicksN       = Number(clicks);
     const messagesN     = Number(messages);
+    const purchasesN    = Number(purchases);
+    const leadsN        = Number(leads);
+    const reachN        = Number(maxReach);
 
     /** Safe divide: returns null on zero/non-finite denominator. */
     const safeDiv = (num: number, den: number): number | null =>
@@ -1772,60 +2941,137 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const avgCpc            = safeDiv(spendMajor, clicksN);                     // major units / click
     const avgCpm            = safeDiv(spendMajor * 1000, impressionsN);         // major units / 1000 impressions
     const avgCostPerMessage = safeDiv(spendMajor, messagesN);                   // major units / message
+    const avgCostPerPurchase = safeDiv(spendMajor, purchasesN);
+    const avgCostPerLead     = safeDiv(spendMajor, leadsN);
     const avgFrequency      = freqCount > 0 ? freqSum / freqCount : null;
+
+    const windowTotals = {
+      spendMinor: Number(spendMinor),
+      impressions: impressionsN,
+      reach: reachN,
+      clicks: clicksN,
+      messages: messagesN,
+      purchases: purchasesN,
+      leads: leadsN,
+      revenueMinor: Number(revenueMinor),
+    };
+    // Purpose BEFORE KPIs — ENGAGEMENT+CONVERSATIONS must show messages, not clicks.
+    const purpose = resolveCampaignPurpose({
+      objective: campaign.objective,
+      optimizationGoals: campaign.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: campaign.adSets.map((a) => a.destinationType),
+      messagesWindow: messagesN,
+      clicksWindow: clicksN,
+    });
+    const kpiSpec = purpose.kpi;
+    const purposeKey = purposeToObjectiveKey(purpose.family, campaign.objective);
+    const resultsCount = resultCountForObjective(purposeKey, windowTotals);
+    const avgCostPerResult = efficiencyForObjective(purposeKey, windowTotals, factor);
 
     // ── Positive / negative signals: 7d vs prior 7d ──────────────────────
     // Daily rows are date-desc, so the first ≤7 are "recent", the next ≤7
     // are "prior". Same correctness rule as the window summary: ratios are
     // derived from each sub-window's totals, NOT averaged from daily rates.
+    //
+    // Volume metrics (spend / results) are included so "مستقر" cannot appear
+    // when delivery moved sharply but rate metrics stayed flat. When the
+    // prior window is too thin, we mark comparable=false so the UI shows
+    // "بيانات غير كافية" instead of a false-stable green check.
     const recent = dailyStats.slice(0, 7);
     const prior  = dailyStats.slice(7, 14);
     const positive: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
     const negative: Array<{ key: string; current: number | null; prior: number | null; deltaPct: number | null }> = [];
 
-    /** Window totals → derived ratios. Mirrors the summary block above. */
-    function deriveRatios(rows: typeof dailyStats) {
-      let sM = 0n, imp = 0n, clk = 0n, msg = 0n;
+    /** Window totals → volume + derived ratios. Mirrors the summary block above. */
+    function deriveWindowMetrics(rows: typeof dailyStats) {
+      let sM = 0n, imp = 0n, clk = 0n, msg = 0n, purch = 0n, leadsW = 0n, rev = 0n;
+      let reachMax = 0n;
       let fq = 0, fqN = 0;
       for (const r of rows) {
         sM  += r.spend;
         imp += r.impressions;
         clk += r.clicks;
         msg += r.messages;
+        purch += r.purchases;
+        leadsW += r.leads;
+        rev += r.revenueMinor;
+        if (r.reach > reachMax) reachMax = r.reach;
         if (r.frequency != null && Number.isFinite(r.frequency)) { fq += r.frequency; fqN++; }
       }
       const spendMajorW = Number(sM) / factor;
+      const windowTotalsW: WindowTotals = {
+        spendMinor: Number(sM),
+        impressions: Number(imp),
+        reach: Number(reachMax),
+        clicks: Number(clk),
+        messages: Number(msg),
+        purchases: Number(purch),
+        leads: Number(leadsW),
+        revenueMinor: Number(rev),
+      };
       const ctrRatio = safeDiv(Number(clk), Number(imp));
       return {
+        spend: spendMajorW,
+        results: resultCountForObjective(purposeKey, windowTotalsW),
         ctr:            ctrRatio != null ? ctrRatio * 100 : null,   // %, matches summary + UI
         cpm:            safeDiv(spendMajorW * 1000, Number(imp)),
+        cpc:            safeDiv(spendMajorW, Number(clk)),
         costPerMessage: safeDiv(spendMajorW,         Number(msg)),
+        costPerLead:    safeDiv(spendMajorW, Number(leadsW)),
+        costPerPurchase: safeDiv(spendMajorW, Number(purch)),
         frequency:      fqN > 0 ? fq / fqN : null,
       };
     }
-    const recentR = deriveRatios(recent);
-    const priorR  = deriveRatios(prior);
+    const recentR = deriveWindowMetrics(recent);
+    const priorR  = deriveWindowMetrics(prior);
 
     function pctChange(curr: number | null, base: number | null): number | null {
-      if (curr == null || base == null || base === 0) return null;
+      if (curr == null || base == null || !Number.isFinite(curr) || !Number.isFinite(base)) return null;
+      if (base === 0) {
+        // New activity from a zero base is a material change, not "stable".
+        return curr === 0 ? 0 : 100;
+      }
       return ((curr - base) / base) * 100;
     }
-    // Metric → which-direction-is-good ("up" or "down"); keys match the
-    // Arabic SIGNAL_LABELS map on the client.
-    const signalSpecs: Array<{ key: 'ctr' | 'frequency' | 'cpm' | 'costPerMessage'; good: 'up' | 'down' }> = [
-      { key: 'ctr',            good: 'up'   },
-      { key: 'frequency',      good: 'down' },
-      { key: 'cpm',            good: 'down' },
-      { key: 'costPerMessage', good: 'down' },
+    // Objective-aware rate signals + volume (spend / results) for honesty.
+    const signalSpecs: Array<{ key: string; good: 'up' | 'down' }> = [
+      { key: 'spend', good: 'up' },
+      { key: 'results', good: 'up' },
+      ...kpiSpec.signalKeys.map((key) => ({
+        key,
+        good: signalGoodDirection(key as SignalMetricKey),
+      })),
     ];
-    for (const spec of signalSpecs) {
-      const curr = recentR[spec.key];
-      const base = priorR[spec.key];
-      const delta = pctChange(curr, base);
-      if (delta == null || Math.abs(delta) < 3) continue;            // ignore noise
-      const improved = spec.good === 'up' ? delta > 0 : delta < 0;
-      (improved ? positive : negative).push({ key: spec.key, current: curr, prior: base, deltaPct: delta });
+    const recentDays = recent.length;
+    const priorDays = prior.length;
+    const recentSpend = Number(recentR.spend) || 0;
+    const priorSpend = Number(priorR.spend) || 0;
+    // Need both windows with real delivery before claiming "stable".
+    const comparable =
+      recentDays >= 3 &&
+      priorDays >= 3 &&
+      (recentSpend > 0 || recentR.results > 0) &&
+      (priorSpend > 0 || priorR.results > 0);
+
+    if (comparable) {
+      for (const spec of signalSpecs) {
+        const curr = (recentR as Record<string, number | null>)[spec.key] ?? null;
+        const base = (priorR as Record<string, number | null>)[spec.key] ?? null;
+        const delta = pctChange(curr, base);
+        if (delta == null || Math.abs(delta) < 3) continue;            // ignore noise
+        const improved = spec.good === 'up' ? delta > 0 : delta < 0;
+        (improved ? positive : negative).push({ key: spec.key, current: curr, prior: base, deltaPct: delta });
+      }
     }
+    const signalsMeta = {
+      recentDays,
+      priorDays,
+      comparable,
+      recentSpendMajor: recentSpend,
+      priorSpendMajor: priorSpend,
+      recentResults: recentR.results,
+      priorResults: priorR.results,
+    };
 
     // ── Audience breakdowns (Phase 5 Pass C) ──────────────────────────────
     //
@@ -1929,6 +3175,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         name: campaign.name,
         status: campaign.status,
         objective: campaign.objective,
+        purposeLabelAr: purpose.labelAr,
+        purposeFamily: purpose.family,
+        purposeReason: purpose.reason,
+        purposeReasonAr: purpose.reasonAr,
+        optimizationGoal: purpose.optimizationGoal,
+        destinationType: purpose.destinationType,
         dailyBudgetMinor: campaign.dailyBudget,
         lifetimeBudgetMinor: campaign.lifetimeBudget,
         createdAt: campaign.createdAt,
@@ -1942,9 +3194,20 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         spendMinor,
         revenueMinor,
         impressions,
+        reach: maxReach,
         clicks,
         messages,
         purchases,
+        leads,
+        // Purpose-aware primary result + efficiency (not raw Meta objective alone).
+        results: resultsCount,
+        resultKey: kpiSpec.resultKey,
+        resultLabelAr: kpiSpec.resultLabelAr,
+        efficiencyKey: kpiSpec.efficiencyKey,
+        efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+        kpiFamily: kpiSpec.family,
+        purposeLabelAr: purpose.labelAr,
+        avgCostPerResult,
         // All ratios derived from the windowed totals (see comment above the
         // aggregation block). avgCtr is a percentage; CPC / CPM / cost-per-
         // message are in MAJOR currency units, matching the frontend formatter
@@ -1954,6 +3217,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         avgCpc,
         avgFrequency,
         avgCostPerMessage,
+        avgCostPerPurchase,
+        avgCostPerLead,
       },
       timeline: snapshots.map((s) => ({
         tickDate:         s.tickDate,
@@ -1963,7 +3228,63 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         finalScore:       s.finalScore,
         narration:        s.narrationJson,
       })),
-      signals: { positive, negative },
+      signals: { positive, negative, meta: signalsMeta },
+      // Per-campaign daily series for inspector charts (already loaded above).
+      // Ascending calendar order; null efficiency when that day had zero results.
+      // Dates are UTC YYYY-MM-DD to match the client calendar mapper.
+      trendSeries: (() => {
+        const asc = [...dailyStats].sort(
+          (a, b) => a.date.getTime() - b.date.getTime(),
+        );
+        const dayTotalsOf = (d: (typeof asc)[number]): WindowTotals => ({
+          spendMinor: Number(d.spend),
+          impressions: Number(d.impressions),
+          reach: Number(d.reach),
+          clicks: Number(d.clicks),
+          messages: Number(d.messages),
+          purchases: Number(d.purchases),
+          leads: Number(d.leads),
+          revenueMinor: Number(d.revenueMinor),
+        });
+        const isoUtc = (d: Date): string => {
+          const y = d.getUTCFullYear();
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(d.getUTCDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
+        return {
+          dates: asc.map((d) => isoUtc(d.date)),
+          windowDays: days,
+          spendMinor: asc.map((d) => Number(d.spend)),
+          results: asc.map((d) => resultCountForObjective(purposeKey, dayTotalsOf(d))),
+          costPerResult: asc.map((d) =>
+            efficiencyForObjective(purposeKey, dayTotalsOf(d), factor),
+          ),
+          cpm: asc.map((d) => {
+            const imp = Number(d.impressions) || 0;
+            if (imp <= 0) return null;
+            const spendMajor = Number(d.spend) / factor;
+            if (!Number.isFinite(spendMajor) || spendMajor <= 0) return null;
+            return (spendMajor / imp) * 1000;
+          }),
+          frequency: asc.map((d) => {
+            const imp = Number(d.impressions) || 0;
+            if (imp <= 0) return null;
+            return d.frequency == null || !Number.isFinite(d.frequency)
+              ? null
+              : d.frequency;
+          }),
+          ctr: asc.map((d) => {
+            const imp = Number(d.impressions) || 0;
+            if (imp <= 0) return null;
+            return d.ctr == null || !Number.isFinite(d.ctr) ? null : d.ctr;
+          }),
+          resultKey: kpiSpec.resultKey,
+          resultLabelAr: kpiSpec.resultLabelAr,
+          efficiencyKey: kpiSpec.efficiencyKey,
+          efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+        };
+      })(),
       // Phase 5 Creatives tab. Each entry = one Ad with its (optionally
       // shared) creative joined. The cordon discipline from creativeMapper
       // already normalized Meta's vocabulary into the AdCreative columns
@@ -1974,6 +3295,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         adName:       ad.name,
         status:       ad.status,
         adSet:        ad.adSet ? { id: ad.adSet.id, name: ad.adSet.name } : null,
+        // Meta's own relevance verdict (server-computed so the client stays
+        // dumb). Null unless Meta graded the ad — never exposes raw enums.
+        relevance:    buildAdRelevanceView(ad),
         creative: ad.creative
           ? {
               id:                 ad.creative.id,
@@ -1995,6 +3319,90 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // client maps them to Arabic at render time.
       breakdowns,
     }));
+  });
+
+  /**
+   * POST /api/workspaces/:workspaceId/campaigns/:campaignId/discover-creatives
+   *
+   * On-demand ad-set/ad/creative + ad-level-insight fetch for ONE campaign.
+   *
+   * Why this exists: the scheduled sync only walks campaigns that are ACTIVE
+   * or spent within the sync window (protects Meta's per-account call-volume
+   * ceiling — see syncAccount.ts). A paused campaign with no recent spend is
+   * permanently skipped, so its inspector "الإبداعات" tab would show
+   * "no creatives yet — they'll appear once sync completes" forever, which is
+   * false: the batch sync will never revisit it. This endpoint lets the
+   * merchant explicitly pull that ONE campaign's data on demand.
+   *
+   * Read-only against Meta (GET ad-sets/ads/insights) — not a write-action,
+   * writes only to our own DB. Bounded to one campaign's worth of calls.
+   */
+  app.post('/api/workspaces/:workspaceId/campaigns/:campaignId/discover-creatives', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_discoverRateMap, req.params['campaignId'], 5, 15 * 60_000)) {
+      return c.json({ error: 'جرّبت هذا كثيراً — انتظر قليلاً قبل إعادة المحاولة.' }, 429);
+    }
+
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account found for this workspace' }, 404);
+
+    const campaign = await prisma.campaign.findFirst({
+      where: { id: req.params['campaignId'], adAccountId: account.id },
+      select: { id: true },
+    });
+    if (!campaign) return c.json({ error: 'Campaign not found' }, 404);
+
+    const resolvedToken = await resolveAccountToken(prisma, account);
+    if (!resolvedToken.encrypted) {
+      return c.json({ error: 'No access token configured — connect a Meta account first' }, 422);
+    }
+    if (!resolvedToken.isSystemUser && account.tokenExpiresAt && account.tokenExpiresAt < new Date()) {
+      return c.json({ error: 'انتهت صلاحية رمز الوصول لحساب Meta — أعد الربط من مساحة العمل.', code: 'TOKEN_EXPIRED' }, 422);
+    }
+
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(resolvedToken.encrypted);
+    } catch (decErr) {
+      if (decErr instanceof TokenDecryptError) {
+        return c.json(tokenDecryptErrorJson(), 500);
+      }
+      throw decErr;
+    }
+
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken, timezone: account.timezone });
+    const worker = new SyncAccountWorker(prisma, metaClient);
+    try {
+      const result = await worker.discoverCampaignOnDemand(account.id, campaign.id);
+      if (!result.found) return c.json({ error: 'Campaign not found' }, 404);
+      return c.json({
+        ok: true,
+        adSetsUpserted: result.adSetsUpserted,
+        adsUpserted: result.adsUpserted,
+        creativesUpserted: result.creativesUpserted,
+        insightRows: result.insightRows,
+      });
+    } catch (err) {
+      if (err instanceof MetaApiError) {
+        if (err.status === 401 || err.status === 190 || (err.body as any)?.error?.code === 190) {
+          await handleMeta190(prisma, {
+            accountId: account.id,
+            externalAccountId: account.externalAccountId,
+            isSystemUser: resolvedToken.isSystemUser,
+            connectionId: resolvedToken.connectionId,
+            workspaceId: account.workspaceId,
+          });
+          return c.json({ error: 'انتهت صلاحية رمز الوصول لحساب Meta — أعد الربط من مساحة العمل.', code: 'TOKEN_EXPIRED' }, 422);
+        }
+        return c.json({ error: `Meta ${err.status}: ${err.message}` }, 502);
+      }
+      console.error('[discover-creatives] failed:', err);
+      return c.json({ error: 'تعذّر جلب بيانات هذه الحملة الآن — حاول لاحقاً.' }, 500);
+    }
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -2094,12 +3502,108 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const days = Math.min(Number(req.query['days'] ?? '30'), 90);
-    const sinceDate = new Date(new Date(Date.now() - days * 864e5).toISOString().slice(0, 10));
+    const sinceDate = accountLocalDateFloor(account.timezone, days);
     const stats = await prisma.dailyStat.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       orderBy: { date: 'desc' },
     });
     return c.json(safeJson(stats));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/issue-dates — Timeline Explorer markers.
+   * Returns the account-level DetectedIssue rows in the window as
+   * { date, issueCode, severity }[] — a direct read, no new computation.
+   * Matches the scope of chart-spend-main / chart-spend (both workspace-wide
+   * aggregates, not a single campaign's line) — see PHASE3_IFA_DESIGN.md §3.
+   */
+  app.get('/api/workspaces/:workspaceId/issue-dates', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json([]);
+    const days = Math.min(Number(req.query['days'] ?? '30'), 90);
+    const sinceDate = accountLocalDateFloor(account.timezone, days);
+    const rows = await prisma.detectedIssue.findMany({
+      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
+      orderBy: { date: 'asc' },
+      select: { date: true, issueCode: true, severity: true },
+    });
+    return c.json(rows.map(r => ({
+      date: r.date.toISOString().slice(0, 10),
+      issueCode: r.issueCode,
+      severity: r.severity,
+    })));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/attribution?date=YYYY-MM-DD — Timeline
+   * Explorer's click-to-attribute. Compares the clicked day against the same
+   * weekday one week earlier (not the day before) so a Friday spike isn't
+   * misattributed against a quiet Thursday — reuses attributeChange(), the
+   * same deterministic engine renderAttribution() already uses for the
+   * dashboard's fixed 30-day window, just called with a single-day window.
+   * See PHASE3_IFA_DESIGN.md §3.
+   */
+  app.get('/api/workspaces/:workspaceId/attribution', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const dateParam = req.query['date'];
+    if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return c.json({ error: 'date must be YYYY-MM-DD' }, 400);
+    }
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const currentDate = new Date(dateParam + 'T00:00:00.000Z');
+    const priorDate = new Date(currentDate.getTime() - 7 * 864e5);
+    const [currentRows, priorRows] = await Promise.all([
+      prisma.dailyStat.findMany({ where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: currentDate } }),
+      prisma.dailyStat.findMany({ where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: priorDate } }),
+    ]);
+    const sumField = (rows: { [k: string]: any }[], f: string) => rows.reduce((a, r) => a + Number(r[f] ?? 0), 0);
+    const current = { impressions: sumField(currentRows, 'impressions'), clicks: sumField(currentRows, 'clicks'), results: sumField(currentRows, 'messages') };
+    const prior = { impressions: sumField(priorRows, 'impressions'), clicks: sumField(priorRows, 'clicks'), results: sumField(priorRows, 'messages') };
+    const attribution = attributeChange(current, prior);
+    if (!attribution) {
+      return c.json({ error: 'Not enough data to attribute this day (no prior-week baseline)' }, 422);
+    }
+    return c.json({ date: dateParam, priorDate: priorDate.toISOString().slice(0, 10), attribution });
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/campaigns/:campaignId/creative-attribution
+   *   ?date=YYYY-MM-DD
+   * Timeline Explorer's per-campaign "which creative drove this day" lookup —
+   * a second, narrower attribution layer alongside /attribution's
+   * impressions/CTR/CVR breakdown. Reuses get_creative_performance's single-
+   * day mode (task #50) via the dispatcher instead of a bespoke query, so the
+   * feature extraction / correlation logic is not duplicated.
+   */
+  app.get('/api/workspaces/:workspaceId/campaigns/:campaignId/creative-attribution', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const { workspaceId, campaignId } = req.params;
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const dateParam = req.query['date'];
+    if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return c.json({ error: 'date must be YYYY-MM-DD' }, 400);
+    }
+    const { ToolDispatcher } = await import('../services/agent/dispatcher');
+    const { buildAgentToolHandlers } = await import('../services/agent/tools');
+    const dispatcher = new ToolDispatcher(buildAgentToolHandlers(), { prisma, workspaceId, userId });
+    const result = await dispatcher.dispatch('get_creative_performance', {
+      campaignId, date: dateParam, metric: 'spend', limit: 3,
+    });
+    if (!result.ok) return c.json({ error: result.error.message }, 404);
+    return c.json(safeJson(result.data));
   });
 
   /** GET /api/workspaces/:workspaceId/insights/trends — metric trends. */
@@ -2268,7 +3772,41 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       title: body.title ?? null,
       metricsSnapshot,
     });
-    return c.json(safeJson(log));
+
+    // Smart Refresh Engine — recalculate intelligence NOW, not on next sync.
+    // Synchronous by design: the client refetches the dashboard right after
+    // this response, and that refetch must see recommendations/health that
+    // already reflect the action. Scoped: only the engines a user action can
+    // affect run (see planRefresh); DB-only work, bounded to a few seconds.
+    let refresh: Awaited<ReturnType<typeof runRefresh>> | null = null;
+    if (account) {
+      refresh = await runRefresh(prisma, null, {
+        type: action === 'EXECUTED' ? 'RecommendationExecuted' : 'RecommendationDismissed',
+        adAccountId: account.id,
+        workspaceId,
+        itemKey: body.itemKey,
+      });
+    }
+    return c.json(safeJson({ ...log, refresh: refresh ? { targetsRun: refresh.targetsRun, durationMs: refresh.durationMs } : null }));
+  });
+
+  /** GET /api/workspaces/:workspaceId/refresh-log — Smart Refresh Engine
+   *  observability: the last refresh runs for this workspace's account
+   *  (trigger, components run + per-component durations, skips, errors). */
+  app.get('/api/workspaces/:workspaceId/refresh-log', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json([]);
+    const logs = await prisma.refreshLog.findMany({
+      where: { adAccountId: account.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    return c.json(safeJson(logs));
   });
 
   /** POST /api/workspaces/:workspaceId/recommendations/:logId/action
@@ -2296,7 +3834,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json(safeJson(updated));
   });
 
-  /** GET /api/workspaces/:workspaceId/issues — detected issues (Rules Engine output). */
+  /** GET /api/workspaces/:workspaceId/issues — detected issues (Rules Engine output).
+   *  Latest detector run only, one row per issueCode — detectors write a full
+   *  replacement set per date, so reading all dates duplicated every issue. */
   app.get('/api/workspaces/:workspaceId/issues', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
@@ -2305,11 +3845,110 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
-    const issues = await prisma.detectedIssue.findMany({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-      orderBy: [{ severity: 'desc' }, { date: 'desc' }],
-    });
+    const issues = await loadCurrentIssues(prisma, account.id);
     return c.json(safeJson(issues));
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  AD ASSESSOR — Meta Ad creative analysis (تحليل الإعلان)
+  // ════════════════════════════════════════════════════════════════════════
+
+  /** POST /api/ad-assessor/assess — AI-powered creative assessment (optional Adlytic grounding). */
+  app.post('/api/ad-assessor/assess', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!checkRateLimit(_aiRateMap, 'assess:' + userId, 10, 10 * 60_000)) {
+      return c.json({ error: 'Rate limit exceeded — try again in a few minutes' }, 429);
+    }
+
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    const workspaceId = typeof body['workspaceId'] === 'string' ? body['workspaceId'] : undefined;
+    let adAccountId: string | undefined;
+    if (workspaceId) {
+      if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+      const { account } = await getAccount(workspaceId);
+      if (!account) return c.json({ error: 'Not found' }, 404);
+      adAccountId = account.id;
+    }
+
+    const result = await runAdAssessment(body, {
+      prisma,
+      workspaceId,
+      adAccountId,
+    });
+    if (!result.ok) {
+      return c.json(
+        { error: result.error, ...(result.details ? { details: result.details } : {}) },
+        result.status as 400 | 503,
+      );
+    }
+    return c.json(safeJson(result.data));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/ad-assessor/campaigns
+   * Campaign picker for advanced (Adlytic-grounded) analysis.
+   */
+  app.get('/api/workspaces/:workspaceId/ad-assessor/campaigns', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
+
+    const campaigns = await listCampaignsForAssessor(prisma, account.id);
+    return c.json(safeJson({ campaigns }));
+  });
+
+  /**
+   * GET /api/workspaces/:workspaceId/ad-assessor/context?campaignId=&adId=
+   * Prefill payload: live metrics, creative, diagnoses, brain, self-benchmark.
+   */
+  app.get('/api/workspaces/:workspaceId/ad-assessor/context', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, req.params['workspaceId'])) return c.json({ error: 'Access denied' }, 403);
+    const { account } = await getAccount(req.params['workspaceId']);
+    if (!account) return c.json({ error: 'Not found' }, 404);
+
+    const campaignId = c.req.query('campaignId');
+    if (!campaignId) return c.json({ error: 'campaignId required' }, 400);
+    const adId = c.req.query('adId') || null;
+    const days = Math.max(7, Math.min(90, Number(c.req.query('days') ?? 30)));
+
+    const ctx = await assembleAdlyticAssessmentContext({
+      prisma,
+      workspaceId: req.params['workspaceId'],
+      adAccountId: account.id,
+      campaignId,
+      adId,
+      windowDays: days,
+    });
+    if (!ctx) return c.json({ error: 'Not found' }, 404);
+    return c.json(safeJson(ctx));
+  });
+
+  /** POST /api/ad-assessor/ad-library/search — live Ad Library trend lookup. */
+  app.post('/api/ad-assessor/ad-library/search', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const result = await searchAdLibraryTrends(req.body);
+    if (!result.ok) {
+      return c.json(
+        { error: result.error, ...(result.details ? { details: result.details } : {}) },
+        result.status as 400 | 503,
+      );
+    }
+    return c.json(safeJson(result.data));
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -2329,9 +3968,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_aiRateMap, 'chat:' + userId, 20, 10 * 60_000)) {
+      return c.json({ error: 'وصلت حد الاستخدام مؤقتاً — حاول بعد دقائق قليلة.' }, 429);
+    }
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
     const body = req.body as { message?: string };
-    const message = (body.message ?? '').trim().toLowerCase();
+    // Preserve original casing so metric names (CTR, CPC, CPM) survive to the LLM.
+    const message = (body.message ?? '').trim().slice(0, 2000);
     if (!message) return c.json({ error: 'Message is required' }, 400);
 
     // Load live data for context
@@ -2340,15 +3983,226 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       console.error('[adlytic:ai-chat] getDashboard error:', err);
     }
 
+    // Prefer V5 intelligence report (richer, per-signal weighted context);
+    // fall back to V1 DTO-derived context when the V5 report hasn't been
+    // written yet for this ad account.
     let reply: string;
     try {
-      const context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], spend: [], ctr: [] }, issues: [], priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      let context: string | null = null;
+      let primaryAccount: { id: string; currency: string; timezone: string } | undefined;
+      try {
+        const ws = await prisma.workspace.findUnique({
+          where: { id: workspaceId },
+          select: { name: true, adAccounts: { select: { id: true, currency: true, timezone: true } } },
+        });
+        primaryAccount = ws?.adAccounts?.[0];
+        if (primaryAccount) {
+          const v5 = await buildAiContextV5(prisma, primaryAccount.id, message, {
+            currency: primaryAccount.currency ?? undefined,
+            workspaceName: ws?.name ?? undefined,
+          });
+          // V5 returns a "not yet available" fallback string when no report exists.
+          // Detect that and drop back to V1 rather than sending the weaker fallback.
+          if (!/Intelligence data not yet available/i.test(v5)) context = v5;
+        }
+      } catch (err) {
+        console.error('[adlytic:ai-chat] V5 context error, falling back to V1:', err);
+      }
+      if (!context) {
+        context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+      }
+      if (primaryAccount) {
+        const campaignCtx = await buildAiCampaignContext(
+          prisma,
+          primaryAccount.id,
+          primaryAccount.timezone,
+          dto,
+        );
+        context = mergeCampaignBlockIntoContext(context, campaignCtx.promptBlock);
+      }
       reply = await askClaude(context);
     } catch (err) {
       console.error('[adlytic:ai-chat] Claude API error:', err);
-      reply = 'Sorry, the AI assistant is temporarily unavailable. Please try again in a moment.';
+      const fallback = buildAiUnavailableReply({
+        err,
+        dto,
+        userMessage: message,
+        locale: 'AR',
+      });
+      // Prefer a useful offline diagnosis (200) over leaking provider JSON.
+      if (fallback.usedOffline) {
+        return c.json({
+          reply: fallback.reply,
+          code: fallback.code,
+          usedOffline: true,
+        });
+      }
+      return c.json(
+        { error: fallback.reply, code: fallback.code, reply: fallback.reply },
+        fallback.httpStatus as 402 | 429 | 500 | 503,
+      );
     }
     return c.json({ reply });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  AI Chat v2 — Phase 2 smart CMO agent
+  //
+  //  POST /api/workspaces/:workspaceId/ai/chat/v2
+  //  Body: { message: string, conversationId?: string, sessionContext?: object }
+  //  Returns: { conversationId, reply, toolCalls: [...], latencyMs, tokensIn, tokensOut }
+  //
+  //  Behind AI_AGENT_V2_ENABLED env flag; when unset, returns 404 so the
+  //  legacy /ai/chat above stays authoritative. See PHASE2_AI_AGENT_DESIGN.md §7.
+  // ════════════════════════════════════════════════════════════════════════
+  app.post('/api/workspaces/:workspaceId/ai/chat/v2', async (c) => {
+    if (process.env['AI_AGENT_V2_ENABLED'] !== 'true') {
+      return c.json({ error: 'AI Agent v2 is disabled', code: 'V2_DISABLED' }, 404);
+    }
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const { workspaceId } = req.params;
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_aiRateMap, 'chat:' + userId, 20, 10 * 60_000)) {
+      return c.json({ error: 'وصلت حد الاستخدام مؤقتاً — حاول بعد دقائق قليلة.' }, 429);
+    }
+    if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+
+    const body = req.body as {
+      message?: string;
+      conversationId?: string;
+      sessionContext?: Record<string, unknown>;
+    };
+    const message = (body.message ?? '').trim();
+    if (!message) return c.json({ error: 'Message is required' }, 400);
+    if (message.length > 4000) return c.json({ error: 'Message too long (max 4000 chars)' }, 400);
+
+    try {
+      const { runAgentTurn } = await import('../services/agent/loop');
+      const result = await runAgentTurn({
+        prisma,
+        workspaceId,
+        userId,
+        conversationId: body.conversationId ?? null,
+        userMessage: message,
+        sessionContext: body.sessionContext,
+      });
+      return c.json({
+        conversationId: result.conversationId,
+        reply: result.reply,
+        toolCalls: result.toolCalls.map((tc) => ({
+          toolName: tc.toolName,
+          args: tc.args,
+          ok: tc.result.ok,
+          errorCode: tc.result.ok ? null : tc.result.error.code,
+          aiMessageId: tc.aiMessageId,
+        })),
+        latencyMs: result.latencyMs,
+        tokensIn: result.tokensIn,
+        tokensOut: result.tokensOut,
+      });
+    } catch (err) {
+      console.error('[adlytic:ai-chat-v2] error:', err);
+      const classified = classifyLlmError(err);
+      let dto: Awaited<ReturnType<typeof getDashboard>> | null = null;
+      try {
+        dto = await getDashboard(workspaceId, { prisma });
+      } catch (dtoErr) {
+        console.error('[adlytic:ai-chat-v2] offline getDashboard error:', dtoErr);
+      }
+      const fallback = buildAiUnavailableReply({
+        err,
+        dto,
+        userMessage: message,
+        locale: 'AR',
+      });
+      // Never put raw provider messages in the client payload.
+      if (fallback.usedOffline) {
+        return c.json({
+          conversationId: body.conversationId ?? null,
+          reply: fallback.reply,
+          toolCalls: [],
+          latencyMs: 0,
+          tokensIn: 0,
+          tokensOut: 0,
+          code: fallback.code,
+          usedOffline: true,
+        });
+      }
+      return c.json(
+        {
+          conversationId: body.conversationId ?? null,
+          reply: fallback.reply,
+          toolCalls: [],
+          latencyMs: 0,
+          tokensIn: 0,
+          tokensOut: 0,
+          error: fallback.reply,
+          code: fallback.code || classified.code,
+        },
+        fallback.httpStatus as 402 | 429 | 500 | 503,
+      );
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  AI Investigation — Phase 3 IFA §1
+  //
+  //  POST /api/workspaces/:workspaceId/campaigns/:campaignId/investigate
+  //  Returns: { campaignId, generatedAt, sections: [{key,title,status,narrative}] }
+  //
+  //  A fixed pipeline (5 parallel tool calls + 1 Sonnet narrative pass), not
+  //  an agentic loop — see src/services/agent/investigate.ts. Gated behind
+  //  the same flag as the chat agent since it shares its tool/dispatcher/
+  //  post-check infrastructure. Cached 15 min per campaign — this is a
+  //  deliberate "look deeper" action, not a live chat turn, so staleness on
+  //  the order of minutes is expected and shown via generatedAt.
+  // ════════════════════════════════════════════════════════════════════════
+  app.post('/api/workspaces/:workspaceId/campaigns/:campaignId/investigate', async (c) => {
+    // Investigation is tool-first (Postgres). Claude is optional polish —
+    // investigateCampaign falls back to deterministic Arabic narratives.
+    // Do not hard-gate on AI_AGENT_V2_ENABLED: merchants need this tab even
+    // when chat v2 / Anthropic credits are down.
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const { workspaceId, campaignId } = req.params;
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    if (!workspaceId || !campaignId) return c.json({ error: 'Missing parameters' }, 400);
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    if (!checkRateLimit(_aiRateMap, 'inv:' + userId, 6, 10 * 60_000)) {
+      return c.json({ error: 'وصلت حد التحقيقات مؤقتاً — حاول بعد دقائق قليلة.' }, 429);
+    }
+    const { account } = await getAccount(workspaceId);
+    if (!account) return c.json({ error: 'No ad account connected' }, 404);
+    const campaign = await prisma.campaign.findFirst({ where: { id: campaignId, adAccountId: account.id } });
+    if (!campaign) return c.json({ error: 'Not found' }, 404);
+
+    const { toolCache } = await import('../services/agent/cache');
+    const { investigateCampaign } = await import('../services/agent/investigate');
+    const { classifyLlmError } = await import('../lib/llmErrors');
+    const cacheKey = `${workspaceId}:investigation:${campaignId}`;
+    const cached = toolCache.get<Awaited<ReturnType<typeof investigateCampaign>>>(cacheKey);
+    if (cached) return c.json(cached.value);
+
+    try {
+      const report = await investigateCampaign({ prisma, workspaceId, userId, campaignId });
+      toolCache.set(cacheKey, report, 900);
+      return c.json(report);
+    } catch (err) {
+      console.error('[adlytic:investigate] error:', err);
+      const classified = classifyLlmError(err);
+      // Prefer a friendly Arabic message — never leak Anthropic JSON.
+      return c.json(
+        {
+          error: classified.messageAr,
+          code: classified.code,
+        },
+        classified.httpStatus === 402 ? 503 : (classified.httpStatus as 429 | 500 | 503),
+      );
+    }
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -2844,6 +4698,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       await invalidateCachedTokenHealth(workspaceId);
       await deleteOAuthSession(sessionId);
+      void recordMetaAuditEvent(prisma, {
+        workspaceId,
+        event: 'CONNECTED',
+        externalAccountId: account.id,
+        actorUserId: userId,
+        detail: `System User connection linked (${accountName})`,
+      });
 
       // Kick off the initial backfill using the connection token.
       try {
@@ -2964,6 +4825,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       });
     }
     await invalidateCachedTokenHealth(workspaceId);
+    void recordMetaAuditEvent(prisma, {
+      workspaceId,
+      event: 'CONNECTED',
+      externalAccountId: account.id,
+      actorUserId: userId,
+      detail: `Ad account connected (${accountName})`,
+    });
 
     // Invalidate session — one-time use
     await deleteOAuthSession(sessionId);
@@ -3217,6 +5085,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     await purgeAccountAnalytics(prisma, accountId);
 
     await prisma.adAccount.delete({ where: { id: accountId } });
+    void recordMetaAuditEvent(prisma, {
+      workspaceId,
+      event: 'DISCONNECTED',
+      adAccountId: accountId,
+      externalAccountId: acct.externalAccountId,
+      actorUserId: userId,
+      detail: `Ad account disconnected (${acct.name})`,
+    });
     return c.json({ success: true });
   });
 
@@ -3283,7 +5159,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       throw decErr;
     }
 
-    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken, timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
     enqueueOrFallback(
       () =>
@@ -3341,6 +5217,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const wsm = await checkMember(userId, req.params['workspaceId']);
     if (!wsm) return c.json({ error: 'Access denied' }, 403);
     if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions — only Owners and Managers can trigger sync' }, 403);
+    if (!checkRateLimit(_syncRateMap, req.params['workspaceId'], 3, 15 * 60_000)) {
+      return c.json({ error: 'Sync rate limited — please wait before triggering another sync.' }, 429);
+    }
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json({ error: 'No ad account found for this workspace' }, 404);
 
@@ -3377,22 +5256,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // first, surfacing a misleading "Another sync is already in progress" error
     // in the UI even though the user's original sync is healthy. Returning the
     // existing jobId lets the frontend poll the REAL ongoing job seamlessly.
+    //
+    // Staleness guard: if the job is older than 15 minutes and still
+    // PENDING/PROCESSING, it's stuck (crashed worker, deploy, OOM). Mark it
+    // FAILED so a fresh job can be created instead of returning a zombie.
+    const STALE_JOB_MS = 15 * 60 * 1000;
     const existingActive = await prisma.syncJob.findFirst({
       where: {
         adAccountId: account.id,
         status: { in: [SyncJobStatus.PENDING, SyncJobStatus.PROCESSING] },
       },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, status: true, windowDays: true, windowSince: true, windowUntil: true },
+      select: { id: true, status: true, windowDays: true, windowSince: true, windowUntil: true, createdAt: true },
     });
     if (existingActive) {
-      return c.json({
-        jobId: existingActive.id,
-        status: existingActive.status,
-        windowDays: existingActive.windowDays,
-        adAccountId: account.id,
-        reused: true,
-      }, 200);
+      const ageMs = Date.now() - existingActive.createdAt.getTime();
+      if (ageMs > STALE_JOB_MS) {
+        await prisma.syncJob.update({
+          where: { id: existingActive.id },
+          data: { status: SyncJobStatus.FAILED, error: 'Timed out — job was stuck for over 15 minutes', completedAt: new Date() },
+        });
+        console.warn(`[adlytic:sync] Marked stale job ${existingActive.id} as FAILED (age ${Math.round(ageMs / 60000)}m)`);
+      } else {
+        return c.json({
+          jobId: existingActive.id,
+          status: existingActive.status,
+          windowDays: existingActive.windowDays,
+          adAccountId: account.id,
+          reused: true,
+        }, 200);
+      }
     }
 
     const job = await prisma.syncJob.create({
@@ -3419,7 +5312,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       }
       throw decErr;
     }
-    const metaClient = new MetaClient({ apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion, accessToken, timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
 
     // On a Meta 190 (expired/invalid token): SYSTEM_USER accounts flag the

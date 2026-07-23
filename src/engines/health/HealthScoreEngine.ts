@@ -117,14 +117,22 @@ export class HealthScoreEngine {
       const currentSince = addDays(currentUntil, -(windowDays - 1));
 
       const [trend, dailyRows] = await Promise.all([
+        // Trends row AT OR BEFORE asOf, so a backfill scores against that date's
+        // trends rather than the globally-newest row (which corrupted history).
         this.prisma.metricTrend.findFirst({
-          where: { entityType, entityId },
+          where: { entityType, entityId, date: { lte: dateOnly(asOf) } },
           orderBy: { date: "desc" },
         }),
         this.prisma.dailyStat.findMany({
           where: { entityType, entityId, date: { gte: dateOnly(currentSince), lte: dateOnly(currentUntil) } },
         }),
       ]);
+      const staleDays = lag + 1;
+      if (!trend || daysBetween(trend.date, asOf) > staleDays) {
+        console.warn(
+          `[HealthScoreEngine] stale/missing trends: entity=${entityId} asOf=${ymd(asOf)} trendDate=${trend ? ymd(trend.date) : "none"} staleDays=${staleDays}`
+        );
+      }
 
       // ── Aggregate current-period signals (same shape as Rules) ─────
       let impTotal = 0, ctrNum = 0, cpmNum = 0;
@@ -219,4 +227,7 @@ function emptyBreakdown(): ScoreBreakdown {
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400_000);
-const dateOnly = (d: Date) => new Date(d.toISOString().slice(0, 10));
+const dateOnly = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+const daysBetween = (a: Date, b: Date) =>
+  Math.abs(Math.round((dateOnly(b).getTime() - dateOnly(a).getTime()) / 86400_000));

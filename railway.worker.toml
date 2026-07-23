@@ -1,0 +1,8 @@
+# lively-insight — narration cron (skip GitHub autodeploy)
+[build]
+builder = "NIXPACKS"
+watchPatterns = ["__railway_skip_autodeploy__/**"]
+
+[deploy]
+startCommand = "npx tsx src/workers/runNarrationWorker.ts"
+cronSchedule = "*/10 * * * *"

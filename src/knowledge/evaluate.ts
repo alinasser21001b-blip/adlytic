@@ -1,6 +1,7 @@
 // src/knowledge/evaluate.ts — threshold comparison against live metrics.
 
 import { loadKnowledgeBase } from "./loadKnowledgeBase";
+import { filterMetricsForObjective, kbMetricKeysForObjective } from "./metaObjectiveStandards";
 import type {
   BreachSeverity,
   CampaignMetrics,
@@ -73,8 +74,19 @@ export function evaluateCampaign(
   const kb = context?.kb ?? loadKnowledgeBase();
   const breaches: MetricBreach[] = [];
 
+  // When objective is known, only evaluate Meta-relevant metrics for that family.
+  const scoped =
+    context?.objective != null && String(context.objective).trim() !== ""
+      ? filterMetricsForObjective(metrics, context.objective)
+      : metrics;
+  const allowedKeys =
+    context?.objective != null && String(context.objective).trim() !== ""
+      ? kbMetricKeysForObjective(context.objective)
+      : null;
+
   for (const def of kb.metrics) {
-    const breach = evaluateMetric(def.key, metrics[def.key], { kb });
+    if (allowedKeys && !allowedKeys.has(def.key)) continue;
+    const breach = evaluateMetric(def.key, scoped[def.key], { kb });
     if (breach) breaches.push(breach);
   }
 

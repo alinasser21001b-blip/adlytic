@@ -6,6 +6,7 @@
  * Or:  railway run npx tsx scripts/repair-iqd-factors.ts  (from service with DB access)
  */
 import { PrismaClient } from "@prisma/client";
+import { pgSslFor } from '../src/lib/pgSsl';
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from "../src/lib/iqdRepair";
@@ -20,9 +21,7 @@ async function main() {
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
     database: parsed.pathname.replace(/^\//, ""),
-    ssl: parsed.hostname.endsWith(".railway.internal")
-      ? false
-      : { rejectUnauthorized: false },
+    ssl: pgSslFor(parsed.hostname),
   });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 

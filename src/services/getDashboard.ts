@@ -31,11 +31,30 @@ import { performance } from "node:perf_hooks";
 import { KnowledgeEngine } from "../engines/knowledge/KnowledgeEngine";
 import {
   evaluateCampaign,
+  evaluateBenchmarks,
   findActionsForBreaches,
   formatActionsForDisplay,
   type CampaignMetrics,
 } from "../knowledge";
+import {
+  buildAdviceTask,
+  buildAdviceTaskFromDiagnosis,
+  issueActionAr,
+  issueTitleAr,
+  issueWhyAr,
+  sanitizeIssueForMerchant,
+  sanitizePriorityActionText,
+  simplifyMerchantText,
+  type AdviceTask,
+} from "../lib/plainArabicAdvice";
+import {
+  resolveBenchmarkIndustryFromContext,
+  toBenchmarkEvaluationOptions,
+} from "../knowledge/industryRouting";
 import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
+import { diagnoseRelevance } from "../knowledge/adRelevanceIntelligence";
+import { pgSslFor } from "../lib/pgSsl";
+import { EntityStatus } from "@prisma/client";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { computePerformanceDrain } from "../lib/performanceDrain";
@@ -46,37 +65,57 @@ import {
   detectBleed,
   type KpiBenchmark,
 } from "../lib/smartInsights";
-import { isCurrentlySpending, accountLocalTodayFloor } from "../lib/campaignSpending";
+import { getCampaignCounts, type CampaignCounts } from "../lib/campaignCatalog";
+import { isCurrentlySpending, accountLocalDateFloor, accountLocalTodayFloor, getAccountLocalDateString } from "../lib/campaignSpending";
 import { trend as pctTrend } from "../engines/analytics/trend";
 import type { CmoFeedItemDTO, CmoFeedMeta, CmoFeedSeverity } from "../types/cmoFeed";
 import { RecommendationService } from "./recommendation.service";
+import { computePredictions, type PredictionsDTO } from "./predictions";
+import { computeAIRecommendations, type AIRecommendationsDTO } from "./aiRecommendations";
+import { generateWeeklyReport, type WeeklyReportDTO } from "./weeklyReport";
+import { diagnose, type Diagnosis } from "../engines/rules/diagnose";
+import {
+  isGenericInsightNarration,
+  buildDeterministicNarration,
+  selectUsefulFeedItems,
+  upgradeGenericNarration,
+} from "../lib/insightQualityGate";
+import type { Signals } from "../engines/rules/types";
+import type { IssueRecord } from "../repositories/detectedIssuesRepo";
+import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
-// ── Module-level Prisma client (used when no client is passed in).
+// ── Lazy-initialized standalone Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
 // instance is injected via opts.prisma to avoid a duplicate connection pool.
 // This standalone client exists for scripts, tests, and CLI tools that call
-// getDashboard without a server context.
-const _dbUrl = process.env['DATABASE_URL'];
-if (!_dbUrl) {
-  throw new Error(
-    'getDashboard: DATABASE_URL is not set. ' +
-    'Start the server with --env-file=.env or set DATABASE_URL in the environment.'
-  );
+// getDashboard without a server context. Lazy-init avoids crashing importers
+// that never call getDashboard (e.g. tests without DATABASE_URL).
+let _standalonePrisma: PrismaClient | null = null;
+
+function getStandalonePrisma(): PrismaClient {
+  if (_standalonePrisma) return _standalonePrisma;
+  const dbUrl = process.env['DATABASE_URL'];
+  if (!dbUrl) {
+    throw new Error(
+      'getDashboard: DATABASE_URL is not set. ' +
+      'Start the server with --env-file=.env or set DATABASE_URL in the environment.'
+    );
+  }
+  const parsed = new URL(dbUrl);
+  const pool = new pg.Pool({
+    host:     parsed.hostname,
+    port:     Number(parsed.port) || 5432,
+    user:     decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.replace(/^\//, ''),
+    ssl:      pgSslFor(parsed.hostname),
+    max: Number(process.env['PG_POOL_MAX'] ?? 20),
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+  });
+  _standalonePrisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+  return _standalonePrisma;
 }
-const _parsed  = new URL(_dbUrl);
-const _isInternal = _parsed.hostname.endsWith('.railway.internal');
-const _pool    = new pg.Pool({
-  host:     _parsed.hostname,
-  port:     Number(_parsed.port) || 5432,
-  user:     decodeURIComponent(_parsed.username),
-  password: decodeURIComponent(_parsed.password),
-  database: _parsed.pathname.replace(/^\//, ''),
-  ssl:      _isInternal ? false : { rejectUnauthorized: false },
-  max: Number(process.env['PG_POOL_MAX'] ?? 20),
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
-});
-const _standalonePrisma = new PrismaClient({ adapter: new PrismaPg(_pool) });
 
 // ── The public shape. This is the contract every consumer codes against. ──
 export interface DashboardDTO {
@@ -93,16 +132,38 @@ export interface DashboardDTO {
      *  IQD-vs-everything-else rule. */
     currencyMinorFactor: number;
     lastSyncedAt: string | null;
+    /** "Today" (YYYY-MM-DD) in the ad account's Meta reporting timezone.
+     *  Charts anchor their day axis to THIS, not the viewer's or UTC's clock,
+     *  so the newest day never disappears around midnight. */
+    accountToday: string;
+    /** IANA reporting timezone of the ad account (Meta timezone_name). */
+    accountTimezone: string;
+    /** Campaigns delivering spend in the window — primary operational "active" count. */
     activeCampaigns: number;
+    /** Unified counts — same source used by AI + UI chips. */
+    campaignCounts: {
+      total: number;
+      activeStatus: number;
+      paused: number;
+      archived: number;
+      spendingToday: number;
+      deliveringInWindow: number;
+      dormantActive: number;
+      withMetrics: number;
+      deliveryWindowDays: number;
+    };
   };
   health: {
-    score: number;
+    score: number | null;
     band: "excellent" | "good" | "attention" | "poor" | "none";
   };
+  /** Account creative-health from Meta's ad-relevance grades. Null when no ad
+   *  is graded yet; the UI card hides unless `needAttention > 0`. */
+  creativeHealth?: CreativeHealthSummary | null;
   kpis: Array<{
     key: string;          // "spend" | "messages" | "ctr" | "cpm" | "frequency" | "reach"
     label: string;
-    value: number;
+    value: number | null;
     display: string;      // formatted for direct rendering
     deltaPct: number | null;
     direction: "up" | "down" | "flat";
@@ -113,9 +174,22 @@ export interface DashboardDTO {
   }>;
   trendSeries: {
     dates: string[];
+    /** Messaging conversions only — kept for AI/compat; prefer `results` in UI. */
     messages: number[];
+    /** Outcome volume: messages + purchases + leads (Meta-style results). */
+    results: number[];
     spend: number[];
-    ctr: number[];
+    /** Daily CTR %; null when Meta did not return a rate (no impressions). */
+    ctr: Array<number | null>;
+    /** Daily frequency when present; null when Meta did not return it. */
+    frequency: Array<number | null>;
+    /** Daily CPM in major currency units; null when unavailable. Recomputed from spend÷impressions (stored DailyStat.cpm is minor). */
+    cpm: Array<number | null>;
+    /**
+     * Daily cost-per-result in major units (spend / results).
+     * Null when that day had zero results — never invent a fake CPA.
+     */
+    costPerResult: Array<number | null>;
   };
   issues: Array<{
     code: IssueCode;
@@ -125,6 +199,13 @@ export interface DashboardDTO {
     recommendations: string[]; // localized
     evidence: Record<string, unknown>;
   }>;
+  /**
+   * Merchant-facing task cards (فهم → قرار → فعل → تحقق).
+   * Built from sanitized issues + priorityAction — primary UI contract.
+   */
+  merchantTasks?: AdviceTask[];
+  diagnoses: Diagnosis[];
+  attribution: Attribution | null;
   priorityAction: {
     actionCode: string;
     priority: string;
@@ -172,6 +253,10 @@ export interface DashboardDTO {
 
   /** Rich steady-state content when no critical actions remain (optional). */
   steadyState?: SteadyStateSummary;
+
+  predictions?: PredictionsDTO;
+  aiRecommendations?: AIRecommendationsDTO;
+  weeklyReport?: WeeklyReportDTO;
 }
 
 /** Stable-account snapshot for Main Move + AI Assistant when no actions are pending. */
@@ -247,8 +332,9 @@ export interface BrainSection {
   ledger: InterventionsLedger;
 }
 
-interface CampaignCard {
+export interface CampaignCard {
   id: string;
+  metaId: string;
   name: string;
   health: number;
   band: string;
@@ -263,15 +349,19 @@ export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
   empty:          true,
   health:         { score: 0, band: "none" },
   kpis:           [],
-  trendSeries:    { dates: [], messages: [], spend: [], ctr: [] },
+  trendSeries:    { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] },
   issues:         [],
+  merchantTasks:  [],
+  diagnoses:      [],
+  attribution:    null,
   priorityAction: null,
   bestCampaign:   null,
   worstCampaign:  null,
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────
-function band(score: number): "excellent" | "good" | "attention" | "poor" {
+function band(score: number | null): "excellent" | "good" | "attention" | "poor" | "none" {
+  if (score === null) return "none";
   if (score >= 90) return "excellent";
   if (score >= 70) return "good";
   if (score >= 50) return "attention";
@@ -291,12 +381,6 @@ const sum = (rows: { [k: string]: any }[], f: string) =>
 function avg(rows: { [k: string]: any }[], f: string): number | null {
   const vals = rows.map((r) => r[f]).filter((v) => v != null) as number[];
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-}
-
-/** UTC date floor aligned with getDashboard / insights route window math. */
-function utcDateFloor(daysAgo: number): Date {
-  const since = new Date(Date.now() - daysAgo * 864e5);
-  return new Date(since.toISOString().slice(0, 10));
 }
 
 /** Window-total CTR = Σclicks / Σimpressions × 100 (matches KPI aggregate math). */
@@ -330,9 +414,12 @@ function computeWindowTrendDeltas(
   cpmTrend: number | null;
   frequencyTrend: number | null;
 } {
+  const resultsVolume = (rows: { [k: string]: any }[]) =>
+    sum(rows, "messages") + sum(rows, "purchases") + sum(rows, "leads");
   return {
     spendTrend: pctTrend(sum(current, "spend"), sum(prior, "spend")),
-    resultsTrend: pctTrend(sum(current, "messages"), sum(prior, "messages"), { minSignal: 3 }),
+    // Align with trendSeries.results (messages + purchases + leads), not messages alone.
+    resultsTrend: pctTrend(resultsVolume(current), resultsVolume(prior), { minSignal: 3 }),
     ctrTrend: pctTrend(windowCtr(current), windowCtr(prior), { noiseFloor: 0.02 }),
     cpmTrend: pctTrend(windowCpm(current, factor), windowCpm(prior, factor), { noiseFloor: 0.02 }),
     frequencyTrend: pctTrend(avg(current, "frequency"), avg(prior, "frequency"), { noiseFloor: 0.02 }),
@@ -402,6 +489,99 @@ export class DashboardStageTimeoutError extends Error {
  * unblocks the request and surfaces the exact stall site. The dangling query
  * settles later harmlessly.
  */
+/** Account creative-health summary from Meta's own ad-relevance grades.
+ *  Bounded, single indexed query; enrichment only (null on any error, and the
+ *  card hides when nothing needs attention). Never blocks the dashboard. */
+export interface CreativeHealthSummary {
+  gradedAds: number;
+  needAttention: number;
+  worst: { adName: string; titleAr: string; severity: string; code: string } | null;
+}
+async function buildCreativeHealth(
+  prisma: PrismaClient,
+  accountId: string,
+): Promise<CreativeHealthSummary | null> {
+  const ads = await prisma.ad.findMany({
+    where: {
+      rankingsSyncedAt: { not: null },
+      status: EntityStatus.ACTIVE,
+      adSet: { campaign: { adAccountId: accountId } },
+    },
+    select: {
+      name: true,
+      qualityRanking: true,
+      engagementRanking: true,
+      conversionRanking: true,
+    },
+    take: 300, // hard cap — a busy account never stalls this stage
+  });
+  if (ads.length === 0) return null;
+
+  const sevRank: Record<string, number> = { high: 0, medium: 1, low: 2, none: 3 };
+  let needAttention = 0;
+  let worst: CreativeHealthSummary["worst"] = null;
+  let worstRank = 99;
+  for (const ad of ads) {
+    const d = diagnoseRelevance({
+      quality: (ad.qualityRanking ?? "unknown") as never,
+      engagement: (ad.engagementRanking ?? "unknown") as never,
+      conversion: (ad.conversionRanking ?? "unknown") as never,
+    });
+    if (d.severity === "high" || d.severity === "medium") needAttention++;
+    const r = sevRank[d.severity] ?? 9;
+    if (r < worstRank && (d.severity === "high" || d.severity === "medium")) {
+      worstRank = r;
+      worst = { adName: ad.name, titleAr: d.titleAr, severity: d.severity, code: d.code };
+    }
+  }
+  return { gradedAds: ads.length, needAttention, worst };
+}
+
+/**
+ * Current truth of account issues — the LATEST detector run only, deduped.
+ *
+ * Detectors write a full replacement set per (entity, date), so the newest
+ * date IS the current state. Reading all dates re-surfaced the same issue
+ * once per day it was detected — five identical "low CTR" cards, alerts and
+ * timeline rows, and an inflated issue count. One issueCode → one row.
+ */
+export async function loadCurrentIssues(prisma: PrismaClient, accountId: string) {
+  const latest = await prisma.detectedIssue.findFirst({
+    where: { entityType: EntityType.ACCOUNT, entityId: accountId },
+    orderBy: { date: "desc" },
+    select: { date: true },
+  });
+  if (!latest) return [];
+  const rows = await prisma.detectedIssue.findMany({
+    where: { entityType: EntityType.ACCOUNT, entityId: accountId, date: latest.date },
+    orderBy: { severity: "desc" },
+  });
+  const seen = new Set<string>();
+  return rows.filter((r) =>
+    seen.has(r.issueCode) ? false : (seen.add(r.issueCode), true),
+  );
+}
+
+/**
+ * Enrichment-stage wrapper: like timedStage, but a timeout DEGRADES to a
+ * fallback instead of failing the whole dashboard with a 504. The core
+ * decision layer (health, KPIs, main move) must always render even when a
+ * secondary panel (predictions, recommendations, weekly, creative health) is
+ * slow — a blank dashboard is worse than a missing side card. Non-timeout
+ * errors are already swallowed by each builder's own `.catch(() => null)`.
+ */
+async function softStage<T>(stage: string, fallback: T, work: () => Promise<T>): Promise<T> {
+  try {
+    return await timedStage(stage, work);
+  } catch (err) {
+    if (err instanceof DashboardStageTimeoutError) {
+      console.warn(`[dashboard] soft stage "${stage}" exceeded ${STAGE_TIMEOUT_MS}ms — degrading gracefully`);
+      return fallback;
+    }
+    throw err;
+  }
+}
+
 async function timedStage<T>(stage: string, work: () => Promise<T>): Promise<T> {
   const start = performance.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -462,24 +642,24 @@ export async function getDashboard(
 ): Promise<DashboardDTO> {
   // Use the caller's prisma instance (e.g. from the HTTP server) when provided.
   // Fallback to the module-level standalone client for scripts and tests.
-  const prisma = opts.prisma ?? _standalonePrisma;
+  const prisma = opts.prisma ?? getStandalonePrisma();
   const knowledge = new KnowledgeEngine(prisma);
   const recService = new RecommendationService(prisma);
-  const appliedItemKeys = await timedStage('appliedItemKeys', () =>
-    recService.getAppliedItemKeys(workspaceId),
-  );
   const windowDays = opts.windowDays ?? 30;
 
-  // 1. Workspace + industry + the (single) ad account.
-  const ws = await timedStage('workspace+account', () =>
-    prisma.workspace.findUniqueOrThrow({
-      where: { id: workspaceId },
-      include: {
-        industryProfile: true,
-        adAccounts: true,
-      },
-    }),
-  );
+  // 1. Workspace + applied keys in parallel (independent).
+  const [appliedItemKeys, ws] = await Promise.all([
+    timedStage('appliedItemKeys', () => recService.getAppliedItemKeys(workspaceId)),
+    timedStage('workspace+account', () =>
+      prisma.workspace.findUniqueOrThrow({
+        where: { id: workspaceId },
+        include: {
+          industryProfile: true,
+          adAccounts: true,
+        },
+      }),
+    ),
+  ]);
   const locale = opts.locale ?? Locale.EN;
   const account = ws.adAccounts[0]; // Phase 1: one account per workspace
   if (!account) return EMPTY_DASHBOARD_DTO;
@@ -497,36 +677,51 @@ export async function getDashboard(
 
   const curr = account.currency;
   const factor = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);
-  const activeCampaigns = await timedStage('activeSpendingCount', () =>
-    countCurrentlySpendingCampaigns(prisma, account.id, account.timezone),
-  );
-  const sinceDate = utcDateFloor(windowDays);
-  const priorSinceDate = utcDateFloor(windowDays * 2);
+  // Windows follow the account's reporting calendar — DailyStat dates come
+  // from Meta in the account timezone, so a UTC window boundary drops or
+  // shifts the newest day around the account's midnight.
+  const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
+  const priorSinceDate = accountLocalDateFloor(account.timezone, windowDays * 2);
 
-  // 2. Account-level daily stats — current + prior window for KPI deltas and charts.
-  const allDaily = await timedStage('accountDailyStats', () =>
-    prisma.dailyStat.findMany({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
-      orderBy: { date: "asc" },
-    }),
-  );
+  // 2. Independent account reads in parallel (biggest latency win).
+  const [allDaily, healthRow, detected, latestTrend, rec] = await Promise.all([
+    timedStage('accountDailyStats', () =>
+      prisma.dailyStat.findMany({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
+        orderBy: { date: "asc" },
+      }),
+    ),
+    timedStage('accountHealthScore', () =>
+      prisma.healthScore.findFirst({
+        where: {
+          entityType: EntityType.ACCOUNT,
+          entityId: account.id,
+          algorithmVersion: HEALTH_ALGORITHM_VERSION,
+        },
+        orderBy: { date: "desc" },
+      }),
+    ),
+    timedStage('detectedIssues', () =>
+      loadCurrentIssues(prisma, account.id),
+    ),
+    timedStage('latestTrend', () =>
+      prisma.metricTrend.findFirst({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+        orderBy: { date: "desc" },
+      }),
+    ),
+    timedStage('recommendation', () =>
+      prisma.recommendation.findFirst({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+        orderBy: [{ priority: "desc" }, { date: "desc" }],
+      }),
+    ),
+  ]);
+
   const sinceMs = sinceDate.getTime();
   const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
   const priorDaily = allDaily.filter((d) => d.date.getTime() < sinceMs);
-
-  // 3. Latest stored health score for the CURRENT algorithm version only.
-  //    v1 rows may coexist for the same date; we explicitly pick v2.
-  const healthRow = await timedStage('accountHealthScore', () =>
-    prisma.healthScore.findFirst({
-      where: {
-        entityType: EntityType.ACCOUNT,
-        entityId: account.id,
-        algorithmVersion: HEALTH_ALGORITHM_VERSION,
-      },
-      orderBy: { date: "desc" },
-    }),
-  );
-  const score = healthRow?.score ?? 0;
+  const score = healthRow?.score ?? null;
 
   // 4. KPI badge deltas — 30d window totals vs prior 30d (not metric_trends 7d).
   const windowTrends = computeWindowTrendDeltas(daily, priorDaily, factor);
@@ -582,14 +777,14 @@ export async function getDashboard(
       deltaPct: windowTrends.spendTrend, direction: dir(windowTrends.spendTrend), goodWhenUp: false },
     { key: "messages", label: kpiLabel("messages", locale), value: totalMsgs, display: totalMsgs.toLocaleString(),
       deltaPct: windowTrends.resultsTrend, direction: dir(windowTrends.resultsTrend), goodWhenUp: true },
-    { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? 0,
+    { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? null,
       display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
       deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true,
       benchmark: benchmarkCtr(ctrWindow, ws.industryProfile?.name ?? null, locale === Locale.AR) },
-    { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? 0,
+    { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? null,
       display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
       deltaPct: windowTrends.cpmTrend, direction: dir(windowTrends.cpmTrend), goodWhenUp: false },
-    { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? 0,
+    { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? null,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
       deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false,
       benchmark: benchmarkFrequency(freqAvg, locale === Locale.AR) },
@@ -597,24 +792,54 @@ export async function getDashboard(
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
 
-  // 6. Trend series for the chart.
+  // 6. Trend series for charts — outcomes + efficiency, honest nulls for gaps.
+  // CPM is stored in MINOR units (insightMapper). Charts expect MAJOR — always
+  // recompute from spend÷impressions so cents never plot as dollars
+  // (e.g. Meta CPM $3.21 stored as 321 → wrongly shown as $321).
+  // CTR / frequency: null when the day had no delivery — never invent 0% / 0×.
   const trendSeries = {
-    dates: daily.map((d: any) => d.date.toISOString().slice(0, 10)),
+    // UTC YYYY-MM-DD — matches client calendar mappers (no local TZ drift).
+    dates: daily.map((d: any) => {
+      const dt: Date = d.date instanceof Date ? d.date : new Date(d.date);
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(dt.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }),
     messages: daily.map((d: any) => Number(d.messages)),
+    results: daily.map((d: any) =>
+      Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0),
+    ),
     spend: daily.map((d: any) => Number(d.spend)),
-    ctr: daily.map((d: any) => d.ctr ?? 0),
+    ctr: daily.map((d: any) => {
+      const imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
+      if (d.ctr == null || !Number.isFinite(Number(d.ctr))) return null;
+      return Number(d.ctr);
+    }),
+    frequency: daily.map((d: any) => {
+      const imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
+      if (d.frequency == null || !Number.isFinite(Number(d.frequency))) return null;
+      return Number(d.frequency);
+    }),
+    cpm: daily.map((d: any) => {
+      const imp = Number(d.impressions) || 0;
+      if (imp <= 0) return null;
+      const spendMajor = Number(d.spend) / factor;
+      if (!Number.isFinite(spendMajor)) return null;
+      return (spendMajor / imp) * 1000;
+    }),
+    costPerResult: daily.map((d: any) => {
+      const results =
+        Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0);
+      if (results <= 0) return null;
+      const spendMajor = Number(d.spend) / factor;
+      return Number.isFinite(spendMajor) ? spendMajor / results : null;
+    }),
   };
 
-  // 7. Issues — join detected_issues → knowledge_rules, localized AND
-  //    industry-specialized. The fallback rule (industry → universal) lives
-  //    inside KnowledgeEngine; this function only consumes the result.
-  const detected = await timedStage('detectedIssues', () =>
-    prisma.detectedIssue.findMany({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-      orderBy: { severity: "desc" },
-    }),
-  );
-
+  // 7. Issues — join detected_issues → knowledge_rules (detected already loaded in parallel).
   const knowledgeMap = await timedStage('knowledgeLookup', () =>
     knowledge.lookupMany({
       issueCodes: (detected as any[]).map(d => d.issueCode as IssueCode),
@@ -636,13 +861,23 @@ export async function getDashboard(
   });
 
   // Meta Ads KB — query live KPI metrics FIRST; merge verbatim actions into issues.
+  // Account-level dashboard has mixed objectives; keep shared delivery metrics
+  // (ctr/cpm/frequency) and only include cost_per_message when messages exist.
+  // Per-campaign objective filtering happens in campaign inspector / brain path.
   const kbMetrics: CampaignMetrics = {
     ctr: ctrWindow,
     cpm: cpmWindow,
     frequency: freqAvg,
-    cost_per_message: totalMsgs > 0 ? totalSpendMinor / totalMsgs : null,
+    ...(totalMsgs > 0
+      ? { cost_per_message: totalSpendMajor / totalMsgs }
+      : {}),
   };
   const kbBreaches = evaluateCampaign(kbMetrics);
+  const resolvedIndustry = resolveBenchmarkIndustryFromContext({ workspace: ws });
+  const benchmarkInsights = evaluateBenchmarks(
+    kbMetrics,
+    toBenchmarkEvaluationOptions(resolvedIndustry),
+  );
   const kbActionTexts = formatActionsForDisplay(findActionsForBreaches(kbBreaches));
 
   const METRIC_ISSUE_CODE: Record<string, IssueCode> = {
@@ -655,7 +890,13 @@ export async function getDashboard(
   for (const breach of kbBreaches) {
     const code = METRIC_ISSUE_CODE[breach.metricKey] ?? IssueCode.LOW_CTR;
     if (appliedItemKeys.has(`issue:${code}`)) continue;
-    const texts = formatActionsForDisplay(breach.recommended_optimization_actions);
+    // Prefer Arabic merchant copy — never push raw English KB strings to UI/AI.
+    const texts = [
+      issueActionAr(code),
+      ...formatActionsForDisplay(breach.recommended_optimization_actions)
+        .map(simplifyMerchantText)
+        .filter(Boolean),
+    ].filter((t, i, arr) => t && arr.indexOf(t) === i);
     const existing = issues.find(i => i.code === code);
     if (existing) {
       existing.recommendations = [...texts, ...existing.recommendations];
@@ -666,34 +907,107 @@ export async function getDashboard(
     } else {
       issues.push({
         code,
-        title: breach.metricLabel,
+        title: issueTitleAr(code),
         severity: breach.severity === "critical" ? "CRITICAL" : "HIGH",
-        causes: [
-          `${breach.metricLabel} is ${breach.value} (${breach.direction} threshold ${breach.threshold})`,
-        ],
-        recommendations: texts,
+        causes: [issueWhyAr(code)],
+        recommendations: texts.length ? texts : [issueActionAr(code)],
         evidence: { source: "meta_ads_knowledge_base", knowledgeBase: breach },
       });
     }
   }
 
-  // 8. Priority action — highest-priority recommendation, rendered to text.
-  const rec = await timedStage('recommendation', () =>
-    prisma.recommendation.findFirst({
-      where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-      orderBy: [{ priority: "desc" }, { date: "desc" }],
-    }),
+  // Benchmark-only insights: emit additional contextual guidance even when
+  // no hard KB threshold is breached, so the dashboard explains relative gaps.
+  // Currency-denominated metrics are excluded: the KB ranges are in the
+  // source market's currency (£/$), so comparing this account's CPM/CPC in
+  // its own currency against them is noise, not intelligence ("0.57 below
+  // £10–£18"). Ratio metrics (CTR, frequency) are unit-less and compare fair.
+  const CURRENCY_METRIC_KEYS = new Set(["cpm", "cpc", "cpa", "cost_per_message", "cost_per_result"]);
+  for (const insight of benchmarkInsights) {
+    if (insight.comparison === "within") continue;
+    if (CURRENCY_METRIC_KEYS.has(insight.metricKey)) continue;
+    const code = METRIC_ISSUE_CODE[insight.metricKey] ?? IssueCode.LOW_CTR;
+    const existing = issues.find(i => i.code === code);
+    const recText =
+      simplifyMerchantText(insight.inference) || issueActionAr(code);
+    if (!recText) continue;
+    if (existing) {
+      if (!existing.recommendations.includes(recText)) {
+        existing.recommendations = [...existing.recommendations, recText];
+      }
+      existing.evidence = {
+        ...existing.evidence,
+        benchmarkInsight: insight,
+      };
+    } else {
+      issues.push({
+        code,
+        title: issueTitleAr(code),
+        severity: "HIGH",
+        causes: [issueWhyAr(code)],
+        recommendations: [recText],
+        evidence: { source: "industry_benchmark_intelligence", benchmarkInsight: insight },
+      });
+    }
+  }
+
+  // 7b. Diagnoses — re-derive from stored issues + latest trends (trend already loaded).
+  const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
+    issueCode: d.issueCode,
+    severity: d.severity,
+    evidence: (d.evidenceJson as Record<string, unknown>) ?? {},
+  }));
+  // Align currentResults with RulesEngine.buildSignals (sum of conversions),
+  // not messages — so diagnose() evidence matches what detectors persisted.
+  const totalConversions = sum(daily, "conversions");
+  const signals: Signals = {
+    ctrTrend: (latestTrend as any)?.ctrTrend ?? null,
+    cpmTrend: (latestTrend as any)?.cpmTrend ?? null,
+    frequencyTrend: (latestTrend as any)?.frequencyTrend ?? null,
+    resultsTrend: (latestTrend as any)?.resultsTrend ?? null,
+    spendTrend: (latestTrend as any)?.spendTrend ?? null,
+    currentCtr: ctrWindow,
+    currentCpm: cpmWindow,
+    currentFrequency: freqAvg,
+    currentResults: totalConversions,
+    currentSpend: totalSpendMinor,
+  };
+  const diagnoses = diagnose(issueRecords, signals);
+
+  // 7c. Attribution — decompose results change into impressions × CTR × CVR.
+  // Use the same results volume as trendSeries (messages + purchases + leads).
+  const priorImpr = sum(priorDaily, "impressions");
+  const priorClicks = sum(priorDaily, "clicks");
+  const currentResultsVol =
+    sum(daily, "messages") + sum(daily, "purchases") + sum(daily, "leads");
+  const priorResultsVol =
+    sum(priorDaily, "messages") + sum(priorDaily, "purchases") + sum(priorDaily, "leads");
+  const resultAttribution = attributeChange(
+    { impressions: totalImpr, clicks: totalClicks, results: currentResultsVol },
+    { impressions: priorImpr, clicks: priorClicks, results: priorResultsVol },
   );
+
+  // 8. Priority action — recommendation already loaded in parallel.
+  // Sanitize every issue at the product boundary — UI and AI never see codes/jargon.
+  const merchantIssues = issues.map(sanitizeIssueForMerchant);
+
   // The recommendation's action text comes from the top issue's localized recs.
-  const activeIssues = issues.filter(
-    (i) => !appliedItemKeys.has(`issue:${i.code}`),
-  );
+  // Sort by severity so "top" is actually urgent, not insertion order.
+  const severityRank = (s: string) =>
+    s === "CRITICAL" ? 0 : s === "HIGH" ? 1 : s === "MEDIUM" ? 2 : 3;
+  const activeIssues = merchantIssues
+    .filter((i) => !appliedItemKeys.has(`issue:${i.code}`))
+    .slice()
+    .sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
   const topIssue = activeIssues[0];
   let priorityAction: DashboardDTO['priorityAction'] = rec
     ? {
         actionCode: rec.actionCode,
         priority: rec.priority,
-        text: topIssue?.recommendations?.[0] ?? rec.actionCode,
+        text: sanitizePriorityActionText(
+          rec.actionCode,
+          topIssue?.recommendations?.[0] ?? null,
+        ),
         details: (rec.detailsJson as Record<string, unknown>) ?? null,
       }
     : null;
@@ -702,7 +1016,7 @@ export async function getDashboard(
     priorityAction = null;
   }
 
-  // KB-first priority text when thresholds breached and no stored recommendation.
+  // KB-first priority text when thresholds breached — always Arabic merchant copy.
   if (kbActionTexts.length > 0) {
     const kbActions = findActionsForBreaches(kbBreaches);
     const kbTop = kbBreaches[0]!;
@@ -712,10 +1026,14 @@ export async function getDashboard(
       appliedItemKeys.has(`issue:${kbIssueCode}`) ||
       appliedItemKeys.has(`priority:${kbActionId}`);
     if (!kbApplied) {
+      const kbText = sanitizePriorityActionText(
+        kbActionId,
+        simplifyMerchantText(kbActionTexts[0]!) || issueActionAr(kbIssueCode),
+      );
       if (priorityAction) {
         priorityAction = {
           ...priorityAction,
-          text: kbActionTexts[0]!,
+          text: kbText,
           details: {
             ...(priorityAction.details ?? {}),
             recommended_optimization_actions: kbActions,
@@ -724,9 +1042,9 @@ export async function getDashboard(
         };
       } else {
         priorityAction = {
-          actionCode: kbActions[0]!.id,
+          actionCode: kbActionId,
           priority: kbTop.severity === "critical" ? "CRITICAL" : "HIGH",
-          text: kbActionTexts[0]!,
+          text: kbText,
           details: {
             source: "meta_ads_knowledge_base",
             recommended_optimization_actions: kbActions,
@@ -737,27 +1055,128 @@ export async function getDashboard(
     }
   }
 
-  const filteredIssues = issues.filter(
+  const filteredIssues = merchantIssues.filter(
     (i) => !appliedItemKeys.has(`issue:${i.code}`),
   );
 
-  // 9. Best / worst campaign — join campaign daily snapshot + campaign health.
-  const cards = await timedStage('campaignCards', () =>
-    buildCampaignCards(account.id, prisma, sinceDate, factor),
-  );
+  // Merchant task cards — prefer evidence-rich diagnoses (product thesis),
+  // then fall back to sanitized issues / priority action.
+  const diagnosisTasks: AdviceTask[] = diagnoses
+    .filter((d) => {
+      const issueKey = d.contributingIssues?.[0];
+      return !issueKey || !appliedItemKeys.has(`issue:${issueKey}`);
+    })
+    .map((d, idx) =>
+      buildAdviceTaskFromDiagnosis({
+        name: d.name,
+        code: d.code,
+        confidence: d.confidence,
+        narrative: d.narrative,
+        action: d.action,
+        contributingIssues: d.contributingIssues,
+        actionCode: idx === 0 ? priorityAction?.actionCode ?? null : null,
+      }),
+    );
 
-  // 10. V6 Brain section — read CampaignBrainSnapshot, derive feed/pulse/ledger.
-  //     Returns undefined when no snapshots exist for this workspace (V5-only render).
-  const brain = await timedStage('brainSection', () =>
-    buildBrainSection(
-      prisma,
-      ws.id,
-      account.id,
-      account.currency,
-      account.currencyMinorFactor,
-      appliedItemKeys,
-    ),
+  const issueTasks: AdviceTask[] = filteredIssues
+    .slice()
+    .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
+    .map((iss, idx) =>
+      buildAdviceTask({
+        code: iss.code,
+        title: iss.title,
+        severity: iss.severity,
+        causes: iss.causes,
+        recommendations: iss.recommendations,
+        actionCode:
+          diagnosisTasks.length === 0 && idx === 0
+            ? priorityAction?.actionCode ?? null
+            : null,
+        priorityText:
+          diagnosisTasks.length === 0 && idx === 0
+            ? priorityAction?.text ?? null
+            : null,
+        itemKey: `issue:${iss.code}`,
+      }),
+    );
+
+  // Prefer diagnoses; append issue tasks that aren't already covered.
+  const coveredIssueCodes = new Set(
+    diagnosisTasks.map((t) => t.issueCode).filter(Boolean) as string[],
   );
+  const merchantTasks: AdviceTask[] = [
+    ...diagnosisTasks,
+    ...issueTasks.filter((t) => !t.issueCode || !coveredIssueCodes.has(t.issueCode)),
+  ];
+
+  // If we only have a priority action (no issues/diagnoses), still surface one task.
+  if (!merchantTasks.length && priorityAction) {
+    merchantTasks.push(
+      buildAdviceTask({
+        code: null,
+        title: priorityAction.text,
+        severity: priorityAction.priority,
+        actionCode: priorityAction.actionCode,
+        priorityText: priorityAction.text,
+        itemKey: `priority:${priorityAction.actionCode}`,
+      }),
+    );
+  }
+
+  // 9–10. Campaign cards + brain section + AI features in parallel.
+  // campaignCards is the essential decision layer — it stays a hard stage, so a
+  // genuine stall there surfaces as an honest 504 rather than a silently empty
+  // board. Everything else here is enrichment (brain feed, predictions, AI recs,
+  // weekly report, creative health): a slow secondary panel must degrade to null,
+  // never blank the whole dashboard. softStage() turns a stage timeout into the
+  // fallback; each builder's own `.catch(() => null)` handles non-timeout errors.
+  const [cards, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
+    timedStage('campaignCards', () =>
+      buildCampaignCards(account.id, prisma, sinceDate, factor),
+    ),
+    softStage('brainSection', null, () =>
+      buildBrainSection(
+        prisma,
+        ws.id,
+        account.id,
+        account.currency,
+        account.currencyMinorFactor,
+        appliedItemKeys,
+      ).catch((err) => {
+        console.warn('[dashboard] brainSection failed:', err);
+        return null;
+      }),
+    ),
+    softStage('predictions', null, () =>
+      computePredictions(prisma, ws.id, account.id, curr, factor).catch((err) => {
+        console.warn('[dashboard] predictions failed:', err);
+        return null;
+      }),
+    ),
+    softStage('aiRecommendations', null, () =>
+      computeAIRecommendations(prisma, ws.id).catch((err) => {
+        console.warn('[dashboard] aiRecommendations failed:', err);
+        return null;
+      }),
+    ),
+    softStage('weeklyReport', null, () =>
+      generateWeeklyReport(prisma, ws.id).catch((err) => {
+        console.warn('[dashboard] weeklyReport failed:', err);
+        return null;
+      }),
+    ),
+    softStage('creativeHealth', null, () =>
+      buildCreativeHealth(prisma, account.id).catch((err) => {
+        console.warn('[dashboard] creativeHealth failed:', err);
+        return null;
+      }),
+    ),
+  ]);
+
+  const campaignCounts = await timedStage('campaignCounts', () =>
+    getCampaignCounts(prisma, account.id, account.timezone, cards.all.length),
+  );
+  const activeCampaigns = campaignCounts.deliveringInWindow;
 
   // ── Money-framing: what is the current degradation costing? ──────────
   // ONE account-level figure (per-issue splits would double-count the same
@@ -962,6 +1381,7 @@ export async function getDashboard(
         healthScore: score,
         healthBand: band(score),
         activeCampaigns,
+        campaignCounts,
         stableCampaigns: cards.stable,
         brain,
         money,
@@ -978,12 +1398,19 @@ export async function getDashboard(
       currency: curr,
       currencyMinorFactor: factor,
       lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
+      accountToday: getAccountLocalDateString(account.timezone),
+      accountTimezone: account.timezone,
       activeCampaigns,
+      campaignCounts,
     },
     health: { score, band: band(score) },
+    creativeHealth,
     kpis,
     trendSeries,
     issues: filteredIssues,
+    merchantTasks,
+    diagnoses,
+    attribution: resultAttribution,
     priorityAction,
     drain,
     forecast,
@@ -996,6 +1423,9 @@ export async function getDashboard(
     lifetimeSpend,
     ...(brain && { brain }),
     ...(steadyState && { steadyState }),
+    ...(predictions && { predictions }),
+    ...(aiRecommendations && { aiRecommendations }),
+    ...(weeklyReport && { weeklyReport }),
   };
 }
 
@@ -1013,9 +1443,10 @@ function buildSteadyStateSummary(input: {
   cpm: number | null;
   costPerMessage: number | null;
   roas: number | null;
-  healthScore: number;
+  healthScore: number | null;
   healthBand: ReturnType<typeof band>;
   activeCampaigns: number;
+  campaignCounts?: CampaignCounts;
   stableCampaigns: CampaignCard[];
   brain: BrainSection | null | undefined;
   money: (minor: number) => string;
@@ -1095,12 +1526,20 @@ function buildSteadyStateSummary(input: {
   }
 
   const pulse = input.brain?.livePulse;
+  const counts = input.campaignCounts;
   const pulseParts: string[] = [];
-  if (pulse?.campaignsObserved) {
+  if (counts && counts.total > 0) {
     pulseParts.push(
       t(
-        `Monitoring ${pulse.campaignsObserved} active campaign${pulse.campaignsObserved === 1 ? "" : "s"}`,
-        `مراقبة ${pulse.campaignsObserved} حملة نشطة`,
+        `Monitoring ${counts.total} campaigns (${counts.deliveringInWindow} delivering, ${counts.spendingToday} spending today, ${counts.dormantActive} dormant Meta-active)`,
+        `مراقبة ${counts.total} حملة (${counts.deliveringInWindow} تعمل · ${counts.spendingToday} تنفق اليوم · ${counts.dormantActive} نشطة بدون إنفاق)`,
+      ),
+    );
+  } else if (pulse?.campaignsObserved) {
+    pulseParts.push(
+      t(
+        `Spend pace tracked on ${pulse.campaignsObserved} campaign${pulse.campaignsObserved === 1 ? "" : "s"}`,
+        `وتيرة الإنفاق على ${pulse.campaignsObserved} حملة`,
       ),
     );
   }
@@ -1125,11 +1564,11 @@ function buildSteadyStateSummary(input: {
     pulseParts.length > 0
       ? pulseParts.join(" · ")
       : t(
-          `AI is watching ${input.activeCampaigns} campaign${input.activeCampaigns === 1 ? "" : "s"} — health score ${input.healthScore} (${input.healthBand}).`,
-          `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
+          `AI is watching ${input.activeCampaigns} delivering campaign${input.activeCampaigns === 1 ? "" : "s"} — health score ${input.healthScore} (${input.healthBand}).`,
+          `الذكاء الاصطناعي يراقب ${input.activeCampaigns} حملة تعمل — نقاط الصحة ${input.healthScore} (${input.healthBand}).`,
         );
 
-  const stableCount = stableCampaigns.length || input.activeCampaigns;
+  const stableCount = stableCampaigns.length || input.campaignCounts?.deliveringInWindow || input.activeCampaigns;
   const namesPreview = stableCampaigns
     .slice(0, 3)
     .map((c) => c.name)
@@ -1206,39 +1645,6 @@ function buildSteadyStateSummary(input: {
 }
 
 // ── Campaign cards: 30d window aggregates + latest health score. ──
-async function countCurrentlySpendingCampaigns(
-  prisma: PrismaClient,
-  adAccountId: string,
-  timezone: string,
-): Promise<number> {
-  const campaigns = await prisma.campaign.findMany({
-    where: { adAccountId, status: "ACTIVE" },
-    select: { id: true, status: true },
-  });
-  if (!campaigns.length) return 0;
-
-  const tickToday = accountLocalTodayFloor(timezone);
-  const todayStats = await prisma.dailyStat.findMany({
-    where: {
-      entityType: EntityType.CAMPAIGN,
-      entityId: { in: campaigns.map((c) => c.id) },
-      date: tickToday,
-    },
-    select: { entityId: true, spend: true },
-  });
-  const spendTodayByCampaign = new Map(
-    todayStats.map((s) => [s.entityId, Number(s.spend)]),
-  );
-
-  return campaigns.filter((c) =>
-    isCurrentlySpending({
-      status: c.status,
-      spendTodayMinor: spendTodayByCampaign.get(c.id) ?? 0,
-    }),
-  ).length;
-}
-
-// Uses bulk queries instead of N+1. Budget stays on campaigns table (not shown here).
 async function buildCampaignCards(
   adAccountId: string,
   prisma: PrismaClient,
@@ -1268,17 +1674,23 @@ async function buildCampaignCards(
     snapsByCampaign.set(s.entityId, rows);
   }
 
-  // Bulk fetch: latest health score per campaign
-  const allHealth = await prisma.healthScore.findMany({
-    where: {
-      entityType: EntityType.CAMPAIGN,
-      entityId: { in: campaignIds },
-      algorithmVersion: HEALTH_ALGORITHM_VERSION,
-    },
-    orderBy: { date: "desc" },
-  });
-  const healthMap = new Map<string, (typeof allHealth)[number]>();
-  for (const h of allHealth) if (!healthMap.has(h.entityId)) healthMap.set(h.entityId, h);
+  // Bulk fetch: latest health score per campaign (one row each — avoid full history).
+  // DISTINCT ON is Postgres-specific; matches our production DB.
+  const latestHealthRows = await prisma.$queryRaw<
+    Array<{ entity_id: string; score: number }>
+  >`
+    SELECT DISTINCT ON (entity_id)
+      entity_id, score
+    FROM health_scores
+    WHERE entity_type = 'CAMPAIGN'::"EntityType"
+      AND entity_id = ANY(${campaignIds})
+      AND algorithm_version = ${HEALTH_ALGORITHM_VERSION}
+    ORDER BY entity_id, date DESC
+  `;
+  const healthMap = new Map<string, { score: number }>();
+  for (const h of latestHealthRows) {
+    healthMap.set(h.entity_id, { score: h.score });
+  }
 
   const cards: CampaignCard[] = [];
   for (const c of campaigns) {
@@ -1287,6 +1699,7 @@ async function buildCampaignCards(
     if (!rows?.length || !h) continue;
     cards.push({
       id: c.id,
+      metaId: c.externalCampaignId,
       name: c.name,
       health: h.score,
       band: band(h.score),
@@ -1387,6 +1800,8 @@ interface BrainSnapshotRow {
   priority: string;
   narrationJson: unknown;
   narrationGeneratedAt: Date | null;
+  /** Brain tick payload — used to upgrade generic / sentinel narrations on read. */
+  payload?: unknown;
 }
 
 interface CmoFeedCandidate {
@@ -1426,13 +1841,34 @@ function mapSnapshotToFeedCandidate(
   nameById: Map<string, string>,
 ): CmoFeedCandidate {
   const campaignName = nameById.get(s.campaignId) ?? s.externalCampaignId;
-  const narration = readNarration(s.narrationJson);
+  let narration = readNarration(s.narrationJson);
+
+  // Cognitive gate (read path): replace legacy generic / identical templates
+  // with action-aware deterministic Arabic grounded in the brain payload.
+  if (
+    narration &&
+    isGenericInsightNarration(narration.arabicTitle, narration.arabicNarration)
+  ) {
+    const upgraded = upgradeGenericNarration(
+      narration,
+      s.payload,
+      campaignName,
+      s.action,
+    );
+    narration = upgraded.narration;
+  } else if (!narration) {
+    narration = buildDeterministicNarration(s.payload ?? {}, {
+      campaignName,
+      action: s.action,
+    });
+  }
+
   const date = formatUtcDate(s.tickDate);
   const insightType = s.action;
   const dedupeKey = `${s.campaignId}:${insightType}:${date}`;
 
-  const rawTitle = narration?.arabicTitle ?? campaignName;
-  const rawBody = normalizeWhitespace(narration?.arabicNarration ?? '');
+  const rawTitle = narration.arabicTitle || campaignName;
+  const rawBody = normalizeWhitespace(narration.arabicNarration ?? '');
   const title = truncatePreview(rawTitle, CMO_FEED_PREVIEW_CHARS);
   const body = truncatePreview(rawBody, CMO_FEED_PREVIEW_CHARS);
 
@@ -1452,7 +1888,7 @@ function mapSnapshotToFeedCandidate(
   if (rawBody.length > CMO_FEED_PREVIEW_CHARS) {
     item.bodyFull = rawBody;
   }
-  if (narration?.creativeDirective) {
+  if (narration.creativeDirective) {
     item.creativeDirective = truncatePreview(
       narration.creativeDirective,
       CMO_FEED_CREATIVE_DIRECTIVE_MAX,
@@ -1498,13 +1934,17 @@ function buildCmoFeedV2(
   }
 
   const deduped = Array.from(byCampaign.values());
-  const total = deduped.length;
-  const limited = sortFeedCandidates(deduped).slice(0, BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT);
+  // Prefer severity order, then let the quality gate drop generics / body twins
+  // and cap learning-phase noise so merchants only see useful cards.
+  const ranked = sortFeedCandidates(deduped).map(c => c.item);
+  const selected = selectUsefulFeedItems(ranked, BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT);
+  const selectedIds = new Set(selected.map(i => i.id));
+  const limited = sortFeedCandidates(deduped.filter(c => selectedIds.has(c.item.id)));
 
   return {
-    items: limited.map(c => c.item),
+    items: selected,
     meta: {
-      total,
+      total: deduped.length,
       window,
       maxPreviewChars: CMO_FEED_PREVIEW_CHARS,
       truncated: limited.some(c => c.truncated),
@@ -1556,7 +1996,7 @@ async function buildBrainSection(
   workspaceId: string,
   adAccountId: string,
   currency: string,
-  currencyMinorFactor: number,
+  _currencyMinorFactor: number,
   appliedItemKeys: Set<string> = new Set(),
 ): Promise<BrainSection | null> {
   // Today @ UTC midnight, matching BrainPersistence.toUtcMidnight semantics.
@@ -1701,7 +2141,7 @@ export async function getDashboardPulse(
   workspaceId: string,
   opts: { prisma?: PrismaClient } = {},
 ): Promise<DashboardPulseDTO | null> {
-  const prisma = opts.prisma ?? _standalonePrisma;
+  const prisma = opts.prisma ?? getStandalonePrisma();
 
   // Account context — same Phase-1 "one account per workspace" assumption.
   const ws = await prisma.workspace.findUnique({

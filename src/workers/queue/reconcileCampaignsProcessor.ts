@@ -62,7 +62,7 @@ export function createReconcileCampaignsProcessor(prisma: PrismaClient) {
       throw err;
     }
 
-    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
+    const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken , timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
     await worker.reconcileCampaignStatuses(account.id, { now: new Date() });
   };

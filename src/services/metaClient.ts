@@ -9,7 +9,7 @@
 //  If Meta deprecates v20.0 → v21.0, only this file changes.
 // ════════════════════════════════════════════════════════════════════════
 
-import { recordMetaResponseHeaders } from './metaUsageTracker';
+import { recordMetaResponseHeaders, recordMetaErrorCategory } from './metaUsageTracker';
 
 export interface MetaClientConfig {
   apiVersion: string;          // e.g. "v20.0"
@@ -18,6 +18,14 @@ export interface MetaClientConfig {
   maxRetries?: number;
   retryBaseMs?: number;
   fetchImpl?: typeof fetch;    // injectable for tests
+  /**
+   * Ad account reporting timezone (Meta `timezone_name`, e.g. "Asia/Baghdad").
+   * Meta interprets time_range dates in THIS timezone, so since/until must be
+   * converted to the account's calendar day — a UTC conversion asks for the
+   * wrong day around the account's midnight and today's data never arrives.
+   * Defaults to UTC when unknown.
+   */
+  timezone?: string;
 }
 
 /** Raw Meta insight row — kept as-is, never reshaped here. */
@@ -29,7 +37,10 @@ export class MetaApiError extends Error {
   }
 }
 
-const DEFAULT_FIELDS = [
+/** Exported (not just joined) so callers needing extra fields — e.g. ad-level
+ *  sync needs 'ad_id' to map rows back to our internal Ad.id — can spread this
+ *  array instead of duplicating the metric field list. */
+export const DEFAULT_INSIGHT_FIELDS = [
   "date_start", "date_stop",
   "spend", "impressions", "reach", "clicks",
   "inline_link_clicks", "unique_clicks",
@@ -37,7 +48,18 @@ const DEFAULT_FIELDS = [
   "actions", "action_values",
   "cost_per_action_type", "cost_per_unique_action_type",
   "purchase_roas",
-].join(",");
+] as const;
+
+const DEFAULT_FIELDS = DEFAULT_INSIGHT_FIELDS.join(",");
+
+/** Ad-relevance diagnostics — Meta's own grades vs competing ads. Only
+ *  meaningful at level=ad, so callers add these to ad-level requests only.
+ *  Each is: above_average | average | below_average_35 | below_average_20. */
+export const AD_RELEVANCE_FIELDS = [
+  "quality_ranking",
+  "engagement_rate_ranking",
+  "conversion_rate_ranking",
+] as const;
 
 // ── Proactive pacing thresholds ─────────────────────────────────────────
 // Meta reports quota utilization (0-100%) on every response via x-app-usage
@@ -60,6 +82,7 @@ export class MetaClient {
   /** Delay applied before the next request, derived from the last response's
    *  usage headers. 0 when utilization is comfortably low. */
   private pacingDelayMs = 0;
+  private timezone: string;
 
   constructor(cfg: MetaClientConfig) {
     this.base = `${cfg.baseUrl ?? "https://graph.facebook.com"}/${cfg.apiVersion}`;
@@ -67,6 +90,21 @@ export class MetaClient {
     this.maxRetries = cfg.maxRetries ?? 5;
     this.retryBaseMs = cfg.retryBaseMs ?? 500;
     this.fetchFn = cfg.fetchImpl ?? fetch;
+    this.timezone = cfg.timezone ?? "UTC";
+  }
+
+  /** Calendar day of `d` in the ad account's reporting timezone (YYYY-MM-DD). */
+  private localYmd(d: Date): string {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: this.timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
+    } catch {
+      return ymd(d);
+    }
   }
 
   /**
@@ -88,8 +126,8 @@ export class MetaClient {
       time_increment: "1",            // one row per day
       fields: args.fields ?? DEFAULT_FIELDS,
       time_range: JSON.stringify({
-        since: ymd(args.since),
-        until: ymd(args.until),
+        since: this.localYmd(args.since),
+        until: this.localYmd(args.until),
       }),
       limit: "500",
     });
@@ -177,7 +215,7 @@ export class MetaClient {
   /** List ad sets under a campaign — used for AdSet discovery (Phase 5 Pass A). */
   async listAdSets(externalCampaignId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
-      fields: "id,name,status,effective_status,daily_budget,optimization_goal,targeting",
+      fields: "id,name,status,effective_status,daily_budget,optimization_goal,destination_type,targeting,learning_stage_info{status}",
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalCampaignId}/adsets?${params.toString()}`);
@@ -200,6 +238,50 @@ export class MetaClient {
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalAdSetId}/ads?${params.toString()}`);
+  }
+
+  /**
+   * List Meta Pixels / Datasets registered on this ad account. Read-only
+   * discovery — used to find a dataset_id for getDatasetQuality() without
+   * asking the merchant to paste one in manually.
+   */
+  async listPixels(externalAccountId: string): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      fields: "id,name,last_fired_time",
+      limit: "50",
+    });
+    return this.paginated(`${this.base}/${externalAccountId}/adspixels?${params.toString()}`);
+  }
+
+  /**
+   * Dataset Quality API — event match quality + coverage diagnostics for a
+   * Pixel/Conversions API dataset. This is a DIFFERENT integration surface
+   * than the campaign/insights reads elsewhere in this file: it requires the
+   * dataset to actually receive server-side (Conversions API) events, and
+   * may need a permission grant beyond ads_read depending on the Business
+   * Manager's setup. Callers MUST treat a thrown MetaApiError here as an
+   * expected, not exceptional, outcome — see checkPixelHealth.ts.
+   *
+   * Response shape isn't in Adlytic's control and isn't guaranteed to be a
+   * `{data:[...]}` envelope like the paginated endpoints, so this bypasses
+   * `paginated()`/`requestWithRetry()` and parses defensively.
+   */
+  async getDatasetQuality(datasetId: string): Promise<MetaInsightRow | null> {
+    const params = new URLSearchParams({
+      dataset_id: datasetId,
+      fields: "web{event_coverage{percentage,goal_percentage,description},event_name}",
+    });
+    const url = `${this.base}/dataset_quality?${params.toString()}`;
+    const res = await this.fetchFn(url);
+    void recordMetaResponseHeaders(res.headers, res.status).catch(() => {});
+    if (!res.ok) {
+      const body = await safeJson(res);
+      void recordMetaErrorCategory(res.status, metaErrorCode(body)).catch(() => {});
+      throw new MetaApiError(res.status, body, `Meta ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
+    }
+    const body = (await res.json()) as { data?: MetaInsightRow[] } & MetaInsightRow;
+    if (Array.isArray(body.data)) return body.data[0] ?? null;
+    return body;
   }
 
   /** Internal: follow paging.next until exhausted, with retry on transient errors. */
@@ -245,11 +327,13 @@ export class MetaClient {
           // responses counted against the access-tier error-rate gate.
           retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'));
           const body = await safeJson(res);
+          void recordMetaErrorCategory(res.status, metaErrorCode(body)).catch(() => {});
           throw new MetaApiError(res.status, body, `Meta ${res.status}`);
         }
         if (!res.ok) {
           // non-retryable client error (4xx other than 429)
           const body = await safeJson(res);
+          void recordMetaErrorCategory(res.status, metaErrorCode(body)).catch(() => {});
           throw new MetaApiError(res.status, body, `Meta ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
         }
         return (await res.json()) as MetaPage;
@@ -325,4 +409,11 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const safeJson = async (r: Response) => {
   try { return await r.json(); } catch { return null; }
+};
+
+/** Pull Meta's numeric error code out of an error body ({ error: { code } }). */
+const metaErrorCode = (body: unknown): number | undefined => {
+  const err = (body as { error?: { code?: unknown } } | null)?.error;
+  const code = err?.code;
+  return typeof code === 'number' ? code : undefined;
 };

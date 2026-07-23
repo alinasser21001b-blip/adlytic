@@ -3,68 +3,116 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { SHARED_CSS } from '../layout';
+import { AUTH_STYLES, logoSvg } from './authShared';
 
 export function loginPage(): string {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign in — Adlytic</title>
+  <meta name="theme-color" content="#100E0D">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>تسجيل الدخول — Adlytic</title>
   <style>
     ${SHARED_CSS}
-    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
-    .auth-wrap { width: 100%; max-width: 400px; padding: 0 16px; }
-    .auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; justify-content: center; }
-    .auth-logo-mark { width: 36px; height: 36px; background: var(--accent); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: #fff; }
-    .auth-logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
-    .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; }
-    .auth-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .auth-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 28px; }
-    .auth-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-    .auth-footer { text-align: center; margin-top: 20px; font-size: 12.5px; color: var(--text-3); }
-    #error-msg { display: none; }
-    #success-msg { display: none; }
+    ${AUTH_STYLES}
   </style>
 </head>
 <body>
   <div id="toast-container"></div>
-  <div class="auth-wrap">
-    <div class="auth-logo">
-      <div class="auth-logo-mark">A</div>
-      <span class="auth-logo-text">Adlytic</span>
-    </div>
-    <div class="auth-card">
-      <div class="auth-title">Welcome back</div>
-      <div class="auth-subtitle">Sign in to your Adlytic account</div>
 
-      <div id="error-msg" class="alert alert-error"></div>
-      <div id="success-msg" class="alert alert-success"></div>
+  <!-- Ambient glow -->
+  <div class="auth-ambient"></div>
 
-      <form id="login-form">
-        <div class="form-group">
-          <label class="form-label" for="email">Email address</label>
-          <input type="email" id="email" class="form-input" placeholder="you@company.com" required autocomplete="email">
+  <div class="auth-page">
+    <!-- Left: brand panel -->
+    <div class="auth-brand">
+      <div class="auth-brand-inner">
+        ${logoSvg(56)}
+        <h1 class="auth-brand-title">Adlytic</h1>
+        <p class="auth-brand-tagline">ذكاء إعلاني يقود نموّك</p>
+        <div class="auth-brand-features">
+          <div class="auth-feature">
+            <div class="auth-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </div>
+            <div>
+              <div class="auth-feature-title">تحليل فوري</div>
+              <div class="auth-feature-desc">رؤى أداء حملاتك لحظة بلحظة</div>
+            </div>
+          </div>
+          <div class="auth-feature">
+            <div class="auth-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93M8 6a4 4 0 018 0M12 22v-4"/><circle cx="12" cy="14" r="4"/></svg>
+            </div>
+            <div>
+              <div class="auth-feature-title">مساعد ذكي</div>
+              <div class="auth-feature-desc">استشارات فورية بالعربية من مدير تسويق AI</div>
+            </div>
+          </div>
+          <div class="auth-feature">
+            <div class="auth-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <div class="auth-feature-title">حماية ميزانيتك</div>
+              <div class="auth-feature-desc">كشف الإنفاق المريب وتنبيهات استباقية</div>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="password">
-            Password
-          </label>
-          <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
-        </div>
-        <button type="submit" class="btn btn-primary btn-lg" id="submit-btn" style="width:100%;justify-content:center;margin-top:4px;">
-          <span id="btn-text">Sign in</span>
-          <span id="btn-spinner" class="spinner" style="display:none;width:16px;height:16px;border-width:2px;"></span>
-        </button>
-      </form>
-
-      <hr class="auth-divider">
-      <div style="font-size:12.5px;color:var(--text-3);text-align:center;">
-        Don't have an account? <a href="/register" style="color:var(--accent);text-decoration:none;">Create one</a>
       </div>
     </div>
-    <div class="auth-footer">
-      Adlytic Ads Intelligence Platform &nbsp;·&nbsp; Phase 1
+
+    <!-- Right: form -->
+    <div class="auth-form-side">
+      <div class="auth-form-wrap">
+        <div class="auth-mobile-logo">
+          ${logoSvg(40)}
+          <span class="auth-mobile-logo-text">Adlytic</span>
+        </div>
+
+        <div class="auth-card">
+          <div class="auth-card-header">
+            <h2 class="auth-title">مرحباً بعودتك</h2>
+            <p class="auth-subtitle">سجّل الدخول إلى حسابك</p>
+          </div>
+
+          <div id="error-msg" class="alert alert-error"></div>
+          <div id="success-msg" class="alert alert-success"></div>
+
+          <form id="login-form">
+            <div class="form-group">
+              <label class="form-label" for="email">البريد الإلكتروني</label>
+              <div class="input-wrap">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M22 7l-10 6L2 7"/></svg>
+                <input type="email" id="email" class="form-input has-icon" placeholder="you@company.com" required autocomplete="email" dir="ltr">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="password">كلمة المرور</label>
+              <div class="input-wrap">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <input type="password" id="password" class="form-input has-icon" placeholder="••••••••" required autocomplete="current-password" dir="ltr">
+              </div>
+            </div>
+            <button type="submit" class="auth-submit" id="submit-btn">
+              <span id="btn-text">تسجيل الدخول</span>
+              <span id="btn-spinner" class="spinner" style="display:none;width:16px;height:16px;border-width:2px;"></span>
+              <svg class="auth-submit-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+          </form>
+
+          <div class="auth-alt">
+            ليس لديك حساب؟ <a href="/register">أنشئ حساباً</a>
+          </div>
+        </div>
+
+        <div class="auth-footer">
+          <span class="auth-footer-dot"></span>
+          Adlytic Ads Intelligence Platform
+        </div>
+      </div>
     </div>
   </div>
 
@@ -101,7 +149,8 @@ export function loginPage(): string {
     }
     function setLoading(on) {
       btn.disabled = on;
-      btnText.textContent = on ? 'Signing in…' : 'Sign in';
+      btn.classList.toggle('loading', on);
+      btnText.textContent = on ? 'جارٍ تسجيل الدخول…' : 'تسجيل الدخول';
       btnSpin.style.display = on ? 'inline-block' : 'none';
     }
 
@@ -109,7 +158,7 @@ export function loginPage(): string {
       e.preventDefault();
       const email    = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showError('Please fill in all fields.'); return; }
+      if (!email || !password) { showError('يرجى ملء جميع الحقول.'); return; }
 
       setLoading(true);
       errEl.style.display = 'none';
@@ -123,23 +172,45 @@ export function loginPage(): string {
         const data = await res.json();
 
         if (!res.ok) {
-          showError(data.error || 'Login failed. Please check your credentials.');
+          showError(data.error || 'فشل تسجيل الدخول. تحقق من بياناتك.');
           setLoading(false);
           return;
         }
 
-        // Store token + workspace
+        // ── Full client-state reset before adopting the new identity ──────
+        // Switching accounts must not inherit ANY state from a previous
+        // session (token, workspace, cached selections, sync state, service
+        // worker shell caches). Otherwise a stale workspaceId or cached page
+        // could mix data between accounts. Clear everything, THEN set the new
+        // identity as the single source of truth.
+        try {
+          const keep = new Set();
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.indexOf('adlytic_') === 0 && !keep.has(k)) localStorage.removeItem(k);
+          }
+          for (let i = sessionStorage.length - 1; i >= 0; i--) {
+            const k = sessionStorage.key(i);
+            if (k && k.indexOf('adlytic_') === 0) sessionStorage.removeItem(k);
+          }
+          // Defensively expire any legacy session cookie (server no longer reads it).
+          document.cookie = 'adlytic_session=; Path=/; Max-Age=0; SameSite=Lax';
+          // Drop cached HTML shells so the next account never sees a prior shell.
+          if (window.caches && caches.keys) {
+            caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
+          }
+        } catch (e) { /* storage may be unavailable; non-fatal */ }
+
         localStorage.setItem('adlytic_token', data.token);
         const firstWs = data.user?.memberships?.[0]?.workspaceId;
 
-        // Fetch full user to get workspace memberships
         const meRes = await fetch('/api/auth/me', {
           headers: { Authorization: 'Bearer ' + data.token }
         });
         if (meRes.ok) {
           const me = await meRes.json();
           if (me.isActive === false) {
-            showSuccess('Signed in! Redirecting…');
+            showSuccess('تم تسجيل الدخول! جارٍ التحويل…');
             setTimeout(() => { window.location.href = '/pending-activation'; }, 400);
             return;
           }
@@ -150,7 +221,7 @@ export function loginPage(): string {
           localStorage.setItem('adlytic_workspace_id', firstWs);
         }
 
-        showSuccess('Signed in successfully! Redirecting…');
+        showSuccess('تم تسجيل الدخول بنجاح! جارٍ التحويل…');
         setTimeout(async () => {
           try {
             const wsId = localStorage.getItem('adlytic_workspace_id');
@@ -171,12 +242,11 @@ export function loginPage(): string {
         }, 600);
 
       } catch (err) {
-        showError('Network error. Please try again.');
+        showError('خطأ في الشبكة. حاول مرة أخرى.');
         setLoading(false);
       }
     });
 
-    // Focus email field
     document.getElementById('email').focus();
   </script>
 </body>

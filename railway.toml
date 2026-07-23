@@ -1,0 +1,26 @@
+# Canonical production config for service "adlytic".
+# Keep in sync with railway.json (Railway may use either file).
+[build]
+builder = "NIXPACKS"
+watchPatterns = [
+  "src/**",
+  "prisma/**",
+  "package.json",
+  "package-lock.json",
+  "nixpacks.toml",
+  "railway.json",
+  "railway.toml",
+  ".npmrc",
+  "tsconfig.json",
+  "prisma.config.ts",
+  ".deploy/**",
+]
+
+[deploy]
+startCommand = "npx prisma migrate deploy && node dist/src/api/serve.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 60
+overlapSeconds = 30
+drainingSeconds = 5
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

@@ -92,6 +92,17 @@ const jwtValid = validateRequired('JWT_SECRET', rawJwtSecret, (v) =>
 );
 const jwtSecret = jwtValid.ok ? (rawJwtSecret as string) : DEV_JWT_SECRET;
 
+// Secret-reuse tripwire: signing sessions with the same value as the Meta app
+// secret means a leak of either compromises both. Warn loudly (not fatal —
+// rotating requires coordinating both services + re-login of all users).
+if (rawJwtSecret && rawJwtSecret === env('META_APP_SECRET')) {
+  record({
+    key: 'JWT_SECRET',
+    status: 'warn',
+    detail: 'JWT_SECRET is IDENTICAL to META_APP_SECRET — generate a distinct value (openssl rand -hex 32) and set it on BOTH services at the same time',
+  });
+}
+
 // ── TOKEN_ENCRYPTION_KEY ─────────────────────────────────────────────────────
 
 const rawEncKey = env('TOKEN_ENCRYPTION_KEY');
@@ -132,7 +143,35 @@ const metaAppId = env('META_APP_ID');
 const metaAppSecret = env('META_APP_SECRET');
 const metaVerifyToken = env('META_VERIFY_TOKEN');
 const metaRedirectUri = env('META_REDIRECT_URI') ?? 'http://localhost:3001/api/meta/oauth/callback';
-const metaOAuthScope = env('META_OAUTH_SCOPE') ?? 'ads_read';
+// Adlytic is a strictly read-only product: it must NEVER request a Meta write
+// scope. We defensively strip any write/management scope from the configured
+// value so a misconfigured META_OAUTH_SCOPE env can never escalate us out of
+// read-only. If nothing valid remains, we fall back to `ads_read`.
+const META_FORBIDDEN_SCOPES = new Set([
+  'ads_management',
+  'business_management',
+  'pages_manage_ads',
+  'catalog_management',
+]);
+const rawMetaOAuthScope = env('META_OAUTH_SCOPE') ?? 'ads_read';
+const metaOAuthScope = (() => {
+  const kept = rawMetaOAuthScope
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !META_FORBIDDEN_SCOPES.has(s));
+  const stripped = rawMetaOAuthScope
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter((s) => META_FORBIDDEN_SCOPES.has(s));
+  if (stripped.length > 0) {
+    record({
+      key: 'META_OAUTH_SCOPE',
+      status: 'warn',
+      detail: `Stripped forbidden write scope(s) [${stripped.join(', ')}] — Adlytic is read-only and only requests read scopes.`,
+    });
+  }
+  return kept.length > 0 ? kept.join(' ') : 'ads_read';
+})();
 const metaDirectToken = env('META_DIRECT_TOKEN');
 /**
  * Phase 1 feature flag. When false (default), the legacy user-OAuth flow is the
@@ -257,8 +296,35 @@ record({
 // ── misc operational vars ────────────────────────────────────────────────────
 
 const port = envNumber('PORT', 3001);
-const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 6 * 60 * 60 * 1000);
+// Auto-sync tick. Default was 6h — far too slow to catch Meta's 72h
+// attribution corrections and left dashboards displaying stale numbers for
+// hours. 15 minutes hits a balanced spot: fresh enough to feel live, still
+// well inside Meta rate-limit + tier-upgrade quota headroom (each account
+// sync is a small handful of Graph API calls). Operators can override via
+// SYNC_INTERVAL_MS env when they need slower cadence (e.g. very large
+// account portfolios).
+const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 15 * 60 * 1000);
 const rawInsightsRetainDays = envNumber('RAW_INSIGHTS_RETAIN_DAYS', 90);
+
+// ── Service role (Phase A of the sync-layer split) ───────────────────────────
+// 'combined' (default) → one process serves HTTP AND runs background ETL —
+//   byte-for-byte identical to the pre-split single-service deploy.
+// 'api'      → HTTP only; the worker service owns all background ETL. Set this
+//   on the API service once a separate worker service is running.
+// 'worker'   → set by the worker entrypoint (serve.worker.ts); no HTTP server.
+const rawServiceRole = (env('SERVICE_ROLE') ?? 'combined').toLowerCase();
+const serviceRole: 'combined' | 'api' | 'worker' =
+  rawServiceRole === 'api' || rawServiceRole === 'worker' ? rawServiceRole : 'combined';
+record({
+  key: 'SERVICE_ROLE',
+  status: 'ok',
+  detail:
+    serviceRole === 'combined'
+      ? 'combined (default) — this process serves HTTP and runs background sync'
+      : serviceRole === 'api'
+        ? 'api — HTTP only; background sync runs in the worker service'
+        : 'worker — runs background sync (also serves HTTP for healthchecks)',
+});
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -281,6 +347,33 @@ if (IS_PRODUCTION && allowedOrigins.length === 0) {
   });
 } else {
   record({ key: 'ALLOWED_ORIGINS', status: 'ok', detail: allowedOrigins.join(', ') });
+}
+
+// ── Meta Ad Library (ad assessor) ───────────────────────────────────────────
+
+const metaAccessToken = env('META_ACCESS_TOKEN') ?? metaDirectToken;
+if (metaAccessToken) {
+  record({ key: 'META_ACCESS_TOKEN', status: 'ok', detail: 'present — Ad Library live trend search enabled' });
+} else {
+  record({
+    key: 'META_ACCESS_TOKEN',
+    status: 'warn',
+    detail: 'not set — ad assessor uses curated industry benchmarks only',
+  });
+}
+
+// ── OpenAI (ad assessor) ────────────────────────────────────────────────────
+
+const openaiApiKey = env('OPENAI_API_KEY');
+const openaiModel = env('OPENAI_MODEL') ?? 'gpt-4o-mini';
+if (openaiApiKey) {
+  record({ key: 'OPENAI_API_KEY', status: 'ok', detail: `present — ad assessor model ${openaiModel}` });
+} else {
+  record({
+    key: 'OPENAI_API_KEY',
+    status: 'warn',
+    detail: 'not set — ad assessor falls back to curated offline analysis',
+  });
 }
 
 // ── public, frozen config ────────────────────────────────────────────────────
@@ -319,12 +412,22 @@ export interface AppConfig {
     systemUserConfigId: string | undefined;
     /** Phase 2 — optional pre-minted System User token (env META_SYSTEM_USER_TOKEN). */
     systemUserToken: string | undefined;
+    /** Meta access token for Ad Library search (META_ACCESS_TOKEN or META_DIRECT_TOKEN). */
+    accessToken: string | undefined;
+  };
+
+  openai: {
+    apiKey: string | undefined;
+    model: string;
   };
 
   sync: {
     intervalMs: number;
     rawInsightsRetainDays: number;
   };
+
+  /** Which job this process does. See SERVICE_ROLE above. */
+  role: 'combined' | 'api' | 'worker';
 
   cors: { allowedOrigins: string[] };
 
@@ -362,11 +465,17 @@ export const config: Readonly<AppConfig> = Object.freeze({
     systemUserEnabled: metaSystemUserEnabled,
     systemUserConfigId: metaSystemUserConfigId,
     systemUserToken: metaSystemUserToken,
+    accessToken: metaAccessToken,
+  }),
+  openai: Object.freeze({
+    apiKey: openaiApiKey,
+    model: openaiModel,
   }),
   sync: Object.freeze({
     intervalMs: syncIntervalMs,
     rawInsightsRetainDays: rawInsightsRetainDays,
   }),
+  role: serviceRole,
   cors: Object.freeze({ allowedOrigins }),
   features: Object.freeze({
     webhookRedisDebounceEnabled,

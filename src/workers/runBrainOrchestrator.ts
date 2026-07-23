@@ -39,6 +39,8 @@ import { calculateAccountBaseline, CampaignRawData } from '../engine/BaselineCal
 import { runBrainForCampaign, BrainTickResult } from '../engine/AdlyticBrain';
 import { assembleV2Inputs } from '../services/v2ContextAssembler';
 import { persistBrainBatch, BrainSnapshotInput } from '../services/BrainPersistence';
+import { loadCampaignSignalsBatch } from '../engines/rules/loadCampaignSignals';
+import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 const ORCHESTRATOR_CONFIG = {
@@ -93,6 +95,7 @@ export async function runBrainOrchestrator(
             id: true,
             externalCampaignId: true,
             name: true,
+            objective: true,
             dailyBudget: true,
           },
         },
@@ -149,6 +152,21 @@ export async function runBrainOrchestrator(
     const baseline = calculateAccountBaseline(dataReady.map(d => d.raw));
     console.log(`${tag} baseline computed — confidence=${baseline.confidence.level} (${baseline.confidence.score})`);
 
+    // ── 3b. Real period Signals for rule grounding (same math as Analytics). ──
+    // One batched DailyStat read; campaigns without enough history simply fall
+    // back to absolute-only grounding inside buildRuleGrounding.
+    const periodSignalsByCampaign = await loadCampaignSignalsBatch(
+      prisma,
+      dataReady.map((d) => d.campaign.id),
+      { asOf: now },
+    );
+    // Stamp Meta objective onto Signals so detectors/diagnose use objective standards.
+    for (const { campaign, raw } of dataReady) {
+      const sig = periodSignalsByCampaign.get(campaign.id);
+      if (sig) sig.objective = raw.objective ?? campaign.objective ?? null;
+    }
+    console.log(`${tag} period signals loaded for ${periodSignalsByCampaign.size}/${dataReady.length} campaigns`);
+
     // ── 4. Per-campaign V2 assembly + Brain tick, chunked + failure-isolated. ──
     const snapshots: BrainSnapshotInput[] = [];
     let failed = 0;
@@ -170,7 +188,8 @@ export async function runBrainOrchestrator(
           const result: BrainTickResult = runBrainForCampaign(
             raw,
             baseline,
-            v2Inputs ?? undefined,    // null → V1-only graceful path
+            v2Inputs ?? undefined,
+            { periodSignals: periodSignalsByCampaign.get(campaign.id) ?? null },
           );
 
           return {
@@ -288,10 +307,16 @@ async function loadRawDataForCampaigns(
     },
   });
 
-  // Campaign names for CampaignRawData.campaignName.
+  // Campaign names + objective for CampaignRawData (Meta standards need objective).
   const camps = await prisma.campaign.findMany({
     where: { id: { in: campaignIds } },
-    select: { id: true, externalCampaignId: true, name: true },
+    select: {
+      id: true,
+      externalCampaignId: true,
+      name: true,
+      objective: true,
+      adSets: { select: { optimizationGoal: true, destinationType: true } },
+    },
   });
   const byId = new Map(camps.map(c => [c.id, c]));
 
@@ -306,9 +331,28 @@ async function loadRawDataForCampaigns(
     const cpmMajor   = (r.cpm ?? 0)   / factor;
     const cpcMajor   = (r.cpc ?? 0)   / factor;
 
+    // Resolve true purpose (ENGAGEMENT+CONVERSATIONS → messaging) before brain.
+    const purpose = resolveCampaignPurpose({
+      objective: c.objective,
+      optimizationGoals: c.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: c.adSets.map((a) => a.destinationType),
+      messagesWindow: Number(r.messages),
+      clicksWindow: Number(r.clicks),
+    });
+    const effectiveObjective =
+      purpose.family === 'messaging' ? 'MESSAGES'
+      : purpose.family === 'awareness' ? 'OUTCOME_AWARENESS'
+      : purpose.family === 'traffic' ? 'OUTCOME_TRAFFIC'
+      : purpose.family === 'sales' ? 'OUTCOME_SALES'
+      : purpose.family === 'leads' ? 'OUTCOME_LEADS'
+      : purpose.family === 'app' ? 'OUTCOME_APP_PROMOTION'
+      : purpose.family === 'engagement' ? 'OUTCOME_ENGAGEMENT'
+      : (c.objective ?? null);
+
     out.set(r.entityId, {
       campaignId:   c.externalCampaignId,   // engine-visible id = Meta id (matches existing test fixtures)
       campaignName: c.name,
+      objective:    effectiveObjective,
       spend:        spendMajor,
       impressions:  Number(r.impressions),
       clicks:       Number(r.clicks),
