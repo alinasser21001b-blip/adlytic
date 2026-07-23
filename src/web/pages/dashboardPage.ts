@@ -34,6 +34,7 @@ import { renderIssuesJs } from './dashboard/sections/issues';
 import { renderDiagnosesJs } from './dashboard/sections/diagnoses';
 
 export function dashboardPage(): string {
+  
   const extraHead = dashboardStyles;
 
   const content = `
@@ -120,6 +121,44 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
 
+      <!-- 0a ▸ Bleed alert — spending with zero results TODAY -->
+      <section class="bleed-alert" id="bleed-alert" style="display:none;" dir="auto"></section>
+
+      <!-- 0 ▸ Morning story — what happened while you were away -->
+      <section class="morning-story" id="morning-story" style="display:none;" dir="auto">
+        <div class="morning-story-icon">☀️</div>
+        <div class="morning-story-body">
+          <div class="morning-story-text" id="morning-story-text">—</div>
+          <div class="morning-story-date" id="morning-story-date"></div>
+        </div>
+      </section>
+
+      <!-- 0b ▸ Insight strip — forecast + best audience segment -->
+      <section class="insight-strip" id="insight-strip" style="display:none;" dir="auto"></section>
+
+      <!-- 1 ▸ Financial hero cards -->
+      <section class="hero-grid" id="hero-grid">
+        <div class="hero-card" id="hero-30">
+          <div class="hero-label">30-Day Spend</div>
+          <div class="hero-value" id="hero-30-val">—</div>
+          <div class="hero-sub">Past 30 days</div>
+          <span class="hero-delta flat" id="hero-30-delta">→ —</span>
+        </div>
+        <div class="hero-card success" id="hero-7">
+          <div class="hero-label">7-Day Spend</div>
+          <div class="hero-value" id="hero-7-val">—</div>
+          <div class="hero-sub">Past 7 days</div>
+          <span class="hero-delta flat" id="hero-7-delta">→ —</span>
+        </div>
+        <div class="hero-card warning" id="hero-life">
+          <div class="hero-label">Lifetime Spend</div>
+          <div class="hero-value" id="hero-life-val">—</div>
+          <div class="hero-sub" id="hero-life-sub">Account history (90-day window)</div>
+          <span class="hero-delta flat">Account total</span>
+        </div>
+      </section>
+
+      <!-- 2 ▸ Executive Pulse Banner (Tier 1) -->
       <!-- ═══ EXECUTIVE PULSE ═══ -->
       <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
         <div class="exec-pulse-main">
@@ -552,6 +591,47 @@ export function dashboardPage(): string {
         </div>
       </details>
     </div>
+  
+    .bleed-alert {
+      padding: 14px 18px; margin-bottom: 14px; border-radius: 12px;
+      background: rgba(244, 67, 54, 0.12); border: 1px solid rgba(244, 67, 54, 0.45);
+      color: var(--error, #ef5350); font-size: 14.5px; font-weight: 700; line-height: 1.6;
+    }
+    .insight-strip {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
+    }
+    .insight-chip {
+      flex: 1 1 280px; display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px; border-radius: 12px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);
+      font-size: 13px; color: var(--text-2, #bbb); line-height: 1.65;
+    }
+    .insight-chip .ic { font-size: 17px; line-height: 1.3; }
+    .kpi-benchmark { margin-top: 6px; font-size: 11px; line-height: 1.5; }
+    .kpi-benchmark.good { color: var(--success, #66bb6a); }
+    .kpi-benchmark.ok { color: var(--text-3, #999); }
+    .kpi-benchmark.low { color: var(--warning, #ffa726); }
+    .morning-story {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 16px 18px; margin-bottom: 18px; border-radius: 14px;
+      background: linear-gradient(135deg, rgba(255, 196, 0, 0.10), rgba(255, 145, 0, 0.05));
+      border: 1px solid rgba(255, 180, 0, 0.25);
+    }
+    .morning-story-icon { font-size: 22px; line-height: 1.2; }
+    .morning-story-text { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.7; }
+    .morning-story-date { font-size: 11px; color: var(--text-3, #888); margin-top: 4px; }
+    .main-move-cost {
+      display: inline-block; margin-top: 8px; padding: 5px 12px; border-radius: 8px;
+      background: rgba(244, 67, 54, 0.10); border: 1px solid rgba(244, 67, 54, 0.30);
+      font-size: 13.5px; font-weight: 700; color: var(--error, #e53935);
+    }
+    .main-move-expect { margin-top: 8px; font-size: 13px; color: var(--text-2, #aaa); line-height: 1.6; }
+    .main-move-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .main-move-evidence-chip {
+      font-size: 11.5px; padding: 3px 10px; border-radius: 999px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text-2, #bbb);
+    }
   `;
 
   const scripts = `
@@ -2010,6 +2090,40 @@ export function dashboardPage(): string {
       return (primary && primary.decision) || '';
     }
   }
+  function renderBleedAlert(dashData) {
+    var box = document.getElementById('bleed-alert');
+    if (!box) return;
+    var alert = dashData && dashData.bleedAlert;
+    if (!alert || !alert.text) { box.style.display = 'none'; return; }
+    box.textContent = alert.text;
+    box.style.display = 'block';
+  }
+
+  function renderInsightStrip(dashData) {
+    var strip = document.getElementById('insight-strip');
+    if (!strip) return;
+    var chips = [];
+    if (dashData && dashData.audienceInsight && dashData.audienceInsight.text) {
+      chips.push('<div class="insight-chip"><span class="ic">🎯</span><span>' + escHtml(dashData.audienceInsight.text) + '</span></div>');
+    }
+    if (dashData && dashData.forecast && dashData.forecast.text) {
+      chips.push('<div class="insight-chip"><span class="ic">🔮</span><span>' + escHtml(dashData.forecast.text) + '</span></div>');
+    }
+    if (chips.length === 0) { strip.style.display = 'none'; return; }
+    strip.innerHTML = chips.join('');
+    strip.style.display = 'flex';
+  }
+
+  function renderMorningStory(dashData) {
+    var box = document.getElementById('morning-story');
+    var textEl = document.getElementById('morning-story-text');
+    var dateEl = document.getElementById('morning-story-date');
+    if (!box || !textEl) return;
+    var story = dashData && dashData.morningStory;
+    if (!story || !story.text) { box.style.display = 'none'; return; }
+    textEl.textContent = story.text;
+    if (dateEl) dateEl.textContent = story.date || '';
+    box.style.display = 'flex';
   // "Ask AI why" deep-link — hands the Main Move item's own title/campaign
   // straight to the /ai chat as a prefilled question (see aiPage.ts's ?q=
   // handling), instead of duplicating a root-cause explanation UI here.
@@ -2126,6 +2240,33 @@ export function dashboardPage(): string {
       ? '<span class="diagnosis-confidence ' + badge.level + '">' + escHtml(badge.label + ' ' + badge.pct + '%') + '</span>'
       : '';
 
+    // Decision-card enrichment: money cost, corroborating evidence, and the
+    // outcome-memory expectation — all server-computed on priorityAction.
+    var pa = dashData && dashData.priorityAction ? dashData.priorityAction : null;
+    var costHtml = pa && pa.costDisplay
+      ? '<div class="main-move-cost">💸 ' + escHtml(lbl('Current dip is costing you ~', 'التراجع الحالي يكلفك ~') + pa.costDisplay) + '</div>'
+      : '';
+    var evidenceHtml = pa && pa.evidence && pa.evidence.length
+      ? '<div class="main-move-evidence">' + pa.evidence.map(function (t) {
+          return '<span class="main-move-evidence-chip">' + escHtml(t) + '</span>';
+        }).join('') + '</div>'
+      : '';
+    var expectationHtml = pa && pa.expectation
+      ? '<div class="main-move-expect">📈 ' + escHtml(pa.expectation) + '</div>'
+      : '';
+
+    var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
+      + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 priority", 'الأولوية الأولى اليوم')) + '</div>'
+      + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
+      + impactHtml
+      + costHtml
+      + evidenceHtml
+      + (why ? '<div class="main-move-why">' + escHtml(why) + '</div>' : '')
+      + expectationHtml
+      + '<div class="main-move-cta-row">'
+        + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText) + '</button>'
+        + '<span class="text-xs text-3">' + escHtml(lbl('Confidence', 'الثقة')) + ' ' + escHtml(String(primary.confidence)) + '%</span>'
+      + '</div>'
     // Signature card: headline + confidence, then the golden thread —
     // evidence/diagnosis flowing into the recommendation as one continuous
     // line of reasoning (see .thread in layout.ts). Every step here is real
@@ -3348,6 +3489,14 @@ export function dashboardPage(): string {
       if (dashData.brain) {
         safeRender('brainSection', function () { renderBrainSection(dashData.brain, dashData); });
       }
+
+      var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
+      var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
+      safeRender('bleedAlert', function () { renderBleedAlert(dashData); });
+      safeRender('morningStory', function () { renderMorningStory(dashData); });
+      safeRender('insightStrip', function () { renderInsightStrip(dashData); });
+      safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
+      safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
       safeRender('kpis', function () { renderKpis(kpis); });
       safeRender('predictions', function () { renderPredictions(dashData.predictions); });
       safeRender('aiRecs', function () { renderAIRecommendations(dashData.aiRecommendations); });

@@ -104,6 +104,8 @@ import {
 } from '../adAssessor/adlyticContext';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
+import { purgeAccountAnalytics } from '../services/accountDataPurge';
+import { parseSignedRequest, handleMetaDataDeletion } from '../services/metaDataDeletion';
 import { welcomePage } from '../web/pages/welcomePage';
 import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { privacyPage } from '../web/pages/privacyPage';
@@ -364,6 +366,20 @@ function normalizeEnvAccessToken(rawToken: string | null | undefined): string {
 function summarizeMetaAuthError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   return msg.replace(/\s+/g, ' ').trim().slice(0, 280);
+}
+
+// ── Dead env-token negative cache ─────────────────────────────────────────
+// META_DIRECT_TOKEN / META_SYSTEM_USER_TOKEN can only change on a process
+// restart, so once Meta rejects one as PERMANENTLY invalid (expired, session
+// invalidated by logout, deauthorized) there is no point re-validating it on
+// every /start click — it just adds a Graph round-trip of latency and a
+// [META_AUTH_FAILURE] line per attempt. Keyed by token value; never logged.
+const deadEnvTokens = new Set<string>();
+
+/** True for Meta auth errors that are permanent for a given token string
+ *  (expiry / logout / invalidation), as opposed to transient network/5xx. */
+function isPermanentTokenError(msg: string): boolean {
+  return /error validating access token|session is invalid|session has expired|access token could not be decrypted|has not authorized application|token is not valid/i.test(msg);
 }
 
 /**
@@ -1028,22 +1044,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           select: { id: true },
         });
         for (const acct of accounts) {
-          const campaignIds = await prisma.campaign.findMany({
-            where: { adAccountId: acct.id },
-            select: { id: true },
-          }).then(cs => cs.map(c => c.id));
-          await prisma.$transaction([
-            prisma.rawInsight.deleteMany({     where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.dailyStat.deleteMany({      where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.metricTrend.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.detectedIssue.deleteMany({  where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.healthScore.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            ...(campaignIds.length ? [
-              prisma.dailyStat.deleteMany({   where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-              prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-            ] : []),
-          ]);
+          // Canonical erasure — covers every entityId-keyed analytics table
+          // (incl. breakdown_stats) at both account and campaign level.
+          await purgeAccountAnalytics(prisma, acct.id);
         }
         await prisma.workspace.delete({ where: { id: m.workspaceId } });
       }
@@ -2103,6 +2106,52 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       },
     );
     return c.text('OK', 200);
+  });
+
+  /**
+   * POST /api/webhooks/meta/data-deletion — Meta Data Deletion Request
+   * Callback. Fired when a person removes the app from their Facebook/Meta
+   * settings. Body is form-encoded with a `signed_request` (HMAC-SHA256,
+   * app-secret signed). Must respond with { url, confirmation_code } per
+   * Meta's spec; the url is a human-readable status page.
+   */
+  app.post('/api/webhooks/meta/data-deletion', async (c) => {
+    const appSecret = config.meta.appSecret;
+    if (!appSecret) {
+      console.error('[meta-data-deletion] META_APP_SECRET not configured');
+      return c.json({ error: 'Not configured' }, 500);
+    }
+
+    let signedRequest = '';
+    try {
+      const form = await c.req.parseBody();
+      const raw = form['signed_request'];
+      if (typeof raw === 'string') signedRequest = raw;
+    } catch {
+      // fall through to the empty-string rejection below
+    }
+
+    const payload = signedRequest ? parseSignedRequest(signedRequest, appSecret) : null;
+    if (!payload?.user_id) {
+      console.error('[meta-data-deletion] invalid or unsigned request rejected');
+      return c.json({ error: 'Invalid signed_request' }, 400);
+    }
+
+    const result = await handleMetaDataDeletion(prisma, String(payload.user_id));
+
+    // Meta requires an absolute status URL. Derive the origin from the
+    // configured OAuth redirect (same host as this app), falling back to
+    // the request's own origin.
+    let origin: string;
+    try {
+      origin = new URL(config.meta.redirectUri).origin;
+    } catch {
+      origin = new URL(c.req.url).origin;
+    }
+    return c.json({
+      url: `${origin}/data-deletion?code=${result.confirmationCode}`,
+      confirmation_code: result.confirmationCode,
+    });
   });
 
   /**
@@ -4203,7 +4252,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // a working user token (e.g. from Graph API Explorer or a previous
     // long-lived exchange).
     const directToken = normalizeEnvAccessToken(config.meta.directToken);
-    if (directToken) {
+    if (directToken && deadEnvTokens.has(directToken)) {
+      // Known-dead token: skip the Graph round-trip entirely.
+      console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE skipped — META_DIRECT_TOKEN previously failed as permanently invalid. Remove or replace it in the environment.');
+      if (!config.meta.systemUserEnabled) {
+        return c.json({
+          configured: false,
+          reason: 'META_DIRECT_TOKEN is permanently invalid (expired or session logged out). Remove or replace it.',
+        });
+      }
+    } else if (directToken) {
       console.warn('[adlytic:meta-oauth] DIRECT TOKEN MODE — bypassing OAuth dialog, calling Graph API with env token');
       try {
         const apiVersion = config.meta.apiVersion;
@@ -4242,6 +4300,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         // Never log token values. Keep only sanitized upstream error text.
         const msg = summarizeMetaAuthError(err);
         console.error('[META_AUTH_FAILURE] direct-token start failed:', msg);
+        if (isPermanentTokenError(msg)) {
+          deadEnvTokens.add(directToken);
+          console.warn('[adlytic:meta-oauth] META_DIRECT_TOKEN marked permanently invalid — it will be skipped until the next deploy. Remove it from the environment.');
+        }
         if (!config.meta.systemUserEnabled) {
           return c.json({
             configured: false,
@@ -4264,7 +4326,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (config.meta.systemUserEnabled) {
       const sysToken = normalizeEnvAccessToken(config.meta.systemUserToken);
 
-      if (sysToken) {
+      if (sysToken && deadEnvTokens.has(sysToken)) {
+        console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE skipped — META_SYSTEM_USER_TOKEN previously failed as permanently invalid. Remove or replace it in the environment.');
+      } else if (sysToken) {
         console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE — bypassing OAuth dialog, using META_SYSTEM_USER_TOKEN');
         try {
           const apiVersion = config.meta.apiVersion;
@@ -4326,6 +4390,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           // Never log token values. Keep only sanitized upstream error text.
           const msg = summarizeMetaAuthError(err);
           console.error('[META_AUTH_FAILURE] system-user token start failed:', msg);
+          if (isPermanentTokenError(msg)) {
+            deadEnvTokens.add(sysToken);
+            console.warn('[adlytic:meta-oauth] META_SYSTEM_USER_TOKEN marked permanently invalid — it will be skipped until the next deploy. Remove or replace it in the environment.');
+          }
           console.warn('[adlytic:meta-oauth] SYSTEM USER TOKEN MODE unavailable; falling back to FB Login for Business config_id flow');
         }
       }
@@ -5011,31 +5079,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const acct = await prisma.adAccount.findFirst({ where: { id: accountId, workspaceId } });
     if (!acct) return c.json({ error: 'Account not found' }, 404);
 
-    // Collect campaign IDs for analytics cleanup (analytics tables have no FK to campaigns)
-    const campaignRecords = await prisma.campaign.findMany({
-      where: { adAccountId: accountId },
-      select: { id: true },
-    });
-    const campaignIds = campaignRecords.map(c => c.id);
-
-    // Clean up orphaned analytics rows that reference this account by entityId.
-    // raw_insights, daily_stats, metric_trends, detected_issues, recommendations,
-    // and health_scores store entityId as a plain String (no FK) so they are NOT
-    // covered by Prisma's cascade delete. Remove them explicitly before deleting
-    // the account to prevent data leakage and satisfy GDPR right-to-erasure.
-    await prisma.$transaction([
-      prisma.rawInsight.deleteMany({     where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.dailyStat.deleteMany({      where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.metricTrend.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.detectedIssue.deleteMany({  where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.healthScore.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      // Campaign-level analytics rows (no FK cascade — must delete explicitly)
-      ...(campaignIds.length ? [
-        prisma.dailyStat.deleteMany({   where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-      ] : []),
-    ]);
+    // Canonical erasure — every entityId-keyed analytics table (incl.
+    // breakdown_stats), account- and campaign-level, in one place. Satisfies
+    // right-to-erasure and Meta Platform Terms deletion-on-disconnect.
+    await purgeAccountAnalytics(prisma, accountId);
 
     await prisma.adAccount.delete({ where: { id: accountId } });
     void recordMetaAuditEvent(prisma, {

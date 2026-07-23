@@ -61,12 +61,27 @@ export const AD_RELEVANCE_FIELDS = [
   "conversion_rate_ranking",
 ] as const;
 
+// ── Proactive pacing thresholds ─────────────────────────────────────────
+// Meta reports quota utilization (0-100%) on every response via x-app-usage
+// and x-ad-account-usage. Slowing down BEFORE hitting 100% avoids 429s
+// entirely — and that matters doubly: every 429 is an HTTP error that counts
+// against the <15% error-rate gate of the Marketing API Access Tier.
+const PACING_SOFT_PCT = 75;   // above this: add a small inter-call delay
+const PACING_HARD_PCT = 90;   // above this: add a long inter-call delay
+const PACING_SOFT_MS = 500;
+const PACING_HARD_MS = 2_000;
+/** Cap for honoring Retry-After from Meta on 429 responses. */
+const RETRY_AFTER_CAP_MS = 60_000;
+
 export class MetaClient {
   private base: string;
   private token: string;
   private maxRetries: number;
   private retryBaseMs: number;
   private fetchFn: typeof fetch;
+  /** Delay applied before the next request, derived from the last response's
+   *  usage headers. 0 when utilization is comfortably low. */
+  private pacingDelayMs = 0;
   private timezone: string;
 
   constructor(cfg: MetaClientConfig) {
@@ -114,7 +129,6 @@ export class MetaClient {
         since: this.localYmd(args.since),
         until: this.localYmd(args.until),
       }),
-      access_token: this.token,
       limit: "500",
     });
     if (args.breakdowns && args.breakdowns.length > 0) {
@@ -142,7 +156,6 @@ export class MetaClient {
       level: args.level,
       date_preset: "today",
       fields: args.fields ?? DEFAULT_FIELDS,
-      access_token: this.token,
       limit: "500",
     });
     if (args.breakdowns && args.breakdowns.length > 0) {
@@ -184,7 +197,6 @@ export class MetaClient {
       level: args.level,
       date_preset: "maximum",
       fields: args.fields ?? "spend,impressions,clicks,reach,actions,action_values,purchase_roas,cost_per_action_type",
-      access_token: this.token,
       limit: "1",
     });
     const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
@@ -195,7 +207,6 @@ export class MetaClient {
   async listCampaigns(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       fields: "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time",
-      access_token: this.token,
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalAccountId}/campaigns?${params.toString()}`);
@@ -205,7 +216,6 @@ export class MetaClient {
   async listAdSets(externalCampaignId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       fields: "id,name,status,effective_status,daily_budget,optimization_goal,destination_type,targeting,learning_stage_info{status}",
-      access_token: this.token,
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalCampaignId}/adsets?${params.toString()}`);
@@ -225,7 +235,6 @@ export class MetaClient {
         // Field expansion: pull the related creative inline.
         "creative{id,name,thumbnail_url,image_hash,video_id,object_story_spec,asset_feed_spec,call_to_action_type,body,title}",
       ].join(","),
-      access_token: this.token,
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalAdSetId}/ads?${params.toString()}`);
@@ -239,7 +248,6 @@ export class MetaClient {
   async listPixels(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       fields: "id,name,last_fired_time",
-      access_token: this.token,
       limit: "50",
     });
     return this.paginated(`${this.base}/${externalAccountId}/adspixels?${params.toString()}`);
@@ -262,7 +270,6 @@ export class MetaClient {
     const params = new URLSearchParams({
       dataset_id: datasetId,
       fields: "web{event_coverage{percentage,goal_percentage,description},event_name}",
-      access_token: this.token,
     });
     const url = `${this.base}/dataset_quality?${params.toString()}`;
     const res = await this.fetchFn(url);
@@ -297,12 +304,28 @@ export class MetaClient {
 
   private async requestWithRetry(url: string): Promise<MetaPage> {
     let lastErr: unknown;
+    let retryAfterMs: number | null = null;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        const res = await this.fetchFn(url);
+        // Proactive pacing from the PREVIOUS response's utilization headers —
+        // slows the whole pipeline down smoothly instead of slamming into 429s.
+        if (this.pacingDelayMs > 0) await sleep(this.pacingDelayMs);
+
+        // Token travels in the Authorization header, never the URL — query
+        // strings leak into access logs, proxies, and browser histories.
+        // paging.next URLs echo our params (token-free); the header rides
+        // along on every page request.
+        const res = await this.fetchFn(url, {
+          headers: { Authorization: `Bearer ${this.token}` },
+        });
         void recordMetaResponseHeaders(res.headers, res.status).catch(() => {});
+        this.updatePacingFromHeaders(res.headers);
         if (res.status === 429 || res.status >= 500) {
-          // retryable: throw to trigger backoff
+          // retryable: throw to trigger backoff. Honor Retry-After when Meta
+          // sends one — its estimate of when quota recovers beats blind
+          // exponential backoff, and fewer failed retries means fewer ≥400
+          // responses counted against the access-tier error-rate gate.
+          retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'));
           const body = await safeJson(res);
           void recordMetaErrorCategory(res.status, metaErrorCode(body)).catch(() => {});
           throw new MetaApiError(res.status, body, `Meta ${res.status}`);
@@ -319,13 +342,62 @@ export class MetaClient {
         const retryable =
           e instanceof MetaApiError ? (e.status === 429 || e.status >= 500) : true;
         if (!retryable || attempt === this.maxRetries) throw e;
-        // exponential backoff with jitter
-        const wait = this.retryBaseMs * 2 ** attempt + Math.random() * 200;
+        // Retry-After (capped) when provided; else exponential backoff with jitter.
+        const wait = retryAfterMs !== null
+          ? Math.min(retryAfterMs, RETRY_AFTER_CAP_MS)
+          : this.retryBaseMs * 2 ** attempt + Math.random() * 200;
+        retryAfterMs = null;
         await sleep(wait);
       }
     }
     throw lastErr;
   }
+
+  /**
+   * Derive the inter-call pacing delay from Meta's utilization headers.
+   * Uses the WORST (highest) percentage across x-app-usage (call_count,
+   * total_time, total_cputime) and x-ad-account-usage (acc_id_util_pct).
+   * Malformed or absent headers leave pacing at 0 — never slows tests or
+   * mock transports.
+   */
+  private updatePacingFromHeaders(headers: Headers): void {
+    let worstPct = 0;
+    try {
+      const appUsageRaw = headers.get('x-app-usage');
+      if (appUsageRaw) {
+        const u = JSON.parse(appUsageRaw) as Record<string, unknown>;
+        for (const k of ['call_count', 'total_time', 'total_cputime']) {
+          const v = Number(u[k]);
+          if (Number.isFinite(v) && v > worstPct) worstPct = v;
+        }
+      }
+      const acctUsageRaw = headers.get('x-ad-account-usage');
+      if (acctUsageRaw) {
+        const u = JSON.parse(acctUsageRaw) as Record<string, unknown>;
+        const v = Number(u['acc_id_util_pct']);
+        if (Number.isFinite(v) && v > worstPct) worstPct = v;
+      }
+    } catch {
+      // Malformed header — keep current pacing rather than guessing.
+      return;
+    }
+    this.pacingDelayMs = worstPct >= PACING_HARD_PCT ? PACING_HARD_MS
+      : worstPct >= PACING_SOFT_PCT ? PACING_SOFT_MS
+      : 0;
+  }
+}
+
+/** Parse a Retry-After header (delta-seconds or HTTP-date) to milliseconds. */
+function parseRetryAfterMs(raw: string | null): number | null {
+  if (!raw) return null;
+  const secs = Number(raw);
+  if (Number.isFinite(secs) && secs >= 0) return Math.round(secs * 1000);
+  const when = Date.parse(raw);
+  if (Number.isFinite(when)) {
+    const delta = when - Date.now();
+    return delta > 0 ? delta : 0;
+  }
+  return null;
 }
 
 interface MetaPage {

@@ -35,10 +35,14 @@ export const renderKpisJs = `
       var contextHtml = (typeof renderContextActions === 'function')
         ? renderContextActions(k.key, state.lastIssues)
         : '';
+      var benchHtml = k.benchmark && k.benchmark.text
+        ? '<div class="kpi-benchmark ' + escHtml(k.benchmark.position || 'ok') + '">' + escHtml(k.benchmark.text) + '</div>'
+        : '';
       return '<div class="kpi-card">'
         + '<div class="kpi-label">' + escHtml(k.label || k.key) + infoHtml + '</div>'
         + '<div class="kpi-value">' + escHtml(String(k.display || k.value || '—')) + '</div>'
         + deltaHtml
+        + benchHtml
         + contextHtml
       + '</div>';
     }).join('');
