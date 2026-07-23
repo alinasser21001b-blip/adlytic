@@ -18,3 +18,4 @@ scripts/diag2.ts
 # Playwright
 test-results/
 playwright-report/
+.eny
