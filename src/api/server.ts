@@ -68,6 +68,10 @@ import { workspacePage } from '../web/pages/workspacePage';
 import { aiPage } from '../web/pages/aiPage';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
+import { privacyPage } from '../web/pages/privacyPage';
+import { dataDeletionPage } from '../web/pages/dataDeletionPage';
+import { purgeAccountAnalytics } from '../services/accountDataPurge';
+import { parseSignedRequest, handleMetaDataDeletion } from '../services/metaDataDeletion';
 import { welcomePage } from '../web/pages/welcomePage';
 import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { buildAiContext } from '../services/aiContextBuilder';
@@ -356,6 +360,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/settings',       (c) => c.html(settingsPage()));
   app.get('/admin',          (c) => c.html(adminDashboardPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
+  // Public compliance pages — referenced from the Meta App Dashboard
+  // (Privacy Policy URL / Data Deletion Instructions URL). Must load with
+  // zero auth and zero app JS: reviewers open them cold.
+  app.get('/privacy',        (c) => c.html(privacyPage()));
+  app.get('/data-deletion',  (c) => c.html(dataDeletionPage(c.req.query('code') ?? undefined)));
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
 
@@ -819,22 +828,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           select: { id: true },
         });
         for (const acct of accounts) {
-          const campaignIds = await prisma.campaign.findMany({
-            where: { adAccountId: acct.id },
-            select: { id: true },
-          }).then(cs => cs.map(c => c.id));
-          await prisma.$transaction([
-            prisma.rawInsight.deleteMany({     where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.dailyStat.deleteMany({      where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.metricTrend.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.detectedIssue.deleteMany({  where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            prisma.healthScore.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: acct.id } }),
-            ...(campaignIds.length ? [
-              prisma.dailyStat.deleteMany({   where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-              prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-            ] : []),
-          ]);
+          // Canonical erasure — covers every entityId-keyed analytics table
+          // (incl. breakdown_stats) at both account and campaign level.
+          await purgeAccountAnalytics(prisma, acct.id);
         }
         await prisma.workspace.delete({ where: { id: m.workspaceId } });
       }
@@ -1223,6 +1219,52 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       },
     );
     return c.text('OK', 200);
+  });
+
+  /**
+   * POST /api/webhooks/meta/data-deletion — Meta Data Deletion Request
+   * Callback. Fired when a person removes the app from their Facebook/Meta
+   * settings. Body is form-encoded with a `signed_request` (HMAC-SHA256,
+   * app-secret signed). Must respond with { url, confirmation_code } per
+   * Meta's spec; the url is a human-readable status page.
+   */
+  app.post('/api/webhooks/meta/data-deletion', async (c) => {
+    const appSecret = config.meta.appSecret;
+    if (!appSecret) {
+      console.error('[meta-data-deletion] META_APP_SECRET not configured');
+      return c.json({ error: 'Not configured' }, 500);
+    }
+
+    let signedRequest = '';
+    try {
+      const form = await c.req.parseBody();
+      const raw = form['signed_request'];
+      if (typeof raw === 'string') signedRequest = raw;
+    } catch {
+      // fall through to the empty-string rejection below
+    }
+
+    const payload = signedRequest ? parseSignedRequest(signedRequest, appSecret) : null;
+    if (!payload?.user_id) {
+      console.error('[meta-data-deletion] invalid or unsigned request rejected');
+      return c.json({ error: 'Invalid signed_request' }, 400);
+    }
+
+    const result = await handleMetaDataDeletion(prisma, String(payload.user_id));
+
+    // Meta requires an absolute status URL. Derive the origin from the
+    // configured OAuth redirect (same host as this app), falling back to
+    // the request's own origin.
+    let origin: string;
+    try {
+      origin = new URL(config.meta.redirectUri).origin;
+    } catch {
+      origin = new URL(c.req.url).origin;
+    }
+    return c.json({
+      url: `${origin}/data-deletion?code=${result.confirmationCode}`,
+      confirmation_code: result.confirmationCode,
+    });
   });
 
   /**
@@ -3169,31 +3211,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const acct = await prisma.adAccount.findFirst({ where: { id: accountId, workspaceId } });
     if (!acct) return c.json({ error: 'Account not found' }, 404);
 
-    // Collect campaign IDs for analytics cleanup (analytics tables have no FK to campaigns)
-    const campaignRecords = await prisma.campaign.findMany({
-      where: { adAccountId: accountId },
-      select: { id: true },
-    });
-    const campaignIds = campaignRecords.map(c => c.id);
-
-    // Clean up orphaned analytics rows that reference this account by entityId.
-    // raw_insights, daily_stats, metric_trends, detected_issues, recommendations,
-    // and health_scores store entityId as a plain String (no FK) so they are NOT
-    // covered by Prisma's cascade delete. Remove them explicitly before deleting
-    // the account to prevent data leakage and satisfy GDPR right-to-erasure.
-    await prisma.$transaction([
-      prisma.rawInsight.deleteMany({     where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.dailyStat.deleteMany({      where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.metricTrend.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.detectedIssue.deleteMany({  where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      prisma.healthScore.deleteMany({    where: { entityType: EntityType.ACCOUNT, entityId: accountId } }),
-      // Campaign-level analytics rows (no FK cascade — must delete explicitly)
-      ...(campaignIds.length ? [
-        prisma.dailyStat.deleteMany({   where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-      ] : []),
-    ]);
+    // Canonical erasure — every entityId-keyed analytics table (incl.
+    // breakdown_stats), account- and campaign-level, in one place. Satisfies
+    // right-to-erasure and Meta Platform Terms deletion-on-disconnect.
+    await purgeAccountAnalytics(prisma, accountId);
 
     await prisma.adAccount.delete({ where: { id: accountId } });
     return c.json({ success: true });

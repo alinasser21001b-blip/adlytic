@@ -91,7 +91,6 @@ export class MetaClient {
         since: ymd(args.since),
         until: ymd(args.until),
       }),
-      access_token: this.token,
       limit: "500",
     });
     if (args.breakdowns && args.breakdowns.length > 0) {
@@ -119,7 +118,6 @@ export class MetaClient {
       level: args.level,
       date_preset: "today",
       fields: args.fields ?? DEFAULT_FIELDS,
-      access_token: this.token,
       limit: "500",
     });
     if (args.breakdowns && args.breakdowns.length > 0) {
@@ -161,7 +159,6 @@ export class MetaClient {
       level: args.level,
       date_preset: "maximum",
       fields: args.fields ?? "spend,impressions,clicks,reach,actions,action_values,purchase_roas,cost_per_action_type",
-      access_token: this.token,
       limit: "1",
     });
     const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
@@ -172,7 +169,6 @@ export class MetaClient {
   async listCampaigns(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       fields: "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time",
-      access_token: this.token,
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalAccountId}/campaigns?${params.toString()}`);
@@ -182,7 +178,6 @@ export class MetaClient {
   async listAdSets(externalCampaignId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({
       fields: "id,name,status,effective_status,daily_budget,optimization_goal,targeting",
-      access_token: this.token,
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalCampaignId}/adsets?${params.toString()}`);
@@ -202,7 +197,6 @@ export class MetaClient {
         // Field expansion: pull the related creative inline.
         "creative{id,name,thumbnail_url,image_hash,video_id,object_story_spec,asset_feed_spec,call_to_action_type,body,title}",
       ].join(","),
-      access_token: this.token,
       limit: "200",
     });
     return this.paginated(`${this.base}/${externalAdSetId}/ads?${params.toString()}`);
@@ -235,7 +229,13 @@ export class MetaClient {
         // slows the whole pipeline down smoothly instead of slamming into 429s.
         if (this.pacingDelayMs > 0) await sleep(this.pacingDelayMs);
 
-        const res = await this.fetchFn(url);
+        // Token travels in the Authorization header, never the URL — query
+        // strings leak into access logs, proxies, and browser histories.
+        // paging.next URLs echo our params (token-free); the header rides
+        // along on every page request.
+        const res = await this.fetchFn(url, {
+          headers: { Authorization: `Bearer ${this.token}` },
+        });
         void recordMetaResponseHeaders(res.headers, res.status).catch(() => {});
         this.updatePacingFromHeaders(res.headers);
         if (res.status === 429 || res.status >= 500) {

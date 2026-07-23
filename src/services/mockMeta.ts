@@ -33,10 +33,33 @@
 import { PrismaClient, EntityType, EntityStatus } from "@prisma/client";
 import type { MetaAdAccountInfo } from "./metaOAuth";
 
-/** Returns true iff `META_MOCK_AUTH` is set to a truthy value. */
+let warnedMockBlockedInProduction = false;
+
+/**
+ * Returns true iff `META_MOCK_AUTH` is set to a truthy value AND the process
+ * is not running in production. Mock auth fabricates fake ad accounts and a
+ * sentinel token — a hard compliance and correctness hazard on a live
+ * deployment (and instant App Review rejection material), so production
+ * ignores the flag entirely and logs why, once.
+ */
 export function isMockAuthEnabled(): boolean {
   const v = (process.env["META_MOCK_AUTH"] ?? "").trim().toLowerCase();
-  return v === "true" || v === "1" || v === "yes";
+  const enabled = v === "true" || v === "1" || v === "yes";
+  if (!enabled) return false;
+
+  const nodeEnv = (process.env["NODE_ENV"] ?? "development").trim().toLowerCase();
+  const isProduction = nodeEnv !== "development" && nodeEnv !== "test";
+  if (isProduction) {
+    if (!warnedMockBlockedInProduction) {
+      warnedMockBlockedInProduction = true;
+      console.error(
+        "[adlytic:mock-meta] META_MOCK_AUTH is set but NODE_ENV is production — " +
+        "mock auth is HARD-DISABLED in production. Remove the env var.",
+      );
+    }
+    return false;
+  }
+  return true;
 }
 
 /** Sentinel token stored on the AdAccount when connected via mock flow.
