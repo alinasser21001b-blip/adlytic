@@ -2054,4 +2054,45 @@ export const dashboardStyles = `<style>
     .section-enter-delay-2 { animation-delay: 0.16s; }
     .section-enter-delay-3 { animation-delay: 0.24s; }
 
+  
+    .bleed-alert {
+      padding: 14px 18px; margin-bottom: 14px; border-radius: 12px;
+      background: rgba(244, 67, 54, 0.12); border: 1px solid rgba(244, 67, 54, 0.45);
+      color: var(--error, #ef5350); font-size: 14.5px; font-weight: 700; line-height: 1.6;
+    }
+    .insight-strip {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
+    }
+    .insight-chip {
+      flex: 1 1 280px; display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px; border-radius: 12px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);
+      font-size: 13px; color: var(--text-2, #bbb); line-height: 1.65;
+    }
+    .insight-chip .ic { font-size: 17px; line-height: 1.3; }
+    .kpi-benchmark { margin-top: 6px; font-size: 11px; line-height: 1.5; }
+    .kpi-benchmark.good { color: var(--success, #66bb6a); }
+    .kpi-benchmark.ok { color: var(--text-3, #999); }
+    .kpi-benchmark.low { color: var(--warning, #ffa726); }
+    .morning-story {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 16px 18px; margin-bottom: 18px; border-radius: 14px;
+      background: linear-gradient(135deg, rgba(255, 196, 0, 0.10), rgba(255, 145, 0, 0.05));
+      border: 1px solid rgba(255, 180, 0, 0.25);
+    }
+    .morning-story-icon { font-size: 22px; line-height: 1.2; }
+    .morning-story-text { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.7; }
+    .morning-story-date { font-size: 11px; color: var(--text-3, #888); margin-top: 4px; }
+    .main-move-cost {
+      display: inline-block; margin-top: 8px; padding: 5px 12px; border-radius: 8px;
+      background: rgba(244, 67, 54, 0.10); border: 1px solid rgba(244, 67, 54, 0.30);
+      font-size: 13.5px; font-weight: 700; color: var(--error, #e53935);
+    }
+    .main-move-expect { margin-top: 8px; font-size: 13px; color: var(--text-2, #aaa); line-height: 1.6; }
+    .main-move-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .main-move-evidence-chip {
+      font-size: 11.5px; padding: 3px 10px; border-radius: 999px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text-2, #bbb);
+    }
   </style>`;
