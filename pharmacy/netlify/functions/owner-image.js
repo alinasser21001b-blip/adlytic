@@ -11,7 +11,7 @@ async function handler(event) {
   try {
     const { getStore, connectLambda } = await import("@netlify/blobs");
     if (connectLambda) connectLambda(event);
-    const s = getStore({ name: "product-images", consistency: "strong" });
+    const s = getStore({ name: "product-images" });
     const res = await s.getWithMetadata(id, { type: "arrayBuffer" });
     if (!res || !res.data) return { statusCode: 404, body: "Not found" };
     const contentType = (res.metadata && res.metadata.contentType) || "image/jpeg";

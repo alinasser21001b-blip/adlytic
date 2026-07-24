@@ -50,7 +50,7 @@ async function handler(event) {
   try {
     const { getStore, connectLambda } = await import("@netlify/blobs");
     if (connectLambda) connectLambda(event);
-    const s = getStore({ name: "owner-data", consistency: "strong" });
+    const s = getStore({ name: "owner-data" });
     const events = (await s.get("consult-events", { type: "json" }).catch(() => null)) || [];
     events.unshift({
       created_at: new Date().toISOString(),

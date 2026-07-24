@@ -20,7 +20,7 @@ async function store(event) {
   const { getStore, connectLambda } = await import("@netlify/blobs");
   // الصيغة الكلاسيكية (handler(event)) تتطلب توصيل سياق Blobs من الطلب أولاً
   if (event && connectLambda) connectLambda(event);
-  return getStore({ name: "owner-data", consistency: "strong" });
+  return getStore({ name: "owner-data" });
 }
 
 async function readAll(s) {

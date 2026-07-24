@@ -39,7 +39,7 @@ async function handler(event) {
   try {
     const { getStore, connectLambda } = await import("@netlify/blobs");
     if (connectLambda) connectLambda(event);
-    const s = getStore({ name: "product-images", consistency: "strong" });
+    const s = getStore({ name: "product-images" });
     const key = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const ab = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
     await s.set(key, ab, { metadata: { contentType: `image/${ext}` } });
