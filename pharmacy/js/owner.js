@@ -411,8 +411,8 @@ const Owner = (() => {
         urlInput.dispatchEvent(new Event("input", { bubbles: true })); // يُحدّث المعاينة تلقائياً
       }
       setStatus("✅ تم رفع الصورة — اضغط حفظ لتثبيتها", "ok");
-    } catch (_) {
-      setStatus("⚠️ تعذّر الرفع — تحقّق من الإنترنت أو جرّب صورة أخرى", "err");
+    } catch (e) {
+      setStatus("⚠️ تعذّر الرفع — " + (e && e.message ? e.message : "تحقّق من الإنترنت أو جرّب صورة أخرى"), "err");
     } finally {
       fileInput.value = "";
     }
