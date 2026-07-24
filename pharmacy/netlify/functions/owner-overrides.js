@@ -16,8 +16,10 @@ const { verifyToken } = require("./owner-auth.js");
 
 const KEY = "overrides";
 
-async function store() {
-  const { getStore } = await import("@netlify/blobs");
+async function store(event) {
+  const { getStore, connectLambda } = await import("@netlify/blobs");
+  // الصيغة الكلاسيكية (handler(event)) تتطلب توصيل سياق Blobs من الطلب أولاً
+  if (event && connectLambda) connectLambda(event);
   return getStore({ name: "owner-data", consistency: "strong" });
 }
 
@@ -50,9 +52,9 @@ function sanitizePatch(patch) {
   return p;
 }
 
-async function handleGet() {
+async function handleGet(event) {
   try {
-    const s = await store();
+    const s = await store(event);
     const data = await readAll(s);
     return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) };
   } catch {
@@ -71,7 +73,7 @@ async function handlePost(event) {
   catch { return { statusCode: 400, body: "Bad JSON" }; }
 
   try {
-    const s = await store();
+    const s = await store(event);
     const data = await readAll(s);
 
     if (body.kind === "product") {
@@ -104,7 +106,7 @@ async function handlePost(event) {
 }
 
 async function handler(event) {
-  if (event.httpMethod === "GET") return handleGet();
+  if (event.httpMethod === "GET") return handleGet(event);
   if (event.httpMethod === "POST") return handlePost(event);
   return { statusCode: 405, body: "Method Not Allowed" };
 }

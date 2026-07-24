@@ -25,7 +25,8 @@ async function handler(event) {
   if (!requireAuth(event)) return { statusCode: 401, body: JSON.stringify({ error: "غير مخوَّل" }) };
 
   try {
-    const { getStore } = await import("@netlify/blobs");
+    const { getStore, connectLambda } = await import("@netlify/blobs");
+    if (connectLambda) connectLambda(event);
     const s = getStore({ name: "owner-data", consistency: "strong" });
     const rows = ((await s.get("consult-events", { type: "json" }).catch(() => null)) || []).slice(0, 500);
 

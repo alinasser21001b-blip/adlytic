@@ -9,7 +9,8 @@ async function handler(event) {
   if (!id || id.includes("/") || id.includes("..")) return { statusCode: 400, body: "Bad id" };
 
   try {
-    const { getStore } = await import("@netlify/blobs");
+    const { getStore, connectLambda } = await import("@netlify/blobs");
+    if (connectLambda) connectLambda(event);
     const s = getStore({ name: "product-images", consistency: "strong" });
     const res = await s.getWithMetadata(id, { type: "arrayBuffer" });
     if (!res || !res.data) return { statusCode: 404, body: "Not found" };

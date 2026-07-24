@@ -48,7 +48,8 @@ async function handler(event) {
 
   // التخزين: Netlify Blobs — قائمة واحدة بآخر 1000 حدث (تحليلات تقريبية)
   try {
-    const { getStore } = await import("@netlify/blobs");
+    const { getStore, connectLambda } = await import("@netlify/blobs");
+    if (connectLambda) connectLambda(event);
     const s = getStore({ name: "owner-data", consistency: "strong" });
     const events = (await s.get("consult-events", { type: "json" }).catch(() => null)) || [];
     events.unshift({
