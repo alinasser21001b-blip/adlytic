@@ -15,8 +15,11 @@
    ============================================================ */
 
 const ALLOWED_TYPES = new Set([
+  // المستشار الذكي
   "advisor_start", "advisor_answer", "advisor_results",
   "advisor_product_click", "advisor_to_whatsapp",
+  // الكتالوج (تصفّح وطلب)
+  "product_view", "add_to_cart", "order_whatsapp", "order_product", "search",
 ]);
 
 // حقول مسموح بها فقط — أي حقل آخر يُتجاهل (حماية الخصوصية)
@@ -32,6 +35,7 @@ function sanitize(body) {
   if (typeof body.product === "string") p.product = body.product.slice(0, 60);
   if (typeof body.questions === "number") p.questions = body.questions;
   if (typeof body.topConfidence === "number") p.topConfidence = body.topConfidence;
+  if (typeof body.count === "number") p.count = body.count;
   out.payload = p;
   return out;
 }

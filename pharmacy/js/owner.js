@@ -603,29 +603,72 @@ const Owner = (() => {
   }
 
   /* ---------------- تبويب التحليلات ---------------- */
+  function pname(id) {
+    const p = typeof byId === "function" ? byId(id) : null;
+    return p ? p.name : id;
+  }
+  function miniList(items, labelFn) {
+    if (!items || !items.length) return `<ul class="owner-list-mini"><li>لا بيانات كافية بعد<span></span></li></ul>`;
+    return `<ul class="owner-list-mini">${items.map((g) => `<li>${labelFn ? labelFn(g.key) : g.key}<span>${g.count}</span></li>`).join("")}</ul>`;
+  }
+
   async function renderAnalyticsTab(body) {
     body.innerHTML = `<p style="color:var(--muted)">جارٍ التحميل…</p>`;
     try {
       const res = await authedFetch("/owner-analytics");
       const d = await res.json();
-      if (!d.configured) {
-        body.innerHTML = `<p style="color:var(--muted)">التحليلات غير مُفعّلة بعد (يحتاج ربط Supabase).</p>`;
-        return;
-      }
+      const c = d.catalog || {};
+      const a = d.advisor || {};
+      const act = d.activity || {};
+
       body.innerHTML = `
-        <p style="color:var(--muted);font-size:.8rem;margin-bottom:10px">تقريبية — آخر ${d.window} حدث مسجَّل.</p>
+        <p style="color:var(--muted);font-size:.8rem;margin-bottom:12px">
+          إجمالي ${d.totalEvents || 0} حدث مسجَّل · ${d.visitors || 0} زائر مقدَّر
+          <span style="opacity:.8">(بيانات مجهولة تماماً)</span>
+        </p>
+
+        <h4 style="margin:4px 0 8px">📈 النشاط الزمني</h4>
         <div class="owner-stat-grid">
-          <div class="owner-stat"><b>${d.starts}</b><span>بدء استشارة</span></div>
-          <div class="owner-stat"><b>${d.results}</b><span>نتائج ظهرت</span></div>
-          <div class="owner-stat"><b>${d.clicks}</b><span>ضغطات منتجات</span></div>
-          <div class="owner-stat"><b>${d.conversion}%</b><span>تحويل لواتساب</span></div>
+          <div class="owner-stat"><b>${act.today || 0}</b><span>اليوم</span></div>
+          <div class="owner-stat"><b>${act.last7 || 0}</b><span>آخر 7 أيام</span></div>
+          <div class="owner-stat"><b>${act.last30 || 0}</b><span>آخر 30 يوماً</span></div>
+          <div class="owner-stat"><b>${d.visitors7 || 0}</b><span>زوّار الأسبوع</span></div>
         </div>
-        <h4 style="margin:12px 0 6px">🎯 أكثر الأهداف طلباً</h4>
-        <ul class="owner-list-mini">${d.topGoals.map((g) => `<li>${g.key}<span>${g.count}</span></li>`).join("") || "<li>لا بيانات كافية</li>"}</ul>
-        <h4 style="margin:12px 0 6px">🛍️ أكثر المنتجات ضغطاً</h4>
-        <ul class="owner-list-mini">${d.topProducts.map((g) => `<li>${g.key}<span>${g.count}</span></li>`).join("") || "<li>لا بيانات كافية</li>"}</ul>`;
+
+        <h4 style="margin:14px 0 8px">🛒 قمع الكتالوج</h4>
+        <div class="owner-stat-grid">
+          <div class="owner-stat"><b>${c.views || 0}</b><span>مشاهدات منتجات</span></div>
+          <div class="owner-stat"><b>${c.addToCart || 0}</b><span>إضافة للسلة</span></div>
+          <div class="owner-stat"><b>${c.orders || 0}</b><span>طلبات واتساب</span></div>
+          <div class="owner-stat"><b>${c.viewToOrder || 0}%</b><span>تحويل مشاهدة←طلب</span></div>
+        </div>
+
+        <h4 style="margin:14px 0 8px">🔎 المستشار الذكي</h4>
+        <div class="owner-stat-grid">
+          <div class="owner-stat"><b>${a.starts || 0}</b><span>بدء استشارة</span></div>
+          <div class="owner-stat"><b>${a.results || 0}</b><span>نتائج ظهرت</span></div>
+          <div class="owner-stat"><b>${a.clicks || 0}</b><span>ضغطات منتجات</span></div>
+          <div class="owner-stat"><b>${a.conversion || 0}%</b><span>تحويل لواتساب</span></div>
+        </div>
+
+        <h4 style="margin:16px 0 6px">🏆 أكثر المنتجات اهتماماً</h4>
+        ${miniList(d.topInterest, pname)}
+
+        <h4 style="margin:14px 0 6px">💰 أكثر المنتجات طلباً</h4>
+        ${miniList(d.topOrdered, pname)}
+
+        <h4 style="margin:14px 0 6px">🔤 أكثر كلمات البحث</h4>
+        ${miniList(d.topSearches)}
+
+        <h4 style="margin:14px 0 6px">🎯 أكثر أهداف المستشار</h4>
+        ${miniList(d.topGoals)}
+
+        <p style="color:var(--muted);font-size:.72rem;margin-top:14px;line-height:1.6">
+          💡 استخدم هذي الأرقام لتقرّر: أي منتج تعرضه في المقدمة، أي منتج يحتاج صورة/سعر أوضح،
+          وأي كلمات بحث تدل على طلب غير ملبّى.
+        </p>`;
     } catch (_) {
-      body.innerHTML = `<p style="color:#a12b2b">تعذّر تحميل التحليلات.</p>`;
+      body.innerHTML = `<p style="color:#a12b2b">تعذّر تحميل التحليلات — حدّث الصفحة وجرّب مجدداً.</p>`;
     }
   }
 

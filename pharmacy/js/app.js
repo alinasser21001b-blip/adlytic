@@ -84,6 +84,7 @@ function addToCart(id, qty = 1) {
   else cart.push({ id, qty: Math.min(20, Math.max(1, qty)) });
   saveCart(cart);
   toast("أُضيف إلى السلة 🛒");
+  Shop.track("add_to_cart", { product: id });
   openCart();
 }
 function setQty(id, qty) {
@@ -248,11 +249,40 @@ function submitCheckout() {
   const orderId = genOrderId();
   const msg = buildCartMessage(cart, { name, phone, city, notes, pickup, orderId });
   try { localStorage.setItem("dur_v2_lastorder", JSON.stringify({ orderId, cart, at: Date.now() })); } catch (_) {}
+  Shop.track("order_whatsapp", { count: cart.length });
+  for (const r of cart) Shop.track("order_product", { product: r.id });
   closeCart();
   toast("جارٍ فتح واتساب… 💬");
   const w = window.open(waLink(msg), "_blank", "noopener");
   if (!w) { navigator.clipboard?.writeText(msg); toast("تم نسخ الطلب — الصقه في واتساب"); }
 }
+
+/* ---------- تتبّع الكتالوج (مجهول تماماً — بلا اسم/هاتف/مدينة) ----------
+   يُرسل أحداث تصفّح مختصرة لدالة log-consult كي تظهر في لوحة تحليلات
+   المالك. معرّف الجلسة عشوائي محلي ولا يرتبط بأي هوية. الفشل صامت. */
+const Shop = {
+  ep: "/.netlify/functions/log-consult",
+  sid: null,
+  _sid() {
+    if (this.sid) return this.sid;
+    try { this.sid = localStorage.getItem("dur_anon") || ""; } catch (_) {}
+    if (!this.sid) {
+      this.sid = "anon_" + Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem("dur_anon", this.sid); } catch (_) {}
+    }
+    return this.sid;
+  },
+  track(type, payload = {}) {
+    const body = { sessionId: this._sid(), type, ...payload };
+    try {
+      if (navigator.sendBeacon)
+        navigator.sendBeacon(this.ep, new Blob([JSON.stringify(body)], { type: "application/json" }));
+      else
+        fetch(this.ep, { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body), keepalive: true }).catch(() => {});
+    } catch (_) { /* التحليلات لا تعطّل التجربة أبداً */ }
+  },
+};
 
 /* ---------- سجل التصفح ---------- */
 const VIEW_KEY = "dur_viewed";
@@ -261,6 +291,7 @@ function trackView(id) {
   const v = getViewed().filter((x) => x !== id);
   v.unshift(id);
   localStorage.setItem(VIEW_KEY, JSON.stringify(v.slice(0, 12)));
+  Shop.track("product_view", { product: id });
 }
 
 /* ---------- عناصر العرض ---------- */
@@ -485,6 +516,8 @@ function submitOrder() {
   localStorage.setItem(CUSTOMER_KEY, JSON.stringify({ name, phone, city }));
   const pageUrl = location.pathname.endsWith("product.html") ? location.href : productUrl(orderProduct.id);
   const msg = buildOrderMessage(orderProduct, { name, phone, city, notes, url: pageUrl });
+  Shop.track("order_whatsapp", { count: 1 });
+  Shop.track("order_product", { product: orderProduct.id });
   closeOrderDialog();
   toast("جارٍ فتح واتساب… 💬");
   window.open(waLink(msg), "_blank", "noopener");
