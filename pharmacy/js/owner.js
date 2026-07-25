@@ -603,13 +603,20 @@ const Owner = (() => {
   }
 
   /* ---------------- تبويب التحليلات ---------------- */
+  // تهريب HTML إلزامي: مفاتيح التحليلات (كلمات بحث/معرّفات) تأتي من نقطة
+  // log-consult العامة بلا مصادقة، فقد تحمل وسوماً خبيثة. نعرضها كنص فقط.
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
   function pname(id) {
     const p = typeof byId === "function" ? byId(id) : null;
     return p ? p.name : id;
   }
   function miniList(items, labelFn) {
     if (!items || !items.length) return `<ul class="owner-list-mini"><li>لا بيانات كافية بعد<span></span></li></ul>`;
-    return `<ul class="owner-list-mini">${items.map((g) => `<li>${labelFn ? labelFn(g.key) : g.key}<span>${g.count}</span></li>`).join("")}</ul>`;
+    return `<ul class="owner-list-mini">${items.map((g) => `<li>${esc(labelFn ? labelFn(g.key) : g.key)}<span>${esc(g.count)}</span></li>`).join("")}</ul>`;
   }
 
   async function renderAnalyticsTab(body) {
