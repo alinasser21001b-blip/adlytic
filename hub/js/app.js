@@ -34,7 +34,7 @@ const T = {
     need_a: "أحتاج", near: "قرب", now: "الآن", adoctor: "طبيب",
     show: "اعرض النتائج", searchPh: "طبيب، اختصاص، صيدلية، أو منتج…",
     openNow: "مفتوح الآن", closingSoon: "يغلق قريباً", closed: "مغلق",
-    opensAt: "يفتح", until: "حتى", nightDuty: "مناوبة ليلية", verified: "موثّق",
+    opensAt: "يفتح", until: "حتى", nightDuty: "خفارة ليلية", verified: "موثّق",
     listed: "معلومات عامة", updated: "حُدّثت المعلومات قبل", days: "يوم", today: "اليوم",
     tomorrow: "غداً", free: "بدون أجرة", fee: "أجرة الكشف", km: "كم",
     request: "اطلب موعد", message: "مراسلة", call: "اتصال", directions: "الطريق",
@@ -390,9 +390,9 @@ function pharmacyCard(x, wide = false) {
 }
 
 const SVC = {
-  delivery: { ar: "توصيل", en: "Delivery" }, night: { ar: "مناوبة", en: "Night" },
-  injections: { ar: "حقن", en: "Injections" }, bp: { ar: "قياس ضغط", en: "BP check" },
-  baby: { ar: "مستلزمات أطفال", en: "Baby care" },
+  delivery: { ar: "توصيل", en: "Delivery" }, night: { ar: "خفارة", en: "Night duty" },
+  injections: { ar: "حقن وزرق", en: "Injections" }, bp: { ar: "قياس ضغط", en: "BP check" },
+  baby: { ar: "حليب أطفال", en: "Baby care" },
 };
 const svcLabel = (s) => esc(L(SVC[s]) || s);
 
@@ -464,7 +464,7 @@ function screenHome() {
     <div class="pulse">
       <div class="pulse-cell"><div class="n num">${docsOpenNow()}</div><div class="l">${isAR() ? "طبيب متاح" : "doctors open"}</div>${ribbon(DOCTORS[13])}</div>
       <div class="pulse-cell"><div class="n num">${phOpenNow()}</div><div class="l">${isAR() ? "صيدلية مفتوحة" : "pharmacies open"}</div>${ribbon(fac("p1"))}</div>
-      <div class="pulse-cell night"><div class="n num">${phNight()}</div><div class="l">${isAR() ? "مناوبة ليلية" : "night duty"}</div>${ribbon(fac("p2"))}</div>
+      <div class="pulse-cell night"><div class="n num">${phNight()}</div><div class="l">${isAR() ? "خفارة ليلية" : "night duty"}</div>${ribbon(fac("p2"))}</div>
     </div>
     <p class="hero-sub">${isAR()
       ? `الآن ${fmtT(nowMins())} · <span class="num">${DOCTORS.filter(d=>d.verified).length}</span> طبيب موثّق و<span class="num">${FACILITIES.filter(f=>f.type==="pharmacy").length}</span> صيدلية في بغداد`
@@ -475,7 +475,7 @@ function screenHome() {
     <a class="lane on" href="#/pharmacies">
       <span class="ic">${icon("cross")}</span>
       <span class="grow"><h3>${isAR() ? "صيدلية مفتوحة الآن" : "Pharmacy open now"}</h3>
-        <p>${isAR() ? `${phOpenNow()} مفتوحة · ${phNight()} مناوبة ليلية` : `${phOpenNow()} open · ${phNight()} on night duty`}</p></span>
+        <p>${isAR() ? `${phOpenNow()} مفتوحة · ${phNight()} خفارة ليلية` : `${phOpenNow()} open · ${phNight()} on night duty`}</p></span>
       <span class="go">${icon("chev")}</span></a>
     <a class="lane" href="#/care">
       <span class="ic">${icon("leaf")}</span>
@@ -555,8 +555,8 @@ function screenDoctors(params) {
     <span class="tiny muted">${esc(approxNote() || L(here()))}</span>
   </div>
   ${r.expanded ? `<div class="radius-note">${icon("info")}<span>${isAR()
-      ? `لا توجد نتائج ضمن ${S.radius} كم من ${L(here())} — وسّعنا البحث إلى 25 كم.`
-      : `Nothing within ${S.radius} km of ${L(here())} — expanded to 25 km.`}</span></div>` : ""}
+      ? `نتائج قليلة ضمن ${S.radius} كم من ${L(here())}؟ وسّعنا تلقائياً إلى 25 كم — أخبرناك، ولم نقرر عنك.`
+      : `Thin results within ${S.radius} km of ${L(here())}? We widened to 25 km — telling you, not deciding for you.`}</span></div>` : ""}
   <section class="wrap"><div class="stack list-2 stagger">
     ${r.list.length ? r.list.map((x) => doctorCard(x)).join("") : emptyDoctors(sp)}
   </div>
@@ -811,7 +811,10 @@ function screenSearch() {
 
 function searchResults(q) {
   if (!q || !q.trim()) {
-    return `<div class="res-group"><h3>${isAR() ? "ابدأ من حاجتك" : "Start from your need"}</h3>
+    return `<div class="hint" style="margin-bottom:16px">${icon("info")}<span>${isAR()
+        ? "نفهم «اسنان» و«أسنان» و«سنّي» — اكتب كما تشاء."
+        : "We match Arabic spellings loosely — write it however you like."}</span></div>
+      <div class="res-group"><h3>${isAR() ? "ابدأ من حاجتك" : "Start from your need"}</h3>
       <div class="chips chips--wrap">${NEEDS.slice(0, 8).map((n) => `<button class="chip" onclick="pickNeed('${n.spec}')">${icon(n.icon)}${esc(L(n))}</button>`).join("")}</div></div>
       ${S.recent.length ? `<div class="res-group"><h3>${isAR() ? "بحثك السابق" : "Recent"}</h3>
         <div class="chips chips--wrap">${S.recent.slice(0, 6).map((r) => `<button class="chip" onclick="doSearch('${esc(r)}');document.getElementById('q').value='${esc(r)}'">${esc(r)}</button>`).join("")}</div></div>` : ""}`;
@@ -905,7 +908,11 @@ function screenMe() {
         <div class="card-q">${esc(r.facility)} · ${esc(r.when)}</div></div>
         <div class="slip-ref mono" dir="ltr">#${esc(r.ref)}</div></div>
       <div class="card-meta"><span class="chip chip--meta chip--ok">${icon("check")}${t("sent")}</span>
-        <i class="dot"></i><span>${esc(r.at)}</span></div></div>`).join("")}</div>`
+        <i class="dot"></i><span dir="ltr" class="num">${esc(r.at)}</span></div>
+      ${r.wa ? `<div class="btn-row" style="margin-top:11px">
+        <a class="btn btn--2 btn--sm" href="https://wa.me/${esc(r.wa)}" target="_blank" rel="noopener">${icon("wa")}${isAR() ? "فتح المحادثة" : "Open chat"}</a>
+        ${r.mapUrl ? `<a class="btn btn--2 btn--sm" href="${esc(r.mapUrl)}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>` : ""}
+      </div>` : ""}</div>`).join("")}</div>`
     : `<div class="empty"><div class="empty-mark">${icon("cal")}</div>
         <h3>${isAR() ? "لا توجد طلبات بعد" : "No requests yet"}</h3>
         <p>${isAR() ? "عند إرسال طلب موعد، يبقى إيصاله هنا مع رمزه — بدون حساب." : "When you send an appointment request, the stub stays here with its code — no account."}</p>
@@ -1032,12 +1039,16 @@ function closeSheet(instant) {
 function openLocation() {
   const rows = DISTRICTS.map((d) => {
     const n = DOCTORS.filter((x) => x.sessions.some((s) => haversine(d, fac(s.fac)) <= 5)).length;
+    const lm = isAR() ? d.lm_ar : d.lm_en;
     return `<button class="place ${d.id === S.district ? "on" : ""}" onclick="setDistrict('${d.id}')">
-      <h3>${esc(L(d))}</h3><div class="m"><span class="num">${n}</span> ${isAR() ? "طبيب قريب" : "doctors near"}</div></button>`;
+      <h3>${esc(L(d))}</h3>
+      <div class="m lm">${esc(lm)}</div>
+      <div class="m"><span class="num">${n}</span> ${isAR() ? "طبيب قريب" : "doctors near"}</div></button>`;
   }).join("");
   sheet(`<div class="sheet-grip"></div>
     <div class="sheet-h"><div><h2>${t("pickArea")}</h2>
-      <p>${isAR() ? "نرتّب كل شيء حسب قربه منك." : "Everything is ordered by how close it is to you."}</p></div>
+      <p>${isAR() ? "اختر منطقة — أو معلماً تعرفه. لا نسأل عن عنوان شارع أبداً."
+                  : "Pick an area — or a landmark you know. We never ask for a street address."}</p></div>
       <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
     <div class="sheet-b">
       <button class="lane on" onclick="askGps()" style="width:100%">
@@ -1199,7 +1210,7 @@ function toPreview(id) {
 
 function confirmSent(id, ref, when, facility) {
   const d = DOCTORS.find((x) => x.id === id);
-  S.requests.unshift({ ref, doctor: L(d), facility, when, at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) });
+  S.requests.unshift({ ref, doctor: L(d), facility, when, wa: d.wa, mapUrl: mapLink(docFacs(d)[0]), at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) });
   LS.set("requests", S.requests.slice(0, 20));
   setTimeout(() => {
     sheet(`<div class="sheet-grip"></div>

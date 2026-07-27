@@ -17,22 +17,22 @@ const CONFIG = {
 
 /* ---------- DISTRICTS (Baghdad) ---------- */
 const DISTRICTS = [
-  { id: "karrada",   ar: "الكرادة",        en: "Karrada",      lat: 33.3006, lng: 44.4108 },
-  { id: "mansour",   ar: "المنصور",         en: "Mansour",      lat: 33.3115, lng: 44.3255 },
-  { id: "zayouna",   ar: "زيونة",           en: "Zayouna",      lat: 33.3372, lng: 44.4478 },
-  { id: "jadriya",   ar: "الجادرية",        en: "Jadriya",      lat: 33.2748, lng: 44.3856 },
-  { id: "adhamiya",  ar: "الأعظمية",        en: "Adhamiya",     lat: 33.3722, lng: 44.3600 },
-  { id: "kadhimiya", ar: "الكاظمية",        en: "Kadhimiya",    lat: 33.3778, lng: 44.3378 },
-  { id: "harthiya",  ar: "الحارثية",        en: "Harthiya",     lat: 33.3150, lng: 44.3600 },
-  { id: "yarmouk",   ar: "اليرموك",         en: "Yarmouk",      lat: 33.3050, lng: 44.3350 },
-  { id: "jamia",     ar: "حي الجامعة",      en: "Hay al-Jamia", lat: 33.2900, lng: 44.3200 },
-  { id: "dora",      ar: "الدورة",          en: "Dora",         lat: 33.2536, lng: 44.4056 },
-  { id: "newbaghdad",ar: "بغداد الجديدة",   en: "New Baghdad",  lat: 33.3200, lng: 44.4700 },
-  { id: "shaab",     ar: "الشعب",           en: "Sha'ab",       lat: 33.3900, lng: 44.4100 },
-  { id: "adl",       ar: "حي العدل",        en: "Hay al-Adl",   lat: 33.3300, lng: 44.3100 },
-  { id: "saydiya",   ar: "السيدية",         en: "Saydiya",      lat: 33.2700, lng: 44.3400 },
-  { id: "shula",     ar: "الشعلة",          en: "Shu'la",       lat: 33.3700, lng: 44.3000 },
-  { id: "ghazaliya", ar: "الغزالية",        en: "Ghazaliya",    lat: 33.3300, lng: 44.2800 },
+  { id: "karrada",   ar: "الكرادة",        en: "Karrada",      lat: 33.3006, lng: 44.4108, lm_ar: "ساحة كهرمانة", lm_en: "Kahramana Square" },
+  { id: "mansour",   ar: "المنصور",         en: "Mansour",      lat: 33.3115, lng: 44.3255, lm_ar: "شارع 14 رمضان", lm_en: "14 Ramadan St" },
+  { id: "zayouna",   ar: "زيونة",           en: "Zayouna",      lat: 33.3372, lng: 44.4478, lm_ar: "شارع الربيعي", lm_en: "Rabee St" },
+  { id: "jadriya",   ar: "الجادرية",        en: "Jadriya",      lat: 33.2748, lng: 44.3856, lm_ar: "جامعة بغداد", lm_en: "Baghdad University" },
+  { id: "adhamiya",  ar: "الأعظمية",        en: "Adhamiya",     lat: 33.3722, lng: 44.3600, lm_ar: "ساحة عنتر", lm_en: "Antar Square" },
+  { id: "kadhimiya", ar: "الكاظمية",        en: "Kadhimiya",    lat: 33.3778, lng: 44.3378, lm_ar: "الصحن الشريف", lm_en: "The Holy Shrine" },
+  { id: "harthiya",  ar: "الحارثية",        en: "Harthiya",     lat: 33.3150, lng: 44.3600, lm_ar: "ساحة الحارثية", lm_en: "Harthiya Square" },
+  { id: "yarmouk",   ar: "اليرموك",         en: "Yarmouk",      lat: 33.3050, lng: 44.3350, lm_ar: "المستشفى التعليمي", lm_en: "Teaching Hospital" },
+  { id: "jamia",     ar: "حي الجامعة",      en: "Hay al-Jamia", lat: 33.2900, lng: 44.3200, lm_ar: "مجمع الجامعة", lm_en: "Jamia Complex" },
+  { id: "dora",      ar: "الدورة",          en: "Dora",         lat: 33.2536, lng: 44.4056, lm_ar: "ساحة الدورة", lm_en: "Dora Square" },
+  { id: "newbaghdad",ar: "بغداد الجديدة",   en: "New Baghdad",  lat: 33.3200, lng: 44.4700, lm_ar: "ساحة بغداد الجديدة", lm_en: "New Baghdad Square" },
+  { id: "shaab",     ar: "الشعب",           en: "Sha'ab",       lat: 33.3900, lng: 44.4100, lm_ar: "ملعب الشعب", lm_en: "Sha'ab Stadium" },
+  { id: "adl",       ar: "حي العدل",        en: "Hay al-Adl",   lat: 33.3300, lng: 44.3100, lm_ar: "سوق العدل", lm_en: "Adl Market" },
+  { id: "saydiya",   ar: "السيدية",         en: "Saydiya",      lat: 33.2700, lng: 44.3400, lm_ar: "ساحة السيدية", lm_en: "Saydiya Square" },
+  { id: "shula",     ar: "الشعلة",          en: "Shu'la",       lat: 33.3700, lng: 44.3000, lm_ar: "ساحة الشعلة", lm_en: "Shu'la Square" },
+  { id: "ghazaliya", ar: "الغزالية",        en: "Ghazaliya",    lat: 33.3300, lng: 44.2800, lm_ar: "ساحة الغزالية", lm_en: "Ghazaliya Square" },
 ];
 
 /* ---------- SPECIALTIES (with symptom aliases for tolerant search) ---------- */
@@ -399,6 +399,6 @@ const ADMIN_STATS = {
     { t: "verify", ar: "د. باسم الطائي — طلب توثيق", meta: "الجراحة العامة · مركز الشعب الطبي" },
     { t: "flag",   ar: "صيدلية الأمل — الدوام غير صحيح", meta: "بلاغ من مستخدم · قبل ٣ ساعات" },
     { t: "flag",   ar: "د. سيف الدين النعيمي — رقم واتساب مفقود", meta: "تلقائي · تحقق النظام" },
-    { t: "verify", ar: "صيدلية دجلة — تحديث المناوبة الليلية", meta: "الدورة · طلب المالك" },
+    { t: "verify", ar: "صيدلية دجلة — تحديث الخفارة الليلية", meta: "الدورة · طلب المالك" },
   ],
 };

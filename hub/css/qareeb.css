@@ -10,26 +10,26 @@
 
 /* ---------- 1. TOKENS ---------- */
 :root {
-  --sand:        #F4EFE6;
-  --sand-2:      #EBE4D7;
-  --card:        #FCFAF6;
-  --card-2:      #F7F2E9;
-  --ink:         #10201F;
-  --ink-2:       #465A57;
-  --ink-3:       #7C8D8A;
-  --line:        #DFD6C7;
-  --line-2:      #EAE3D6;
+  --sand:        #F1ECE1;
+  --sand-2:      #E8E1D3;
+  --card:        #FFFDF9;
+  --card-2:      #F7F3EA;
+  --ink:         #2B2723;
+  --ink-2:       #4C463E;
+  --ink-3:       #8B8171;
+  --line:        #D8D0C2;
+  --line-2:      #E6DFD2;
 
-  --petrol:      #0E4F4A;
-  --petrol-2:    #146B63;
-  --petrol-soft: #DCE9E6;
+  --petrol:      #16606A;
+  --petrol-2:    #1E7A86;
+  --petrol-soft: #E2EEEF;
 
-  --amber:       #A85C09;
-  --amber-b:     #E29A2E;
-  --amber-soft:  #F7E9D2;
+  --amber:       #8A5A10;
+  --amber-b:     #E0A029;
+  --amber-soft:  #FAEED7;
 
-  --coral:       #A93529;
-  --coral-soft:  #F6E2DE;
+  --coral:       #A33326;
+  --coral-soft:  #FBE6E2;
 
   --wa:          #0E7C3A;
   --wa-b:        #25D366;
@@ -54,25 +54,26 @@ html[dir="ltr"] {
 }
 
 html[data-theme="dark"] {
-  --sand:        #0C1312;
-  --sand-2:      #111A19;
-  --card:        #15201E;
-  --card-2:      #1B2725;
-  --ink:         #EAE4D8;
-  --ink-2:       #A6B5B2;
-  --ink-3:       #778785;
-  --line:        #263330;
-  --line-2:      #1E2A28;
-  --petrol:      #57BCAD;
-  --petrol-2:    #74D2C3;
-  --petrol-soft: #16302D;
-  --amber:       #E0A24C;
-  --amber-b:     #F2C378;
-  --amber-soft:  #2A2114;
-  --coral:       #E47766;
-  --coral-soft:  #2E1A16;
+  --sand:        #0E1416;
+  --sand-2:      #141C1E;
+  --card:        #182124;
+  --card-2:      #1E282B;
+  --ink:         #EDE6DA;
+  --ink-2:       #A8B2B4;
+  --ink-3:       #7C8688;
+  --line:        #283335;
+  --line-2:      #1F2A2C;
+  --petrol:      #5FBECB;
+  --petrol-2:    #7FD3DE;
+  --petrol-soft: #143036;
+  --amber:       #E3A64F;
+  --amber-b:     #F0C078;
+  --amber-soft:  #2B2114;
+  --coral:       #E4776A;
+  --coral-soft:  #2E1A17;
   --wa:          #17A34A;
   color-scheme: dark;
+
 }
 
 /* ---------- 2. RESET & BASE ---------- */
@@ -757,32 +758,69 @@ html[dir="rtl"] .dirflip { transform: scaleX(-1); }
    The host's theme toggle stamps data-theme on the root, which must win both ways. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-  --sand:        #0C1312;
-  --sand-2:      #111A19;
-  --card:        #15201E;
-  --card-2:      #1B2725;
-  --ink:         #EAE4D8;
-  --ink-2:       #A6B5B2;
-  --ink-3:       #778785;
-  --line:        #263330;
-  --line-2:      #1E2A28;
-  --petrol:      #57BCAD;
-  --petrol-2:    #74D2C3;
-  --petrol-soft: #16302D;
-  --amber:       #E0A24C;
-  --amber-b:     #F2C378;
-  --amber-soft:  #2A2114;
-  --coral:       #E47766;
-  --coral-soft:  #2E1A16;
+  --sand:        #0E1416;
+  --sand-2:      #141C1E;
+  --card:        #182124;
+  --card-2:      #1E282B;
+  --ink:         #EDE6DA;
+  --ink-2:       #A8B2B4;
+  --ink-3:       #7C8688;
+  --line:        #283335;
+  --line-2:      #1F2A2C;
+  --petrol:      #5FBECB;
+  --petrol-2:    #7FD3DE;
+  --petrol-soft: #143036;
+  --amber:       #E3A64F;
+  --amber-b:     #F0C078;
+  --amber-soft:  #2B2114;
+  --coral:       #E4776A;
+  --coral-soft:  #2E1A17;
   --wa:          #17A34A;
   color-scheme: dark;
   }
 }
 :root[data-theme="light"] {
-  --sand: #F4EFE6; --sand-2: #EBE4D7; --card: #FCFAF6; --card-2: #F7F2E9;
-  --ink: #10201F; --ink-2: #465A57; --ink-3: #7C8D8A; --line: #DFD6C7; --line-2: #EAE3D6;
-  --petrol: #0E4F4A; --petrol-2: #146B63; --petrol-soft: #DCE9E6;
-  --amber: #A85C09; --amber-b: #E29A2E; --amber-soft: #F7E9D2;
-  --coral: #A93529; --coral-soft: #F6E2DE; --wa: #0E7C3A;
+  --sand:        #F1ECE1;
+  --sand-2:      #E8E1D3;
+  --card:        #FFFDF9;
+  --card-2:      #F7F3EA;
+  --ink:         #2B2723;
+  --ink-2:       #4C463E;
+  --ink-3:       #8B8171;
+  --line:        #D8D0C2;
+  --line-2:      #E6DFD2;
+
+  --petrol:      #16606A;
+  --petrol-2:    #1E7A86;
+  --petrol-soft: #E2EEEF;
+
+  --amber:       #8A5A10;
+  --amber-b:     #E0A029;
+  --amber-soft:  #FAEED7;
+
+  --coral:       #A33326;
+  --coral-soft:  #FBE6E2;
+
+  --wa:          #0E7C3A;
+  --wa-b:        #25D366;
   color-scheme: light;
 }
+
+/* ============================================================
+   29. From the design board
+   ============================================================ */
+
+/* Place tiles carry a landmark, because that is how Baghdad is navigated.
+   The landmark is the recognition cue; the doctor count is the decision cue. */
+.place .lm {
+  color: var(--petrol); font-weight: 700; margin-top: 3px;
+  display: flex; align-items: center; gap: 4px;
+}
+.place .lm::before { content: '◈'; opacity: .55; font-size: 10px; }
+.place.on .lm { color: color-mix(in srgb, #fff 82%, transparent); }
+html[data-theme="dark"] .place.on .lm { color: color-mix(in srgb, #06100F 72%, transparent); }
+.place h3 { line-height: 1.25; }
+
+/* The board's warmer paper needs a slightly heavier rail to keep the same
+   "open now" punch against a lower-contrast card. */
+.card.is-open::before, .lane.on::before, .need.has::before { width: 5px; }
