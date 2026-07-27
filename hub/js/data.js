@@ -390,6 +390,51 @@ const PRODUCTS = [
     warn_ar: ["قد يسبب جفافاً في البداية", "يُستعمل مع واقي شمس"], stock: ["p4","p8","p10"] },
 ];
 
+
+/* ---------- MEDICINES ----------
+   The research finding that reframed the product: Iraq's chronic problem is
+   not "which doctor" (a few times a year, and IRAQDR/Doctoury already serve
+   it) but "who has this medicine right now" — a weekly, painful hunt caused
+   by chronic shortages. Nobody structures that. This is the wedge.
+
+   `stock` records WHICH pharmacy last confirmed it and HOW LONG AGO. The
+   freshness is the whole point: a two-day-old confirmation is worth calling,
+   a two-month-old one is not.
+------------------------------------------------------------------------- */
+const MEDICINES = [
+  { id: "m1",  ar: "أنسولين خلطي 30/70", en: "Insulin mix 30/70", form: "قلم", chronic: true,
+    alias: ["انسولين","أنسولين","سكري","insulin"], stock: [{ f: "p1", d: 1 }, { f: "p8", d: 3 }, { f: "p4", d: 12 }] },
+  { id: "m2",  ar: "ميتفورمين 850 ملغم", en: "Metformin 850mg", form: "حبوب", chronic: true,
+    alias: ["متفورمين","ميتفورمين","سكري","metformin"], stock: [{ f: "p1", d: 2 }, { f: "p3", d: 2 }, { f: "p9", d: 6 }, { f: "p13", d: 4 }] },
+  { id: "m3",  ar: "أملوديبين 5 ملغم", en: "Amlodipine 5mg", form: "حبوب", chronic: true,
+    alias: ["ضغط","أملوديبين","amlodipine"], stock: [{ f: "p4", d: 1 }, { f: "p8", d: 5 }, { f: "p10", d: 9 }] },
+  { id: "m4",  ar: "ليفوثيروكسين 50 مايكروغرام", en: "Levothyroxine 50mcg", form: "حبوب", chronic: true,
+    alias: ["غدة","درقية","ليفوثيروكسين","thyroid"], stock: [{ f: "p8", d: 6 }] },
+  { id: "m5",  ar: "سالبيوتامول بخاخ", en: "Salbutamol inhaler", form: "بخاخ", chronic: true,
+    alias: ["ربو","بخاخ","سالبيوتامول","ventolin","asthma"], stock: [{ f: "p2", d: 1 }, { f: "p8", d: 2 }, { f: "p12", d: 3 }] },
+  { id: "m6",  ar: "أموكسيسيلين شراب للأطفال", en: "Amoxicillin syrup (pediatric)", form: "شراب",
+    alias: ["مضاد","اموكسيسيلين","أطفال","amoxicillin"], stock: [{ f: "p2", d: 1 }, { f: "p6", d: 4 }, { f: "p9", d: 2 }] },
+  { id: "m7",  ar: "باراسيتامول شراب أطفال", en: "Paracetamol syrup (pediatric)", form: "شراب",
+    alias: ["حرارة","باراسيتامول","بنادول","paracetamol"], stock: [{ f: "p1", d: 1 }, { f: "p2", d: 1 }, { f: "p6", d: 1 }, { f: "p11", d: 3 }] },
+  { id: "m8",  ar: "حديد وريدي — أمبولات", en: "IV iron ampoules", form: "أمبول",
+    alias: ["حديد","فقر دم","انيميا","iron"], stock: [] },   /* deliberately unavailable: the shortage case */
+  { id: "m9",  ar: "وارفارين 5 ملغم", en: "Warfarin 5mg", form: "حبوب", chronic: true,
+    alias: ["وارفارين","سيولة","warfarin"], stock: [{ f: "p8", d: 8 }] },
+  { id: "m10", ar: "أوميبرازول 20 ملغم", en: "Omeprazole 20mg", form: "كبسول", chronic: true,
+    alias: ["معدة","حموضة","اوميبرازول","omeprazole"], stock: [{ f: "p1", d: 3 }, { f: "p3", d: 2 }, { f: "p4", d: 5 }, { f: "p14", d: 7 }] },
+];
+
+/* Demand actually recorded by the platform — the asset a pharmacy would pay
+   to see. Synthetic here, but this is exactly the shape the live log produces. */
+const MED_DEMAND = [
+  { med: "m1",  district: "sadr",      asks: 84, filled: 31 },
+  { med: "m8",  district: "karrada",   asks: 71, filled: 4  },
+  { med: "m2",  district: "newbaghdad",asks: 66, filled: 48 },
+  { med: "m5",  district: "bayaa",     asks: 52, filled: 22 },
+  { med: "m4",  district: "mansour",   asks: 47, filled: 11 },
+  { med: "m9",  district: "zayouna",   asks: 38, filled: 9  },
+];
+
 /* ---------- QR SOURCES (poster attribution) ---------- */
 const QR_SOURCES = {
   "p1":  { label_ar: "ملصق صيدلية النور", district: "karrada" },

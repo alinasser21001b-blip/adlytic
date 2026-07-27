@@ -1179,3 +1179,9 @@ html[dir="ltr"] .filters .chips {
 .week-legend, .card-meta, .actionbar { overflow: hidden; }
 .week-legend svg, .card-meta svg { overflow: visible; }
 svg { overflow: hidden; }
+
+/* 38. .chip--meta is used standalone as a <span>, so `.chip svg` never
+   matched it — an inline icon rendered at its natural size. */
+.chip--meta { display: inline-flex; align-items: center; gap: 4px; }
+.chip--meta svg { width: 13px; height: 13px; flex: none; }
+.card-foot .btn--sm { flex: none; }

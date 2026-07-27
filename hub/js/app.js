@@ -516,6 +516,11 @@ function screenHome() {
       <span class="grow"><h3>${isAR() ? "صيدلية مفتوحة الآن" : "Pharmacy open now"}</h3>
         <p>${isAR() ? `${phOpenNow()} مفتوحة · ${phNight()} خفارة ليلية` : `${phOpenNow()} open · ${phNight()} on night duty`}</p></span>
       <span class="go">${icon("chev")}</span></a>
+    <a class="lane" href="#/search" onclick="setTimeout(()=>{const i=document.getElementById('q');if(i){i.focus()}},80)">
+      <span class="ic">${icon("pill")}</span>
+      <span class="grow"><h3>${isAR() ? "دوّر على دواء" : "Find a medicine"}</h3>
+        <p>${isAR() ? "مين عنده الدواء هسه — بدون ما تدور صيدلية صيدلية" : "Who has it in stock — without calling around"}</p></span>
+      <span class="go">${icon("chev")}</span></a>
     <a class="lane" href="#/care">
       <span class="ic">${icon("leaf")}</span>
       <span class="grow"><h3>${isAR() ? "العناية والمستلزمات" : "Care & products"}</h3>
@@ -889,7 +894,8 @@ function searchResults(q) {
   const phs = FACILITIES.filter((f) => f.type === "pharmacy" && norm(L(f)).includes(nq)).slice(0, 4);
   const hos = FACILITIES.filter((f) => f.type !== "pharmacy" && norm(L(f)).includes(nq)).slice(0, 4);
   const prs = PRODUCTS.filter((p) => norm(L(p) + " " + p.brand).includes(nq)).slice(0, 4);
-  const none = !docs.length && !specs.length && !phs.length && !hos.length && !prs.length;
+  const meds = medMatches(q).slice(0, 4);
+  const none = !docs.length && !specs.length && !phs.length && !hos.length && !prs.length && !meds.length;
   if (none) {
     const guess = findSpecByQuery(q);
     return `<div class="empty">
@@ -910,7 +916,19 @@ function searchResults(q) {
       </div></div>`;
   }
   const G = (title, body) => body ? `<div class="res-group"><h3>${title}</h3><div class="stack">${body}</div></div>` : "";
-  return G(t("doctors"), docs.map((d) => doctorCard({ d, km: docDist(d), st: status(d) })).join(""))
+  // Medicines lead: "who has this" is the most urgent question a search can carry.
+  return G(isAR() ? "أدوية — مين عنده؟" : "Medicines — who has it?", meds.map((m) => {
+      const c = pharmaciesForMed(m).confirmed;
+      return `<a class="card ${c.length ? "is-open" : ""}" href="#/med/${m.id}">
+        <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
+          <div class="grow"><div class="card-t">${esc(L(m))}</div>
+            <div class="card-meta">${c.length
+              ? `<span class="chip--meta chip--ok">${icon("check")}<span class="num">${c.length}</span> ${isAR() ? "صيدلية أكّدت" : "confirmed"}</span>`
+              : `<span class="chip--meta chip--warn">${isAR() ? "شحيح — اسأل مباشرة" : "scarce — ask directly"}</span>`}
+              ${c.length ? `<i class="dot"></i><span>${esc(freshLabel(c[0].days))}</span>` : ""}</div></div>
+          ${icon("chev")}</div></a>`;
+    }).join(""))
+    + G(t("doctors"), docs.map((d) => doctorCard({ d, km: docDist(d), st: status(d) })).join(""))
     + G(isAR() ? "اختصاصات" : "Specialties", specs.map((s) => `<button class="lane" onclick="pickNeed('${s.id}')"><span class="ic">${icon("stetho")}</span>
         <span class="grow" style="text-align:start"><h3>${esc(L(s))}</h3><p><span class="num">${DOCTORS.filter((d) => d.spec === s.id).length}</span> ${isAR() ? "طبيب" : "doctors"}</p></span>
         <span class="go">${icon("chev")}</span></button>`).join(""))
@@ -1065,6 +1083,25 @@ function screenAdmin() {
     <div class="ch" style="padding:14px 16px">${A.zeroQueries.map(([q, n]) => `<div class="bar-row">
       <div><div>${esc(q)}</div><div class="bar"><i class="warn" style="width:${(n / max(A.zeroQueries)) * 100}%"></i></div></div>
       <div class="num" style="text-align:end;font-weight:700">${n}</div></div>`).join("")}</div>
+
+    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "طلب الأدوية حسب المنطقة — الأصل القابل للبيع" : "Medicine demand by area — the sellable asset"}</h2></div>
+    <div class="ch" style="padding:14px 16px">
+      <p class="small muted" style="margin-bottom:12px">${isAR()
+        ? "«يُسأل عنه» مقابل «تم توفيره». الفجوة الكبيرة = طلب غير ملبّى — وهذا بالضبط ما تدفع الصيدلية لتعرفه."
+        : "Asked vs filled. A wide gap is unmet demand — precisely what a pharmacy pays to see."}</p>
+      ${MED_DEMAND.map((r) => {
+        const m = medById(r.med), d = DISTRICTS.find((x) => x.id === r.district);
+        const rate = Math.round((r.filled / r.asks) * 100);
+        return `<div class="bar-row">
+          <div><div>${esc(L(m))} <span class="muted">· ${esc(L(d))}</span></div>
+            <div class="bar"><i class="${rate < 30 ? "warn" : ""}" style="width:${rate}%"></i></div></div>
+          <div class="num" style="text-align:end;font-weight:700">${r.asks}<div class="tiny muted">${rate}%</div></div>
+        </div>`;
+      }).join("")}
+      <div class="banner banner--warn" style="margin-top:12px">${icon("alert")}<span>${isAR()
+        ? "حديد وريدي في الكرادة: 71 سؤالاً، 4 تلبية فقط (6٪). أي صيدلية تجلبه تلتقط طلباً مثبتاً."
+        : "IV iron in Karrada: 71 asks, 4 filled (6%). Any pharmacy that stocks it captures proven demand."}</span></div>
+    </div>
 
     <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "مصادر الـ QR" : "QR sources"}</h2></div>
     <div class="ch" style="padding:14px 16px">${A.sources.map(([q, n]) => `<div class="bar-row">
@@ -1417,6 +1454,101 @@ function resetFilters() {
   closeSheet(true); openFilters(); render();
 }
 
+/* ---------------- MEDICINE AVAILABILITY ----------------
+   The wedge. Iraq's chronic shortages mean the painful, repeated question is
+   "who has this right now", not "which doctor". WhatsApp answers it 1:1 —
+   you message six pharmacies one at a time. This turns it into 1:N: one
+   request, ranked pharmacies, one pre-written message each, a shared code.
+
+   Ranking is confirmation-freshness first, then distance. A two-day-old
+   "yes we have it" beats a nearer pharmacy that has never confirmed.
+------------------------------------------------------------- */
+const medById = (id) => MEDICINES.find((m) => m.id === id);
+
+function medMatches(q) {
+  const nq = norm(q); if (!nq) return [];
+  return MEDICINES.filter((m) => norm(m.ar + " " + m.en + " " + m.alias.join(" ")).includes(nq));
+}
+
+function pharmaciesForMed(med) {
+  const confirmed = med.stock.map((st) => {
+    const f = fac(st.f); if (!f) return null;
+    return { f, km: distTo(f), days: st.d, st: status(f), confirmed: true };
+  }).filter(Boolean);
+  const others = FACILITIES.filter((f) => f.type === "pharmacy" && !med.stock.some((st) => st.f === f.id))
+    .map((f) => ({ f, km: distTo(f), days: null, st: status(f), confirmed: false }));
+  confirmed.sort((a, b) => a.days - b.days || a.km - b.km);
+  others.sort((a, b) => (a.st.k === "shut") - (b.st.k === "shut") || a.km - b.km);
+  return { confirmed, others };
+}
+
+const freshLabel = (d) => isAR()
+  ? (d <= 1 ? "أُكّد أمس" : d <= 3 ? `أُكّد قبل ${d} أيام` : d <= 14 ? `أُكّد قبل ${d} يوم` : `قديم — قبل ${d} يوم`)
+  : (d <= 1 ? "confirmed yesterday" : `confirmed ${d}d ago`);
+
+function medMsg(med, ref) {
+  return isAR()
+    ? `السلام عليكم، عندكم هذا الدواء؟\n\n${med.ar}${med.form ? ` (${med.form})` : ""}\n\nالرمز: ${ref}\n—\nعبر قريب`
+    : `Hello, do you have this in stock?\n\n${med.en}\n\nRef: ${ref}\n— via Qareeb`;
+}
+
+function screenMed(id) {
+  const med = medById(id); if (!med) return screen404();
+  const { confirmed, others } = pharmaciesForMed(med);
+  const ref = (S.medRef ||= refCode());
+  const row = (x) => `<div class="card ${x.st.k === "open" ? "is-open" : "is-shut"}">
+    <div class="card-top">
+      <div class="avatar avatar--sq">${icon("cross")}</div>
+      <div class="grow">
+        <div class="card-t trunc">${esc(L(x.f))}</div>
+        <div class="card-meta">
+          ${x.confirmed ? `<span class="chip--meta ${x.days <= 3 ? "chip--ok" : "chip--time"}">${icon("check")}${freshLabel(x.days)}</span>`
+                        : `<span class="chip--meta">${isAR() ? "غير مؤكَّد" : "unconfirmed"}</span>`}
+          <i class="dot"></i><span class="dist">${icon("pin")}${fmtKm(x.km)}</span>
+          <i class="dot"></i><span>${esc(L(DISTRICTS.find((d) => d.id === x.f.district)))}</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-foot" style="border:0;padding-top:8px">
+      ${statusLabel(x.st, true)}
+      ${x.f.wa ? `<a class="btn btn--wa btn--sm" href="${waLink(x.f.wa, medMsg(med, ref))}" target="_blank" rel="noopener"
+           onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
+        : `<a class="btn btn--2 btn--sm" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
+    </div></div>`;
+
+  return `${header({ back: true, title: isAR() ? "توفّر الدواء" : "Medicine availability" })}
+  <section class="wrap" style="padding-top:12px">
+    <h1 class="prof-name">${esc(L(med))}</h1>
+    <div class="prof-spec">${esc(med.form || "")}${med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : ""}</div>
+    <div class="banner banner--info" style="margin-top:14px">${icon("info")}<span>${isAR()
+      ? `رمز طلبك <b class="mono" dir="ltr">${ref}</b> — نفس الرمز لكل الصيدليات، حتى تعرف أي واحدة ردّت.`
+      : `Your request code <b class="mono" dir="ltr">${ref}</b> — the same code goes to every pharmacy.`}</span></div>
+  </section>
+
+  ${confirmed.length ? `<section class="blk"><h3>${isAR() ? "أكّدت توفّره" : "Confirmed in stock"}
+      <span class="muted" style="font-weight:400">· ${isAR() ? "الأحدث تأكيداً أولاً" : "freshest first"}</span></h3>
+    <div class="stack">${confirmed.slice(0, 4).map(row).join("")}</div></section>`
+  : `<section class="blk"><div class="empty" style="padding:22px 4px">
+      <div class="empty-mark">${icon("alert")}</div>
+      <h3>${isAR() ? "ما عدنا تأكيد توفّر لهذا الدواء" : "No confirmed stock for this yet"}</h3>
+      <p>${isAR() ? "هذا دواء شحيح حالياً. اسأل أقرب الصيدليات مباشرة — وأول ردّ يوصلنا يفيد غيرك بعدك."
+                  : "This one is scarce right now. Ask the nearest pharmacies — the first answer helps the next person too."}</p>
+    </div></section>`}
+
+  <section class="blk"><h3>${isAR() ? "اسأل صيدليات قريبة" : "Ask nearby pharmacies"}</h3>
+    <p class="small muted" style="margin-bottom:12px">${isAR()
+      ? "رسالة جاهزة لكل وحدة — ما تحتاج تكتب شي." : "A ready message for each — nothing to type."}</p>
+    <div class="stack">${others.slice(0, 5).map(row).join("")}</div>
+  </section>
+  <div style="height:20px"></div>${nav("pharmacies")}`;
+}
+
+function logAsk(medId) {
+  const log = LS.get("asks", []);
+  log.unshift({ med: medId, at: Date.now(), district: S.district });
+  LS.set("asks", log.slice(0, 50));
+}
+
 /* ---------------- ACTIONS ---------------- */
 function pickNeed(spec) {
   closeSheet();
@@ -1482,6 +1614,7 @@ function route() {
     case "hospital": return screenHospital(p[1]);
     case "care": return screenCare(p[1]);
     case "product": return screenProduct(p[1]);
+    case "med": return screenMed(p[1]);
     case "search": return screenSearch();
     case "me": return screenMe();
     case "trust": return screenTrust();
