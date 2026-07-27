@@ -669,34 +669,63 @@ function screenDoctor(id) {
   const sp = specOf(d.spec), st = status(d), km = docDist(d);
   const facs = docFacs(d);
   const byFac = facs.map((f) => ({ f, ss: d.sessions.filter((s) => s.fac === f.id) }));
-  const fee = d.sessions.find((s) => s.fee)?.fee ?? d.sessions[0].fee;
+  const nx = st.k !== "shut" ? null : st.next;
+  const fee = st.k !== "shut" && st.seg ? st.seg.s?.fee : (nx ? nx.s?.fee : d.sessions[0].fee);
   const saved = S.saved.includes("d:" + d.id);
+  const gender = d.gender === "f" ? (isAR() ? "طبيبة" : "Female") : (isAR() ? "طبيب" : "Male");
 
-  return `${header({ back: true, title: "", right: `<button class="icon-btn" onclick="toggleSave('d:${d.id}')" aria-label="${t("share")}">${icon(saved ? "bookmark" : "bookmark")}</button><button class="icon-btn" onclick="shareDoctor('${d.id}')">${icon("share")}</button>` })}
-  <section class="prof-head">
-    <div class="row" style="align-items:flex-start;gap:14px">
-      <div class="avatar prof-avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
+  /* The decision line. A patient choosing a doctor is answering four questions
+     in order — can I see them soon, where, how much, can I trust this. Anything
+     that does not answer one of those is pushed below the fold. */
+  const when = st.k !== "shut"
+    ? `<b>${t("openNow")}</b> · ${isAR() ? "حتى" : "until"} ${fmtTi(st.seg.t)}`
+    : nx ? `<b>${nx.inDays === 0 ? t("today") : nx.inDays === 1 ? t("tomorrow") : dayName(nx.day)}</b> ${fmtTi(nx.f)}`
+         : `<b>${t("closed")}</b>`;
+  const whereF = st.k !== "shut" && st.seg ? st.seg.fac : (nx ? nx.fac : facs[0]);
+  const whereD = whereF && DISTRICTS.find((x) => x.id === whereF.district);
+
+  return `${header({ back: true, title: "", right:
+      `<button class="icon-btn" onclick="toggleSave('d:${d.id}')" aria-label="${isAR() ? "حفظ" : "Save"}">${icon("bookmark")}</button>
+       <button class="icon-btn" onclick="shareDoctor('${d.id}')" aria-label="${t("share")}">${icon("share")}</button>` })}
+
+  <section class="dp-head">
+    <div class="dp-id">
+      <div class="avatar dp-avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
       <div class="grow">
-        <h1 class="prof-name">${esc(L(d))}</h1>
-        <div class="prof-spec">${esc(L(sp))}</div>
-        <div class="card-meta" style="margin-top:7px">${sealBadge(d)}<i class="dot"></i>${updatedLine(d)}</div>
+        <h1 class="dp-name">${esc(L(d))}</h1>
+        <div class="dp-spec">${esc(L(sp))}</div>
+        ${d.sub_ar && isAR() ? `<div class="dp-sub">${esc(d.sub_ar)}</div>` : ""}
       </div>
     </div>
+
+    <div class="dp-answers">
+      <div class="dp-a ${st.k !== "shut" ? "live" : ""}">
+        <span class="k">${isAR() ? "متى" : "When"}</span>
+        <span class="v">${when}</span>
+      </div>
+      <div class="dp-a">
+        <span class="k">${isAR() ? "وين" : "Where"}</span>
+        <span class="v"><b>${esc(whereD ? L(whereD) : "")}</b> · ${fmtKm(km)}</span>
+      </div>
+      ${fee !== null && fee !== undefined ? `<div class="dp-a">
+        <span class="k">${t("fee")}</span>
+        <span class="v"><b class="num">${money(fee)}</b></span>
+      </div>` : ""}
+      <div class="dp-a">
+        <span class="k">${isAR() ? "الثقة" : "Trust"}</span>
+        <span class="v">${d.verified
+          ? `<b class="tr-yes">${t("verified")}</b> · ${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span>${isAR() ? " يوم" : "d"}`
+          : `<b class="tr-no">${t("listed")}</b>`}</span>
+      </div>
+    </div>
+
+    <div class="dp-week">${weekStrip(d)}</div>
+
     ${!d.accepting ? `<div class="banner banner--warn" style="margin-top:14px">${icon("info")}
       <span>${t("notAccepting")}${d.pause_ar ? " — " + esc(isAR() ? d.pause_ar : d.pause_en) : ""}</span></div>` : ""}
-    ${!d.wa ? `<div class="banner banner--info" style="margin-top:10px">${icon("phone")}<span>${t("noWa")}</span></div>` : ""}
     ${d.updated > 90 ? `<div class="banner banner--warn" style="margin-top:10px">${icon("alert")}
-      <span>${isAR() ? "لم تُحدَّث هذه المعلومات منذ فترة طويلة. تحقق قبل الذهاب." : "This information hasn't been updated in a while. Check before travelling."}</span></div>` : ""}
-    <div class="status-strip ${st.k}">
-      <div class="row-b"><span>${statusLabel(st)}</span>
-        <span class="tiny muted">${isAR() ? "اليوم" : "Today"} · ${dayName(nowDay())}</span></div>
-      <div style="margin-top:9px">${ribbon(d, null, "ribbon--day")}</div>
-    </div>
-    <div class="prof-facts">
-      <div class="prof-fact"><div class="k">${isAR() ? "المسافة" : "Distance"}</div><div class="v">${fmtKm(km)}</div></div>
-      <div class="prof-fact"><div class="k">${t("fee")}</div><div class="v num">${money(fee)}</div></div>
-      <div class="prof-fact"><div class="k">${isAR() ? "المواقع" : "Locations"}</div><div class="v num">${facs.length}</div></div>
-    </div>
+      <span>${isAR() ? "لم تُحدَّث هذه المعلومات منذ فترة طويلة. تحقق قبل ما تروح."
+                     : "This information hasn't been updated in a while. Check before travelling."}</span></div>` : ""}
   </section>
 
   <section class="blk">
@@ -727,18 +756,18 @@ function screenDoctor(id) {
       <div class="stack" style="margin-top:10px">
         ${ss.sort((a, b) => DAY_ORDER.indexOf(a.d) - DAY_ORDER.indexOf(b.d)).map((s) => `<div class="kv">
           <span class="k">${dayName(s.d)}</span>
-          <span class="v num">${fmtRange(mins(s.f), mins(s.t))} · ${money(s.fee)}</span></div>`).join("")}
+          <span class="v num">${fmtRange(mins(s.f), mins(s.t))}${s.fee !== null && s.fee !== undefined ? " · " + money(s.fee) : ""}</span></div>`).join("")}
       </div></div>`).join("")}
   </section>
 
-  <section class="blk">
+  ${d.creds_ar?.length || d.exp || d.langs?.length ? `<section class="blk">
     <h3>${t("about")}</h3>
-    ${d.creds_ar?.length ? d.creds_ar.map((c) => `<div class="kv"><span class="k">${icon("seal")}</span><span class="v" style="text-align:start;flex:1">${esc(c)}</span></div>`).join("")
-      : `<p class="small muted">${isAR() ? "لم تُضف المؤهلات بعد." : "Credentials not added yet."}</p>`}
+    ${d.creds_ar?.length ? d.creds_ar.map((c) => `<div class="cred">${icon("seal")}<span>${esc(c)}</span></div>`).join("") : ""}
     ${d.exp ? `<div class="kv"><span class="k">${isAR() ? "سنوات الخبرة" : "Experience"}</span><span class="v num">${d.exp}</span></div>` : ""}
-    <div class="kv"><span class="k">${isAR() ? "اللغات" : "Languages"}</span><span class="v">${d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ")}</span></div>
+    ${d.langs?.length ? `<div class="kv"><span class="k">${isAR() ? "اللغات" : "Languages"}</span><span class="v">${d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ")}</span></div>` : ""}
+    <div class="kv"><span class="k">${isAR() ? "الجنس" : "Gender"}</span><span class="v">${gender}</span></div>
     <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button>
-  </section>
+  </section>` : ""}
 
   <div class="actionbar">
     ${d.accepting
@@ -1291,7 +1320,12 @@ function openRequest(id) {
     <div class="sheet-h"><div><h2>${t("request")}</h2><p>${esc(L(d))} · ${esc(L(specOf(d.spec)))}</p></div>
       <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
     <div class="sheet-b">
-      <label class="eyebrow">${t("chooseTime")}</label>
+      <div class="reassure">
+        <div class="reassure-r">${icon("check")}<span>${isAR() ? "ما تدفع شي هسه — الطلب مجاني" : "Nothing to pay now — the request is free"}</span></div>
+        <div class="reassure-r">${icon("wa")}<span>${isAR() ? "ترسل من واتساب مالك، وتشوف الرسالة قبل الإرسال" : "Sent from your own WhatsApp, previewed first"}</span></div>
+        <div class="reassure-r">${icon("clock")}<span>${isAR() ? "العيادة ترد عادة خلال ١٥–٦٠ دقيقة بأوقات الدوام" : "Clinics usually reply in 15–60 min during hours"}</span></div>
+      </div>
+      <label class="eyebrow" style="display:block;margin-top:18px">${t("chooseTime")}</label>
       <div class="slot" style="margin-top:9px">
         ${slots.map((s, i) => `<button class="slot-btn ${i === 0 ? "on" : ""}" data-i="${i}" onclick="pickSlot(${i})">
           <span><span class="d">${s.i === 0 ? t("today") : s.i === 1 ? t("tomorrow") : dayName(s.day)}</span>
@@ -1406,7 +1440,17 @@ function confirmSent(id, ref, when, facility) {
           <div class="card-meta"><span class="chip chip--meta chip--ok">${icon("check")}${t("sent")}</span>
             <i class="dot"></i><span>${isAR() ? "محفوظ في طلباتي" : "Saved in My requests"}</span></div>
         </div>
-        <div class="stack" style="margin-top:16px">
+        <div class="fallback">
+          <div class="fallback-h">${icon("info")}<span>${isAR() ? "وإذا ما وصلك رد؟" : "And if nobody replies?"}</span></div>
+          <p>${isAR()
+            ? "بعض العيادات ما تتابع واتساب وقت الزحام. الاتصال المباشر أسرع، ورمزك محفوظ عندك بأي حال."
+            : "Some clinics don't watch WhatsApp when busy. Calling is faster, and your code is saved either way."}</p>
+          <div class="btn-row" style="margin-top:12px">
+            <a class="btn btn--2 btn--sm" href="tel:+${d.phone}">${icon("phone")}${t("call")}</a>
+            <button class="btn btn--2 btn--sm" onclick="closeSheet();pickNeed('${d.spec}')">${icon("stetho")}${isAR() ? "طبيب بديل" : "Another doctor"}</button>
+          </div>
+        </div>
+        <div class="stack" style="margin-top:14px">
           <a class="btn btn--2" href="${mapLink(docFacs(d)[0])}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>
           <button class="btn btn--2" onclick="shareDoctor('${d.id}')">${icon("share")}${isAR() ? "شارك الطبيب مع العائلة" : "Share this doctor"}</button>
           <button class="btn btn--3" onclick="closeSheet();location.hash='#/me'">${t("myRequests")}</button>

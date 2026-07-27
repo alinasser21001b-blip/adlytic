@@ -1276,3 +1276,50 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
   .intent-n { text-align: start; }
   .netbar, .scarce-note, .sos, .proof { max-width: 1132px; margin-inline: auto; }
 }
+
+/* ============================================================
+   40. PHASE 1 — THE CONVERSION FUNNEL
+   A patient choosing a doctor answers four questions in a fixed order:
+   can I be seen soon, where, how much, can I trust this. The profile now
+   answers all four above the fold and pushes everything else below.
+   ============================================================ */
+.dp-head { padding: 18px 18px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+.dp-id { display: flex; gap: 14px; align-items: flex-start; }
+.dp-avatar { width: 58px; height: 58px; font-size: 20px; }
+.dp-name { font-size: var(--fs-h1); font-weight: var(--w-bold); line-height: 1.3; letter-spacing: -.02em; }
+.dp-spec { font-size: var(--fs-sm); color: var(--petrol); font-weight: var(--w-bold); margin-top: 3px; }
+.dp-sub  { font-size: var(--fs-meta); color: var(--ink-3); margin-top: 2px; }
+
+.dp-answers {
+  margin-top: 18px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
+}
+.dp-a { display: flex; align-items: baseline; gap: 12px; padding: 11px 14px; }
+.dp-a + .dp-a { border-top: 1px solid var(--line-2); }
+.dp-a .k { flex: 0 0 62px; font-size: var(--fs-micro); color: var(--ink-3); font-weight: var(--w-bold); }
+.dp-a .v { flex: 1; font-size: var(--fs-sm); color: var(--ink-2); }
+.dp-a .v b { color: var(--ink); font-weight: var(--w-bold); }
+.dp-a.live { background: var(--amber-soft); }
+.dp-a.live .v b { color: var(--amber); }
+.tr-yes { color: var(--petrol) !important; }
+.tr-no  { color: var(--ink-3) !important; }
+.dp-week { margin-top: 14px; }
+
+.cred { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; font-size: var(--fs-sm); }
+.cred + .cred { border-top: 1px solid var(--line-2); }
+.cred svg { width: 15px; height: 15px; flex: none; margin-top: 3px; color: var(--petrol); }
+
+/* Reassurance sits ABOVE the form. Asking first and reassuring after is the
+   order that loses people at the exact moment they hesitate. */
+.reassure { display: grid; gap: 9px; padding: 13px 14px; background: var(--petrol-soft); border-radius: var(--r); }
+.reassure-r { display: flex; gap: 9px; align-items: flex-start; font-size: var(--fs-meta); color: var(--petrol); font-weight: var(--w-med); line-height: 1.5; }
+.reassure-r svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
+
+/* The real failure mode of a WhatsApp handoff is silence. Designing for it is
+   the difference between a lead and an abandoned patient. */
+.fallback {
+  margin-top: 18px; padding: 14px 15px; border-radius: var(--r);
+  border: 1px dashed var(--line); background: var(--card-2);
+}
+.fallback-h { display: flex; align-items: center; gap: 8px; font-size: var(--fs-h3); font-weight: var(--w-bold); }
+.fallback-h svg { width: 16px; height: 16px; color: var(--ink-3); }
+.fallback p { font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.6; margin-top: 7px; }
