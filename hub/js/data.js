@@ -401,27 +401,53 @@ const PRODUCTS = [
    freshness is the whole point: a two-day-old confirmation is worth calling,
    a two-month-old one is not.
 ------------------------------------------------------------------------- */
+/* A stock entry is a *confirmation event*, not an inventory count. We never
+   claim to know a shelf; we know that someone confirmed availability at a
+   moment in time. `d` is whole days since that confirmation and `mins` refines
+   it below a day — freshness is the sort key on /med/:id, and a four-day-old
+   "yes" is not information, so it is never promoted by being nearer.
+   `p` is the price that pharmacy quoted, in IQD. All of it is synthetic seed.
+   `trend` is 14 days of "how many pharmacies had this confirmed", oldest first
+   — that is what turns a shortage from an anecdote into a visible slope. */
 const MEDICINES = [
-  { id: "m1",  ar: "أنسولين خلطي 30/70", en: "Insulin mix 30/70", form: "قلم", chronic: true,
-    alias: ["انسولين","أنسولين","سكري","insulin"], stock: [{ f: "p1", d: 1 }, { f: "p8", d: 3 }, { f: "p4", d: 12 }] },
+  { id: "m1",  ar: "أنسولين خلطي 30/70", en: "Insulin mix 30/70", form: "قلم 3 مل", chronic: true,
+    alias: ["انسولين","أنسولين","سكري","insulin"], equiv: ["مكستارد 30/70", "هيومولين 30/70"],
+    trend: [3,3,3,2,3,3,2,3,3,3,2,3,3,3],
+    stock: [{ f: "p1", d: 0, mins: 40, p: 42000 }, { f: "p8", d: 0, mins: 360, p: 43500 }, { f: "p4", d: 4 }] },
   { id: "m2",  ar: "ميتفورمين 850 ملغم", en: "Metformin 850mg", form: "حبوب", chronic: true,
-    alias: ["متفورمين","ميتفورمين","سكري","metformin"], stock: [{ f: "p1", d: 2 }, { f: "p3", d: 2 }, { f: "p9", d: 6 }, { f: "p13", d: 4 }] },
+    alias: ["متفورمين","ميتفورمين","سكري","metformin"], trend: [4,4,4,4,3,4,4,4,4,4,4,4,4,4],
+    stock: [{ f: "p1", d: 0, mins: 95, p: 9000 }, { f: "p3", d: 2, p: 9500 }, { f: "p9", d: 6 }, { f: "p13", d: 4, p: 8750 }] },
   { id: "m3",  ar: "أملوديبين 5 ملغم", en: "Amlodipine 5mg", form: "حبوب", chronic: true,
-    alias: ["ضغط","أملوديبين","amlodipine"], stock: [{ f: "p4", d: 1 }, { f: "p8", d: 5 }, { f: "p10", d: 9 }] },
+    alias: ["ضغط","أملوديبين","amlodipine"], trend: [3,3,3,3,3,2,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p4", d: 1, p: 6500 }, { f: "p8", d: 5 }, { f: "p10", d: 9 }] },
   { id: "m4",  ar: "ليفوثيروكسين 50 مايكروغرام", en: "Levothyroxine 50mcg", form: "حبوب", chronic: true,
-    alias: ["غدة","درقية","ليفوثيروكسين","thyroid"], stock: [{ f: "p8", d: 6 }] },
+    alias: ["غدة","درقية","ليفوثيروكسين","thyroid"], trend: [3,3,2,2,2,1,1,1,1,1,1,1,1,1],
+    stock: [{ f: "p8", d: 6, p: 12000 }] },
   { id: "m5",  ar: "سالبيوتامول بخاخ", en: "Salbutamol inhaler", form: "بخاخ", chronic: true,
-    alias: ["ربو","بخاخ","سالبيوتامول","ventolin","asthma"], stock: [{ f: "p2", d: 1 }, { f: "p8", d: 2 }, { f: "p12", d: 3 }] },
+    alias: ["ربو","بخاخ","سالبيوتامول","ventolin","asthma"], trend: [3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p2", d: 0, mins: 150, p: 11500 }, { f: "p8", d: 2, p: 12000 }, { f: "p12", d: 3 }] },
   { id: "m6",  ar: "أموكسيسيلين شراب للأطفال", en: "Amoxicillin syrup (pediatric)", form: "شراب",
-    alias: ["مضاد","اموكسيسيلين","أطفال","amoxicillin"], stock: [{ f: "p2", d: 1 }, { f: "p6", d: 4 }, { f: "p9", d: 2 }] },
+    alias: ["مضاد","اموكسيسيلين","أطفال","amoxicillin"], trend: [3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p2", d: 1, p: 5000 }, { f: "p6", d: 4 }, { f: "p9", d: 2, p: 5250 }] },
   { id: "m7",  ar: "باراسيتامول شراب أطفال", en: "Paracetamol syrup (pediatric)", form: "شراب",
-    alias: ["حرارة","باراسيتامول","بنادول","paracetamol"], stock: [{ f: "p1", d: 1 }, { f: "p2", d: 1 }, { f: "p6", d: 1 }, { f: "p11", d: 3 }] },
+    alias: ["حرارة","باراسيتامول","بنادول","paracetamol"], trend: [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+    stock: [{ f: "p1", d: 0, mins: 25, p: 3000 }, { f: "p2", d: 0, mins: 210, p: 3250 }, { f: "p6", d: 1, p: 3000 }, { f: "p11", d: 3 }] },
+  /* Deliberately unavailable — this is the shortage case the product exists for.
+     The trend shows it closing over nine days rather than vanishing overnight. */
   { id: "m8",  ar: "حديد وريدي — أمبولات", en: "IV iron ampoules", form: "أمبول",
-    alias: ["حديد","فقر دم","انيميا","iron"], stock: [] },   /* deliberately unavailable: the shortage case */
+    alias: ["حديد","فقر دم","انيميا","iron"], subs: ["m11"], trend: [3,4,3,2,1,1,1,0,0,0,0,0,0,0],
+    stock: [] },
   { id: "m9",  ar: "وارفارين 5 ملغم", en: "Warfarin 5mg", form: "حبوب", chronic: true,
-    alias: ["وارفارين","سيولة","warfarin"], stock: [{ f: "p8", d: 8 }] },
+    alias: ["وارفارين","سيولة","warfarin"], trend: [2,2,2,1,1,1,1,1,1,1,1,1,1,1],
+    stock: [{ f: "p8", d: 8 }] },
   { id: "m10", ar: "أوميبرازول 20 ملغم", en: "Omeprazole 20mg", form: "كبسول", chronic: true,
-    alias: ["معدة","حموضة","اوميبرازول","omeprazole"], stock: [{ f: "p1", d: 3 }, { f: "p3", d: 2 }, { f: "p4", d: 5 }, { f: "p14", d: 7 }] },
+    alias: ["معدة","حموضة","اوميبرازول","omeprazole"], trend: [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+    stock: [{ f: "p1", d: 3 }, { f: "p3", d: 0, mins: 480, p: 7000 }, { f: "p4", d: 5 }, { f: "p14", d: 7 }] },
+  /* The oral route the IV shortage pushes people toward. Listed so the
+     substitute door on /med/m8 opens onto something real, not a dead end. */
+  { id: "m11", ar: "حديد فموي 200 ملغم", en: "Oral iron 200mg", form: "أقراص",
+    alias: ["حديد","حديد فموي","فقر دم","iron"], trend: [3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p1", d: 0, mins: 90, p: 4500 }, { f: "p3", d: 2, p: 4750 }, { f: "p9", d: 5 }] },
 ];
 
 /* Demand actually recorded by the platform — the asset a pharmacy would pay

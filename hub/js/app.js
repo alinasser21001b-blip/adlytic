@@ -120,6 +120,8 @@ const P = {
   flag: '<path d="M5 21V4M5 5h11l-1.6 3.5L16 12H5"/>',
   refresh: '<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3.5V9h-5.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  bell: '<path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
   grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   bookmark: '<path d="M6 3.5h12v17l-6-4-6 4z"/>',
   building: '<path d="M4 21V6l7-3v18M11 21h9V10l-9-3"/><path d="M14.5 12.5v.1M14.5 16v.1M17.5 12.5v.1M17.5 16v.1"/>',
@@ -626,9 +628,24 @@ function validateData() {
     });
     if (!d.wa && !d.phone) errs.push({ t: "missing", m: `${d.ar}: بلا واتساب ولا هاتف — غير قابل للتواصل` });
   });
+  const medIds = new Set(MEDICINES.map((m) => m.id));
   MEDICINES.forEach((m) => {
     dup(m.id, "medicine");
-    m.stock.forEach((st) => { if (!facIds.has(st.f)) errs.push({ t: "orphan", m: `${m.ar}: صيدلية غير معروفة «${st.f}»` }); });
+    m.stock.forEach((st) => {
+      if (!facIds.has(st.f)) errs.push({ t: "orphan", m: `${m.ar}: صيدلية غير معروفة «${st.f}»` });
+      /* A confirmation dated in the future, or a "price" of zero, would both
+         render as confident facts. Catch them here rather than on screen. */
+      if (freshMins(st) < 0) errs.push({ t: "range", m: `${m.ar}: تأكيد بتاريخ مستقبلي` });
+      if (st.p !== undefined && !(st.p > 0)) errs.push({ t: "range", m: `${m.ar}: سعر غير صالح` });
+    });
+    /* The substitute door must open onto something. A dangling id would render
+       a button that leads to a 404 on the screen where the user has the fewest
+       options left — the worst possible place for a dead end. */
+    (m.subs || []).forEach((sid) => {
+      if (!medIds.has(sid)) errs.push({ t: "orphan", m: `${m.ar}: بديل غير معروف «${sid}»` });
+      if (sid === m.id) errs.push({ t: "orphan", m: `${m.ar}: بديل يشير إلى نفسه` });
+    });
+    if (m.trend && m.trend.length !== 14) errs.push({ t: "range", m: `${m.ar}: سلسلة التوفّر ليست ١٤ يوماً` });
   });
   PRODUCTS.forEach((pr) => {
     dup(pr.id, "product");
@@ -1072,7 +1089,7 @@ function screenPharmacy(id) {
   </section>
   ${(() => {
     const meds = MEDICINES.filter((m) => m.stock.some((st) => st.f === f.id))
-      .map((m) => ({ m, d: m.stock.find((st) => st.f === f.id).d })).sort((a, b) => a.d - b.d);
+      .map((m) => ({ m, mins: freshMins(m.stock.find((st) => st.f === f.id)) })).sort((a, b) => a.mins - b.mins);
     if (!meds.length) return "";
     return `<section class="blk"><h3>${isAR() ? "أدوية أكّدت توفّرها" : "Medicines confirmed in stock"}</h3>
       <p class="small muted" style="margin-bottom:12px">${isAR()
@@ -1081,7 +1098,7 @@ function screenPharmacy(id) {
       <div class="stack">${meds.slice(0, 5).map((x) => `<a class="card is-open" href="#/med/${x.m.id}">
         <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
           <div class="grow"><div class="card-t">${esc(L(x.m))}</div>
-            <div class="card-meta"><span class="chip--meta ${x.d <= 3 ? "chip--ok" : "chip--time"}">${icon("check")}${esc(freshLabel(x.d))}</span></div></div>
+            <div class="card-meta"><span class="chip--meta ${x.mins <= 4320 ? "chip--ok" : "chip--time"}">${icon("check")}${freshLabel(x.mins)}</span></div></div>
           ${icon("chev")}</div></a>`).join("")}</div></section>`;
   })()}
   ${prods.length ? `<section class="blk"><div class="sec-h"><h2 style="font-size:15px">${isAR() ? "متوفر في هذه الصيدلية" : "On the shelf here"}</h2>
@@ -1815,7 +1832,7 @@ function medRow(m) {
         <div class="card-meta">${c.length
           ? `<span class="chip--meta chip--ok">${icon("check")}<span class="num">${c.length}</span> ${isAR() ? "صيدلية أكّدت" : "confirmed"}</span>`
           : `<span class="chip--meta chip--warn">${isAR() ? "شحيح — اسأل مباشرة" : "scarce — ask directly"}</span>`}
-          ${c.length ? `<i class="dot"></i><span>${esc(freshLabel(c[0].days))}</span>` : ""}</div></div>
+          ${c.length ? `<i class="dot"></i><span>${freshLabel(c[0].mins)}</span>` : ""}</div></div>
       ${icon("chev")}</div></a>`;
 }
 
@@ -1827,18 +1844,54 @@ function medMatches(q) {
 function pharmaciesForMed(med) {
   const confirmed = med.stock.map((st) => {
     const f = fac(st.f); if (!f) return null;
-    return { f, km: distTo(f), days: st.d, st: status(f), confirmed: true };
+    const mins = freshMins(st);
+    return { f, km: distTo(f), mins, band: freshBand(mins), price: st.p, st: status(f), confirmed: true };
   }).filter(Boolean);
   const others = FACILITIES.filter((f) => f.type === "pharmacy" && !med.stock.some((st) => st.f === f.id))
-    .map((f) => ({ f, km: distTo(f), days: null, st: status(f), confirmed: false }));
-  confirmed.sort((a, b) => a.days - b.days || a.km - b.km);
+    .map((f) => ({ f, km: distTo(f), mins: null, band: null, st: status(f), confirmed: false }));
+  /* Freshness first, always. Distance only breaks ties inside the same band —
+     a nearer pharmacy whose last "yes" is four days old is not a better answer. */
+  confirmed.sort((a, b) => a.mins - b.mins || a.km - b.km);
   others.sort((a, b) => (a.st.k === "shut") - (b.st.k === "shut") || a.km - b.km);
   return { confirmed, others };
 }
 
-const freshLabel = (d) => isAR()
-  ? (d <= 1 ? "أُكّد أمس" : d <= 3 ? `أُكّد قبل ${d} أيام` : d <= 14 ? `أُكّد قبل ${d} يوم` : `قديم — قبل ${d} يوم`)
-  : (d <= 1 ? "confirmed yesterday" : `confirmed ${d}d ago`);
+/* Freshness is the only claim this product actually makes. We never say a
+   pharmacy "has" a medicine — we say someone confirmed it, and how long ago.
+   Minutes matter below a day: a confirmation from 40 minutes ago is a different
+   fact from one from this morning, and the screen has to be able to say so. */
+const freshMins = (st) => st.mins !== undefined ? st.mins : st.d * 1440;
+
+/* Three bands, and they are the ranking. hot = today, warm = this week,
+   cold = older than three days, which is not information any more. */
+const freshBand = (mins) => mins < 720 ? "hot" : mins <= 4320 ? "warm" : "cold";
+
+function freshLabel(mins) {
+  const n = (v) => `<span class="num">${v}</span>`;
+  if (isAR()) {
+    if (mins < 60) return `مؤكَّد قبل ${n(Math.max(1, Math.round(mins)))} دقيقة`;
+    if (mins < 1440) return `مؤكَّد قبل ${n(Math.round(mins / 60))} ساعات`;
+    const d = Math.round(mins / 1440);
+    if (d === 1) return "مؤكَّد أمس";
+    if (d <= 3) return `مؤكَّد قبل ${n(d)} أيام`;
+    return `قبل ${n(d)} يوم — غير مؤكّد`;
+  }
+  if (mins < 60) return `confirmed ${n(Math.max(1, Math.round(mins)))} min ago`;
+  if (mins < 1440) return `confirmed ${n(Math.round(mins / 60))}h ago`;
+  const d = Math.round(mins / 1440);
+  return d <= 3 ? `confirmed ${n(d)}d ago` : `${n(d)}d ago — unconfirmed`;
+}
+const freshLabelTxt = (mins) => freshLabel(mins).replace(/<[^>]+>/g, "");
+
+/* Age with no verdict attached, for places that already supply their own
+   ("last confirmed …" must not then say "unconfirmed" in the same breath). */
+function ageLabel(mins) {
+  const n = (v) => `<span class="num">${v}</span>`;
+  if (mins < 60) return isAR() ? `قبل ${n(Math.max(1, Math.round(mins)))} دقيقة` : `${n(Math.max(1, Math.round(mins)))} min ago`;
+  if (mins < 1440) return isAR() ? `قبل ${n(Math.round(mins / 60))} ساعات` : `${n(Math.round(mins / 60))}h ago`;
+  const d = Math.round(mins / 1440);
+  return isAR() ? (d === 1 ? "أمس" : `قبل ${n(d)} يوم`) : `${n(d)}d ago`;
+}
 
 function medMsg(med, ref) {
   return isAR()
@@ -1846,55 +1899,263 @@ function medMsg(med, ref) {
     : `Hello, do you have this in stock?\n\n${med.en}\n\nRef: ${ref}\n— via Qareeb`;
 }
 
+/* People waiting on this medicine — derived from demand we actually logged
+   (asks that never got filled), never a decorative number. */
+/* Every other pharmacy here is "صيدلية الـ…", so naive first-letter avatars all
+   render as ا. Drop the category word and the definite article to get the
+   letter a person would actually use to tell them apart. */
+const initial = (name) => {
+  const w = String(name).replace(/^(صيدلية|صيدليه|مستشفى|عيادة|مركز)\s+/, "").trim();
+  return (w.startsWith("ال") && w.length > 3 ? w.slice(2) : w).charAt(0);
+};
+
+const medWaiting = (med) => MED_DEMAND.filter((r) => r.med === med.id)
+  .reduce((n, r) => n + Math.max(0, r.asks - r.filled), 0);
+
+/* How many pharmacies we could even have asked. Computed from the network, so
+   "we asked 18 within 10 km" is true by construction rather than asserted. */
+const medPolled = (r = 10) => FACILITIES.filter((f) => f.type === "pharmacy" && distTo(f) <= r).length;
+
+/* Batch ask: the whole reason a neutral party is needed. One person messaging
+   six pharmacies one at a time is the status quo; this is the same six, once. */
+function batchAsk(medId) {
+  const med = medById(medId); if (!med) return;
+  const ref = (S.medRef ||= refCode());
+  const targets = FACILITIES.filter((f) => f.type === "pharmacy" && f.wa)
+    .map((f) => ({ f, km: distTo(f), st: status(f) }))
+    .sort((a, b) => (a.st.k === "shut") - (b.st.k === "shut") || a.km - b.km).slice(0, 6);
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${isAR() ? "اسأل الكل دفعة واحدة" : "Ask them all at once"}</h2>
+      <p>${isAR()
+        ? `نفس الرسالة ونفس الرمز لـ<span class="num"> ${targets.length} </span>صيدليات. تفتح واتساب واحدة واحدة — أنت ترسل، لا نرسل نيابة عنك.`
+        : `The same message and code to ${targets.length} pharmacies. Each opens WhatsApp — you send, we never send for you.`}</p></div></div>
+    <div class="sheet-b">
+      <div class="slip">
+        <div class="slip-h">
+          <div><div class="eyebrow">${isAR() ? "سؤال عن توفّر" : "Availability request"}</div>
+            <div class="card-t" style="margin-top:3px">${esc(L(med))}</div>
+            <div class="card-q">${esc(med.form || "")}</div></div>
+          <div style="text-align:end"><div class="slip-ref mono" dir="ltr">#${ref}</div>
+            <div class="tiny muted mono">${new Date().toLocaleDateString("en-GB")}</div></div>
+        </div>
+        <div class="slip-to">${isAR() ? "إلى" : "To"}: <span class="num">${targets.length}</span> ${isAR() ? "صيدلية" : "pharmacies"}</div>
+        <div class="bubble">${esc(medMsg(med, ref))}</div>
+      </div>
+      <div class="stack-2" style="margin-top:12px">
+        ${targets.map((x) => `<a class="btn btn--wa" href="${waLink(x.f.wa, medMsg(med, ref))}"
+          target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${esc(L(x.f))}
+          <span class="num" style="opacity:.75;margin-inline-start:auto">${fmtKm(x.km)}</span></a>`).join("")}
+      </div>
+      <p class="tiny muted" style="margin-top:14px">${isAR()
+        ? "أول جواب يوصلنا نخليه متاح للي بعدك — بدون اسمك."
+        : "The first answer we get is published for the next person — without your name."}</p>
+    </div>`);
+}
+
+/* Notify-me. No account, so it lives in this browser and says so plainly
+   rather than implying a server is watching on the user's behalf. */
+function watchMed(medId) {
+  const w = LS.get("watch", []);
+  const on = w.includes(medId);
+  LS.set("watch", on ? w.filter((x) => x !== medId) : [medId, ...w]);
+  toast(on ? (isAR() ? "أوقفنا المتابعة" : "Stopped following")
+           : (isAR() ? "نتابعه لك — يظهر هنا أول ما تتأكد صيدلية" : "Following — it will show here once a pharmacy confirms"));
+  render();
+}
+
+/* Was it actually there? The answer is the whole dataset. One tap, no form. */
+function confirmStock(medId, facId, yes) {
+  const log = LS.get("reports", []);
+  log.unshift({ med: medId, fac: facId, yes, at: Date.now() });
+  LS.set("reports", log.slice(0, 80));
+  toast(isAR() ? "وصلتنا — شكراً، هذا يفيد اللي بعدك" : "Got it — thank you, this helps the next person");
+  render();
+}
+
+function stockCard(med, x, ref) {
+  const stale = x.band === "cold";
+  const d = DISTRICTS.find((y) => y.id === x.f.district);
+  return `<div class="surf-${stale ? "flat" : "raise"} qc ${stale ? "quiet" : "rail-stock"}">
+    <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
+    <div class="qc-b">
+      <div class="qc-title">${esc(L(x.f))}</div>
+      <div class="qc-qual">${d ? esc(L(d)) : ""}${d ? " · " : ""}<span class="num">${fmtKm(x.km)}</span></div>
+      <div class="qc-meta">
+        <span class="fresh fresh-${x.band}" style="padding:3px 8px">
+          <span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
+        ${x.price ? `<span class="num">${money(x.price)}</span>` : ""}
+      </div>
+      <div class="row" style="gap:7px;margin-top:9px">
+        ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
+             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
+          : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
+        <a class="btn btn--3 btn--sm" href="#/pharmacy/${x.f.id}">${isAR() ? "الصيدلية" : "Pharmacy"}</a>
+      </div>
+    </div></div>`;
+}
+
+/* 14 days of "how many pharmacies had this confirmed". A shortage that is
+   nine days old and widening is a different thing from a bad afternoon, and
+   the slope is the only honest way to say which one you are looking at. */
+function medTrend(med) {
+  const tr = med.trend || [];
+  if (!tr.length) return "";
+  const mx = Math.max(...tr, 1);
+  const zeros = [...tr].reverse().findIndex((v) => v > 0);
+  const dry = zeros === -1 ? tr.length : zeros;   // trailing days at zero
+  const last = tr[tr.length - 1];                 // trend is oldest-first
+  return `<div class="surf-flat pad-3">
+    <div class="q-eyebrow">${isAR() ? "أسبوعان من التوفّر" : "Two weeks of availability"}</div>
+    <div class="spark" style="margin-top:10px;height:30px" role="img"
+      aria-label="${isAR() ? "عدد الصيدليات المؤكِّدة خلال ١٤ يوم" : "Confirming pharmacies over 14 days"}">
+      ${tr.map((v) => `<i class="${dry >= 2 && v === mx ? "hi" : ""}" style="height:${Math.max(6, Math.round((v / mx) * 100))}%"
+        title="${v}"></i>`).join("")}
+    </div>
+    <div class="q-sub" style="margin-top:6px">${dry >= 2
+      ? (isAR() ? `النقص بدأ قبل <span class="num">${dry}</span> أيام ويتّسع. نُبلغ الصيدليات المشتركة بهذا الطلب غير الملبّى.`
+                : `The shortage started <span class="num">${dry}</span> days ago and is widening. Partner pharmacies are told about this unmet demand.`)
+      : last <= 1
+      ? (isAR() ? `التوفّر هش — <span class="num">${last}</span> صيدلية فقط سجّلت توفّره مؤخراً.`
+                : `Thin supply — only <span class="num">${last}</span> pharmacy has it on record lately.`)
+      : (isAR() ? "التوفّر مستقر خلال الأسبوعين الماضيين." : "Availability has been steady over the past two weeks.")}</div>
+  </div>`;
+}
+
 function screenMed(id) {
   const med = medById(id); if (!med) return screen404();
   const { confirmed, others } = pharmaciesForMed(med);
   const ref = (S.medRef ||= refCode());
-  const row = (x) => `<div class="card ${x.st.k === "open" ? "is-open" : "is-shut"}">
-    <div class="card-top">
-      <div class="avatar avatar--sq">${icon("cross")}</div>
-      <div class="grow">
-        <div class="card-t trunc">${esc(L(x.f))}</div>
-        <div class="card-meta">
-          ${x.confirmed ? `<span class="chip--meta ${x.days <= 3 ? "chip--ok" : "chip--time"}">${icon("check")}${freshLabel(x.days)}</span>`
-                        : `<span class="chip--meta">${isAR() ? "غير مؤكَّد" : "unconfirmed"}</span>`}
-          <i class="dot"></i><span class="dist">${icon("pin")}${fmtKm(x.km)}</span>
-          <i class="dot"></i><span>${esc(L(DISTRICTS.find((d) => d.id === x.f.district)))}</span>
-        </div>
+  const watching = LS.get("watch", []).includes(med.id);
+  const waiting = medWaiting(med);
+  const lastMins = med.stock.length ? Math.min(...med.stock.map(freshMins)) : null;
+  /* A confirmation older than three days is not an answer, so it cannot be the
+     hero. The screen splits on "is there a live answer", not "is there a row in
+     the table" — otherwise a stale record gets the same triumphant treatment as
+     a pharmacy that confirmed forty minutes ago, which is the exact failure the
+     freshness model exists to prevent. Stale rows still appear below, dimmed. */
+  const fresh = confirmed.filter((x) => x.band !== "cold");
+  const stale = confirmed.filter((x) => x.band === "cold");
+  const rest = [...fresh.slice(1), ...stale];
+  const sub = (med.subs || []).map(medById).filter(Boolean)
+    .map((sm) => ({ sm, best: pharmaciesForMed(sm).confirmed[0] })).filter((x) => x.best)[0];
+
+  const watchBtn = `<button class="btn btn--3 btn--sm" onclick="watchMed('${med.id}')">
+    ${icon(watching ? "check" : "bell")}${watching ? (isAR() ? "نتابعه" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>`;
+
+  /* The hero. With stock it is the freshest confirmation, in full, with the
+     pharmacy's hours behind it so "open now" is visible and not a claim.
+     Without stock it is the shortage itself — stated, then routed. */
+  const hero = fresh.length ? (() => {
+    const x = fresh[0];
+    const d = DISTRICTS.find((y) => y.id === x.f.district);
+    return `<div class="surf-key cham pad-4">
+      <div class="row" style="justify-content:space-between">
+        <span class="fresh fresh-${x.band}"><span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
+        <span class="q-sub num">${fmtKm(x.km)}</span></div>
+      <div class="q-h2" style="margin-top:10px">${esc(L(x.f))}</div>
+      <div class="q-sub">${d ? esc(L(d)) + (isAR() ? d.lm_ar ? " — " + esc(d.lm_ar) : "" : d.lm_en ? " — " + esc(d.lm_en) : "") : ""}${x.price ? ` · <span class="num">${money(x.price)}</span>` : ""}</div>
+      <div style="margin-top:10px">${ribbon(x.f, null, "ribbon--day")}</div>
+      <div class="q-sub" style="margin-top:6px">${statusLabel(x.st, true)}</div>
+      ${x.f.wa ? `<a class="btn btn--wa" style="margin-top:12px" href="${waLink(x.f.wa, medMsg(med, ref))}"
+           target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR()
+             ? "اسأل عبر واتساب — الرسالة جاهزة" : "Ask on WhatsApp — message ready"}</a>`
+        : `<a class="btn" style="margin-top:12px" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
+    </div>`;
+  })() : `<div class="surf-key cham pad-4" style="border-color:var(--amber-ink)">
+      <div class="row" style="gap:9px;flex-wrap:wrap">
+        <span class="bdg bdg-n">${isAR() ? "نقص حالي" : "Current shortage"}</span>
+        ${lastMins !== null ? `<span class="q-sub">${isAR() ? "آخر تأكيد " : "last confirmed "}${ageLabel(lastMins)}</span>` : ""}
       </div>
-    </div>
-    <div class="card-foot" style="border:0;padding-top:8px">
-      ${statusLabel(x.st, true)}
-      ${x.f.wa ? `<a class="btn btn--wa btn--sm" href="${waLink(x.f.wa, medMsg(med, ref))}" target="_blank" rel="noopener"
-           onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
-        : `<a class="btn btn--2 btn--sm" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-    </div></div>`;
+      <div class="q-h2" style="margin-top:8px">${stale.length
+        ? (isAR() ? "لا تأكيد حديث — آخر جواب صار له أيام" : "No recent confirmation — the last answer is days old")
+        : (isAR() ? "لا صيدلية مؤكَّدة اليوم في بغداد" : "No pharmacy confirmed today in Baghdad")}</div>
+      <div class="q-sub" style="margin-top:4px">${isAR()
+        ? `سألنا <span class="num">${medPolled()}</span> صيدلية ضمن <span class="num">10 كم</span> خلال <span class="num">24</span> ساعة. لن نتركك هكذا — هذه ثلاثة أبواب:`
+        : `We polled <span class="num">${medPolled()}</span> pharmacies within <span class="num">10 km</span> in <span class="num">24</span> hours. Here are three doors:`}</div>
+      <div class="stack-2" style="margin-top:14px">
+        <button class="btn" onclick="watchMed('${med.id}')">${icon(watching ? "check" : "bell")}${isAR()
+          ? `${watching ? "نتابعه لك" : "نبّهني أول ما يتوفّر"}${waiting ? ` — <span class="num">${waiting}</span> ينتظرون` : ""}`
+          : `${watching ? "Following" : "Notify me"}${waiting ? ` — <span class="num">${waiting}</span> waiting` : ""}`}</button>
+        <button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
+          ? `اسأل <span class="num">6</span> صيدليات دفعة واحدة` : `Ask <span class="num">6</span> pharmacies at once`}</button>
+        ${sub ? `<a class="btn btn--2" href="#/med/${sub.sm.id}">${icon("pill")}${isAR()
+          ? "البدائل المكافئة" : "Equivalent alternatives"} — ${esc(L(sub.sm))}</a>`
+        : med.equiv?.length ? `<button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("pill")}${isAR()
+          ? "اسأل عن البدائل" : "Ask about alternatives"} — ${esc(med.equiv.join("، "))}</button>` : ""}
+      </div>
+    </div>`;
 
   return `${header({ back: true, title: isAR() ? "توفّر الدواء" : "Medicine availability" })}
-  <section class="wrap" style="padding-top:12px">
-    <h1 class="prof-name">${esc(L(med))}</h1>
-    <div class="prof-spec">${esc(med.form || "")}${med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : ""}</div>
-    <div class="banner banner--info" style="margin-top:14px">${icon("info")}<span>${isAR()
-      ? `رمز طلبك <b class="mono" dir="ltr">${ref}</b> — نفس الرمز لكل الصيدليات، حتى تعرف أي واحدة ردّت.`
-      : `Your request code <b class="mono" dir="ltr">${ref}</b> — the same code goes to every pharmacy.`}</span></div>
+  <section class="wrap" style="padding-top:14px">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px">
+      <div class="grow"><h1 class="q-h1">${esc(L(med))}</h1>
+        <div class="q-sub">${esc(med.form || "")}${med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : ""}${
+          med.equiv?.length ? (isAR() ? " · بديل مقبول: " : " · accepted equivalent: ") + esc(med.equiv[0]) : ""}</div></div>
+      ${watchBtn}
+    </div>
   </section>
 
-  ${confirmed.length ? `<section class="blk"><h3>${isAR() ? "أكّدت توفّره" : "Confirmed in stock"}
-      <span class="muted" style="font-weight:400">· ${isAR() ? "الأحدث تأكيداً أولاً" : "freshest first"}</span></h3>
-    <div class="stack">${confirmed.slice(0, 4).map(row).join("")}</div></section>`
-  : `<section class="blk"><div class="empty" style="padding:22px 4px">
-      <div class="empty-mark">${icon("alert")}</div>
-      <h3>${isAR() ? "ما عدنا تأكيد توفّر لهذا الدواء" : "No confirmed stock for this yet"}</h3>
-      <p>${isAR() ? "هذا دواء شحيح حالياً. اسأل أقرب الصيدليات مباشرة — وأول ردّ يوصلنا يفيد غيرك بعدك."
-                  : "This one is scarce right now. Ask the nearest pharmacies — the first answer helps the next person too."}</p>
-    </div></section>`}
+  <section class="wrap" style="margin-top:14px">${hero}</section>
 
-  <section class="blk"><h3>${isAR() ? "اسأل صيدليات قريبة" : "Ask nearby pharmacies"}</h3>
+  ${!fresh.length && sub ? `<section class="wrap" style="margin-top:14px">
+    <div class="surf-raise pad-3">
+      <div class="q-eyebrow">${isAR() ? "البديل الأقرب المتوفّر الآن" : "Nearest available alternative"}</div>
+      <div style="margin-top:10px">${stockCard(sub.sm, sub.best, ref)}</div>
+      <div class="q-sub" style="margin-top:9px">${isAR()
+        ? "بديل شائع لنفس الاستطباب — <b>راجع طبيبك قبل التبديل</b>."
+        : "A common alternative for the same indication — <b>ask your doctor before switching</b>."}</div>
+    </div></section>` : ""}
+
+  ${rest.length ? `<section class="wrap" style="margin-top:16px">
+    <div class="q-eyebrow">${fresh.length
+      ? (isAR() ? "توفّر آخر — مرتّب بحسب " : "Also available — ordered by ")
+      : (isAR() ? "تأكيدات سابقة — مرتّبة بحسب " : "Earlier confirmations — ordered by ")}<b style="color:var(--petrol)">${
+      isAR() ? "حداثة التأكيد" : "confirmation freshness"}</b></div>
+    <div class="stack-2" style="margin-top:8px">${rest.slice(0, 4).map((x) => stockCard(med, x, ref)).join("")}</div>
+    ${rest.slice(0, 4).some((x) => x.band === "cold") ? `<div class="note note-i" style="margin-top:12px">${isAR()
+      ? "الحداثة هي كل شيء هنا: «متوفّر» عمرها أربعة أيام ليست معلومة — لذلك تخفت، ولا نرتّبها بالمسافة."
+      : "Freshness is everything here: a four-day-old \"in stock\" is not information — so it dims, and proximity never promotes it."}</div>` : ""}
+  </section>` : ""}
+
+  <section class="wrap" style="margin-top:16px">${medTrend(med)}</section>
+
+  ${fresh.length ? `<section class="wrap" style="margin-top:14px">
+    <div class="surf-flat pad-3">
+      <div class="q-eyebrow">${isAR() ? "ساعدنا نُحدّث" : "Help us stay current"}</div>
+      <div class="q-sub" style="margin-top:4px">${isAR()
+        ? "إن سألت صيدلية ووجدت الجواب، أخبرنا — ثانية واحدة، ويستفيد غيرك."
+        : "If you asked a pharmacy and got an answer, tell us — one second, and it helps the next person."}</div>
+      <div class="row" style="gap:7px;margin-top:9px">
+        <button class="btn btn--2 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',true)">${icon("check")}${
+          isAR() ? "كان متوفّراً" : "It was there"}</button>
+        <button class="btn btn--3 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',false)">${icon("x")}${
+          isAR() ? "لم يكن" : "It wasn't"}</button>
+      </div>
+    </div></section>` : ""}
+
+  ${others.length ? `<section class="blk" style="margin-top:16px"><h3>${isAR() ? "صيدليات لم تؤكّد بعد" : "Not confirmed yet"}</h3>
     <p class="small muted" style="margin-bottom:12px">${isAR()
-      ? "رسالة جاهزة لكل وحدة — ما تحتاج تكتب شي." : "A ready message for each — nothing to type."}</p>
-    <div class="stack">${others.slice(0, 5).map(row).join("")}</div>
+      ? `رسالة جاهزة لكل وحدة، ونفس الرمز <b class="mono" dir="ltr">${ref}</b> — حتى تعرف أي وحدة ردّت.`
+      : `A ready message for each, same code <b class="mono" dir="ltr">${ref}</b> — so you know who replied.`}</p>
+    <div class="stack-2">${others.slice(0, 4).map((x) => `<div class="surf-flat qc">
+      <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
+      <div class="qc-b"><div class="qc-title">${esc(L(x.f))}</div>
+        <div class="qc-qual">${esc(L(DISTRICTS.find((y) => y.id === x.f.district)) || "")} · <span class="num">${fmtKm(x.km)}</span></div>
+        <div class="row" style="gap:7px;margin-top:9px">
+          ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
+             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
+            : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
+        </div></div></div>`).join("")}</div>
+    <button class="btn btn--2" style="margin-top:12px" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
+      ? "اسألهم كلهم دفعة واحدة" : "Ask them all at once"}</button>
+  </section>` : ""}
+
+  <section class="wrap" style="margin-top:14px">
+    <div class="note note-e">${isAR()
+      ? "هذه معلومة توفّر، لا نصيحة طبية. لا توقف دواءك ولا تبدّله دون طبيبك."
+      : "This is availability information, not medical advice. Never stop or switch a medicine without your doctor."}</div>
   </section>
-  <div style="height:20px"></div>${nav("pharmacies")}`;
+  <div style="height:24px"></div>${nav("pharmacies")}`;
 }
 
 function logAsk(medId) {
