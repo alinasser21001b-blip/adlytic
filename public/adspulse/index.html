@@ -172,12 +172,12 @@
 
   /* ── motion ───────────────────────────────────────────────────────────── */
   --motion-mult: 1;
-  --dur-1: calc(100ms * var(--motion-mult));
-  --dur-2: calc(190ms * var(--motion-mult));
-  --dur-3: calc(340ms * var(--motion-mult));
-  --dur-4: calc(500ms * var(--motion-mult));
-  --dur-5: calc(820ms * var(--motion-mult));
-  --step:  calc(40ms * var(--motion-mult));   /* one beat of a cascade */
+  --dur-1: calc(90ms  * var(--motion-mult));
+  --dur-2: calc(150ms * var(--motion-mult));
+  --dur-3: calc(280ms * var(--motion-mult));
+  --dur-4: calc(400ms * var(--motion-mult));
+  --dur-5: calc(700ms * var(--motion-mult));
+  --step:  calc(30ms  * var(--motion-mult));  /* one beat of a cascade */
   --ease:        cubic-bezier(0.16, 1, 0.3, 1);      /* the house curve */
   --ease-io:     cubic-bezier(0.65, 0, 0.35, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -701,7 +701,9 @@ html[data-cursor-mode="signature"] [data-cursor]{ cursor:none; }
 .ap-head{
   position:sticky; inset-block-start:0; z-index:var(--z-sticky);
   background:color-mix(in srgb, var(--ground) 88%, transparent);
-  backdrop-filter:blur(12px) saturate(1.4);
+  /* on screen for the whole visit, so this blur is paid for on every scrolled
+     frame — kept modest, and the saturate pass dropped */
+  backdrop-filter:blur(8px);
   border-bottom:var(--rule-w) solid var(--rule);
   transition:transform var(--dur-3) var(--ease), background var(--dur-3) var(--ease);
 }
@@ -853,7 +855,10 @@ html[data-cursor-mode="signature"] [data-cursor]{ cursor:none; }
   width:7px; height:7px; background:var(--signal); flex:none;
   animation:apPulse 2.4s ease-in-out infinite;
 }
+/* The tray is fixed to the bottom edge on small screens, so the page has to
+   end above it — otherwise it permanently covers the last rows of content. */
 @media (max-width:620px){
+  body{ padding-bottom:76px; }
   .ap-hud{ inset-block-end:0; inset-inline:0; align-items:stretch; }
   .ap-hud-panel{
     width:100%; max-height:78vh; border-inline:0; border-block-end:0;
@@ -1152,6 +1157,8 @@ html[data-inspect="on"] p,html[data-inspect="on"] .ap-mono{
 [dir="ltr"] .ap-bar-fill{ transform-origin:left center; }
 .ap-bar-row[data-dim] .ap-bar-fill{ background:var(--ink-30); }
 .ap-table-wrap{ background:var(--ground); overflow-x:auto; }
+
+
 .ap-table{ width:100%; border-collapse:collapse; min-width:640px; }
 .ap-table th{
   text-align:start; padding:var(--sp-3) var(--sp-4); white-space:nowrap;
@@ -1176,6 +1183,40 @@ html[data-inspect="on"] p,html[data-inspect="on"] .ap-mono{
 .ap-mini{ width:72px; height:22px; }
 .ap-mini path{ fill:none; stroke:var(--ink-50); stroke-width:1.5; vector-effect:non-scaling-stroke; }
 tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--signal); }
+
+/* Under 720px a seven-column table cannot be read: five columns sit off
+   screen and the ROAS figure is clipped to a stray "×". The table is not
+   scaled down, it is restructured — each campaign becomes a record and every
+   figure carries its own label. Same markup, same data, different object. */
+@media (max-width:720px){
+  .ap-table-wrap{ overflow-x:visible; }
+  .ap-table{ min-width:0; display:block; }
+  .ap-table thead{ display:none; }
+  .ap-table tbody,.ap-table tr,.ap-table td{ display:block; width:100%; }
+  .ap-table tr{
+    padding:var(--sp-4) var(--sp-5);
+    border-bottom:var(--rule-w) solid var(--rule);
+  }
+  .ap-table td{
+    border:0; padding:0; white-space:normal;
+    display:flex; align-items:baseline; justify-content:space-between;
+    gap:var(--sp-4); padding-block:5px;
+  }
+  .ap-table td::before{
+    content:attr(data-label);
+    font-family:var(--f-mono); font-size:9.5px; letter-spacing:0.14em;
+    color:var(--ink-42); direction:ltr; flex:none;
+  }
+  /* the campaign name is the record's heading, not a labelled field */
+  .ap-table td:first-child{
+    display:block; padding-bottom:var(--sp-3); margin-bottom:var(--sp-2);
+    border-bottom:1px solid var(--ink-08);
+  }
+  .ap-table td:first-child::before{ content:none; }
+  .ap-table td:last-child{ padding-top:var(--sp-3); }
+  .ap-table .ap-mini{ width:96px; height:26px; }
+}
+
 .ap-dash-read{
   background:var(--invert-bg); color:var(--invert-ink); padding:var(--sp-6);
   display:grid; gap:var(--sp-3); align-content:start;
@@ -1588,6 +1629,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 .ap-gal{ display:grid; gap:var(--gap); background:var(--rule);
   grid-template-columns:repeat(auto-fit,minmax(276px,1fr)); }
 .ap-lab-tile{
+  contain:layout paint;
   background:var(--ground); padding:var(--sp-5); display:grid; gap:var(--sp-4);
   align-content:start; position:relative; overflow:hidden; min-height:300px;
   grid-template-rows:auto 1fr auto;
@@ -3987,6 +4029,32 @@ function mulberry(seed) {
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
+/* Frame-rate-independent smoothing.
+   lerp(a,b,0.22) applied once per frame converges twice as fast on a 120Hz
+   display as on 60Hz, so the cursor and the magnets moved at different speeds
+   depending on the device. `smooth` converts a per-60Hz-frame factor into the
+   equivalent for however long the frame actually took, so the motion is
+   identical on 60, 90 and 120Hz. */
+function smooth(cur, target, factor, dt) {
+  var k = 1 - Math.pow(1 - factor, dt / 16.667);
+  return cur + (target - cur) * k;
+}
+
+/* One rAF driver for every continuous animation, instead of each keeping its
+   own loop plus a polling setInterval. It sleeps when nothing needs a frame,
+   so an idle page costs nothing at all. */
+var drivers = [], driverRaf = 0, driverLast = 0;
+function driveFrame(now) {
+  var dt = driverLast ? Math.min(now - driverLast, 50) : 16.667;
+  driverLast = now;
+  var live = false;
+  for (var i = 0; i < drivers.length; i++) { if (drivers[i](dt, now)) live = true; }
+  if (live) driverRaf = requestAnimationFrame(driveFrame);
+  else { driverRaf = 0; driverLast = 0; }
+}
+function addDriver(fn) { drivers.push(fn); }
+function wake() { if (!driverRaf) { driverLast = 0; driverRaf = requestAnimationFrame(driveFrame); } }
+
 var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
 var finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
@@ -4501,7 +4569,8 @@ var onScroll = raf(function () {
   /* the ticker reads scroll velocity — motion that reports something real */
   if (tickerEl && !motionOff()) {
     tickRate = clamp(1 + Math.abs(dy) / 26, 1, 3.4);
-    tickerEl.style.setProperty('--tick-rate', tickRate.toFixed(2));
+    tickerEl.style.setProperty('--tick-rate', tickRate.toFixed(3));
+    wake();
   }
   lastY = y;
   revealCatchUp();
@@ -4511,11 +4580,12 @@ var onScroll = raf(function () {
 on(window, 'scroll', onScroll, { passive: true });
 on(window, 'resize', onScroll);
 
-setInterval(function () {
-  if (!tickerEl) return;
-  tickRate = lerp(tickRate, 1, 0.18);
-  tickerEl.style.setProperty('--tick-rate', tickRate.toFixed(2));
-}, 220);
+addDriver(function (dt) {
+  if (!tickerEl || tickRate <= 1.01) return false;
+  tickRate = smooth(tickRate, 1, 0.06, dt);
+  tickerEl.style.setProperty('--tick-rate', tickRate.toFixed(3));
+  return true;
+});
 
 function methodRail() {
   var rail = $('#methodRail'), sec = $('#capabilities');
@@ -4611,18 +4681,20 @@ var cLabel = cursor ? $('.ap-cursor-label', cursor) : null;
 function cursorEnabled() {
   return cursor && FLAGS.cursor && finePointer.matches;
 }
-function cursorLoop() {
-  cursorRaf = 0;
-  if (!cursorEnabled()) return;
-  rx = lerp(rx, cx, motionOff() ? 1 : 0.22);
-  ry = lerp(ry, cy, motionOff() ? 1 : 0.22);
-  cursor.style.transform = 'translate3d(' + rx.toFixed(1) + 'px,' + ry.toFixed(1) + 'px,0)';
-  if (Math.abs(rx - cx) > 0.4 || Math.abs(ry - cy) > 0.4) cursorRaf = requestAnimationFrame(cursorLoop);
-}
-function kickCursor() { if (!cursorRaf) cursorRaf = requestAnimationFrame(cursorLoop); }
+addDriver(function (dt) {
+  if (!cursorEnabled()) return false;
+  var f = motionOff() ? 1 : 0.34;      /* tracks the pointer now, rather than
+                                          trailing visibly behind it */
+  rx = smooth(rx, cx, f, dt);
+  ry = smooth(ry, cy, f, dt);
+  cursor.style.transform = 'translate3d(' + rx.toFixed(2) + 'px,' + ry.toFixed(2) + 'px,0)';
+  return Math.abs(rx - cx) > 0.15 || Math.abs(ry - cy) > 0.15;
+});
+function kickCursor() { wake(); }
 
 on(window, 'pointermove', function (e) {
   cx = e.clientX; cy = e.clientY;
+  wake();
   if (!cursorEnabled()) return;
   if (!cursorLive) { cursorLive = true; rx = cx; ry = cy; cursor.classList.add('is-live'); }
   kickCursor();
@@ -4653,31 +4725,49 @@ on(document, 'pointerleave', function () { if (cursor) cursor.classList.remove('
 var magnets = [];
 function initMagnets() {
   magnets = $$('[data-magnetic]').map(function (el) {
-    return { el: el, s: parseFloat(el.getAttribute('data-mag-strength') || '0.26'), x: 0, y: 0 };
+    var tile = el.closest('[data-lab="magnetic"]');
+    return { el: el, s: parseFloat(el.getAttribute('data-mag-strength') || '0.26'),
+             x: 0, y: 0, ax: 0, ay: 0, reach: 0, on: false,
+             out: tile ? $('[data-out]', tile) : null };
   });
+  geomStale = true;
 }
-var magLoop = raf(function () {
-  if (motionOff() || !finePointer.matches) return;
+/* Geometry is read once and cached. Measuring inside pointermove forced a
+   synchronous layout on every move event, for every magnet. */
+var geomStale = true;
+function measureMagnets() {
   magnets.forEach(function (m) {
     var r = m.el.getBoundingClientRect();
-    var mx = r.left + r.width / 2, my = r.top + r.height / 2;
-    var dx = cx - mx, dy = cy - my;
-    var dist = Math.sqrt(dx * dx + dy * dy);
-    var reach = Math.max(r.width, r.height) * 1.55 + 40;
-    var pull = dist < reach ? (1 - dist / reach) : 0;
-    var tx = dx * pull * m.s, ty = dy * pull * m.s;
-    m.x = lerp(m.x, tx, 0.2); m.y = lerp(m.y, ty, 0.2);
-    if (Math.abs(m.x) < 0.05 && Math.abs(m.y) < 0.05) { m.x = 0; m.y = 0; m.el.style.transform = ''; }
-    else m.el.style.transform = 'translate3d(' + m.x.toFixed(2) + 'px,' + m.y.toFixed(2) + 'px,0)';
-    var tile = m.el.closest('[data-lab="magnetic"]');
-    if (tile) {
-      var out = $('[data-out]', tile);
-      if (out) out.textContent = 'Δ ' + m.x.toFixed(0) + ' · ' + m.y.toFixed(0);
-    }
+    /* add back the offset already applied, so the anchor never drifts */
+    m.ax = r.left + r.width / 2 + m.x;
+    m.ay = r.top + r.height / 2 + m.y;
+    m.reach = Math.max(r.width, r.height) * 1.55 + 40;
   });
+  geomStale = false;
+}
+addDriver(function (dt) {
+  if (!magnets.length || motionOff() || !finePointer.matches) return false;
+  if (geomStale) measureMagnets();
+  var live = false;
+  for (var i = 0; i < magnets.length; i++) {
+    var m = magnets[i];
+    var dx = cx - m.ax, dy = cy - m.ay;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var pull = dist < m.reach ? (1 - dist / m.reach) : 0;
+    m.x = smooth(m.x, dx * pull * m.s, 0.26, dt);
+    m.y = smooth(m.y, dy * pull * m.s, 0.26, dt);
+    if (!pull && Math.abs(m.x) < 0.08 && Math.abs(m.y) < 0.08) {
+      if (m.on) { m.x = 0; m.y = 0; m.el.style.transform = ''; m.on = false; }
+    } else {
+      m.on = true; live = true;
+      m.el.style.transform = 'translate3d(' + m.x.toFixed(2) + 'px,' + m.y.toFixed(2) + 'px,0)';
+      if (m.out) m.out.textContent = 'Δ ' + m.x.toFixed(0) + ' · ' + m.y.toFixed(0);
+    }
+  }
+  return live;
 });
-on(window, 'pointermove', magLoop, { passive: true });
-setInterval(function () { if (magnets.length) magLoop(); }, 90);
+on(window, 'scroll', function () { geomStale = true; }, { passive: true });
+on(window, 'resize', function () { geomStale = true; });
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DRAWER
@@ -5442,12 +5532,12 @@ function paintTable() {
       ' data-cursor="switch" data-cursor-label="FILTER">' +
       '<td><span style="font-weight:700">' + r.name + '</span>' +
       '<span class="ap-mono" style="display:block;font-size:9px">' + r.c.en + ' · ' + r.c.obj + '</span></td>' +
-      '<td class="num">' + fmt(Math.round(r.spend)) + '</td>' +
-      '<td class="num" style="color:' + (r.roas >= 4 ? 'var(--signal)' : 'inherit') + '">' + r.roas.toFixed(2) + '×</td>' +
-      '<td class="num">' + r.ctr.toFixed(2) + '%</td>' +
-      '<td class="num">' + fmt(Math.round(r.cpc)) + '</td>' +
-      '<td class="num">' + fmt(Math.round(r.conv)) + '</td>' +
-      '<td><svg class="ap-mini" viewBox="0 0 72 22" preserveAspectRatio="none" aria-hidden="true">' +
+      '<td class="num" data-label="SPEND">' + fmt(Math.round(r.spend)) + '</td>' +
+      '<td class="num" data-label="ROAS" style="color:' + (r.roas >= 4 ? 'var(--signal-text)' : 'inherit') + '">' + r.roas.toFixed(2) + '×</td>' +
+      '<td class="num" data-label="CTR">' + r.ctr.toFixed(2) + '%</td>' +
+      '<td class="num" data-label="CPC">' + fmt(Math.round(r.cpc)) + '</td>' +
+      '<td class="num" data-label="CONV">' + fmt(Math.round(r.conv)) + '</td>' +
+      '<td data-label="TREND"><svg class="ap-mini" viewBox="0 0 72 22" preserveAspectRatio="none" aria-hidden="true">' +
       '<path d="' + p[0] + '"/></svg></td></tr>';
   }).join('');
   $$('tr', tb).forEach(function (tr) {
@@ -6262,13 +6352,25 @@ function localPos(el, e) {
     return '<span>' + w + '</span>';
   }).join(' ');
   var chars = $$('span', host);
+  /* geometry measured once per settle, not per pointer event — reading a rect
+     for every word on every move forced a synchronous layout each frame */
+  var geo = [], geoStale = true;
+  function measure() {
+    geo = chars.map(function (c) {
+      var r = c.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    geoStale = false;
+  }
+  on(window, 'scroll', function () { geoStale = true; }, { passive: true });
+  on(window, 'resize', function () { geoStale = true; });
   var move = A.raf(function (e) {
-    var box = stage.getBoundingClientRect();
+    if (geoStale) measure();
     var mx = e.clientX, my = e.clientY;
     var maxD = 0;
-    chars.forEach(function (c) {
-      var r = c.getBoundingClientRect();
-      var dx = (r.left + r.width / 2) - mx, dy = (r.top + r.height / 2) - my;
+    chars.forEach(function (c, gi) {
+      var g = geo[gi]; if (!g) return;
+      var dx = g.x - mx, dy = g.y - my;
       var d = Math.sqrt(dx * dx + dy * dy);
       var reach = 150;
       var f = d < reach ? (1 - d / reach) : 0;
@@ -6518,10 +6620,21 @@ function localPos(el, e) {
 (function () {
   var line = $('#heroLine'); if (!line) return;
   var words = $$('span', line);
-  var move = A.raf(function (e) {
-    words.forEach(function (w) {
+  var wgeo = [], wStale = true;
+  function wMeasure() {
+    wgeo = words.map(function (w) {
       var r = w.getBoundingClientRect();
-      var dx = (r.left + r.width / 2) - e.clientX, dy = (r.top + r.height / 2) - e.clientY;
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    wStale = false;
+  }
+  on(window, 'scroll', function () { wStale = true; }, { passive: true });
+  on(window, 'resize', function () { wStale = true; });
+  var move = A.raf(function (e) {
+    if (wStale) wMeasure();
+    words.forEach(function (w, wi) {
+      var g = wgeo[wi]; if (!g) return;
+      var dx = g.x - e.clientX, dy = g.y - e.clientY;
       var d = Math.sqrt(dx * dx + dy * dy), reach = 260;
       var f = d < reach ? 1 - d / reach : 0;
       w.style.transform = f ? 'translateY(' + (-f * 7).toFixed(1) + 'px) rotate(' + (dx * f * 0.012).toFixed(2) + 'deg)' : '';
