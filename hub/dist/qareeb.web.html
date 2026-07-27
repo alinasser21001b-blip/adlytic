@@ -1,0 +1,2594 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>قريب — أقرب رعاية إليك</title>
+<meta name="description" content="قريب: أقرب طبيب موثّق وأقرب صيدلية مفتوحة الآن — برسالة واتساب واحدة، بدون حساب.">
+<meta name="theme-color" content="#F4EFE6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C1312" media="(prefers-color-scheme: dark)">
+
+<!-- WhatsApp / Open Graph share card — the real growth surface -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="قريب — أقرب رعاية إليك">
+<meta property="og:description" content="طبيب موثّق قريب منك، وأوقات دوامه الحقيقية، ورسالة واتساب جاهزة. بدون حساب.">
+<meta property="og:locale" content="ar_IQ">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHBhdGggZD0iTTMgM2gxOWw3IDd2MTlIM3oiIGZpbGw9IiMwRTRGNEEiLz4KICA8cGF0aCBkPSJNMTYgMjNjLTQuNC0zLjEtNi45LTUuNC02LjktOC4zYTMuNTUgMy41NSAwIDAgMSA2LjktMS4yNSAzLjU1IDMuNTUgMCAwIDEgNi45IDEuMjVDMjIuOSAxNy42IDIwLjQgMTkuOSAxNiAyM3oiIGZpbGw9IiNFMjlBMkUiLz4KPC9zdmc+Cg==">
+
+<style>
+/* ============================================================
+   QAREEB — قريب  ·  Design system
+   Visual language: TIME & PLACE
+     1. The Ribbon  — a 24h time band, the product's signature component
+     2. The Chamfer — every surface cuts its LEADING corner (flips with dir)
+     3. The Seal    — verification as a stamp, never a blue checkmark
+     4. Place tiles — location as proud Arabic place names, never a map
+     5. Sand, not white — the single choice that stops this reading as a hospital
+   ============================================================ */
+
+/* ---------- 1. TOKENS ---------- */
+:root {
+  --sand:        #F4EFE6;
+  --sand-2:      #EBE4D7;
+  --card:        #FCFAF6;
+  --card-2:      #F7F2E9;
+  --ink:         #10201F;
+  --ink-2:       #465A57;
+  --ink-3:       #7C8D8A;
+  --line:        #DFD6C7;
+  --line-2:      #EAE3D6;
+
+  --petrol:      #0E4F4A;
+  --petrol-2:    #146B63;
+  --petrol-soft: #DCE9E6;
+
+  --amber:       #A85C09;
+  --amber-b:     #E29A2E;
+  --amber-soft:  #F7E9D2;
+
+  --coral:       #A93529;
+  --coral-soft:  #F6E2DE;
+
+  --wa:          #0E7C3A;
+  --wa-b:        #25D366;
+
+  --chamfer-size: 16px;
+  --chamfer: polygon(0 0, calc(100% - var(--chamfer-size)) 0, 100% var(--chamfer-size), 100% 100%, 0 100%);
+
+  --font: "IBM Plex Sans Arabic", "Noto Sans Arabic", "Geeza Pro", "Segoe UI",
+          system-ui, -apple-system, Tahoma, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+
+  --sp: 4px;
+  --nav-h: 66px;
+  --ease: cubic-bezier(.22,.61,.36,1);
+  --t: 200ms var(--ease);
+
+  color-scheme: light;
+}
+
+html[dir="ltr"] {
+  --chamfer: polygon(var(--chamfer-size) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer-size));
+}
+
+html[data-theme="dark"] {
+  --sand:        #0C1312;
+  --sand-2:      #111A19;
+  --card:        #15201E;
+  --card-2:      #1B2725;
+  --ink:         #EAE4D8;
+  --ink-2:       #A6B5B2;
+  --ink-3:       #778785;
+  --line:        #263330;
+  --line-2:      #1E2A28;
+  --petrol:      #57BCAD;
+  --petrol-2:    #74D2C3;
+  --petrol-soft: #16302D;
+  --amber:       #E0A24C;
+  --amber-b:     #F2C378;
+  --amber-soft:  #2A2114;
+  --coral:       #E47766;
+  --coral-soft:  #2E1A16;
+  --wa:          #17A34A;
+  color-scheme: dark;
+}
+
+/* ---------- 2. RESET & BASE ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--sand);
+  color: var(--ink);
+  line-height: 1.6;
+  font-size: 15px;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { background: none; border: 0; cursor: pointer; padding: 0; }
+a { color: inherit; text-decoration: none; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+h1, h2, h3, h4, p { margin: 0; }
+img { max-width: 100%; display: block; }
+svg { flex: none; }
+
+:focus-visible { outline: 2px solid var(--petrol-2); outline-offset: 3px; border-radius: 4px; }
+
+/* numerals must align down a list */
+.num, .ribbon-scale, .fee, .dist, .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.mono { font-family: var(--mono); letter-spacing: .02em; }
+
+/* ---------- 3. LAYOUT ---------- */
+.app { max-width: 480px; margin-inline: auto; min-height: 100vh; position: relative; }
+.wrap { padding-inline: 18px; }
+.stack > * + * { margin-top: 10px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.row-b { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+.sec { padding-block: 22px; }
+.sec + .sec { padding-top: 4px; }
+
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.sec-h h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.sec-h .more { font-size: 13px; color: var(--petrol); font-weight: 600; }
+
+.eyebrow {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.muted { color: var(--ink-3); }
+.small { font-size: 13px; }
+.tiny  { font-size: 11.5px; }
+
+/* ---------- 4. THE CHAMFER (signature silhouette) ---------- */
+.ch { clip-path: var(--chamfer); background: var(--card); position: relative; }
+.ch--sm { --chamfer-size: 10px; }
+.ch--lg { --chamfer-size: 26px; }
+
+/* ---------- 5. THE RIBBON (signature component) ----------
+   A 24h band. In RTL it flows right→left, like the language.
+   Segments are positioned with inset-inline-start so they mirror for free.
+-------------------------------------------------------------- */
+.ribbon { position: relative; width: 100%; background: var(--line-2); border-radius: 2px; }
+.ribbon i {
+  position: absolute; inset-block: 0; display: block;
+  inset-inline-start: var(--a); width: var(--w);
+  background: var(--ink-3); border-radius: 2px; opacity: .45;
+}
+.ribbon i.pub  { background: var(--petrol); opacity: .38; }
+.ribbon i.priv { background: var(--amber-b); opacity: .55; }
+.ribbon i.live { opacity: 1; box-shadow: 0 0 0 1px var(--card), 0 0 10px -1px var(--amber-b); }
+.ribbon b {                       /* the NOW marker */
+  position: absolute; inset-block: -3px; inset-inline-start: var(--now);
+  width: 2px; margin-inline-start: -1px; background: var(--ink);
+  border-radius: 2px; z-index: 3;
+}
+.ribbon b::after {
+  content: ''; position: absolute; inset-inline-start: -2px; top: -3px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ink);
+}
+
+.ribbon--micro { height: 4px; }
+.ribbon--day   { height: 10px; border-radius: 3px; }
+.ribbon--day i { border-radius: 3px; }
+
+.ribbon-scale {
+  position: relative; height: 14px; margin-top: 5px;
+  font-size: 10px; color: var(--ink-3); font-weight: 600;
+}
+.ribbon-scale span { position: absolute; inset-inline-start: var(--a); transform: translateX(50%); }
+html[dir="ltr"] .ribbon-scale span { transform: translateX(-50%); }
+
+/* week shape — the timetable replacement */
+.week { display: grid; gap: 6px; }
+.week-row { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 10px; }
+.week-row .d { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.week-row.today .d { color: var(--ink); font-weight: 800; }
+.week-row.today .ribbon { background: var(--sand-2); }
+.week-row.off .ribbon { opacity: .55; }
+.week-legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--ink-3); margin-top: 12px; flex-wrap: wrap; }
+.week-legend i { width: 14px; height: 6px; border-radius: 2px; display: inline-block; }
+
+/* ---------- 6. THE SEAL (verification) ---------- */
+.seal { display: inline-flex; align-items: center; gap: 5px; color: var(--petrol); font-size: 12px; font-weight: 700; }
+.seal svg { width: 15px; height: 15px; }
+.seal--stamp {
+  width: 62px; height: 62px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--petrol);
+  border: 2px solid currentColor; opacity: .85;
+  transform: rotate(-11deg); font-size: 10px; font-weight: 800;
+  line-height: 1.15; text-align: center; letter-spacing: .02em;
+}
+.unverified { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-3); font-size: 12px; font-weight: 600; }
+
+/* ---------- 7. CHIPS ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 999px;
+  background: var(--card); color: var(--ink-2);
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+  border: 1px solid var(--line); transition: var(--t);
+}
+.chip svg { width: 14px; height: 14px; }
+.chip.on { background: var(--petrol); border-color: var(--petrol); color: #fff; }
+html[data-theme="dark"] .chip.on { color: var(--sand); }
+.chip[disabled] { opacity: .4; }
+.chip--meta { border: 0; background: var(--card-2); padding: 4px 9px; font-size: 12px; border-radius: 6px; }
+.chip--time { background: var(--amber-soft); color: var(--amber); }
+.chip--warn { background: var(--coral-soft); color: var(--coral); }
+.chip--ok   { background: var(--petrol-soft); color: var(--petrol); }
+
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-block: 2px; }
+.chips::-webkit-scrollbar { display: none; }
+.chips--wrap { flex-wrap: wrap; overflow: visible; }
+.rail { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+.rail::-webkit-scrollbar { display: none; }
+.rail > * { scroll-snap-align: start; flex: none; }
+.bleed { margin-inline: -18px; padding-inline: 18px; }
+
+/* ---------- 8. BUTTONS ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 50px; padding: 0 20px; font-size: 15.5px; font-weight: 700;
+  clip-path: var(--chamfer); --chamfer-size: 12px;
+  background: var(--petrol); color: #fff; transition: var(--t); width: 100%;
+}
+html[data-theme="dark"] .btn { color: #06100F; }
+.btn:active { transform: translateY(1px); }
+.btn svg { width: 19px; height: 19px; }
+.btn--2 { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+html[data-theme="dark"] .btn--2 { color: var(--ink); }
+.btn--3 { background: none; color: var(--petrol); min-height: 42px; font-weight: 700; clip-path: none; }
+.btn--wa { background: var(--wa); color: #fff; }
+html[data-theme="dark"] .btn--wa { color: #fff; }
+.btn--danger { background: var(--coral); color: #fff; }
+.btn[disabled] { background: var(--line); color: var(--ink-3); pointer-events: none; box-shadow: none; }
+.btn--sm { min-height: 40px; font-size: 14px; padding: 0 14px; --chamfer-size: 9px; width: auto; }
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { flex: 1; }
+
+.icon-btn {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  background: var(--card); color: var(--ink); clip-path: var(--chamfer); --chamfer-size: 10px;
+}
+.icon-btn svg { width: 20px; height: 20px; }
+
+/* ---------- 9. HEADER + PLACE TAG ---------- */
+.hdr {
+  position: sticky; top: 0; z-index: 40;
+  background: color-mix(in srgb, var(--sand) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(1.1);
+  padding: 10px 18px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid transparent; transition: border-color var(--t);
+}
+.hdr.stuck { border-bottom-color: var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 19px; letter-spacing: -.02em; }
+.brand-mark { width: 26px; height: 26px; }
+.hdr-back { margin-inline-start: -6px; }
+.hdr-title { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+
+.place-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px 6px 10px; background: var(--petrol-soft); color: var(--petrol);
+  font-size: 13px; font-weight: 700; clip-path: var(--chamfer); --chamfer-size: 9px;
+}
+.place-tag svg { width: 14px; height: 14px; }
+.place-tag .arrow { opacity: .6; width: 11px; height: 11px; }
+.place-tag--gps::after {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--petrol);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 22%, transparent);
+}
+
+/* ---------- 10. HOME — the sentence hero ---------- */
+.hero { padding: 26px 18px 20px; }
+.hero-line {
+  font-size: clamp(27px, 8.2vw, 36px); font-weight: 800;
+  line-height: 1.45; letter-spacing: -.02em;
+}
+.hero-line .blank {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--amber); border-bottom: 2.5px dashed var(--amber-b);
+  padding-bottom: 2px; margin-inline: 3px; transition: var(--t);
+}
+.hero-line .blank svg { width: 16px; height: 16px; opacity: .7; }
+.hero-line .blank:active { background: var(--amber-soft); }
+.hero-line .fix { color: var(--ink); }
+.hero-cta { margin-top: 20px; }
+.hero-sub { margin-top: 12px; font-size: 13px; color: var(--ink-3); }
+
+/* live city pulse */
+.pulse { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
+.pulse-cell { padding: 12px 12px 11px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
+.pulse-cell .n { font-size: 22px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.pulse-cell .l { font-size: 11.5px; color: var(--ink-3); font-weight: 600; margin-top: 1px; }
+.pulse-cell .ribbon { margin-top: 9px; }
+.pulse-cell.night .n { color: var(--amber); }
+
+/* lanes */
+.lane {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+  background: var(--card); clip-path: var(--chamfer); --chamfer-size: 13px; position: relative;
+}
+.lane::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
+.lane.on::before { background: linear-gradient(var(--amber-b), var(--amber)); }
+.lane .ic { width: 40px; height: 40px; display: grid; place-items: center; background: var(--card-2); border-radius: 10px; color: var(--petrol); flex: none; }
+.lane .ic svg { width: 21px; height: 21px; }
+.lane h3 { font-size: 15px; font-weight: 700; }
+.lane p { font-size: 12.5px; color: var(--ink-3); }
+.lane .go { color: var(--ink-3); }
+.lane--sos { background: var(--coral-soft); }
+.lane--sos::before { background: var(--coral); }
+.lane--sos .ic { background: color-mix(in srgb, var(--coral) 14%, transparent); color: var(--coral); }
+.lane--sos h3 { color: var(--coral); }
+
+/* ---------- 11. CARDS (one anatomy, four variants) ---------- */
+.card {
+  position: relative; background: var(--card); clip-path: var(--chamfer);
+  padding: 14px 16px 13px; display: block; transition: var(--t);
+}
+.card::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
+.card.is-open::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
+.card.is-soon::before { background: linear-gradient(180deg, var(--amber-b), var(--line)); }
+.card.is-shut { }
+.card.is-shut .card-t, .card.is-shut .avatar { opacity: .72; }
+.card:active { background: var(--card-2); }
+
+.card-top { display: flex; gap: 12px; align-items: flex-start; }
+.avatar {
+  width: 46px; height: 46px; flex: none; display: grid; place-items: center;
+  background: var(--petrol-soft); color: var(--petrol);
+  font-weight: 800; font-size: 16px; clip-path: var(--chamfer); --chamfer-size: 10px;
+}
+.avatar--ph { background: var(--card-2); color: var(--ink-3); }
+.avatar--sq { border-radius: 10px; clip-path: none; }
+.card-t { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.35; }
+.card-q { font-size: 13px; color: var(--ink-2); margin-top: 1px; }
+.card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
+.card-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .5; }
+.card-ribbon { margin-top: 11px; }
+.card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; }
+
+.state-line { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.state-line .bulb { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.state-open  { color: var(--amber); }
+.state-open  .bulb { background: var(--amber-b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-b) 25%, transparent); animation: bulb 2.6s var(--ease) infinite; }
+.state-soon  { color: var(--amber); }
+.state-soon  .bulb { background: var(--amber-b); opacity: .55; }
+.state-shut  { color: var(--ink-3); }
+.state-shut  .bulb { background: var(--ink-3); opacity: .45; }
+@keyframes bulb { 0%,100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-b) 25%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber-b) 6%, transparent); } }
+
+.dist { font-size: 12.5px; font-weight: 700; color: var(--ink-2); display: inline-flex; align-items: center; gap: 4px; }
+.dist svg { width: 12px; height: 12px; opacity: .55; }
+.fee { font-size: 13px; font-weight: 700; }
+.fee--free { color: var(--petrol); }
+
+.card--wide { width: 268px; }
+.card--flat { padding: 12px 14px; }
+
+/* product card */
+.prod { background: var(--card); clip-path: var(--chamfer); --chamfer-size: 12px; overflow: hidden; }
+.prod-img { aspect-ratio: 1; background: var(--card-2); display: grid; place-items: center; position: relative; }
+.prod-img .glyph { width: 46%; height: 46%; color: var(--petrol); opacity: .5; }
+.prod-b { padding: 11px 12px 13px; }
+.prod-t { font-size: 13.5px; font-weight: 700; line-height: 1.4; }
+.prod-brand { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.prod-p { font-size: 14px; font-weight: 800; margin-top: 7px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+/* ---------- 12. NEED GRID ---------- */
+.needs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.need {
+  position: relative; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 13px;
+  padding: 15px 14px 13px; text-align: start; transition: var(--t);
+}
+.need::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); transition: var(--t); }
+.need.has::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
+.need:active { background: var(--card-2); }
+.need .ic { color: var(--petrol); margin-bottom: 9px; }
+.need .ic svg { width: 25px; height: 25px; }
+.need h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+.need .cnt { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; font-weight: 600; }
+.need .cnt b { color: var(--amber); font-weight: 800; }
+.need .ribbon { margin-top: 9px; }
+
+/* ---------- 13. PLACE TILES (location selector) ---------- */
+.places { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.place {
+  position: relative; padding: 14px 14px 12px; background: var(--card);
+  clip-path: var(--chamfer); --chamfer-size: 12px; text-align: start; transition: var(--t);
+}
+.place h3 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.place .m { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.place.on { background: var(--petrol); color: #fff; }
+.place.on .m { color: color-mix(in srgb, #fff 72%, transparent); }
+html[data-theme="dark"] .place.on { color: #06100F; }
+
+/* ---------- 14. SEARCH ---------- */
+.search-field {
+  display: flex; align-items: center; gap: 10px; padding: 0 14px; min-height: 50px;
+  background: var(--card); clip-path: var(--chamfer); --chamfer-size: 12px;
+}
+.search-field svg { width: 19px; height: 19px; color: var(--ink-3); }
+.search-field input { flex: 1; border: 0; background: none; outline: none; font-size: 15px; min-width: 0; }
+.search-field input::placeholder { color: var(--ink-3); }
+
+.res-group + .res-group { margin-top: 20px; }
+.res-group h3 { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px; }
+
+/* ---------- 15. FILTER BAR ---------- */
+.filters { position: sticky; top: 56px; z-index: 30; padding: 10px 18px; background: color-mix(in srgb, var(--sand) 92%, transparent); backdrop-filter: blur(12px); }
+.res-head { padding: 4px 18px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.res-head .n { font-size: 13.5px; font-weight: 700; }
+.radius-note {
+  display: flex; gap: 9px; align-items: flex-start; padding: 11px 13px; margin: 0 18px 12px;
+  background: var(--amber-soft); color: var(--amber); clip-path: var(--chamfer); --chamfer-size: 10px;
+  font-size: 12.5px; font-weight: 600; line-height: 1.5;
+}
+.radius-note svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+
+/* ---------- 16. PROFILE ---------- */
+.prof-head { padding: 18px 18px 20px; background: var(--card); position: relative; }
+.prof-head::after { content: ''; position: absolute; inset-inline: 0; bottom: 0; height: 1px; background: var(--line); }
+.prof-name { font-size: 23px; font-weight: 800; letter-spacing: -.025em; line-height: 1.25; }
+.prof-spec { font-size: 14px; color: var(--petrol); font-weight: 700; margin-top: 3px; }
+.prof-avatar { width: 62px; height: 62px; font-size: 21px; }
+.prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin-top: 18px; clip-path: var(--chamfer); --chamfer-size: 12px; }
+.prof-fact { background: var(--card); padding: 11px 12px; }
+.prof-fact .k { font-size: 11px; color: var(--ink-3); font-weight: 600; }
+.prof-fact .v { font-size: 15px; font-weight: 800; letter-spacing: -.02em; margin-top: 1px; }
+
+.blk { padding: 20px 18px; border-bottom: 1px solid var(--line); }
+.blk h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+.kv { display: flex; gap: 10px; justify-content: space-between; padding: 8px 0; font-size: 13.5px; }
+.kv + .kv { border-top: 1px solid var(--line-2); }
+.kv .k { color: var(--ink-3); }
+.kv .v { font-weight: 600; text-align: end; }
+
+.fac-block { padding: 13px 14px; background: var(--card-2); clip-path: var(--chamfer); --chamfer-size: 11px; }
+.fac-block + .fac-block { margin-top: 10px; }
+.fac-block .ft { font-size: 14px; font-weight: 700; }
+.fac-block .fm { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+
+.updated { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+.updated svg { width: 13px; height: 13px; }
+.updated.stale { color: var(--amber); }
+
+.actionbar {
+  position: sticky; bottom: 0; z-index: 35; padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--sand) 92%, transparent); backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line); display: flex; gap: 8px;
+}
+.actionbar .btn { flex: 1; }
+.actionbar .icon-btn { flex: none; box-shadow: inset 0 0 0 1.5px var(--line); }
+
+/* ---------- 17. SHEETS ---------- */
+.scrim { position: fixed; inset: 0; background: rgba(8,20,19,.5); z-index: 90; opacity: 0; transition: opacity var(--t); backdrop-filter: blur(2px); }
+.scrim.in { opacity: 1; }
+.sheet {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 91; max-width: 480px; margin-inline: auto;
+  background: var(--sand); border-radius: 22px 22px 0 0;
+  transform: translateY(102%); transition: transform 260ms var(--ease);
+  max-height: 92vh; display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sheet.in { transform: translateY(0); }
+.sheet-grip { width: 40px; height: 4px; border-radius: 3px; background: var(--line); margin: 10px auto 4px; flex: none; }
+.sheet-h { padding: 8px 18px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex: none; }
+.sheet-h h2 { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.sheet-h p { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
+.sheet-b { padding: 0 18px 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sheet-f { padding: 12px 18px 16px; border-top: 1px solid var(--line); flex: none; background: var(--sand); }
+
+.field { margin-top: 14px; }
+.field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 7px; }
+.field input, .field textarea {
+  width: 100%; padding: 13px 14px; background: var(--card); border: 1.5px solid var(--line);
+  clip-path: var(--chamfer); --chamfer-size: 11px; outline: none; font-size: 15px; resize: none;
+}
+.field input:focus, .field textarea:focus { border-color: var(--petrol); }
+.hint { font-size: 12px; color: var(--ink-3); margin-top: 7px; display: flex; gap: 6px; align-items: flex-start; }
+.hint svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+
+.slot { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.slot-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px;
+  text-align: start; box-shadow: inset 0 0 0 1.5px transparent; transition: var(--t);
+}
+.slot-btn .d { font-size: 14.5px; font-weight: 700; }
+.slot-btn .m { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
+.slot-btn .t { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.slot-btn.on { box-shadow: inset 0 0 0 2px var(--petrol); background: var(--petrol-soft); }
+.slot-btn.on .t { color: var(--petrol); }
+
+/* ---------- 18. THE SLIP (WhatsApp handoff — a designed moment) ---------- */
+.slip {
+  position: relative; background: var(--card); padding: 18px 18px 20px;
+  clip-path: var(--chamfer); --chamfer-size: 18px;
+}
+.slip::after {                       /* perforated tear edge */
+  content: ''; position: absolute; inset-inline: 0; bottom: -1px; height: 8px;
+  background: radial-gradient(circle at 5px 8px, var(--sand) 5px, transparent 5.5px) repeat-x;
+  background-size: 14px 8px;
+}
+.slip-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1.5px dashed var(--line); }
+.slip-ref { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--petrol); }
+.slip-to { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; }
+.bubble {
+  margin-top: 10px; padding: 13px 14px; background: var(--card-2);
+  border-radius: 14px; border-start-start-radius: 4px;
+  font-size: 14px; line-height: 1.85; white-space: pre-wrap; word-break: break-word;
+}
+.bubble--edit { background: var(--card); border: 1.5px solid var(--petrol); outline: none; }
+.slip-edit { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--petrol); margin-top: 11px; }
+.slip-edit svg { width: 14px; height: 14px; }
+
+.stub {
+  position: relative; background: var(--card); padding: 15px 16px;
+  clip-path: var(--chamfer); --chamfer-size: 14px;
+}
+.stub::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--petrol); }
+
+@keyframes stamp { 0% { transform: rotate(-11deg) scale(2.4); opacity: 0; } 60% { transform: rotate(-11deg) scale(.94); opacity: 1; } 100% { transform: rotate(-11deg) scale(1); opacity: .85; } }
+.stamped { animation: stamp 420ms var(--ease) both; }
+
+/* ---------- 19. STATES ---------- */
+.skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--card-2) 50%, var(--line-2) 75%); background-size: 300% 100%; animation: shim 1.4s linear infinite; border-radius: 4px; }
+@keyframes shim { to { background-position: -300% 0; } }
+.skel-card { background: var(--card); clip-path: var(--chamfer); padding: 14px 16px; }
+.skel-l { height: 11px; }
+
+.empty { padding: 34px 22px; text-align: center; }
+.empty-mark { width: 68px; height: 68px; margin: 0 auto 16px; color: var(--petrol); opacity: .35; }
+.empty h3 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; line-height: 1.4; }
+.empty p { font-size: 13.5px; color: var(--ink-3); margin-top: 8px; line-height: 1.65; }
+.empty .btn { margin-top: 18px; }
+.empty-alts { margin-top: 20px; text-align: start; }
+
+.banner {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
+  clip-path: var(--chamfer); --chamfer-size: 11px; font-size: 13px; line-height: 1.55; font-weight: 600;
+}
+.banner svg { width: 17px; height: 17px; flex: none; margin-top: 1px; }
+.banner--info { background: var(--petrol-soft); color: var(--petrol); }
+.banner--warn { background: var(--amber-soft); color: var(--amber); }
+.banner--stop { background: var(--coral-soft); color: var(--coral); }
+
+/* ---------- 20. BOTTOM NAV (exactly 4) ---------- */
+.nav {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 50; max-width: 480px; margin-inline: auto;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--sand) 94%, transparent); backdrop-filter: blur(16px) saturate(1.15);
+  border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4, 1fr);
+}
+.nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-3); position: relative; }
+.nav a svg { width: 22px; height: 22px; }
+.nav a span { font-size: 10.5px; font-weight: 700; }
+.nav a.on { color: var(--petrol); }
+.nav a.on::before { content: ''; position: absolute; top: 0; width: 26px; height: 3px; background: var(--petrol); border-radius: 0 0 3px 3px; }
+
+/* ---------- 21. QR ENTRY ---------- */
+.qr-ctx {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 0 18px 4px;
+  background: var(--petrol-soft); color: var(--petrol); clip-path: var(--chamfer); --chamfer-size: 10px;
+  font-size: 12.5px; font-weight: 700;
+}
+.qr-ctx svg { width: 16px; height: 16px; flex: none; }
+.qr-ctx button { margin-inline-start: auto; opacity: .6; display: grid; place-items: center; }
+
+/* ---------- 22. ADMIN ---------- */
+.adm { background: var(--sand-2); min-height: 100vh; }
+.adm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.adm-kpi { padding: 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
+.adm-kpi .n { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+.adm-kpi .l { font-size: 11.5px; color: var(--ink-3); font-weight: 600; }
+.adm-kpi.alert .n { color: var(--amber); }
+.bar-row { display: grid; grid-template-columns: 1fr 46px; gap: 10px; align-items: center; padding: 7px 0; font-size: 13px; }
+.bar { height: 7px; background: var(--line-2); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+.bar i { display: block; height: 100%; background: var(--petrol); border-radius: 3px; }
+.bar i.warn { background: var(--amber-b); }
+.tbl-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
+.tbl-row + .tbl-row { margin-top: 6px; }
+
+/* weekly session grid (admin) */
+.wg { display: grid; grid-template-columns: 40px repeat(18, 1fr); gap: 2px; font-size: 9px; }
+.wg .h { color: var(--ink-3); text-align: center; font-weight: 700; }
+.wg .d { color: var(--ink-3); font-weight: 700; display: grid; align-items: center; font-size: 10.5px; }
+.wg .c { height: 22px; background: var(--line-2); border-radius: 2px; }
+.wg .c.pub { background: var(--petrol); opacity: .55; }
+.wg .c.priv { background: var(--amber-b); }
+
+/* ---------- 23. RESPONSIVE — desktop is a different layout ---------- */
+@media (min-width: 900px) {
+  body { padding-bottom: 0; }
+  .app { max-width: 1180px; padding-bottom: 40px; }
+  .nav {
+    position: sticky; top: 0; inset-inline: auto; bottom: auto; max-width: none; height: 58px;
+    grid-template-columns: repeat(4, max-content); gap: 6px; border-top: 0; border-bottom: 1px solid var(--line);
+    padding: 0 18px; justify-content: start; background: color-mix(in srgb, var(--sand) 94%, transparent);
+  }
+  .nav a { flex-direction: row; gap: 8px; padding: 0 16px; }
+  .nav a span { font-size: 13.5px; }
+  .nav a.on::before { top: auto; bottom: 0; width: 100%; border-radius: 3px 3px 0 0; }
+  .hdr { top: 58px; }
+  .filters { top: 116px; }
+  .sheet { max-width: 460px; inset-inline-end: 24px; inset-inline-start: auto; margin-inline: 0; bottom: 24px; border-radius: 18px; max-height: calc(100vh - 48px); }
+  .split { display: grid; grid-template-columns: 300px 1fr; gap: 26px; align-items: start; }
+  .split-rail { position: sticky; top: 130px; }
+  .needs { grid-template-columns: repeat(3, 1fr); }
+  .places { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(4, 1fr); }
+  .list-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
+  .list-2 > * { margin-top: 0 !important; }
+  .hero-line { font-size: 44px; }
+  .hero { padding: 44px 18px 28px; }
+  .pulse { max-width: 640px; }
+  .actionbar { position: static; border: 0; background: none; padding-inline: 0; }
+  .adm-grid { grid-template-columns: repeat(4, 1fr); }
+  .map-panel { display: block; }
+}
+@media (max-width: 899px) { .map-panel { display: none; } }
+
+/* static map peek — mobile gets a strip, desktop gets a panel */
+.map-peek {
+  position: relative; height: 96px; background:
+    repeating-linear-gradient(0deg, var(--line-2) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 22px),
+    var(--card-2);
+  clip-path: var(--chamfer); --chamfer-size: 12px; overflow: hidden;
+}
+.map-peek .pin { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--petrol); box-shadow: 0 0 0 3px var(--card); }
+.map-peek .me { background: var(--amber); box-shadow: 0 0 0 3px var(--card), 0 0 0 7px color-mix(in srgb, var(--amber-b) 25%, transparent); }
+.map-peek .lbl { position: absolute; inset-inline-start: 12px; bottom: 10px; font-size: 11.5px; font-weight: 700; color: var(--ink-2); background: color-mix(in srgb, var(--card) 86%, transparent); padding: 3px 8px; border-radius: 5px; }
+.map-panel { height: 420px; position: sticky; top: 130px; }
+.map-panel .map-peek { height: 100%; }
+
+/* ---------- 24. MOTION ---------- */
+.fade { animation: fade 260ms var(--ease) both; }
+@keyframes fade { from { opacity: 0; transform: translateY(7px); } }
+.stagger > * { animation: fade 300ms var(--ease) both; }
+.stagger > *:nth-child(1) { animation-delay: 20ms } .stagger > *:nth-child(2) { animation-delay: 45ms }
+.stagger > *:nth-child(3) { animation-delay: 70ms } .stagger > *:nth-child(4) { animation-delay: 95ms }
+.stagger > *:nth-child(5) { animation-delay: 120ms } .stagger > *:nth-child(6) { animation-delay: 145ms }
+.stagger > *:nth-child(n+7) { animation-delay: 165ms }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ============================================================
+   25. FIXES & ADDITIONS (post-review pass)
+   ============================================================ */
+
+/* directional icons must mirror with the language; logos and numbers must not */
+html[dir="rtl"] .dirflip { transform: scaleX(-1); }
+
+/* text that must never break a card's rhythm */
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; display: block; }
+.card-meta .trunc { display: inline-block; max-width: 46%; vertical-align: bottom; }
+
+/* card foot never wraps its status; services get their own line */
+.card-foot { flex-wrap: wrap; }
+.state-line { white-space: nowrap; }
+.card-svc { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+
+/* a live segment glows in its own colour, not always amber */
+.ribbon i.live { opacity: 1; }
+.ribbon i.pub.live  { box-shadow: 0 0 0 1px var(--card), 0 0 9px -1px var(--petrol); opacity: .9; }
+.ribbon i.priv.live { box-shadow: 0 0 0 1px var(--card), 0 0 9px -1px var(--amber-b); }
+
+/* "open now" earns a full-width strip on profiles, not a third of a row */
+.status-strip {
+  margin-top: 16px; padding: 12px 14px; background: var(--card-2);
+  clip-path: var(--chamfer); --chamfer-size: 12px; position: relative;
+}
+.status-strip::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
+.status-strip.open::before, .status-strip.soon::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
+
+/* the action bar sits above the nav, never under it */
+.actionbar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
+@media (min-width: 900px) { .actionbar { bottom: auto; } }
+
+/* thin result sets get a door, not dead space */
+.list-end { padding: 26px 0 8px; text-align: center; }
+.list-end .btn { margin-top: 12px; }
+.list-end p { margin-bottom: 4px; }
+
+/* mixed-script safety: never let bidi reorder a measurement or a time range */
+[dir="ltr"].num, .num[dir="ltr"] { unicode-bidi: isolate; }
+
+/* slightly tighter hero so the live pulse clears the fold on a 360×640 screen */
+.hero { padding-top: 20px; }
+.hero-line { font-size: clamp(25px, 7.4vw, 33px); line-height: 1.42; }
+@media (min-width: 900px) { .hero-line { font-size: 42px; } }
+
+/* The page container fades on opacity ONLY. A transform here would make it the
+   containing block for position:fixed descendants and detach the bottom nav. */
+.page-in { animation: pagein 240ms var(--ease) both; }
+@keyframes pagein { from { opacity: 0; } }
+
+/* ============================================================
+   26. DESKTOP — a different layout, not a stretched phone.
+   The nav is the LAST node in the DOM (thumb-zone order on mobile),
+   so on desktop it must be positioned, not sticky-hoisted.
+   ============================================================ */
+@media (min-width: 900px) {
+  :root { --hdr-h: 58px; --navd-h: 54px; }
+
+  .app { max-width: 1180px; padding-top: calc(var(--hdr-h) + var(--navd-h) + 18px); padding-inline: 24px; }
+
+  /* brand + location bar on top, section nav beneath it */
+  .hdr {
+    position: fixed; inset-inline: 0; top: 0; height: var(--hdr-h);
+    padding-inline: max(24px, calc((100vw - 1180px) / 2));
+    border-bottom: 1px solid var(--line); z-index: 60;
+  }
+  .nav {
+    position: fixed; inset-inline: 0; top: var(--hdr-h); bottom: auto;
+    height: var(--navd-h); width: 100%; max-width: none;
+    padding-inline: max(24px, calc((100vw - 1180px) / 2));
+    grid-template-columns: repeat(4, max-content); justify-content: start; gap: 4px;
+    border-top: 0; border-bottom: 1px solid var(--line); z-index: 55;
+  }
+  .filters { top: calc(var(--hdr-h) + var(--navd-h)); z-index: 45; }
+
+  /* prose and single-column stacks stay readable; grids get the full width */
+  .hero { max-width: 720px; margin-inline: auto; padding-top: 46px; text-align: center; }
+  .hero .pulse { margin-inline: auto; max-width: 720px; }
+  .hero-cta .btn, .hero .search-field { max-width: 380px; margin-inline: auto; }
+  .hero-line .blank { justify-content: center; }
+
+  .wrap > .stack:not(.list-2) { max-width: 760px; margin-inline: auto; }
+  .sec > .sec-h { max-width: 1132px; margin-inline: auto; }
+  .prof-head, .blk, .res-head, .radius-note, .list-end, .empty { max-width: 860px; margin-inline: auto; }
+  .prof-head { clip-path: var(--chamfer); --chamfer-size: 20px; margin-top: 8px; }
+  .blk:last-of-type { border-bottom: 0; }
+
+  .btn { width: auto; min-width: 200px; }
+  .btn-row .btn, .actionbar .btn, .sheet-f .btn, .empty .btn, .list-end .btn { width: 100%; }
+  .actionbar { max-width: 860px; margin-inline: auto; justify-content: flex-start; }
+  .actionbar .btn { max-width: 320px; }
+
+  .list-2 { grid-template-columns: repeat(2, 1fr); }
+  .needs { grid-template-columns: repeat(4, 1fr); }
+  .grid-2 { grid-template-columns: repeat(4, 1fr); }
+  .places { grid-template-columns: repeat(4, 1fr); }
+  .week-row { grid-template-columns: 70px 1fr; }
+  .map-peek { height: 200px; }
+}
+
+@media (min-width: 900px) and (max-width: 1180px) {
+  .hdr, .nav { padding-inline: 24px; }
+}
+
+/* 27. Product thumbs: a tinted field, not a hollow box */
+.prod-img { aspect-ratio: 4 / 3; background:
+  radial-gradient(120% 90% at 70% 20%, var(--petrol-soft) 0%, transparent 70%), var(--card-2); }
+.prod-img .glyph { width: 34%; height: 34%; opacity: .42; }
+
+/* 28. Theme: tokens follow the OS preference unless the viewer pins one.
+   The host's theme toggle stamps data-theme on the root, which must win both ways. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  --sand:        #0C1312;
+  --sand-2:      #111A19;
+  --card:        #15201E;
+  --card-2:      #1B2725;
+  --ink:         #EAE4D8;
+  --ink-2:       #A6B5B2;
+  --ink-3:       #778785;
+  --line:        #263330;
+  --line-2:      #1E2A28;
+  --petrol:      #57BCAD;
+  --petrol-2:    #74D2C3;
+  --petrol-soft: #16302D;
+  --amber:       #E0A24C;
+  --amber-b:     #F2C378;
+  --amber-soft:  #2A2114;
+  --coral:       #E47766;
+  --coral-soft:  #2E1A16;
+  --wa:          #17A34A;
+  color-scheme: dark;
+  }
+}
+:root[data-theme="light"] {
+  --sand: #F4EFE6; --sand-2: #EBE4D7; --card: #FCFAF6; --card-2: #F7F2E9;
+  --ink: #10201F; --ink-2: #465A57; --ink-3: #7C8D8A; --line: #DFD6C7; --line-2: #EAE3D6;
+  --petrol: #0E4F4A; --petrol-2: #146B63; --petrol-soft: #DCE9E6;
+  --amber: #A85C09; --amber-b: #E29A2E; --amber-soft: #F7E9D2;
+  --coral: #A93529; --coral-soft: #F6E2DE; --wa: #0E7C3A;
+  color-scheme: light;
+}
+
+</style>
+</head>
+<body>
+  <main class="app" id="app"></main>
+  <script>
+/* ============================================================
+   QAREEB — قريب
+   Seed data. Illustrative only.
+   All phone / WhatsApp numbers are deliberate placeholders
+   (9647700000xxx) and must be replaced before any launch.
+   ============================================================ */
+
+const CONFIG = {
+  brand: { ar: "قريب", en: "Qareeb" },
+  city: { ar: "بغداد", en: "Baghdad" },
+  currency: { ar: "د.ع", en: "IQD" },
+  emergency: { ambulance: "122", note_ar: "تأكد من الرقم قبل الإطلاق", note_en: "Verify before launch" },
+  defaultDistrict: "karrada",
+  radiusKm: 5,
+  radiusSteps: [5, 10, 25],
+};
+
+/* ---------- DISTRICTS (Baghdad) ---------- */
+const DISTRICTS = [
+  { id: "karrada",   ar: "الكرادة",        en: "Karrada",      lat: 33.3006, lng: 44.4108 },
+  { id: "mansour",   ar: "المنصور",         en: "Mansour",      lat: 33.3115, lng: 44.3255 },
+  { id: "zayouna",   ar: "زيونة",           en: "Zayouna",      lat: 33.3372, lng: 44.4478 },
+  { id: "jadriya",   ar: "الجادرية",        en: "Jadriya",      lat: 33.2748, lng: 44.3856 },
+  { id: "adhamiya",  ar: "الأعظمية",        en: "Adhamiya",     lat: 33.3722, lng: 44.3600 },
+  { id: "kadhimiya", ar: "الكاظمية",        en: "Kadhimiya",    lat: 33.3778, lng: 44.3378 },
+  { id: "harthiya",  ar: "الحارثية",        en: "Harthiya",     lat: 33.3150, lng: 44.3600 },
+  { id: "yarmouk",   ar: "اليرموك",         en: "Yarmouk",      lat: 33.3050, lng: 44.3350 },
+  { id: "jamia",     ar: "حي الجامعة",      en: "Hay al-Jamia", lat: 33.2900, lng: 44.3200 },
+  { id: "dora",      ar: "الدورة",          en: "Dora",         lat: 33.2536, lng: 44.4056 },
+  { id: "newbaghdad",ar: "بغداد الجديدة",   en: "New Baghdad",  lat: 33.3200, lng: 44.4700 },
+  { id: "shaab",     ar: "الشعب",           en: "Sha'ab",       lat: 33.3900, lng: 44.4100 },
+  { id: "adl",       ar: "حي العدل",        en: "Hay al-Adl",   lat: 33.3300, lng: 44.3100 },
+  { id: "saydiya",   ar: "السيدية",         en: "Saydiya",      lat: 33.2700, lng: 44.3400 },
+  { id: "shula",     ar: "الشعلة",          en: "Shu'la",       lat: 33.3700, lng: 44.3000 },
+  { id: "ghazaliya", ar: "الغزالية",        en: "Ghazaliya",    lat: 33.3300, lng: 44.2800 },
+];
+
+/* ---------- SPECIALTIES (with symptom aliases for tolerant search) ---------- */
+const SPECIALTIES = [
+  { id: "dent",  ar: "طب الأسنان",           en: "Dentistry",        alias: ["اسنان","أسنان","سن","ضرس","تسوس","لثة","tooth","teeth","dental"] },
+  { id: "peds",  ar: "طب الأطفال",           en: "Pediatrics",       alias: ["اطفال","أطفال","طفل","رضيع","حرارة","child","baby","kids","fever"] },
+  { id: "derm",  ar: "الجلدية",              en: "Dermatology",      alias: ["جلد","جلدية","بشرة","حبوب","حساسية","شعر","skin","acne","hair","rash"] },
+  { id: "int",   ar: "الباطنية",             en: "Internal Medicine",alias: ["باطنية","معدة","قولون","سكري","ضغط","stomach","colon","internal"] },
+  { id: "ortho", ar: "جراحة العظام",         en: "Orthopedics",      alias: ["عظام","مفاصل","ظهر","كسر","ركبة","bones","joints","back","knee"] },
+  { id: "obgyn", ar: "النسائية والتوليد",     en: "Obstetrics & Gynecology", alias: ["نسائية","حمل","ولادة","توليد","pregnancy","birth","gyn"] },
+  { id: "card",  ar: "أمراض القلب",          en: "Cardiology",       alias: ["قلب","قلبية","خفقان","ضغط دم","heart","cardio"] },
+  { id: "eye",   ar: "طب العيون",            en: "Ophthalmology",    alias: ["عيون","عين","نظر","عدسات","eye","eyes","vision"] },
+  { id: "ent",   ar: "الأنف والأذن والحنجرة", en: "ENT",              alias: ["اذن","أذن","انف","أنف","حنجرة","جيوب","ear","nose","throat","sinus"] },
+  { id: "neuro", ar: "الأمراض العصبية",       en: "Neurology",        alias: ["صداع","شقيقة","دوخة","اعصاب","أعصاب","headache","migraine","neuro"] },
+  { id: "endo",  ar: "الغدد والسكري",         en: "Endocrinology",    alias: ["سكري","غدة","غدد","هرمونات","thyroid","diabetes","endo"] },
+  { id: "psych", ar: "الطب النفسي",           en: "Psychiatry",       alias: ["نفسية","قلق","اكتئاب","نوم","anxiety","depression","sleep"] },
+  { id: "uro",   ar: "المسالك البولية",       en: "Urology",          alias: ["كلى","مسالك","حصى","بولية","kidney","urology","stones"] },
+  { id: "surg",  ar: "الجراحة العامة",        en: "General Surgery",  alias: ["جراحة","فتق","زائدة","surgery","hernia"] },
+];
+
+/* ---------- NEEDS (symptom-first front door) ---------- */
+const NEEDS = [
+  { id: "n1",  spec: "dent",  ar: "وجع أسنان",        en: "Tooth pain",     icon: "tooth" },
+  { id: "n2",  spec: "peds",  ar: "حرارة طفل",        en: "Child fever",    icon: "thermo" },
+  { id: "n3",  spec: "derm",  ar: "بشرة وشعر",        en: "Skin & hair",    icon: "drop" },
+  { id: "n4",  spec: "obgyn", ar: "حمل ومتابعة",      en: "Pregnancy",      icon: "heartbeat" },
+  { id: "n5",  spec: "ortho", ar: "عظام ومفاصل",      en: "Bones & joints", icon: "bone" },
+  { id: "n6",  spec: "card",  ar: "قلب وضغط",         en: "Heart & BP",     icon: "heart" },
+  { id: "n7",  spec: "int",   ar: "معدة وقولون",      en: "Stomach",        icon: "stomach" },
+  { id: "n8",  spec: "eye",   ar: "عيون ونظر",        en: "Eyes & vision",  icon: "eye" },
+  { id: "n9",  spec: "ent",   ar: "أذن وأنف وحنجرة",  en: "Ear, nose, throat", icon: "ear" },
+  { id: "n10", spec: "neuro", ar: "صداع وأعصاب",      en: "Headache",       icon: "brain" },
+  { id: "n11", spec: "endo",  ar: "سكري وغدد",        en: "Diabetes",       icon: "sugar" },
+  { id: "n12", spec: "psych", ar: "قلق ونوم",         en: "Anxiety & sleep",icon: "moon" },
+];
+
+/* ---------- FACILITIES ---------- */
+/* type: hospital | clinic | pharmacy      er: emergency room      night: night duty */
+const FACILITIES = [
+  /* hospitals */
+  { id: "h1", type: "hospital", ar: "مستشفى بغداد التعليمي", en: "Baghdad Teaching Hospital", district: "jadriya", lat: 33.2765, lng: 44.3880, er: true,  phone: "9647700000101", wa: null, verified: true, updated: 4,
+    ar_note: "مدينة الطب — الردهة الخارجية", departments: ["int","surg","card","ortho","neuro"], hours: [{d:0,f:"00:00",t:"24:00"}], always: true },
+  { id: "h2", type: "hospital", ar: "مستشفى ابن النفيس", en: "Ibn Al-Nafees Hospital", district: "karrada", lat: 33.3040, lng: 44.4180, er: true, phone: "9647700000102", wa: null, verified: true, updated: 9,
+    departments: ["card","surg","int"], always: true },
+  { id: "h3", type: "hospital", ar: "مستشفى اليرموك التعليمي", en: "Al-Yarmouk Teaching Hospital", district: "yarmouk", lat: 33.3033, lng: 44.3320, er: true, phone: "9647700000103", wa: null, verified: true, updated: 12,
+    departments: ["surg","ortho","int","peds"], always: true },
+  { id: "h4", type: "hospital", ar: "مستشفى الكاظمية التعليمي", en: "Kadhimiya Teaching Hospital", district: "kadhimiya", lat: 33.3790, lng: 44.3390, er: true, phone: "9647700000104", wa: null, verified: true, updated: 21,
+    departments: ["int","peds","obgyn"], always: true },
+  { id: "h5", type: "hospital", ar: "مستشفى الواسطي التخصصي", en: "Al-Wasiti Specialist Hospital", district: "harthiya", lat: 33.3160, lng: 44.3610, er: false, phone: "9647700000105", wa: null, verified: true, updated: 6,
+    departments: ["surg","ortho","derm"], hours: [{d:"wk",f:"08:00",t:"15:00"}] },
+  { id: "h6", type: "hospital", ar: "مستشفى الكرخ العام", en: "Karkh General Hospital", district: "adl", lat: 33.3290, lng: 44.3120, er: true, phone: "9647700000106", wa: null, verified: false, updated: 96,
+    departments: ["int","surg"], always: true },
+
+  /* private clinics / medical centres */
+  { id: "c1", type: "clinic", ar: "مركز الكرادة الطبي", en: "Karrada Medical Centre", district: "karrada", lat: 33.2995, lng: 44.4090, phone: "9647700000201", verified: true, updated: 3 },
+  { id: "c2", type: "clinic", ar: "مجمع زيونة الطبي", en: "Zayouna Medical Complex", district: "zayouna", lat: 33.3380, lng: 44.4460, phone: "9647700000202", verified: true, updated: 5 },
+  { id: "c3", type: "clinic", ar: "مركز المنصور التخصصي", en: "Mansour Specialist Centre", district: "mansour", lat: 33.3120, lng: 44.3240, phone: "9647700000203", verified: true, updated: 2 },
+  { id: "c4", type: "clinic", ar: "عيادات الجادرية", en: "Jadriya Clinics", district: "jadriya", lat: 33.2740, lng: 44.3870, phone: "9647700000204", verified: true, updated: 8 },
+  { id: "c5", type: "clinic", ar: "مركز الشعب الطبي", en: "Sha'ab Medical Centre", district: "shaab", lat: 33.3910, lng: 44.4090, phone: "9647700000205", verified: false, updated: 40 },
+
+  /* pharmacies */
+  { id: "p1",  type: "pharmacy", ar: "صيدلية النور", en: "Al-Noor Pharmacy", district: "karrada", lat: 33.3012, lng: 44.4125, phone: "9647700000301", wa: "9647700000301", verified: true, updated: 2,
+    hours: [{d:"all",f:"08:30",t:"23:30"}], services: ["delivery","bp","injections"] },
+  { id: "p2",  type: "pharmacy", ar: "صيدلية ابن سينا", en: "Ibn Sina Pharmacy", district: "karrada", lat: 33.2980, lng: 44.4070, phone: "9647700000302", wa: "9647700000302", verified: true, updated: 1,
+    hours: [{d:"all",f:"20:00",t:"09:00"}], night: true, services: ["night","injections","baby"] },
+  { id: "p3",  type: "pharmacy", ar: "صيدلية الحياة", en: "Al-Hayat Pharmacy", district: "zayouna", lat: 33.3365, lng: 44.4490, phone: "9647700000303", wa: "9647700000303", verified: true, updated: 6,
+    hours: [{d:"all",f:"09:00",t:"22:00"}], services: ["delivery","baby"] },
+  { id: "p4",  type: "pharmacy", ar: "صيدلية الشفاء", en: "Al-Shifa Pharmacy", district: "mansour", lat: 33.3100, lng: 44.3270, phone: "9647700000304", wa: "9647700000304", verified: true, updated: 3,
+    hours: [{d:"all",f:"08:00",t:"22:00"}], services: ["delivery","bp"] },
+  { id: "p5",  type: "pharmacy", ar: "صيدلية الرحمة", en: "Al-Rahma Pharmacy", district: "mansour", lat: 33.3135, lng: 44.3230, phone: "9647700000305", wa: null, verified: true, updated: 11,
+    hours: [{d:"all",f:"21:00",t:"08:00"}], night: true, services: ["night"] },
+  { id: "p6",  type: "pharmacy", ar: "صيدلية السلام", en: "Al-Salam Pharmacy", district: "jadriya", lat: 33.2755, lng: 44.3840, phone: "9647700000306", wa: "9647700000306", verified: true, updated: 4,
+    hours: [{d:"all",f:"09:00",t:"21:00"}], services: ["baby","bp"] },
+  { id: "p7",  type: "pharmacy", ar: "صيدلية الأمل", en: "Al-Amal Pharmacy", district: "adhamiya", lat: 33.3715, lng: 44.3615, phone: "9647700000307", wa: "9647700000307", verified: false, updated: 74,
+    hours: [{d:"all",f:"09:00",t:"22:00"}], services: ["delivery"] },
+  { id: "p8",  type: "pharmacy", ar: "صيدلية بغداد المركزية", en: "Baghdad Central Pharmacy", district: "harthiya", lat: 33.3145, lng: 44.3580, phone: "9647700000308", wa: "9647700000308", verified: true, updated: 2,
+    hours: [{d:"all",f:"00:00",t:"24:00"}], night: true, services: ["night","delivery","injections","bp","baby"] },
+  { id: "p9",  type: "pharmacy", ar: "صيدلية الفارابي", en: "Al-Farabi Pharmacy", district: "yarmouk", lat: 33.3060, lng: 44.3365, phone: "9647700000309", wa: "9647700000309", verified: true, updated: 7,
+    hours: [{d:"all",f:"08:30",t:"21:30"}], services: ["delivery","baby"] },
+  { id: "p10", type: "pharmacy", ar: "صيدلية الياسمين", en: "Al-Yasmeen Pharmacy", district: "jamia", lat: 33.2895, lng: 44.3215, phone: "9647700000310", wa: "9647700000310", verified: true, updated: 5,
+    hours: [{d:"all",f:"09:00",t:"23:00"}], services: ["delivery","bp"] },
+  { id: "p11", type: "pharmacy", ar: "صيدلية دجلة", en: "Dijla Pharmacy", district: "dora", lat: 33.2545, lng: 44.4040, phone: "9647700000311", wa: "9647700000311", verified: true, updated: 14,
+    hours: [{d:"all",f:"08:00",t:"20:00"}], services: ["baby"] },
+  { id: "p12", type: "pharmacy", ar: "صيدلية زيونة الليلية", en: "Zayouna Night Pharmacy", district: "zayouna", lat: 33.3390, lng: 44.4440, phone: "9647700000312", wa: "9647700000312", verified: true, updated: 1,
+    hours: [{d:"all",f:"22:00",t:"08:00"}], night: true, services: ["night","injections"] },
+];
+
+/* ---------- DOCTORS ----------
+   sessions: { fac, d (0=Sun..6=Sat), f, t, fee }
+   fee 0 = public hospital outpatient (no consultation fee)
+------------------------------------------------------------- */
+const DOCTORS = [
+  { id: "d1", ar: "د. علي حسين الجبوري", en: "Dr. Ali Hussein Al-Jubouri", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "dent", sub_ar: "تقويم وزراعة الأسنان", sub_en: "Orthodontics & implants",
+    gender: "m", verified: true, updated: 3, wa: "9647700000401", phone: "9647700000401", accepting: true,
+    creds_ar: ["بورد عراقي - طب الأسنان", "زمالة تقويم - الأردن"], langs: ["ar","en"], exp: 12,
+    sessions: [
+      { fac: "c1", d: 6, f: "16:00", t: "21:00", fee: 25000 },
+      { fac: "c1", d: 0, f: "16:00", t: "21:00", fee: 25000 },
+      { fac: "c1", d: 2, f: "16:00", t: "21:00", fee: 25000 },
+      { fac: "c1", d: 4, f: "16:00", t: "20:00", fee: 25000 },
+    ] },
+
+  { id: "d2", ar: "د. زينب عبد الكريم", en: "Dr. Zainab Abdul Kareem", title_ar: "استشاري", title_en: "Consultant",
+    spec: "peds", sub_ar: "حديثي الولادة", sub_en: "Neonatology",
+    gender: "f", verified: true, updated: 1, wa: "9647700000402", phone: "9647700000402", accepting: true,
+    creds_ar: ["بورد عربي - طب الأطفال", "دبلوم حديثي الولادة"], langs: ["ar","en"], exp: 17,
+    sessions: [
+      { fac: "h4", d: 0, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "h4", d: 1, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "h4", d: 3, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "c2", d: 0, f: "17:00", t: "21:00", fee: 30000 },
+      { fac: "c2", d: 2, f: "17:00", t: "21:00", fee: 30000 },
+      { fac: "c2", d: 4, f: "17:00", t: "21:00", fee: 30000 },
+    ] },
+
+  { id: "d3", ar: "د. مصطفى الربيعي", en: "Dr. Mustafa Al-Rubaie", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "derm", sub_ar: "الأمراض الجلدية والليزر", sub_en: "Dermatology & laser",
+    gender: "m", verified: true, updated: 6, wa: "9647700000403", phone: "9647700000403", accepting: true,
+    creds_ar: ["بورد عراقي - الأمراض الجلدية"], langs: ["ar","en"], exp: 9,
+    sessions: [
+      { fac: "h5", d: 1, f: "08:30", t: "13:00", fee: 0 },
+      { fac: "h5", d: 3, f: "08:30", t: "13:00", fee: 0 },
+      { fac: "c3", d: 1, f: "16:30", t: "21:00", fee: 25000 },
+      { fac: "c3", d: 3, f: "16:30", t: "21:00", fee: 25000 },
+      { fac: "c3", d: 5, f: "16:30", t: "20:00", fee: 25000 },
+    ] },
+
+  { id: "d4", ar: "د. نور الهدى الخفاجي", en: "Dr. Noor Al-Huda Al-Khafaji", title_ar: "استشارية", title_en: "Consultant",
+    spec: "obgyn", sub_ar: "العقم والحمل عالي الخطورة", sub_en: "Fertility & high-risk pregnancy",
+    gender: "f", verified: true, updated: 2, wa: "9647700000404", phone: "9647700000404", accepting: true,
+    creds_ar: ["بورد عربي - النسائية والتوليد", "زمالة أطفال أنابيب"], langs: ["ar","en","ku"], exp: 21,
+    sessions: [
+      { fac: "h4", d: 6, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "c1", d: 0, f: "16:00", t: "20:00", fee: 35000 },
+      { fac: "c1", d: 2, f: "16:00", t: "20:00", fee: 35000 },
+      { fac: "c4", d: 4, f: "16:00", t: "20:00", fee: 35000 },
+    ] },
+
+  { id: "d5", ar: "د. عمر السامرائي", en: "Dr. Omar Al-Samarrai", title_ar: "استشاري", title_en: "Consultant",
+    spec: "ortho", sub_ar: "جراحة المفاصل والكسور", sub_en: "Joint & trauma surgery",
+    gender: "m", verified: true, updated: 5, wa: "9647700000405", phone: "9647700000405", accepting: true,
+    creds_ar: ["بورد عراقي - جراحة العظام", "زمالة مفاصل - تركيا"], langs: ["ar","en","tr"], exp: 19,
+    sessions: [
+      { fac: "h3", d: 0, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "h3", d: 2, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "c3", d: 0, f: "17:00", t: "21:00", fee: 30000 },
+      { fac: "c3", d: 2, f: "17:00", t: "21:00", fee: 30000 },
+      { fac: "c3", d: 4, f: "17:00", t: "21:00", fee: 30000 },
+    ] },
+
+  { id: "d6", ar: "د. رغد التميمي", en: "Dr. Raghad Al-Tamimi", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "int", sub_ar: "الجهاز الهضمي", sub_en: "Gastroenterology",
+    gender: "f", verified: true, updated: 4, wa: "9647700000406", phone: "9647700000406", accepting: true,
+    creds_ar: ["بورد عراقي - الطب الباطني"], langs: ["ar","en"], exp: 11,
+    sessions: [
+      { fac: "h2", d: 1, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "h2", d: 3, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "c1", d: 1, f: "17:00", t: "21:00", fee: 25000 },
+      { fac: "c1", d: 3, f: "17:00", t: "21:00", fee: 25000 },
+      { fac: "c1", d: 6, f: "10:00", t: "14:00", fee: 25000 },
+    ] },
+
+  { id: "d7", ar: "د. حيدر الموسوي", en: "Dr. Haider Al-Mousawi", title_ar: "استشاري", title_en: "Consultant",
+    spec: "card", sub_ar: "قسطرة القلب", sub_en: "Interventional cardiology",
+    gender: "m", verified: true, updated: 8, wa: "9647700000407", phone: "9647700000407", accepting: true,
+    creds_ar: ["بورد عربي - أمراض القلب", "زمالة قسطرة - مصر"], langs: ["ar","en"], exp: 23,
+    sessions: [
+      { fac: "h2", d: 0, f: "08:30", t: "13:00", fee: 0 },
+      { fac: "h2", d: 2, f: "08:30", t: "13:00", fee: 0 },
+      { fac: "h2", d: 4, f: "08:30", t: "13:00", fee: 0 },
+      { fac: "c1", d: 1, f: "18:00", t: "21:30", fee: 40000 },
+      { fac: "c4", d: 3, f: "18:00", t: "21:30", fee: 40000 },
+    ] },
+
+  { id: "d8", ar: "د. سارة العزاوي", en: "Dr. Sara Al-Azzawi", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "eye", sub_ar: "قرنية وتصحيح النظر", sub_en: "Cornea & vision correction",
+    gender: "f", verified: true, updated: 3, wa: "9647700000408", phone: "9647700000408", accepting: true,
+    creds_ar: ["بورد عراقي - طب العيون"], langs: ["ar","en"], exp: 10,
+    sessions: [
+      { fac: "c2", d: 6, f: "16:00", t: "20:00", fee: 25000 },
+      { fac: "c2", d: 1, f: "16:00", t: "20:00", fee: 25000 },
+      { fac: "c2", d: 3, f: "16:00", t: "20:00", fee: 25000 },
+    ] },
+
+  { id: "d9", ar: "د. أحمد الشمري", en: "Dr. Ahmed Al-Shammari", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "ent", sub_ar: "جراحة الجيوب والأنف", sub_en: "Sinus & nasal surgery",
+    gender: "m", verified: true, updated: 12, wa: "9647700000409", phone: "9647700000409", accepting: true,
+    creds_ar: ["بورد عراقي - الأنف والأذن والحنجرة"], langs: ["ar"], exp: 14,
+    sessions: [
+      { fac: "h3", d: 1, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "c3", d: 0, f: "17:30", t: "21:00", fee: 25000 },
+      { fac: "c3", d: 2, f: "17:30", t: "21:00", fee: 25000 },
+    ] },
+
+  { id: "d10", ar: "د. فاطمة الحسيني", en: "Dr. Fatima Al-Husseini", title_ar: "استشارية", title_en: "Consultant",
+    spec: "neuro", sub_ar: "الصداع والصرع", sub_en: "Headache & epilepsy",
+    gender: "f", verified: true, updated: 7, wa: "9647700000410", phone: "9647700000410", accepting: true,
+    creds_ar: ["بورد عربي - الأمراض العصبية"], langs: ["ar","en"], exp: 18,
+    sessions: [
+      { fac: "h1", d: 0, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "h1", d: 3, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "c4", d: 1, f: "17:00", t: "20:30", fee: 35000 },
+      { fac: "c4", d: 4, f: "17:00", t: "20:30", fee: 35000 },
+    ] },
+
+  { id: "d11", ar: "د. يوسف الدليمي", en: "Dr. Yousif Al-Dulaimi", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "endo", sub_ar: "السكري والغدة الدرقية", sub_en: "Diabetes & thyroid",
+    gender: "m", verified: true, updated: 2, wa: "9647700000411", phone: "9647700000411", accepting: true,
+    creds_ar: ["بورد عراقي - الطب الباطني", "دبلوم السكري - بريطانيا"], langs: ["ar","en"], exp: 13,
+    sessions: [
+      { fac: "c1", d: 6, f: "17:00", t: "21:00", fee: 30000 },
+      { fac: "c1", d: 1, f: "17:00", t: "21:00", fee: 30000 },
+      { fac: "c1", d: 4, f: "17:00", t: "21:00", fee: 30000 },
+      { fac: "h2", d: 2, f: "09:00", t: "12:30", fee: 0 },
+    ] },
+
+  { id: "d12", ar: "د. هدى الكناني", en: "Dr. Huda Al-Kinani", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "psych", sub_ar: "القلق واضطرابات النوم", sub_en: "Anxiety & sleep disorders",
+    gender: "f", verified: true, updated: 5, wa: "9647700000412", phone: "9647700000412", accepting: true,
+    creds_ar: ["بورد عراقي - الطب النفسي"], langs: ["ar","en"], exp: 8,
+    sessions: [
+      { fac: "c2", d: 0, f: "16:00", t: "20:00", fee: 30000 },
+      { fac: "c2", d: 2, f: "16:00", t: "20:00", fee: 30000 },
+    ] },
+
+  { id: "d13", ar: "د. كرار العبيدي", en: "Dr. Karrar Al-Obaidi", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "dent", sub_ar: "علاج جذور وحشوات تجميلية", sub_en: "Endodontics & cosmetic fillings",
+    gender: "m", verified: true, updated: 9, wa: "9647700000413", phone: "9647700000413", accepting: true,
+    creds_ar: ["ماجستير علاج الجذور - جامعة بغداد"], langs: ["ar"], exp: 7,
+    sessions: [
+      { fac: "c2", d: 6, f: "15:00", t: "21:00", fee: 20000 },
+      { fac: "c2", d: 1, f: "15:00", t: "21:00", fee: 20000 },
+      { fac: "c2", d: 3, f: "15:00", t: "21:00", fee: 20000 },
+      { fac: "c2", d: 5, f: "15:00", t: "19:00", fee: 20000 },
+    ] },
+
+  { id: "d14", ar: "د. مريم الزبيدي", en: "Dr. Mariam Al-Zubaidi", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "peds", sub_ar: "أمراض الأطفال العامة", sub_en: "General pediatrics",
+    gender: "f", verified: true, updated: 4, wa: "9647700000414", phone: "9647700000414", accepting: true,
+    creds_ar: ["بورد عراقي - طب الأطفال"], langs: ["ar","en"], exp: 10,
+    sessions: [
+      { fac: "c3", d: 6, f: "16:00", t: "21:00", fee: 25000 },
+      { fac: "c3", d: 0, f: "16:00", t: "21:00", fee: 25000 },
+      { fac: "c3", d: 1, f: "16:00", t: "21:00", fee: 25000 },
+      { fac: "c3", d: 2, f: "16:00", t: "21:00", fee: 25000 },
+      { fac: "c3", d: 3, f: "16:00", t: "21:00", fee: 25000 },
+    ] },
+
+  /* --- deliberate edge cases for state design --- */
+  { id: "d15", ar: "د. سيف الدين النعيمي", en: "Dr. Saif Al-Deen Al-Naimi", title_ar: "استشاري", title_en: "Consultant",
+    spec: "uro", sub_ar: "حصى الكلى والمناظير", sub_en: "Kidney stones & endoscopy",
+    gender: "m", verified: true, updated: 6, wa: null, phone: "9647700000415", accepting: true,   /* NO WHATSAPP */
+    creds_ar: ["بورد عربي - المسالك البولية"], langs: ["ar","en"], exp: 20,
+    sessions: [
+      { fac: "h1", d: 1, f: "09:00", t: "13:00", fee: 0 },
+      { fac: "c4", d: 2, f: "17:00", t: "20:00", fee: 30000 },
+    ] },
+
+  { id: "d16", ar: "د. آية الساعدي", en: "Dr. Aya Al-Saedi", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "derm", sub_ar: "الأمراض الجلدية", sub_en: "Dermatology",
+    gender: "f", verified: true, updated: 11, wa: "9647700000416", phone: "9647700000416", accepting: false, /* NOT ACCEPTING */
+    pause_ar: "بإجازة أمومة — تعود في الشهر القادم", pause_en: "On maternity leave — returns next month",
+    creds_ar: ["بورد عراقي - الأمراض الجلدية"], langs: ["ar"], exp: 6,
+    sessions: [{ fac: "c1", d: 0, f: "16:00", t: "20:00", fee: 25000 }] },
+
+  { id: "d17", ar: "د. باسم الطائي", en: "Dr. Basim Al-Taie", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "surg", sub_ar: "الجراحة العامة والمناظير", sub_en: "General & laparoscopic surgery",
+    gender: "m", verified: false, updated: 118, wa: "9647700000417", phone: "9647700000417", accepting: true, /* LISTED, STALE */
+    creds_ar: [], langs: ["ar"], exp: null,
+    sessions: [{ fac: "c5", d: 2, f: "16:00", t: "20:00", fee: null }] },
+
+  { id: "d18", ar: "د. رند الجنابي", en: "Dr. Rand Al-Janabi", title_ar: "اختصاص", title_en: "Specialist",
+    spec: "int", sub_ar: "الطب الباطني العام", sub_en: "General internal medicine",
+    gender: "f", verified: true, updated: 1, wa: "9647700000418", phone: "9647700000418", accepting: true,
+    creds_ar: ["بورد عراقي - الطب الباطني"], langs: ["ar","en"], exp: 9,
+    sessions: [
+      { fac: "c2", d: 6, f: "10:00", t: "14:00", fee: 25000 },
+      { fac: "c2", d: 0, f: "17:00", t: "21:00", fee: 25000 },
+      { fac: "c2", d: 2, f: "17:00", t: "21:00", fee: 25000 },
+      { fac: "c2", d: 4, f: "17:00", t: "21:00", fee: 25000 },
+      { fac: "c2", d: 5, f: "17:00", t: "20:00", fee: 25000 },
+    ] },
+];
+
+/* ---------- CARE — categories & products ---------- */
+const CARE_CATEGORIES = [
+  { id: "skin",  ar: "العناية بالبشرة", en: "Skin care",     icon: "drop" },
+  { id: "hair",  ar: "العناية بالشعر",  en: "Hair care",     icon: "wave" },
+  { id: "baby",  ar: "الأم والطفل",     en: "Mother & baby", icon: "baby" },
+  { id: "sun",   ar: "الحماية من الشمس",en: "Sun protection",icon: "sun" },
+  { id: "hyg",   ar: "النظافة اليومية", en: "Daily hygiene", icon: "hand" },
+  { id: "vit",   ar: "الفيتامينات",     en: "Supplements",   icon: "pill" },
+];
+
+const PRODUCTS = [
+  { id: "pr1", cat: "sun",  ar: "واقي شمس SPF 50+ للبشرة الحساسة", en: "Sunscreen SPF 50+ sensitive skin", brand: "Dermaline", price: 18000,
+    for_ar: "حماية يومية من الشمس، خفيف وغير دهني، مناسب للبشرة الحساسة والمعرّضة للتصبغات.",
+    use_ar: "يوضع على الوجه والرقبة قبل الخروج بـ ٢٠ دقيقة، ويعاد كل ساعتين عند التعرض المباشر.",
+    warn_ar: ["للاستعمال الخارجي فقط", "تجنب ملامسة العين", "أوقف الاستعمال عند ظهور تهيج"],
+    stock: ["p1","p4","p8","p3"] },
+  { id: "pr2", cat: "skin", ar: "غسول لطيف للبشرة الدهنية", en: "Gentle cleanser — oily skin", brand: "Dermaline", price: 12500,
+    for_ar: "ينظف الزيوت الزائدة دون أن يجفّف البشرة، خالٍ من الصابون والعطور.",
+    use_ar: "مرتين يومياً على بشرة مبللة، يشطف بالماء الفاتر.",
+    warn_ar: ["تجنب ملامسة العين"], stock: ["p1","p6","p9"] },
+  { id: "pr3", cat: "skin", ar: "كريم مرطب بالسيراميد", en: "Ceramide moisturiser", brand: "Hydralab", price: 21000,
+    for_ar: "يرمّم حاجز البشرة ويناسب الجفاف الشديد والإكزيما الخفيفة.",
+    use_ar: "يوضع صباحاً ومساءً على بشرة نظيفة.", warn_ar: [], stock: ["p1","p3","p8"] },
+  { id: "pr4", cat: "skin", ar: "سيروم فيتامين C ١٠٪", en: "Vitamin C serum 10%", brand: "Hydralab", price: 27000,
+    for_ar: "يوحّد لون البشرة ويخفف آثار التصبغ مع الاستعمال المنتظم.",
+    use_ar: "٣-٤ قطرات صباحاً قبل المرطب والواقي الشمسي.",
+    warn_ar: ["يُستعمل مع واقي شمس", "قد يسبب وخزاً خفيفاً في البداية"], stock: ["p4","p8"] },
+  { id: "pr5", cat: "hair", ar: "شامبو ضد تساقط الشعر", en: "Anti hair-loss shampoo", brand: "Keratin+", price: 16000,
+    for_ar: "يقوّي بصيلة الشعر ويقلل التساقط الموسمي.",
+    use_ar: "٣ مرات أسبوعياً، يُترك دقيقتين ثم يُشطف.", warn_ar: [], stock: ["p1","p3","p4","p9","p10"] },
+  { id: "pr6", cat: "hair", ar: "زيت أرغان للشعر التالف", en: "Argan oil — damaged hair", brand: "Keratin+", price: 11000,
+    for_ar: "ترطيب عميق للأطراف المتقصفة.", use_ar: "بضع قطرات على الأطراف بعد الاستحمام.", warn_ar: [], stock: ["p3","p9"] },
+  { id: "pr7", cat: "baby", ar: "كريم حماية من التسلخات للأطفال", en: "Baby nappy-rash cream", brand: "BabySoft", price: 9500,
+    for_ar: "يحمي بشرة الطفل ويعالج الاحمرار الناتج عن الحفاض.",
+    use_ar: "عند كل تغيير حفاض على منطقة نظيفة وجافة.", warn_ar: ["للاستعمال الخارجي فقط"], stock: ["p2","p6","p9","p11"] },
+  { id: "pr8", cat: "baby", ar: "حليب أطفال — المرحلة الأولى", en: "Infant formula — stage 1", brand: "NutriBaby", price: 24000,
+    for_ar: "تغذية تكميلية من الولادة حتى ٦ أشهر.",
+    use_ar: "حسب إرشادات العبوة وبعد استشارة طبيب الأطفال.",
+    warn_ar: ["الرضاعة الطبيعية هي الأفضل", "استشر طبيب الأطفال قبل الاستعمال"], stock: ["p2","p3","p6","p11"] },
+  { id: "pr9", cat: "vit", ar: "فيتامين D3 ٥٠٠٠ وحدة", en: "Vitamin D3 5000 IU", brand: "NutraWell", price: 14000,
+    for_ar: "يدعم صحة العظام والمناعة، شائع النقص في المنطقة.",
+    use_ar: "كبسولة يومياً مع الطعام أو حسب وصفة الطبيب.",
+    warn_ar: ["لا تتجاوز الجرعة الموصوفة"], stock: ["p1","p4","p8","p10"] },
+  { id: "pr10", cat: "vit", ar: "حديد وحمض الفوليك للحوامل", en: "Iron & folic acid — pregnancy", brand: "NutraWell", price: 13500,
+    for_ar: "يدعم الحمل ويعوّض نقص الحديد الشائع.",
+    use_ar: "حبة يومياً بعد الأكل أو حسب وصفة الطبيب.",
+    warn_ar: ["استشيري طبيبك قبل الاستعمال"], stock: ["p3","p6","p8"] },
+  { id: "pr11", cat: "hyg", ar: "معقم يدين ٧٠٪ كحول", en: "Hand sanitiser 70%", brand: "CleanCare", price: 4500,
+    for_ar: "تعقيم سريع خارج المنزل.", use_ar: "يُفرك على اليدين حتى الجفاف.",
+    warn_ar: ["قابل للاشتعال", "يُحفظ بعيداً عن الأطفال"], stock: ["p1","p2","p4","p6","p8","p9","p10"] },
+  { id: "pr12", cat: "hyg", ar: "غسول فم بدون كحول", en: "Alcohol-free mouthwash", brand: "CleanCare", price: 7000,
+    for_ar: "ينعش النفس دون حرقة، مناسب بعد علاج الأسنان.",
+    use_ar: "٢٠ مل مرتين يومياً بعد التنظيف.", warn_ar: [], stock: ["p1","p9","p10"] },
+  { id: "pr13", cat: "sun",  ar: "واقي شمس للأطفال SPF 50", en: "Kids sunscreen SPF 50", brand: "BabySoft", price: 19500,
+    for_ar: "تركيبة معدنية لطيفة لبشرة الأطفال فوق ٦ أشهر.",
+    use_ar: "قبل الخروج بـ ٢٠ دقيقة، يعاد كل ساعتين.",
+    warn_ar: ["غير مناسب لأقل من ٦ أشهر"], stock: ["p2","p6","p11"] },
+  { id: "pr14", cat: "skin", ar: "كريم لعلاج حب الشباب", en: "Acne treatment cream", brand: "Dermaline", price: 15500,
+    for_ar: "يقلل الحبوب الالتهابية ويهدئ الاحمرار.",
+    use_ar: "طبقة رقيقة مساءً على المنطقة المصابة.",
+    warn_ar: ["قد يسبب جفافاً في البداية", "يُستعمل مع واقي شمس"], stock: ["p4","p8","p10"] },
+];
+
+/* ---------- QR SOURCES (poster attribution) ---------- */
+const QR_SOURCES = {
+  "p1":  { label_ar: "ملصق صيدلية النور", district: "karrada" },
+  "c1":  { label_ar: "بطاقة مركز الكرادة الطبي", district: "karrada" },
+  "p8":  { label_ar: "ملصق صيدلية بغداد المركزية", district: "harthiya" },
+  "c3":  { label_ar: "ملصق مركز المنصور", district: "mansour" },
+};
+
+/* ---------- ADMIN demo metrics ---------- */
+const ADMIN_STATS = {
+  scans7d: 1284, requests7d: 213, searches7d: 3960, zeroResults7d: 287,
+  topNeeds: [["وجع أسنان", 412], ["حرارة طفل", 355], ["بشرة وشعر", 298], ["عظام ومفاصل", 190], ["حمل ومتابعة", 164]],
+  zeroQueries: [["دكتور اطفال الغزالية", 41], ["مختبر تحليل", 38], ["اشعة رنين", 33], ["دكتور اسنان الشعلة", 27], ["علاج طبيعي", 24], ["دكتور جلدية الدورة", 19]],
+  sources: [["ملصق صيدلية النور — الكرادة", 486], ["بطاقة مركز الكرادة", 311], ["ملصق صيدلية بغداد المركزية", 268], ["ملصق مركز المنصور", 219]],
+  queue: [
+    { t: "verify", ar: "د. باسم الطائي — طلب توثيق", meta: "الجراحة العامة · مركز الشعب الطبي" },
+    { t: "flag",   ar: "صيدلية الأمل — الدوام غير صحيح", meta: "بلاغ من مستخدم · قبل ٣ ساعات" },
+    { t: "flag",   ar: "د. سيف الدين النعيمي — رقم واتساب مفقود", meta: "تلقائي · تحقق النظام" },
+    { t: "verify", ar: "صيدلية دجلة — تحديث المناوبة الليلية", meta: "الدورة · طلب المالك" },
+  ],
+};
+
+</script>
+  <script>
+/* ============================================================
+   QAREEB — قريب  ·  Application
+   Hash router · time engine · screens · sheets. No backend.
+   ============================================================ */
+
+/* ---------------- STATE ---------------- */
+const LS = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem("qrb." + k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("qrb." + k, JSON.stringify(v)); } catch {} },
+};
+
+const S = {
+  lang: LS.get("lang", "ar"),
+  theme: LS.get("theme", null),   // null = follow the OS / host theme
+  district: LS.get("district", CONFIG.defaultDistrict),
+  gps: LS.get("gps", false),          // precise location granted
+  locState: LS.get("locState", "inferred"), // precise | chosen | inferred | denied
+  name: LS.get("name", ""),
+  saved: LS.get("saved", []),
+  requests: LS.get("requests", []),
+  qrSource: null,
+  recent: LS.get("recent", []),
+  filters: { openNow: false, gender: null, spec: null, fee: null, fac: null },
+  radius: CONFIG.radiusKm,
+  demoTime: null,                      // lets the demo scrub "now"
+};
+const isAR = () => S.lang === "ar";
+const L = (o) => (o ? (isAR() ? o.ar : (o.en || o.ar)) : "");
+
+/* ---------------- i18n ---------------- */
+const T = {
+  ar: {
+    home: "الرئيسية", doctors: "الأطباء", pharmacies: "الصيدليات", care: "العناية",
+    need_a: "أحتاج", near: "قرب", now: "الآن", adoctor: "طبيب",
+    show: "اعرض النتائج", searchPh: "طبيب، اختصاص، صيدلية، أو منتج…",
+    openNow: "مفتوح الآن", closingSoon: "يغلق قريباً", closed: "مغلق",
+    opensAt: "يفتح", until: "حتى", nightDuty: "مناوبة ليلية", verified: "موثّق",
+    listed: "معلومات عامة", updated: "حُدّثت المعلومات قبل", days: "يوم", today: "اليوم",
+    tomorrow: "غداً", free: "بدون أجرة", fee: "أجرة الكشف", km: "كم",
+    request: "اطلب موعد", message: "مراسلة", call: "اتصال", directions: "الطريق",
+    share: "مشاركة", sendWa: "إرسال عبر واتساب", continue: "متابعة",
+    yourName: "الاسم", note: "ملاحظة (اختياري)", chooseTime: "اختر الموعد",
+    pickArea: "اختر منطقتك", useGps: "حدّد موقعي تلقائياً", withoutLoc: "تابع بدون تحديد",
+    myArea: "منطقتي", results: "نتيجة", noResults: "لا توجد نتائج",
+    doctorsIn: "طبيب في", allSpecs: "كل الاختصاصات", sessions: "أوقات الدوام",
+    week: "أسبوع الطبيب", about: "معلومات", reportInfo: "الإبلاغ عن معلومة خاطئة",
+    myRequests: "طلباتي", savedItems: "المحفوظات", trust: "الثقة والتوثيق",
+    emergency: "طوارئ", ambulance: "الإسعاف", nearestEr: "أقرب طوارئ",
+    orderWa: "اطلب عبر واتساب", availableAt: "متوفر في", stockedBy: "يُصرف من",
+    male: "طبيب", female: "طبيبة", anyGender: "الكل",
+    hospital: "مستشفى", clinic: "عيادة خاصة", pharmacy: "صيدلية",
+    sent: "تم الإرسال", refCode: "رمز الطلب", back: "رجوع", cancel: "إلغاء",
+    edit: "تعديل الرسالة", notAccepting: "لا يستقبل حجوزات حالياً",
+    noWa: "لا يوجد واتساب — اتصل هاتفياً", loading: "جارٍ التحميل",
+  },
+  en: {
+    home: "Home", doctors: "Doctors", pharmacies: "Pharmacies", care: "Care",
+    need_a: "I need", near: "near", now: "right now", adoctor: "a doctor",
+    show: "Show results", searchPh: "Doctor, specialty, pharmacy, or product…",
+    openNow: "Open now", closingSoon: "Closing soon", closed: "Closed",
+    opensAt: "Opens", until: "until", nightDuty: "Night duty", verified: "Verified",
+    listed: "Listed", updated: "Info updated", days: "d ago", today: "Today",
+    tomorrow: "Tomorrow", free: "No fee", fee: "Consultation", km: "km",
+    request: "Request appointment", message: "Message", call: "Call", directions: "Directions",
+    share: "Share", sendWa: "Send on WhatsApp", continue: "Continue",
+    yourName: "Your name", note: "Note (optional)", chooseTime: "Choose a time",
+    pickArea: "Choose your area", useGps: "Use my location", withoutLoc: "Continue without",
+    myArea: "My area", results: "results", noResults: "No results",
+    doctorsIn: "doctors in", allSpecs: "All specialties", sessions: "Sessions",
+    week: "The doctor's week", about: "About", reportInfo: "Report incorrect info",
+    myRequests: "My requests", savedItems: "Saved", trust: "Trust & verification",
+    emergency: "Emergency", ambulance: "Ambulance", nearestEr: "Nearest ER",
+    orderWa: "Order via WhatsApp", availableAt: "Available at", stockedBy: "Dispensed by",
+    male: "Male", female: "Female", anyGender: "Any",
+    hospital: "Hospital", clinic: "Private clinic", pharmacy: "Pharmacy",
+    sent: "Sent", refCode: "Reference", back: "Back", cancel: "Cancel",
+    edit: "Edit message", notAccepting: "Not accepting requests right now",
+    noWa: "No WhatsApp — call instead", loading: "Loading",
+  },
+};
+const t = (k) => T[S.lang][k] ?? k;
+
+const DAYS_AR = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const DAYS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5];        // Iraqi week starts Saturday
+const dayName = (d) => (isAR() ? DAYS_AR[d] : DAYS_EN[d]);
+
+/* ---------------- ICONS ---------------- */
+const P = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  pin: '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  caret: '<path d="M6 9.5l6 6 6-6"/>',
+  back: '<path d="M15 19l-7-7 7-7"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  phone: '<path d="M6.5 3.5h3l1.5 4-2 1.4a12 12 0 0 0 6.1 6.1l1.4-2 4 1.5v3a2 2 0 0 1-2.2 2A17.5 17.5 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2z"/>',
+  wa: '<path d="M3.5 20.5l1.4-4.6A8.4 8.4 0 1 1 8.4 19l-4.9 1.5z"/><path d="M9 9.2c.3 2.6 3.2 5.5 5.8 5.8.7.1 1.3-.6 1.3-1.3l-1.8-.8-1 1a7 7 0 0 1-3.2-3.2l1-1-.8-1.8c-.7 0-1.4.6-1.3 1.3z" fill="currentColor" stroke="none"/>',
+  share: '<circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4M8.2 13.2l7.6 4"/>',
+  nav: '<path d="M12 3l8 18-8-4-8 4 8-18z"/>',
+  seal: '<path d="M12 2.6l2.4 1.8 3-.3 1 2.8 2.5 1.6-1 2.8 1 2.8-2.5 1.6-1 2.8-3-.3L12 21.4l-2.4-1.8-3 .3-1-2.8L3.1 15.5l1-2.8-1-2.8 2.5-1.6 1-2.8 3 .3z"/><path d="M8.8 12.2l2.2 2.2 4.2-4.4"/>',
+  alert: '<path d="M12 3.5L21 19H3l9-15.5z"/><path d="M12 10v4M12 16.6v.1"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8.2v.1"/>',
+  check: '<path d="M4.5 12.5l5 5 10-11"/>',
+  home: '<path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
+  stetho: '<path d="M6 3v5a4.5 4.5 0 0 0 9 0V3"/><path d="M4.2 3h2M13.8 3h2M10.5 12.4v2.1a4.5 4.5 0 0 0 9 0v-1.6"/><circle cx="19.2" cy="11" r="2"/>',
+  cross: '<path d="M4 10.5h16v1.2A8 8 0 0 1 12 19.7a8 8 0 0 1-8-7.9z"/><path d="M14.5 8.5l5-5M18 2.2l3.4 3.4"/><path d="M8.5 21.5h7"/>',
+  crossflat: '<path d="M9.6 3.5h4.8v6.1h6.1v4.8h-6.1v6.1H9.6v-6.1H3.5V9.6h6.1z"/>',
+  leaf: '<path d="M20 4c0 9-5 13-11 13H5c0-8 5-12 11-12 1.6 0 3 .3 4 .6z"/><path d="M4 21c2-6 5.5-9.5 10-11.5"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
+  edit: '<path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  qr: '<rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.5"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.5"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.5"/><path d="M14 14h3v3h-3zM20.5 14v6.5H17"/>',
+  sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c4 4.5 4 12.5 0 17-4-4.5-4-12.5 0-17z"/>',
+  filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+  flag: '<path d="M5 21V4M5 5h11l-1.6 3.5L16 12H5"/>',
+  refresh: '<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3.5V9h-5.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
+  bookmark: '<path d="M6 3.5h12v17l-6-4-6 4z"/>',
+  building: '<path d="M4 21V6l7-3v18M11 21h9V10l-9-3"/><path d="M14.5 12.5v.1M14.5 16v.1M17.5 12.5v.1M17.5 16v.1"/>',
+  truck: '<rect x="2.5" y="7" width="11" height="9" rx="1.5"/><path d="M13.5 10.5H18l3 3V16h-7.5"/><circle cx="6.5" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
+  syringe: '<path d="M18.5 3.5l2 2M17 5l2 2M8 14l-3.5 3.5L3 21l3.5-1.5L10 16"/><path d="M9 9l6 6M11.5 6.5l6 6"/>',
+  gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-4.5"/>',
+  baby: '<circle cx="12" cy="9" r="4.5"/><path d="M10.3 8.6v.1M13.7 8.6v.1M10.5 11c1 .8 2 .8 3 0"/><path d="M5.5 20.5c1.4-2.6 3.8-4 6.5-4s5.1 1.4 6.5 4"/>',
+  pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-40 12 12)"/><path d="M9 9l6 6"/>',
+  hand: '<path d="M9 12V5.5a1.5 1.5 0 0 1 3 0V11M12 11V4.5a1.5 1.5 0 0 1 3 0V11M15 11V6.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7 7 7 0 0 1-7-7v-2.5a1.5 1.5 0 0 1 3 0V13"/>',
+  wave: '<path d="M3 8c2.5-3 5-3 7.5 0S16 11 18.5 8M3 13c2.5-3 5-3 7.5 0s5 3 7.5 0M3 18c2.5-3 5-3 7.5 0s5 3 7.5 0"/>',
+  tooth: '<path d="M7.5 3.5C5.5 3.5 4 5.2 4 7.6c0 3.2 1.2 4.4 1.8 8 .4 2.3.7 4.4 1.8 4.4s1.3-1.8 1.6-3.6c.3-1.6.5-2.6.8-2.6s.5 1 .8 2.6c.3 1.8.5 3.6 1.6 3.6s1.4-2.1 1.8-4.4c.6-3.6 1.8-4.8 1.8-8 0-2.4-1.5-4.1-3.5-4.1-1.2 0-1.9.6-2.5.6s-1.3-.6-2.5-.6z"/>',
+  thermo: '<path d="M14 14.2V5a2 2 0 1 0-4 0v9.2a4.5 4.5 0 1 0 4 0z"/><path d="M12 8.5v7"/>',
+  drop: '<path d="M12 3.2s6 6.4 6 10.3a6 6 0 0 1-12 0c0-3.9 6-10.3 6-10.3z"/>',
+  heartbeat: '<path d="M20.5 9.2c0 5-8.5 10.3-8.5 10.3S3.5 14.2 3.5 9.2A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8.5 2.2z"/><path d="M3.9 11.6h3.4l1.4-2.4 2 4.4 1.5-2.6h3.9"/>',
+  heart: '<path d="M20.5 9.2c0 5-8.5 10.3-8.5 10.3S3.5 14.2 3.5 9.2A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8.5 2.2z"/>',
+  bone: '<path d="M7.6 16.4l8.8-8.8"/><path d="M8.5 15.5a2.5 2.5 0 1 0-3 3 2.5 2.5 0 1 0 3 3 2.5 2.5 0 0 0 .6-3.6z" transform="translate(-1.2 -1.2)"/><circle cx="6.2" cy="17.8" r="2.3"/><circle cx="4.4" cy="19.6" r="2.3"/><circle cx="17.8" cy="6.2" r="2.3"/><circle cx="19.6" cy="4.4" r="2.3"/>',
+  stomach: '<path d="M9 3.5v4.8c0 2-3.5 2.2-3.5 6.2A6 6 0 0 0 11.6 20.5c4 0 6.4-2.6 6.4-5.8 0-3-2-4.2-3.6-4.2-1.4 0-2.2.9-2.2 1.9"/><path d="M6.8 3.5h4"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  ear: '<path d="M7 9a5 5 0 0 1 10 0c0 3-2.5 4-3.5 5.5S12.5 19 11 20a3 3 0 0 1-4.5-2.5"/><path d="M10.2 9a1.9 1.9 0 0 1 3.8 0c0 1.6-1.8 2-2.4 3.4"/>',
+  brain: '<path d="M9.5 4.5A3 3 0 0 0 6.6 8 3 3 0 0 0 5 10.7a3 3 0 0 0 1.4 2.5A3 3 0 0 0 9.4 19c1 0 2-.5 2.6-1.3V4.5a2.4 2.4 0 0 0-2.5 0z"/><path d="M14.5 4.5A3 3 0 0 1 17.4 8a3 3 0 0 1 1.6 2.7 3 3 0 0 1-1.4 2.5A3 3 0 0 1 14.6 19c-1 0-2-.5-2.6-1.3"/>',
+  sugar: '<circle cx="12" cy="12" r="8.5"/><path d="M8 13.5c1.2-1.5 2.5-1.5 4 0s2.8 1.5 4 0M9 9.5v.1M15 9.5v.1"/>',
+};
+const DIRECTIONAL = new Set(["chev", "back"]);
+const icon = (n, cls = "") =>
+  `<svg class="${cls}${DIRECTIONAL.has(n) ? " dirflip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
+
+const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+  <path d="M4 4h18l6 6v18H4z" fill="var(--petrol)"/>
+  <path d="M16 22.5c-4.2-3-6.6-5.2-6.6-8a3.4 3.4 0 0 1 6.6-1.2 3.4 3.4 0 0 1 6.6 1.2c0 2.8-2.4 5-6.6 8z" fill="var(--amber-b)"/>
+</svg>`;
+
+/* ---------------- TIME ENGINE ---------------- */
+const mins = (hm) => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+const nowDate = () => (S.demoTime ? new Date(S.demoTime) : new Date());
+const nowMins = () => { const d = nowDate(); return d.getHours() * 60 + d.getMinutes(); };
+const nowDay = () => nowDate().getDay();
+const pct = (m) => (m / 1440) * 100;
+// 24-hour everywhere: it aligns in a column, and it contains no letters, so an
+// Arabic RTL line can never reorder it. 12h + ص/ظ/م inside an LTR run gets mangled.
+const fmtT = (m) => {
+  const h = Math.floor((m % 1440) / 60), mm = m % 60;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+};
+const fmtRangeTxt = (a, b) => `${fmtT(a)} – ${fmtT(b)}`;                       // plain text: messages, stored records
+const fmtRange = (a, b) => `<span dir="ltr" class="num">${fmtRangeTxt(a, b)}</span>`;   // markup: UI
+const fmtTi = (m) => `<span dir="ltr" class="num">${fmtT(m)}</span>`;
+
+/* raw segments on a weekday; t may exceed 1440 when it wraps past midnight */
+function rawSegs(ent, day) {
+  const out = [];
+  if (ent.sessions) {
+    ent.sessions.filter((s) => s.d === day).forEach((s) => {
+      const f = FACILITIES.find((x) => x.id === s.fac);
+      out.push({ f: mins(s.f), t: mins(s.t), kind: f && f.type === "hospital" ? "pub" : "priv", s, fac: f });
+    });
+  } else if (ent.always) {
+    out.push({ f: 0, t: 1440, kind: "priv" });
+  } else if (ent.hours) {
+    ent.hours.forEach((h) => {
+      if (h.d !== "all" && h.d !== "wk" && h.d !== day) return;
+      if (h.d === "wk" && (day === 5)) return;         // Friday closed for weekday-only facilities
+      let a = mins(h.f), b = h.t === "24:00" ? 1440 : mins(h.t);
+      if (b <= a) b += 1440;
+      out.push({ f: a, t: b, kind: "priv" });
+    });
+  }
+  return out.sort((x, y) => x.f - y.f);
+}
+
+function openSeg(ent) {
+  const d = nowDay(), n = nowMins();
+  for (const s of rawSegs(ent, d)) if (n >= s.f && n < s.t) return s;
+  for (const s of rawSegs(ent, (d + 6) % 7)) if (n + 1440 >= s.f && n + 1440 < s.t) return { ...s, f: s.f - 1440, t: s.t - 1440 };
+  return null;
+}
+
+function nextSeg(ent) {
+  const d0 = nowDay(), n = nowMins();
+  for (let i = 0; i < 8; i++) {
+    const d = (d0 + i) % 7;
+    for (const s of rawSegs(ent, d)) {
+      const abs = i * 1440 + s.f;
+      if (abs > n) return { ...s, day: d, inDays: i, abs };
+    }
+  }
+  return null;
+}
+
+function status(ent) {
+  const o = openSeg(ent);
+  if (o) return { k: o.t - nowMins() <= 45 ? "soon" : "open", seg: o };
+  const nx = nextSeg(ent);
+  return { k: "shut", next: nx };
+}
+
+function statusLabel(st, terse = false) {
+  if (st.k === "open") return `<span class="state-line state-open"><i class="bulb"></i>${t("openNow")}${terse ? "" : ` · ${t("until")} ${fmtTi(st.seg.t)}`}</span>`;
+  if (st.k === "soon") return `<span class="state-line state-soon"><i class="bulb"></i>${t("closingSoon")} ${fmtTi(st.seg.t)}</span>`;
+  if (!st.next) return `<span class="state-line state-shut"><i class="bulb"></i>${t("closed")}</span>`;
+  const when = st.next.inDays === 0 ? t("today") : st.next.inDays === 1 ? t("tomorrow") : dayName(st.next.day);
+  return `<span class="state-line state-shut"><i class="bulb"></i>${t("opensAt")} ${when} ${fmtTi(st.next.f)}</span>`;
+}
+
+/* ---------------- RIBBON ---------------- */
+function ribbon(ent, day = null, cls = "ribbon--micro", showNow = true) {
+  const d = day === null ? nowDay() : day;
+  const segs = rawSegs(ent, d);
+  const prev = rawSegs(ent, (d + 6) % 7).filter((s) => s.t > 1440).map((s) => ({ ...s, f: 0, t: s.t - 1440 }));
+  const all = [...prev, ...segs];
+  const st = status(ent);
+  const bars = all.map((s) => {
+    const a = Math.max(0, s.f), b = Math.min(1440, s.t);
+    if (b <= a) return "";
+    const live = showNow && day === null && st.k !== "shut" && st.seg && s.f === st.seg.f;
+    return `<i class="${s.kind}${live ? " live" : ""}" style="--a:${pct(a).toFixed(2)}%;--w:${pct(b - a).toFixed(2)}%"></i>`;
+  }).join("");
+  const marker = showNow && (day === null || day === nowDay()) ? `<b style="--now:${pct(nowMins()).toFixed(2)}%"></b>` : "";
+  return `<div class="ribbon ${cls}" role="img" aria-label="${t("sessions")}">${bars}${marker}</div>`;
+}
+
+function ribbonScale() {
+  return `<div class="ribbon-scale">${[6, 12, 18].map((h) =>
+    `<span style="--a:${pct(h * 60)}%">${String(h).padStart(2, "0")}:00</span>`).join("")}</div>`;
+}
+
+/* ---------------- GEO ---------------- */
+const R = 6371;
+function haversine(a, b) {
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180, dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+const here = () => DISTRICTS.find((d) => d.id === S.district) || DISTRICTS[0];
+const fac = (id) => FACILITIES.find((f) => f.id === id);
+function distTo(f) { return haversine(here(), f); }
+// Approximation is stated once, in the results header — not repeated on every card.
+// Repeating "~" on 30 cards is noise, and a stray tilde is a bidi hazard in RTL.
+function fmtKm(k) {
+  const n = k < 1 ? Math.round(k * 1000) : k.toFixed(1);
+  const u = k < 1 ? (isAR() ? "م" : "m") : t("km");
+  return `<span class="num">${n}</span> ${u}`;
+}
+const approxNote = () => S.locState === "precise" ? "" :
+  (isAR() ? `المسافات تقريبية من مركز ${L(here())}` : `Distances approximate from ${L(here())} centre`);
+function docDist(doc) {
+  const ds = doc.sessions.map((s) => distTo(fac(s.fac))).filter((n) => !isNaN(n));
+  return ds.length ? Math.min(...ds) : 99;
+}
+function docFacs(doc) { return [...new Set(doc.sessions.map((s) => s.fac))].map(fac); }
+
+/* ---------------- SELECTORS ---------------- */
+function doctorsFor({ spec = null, q = null, radius = S.radius } = {}) {
+  let list = DOCTORS.slice();
+  if (spec) list = list.filter((d) => d.spec === spec);
+  if (q) { const nq = norm(q); list = list.filter((d) => norm(d.ar + " " + d.en + " " + (d.sub_ar || "")).includes(nq) || specMatch(d.spec, nq)); }
+  const f = S.filters;
+  if (f.gender) list = list.filter((d) => d.gender === f.gender);
+  if (f.openNow) list = list.filter((d) => status(d).k !== "shut");
+  list = list.map((d) => ({ d, km: docDist(d), st: status(d) }));
+  const within = list.filter((x) => x.km <= radius);
+  const thin = within.length < 3;                 // widen when results are thin, not only when empty
+  const used = thin ? list : within;
+  const usedRadius = thin ? null : radius;
+  used.sort((a, b) => {
+    const rank = (x) => (x.st.k === "open" ? 0 : x.st.k === "soon" ? 1 : 2);
+    return rank(a) - rank(b) || a.km - b.km;
+  });
+  return { list: used, expanded: usedRadius === null, total: list.length };
+}
+
+function pharmaciesNear({ openOnly = false, radius = 25 } = {}) {
+  let list = FACILITIES.filter((f) => f.type === "pharmacy").map((f) => ({ f, km: distTo(f), st: status(f) }));
+  if (openOnly) list = list.filter((x) => x.st.k !== "shut");
+  list = list.filter((x) => x.km <= radius);
+  list.sort((a, b) => {
+    const rank = (x) => (x.st.k === "open" ? 0 : x.st.k === "soon" ? 1 : 2);
+    return rank(a) - rank(b) || a.km - b.km;
+  });
+  return list;
+}
+
+const norm = (s) => (s || "").toString().toLowerCase()
+  .replace(/[ً-ٰٟ]/g, "").replace(/[أإآٱ]/g, "ا")
+  .replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/ـ/g, "").trim();
+
+function specMatch(id, nq) {
+  const sp = SPECIALTIES.find((s) => s.id === id);
+  if (!sp) return false;
+  return [sp.ar, sp.en, ...sp.alias].some((a) => norm(a).includes(nq) || nq.includes(norm(a)));
+}
+function findSpecByQuery(q) {
+  const nq = norm(q); if (!nq) return null;
+  return SPECIALTIES.find((s) => [s.ar, s.en, ...s.alias].some((a) => norm(a).includes(nq) || nq.includes(norm(a)))) || null;
+}
+const specOf = (id) => SPECIALTIES.find((s) => s.id === id);
+const needCount = (n) => DOCTORS.filter((d) => d.spec === n.spec && status(d).k !== "shut").length;
+const docsOpenNow = () => DOCTORS.filter((d) => status(d).k !== "shut").length;
+const phOpenNow = () => FACILITIES.filter((f) => f.type === "pharmacy" && status(f).k !== "shut").length;
+const phNight = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night).length;
+
+/* ---------------- HELPERS ---------------- */
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (n) => (n === null || n === undefined) ? "—" : n === 0 ? t("free") : `${n.toLocaleString("en-US")} ${L(CONFIG.currency)}`;
+const initials = (name) => {
+  const clean = name.replace(/^د\.\s*/, "").replace(/^Dr\.\s*/, "").trim();
+  // Arabic letters join into pseudo-words, so one letter reads better than two
+  return isAR() ? clean[0] : clean.split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
+};
+const refCode = () => { const C = "ABCDEFGHJKLMNPQRTUVWXY3479"; return Array.from({ length: 4 }, () => C[Math.floor(Math.random() * C.length)]).join(""); };
+const waLink = (num, msg) => `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+const mapLink = (f) => `https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lng}`;
+
+function sealBadge(ent) {
+  return ent.verified
+    ? `<span class="seal">${icon("seal")}${t("verified")}</span>`
+    : `<span class="unverified">${icon("info")}${t("listed")}</span>`;
+}
+function updatedLine(ent) {
+  const stale = ent.updated > 90;
+  return `<span class="updated${stale ? " stale" : ""}">${icon("refresh")}${t("updated")} <span class="num">${ent.updated}</span> ${t("days")}</span>`;
+}
+
+/* ---------------- CARDS ---------------- */
+function doctorCard(x, wide = false) {
+  const { d, km, st } = x;
+  const sp = specOf(d.spec);
+  const f = st.k !== "shut" && st.seg ? st.seg.fac : (st.next ? st.next.fac : docFacs(d)[0]);
+  const fee = st.k !== "shut" && st.seg ? st.seg.s?.fee : (st.next ? st.next.s?.fee : d.sessions[0].fee);
+  return `<a class="card ${st.k === "open" ? "is-open" : st.k === "soon" ? "is-soon" : "is-shut"} ${wide ? "card--wide" : ""}" href="#/doctor/${d.id}">
+    <div class="card-top">
+      <div class="avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
+      <div class="grow">
+        <div class="card-t">${esc(L(d))}</div>
+        <div class="card-q">${esc(L(sp))}${d.sub_ar && isAR() ? " · " + esc(d.sub_ar) : ""}</div>
+        <div class="card-meta">
+          ${d.verified ? `<span class="seal">${icon("seal")}${t("verified")}</span><i class="dot"></i>` : ""}
+          <span class="dist">${icon("pin")}${fmtKm(km)}</span>
+          <i class="dot"></i><span class="trunc">${esc(f ? L(f) : "")}</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-ribbon">${ribbon(d)}</div>
+    <div class="card-foot">
+      ${statusLabel(st)}
+      <span class="fee ${fee === 0 ? "fee--free" : ""} num">${money(fee)}</span>
+    </div>
+  </a>`;
+}
+
+function pharmacyCard(x, wide = false) {
+  const { f, km, st } = x;
+  const dist = DISTRICTS.find((d) => d.id === f.district);
+  return `<a class="card ${st.k === "open" ? "is-open" : st.k === "soon" ? "is-soon" : "is-shut"} ${wide ? "card--wide" : ""}" href="#/pharmacy/${f.id}">
+    <div class="card-top">
+      <div class="avatar avatar--sq">${icon("cross")}</div>
+      <div class="grow">
+        <div class="card-t trunc">${esc(L(f))}</div>
+        <div class="card-meta">
+          ${f.verified ? `<span class="seal">${icon("seal")}${t("verified")}</span><i class="dot"></i>` : ""}
+          <span class="dist">${icon("pin")}${fmtKm(km)}</span>
+          <i class="dot"></i><span>${esc(L(dist))}</span>
+          ${f.night ? `<span class="chip chip--meta chip--time">${icon("moon")}${t("nightDuty")}</span>` : ""}
+        </div>
+      </div>
+    </div>
+    <div class="card-ribbon">${ribbon(f)}</div>
+    <div class="card-foot">${statusLabel(st)}</div>
+    ${(f.services || []).length ? `<div class="card-svc">${f.services.slice(0, 4).map((sv) => `<span class="chip chip--meta">${svcLabel(sv)}</span>`).join("")}</div>` : ""}
+  </a>`;
+}
+
+const SVC = {
+  delivery: { ar: "توصيل", en: "Delivery" }, night: { ar: "مناوبة", en: "Night" },
+  injections: { ar: "حقن", en: "Injections" }, bp: { ar: "قياس ضغط", en: "BP check" },
+  baby: { ar: "مستلزمات أطفال", en: "Baby care" },
+};
+const svcLabel = (s) => esc(L(SVC[s]) || s);
+
+function productCard(p) {
+  return `<a class="prod" href="#/product/${p.id}">
+    <div class="prod-img">${icon(CARE_CATEGORIES.find((c) => c.id === p.cat)?.icon || "pill", "glyph")}</div>
+    <div class="prod-b">
+      <div class="prod-t">${esc(L(p))}</div>
+      <div class="prod-brand">${esc(p.brand)}</div>
+      <div class="prod-p num">${money(p.price)}</div>
+    </div>
+  </a>`;
+}
+
+/* ---------------- SHELL ---------------- */
+const app = () => document.getElementById("app");
+
+function header(opts = {}) {
+  if (opts.back) {
+    return `<header class="hdr">
+      <button class="icon-btn hdr-back" onclick="history.back()" aria-label="${t("back")}">${icon("back")}</button>
+      <div class="grow hdr-title">${esc(opts.title || "")}</div>
+      ${opts.right || ""}
+    </header>`;
+  }
+  return `<header class="hdr">
+    <a class="brand" href="#/">${BRAND_MARK}<span>${L(CONFIG.brand)}</span></a>
+    <div class="grow"></div>
+    <button class="place-tag ${S.locState === "precise" ? "place-tag--gps" : ""}" onclick="openLocation()">
+      ${icon("pin")}<span>${esc(L(here()))}</span>${icon("chev", "arrow")}</button>
+    <button class="icon-btn" onclick="toggleLang()" aria-label="${isAR() ? "English" : "العربية"}">${icon("globe")}</button>
+    <button class="icon-btn" onclick="toggleTheme()" aria-label="${isAR() ? "الوضع الليلي" : "Theme"}">${icon("moon")}</button>
+  </header>`;
+}
+
+function nav(active) {
+  const items = [["#/", "home", "home"], ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"], ["#/care", "leaf", "care"]];
+  return `<nav class="nav">${items.map(([h, i, k]) =>
+    `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
+}
+
+/* ---------------- SCREENS ---------------- */
+function screenHome() {
+  const needLabel = S.filters.spec ? L(specOf(S.filters.spec)) : t("adoctor");
+  const nearby = [
+    ...doctorsFor({ radius: 25 }).list.slice(0, 3).map((x) => doctorCard(x, true)),
+    ...pharmaciesNear({ openOnly: true }).slice(0, 2).map((x) => pharmacyCard(x, true)),
+  ];
+  return `${header()}
+  ${S.qrSource ? qrContext() : ""}
+  <section class="hero">
+    <h1 class="hero-line">
+      ${isAR() ? `<span class="fix">أحتاج</span>
+        <button class="blank" onclick="location.hash='#/needs'">${esc(needLabel)}${icon("caret")}</button>
+        <span class="fix">قرب</span>
+        <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
+        <span class="fix">الآن.</span>`
+        : `<span class="fix">I need</span>
+        <button class="blank" onclick="location.hash='#/needs'">${esc(needLabel)}${icon("caret")}</button>
+        <span class="fix">near</span>
+        <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
+        <span class="fix">right now.</span>`}
+    </h1>
+    <div class="hero-cta"><a class="btn" href="#/doctors${S.filters.spec ? "?spec=" + S.filters.spec : ""}">${icon("search")}${t("show")}</a></div>
+    <button class="search-field" style="margin-top:10px" onclick="location.hash='#/search'">
+      ${icon("search")}<span class="muted grow" style="text-align:start">${t("searchPh")}</span>
+    </button>
+
+    <div class="pulse">
+      <div class="pulse-cell"><div class="n num">${docsOpenNow()}</div><div class="l">${isAR() ? "طبيب متاح" : "doctors open"}</div>${ribbon(DOCTORS[13])}</div>
+      <div class="pulse-cell"><div class="n num">${phOpenNow()}</div><div class="l">${isAR() ? "صيدلية مفتوحة" : "pharmacies open"}</div>${ribbon(fac("p1"))}</div>
+      <div class="pulse-cell night"><div class="n num">${phNight()}</div><div class="l">${isAR() ? "مناوبة ليلية" : "night duty"}</div>${ribbon(fac("p2"))}</div>
+    </div>
+    <p class="hero-sub">${isAR()
+      ? `الآن ${fmtT(nowMins())} · <span class="num">${DOCTORS.filter(d=>d.verified).length}</span> طبيب موثّق و<span class="num">${FACILITIES.filter(f=>f.type==="pharmacy").length}</span> صيدلية في بغداد`
+      : `Now ${fmtT(nowMins())} · <span class="num">${DOCTORS.filter(d=>d.verified).length}</span> verified doctors and <span class="num">${FACILITIES.filter(f=>f.type==="pharmacy").length}</span> pharmacies in Baghdad`}</p>
+  </section>
+
+  <section class="wrap stack stagger">
+    <a class="lane on" href="#/pharmacies">
+      <span class="ic">${icon("cross")}</span>
+      <span class="grow"><h3>${isAR() ? "صيدلية مفتوحة الآن" : "Pharmacy open now"}</h3>
+        <p>${isAR() ? `${phOpenNow()} مفتوحة · ${phNight()} مناوبة ليلية` : `${phOpenNow()} open · ${phNight()} on night duty`}</p></span>
+      <span class="go">${icon("chev")}</span></a>
+    <a class="lane" href="#/care">
+      <span class="ic">${icon("leaf")}</span>
+      <span class="grow"><h3>${isAR() ? "العناية والمستلزمات" : "Care & products"}</h3>
+        <p>${isAR() ? "من رفوف الصيدليات القريبة منك" : "From the shelves of pharmacies near you"}</p></span>
+      <span class="go">${icon("chev")}</span></a>
+    <button class="lane lane--sos" onclick="openEmergency()">
+      <span class="ic">${icon("alert")}</span>
+      <span class="grow" style="text-align:start"><h3>${isAR() ? "حالة طارئة؟" : "Emergency?"}</h3>
+        <p>${isAR() ? `الإسعاف ${CONFIG.emergency.ambulance} · أقرب طوارئ` : `Ambulance ${CONFIG.emergency.ambulance} · nearest ER`}</p></span>
+      <span class="go">${icon("chev")}</span></button>
+  </section>
+
+  <section class="sec wrap">
+    <div class="sec-h"><h2>${isAR() ? "قريب منك الآن" : "Near you right now"}</h2>
+      <a class="more" href="#/doctors">${isAR() ? "الكل" : "See all"}</a></div>
+    <div class="rail bleed">${nearby.join("")}</div>
+  </section>
+
+  <section class="sec wrap">
+    <a class="lane" href="#/trust"><span class="ic">${icon("seal")}</span>
+      <span class="grow"><h3>${t("trust")}</h3><p>${isAR() ? "كيف نوثّق المعلومات وكيف تبلّغ عن خطأ" : "How we verify, and how to report an error"}</p></span>
+      <span class="go">${icon("chev")}</span></a>
+  </section>
+  ${nav("home")}`;
+}
+
+function qrContext() {
+  const src = QR_SOURCES[S.qrSource];
+  if (!src) return "";
+  return `<div class="qr-ctx fade">${icon("qr")}
+    <span>${isAR() ? "دخلت من" : "Scanned at"} ${esc(src.label_ar)}</span>
+    <button onclick="S.qrSource=null;render()" aria-label="${t("cancel")}">${icon("close")}</button></div>`;
+}
+
+function screenNeeds() {
+  return `${header({ back: true, title: isAR() ? "ما الذي تحتاجه؟" : "What do you need?" })}
+  <section class="wrap sec">
+    <div class="needs stagger">
+      ${NEEDS.map((n) => {
+        const c = needCount(n);
+        return `<button class="need ${c ? "has" : ""}" onclick="pickNeed('${n.spec}')">
+          <span class="ic">${icon(n.icon)}</span>
+          <h3>${esc(L(n))}</h3>
+          <div class="cnt">${c ? `<b class="num">${c}</b> ${isAR() ? "متاح الآن" : "available now"}` : (isAR() ? "لا أحد متاح الآن" : "none open now")}</div>
+          ${ribbon(DOCTORS.find((d) => d.spec === n.spec) || DOCTORS[0], null, "ribbon--micro", true)}
+        </button>`;
+      }).join("")}
+    </div>
+    <div class="sec-h" style="margin-top:26px"><h2>${t("allSpecs")}</h2></div>
+    <div class="chips chips--wrap">
+      ${SPECIALTIES.map((s) => `<button class="chip" onclick="pickNeed('${s.id}')">${esc(L(s))}
+        <span class="num muted">${DOCTORS.filter((d) => d.spec === s.id).length}</span></button>`).join("")}
+    </div>
+  </section>${nav("doctors")}`;
+}
+
+function screenDoctors(params) {
+  const spec = params.get("spec");
+  if (spec) S.filters.spec = spec;
+  const q = params.get("q");
+  const r = doctorsFor({ spec: S.filters.spec, q });
+  const sp = S.filters.spec ? specOf(S.filters.spec) : null;
+  const f = S.filters;
+  return `${header({ back: true, title: sp ? L(sp) : t("doctors") })}
+  <div class="filters">
+    <div class="chips">
+      <button class="chip ${f.openNow ? "on" : ""}" onclick="tf('openNow')">${icon("clock")}${t("openNow")}</button>
+      <button class="chip ${f.gender === "f" ? "on" : ""}" onclick="tg('f')">${isAR() ? "طبيبة" : "Female"}</button>
+      <button class="chip ${f.gender === "m" ? "on" : ""}" onclick="tg('m')">${isAR() ? "طبيب" : "Male"}</button>
+      ${sp ? `<button class="chip on" onclick="S.filters.spec=null;render()">${esc(L(sp))} ${icon("close")}</button>`
+           : `<button class="chip" onclick="location.hash='#/needs'">${icon("filter")}${t("allSpecs")}</button>`}
+    </div>
+  </div>
+  <div class="res-head">
+    <span class="n"><span class="num">${r.list.length}</span> ${t("results")} ${isAR() ? "ضمن" : "within"} <span class="num">${r.expanded ? 25 : S.radius}</span> ${t("km")}</span>
+    <span class="tiny muted">${esc(approxNote() || L(here()))}</span>
+  </div>
+  ${r.expanded ? `<div class="radius-note">${icon("info")}<span>${isAR()
+      ? `لا توجد نتائج ضمن ${S.radius} كم من ${L(here())} — وسّعنا البحث إلى 25 كم.`
+      : `Nothing within ${S.radius} km of ${L(here())} — expanded to 25 km.`}</span></div>` : ""}
+  <section class="wrap"><div class="stack list-2 stagger">
+    ${r.list.length ? r.list.map((x) => doctorCard(x)).join("") : emptyDoctors(sp)}
+  </div>
+  ${r.list.length && r.list.length < 6 ? `<div class="list-end">
+    <p class="small muted">${isAR() ? "هذا كل ما لدينا في هذا الاختصاص قرب منطقتك." : "That's everything we have in this specialty near you."}</p>
+    <button class="btn btn--2" onclick="pickNeed(null)">${icon("grid")}${isAR() ? "جرّب اختصاصاً آخر" : "Try another specialty"}</button>
+    <button class="btn btn--3" onclick="openLocation()">${icon("pin")}${isAR() ? "غيّر منطقتي" : "Change my area"}</button>
+  </div>` : ""}</section>
+  <div style="height:24px"></div>${nav("doctors")}`;
+}
+
+function emptyDoctors(sp) {
+  const alt = DISTRICTS.map((d) => {
+    const saved = S.district; S.district = d.id;
+    const n = doctorsFor({ spec: S.filters.spec, radius: 6 }).list.length;
+    S.district = saved; return { d, n };
+  }).filter((x) => x.n > 0 && x.d.id !== S.district).sort((a, b) => b.n - a.n).slice(0, 3);
+  return `<div class="empty">
+    <div class="empty-mark">${icon("pin")}</div>
+    <h3>${isAR() ? `لا يوجد ${sp ? L(sp) : "طبيب"} مطابق في ${L(here())}` : `No matching ${sp ? L(sp) : "doctor"} in ${L(here())}`}</h3>
+    <p>${isAR() ? "لكن هذه أقرب المناطق التي فيها أطباء متاحون." : "Here are the nearest areas that do have available doctors."}</p>
+    <div class="empty-alts stack">
+      ${alt.map((x) => `<button class="lane" onclick="setDistrict('${x.d.id}')">
+        <span class="ic">${icon("pin")}</span>
+        <span class="grow" style="text-align:start"><h3>${esc(L(x.d))}</h3>
+          <p><span class="num">${x.n}</span> ${isAR() ? "طبيب" : "doctors"}</p></span>
+        <span class="go">${icon("chev")}</span></button>`).join("")}
+    </div>
+    <button class="btn btn--2" style="margin-top:14px" onclick="S.filters={openNow:false,gender:null,spec:null};render()">
+      ${icon("refresh")}${isAR() ? "أزل كل الفلاتر" : "Clear all filters"}</button>
+  </div>`;
+}
+
+function screenDoctor(id) {
+  const d = DOCTORS.find((x) => x.id === id);
+  if (!d) return screen404();
+  const sp = specOf(d.spec), st = status(d), km = docDist(d);
+  const facs = docFacs(d);
+  const byFac = facs.map((f) => ({ f, ss: d.sessions.filter((s) => s.fac === f.id) }));
+  const fee = d.sessions.find((s) => s.fee)?.fee ?? d.sessions[0].fee;
+  const saved = S.saved.includes("d:" + d.id);
+
+  return `${header({ back: true, title: "", right: `<button class="icon-btn" onclick="toggleSave('d:${d.id}')" aria-label="${t("share")}">${icon(saved ? "bookmark" : "bookmark")}</button><button class="icon-btn" onclick="shareDoctor('${d.id}')">${icon("share")}</button>` })}
+  <section class="prof-head">
+    <div class="row" style="align-items:flex-start;gap:14px">
+      <div class="avatar prof-avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
+      <div class="grow">
+        <h1 class="prof-name">${esc(L(d))}</h1>
+        <div class="prof-spec">${esc(L(sp))}</div>
+        <div class="card-meta" style="margin-top:7px">${sealBadge(d)}<i class="dot"></i>${updatedLine(d)}</div>
+      </div>
+    </div>
+    ${!d.accepting ? `<div class="banner banner--warn" style="margin-top:14px">${icon("info")}
+      <span>${t("notAccepting")}${d.pause_ar ? " — " + esc(isAR() ? d.pause_ar : d.pause_en) : ""}</span></div>` : ""}
+    ${!d.wa ? `<div class="banner banner--info" style="margin-top:10px">${icon("phone")}<span>${t("noWa")}</span></div>` : ""}
+    ${d.updated > 90 ? `<div class="banner banner--warn" style="margin-top:10px">${icon("alert")}
+      <span>${isAR() ? "لم تُحدَّث هذه المعلومات منذ فترة طويلة. تحقق قبل الذهاب." : "This information hasn't been updated in a while. Check before travelling."}</span></div>` : ""}
+    <div class="status-strip ${st.k}">
+      <div class="row-b"><span>${statusLabel(st)}</span>
+        <span class="tiny muted">${isAR() ? "اليوم" : "Today"} · ${dayName(nowDay())}</span></div>
+      <div style="margin-top:9px">${ribbon(d, null, "ribbon--day")}</div>
+    </div>
+    <div class="prof-facts">
+      <div class="prof-fact"><div class="k">${isAR() ? "المسافة" : "Distance"}</div><div class="v">${fmtKm(km)}</div></div>
+      <div class="prof-fact"><div class="k">${t("fee")}</div><div class="v num">${money(fee)}</div></div>
+      <div class="prof-fact"><div class="k">${isAR() ? "المواقع" : "Locations"}</div><div class="v num">${facs.length}</div></div>
+    </div>
+  </section>
+
+  <section class="blk">
+    <h3>${t("week")}</h3>
+    <div class="week">
+      ${DAY_ORDER.map((dy) => {
+        const has = d.sessions.some((s) => s.d === dy);
+        return `<div class="week-row ${dy === nowDay() ? "today" : ""} ${has ? "" : "off"}">
+          <span class="d">${dayName(dy)}</span>${ribbon(d, dy, "ribbon--day", dy === nowDay())}</div>`;
+      }).join("")}
+    </div>
+    ${ribbonScale()}
+    <div class="week-legend">
+      <span class="row" style="gap:6px"><i style="background:var(--petrol);opacity:.38"></i>${isAR() ? "مستشفى (بدون أجرة)" : "Hospital (no fee)"}</span>
+      <span class="row" style="gap:6px"><i style="background:var(--amber-b);opacity:.55"></i>${isAR() ? "عيادة خاصة" : "Private clinic"}</span>
+      <span class="row" style="gap:6px"><i style="background:var(--ink);width:2px;height:10px"></i>${isAR() ? "الآن" : "Now"}</span>
+    </div>
+  </section>
+
+  <section class="blk">
+    <h3>${t("sessions")} · <span class="muted" style="font-weight:400">${facs.length} ${isAR() ? "موقع" : "locations"}</span></h3>
+    ${byFac.map(({ f, ss }) => `<div class="fac-block">
+      <div class="row-b">
+        <div><div class="ft">${esc(L(f))}</div>
+          <div class="fm">${t(f.type)} · ${esc(L(DISTRICTS.find((x) => x.id === f.district)))} · ${fmtKm(distTo(f))}</div></div>
+        <a class="icon-btn" href="${mapLink(f)}" target="_blank" rel="noopener" aria-label="${t("directions")}">${icon("nav")}</a>
+      </div>
+      <div class="stack" style="margin-top:10px">
+        ${ss.sort((a, b) => DAY_ORDER.indexOf(a.d) - DAY_ORDER.indexOf(b.d)).map((s) => `<div class="kv">
+          <span class="k">${dayName(s.d)}</span>
+          <span class="v num">${fmtRange(mins(s.f), mins(s.t))} · ${money(s.fee)}</span></div>`).join("")}
+      </div></div>`).join("")}
+  </section>
+
+  <section class="blk">
+    <h3>${t("about")}</h3>
+    ${d.creds_ar?.length ? d.creds_ar.map((c) => `<div class="kv"><span class="k">${icon("seal")}</span><span class="v" style="text-align:start;flex:1">${esc(c)}</span></div>`).join("")
+      : `<p class="small muted">${isAR() ? "لم تُضف المؤهلات بعد." : "Credentials not added yet."}</p>`}
+    ${d.exp ? `<div class="kv"><span class="k">${isAR() ? "سنوات الخبرة" : "Experience"}</span><span class="v num">${d.exp}</span></div>` : ""}
+    <div class="kv"><span class="k">${isAR() ? "اللغات" : "Languages"}</span><span class="v">${d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ")}</span></div>
+    <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button>
+  </section>
+
+  <div class="actionbar">
+    ${d.accepting
+      ? `<button class="btn" onclick="openRequest('${d.id}')">${icon("cal")}${t("request")}</button>`
+      : `<button class="btn" disabled>${icon("cal")}${t("notAccepting")}</button>`}
+    ${d.wa ? `<a class="icon-btn" href="${waLink(d.wa, directMsg(d))}" target="_blank" rel="noopener" aria-label="${t("message")}">${icon("wa")}</a>` : ""}
+    <a class="icon-btn" href="tel:+${d.phone}" aria-label="${t("call")}">${icon("phone")}</a>
+  </div>
+  ${nav("doctors")}`;
+}
+
+function screenPharmacies() {
+  const openOnly = S.filters.openNow;
+  const list = pharmaciesNear({ openOnly });
+  const night = list.filter((x) => x.f.night);
+  return `${header({ back: true, title: t("pharmacies") })}
+  <div class="filters"><div class="chips">
+    <button class="chip ${openOnly ? "on" : ""}" onclick="tf('openNow')">${icon("clock")}${t("openNow")}</button>
+    <button class="chip" onclick="location.hash='#/pharmacies?night=1'">${icon("moon")}${t("nightDuty")} <span class="num">${night.length}</span></button>
+  </div></div>
+  <section class="wrap">
+    <div class="map-peek" aria-hidden="true">
+      ${list.slice(0, 7).map((x, i) => `<span class="pin" style="inset-inline-start:${12 + ((i * 37) % 76)}%;top:${18 + ((i * 29) % 60)}%"></span>`).join("")}
+      <span class="pin me" style="inset-inline-start:48%;top:46%"></span>
+      <span class="lbl">${esc(L(here()))} · <span class="num">${list.length}</span> ${isAR() ? "صيدلية" : "pharmacies"}</span>
+    </div>
+  </section>
+  <div class="res-head"><span class="n"><span class="num">${list.length}</span> ${t("results")}</span>
+    <span class="tiny muted">${esc(approxNote()) || (isAR() ? "المفتوح أولاً، ثم الأقرب" : "Open first, then nearest")}</span></div>
+  <section class="wrap"><div class="stack list-2 stagger">
+    ${list.length ? list.map((x) => pharmacyCard(x)).join("") : `<div class="empty">
+      <div class="empty-mark">${icon("moon")}</div>
+      <h3>${isAR() ? "لا توجد صيدلية مفتوحة الآن قريباً منك" : "No pharmacy open near you right now"}</h3>
+      <p>${isAR() ? "أقرب صيدلية تفتح قريباً:" : "The nearest one opening soon:"}</p>
+      <div class="empty-alts stack">${pharmaciesNear({}).slice(0, 2).map((x) => pharmacyCard(x)).join("")}</div></div>`}
+  </div></section>
+  <div style="height:24px"></div>${nav("pharmacies")}`;
+}
+
+function screenPharmacy(id) {
+  const f = fac(id); if (!f) return screen404();
+  const st = status(f), km = distTo(f);
+  const prods = PRODUCTS.filter((p) => p.stock.includes(f.id));
+  return `${header({ back: true, title: "" })}
+  <section class="prof-head">
+    <div class="row" style="align-items:flex-start;gap:14px">
+      <div class="avatar prof-avatar avatar--sq">${icon("cross")}</div>
+      <div class="grow">
+        <h1 class="prof-name">${esc(L(f))}</h1>
+        <div class="prof-spec">${t("pharmacy")} · ${esc(L(DISTRICTS.find((d) => d.id === f.district)))}</div>
+        <div class="card-meta" style="margin-top:7px">${sealBadge(f)}<i class="dot"></i>${updatedLine(f)}</div>
+      </div>
+    </div>
+    <div class="status-strip ${st.k}">
+      <div class="row-b"><span>${statusLabel(st)}</span>
+        ${f.night ? `<span class="chip chip--meta chip--time">${icon("moon")}${t("nightDuty")}</span>` : ""}</div>
+      <div style="margin-top:9px">${ribbon(f, null, "ribbon--day")}</div>
+    </div>
+    <div class="prof-facts">
+      <div class="prof-fact"><div class="k">${isAR() ? "المسافة" : "Distance"}</div><div class="v">${fmtKm(km)}</div></div>
+      <div class="prof-fact"><div class="k">${isAR() ? "المنطقة" : "Area"}</div><div class="v" style="font-size:14px">${esc(L(DISTRICTS.find((d) => d.id === f.district)))}</div></div>
+      <div class="prof-fact"><div class="k">${isAR() ? "الخدمات" : "Services"}</div><div class="v num">${(f.services || []).length}</div></div>
+    </div>
+  </section>
+  <section class="blk"><h3>${isAR() ? "الدوام خلال الأسبوع" : "Weekly hours"}</h3>
+    <div class="week">${DAY_ORDER.map((dy) => `<div class="week-row ${dy === nowDay() ? "today" : ""}">
+      <span class="d">${dayName(dy)}</span>${ribbon(f, dy, "ribbon--day", dy === nowDay())}</div>`).join("")}</div>
+    ${ribbonScale()}
+  </section>
+  <section class="blk"><h3>${isAR() ? "الخدمات" : "Services"}</h3>
+    <div class="chips chips--wrap">${(f.services || []).map((s) => `<span class="chip">${icon(({ delivery: "truck", night: "moon", injections: "syringe", bp: "gauge", baby: "baby" })[s] || "check")}${svcLabel(s)}</span>`).join("")}</div>
+  </section>
+  ${prods.length ? `<section class="blk"><div class="sec-h"><h2 style="font-size:15px">${isAR() ? "متوفر في هذه الصيدلية" : "On the shelf here"}</h2>
+    <a class="more" href="#/care">${isAR() ? "الكل" : "All"}</a></div>
+    <div class="rail" style="margin-inline:-18px;padding-inline:18px">${prods.slice(0, 6).map((p) => `<div style="width:150px">${productCard(p)}</div>`).join("")}</div></section>` : ""}
+  <section class="blk"><button class="btn btn--3" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button></section>
+  <div class="actionbar">
+    <a class="btn" href="${mapLink(f)}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>
+    ${f.wa ? `<a class="icon-btn" href="${waLink(f.wa, isAR() ? `السلام عليكم، استفسار من ${L(CONFIG.brand)}:` : `Hello, an enquiry via ${L(CONFIG.brand)}:`)}" target="_blank" rel="noopener">${icon("wa")}</a>` : ""}
+    <a class="icon-btn" href="tel:+${f.phone}">${icon("phone")}</a>
+  </div>${nav("pharmacies")}`;
+}
+
+function screenCare(cat) {
+  const list = cat ? PRODUCTS.filter((p) => p.cat === cat) : PRODUCTS;
+  const c = CARE_CATEGORIES.find((x) => x.id === cat);
+  return `${header({ back: !!cat, title: c ? L(c) : "" })}
+  ${!cat ? `<section class="wrap" style="padding-top:20px">
+    <h1 class="hero-line" style="font-size:26px">${isAR() ? "رفوف الصيدليات القريبة منك." : "The shelves of the pharmacies near you."}</h1>
+    <p class="hero-sub">${isAR() ? "كل منتج يُطلب من صيدلية حقيقية قريبة — لا سلة ولا دفع." : "Every product is ordered from a real nearby pharmacy — no cart, no payment."}</p>
+  </section>
+  <section class="wrap sec"><div class="grid-2 stagger">
+    ${CARE_CATEGORIES.map((x) => `<a class="need" href="#/care/${x.id}" style="text-align:start">
+      <span class="ic">${icon(x.icon)}</span><h3>${esc(L(x))}</h3>
+      <div class="cnt"><span class="num">${PRODUCTS.filter((p) => p.cat === x.id).length}</span> ${isAR() ? "منتج" : "products"}</div></a>`).join("")}
+  </div></section>` : ""}
+  <section class="wrap ${cat ? "sec" : ""}">
+    ${cat ? "" : `<div class="sec-h"><h2>${isAR() ? "الأكثر طلباً" : "Most requested"}</h2></div>`}
+    <div class="grid-2 stagger">${(cat ? list : list.slice(0, 6)).map(productCard).join("")}</div>
+  </section>
+  <div style="height:24px"></div>${nav("care")}`;
+}
+
+function screenProduct(id) {
+  const p = PRODUCTS.find((x) => x.id === id); if (!p) return screen404();
+  const stock = p.stock.map(fac).map((f) => ({ f, km: distTo(f), st: status(f) }))
+    .sort((a, b) => (a.st.k === "shut") - (b.st.k === "shut") || a.km - b.km);
+  const best = stock[0];
+  return `${header({ back: true, title: "" })}
+  <section class="wrap" style="padding-top:14px">
+    <div class="prod-img ch" style="--chamfer-size:20px;aspect-ratio:16/10">${icon(CARE_CATEGORIES.find((c) => c.id === p.cat)?.icon || "pill", "glyph")}</div>
+    <h1 class="prof-name" style="margin-top:16px">${esc(L(p))}</h1>
+    <div class="prof-spec">${esc(p.brand)}</div>
+    <div class="row" style="margin-top:10px;gap:10px">
+      <span class="prod-p num" style="font-size:20px">${money(p.price)}</span>
+      <span class="chip chip--meta chip--ok">${esc(L(CARE_CATEGORIES.find((c) => c.id === p.cat)))}</span>
+    </div>
+  </section>
+  <section class="blk" style="margin-top:16px"><h3>${isAR() ? "لماذا يُستعمل" : "What it's for"}</h3><p class="small">${esc(p.for_ar)}</p></section>
+  <section class="blk"><h3>${isAR() ? "طريقة الاستعمال" : "How to use"}</h3><p class="small">${esc(p.use_ar)}</p></section>
+  ${p.warn_ar.length ? `<section class="blk"><h3>${isAR() ? "تنبيهات" : "Warnings"}</h3>
+    <div class="stack">${p.warn_ar.map((w) => `<div class="banner banner--warn">${icon("alert")}<span>${esc(w)}</span></div>`).join("")}</div></section>` : ""}
+  <section class="blk">
+    <h3>${t("stockedBy")}</h3>
+    <div class="stack">${stock.slice(0, 4).map((x) => pharmacyCard(x)).join("")}</div>
+  </section>
+  <div class="actionbar">
+    <a class="btn btn--wa" href="${best.f.wa ? waLink(best.f.wa, productMsg(p, best.f)) : "#"}" target="_blank" rel="noopener">
+      ${icon("wa")}${t("orderWa")} — ${esc(L(best.f))}</a>
+  </div>${nav("care")}`;
+}
+
+function screenSearch() {
+  const q = LS.get("q", "");
+  return `${header({ back: true, title: "" })}
+  <section class="wrap" style="padding-top:6px">
+    <div class="search-field">${icon("search")}
+      <input id="q" value="${esc(q)}" placeholder="${t("searchPh")}" oninput="doSearch(this.value)" autocomplete="off">
+      <button onclick="doSearch('');document.getElementById('q').value=''" aria-label="${t("cancel")}">${icon("close")}</button></div>
+  </section>
+  <section class="wrap sec" id="sres">${searchResults(q)}</section>${nav("home")}`;
+}
+
+function searchResults(q) {
+  if (!q || !q.trim()) {
+    return `<div class="res-group"><h3>${isAR() ? "ابدأ من حاجتك" : "Start from your need"}</h3>
+      <div class="chips chips--wrap">${NEEDS.slice(0, 8).map((n) => `<button class="chip" onclick="pickNeed('${n.spec}')">${icon(n.icon)}${esc(L(n))}</button>`).join("")}</div></div>
+      ${S.recent.length ? `<div class="res-group"><h3>${isAR() ? "بحثك السابق" : "Recent"}</h3>
+        <div class="chips chips--wrap">${S.recent.slice(0, 6).map((r) => `<button class="chip" onclick="doSearch('${esc(r)}');document.getElementById('q').value='${esc(r)}'">${esc(r)}</button>`).join("")}</div></div>` : ""}`;
+  }
+  const nq = norm(q);
+  const docs = DOCTORS.filter((d) => norm(L(d)).includes(nq) || specMatch(d.spec, nq)).slice(0, 6);
+  const specs = SPECIALTIES.filter((s) => [s.ar, s.en, ...s.alias].some((a) => norm(a).includes(nq))).slice(0, 5);
+  const phs = FACILITIES.filter((f) => f.type === "pharmacy" && norm(L(f)).includes(nq)).slice(0, 4);
+  const hos = FACILITIES.filter((f) => f.type !== "pharmacy" && norm(L(f)).includes(nq)).slice(0, 4);
+  const prs = PRODUCTS.filter((p) => norm(L(p) + " " + p.brand).includes(nq)).slice(0, 4);
+  const none = !docs.length && !specs.length && !phs.length && !hos.length && !prs.length;
+  if (none) return `<div class="empty">
+    <div class="empty-mark">${icon("search")}</div>
+    <h3>${isAR() ? `لم نجد "${esc(q)}" بعد` : `We don't have "${esc(q)}" yet`}</h3>
+    <p>${isAR() ? "سجّلنا بحثك — نضيف الأطباء والصيدليات الناقصة أسبوعياً." : "We logged your search — we add missing doctors and pharmacies every week."}</p>
+    <button class="btn btn--2" onclick="location.hash='#/needs'">${icon("grid")}${isAR() ? "تصفّح حسب الحاجة" : "Browse by need"}</button></div>`;
+  const G = (title, body) => body ? `<div class="res-group"><h3>${title}</h3><div class="stack">${body}</div></div>` : "";
+  return G(t("doctors"), docs.map((d) => doctorCard({ d, km: docDist(d), st: status(d) })).join(""))
+    + G(isAR() ? "اختصاصات" : "Specialties", specs.map((s) => `<button class="lane" onclick="pickNeed('${s.id}')"><span class="ic">${icon("stetho")}</span>
+        <span class="grow" style="text-align:start"><h3>${esc(L(s))}</h3><p><span class="num">${DOCTORS.filter((d) => d.spec === s.id).length}</span> ${isAR() ? "طبيب" : "doctors"}</p></span>
+        <span class="go">${icon("chev")}</span></button>`).join(""))
+    + G(t("pharmacies"), phs.map((f) => pharmacyCard({ f, km: distTo(f), st: status(f) })).join(""))
+    + G(isAR() ? "مستشفيات ومراكز" : "Hospitals & centres", hos.map((f) => `<a class="lane" href="#/hospital/${f.id}"><span class="ic">${icon("building")}</span>
+        <span class="grow"><h3>${esc(L(f))}</h3><p>${esc(L(DISTRICTS.find((d) => d.id === f.district)))} · ${fmtKm(distTo(f))}</p></span>
+        <span class="go">${icon("chev")}</span></a>`).join(""))
+    + G(t("care"), prs.length ? `<div class="grid-2">${prs.map(productCard).join("")}</div>` : "");
+}
+
+function screenHospitals() {
+  const list = FACILITIES.filter((f) => f.type !== "pharmacy").map((f) => ({ f, km: distTo(f) })).sort((a, b) => a.km - b.km);
+  const er = list.filter((x) => x.f.er);
+  return `${header({ back: true, title: isAR() ? "المستشفيات" : "Hospitals" })}
+  <section class="wrap sec">
+    <div class="banner banner--stop">${icon("alert")}<span>${isAR()
+      ? `للحالات الطارئة اتصل بالإسعاف <b class="num">${CONFIG.emergency.ambulance}</b> مباشرة.`
+      : `For emergencies call the ambulance on <b class="num">${CONFIG.emergency.ambulance}</b> directly.`}</span></div>
+    <div class="sec-h" style="margin-top:20px"><h2>${isAR() ? "طوارئ مفتوحة الآن" : "Emergency rooms open now"}</h2></div>
+    <div class="stack list-2">${er.map((x) => hospitalRow(x)).join("")}</div>
+    <div class="sec-h" style="margin-top:24px"><h2>${isAR() ? "كل المستشفيات والمراكز" : "All hospitals & centres"}</h2></div>
+    <div class="stack list-2">${list.filter((x) => !x.f.er).map((x) => hospitalRow(x)).join("")}</div>
+  </section><div style="height:24px"></div>${nav("doctors")}`;
+}
+
+function hospitalRow(x) {
+  const n = DOCTORS.filter((d) => d.sessions.some((s) => s.fac === x.f.id)).length;
+  return `<a class="card ${x.f.er ? "is-open" : ""}" href="#/hospital/${x.f.id}">
+    <div class="card-top"><div class="avatar avatar--sq">${icon("building")}</div>
+      <div class="grow"><div class="card-t">${esc(L(x.f))}</div>
+        <div class="card-meta">${x.f.verified ? `<span class="seal">${icon("seal")}${t("verified")}</span><i class="dot"></i>` : ""}
+          <span class="dist">${icon("pin")}${fmtKm(x.km)}</span><i class="dot"></i>
+          <span><span class="num">${n}</span> ${isAR() ? "طبيب" : "doctors"}</span></div></div>
+      ${x.f.er ? `<span class="chip chip--meta chip--warn">${isAR() ? "طوارئ ٢٤ ساعة" : "24h ER"}</span>` : ""}
+    </div></a>`;
+}
+
+function screenHospital(id) {
+  const f = fac(id); if (!f) return screen404();
+  const docs = DOCTORS.filter((d) => d.sessions.some((s) => s.fac === f.id));
+  const deps = [...new Set(docs.map((d) => d.spec))];
+  return `${header({ back: true, title: "" })}
+  <section class="prof-head">
+    <div class="row" style="align-items:flex-start;gap:14px">
+      <div class="avatar prof-avatar avatar--sq">${icon("building")}</div>
+      <div class="grow"><h1 class="prof-name">${esc(L(f))}</h1>
+        <div class="prof-spec">${t(f.type)} · ${esc(L(DISTRICTS.find((d) => d.id === f.district)))}</div>
+        <div class="card-meta" style="margin-top:7px">${sealBadge(f)}<i class="dot"></i>${updatedLine(f)}</div></div>
+    </div>
+    ${f.er ? `<div class="banner banner--stop" style="margin-top:14px">${icon("alert")}
+      <span>${isAR() ? "طوارئ تعمل ٢٤ ساعة" : "Emergency department open 24h"} · ${CONFIG.emergency.ambulance}</span></div>` : ""}
+    <div class="prof-facts">
+      <div class="prof-fact"><div class="k">${isAR() ? "المسافة" : "Distance"}</div><div class="v">${fmtKm(distTo(f))}</div></div>
+      <div class="prof-fact"><div class="k">${isAR() ? "الأطباء" : "Doctors"}</div><div class="v num">${docs.length}</div></div>
+      <div class="prof-fact"><div class="k">${isAR() ? "الأقسام" : "Departments"}</div><div class="v num">${deps.length}</div></div>
+    </div>
+  </section>
+  <section class="blk"><h3>${isAR() ? "الأقسام" : "Departments"}</h3>
+    <div class="chips chips--wrap">${deps.map((s) => `<button class="chip" onclick="pickNeed('${s}')">${esc(L(specOf(s)))}</button>`).join("")}</div></section>
+  <section class="blk"><h3>${isAR() ? "أطباء يداومون هنا" : "Doctors who practise here"}</h3>
+    <div class="stack">${docs.map((d) => doctorCard({ d, km: distTo(f), st: status(d) })).join("")}</div></section>
+  <div class="actionbar">
+    <a class="btn" href="${mapLink(f)}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>
+    <a class="icon-btn" href="tel:+${f.phone}">${icon("phone")}</a>
+  </div>${nav("doctors")}`;
+}
+
+function screenMe() {
+  return `${header({ back: true, title: t("myRequests") })}
+  <section class="wrap sec">
+    ${S.requests.length ? `<div class="stack">${S.requests.map((r) => `<div class="stub">
+      <div class="row-b"><div><div class="card-t">${esc(r.doctor)}</div>
+        <div class="card-q">${esc(r.facility)} · ${esc(r.when)}</div></div>
+        <div class="slip-ref mono" dir="ltr">#${esc(r.ref)}</div></div>
+      <div class="card-meta"><span class="chip chip--meta chip--ok">${icon("check")}${t("sent")}</span>
+        <i class="dot"></i><span>${esc(r.at)}</span></div></div>`).join("")}</div>`
+    : `<div class="empty"><div class="empty-mark">${icon("cal")}</div>
+        <h3>${isAR() ? "لا توجد طلبات بعد" : "No requests yet"}</h3>
+        <p>${isAR() ? "عند إرسال طلب موعد، يبقى إيصاله هنا مع رمزه — بدون حساب." : "When you send an appointment request, the stub stays here with its code — no account."}</p>
+        <a class="btn" href="#/needs">${icon("stetho")}${isAR() ? "ابحث عن طبيب" : "Find a doctor"}</a></div>`}
+    ${S.saved.length ? `<div class="sec-h" style="margin-top:26px"><h2>${t("savedItems")}</h2></div>
+      <div class="stack">${S.saved.map((k) => {
+        const [ty, id] = k.split(":");
+        if (ty === "d") { const d = DOCTORS.find((x) => x.id === id); return d ? doctorCard({ d, km: docDist(d), st: status(d) }) : ""; }
+        const f = fac(id); return f ? pharmacyCard({ f, km: distTo(f), st: status(f) }) : "";
+      }).join("")}</div>` : ""}
+  </section>${nav("home")}`;
+}
+
+function screenTrust() {
+  return `${header({ back: true, title: t("trust") })}
+  <section class="wrap sec">
+    <h1 class="hero-line" style="font-size:25px">${isAR() ? "نعرض ما تحققنا منه فقط." : "We only show what we've checked."}</h1>
+    <div class="stack" style="margin-top:20px">
+      <div class="lane"><span class="ic">${icon("seal")}</span><span class="grow"><h3>${t("verified")}</h3>
+        <p>${isAR() ? "تأكدنا من الهوية والاختصاص وجهة العمل ورقم الواتساب." : "Identity, specialty, affiliation and WhatsApp number confirmed."}</p></span></div>
+      <div class="lane"><span class="ic">${icon("info")}</span><span class="grow"><h3>${t("listed")}</h3>
+        <p>${isAR() ? "معلومات من مصادر عامة، لم نؤكدها بعد. تظهر بدون ختم." : "Publicly sourced, not yet confirmed. Shown without a seal."}</p></span></div>
+      <div class="lane"><span class="ic">${icon("refresh")}</span><span class="grow"><h3>${isAR() ? "تاريخ التحديث" : "Last updated"}</h3>
+        <p>${isAR() ? "كل صفحة تعرض متى حُدّثت. بعد ٩٠ يوماً ننبّهك." : "Every page shows its update date. After 90 days we warn you."}</p></span></div>
+      <div class="lane"><span class="ic">${icon("flag")}</span><span class="grow"><h3>${t("reportInfo")}</h3>
+        <p>${isAR() ? "زر في كل صفحة. البلاغات تصل فريق التحقق مباشرة." : "A button on every page. Reports go straight to the verification team."}</p></span></div>
+    </div>
+    <div class="banner banner--info" style="margin-top:18px">${icon("info")}<span>${isAR()
+      ? "لا نعرض تقييمات أو نجوماً. بدون عدد كافٍ من التقييمات الحقيقية فهي إما فارغة أو مضللة."
+      : "We show no ratings or stars. Without real volume they are either empty or gamed."}</span></div>
+    <div class="banner banner--warn" style="margin-top:10px">${icon("alert")}<span>${isAR()
+      ? `${L(CONFIG.brand)} لا يقدّم استشارة طبية ولا تشخيصاً. للحالات الطارئة اتصل بالإسعاف ${CONFIG.emergency.ambulance}.`
+      : `${L(CONFIG.brand)} does not provide medical advice or diagnosis. In an emergency call ${CONFIG.emergency.ambulance}.`}</span></div>
+    <div class="banner banner--info" style="margin-top:10px">${icon("check")}<span>${isAR()
+      ? "بدون حساب، بدون كلمة مرور، ولا نحتفظ بأي بيانات صحية. طلبك يذهب مباشرة إلى العيادة عبر واتساب."
+      : "No account, no password, no health data stored. Your request goes straight to the clinic over WhatsApp."}</span></div>
+    <p class="tiny muted" style="margin-top:18px">${isAR() ? "البيانات المعروضة في هذا النموذج توضيحية. أرقام الهواتف غير حقيقية." : "Data in this prototype is illustrative. Phone numbers are not real."}</p>
+    <div class="btn-row" style="margin-top:14px">
+      <a class="btn btn--3" href="#/hospitals">${icon("building")}${isAR() ? "المستشفيات" : "Hospitals"}</a>
+      <a class="btn btn--3" href="#/me">${icon("user")}${t("myRequests")}</a>
+      <a class="btn btn--3" href="#/admin">${icon("grid")}${isAR() ? "لوحة التحكم" : "Admin"}</a>
+    </div>
+  </section>${nav("home")}`;
+}
+
+function screen404() {
+  return `${header({ back: true, title: "" })}
+  <div class="empty" style="padding-top:60px">
+    <div class="empty-mark">${icon("pin")}</div>
+    <h3>${isAR() ? "لم نصل إلى هنا بعد" : "We're not here yet"}</h3>
+    <p>${isAR() ? "قريب يعمل حالياً في بغداد فقط. أخبرنا بمدينتك وسنعلمك عند الإطلاق." : "Qareeb currently covers Baghdad only. Tell us your city and we'll let you know."}</p>
+    <a class="btn" href="#/">${icon("home")}${isAR() ? "تصفّح بغداد" : "Browse Baghdad"}</a>
+    <button class="btn btn--3" onclick="toast('${isAR() ? "سنعلمك عند الإطلاق" : "We'll notify you at launch"}')">${icon("plus")}${isAR() ? "أعلمني عند الإطلاق" : "Notify me at launch"}</button>
+  </div>${nav("home")}`;
+}
+
+/* ---------------- ADMIN ---------------- */
+function screenAdmin() {
+  const A = ADMIN_STATS, max = (a) => Math.max(...a.map((x) => x[1]));
+  return `<div class="adm">
+  <header class="hdr"><a class="brand" href="#/">${BRAND_MARK}<span>${isAR() ? "لوحة التحكم" : "Admin"}</span></a>
+    <div class="grow"></div><a class="icon-btn" href="#/">${icon("close")}</a></header>
+  <section class="wrap sec">
+    <div class="adm-grid">
+      <div class="adm-kpi"><div class="n num">${A.scans7d}</div><div class="l">${isAR() ? "مسح QR (٧ أيام)" : "QR scans (7d)"}</div></div>
+      <div class="adm-kpi"><div class="n num">${A.requests7d}</div><div class="l">${isAR() ? "طلبات موعد" : "Requests sent"}</div></div>
+      <div class="adm-kpi"><div class="n num">${A.searches7d}</div><div class="l">${isAR() ? "عمليات بحث" : "Searches"}</div></div>
+      <div class="adm-kpi alert"><div class="n num">${A.zeroResults7d}</div><div class="l">${isAR() ? "بحث بلا نتيجة" : "Zero-result"}</div></div>
+    </div>
+
+    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "بحث بلا نتيجة — أهم إشارة نمو" : "Zero-result searches — the growth signal"}</h2></div>
+    <div class="ch" style="padding:14px 16px">${A.zeroQueries.map(([q, n]) => `<div class="bar-row">
+      <div><div>${esc(q)}</div><div class="bar"><i class="warn" style="width:${(n / max(A.zeroQueries)) * 100}%"></i></div></div>
+      <div class="num" style="text-align:end;font-weight:700">${n}</div></div>`).join("")}</div>
+
+    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "مصادر الـ QR" : "QR sources"}</h2></div>
+    <div class="ch" style="padding:14px 16px">${A.sources.map(([q, n]) => `<div class="bar-row">
+      <div><div>${esc(q)}</div><div class="bar"><i style="width:${(n / max(A.sources)) * 100}%"></i></div></div>
+      <div class="num" style="text-align:end;font-weight:700">${n}</div></div>`).join("")}</div>
+
+    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "طابور التوثيق والبلاغات" : "Verification & flags queue"}</h2></div>
+    <div>${A.queue.map((q) => `<div class="tbl-row">
+      <span class="ic avatar avatar--sq" style="width:34px;height:34px;background:${q.t === "flag" ? "var(--coral-soft)" : "var(--petrol-soft)"};color:${q.t === "flag" ? "var(--coral)" : "var(--petrol)"}">${icon(q.t === "flag" ? "flag" : "seal")}</span>
+      <span class="grow"><div style="font-weight:700;font-size:14px">${esc(q.ar)}</div><div class="tiny muted">${esc(q.meta)}</div></span>
+      <button class="btn btn--sm">${isAR() ? "افتح" : "Open"}</button></div>`).join("")}</div>
+
+    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "شبكة الدوام الأسبوعي — د. زينب عبد الكريم" : "Weekly session grid — Dr. Zainab"}</h2></div>
+    <div class="ch" style="padding:14px 12px">
+      <div class="wg">
+        <span></span>${Array.from({ length: 18 }, (_, i) => `<span class="h">${i + 6}</span>`).join("")}
+        ${DAY_ORDER.map((dy) => {
+          const segs = rawSegs(DOCTORS[1], dy);
+          return `<span class="d">${dayName(dy)}</span>` + Array.from({ length: 18 }, (_, i) => {
+            const m = (i + 6) * 60, s = segs.find((x) => m >= x.f && m < x.t);
+            return `<span class="c ${s ? s.kind : ""}"></span>`;
+          }).join("");
+        }).join("")}
+      </div>
+      <div class="week-legend"><span class="row" style="gap:6px"><i style="background:var(--petrol);opacity:.55"></i>${isAR() ? "مستشفى" : "Hospital"}</span>
+        <span class="row" style="gap:6px"><i style="background:var(--amber-b)"></i>${isAR() ? "عيادة" : "Clinic"}</span></div>
+    </div>
+    <div class="btn-row" style="margin-top:20px"><button class="btn btn--2">${icon("plus")}${isAR() ? "أضف طبيباً" : "Add doctor"}</button>
+      <button class="btn btn--2">${icon("qr")}${isAR() ? "أنشئ QR" : "Generate QR"}</button></div>
+  </section></div>`;
+}
+
+/* ---------------- SHEETS ---------------- */
+function sheet(html, cls = "") {
+  closeSheet(true);
+  const scrim = document.createElement("div"); scrim.className = "scrim"; scrim.onclick = () => closeSheet();
+  const el = document.createElement("div"); el.className = "sheet " + cls; el.innerHTML = html;
+  document.body.append(scrim, el);
+  requestAnimationFrame(() => { scrim.classList.add("in"); el.classList.add("in"); });
+  document.body.style.overflow = "hidden";
+}
+function closeSheet(instant) {
+  document.body.style.overflow = "";
+  document.querySelectorAll(".sheet,.scrim").forEach((n) => {
+    if (instant) return n.remove();
+    n.classList.remove("in"); setTimeout(() => n.remove(), 260);
+  });
+}
+
+function openLocation() {
+  const rows = DISTRICTS.map((d) => {
+    const n = DOCTORS.filter((x) => x.sessions.some((s) => haversine(d, fac(s.fac)) <= 5)).length;
+    return `<button class="place ${d.id === S.district ? "on" : ""}" onclick="setDistrict('${d.id}')">
+      <h3>${esc(L(d))}</h3><div class="m"><span class="num">${n}</span> ${isAR() ? "طبيب قريب" : "doctors near"}</div></button>`;
+  }).join("");
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${t("pickArea")}</h2>
+      <p>${isAR() ? "نرتّب كل شيء حسب قربه منك." : "Everything is ordered by how close it is to you."}</p></div>
+      <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
+    <div class="sheet-b">
+      <button class="lane on" onclick="askGps()" style="width:100%">
+        <span class="ic">${icon("nav")}</span>
+        <span class="grow" style="text-align:start"><h3>${t("useGps")}</h3>
+          <p>${isAR() ? "مسافات دقيقة وترتيب حسب الأقرب" : "Exact distances and nearest-first sorting"}</p></span>
+        <span class="go">${icon("chev")}</span></button>
+      ${S.locState === "denied" ? `<div class="banner banner--info" style="margin-top:10px">${icon("info")}<span>${isAR()
+        ? "لم تسمح بالوصول للموقع — لا مشكلة، اختر منطقتك يدوياً وكل شيء يعمل كالمعتاد."
+        : "Location is off — no problem. Pick your area and everything still works."}</span></div>` : ""}
+      <h3 class="eyebrow" style="margin:20px 0 10px">${isAR() ? "أو اختر منطقتك" : "Or choose your area"}</h3>
+      <div class="places">${rows}</div>
+      <button class="btn btn--3" style="margin-top:14px" onclick="closeSheet()">${t("withoutLoc")}</button>
+    </div>`);
+}
+
+function askGps() {
+  const b = document.querySelector(".sheet .lane.on");
+  if (b) b.innerHTML = `<span class="ic">${icon("nav")}</span><span class="grow" style="text-align:start"><h3>${t("loading")}…</h3></span>`;
+  if (!navigator.geolocation) return gpsFail();
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const near = DISTRICTS.map((d) => ({ d, k: haversine(me, d) })).sort((a, b) => a.k - b.k)[0];
+      S.locState = "precise"; S.gps = true;
+      LS.set("gps", true); LS.set("locState", "precise");
+      setDistrict(near.d.id);
+    },
+    () => gpsFail(), { timeout: 8000 }
+  );
+}
+function gpsFail() {
+  S.locState = "denied"; LS.set("locState", "denied");
+  toast(isAR() ? "تعذّر تحديد الموقع — اختر منطقتك" : "Couldn't get your location — pick your area");
+  openLocation();
+}
+function setDistrict(id) {
+  S.district = id; LS.set("district", id);
+  if (S.locState === "inferred" || S.locState === "denied") { S.locState = "chosen"; LS.set("locState", "chosen"); }
+  closeSheet(); render();
+}
+
+/* --- appointment request --- */
+function upcomingSlots(d, n = 7) {
+  const out = []; const d0 = nowDay(), now = nowMins();
+  for (let i = 0; i < 14 && out.length < n; i++) {
+    const day = (d0 + i) % 7;
+    rawSegs(d, day).sort((a, b) => a.f - b.f).forEach((s) => {
+      if (out.length >= n) return;
+      if (i === 0 && s.t <= now) return;
+      out.push({ day, i, seg: s });
+    });
+  }
+  return out;
+}
+
+function openRequest(id) {
+  const d = DOCTORS.find((x) => x.id === id);
+  const slots = upcomingSlots(d);
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${t("request")}</h2><p>${esc(L(d))} · ${esc(L(specOf(d.spec)))}</p></div>
+      <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
+    <div class="sheet-b">
+      <label class="eyebrow">${t("chooseTime")}</label>
+      <div class="slot" style="margin-top:9px">
+        ${slots.map((s, i) => `<button class="slot-btn ${i === 0 ? "on" : ""}" data-i="${i}" onclick="pickSlot(${i})">
+          <span><span class="d">${s.i === 0 ? t("today") : s.i === 1 ? t("tomorrow") : dayName(s.day)}</span>
+            <span class="m">${esc(L(s.seg.fac))} · ${money(s.seg.s.fee)}</span></span>
+          <span class="t">${fmtRange(s.seg.f, s.seg.t)}</span></button>`).join("")}
+      </div>
+      <div class="field"><label for="nm">${t("yourName")}</label>
+        <input id="nm" value="${esc(S.name)}" placeholder="${isAR() ? "الاسم الثلاثي" : "Full name"}" autocomplete="name"></div>
+      <div class="field"><label for="nt">${t("note")}</label>
+        <textarea id="nt" rows="2" placeholder="${isAR() ? "مثال: مراجعة سابقة، أو حالة الطفل" : "e.g. follow-up visit"}"></textarea></div>
+      <div class="hint">${icon("info")}<span>${isAR()
+        ? "لا نطلب رقم هاتفك — رقمك يصل مع رسالة الواتساب. لا حساب ولا كلمة مرور."
+        : "We don't ask for your phone number — WhatsApp carries it. No account, no password."}</span></div>
+    </div>
+    <div class="sheet-f"><button class="btn" onclick="toPreview('${d.id}')">${t("continue")}${icon("chev")}</button></div>`);
+  window.__slot = 0; window.__slots = slots;
+}
+function pickSlot(i) {
+  window.__slot = i;
+  document.querySelectorAll(".slot-btn").forEach((b) => b.classList.toggle("on", +b.dataset.i === i));
+}
+
+function apptMsg(d, s, name, note, ref) {
+  const when = `${dayName(s.day)} ${fmtRangeTxt(s.seg.f, s.seg.t)}`;
+  if (isAR()) {
+    return `السلام عليكم، أود حجز موعد.
+
+الطبيب: ${d.ar}
+العيادة: ${s.seg.fac.ar} — ${DISTRICTS.find((x) => x.id === s.seg.fac.district).ar}
+الموعد المطلوب: ${when}
+الاسم: ${name}${note ? `\nملاحظة: ${note}` : ""}
+
+الرمز: ${ref}
+—
+عبر قريب`;
+  }
+  return `Hello, I'd like to request an appointment.
+
+Doctor: ${d.en}
+Clinic: ${s.seg.fac.en} — ${DISTRICTS.find((x) => x.id === s.seg.fac.district).en}
+Requested: ${when}
+Name: ${name}${note ? `\nNote: ${note}` : ""}
+
+Ref: ${ref}
+—
+via Qareeb`;
+}
+const directMsg = (d) => isAR()
+  ? `السلام عليكم، وصلت لعيادة ${d.ar} عبر تطبيق قريب وأود الاستفسار عن موعد.`
+  : `Hello, I found ${d.en} through Qareeb and would like to ask about an appointment.`;
+const productMsg = (p, f) => isAR()
+  ? `السلام عليكم، أود الاستفسار عن توفر:\n\nالمنتج: ${p.ar}\nالماركة: ${p.brand}\nالسعر المعروض: ${money(p.price)}\n\n—\nعبر قريب`
+  : `Hello, is this available?\n\nProduct: ${p.en}\nBrand: ${p.brand}\nListed price: ${money(p.price)}\n\n—\nvia Qareeb`;
+
+function toPreview(id) {
+  const d = DOCTORS.find((x) => x.id === id);
+  const name = (document.getElementById("nm").value || "").trim();
+  const note = (document.getElementById("nt").value || "").trim();
+  if (!name) { toast(isAR() ? "اكتب اسمك من فضلك" : "Please enter your name"); document.getElementById("nm").focus(); return; }
+  S.name = name; LS.set("name", name);
+  const s = window.__slots[window.__slot];
+  const ref = refCode();
+  const msg = apptMsg(d, s, name, note, ref);
+  const link = d.wa ? waLink(d.wa, msg) : null;
+
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${isAR() ? "هذه هي رسالتك" : "This is your message"}</h2>
+      <p>${isAR() ? "راجعها أو عدّلها قبل الإرسال." : "Review or edit it before sending."}</p></div>
+      <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
+    <div class="sheet-b">
+      <div class="slip">
+        <div class="slip-h">
+          <div><div class="eyebrow">${isAR() ? "طلب موعد" : "Appointment request"}</div>
+            <div class="card-t" style="margin-top:3px">${esc(L(d))}</div>
+            <div class="card-q">${esc(L(s.seg.fac))}</div></div>
+          <div style="text-align:end"><div class="slip-ref mono" dir="ltr">#${ref}</div>
+            <div class="tiny muted mono">${new Date().toLocaleDateString("en-GB")}</div></div>
+        </div>
+        <div class="slip-to">${isAR() ? "إلى" : "To"}: ${d.wa ? `<span class="mono">+${d.wa}</span>` : (isAR() ? "غير متوفر" : "unavailable")}</div>
+        <div class="bubble" id="msg" contenteditable="true" spellcheck="false">${esc(msg)}</div>
+        <button class="slip-edit" onclick="document.getElementById('msg').focus()">${icon("edit")}${t("edit")}</button>
+      </div>
+      ${!d.wa ? `<div class="banner banner--info" style="margin-top:16px">${icon("phone")}<span>${t("noWa")}</span></div>` : ""}
+      <div class="hint" style="margin-top:14px">${icon("info")}<span>${isAR()
+        ? "سيفتح واتساب بهذه الرسالة جاهزة. الإرسال بيدك."
+        : "WhatsApp will open with this message ready. You press send."}</span></div>
+    </div>
+    <div class="sheet-f">
+      ${d.wa ? `<a class="btn btn--wa" id="sendbtn" href="${link}" target="_blank" rel="noopener"
+          onclick="confirmSent('${d.id}','${ref}','${esc(dayName(s.day))} ${esc(fmtRangeTxt(s.seg.f, s.seg.t))}','${esc(L(s.seg.fac))}')">
+          ${icon("wa")}${t("sendWa")}</a>`
+        : `<a class="btn" href="tel:+${d.phone}">${icon("phone")}${t("call")} +${d.phone}</a>`}
+    </div>`);
+}
+
+function confirmSent(id, ref, when, facility) {
+  const d = DOCTORS.find((x) => x.id === id);
+  S.requests.unshift({ ref, doctor: L(d), facility, when, at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) });
+  LS.set("requests", S.requests.slice(0, 20));
+  setTimeout(() => {
+    sheet(`<div class="sheet-grip"></div>
+      <div class="sheet-b" style="padding-top:8px">
+        <div style="display:grid;place-items:center;padding:18px 0 6px">
+          <div class="seal--stamp stamped">${isAR() ? "أُرسل" : "SENT"}<br><span dir="ltr">${ref}</span></div></div>
+        <h2 style="text-align:center;font-size:21px;font-weight:800;letter-spacing:-.02em">${isAR() ? "وصلت رسالتك إلى العيادة" : "Your message reached the clinic"}</h2>
+        <p class="small muted" style="text-align:center;margin-top:6px">${isAR()
+          ? "العيادات ترد عادةً خلال ١٥–٦٠ دقيقة في أوقات الدوام." : "Clinics usually reply within 15–60 minutes during working hours."}</p>
+        <div class="stub" style="margin-top:20px">
+          <div class="row-b"><div><div class="card-t">${esc(L(d))}</div>
+            <div class="card-q">${esc(facility)} · ${esc(when)}</div></div>
+            <div class="slip-ref mono" dir="ltr">#${ref}</div></div>
+          <div class="card-meta"><span class="chip chip--meta chip--ok">${icon("check")}${t("sent")}</span>
+            <i class="dot"></i><span>${isAR() ? "محفوظ في طلباتي" : "Saved in My requests"}</span></div>
+        </div>
+        <div class="stack" style="margin-top:16px">
+          <a class="btn btn--2" href="${mapLink(docFacs(d)[0])}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>
+          <button class="btn btn--2" onclick="shareDoctor('${d.id}')">${icon("share")}${isAR() ? "شارك الطبيب مع العائلة" : "Share this doctor"}</button>
+          <button class="btn btn--3" onclick="closeSheet();location.hash='#/me'">${t("myRequests")}</button>
+        </div>
+      </div>`);
+  }, 700);
+}
+
+function openEmergency() {
+  const er = FACILITIES.filter((f) => f.er).map((f) => ({ f, km: distTo(f) })).sort((a, b) => a.km - b.km).slice(0, 3);
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2 style="color:var(--coral)">${t("emergency")}</h2>
+      <p>${isAR() ? "إذا كانت الحالة خطرة، اتصل بالإسعاف فوراً." : "If this is serious, call the ambulance now."}</p></div>
+      <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
+    <div class="sheet-b">
+      <a class="btn btn--danger" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
+      <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
+      <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
+      <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
+    </div>`);
+}
+
+function reportInfo() {
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${t("reportInfo")}</h2>
+      <p>${isAR() ? "ما الذي وجدته غير صحيح؟" : "What did you find wrong?"}</p></div>
+      <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
+    <div class="sheet-b">
+      <div class="chips chips--wrap">${(isAR()
+        ? ["الدوام غير صحيح", "الرقم لا يعمل", "العنوان تغيّر", "الأجرة مختلفة", "لم يعد يعمل هنا", "شيء آخر"]
+        : ["Hours are wrong", "Number doesn't work", "Address changed", "Fee is different", "No longer works here", "Something else"])
+        .map((x) => `<button class="chip" onclick="this.classList.toggle('on')">${x}</button>`).join("")}</div>
+      <div class="field"><label>${isAR() ? "تفاصيل (اختياري)" : "Details (optional)"}</label><textarea rows="3"></textarea></div>
+      <div class="hint">${icon("seal")}<span>${isAR() ? "يصل البلاغ لفريق التحقق خلال يوم عمل." : "Reports reach the verification team within one working day."}</span></div>
+    </div>
+    <div class="sheet-f"><button class="btn" onclick="closeSheet();toast('${isAR() ? "شكراً — وصل بلاغك" : "Thank you — report received"}')">${icon("flag")}${isAR() ? "أرسل البلاغ" : "Send report"}</button></div>`);
+}
+
+/* ---------------- ACTIONS ---------------- */
+function pickNeed(spec) {
+  closeSheet();
+  S.filters.spec = spec;
+  location.hash = spec ? "#/doctors?spec=" + spec : "#/needs";
+}
+function tf(k) { S.filters[k] = !S.filters[k]; render(); }
+function tg(g) { S.filters.gender = S.filters.gender === g ? null : g; render(); }
+function toggleSave(k) {
+  const i = S.saved.indexOf(k);
+  i > -1 ? S.saved.splice(i, 1) : S.saved.unshift(k);
+  LS.set("saved", S.saved); toast(i > -1 ? (isAR() ? "أُزيل من المحفوظات" : "Removed") : (isAR() ? "حُفظ" : "Saved")); render();
+}
+function shareDoctor(id) {
+  const d = DOCTORS.find((x) => x.id === id);
+  const url = location.origin + location.pathname + "#/doctor/" + id;
+  const text = isAR() ? `${d.ar} — ${specOf(d.spec).ar} · ${L(here())}\n${url}` : `${d.en} — ${specOf(d.spec).en}\n${url}`;
+  if (navigator.share) navigator.share({ title: L(d), text, url }).catch(() => {});
+  else { navigator.clipboard?.writeText(text); toast(isAR() ? "نُسخ الرابط" : "Link copied"); }
+}
+function doSearch(v) {
+  LS.set("q", v);
+  if (v && v.trim().length > 1) { S.recent = [v.trim(), ...S.recent.filter((r) => r !== v.trim())].slice(0, 8); LS.set("recent", S.recent); }
+  const el = document.getElementById("sres"); if (el) el.innerHTML = searchResults(v);
+}
+function toggleLang() {
+  S.lang = isAR() ? "en" : "ar"; LS.set("lang", S.lang);
+  document.documentElement.lang = S.lang; document.documentElement.dir = isAR() ? "rtl" : "ltr";
+  render();
+}
+const prefersDark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+function toggleTheme() {
+  const cur = S.theme || (prefersDark() ? "dark" : "light");
+  S.theme = cur === "dark" ? "light" : "dark"; LS.set("theme", S.theme);
+  document.documentElement.dataset.theme = S.theme; render();
+}
+function toast(msg) {
+  document.querySelectorAll(".toast").forEach((n) => n.remove());
+  const el = document.createElement("div"); el.className = "toast ch fade";
+  el.style.cssText = "position:fixed;bottom:calc(var(--nav-h) + 16px);inset-inline:24px;max-width:420px;margin-inline:auto;z-index:95;background:var(--ink);color:var(--sand);padding:13px 16px;font-size:13.5px;font-weight:600;text-align:center";
+  el.textContent = msg; document.body.append(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+/* ---------------- ROUTER ---------------- */
+function route() {
+  const h = location.hash.replace(/^#/, "") || "/";
+  const [path, qs] = h.split("?");
+  const params = new URLSearchParams(qs || "");
+  const p = path.split("/").filter(Boolean);
+  if (!p.length) return screenHome();
+  switch (p[0]) {
+    case "needs": return screenNeeds();
+    case "doctors": return screenDoctors(params);
+    case "doctor": return screenDoctor(p[1]);
+    case "pharmacies": return screenPharmacies();
+    case "pharmacy": return screenPharmacy(p[1]);
+    case "hospitals": return screenHospitals();
+    case "hospital": return screenHospital(p[1]);
+    case "care": return screenCare(p[1]);
+    case "product": return screenProduct(p[1]);
+    case "search": return screenSearch();
+    case "me": return screenMe();
+    case "trust": return screenTrust();
+    case "admin": return screenAdmin();
+    default: return screen404();
+  }
+}
+
+let firstPaint = true;
+function render() {
+  const el = app();
+  if (firstPaint) { el.innerHTML = skeletonHome(); firstPaint = false; setTimeout(paint, 260); return; }
+  paint();
+  function paint() {
+    el.innerHTML = route();
+    el.classList.remove("page-in"); void el.offsetWidth; el.classList.add("page-in");
+    document.title = `${L(CONFIG.brand)} — ${isAR() ? "أقرب رعاية إليك" : "The nearest care to you"}`;
+  }
+}
+
+function skeletonHome() {
+  return `${header()}<section class="hero">
+    <div class="skel skel-l" style="width:78%;height:26px"></div>
+    <div class="skel skel-l" style="width:60%;height:26px;margin-top:12px"></div>
+    <div class="skel" style="height:50px;margin-top:22px"></div>
+    <div class="pulse">${[1, 2, 3].map(() => `<div class="skel" style="height:78px"></div>`).join("")}</div>
+  </section>
+  <section class="wrap stack">${[1, 2, 3].map(() => `<div class="skel" style="height:68px"></div>`).join("")}</section>${nav("home")}`;
+}
+
+/* boot */
+function boot() {
+  document.documentElement.lang = S.lang;
+  document.documentElement.dir = isAR() ? "rtl" : "ltr";
+  if (S.theme) document.documentElement.dataset.theme = S.theme;   // otherwise let the host decide
+  const qp = new URLSearchParams(location.search);
+  if (qp.get("qr")) { S.qrSource = qp.get("qr"); const src = QR_SOURCES[S.qrSource]; if (src && S.locState === "inferred") { S.district = src.district; LS.set("district", src.district); } }
+  addEventListener("hashchange", () => { closeSheet(true); render(); scrollTo(0, 0); });
+  addEventListener("scroll", () => { const h = document.querySelector(".hdr"); if (h) h.classList.toggle("stuck", scrollY > 8); }, { passive: true });
+  render();
+  // keep "now" honest, but never interrupt an open sheet or an active input
+  setInterval(() => {
+    const busy = document.querySelector(".sheet") ||
+      ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName) ||
+      document.activeElement?.isContentEditable;
+    if (!busy) render();
+  }, 60000);
+}
+document.addEventListener("DOMContentLoaded", boot);
+
+</script>
+</body>
+</html>
