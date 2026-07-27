@@ -258,7 +258,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 *,*::before,*::after{ box-sizing:border-box; }
-html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
+/* the ground is set on the root too, so overscroll never flashes the
+   host's white — the page owns its full canvas */
+html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; background:var(--ground); }
 [data-motion="reduced"] html, html[data-motion="reduced"]{ scroll-behavior:auto; }
 
 body{
@@ -3894,6 +3896,12 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 'use strict';
 
 document.documentElement.classList.remove('no-js');
+/* This page is Arabic and right-to-left. Assert it on the root rather than
+   trusting the host document, so the same file behaves identically whether it
+   is served standalone or embedded in someone else's shell. */
+document.documentElement.setAttribute('dir', 'rtl');
+if (document.documentElement.getAttribute('lang') !== 'ar')
+  document.documentElement.setAttribute('lang', 'ar');
 
 /* ── utils ──────────────────────────────────────────────────────────────── */
 var root = document.documentElement;
@@ -3927,6 +3935,7 @@ function mulberry(seed) {
   };
 }
 var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
 var finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 function motionOff() { return root.getAttribute('data-motion') === 'reduced'; }
 
@@ -3937,7 +3946,25 @@ var AXES = { palette: 'ink', density: 'default', motion: 'expressive', grid: 'mo
 var FLAGS = { bigtype: false, readable: false, cursor: true, focus: false, inspect: false };
 var TYPE  = { base: 16, ratio: 1.28, weight: 700, track: -2, lead: 1.16, measure: 56 };
 var lastPalette = 'ink';
+/* Once a visitor picks a palette themselves it stops following the OS/host
+   theme — an explicit choice outranks an inferred one. */
+var paletteLocked = false;
 var KEY = 'adspulse.system.v1';
+
+/* The light end of the system is the PAPER art direction, not a naive
+   inversion of INK: its own ground, its own deepened red, its own duotone
+   strength. So "follow the viewer's theme" resolves to a palette id. */
+function themePalette() {
+  var t = root.getAttribute('data-theme');
+  if (t === 'light') return 'paper';
+  if (t === 'dark') return 'ink';
+  return lightQuery.matches ? 'paper' : 'ink';
+}
+function syncTheme() {
+  if (paletteLocked) return;
+  var want = themePalette();
+  if (AXES.palette !== want) setAxis('palette', want, true);
+}
 
 var PALETTES = [
   { id: 'ink',      name: 'INK',      ar: 'الحبر',        note: 'THE HOUSE GROUND',
@@ -3954,7 +3981,7 @@ var PALETTES = [
 
 function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ a: AXES, f: FLAGS, t: TYPE, p: lastPalette }));
+    localStorage.setItem(KEY, JSON.stringify({ a: AXES, f: FLAGS, t: TYPE, p: lastPalette, l: paletteLocked }));
   } catch (e) {}
 }
 function load() {
@@ -3965,6 +3992,7 @@ function load() {
     if (s.f) for (var f in s.f) if (FLAGS.hasOwnProperty(f)) FLAGS[f] = s.f[f];
     if (s.t) for (var t in s.t) if (TYPE.hasOwnProperty(t)) TYPE[t] = s.t[t];
     if (s.p) lastPalette = s.p;
+    paletteLocked = !!s.l;
     return true;
   } catch (e) { return false; }
 }
@@ -4064,7 +4092,10 @@ function syncControls() {
 function setAxis(axis, val, quiet) {
   if (!AXES.hasOwnProperty(axis) || AXES[axis] === val) return;
   AXES[axis] = val;
-  if (axis === 'palette' && val !== 'contrast') lastPalette = val;
+  if (axis === 'palette') {
+    if (val !== 'contrast') lastPalette = val;
+    if (!quiet) paletteLocked = true;   /* a deliberate pick pins the palette */
+  }
   if (axis === 'grid') flashGrid();
   applyAll();
   if (!quiet) toast(axis.toUpperCase(), axisMessage(axis, val));
@@ -4601,9 +4632,10 @@ on($('#hudReset'), 'click', function () {
   AXES = { palette: 'ink', density: 'default', motion: reduceQuery.matches ? 'reduced' : 'expressive', grid: 'modular' };
   FLAGS = { bigtype: false, readable: false, cursor: true, focus: false, inspect: false };
   TYPE = { base: 16, ratio: 1.28, weight: 700, track: -2, lead: 1.16, measure: 56 };
-  lastPalette = 'ink';
+  paletteLocked = false;
+  AXES.palette = lastPalette = themePalette();
   applyAll();
-  toast('RESET', 'رجع النظام إلى إعداداته الأصلية.');
+  toast('RESET', 'رجع النظام إلى إعداداته الأصلية، واللوحة عادت تتبع إعداد جهازك.');
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4850,9 +4882,17 @@ function scrollLabTiles() {
    BOOT
    ═══════════════════════════════════════════════════════════════════════════ */
 var hadSaved = load();
-if (!hadSaved && reduceQuery.matches) AXES.motion = 'reduced';
+if (!hadSaved) {
+  if (reduceQuery.matches) AXES.motion = 'reduced';
+  AXES.palette = lastPalette = themePalette();
+}
 on(reduceQuery, 'change', function (e) { if (e.matches) setAxis('motion', 'reduced'); });
+on(lightQuery, 'change', syncTheme);
 on(finePointer, 'change', applyAll);
+/* a host shell may stamp data-theme on the root at any time (theme toggles do) */
+if (window.MutationObserver) {
+  new MutationObserver(syncTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+}
 
 buildRail();
 buildDrawer();
