@@ -319,8 +319,21 @@ ul,ol{ margin:0; padding:0; list-style:none; }
 }
 .ap-sec--signal{ background:var(--signal-plate); color:var(--signal-ink); --ink:var(--signal-ink); }
 
-/* the hairline cell grid: a 2px background showing through 2px gaps */
-.ap-grid{ display:grid; gap:var(--gap); background:var(--rule); }
+/* THE HAIRLINE GRID
+   The rule used to be the container's own background showing through the gaps.
+   That works only while the items fill every cell — and with auto-fit they
+   almost never do, so a short last row painted the container's grey straight
+   onto the page. At 1920px every grid on this page had at least one such void.
+
+   The rule now belongs to the cells: each carries a 2px outward shadow, and
+   because the gap is also 2px the shadows of neighbouring cells meet inside it
+   and read as one line. Identical hairline, and an empty cell is simply empty.
+   Applied to every container that used the old technique with a variable
+   number of children. */
+.ap-grid{ display:grid; gap:var(--gap); }
+.ap-grid > *, .ap-gal > *, .ap-kpis > *, .ap-card-demo > *, .ap-swatches > *,
+.ap-palette-grid > *, .ap-rl-notes > *, .ap-faq > *, .ap-sig-steps > *,
+.ap-contact-rows > *, .ap-di > *, .mk-grid > *{ box-shadow:var(--cell); }
 .ap-grid--2{ grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
 .ap-grid--3{ grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
 .ap-grid--4{ grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
@@ -1095,9 +1108,10 @@ html[data-inspect="on"] p,html[data-inspect="on"] .ap-mono{
 }
 .ap-dash-bar > .sp{ flex:1; min-width:0; }
 .ap-kpis{
-  display:grid; gap:var(--gap); background:var(--rule);
+  display:grid; gap:var(--gap);
   grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
 }
+.ap-kpis{ background:transparent; }
 .ap-kpi{
   background:var(--ground); padding:var(--sp-5); display:grid; gap:var(--sp-2);
   cursor:pointer; position:relative; align-content:start;
@@ -1397,7 +1411,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
   direction:ltr; color:var(--ink-62); }
 
 /* colour lab */
-.ap-swatches{ display:grid; gap:var(--gap); background:var(--rule);
+.ap-swatches{ display:grid; gap:var(--gap);
   grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); }
 .ap-swatch{ padding:var(--sp-4); display:grid; gap:var(--sp-2); min-height:118px;
   align-content:space-between; }
@@ -1420,7 +1434,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
   background:linear-gradient(135deg,currentColor 0 50%,transparent 50% 100%);
 }
 .ap-ratio[data-pass="FAIL"]::before{ background:transparent; transform:rotate(45deg); }
-.ap-palette-grid{ display:grid; gap:var(--gap); background:var(--rule);
+.ap-palette-grid{ display:grid; gap:var(--gap);
   grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
 .ap-pal-btn{
   border:0; cursor:pointer; padding:var(--sp-4); display:grid; gap:var(--sp-3);
@@ -1448,7 +1462,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
   display:flex; flex-wrap:wrap; gap:var(--sp-3); align-items:center;
   padding:var(--sp-4); border:var(--frame); background:var(--ground-2);
 }
-.ap-card-demo{ display:grid; gap:var(--gap); background:var(--rule);
+.ap-card-demo{ display:grid; gap:var(--gap);
   grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); }
 .ap-dcard{ background:var(--ground); padding:var(--sp-5); display:grid; gap:var(--sp-3);
   align-content:start; min-height:200px; position:relative; overflow:hidden; }
@@ -1509,7 +1523,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
   background:var(--ground);
 }
 .ap-rl-view{ padding:0; overflow:hidden; }
-.ap-rl-notes{ display:grid; gap:var(--gap); background:var(--rule);
+.ap-rl-notes{ display:grid; gap:var(--gap);
   grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
 .ap-rl-note{ background:var(--ground); padding:var(--sp-4); display:grid; gap:var(--sp-2); }
 .ap-rl-note[data-active="1"]{ background:var(--ground-2); }
@@ -1541,7 +1555,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
   font-size:11px; font-weight:700; border:0; min-height:32px;
 }
 .mk-btn.ghost{ background:transparent; color:var(--ink); border:1px solid var(--ink-30); }
-.mk-grid{ display:grid; gap:var(--rule-w); background:var(--rule);
+.mk-grid{ display:grid; gap:var(--rule-w);
   grid-template-columns:repeat(3,1fr); }
 .mk-cell{ background:var(--ground); padding:var(--sp-4); display:grid; gap:6px; }
 .mk-cell .ap-num{ font-size:20px; }
@@ -1568,7 +1582,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 }
 
 /* ═══ DESIGN INTELLIGENCE ════════════════════════════════════════════════ */
-.ap-di{ display:grid; gap:var(--gap); background:var(--rule); }
+.ap-di{ display:grid; gap:var(--gap); }
 .ap-di-case{ background:var(--ground); display:grid; gap:var(--gap);
   grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
 @media (max-width:860px){ .ap-di-case{ grid-template-columns:1fr; } }
@@ -1626,15 +1640,16 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 .di-demo[data-case="mob"][data-opt="b"] .di-taps{ gap:var(--sp-2); }
 
 /* ═══ INTERACTION GALLERY ════════════════════════════════════════════════ */
-.ap-gal{ display:grid; gap:var(--gap); background:var(--rule);
+.ap-gal{ display:grid; gap:var(--gap); grid-auto-flow:row dense;
   grid-template-columns:repeat(auto-fit,minmax(276px,1fr)); }
 .ap-lab-tile{
-  contain:layout paint;
+  contain:layout;
   background:var(--ground); padding:var(--sp-5); display:grid; gap:var(--sp-4);
   align-content:start; position:relative; overflow:hidden; min-height:300px;
   grid-template-rows:auto 1fr auto;
 }
 .ap-lab-tile[data-span="2"]{ grid-column:span 2; }
+.ap-lab-tile[data-span="2"] .ap-lab-tile-stage{ min-height:232px; }
 @media (max-width:640px){ .ap-lab-tile[data-span="2"]{ grid-column:span 1; } }
 .ap-lab-tile-head{ display:flex; align-items:flex-start; justify-content:space-between;
   gap:var(--sp-3); }
@@ -1667,7 +1682,13 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
   width:2px; background:var(--signal); z-index:3; }
 /* split compare */
 .sp-wrap{ position:absolute; inset:0; }
-.sp-side{ position:absolute; inset:0; display:grid; place-items:center; padding:var(--sp-4); }
+.sp-side{ position:absolute; inset:0; }
+.sp-side > *{
+  position:absolute; inset-block:0; width:50%;
+  display:grid; place-content:center; padding:var(--sp-4);
+}
+.sp-a > *{ left:0; }
+.sp-b > *{ right:0; }
 .sp-a{ background:var(--ground-3); }
 .sp-b{ background:var(--invert-bg); color:var(--invert-ink); clip-path:inset(0 0 0 var(--spx,50%)); }
 .sp-handle{
@@ -1785,7 +1806,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 .ap-sig-act{ background:var(--signal-plate); color:var(--signal-ink); padding:var(--sp-4);
   margin-top:auto; }
 .ap-sig-view.is-on .ap-sig-act{ animation:apWipe var(--dur-3) var(--ease) 240ms both; }
-.ap-sig-steps{ display:grid; gap:var(--gap); background:var(--rule); }
+.ap-sig-steps{ display:grid; gap:var(--gap); }
 .ap-sig-step{
   background:var(--ground); border:0; cursor:pointer; text-align:start; color:inherit;
   padding:var(--sp-5); display:grid; gap:var(--sp-2); align-content:start;
@@ -1867,7 +1888,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 .ap-plan[data-feature="1"] .btn-primary::after{ background:var(--ground); }
 
 /* ═══ FAQ ════════════════════════════════════════════════════════════════ */
-.ap-faq{ display:grid; gap:var(--gap); background:var(--rule); }
+.ap-faq{ display:grid; gap:var(--gap); }
 .ap-faq-item{ background:var(--ground); }
 .ap-faq-btn{
   width:100%; background:transparent; border:0; cursor:pointer; color:inherit;
@@ -1891,7 +1912,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 
 /* ═══ CONTACT ════════════════════════════════════════════════════════════ */
 .ap-contact-form{ border:var(--frame); padding:var(--sp-6); display:grid; gap:var(--sp-5); }
-.ap-contact-rows{ display:grid; gap:var(--gap); background:var(--rule); }
+.ap-contact-rows{ display:grid; gap:var(--gap); }
 .ap-contact-row{
   background:var(--ground); padding:var(--sp-5);
   display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4);
@@ -2928,7 +2949,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
                 <span class="ap-motion-marks"></span>
                 <span class="ap-motion-actor"></span>
               </div>
-              <div class="ap-grid ap-grid--2" style="background:var(--rule)">
+              <div class="ap-grid ap-grid--2">
                 <div class="ap-cell u-col" style="gap:var(--sp-2)">
                   <span class="ap-mono ap-mono--hot">WHY IT MATTERS</span>
                   <p style="font-size:var(--t--1);line-height:1.8;color:var(--ink-70)">الحركة تُستخدم هنا لثلاثة أشياء فقط: أن تشرح من أين جاء العنصر، أن تربط سبباً بنتيجة، وأن تعطي وقتاً للعين لتلحق. أي حركة لا تفعل واحداً من هذه الثلاثة تُحذف.</p>
@@ -3305,7 +3326,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
             <div class="sp-side sp-a">
               <div class="u-col" style="gap:var(--sp-2);text-align:center">
                 <span class="ap-mono">REPORT LANGUAGE</span>
-                <span style="font-size:var(--t-0);color:var(--ink-50);line-height:1.7;max-width:30ch">
+                <span style="font-size:var(--t--1);color:var(--ink-50);line-height:1.7">
                   «انخفض متوسط تكلفة النقرة بنسبة ١٢٪ مع تحسّن ملحوظ في معدّل التفاعل خلال الفترة المقاسة.»
                 </span>
               </div>
@@ -3313,8 +3334,8 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
             <div class="sp-side sp-b">
               <div class="u-col" style="gap:var(--sp-2);text-align:center">
                 <span class="ap-mono" style="color:color-mix(in srgb,var(--invert-ink) 55%,transparent)">DECISION LANGUAGE</span>
-                <span class="ap-num" style="font-size:clamp(30px,4vw,48px)">21→23</span>
-                <span style="font-size:var(--t-0);font-weight:700;max-width:26ch;line-height:1.5">
+                <span class="ap-num" style="font-size:clamp(26px,2.6vw,38px)">21→23</span>
+                <span style="font-size:var(--t--1);font-weight:700;line-height:1.55">
                   انقل ٣٨٪ من الصرف إلى نافذة الذروة قبل رفع الميزانية.
                 </span>
               </div>
