@@ -172,11 +172,12 @@
 
   /* ── motion ───────────────────────────────────────────────────────────── */
   --motion-mult: 1;
-  --dur-1: calc(140ms * var(--motion-mult));
-  --dur-2: calc(280ms * var(--motion-mult));
-  --dur-3: calc(520ms * var(--motion-mult));
-  --dur-4: calc(880ms * var(--motion-mult));
-  --dur-5: calc(1400ms * var(--motion-mult));
+  --dur-1: calc(100ms * var(--motion-mult));
+  --dur-2: calc(190ms * var(--motion-mult));
+  --dur-3: calc(340ms * var(--motion-mult));
+  --dur-4: calc(500ms * var(--motion-mult));
+  --dur-5: calc(820ms * var(--motion-mult));
+  --step:  calc(40ms * var(--motion-mult));   /* one beat of a cascade */
   --ease:        cubic-bezier(0.16, 1, 0.3, 1);      /* the house curve */
   --ease-io:     cubic-bezier(0.65, 0, 0.35, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -235,8 +236,8 @@
 [data-density="editorial"]{ --density-mult: 1.32; --t-leading-body: 2.0; --t-measure: 46ch; }
 
 /* ── MOTION ──────────────────────────────────────────────────────────────── */
-[data-motion="subtle"]   { --motion-mult: 0.62; --lift: 14px; --ease: cubic-bezier(0.33,1,0.68,1); }
-[data-motion="cinematic"]{ --motion-mult: 1.75; --lift: 44px; --ease: cubic-bezier(0.16,1,0.3,1); }
+[data-motion="subtle"]   { --motion-mult: 0.66; --lift: 12px; --ease: cubic-bezier(0.33,1,0.68,1); }
+[data-motion="cinematic"]{ --motion-mult: 1.8;  --lift: 40px; --ease: cubic-bezier(0.16,1,0.3,1); }
 [data-motion="reduced"]  { --motion-mult: 0.001; --lift: 0px; }
 [data-motion="reduced"] *{ animation-play-state: paused !important; }
 [data-motion="reduced"] [data-loop]{ animation: none !important; }
@@ -585,10 +586,24 @@ select.ap-input{ background:var(--ground); }
   html:not(.no-js) [data-reveal]{
     opacity:0; transform:translateY(var(--lift));
     transition:opacity var(--dur-4) var(--ease), transform var(--dur-4) var(--ease);
-    transition-delay:calc(var(--rd, 0) * 70ms * var(--motion-mult));
+    transition-delay:calc(var(--rd, 0) * var(--step));
   }
   html:not(.no-js) [data-reveal].is-in{ opacity:1; transform:none; }
+
+  /* A grid is one element but many things. Left as a single reveal the whole
+     row lands at once; sequenced, the eye is walked across it. The container
+     stops animating itself and hands the motion to its children. */
+  html:not(.no-js) [data-reveal][data-seq]{
+    opacity:1; transform:none; transition:none;
+  }
+  html:not(.no-js) [data-seq] > *{
+    opacity:0; transform:translateY(var(--lift));
+    transition:opacity var(--dur-4) var(--ease), transform var(--dur-4) var(--ease);
+    transition-delay:calc(var(--sq, 0) * var(--step));
+  }
+  html:not(.no-js) [data-seq].is-in > *{ opacity:1; transform:none; }
 }
+html[data-motion="reduced"] [data-seq] > *{ opacity:1 !important; transform:none !important; }
 html[data-motion="reduced"] [data-reveal]{ opacity:1 !important; transform:none !important; }
 
 /* Below-the-fold sections skip rendering work until they approach.
@@ -773,8 +788,8 @@ html[data-cursor-mode="signature"] [data-cursor]{ cursor:none; }
   opacity:0; transform:translateY(18px);
 }
 .ap-drawer.is-open .ap-drawer-link{
-  animation:apRise calc(var(--dur-3) + 100ms) var(--ease) forwards;
-  animation-delay:calc(var(--i,0) * 45ms * var(--motion-mult));
+  animation:apRise var(--dur-3) var(--ease) forwards;
+  animation-delay:calc(var(--i,0) * var(--step));
 }
 .ap-drawer-link span:last-child{
   font-family:var(--f-mono); font-size:11px; letter-spacing:0.14em;
@@ -998,9 +1013,9 @@ html[data-inspect="on"] p,html[data-inspect="on"] .ap-mono{
 .ap-hero-kinetic{ display:block; }
 .ap-hero-kinetic > span{
   display:inline-block; will-change:transform;
-  animation:apWord calc(var(--dur-4) + 100ms) var(--ease) both;
-  animation-delay:calc(var(--w,0) * 80ms * var(--motion-mult));
-  transition:transform 380ms var(--ease), color 380ms var(--ease);
+  animation:apWord var(--dur-4) var(--ease) both;
+  animation-delay:calc(var(--w,0) * var(--step));
+  transition:transform 300ms var(--ease), color 300ms var(--ease);
 }
 .ap-hero-cta{ display:flex; flex-wrap:wrap; gap:var(--sp-3); margin-block:var(--sp-8); }
 .ap-hero-live{
@@ -1065,7 +1080,7 @@ html[data-inspect="on"] p,html[data-inspect="on"] .ap-mono{
   background:var(--signal); transform:scaleX(0); transform-origin:right center;
   transition:transform var(--dur-4) var(--ease);
 }
-[data-reveal].is-in .ap-strike{ transform:scaleX(1); transition-delay:220ms; }
+[data-reveal].is-in .ap-strike{ transform:scaleX(1); transition-delay:calc(var(--step) * 3); }
 
 /* ═══ THE INSTRUMENT — dashboard ═════════════════════════════════════════ */
 .ap-dash{ display:grid; gap:var(--gap); background:var(--rule); }
@@ -4322,8 +4337,8 @@ function toast(tag, msg, ms) {
   while (toastBox.children.length > 3) toastBox.removeChild(toastBox.firstChild);
   setTimeout(function () {
     el.setAttribute('data-out', '1');
-    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
-  }, ms || 3400);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 320);
+  }, ms || 2800);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4369,8 +4384,34 @@ if ('IntersectionObserver' in window) {
     entries.forEach(function (en) { if (en.isIntersecting) markRevealed(en.target); });
   }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
 }
+/* Containers whose children should arrive one after another rather than as a
+   block. Re-run after any rebuild, because most of these are filled by JS. */
+var SEQ = '.ap-grid, .ap-gal, .ap-di, .ap-faq, .ap-kpis, .ap-card-demo,' +
+          '.ap-swatches, .ap-palette-grid, .ap-rl-notes, .ap-sig-steps,' +
+          '.ap-tf-steps, .ap-contact-rows, .ap-plan-list, .ap-spec';
+function markSequences() {
+  $$(SEQ).forEach(function (box) {
+    var kids = box.children;
+    if (kids.length < 2) return;
+    if (!box.hasAttribute('data-reveal')) {
+      /* inherit the nearest reveal so the cascade starts with its section */
+      var host = box.closest('[data-reveal]');
+      if (host && host !== box) { box.setAttribute('data-reveal', ''); }
+      else if (!host) box.setAttribute('data-reveal', '');
+    }
+    box.setAttribute('data-seq', '');
+    for (var i = 0; i < kids.length; i++) {
+      /* the cascade is capped so a twelve-tile grid still lands promptly */
+      kids[i].style.setProperty('--sq', Math.min(i, 9));
+    }
+  });
+}
 function observeReveals() {
-  if (!revealIO) { $$('[data-reveal]').forEach(function (e) { e.classList.add('is-in'); }); return; }
+  markSequences();
+  if (!revealIO) {
+    $$('[data-reveal]').forEach(function (e) { e.classList.add('is-in'); });
+    return;
+  }
   $$('[data-reveal]').forEach(function (e) { if (!e.dataset.obs) { e.dataset.obs = '1'; revealIO.observe(e); } });
   pendingReveals = $$('[data-reveal]').filter(function (e) { return !e.classList.contains('is-in'); });
 }
@@ -5987,7 +6028,7 @@ on($('#tfPlay'), 'click', function () {
   if (tfTimer) { tfStop(); return; }
   if (tfCur >= STAGES.length - 1) tfApply(0);
   $('span', this).textContent = 'أوقف';
-  var ms = motionOff() ? 260 : 1150;
+  var ms = motionOff() ? 220 : 760;
   tfTimer = setInterval(function () {
     if (tfCur >= STAGES.length - 1) {
       tfStop();
@@ -6525,7 +6566,7 @@ function localPos(el, e) {
   var plate = $('#sigPlate'); if (!plate) return;
   var views = $$('.ap-sig-view', plate), steps = $$('#sigSteps .ap-sig-step');
   var bar = $('#sigBar'), autoBtn = $('#sigAuto');
-  var beat = 0, auto = true, t0 = 0, rafId = 0, DURATION = 4200;
+  var beat = 0, auto = true, t0 = 0, rafId = 0, DURATION = 3200;
 
   function show(i, manual) {
     beat = (i + views.length) % views.length;
@@ -6606,7 +6647,7 @@ function localPos(el, e) {
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { track.classList.add('is-run'); });
     });
-    setTimeout(function () { track.classList.remove('is-run'); }, 2600);
+    setTimeout(function () { track.classList.remove('is-run'); }, 1900);
   });
 })();
 
