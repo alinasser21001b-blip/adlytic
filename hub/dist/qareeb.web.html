@@ -2488,7 +2488,12 @@ function screenPharmacy(id) {
   ${prods.length ? `<section class="blk"><div class="sec-h"><h2 style="font-size:15px">${isAR() ? "متوفر في هذه الصيدلية" : "On the shelf here"}</h2>
     <a class="more" href="#/care">${isAR() ? "الكل" : "All"}</a></div>
     <div class="rail" style="margin-inline:-18px;padding-inline:18px">${prods.slice(0, 6).map((p) => `<div style="width:150px">${productCard(p)}</div>`).join("")}</div></section>` : ""}
-  <section class="blk"><button class="btn btn--3" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button></section>
+  <section class="blk">
+    <a class="lane" href="#/partner/${f.id}"><span class="ic">${icon("grid")}</span>
+      <span class="grow"><h3>${isAR() ? "هذي صيدليتك؟" : "Is this your pharmacy?"}</h3>
+        <p>${isAR() ? "شوف كم طلب دواء ضاع في منطقتك هذا الشهر" : "See how much medicine demand your area lost this month"}</p></span>
+      ${icon("chev")}</a>
+    <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button></section>
   <div class="actionbar">
     <a class="btn" href="${mapLink(f)}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>
     ${f.wa ? `<a class="icon-btn" href="${waLink(f.wa, isAR() ? `السلام عليكم، استفسار من ${L(CONFIG.brand)}:` : `Hello, an enquiry via ${L(CONFIG.brand)}:`)}" target="_blank" rel="noopener">${icon("wa")}</a>` : ""}
@@ -3232,6 +3237,111 @@ function logAsk(medId) {
   LS.set("asks", log.slice(0, 50));
 }
 
+/* ---------------- THE SUPPLY SIDE ----------------
+   The product had no provider surface at all. A consumer directory is worth
+   little; a two-sided platform is worth a multiple of it. This is the screen
+   a pharmacy owner or a doctor sees when they scan the partner QR — and it
+   has to answer one question in ten seconds: "why should I pay for this?"
+
+   The answer is not a feature list. It is THEIR OWN demand data, shown back
+   to them: what people near them asked for, and what they missed.
+------------------------------------------------------------- */
+function partnerStats(facId) {
+  const f = fac(facId);
+  const dist = f && f.district;
+  const mine = MED_DEMAND.filter((r) => r.district === dist);
+  const stocked = MEDICINES.filter((m) => m.stock.some((st) => st.f === facId));
+  // Only THIS pharmacy's own district. Showing demand from Bayaa to a Karrada
+  // owner is the kind of error that destroys a commercial claim on first read.
+  const missed = mine.filter((r) => {
+    const m = medById(r.med);
+    return m && !m.stock.some((st) => st.f === facId) && r.asks - r.filled > 10;
+  }).sort((a, b) => (b.asks - b.filled) - (a.asks - a.filled));
+  const asks = mine.reduce((a, r) => a + r.asks, 0);
+  const unfilled = mine.reduce((a, r) => a + (r.asks - r.filled), 0);
+  return { f, mine, stocked, missed, asks, unfilled };
+}
+
+function screenPartner(id) {
+  const facId = id || "p1";
+  const { f, stocked, missed, asks, unfilled } = partnerStats(facId);
+  if (!f) return screen404();
+  const dist = DISTRICTS.find((d) => d.id === f.district);
+  const leads = LS.get("asks", []).length;
+
+  return `${header({ back: true, title: isAR() ? "لوحة الشريك" : "Partner" })}
+  <section class="wrap" style="padding-top:14px">
+    <div class="eyebrow">${isAR() ? "لوحة الصيدلية" : "Pharmacy dashboard"}</div>
+    <h1 class="prof-name" style="margin-top:4px">${esc(L(f))}</h1>
+    <div class="prof-spec">${esc(L(dist))} · ${f.verified ? t("verified") : t("listed")}</div>
+
+    <div class="banner banner--warn" style="margin-top:16px">${icon("alert")}<span>${isAR()
+      ? `في ${L(dist)} وحدها: <b class="num">${unfilled}</b> طلب دواء لم يُلبَّ خلال 30 يوماً. كل واحد منها زبون خرج بلا شراء.`
+      : `In ${L(dist)} alone: <b class="num">${unfilled}</b> medicine requests went unfilled in 30 days. Each one is a customer who left empty-handed.`}</span></div>
+
+    <div class="prof-facts" style="margin-top:14px">
+      <div class="prof-fact"><div class="k">${isAR() ? "طلبات منطقتك" : "Asks in your area"}</div><div class="v num">${asks}</div></div>
+      <div class="prof-fact"><div class="k">${isAR() ? "غير ملبّاة" : "Unfilled"}</div><div class="v num" style="color:var(--coral)">${unfilled}</div></div>
+      <div class="prof-fact"><div class="k">${isAR() ? "أصنافك المؤكَّدة" : "Your confirmed"}</div><div class="v num">${stocked.length}</div></div>
+    </div>
+  </section>
+
+  ${missed.length ? `<section class="blk">
+    <h3>${isAR() ? "طلب مثبَّت أنت لا تغطّيه" : "Proven demand you don't cover"}</h3>
+    <p class="small muted" style="margin-bottom:12px">${isAR()
+      ? "هذي أدوية يسأل عنها جيرانك ولا تظهر عندك. جلبها = بيع مضمون، لا مقامرة."
+      : "Your neighbours ask for these and you are not listed. Stocking them is a known sale, not a gamble."}</p>
+    <div class="stack">${missed.map((r) => {
+      const m = medById(r.med), gap = r.asks - r.filled;
+      return `<div class="card is-open">
+        <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
+          <div class="grow"><div class="card-t">${esc(L(m))}</div>
+            <div class="card-meta">
+              <span class="chip--meta chip--warn"><span class="num">${gap}</span> ${isAR() ? "طلب ضائع" : "lost asks"}</span>
+              <i class="dot"></i><span>${isAR() ? "لُبّي" : "filled"} <span class="num">${Math.round((r.filled / r.asks) * 100)}%</span></span>
+            </div></div></div></div>`;
+    }).join("")}</div></section>` : ""}
+
+  <section class="blk">
+    <h3>${isAR() ? "ما الذي تحصل عليه" : "What you get"}</h3>
+    <div class="stack">
+      ${[[isAR() ? "زبون يطلب صنفاً تملكه" : "A customer asking for what you stock",
+          isAR() ? "لا إعلان ولا ظهور — رسالة واتساب من شخص يريد الشراء الآن." : "Not an ad. A WhatsApp message from someone buying now."],
+         [isAR() ? "ظهور في الخفارة الليلية" : "Night-duty visibility",
+          isAR() ? "الساعة ٢ فجراً أنت الخيار الوحيد الظاهر — أعلى هامش في اليوم." : "At 2am you are the only option shown — the highest-margin hour."],
+         [isAR() ? "بيانات طلب منطقتك" : "Your area's demand data",
+          isAR() ? "أي دواء يُطلب ولا يوجد — قرار شراء مبني على رقم لا على تخمين." : "What is asked for and missing — purchasing decided by data, not guesswork."]]
+        .map(([h, p]) => `<div class="lane"><span class="ic">${icon("check")}</span>
+          <span class="grow"><h3>${h}</h3><p>${p}</p></span></div>`).join("")}
+    </div>
+  </section>
+
+  <section class="blk">
+    <h3>${isAR() ? "الاشتراك" : "Plans"}</h3>
+    <div class="stack">
+      <div class="card"><div class="row-b">
+        <div><div class="card-t">${isAR() ? "مجاني" : "Free"}</div>
+          <div class="card-q">${isAR() ? "ظهور أساسي · دوام · اتجاهات" : "Basic listing · hours · directions"}</div></div>
+        <span class="chip--meta chip--ok">${isAR() ? "الحالي" : "current"}</span></div></div>
+      <div class="card is-open"><div class="row-b">
+        <div><div class="card-t">${isAR() ? "شريك" : "Partner"}</div>
+          <div class="card-q">${isAR() ? "طلبات الدواء + الخفارة + بيانات المنطقة" : "Medicine leads + night duty + area demand"}</div></div>
+        <span class="fee num">50,000 ${L(CONFIG.currency)}<span class="fee-l">/${isAR() ? "شهر" : "mo"}</span></span></div>
+      </div>
+    </div>
+    <p class="tiny muted" style="margin-top:12px">${isAR()
+      ? "التسعير توضيحي في هذا النموذج. المنطق التجاري: الاشتراك أرخص من زبون واحد ضائع أسبوعياً."
+      : "Illustrative pricing. The logic: the subscription costs less than one lost customer a week."}</p>
+  </section>
+
+  <div class="actionbar">
+    <a class="btn btn--wa" href="${waLink(CONFIG.emergency.partnerWa || "9647700000001",
+      isAR() ? `مرحباً، أنا من ${f.ar} — أريد الاشتراك كشريك في قريب.` : `Hello, I'm from ${f.en} — I'd like to join Qareeb as a partner.`)}"
+      target="_blank" rel="noopener">${icon("wa")}${isAR() ? "اشترك عبر واتساب" : "Join via WhatsApp"}</a>
+  </div>
+  ${nav("pharmacies")}`;
+}
+
 /* ---------------- ACTIONS ---------------- */
 function pickNeed(spec) {
   closeSheet();
@@ -3298,6 +3408,7 @@ function route() {
     case "care": return screenCare(p[1]);
     case "product": return screenProduct(p[1]);
     case "med": return screenMed(p[1]);
+    case "partner": return screenPartner(p[1]);
     case "search": return screenSearch();
     case "me": return screenMe();
     case "trust": return screenTrust();
