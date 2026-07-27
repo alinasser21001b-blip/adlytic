@@ -14,14 +14,15 @@ const S = {
   theme: LS.get("theme", null),   // null = follow the OS / host theme
   district: LS.get("district", CONFIG.defaultDistrict),
   gps: LS.get("gps", false),
-  gpsReason: null,          // precise location granted
+  gpsReason: null,
+  phNight: false, phSvc: null,          // precise location granted
   locState: LS.get("locState", "inferred"), // precise | chosen | inferred | denied
   name: LS.get("name", ""),
   saved: LS.get("saved", []),
   requests: LS.get("requests", []),
   qrSource: null,
   recent: LS.get("recent", []),
-  filters: { openNow: false, gender: null, spec: null, fee: null, fac: null },
+  filters: { openNow: false, when: null, gender: null, spec: null, district: null, fee: null, facType: null },
   radius: CONFIG.radiusKm,
   demoTime: null,                      // lets the demo scrub "now"
 };
@@ -222,6 +223,25 @@ function statusLabel(st, terse = false) {
   return `<span class="state-line state-shut"><i class="bulb"></i>${t("opensAt")} ${when} ${fmtTi(st.next.f)}</span>`;
 }
 
+/* ---------------- THE WEEK STRIP (signature) ----------------
+   Seven cells, Saturday-first like the Iraqi week. State is carried by fill
+   AND shape — filled = working, hollow = not, today is ringed, the next open
+   day is dotted. Never colour alone.
+------------------------------------------------------------- */
+const DAY_LETTER = { 6: "س", 0: "ح", 1: "ن", 2: "ث", 3: "ر", 4: "خ", 5: "ج" };
+function weekStrip(ent) {
+  const today = nowDay();
+  const nx = status(ent).next;
+  const cells = DAY_ORDER.map((d) => {
+    const works = rawSegs(ent, d).length > 0;
+    const isToday = d === today;
+    const isNext = nx && nx.day === d && !isToday;
+    return `<span class="wk7-d${works ? " on" : " off"}${isToday ? " today" : ""}${isNext ? " next" : ""}"
+      title="${dayName(d)}">${DAY_LETTER[d]}</span>`;
+  }).join("");
+  return `<div class="wk7" role="img" aria-label="${isAR() ? "أيام الدوام خلال الأسبوع" : "Days open this week"}">${cells}</div>`;
+}
+
 /* ---------------- RIBBON ---------------- */
 function ribbon(ent, day = null, cls = "ribbon--micro", showNow = true) {
   const d = day === null ? nowDay() : day;
@@ -277,15 +297,22 @@ function doctorsFor({ spec = null, q = null, radius = S.radius } = {}) {
   const f = S.filters;
   if (f.gender) list = list.filter((d) => d.gender === f.gender);
   if (f.openNow) list = list.filter((d) => status(d).k !== "shut");
+  if (f.when === "today")    list = list.filter((d) => rawSegs(d, nowDay()).some((sg) => sg.t > nowMins()));
+  if (f.when === "tomorrow") list = list.filter((d) => rawSegs(d, (nowDay() + 1) % 7).length > 0);
+  if (f.when === "week")     list = list.filter((d) => { const n = nextSeg(d); return n && n.inDays <= 6; });
+  if (f.fee === "free")  list = list.filter((d) => d.sessions.some((sg) => sg.fee === 0));
+  if (f.fee === "u25")   list = list.filter((d) => d.sessions.some((sg) => sg.fee !== null && sg.fee > 0 && sg.fee <= 25000));
+  if (f.facType) list = list.filter((d) => docFacs(d).some((x) => x && (f.facType === "hospital" ? x.type === "hospital" : x.type !== "hospital")));
+  if (f.district) list = list.filter((d) => docFacs(d).some((x) => x && x.district === f.district));
   list = list.map((d) => ({ d, km: docDist(d), st: status(d) }));
   const within = list.filter((x) => x.km <= radius);
   const thin = within.length < 3;                 // widen when results are thin, not only when empty
   const used = thin ? list : within;
   const usedRadius = thin ? null : radius;
-  used.sort((a, b) => {
-    const rank = (x) => (x.st.k === "open" ? 0 : x.st.k === "soon" ? 1 : 2);
-    return rank(a) - rank(b) || a.km - b.km;
-  });
+  // Sort by WHEN, not by how far. A doctor open now outranks a nearer one who
+  // opens on Thursday; distance only breaks ties between equal availability.
+  const waitOf = (x) => x.st.k !== "shut" ? -1 : (x.st.next ? x.st.next.abs - nowMins() : 1e9);
+  used.sort((a, b) => waitOf(a) - waitOf(b) || a.km - b.km);
   return { list: used, expanded: usedRadius === null, total: list.length };
 }
 
@@ -321,7 +348,8 @@ const phNight = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night)
 
 /* ---------------- HELPERS ---------------- */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const money = (n) => (n === null || n === undefined) ? "—" : n === 0 ? t("free") : `${n.toLocaleString("en-US")} ${L(CONFIG.currency)}`;
+// An unknown fee is omitted by the caller. This never invents certainty.
+const money = (n) => (n === null || n === undefined) ? "" : n === 0 ? t("free") : `${n.toLocaleString("en-US")} ${L(CONFIG.currency)}`;
 const initials = (name) => {
   const clean = name.replace(/^د\.\s*/, "").replace(/^Dr\.\s*/, "").trim();
   // Arabic letters join into pseudo-words, so one letter reads better than two
@@ -346,25 +374,35 @@ function doctorCard(x, wide = false) {
   const { d, km, st } = x;
   const sp = specOf(d.spec);
   const f = st.k !== "shut" && st.seg ? st.seg.fac : (st.next ? st.next.fac : docFacs(d)[0]);
+  const dist = f && DISTRICTS.find((y) => y.id === f.district);
   const fee = st.k !== "shut" && st.seg ? st.seg.s?.fee : (st.next ? st.next.s?.fee : d.sessions[0].fee);
+  const gender = d.gender === "f" ? (isAR() ? "طبيبة" : "Female") : (isAR() ? "طبيب" : "Male");
   return `<a class="card ${st.k === "open" ? "is-open" : st.k === "soon" ? "is-soon" : "is-shut"} ${wide ? "card--wide" : ""}" href="#/doctor/${d.id}">
     <div class="card-top">
       <div class="avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
       <div class="grow">
         <div class="card-t">${esc(L(d))}</div>
         <div class="card-q">${esc(L(sp))}${d.sub_ar && isAR() ? " · " + esc(d.sub_ar) : ""}</div>
-        <div class="card-meta">
-          ${d.verified ? `<span class="seal">${icon("seal")}${t("verified")}</span><i class="dot"></i>` : ""}
-          <span class="dist">${icon("pin")}${fmtKm(km)}</span>
-          <i class="dot"></i><span class="trunc">${esc(f ? L(f) : "")}</span>
-        </div>
       </div>
+      ${d.verified ? `<span class="seal seal--pill">${icon("seal")}${t("verified")}</span>` : ""}
     </div>
-    <div class="card-ribbon">${ribbon(d)}</div>
-    <div class="card-foot">
+
+    <div class="card-avail">
       ${statusLabel(st)}
-      <span class="fee ${fee === 0 ? "fee--free" : ""} num">${money(fee)}</span>
+      ${weekStrip(d)}
     </div>
+
+    <div class="card-meta">
+      <span class="chip--meta">${gender}</span>
+      ${f ? `<span class="trunc">${esc(L(f))}</span>` : ""}
+      ${dist ? `<i class="dot"></i><span>${esc(L(dist))}</span>` : ""}
+      <i class="dot"></i><span class="dist">${icon("pin")}${fmtKm(km)}</span>
+    </div>
+
+    ${fee !== null && fee !== undefined ? `<div class="card-foot">
+      <span class="fee-l">${t("fee")}</span>
+      <span class="fee ${fee === 0 ? "fee--free" : ""} num">${money(fee)}</span>
+    </div>` : ""}
   </a>`;
 }
 
@@ -544,16 +582,19 @@ function screenDoctors(params) {
   return `${header({ back: true, title: sp ? L(sp) : t("doctors") })}
   <div class="filters">
     <div class="chips">
+      <button class="chip chip--filter ${activeFilterCount() ? "on" : ""}" onclick="openFilters()">
+        ${icon("filter")}${isAR() ? "تحديد" : "Refine"}${activeFilterCount() ? ` <span class="num fcount">${activeFilterCount()}</span>` : ""}</button>
       <button class="chip ${f.openNow ? "on" : ""}" onclick="tf('openNow')">${icon("clock")}${t("openNow")}</button>
+      <button class="chip ${f.when === "today" ? "on" : ""}" onclick="setFilter('when', S.filters.when==='today'?null:'today')">${isAR() ? "اليوم" : "Today"}</button>
       <button class="chip ${f.gender === "f" ? "on" : ""}" onclick="tg('f')">${isAR() ? "طبيبة" : "Female"}</button>
-      <button class="chip ${f.gender === "m" ? "on" : ""}" onclick="tg('m')">${isAR() ? "طبيب" : "Male"}</button>
       ${sp ? `<button class="chip on" onclick="S.filters.spec=null;render()">${esc(L(sp))} ${icon("close")}</button>`
-           : `<button class="chip" onclick="location.hash='#/needs'">${icon("filter")}${t("allSpecs")}</button>`}
+           : `<button class="chip" onclick="location.hash='#/needs'">${t("allSpecs")}</button>`}
     </div>
   </div>
   <div class="res-head">
-    <span class="n"><span class="num">${r.list.length}</span> ${t("results")} ${isAR() ? "ضمن" : "within"} <span class="num">${r.expanded ? 25 : S.radius}</span> ${t("km")}</span>
-    <span class="tiny muted">${esc(approxNote() || L(here()))}</span>
+    <div class="n"><span class="num">${r.list.length}</span> ${t("results")}
+      <span class="why">· ${isAR() ? "الأقرب موعداً أولاً" : "soonest first"}</span></div>
+    <div class="tiny muted">${esc(approxNote() || L(here()))}</div>
   </div>
   ${r.expanded ? `<div class="radius-note">${icon("info")}<span>${isAR()
       ? `نتائج قليلة ضمن ${S.radius} كم من ${L(here())}؟ وسّعنا تلقائياً إلى 25 كم — أخبرناك، ولم نقرر عنك.`
@@ -680,12 +721,15 @@ function screenDoctor(id) {
 
 function screenPharmacies() {
   const openOnly = S.filters.openNow;
-  const list = pharmaciesNear({ openOnly });
+  let list = pharmaciesNear({ openOnly });
+  if (S.phNight) list = list.filter((x) => x.f.night);
+  if (S.phSvc) list = list.filter((x) => (x.f.services || []).includes(S.phSvc));
   const night = list.filter((x) => x.f.night);
   return `${header({ back: true, title: t("pharmacies") })}
   <div class="filters"><div class="chips">
     <button class="chip ${openOnly ? "on" : ""}" onclick="tf('openNow')">${icon("clock")}${t("openNow")}</button>
-    <button class="chip" onclick="location.hash='#/pharmacies?night=1'">${icon("moon")}${t("nightDuty")} <span class="num">${night.length}</span></button>
+    <button class="chip ${S.phNight ? "on" : ""}" onclick="S.phNight=!S.phNight;render()">${icon("moon")}${t("nightDuty")} <span class="num">${night.length}</span></button>
+    <button class="chip ${S.phSvc === "delivery" ? "on" : ""}" onclick="S.phSvc = S.phSvc==='delivery'?null:'delivery';render()">${icon("truck")}${isAR() ? "توصيل" : "Delivery"}</button>
   </div></div>
   <section class="wrap">
     <div class="map-peek" aria-hidden="true">
@@ -697,13 +741,27 @@ function screenPharmacies() {
   <div class="res-head"><span class="n"><span class="num">${list.length}</span> ${t("results")}</span>
     <span class="tiny muted">${esc(approxNote()) || (isAR() ? "المفتوح أولاً، ثم الأقرب" : "Open first, then nearest")}</span></div>
   <section class="wrap"><div class="stack list-2 stagger">
-    ${list.length ? list.map((x) => pharmacyCard(x)).join("") : `<div class="empty">
-      <div class="empty-mark">${icon("moon")}</div>
-      <h3>${isAR() ? "لا توجد صيدلية مفتوحة الآن قريباً منك" : "No pharmacy open near you right now"}</h3>
-      <p>${isAR() ? "أقرب صيدلية تفتح قريباً:" : "The nearest one opening soon:"}</p>
-      <div class="empty-alts stack">${pharmaciesNear({}).slice(0, 2).map((x) => pharmacyCard(x)).join("")}</div></div>`}
+    ${list.length ? list.map((x) => pharmacyCard(x)).join("") : nightFallback()}
   </div></section>
   <div style="height:24px"></div>${nav("pharmacies")}`;
+}
+
+// Nothing open nearby is the 2am case — the moment this product matters most.
+// It must hand over the nearest NIGHT-DUTY pharmacy, not report an empty list.
+function nightFallback() {
+  const duty = FACILITIES.filter((f) => f.type === "pharmacy" && f.night)
+    .map((f) => ({ f, km: distTo(f), st: status(f) }))
+    .sort((a, b) => (a.st.k === "shut") - (b.st.k === "shut") || a.km - b.km);
+  const soon = pharmaciesNear({}).filter((x) => x.st.k === "shut")
+    .sort((a, b) => (a.st.next?.abs ?? 1e9) - (b.st.next?.abs ?? 1e9))[0];
+  return `<div class="empty">
+    <div class="empty-mark">${icon("moon")}</div>
+    <h3>${isAR() ? "ما في صيدلية مفتوحة قربك هسه" : "Nothing open near you right now"}</h3>
+    <p>${isAR() ? "هذي أقرب صيدليات الخفارة الليلية — تشتغل طول الليل."
+                : "These are the nearest night-duty pharmacies — open through the night."}</p>
+    <div class="empty-alts stack">${duty.slice(0, 3).map((x) => pharmacyCard(x)).join("")}</div>
+    ${soon ? `<p class="small muted" style="margin-top:18px">${isAR() ? "وأقرب وحدة تفتح" : "Nearest opening"}: ${esc(L(soon.f))} · ${fmtTi(soon.st.next.f)}</p>` : ""}
+  </div>`;
 }
 
 function screenPharmacy(id) {
@@ -805,7 +863,7 @@ function screenSearch() {
   <section class="wrap" style="padding-top:6px">
     <div class="search-field">${icon("search")}
       <input id="q" value="${esc(q)}" placeholder="${t("searchPh")}" oninput="doSearch(this.value)" autocomplete="off">
-      <button onclick="doSearch('');document.getElementById('q').value=''" aria-label="${t("cancel")}">${icon("close")}</button></div>
+      <button class="clear-btn" onclick="doSearch('');document.getElementById('q').value='';document.getElementById('q').focus()" aria-label="${isAR() ? "مسح البحث" : "Clear search"}">${icon("close")}</button></div>
   </section>
   <section class="wrap sec" id="sres">${searchResults(q)}</section>${nav("home")}`;
 }
@@ -817,6 +875,11 @@ function searchResults(q) {
         : "We match Arabic spellings loosely — write it however you like."}</span></div>
       <div class="res-group"><h3>${isAR() ? "ابدأ من حاجتك" : "Start from your need"}</h3>
       <div class="chips chips--wrap">${NEEDS.slice(0, 8).map((n) => `<button class="chip" onclick="pickNeed('${n.spec}')">${icon(n.icon)}${esc(L(n))}</button>`).join("")}</div></div>
+      <div class="res-group"><h3>${isAR() ? "الأكثر بحثاً" : "Most searched"}</h3>
+        <div class="chips chips--wrap">${(isAR()
+          ? ["طبيب أطفال", "صيدلية مناوبة", "طبيبة نسائية", "جلدية", "وجع أسنان", "فيتامين د", "واقي شمس"]
+          : ["Pediatrician", "Night pharmacy", "Gynecologist", "Dermatology", "Tooth pain", "Vitamin D", "Sunscreen"])
+          .map((q) => `<button class="chip" onclick="runSearch('${esc(q)}')">${esc(q)}</button>`).join("")}</div></div>
       ${S.recent.length ? `<div class="res-group"><h3>${isAR() ? "بحثك السابق" : "Recent"}</h3>
         <div class="chips chips--wrap">${S.recent.slice(0, 6).map((r) => `<button class="chip" onclick="doSearch('${esc(r)}');document.getElementById('q').value='${esc(r)}'">${esc(r)}</button>`).join("")}</div></div>` : ""}`;
   }
@@ -827,11 +890,25 @@ function searchResults(q) {
   const hos = FACILITIES.filter((f) => f.type !== "pharmacy" && norm(L(f)).includes(nq)).slice(0, 4);
   const prs = PRODUCTS.filter((p) => norm(L(p) + " " + p.brand).includes(nq)).slice(0, 4);
   const none = !docs.length && !specs.length && !phs.length && !hos.length && !prs.length;
-  if (none) return `<div class="empty">
-    <div class="empty-mark">${icon("search")}</div>
-    <h3>${isAR() ? `لم نجد "${esc(q)}" بعد` : `We don't have "${esc(q)}" yet`}</h3>
-    <p>${isAR() ? "سجّلنا بحثك — نضيف الأطباء والصيدليات الناقصة أسبوعياً." : "We logged your search — we add missing doctors and pharmacies every week."}</p>
-    <button class="btn btn--2" onclick="location.hash='#/needs'">${icon("grid")}${isAR() ? "تصفّح حسب الحاجة" : "Browse by need"}</button></div>`;
+  if (none) {
+    const guess = findSpecByQuery(q);
+    return `<div class="empty">
+      <div class="empty-mark">${icon("search")}</div>
+      <h3>${isAR() ? `ما لگينا «${esc(q)}» بعد` : `Nothing for "${esc(q)}" yet`}</h3>
+      <p>${isAR() ? "سجّلنا بحثك — نضيف الناقص أسبوعياً. جرّب وحدة من هذي:"
+                  : "We logged it — we add what's missing weekly. Try one of these:"}</p>
+      <div class="empty-alts stack">
+        ${guess ? `<button class="lane" onclick="pickNeed('${guess.id}')"><span class="ic">${icon("stetho")}</span>
+          <span class="grow" style="text-align:start"><h3>${esc(L(guess))}</h3>
+            <p>${isAR() ? "أقرب اختصاص لبحثك" : "closest specialty to your search"}</p></span>${icon("chev")}</button>` : ""}
+        <button class="lane" onclick="location.hash='#/needs'"><span class="ic">${icon("grid")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "تصفّح حسب الحاجة" : "Browse by need"}</h3>
+            <p>${isAR() ? "12 حاجة شائعة" : "12 common needs"}</p></span>${icon("chev")}</button>
+        <button class="lane" onclick="openLocation()"><span class="ic">${icon("pin")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "شوف نتائج بغداد كلها" : "Search all of Baghdad"}</h3>
+            <p>${isAR() ? "بدل " + esc(L(here())) + " بس" : "instead of just " + esc(L(here()))}</p></span>${icon("chev")}</button>
+      </div></div>`;
+  }
   const G = (title, body) => body ? `<div class="res-group"><h3>${title}</h3><div class="stack">${body}</div></div>` : "";
   return G(t("doctors"), docs.map((d) => doctorCard({ d, km: docDist(d), st: status(d) })).join(""))
     + G(isAR() ? "اختصاصات" : "Specialties", specs.map((s) => `<button class="lane" onclick="pickNeed('${s.id}')"><span class="ic">${icon("stetho")}</span>
@@ -1300,6 +1377,46 @@ function reportInfo() {
     <div class="sheet-f"><button class="btn" onclick="closeSheet();toast('${isAR() ? "شكراً — وصل بلاغك" : "Thank you — report received"}')">${icon("flag")}${isAR() ? "أرسل البلاغ" : "Send report"}</button></div>`);
 }
 
+const activeFilterCount = () => ["when","gender","district","fee","facType"].filter((k) => S.filters[k]).length + (S.filters.openNow ? 1 : 0);
+
+/* Filter priority follows intent, not the data model:
+   specialty -> when -> gender -> area -> fee -> facility. */
+function openFilters() {
+  const f = S.filters;
+  const grp = (title, key, opts) => `
+    <div class="fgrp"><h3 class="eyebrow">${title}</h3>
+      <div class="chips chips--wrap">${opts.map(([v, lab]) =>
+        `<button class="chip ${f[key] === v ? "on" : ""}" onclick="setFilter('${key}', ${v === null ? "null" : `'${v}'`})">${lab}</button>`).join("")}</div></div>`;
+  const near = DISTRICTS.map((d) => ({ d, k: haversine(here(), d) })).sort((a, b) => a.k - b.k).slice(0, 7);
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${isAR() ? "تحديد النتائج" : "Refine results"}</h2>
+      <p>${isAR() ? "الأهم أولاً — متى، ثم مين، ثم وين." : "What matters first: when, then who, then where."}</p></div>
+      <button class="icon-btn" onclick="closeSheet()" aria-label="${t("cancel")}">${icon("close")}</button></div>
+    <div class="sheet-b">
+      ${grp(isAR() ? "متاح متى" : "Available when", "when",
+        [[null, isAR() ? "أي وقت" : "Any"], ["today", isAR() ? "اليوم" : "Today"], ["tomorrow", isAR() ? "باچر" : "Tomorrow"], ["week", isAR() ? "خلال الأسبوع" : "This week"]])}
+      ${grp(isAR() ? "جنس الطبيب" : "Doctor gender", "gender",
+        [[null, isAR() ? "الكل" : "Any"], ["f", isAR() ? "طبيبة" : "Female"], ["m", isAR() ? "طبيب" : "Male"]])}
+      ${grp(isAR() ? "المنطقة" : "Area", "district",
+        [[null, isAR() ? "كل بغداد" : "All Baghdad"], ...near.map((x) => [x.d.id, esc(L(x.d))])])}
+      ${grp(isAR() ? "الأجرة" : "Fee", "fee",
+        [[null, isAR() ? "الكل" : "Any"], ["free", isAR() ? "بدون أجرة" : "No fee"], ["u25", isAR() ? "حتى 25 ألف" : "Up to 25k"]])}
+      ${grp(isAR() ? "المنشأة" : "Facility", "facType",
+        [[null, isAR() ? "الكل" : "Any"], ["hospital", isAR() ? "مستشفى" : "Hospital"], ["clinic", isAR() ? "عيادة خاصة" : "Private clinic"]])}
+    </div>
+    <div class="sheet-f">
+      <div class="btn-row">
+        <button class="btn btn--2" onclick="resetFilters()">${icon("refresh")}${isAR() ? "إعادة ضبط" : "Reset"}</button>
+        <button class="btn" onclick="closeSheet()">${isAR() ? "اعرض" : "Show"} <span class="num">${doctorsFor({ spec: S.filters.spec }).list.length}</span></button>
+      </div>
+    </div>`);
+}
+function setFilter(k, v) { S.filters[k] = v; if (document.querySelector(".sheet")) { closeSheet(true); openFilters(); } render(); }
+function resetFilters() {
+  S.filters = { openNow: false, when: null, gender: null, spec: S.filters.spec, district: null, fee: null, facType: null };
+  closeSheet(true); openFilters(); render();
+}
+
 /* ---------------- ACTIONS ---------------- */
 function pickNeed(spec) {
   closeSheet();
@@ -1324,6 +1441,10 @@ function doSearch(v) {
   LS.set("q", v);
   if (v && v.trim().length > 1) { S.recent = [v.trim(), ...S.recent.filter((r) => r !== v.trim())].slice(0, 8); LS.set("recent", S.recent); }
   const el = document.getElementById("sres"); if (el) el.innerHTML = searchResults(v);
+}
+function runSearch(q) {
+  LS.set("q", q); location.hash = "#/search";
+  setTimeout(() => { const i = document.getElementById("q"); if (i) { i.value = q; doSearch(q); } }, 60);
 }
 function toggleLang() {
   S.lang = isAR() ? "en" : "ar"; LS.set("lang", S.lang);

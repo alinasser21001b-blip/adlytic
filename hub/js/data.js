@@ -33,6 +33,8 @@ const DISTRICTS = [
   { id: "saydiya",   ar: "السيدية",         en: "Saydiya",      lat: 33.2700, lng: 44.3400, lm_ar: "ساحة السيدية", lm_en: "Saydiya Square" },
   { id: "shula",     ar: "الشعلة",          en: "Shu'la",       lat: 33.3700, lng: 44.3000, lm_ar: "ساحة الشعلة", lm_en: "Shu'la Square" },
   { id: "ghazaliya", ar: "الغزالية",        en: "Ghazaliya",    lat: 33.3300, lng: 44.2800, lm_ar: "ساحة الغزالية", lm_en: "Ghazaliya Square" },
+  { id: "sadr",      ar: "مدينة الصدر",     en: "Sadr City",    lat: 33.3750, lng: 44.4600, lm_ar: "ساحة الفلاح", lm_en: "Falah Square" },
+  { id: "bayaa",     ar: "البياع",          en: "Bayaa",        lat: 33.2680, lng: 44.3560, lm_ar: "ساحة البياع", lm_en: "Bayaa Square" },
 ];
 
 /* ---------- SPECIALTIES (with symptom aliases for tolerant search) ---------- */
@@ -91,6 +93,8 @@ const FACILITIES = [
   { id: "c2", type: "clinic", ar: "مجمع زيونة الطبي", en: "Zayouna Medical Complex", district: "zayouna", lat: 33.3380, lng: 44.4460, phone: "9647700000202", verified: true, updated: 5 },
   { id: "c3", type: "clinic", ar: "مركز المنصور التخصصي", en: "Mansour Specialist Centre", district: "mansour", lat: 33.3120, lng: 44.3240, phone: "9647700000203", verified: true, updated: 2 },
   { id: "c4", type: "clinic", ar: "عيادات الجادرية", en: "Jadriya Clinics", district: "jadriya", lat: 33.2740, lng: 44.3870, phone: "9647700000204", verified: true, updated: 8 },
+  { id: "c6", type: "clinic", ar: "مركز الصدر الطبي التخصصي", en: "Sadr Specialist Centre", district: "sadr", lat: 33.3740, lng: 44.4590, phone: "9647700000206", verified: true, updated: 5 },
+  { id: "c7", type: "clinic", ar: "عيادات البياع", en: "Bayaa Clinics", district: "bayaa", lat: 33.2690, lng: 44.3570, phone: "9647700000207", verified: true, updated: 7 },
   { id: "c5", type: "clinic", ar: "مركز الشعب الطبي", en: "Sha'ab Medical Centre", district: "shaab", lat: 33.3910, lng: 44.4090, phone: "9647700000205", verified: false, updated: 40 },
 
   /* pharmacies */
@@ -116,6 +120,10 @@ const FACILITIES = [
     hours: [{d:"all",f:"09:00",t:"23:00"}], services: ["delivery","bp"] },
   { id: "p11", type: "pharmacy", ar: "صيدلية دجلة", en: "Dijla Pharmacy", district: "dora", lat: 33.2545, lng: 44.4040, phone: "9647700000311", wa: "9647700000311", verified: true, updated: 14,
     hours: [{d:"all",f:"08:00",t:"20:00"}], services: ["baby"] },
+  { id: "p13", type: "pharmacy", ar: "صيدلية الصدر المركزية", en: "Sadr Central Pharmacy", district: "sadr", lat: 33.3745, lng: 44.4610, phone: "9647700000313", wa: "9647700000313", verified: true, updated: 3,
+    hours: [{d:"all",f:"00:00",t:"24:00"}], night: true, services: ["night","delivery","injections"] },
+  { id: "p14", type: "pharmacy", ar: "صيدلية البياع", en: "Bayaa Pharmacy", district: "bayaa", lat: 33.2685, lng: 44.3550, phone: "9647700000314", wa: "9647700000314", verified: true, updated: 8,
+    hours: [{d:"all",f:"08:00",t:"22:00"}], services: ["delivery","bp"] },
   { id: "p12", type: "pharmacy", ar: "صيدلية زيونة الليلية", en: "Zayouna Night Pharmacy", district: "zayouna", lat: 33.3390, lng: 44.4440, phone: "9647700000312", wa: "9647700000312", verified: true, updated: 1,
     hours: [{d:"all",f:"22:00",t:"08:00"}], night: true, services: ["night","injections"] },
 ];
@@ -136,8 +144,8 @@ const DOCTORS = [
       { fac: "c1", d: 4, f: "16:00", t: "20:00", fee: 25000 },
     ] },
 
-  { id: "d2", ar: "د. زينب عبد الكريم", en: "Dr. Zainab Abdul Kareem", title_ar: "استشاري", title_en: "Consultant",
-    spec: "peds", sub_ar: "حديثي الولادة", sub_en: "Neonatology",
+  { id: "d2", ar: "د. زينب محمد عبدالحسين", en: "Dr. Zainab Abdul Kareem", title_ar: "استشاري", title_en: "Consultant",
+    spec: "peds", sub_ar: "طب الأطفال وحديثي الولادة", sub_en: "Neonatology",
     gender: "f", verified: true, updated: 1, wa: "9647700000402", phone: "9647700000402", accepting: true,
     creds_ar: ["بورد عربي - طب الأطفال", "دبلوم حديثي الولادة"], langs: ["ar","en"], exp: 17,
     sessions: [
@@ -161,7 +169,7 @@ const DOCTORS = [
       { fac: "c3", d: 5, f: "16:30", t: "20:00", fee: 25000 },
     ] },
 
-  { id: "d4", ar: "د. نور الهدى الخفاجي", en: "Dr. Noor Al-Huda Al-Khafaji", title_ar: "استشارية", title_en: "Consultant",
+  { id: "d4", ar: "د. نور الهدى عبدالرزاق الخفاجي", en: "Dr. Noor Al-Huda Al-Khafaji", title_ar: "استشارية", title_en: "Consultant",
     spec: "obgyn", sub_ar: "العقم والحمل عالي الخطورة", sub_en: "Fertility & high-risk pregnancy",
     gender: "f", verified: true, updated: 2, wa: "9647700000404", phone: "9647700000404", accepting: true,
     creds_ar: ["بورد عربي - النسائية والتوليد", "زمالة أطفال أنابيب"], langs: ["ar","en","ku"], exp: 21,
@@ -264,6 +272,7 @@ const DOCTORS = [
     gender: "m", verified: true, updated: 9, wa: "9647700000413", phone: "9647700000413", accepting: true,
     creds_ar: ["ماجستير علاج الجذور - جامعة بغداد"], langs: ["ar"], exp: 7,
     sessions: [
+      { fac: "c6", d: 1, f: "16:00", t: "21:00", fee: 20000 },
       { fac: "c2", d: 6, f: "15:00", t: "21:00", fee: 20000 },
       { fac: "c2", d: 1, f: "15:00", t: "21:00", fee: 20000 },
       { fac: "c2", d: 3, f: "15:00", t: "21:00", fee: 20000 },
@@ -283,7 +292,7 @@ const DOCTORS = [
     ] },
 
   /* --- deliberate edge cases for state design --- */
-  { id: "d15", ar: "د. سيف الدين النعيمي", en: "Dr. Saif Al-Deen Al-Naimi", title_ar: "استشاري", title_en: "Consultant",
+  { id: "d15", ar: "د. سيف الدين عبدالوهاب النعيمي", en: "Dr. Saif Al-Deen Al-Naimi", title_ar: "استشاري", title_en: "Consultant",
     spec: "uro", sub_ar: "حصى الكلى والمناظير", sub_en: "Kidney stones & endoscopy",
     gender: "m", verified: true, updated: 6, wa: null, phone: "9647700000415", accepting: true,   /* NO WHATSAPP */
     creds_ar: ["بورد عربي - المسالك البولية"], langs: ["ar","en"], exp: 20,

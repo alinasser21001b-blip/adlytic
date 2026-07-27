@@ -956,3 +956,226 @@ html[data-theme="dark"] .ribbon { background: var(--line-2); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ribbon { background: var(--line-2); } }
 .week-row.off .ribbon { opacity: 1; }
 .week-legend i:first-child { opacity: 1 !important; }
+
+/* ============================================================
+   31. TYPE SYSTEM  —  the audit found 46 distinct size/weight/line-height
+   combinations across 5 weights. That is not a scale, it is ad-hoc sizing.
+   Eight steps, three weights, Arabic-first line-heights.
+
+   Arabic needs more leading than Latin at the same size: the script has
+   deeper descenders and stacked diacritics, so body runs 1.75 where an
+   English UI would run 1.5. Metadata never drops below 12.5px — Arabic
+   loses letterform detail faster than Latin as it shrinks.
+   ============================================================ */
+:root {
+  --w-reg: 400; --w-med: 600; --w-bold: 700;   /* three weights, no 500/800 */
+
+  --fs-display: 30px; --lh-display: 1.38;
+  --fs-h1: 22px;      --lh-h1: 1.4;
+  --fs-h2: 17px;      --lh-h2: 1.45;
+  --fs-h3: 15px;      --lh-h3: 1.5;
+  --fs-body: 15px;    --lh-body: 1.75;
+  --fs-sm: 13.5px;    --lh-sm: 1.65;
+  --fs-meta: 12.5px;  --lh-meta: 1.5;
+  --fs-micro: 11.5px; --lh-micro: 1.45;
+}
+body { font-size: var(--fs-body); line-height: var(--lh-body); }
+
+.hero-line { font-size: clamp(24px, 7vw, var(--fs-display)); line-height: var(--lh-display); font-weight: var(--w-bold); letter-spacing: -.015em; }
+.prof-name { font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: var(--w-bold); letter-spacing: -.015em; }
+.sec-h h2, .sheet-h h2 { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--w-bold); letter-spacing: -.01em; }
+.card-t, .lane h3, .need h3, .place h3, .blk h3, .prod-t, .slot-btn .d, .hdr-title, .fac-block .ft {
+  font-size: var(--fs-h3); line-height: var(--lh-h3); font-weight: var(--w-bold); letter-spacing: -.005em;
+}
+.card-q, .lane p, .small, .kv, .bubble, .empty p, .banner, .hint, .radius-note, .prof-spec {
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--w-reg);
+}
+.prof-spec { font-weight: var(--w-med); }
+.card-meta, .chip, .tiny, .place .m, .need .cnt, .prod-brand, .slot-btn .m, .week-row .d,
+.updated, .seal, .unverified, .state-line, .dist, .fee, .res-head, .pulse-cell .l {
+  font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--w-med);
+}
+.state-line, .fee, .seal { font-weight: var(--w-bold); }
+.eyebrow, .chip--meta, .ribbon-scale, .slip-ref, .week-legend, .bnav span, .nav a span {
+  font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--w-bold);
+}
+.btn { font-size: var(--fs-h3); font-weight: var(--w-bold); }
+.btn--2, .btn--3 { font-weight: var(--w-med); }
+.pulse-cell .n, .adm-kpi .n, .prof-fact .v { font-weight: var(--w-bold); letter-spacing: -.02em; }
+h1, h2, h3, .card-t, .prof-name, .hero-line { text-wrap: balance; }
+
+/* Arabic runs longer than English at the same meaning. Nothing may clip. */
+.card-t, .lane h3, .need h3, .place h3, .prof-name, .prod-t { overflow-wrap: anywhere; }
+.trunc { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+
+/* ============================================================
+   32. TOUCH TARGETS — audit found chips at 37px, the location pill at 35px,
+   "see all" at 21px. One-handed use on a phone needs 48.
+   ============================================================ */
+.chip { min-height: 44px; padding-block: 10px; }
+.chips { gap: 8px; padding-block: 4px; }
+.place-tag { min-height: 40px; padding-block: 9px; }
+.sec-h .more { min-height: 44px; display: inline-flex; align-items: center; padding-inline: 4px; }
+.brand { min-height: 44px; }
+.slip-edit, .btn--3 { min-height: 44px; }
+.week-row { min-height: 34px; }
+.nav a { min-height: 52px; }
+
+/* ============================================================
+   33. OVERFLOW — /trust pushed the body to 438px at every mobile width:
+   three flex:1 buttons whose Arabic min-content width could not shrink.
+   ============================================================ */
+.btn-row { flex-wrap: wrap; }
+.btn-row .btn { flex: 1 1 auto; min-width: 0; }
+.btn { min-width: 0; }
+.ribbon b::after { inset-inline-start: -2px; }
+.ribbon, .week-row .ribbon { overflow: visible; contain: layout; }
+.week { overflow: hidden; }
+
+/* ============================================================
+   34. PALETTE  —  the specified Qareeb identity, plus two vertical accents.
+   Sage marks pharmacy, clay marks care. They tint one element each (the
+   glyph tile) so the three verticals are distinguishable at a glance while
+   still sharing one card anatomy. Amber stays reserved for TIME and coral
+   for EMERGENCY — those meanings are load-bearing and must not be diluted.
+   ============================================================ */
+:root {
+  --sand: #FAF8F5;  --sand-2: #EFEBE5;  --card: #FFFFFF;  --card-2: #F5F2ED;
+  --ink: #1A1A18;   --ink-2: #3D3B37;   --ink-3: #6B6862;
+  --line: #E3DED6;  --line-2: #EFEBE5;
+  --petrol: #0E5450; --petrol-2: #14746E; --petrol-soft: #E0EDEB;
+  --amber: #8A5A10;  --amber-b: #E0A029;  --amber-soft: #FAEED7;
+  --coral: #C1121F;  --coral-soft: #FCE8E9;
+  --wa: #128C3E;     --wa-b: #25D366;     --wa-board: #128C3E;
+  --pharm: #7FB8A4;  --pharm-soft: #E9F3EF;
+  --cosm:  #C88A72;  --cosm-soft:  #F7EBE6;
+  --teal-line: #A9C7C4; --loc-bg: #E8F0EF; --loc-line: #CBDEDB;
+}
+html[data-theme="dark"] {
+  --sand: #121312;  --sand-2: #1A1C1A;  --card: #1E211F;  --card-2: #262A27;
+  --ink: #ECEAE5;   --ink-2: #B4B1AA;   --ink-3: #8A8780;
+  --line: #2E332F;  --line-2: #242825;
+  --petrol: #55B3AC; --petrol-2: #74CCC5; --petrol-soft: #12302E;
+  --coral: #F06070;  --coral-soft: #2E1618;
+  --pharm: #7FB8A4;  --pharm-soft: #16302A;
+  --cosm:  #D9A38E;  --cosm-soft:  #2E211C;
+  --teal-line: #2F5C58; --loc-bg: #12302E; --loc-line: #234B47;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sand: #121312;  --sand-2: #1A1C1A;  --card: #1E211F;  --card-2: #262A27;
+    --ink: #ECEAE5;   --ink-2: #B4B1AA;   --ink-3: #8A8780;
+    --line: #2E332F;  --line-2: #242825;
+    --petrol: #55B3AC; --petrol-2: #74CCC5; --petrol-soft: #12302E;
+    --coral: #F06070;  --coral-soft: #2E1618;
+    --pharm: #7FB8A4;  --pharm-soft: #16302A;
+    --cosm:  #D9A38E;  --cosm-soft:  #2E211C;
+    --teal-line: #2F5C58; --loc-bg: #12302E; --loc-line: #234B47;
+  }
+}
+/* vertical accents: one tinted glyph tile each, nothing more */
+.avatar--sq { background: var(--pharm-soft); color: #3E7A66; }
+html[data-theme="dark"] .avatar--sq { color: var(--pharm); }
+.prod-img { background: radial-gradient(120% 90% at 70% 20%, var(--cosm-soft) 0%, transparent 72%), var(--card-2); }
+.prod-img .glyph { color: var(--cosm); opacity: .55; }
+.lane--sos { background: var(--coral-soft); border-color: color-mix(in srgb, var(--coral) 22%, transparent); }
+
+/* ============================================================
+   35. THE WEEK STRIP — seven cells, Saturday-first.
+   State is fill + shape, never colour alone: a working day is filled, a
+   non-working day is hollow, today is ringed, the next open day is dotted.
+   ============================================================ */
+.wk7 { display: flex; gap: 4px; }
+.wk7-d {
+  flex: 1; min-width: 0; height: 22px; border-radius: 6px;
+  display: grid; place-items: center; position: relative;
+  font-size: 10.5px; font-weight: var(--w-bold); line-height: 1;
+  background: var(--petrol-soft); color: var(--petrol);
+}
+.wk7-d.off { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); opacity: .8; }
+.wk7-d.today { box-shadow: inset 0 0 0 2px var(--petrol); }
+.wk7-d.off.today { box-shadow: inset 0 0 0 2px var(--ink-3); }
+.wk7-d.next { background: var(--amber-soft); color: var(--amber); }
+.wk7-d.next::after {
+  content: ''; position: absolute; bottom: 2.5px; width: 3px; height: 3px;
+  border-radius: 50%; background: currentColor;
+}
+
+/* card: availability owns the row above the metadata */
+.card-avail { display: flex; align-items: center; gap: 12px; margin-top: 11px; }
+.card-avail .wk7 { flex: 0 0 46%; max-width: 160px; }
+.card-avail .state-line { flex: 1; min-width: 0; }
+.card-top { align-items: flex-start; }
+.seal--pill { background: var(--petrol-soft); border-radius: 999px; padding: 3px 9px; flex: none; }
+.fee-l { color: var(--ink-3); font-weight: var(--w-med); font-size: var(--fs-micro); }
+.card-foot { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-2); }
+.card-meta { margin-top: 10px; }
+
+/* filter chip carries its own active count */
+.chip--filter .fcount {
+  background: var(--petrol); color: #fff; border-radius: 999px;
+  min-width: 18px; height: 18px; display: inline-grid; place-items: center;
+  font-size: 10.5px; padding: 0 5px;
+}
+.chip--filter.on .fcount { background: #fff; color: var(--petrol); }
+.fgrp + .fgrp { margin-top: 20px; }
+.fgrp .eyebrow { margin-bottom: 9px; display: block; }
+
+/* ============================================================
+   36. MOTION — one language, not one animation per component.
+   150-200ms ease-out. Selection is instant; only position animates.
+   ============================================================ */
+:root { --t: 170ms cubic-bezier(.22,.61,.36,1); --t-sheet: 210ms cubic-bezier(.22,.61,.36,1); }
+.sheet { transition: transform var(--t-sheet); }
+.scrim { transition: opacity var(--t); }
+.chip, .slot-btn, .wk7-d, .place { transition: background-color var(--t), color var(--t), box-shadow var(--t); }
+.btn:active, .chip:active, .card:active { transform: translateY(1px); transition: transform 90ms; }
+.page-in { animation: pagein 170ms cubic-bezier(.22,.61,.36,1) both; }
+.stagger > * { animation-duration: 200ms; }
+.stagger > *:nth-child(n+5) { animation-delay: 90ms; }
+
+/* last touch targets from the audit */
+.qr-ctx button { min-width: 44px; min-height: 44px; }
+.search-field input, .field input { min-height: 44px; }
+.hero-line .blank { padding-block: 4px; }
+
+/* ============================================================
+   37. FINAL PASS
+   ============================================================ */
+/* The results header answers two different questions — how many, and why
+   these. Stacking them stops the Arabic from interleaving into one another. */
+.res-head { display: block; padding: 2px 18px 12px; }
+.res-head .n { font-weight: var(--w-bold); }
+.res-head .why { color: var(--ink-3); font-weight: var(--w-med); }
+.res-head .tiny { margin-top: 2px; }
+
+/* A horizontally scrolling chip row must look scrollable, not clipped.
+   The mask fades the overflowing chip instead of guillotining it. */
+.filters .chips {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+          mask-image: linear-gradient(to left, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  padding-inline: 2px;
+}
+html[dir="ltr"] .filters .chips {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+
+/* the gender marker belongs with the person, not adrift in the meta row */
+.card-meta .chip--meta:first-child { background: var(--card-2); color: var(--ink-2); }
+.card-avail { gap: 10px; }
+.card-avail .wk7 { flex: 0 0 44%; max-width: 152px; }
+.wk7-d { height: 24px; font-size: 11px; }
+/* last three from the audit: the location pill one pixel short, the "see all"
+   link narrow, and the QR-context dismiss at 19x27. */
+.place-tag { min-height: 44px; padding-block: 10px; }
+.sec-h .more { min-width: 56px; justify-content: flex-end; }
+.qr-ctx button { width: 44px; height: 44px; margin-inline-start: auto; }
+.qr-ctx { padding-block: 4px; }
+.clear-btn { width: 44px; height: 44px; display: grid; place-items: center; margin-inline-end: -8px; flex: none; }
+
+/* An SVG stroke drawn to the edge of its viewBox can spill a pixel past the
+   layout box once the icon is scaled. Clipping the icon, not the page. */
+.week-legend, .card-meta, .actionbar { overflow: hidden; }
+.week-legend svg, .card-meta svg { overflow: visible; }
+svg { overflow: hidden; }
