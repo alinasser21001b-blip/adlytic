@@ -476,12 +476,31 @@ function nav(active) {
 /* ---------------- SCREENS ---------------- */
 function screenHome() {
   const needLabel = S.filters.spec ? L(specOf(S.filters.spec)) : t("adoctor");
+  const docsOpen = docsOpenNow(), phOpen = phOpenNow(), night = phNight();
+  const confirmedMeds = MEDICINES.filter((m) => m.stock.length).length;
+  const scarce = MEDICINES.length - confirmedMeds;
   const nearby = [
     ...doctorsFor({ radius: 25 }).list.slice(0, 3).map((x) => doctorCard(x, true)),
     ...pharmaciesNear({ openOnly: true }).slice(0, 2).map((x) => pharmacyCard(x, true)),
   ];
+
+  /* Three intents, sized by how often they are actually needed. Medicine sits
+     first because scarcity is the weekly problem; a doctor is a few times a
+     year. Each tile carries a LIVE number, so the home screen is a reading of
+     the network rather than a menu of links. */
+  const intent = (href, ic, title, sub, n, unit, cls) => `
+    <a class="intent ${cls}" href="${href}">
+      <span class="intent-ic">${icon(ic)}</span>
+      <span class="intent-body">
+        <span class="intent-t">${title}</span>
+        <span class="intent-s">${sub}</span>
+      </span>
+      <span class="intent-n"><b class="num">${n}</b><i>${unit}</i></span>
+    </a>`;
+
   return `${header()}
   ${S.qrSource ? qrContext() : ""}
+
   <section class="hero">
     <h1 class="hero-line">
       ${isAR() ? `<span class="fix">أحتاج</span>
@@ -495,54 +514,61 @@ function screenHome() {
         <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
         <span class="fix">right now.</span>`}
     </h1>
-    <div class="hero-cta"><a class="btn" href="#/doctors${S.filters.spec ? "?spec=" + S.filters.spec : ""}">${icon("search")}${t("show")}</a></div>
-    <button class="search-field" style="margin-top:10px" onclick="location.hash='#/search'">
+
+    <button class="search-field" style="margin-top:18px" onclick="location.hash='#/search'">
       ${icon("search")}<span class="muted grow" style="text-align:start">${t("searchPh")}</span>
     </button>
-
-    <div class="pulse">
-      <div class="pulse-cell"><div class="n num">${docsOpenNow()}</div><div class="l">${isAR() ? "طبيب متاح" : "doctors open"}</div>${ribbon(DOCTORS[13])}</div>
-      <div class="pulse-cell"><div class="n num">${phOpenNow()}</div><div class="l">${isAR() ? "صيدلية مفتوحة" : "pharmacies open"}</div>${ribbon(fac("p1"))}</div>
-      <div class="pulse-cell night"><div class="n num">${phNight()}</div><div class="l">${isAR() ? "خفارة ليلية" : "night duty"}</div>${ribbon(fac("p2"))}</div>
-    </div>
-    <p class="hero-sub">${isAR()
-      ? `الآن ${fmtT(nowMins())} · <span class="num">${DOCTORS.filter(d=>d.verified).length}</span> طبيب موثّق و<span class="num">${FACILITIES.filter(f=>f.type==="pharmacy").length}</span> صيدلية في بغداد`
-      : `Now ${fmtT(nowMins())} · <span class="num">${DOCTORS.filter(d=>d.verified).length}</span> verified doctors and <span class="num">${FACILITIES.filter(f=>f.type==="pharmacy").length}</span> pharmacies in Baghdad`}</p>
   </section>
 
-  <section class="wrap stack stagger">
-    <a class="lane on" href="#/pharmacies">
-      <span class="ic">${icon("cross")}</span>
-      <span class="grow"><h3>${isAR() ? "صيدلية مفتوحة الآن" : "Pharmacy open now"}</h3>
-        <p>${isAR() ? `${phOpenNow()} مفتوحة · ${phNight()} خفارة ليلية` : `${phOpenNow()} open · ${phNight()} on night duty`}</p></span>
-      <span class="go">${icon("chev")}</span></a>
-    <a class="lane" href="#/search" onclick="setTimeout(()=>{const i=document.getElementById('q');if(i){i.focus()}},80)">
-      <span class="ic">${icon("pill")}</span>
-      <span class="grow"><h3>${isAR() ? "دوّر على دواء" : "Find a medicine"}</h3>
-        <p>${isAR() ? "مين عنده الدواء هسه — بدون ما تدور صيدلية صيدلية" : "Who has it in stock — without calling around"}</p></span>
-      <span class="go">${icon("chev")}</span></a>
-    <a class="lane" href="#/care">
-      <span class="ic">${icon("leaf")}</span>
-      <span class="grow"><h3>${isAR() ? "العناية والمستلزمات" : "Care & products"}</h3>
-        <p>${isAR() ? "من رفوف الصيدليات القريبة منك" : "From the shelves of pharmacies near you"}</p></span>
-      <span class="go">${icon("chev")}</span></a>
-    <button class="lane lane--sos" onclick="openEmergency()">
-      <span class="ic">${icon("alert")}</span>
-      <span class="grow" style="text-align:start"><h3>${isAR() ? "حالة طارئة؟" : "Emergency?"}</h3>
-        <p>${isAR() ? `الإسعاف ${CONFIG.emergency.ambulance} · أقرب طوارئ` : `Ambulance ${CONFIG.emergency.ambulance} · nearest ER`}</p></span>
-      <span class="go">${icon("chev")}</span></button>
+  <section class="wrap">
+    <div class="netbar">
+      <span class="netbar-live"><i></i>${isAR() ? "الشبكة الآن" : "Network now"}</span>
+      <span class="netbar-t">${fmtTi(nowMins())} · ${esc(L(here()))}</span>
+    </div>
+    <div class="intents stagger">
+      ${intent("#/search", "pill",
+        isAR() ? "مِنو عنده الدوا؟" : "Who has the medicine?",
+        isAR() ? "توفّر مؤكَّد من صيدليات قريبة" : "Stock confirmed by nearby pharmacies",
+        confirmedMeds, isAR() ? "دواء مؤكَّد" : "confirmed", "intent--med")}
+      ${intent("#/needs", "stetho",
+        isAR() ? "طبيب متاح" : "An available doctor",
+        isAR() ? "مرتّبون بأقرب موعد، لا بأقرب مسافة" : "Ranked by soonest slot, not nearest",
+        docsOpen, isAR() ? "متاح الآن" : "open now", "intent--doc")}
+      ${intent("#/pharmacies", "cross",
+        isAR() ? "صيدلية مفتوحة" : "An open pharmacy",
+        night ? (isAR() ? `${night} منها خفارة ليلية` : `${night} on night duty`)
+              : (isAR() ? "الأقرب المفتوحة الآن" : "Nearest open right now"),
+        phOpen, isAR() ? "مفتوحة" : "open", "intent--ph")}
+    </div>
+
+    ${scarce ? `<a class="scarce-note" href="#/med/${MEDICINES.find((m) => !m.stock.length).id}">
+      ${icon("alert")}<span>${isAR()
+        ? `<b class="num">${scarce}</b> دواء بلا توفّر مؤكَّد في بغداد الآن — اسأل مباشرة وساعد اللي بعدك.`
+        : `<b class="num">${scarce}</b> medicines have no confirmed stock in Baghdad — ask directly and help the next person.`}</span>
+      ${icon("chev")}</a>` : ""}
+
+    <button class="sos" onclick="openEmergency()">
+      ${icon("alert")}<span class="grow">${isAR() ? "حالة طارئة؟" : "Emergency?"}</span>
+      <b class="num">${CONFIG.emergency.ambulance}</b></button>
   </section>
 
   <section class="sec wrap">
     <div class="sec-h"><h2>${isAR() ? "قريب منك الآن" : "Near you right now"}</h2>
-      <a class="more" href="#/doctors">${isAR() ? "الكل" : "See all"}</a></div>
+      <a class="more" href="#/doctors">${isAR() ? "الكل" : "All"}</a></div>
     <div class="rail bleed">${nearby.join("")}</div>
   </section>
 
-  <section class="sec wrap">
-    <a class="lane" href="#/trust"><span class="ic">${icon("seal")}</span>
-      <span class="grow"><h3>${t("trust")}</h3><p>${isAR() ? "كيف نوثّق المعلومات وكيف تبلّغ عن خطأ" : "How we verify, and how to report an error"}</p></span>
-      <span class="go">${icon("chev")}</span></a>
+  <section class="wrap" style="padding-bottom:26px">
+    <a class="proof" href="#/trust">
+      <div class="proof-row">
+        <span><b class="num">${DOCTORS.filter((d) => d.verified).length}</b> ${isAR() ? "طبيب موثّق" : "verified doctors"}</span>
+        <span><b class="num">${FACILITIES.filter((f) => f.type === "pharmacy").length}</b> ${isAR() ? "صيدلية" : "pharmacies"}</span>
+        <span><b class="num">${DISTRICTS.length}</b> ${isAR() ? "منطقة" : "areas"}</span>
+      </div>
+      <div class="proof-note">${icon("seal")}<span>${isAR()
+        ? "بلا نجوم ولا تقييمات — توثيق وتاريخ تحديث فقط. اعرف كيف نتحقق."
+        : "No stars, no reviews — verification and update dates only. See how we check."}</span>${icon("chev")}</div>
+    </a>
   </section>
   ${nav("home")}`;
 }

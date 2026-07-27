@@ -1215,6 +1215,97 @@ svg { overflow: hidden; }
 .chip--meta svg { width: 13px; height: 13px; flex: none; }
 .card-foot .btn--sm { flex: none; }
 
+/* ============================================================
+   39. HOME — a reading of the network, not a menu of links.
+   Three intents sized by real frequency: medicine (weekly), doctor (a few
+   times a year), pharmacy (situational). Each carries a live number, so the
+   screen answers "what does Qareeb know right now" before it offers a link.
+   ============================================================ */
+.netbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2px 10px; font-size: var(--fs-micro); font-weight: var(--w-bold);
+  color: var(--ink-3); letter-spacing: .06em;
+}
+.netbar-live { display: inline-flex; align-items: center; gap: 7px; color: var(--petrol); }
+.netbar-live i {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--petrol);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent);
+  animation: pulse-live 2.4s var(--ease) infinite;
+}
+@keyframes pulse-live {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent); }
+  50%      { box-shadow: 0 0 0 7px color-mix(in srgb, var(--petrol) 4%, transparent); }
+}
+.netbar-t { font-variant-numeric: tabular-nums; }
+
+.intents { display: grid; gap: 10px; }
+.intent {
+  display: flex; align-items: center; gap: 14px; padding: 16px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  border-inline-start: 3px solid var(--line); transition: var(--t);
+}
+.intent:active { transform: translateY(1px); background: var(--card-2); }
+.intent-ic {
+  width: 44px; height: 44px; flex: none; display: grid; place-items: center;
+  border-radius: var(--r-sm); background: var(--card-2); color: var(--ink-2);
+}
+.intent-ic svg { width: 22px; height: 22px; }
+.intent-body { flex: 1; min-width: 0; display: block; }
+.intent-t { display: block; font-size: var(--fs-h3); font-weight: var(--w-bold); line-height: 1.35; }
+.intent-s { display: block; font-size: var(--fs-meta); color: var(--ink-3); margin-top: 2px; line-height: 1.45; }
+.intent-n { flex: none; text-align: center; min-width: 54px; }
+.intent-n b { display: block; font-size: 24px; font-weight: var(--w-bold); line-height: 1.1; letter-spacing: -.03em; }
+.intent-n i { display: block; font-size: 10.5px; font-style: normal; color: var(--ink-3); font-weight: var(--w-med); margin-top: 1px; }
+
+/* the accent marks which vertical, and only the leading edge carries it */
+.intent--med { border-inline-start-color: var(--amber-b); }
+.intent--med .intent-ic { background: var(--amber-soft); color: var(--amber); }
+.intent--med .intent-n b { color: var(--amber); }
+.intent--doc { border-inline-start-color: var(--petrol); }
+.intent--doc .intent-ic { background: var(--petrol-soft); color: var(--petrol); }
+.intent--doc .intent-n b { color: var(--petrol); }
+.intent--ph { border-inline-start-color: var(--pharm); }
+.intent--ph .intent-ic { background: var(--pharm-soft); color: #3E7A66; }
+html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
+
+/* scarcity is a headline, not a footnote: it is the product's whole reason */
+.scarce-note {
+  display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 13px 15px;
+  background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber-b) 40%, transparent);
+  border-radius: var(--r); color: var(--amber);
+  font-size: var(--fs-sm); font-weight: var(--w-med); line-height: 1.5;
+}
+.scarce-note > span { flex: 1; }
+.scarce-note svg { flex: none; width: 18px; height: 18px; }
+
+.sos {
+  display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px;
+  padding: 13px 15px; border-radius: var(--r); text-align: start;
+  background: transparent; border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
+  color: var(--coral); font-size: var(--fs-sm); font-weight: var(--w-bold); min-height: 48px;
+}
+.sos svg { width: 18px; height: 18px; flex: none; }
+.sos b { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.sos:active { background: var(--coral-soft); }
+
+/* the proof block: the trust claim, stated in numbers, one tap from evidence */
+.proof { display: block; padding: 15px 16px; background: var(--card-2); border-radius: var(--r); border: 1px solid var(--line); }
+.proof-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: var(--fs-meta); color: var(--ink-3); }
+.proof-row b { display: block; font-size: 19px; color: var(--ink); font-weight: var(--w-bold); letter-spacing: -.02em; }
+.proof-note {
+  display: flex; align-items: center; gap: 8px; margin-top: 13px; padding-top: 12px;
+  border-top: 1px solid var(--line); font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.5;
+}
+.proof-note > span { flex: 1; }
+.proof-note svg { flex: none; width: 15px; height: 15px; color: var(--petrol); }
+
+@media (min-width: 900px) {
+  .intents { grid-template-columns: repeat(3, 1fr); max-width: 1132px; margin-inline: auto; }
+  .intent { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; }
+  .intent-n { text-align: start; }
+  .netbar, .scarce-note, .sos, .proof { max-width: 1132px; margin-inline: auto; }
+}
+
 </style>
 </head>
 <body>
@@ -2159,12 +2250,31 @@ function nav(active) {
 /* ---------------- SCREENS ---------------- */
 function screenHome() {
   const needLabel = S.filters.spec ? L(specOf(S.filters.spec)) : t("adoctor");
+  const docsOpen = docsOpenNow(), phOpen = phOpenNow(), night = phNight();
+  const confirmedMeds = MEDICINES.filter((m) => m.stock.length).length;
+  const scarce = MEDICINES.length - confirmedMeds;
   const nearby = [
     ...doctorsFor({ radius: 25 }).list.slice(0, 3).map((x) => doctorCard(x, true)),
     ...pharmaciesNear({ openOnly: true }).slice(0, 2).map((x) => pharmacyCard(x, true)),
   ];
+
+  /* Three intents, sized by how often they are actually needed. Medicine sits
+     first because scarcity is the weekly problem; a doctor is a few times a
+     year. Each tile carries a LIVE number, so the home screen is a reading of
+     the network rather than a menu of links. */
+  const intent = (href, ic, title, sub, n, unit, cls) => `
+    <a class="intent ${cls}" href="${href}">
+      <span class="intent-ic">${icon(ic)}</span>
+      <span class="intent-body">
+        <span class="intent-t">${title}</span>
+        <span class="intent-s">${sub}</span>
+      </span>
+      <span class="intent-n"><b class="num">${n}</b><i>${unit}</i></span>
+    </a>`;
+
   return `${header()}
   ${S.qrSource ? qrContext() : ""}
+
   <section class="hero">
     <h1 class="hero-line">
       ${isAR() ? `<span class="fix">أحتاج</span>
@@ -2178,54 +2288,61 @@ function screenHome() {
         <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
         <span class="fix">right now.</span>`}
     </h1>
-    <div class="hero-cta"><a class="btn" href="#/doctors${S.filters.spec ? "?spec=" + S.filters.spec : ""}">${icon("search")}${t("show")}</a></div>
-    <button class="search-field" style="margin-top:10px" onclick="location.hash='#/search'">
+
+    <button class="search-field" style="margin-top:18px" onclick="location.hash='#/search'">
       ${icon("search")}<span class="muted grow" style="text-align:start">${t("searchPh")}</span>
     </button>
-
-    <div class="pulse">
-      <div class="pulse-cell"><div class="n num">${docsOpenNow()}</div><div class="l">${isAR() ? "طبيب متاح" : "doctors open"}</div>${ribbon(DOCTORS[13])}</div>
-      <div class="pulse-cell"><div class="n num">${phOpenNow()}</div><div class="l">${isAR() ? "صيدلية مفتوحة" : "pharmacies open"}</div>${ribbon(fac("p1"))}</div>
-      <div class="pulse-cell night"><div class="n num">${phNight()}</div><div class="l">${isAR() ? "خفارة ليلية" : "night duty"}</div>${ribbon(fac("p2"))}</div>
-    </div>
-    <p class="hero-sub">${isAR()
-      ? `الآن ${fmtT(nowMins())} · <span class="num">${DOCTORS.filter(d=>d.verified).length}</span> طبيب موثّق و<span class="num">${FACILITIES.filter(f=>f.type==="pharmacy").length}</span> صيدلية في بغداد`
-      : `Now ${fmtT(nowMins())} · <span class="num">${DOCTORS.filter(d=>d.verified).length}</span> verified doctors and <span class="num">${FACILITIES.filter(f=>f.type==="pharmacy").length}</span> pharmacies in Baghdad`}</p>
   </section>
 
-  <section class="wrap stack stagger">
-    <a class="lane on" href="#/pharmacies">
-      <span class="ic">${icon("cross")}</span>
-      <span class="grow"><h3>${isAR() ? "صيدلية مفتوحة الآن" : "Pharmacy open now"}</h3>
-        <p>${isAR() ? `${phOpenNow()} مفتوحة · ${phNight()} خفارة ليلية` : `${phOpenNow()} open · ${phNight()} on night duty`}</p></span>
-      <span class="go">${icon("chev")}</span></a>
-    <a class="lane" href="#/search" onclick="setTimeout(()=>{const i=document.getElementById('q');if(i){i.focus()}},80)">
-      <span class="ic">${icon("pill")}</span>
-      <span class="grow"><h3>${isAR() ? "دوّر على دواء" : "Find a medicine"}</h3>
-        <p>${isAR() ? "مين عنده الدواء هسه — بدون ما تدور صيدلية صيدلية" : "Who has it in stock — without calling around"}</p></span>
-      <span class="go">${icon("chev")}</span></a>
-    <a class="lane" href="#/care">
-      <span class="ic">${icon("leaf")}</span>
-      <span class="grow"><h3>${isAR() ? "العناية والمستلزمات" : "Care & products"}</h3>
-        <p>${isAR() ? "من رفوف الصيدليات القريبة منك" : "From the shelves of pharmacies near you"}</p></span>
-      <span class="go">${icon("chev")}</span></a>
-    <button class="lane lane--sos" onclick="openEmergency()">
-      <span class="ic">${icon("alert")}</span>
-      <span class="grow" style="text-align:start"><h3>${isAR() ? "حالة طارئة؟" : "Emergency?"}</h3>
-        <p>${isAR() ? `الإسعاف ${CONFIG.emergency.ambulance} · أقرب طوارئ` : `Ambulance ${CONFIG.emergency.ambulance} · nearest ER`}</p></span>
-      <span class="go">${icon("chev")}</span></button>
+  <section class="wrap">
+    <div class="netbar">
+      <span class="netbar-live"><i></i>${isAR() ? "الشبكة الآن" : "Network now"}</span>
+      <span class="netbar-t">${fmtTi(nowMins())} · ${esc(L(here()))}</span>
+    </div>
+    <div class="intents stagger">
+      ${intent("#/search", "pill",
+        isAR() ? "مِنو عنده الدوا؟" : "Who has the medicine?",
+        isAR() ? "توفّر مؤكَّد من صيدليات قريبة" : "Stock confirmed by nearby pharmacies",
+        confirmedMeds, isAR() ? "دواء مؤكَّد" : "confirmed", "intent--med")}
+      ${intent("#/needs", "stetho",
+        isAR() ? "طبيب متاح" : "An available doctor",
+        isAR() ? "مرتّبون بأقرب موعد، لا بأقرب مسافة" : "Ranked by soonest slot, not nearest",
+        docsOpen, isAR() ? "متاح الآن" : "open now", "intent--doc")}
+      ${intent("#/pharmacies", "cross",
+        isAR() ? "صيدلية مفتوحة" : "An open pharmacy",
+        night ? (isAR() ? `${night} منها خفارة ليلية` : `${night} on night duty`)
+              : (isAR() ? "الأقرب المفتوحة الآن" : "Nearest open right now"),
+        phOpen, isAR() ? "مفتوحة" : "open", "intent--ph")}
+    </div>
+
+    ${scarce ? `<a class="scarce-note" href="#/med/${MEDICINES.find((m) => !m.stock.length).id}">
+      ${icon("alert")}<span>${isAR()
+        ? `<b class="num">${scarce}</b> دواء بلا توفّر مؤكَّد في بغداد الآن — اسأل مباشرة وساعد اللي بعدك.`
+        : `<b class="num">${scarce}</b> medicines have no confirmed stock in Baghdad — ask directly and help the next person.`}</span>
+      ${icon("chev")}</a>` : ""}
+
+    <button class="sos" onclick="openEmergency()">
+      ${icon("alert")}<span class="grow">${isAR() ? "حالة طارئة؟" : "Emergency?"}</span>
+      <b class="num">${CONFIG.emergency.ambulance}</b></button>
   </section>
 
   <section class="sec wrap">
     <div class="sec-h"><h2>${isAR() ? "قريب منك الآن" : "Near you right now"}</h2>
-      <a class="more" href="#/doctors">${isAR() ? "الكل" : "See all"}</a></div>
+      <a class="more" href="#/doctors">${isAR() ? "الكل" : "All"}</a></div>
     <div class="rail bleed">${nearby.join("")}</div>
   </section>
 
-  <section class="sec wrap">
-    <a class="lane" href="#/trust"><span class="ic">${icon("seal")}</span>
-      <span class="grow"><h3>${t("trust")}</h3><p>${isAR() ? "كيف نوثّق المعلومات وكيف تبلّغ عن خطأ" : "How we verify, and how to report an error"}</p></span>
-      <span class="go">${icon("chev")}</span></a>
+  <section class="wrap" style="padding-bottom:26px">
+    <a class="proof" href="#/trust">
+      <div class="proof-row">
+        <span><b class="num">${DOCTORS.filter((d) => d.verified).length}</b> ${isAR() ? "طبيب موثّق" : "verified doctors"}</span>
+        <span><b class="num">${FACILITIES.filter((f) => f.type === "pharmacy").length}</b> ${isAR() ? "صيدلية" : "pharmacies"}</span>
+        <span><b class="num">${DISTRICTS.length}</b> ${isAR() ? "منطقة" : "areas"}</span>
+      </div>
+      <div class="proof-note">${icon("seal")}<span>${isAR()
+        ? "بلا نجوم ولا تقييمات — توثيق وتاريخ تحديث فقط. اعرف كيف نتحقق."
+        : "No stars, no reviews — verification and update dates only. See how we check."}</span>${icon("chev")}</div>
+    </a>
   </section>
   ${nav("home")}`;
 }

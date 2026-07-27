@@ -1185,3 +1185,94 @@ svg { overflow: hidden; }
 .chip--meta { display: inline-flex; align-items: center; gap: 4px; }
 .chip--meta svg { width: 13px; height: 13px; flex: none; }
 .card-foot .btn--sm { flex: none; }
+
+/* ============================================================
+   39. HOME — a reading of the network, not a menu of links.
+   Three intents sized by real frequency: medicine (weekly), doctor (a few
+   times a year), pharmacy (situational). Each carries a live number, so the
+   screen answers "what does Qareeb know right now" before it offers a link.
+   ============================================================ */
+.netbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2px 10px; font-size: var(--fs-micro); font-weight: var(--w-bold);
+  color: var(--ink-3); letter-spacing: .06em;
+}
+.netbar-live { display: inline-flex; align-items: center; gap: 7px; color: var(--petrol); }
+.netbar-live i {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--petrol);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent);
+  animation: pulse-live 2.4s var(--ease) infinite;
+}
+@keyframes pulse-live {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent); }
+  50%      { box-shadow: 0 0 0 7px color-mix(in srgb, var(--petrol) 4%, transparent); }
+}
+.netbar-t { font-variant-numeric: tabular-nums; }
+
+.intents { display: grid; gap: 10px; }
+.intent {
+  display: flex; align-items: center; gap: 14px; padding: 16px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  border-inline-start: 3px solid var(--line); transition: var(--t);
+}
+.intent:active { transform: translateY(1px); background: var(--card-2); }
+.intent-ic {
+  width: 44px; height: 44px; flex: none; display: grid; place-items: center;
+  border-radius: var(--r-sm); background: var(--card-2); color: var(--ink-2);
+}
+.intent-ic svg { width: 22px; height: 22px; }
+.intent-body { flex: 1; min-width: 0; display: block; }
+.intent-t { display: block; font-size: var(--fs-h3); font-weight: var(--w-bold); line-height: 1.35; }
+.intent-s { display: block; font-size: var(--fs-meta); color: var(--ink-3); margin-top: 2px; line-height: 1.45; }
+.intent-n { flex: none; text-align: center; min-width: 54px; }
+.intent-n b { display: block; font-size: 24px; font-weight: var(--w-bold); line-height: 1.1; letter-spacing: -.03em; }
+.intent-n i { display: block; font-size: 10.5px; font-style: normal; color: var(--ink-3); font-weight: var(--w-med); margin-top: 1px; }
+
+/* the accent marks which vertical, and only the leading edge carries it */
+.intent--med { border-inline-start-color: var(--amber-b); }
+.intent--med .intent-ic { background: var(--amber-soft); color: var(--amber); }
+.intent--med .intent-n b { color: var(--amber); }
+.intent--doc { border-inline-start-color: var(--petrol); }
+.intent--doc .intent-ic { background: var(--petrol-soft); color: var(--petrol); }
+.intent--doc .intent-n b { color: var(--petrol); }
+.intent--ph { border-inline-start-color: var(--pharm); }
+.intent--ph .intent-ic { background: var(--pharm-soft); color: #3E7A66; }
+html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
+
+/* scarcity is a headline, not a footnote: it is the product's whole reason */
+.scarce-note {
+  display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 13px 15px;
+  background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber-b) 40%, transparent);
+  border-radius: var(--r); color: var(--amber);
+  font-size: var(--fs-sm); font-weight: var(--w-med); line-height: 1.5;
+}
+.scarce-note > span { flex: 1; }
+.scarce-note svg { flex: none; width: 18px; height: 18px; }
+
+.sos {
+  display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px;
+  padding: 13px 15px; border-radius: var(--r); text-align: start;
+  background: transparent; border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
+  color: var(--coral); font-size: var(--fs-sm); font-weight: var(--w-bold); min-height: 48px;
+}
+.sos svg { width: 18px; height: 18px; flex: none; }
+.sos b { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.sos:active { background: var(--coral-soft); }
+
+/* the proof block: the trust claim, stated in numbers, one tap from evidence */
+.proof { display: block; padding: 15px 16px; background: var(--card-2); border-radius: var(--r); border: 1px solid var(--line); }
+.proof-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: var(--fs-meta); color: var(--ink-3); }
+.proof-row b { display: block; font-size: 19px; color: var(--ink); font-weight: var(--w-bold); letter-spacing: -.02em; }
+.proof-note {
+  display: flex; align-items: center; gap: 8px; margin-top: 13px; padding-top: 12px;
+  border-top: 1px solid var(--line); font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.5;
+}
+.proof-note > span { flex: 1; }
+.proof-note svg { flex: none; width: 15px; height: 15px; color: var(--petrol); }
+
+@media (min-width: 900px) {
+  .intents { grid-template-columns: repeat(3, 1fr); max-width: 1132px; margin-inline: auto; }
+  .intent { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; }
+  .intent-n { text-align: start; }
+  .netbar, .scarce-note, .sos, .proof { max-width: 1132px; margin-inline: auto; }
+}
