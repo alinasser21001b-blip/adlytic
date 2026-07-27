@@ -24,7 +24,7 @@ Measured, not guessed (Playwright across 375/390/430/768/1024/1280).
 | 6 | Care is orphaned — no relationship to medicine availability | two product concepts (PRODUCTS, MEDICINES) that never meet | P3 |
 | 7 | ~~No offline behaviour~~ | offline banner + discovery from memory; verified with the network cut | ✅ P4 |
 | 8 | Admin is a demo, not an operator tool | no verification actions, no data-quality scoring, no stale detection | P5 |
-| 9 | No doctor-side surface | Scenario D has no screen; supply side is pharmacy-only | P5 |
+| 9 | ~~No doctor-side surface~~ | `/partner/doctor/:id` ships; hero is the doctor's own missed demand | ✅ P5 |
 | 10 | ~~No integrity guarantees~~ | validator proven against 7 injected faults; admin panel | ✅ P6 |
 | 11 | ~~SVG stroke overflows layout box~~ | resolved by the P1 profile rebuild — overflow is now zero at every breakpoint | ✅ P1 |
 | 12 | No revenue instrumentation | requests logged locally, never attributed to a partner | P5 |
@@ -43,10 +43,11 @@ committed and deployed green.
 | **P2** | **Discovery intelligence** — compound query parsing, fuzzy Arabic matching, guided zero-result recovery | ✅ `PHASE2` |
 | **P3** | **Convergence** — pharmacy profile leads with its confirmed-stock signal | ✅ `PHASE3-6` |
 | **P4** | **Resilience** — offline banner, discovery keeps working from memory | ✅ `PHASE3-6` |
-| **P5** | ⬅ **NEXT** — **Doctor-side dashboard** — pharmacy partner surface shipped; doctor equivalent + lead attribution remain | TODO |
+| **P5** | **Doctor-side dashboard** — `/partner/doctor/:id` built on the doctor's own missed demand; lead attribution still open | 🟡 `542a49c` |
+| **P9** | **v2 board landing** — component layer at `src/styles/qareeb.css`; `/med/:id` rebuilt on freshness bands; QR entry `/start`; error + offline-age + route-matched skeletons | ✅ `962a67e` |
 | **P6** | **Data integrity** — validator catching duplicates, orphan refs, invalid ranges; surfaced in admin | ✅ `PHASE3-6` |
 | **P7** | **Motion** — single 170ms ease-out language, landed in §36 | ✅ |
-| **P8** | **Final QA** — full journey timing, a11y, both themes, all breakpoints | TODO |
+| **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
 
@@ -66,7 +67,12 @@ These were established by research and are not up for re-litigation in later pha
    designed states with a way forward.
 7. **Amber means time. Coral means emergency.** Those meanings are load-bearing
    and must not be diluted by decorative use.
-8. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
+8. **Freshness is a claim about a moment, not about a shelf.** We never say a
+   pharmacy *has* a medicine — we say someone confirmed it, and how long ago.
+   A confirmation older than three days is not information, so it can never be
+   the hero of `/med/:id` and is never promoted by being nearer. Established
+   in P9 after `/med/m9` opened on an eight-day-old record styled as live.
+9. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
    citation form, not a male filter. Established in P2 after the first
    implementation wrongly returned zero results for "دكتور اطفال اليوم".
 
