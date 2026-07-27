@@ -13,7 +13,8 @@ const S = {
   lang: LS.get("lang", "ar"),
   theme: LS.get("theme", null),   // null = follow the OS / host theme
   district: LS.get("district", CONFIG.defaultDistrict),
-  gps: LS.get("gps", false),          // precise location granted
+  gps: LS.get("gps", false),
+  gpsReason: null,          // precise location granted
   locState: LS.get("locState", "inferred"), // precise | chosen | inferred | denied
   name: LS.get("name", ""),
   saved: LS.get("saved", []),
@@ -1056,35 +1057,68 @@ function openLocation() {
         <span class="grow" style="text-align:start"><h3>${t("useGps")}</h3>
           <p>${isAR() ? "مسافات دقيقة وترتيب حسب الأقرب" : "Exact distances and nearest-first sorting"}</p></span>
         <span class="go">${icon("chev")}</span></button>
-      ${S.locState === "denied" ? `<div class="banner banner--info" style="margin-top:10px">${icon("info")}<span>${isAR()
-        ? "لم تسمح بالوصول للموقع — لا مشكلة، اختر منطقتك يدوياً وكل شيء يعمل كالمعتاد."
-        : "Location is off — no problem. Pick your area and everything still works."}</span></div>` : ""}
+      ${S.locState === "denied" ? `<div class="banner banner--${S.gpsReason === "policy" || S.gpsReason === "insecure" ? "warn" : "info"}" style="margin-top:10px">
+        ${icon(S.gpsReason === "policy" || S.gpsReason === "insecure" ? "alert" : "info")}
+        <span>${esc(L(GPS_MSG[S.gpsReason] || GPS_MSG.denied))}</span></div>` : ""}
       <h3 class="eyebrow" style="margin:20px 0 10px">${isAR() ? "أو اختر منطقتك" : "Or choose your area"}</h3>
       <div class="places">${rows}</div>
       <button class="btn btn--3" style="margin-top:14px" onclick="closeSheet()">${t("withoutLoc")}</button>
     </div>`);
 }
 
+// Why a diagnosis and not one generic message: getCurrentPosition fails for
+// five different reasons and only one of them is the user's to fix. Telling
+// someone to "check your browser settings" when the HOST is blocking the API
+// sends them somewhere they can do nothing. Each cause gets its own sentence.
+const GPS_MSG = {
+  denied:      { ar: "رفضتَ إذن الموقع في المتصفح — لا مشكلة، اختر منطقتك ويعمل كل شيء كالمعتاد.",
+                 en: "Location permission was denied — no problem, pick your area and everything still works." },
+  timeout:     { ar: "تأخّر تحديد الموقع (الشبكة بطيئة؟). اختر منطقتك يدوياً — أسرع على أي حال.",
+                 en: "Locating timed out. Pick your area instead — it's faster anyway." },
+  unavailable: { ar: "تعذّر على جهازك تحديد الموقع الآن. اختر منطقتك يدوياً.",
+                 en: "Your device couldn't get a fix right now. Pick your area instead." },
+  insecure:    { ar: "تحديد الموقع يحتاج اتصالاً آمناً (HTTPS). اختر منطقتك يدوياً.",
+                 en: "Location needs a secure (HTTPS) connection. Pick your area instead." },
+  unsupported: { ar: "متصفحك لا يدعم تحديد الموقع. اختر منطقتك يدوياً.",
+                 en: "This browser doesn't support location. Pick your area instead." },
+  policy:      { ar: "الاستضافة تمنع تحديد الموقع في هذه الصفحة — ليس خطأً منك. اختر منطقتك يدوياً.",
+                 en: "The host blocks location on this page — not something you can fix. Pick your area instead." },
+};
+
 function askGps() {
   const b = document.querySelector(".sheet .lane.on");
-  if (b) b.innerHTML = `<span class="ic">${icon("nav")}</span><span class="grow" style="text-align:start"><h3>${t("loading")}…</h3></span>`;
-  if (!navigator.geolocation) return gpsFail();
+  if (b) b.innerHTML = `<span class="ic">${icon("nav")}</span>
+    <span class="grow" style="text-align:start"><h3>${t("loading")}…</h3>
+      <p>${isAR() ? "اسمح للمتصفح بالوصول للموقع" : "Allow location in your browser"}</p></span>`;
+  if (!window.isSecureContext) return gpsFail("insecure");
+  if (!navigator.geolocation) return gpsFail("unsupported");
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       const near = DISTRICTS.map((d) => ({ d, k: haversine(me, d) })).sort((a, b) => a.k - b.k)[0];
-      S.locState = "precise"; S.gps = true;
+      S.locState = "precise"; S.gps = true; S.gpsReason = null;
       LS.set("gps", true); LS.set("locState", "precise");
       setDistrict(near.d.id);
+      toast(isAR() ? `حُدّد موقعك — أقرب منطقة: ${L(near.d)}` : `Located — nearest area: ${L(near.d)}`);
     },
-    () => gpsFail(), { timeout: 8000 }
+    (err) => {
+      // A Permissions-Policy block also arrives as PERMISSION_DENIED, but the
+      // message names the policy. Separating it matters: the user cannot fix it.
+      const msg = String(err && err.message || "");
+      const policy = err && err.code === 1 && /policy/i.test(msg);
+      gpsFail(policy ? "policy" : !err ? "unavailable"
+        : err.code === 1 ? "denied" : err.code === 3 ? "timeout" : "unavailable");
+    },
+    { timeout: 9000, maximumAge: 60000, enableHighAccuracy: false }
   );
 }
-function gpsFail() {
-  S.locState = "denied"; LS.set("locState", "denied");
-  toast(isAR() ? "تعذّر تحديد الموقع — اختر منطقتك" : "Couldn't get your location — pick your area");
+
+function gpsFail(reason = "unavailable") {
+  S.locState = "denied"; S.gpsReason = reason;
+  LS.set("locState", "denied");
   openLocation();
 }
+
 function setDistrict(id) {
   S.district = id; LS.set("district", id);
   if (S.locState === "inferred" || S.locState === "denied") { S.locState = "chosen"; LS.set("locState", "chosen"); }
