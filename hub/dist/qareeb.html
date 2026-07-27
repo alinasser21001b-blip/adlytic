@@ -1353,6 +1353,28 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
 .fallback-h svg { width: 16px; height: 16px; color: var(--ink-3); }
 .fallback p { font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.6; margin-top: 7px; }
 
+/* ============================================================
+   41. PHASE 2 — QUERY UNDERSTANDING
+   A search that silently guesses is untrustworthy. One that shows what it
+   read — as tokens you can remove — is a tool. This block is the visible
+   contract between the user's sentence and the filters it became.
+   ============================================================ */
+.parsed { padding: 13px 14px; background: var(--petrol-soft); border-radius: var(--r); margin-bottom: 18px; }
+.parsed-h {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 10px;
+  font-size: var(--fs-micro); font-weight: var(--w-bold); color: var(--petrol); letter-spacing: .04em;
+}
+.parsed-h svg { width: 14px; height: 14px; }
+.pchip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px;
+  padding: 6px 10px 6px 12px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--petrol);
+  color: var(--petrol); font-size: var(--fs-meta); font-weight: var(--w-bold);
+}
+.pchip svg { width: 13px; height: 13px; opacity: .55; }
+.pchip:active { background: var(--petrol); color: #fff; }
+.pchip:active svg { opacity: 1; }
+
 </style>
 </head>
 <body>
@@ -2267,6 +2289,150 @@ function productCard(p) {
   </a>`;
 }
 
+/* ---------------- QUERY UNDERSTANDING ----------------
+   Iraqi users type intent, not keywords: "دكتورة اطفال بالكرادة اليوم" is four
+   filters in one breath — specialty, gender, district, time. Text matching
+   throws three of them away and returns a weak list.
+
+   This parses the sentence into structured filters, then SHOWS what it
+   understood as removable tokens. Transparency is the point: a search that
+   silently guesses is untrustworthy; one that says "I read this as X, Y, Z —
+   remove any of them" is a tool. No competitor in this market does it.
+------------------------------------------------------------- */
+
+/* Damerau-style distance, capped — phone typing on Arabic keyboards drops and
+   swaps letters constantly. Only worth running on short tokens. */
+function editDist(a, b, max = 2) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let cur = [i], best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      cur[j] = v; if (v < best) best = v;
+    }
+    if (best > max) return max + 1;
+    prev.length = 0; prev.push(...cur);
+  }
+  return prev[b.length];
+}
+const fuzzyHit = (token, target) => {
+  const t = norm(target);
+  if (!t || !token) return false;
+  if (t.includes(token) || token.includes(t)) return true;
+  return token.length >= 4 && editDist(token, t, token.length >= 7 ? 2 : 1) <= (token.length >= 7 ? 2 : 1);
+};
+
+// Arabic marks the feminine, never the masculine: "دكتور" is the neutral
+// citation form. Reading it as "male" invents a filter the user never asked
+// for — and in testing it returned zero results for a query that had answers.
+const GENDER_WORDS = { f: ["طبيبه", "دكتوره", "دكتورة", "طبيبة", "female", "woman"] };
+const TIME_WORDS   = ["اليوم", "هسه", "هلا", "الان", "حالا", "مفتوح", "مفتوحه", "دوام", "today", "now", "open"];
+const KIND_WORDS   = {
+  pharmacy: ["صيدليه", "صيدليات", "خفاره", "مناوبه", "pharmacy"],
+  medicine: ["دواء", "دوا", "علاج", "حبوب", "ابره", "medicine", "drug"],
+  product:  ["كريم", "شامبو", "واقي", "غسول", "فيتامين", "cream", "shampoo"],
+};
+
+function parseQuery(q) {
+  const raw = norm(q);
+  if (!raw) return null;
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  const out = { spec: null, district: null, gender: null, openNow: false, kind: null, rest: [] };
+
+  for (const tok of tokens) {
+    if (tok.length < 2) continue;
+    // gender first: "دكتورة" also fuzzy-matches "دكتور", so it must win
+    let hit = false;
+    for (const [g, words] of Object.entries(GENDER_WORDS)) {
+      if (words.some((w) => norm(w) === tok)) { out.gender = g; hit = true; break; }
+    }
+    if (hit) continue;
+    if (TIME_WORDS.some((w) => norm(w) === tok)) { out.openNow = true; continue; }
+    const dis = DISTRICTS.find((d) => fuzzyHit(tok.replace(/^(ب|بال|ال)/, ""), d.ar) || fuzzyHit(tok, d.en));
+    if (dis) { out.district = dis.id; continue; }
+    const sp = SPECIALTIES.find((x) => [x.ar, x.en, ...x.alias].some((a) => fuzzyHit(tok, a)));
+    if (sp) { out.spec = sp.id; continue; }
+    for (const [k, words] of Object.entries(KIND_WORDS)) {
+      if (words.some((w) => fuzzyHit(tok, w))) { out.kind = k; hit = true; break; }
+    }
+    if (!hit) out.rest.push(tok);
+  }
+  const understood = !!(out.spec || out.district || out.gender || out.openNow || out.kind);
+  return understood ? out : null;
+}
+
+/* The tokens we understood, shown back as removable chips. */
+function parsedChips(pq, q) {
+  const chip = (label, key) =>
+    `<button class="pchip" onclick="dropToken('${key}')">${esc(label)}${icon("close")}</button>`;
+  const bits = [];
+  if (pq.kind)     bits.push(chip({ pharmacy: isAR() ? "صيدليات" : "Pharmacies", medicine: isAR() ? "أدوية" : "Medicines", product: isAR() ? "منتجات" : "Products" }[pq.kind], "kind"));
+  if (pq.spec)     bits.push(chip(L(specOf(pq.spec)), "spec"));
+  if (pq.gender)   bits.push(chip(pq.gender === "f" ? (isAR() ? "طبيبة" : "Female") : (isAR() ? "طبيب" : "Male"), "gender"));
+  if (pq.district) bits.push(chip(L(DISTRICTS.find((d) => d.id === pq.district)), "district"));
+  if (pq.openNow)  bits.push(chip(isAR() ? "مفتوح الآن" : "Open now", "openNow"));
+  if (!bits.length) return "";
+  return `<div class="parsed">
+    <div class="parsed-h">${icon("check")}${isAR() ? "فهمنا بحثك هكذا" : "We read your search as"}</div>
+    <div class="chips chips--wrap">${bits.join("")}</div>
+  </div>`;
+}
+
+/* An empty result is a dead end only if we make the user guess which
+   constraint killed it. We already know: drop each token in turn, see which
+   one restores results, and offer that exact fix as one tap. */
+function zeroWithWayOut(P) {
+  const LABEL = {
+    spec: () => L(specOf(P.spec)),
+    district: () => L(DISTRICTS.find((d) => d.id === P.district)),
+    gender: () => (P.gender === "f" ? (isAR() ? "طبيبة" : "female") : (isAR() ? "طبيب" : "male")),
+    openNow: () => (isAR() ? "مفتوح الآن" : "open now"),
+  };
+  const rescues = [];
+  for (const key of ["district", "openNow", "gender", "spec"]) {
+    if (!P[key]) continue;
+    const trial = { ...P, [key]: key === "openNow" ? false : null };
+    const saved = { ...S.filters };
+    S.filters = { ...S.filters, spec: trial.spec, gender: trial.gender, openNow: trial.openNow, district: trial.district };
+    const n = doctorsFor({ spec: trial.spec }).list.length;
+    S.filters = saved;
+    if (n > 0) rescues.push({ key, n, label: LABEL[key]() });
+  }
+  rescues.sort((a, b) => b.n - a.n);
+  return `<div class="empty">
+    <div class="empty-mark">${icon("search")}</div>
+    <h3>${isAR() ? "ما لگينا أحد يجمع كل هذي الشروط" : "Nothing matches all of those at once"}</h3>
+    ${rescues.length ? `<p>${isAR() ? "بس لو تتنازل عن وحدة:" : "But dropping one of them works:"}</p>
+      <div class="empty-alts stack">${rescues.map((r) => `
+        <button class="lane" onclick="dropToken('${r.key}')">
+          <span class="ic">${icon("refresh")}</span>
+          <span class="grow" style="text-align:start">
+            <h3>${isAR() ? "بدون" : "Without"} «${esc(r.label)}»</h3>
+            <p><b class="num">${r.n}</b> ${isAR() ? "نتيجة" : "results"}</p></span>
+          ${icon("chev")}</button>`).join("")}</div>`
+      : `<p>${isAR() ? "جرّب منطقة ثانية أو تصفّح الاختصاصات." : "Try another area, or browse specialties."}</p>
+         <button class="btn btn--2" onclick="location.hash='#/needs'">${icon("grid")}${isAR() ? "تصفّح حسب الحاجة" : "Browse by need"}</button>`}
+  </div>`;
+}
+
+function dropToken(key) {
+  S.parsedDrop = S.parsedDrop || {};
+  S.parsedDrop[key] = true;
+  doSearch(LS.get("q", ""));
+}
+
+function applyParsed(pq) {
+  const d = S.parsedDrop || {};
+  return {
+    spec: d.spec ? null : pq.spec,
+    district: d.district ? null : pq.district,
+    gender: d.gender ? null : pq.gender,
+    openNow: d.openNow ? false : pq.openNow,
+    kind: d.kind ? null : pq.kind,
+  };
+}
+
 /* ---------------- SHELL ---------------- */
 const app = () => document.getElementById("app");
 
@@ -2770,6 +2936,37 @@ function searchResults(q) {
         <div class="chips chips--wrap">${S.recent.slice(0, 6).map((r) => `<button class="chip" onclick="doSearch('${esc(r)}');document.getElementById('q').value='${esc(r)}'">${esc(r)}</button>`).join("")}</div></div>` : ""}`;
   }
   const nq = norm(q);
+  const pq = parseQuery(q);
+  const P = pq ? applyParsed(pq) : null;
+
+  // A parsed query answers directly instead of listing weak text matches.
+  if (P && (P.spec || P.district || P.gender || P.openNow || P.kind)) {
+    const head = parsedChips(pq, q);
+    if (P.kind === "pharmacy") {
+      let list = pharmaciesNear({ openNow: P.openNow });
+      if (P.district) list = list.filter((x) => x.f.district === P.district);
+      return head + (list.length
+        ? `<div class="res-group"><h3>${t("pharmacies")} · <span class="num">${list.length}</span></h3>
+             <div class="stack">${list.slice(0, 8).map(pharmacyCard).join("")}</div></div>`
+        : nightFallback());
+    }
+    if (P.kind === "medicine") {
+      const meds = pq.rest.length ? medMatches(pq.rest.join(" ")) : MEDICINES;
+      return head + `<div class="res-group"><h3>${isAR() ? "أدوية" : "Medicines"}</h3>
+        <div class="stack">${meds.slice(0, 8).map(medRow).join("")}</div></div>`;
+    }
+    // default: doctors, filtered by everything we understood
+    const saved = { ...S.filters };
+    S.filters = { ...S.filters, spec: P.spec, gender: P.gender, openNow: P.openNow, district: P.district };
+    const r = doctorsFor({ spec: P.spec });
+    S.filters = saved;
+    return head + (r.list.length
+      ? `<div class="res-group"><h3>${t("doctors")} · <span class="num">${r.list.length}</span>
+           <span class="muted" style="font-weight:400">· ${isAR() ? "الأقرب موعداً أولاً" : "soonest first"}</span></h3>
+         <div class="stack">${r.list.slice(0, 8).map((x) => doctorCard(x)).join("")}</div></div>`
+      : zeroWithWayOut(P));
+  }
+
   const docs = DOCTORS.filter((d) => norm(L(d)).includes(nq) || specMatch(d.spec, nq)).slice(0, 6);
   const specs = SPECIALTIES.filter((s) => [s.ar, s.en, ...s.alias].some((a) => norm(a).includes(nq))).slice(0, 5);
   const phs = FACILITIES.filter((f) => f.type === "pharmacy" && norm(L(f)).includes(nq)).slice(0, 4);
@@ -2798,17 +2995,7 @@ function searchResults(q) {
   }
   const G = (title, body) => body ? `<div class="res-group"><h3>${title}</h3><div class="stack">${body}</div></div>` : "";
   // Medicines lead: "who has this" is the most urgent question a search can carry.
-  return G(isAR() ? "أدوية — مين عنده؟" : "Medicines — who has it?", meds.map((m) => {
-      const c = pharmaciesForMed(m).confirmed;
-      return `<a class="card ${c.length ? "is-open" : ""}" href="#/med/${m.id}">
-        <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
-          <div class="grow"><div class="card-t">${esc(L(m))}</div>
-            <div class="card-meta">${c.length
-              ? `<span class="chip--meta chip--ok">${icon("check")}<span class="num">${c.length}</span> ${isAR() ? "صيدلية أكّدت" : "confirmed"}</span>`
-              : `<span class="chip--meta chip--warn">${isAR() ? "شحيح — اسأل مباشرة" : "scarce — ask directly"}</span>`}
-              ${c.length ? `<i class="dot"></i><span>${esc(freshLabel(c[0].days))}</span>` : ""}</div></div>
-          ${icon("chev")}</div></a>`;
-    }).join(""))
+  return G(isAR() ? "أدوية — مين عنده؟" : "Medicines — who has it?", meds.map(medRow).join(""))
     + G(t("doctors"), docs.map((d) => doctorCard({ d, km: docDist(d), st: status(d) })).join(""))
     + G(isAR() ? "اختصاصات" : "Specialties", specs.map((s) => `<button class="lane" onclick="pickNeed('${s.id}')"><span class="ic">${icon("stetho")}</span>
         <span class="grow" style="text-align:start"><h3>${esc(L(s))}</h3><p><span class="num">${DOCTORS.filter((d) => d.spec === s.id).length}</span> ${isAR() ? "طبيب" : "doctors"}</p></span>
@@ -3361,6 +3548,18 @@ function resetFilters() {
 ------------------------------------------------------------- */
 const medById = (id) => MEDICINES.find((m) => m.id === id);
 
+function medRow(m) {
+  const c = pharmaciesForMed(m).confirmed;
+  return `<a class="card ${c.length ? "is-open" : ""}" href="#/med/${m.id}">
+    <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
+      <div class="grow"><div class="card-t">${esc(L(m))}</div>
+        <div class="card-meta">${c.length
+          ? `<span class="chip--meta chip--ok">${icon("check")}<span class="num">${c.length}</span> ${isAR() ? "صيدلية أكّدت" : "confirmed"}</span>`
+          : `<span class="chip--meta chip--warn">${isAR() ? "شحيح — اسأل مباشرة" : "scarce — ask directly"}</span>`}
+          ${c.length ? `<i class="dot"></i><span>${esc(freshLabel(c[0].days))}</span>` : ""}</div></div>
+      ${icon("chev")}</div></a>`;
+}
+
 function medMatches(q) {
   const nq = norm(q); if (!nq) return [];
   return MEDICINES.filter((m) => norm(m.ar + " " + m.en + " " + m.alias.join(" ")).includes(nq));
@@ -3571,6 +3770,7 @@ function shareDoctor(id) {
   else { navigator.clipboard?.writeText(text); toast(isAR() ? "نُسخ الرابط" : "Link copied"); }
 }
 function doSearch(v) {
+  if (v !== LS.get("q", "")) S.parsedDrop = {};
   LS.set("q", v);
   if (v && v.trim().length > 1) { S.recent = [v.trim(), ...S.recent.filter((r) => r !== v.trim())].slice(0, 8); LS.set("recent", S.recent); }
   const el = document.getElementById("sres"); if (el) el.innerHTML = searchResults(v);

@@ -19,7 +19,7 @@ Measured, not guessed (Playwright across 375/390/430/768/1024/1280).
 | 1 | Home was a menu of links, not a product | no live state, no differentiator visible | ✅ P0 |
 | 2 | Doctor profile is the conversion screen and still uses v1 patterns | `prof-facts` generic, fee buried, no reason-to-trust above fold | P1 |
 | 3 | Booking sheet asks before it reassures | no clinic response expectation, no fallback if no reply | P1 |
-| 4 | Search has no intelligence — exact-ish match only | no symptom→specialty routing surfaced, no typo tolerance beyond normalisation | P2 |
+| 4 | ~~Search has no intelligence~~ | now parses specialty + district + gender + time from one sentence, with edit-distance tolerance | ✅ P2 |
 | 5 | Pharmacy profile does not sell the pharmacy | services as flat chips, no stock signal, no reason to pick this one | P3 |
 | 6 | Care is orphaned — no relationship to medicine availability | two product concepts (PRODUCTS, MEDICINES) that never meet | P3 |
 | 7 | No offline behaviour at all | app is blank if the network drops mid-session | P4 |
@@ -40,8 +40,8 @@ committed and deployed green.
 |---|---|---|
 | **P0** | Home as a reading of the network — live intent tiles, scarcity headline, trust proof | ✅ `824edc6` |
 | **P1** | **Conversion funnel** — doctor profile rebuilt around the decision, booking sheet that reassures before it asks, handoff that survives no-reply | ✅ `PHASE1` |
-| **P2** | ⬅ **NEXT** — **Discovery intelligence** — symptom routing, tolerant matching, zero-result recovery that always routes | TODO |
-| **P3** | **Pharmacy + Care convergence** — pharmacy profile that sells, Care joined to medicine availability | TODO |
+| **P2** | **Discovery intelligence** — compound query parsing, fuzzy Arabic matching, guided zero-result recovery | ✅ `PHASE2` |
+| **P3** | ⬅ **NEXT** — **Pharmacy + Care convergence** — pharmacy profile that sells, Care joined to medicine availability | TODO |
 | **P4** | **Resilience** — offline shell, stale-data honesty, request queue survives a dropped connection | TODO |
 | **P5** | **Supply side + revenue** — doctor dashboard, partner attribution on every lead, operator verification actions | TODO |
 | **P6** | **Data integrity + code quality** — schema validation at load, dead-code sweep, the SVG overflow | TODO |
@@ -66,6 +66,9 @@ These were established by research and are not up for re-litigation in later pha
    designed states with a way forward.
 7. **Amber means time. Coral means emergency.** Those meanings are load-bearing
    and must not be diluted by decorative use.
+8. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
+   citation form, not a male filter. Established in P2 after the first
+   implementation wrongly returned zero results for "دكتور اطفال اليوم".
 
 ---
 
