@@ -126,6 +126,11 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 h1, h2, h3, h4, p { margin: 0; }
 img { max-width: 100%; display: block; }
 svg { flex: none; }
+/* Baseline size for any icon emitted without a sizing class. An <svg> with no
+   width/height falls back to its 300x150 default and blows the layout box open
+   (this was overflowing /doctor/:id and /pharmacy/:id). Specificity is 0,1,0 so
+   every existing `.x svg` rule still wins; this is only a floor. */
+.ico { width: 18px; height: 18px; }
 
 :focus-visible { outline: 2px solid var(--petrol-2); outline-offset: 3px; border-radius: 4px; }
 
@@ -1396,6 +1401,265 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
 }
 @media (min-width: 900px) { .offline-bar { top: 0; } .hdr { top: 0; } }
 
+/* ============================================================
+   43 · KPI DELTA — keeping coral honest
+   The v2 board colours a negative KPI delta with --coral. Coral is
+   load-bearing in this system: it means emergency, and nothing else.
+   A doctor replying below the specialty average is a time problem,
+   not an emergency — amber is the correct register, and it also
+   avoids scolding a partner in red on their own dashboard.
+   Defined here (not in the board layer) so a v3 board drops in clean.
+   ============================================================ */
+.kpi-d-warn { color: var(--amber-ink); font-weight: 600; font-size: var(--t-1); }
+
+/* ============================================================
+   QAREEB v2 — COMPONENT LAYER
+   Extracted verbatim from section 3a of the v2 design board. The board is
+   authoritative: every screen on it is rendered by exactly these classes.
+   Board chrome (.q phone frame, .dv-* viewer furniture, bare body/a rules)
+   removed — that is how the board displays itself, not part of the product.
+
+   Loaded AFTER css/qareeb.css. Shared selector names (.btn .chip .seal .rib
+   .wk .nav .slip .note .empty .sk .num .mono .row) intentionally win here.
+   ============================================================ */
+
+/* cyrillic-ext */
+
+/* cyrillic */
+
+/* vietnamese */
+
+/* latin-ext */
+
+/* latin */
+
+/* cyrillic-ext */
+
+/* cyrillic */
+
+/* greek */
+
+/* vietnamese */
+
+/* latin-ext */
+
+/* latin */
+
+/* cyrillic-ext */
+
+/* cyrillic */
+
+/* greek */
+
+/* vietnamese */
+
+/* latin-ext */
+
+/* latin */
+
+/* cyrillic-ext */
+
+/* cyrillic */
+
+/* greek */
+
+/* vietnamese */
+
+/* latin-ext */
+
+/* latin */
+
+/* arabic */
+
+/* cyrillic-ext */
+
+/* latin-ext */
+
+/* latin */
+
+/* arabic */
+
+/* cyrillic-ext */
+
+/* latin-ext */
+
+/* latin */
+
+/* arabic */
+
+/* cyrillic-ext */
+
+/* latin-ext */
+
+/* latin */
+
+/* ============================================================
+   QAREEB v2 — COMPONENT LAYER. This block IS the deliverable.
+   ============================================================ */
+:root{
+  --sand:#FAF8F5; --card:#FFFFFF; --sunk:#F2EFE9; --line:#E7E2D9;
+  --ink:#1A1A18; --ink-2:#3D3A35; --ink-3:#6B6862; --ink-4:#9E9A92;
+  --petrol:#0E5450; --petrol-tint:#E0EDEB; --petrol-deep:#083734;
+  --amber-b:#E0A029; --amber-tint:#FBEFD9; --amber-ink:#7A5209;
+  --coral:#C1121F; --coral-tint:#FBE7E6;
+  --pharm:#7FB8A4; --pharm-tint:#E9F3EF; --cosm:#C88A72; --cosm-tint:#F7EBE5;
+  --wa:#128C3E; --ok:#1F7A4C;
+  --f-ar:'IBM Plex Sans Arabic','IBM Plex Sans',sans-serif;
+  --f-num:'IBM Plex Sans',sans-serif; --f-mono:'IBM Plex Mono',monospace;
+  --t-1:11px; --t-2:12.5px; --t-3:14px; --t-4:16px; --t-5:19px; --t-6:23px; --t-7:28px; --t-8:34px;
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px; --s-7:48px;
+  --r-s:12px; --r-m:14px; --r-p:999px;
+  --e-1:0 1px 2px rgba(26,26,24,.05);
+  --e-2:0 2px 8px rgba(26,26,24,.07);
+  --e-3:0 8px 28px rgba(26,26,24,.13);
+}
+[data-theme=dark]{
+  --sand:#141614; --card:#1E211E; --sunk:#191C19; --line:#2E322E;
+  --ink:#ECE8E0; --ink-2:#C9C4BA; --ink-3:#94908A; --ink-4:#6E6A64;
+  --petrol:#5FB4AC; --petrol-tint:#1B2E2C; --petrol-deep:#8FD0C9;
+  --amber-b:#E8B457; --amber-tint:#332715; --amber-ink:#E8B457;
+  --coral:#E8776F; --coral-tint:#33191A;
+  --pharm:#7FB8A4; --pharm-tint:#1C2A26; --cosm:#C88A72; --cosm-tint:#2C201B;
+  --wa:#2FBB63; --ok:#4FB57F;
+  --e-1:0 1px 2px rgba(0,0,0,.4); --e-2:0 2px 8px rgba(0,0,0,.45); --e-3:0 8px 28px rgba(0,0,0,.55);
+}
+/* --- shell ------------------------------------------------- */
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed}
+/* --- surface hierarchy: 4 levels, not one card style ------- */
+.surf-sunk{background:var(--sunk);border-radius:var(--r-s)}
+.surf-flat{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m)}
+.surf-raise{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);box-shadow:var(--e-1)}
+.surf-lift{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);box-shadow:var(--e-2)}
+.surf-key{background:var(--card);border:1.5px solid var(--petrol);border-radius:var(--r-m);box-shadow:var(--e-2)}
+.cham{clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
+.ltr .cham{clip-path:polygon(16px 0,100% 0,100% 100%,0 100%,0 16px)}
+.pad-3{padding:var(--s-3)}.pad-4{padding:var(--s-4)}
+.stack-2>*+*{margin-top:var(--s-2)}.stack-3>*+*{margin-top:var(--s-3)}.stack-4>*+*{margin-top:var(--s-4)}
+.row{display:flex;align-items:center;gap:var(--s-2)}
+.row-b{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
+/* --- buttons: 3 levels, one primary per screen ------------- */
+.btn{display:flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:48px;
+     border-radius:var(--r-s);font:600 var(--t-3)/1 var(--f-ar);border:1.5px solid transparent;cursor:pointer}
+.btn-p{background:var(--petrol);color:#fff;font-weight:700;font-size:var(--t-4)}
+.btn-s{background:transparent;color:var(--petrol);border-color:var(--petrol);opacity:.92}
+.btn-t{min-height:auto;background:none;color:var(--petrol);font-weight:600}
+.btn-wa{background:var(--wa);color:#fff;font-weight:700;font-size:var(--t-4);min-height:50px}
+.btn-sm{min-height:36px;font-size:var(--t-2);border-radius:10px;padding:0 var(--s-3)}
+.btn:hover{filter:brightness(.94)}.btn:active{filter:brightness(.88)}
+.btn:focus-visible{outline:2px solid var(--petrol);outline-offset:2px}
+.btn[disabled]{opacity:.45}
+/* --- chips: filters, needs, sessions ----------------------- */
+.chip{display:inline-flex;align-items:center;gap:var(--s-1);padding:7px 13px;border:1px solid var(--line);
+      border-radius:var(--r-p);background:var(--card);font-size:var(--t-2);color:var(--ink-2);white-space:nowrap}
+.chip-on{background:var(--petrol);border-color:var(--petrol);color:#fff;font-weight:600}
+.chip-off{opacity:.45}
+/* --- badges: legible without colour (icon + text) ---------- */
+.bdg{display:inline-flex;align-items:center;gap:4px;font:700 var(--t-1)/1.6 var(--f-ar);border-radius:var(--r-p);padding:3px 9px}
+.bdg-v{background:var(--petrol-tint);color:var(--petrol-deep)}
+.bdg-t{background:var(--amber-tint);color:var(--amber-ink)}
+.bdg-n{background:var(--amber-ink);color:#fff}
+.bdg-e{background:var(--coral-tint);color:var(--coral)}
+.bdg-stock{background:var(--pharm-tint);color:#2F5F51}
+/* --- the seal: verification as a stamp, never a blue tick -- */
+.seal{width:56px;height:56px;border-radius:var(--r-p);border:2px solid var(--petrol);color:var(--petrol);
+      display:grid;place-items:center;transform:rotate(-8deg);opacity:.92;flex:none}
+.seal-i{width:44px;height:44px;border-radius:var(--r-p);border:1px solid currentColor;display:grid;place-items:center;
+        text-align:center;font:700 9px/1.35 var(--f-ar)}
+.seal-ok{border-color:var(--ok);color:var(--ok);transform:rotate(7deg)}
+/* --- the ribbon: 24h band, mirrored RTL -------------------- */
+.rib{position:relative;display:flex;height:7px;border-radius:2px;overflow:hidden;background:var(--sunk)}
+.rib>i{flex:1}
+.rib .sh{background:var(--petrol)}   /* hospital shift */
+.rib .cl{background:var(--amber-b)}  /* private clinic */
+.rib .pa{background:var(--line)}     /* past/closed */
+.rib-now{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+/* --- week strip: fill AND shape, never colour alone -------- */
+.wk{display:flex;gap:5px;direction:rtl}
+.wk>b{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+      font:600 var(--t-1)/1 var(--f-ar);background:var(--sunk);color:var(--ink-4);border:1px solid var(--line)}
+.wk .on{background:var(--petrol);border-color:var(--petrol);color:#fff}
+.wk .today{outline:2px solid var(--ink);outline-offset:2px}
+.wk .next{border:1.5px dashed var(--amber-ink);color:var(--amber-ink);background:var(--amber-tint)}
+/* --- the open rail: "open now" is not a badge -------------- */
+.rail-open{border-inline-start:3px solid var(--amber-b)}
+.rail-stock{border-inline-start:3px solid var(--pharm)}
+.quiet{opacity:.6}
+/* --- canonical card, four variants ------------------------- */
+.qc{display:flex;gap:var(--s-3);padding:var(--s-3)}
+.qc-av{width:46px;height:46px;border-radius:var(--r-s);display:grid;place-items:center;flex:none;
+       font:700 var(--t-5)/1 var(--f-ar);background:var(--petrol-tint);color:var(--petrol-deep)}
+.qc-av-ph{background:var(--pharm-tint);color:#2F5F51}
+.qc-av-co{background:var(--cosm-tint);color:#8A4E36}
+.qc-b{flex:1;min-width:0}
+.qc-title{font-weight:700;font-size:var(--t-3)}
+.qc-qual{font-size:var(--t-2);color:var(--ink-2)}
+.qc-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--t-2);color:var(--ink-3);margin-top:5px}
+/* --- freshness: the medicine screen's primary visual ------- */
+.fresh{display:inline-flex;align-items:center;gap:6px;font:700 var(--t-2)/1 var(--f-ar);border-radius:var(--r-p);padding:5px 11px}
+.fresh-hot{background:var(--pharm-tint);color:#245244}
+.fresh-warm{background:var(--amber-tint);color:var(--amber-ink)}
+.fresh-cold{background:var(--sunk);color:var(--ink-3)}
+.fresh-dot{width:8px;height:8px;border-radius:var(--r-p);background:currentColor}
+.fresh-dot-live{box-shadow:0 0 0 0 currentColor;animation:pulse 2.4s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(127,184,164,.7)}100%{box-shadow:0 0 0 9px rgba(127,184,164,0)}}
+@media (prefers-reduced-motion:reduce){.fresh-dot-live{animation:none}}
+/* --- data viz that works in RTL ---------------------------- */
+.bars{display:grid;gap:7px;font-size:var(--t-2)}
+.bar-r{display:grid;grid-template-columns:108px 1fr 38px;gap:var(--s-2);align-items:center}
+.bar-t{height:9px;border-radius:var(--r-p);background:var(--sunk);overflow:hidden;display:flex;justify-content:flex-start}
+.bar-f{height:9px;border-radius:var(--r-p);background:var(--petrol)}
+.bar-f-a{background:var(--amber-b)}.bar-f-c{background:var(--coral)}
+.bar-v{text-align:left;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:700}
+.spark{display:flex;align-items:flex-end;gap:3px;height:38px;direction:rtl}
+.spark>i{flex:1;background:var(--petrol-tint);border-radius:2px 2px 0 0}
+.spark>i.hi{background:var(--petrol)}
+.kpi{padding:var(--s-3)}
+.kpi-l{font:700 var(--t-1)/1.4 var(--f-ar);letter-spacing:.07em;color:var(--ink-4)}
+.kpi-n{font:700 var(--t-7)/1.15 var(--f-num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;text-align:right}
+.kpi-d{font-size:var(--t-1);color:var(--ok);font-weight:600}
+.kpi-d-neg{color:var(--coral)}
+/* --- empty-state graphic language: Iraqi, geometric -------- */
+.glyph{width:84px;height:84px;margin:0 auto;position:relative;opacity:.9}
+.glyph i{position:absolute;inset:0;border:1.5px solid var(--petrol);border-radius:3px;opacity:.55}
+.glyph i:nth-child(1){transform:rotate(0deg) scale(.72)}
+.glyph i:nth-child(2){transform:rotate(30deg) scale(.72)}
+.glyph i:nth-child(3){transform:rotate(60deg) scale(.72)}
+.glyph b{position:absolute;inset:34%;background:var(--amber-b);border-radius:2px;transform:rotate(45deg)}
+.empty{text-align:center;padding:var(--s-6) var(--s-4)}
+.empty-t{font-weight:700;font-size:var(--t-4);margin:var(--s-3) 0 var(--s-1)}
+.empty-b{font-size:var(--t-2);color:var(--ink-3);line-height:1.8}
+/* --- skeleton, offline, error ------------------------------ */
+.sk{background:linear-gradient(90deg,var(--sunk),var(--line),var(--sunk));background-size:200% 100%;
+    border-radius:8px;animation:sh 1.4s linear infinite}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
+.note{border-radius:var(--r-s);padding:9px var(--s-3);font-size:var(--t-2);line-height:1.7}
+.note-i{background:var(--petrol-tint);color:var(--petrol-deep)}
+.note-w{background:var(--amber-tint);color:var(--amber-ink)}
+.note-e{background:var(--coral-tint);color:var(--coral)}
+/* --- the issued slip -------------------------------------- */
+.slip{background:var(--card);border:1px solid var(--line);border-bottom:none;border-radius:var(--r-m) var(--r-m) 0 0;padding:var(--s-4)}
+.perf{height:12px;background:radial-gradient(circle at 8px 0,var(--sand) 5px,var(--card) 5.5px);
+      background-size:16px 12px;background-position:0 -6px;border-inline:1px solid var(--line)}
+/* --- bottom nav: exactly 4 -------------------------------- */
+.nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--card);
+     padding:var(--s-2) var(--s-1) var(--s-3);font-size:var(--t-1);text-align:center;color:var(--ink-4)}
+.nav>span>b{display:block;font:400 17px/1.3 var(--f-ar)}
+.nav .on{color:var(--petrol);font-weight:700}
+/* --- tier / price card ------------------------------------ */
+.tier{padding:var(--s-4)}
+.tier-p{font:700 var(--t-6)/1.2 var(--f-num);direction:ltr;unicode-bidi:embed;text-align:right}
+.tier-li{display:flex;gap:var(--s-2);font-size:var(--t-2);color:var(--ink-2);align-items:flex-start}
+.tier-li::before{content:"—";color:var(--petrol);font-weight:700}
+/* ============================ end component layer ========= */
+
+/* board chrome (not part of the deliverable) */
+a:hover{color:#083734}
+.code{width:760px;max-height:560px;overflow:auto;background:#141614;color:#D6D1C7;border-radius:14px;padding:18px 20px;
+      font:500 11px/1.7 'IBM Plex Mono',monospace;direction:ltr;text-align:left;white-space:pre;-webkit-user-select:all}
+.code b{color:#5FB4AC;font-weight:500}.code i{color:#8A857C;font-style:normal}
+
 </style>
 </head>
 <body>
@@ -1838,6 +2102,22 @@ const MED_DEMAND = [
   { med: "m9",  district: "zayouna",   asks: 38, filled: 9  },
 ];
 
+
+/* ---------- DOCTOR-SIDE DEMAND ----------
+   The doctor partner surface is sold on the doctor's OWN numbers, so the shape
+   here mirrors what a live log would emit: searches for their specialty in
+   their district, requests actually received, and the hour those requests
+   arrive — which is what tells a doctor their published hours are wrong.
+--------------------------------------------------------------------------- */
+const DOC_DEMAND = {
+  d2:  { searches: 412, requests: 38, replied: 31, specAvgRate: 0.62, trend: [22,26,31,28,35,41,38,44,39,47,52,48,55,61],
+         byHour: [0,0,0,0,0,0,1,3,7,12,18,22,19,14,9,16,24,31,27,18,9,4,1,0] },
+  d14: { searches: 288, requests: 24, replied: 11, specAvgRate: 0.62, trend: [14,12,17,15,19,16,22,18,25,21,27,24,29,26],
+         byHour: [0,0,0,0,0,0,0,2,4,6,9,11,8,6,4,9,17,23,19,12,6,2,0,0] },
+  d1:  { searches: 356, requests: 41, replied: 39, specAvgRate: 0.58, trend: [19,24,22,28,26,33,31,37,34,40,38,44,41,49],
+         byHour: [0,0,0,0,0,0,0,1,3,5,8,10,7,5,3,12,21,29,33,24,11,3,0,0] },
+};
+
 /* ---------- QR SOURCES (poster attribution) ---------- */
 const QR_SOURCES = {
   "p1":  { label_ar: "ملصق صيدلية النور", district: "karrada" },
@@ -2008,7 +2288,7 @@ const P = {
 };
 const DIRECTIONAL = new Set(["chev", "back"]);
 const icon = (n, cls = "") =>
-  `<svg class="${cls}${DIRECTIONAL.has(n) ? " dirflip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
+  `<svg class="${cls || "ico"}${DIRECTIONAL.has(n) ? " dirflip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
 
 const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
   <path d="M4 4h18l6 6v18H4z" fill="var(--petrol)"/>
@@ -2838,6 +3118,13 @@ function screenDoctor(id) {
     <div class="kv"><span class="k">${isAR() ? "الجنس" : "Gender"}</span><span class="v">${gender}</span></div>
     <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button>
   </section>` : ""}
+
+  <section class="blk">
+    <a class="lane" href="#/partner/doctor/${d.id}"><span class="ic">${icon("grid")}</span>
+      <span class="grow"><h3>${isAR() ? "هذا ملفك؟" : "Is this your profile?"}</h3>
+        <p>${isAR() ? "شوف كم مريض دوّر على اختصاصك وما وصلك" : "See how many searched your specialty and never reached you"}</p></span>
+      ${icon("chev")}</a>
+  </section>
 
   <div class="actionbar">
     ${d.accepting
@@ -3865,6 +4152,154 @@ function screenPartner(id) {
   ${nav("pharmacies")}`;
 }
 
+/* ---------------- DOCTOR PARTNER DASHBOARD ----------------
+   Board sections 3c (populated), 3d (empty), 3e (tier). Built on the v2
+   component layer: .surf-*, .kpi*, .bars, .spark, .wk, .tier*, .note*.
+
+   The hero is their own MISSED demand, not a feature list. A doctor does not
+   care that we have a directory; they care that 412 people searched their
+   specialty in their district and 38 reached them.
+------------------------------------------------------------- */
+function screenPartnerDoctor(id) {
+  const d = DOCTORS.find((x) => x.id === id);
+  if (!d) return screen404();
+  const sp = specOf(d.spec);
+  const facs = docFacs(d);
+  const dist = facs[0] && DISTRICTS.find((x) => x.id === facs[0].district);
+  const dm = DOC_DEMAND[d.id];
+
+  // 3d — a brand-new doctor has no history. The screen must still be worth
+  // reading, so it shows the district's demand instead of their own zero.
+  if (!dm) {
+    const spDemand = DOCTORS.filter((x) => x.spec === d.spec).length;
+    return `${header({ back: true, title: isAR() ? "لوحة الطبيب" : "Doctor dashboard" })}
+    <section class="wrap" style="padding-top:16px">
+      <div class="q-eyebrow">${isAR() ? "لوحة الشريك" : "Partner"}</div>
+      <h1 class="q-h1" style="margin-top:4px">${esc(L(d))}</h1>
+      <div class="q-sub">${esc(L(sp))}${dist ? " · " + esc(L(dist)) : ""}</div>
+      <div class="empty surf-flat pad-3" style="margin-top:18px">
+        <div class="glyph"><i></i><i></i><i></i><b></b></div>
+        <div class="empty-t">${isAR() ? "لسّه ما وصلتك طلبات" : "No requests yet"}</div>
+        <div class="empty-b">${isAR()
+          ? `ملفك جديد. هذي حركة اختصاصك في ${dist ? L(dist) : "بغداد"} خلال ٣٠ يوم — الطلب موجود، بس ما يوصلك بعد.`
+          : `Your profile is new. This is the demand in your area over 30 days — it exists, it just isn't reaching you yet.`}</div>
+      </div>
+      <div class="row" style="gap:10px;margin-top:14px">
+        <div class="surf-raise pad-3 grow"><div class="kpi-l">${isAR() ? "أطباء اختصاصك هنا" : "Doctors in your specialty"}</div>
+          <div class="kpi-n num">${spDemand}</div></div>
+        <div class="surf-raise pad-3 grow"><div class="kpi-l">${isAR() ? "مناطق مغطّاة" : "Areas covered"}</div>
+          <div class="kpi-n num">${DISTRICTS.length}</div></div>
+      </div>
+      <div class="note note-i" style="margin-top:14px">${isAR()
+        ? "أول خطوة: أكّد أوقات دوامك. الأطباء اللي أوقاتهم واضحة يوصلهم ضعف الطلبات."
+        : "First step: confirm your hours. Doctors with clear hours receive roughly double the requests."}</div>
+      ${partnerTier()}
+    </section>${nav("doctors")}`;
+  }
+
+  const rate = dm.replied / dm.requests;
+  const delta = Math.round((rate - dm.specAvgRate) * 100);
+  const reach = Math.round((dm.requests / dm.searches) * 100);
+  const maxH = Math.max(...dm.byHour);
+  const maxT = Math.max(...dm.trend);
+  // which weekdays a patient sees as "no published hours" — the actionable gap
+  const blank = DAY_ORDER.filter((dy) => !rawSegs(d, dy).length);
+
+  return `${header({ back: true, title: isAR() ? "لوحة الطبيب" : "Doctor dashboard" })}
+  <section class="wrap" style="padding-top:16px">
+    <div class="q-eyebrow">${isAR() ? "لوحة الشريك" : "Partner"}</div>
+    <h1 class="q-h1" style="margin-top:4px">${esc(L(d))}</h1>
+    <div class="q-sub">${esc(L(sp))}${dist ? " · " + esc(L(dist)) : ""}</div>
+
+    <div class="note note-w" style="margin-top:16px">${isAR()
+      ? `<b class="num">${dm.searches - dm.requests}</b> شخص دوّر على «${esc(L(sp))}» في ${dist ? esc(L(dist)) : "منطقتك"} وما وصلك. الطلب موجود — الفجوة بالوصول.`
+      : `<b class="num">${dm.searches - dm.requests}</b> people searched for ${esc(L(sp))} in your area and never reached you. The demand exists; the gap is reach.`}</div>
+
+    <div class="row" style="gap:10px;margin-top:14px">
+      <div class="surf-raise pad-3 grow">
+        <div class="kpi-l">${isAR() ? "بحثوا عن اختصاصك" : "Searched your specialty"}</div>
+        <div class="kpi-n num">${dm.searches}</div>
+        <div class="kpi-d">${isAR() ? "٣٠ يوم" : "30 days"}</div>
+      </div>
+      <div class="surf-raise pad-3 grow">
+        <div class="kpi-l">${isAR() ? "وصلوك" : "Reached you"}</div>
+        <div class="kpi-n num">${dm.requests}</div>
+        <div class="kpi-d">${isAR() ? `${reach}٪ من البحث` : `${reach}% of searches`}</div>
+      </div>
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "نسبة ردّك" : "Your response rate"}</div>
+      <div class="row-b" style="align-items:flex-end">
+        <div class="kpi-n num">${Math.round(rate * 100)}٪</div>
+        <div class="${delta < 0 ? "kpi-d-warn" : "kpi-d"}"><span dir="ltr" class="num">${delta >= 0 ? "+" : "−"}${Math.abs(delta)}</span>${isAR() ? " نقطة عن متوسط الاختصاص" : " pts vs specialty avg"}</div>
+      </div>
+      <div class="bars" style="margin-top:10px">
+        <div class="bar-r"><span>${isAR() ? "أنت" : "You"}</span>
+          <span class="bar-t"><i class="bar-f" style="width:${Math.round(rate * 100)}%"></i></span>
+          <span class="bar-v num">${dm.replied}/${dm.requests}</span></div>
+        <div class="bar-r"><span>${isAR() ? "المتوسط" : "Average"}</span>
+          <span class="bar-t"><i class="bar-f bar-f-a" style="width:${Math.round(dm.specAvgRate * 100)}%"></i></span>
+          <span class="bar-v num">${Math.round(dm.specAvgRate * 100)}٪</span></div>
+      </div>
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "متى تصلك الطلبات" : "When requests arrive"}</div>
+      <div class="spark" style="margin-top:10px" role="img"
+        aria-label="${isAR() ? "توزيع الطلبات على ساعات اليوم" : "Requests by hour of day"}">
+        ${dm.byHour.map((v, h) => `<i class="${v === maxH && v > 0 ? "hi" : ""}" style="height:${maxH ? Math.max(4, Math.round((v / maxH) * 100)) : 4}%"
+          title="${String(h).padStart(2, "0")}:00 — ${v}"></i>`).join("")}
+      </div>
+      <div class="row-b q-eyebrow" style="margin-top:6px"><span>00:00</span><span>12:00</span><span>23:00</span></div>
+      <div class="note note-i" style="margin-top:12px">${isAR()
+        ? `ذروة الطلب ${String(dm.byHour.indexOf(maxH)).padStart(2, "0")}:00 — تأكّد أن دوامك يغطيها.`
+        : `Peak at ${String(dm.byHour.indexOf(maxH)).padStart(2, "0")}:00 — make sure your hours cover it.`}</div>
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "كيف يرى المريض أسبوعك" : "How patients read your week"}</div>
+      <div class="wk" style="margin-top:10px">
+        ${DAY_ORDER.map((dy) => {
+          const works = rawSegs(d, dy).length > 0;
+          return `<b class="${works ? "" : "quiet"} ${dy === nowDay() ? "today" : ""}" title="${dayName(dy)}">${DAY_LETTER[dy]}</b>`;
+        }).join("")}
+      </div>
+      ${blank.length ? `<div class="note note-w" style="margin-top:12px">${isAR()
+        ? `<b class="num">${blank.length}</b> أيام بلا دوام منشور (${blank.map(dayName).join("، ")}) — المريض يقرأها «مغلق»، لا «غير محدد».`
+        : `<b class="num">${blank.length}</b> days have no published hours (${blank.map(dayName).join(", ")}) — a patient reads those as closed, not as unspecified.`}</div>`
+        : `<div class="note note-i" style="margin-top:12px">${isAR() ? "كل أيامك منشورة — هذا يرفع الطلبات." : "Every day is published — this raises requests."}</div>`}
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "اتجاه الطلب — ١٤ يوم" : "Demand trend — 14 days"}</div>
+      <div class="spark" style="margin-top:10px" role="img" aria-label="${isAR() ? "اتجاه الطلب" : "Demand trend"}">
+        ${dm.trend.map((v, i) => `<i class="${i === dm.trend.length - 1 ? "hi" : ""}" style="height:${Math.max(4, Math.round((v / maxT) * 100))}%"></i>`).join("")}
+      </div>
+    </div>
+
+    ${partnerTier()}
+  </section>${nav("doctors")}`;
+}
+
+function partnerTier() {
+  return `<div class="tier surf-key pad-3" style="margin-top:18px">
+    <div class="q-eyebrow">${isAR() ? "اشتراك الشريك" : "Partner plan"}</div>
+    <div class="tier-p num">45,000 <span style="font-size:.5em">${L(CONFIG.currency)}/${isAR() ? "شهر" : "mo"}</span></div>
+    <ul style="margin-top:12px">
+      ${(isAR()
+        ? ["طلبات المرضى تصلك مباشرة على واتساب", "لوحة الطلب في منطقتك", "أولوية في نتائج اختصاصك", "توثيق ومراجعة دورية للمعلومات"]
+        : ["Patient requests straight to your WhatsApp", "Demand data for your area", "Priority in your specialty's results", "Verification and periodic review"])
+        .map((x) => `<li class="tier-li">${x}</li>`).join("")}
+    </ul>
+    <a class="btn btn-wa" style="margin-top:14px" target="_blank" rel="noopener"
+       href="${waLink("9647700000001", isAR() ? "مرحباً، أريد الاشتراك كطبيب شريك في قريب." : "Hello, I'd like to join Qareeb as a partner doctor.")}">
+      ${icon("wa")}${isAR() ? "اشترك عبر واتساب" : "Join via WhatsApp"}</a>
+    <p class="q-eyebrow" style="margin-top:10px;opacity:.75">${isAR()
+      ? "السعر توضيحي في هذا النموذج." : "Illustrative pricing in this prototype."}</p>
+  </div>`;
+}
+
 /* ---------------- ACTIONS ---------------- */
 function pickNeed(spec) {
   closeSheet();
@@ -3932,7 +4367,7 @@ function route() {
     case "care": return screenCare(p[1]);
     case "product": return screenProduct(p[1]);
     case "med": return screenMed(p[1]);
-    case "partner": return screenPartner(p[1]);
+    case "partner": return p[1] === "doctor" ? screenPartnerDoctor(p[2]) : screenPartner(p[1]);
     case "search": return screenSearch();
     case "me": return screenMe();
     case "trust": return screenTrust();

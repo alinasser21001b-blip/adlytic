@@ -97,6 +97,11 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 h1, h2, h3, h4, p { margin: 0; }
 img { max-width: 100%; display: block; }
 svg { flex: none; }
+/* Baseline size for any icon emitted without a sizing class. An <svg> with no
+   width/height falls back to its 300x150 default and blows the layout box open
+   (this was overflowing /doctor/:id and /pharmacy/:id). Specificity is 0,1,0 so
+   every existing `.x svg` rule still wins; this is only a floor. */
+.ico { width: 18px; height: 18px; }
 
 :focus-visible { outline: 2px solid var(--petrol-2); outline-offset: 3px; border-radius: 4px; }
 
@@ -1366,3 +1371,14 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
   font-size: var(--fs-micro); font-weight: var(--w-bold);
 }
 @media (min-width: 900px) { .offline-bar { top: 0; } .hdr { top: 0; } }
+
+/* ============================================================
+   43 · KPI DELTA — keeping coral honest
+   The v2 board colours a negative KPI delta with --coral. Coral is
+   load-bearing in this system: it means emergency, and nothing else.
+   A doctor replying below the specialty average is a time problem,
+   not an emergency — amber is the correct register, and it also
+   avoids scolding a partner in red on their own dashboard.
+   Defined here (not in the board layer) so a v3 board drops in clean.
+   ============================================================ */
+.kpi-d-warn { color: var(--amber-ink); font-weight: 600; font-size: var(--t-1); }

@@ -435,6 +435,22 @@ const MED_DEMAND = [
   { med: "m9",  district: "zayouna",   asks: 38, filled: 9  },
 ];
 
+
+/* ---------- DOCTOR-SIDE DEMAND ----------
+   The doctor partner surface is sold on the doctor's OWN numbers, so the shape
+   here mirrors what a live log would emit: searches for their specialty in
+   their district, requests actually received, and the hour those requests
+   arrive — which is what tells a doctor their published hours are wrong.
+--------------------------------------------------------------------------- */
+const DOC_DEMAND = {
+  d2:  { searches: 412, requests: 38, replied: 31, specAvgRate: 0.62, trend: [22,26,31,28,35,41,38,44,39,47,52,48,55,61],
+         byHour: [0,0,0,0,0,0,1,3,7,12,18,22,19,14,9,16,24,31,27,18,9,4,1,0] },
+  d14: { searches: 288, requests: 24, replied: 11, specAvgRate: 0.62, trend: [14,12,17,15,19,16,22,18,25,21,27,24,29,26],
+         byHour: [0,0,0,0,0,0,0,2,4,6,9,11,8,6,4,9,17,23,19,12,6,2,0,0] },
+  d1:  { searches: 356, requests: 41, replied: 39, specAvgRate: 0.58, trend: [19,24,22,28,26,33,31,37,34,40,38,44,41,49],
+         byHour: [0,0,0,0,0,0,0,1,3,5,8,10,7,5,3,12,21,29,33,24,11,3,0,0] },
+};
+
 /* ---------- QR SOURCES (poster attribution) ---------- */
 const QR_SOURCES = {
   "p1":  { label_ar: "ملصق صيدلية النور", district: "karrada" },

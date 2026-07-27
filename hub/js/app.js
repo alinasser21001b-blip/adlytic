@@ -144,7 +144,7 @@ const P = {
 };
 const DIRECTIONAL = new Set(["chev", "back"]);
 const icon = (n, cls = "") =>
-  `<svg class="${cls}${DIRECTIONAL.has(n) ? " dirflip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
+  `<svg class="${cls || "ico"}${DIRECTIONAL.has(n) ? " dirflip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
 
 const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
   <path d="M4 4h18l6 6v18H4z" fill="var(--petrol)"/>
@@ -974,6 +974,13 @@ function screenDoctor(id) {
     <div class="kv"><span class="k">${isAR() ? "الجنس" : "Gender"}</span><span class="v">${gender}</span></div>
     <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button>
   </section>` : ""}
+
+  <section class="blk">
+    <a class="lane" href="#/partner/doctor/${d.id}"><span class="ic">${icon("grid")}</span>
+      <span class="grow"><h3>${isAR() ? "هذا ملفك؟" : "Is this your profile?"}</h3>
+        <p>${isAR() ? "شوف كم مريض دوّر على اختصاصك وما وصلك" : "See how many searched your specialty and never reached you"}</p></span>
+      ${icon("chev")}</a>
+  </section>
 
   <div class="actionbar">
     ${d.accepting
@@ -2001,6 +2008,154 @@ function screenPartner(id) {
   ${nav("pharmacies")}`;
 }
 
+/* ---------------- DOCTOR PARTNER DASHBOARD ----------------
+   Board sections 3c (populated), 3d (empty), 3e (tier). Built on the v2
+   component layer: .surf-*, .kpi*, .bars, .spark, .wk, .tier*, .note*.
+
+   The hero is their own MISSED demand, not a feature list. A doctor does not
+   care that we have a directory; they care that 412 people searched their
+   specialty in their district and 38 reached them.
+------------------------------------------------------------- */
+function screenPartnerDoctor(id) {
+  const d = DOCTORS.find((x) => x.id === id);
+  if (!d) return screen404();
+  const sp = specOf(d.spec);
+  const facs = docFacs(d);
+  const dist = facs[0] && DISTRICTS.find((x) => x.id === facs[0].district);
+  const dm = DOC_DEMAND[d.id];
+
+  // 3d — a brand-new doctor has no history. The screen must still be worth
+  // reading, so it shows the district's demand instead of their own zero.
+  if (!dm) {
+    const spDemand = DOCTORS.filter((x) => x.spec === d.spec).length;
+    return `${header({ back: true, title: isAR() ? "لوحة الطبيب" : "Doctor dashboard" })}
+    <section class="wrap" style="padding-top:16px">
+      <div class="q-eyebrow">${isAR() ? "لوحة الشريك" : "Partner"}</div>
+      <h1 class="q-h1" style="margin-top:4px">${esc(L(d))}</h1>
+      <div class="q-sub">${esc(L(sp))}${dist ? " · " + esc(L(dist)) : ""}</div>
+      <div class="empty surf-flat pad-3" style="margin-top:18px">
+        <div class="glyph"><i></i><i></i><i></i><b></b></div>
+        <div class="empty-t">${isAR() ? "لسّه ما وصلتك طلبات" : "No requests yet"}</div>
+        <div class="empty-b">${isAR()
+          ? `ملفك جديد. هذي حركة اختصاصك في ${dist ? L(dist) : "بغداد"} خلال ٣٠ يوم — الطلب موجود، بس ما يوصلك بعد.`
+          : `Your profile is new. This is the demand in your area over 30 days — it exists, it just isn't reaching you yet.`}</div>
+      </div>
+      <div class="row" style="gap:10px;margin-top:14px">
+        <div class="surf-raise pad-3 grow"><div class="kpi-l">${isAR() ? "أطباء اختصاصك هنا" : "Doctors in your specialty"}</div>
+          <div class="kpi-n num">${spDemand}</div></div>
+        <div class="surf-raise pad-3 grow"><div class="kpi-l">${isAR() ? "مناطق مغطّاة" : "Areas covered"}</div>
+          <div class="kpi-n num">${DISTRICTS.length}</div></div>
+      </div>
+      <div class="note note-i" style="margin-top:14px">${isAR()
+        ? "أول خطوة: أكّد أوقات دوامك. الأطباء اللي أوقاتهم واضحة يوصلهم ضعف الطلبات."
+        : "First step: confirm your hours. Doctors with clear hours receive roughly double the requests."}</div>
+      ${partnerTier()}
+    </section>${nav("doctors")}`;
+  }
+
+  const rate = dm.replied / dm.requests;
+  const delta = Math.round((rate - dm.specAvgRate) * 100);
+  const reach = Math.round((dm.requests / dm.searches) * 100);
+  const maxH = Math.max(...dm.byHour);
+  const maxT = Math.max(...dm.trend);
+  // which weekdays a patient sees as "no published hours" — the actionable gap
+  const blank = DAY_ORDER.filter((dy) => !rawSegs(d, dy).length);
+
+  return `${header({ back: true, title: isAR() ? "لوحة الطبيب" : "Doctor dashboard" })}
+  <section class="wrap" style="padding-top:16px">
+    <div class="q-eyebrow">${isAR() ? "لوحة الشريك" : "Partner"}</div>
+    <h1 class="q-h1" style="margin-top:4px">${esc(L(d))}</h1>
+    <div class="q-sub">${esc(L(sp))}${dist ? " · " + esc(L(dist)) : ""}</div>
+
+    <div class="note note-w" style="margin-top:16px">${isAR()
+      ? `<b class="num">${dm.searches - dm.requests}</b> شخص دوّر على «${esc(L(sp))}» في ${dist ? esc(L(dist)) : "منطقتك"} وما وصلك. الطلب موجود — الفجوة بالوصول.`
+      : `<b class="num">${dm.searches - dm.requests}</b> people searched for ${esc(L(sp))} in your area and never reached you. The demand exists; the gap is reach.`}</div>
+
+    <div class="row" style="gap:10px;margin-top:14px">
+      <div class="surf-raise pad-3 grow">
+        <div class="kpi-l">${isAR() ? "بحثوا عن اختصاصك" : "Searched your specialty"}</div>
+        <div class="kpi-n num">${dm.searches}</div>
+        <div class="kpi-d">${isAR() ? "٣٠ يوم" : "30 days"}</div>
+      </div>
+      <div class="surf-raise pad-3 grow">
+        <div class="kpi-l">${isAR() ? "وصلوك" : "Reached you"}</div>
+        <div class="kpi-n num">${dm.requests}</div>
+        <div class="kpi-d">${isAR() ? `${reach}٪ من البحث` : `${reach}% of searches`}</div>
+      </div>
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "نسبة ردّك" : "Your response rate"}</div>
+      <div class="row-b" style="align-items:flex-end">
+        <div class="kpi-n num">${Math.round(rate * 100)}٪</div>
+        <div class="${delta < 0 ? "kpi-d-warn" : "kpi-d"}"><span dir="ltr" class="num">${delta >= 0 ? "+" : "−"}${Math.abs(delta)}</span>${isAR() ? " نقطة عن متوسط الاختصاص" : " pts vs specialty avg"}</div>
+      </div>
+      <div class="bars" style="margin-top:10px">
+        <div class="bar-r"><span>${isAR() ? "أنت" : "You"}</span>
+          <span class="bar-t"><i class="bar-f" style="width:${Math.round(rate * 100)}%"></i></span>
+          <span class="bar-v num">${dm.replied}/${dm.requests}</span></div>
+        <div class="bar-r"><span>${isAR() ? "المتوسط" : "Average"}</span>
+          <span class="bar-t"><i class="bar-f bar-f-a" style="width:${Math.round(dm.specAvgRate * 100)}%"></i></span>
+          <span class="bar-v num">${Math.round(dm.specAvgRate * 100)}٪</span></div>
+      </div>
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "متى تصلك الطلبات" : "When requests arrive"}</div>
+      <div class="spark" style="margin-top:10px" role="img"
+        aria-label="${isAR() ? "توزيع الطلبات على ساعات اليوم" : "Requests by hour of day"}">
+        ${dm.byHour.map((v, h) => `<i class="${v === maxH && v > 0 ? "hi" : ""}" style="height:${maxH ? Math.max(4, Math.round((v / maxH) * 100)) : 4}%"
+          title="${String(h).padStart(2, "0")}:00 — ${v}"></i>`).join("")}
+      </div>
+      <div class="row-b q-eyebrow" style="margin-top:6px"><span>00:00</span><span>12:00</span><span>23:00</span></div>
+      <div class="note note-i" style="margin-top:12px">${isAR()
+        ? `ذروة الطلب ${String(dm.byHour.indexOf(maxH)).padStart(2, "0")}:00 — تأكّد أن دوامك يغطيها.`
+        : `Peak at ${String(dm.byHour.indexOf(maxH)).padStart(2, "0")}:00 — make sure your hours cover it.`}</div>
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "كيف يرى المريض أسبوعك" : "How patients read your week"}</div>
+      <div class="wk" style="margin-top:10px">
+        ${DAY_ORDER.map((dy) => {
+          const works = rawSegs(d, dy).length > 0;
+          return `<b class="${works ? "" : "quiet"} ${dy === nowDay() ? "today" : ""}" title="${dayName(dy)}">${DAY_LETTER[dy]}</b>`;
+        }).join("")}
+      </div>
+      ${blank.length ? `<div class="note note-w" style="margin-top:12px">${isAR()
+        ? `<b class="num">${blank.length}</b> أيام بلا دوام منشور (${blank.map(dayName).join("، ")}) — المريض يقرأها «مغلق»، لا «غير محدد».`
+        : `<b class="num">${blank.length}</b> days have no published hours (${blank.map(dayName).join(", ")}) — a patient reads those as closed, not as unspecified.`}</div>`
+        : `<div class="note note-i" style="margin-top:12px">${isAR() ? "كل أيامك منشورة — هذا يرفع الطلبات." : "Every day is published — this raises requests."}</div>`}
+    </div>
+
+    <div class="surf-raise pad-3" style="margin-top:10px">
+      <div class="kpi-l">${isAR() ? "اتجاه الطلب — ١٤ يوم" : "Demand trend — 14 days"}</div>
+      <div class="spark" style="margin-top:10px" role="img" aria-label="${isAR() ? "اتجاه الطلب" : "Demand trend"}">
+        ${dm.trend.map((v, i) => `<i class="${i === dm.trend.length - 1 ? "hi" : ""}" style="height:${Math.max(4, Math.round((v / maxT) * 100))}%"></i>`).join("")}
+      </div>
+    </div>
+
+    ${partnerTier()}
+  </section>${nav("doctors")}`;
+}
+
+function partnerTier() {
+  return `<div class="tier surf-key pad-3" style="margin-top:18px">
+    <div class="q-eyebrow">${isAR() ? "اشتراك الشريك" : "Partner plan"}</div>
+    <div class="tier-p num">45,000 <span style="font-size:.5em">${L(CONFIG.currency)}/${isAR() ? "شهر" : "mo"}</span></div>
+    <ul style="margin-top:12px">
+      ${(isAR()
+        ? ["طلبات المرضى تصلك مباشرة على واتساب", "لوحة الطلب في منطقتك", "أولوية في نتائج اختصاصك", "توثيق ومراجعة دورية للمعلومات"]
+        : ["Patient requests straight to your WhatsApp", "Demand data for your area", "Priority in your specialty's results", "Verification and periodic review"])
+        .map((x) => `<li class="tier-li">${x}</li>`).join("")}
+    </ul>
+    <a class="btn btn-wa" style="margin-top:14px" target="_blank" rel="noopener"
+       href="${waLink("9647700000001", isAR() ? "مرحباً، أريد الاشتراك كطبيب شريك في قريب." : "Hello, I'd like to join Qareeb as a partner doctor.")}">
+      ${icon("wa")}${isAR() ? "اشترك عبر واتساب" : "Join via WhatsApp"}</a>
+    <p class="q-eyebrow" style="margin-top:10px;opacity:.75">${isAR()
+      ? "السعر توضيحي في هذا النموذج." : "Illustrative pricing in this prototype."}</p>
+  </div>`;
+}
+
 /* ---------------- ACTIONS ---------------- */
 function pickNeed(spec) {
   closeSheet();
@@ -2068,7 +2223,7 @@ function route() {
     case "care": return screenCare(p[1]);
     case "product": return screenProduct(p[1]);
     case "med": return screenMed(p[1]);
-    case "partner": return screenPartner(p[1]);
+    case "partner": return p[1] === "doctor" ? screenPartnerDoctor(p[2]) : screenPartner(p[1]);
     case "search": return screenSearch();
     case "me": return screenMe();
     case "trust": return screenTrust();
