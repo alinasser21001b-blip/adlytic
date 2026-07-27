@@ -638,8 +638,8 @@ function screenDoctor(id) {
     </div>
     ${ribbonScale()}
     <div class="week-legend">
-      <span class="row" style="gap:6px"><i style="background:var(--petrol);opacity:.38"></i>${isAR() ? "مستشفى (بدون أجرة)" : "Hospital (no fee)"}</span>
-      <span class="row" style="gap:6px"><i style="background:var(--amber-b);opacity:.55"></i>${isAR() ? "عيادة خاصة" : "Private clinic"}</span>
+      <span class="row" style="gap:6px"><i style="background:var(--petrol)"></i>${isAR() ? "مستشفى (بدون أجرة)" : "Hospital (no fee)"}</span>
+      <span class="row" style="gap:6px"><i style="background:var(--amber-b)"></i>${isAR() ? "عيادة خاصة" : "Private clinic"}</span>
       <span class="row" style="gap:6px"><i style="background:var(--ink);width:2px;height:10px"></i>${isAR() ? "الآن" : "Now"}</span>
     </div>
   </section>
@@ -1012,7 +1012,7 @@ function screenAdmin() {
           }).join("");
         }).join("")}
       </div>
-      <div class="week-legend"><span class="row" style="gap:6px"><i style="background:var(--petrol);opacity:.55"></i>${isAR() ? "مستشفى" : "Hospital"}</span>
+      <div class="week-legend"><span class="row" style="gap:6px"><i style="background:var(--petrol)"></i>${isAR() ? "مستشفى" : "Hospital"}</span>
         <span class="row" style="gap:6px"><i style="background:var(--amber-b)"></i>${isAR() ? "عيادة" : "Clinic"}</span></div>
     </div>
     <div class="btn-row" style="margin-top:20px"><button class="btn btn--2">${icon("plus")}${isAR() ? "أضف طبيباً" : "Add doctor"}</button>
