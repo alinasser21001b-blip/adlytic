@@ -590,18 +590,80 @@ function applyParsed(pq) {
   };
 }
 
+/* ---------------- P6 · DATA INTEGRITY ----------------
+   A flat seed file fails silently: a typo in a facility id renders an empty
+   block, a reversed time range renders a doctor as permanently closed, a
+   duplicate id makes one record unreachable. None of it throws. For an
+   operator product that curates thousands of rows, silent corruption is the
+   most expensive class of bug there is — so validate at load and surface it.
+------------------------------------------------------------- */
+function validateData() {
+  const errs = [];
+  const seen = new Set();
+  const facIds = new Set(FACILITIES.map((f) => f.id));
+  const specIds = new Set(SPECIALTIES.map((x) => x.id));
+  const distIds = new Set(DISTRICTS.map((d) => d.id));
+
+  const dup = (id, kind) => { const k = kind + ":" + id; if (seen.has(k)) errs.push({ t: "dup", m: `${kind} ${id} مكرر` }); seen.add(k); };
+
+  DISTRICTS.forEach((d) => { dup(d.id, "district"); if (!d.lm_ar) errs.push({ t: "missing", m: `المنطقة ${d.ar} بلا معلم` }); });
+  FACILITIES.forEach((f) => {
+    dup(f.id, "facility");
+    if (!distIds.has(f.district)) errs.push({ t: "orphan", m: `${f.ar}: منطقة غير معروفة «${f.district}»` });
+    (f.hours || []).forEach((h) => {
+      if (h.t !== "24:00" && mins(h.t) === mins(h.f)) errs.push({ t: "time", m: `${f.ar}: دوام بطول صفر` });
+    });
+    if (f.type === "pharmacy" && !f.phone) errs.push({ t: "missing", m: `${f.ar}: بلا هاتف` });
+  });
+  DOCTORS.forEach((d) => {
+    dup(d.id, "doctor");
+    if (!specIds.has(d.spec)) errs.push({ t: "orphan", m: `${d.ar}: اختصاص غير معروف «${d.spec}»` });
+    if (!d.sessions || !d.sessions.length) errs.push({ t: "empty", m: `${d.ar}: بلا أوقات دوام — لن يظهر` });
+    (d.sessions || []).forEach((sg) => {
+      if (!facIds.has(sg.fac)) errs.push({ t: "orphan", m: `${d.ar}: منشأة غير معروفة «${sg.fac}»` });
+      if (mins(sg.t) <= mins(sg.f)) errs.push({ t: "time", m: `${d.ar}: نهاية الدوام قبل بدايته (${sg.f}–${sg.t})` });
+      if (sg.d < 0 || sg.d > 6) errs.push({ t: "time", m: `${d.ar}: يوم غير صالح` });
+    });
+    if (!d.wa && !d.phone) errs.push({ t: "missing", m: `${d.ar}: بلا واتساب ولا هاتف — غير قابل للتواصل` });
+  });
+  MEDICINES.forEach((m) => {
+    dup(m.id, "medicine");
+    m.stock.forEach((st) => { if (!facIds.has(st.f)) errs.push({ t: "orphan", m: `${m.ar}: صيدلية غير معروفة «${st.f}»` }); });
+  });
+  PRODUCTS.forEach((pr) => {
+    dup(pr.id, "product");
+    pr.stock.forEach((fid) => { if (!facIds.has(fid)) errs.push({ t: "orphan", m: `${pr.ar}: صيدلية غير معروفة «${fid}»` }); });
+  });
+  return errs;
+}
+
+/* ---------------- P4 · RESILIENCE ----------------
+   Baghdad mobile data drops. The app must say so plainly and keep working on
+   what it already has — the seed data is in memory, so discovery never dies.
+   Only the WhatsApp handoff genuinely needs the network.
+------------------------------------------------------------- */
+function netBanner() {
+  if (navigator.onLine !== false) return "";
+  return `<div class="offline-bar">${icon("alert")}
+    <span>${isAR()
+      ? "ما في اتصال. التصفّح والبحث شغّالين — بس الإرسال عبر واتساب يحتاج إنترنت."
+      : "No connection. Browsing and search still work — sending on WhatsApp needs the network."}</span>
+    <button onclick="render()">${isAR() ? "أعد المحاولة" : "Retry"}</button></div>`;
+}
+
 /* ---------------- SHELL ---------------- */
 const app = () => document.getElementById("app");
 
 function header(opts = {}) {
+  const off = netBanner();
   if (opts.back) {
-    return `<header class="hdr">
+    return off + `<header class="hdr">
       <button class="icon-btn hdr-back" onclick="history.back()" aria-label="${t("back")}">${icon("back")}</button>
       <div class="grow hdr-title">${esc(opts.title || "")}</div>
       ${opts.right || ""}
     </header>`;
   }
-  return `<header class="hdr">
+  return off + `<header class="hdr">
     <a class="brand" href="#/">${BRAND_MARK}<span>${L(CONFIG.brand)}</span></a>
     <div class="grow"></div>
     <button class="place-tag ${S.locState === "precise" ? "place-tag--gps" : ""}" onclick="openLocation()">
@@ -1001,6 +1063,20 @@ function screenPharmacy(id) {
   <section class="blk"><h3>${isAR() ? "الخدمات" : "Services"}</h3>
     <div class="chips chips--wrap">${(f.services || []).map((s) => `<span class="chip">${icon(({ delivery: "truck", night: "moon", injections: "syringe", bp: "gauge", baby: "baby" })[s] || "check")}${svcLabel(s)}</span>`).join("")}</div>
   </section>
+  ${(() => {
+    const meds = MEDICINES.filter((m) => m.stock.some((st) => st.f === f.id))
+      .map((m) => ({ m, d: m.stock.find((st) => st.f === f.id).d })).sort((a, b) => a.d - b.d);
+    if (!meds.length) return "";
+    return `<section class="blk"><h3>${isAR() ? "أدوية أكّدت توفّرها" : "Medicines confirmed in stock"}</h3>
+      <p class="small muted" style="margin-bottom:12px">${isAR()
+        ? "التأكيد الأحدث أولاً — وهذا سبب اختيار هذي الصيدلية بالذات."
+        : "Freshest confirmation first — this is the reason to pick this pharmacy."}</p>
+      <div class="stack">${meds.slice(0, 5).map((x) => `<a class="card is-open" href="#/med/${x.m.id}">
+        <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
+          <div class="grow"><div class="card-t">${esc(L(x.m))}</div>
+            <div class="card-meta"><span class="chip--meta ${x.d <= 3 ? "chip--ok" : "chip--time"}">${icon("check")}${esc(freshLabel(x.d))}</span></div></div>
+          ${icon("chev")}</div></a>`).join("")}</div></section>`;
+  })()}
   ${prods.length ? `<section class="blk"><div class="sec-h"><h2 style="font-size:15px">${isAR() ? "متوفر في هذه الصيدلية" : "On the shelf here"}</h2>
     <a class="more" href="#/care">${isAR() ? "الكل" : "All"}</a></div>
     <div class="rail" style="margin-inline:-18px;padding-inline:18px">${prods.slice(0, 6).map((p) => `<div style="width:150px">${productCard(p)}</div>`).join("")}</div></section>` : ""}
@@ -1332,6 +1408,25 @@ function screenAdmin() {
     <div class="ch" style="padding:14px 16px">${A.sources.map(([q, n]) => `<div class="bar-row">
       <div><div>${esc(q)}</div><div class="bar"><i style="width:${(n / max(A.sources)) * 100}%"></i></div></div>
       <div class="num" style="text-align:end;font-weight:700">${n}</div></div>`).join("")}</div>
+
+    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "سلامة البيانات" : "Data integrity"}</h2></div>
+    ${(() => {
+      const errs = validateData();
+      if (!errs.length) return `<div class="banner banner--info">${icon("check")}<span>${isAR()
+        ? "لا أخطاء بنيوية. كل المراجع سليمة وكل أوقات الدوام صالحة."
+        : "No structural errors. Every reference resolves and every time range is valid."}</span></div>`;
+      return `<div class="ch" style="padding:14px 16px">
+        <div class="banner banner--warn" style="margin-bottom:12px">${icon("alert")}<span>${isAR()
+          ? `<b class="num">${errs.length}</b> مشكلة بنيوية — كل واحدة تكسر شاشة بصمت.`
+          : `<b class="num">${errs.length}</b> structural problems — each breaks a screen silently.`}</span></div>
+        ${errs.slice(0, 8).map((e) => `<div class="kv"><span class="k">${
+          { dup: isAR() ? "تكرار" : "duplicate", orphan: isAR() ? "مرجع يتيم" : "orphan",
+            time: isAR() ? "وقت" : "time", missing: isAR() ? "ناقص" : "missing",
+            empty: isAR() ? "فارغ" : "empty" }[e.t]}</span>
+          <span class="v" style="text-align:start;flex:1">${esc(e.m)}</span></div>`).join("")}
+        ${errs.length > 8 ? `<p class="tiny muted" style="margin-top:8px">${isAR() ? `و${errs.length - 8} أخرى` : `and ${errs.length - 8} more`}</p>` : ""}
+      </div>`;
+    })()}
 
     <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "طابور التوثيق والبلاغات" : "Verification & flags queue"}</h2></div>
     <div>${A.queue.map((q) => `<div class="tbl-row">
@@ -2011,6 +2106,8 @@ function boot() {
   if (S.theme) document.documentElement.dataset.theme = S.theme;   // otherwise let the host decide
   const qp = new URLSearchParams(location.search);
   if (qp.get("qr")) { S.qrSource = qp.get("qr"); const src = QR_SOURCES[S.qrSource]; if (src && S.locState === "inferred") { S.district = src.district; LS.set("district", src.district); } }
+  addEventListener("online", () => render());
+  addEventListener("offline", () => render());
   addEventListener("hashchange", () => { closeSheet(true); render(); scrollTo(0, 0); });
   addEventListener("scroll", () => { const h = document.querySelector(".hdr"); if (h) h.classList.toggle("stuck", scrollY > 8); }, { passive: true });
   render();

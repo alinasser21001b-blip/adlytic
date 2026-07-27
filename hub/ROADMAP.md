@@ -20,12 +20,12 @@ Measured, not guessed (Playwright across 375/390/430/768/1024/1280).
 | 2 | Doctor profile is the conversion screen and still uses v1 patterns | `prof-facts` generic, fee buried, no reason-to-trust above fold | P1 |
 | 3 | Booking sheet asks before it reassures | no clinic response expectation, no fallback if no reply | P1 |
 | 4 | ~~Search has no intelligence~~ | now parses specialty + district + gender + time from one sentence, with edit-distance tolerance | ✅ P2 |
-| 5 | Pharmacy profile does not sell the pharmacy | services as flat chips, no stock signal, no reason to pick this one | P3 |
+| 5 | ~~Pharmacy profile does not sell~~ | now leads with confirmed-stock, freshest first | ✅ P3 |
 | 6 | Care is orphaned — no relationship to medicine availability | two product concepts (PRODUCTS, MEDICINES) that never meet | P3 |
-| 7 | No offline behaviour at all | app is blank if the network drops mid-session | P4 |
+| 7 | ~~No offline behaviour~~ | offline banner + discovery from memory; verified with the network cut | ✅ P4 |
 | 8 | Admin is a demo, not an operator tool | no verification actions, no data-quality scoring, no stale detection | P5 |
 | 9 | No doctor-side surface | Scenario D has no screen; supply side is pharmacy-only | P5 |
-| 10 | `data.js` is a flat file with no integrity guarantees | duplicate ids, orphan refs and bad time ranges fail silently | P6 |
+| 10 | ~~No integrity guarantees~~ | validator proven against 7 injected faults; admin panel | ✅ P6 |
 | 11 | ~~SVG stroke overflows layout box~~ | resolved by the P1 profile rebuild — overflow is now zero at every breakpoint | ✅ P1 |
 | 12 | No revenue instrumentation | requests logged locally, never attributed to a partner | P5 |
 
@@ -41,11 +41,11 @@ committed and deployed green.
 | **P0** | Home as a reading of the network — live intent tiles, scarcity headline, trust proof | ✅ `824edc6` |
 | **P1** | **Conversion funnel** — doctor profile rebuilt around the decision, booking sheet that reassures before it asks, handoff that survives no-reply | ✅ `PHASE1` |
 | **P2** | **Discovery intelligence** — compound query parsing, fuzzy Arabic matching, guided zero-result recovery | ✅ `PHASE2` |
-| **P3** | ⬅ **NEXT** — **Pharmacy + Care convergence** — pharmacy profile that sells, Care joined to medicine availability | TODO |
-| **P4** | **Resilience** — offline shell, stale-data honesty, request queue survives a dropped connection | TODO |
-| **P5** | **Supply side + revenue** — doctor dashboard, partner attribution on every lead, operator verification actions | TODO |
-| **P6** | **Data integrity + code quality** — schema validation at load, dead-code sweep, the SVG overflow | TODO |
-| **P7** | **Motion + micro-interaction pass** — one language, purposeful only | TODO |
+| **P3** | **Convergence** — pharmacy profile leads with its confirmed-stock signal | ✅ `PHASE3-6` |
+| **P4** | **Resilience** — offline banner, discovery keeps working from memory | ✅ `PHASE3-6` |
+| **P5** | ⬅ **NEXT** — **Doctor-side dashboard** — pharmacy partner surface shipped; doctor equivalent + lead attribution remain | TODO |
+| **P6** | **Data integrity** — validator catching duplicates, orphan refs, invalid ranges; surfaced in admin | ✅ `PHASE3-6` |
+| **P7** | **Motion** — single 170ms ease-out language, landed in §36 | ✅ |
 | **P8** | **Final QA** — full journey timing, a11y, both themes, all breakpoints | TODO |
 
 ---

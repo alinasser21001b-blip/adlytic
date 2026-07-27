@@ -1345,3 +1345,24 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
 .pchip svg { width: 13px; height: 13px; opacity: .55; }
 .pchip:active { background: var(--petrol); color: #fff; }
 .pchip:active svg { opacity: 1; }
+
+/* ============================================================
+   42. PHASE 4 — RESILIENCE
+   Baghdad mobile data drops mid-session. The app must say so once, plainly,
+   and keep working: the catalogue is already in memory, so discovery never
+   dies. Only the WhatsApp handoff genuinely needs the network.
+   ============================================================ */
+.offline-bar {
+  position: sticky; top: 0; z-index: 70;
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  background: var(--ink); color: var(--sand);
+  font-size: var(--fs-meta); font-weight: var(--w-med); line-height: 1.45;
+}
+.offline-bar > span { flex: 1; }
+.offline-bar svg { width: 17px; height: 17px; flex: none; }
+.offline-bar button {
+  flex: none; min-height: 36px; padding: 0 13px; border-radius: 999px;
+  background: var(--sand); color: var(--ink);
+  font-size: var(--fs-micro); font-weight: var(--w-bold);
+}
+@media (min-width: 900px) { .offline-bar { top: 0; } .hdr { top: 0; } }
