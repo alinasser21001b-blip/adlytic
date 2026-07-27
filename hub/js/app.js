@@ -541,6 +541,11 @@ function parsedChips(pq, q) {
 /* An empty result is a dead end only if we make the user guess which
    constraint killed it. We already know: drop each token in turn, see which
    one restores results, and offer that exact fix as one tap. */
+/* The board's empty mark: three rotated squares around an amber diamond. It is
+   the app's own geometry rather than a generic magnifier or a shrugging doctor,
+   and it is drawn in CSS so an empty state costs nothing to render. */
+const emptyGlyph = () => `<div class="glyph" aria-hidden="true"><i></i><i></i><i></i><b></b></div>`;
+
 function zeroWithWayOut(P) {
   const LABEL = {
     spec: () => L(specOf(P.spec)),
@@ -560,7 +565,7 @@ function zeroWithWayOut(P) {
   }
   rescues.sort((a, b) => b.n - a.n);
   return `<div class="empty">
-    <div class="empty-mark">${icon("search")}</div>
+    ${emptyGlyph()}
     <h3>${isAR() ? "ما لگينا أحد يجمع كل هذي الشروط" : "Nothing matches all of those at once"}</h3>
     ${rescues.length ? `<p>${isAR() ? "بس لو تتنازل عن وحدة:" : "But dropping one of them works:"}</p>
       <div class="empty-alts stack">${rescues.map((r) => `
@@ -661,10 +666,15 @@ function validateData() {
 ------------------------------------------------------------- */
 function netBanner() {
   if (navigator.onLine !== false) return "";
+  /* "Browsing still works" is only honest if we also say how old the answer is.
+     Opening hours are computed live and stay true; stock confirmations were
+     read at a point in time and may have moved since. Say which is which. */
+  const at = LS.get("lastOnline", null);
+  const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
   return `<div class="offline-bar">${icon("alert")}
     <span>${isAR()
-      ? "ما في اتصال. التصفّح والبحث شغّالين — بس الإرسال عبر واتساب يحتاج إنترنت."
-      : "No connection. Browsing and search still work — sending on WhatsApp needs the network."}</span>
+      ? `ما في اتصال. ${when ? `هذه بيانات محفوظة من <span dir="ltr" class="num">${when}</span> — التوفّر ممكن يكون تغيّر. ` : ""}التصفّح والاتصال الهاتفي شغّالين — بس الإرسال عبر واتساب يحتاج إنترنت.`
+      : `No connection. ${when ? `This is saved data from <span dir="ltr" class="num">${when}</span> — stock may have changed. ` : ""}Browsing and phone calls still work — WhatsApp needs the network.`}</span>
     <button onclick="render()">${isAR() ? "أعد المحاولة" : "Retry"}</button></div>`;
 }
 
@@ -802,6 +812,101 @@ function qrContext() {
   return `<div class="qr-ctx fade">${icon("qr")}
     <span>${isAR() ? "دخلت من" : "Scanned at"} ${esc(src.label_ar)}</span>
     <button onclick="S.qrSource=null;render()" aria-label="${t("cancel")}">${icon("close")}</button></div>`;
+}
+
+/* ---------------- QR ENTRY ----------------
+   Someone scans a poster at a pharmacy counter. They are standing up, probably
+   holding a prescription, and they did not come here to be onboarded. So this
+   is one question with three answers, every count computed live, and a skip
+   that is always the first thing reachable. It is not a carousel: there is no
+   second slide, and answering is optional — the district is already filled in
+   from the poster, so leaving does not cost them anything.
+------------------------------------------------------------- */
+const qrSeen = () => LS.get("startSeen", []);
+
+function markStartSeen(src) {
+  const seen = qrSeen();
+  if (src && !seen.includes(src)) LS.set("startSeen", [src, ...seen].slice(0, 12));
+}
+
+function skipStart() {
+  markStartSeen(S.qrSource);
+  location.hash = "#/";
+}
+
+function startTo(hash) {
+  markStartSeen(S.qrSource);
+  location.hash = hash;
+}
+
+function screenStart() {
+  const src = QR_SOURCES[S.qrSource];
+  const f = src ? fac(S.qrSource) : null;
+  const dist = DISTRICTS.find((d) => d.id === (src ? src.district : S.district));
+
+  /* Every number here is counted at render time. A poster that promises "96
+     pharmacies" and shows a stale figure is worse than showing nothing. */
+  const openPh = FACILITIES.filter((x) => x.type === "pharmacy" && status(x).k !== "shut").length;
+  const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
+  const verifiedDocs = DOCTORS.filter((d) => d.verified).length;
+
+  const tile = (href, title, sub, badge, badgeCls, rail) => `
+    <button class="surf-raise cham ${rail} pad-4 start-tile" onclick="startTo('${href}')">
+      <div class="row-b" style="gap:12px">
+        <span class="grow" style="text-align:start">
+          <span class="q-h2">${title}</span>
+          <span class="q-sub" style="display:block">${sub}</span></span>
+        <span class="bdg ${badgeCls}">${badge}</span>
+      </div></button>`;
+
+  return `
+  <div class="start-bar">
+    <a class="brand" href="#/" onclick="skipStart()">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+    <button class="btn btn--3 btn--sm" onclick="skipStart()">${isAR() ? "تخطَّ" : "Skip"}${icon("close")}</button>
+  </div>
+  <section class="wrap" style="padding-top:6px">
+    ${f ? `<div class="surf-sunk pad-3 row" style="gap:10px">
+      <span class="qc-av qc-av-ph" style="width:34px;height:34px;font-size:13px">${esc(initial(L(f)))}</span>
+      <span style="font-size:12.5px;line-height:1.6">${isAR() ? "مسحت الملصق في" : "Scanned at"} <b>${esc(L(f))}</b><br>
+        <span class="muted">${dist ? esc(L(dist)) + (isAR() ? (dist.lm_ar ? " — " + esc(dist.lm_ar) : "") : (dist.lm_en ? " — " + esc(dist.lm_en) : "")) : ""}</span></span>
+    </div>` : ""}
+
+    <div style="margin-top:20px">
+      <h1 class="q-h1">${isAR() ? "شنو تحتاج هالوكت؟" : "What do you need right now?"}</h1>
+      <div class="q-sub" style="margin-top:2px">${isAR()
+        ? "اختر واحداً — تكدر تغيّره بأي وقت." : "Pick one — you can change it any time."}</div>
+    </div>
+
+    <div class="stack-2" style="margin-top:14px">
+      ${tile("#/search", isAR() ? "دوا معيّن" : "A specific medicine",
+        isAR() ? "منو عنده الدوا هسّه — مؤكَّد بالساعة" : "Who has it now — confirmed by the hour",
+        `<span class="num">${freshMeds}</span> ${isAR() ? "دواء مؤكَّد" : "confirmed"}`, "bdg-stock", "rail-stock")}
+      ${tile("#/pharmacies", isAR() ? "صيدلية مفتوحة" : "An open pharmacy",
+        isAR() ? "المفتوح الآن والخفارة الليلية" : "Open now and night duty",
+        `<span class="num">${openPh}</span> ${isAR() ? "مفتوحة" : "open"}`, "bdg-t", "rail-open")}
+      ${tile("#/needs", isAR() ? "دكتور" : "A doctor",
+        isAR() ? "مرتّب حسب أقرب موعد، لا أقرب مسافة" : "Ranked by soonest slot, not nearest address",
+        `<span class="num">${verifiedDocs}</span> ${t("verified")}`, "bdg-v", "")}
+    </div>
+
+    <div class="surf-flat pad-3 row-b" style="margin-top:16px;gap:10px">
+      <span style="font-size:12.5px">${isAR() ? "منطقتك" : "Your area"}: <b>${dist ? esc(L(dist)) : ""}</b>
+        <span class="muted">${src ? (isAR() ? "— من الملصق" : "— from the poster") : ""}</span></span>
+      <button class="btn btn--3 btn--sm" onclick="openLocation()">${isAR() ? "تغيير" : "Change"}</button>
+    </div>
+
+    <div class="q-sub" style="margin-top:14px;text-align:center;font-size:11px">${isAR()
+      ? "بلا حساب · بلا تسجيل · ما نحفظ شي عن صحتك"
+      : "No account · no sign-up · nothing about your health is stored"}</div>
+
+    <a class="note note-e row-b" style="margin-top:14px;gap:10px" href="tel:${CONFIG.emergency.ambulance}">
+      <span><b>${isAR() ? "طوارئ؟" : "Emergency?"}</b> ${isAR() ? "اتصل بالإسعاف" : "Call the ambulance"}</span>
+      <b class="num">${CONFIG.emergency.ambulance}</b></a>
+    <p class="tiny muted" style="margin-top:8px;text-align:center">${isAR()
+      ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه."
+      : "Verify the local ambulance number before relying on it."}</p>
+  </section>
+  <div style="height:26px"></div>`;
 }
 
 function screenNeeds() {
@@ -1234,10 +1339,10 @@ function searchResults(q) {
   if (none) {
     const guess = findSpecByQuery(q);
     return `<div class="empty">
-      <div class="empty-mark">${icon("search")}</div>
-      <h3>${isAR() ? `ما لگينا «${esc(q)}» بعد` : `Nothing for "${esc(q)}" yet`}</h3>
-      <p>${isAR() ? "سجّلنا بحثك — نضيف الناقص أسبوعياً. جرّب وحدة من هذي:"
-                  : "We logged it — we add what's missing weekly. Try one of these:"}</p>
+      ${emptyGlyph()}
+      <div class="empty-t">${isAR() ? `ما لگينا «${esc(q)}» بعد` : `Nothing for "${esc(q)}" yet`}</div>
+      <div class="empty-b">${isAR() ? "سجّلنا بحثك — نضيف الناقص أسبوعياً. جرّب وحدة من هذي:"
+                  : "We logged it — we add what's missing weekly. Try one of these:"}</div>
       <div class="empty-alts stack">
         ${guess ? `<button class="lane" onclick="pickNeed('${guess.id}')"><span class="ic">${icon("stetho")}</span>
           <span class="grow" style="text-align:start"><h3>${esc(L(guess))}</h3>
@@ -1376,6 +1481,26 @@ function screenTrust() {
       <a class="btn btn--3" href="#/me">${icon("user")}${t("myRequests")}</a>
       <a class="btn btn--3" href="#/admin">${icon("grid")}${isAR() ? "لوحة التحكم" : "Admin"}</a>
     </div>
+  </section>${nav("home")}`;
+}
+
+/* The failure the user actually hits is not a 404 — it is a route that throws.
+   Before this, render() left the previous screen on the glass, so a tap simply
+   appeared to do nothing, which reads as "this app is broken" with no way out.
+   State it, take the blame, and always leave two doors open. */
+function screenError(err) {
+  return `${header({ back: true, title: "" })}
+  <section class="wrap" style="padding-top:22px">
+    <div class="surf-flat pad-3">
+      <div class="row-b" style="gap:12px;align-items:flex-start">
+        <span style="font-size:12.5px;line-height:1.7">${isAR()
+          ? "ما كدرنا نجيب النتائج.<br><span class=\"muted\">الخلل عدنا، مو عندك.</span>"
+          : "We couldn't load that.<br><span class=\"muted\">That's on us, not on you.</span>"}</span>
+        <button class="btn btn--2 btn--sm" onclick="render()">${icon("refresh")}${isAR() ? "إعادة المحاولة" : "Retry"}</button>
+      </div>
+    </div>
+    <a class="btn btn--3" style="margin-top:12px" href="#/">${icon("home")}${isAR() ? "الرئيسية" : "Home"}</a>
+    ${err && CONFIG.debug ? `<pre class="tiny muted" dir="ltr" style="margin-top:14px;white-space:pre-wrap">${esc(String(err && err.stack || err))}</pre>` : ""}
   </section>${nav("home")}`;
 }
 
@@ -2036,6 +2161,12 @@ function screenMed(id) {
   const fresh = confirmed.filter((x) => x.band !== "cold");
   const stale = confirmed.filter((x) => x.band === "cold");
   const rest = [...fresh.slice(1), ...stale];
+  /* "Nothing near you" is a real answer and has to be said out loud. Without
+     it the hero silently shows a pharmacy six districts away and the user has
+     to work out for themselves that their own area came up empty. */
+  const hereId = S.district;
+  const elsewhere = fresh.length && !fresh.some((x) => x.f.district === hereId)
+    ? DISTRICTS.find((d) => d.id === hereId) : null;
   const sub = (med.subs || []).map(medById).filter(Boolean)
     .map((sm) => ({ sm, best: pharmaciesForMed(sm).confirmed[0] })).filter((x) => x.best)[0];
 
@@ -2094,6 +2225,12 @@ function screenMed(id) {
       ${watchBtn}
     </div>
   </section>
+
+  ${elsewhere ? `<section class="wrap" style="margin-top:14px">
+    <div class="note note-i">${isAR()
+      ? `ما لكيناه مؤكَّداً في <b>${esc(L(elsewhere))}</b> — أقرب تأكيد في <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>، <span class="num">${fmtKm(fresh[0].km)}</span>.`
+      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — the nearest confirmation is in <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, <span class="num">${fmtKm(fresh[0].km)}</span> away.`}</div>
+  </section>` : ""}
 
   <section class="wrap" style="margin-top:14px">${hero}</section>
 
@@ -2483,6 +2620,7 @@ function route() {
     case "hospital": return screenHospital(p[1]);
     case "care": return screenCare(p[1]);
     case "product": return screenProduct(p[1]);
+    case "start": return screenStart();
     case "med": return screenMed(p[1]);
     case "partner": return p[1] === "doctor" ? screenPartnerDoctor(p[2]) : screenPartner(p[1]);
     case "search": return screenSearch();
@@ -2496,13 +2634,47 @@ function route() {
 let firstPaint = true;
 function render() {
   const el = app();
-  if (firstPaint) { el.innerHTML = skeletonHome(); firstPaint = false; setTimeout(paint, 260); return; }
+  if (firstPaint) { el.innerHTML = skeletonFor(); firstPaint = false; setTimeout(paint, 260); return; }
   paint();
   function paint() {
-    el.innerHTML = route();
+    let html;
+    try {
+      html = route();
+      if (navigator.onLine !== false) LS.set("lastOnline", Date.now());
+    } catch (e) {
+      console.error(e);
+      try { html = screenError(e); } catch { html = ""; }
+    }
+    el.innerHTML = html;
     el.classList.remove("page-in"); void el.offsetWidth; el.classList.add("page-in");
     document.title = `${L(CONFIG.brand)} — ${isAR() ? "أقرب رعاية إليك" : "The nearest care to you"}`;
   }
+}
+
+/* A deep link to /med/m1 used to flash the home skeleton, so the first thing a
+   scanned poster showed was the shape of a screen it was not going to render.
+   Match the placeholder to the destination. */
+function skeletonFor() {
+  const seg = (location.hash.replace(/^#\/?/, "").split("?")[0].split("/")[0]) || "";
+  if (["med", "doctor", "pharmacy", "hospital", "product", "partner"].includes(seg)) return skeletonDetail();
+  if (["doctors", "pharmacies", "hospitals", "care", "needs", "search"].includes(seg)) return skeletonList();
+  return skeletonHome();
+}
+
+function skeletonDetail() {
+  return `${header({ back: true, title: "" })}<section class="wrap" style="padding-top:16px">
+    <div class="skel skel-l" style="width:72%;height:26px"></div>
+    <div class="skel skel-l" style="width:44%;height:15px;margin-top:10px"></div>
+    <div class="skel" style="height:150px;margin-top:18px"></div>
+    <div class="stack-2" style="margin-top:12px">${[1, 2].map(() => `<div class="skel" style="height:86px"></div>`).join("")}</div>
+  </section>`;
+}
+
+function skeletonList() {
+  return `${header({ back: true, title: "" })}<section class="wrap" style="padding-top:16px">
+    <div class="skel skel-l" style="width:56%;height:20px"></div>
+    <div class="stack-2" style="margin-top:14px">${[1, 2, 3, 4].map(() => `<div class="skel" style="height:86px"></div>`).join("")}</div>
+  </section>`;
 }
 
 function skeletonHome() {
@@ -2521,7 +2693,14 @@ function boot() {
   document.documentElement.dir = isAR() ? "rtl" : "ltr";
   if (S.theme) document.documentElement.dataset.theme = S.theme;   // otherwise let the host decide
   const qp = new URLSearchParams(location.search);
-  if (qp.get("qr")) { S.qrSource = qp.get("qr"); const src = QR_SOURCES[S.qrSource]; if (src && S.locState === "inferred") { S.district = src.district; LS.set("district", src.district); } }
+  if (qp.get("qr")) {
+    S.qrSource = qp.get("qr");
+    const src = QR_SOURCES[S.qrSource];
+    if (src && S.locState === "inferred") { S.district = src.district; LS.set("district", src.district); }
+    /* First scan of this poster gets the question. Every scan after it goes
+       straight where they were already going — asking twice is a toll. */
+    if (src && !qrSeen().includes(S.qrSource) && !location.hash.slice(2)) location.hash = "#/start";
+  }
   addEventListener("online", () => render());
   addEventListener("offline", () => render());
   addEventListener("hashchange", () => { closeSheet(true); render(); scrollTo(0, 0); });

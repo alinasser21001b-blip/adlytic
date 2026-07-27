@@ -1382,3 +1382,22 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
    Defined here (not in the board layer) so a v3 board drops in clean.
    ============================================================ */
 .kpi-d-warn { color: var(--amber-ink); font-weight: 600; font-size: var(--t-1); }
+
+/* ============================================================
+   44 · QR ENTRY
+   A poster scan is a standing-up, one-handed moment. The bar carries the
+   brand and, more importantly, an always-reachable skip: the screen asks
+   one question and never insists on an answer. Tiles are buttons, so they
+   need the block layout and the 48px floor that .btn would otherwise give.
+   ============================================================ */
+.start-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-top)) 18px;
+}
+.start-bar .brand { font-size: 17px; }
+.start-tile { display: block; width: 100%; text-align: start; min-height: 48px; cursor: pointer; }
+.start-tile .q-h2 { display: block; }
+/* The ambulance link is a tel: on a note, so it inherits note padding rather
+   than button metrics. It is the single control on this screen that must never
+   be hard to hit — hold it to the 48px floor explicitly. */
+.start-bar + .wrap a.note { min-height: 48px; }

@@ -10,6 +10,9 @@ const CONFIG = {
   city: { ar: "بغداد", en: "Baghdad" },
   currency: { ar: "د.ع", en: "IQD" },
   emergency: { ambulance: "122", note_ar: "تأكد من الرقم قبل الإطلاق", note_en: "Verify before launch" },
+  /* Show a stack trace on the error screen only when explicitly enabled.
+     A user never needs it; whoever is debugging a poster in the field does. */
+  debug: false,
   defaultDistrict: "karrada",
   radiusKm: 5,
   radiusSteps: [5, 10, 25],
