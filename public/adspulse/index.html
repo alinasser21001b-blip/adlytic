@@ -591,8 +591,23 @@ select.ap-input{ background:var(--ground); }
 }
 html[data-motion="reduced"] [data-reveal]{ opacity:1 !important; transform:none !important; }
 
-/* below-the-fold sections are skipped during layout until they approach */
+/* Below-the-fold sections skip rendering work until they approach.
+   `contain-intrinsic-size: auto` makes the browser remember each section's real
+   height once it has been laid out — which is what keeps the page height, and
+   therefore every anchor target, honest. Until that first layout the 900px
+   placeholder is only a guess, and these sections run 1500–3000px tall, so the
+   runtime forces one settling pass (see settleLayout) rather than letting a nav
+   jump aim at a document that is still thousands of pixels short. */
 .ap-sec[data-defer]{ content-visibility:auto; contain-intrinsic-size:auto 900px; }
+/* Dropped for good the first time the visitor navigates by link. Skipping
+   layout is only safe while nobody is asking to be taken to an exact place:
+   the 900px placeholder is a guess against sections that run to 3000px on a
+   phone, so the document keeps growing and every computed target drifts.
+   Load keeps the optimisation; navigation gets an honest page height. */
+html[data-nodefer="1"] .ap-sec[data-defer]{
+  content-visibility:visible; contain-intrinsic-size:auto;
+}
+
 </style>
 <style id="ap-chrome">
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1767,11 +1782,29 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
 .ap-plan-price{ display:grid; gap:var(--sp-2); padding-block:var(--sp-4);
   border-block:var(--rule-w) solid currentColor; }
 .ap-plan-price .ap-num{ font-size:clamp(24px,3vw,36px); }
+.ap-plan-worded{
+  font-family:var(--f-display); font-weight:700; line-height:1.05;
+  font-size:clamp(22px,2.7vw,32px); letter-spacing:-0.01em;
+}
 .ap-plan-list{ display:grid; gap:var(--sp-3); }
 .ap-plan-list li{ display:flex; gap:var(--sp-3); align-items:flex-start;
   font-size:var(--t--1); font-weight:600; line-height:1.7; }
 .ap-plan-list li::before{ content:""; width:10px; height:2px; background:currentColor;
   margin-top:11px; flex:none; }
+/* an inherited line is real value, so it is never dimmed into a footnote —
+   it just says where it came from */
+.ap-plan-list li[data-carried]::before{ opacity:0.45; }
+.ap-plan-from{
+  display:inline-block; margin-inline-start:var(--sp-2); padding:0 5px;
+  font-size:10px; font-weight:600; font-style:normal; white-space:nowrap;
+  border:1px solid currentColor; opacity:0.55; vertical-align:2px;
+}
+/* Arabic prose, so it takes the body face at its natural tracking — the mono
+   face carries no Arabic glyphs and the 0.1em tracking pulls the joins apart */
+.ap-plan-carry{
+  font-family:var(--f-body); font-size:12px; font-weight:600; letter-spacing:0;
+  opacity:0.6; padding-top:var(--sp-3); border-top:1px solid currentColor;
+}
 .ap-plan .btn{ margin-top:auto; }
 .ap-plan[data-feature="1"] .btn-primary{ --btn-bg:var(--ground); --btn-fg:var(--ink); }
 .ap-plan[data-feature="1"] .btn-primary::after{ background:var(--ground); }
@@ -2605,7 +2638,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
               </div>
               <div class="ap-spec-row">
                 <span class="meta" data-spec="m">—</span>
-                <div class="ap-spec-m">READING 04 · PEAK WINDOW 21:00 → 23:00 · IQD 1,250,000</div>
+                <div class="ap-spec-m">READING 04 · PEAK WINDOW 21:00 → 23:00 · IQD 1,115,000</div>
               </div>
               <div class="ap-spec-row" style="border-bottom:0">
                 <span class="meta">TABULAR</span>
@@ -2768,7 +2801,7 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
                 </div>
                 <div class="field" data-valid="">
                   <span class="ap-mono">SPEND · الصرف الشهري (IQD)</span>
-                  <input class="ap-input" type="text" inputmode="numeric" placeholder="1,250,000"
+                  <input class="ap-input" type="text" inputmode="numeric" placeholder="1,115,000"
                          data-validate="number" aria-describedby="demoNumMsg">
                   <span class="field-msg" id="demoNumMsg"></span>
                 </div>
@@ -3691,18 +3724,18 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
         <h2 class="ap-h2" data-reveal style="--rd:1">ثلاث طرق للعمل معنا.</h2>
       </div>
       <div data-reveal style="--rd:2;display:grid;gap:var(--sp-3)">
-        <div class="seg" role="group" aria-label="مدّة الالتزام" id="planTerm">
-          <button class="seg-btn" type="button" data-term="month" aria-pressed="true">شهري</button>
-          <button class="seg-btn" type="button" data-term="quarter" aria-pressed="false">ربع سنوي −12%</button>
+        <div class="seg seg--rtl" role="group" aria-label="طريقة عرض المزايا" id="planScope">
+          <button class="seg-btn" type="button" data-scope="all" aria-pressed="true">كل ما تشمله</button>
+          <button class="seg-btn" type="button" data-scope="new" aria-pressed="false">الجديد فقط</button>
         </div>
-        <span class="ap-hint">SWITCH TERM</span>
+        <span class="ap-hint">COMPARE TIERS</span>
       </div>
     </div>
 
     <div class="ap-grid ap-grid--3" id="planGrid" data-reveal></div>
 
     <p class="ap-mono" data-reveal style="margin-top:var(--sp-6);color:var(--ink-42);letter-spacing:0.06em">
-      PRICES IN IQD · STARTING RATES · SCOPE-BASED QUOTE AFTER THE FIRST READING
+      PRICES IN IQD · LAUNCH IS ONE-OFF · INDEX IS MONTHLY · GROWTH PARTNER IS SCOPED
     </p>
   </div>
 </section>
@@ -4325,20 +4358,40 @@ function buildSparks() {
     svg.innerHTML = '<path class="area" d="' + p[1] + '"/><path d="' + p[0] + '"/>';
   });
 }
-var revealIO;
+var revealIO, pendingReveals = [];
+function markRevealed(el) {
+  el.classList.add('is-in');
+  $$('[data-count]', el).forEach(runCount);
+  if (revealIO) revealIO.unobserve(el);
+}
 if ('IntersectionObserver' in window) {
   revealIO = new IntersectionObserver(function (entries) {
-    entries.forEach(function (en) {
-      if (!en.isIntersecting) return;
-      en.target.classList.add('is-in');
-      $$('[data-count]', en.target).forEach(runCount);
-      revealIO.unobserve(en.target);
-    });
+    entries.forEach(function (en) { if (en.isIntersecting) markRevealed(en.target); });
   }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
 }
 function observeReveals() {
   if (!revealIO) { $$('[data-reveal]').forEach(function (e) { e.classList.add('is-in'); }); return; }
   $$('[data-reveal]').forEach(function (e) { if (!e.dataset.obs) { e.dataset.obs = '1'; revealIO.observe(e); } });
+  pendingReveals = $$('[data-reveal]').filter(function (e) { return !e.classList.contains('is-in'); });
+}
+/* Safety net for the deferred sections.
+   `content-visibility: auto` strips layout boxes off-screen, so a target
+   inside a skipped subtree reports zero area and never satisfies the
+   observer's threshold. Jump straight to a section — a nav link, the header
+   CTA, the command palette — and the browser renders it without any further
+   scrolling, so the observer is never re-consulted and the content stays at
+   opacity 0. This sweep re-checks whatever is still hidden and reveals
+   anything that now has a box inside the viewport. The list only shrinks,
+   so it costs nothing once the page has been read through. */
+function revealCatchUp() {
+  if (!pendingReveals.length) return;
+  var vh = window.innerHeight || 800;
+  pendingReveals = pendingReveals.filter(function (el) {
+    if (el.classList.contains('is-in')) return false;
+    var r = el.getBoundingClientRect();
+    if (r.height > 0 && r.top < vh * 0.94) { markRevealed(el); return false; }
+    return true;
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4410,6 +4463,7 @@ var onScroll = raf(function () {
     tickerEl.style.setProperty('--tick-rate', tickRate.toFixed(2));
   }
   lastY = y;
+  revealCatchUp();
   methodRail();
   scrollLabTiles();
 });
@@ -4430,7 +4484,59 @@ function methodRail() {
   rail.style.transform = 'scaleX(' + seen.toFixed(3) + ')';
 }
 
-/* ── smooth anchor handling that also closes overlays ───────────────────── */
+/* ── navigating to a section ─────────────────────────────────────────────────
+   `content-visibility: auto` means the sections below the viewport have not
+   been laid out yet, so the document is thousands of pixels shorter than it
+   will be. A single scrollIntoView therefore aims at a position that stops
+   being correct the moment the sections in between render — the visitor ends
+   up nowhere near what they clicked.
+
+   So the scroll re-aims: each pass measures again against the layout as it now
+   stands and corrects, until two passes agree. It converges in two or three
+   because every pass renders more of the page. Any real input from the visitor
+   abandons the correction immediately — nothing is worse than a page that
+   fights your scroll wheel. */
+var deferDropped = false;
+function dropDefer() {
+  if (deferDropped) return;
+  deferDropped = true;
+  root.setAttribute('data-nodefer', '1');
+  void document.body.offsetHeight;     /* lay it all out before we take aim */
+  revealCatchUp();
+}
+function scrollToEl(target) {
+  if (!target) return;
+  dropDefer();
+  var smooth = !motionOff(), tries = 0, timer = 0, aborted = false;
+  function abort() { aborted = true; clearTimeout(timer); }
+  window.addEventListener('wheel', abort, { once: true, passive: true });
+  window.addEventListener('touchstart', abort, { once: true, passive: true });
+  /* the target has arrived when its top sits at its own scroll-margin, which
+     is what block:'start' aims for; anything else means the layout moved
+     underneath us and the aim needs repeating. On a narrow viewport the page
+     is several times taller, so the budget has to cover more corrections. */
+  var margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+  function arrived() { return Math.abs(target.getBoundingClientRect().top - margin) <= 4; }
+  function pass() {
+    if (aborted) return;
+    target.scrollIntoView({ behavior: (smooth && tries === 0) ? 'smooth' : 'auto', block: 'start' });
+    tries++;
+    timer = setTimeout(function () {
+      if (aborted) return;
+      revealCatchUp();
+      if (tries < 16 && !arrived()) return pass();
+      window.removeEventListener('wheel', abort);
+      window.removeEventListener('touchstart', abort);
+      /* hand keyboard focus to the section that was asked for, rather than
+         leaving it on the link (or the burger, once the drawer has closed) */
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      try { target.focus({ preventScroll: true }); } catch (err) { }
+    }, tries === 1 ? 560 : 110);
+  }
+  pass();
+}
+window.__apScrollTo = scrollToEl;
+
 on(document, 'click', function (e) {
   var a = e.target.closest && e.target.closest('a[href^="#"]');
   if (!a) return;
@@ -4440,7 +4546,7 @@ on(document, 'click', function (e) {
   if (!target) return;
   e.preventDefault();
   closeDrawer(); closeCmd(); closeHelp();
-  target.scrollIntoView({ behavior: motionOff() ? 'auto' : 'smooth', block: 'start' });
+  scrollToEl(target);
   if (history.replaceState) history.replaceState(null, '', '#' + id);
 });
 
@@ -4653,7 +4759,7 @@ function buildCmd() {
   cmdItems = [];
   RAILED.forEach(function (s, i) {
     cmdItems.push({ k: pad2(i + 1), t: 'انتقل إلى ' + navLabel(s.id), s: s.getAttribute('data-rail'),
-      run: function () { document.getElementById(s.id).scrollIntoView({ behavior: motionOff() ? 'auto' : 'smooth' }); } });
+      run: function () { scrollToEl(document.getElementById(s.id)); } });
   });
   PALETTES.forEach(function (p) {
     cmdItems.push({ k: 'PAL', t: 'لوحة ' + p.ar, s: p.name + ' PALETTE',
@@ -4676,7 +4782,7 @@ function buildCmd() {
   cmdItems.push({ k: 'SYS', t: 'افتح لوحة النظام', s: 'SYSTEM PANEL', run: openHud });
   cmdItems.push({ k: '?', t: 'خريطة لوحة المفاتيح', s: 'SHORTCUTS', run: openHelp });
   cmdItems.push({ k: 'ACT', t: 'اطلب قراءة', s: 'REQUEST A READING',
-    run: function () { $('#contact').scrollIntoView({ behavior: motionOff() ? 'auto' : 'smooth' }); } });
+    run: function () { scrollToEl($('#contact')); } });
 }
 function renderCmd() {
   if (!cmdList) return;
@@ -4786,11 +4892,11 @@ on(document, 'keydown', function (e) {
   else if (k === 'j' || k === 'l') {
     var dir = k === 'l' ? 1 : -1;
     var i = clamp(currentSectionIdx + dir, 0, SECTIONS.length - 1);
-    SECTIONS[i].scrollIntoView({ behavior: motionOff() ? 'auto' : 'smooth', block: 'start' });
+    scrollToEl(SECTIONS[i]);
   }
   else if (/^[1-9]$/.test(e.key)) {
     var s = RAILED[+e.key - 1];
-    if (s) s.scrollIntoView({ behavior: motionOff() ? 'auto' : 'smooth', block: 'start' });
+    scrollToEl(s);
   }
 });
 
@@ -4910,6 +5016,20 @@ observeReveals();
 onScroll();
 paintReport();
 firstVisit();
+/* a deep link lands mid-page before anything below has been laid out, so it
+   needs the same re-aiming a click gets */
+on(window, 'load', function () {
+  setTimeout(revealCatchUp, 200);
+  if (location.hash) {
+    var t = document.getElementById(location.hash.slice(1));
+    if (t) scrollToEl(t);
+  }
+});
+on(window, 'hashchange', function () {
+  var t = document.getElementById(location.hash.slice(1));
+  if (t) scrollToEl(t);
+});
+setTimeout(revealCatchUp, 1200);
 
 window.__AP.boot = function () {
   observeReveals();
@@ -5548,50 +5668,80 @@ function buildMethod() {
   }).join('');
 }
 
+/* Each tier's `from` marks an item inherited wholesale from the tier below —
+   the Index subscription genuinely contains Launch, so the page can show that
+   relationship instead of restating the same four lines as if they were new. */
 var PLANS = [
-  { name: 'قراءة واحدة', en: 'ONE READING', who: 'لمن يريد رأياً مقاساً قبل أي التزام طويل.',
-    month: 750000, unit: 'IQD · ONE-OFF', once: true, feature: false,
-    items: ['تدقيق حساب وحملات', 'بطاقة قراءة برقم وحكم', 'ثلاث توصيات مرتّبة', 'مكالمة تسليم ٤٥ دقيقة'],
-    cta: 'اطلب قراءة واحدة' },
-  { name: 'اشتراك المؤشر', en: 'INDEX SUBSCRIPTION', who: 'الأكثر اختياراً — قراءة شهرية وكرييتف ونشر منتظم.',
-    month: 1250000, unit: 'IQD / MONTH', feature: true,
-    items: ['قراءة شهرية جديدة', 'سلسلة «قراءات»: ٩ بطاقات + ريل', 'إدارة حملة واحدة', 'لوحة قياس ومراجعة أسبوعية'],
+  { name: 'الإطلاق', en: 'LAUNCH', who: 'لمن يريد أن يبيع أونلاين بجدّية من الشهر الأول.',
+    price: 750000, unit: 'IQD · ONE-OFF', feature: false,
+    items: [
+      { t: 'موقع إلكتروني يستوعب أكثر من ٣٠٠ آيتم' },
+      { t: 'حساب مالك داخل الموقع: إضافة الآيتمات وحذفها وتعديلها' },
+      { t: 'إدارة الخصومات والعروض من اللوحة نفسها' },
+      { t: 'تنظيم المخزون وترتيبه' },
+      { t: 'أربع حملات إعلانية' }
+    ],
+    cta: 'ابدأ الإطلاق' },
+  { name: 'اشتراك المؤشر', en: 'INDEX SUBSCRIPTION', who: 'الأكثر اختياراً — قرار شهري وقاعدة بيانات تربط كل حساباتك.',
+    price: 1115000, unit: 'IQD / MONTH', feature: true,
+    items: [
+      { t: 'قرار شهري على مدى أربعين يوماً' },
+      { t: 'قاعدة بيانات للمخزون والتفاعلات' },
+      { t: 'ربطها بجميع حسابات العميل' },
+      { t: 'أربع حملات إعلانية' },
+      { t: 'موقع إلكتروني يستوعب أكثر من ٣٠٠ آيتم', from: 'الإطلاق' },
+      { t: 'حساب مالك داخل الموقع: إضافة الآيتمات وحذفها وتعديلها', from: 'الإطلاق' },
+      { t: 'إدارة الخصومات والعروض من اللوحة نفسها', from: 'الإطلاق' },
+      { t: 'تنظيم المخزون وترتيبه', from: 'الإطلاق' }
+    ],
     cta: 'ابدأ الاشتراك' },
-  { name: 'شريك النمو', en: 'GROWTH PARTNER', who: 'تشغيل كامل للوسائط والمحتوى مع مسؤولية على الرقم.',
-    month: null, unit: 'SCOPE-BASED', feature: false,
-    items: ['كل ما في الاشتراك', 'شراء وسائط كامل متعدد المنصات', 'إنتاج كرييتف مستمر', 'مراجعة إدارية شهرية'],
+  { name: 'شريك النمو', en: 'GROWTH PARTNER', who: 'نطاق يُفصَّل على طلبك، وتسعير يُبنى عليه.',
+    price: null, unit: 'SCOPE-BASED', feature: false,
+    items: [
+      { t: 'النطاق يُبنى على طلبك، لا على قائمة جاهزة' },
+      { t: 'عدد الحملات والمنصّات حسب الاتفاق' },
+      { t: 'تسعير مخصّص بعد جلسة تحديد النطاق' },
+      { t: 'كل ما في اشتراك المؤشر', from: 'المؤشر' }
+    ],
     cta: 'اطلب عرضاً' }
 ];
-var planTerm = 'month';
+/* 'all' by default: a pricing card should lead with everything it buys. */
+var planScope = 'all';
 function buildPlans() {
   var w = $('#planGrid'); if (!w) return;
   w.innerHTML = PLANS.map(function (p) {
-    var price, unit;
-    if (p.month === null) { price = 'حسب النطاق'; unit = p.unit; }
-    else if (p.once) { price = fmt(p.month); unit = p.unit; }
-    else if (planTerm === 'quarter') { price = fmt(Math.round(p.month * 0.88)); unit = 'IQD / MONTH · BILLED QUARTERLY'; }
-    else { price = fmt(p.month); unit = p.unit; }
+    /* a worded price is Arabic prose, not a figure — the tabular mono face
+       and its negative tracking are for numerals only */
+    var price = p.price === null
+      ? '<span class="ap-plan-worded">حسب النطاق</span>'
+      : '<span class="ap-num">' + fmt(p.price) + '</span>';
+    var shown = p.items.filter(function (it) { return planScope === 'all' || !it.from; });
+    var carried = p.items.length - shown.length;
     return '<div class="ap-plan" data-feature="' + (p.feature ? 1 : 0) + '">' +
       (p.feature ? '<span class="tag tag--solid" style="position:absolute;top:0;inset-inline-start:0;background:var(--ground);color:var(--ink);border-color:var(--ground)">MOST CHOSEN</span>' : '') +
       '<div class="u-between" style="align-items:baseline">' +
       '<span style="font-size:var(--t-h3);font-weight:700">' + p.name + '</span>' +
       '<span class="ap-mono">' + p.en + '</span></div>' +
       '<p style="font-size:var(--t--1);font-weight:600;line-height:1.7;opacity:0.75">' + p.who + '</p>' +
-      '<div class="ap-plan-price"><span class="ap-num">' + price + '</span>' +
-      '<span class="ap-mono" style="opacity:0.65">' + unit + '</span></div>' +
-      '<ul class="ap-plan-list">' + p.items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</ul>' +
+      '<div class="ap-plan-price">' + price +
+      '<span class="ap-mono" style="opacity:0.65">' + p.unit + '</span></div>' +
+      '<ul class="ap-plan-list">' + shown.map(function (it) {
+        return '<li' + (it.from ? ' data-carried="1"' : '') + '><span>' + it.t +
+          (it.from ? '<i class="ap-plan-from">من ' + it.from + '</i>' : '') + '</span></li>';
+      }).join('') + '</ul>' +
+      (carried ? '<span class="ap-plan-carry">+ ' + carried + ' من مزايا الحزمة الأدنى، مشمولة</span>' : '') +
       '<a class="btn ' + (p.feature ? 'btn-primary' : 'btn-secondary') + '" href="#contact"><span>' + p.cta + '</span></a>' +
       '</div>';
   }).join('');
 }
-$$('#planTerm .seg-btn').forEach(function (b) {
+$$('#planScope .seg-btn').forEach(function (b) {
   on(b, 'click', function () {
-    planTerm = b.getAttribute('data-term');
-    $$('#planTerm .seg-btn').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    planScope = b.getAttribute('data-scope');
+    $$('#planScope .seg-btn').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
     buildPlans();
-    toast('PRICING', planTerm === 'quarter'
-      ? 'الالتزام الربع سنوي يخفّض السعر ١٢٪ — والبطاقة تعيد حساب نفسها.'
-      : 'رجعنا إلى التسعير الشهري.');
+    toast('PACKAGES', planScope === 'new'
+      ? 'الآن ترى ما تضيفه كل حزمة فوق التي قبلها فقط — الفرق الحقيقي بين المستويات.'
+      : 'كل حزمة تعرض ما تشمله كاملاً، بما فيه ما ورثته عن الحزمة الأدنى.');
   });
 });
 
