@@ -775,6 +775,53 @@ input, textarea { min-height: 44px; }
 .ops-bar { position: relative; height: 3px; background: var(--dial-line); border-radius: var(--rp); display: block; }
 .ops-bar > i { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; border-radius: var(--rp); }
 
+/* ---------- 27 · the 3-second response ----------
+   A pharmacist has one hand free and about three seconds. These are the only
+   controls in the product allowed to be this loud, because the alternative is
+   that nobody answers and the supply network has no supply. 60px tall — well
+   past the 44px floor — and unequal by design: you cannot fat-finger "we have
+   it" while meaning "we don't", because they are different colours, different
+   words, and at opposite ends of the row. */
+.qa { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
+.qa-acts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u2); margin-top: var(--u4); }
+.qa-b {
+  min-height: 60px; border-radius: var(--r); border: 1px solid transparent;
+  font: 500 14.5px/1.3 var(--disp); padding: 0 var(--u3);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  transition: transform .12s cubic-bezier(.2,.7,.3,1), background .14s ease;
+}
+.qa-b:active { transform: scale(.97); }
+.qa-yes { grid-column: 1 / -1; background: var(--jade); color: var(--dial-2); font-weight: 600; font-size: 16px; }
+.qa-one { background: transparent; border-color: var(--brass-ink); color: var(--brass-ink); }
+.qa-no  { background: transparent; border-color: var(--dial-line); color: var(--ink-3); }
+/* Optimistic exit: the card leaves on the same frame as the tap. A pharmacist
+   must never wait to learn whether their answer landed. */
+.qa-gone { overflow: hidden; height: 0 !important; opacity: 0; padding-block: 0; margin: 0; border-width: 0;
+  transition: height .22s cubic-bezier(.2,.7,.3,1), opacity .14s ease, padding .22s, border-width .22s; }
+@media (prefers-reduced-motion: reduce) { .qa-gone { transition: none; } .qa-b:active { transform: none; } }
+
+/* Rush mode: a switch, not a checkbox — it changes how the shift feels. */
+.rush {
+  display: flex; align-items: center; gap: var(--u3); width: 100%;
+  margin-top: var(--u5); padding: var(--u3) var(--u4); min-height: 56px;
+  border: 1px solid var(--dial-line); border-radius: var(--r); background: transparent;
+}
+.rush.on { border-color: var(--brass-ink); background: var(--dial-2); }
+.rush-sw { flex: none; width: 44px; height: 26px; border-radius: var(--rp); background: var(--dial-line); position: relative; transition: background .16s ease; }
+.rush-sw > i { position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: var(--rp); background: var(--dial-2); transition: inset-inline-start .16s cubic-bezier(.2,.7,.3,1); }
+.rush.on .rush-sw { background: var(--brass); }
+.rush.on .rush-sw > i { inset-inline-start: 21px; }
+
+/* Fast responder — earned from behaviour, and it disappears when the
+   behaviour stops. Deliberately quiet: a badge that shouts is a badge that
+   gets sold. */
+.badge-fast {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 500 10.5px/1 var(--disp); letter-spacing: .06em;
+  color: var(--jade); border: 1px solid var(--jade); border-radius: var(--rp);
+  padding: 5px 9px; white-space: nowrap;
+}
+
 </style>
 </head>
 <body>
@@ -4338,6 +4385,13 @@ const URGENCY = {
 /* Request lifecycle. `expired` is reached by the clock, like a signal — a
    need nobody answered should leave the feed on its own rather than sit
    there implying the network is working. */
+/* TTL scales with urgency, because a request that says "today" and then sits
+   in the feed for three days is lying twice: to the patient about being acted
+   on, and to the pharmacist about being live. This is also what makes the
+   countdown honest — it counts down to a real expiry, not a manufactured one. */
+const REQ_TTL_BY_URG = { urgent: 360, high: 1440, normal: 4320 };
+const reqTtl = (r) => REQ_TTL_BY_URG[r.urg] || 4320;
+const reqLeft = (r) => Math.max(0, reqTtl(r) - r.m);
 const REQ_TTL = 4320;
 const REQ_STATE_X = {
   published: { ar: "منشور",           en: "Published" },
@@ -4349,9 +4403,24 @@ const REQ_STATE_X = {
 };
 function reqState(r) {
   if (r.st === "fulfilled") return "fulfilled";
-  if (r.m >= REQ_TTL) return "expired";
+  if (r.st === "expired") return "expired";
+  if (r.m >= reqTtl(r)) return "expired";
   return r.st;
 }
+
+/* The countdown. Real remaining time against a real expiry — never a
+   decorative 15-minute clock. A fabricated timer in a healthcare network is
+   the same class of lie as a fabricated "delivered" receipt, and it would be
+   found out the first time a pharmacist watched one reset. */
+function expiryLabel(r) {
+  const left = reqLeft(r);
+  if (left <= 0) return isAR() ? "انتهى" : "expired";
+  if (left < 60) return isAR() ? `يبقى ${countAr(Math.round(left), AR_MIN)}` : `${Math.round(left)} min left`;
+  if (left < 1440) return isAR() ? `يبقى ${countAr(Math.round(left / 60), AR_HOUR)}` : `${Math.round(left / 60)}h left`;
+  return isAR() ? `يبقى ${countAr(Math.round(left / 1440), AR_DAY)}` : `${Math.round(left / 1440)}d left`;
+}
+/* Urgency of the countdown itself: under an hour reads as pressure. */
+const expiryHot = (r) => reqLeft(r) > 0 && reqLeft(r) < 60;
 const liveRequests = () => REQUESTS.filter((r) => !["fulfilled", "expired"].includes(reqState(r)))
   .sort((a, b) => URGENCY[a.urg].w - URGENCY[b.urg].w || a.m - b.m);
 
@@ -4396,6 +4465,21 @@ function searchVariants(q) {
   }
   return out.sort((a, b) => b.score - a.score || b.n - a.n);
 }
+
+/* Fast Responder. Earned from what a branch actually did: it has answered
+   requests, and its live claims are fresh. Never assigned, never bought, and
+   it disappears the moment the behaviour stops — which is the only kind of
+   badge worth showing in a network built on freshness.
+
+   Threshold: at least 2 answered requests AND a median claim age under 12h. */
+function responderStats(facId) {
+  const answered = REQUESTS.filter((r) => (r.resp || []).includes(facId)).length;
+  const mine = SIGNALS.filter((g) => g.fac === facId && g.m < SIG_TTL).map((g) => g.m).sort((a, b) => a - b);
+  const median = mine.length ? mine[Math.floor(mine.length / 2)] : Infinity;
+  return { answered, median, fast: answered >= 2 && median < 720 };
+}
+const fastBadge = (facId) => responderStats(facId).fast
+  ? `<span class="badge-fast">${isAR() ? "سريع الاستجابة" : "Fast responder"}</span>` : "";
 
 /* Supply Radar: what a given branch should be shown. A pharmacy is offered a
    request when it is in the same city, OR when it has ever signalled that
@@ -4486,6 +4570,7 @@ function needCard(r, opts = {}) {
       <span class="q-sub" style="display:block">${esc(x.v.form)} · ${esc(r.qty)} · ${esc(cityName(cityById(r.city)))}</span>
       <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
         <span class="t3">${sigAge(r.m)}</span>
+        ${st !== "expired" ? `<span class="st ${expiryHot(r) ? "st-e" : "st-q"}">${expiryHot(r) ? `<i class="dot dot-live"></i>` : ""}${expiryLabel(r)}</span>` : ""}
         ${(r.resp || []).length
           ? `<span class="st st-v"><i class="dot"></i>${isAR()
               ? `${countAr(r.resp.length, ["صيدلية ردّت", "صيدليتان ردّتا", "صيدليات ردّت", "صيدلية ردّت"])}`
@@ -4786,6 +4871,7 @@ function sigRow(g, vid) {
         <span class="d3" style="font-size:17px">${esc(L(g.f))}</span>
         ${g.f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}
       </span>
+      ${fastBadge(g.fac) ? `<span style="display:block;margin-top:6px">${fastBadge(g.fac)}</span>` : ""}
       <span class="q-sub" style="display:block">${esc(cityName(c))}${g.f.area_ar && isAR() ? " — " + esc(g.f.area_ar) : g.f.district ? " — " + esc(L(DISTRICTS.find((d) => d.id === g.f.district))) : ""}</span>
       <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
         <span class="st ${stale ? "st-q" : "st-t"}">${stale ? "" : `<i class="dot${g.m < 60 ? " dot-live" : ""}"></i>`}${
@@ -4799,6 +4885,93 @@ function sigRow(g, vid) {
     </span></div>`;
 }
 
+
+/* ==================================================================
+   DEMAND-SIDE INTEGRITY
+   ==================================================================
+   The directory stays public — anyone can look up a pharmacy or a doctor
+   without identifying themselves, and that is deliberate. But PUBLISHING a
+   need puts a claim in front of real pharmacists and consumes their attention,
+   so it costs something: a phone number, and a cap.
+
+   Simulated OTP only. There is no backend; the code is generated client-side
+   and the screen says so, because a fake security theatre that pretends to be
+   real auth is worse than an honest placeholder.
+------------------------------------------------------------- */
+const MAX_ACTIVE_NEEDS = 3;
+
+const myNeeds = () => LS.get("needs", []);
+const myActiveNeeds = () => myNeeds().filter((r) => !["fulfilled", "expired"].includes(reqState(r)));
+const isAuthed = () => !!LS.get("auth", null);
+const authPhone = () => (LS.get("auth", null) || {}).phone || "";
+
+/* Hidden trust score. A patient who publishes needs, gets pharmacies to
+   answer, and then never opens the conversation is burning supply-side
+   attention — the scarcest thing in this network. The score is never shown to
+   the user and never gates the directory; it exists so operators can see
+   attention being wasted, and so a future version can throttle it. */
+function trustScore() {
+  return LS.get("trust", { score: 100, published: 0, answered: 0, handoffs: 0, penalties: 0 });
+}
+function updateUserTrustScore(event, meta = {}) {
+  const t = trustScore();
+  if (event === "published") { t.published++; }
+  if (event === "answered")  { t.answered++; }
+  if (event === "handoff")   { t.handoffs++; }
+  /* The penalty: a request that received a pharmacy response and was then
+     abandoned without the patient ever opening the channel. Charged once per
+     request, on expiry or withdrawal — never on publish, because wanting a
+     medicine is not an offence. */
+  if (event === "abandoned" && meta.hadResponse) { t.penalties++; t.score = Math.max(0, t.score - 12); }
+  if (event === "handoff" && t.score < 100) { t.score = Math.min(100, t.score + 4); }
+  LS.set("trust", t);
+  return t;
+}
+
+/* Simulated OTP. Six digits, generated and shown on screen, labelled as a
+   prototype. Nothing is sent anywhere. */
+function openAuth(next) {
+  const code = String(Math.floor(100000 + (nowMins() * 7919) % 900000));
+  S.otp = { code, next: next || null, phone: "" };
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div>
+      <div class="lab">${isAR() ? "قبل النشر" : "Before publishing"}</div>
+      <h2 style="margin-top:8px">${isAR() ? "رقمك، مرة وحدة" : "Your number, once"}</h2>
+      <p>${isAR()
+        ? "الدليل مفتوح للكل بدون تسجيل. بس نشر طلب يوصل صيدليات حقيقية، فنطلب رقم — حتى ما تنملي الشبكة بطلبات وهمية."
+        : "The directory is open to everyone. But publishing puts a request in front of real pharmacists, so we ask for a number — it keeps the network from filling with ghosts."}</p>
+    </div></div>
+    <div class="sheet-b">
+      <div class="field"><label for="ph">${isAR() ? "رقم الموبايل" : "Mobile number"}</label>
+        <input id="ph" type="tel" inputmode="numeric" dir="ltr" placeholder="07XX XXX XXXX"
+          oninput="S.otp.phone=this.value" autocomplete="tel"></div>
+      <div class="field"><label for="otp">${isAR() ? "رمز التحقق" : "Verification code"}</label>
+        <input id="otp" type="text" inputmode="numeric" dir="ltr" placeholder="------" autocomplete="one-time-code"></div>
+      <div class="note note-w" style="margin-top:14px"><span>${isAR()
+        ? `نموذج تجريبي — ما نرسل رسالة. رمزك هو <b class="mono">${code}</b>.`
+        : `Prototype — no SMS is sent. Your code is <b class="mono">${code}</b>.`}</span></div>
+      <div class="t3" style="margin-top:12px">${isAR()
+        ? "الرقم يبقى على هذا الجهاز. ما ننشره مع الطلب ولا نعطيه للصيدلية — التواصل يبدأ منك."
+        : "The number stays on this device. It is never published with the request or given to a pharmacy — contact starts from you."}</div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" onclick="submitAuth()">${isAR() ? "تحقّق" : "Verify"}</button>
+    </div>`);
+}
+
+function submitAuth() {
+  const phone = (document.getElementById("ph") || {}).value || "";
+  const entered = ((document.getElementById("otp") || {}).value || "").trim();
+  if (phone.replace(/\D/g, "").length < 10) { toast(isAR() ? "اكتب رقم موبايل صحيح" : "Enter a valid mobile number"); return; }
+  if (entered !== S.otp.code) { toast(isAR() ? "الرمز غير مطابق" : "Code doesn't match"); return; }
+  LS.set("auth", { phone: phone.trim(), at: Date.now() });
+  const next = S.otp.next; S.otp = null;
+  closeSheet();
+  toast(isAR() ? "تم — تكدر تنشر طلبك" : "Verified — you can publish");
+  if (next) location.hash = next; else render();
+}
+
+function signOut() { LS.set("auth", null); toast(isAR() ? "خرجت" : "Signed out"); render(); }
 
 /* ---------------- /need/new · publishing a need ----------------
    Not a form. A person hunting a rare medicine is already tired, so this
@@ -4847,7 +5020,7 @@ function screenNeedNew(qs) {
     <div class="lab">${isAR() ? "٣ · شكد تحتاج" : "3 · How much"}</div>
     <div class="field"><label for="qty">${isAR() ? "الكمية" : "Quantity"}</label>
       <input id="qty" value="${esc(d.qty)}" placeholder="${x ? esc(x.v.pack) : (isAR() ? "مثلاً ٣٠ قرص" : "e.g. 30 tablets")}"
-        oninput="S.draft.qty=this.value" autocomplete="off"></div>
+        oninput="S.draft.qty=this.value;syncPublish()" autocomplete="off"></div>
   </section>
 
   <section class="pad" style="margin-top:24px">
@@ -4873,16 +5046,46 @@ function screenNeedNew(qs) {
   </section>` : ""}
 
   <section class="pad" style="margin-top:28px">
-    <button class="btn" ${!d.v || !d.qty.trim() ? "disabled" : ""} onclick="publishNeed()">${isAR() ? "انشر الطلب" : "Publish the request"}</button>
-    <div class="t3" style="margin-top:14px">${isAR()
-      ? "ينتهي الطلب وحده بعد ثلاثة أيام. تكدر تسحبه أو تعلّمه منتهياً بأي وقت من «طلباتي»."
-      : "The request expires on its own after three days. You can withdraw it or mark it done any time from My requests."}</div>
+    ${(() => {
+      const active = myActiveNeeds().length;
+      const capped = active >= MAX_ACTIVE_NEEDS;
+      const incomplete = !d.v || !d.qty.trim();
+      return `<button class="btn" id="pubbtn" ${incomplete || capped ? "disabled" : ""} onclick="publishNeed()">${
+        capped ? (isAR() ? "وصلت الحد الأقصى" : "You've hit the limit")
+        : isAuthed() ? (isAR() ? "انشر الطلب" : "Publish the request")
+        : (isAR() ? "تحقّق وانشر" : "Verify and publish")}</button>
+      ${capped ? `<div class="note note-w" style="margin-top:12px"><span>${isAR()
+        ? `عندك <b class="num">${active}</b> طلبات نشطة، وهذا الحد. سكّر واحداً من «طلباتي» — الحد موجود حتى ينتبه الصيدلاني للطلبات الحقيقية.`
+        : `You have <b class="num">${active}</b> active requests, which is the cap. Close one from My requests — the cap exists so pharmacists keep paying attention to real ones.`}</span></div>`
+        : `<div class="t3" style="margin-top:12px">${isAR()
+        ? `<span class="num">${active}</span> من <span class="num">${MAX_ACTIVE_NEEDS}</span> طلبات نشطة.`
+        : `<span class="num">${active}</span> of <span class="num">${MAX_ACTIVE_NEEDS}</span> active requests.`}</div>`}`;
+    })()}
+    <div class="note note-w" style="margin-top:14px"><span>${isAR()
+      ? "تأكيد التوفّر لا يعني الحجز. الأولوية لمن يصل أولاً أو يتفق مع الصيدلية."
+      : "A confirmation of availability is not a reservation. Priority goes to whoever arrives first or agrees it with the pharmacy."}</span></div>
+    <div class="t3" style="margin-top:12px">${isAR()
+      ? `ينتهي الطلب وحده — العاجل خلال <span class="num">6</span> ساعات، والباقي أطول. تكدر تسحبه بأي وقت من «طلباتي».`
+      : `The request expires on its own — urgent within <span class="num">6</span> hours, others longer. Withdraw any time from My requests.`}</div>
   </section>
   <div style="height:26px"></div>${nav("explorer")}`;
 }
 
+/* Keep the publish control honest against what is actually typed, without a
+   full re-render on every keystroke (which would steal focus mid-word). */
+function syncPublish() {
+  const b = document.getElementById("pubbtn"); if (!b) return;
+  const d = S.draft || {};
+  b.disabled = !d.v || !String(d.qty || "").trim() || myActiveNeeds().length >= MAX_ACTIVE_NEEDS;
+}
+
 function publishNeed() {
   const d = S.draft; if (!d || !d.v || !d.qty.trim()) return;
+  if (!isAuthed()) return openAuth("#/need/new");
+  if (myActiveNeeds().length >= MAX_ACTIVE_NEEDS) {
+    toast(isAR() ? `الحد ${MAX_ACTIVE_NEEDS} طلبات نشطة — سكّر واحداً` : `Limit is ${MAX_ACTIVE_NEEDS} active — close one first`);
+    return;
+  }
   const ref = refCode();
   const rec = { id: "u" + ref, ref, v: d.v, city: d.city, qty: d.qty.trim(), urg: d.urg,
     rxHeld: d.rxHeld, m: 0, st: "published", resp: [], ts: Date.now(), mine: true };
@@ -4890,6 +5093,7 @@ function publishNeed() {
   LS.set("needs", [rec, ...mineList].slice(0, 20));
   REQUESTS.unshift(rec);
   S.draft = null;
+  updateUserTrustScore("published");
   toast(isAR() ? "نُشر — يوصل الصيدليات الموثّقة" : "Published — it reaches verified pharmacies");
   location.hash = "#/need/" + rec.id;
 }
@@ -4972,7 +5176,16 @@ function screenNeed(id) {
 
 function closeNeed(id, state) {
   const list = LS.get("needs", []);
-  const rec = list.find((x) => x.id === id); if (rec) { rec.st = state; LS.set("needs", list); }
+  const rec = list.find((x) => x.id === id);
+  if (rec) {
+    /* The penalty case: pharmacies answered, and the patient walked away
+       without ever opening the channel. That is the one behaviour that costs
+       the network its scarcest resource — supply-side attention. */
+    if (state === "expired" && (rec.resp || []).length && !rec.contacted) {
+      updateUserTrustScore("abandoned", { hadResponse: true });
+    }
+    rec.st = state; LS.set("needs", list);
+  }
   const live = REQUESTS.find((x) => x.id === id); if (live) live.st = state;
   toast(state === "fulfilled" ? (isAR() ? "تمام — سكّرناه" : "Closed") : (isAR() ? "انسحب الطلب" : "Withdrawn"));
   render();
@@ -5015,9 +5228,12 @@ function contactPharmacy(facId, vid, qty) {
         <div class="bubble">${esc(msg)}</div>
       </div>
 
-      <div class="t3" style="margin-top:14px">${isAR()
-        ? "يفتح واتساب بهذه الرسالة جاهزة — الإرسال بيدك. ما نكدر نأكد وصولها، ولا الصيدلية حجزت لك شي إلا إذا كالتلك هي."
-        : "WhatsApp opens with this ready — you press send. We cannot confirm delivery, and nothing is reserved unless the pharmacy tells you so."}</div>
+      <div class="note note-w" style="margin-top:14px"><span>${isAR()
+        ? "تأكيد التوفّر لا يعني الحجز. الأولوية لمن يصل أولاً أو يتفق مع الصيدلية."
+        : "A confirmation of availability is not a reservation. Priority goes to whoever arrives first or agrees it with the pharmacy."}</span></div>
+      <div class="t3" style="margin-top:12px">${isAR()
+        ? "يفتح واتساب بهذه الرسالة جاهزة — الإرسال بيدك، وما نكدر نأكد وصولها."
+        : "WhatsApp opens with this ready — you press send, and we cannot confirm it arrived."}</div>
     </div>
     <div class="sheet-f">
       ${f.wa ? `<a class="btn btn--wa" href="${waLink(f.wa, msg)}" target="_blank" rel="noopener"
@@ -5032,6 +5248,7 @@ function contactPharmacy(facId, vid, qty) {
 function rxHandoff(facId, vid, ref) {
   const f = anyFac(facId), x = variantOf(vid);
   if (!f || !x) return;
+  updateUserTrustScore("handoff");
   S.requests.unshift({
     ref, doc: null, med: vid, doctor: `${L(x.med)} ${x.v.strength}`,
     facility: L(f), when: cityName(cityById(cityOf(f))),
@@ -5066,9 +5283,20 @@ function screenRadar(facId) {
     <div style="height:26px"></div>${nav("explorer")}`;
   }
 
-  const rows = radarFor(f.id);
+  const declined = new Set(LS.get("declined", []));
+  /* Answered leaves the queue. Without this the card animates out and then
+     comes straight back on the next render, which is worse than not animating
+     at all — it reads as "your tap did nothing". A request you have already
+     answered is the patient's to act on now, not yours. */
+  const rows = radarFor(f.id).filter((x) => !x.answered && !declined.has(f.id + ":" + x.r.id));
   const urgent = rows.filter((x) => x.r.urg === "urgent").length;
   const holds = rows.filter((x) => x.holds).length;
+  const rush = rushOn();
+  /* In rush mode nothing interrupts: urgent items still surface, everything
+     else drops into a silent pile the pharmacist clears when the queue thins. */
+  const front = rush ? rows.filter((x) => x.r.urg === "urgent") : rows;
+  const batched = rush ? rows.filter((x) => x.r.urg !== "urgent") : [];
+  const stats = responderStats(f.id);
 
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
@@ -5077,114 +5305,155 @@ function screenRadar(facId) {
       <button class="b-g" style="font-size:13px" onclick="location.hash='#/radar'">${isAR() ? "غيّر الصيدلية" : "Switch"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
-    <h1 class="d2" style="margin-top:8px">${esc(L(f))}</h1>
+    <div class="rowb" style="margin-top:8px">
+      <h1 class="d2">${esc(L(f))}</h1>
+      ${stats.fast ? fastBadge(f.id) : ""}
+    </div>
     <div class="q-sub" style="margin-top:4px">${esc(cityName(cityById(cityOf(f))))}</div>
 
-    <div style="display:flex;align-items:baseline;gap:12px;margin-top:26px">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-top:24px">
       <span class="nhuge" style="color:var(--brass-ink)">${rows.length}</span>
-      <span><span class="d3" style="font-weight:500;display:block">${isAR() ? "طلب تكدر تجاوب عليه" : "requests you could answer"}</span>
+      <span><span class="d3" style="font-weight:500;display:block">${isAR() ? "طلب ينتظر جوابك" : "requests waiting on you"}</span>
         <span class="q-sub">${isAR()
-          ? `منها <span class="num">${urgent}</span> عاجل · <span class="num">${holds}</span> لدواء أفدت بتوفّره`
-          : `<span class="num">${urgent}</span> urgent · <span class="num">${holds}</span> for stock you reported`}</span></span>
+          ? `<span class="num">${urgent}</span> عاجل · <span class="num">${holds}</span> لدواء أفدت بتوفّره`
+          : `<span class="num">${urgent}</span> urgent · <span class="num">${holds}</span> you already report`}</span></span>
     </div>
+
+    <button class="rush ${rush ? "on" : ""}" onclick="toggleRush()">
+      <span class="grow" style="text-align:start">
+        <span class="t1" style="font-size:14.5px;display:block">${isAR() ? "وضع الزحام" : "Rush mode"}</span>
+        <span class="t3">${rush
+          ? (isAR() ? "صامت · غير العاجل يتجمّع تحت" : "silent · non-urgent batching below")
+          : (isAR() ? "التنبيهات شغّالة" : "alerts on")}</span>
+      </span>
+      <span class="rush-sw" aria-hidden="true"><i></i></span>
+    </button>
   </section>
 
-  ${rows.length ? `<div class="hr" style="margin-top:26px"></div>
-  <section class="pad">
-    <div class="lab" style="padding-top:24px">${isAR() ? "الطلبات" : "Requests"}</div>
-    ${rows.slice(0, 10).map(({ r, holds: h, sameCity, answered }) => {
-      const x = variantOf(r.v); if (!x) return "";
-      const u = URGENCY[r.urg];
-      return `<div class="rw">
-        ${r.urg === "urgent" ? `<span class="rw-lead" style="background:var(--alarm)"></span>` : h ? `<span class="rw-lead" style="background:var(--jade)"></span>` : ""}
-        <span class="grow">
-          <span class="rowb">
-            <span class="d3">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
-            <span class="st ${u.cls}"><i class="dot${r.urg === "urgent" ? " dot-live" : ""}"></i>${esc(isAR() ? u.ar : u.en)}</span>
-          </span>
-          <span class="q-sub" style="display:block">${esc(x.v.form)} · ${esc(r.qty)} · ${esc(cityName(cityById(r.city)))}${
-            !sameCity ? (isAR() ? " — خارج محافظتك" : " — outside your governorate") : ""}</span>
-          <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
-            <span class="t3">${sigAge(r.m)}</span>
-            ${h ? `<span class="st st-v"><i class="dot"></i>${isAR() ? "أفدت بتوفّره" : "you reported this"}</span>` : ""}
-            ${r.rxHeld === true ? `<span class="t3">${isAR() ? "الوصفة عنده" : "has a prescription"}</span>` : ""}
-          </span>
-          <span class="row" style="margin-top:10px;gap:14px">
-            ${answered ? `<span class="st st-v"><i class="dot"></i>${isAR() ? "ردّيت" : "answered"}</span>`
-              : `<button class="b-g" style="font-size:12.5px" onclick="confirmSupply('${f.id}','${r.id}')">${isAR() ? "عدنا هذا الدواء" : "We have this"}</button>`}
-          </span>
-        </span></div>`;
-    }).join('<div class="hr"></div>')}
+  ${front.length ? `<section class="pad" style="margin-top:22px">
+    ${rush ? `<div class="lab" style="margin-bottom:10px;color:var(--alarm)">${isAR() ? "العاجل فقط" : "Urgent only"}</div>` : ""}
+    <div class="v3">${front.slice(0, 12).map((x) => pharmacyQuickCard(f.id, x)).join("")}</div>
   </section>` : `<section class="pad" style="margin-top:26px">
     <div class="empty" style="padding:26px 0">
       <div class="glyph"><i></i><i></i><i></i><b></b></div>
-      <div class="empty-t">${isAR() ? "ما في طلبات تخصّك الآن" : "Nothing for you right now"}</div>
+      <div class="empty-t">${rush && batched.length
+        ? (isAR() ? "ما في عاجل الآن" : "Nothing urgent right now")
+        : (isAR() ? "ما في طلبات تخصّك" : "Nothing for you right now")}</div>
       <div class="empty-b">${isAR()
-        ? "راح تظهر هنا الطلبات في محافظتك، وأي طلب لدواء تفيد بتوفّره — حتى لو صاحب الطلب في محافظة ثانية."
-        : "Requests in your governorate will appear here, plus any request for stock you report holding — even from another governorate."}</div>
+        ? "راح تظهر هنا الطلبات في محافظتك، وأي طلب لدواء تفيد بتوفّره — حتى لو صاحبه في محافظة ثانية."
+        : "Requests in your governorate appear here, plus any request for stock you report holding."}</div>
     </div>
   </section>`}
 
+  ${batched.length ? `<div class="hr" style="margin-top:22px"></div>
+  <section class="pad">
+    <div class="rowb" style="padding-top:22px">
+      <span class="lab">${isAR() ? "متجمّع بهدوء" : "Batched quietly"}</span>
+      <span class="t3"><span class="num">${batched.length}</span></span>
+    </div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "ما نبّهناك عليها. افتحها وقت ما يفضى الزحام."
+      : "We didn't interrupt you for these. Open them when the queue thins."}</div>
+    <div class="v3" style="margin-top:14px">${batched.slice(0, 10).map((x) => pharmacyQuickCard(f.id, x)).join("")}</div>
+  </section>` : ""}
+
   <section class="pad" style="margin:26px 0 30px">
     <div class="t3" style="border-top:1px solid var(--dial-line-2);padding-top:16px">${isAR()
-      ? "«عدنا هذا الدواء» إفادة منك، وتنتهي وحدها بعد ثلاثة أيام. ما نعرض كمية دقيقة ولا نحجز — وما نعطي اسم المريض ولا رقمه."
-      : "\"We have this\" is your own report and expires by itself after three days. We never show an exact count, never reserve, and never give you the patient's name or number."}</div>
+      ? "جوابك إفادة منك وتنتهي وحدها بعد ثلاثة أيام. ما نعرض كمية دقيقة، وما نحجز للمريض شي — الأولوية لمن يصل أولاً أو يتفق معك. وما نعطيك اسمه ولا رقمه."
+      : "Your answer is your own report and expires by itself after three days. We never show an exact count and never reserve anything — priority goes to whoever arrives first or agrees it with you. We never give you the patient's name or number."}</div>
   </section>
   ${nav("explorer")}`;
 }
 
-/* A pharmacy cannot claim stock casually — it is a deliberate, itemised
-   confirmation, and it is recorded as a claim with a timestamp, not as truth. */
-function confirmSupply(facId, reqId) {
-  const f = anyFac(facId);
+/* ==================================================================
+   THE 3-SECOND RESPONSE
+   ==================================================================
+   The old flow cost five interactions — open a sheet, pick a quantity band,
+   maybe toggle delivery, confirm, dismiss. That is a design for someone
+   sitting down. A pharmacist at 19:00 has one hand free, a queue in front of
+   them, and about three seconds of attention. Five taps means they answer
+   nothing, and a supply network where nobody answers is not a network.
+
+   So the quantity band moved INTO the answer. "Only one box left" is both the
+   response and the stock level, which is exactly how a pharmacist would say it
+   out loud. Three buttons, one tap each, 60px tall, no sheet, no confirm step.
+
+   The deliberateness the old sheet was protecting is preserved by the buttons
+   being explicit and unequal — you cannot fat-finger "we have it" while
+   meaning "we don't", because they are different colours, different words, and
+   at opposite ends of the row.
+------------------------------------------------------------- */
+function quickAnswer(facId, reqId, kind) {
   const r = REQUESTS.find((x) => x.id === reqId);
-  if (!f || !r) return;
-  const x = variantOf(r.v); if (!x) return;
-  S.supplyDraft = { q: "few", dl: false };
-  sheet(`<div class="sheet-grip"></div>
-    <div class="sheet-h"><div>
-      <div class="lab">${isAR() ? "تأكيد توفّر" : "Confirm availability"}</div>
-      <h2 style="margin-top:8px">${esc(L(x.med))} ${esc(x.v.strength)}</h2>
-      <p>${isAR()
-        ? "هذي إفادة باسم صيدليتك، وتظهر للمريض بوقتها. أكّدها فقط إذا الدواء موجود فعلاً الآن."
-        : "This is a claim in your pharmacy's name, shown to the patient with its timestamp. Only confirm if it is actually on the shelf now."}</p>
-    </div></div>
-    <div class="sheet-b">
-      <div class="plate">
-        <div class="rowb"><span class="d3">${esc(L(f))}</span>
-          ${f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}</div>
-        <div class="q-sub" style="margin-top:4px">${esc(x.v.form)} · ${esc(x.v.pack)} · ${esc(cityName(cityById(cityOf(f))))}</div>
-      </div>
-      <div class="lab" style="margin-top:20px">${isAR() ? "الكمية تقريباً" : "Roughly how much"}</div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        ${Object.entries(QTY_LABEL).map(([k, lb]) => `<button class="btn btn--2 btn--sm" style="flex:1" data-q="${k}"
-          onclick="S.supplyDraft.q='${k}';document.querySelectorAll('[data-q]').forEach(e=>e.classList.add('btn--2'));this.classList.remove('btn--2')">${esc(L(lb))}</button>`).join("")}
-      </div>
-      <div class="t3" style="margin-top:10px">${isAR()
-        ? "نعرض نطاقاً لا رقماً — الرقم الدقيق يتغيّر قبل ما يوصل المريض."
-        : "We show a band, not a number — an exact count is wrong by the time the patient arrives."}</div>
-      <div class="rowb" style="margin-top:20px;border-top:1px solid var(--dial-line-2);padding-top:16px">
-        <span class="t1" style="font-size:14px">${isAR() ? "تكدر ترتّب توصيل؟" : "Can you arrange delivery?"}</span>
-        <button class="btn btn--2 btn--sm" style="width:auto" id="dlbtn"
-          onclick="S.supplyDraft.dl=!S.supplyDraft.dl;this.textContent=S.supplyDraft.dl?'${isAR() ? "نعم" : "Yes"}':'${isAR() ? "لا" : "No"}'">${isAR() ? "لا" : "No"}</button>
-      </div>
-    </div>
-    <div class="sheet-f">
-      <button class="btn" onclick="submitSupply('${facId}','${reqId}')">${isAR() ? "أكّد التوفّر" : "Confirm availability"}</button>
-      <div class="t3" style="text-align:center;margin-top:12px">${isAR()
-        ? "تنتهي الإفادة وحدها بعد ثلاثة أيام."
-        : "This claim expires by itself after three days."}</div>
-    </div>`);
+  const f = anyFac(facId);
+  if (!r || !f) return;
+
+  /* Optimistic: the card leaves the screen on the same frame as the tap.
+     A pharmacist must never wait to find out whether their answer landed. */
+  const card = document.querySelector(`[data-req="${reqId}"]`);
+  if (card) { card.style.height = card.offsetHeight + "px"; card.classList.add("qa-gone"); }
+
+  if (kind === "none") {
+    /* "Not available" is real information and it is recorded — it stops us
+       showing this branch the same request tomorrow — but it never becomes a
+       public signal, because absence is not a claim anyone can act on. */
+    const seen = LS.get("declined", []);
+    LS.set("declined", [...new Set([...seen, facId + ":" + reqId])].slice(0, 200));
+  } else {
+    SIGNALS.unshift({ id: "s" + refCode(), v: r.v, fac: facId, m: 0,
+      q: kind === "one" ? "low" : "few", dl: false, st: kind === "one" ? "low" : "available" });
+    r.resp = [...new Set([...(r.resp || []), facId])];
+    /* The request becomes findable: state moves to responded, and on the
+       patient's side the contact channel appears. We do NOT call it "booked"
+       or "reserved" — the pharmacy said it has stock, nothing more. */
+    if (r.st === "published" || r.st === "matched") r.st = "responded";
+    const mineList = LS.get("needs", []);
+    const mineRec = mineList.find((x) => x.id === reqId);
+    if (mineRec) { mineRec.resp = r.resp; mineRec.st = r.st; LS.set("needs", mineList); updateUserTrustScore("answered"); }
+  }
+
+  toast(kind === "none" ? (isAR() ? "شكراً — ما راح نعرضه عليك مرة ثانية" : "Thanks — we won't show it again")
+    : kind === "one" ? (isAR() ? "وصلت — علبة واحدة" : "Recorded — one box")
+    : (isAR() ? "وصلت — متوفّر" : "Recorded — available"));
+  setTimeout(render, 260);
 }
 
-function submitSupply(facId, reqId) {
-  const r = REQUESTS.find((x) => x.id === reqId); if (!r) return closeSheet();
-  const d = S.supplyDraft || { q: "few", dl: false };
-  SIGNALS.unshift({ id: "s" + refCode(), v: r.v, fac: facId, m: 0, q: d.q, dl: d.dl, st: "available" });
-  r.resp = [...new Set([...(r.resp || []), facId])];
-  if (r.st === "published") r.st = "responded";
-  closeSheet();
-  toast(isAR() ? "وصلت إفادتك — تظهر للمريض بوقتها" : "Recorded — shown to the patient with its timestamp");
+/* The quick-action card. Everything above the buttons is scannable in one
+   glance: what, how much, where, how long is left. */
+function pharmacyQuickCard(facId, x) {
+  const { r, holds, sameCity } = x;
+  const v = variantOf(r.v); if (!v) return "";
+  const u = URGENCY[r.urg];
+  const hot = expiryHot(r);
+  return `<div class="qa" data-req="${esc(r.id)}">
+    <div class="rowb">
+      <span class="d3" style="font-size:18px">${esc(L(v.med))} <span class="n" style="font-weight:300">${esc(v.v.strength)}</span></span>
+      <span class="st ${u.cls}"><i class="dot${r.urg === "urgent" ? " dot-live" : ""}"></i>${esc(isAR() ? u.ar : u.en)}</span>
+    </div>
+    <div class="q-sub" style="margin-top:4px">${esc(v.v.form)} · ${esc(r.qty)} · ${esc(cityName(cityById(r.city)))}${
+      !sameCity ? (isAR() ? " — خارج محافظتك" : " — outside your area") : ""}</div>
+    <div class="row" style="margin-top:8px;gap:14px;flex-wrap:wrap">
+      <span class="st ${hot ? "st-e" : "st-q"}">${hot ? `<i class="dot dot-live"></i>` : ""}${expiryLabel(r)}</span>
+      ${holds ? `<span class="st st-v"><i class="dot"></i>${isAR() ? "أفدت بتوفّره سابقاً" : "you reported this"}</span>` : ""}
+      ${r.rxHeld === true ? `<span class="t3">${isAR() ? "الوصفة عنده" : "has a prescription"}</span>` : ""}
+    </div>
+    <div class="qa-acts">
+      <button class="qa-b qa-yes" onclick="quickAnswer('${facId}','${r.id}','yes')">${isAR() ? "متوفّر الآن" : "Available now"}</button>
+      <button class="qa-b qa-one" onclick="quickAnswer('${facId}','${r.id}','one')">${isAR() ? "باقي علبة وحدة" : "Only 1 left"}</button>
+      <button class="qa-b qa-no"  onclick="quickAnswer('${facId}','${r.id}','none')">${isAR() ? "غير متوفّر" : "Not available"}</button>
+    </div>
+  </div>`;
+}
+
+/* Rush mode. At 19:00 a pharmacist does not want a toast per arrival; they
+   want silence and a pile to clear when the queue thins. Toggling it does not
+   hide requests — it stops them interrupting. */
+const rushOn = () => !!LS.get("rush", false);
+function toggleRush() {
+  const on = !rushOn();
+  LS.set("rush", on);
+  toast(on ? (isAR() ? "وضع الزحام — صامت، والطلبات تتجمّع" : "Rush mode — silent, requests batch up")
+           : (isAR() ? "رجع التنبيه العادي" : "Normal alerts back"));
   render();
 }
 

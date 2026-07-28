@@ -52,6 +52,7 @@ committed and deployed green.
 | **P12** | **Honest handoff** — `opened / sent / abandoned` replaces the false "delivered" claim; duplicate guard; `/me` rebuilt on real states; pharmacy profile rebuilt on v3 | ✅ |
 | **P13** | **Medicine Explorer** — national availability network: CITIES/BRANCHES/RX_MEDS/SIGNALS/REQUESTS, signal decay + request lifecycle state machines, `/explorer` `/rx` `/rx/:v` `/need/*` `/radar/*`, the availability field, structured contact. Spec at `QAREEB_MEDICINE_EXPLORER_IMPLEMENTATION_SPEC.md` | ✅ |
 | **P14** | **Roles + operator separation** — role-aware homes (patient / pharmacist / doctor mutate structurally), operator console rebuilt as its own shell outside the patient column (stale radar, verification queue, supply gaps, integrity — all live-computed), Explorer contacts wired into the opened/sent/abandoned machine, skeletons cover the Explorer family | ✅ |
+| **P15** | **3-second response + anti-spam** — pharmacy answer cut from 5 interactions to 1 tap (60px buttons, optimistic exit, answered leaves the queue), rush mode batching, simulated-OTP gate on publishing, 3-active-request cap, hidden trust score, Fast Responder from real behaviour, honest countdown on urgency-scaled TTL | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -101,7 +102,12 @@ These were established by research and are not up for re-litigation in later pha
     They are rendered as two separate statements and never merged into one
     badge. Every stock claim expires by itself after three days, so nobody has
     to remember to retract it.
-14. **Match the exact variant, never the molecule.** A 50mg vial is not an
+14. **Availability is never a reservation.** A pharmacy confirming stock has
+    made a claim about a shelf, not a promise to a person. Every surface where
+    a patient acts on a claim says so: الأولوية لمن يصل أولاً أو يتفق مع
+    الصيدلية. The word حجز belongs to doctor appointments and nowhere near a
+    medicine.
+15. **Match the exact variant, never the molecule.** A 50mg vial is not an
     answer to a 2.5mg tablet request. Alternative brand names exist for search
     recall only and are never surfaced as "you could take this instead" —
     substitution is the prescriber's and the pharmacist's call, not ours.
