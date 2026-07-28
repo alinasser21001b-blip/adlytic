@@ -45,6 +45,12 @@ const breakdownItemSchema = z.object({
 
 const bilingualSchema = z.object({ ar: z.string(), en: z.string() });
 
+const competitiveSchema = z.object({
+  score: z.number().min(0).max(100),
+  summaryAr: z.string(),
+  summaryEn: z.string(),
+});
+
 export const trendContextSchema = z.object({
   source: z.enum(["meta_ad_library", "curated_fallback"]),
   summaryAr: z.string(),
@@ -82,6 +88,7 @@ export const assessmentResultSchema = z.object({
   industryTips: z.array(bilingualSchema),
   strengths: z.array(bilingualSchema),
   performanceInsight: bilingualSchema.optional(),
+  competitiveScore: competitiveSchema.optional(),
 });
 
 export type AssessmentResultPayload = z.infer<typeof assessmentResultSchema>;
@@ -91,3 +98,36 @@ export const assessmentResponseSchema = assessmentResultSchema.extend({
 });
 
 export type AssessmentResponsePayload = z.infer<typeof assessmentResponseSchema>;
+
+export const abCompareRequestSchema = z.object({
+  industry: z.string().min(1),
+  goal: campaignGoalSchema,
+  creativeA: z.object({
+    primaryText: z.string().optional(),
+    headline: z.string().optional(),
+    desiredAction: z.string().optional(),
+    imageBase64: z.string().optional(),
+    imageMimeType: z.string().optional(),
+  }),
+  creativeB: z.object({
+    primaryText: z.string().optional(),
+    headline: z.string().optional(),
+    desiredAction: z.string().optional(),
+    imageBase64: z.string().optional(),
+    imageMimeType: z.string().optional(),
+  }),
+});
+
+export type AbCompareRequest = z.infer<typeof abCompareRequestSchema>;
+
+export const abCompareResultSchema = z.object({
+  betterVariant: z.enum(['A', 'B', 'tie']),
+  rationaleAr: z.string(),
+  rationaleEn: z.string(),
+  scores: z.object({
+    A: z.number().min(0).max(100),
+    B: z.number().min(0).max(100),
+  }),
+});
+
+export type AbCompareResult = z.infer<typeof abCompareResultSchema>;

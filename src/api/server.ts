@@ -69,6 +69,7 @@ import { workspacePage } from '../web/pages/workspacePage';
 import { aiPage } from '../web/pages/aiPage';
 import { adAnalysisPage } from '../web/pages/adAnalysisPage';
 import { runAdAssessment, searchAdLibraryTrends } from '../adAssessor/assessService';
+import { runAbCompare } from '../adAssessor/abCompareService';
 import { settingsPage } from '../web/pages/settingsPage';
 import { metaConnectPage } from '../web/pages/metaConnectPage';
 import { welcomePage } from '../web/pages/welcomePage';
@@ -2403,6 +2404,23 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
 
     const result = await searchAdLibraryTrends(req.body);
+    if (!result.ok) {
+      return c.json(
+        { error: result.error, ...(result.details ? { details: result.details } : {}) },
+        result.status as 400 | 503,
+      );
+    }
+    return c.json(result.data);
+  });
+
+  /** POST /api/ad-assessor/ab-compare — compare two ad variants head-to-head. */
+  app.post('/api/ad-assessor/ab-compare', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const result = await runAbCompare(req.body);
     if (!result.ok) {
       return c.json(
         { error: result.error, ...(result.details ? { details: result.details } : {}) },

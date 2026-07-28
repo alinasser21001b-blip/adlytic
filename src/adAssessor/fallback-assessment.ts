@@ -65,6 +65,54 @@ function breakdownItem(
   return { score, labelAr, labelEn, explanationAr, explanationEn };
 }
 
+function computeCompetitiveScore(args: {
+  hookScore: number;
+  clarityScore: number;
+  visualScore: number;
+  ctaScore: number;
+  trendContext: TrendInsights;
+}): { score: number; summaryAr: string; summaryEn: string } {
+  const { hookScore, clarityScore, visualScore, ctaScore, trendContext } = args;
+  const avg = Math.round((hookScore + clarityScore + visualScore + ctaScore) / 4);
+
+  let penalty = 0;
+  if (trendContext.hooks.length && hookScore < 50) penalty += 10;
+  if (trendContext.ctaPatterns.length && ctaScore < 50) penalty += 10;
+  if (visualScore < 50) penalty += 5;
+
+  const final = Math.max(0, Math.min(100, avg - penalty));
+
+  const summaryArLines: string[] = [
+    `درجة التناسق مع الإعلانات الناجحة في مجالك (competitive score): ${final}/100.`,
+  ];
+  if (final >= 75) {
+    summaryArLines.push(
+      'إعلانك قريب جداً من أنماط الإعلانات الناجحة في MENA — ركّز على تحسينات صغيرة في الافتتاحية أو CTA.',
+    );
+  } else if (final >= 50) {
+    summaryArLines.push(
+      'إعلانك في منتصف الطريق — بعض عناصره تشبه الإعلانات الناجحة، لكن هناك فجوات واضحة في hook أو CTA أو الوضوح.',
+    );
+  } else {
+    summaryArLines.push(
+      'الفجوة كبيرة بين إعلانك وبين ما ينجح الآن في مجالك — راجع الافتتاحية والرسالة والـ CTA بناءً على الاتجاهات.',
+    );
+  }
+
+  const summaryEn =
+    final >= 75
+      ? 'Your ad is strongly aligned with winning patterns in your category. Focus on small optimizations to hook or CTA.'
+      : final >= 50
+        ? 'Your ad is partially aligned with current winners — some pieces match, but there are clear gaps in hook, CTA, or clarity.'
+        : "Your ad is far from what's currently winning — rework the hook, message, and CTA based on the extracted trends.";
+
+  return {
+    score: final,
+    summaryAr: summaryArLines.join(' '),
+    summaryEn,
+  };
+}
+
 export function buildFallbackAssessment(
   data: AssessRequest,
   trendContext: TrendInsights,
@@ -187,12 +235,18 @@ export function buildFallbackAssessment(
     });
   }
 
-  const avgScore = Math.round((hookScore + clarityScore + visualScore + ctaScore) / 4);
+  const competitiveScore = computeCompetitiveScore({
+    hookScore,
+    clarityScore,
+    visualScore,
+    ctaScore,
+    trendContext,
+  });
 
   const result: AssessmentResultPayload = {
     audienceMessage: { ar: audienceAr, en: audienceEn },
-    summaryAr: `تحليل مبني على معايير MENA لـ${industry?.labelAr ?? "مجالك"} (وضع offline — خدمة الذكاء الاصطناعي غير متاحة مؤقتاً). التقييم الإجمالي التقريبي: ${avgScore}/100.`,
-    summaryEn: `MENA benchmark analysis for ${industry?.labelEn ?? "your category"} (offline mode — AI service temporarily unavailable). Approximate overall score: ${avgScore}/100.`,
+    summaryAr: `تحليل مبني على معايير MENA لـ${industry?.labelAr ?? "مجالك"} (وضع offline — خدمة الذكاء الاصطناعي غير متاحة مؤقتاً).`,
+    summaryEn: `MENA benchmark analysis for ${industry?.labelEn ?? "your category"} (offline mode — AI service temporarily unavailable).`,
     creativeBreakdown: {
       hook: breakdownItem(
         hookScore,
@@ -243,6 +297,7 @@ export function buildFallbackAssessment(
     actionItems,
     industryTips,
     strengths: strengths.slice(0, 3),
+    competitiveScore,
   };
 
   if (data.hasMetrics && data.metrics) {

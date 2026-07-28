@@ -106,12 +106,36 @@ export function adAnalysisPage(): string {
   }
 
   #assessor-loading { display: none; }
-  #assessor-form-view, #assessor-result-view { display: block; }
+  #assessor-form-view, #assessor-result-view, #ab-form-view, #ab-result-view { display: block; }
+
+  .mode-tabs { display: flex; gap: 6px; margin-bottom: 20px; padding: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+  .mode-tab {
+    flex: 1; padding: 10px 14px; border: none; border-radius: var(--radius);
+    font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    background: transparent; color: var(--text-2); transition: all var(--transition);
+  }
+  .mode-tab.active-assess { background: var(--grad-accent); color: #fff; box-shadow: var(--shadow-accent); }
+  .mode-tab.active-ab { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; box-shadow: 0 4px 14px rgba(79,70,229,0.35); }
+
+  .ab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .ab-grid { grid-template-columns: 1fr; } }
+  .ab-variant { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+  .ab-variant h4 { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+
+  .ab-result-hero {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5); border-radius: var(--radius-lg);
+    padding: 28px; color: #fff; margin-bottom: 20px;
+  }
 </style>
 
 <div class="page-header assessor-hero">
   <div class="page-title">تحليل الإعلان</div>
   <div class="page-subtitle">افهم إعلانك قبل أن تنفق المزيد — ثلاث خطوات بسيطة مع مقارنة بإعلانات ناجحة في مجالك</div>
+</div>
+
+<div id="mode-tabs" class="mode-tabs">
+  <button type="button" class="mode-tab active-assess" id="tab-assess">🔍 تحليل إعلان</button>
+  <button type="button" class="mode-tab" id="tab-ab">⚖️ مقارنة A/B</button>
 </div>
 
 <div id="assessor-error" class="alert alert-error" style="display:none;"></div>
@@ -193,7 +217,43 @@ export function adAnalysisPage(): string {
   <div class="loading-text">جاري تحليل إعلانك…</div>
 </div>
 
-<div id="assessor-result-view" style="display:none;"></div>`;
+<div id="assessor-result-view" style="display:none;"></div>
+
+<div id="ab-form-view" style="display:none;">
+  <div class="wizard-card">
+    <h3>أيّ النسختين أقوى؟</h3>
+    <p class="hint">قارن نسختين من إعلانك مقابل ما ينجح الآن في مجالك.</p>
+    <div class="form-group">
+      <label class="form-label">مجال عملك</label>
+      <select class="form-input" id="ab-industry"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">الهدف</label>
+      <select class="form-input" id="ab-goal"></select>
+    </div>
+    <div class="ab-grid" style="margin-top:16px;">
+      <div class="ab-variant">
+        <h4>النسخة A</h4>
+        <div id="ab-upload-a"></div>
+        <div class="form-group"><label class="form-label">النص</label><textarea class="form-input" id="ab-a-primary" rows="2"></textarea></div>
+        <div class="form-group"><label class="form-label">العنوان</label><input class="form-input" id="ab-a-headline" /></div>
+        <div class="form-group"><label class="form-label">الإجراء المطلوب</label><input class="form-input" id="ab-a-action" /></div>
+      </div>
+      <div class="ab-variant">
+        <h4>النسخة B</h4>
+        <div id="ab-upload-b"></div>
+        <div class="form-group"><label class="form-label">النص</label><textarea class="form-input" id="ab-b-primary" rows="2"></textarea></div>
+        <div class="form-group"><label class="form-label">العنوان</label><input class="form-input" id="ab-b-headline" /></div>
+        <div class="form-group"><label class="form-label">الإجراء المطلوب</label><input class="form-input" id="ab-b-action" /></div>
+      </div>
+    </div>
+    <div class="wizard-nav" style="margin-top:20px;">
+      <button type="button" class="btn btn-primary btn-lg" id="btn-ab-submit" style="flex:1;">⚖️ أيّ النسختين أقوى؟</button>
+    </div>
+  </div>
+</div>
+
+<div id="ab-result-view" style="display:none;"></div>`;
 
   const scripts = `<script>
 (async () => {
@@ -210,10 +270,13 @@ export function adAnalysisPage(): string {
   if (!(await ensureAccountActive())) return;
 
   let step = 1;
+  let mode = 'assess';
   let goal = 'sales';
+  let abGoal = 'sales';
   let skipImage = false;
   let skipMetrics = true;
   let imageBase64, imageMimeType, imagePreview;
+  let abImageA = {}, abImageB = {};
 
   function esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -399,6 +462,13 @@ export function adAnalysisPage(): string {
     });
     html += '</div>';
 
+    if (result.competitiveScore) {
+      html += '<div class="card result-section" style="border-color:rgba(14,165,233,0.35);background:linear-gradient(135deg,rgba(224,242,254,0.8),rgba(238,242,255,0.6));">'
+        + '<h3>🏆 مدى تنافسية إعلانك</h3>'
+        + '<p style="font-size:18px;font-weight:800;margin:8px 0;">' + result.competitiveScore.score + '/100</p>'
+        + '<p style="font-size:13px;line-height:1.65;">' + esc(result.competitiveScore.summaryAr) + '</p></div>';
+    }
+
     if (result.strengths && result.strengths.length) {
       html += '<div class="card result-section" style="border-color:rgba(34,197,94,0.3);"><h3>✅ ما يعمل بشكل جيد</h3><ul class="result-list">';
       result.strengths.forEach(function(s) { html += '<li>• ' + esc(s.ar) + '</li>'; });
@@ -437,14 +507,147 @@ export function adAnalysisPage(): string {
     imageBase64 = imageMimeType = imagePreview = undefined;
     document.getElementById('assessor-result-view').style.display = 'none';
     document.getElementById('assessor-result-view').innerHTML = '';
-    document.getElementById('assessor-form-view').style.display = 'block';
+    document.getElementById('assessor-form-view').style.display = mode === 'assess' ? 'block' : 'none';
     document.getElementById('assessor-error').style.display = 'none';
-    showStep(1);
-    renderGoals();
-    renderUpload();
-    document.getElementById('btn-skip-metrics').classList.add('selected-skip');
-    document.getElementById('btn-add-metrics').classList.remove('selected-metrics');
-    document.getElementById('metrics-fields').style.display = 'none';
+    document.getElementById('mode-tabs').style.display = 'flex';
+    if (mode === 'assess') {
+      showStep(1);
+      renderGoals();
+      renderUpload();
+      document.getElementById('btn-skip-metrics').classList.add('selected-skip');
+      document.getElementById('btn-add-metrics').classList.remove('selected-metrics');
+      document.getElementById('metrics-fields').style.display = 'none';
+    }
+  }
+
+  function setMode(m) {
+    mode = m;
+    document.getElementById('tab-assess').className = 'mode-tab' + (m === 'assess' ? ' active-assess' : '');
+    document.getElementById('tab-ab').className = 'mode-tab' + (m === 'ab' ? ' active-ab' : '');
+    document.getElementById('assessor-form-view').style.display = m === 'assess' ? 'block' : 'none';
+    document.getElementById('ab-form-view').style.display = m === 'ab' ? 'block' : 'none';
+    document.getElementById('assessor-result-view').style.display = 'none';
+    document.getElementById('ab-result-view').style.display = 'none';
+    document.getElementById('assessor-error').style.display = 'none';
+  }
+
+  function renderAbUpload(slot, containerId, stateKey) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    var st = slot === 'a' ? abImageA : abImageB;
+    if (st.preview) {
+      el.innerHTML = '<div class="upload-preview"><img src="' + st.preview + '" alt="preview" /><button type="button" class="upload-clear" data-ab-slot="' + slot + '">✕</button></div>';
+      el.querySelector('.upload-clear').addEventListener('click', function() {
+        if (slot === 'a') abImageA = {}; else abImageB = {};
+        renderAbUpload(slot, containerId, stateKey);
+      });
+      return;
+    }
+    el.innerHTML = '<div class="upload-zone" data-ab-slot="' + slot + '"><div class="emoji">📸</div><p style="font-weight:600;">ارفع صورة</p></div>';
+    var zone = el.querySelector('.upload-zone');
+    zone.addEventListener('click', function() {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = function() {
+        var f = inp.files && inp.files[0];
+        if (!f) return;
+        var r = new FileReader();
+        r.onload = function() {
+          var dataUrl = r.result;
+          var parts = String(dataUrl).split(',');
+          var obj = { b64: parts[1], mime: f.type, preview: dataUrl };
+          if (slot === 'a') abImageA = obj; else abImageB = obj;
+          renderAbUpload(slot, containerId, stateKey);
+        };
+        r.readAsDataURL(f);
+      };
+      inp.click();
+    });
+  }
+
+  function renderAbForm() {
+    var ind = document.getElementById('ab-industry');
+    if (ind) ind.innerHTML = INDUSTRIES.map(function(i) {
+      return '<option value="' + i.value + '">' + esc(i.labelAr) + '</option>';
+    }).join('');
+    var gsel = document.getElementById('ab-goal');
+    if (gsel) gsel.innerHTML = GOALS.map(function(g) {
+      return '<option value="' + g.value + '"' + (abGoal === g.value ? ' selected' : '') + '>' + esc(g.labelAr) + '</option>';
+    }).join('');
+    renderAbUpload('a', 'ab-upload-a');
+    renderAbUpload('b', 'ab-upload-b');
+  }
+
+  function renderAbResults(result) {
+    var winner = result.betterVariant === 'A' ? 'النسخة A' : (result.betterVariant === 'B' ? 'النسخة B' : 'تعادل');
+    var html = '<div class="ab-result-hero">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+      + '<div><p style="font-size:12px;opacity:0.9;">نتيجة المقارنة</p>'
+      + '<h2 style="font-size:22px;font-weight:800;margin-top:8px;">' + (result.betterVariant === 'tie' ? '🤝 تعادل' : '🏆 ' + esc(winner) + ' أقوى') + '</h2>'
+      + '<div style="display:flex;gap:24px;margin-top:16px;"><div><div style="font-size:28px;font-weight:800;">' + result.scores.A + '</div><div style="font-size:11px;opacity:0.8;">نسخة A</div></div>'
+      + '<div style="font-size:20px;opacity:0.5;">vs</div>'
+      + '<div><div style="font-size:28px;font-weight:800;">' + result.scores.B + '</div><div style="font-size:11px;opacity:0.8;">نسخة B</div></div></div>'
+      + '</div><button type="button" class="btn btn-secondary btn-sm" id="btn-ab-new">← مقارنة جديدة</button></div>'
+      + '<p style="margin-top:16px;font-size:14px;line-height:1.7;">' + esc(result.rationaleAr) + '</p></div>';
+    html += '<div style="text-align:center;margin-top:16px;"><button type="button" class="btn btn-primary" id="btn-ab-another">قارن نسختين أخريين</button></div>';
+
+    document.getElementById('ab-form-view').style.display = 'none';
+    document.getElementById('mode-tabs').style.display = 'none';
+    document.getElementById('ab-result-view').style.display = 'block';
+    document.getElementById('ab-result-view').innerHTML = html;
+    document.getElementById('btn-ab-new').addEventListener('click', resetAb);
+    document.getElementById('btn-ab-another').addEventListener('click', resetAb);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function resetAb() {
+    abGoal = 'sales'; abImageA = {}; abImageB = {};
+    document.getElementById('ab-result-view').style.display = 'none';
+    document.getElementById('ab-result-view').innerHTML = '';
+    document.getElementById('ab-form-view').style.display = 'block';
+    document.getElementById('mode-tabs').style.display = 'flex';
+    document.getElementById('assessor-error').style.display = 'none';
+    renderAbForm();
+  }
+
+  async function submitAbCompare() {
+    var errEl = document.getElementById('assessor-error');
+    errEl.style.display = 'none';
+    abGoal = document.getElementById('ab-goal').value;
+    var payload = {
+      industry: document.getElementById('ab-industry').value,
+      goal: abGoal,
+      creativeA: {
+        primaryText: document.getElementById('ab-a-primary').value || undefined,
+        headline: document.getElementById('ab-a-headline').value || undefined,
+        desiredAction: document.getElementById('ab-a-action').value || undefined,
+        imageBase64: abImageA.b64,
+        imageMimeType: abImageA.mime,
+      },
+      creativeB: {
+        primaryText: document.getElementById('ab-b-primary').value || undefined,
+        headline: document.getElementById('ab-b-headline').value || undefined,
+        desiredAction: document.getElementById('ab-b-action').value || undefined,
+        imageBase64: abImageB.b64,
+        imageMimeType: abImageB.mime,
+      },
+    };
+    document.getElementById('ab-form-view').style.display = 'none';
+    document.getElementById('assessor-loading').style.display = 'flex';
+    document.querySelector('#assessor-loading .loading-text').textContent = 'جاري المقارنة…';
+    try {
+      var data = await apiFetch('/api/ad-assessor/ab-compare', { method: 'POST', body: JSON.stringify(payload) });
+      if (!data) { document.getElementById('ab-form-view').style.display = 'block'; return; }
+      renderAbResults(data);
+    } catch (err) {
+      document.getElementById('ab-form-view').style.display = 'block';
+      errEl.textContent = err.message || 'الخدمة غير متوفرة مؤقتاً';
+      errEl.style.display = 'flex';
+      toast(friendlyApiError(err), 'error');
+    } finally {
+      document.getElementById('assessor-loading').style.display = 'none';
+      document.querySelector('#assessor-loading .loading-text').textContent = 'جاري تحليل إعلانك…';
+    }
   }
 
   async function submitAssessment() {
@@ -477,6 +680,7 @@ export function adAnalysisPage(): string {
     };
 
     document.getElementById('assessor-form-view').style.display = 'none';
+    document.getElementById('mode-tabs').style.display = 'none';
     document.getElementById('assessor-loading').style.display = 'flex';
 
     try {
@@ -519,9 +723,14 @@ export function adAnalysisPage(): string {
     document.getElementById('metrics-fields').style.display = 'block';
   });
 
+  document.getElementById('tab-assess').addEventListener('click', function() { setMode('assess'); });
+  document.getElementById('tab-ab').addEventListener('click', function() { setMode('ab'); renderAbForm(); });
+  document.getElementById('btn-ab-submit').addEventListener('click', submitAbCompare);
+
   renderIndustries();
   renderGoals();
   renderSteps();
+  renderAbForm();
 })();
 </script>`;
 

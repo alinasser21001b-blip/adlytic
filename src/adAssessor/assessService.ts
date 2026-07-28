@@ -74,7 +74,12 @@ const RESPONSE_SCHEMA_HINT = `Return JSON with this exact structure:
   "actionItems": [{"ar": string, "en": string}] (3-5 items),
   "industryTips": [{"ar": string, "en": string}] (2-4 items),
   "strengths": [{"ar": string, "en": string}] (2-3 items),
-  "performanceInsight"?: {"ar": string, "en": string} (only if metrics provided)
+  "performanceInsight"?: {"ar": string, "en": string} (only if metrics provided),
+  "competitiveScore"?: {
+    "score": number,
+    "summaryAr": string,
+    "summaryEn": string
+  }
 }`;
 
 async function callOpenAI(

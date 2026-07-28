@@ -134,5 +134,6 @@ Provide:
 5. actionItems — 3-5 specific changes aligned with what's working NOW
 6. industryTips — 2-4 tips for ${industry?.labelAr} based on current trends
 7. strengths — 2-3 things working well
-8. performanceInsight — ONLY if metrics were provided; otherwise omit`;
+8. performanceInsight — ONLY if metrics were provided; otherwise omit
+9. competitiveScore — OPTIONAL: overall score (0-100) for how close this ad is to winning patterns, plus short summary (ar + en)`;
 }
