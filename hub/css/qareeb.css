@@ -520,3 +520,15 @@ input, textarea { min-height: 44px; }
 .week-row { display: grid; grid-template-columns: 44px 1fr; gap: var(--u3); align-items: center; padding: 0; }
 .week-row .d { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
 .week-row.today .d { color: var(--ink); font-weight: 500; }
+
+/* ---------- 25 · the availability field ----------
+   Not a map. A map of Iraq at 390px is four pixels of Basra and a lot of
+   desert, and it implies a precision about location we do not have. The
+   field is a reading instead: one governorate per row, each carrying
+   engraved marks for the pharmacies reporting stock, brass for anything
+   under an hour old. Same vocabulary as the tick rule, so it belongs. */
+.fld-marks { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.fld-marks > i { width: 3px; height: 14px; background: var(--ink-4); border-radius: 1px; }
+.fld-marks > i.hot { background: var(--brass); height: 18px; }
+.fld-marks > i.none { width: 14px; height: 1px; background: var(--dial-line); border-radius: 0; }
+.fld .rw-lead { top: var(--u3); bottom: var(--u3); }

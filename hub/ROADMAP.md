@@ -50,6 +50,7 @@ committed and deployed green.
 | **P10** | **Open questions closed** — emergency number verified against source (unified 911 + MoH 122), partner price anchored to consultation-fee payback, freshness pulse kept and gating proven | ✅ |
 | **P11** | **Identity v3 — «المِسطرة»** — look layer replaced whole: `src/styles/identity.css` verbatim from the board, `css/qareeb.css` rewritten on it, v2 layer retired. Rows not cards, one shadow, radius 10/999 only, Readex Pro + tabular numerals, the tick rule, the case/dial surfaces | ✅ |
 | **P12** | **Honest handoff** — `opened / sent / abandoned` replaces the false "delivered" claim; duplicate guard; `/me` rebuilt on real states; pharmacy profile rebuilt on v3 | ✅ |
+| **P13** | **Medicine Explorer** — national availability network: CITIES/BRANCHES/RX_MEDS/SIGNALS/REQUESTS, signal decay + request lifecycle state machines, `/explorer` `/rx` `/rx/:v` `/need/*` `/radar/*`, the availability field, structured contact. Spec at `QAREEB_MEDICINE_EXPLORER_IMPLEMENTATION_SPEC.md` | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -94,7 +95,16 @@ These were established by research and are not up for re-litigation in later pha
     `abandoned`. There is no `delivered` state because nothing here can see
     one. Established in P12 after the app was found stamping "SENT" and
     "your message reached the clinic" on the strength of a link click.
-13. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
+13. **A verified pharmacy is not a verified shelf.** Verification is a durable
+    fact about an organisation; a stock claim is a perishable fact about a box.
+    They are rendered as two separate statements and never merged into one
+    badge. Every stock claim expires by itself after three days, so nobody has
+    to remember to retract it.
+14. **Match the exact variant, never the molecule.** A 50mg vial is not an
+    answer to a 2.5mg tablet request. Alternative brand names exist for search
+    recall only and are never surfaced as "you could take this instead" —
+    substitution is the prescriber's and the pharmacist's call, not ours.
+15. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
    citation form, not a male filter. Established in P2 after the first
    implementation wrongly returned zero results for "دكتور اطفال اليوم".
 

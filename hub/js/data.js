@@ -501,6 +501,163 @@ const QR_SOURCES = {
   "c3":  { label_ar: "ملصق مركز المنصور", district: "mansour" },
 };
 
+
+/* ==================================================================
+   MEDICINE EXPLORER — the Iraq availability network
+   ==================================================================
+   Qareeb's existing model answers "who near me has this?" inside Baghdad.
+   Explorer answers the harder question a patient in Basra actually has:
+   "does this medicine exist ANYWHERE in Iraq, and can I reach it?"
+
+   Three new entities, and the separation between them is the whole safety
+   argument:
+
+     PHARMACY IDENTITY  — verified once, slowly, by a human. Durable.
+     AVAILABILITY SIGNAL — a claim by that pharmacy about stock at a moment.
+                           Perishable. Expires on its own. NEVER inherits the
+                           trust of the identity that made it.
+     MEDICINE REQUEST   — a patient's need. Never carries a name or a phone
+                           number in anything another user can see.
+
+   A verified pharmacy saying "we have it" is still an unverified stock claim.
+   Conflating the two is how availability networks start lying.
+   ================================================================== */
+
+/* Iraqi governorates. Explorer is national even though discovery is local:
+   the point is that a medicine missing in Basra may be sitting in Erbil. */
+const CITIES = [
+  { id: "baghdad",  ar: "بغداد",        en: "Baghdad",      lat: 33.312, lng: 44.361 },
+  { id: "basra",    ar: "البصرة",       en: "Basra",        lat: 30.508, lng: 47.783 },
+  { id: "nineveh",  ar: "نينوى",        en: "Nineveh",      lat: 36.335, lng: 43.119, seat_ar: "الموصل", seat_en: "Mosul" },
+  { id: "erbil",    ar: "أربيل",        en: "Erbil",        lat: 36.191, lng: 44.009 },
+  { id: "najaf",    ar: "النجف",        en: "Najaf",        lat: 32.028, lng: 44.341 },
+  { id: "karbala",  ar: "كربلاء",       en: "Karbala",      lat: 32.616, lng: 44.024 },
+  { id: "dhiqar",   ar: "ذي قار",       en: "Dhi Qar",      lat: 31.053, lng: 46.259, seat_ar: "الناصرية", seat_en: "Nasiriyah" },
+  { id: "sulay",    ar: "السليمانية",   en: "Sulaymaniyah", lat: 35.561, lng: 45.437 },
+  { id: "anbar",    ar: "الأنبار",      en: "Anbar",        lat: 33.421, lng: 43.307, seat_ar: "الرمادي", seat_en: "Ramadi" },
+  { id: "babil",    ar: "بابل",         en: "Babil",        lat: 32.470, lng: 44.421, seat_ar: "الحلة",   seat_en: "Hilla" },
+  { id: "kirkuk",   ar: "كركوك",        en: "Kirkuk",       lat: 35.468, lng: 44.392 },
+  { id: "diyala",   ar: "ديالى",        en: "Diyala",       lat: 33.775, lng: 45.144, seat_ar: "بعقوبة", seat_en: "Baquba" },
+];
+
+/* Branches outside Baghdad. The existing FACILITIES list is Baghdad-only and
+   stays that way — those are the ones a patient can walk to. These exist so
+   the availability field has something real behind it in other governorates.
+   Same shape, plus a city, so every helper that takes a facility still works. */
+const BRANCHES = [
+  { id: "b1",  type: "pharmacy", ar: "صيدلية الرافدين",    en: "Al-Rafidain Pharmacy",  city: "basra",   district: null, area_ar: "العشار",       lat: 30.523, lng: 47.812, phone: "9647700000401", wa: "9647700000401", verified: true,  updated: 4,  hours: [{ d: "all", f: "08:00", t: "22:00" }], services: ["delivery"] },
+  { id: "b2",  type: "pharmacy", ar: "صيدلية دجلة الكبرى", en: "Greater Tigris Pharmacy", city: "basra", district: null, area_ar: "الجمهورية",   lat: 30.497, lng: 47.795, phone: "9647700000402", wa: "9647700000402", verified: true,  updated: 11, hours: [{ d: "all", f: "09:00", t: "23:00" }], services: [] },
+  { id: "b3",  type: "pharmacy", ar: "صيدلية هەولێر",      en: "Hawler Pharmacy",       city: "erbil",   district: null, area_ar: "عنكاوا",       lat: 36.234, lng: 43.997, phone: "9647700000403", wa: "9647700000403", verified: true,  updated: 3,  hours: [{ d: "all", f: "09:00", t: "23:30" }], services: ["delivery", "injections"] },
+  { id: "b4",  type: "pharmacy", ar: "صيدلية زانكو",       en: "Zanko Pharmacy",        city: "erbil",   district: null, area_ar: "شارع ٦٠",      lat: 36.176, lng: 44.021, phone: "9647700000404", wa: "9647700000404", verified: true,  updated: 7,  hours: [{ d: "all", f: "08:30", t: "22:30" }], services: ["delivery"] },
+  { id: "b5",  type: "pharmacy", ar: "صيدلية الغري",       en: "Al-Ghari Pharmacy",     city: "najaf",   district: null, area_ar: "شارع الرسول", lat: 32.001, lng: 44.335, phone: "9647700000405", wa: "9647700000405", verified: true,  updated: 6,  hours: [{ d: "all", f: "08:00", t: "22:00" }], services: [] },
+  { id: "b6",  type: "pharmacy", ar: "صيدلية الكفيل",      en: "Al-Kafeel Pharmacy",    city: "karbala", district: null, area_ar: "باب بغداد",    lat: 32.611, lng: 44.031, phone: "9647700000406", wa: "9647700000406", verified: true,  updated: 9,  hours: [{ d: "all", f: "08:00", t: "23:00" }], services: ["delivery"] },
+  { id: "b7",  type: "pharmacy", ar: "صيدلية الناصرية",    en: "Nasiriyah Pharmacy",    city: "dhiqar",  district: null, area_ar: "شارع الحبوبي", lat: 31.048, lng: 46.263, phone: "9647700000407", wa: "9647700000407", verified: false, updated: 21, hours: [{ d: "all", f: "09:00", t: "21:00" }], services: [] },
+  { id: "b8",  type: "pharmacy", ar: "صيدلية الموصل الأهلية", en: "Mosul Pharmacy",     city: "nineveh", district: null, area_ar: "الدواسة",      lat: 36.341, lng: 43.126, phone: "9647700000408", wa: "9647700000408", verified: true,  updated: 5,  hours: [{ d: "all", f: "08:30", t: "22:00" }], services: ["delivery"] },
+  { id: "b9",  type: "pharmacy", ar: "صيدلية سلێمانی",     en: "Slemani Pharmacy",      city: "sulay",   district: null, area_ar: "سالم",         lat: 35.558, lng: 45.441, phone: "9647700000409", wa: "9647700000409", verified: true,  updated: 8,  hours: [{ d: "all", f: "09:00", t: "22:30" }], services: [] },
+  { id: "b10", type: "pharmacy", ar: "صيدلية الفرات",      en: "Euphrates Pharmacy",    city: "babil",   district: null, area_ar: "الحلة المركز", lat: 32.474, lng: 44.418, phone: "9647700000410", wa: "9647700000410", verified: true,  updated: 13, hours: [{ d: "all", f: "08:00", t: "21:30" }], services: ["delivery"] },
+];
+
+/* Hard-to-find medicines — the ones Explorer exists for. Distinct from
+   MEDICINES, which is the everyday chronic-and-common shelf.
+
+   `rx: true` means prescription-only under Iraqi regulation. Explorer never
+   dispenses and never interprets a prescription; the flag exists so the UI can
+   say plainly that a pharmacist will ask for one, and so nothing about the
+   product reads as a way around that.
+
+   `variants` are EXACT presentations. Explorer matches a variant, never a
+   molecule — "the 2.5mg tablet" and "the 50mg vial" are different questions
+   and answering one with the other is a substitution we are not qualified to
+   make. `alt` names other brands of the SAME variant for search recall only;
+   it is never surfaced as "you could take this instead". */
+const RX_MEDS = [
+  { id: "x1", ar: "ميثوتريكسيت", en: "Methotrexate", rx: true, cls_ar: "علاج مناعي/أورام",
+    alias: ["ميثوتركسات", "ميثوتريكسات", "methotrexate", "mtx"],
+    variants: [
+      { id: "x1a", strength: "2.5 ملغم", form: "أقراص", pack: "٣٠ قرص", alt: ["Trexall", "Emthexate"] },
+      { id: "x1b", strength: "50 ملغم/2 مل", form: "حقنة", pack: "أمبولة", alt: ["Metoject"] },
+    ] },
+  { id: "x2", ar: "ريفاروكسابان", en: "Rivaroxaban", rx: true, cls_ar: "مضاد تخثر",
+    alias: ["زاريلتو", "xarelto", "rivaroxaban", "ريفاروكسبان"],
+    variants: [
+      { id: "x2a", strength: "20 ملغم", form: "أقراص", pack: "٢٨ قرص", alt: ["Xarelto"] },
+      { id: "x2b", strength: "15 ملغم", form: "أقراص", pack: "٢٨ قرص", alt: ["Xarelto"] },
+    ] },
+  { id: "x3", ar: "أداليموماب", en: "Adalimumab", rx: true, cls_ar: "بيولوجي",
+    alias: ["هيوميرا", "humira", "adalimumab"], cold: true,
+    variants: [{ id: "x3a", strength: "40 ملغم/0.8 مل", form: "قلم", pack: "قلمان", alt: ["Humira", "Amgevita"] }] },
+  { id: "x4", ar: "ليفوتيروكسين", en: "Levothyroxine", rx: true, cls_ar: "هرمون درقي",
+    alias: ["ليفوثيروكسين", "الثايروكسين", "eltroxin", "levothyroxine"],
+    variants: [
+      { id: "x4a", strength: "100 مايكروغرام", form: "أقراص", pack: "١٠٠ قرص", alt: ["Eltroxin", "Euthyrox"] },
+      { id: "x4b", strength: "50 مايكروغرام", form: "أقراص", pack: "١٠٠ قرص", alt: ["Eltroxin"] },
+    ] },
+  { id: "x5", ar: "إنسولين غلارجين", en: "Insulin glargine", rx: true, cls_ar: "أنسولين طويل المفعول",
+    alias: ["لانتوس", "lantus", "glargine", "غلارجين"], cold: true,
+    variants: [{ id: "x5a", strength: "100 وحدة/مل", form: "قلم", pack: "٥ أقلام", alt: ["Lantus", "Toujeo"] }] },
+  { id: "x6", ar: "سالبوتامول", en: "Salbutamol", rx: false, cls_ar: "موسّع قصبات",
+    alias: ["فنتولين", "ventolin", "salbutamol", "سالبيوتامول"],
+    variants: [{ id: "x6a", strength: "100 مايكروغرام", form: "بخاخ", pack: "٢٠٠ بخة", alt: ["Ventolin"] }] },
+  { id: "x7", ar: "فالبروات الصوديوم", en: "Sodium valproate", rx: true, cls_ar: "مضاد صرع",
+    alias: ["ديباكين", "depakine", "valproate", "فالبروات"],
+    variants: [{ id: "x7a", strength: "500 ملغم", form: "أقراص", pack: "٣٠ قرص", alt: ["Depakine"] }] },
+  { id: "x8", ar: "إيميوغلوبيولين وريدي", en: "IVIG", rx: true, cls_ar: "مناعي وريدي", cold: true,
+    alias: ["ايفيج", "ivig", "غاماغلوبيولين"],
+    variants: [{ id: "x8a", strength: "5 غم/100 مل", form: "وريدي", pack: "قنينة", alt: [] }] },
+];
+
+/* Availability signals — a pharmacy's claim about a variant at a moment.
+   `m` is minutes since the claim was made; the state machine derives
+   everything else from it, so a signal decays without anyone touching it.
+   `q` is an approximate band, never an exact count: a pharmacy that has to
+   promise an integer will either lie or refuse to answer. */
+const SIGNALS = [
+  { id: "s1",  v: "x2a", fac: "p1",  m: 14,   q: "few",   dl: false, st: "available" },
+  { id: "s2",  v: "x2a", fac: "b3",  m: 35,   q: "many",  dl: true,  st: "available" },
+  { id: "s3",  v: "x2a", fac: "p8",  m: 190,  q: "low",   dl: false, st: "low" },
+  { id: "s4",  v: "x2a", fac: "b5",  m: 1500, q: "few",   dl: false, st: "available" },
+  { id: "s5",  v: "x1a", fac: "b1",  m: 48,   q: "few",   dl: true,  st: "available" },
+  { id: "s6",  v: "x1a", fac: "p4",  m: 260,  q: "low",   dl: false, st: "low" },
+  { id: "s7",  v: "x1b", fac: "b8",  m: 700,  q: "few",   dl: false, st: "available" },
+  { id: "s8",  v: "x4a", fac: "p8",  m: 90,   q: "many",  dl: false, st: "available" },
+  { id: "s9",  v: "x4a", fac: "b10", m: 320,  q: "few",   dl: true,  st: "available" },
+  { id: "s10", v: "x4b", fac: "p1",  m: 22,   q: "many",  dl: false, st: "available" },
+  { id: "s11", v: "x5a", fac: "b3",  m: 60,   q: "few",   dl: true,  st: "available" },
+  { id: "s12", v: "x5a", fac: "b4",  m: 2900, q: "low",   dl: false, st: "low" },
+  { id: "s13", v: "x6a", fac: "p2",  m: 18,   q: "many",  dl: false, st: "available" },
+  { id: "s14", v: "x6a", fac: "b6",  m: 240,  q: "many",  dl: true,  st: "available" },
+  { id: "s15", v: "x6a", fac: "b9",  m: 810,  q: "few",   dl: false, st: "available" },
+  { id: "s16", v: "x7a", fac: "b2",  m: 130,  q: "few",   dl: false, st: "available" },
+  { id: "s17", v: "x3a", fac: "b3",  m: 420,  q: "low",   dl: true,  st: "low" },
+  { id: "s18", v: "x2b", fac: "b1",  m: 75,   q: "few",   dl: true,  st: "available" },
+  { id: "s19", v: "x1a", fac: "b7",  m: 5000, q: "few",   dl: false, st: "available" },  /* ages into stale */
+  { id: "s20", v: "x4a", fac: "b1",  m: 11,   q: "many",  dl: true,  st: "available" },
+];
+
+/* Patient requests. NOTHING here identifies a person: no name, no phone, no
+   age, no condition. A request is a city, a variant, a quantity band and an
+   urgency — the minimum a pharmacist needs to answer "can I help". The
+   contact channel is opened by the PATIENT, from their own WhatsApp, only
+   after they pick a pharmacy. */
+const REQUESTS = [
+  { id: "r1", v: "x1a", city: "basra",   qty: "٣٠ قرص",  urg: "urgent", rxHeld: true,  m: 40,   st: "published", resp: ["b1", "p4"] },
+  { id: "r2", v: "x3a", city: "dhiqar",  qty: "قلمان",   urg: "high",   rxHeld: true,  m: 180,  st: "matched",   resp: ["b3"] },
+  { id: "r3", v: "x5a", city: "basra",   qty: "٥ أقلام", urg: "high",   rxHeld: true,  m: 260,  st: "published", resp: [] },
+  { id: "r4", v: "x2a", city: "najaf",   qty: "٢٨ قرص",  urg: "normal", rxHeld: true,  m: 520,  st: "responded", resp: ["b5", "p1"] },
+  { id: "r5", v: "x7a", city: "nineveh", city2: null, qty: "٣٠ قرص", urg: "urgent", rxHeld: false, m: 95, st: "published", resp: [] },
+  { id: "r6", v: "x8a", city: "baghdad", qty: "قنينة",   urg: "urgent", rxHeld: true,  m: 25,   st: "published", resp: [] },
+  { id: "r7", v: "x4a", city: "karbala", qty: "١٠٠ قرص", urg: "normal", rxHeld: true,  m: 1400, st: "responded", resp: ["b10"] },
+  { id: "r8", v: "x6a", city: "sulay",   qty: "بخاخ",    urg: "normal", rxHeld: false, m: 3100, st: "expired",   resp: [] },
+  { id: "r9", v: "x1b", city: "basra",   qty: "أمبولة",  urg: "high",   rxHeld: true,  m: 310,  st: "published", resp: [] },
+  { id: "r10", v: "x2a", city: "baghdad", qty: "٢٨ قرص", urg: "normal", rxHeld: true,  m: 610,  st: "fulfilled", resp: ["p1"] },
+];
+
+/* Search pressure, for the trending rail. Counts, not opinions. */
+const EXPLORER_TRENDS = [
+  { v: "x2a", n: 184 }, { v: "x1a", n: 152 }, { v: "x5a", n: 131 },
+  { v: "x4a", n: 96 },  { v: "x3a", n: 74 },  { v: "x7a", n: 58 },
+];
+
 /* ---------- ADMIN demo metrics ---------- */
 const ADMIN_STATS = {
   scans7d: 1284, requests7d: 213, searches7d: 3960, zeroResults7d: 287,
