@@ -1401,3 +1401,7 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
    than button metrics. It is the single control on this screen that must never
    be hard to hit — hold it to the 48px floor explicitly. */
 .start-bar + .wrap a.note { min-height: 48px; }
+/* The ambulance-direct line under the unified number. Quieter than the note
+   above it — 911 is the number the state wants dialled — but still a real
+   target, because someone reaching for it is not in a state to aim. */
+.emg-alt { min-height: 44px; margin-top: 6px; padding: 0 14px; }

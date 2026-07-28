@@ -9,10 +9,23 @@ const CONFIG = {
   brand: { ar: "قريب", en: "Qareeb" },
   city: { ar: "بغداد", en: "Baghdad" },
   currency: { ar: "د.ع", en: "IQD" },
-  emergency: { ambulance: "122", note_ar: "تأكد من الرقم قبل الإطلاق", note_en: "Verify before launch" },
+  /* Verified July 2026. Iraq consolidated 26 emergency lines behind a unified
+     911 (Ministry of Interior; Baghdad 2024, nationwide by mid-2025), which
+     dispatches police, fire and medical. The Ministry of Health ambulance line
+     122 stays live alongside it. We lead with 911 because that is what the
+     state is telling people to call, and keep 122 because a lot of Baghdad
+     still dials it by muscle memory — both connect. Re-check before launch:
+     an emergency number is the one piece of data here that can cost a life if
+     it goes stale. */
+  emergency: { unified: "911", ambulance: "122", verified_ar: "تموز ٢٠٢٦", verified_en: "July 2026" },
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
+  /* Anchored to the consultation fee already in this dataset: at a 30,000 IQD
+     consultation, two extra patients a month clears it. That is the argument
+     the tier card makes out loud, so a doctor can check it against their own
+     week instead of being asked to trust a number. Indicative until signed. */
+  partnerPrice: 45000,
   defaultDistrict: "karrada",
   radiusKm: 5,
   radiusSteps: [5, 10, 25],

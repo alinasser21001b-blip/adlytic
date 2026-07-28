@@ -1430,6 +1430,10 @@ html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
    than button metrics. It is the single control on this screen that must never
    be hard to hit — hold it to the 48px floor explicitly. */
 .start-bar + .wrap a.note { min-height: 48px; }
+/* The ambulance-direct line under the unified number. Quieter than the note
+   above it — 911 is the number the state wants dialled — but still a real
+   target, because someone reaching for it is not in a state to aim. */
+.emg-alt { min-height: 44px; margin-top: 6px; padding: 0 14px; }
 
 /* ============================================================
    QAREEB v2 — COMPONENT LAYER
@@ -1695,10 +1699,23 @@ const CONFIG = {
   brand: { ar: "قريب", en: "Qareeb" },
   city: { ar: "بغداد", en: "Baghdad" },
   currency: { ar: "د.ع", en: "IQD" },
-  emergency: { ambulance: "122", note_ar: "تأكد من الرقم قبل الإطلاق", note_en: "Verify before launch" },
+  /* Verified July 2026. Iraq consolidated 26 emergency lines behind a unified
+     911 (Ministry of Interior; Baghdad 2024, nationwide by mid-2025), which
+     dispatches police, fire and medical. The Ministry of Health ambulance line
+     122 stays live alongside it. We lead with 911 because that is what the
+     state is telling people to call, and keep 122 because a lot of Baghdad
+     still dials it by muscle memory — both connect. Re-check before launch:
+     an emergency number is the one piece of data here that can cost a life if
+     it goes stale. */
+  emergency: { unified: "911", ambulance: "122", verified_ar: "تموز ٢٠٢٦", verified_en: "July 2026" },
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
+  /* Anchored to the consultation fee already in this dataset: at a 30,000 IQD
+     consultation, two extra patients a month clears it. That is the argument
+     the tier card makes out loud, so a doctor can check it against their own
+     week instead of being asked to trust a number. Indicative until signed. */
+  partnerPrice: 45000,
   defaultDistrict: "karrada",
   radiusKm: 5,
   radiusSteps: [5, 10, 25],
@@ -2974,7 +2991,7 @@ function screenHome() {
 
     <button class="sos" onclick="openEmergency()">
       ${icon("alert")}<span class="grow">${isAR() ? "حالة طارئة؟" : "Emergency?"}</span>
-      <b class="num">${CONFIG.emergency.ambulance}</b></button>
+      <b class="num">${CONFIG.emergency.unified}</b></button>
   </section>
 
   <section class="sec wrap">
@@ -3091,12 +3108,12 @@ function screenStart() {
       ? "بلا حساب · بلا تسجيل · ما نحفظ شي عن صحتك"
       : "No account · no sign-up · nothing about your health is stored"}</div>
 
-    <a class="note note-e row-b" style="margin-top:14px;gap:10px" href="tel:${CONFIG.emergency.ambulance}">
-      <span><b>${isAR() ? "طوارئ؟" : "Emergency?"}</b> ${isAR() ? "اتصل بالإسعاف" : "Call the ambulance"}</span>
+    <a class="note note-e row-b" style="margin-top:14px;gap:10px" href="tel:${CONFIG.emergency.unified}">
+      <span><b>${isAR() ? "طوارئ؟" : "Emergency?"}</b> ${isAR() ? "الرقم الموحد" : "Unified line"}</span>
+      <b class="num">${CONFIG.emergency.unified}</b></a>
+    <a class="row-b tiny emg-alt" href="tel:${CONFIG.emergency.ambulance}">
+      <span class="muted">${isAR() ? "أو الإسعاف مباشرة" : "or the ambulance direct"}</span>
       <b class="num">${CONFIG.emergency.ambulance}</b></a>
-    <p class="tiny muted" style="margin-top:8px;text-align:center">${isAR()
-      ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه."
-      : "Verify the local ambulance number before relying on it."}</p>
   </section>
   <div style="height:26px"></div>`;
 }
@@ -3567,8 +3584,8 @@ function screenHospitals() {
   return `${header({ back: true, title: isAR() ? "المستشفيات" : "Hospitals" })}
   <section class="wrap sec">
     <div class="banner banner--stop">${icon("alert")}<span>${isAR()
-      ? `للحالات الطارئة اتصل بالإسعاف <b class="num">${CONFIG.emergency.ambulance}</b> مباشرة.`
-      : `For emergencies call the ambulance on <b class="num">${CONFIG.emergency.ambulance}</b> directly.`}</span></div>
+      ? `للحالات الطارئة اتصل بالرقم الموحد <b class="num">${CONFIG.emergency.unified}</b> — أو الإسعاف <b class="num">${CONFIG.emergency.ambulance}</b>.`
+      : `In an emergency call <b class="num">${CONFIG.emergency.unified}</b> — or the ambulance on <b class="num">${CONFIG.emergency.ambulance}</b>.`}</span></div>
     <div class="sec-h" style="margin-top:20px"><h2>${isAR() ? "طوارئ مفتوحة الآن" : "Emergency rooms open now"}</h2></div>
     <div class="stack list-2">${er.map((x) => hospitalRow(x)).join("")}</div>
     <div class="sec-h" style="margin-top:24px"><h2>${isAR() ? "كل المستشفيات والمراكز" : "All hospitals & centres"}</h2></div>
@@ -3601,7 +3618,7 @@ function screenHospital(id) {
         <div class="card-meta" style="margin-top:7px">${sealBadge(f)}<i class="dot"></i>${updatedLine(f)}</div></div>
     </div>
     ${f.er ? `<div class="banner banner--stop" style="margin-top:14px">${icon("alert")}
-      <span>${isAR() ? "طوارئ تعمل ٢٤ ساعة" : "Emergency department open 24h"} · ${CONFIG.emergency.ambulance}</span></div>` : ""}
+      <span>${isAR() ? "طوارئ تعمل ٢٤ ساعة" : "Emergency department open 24h"} · <span class="num">${CONFIG.emergency.unified}</span></span></div>` : ""}
     <div class="prof-facts">
       <div class="prof-fact"><div class="k">${isAR() ? "المسافة" : "Distance"}</div><div class="v">${fmtKm(distTo(f))}</div></div>
       <div class="prof-fact"><div class="k">${isAR() ? "الأطباء" : "Doctors"}</div><div class="v num">${docs.length}</div></div>
@@ -3662,8 +3679,8 @@ function screenTrust() {
       ? "لا نعرض تقييمات أو نجوماً. بدون عدد كافٍ من التقييمات الحقيقية فهي إما فارغة أو مضللة."
       : "We show no ratings or stars. Without real volume they are either empty or gamed."}</span></div>
     <div class="banner banner--warn" style="margin-top:10px">${icon("alert")}<span>${isAR()
-      ? `${L(CONFIG.brand)} لا يقدّم استشارة طبية ولا تشخيصاً. للحالات الطارئة اتصل بالإسعاف ${CONFIG.emergency.ambulance}.`
-      : `${L(CONFIG.brand)} does not provide medical advice or diagnosis. In an emergency call ${CONFIG.emergency.ambulance}.`}</span></div>
+      ? `${L(CONFIG.brand)} لا يقدّم استشارة طبية ولا تشخيصاً. للحالات الطارئة اتصل بالرقم الموحد ${CONFIG.emergency.unified}.`
+      : `${L(CONFIG.brand)} does not provide medical advice or diagnosis. In an emergency call ${CONFIG.emergency.unified}.`}</span></div>
     <div class="banner banner--info" style="margin-top:10px">${icon("check")}<span>${isAR()
       ? "بدون حساب، بدون كلمة مرور، ولا نحتفظ بأي بيانات صحية. طلبك يذهب مباشرة إلى العيادة عبر واتساب."
       : "No account, no password, no health data stored. Your request goes straight to the clinic over WhatsApp."}</span></div>
@@ -4067,7 +4084,8 @@ function openEmergency() {
       <p>${isAR() ? "إذا كانت الحالة خطرة، اتصل بالإسعاف فوراً." : "If this is serious, call the ambulance now."}</p></div>
       <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
     <div class="sheet-b">
-      <a class="btn btn--danger" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
+      <a class="btn btn--danger" href="tel:${CONFIG.emergency.unified}">${icon("phone")}${isAR() ? "الطوارئ الموحد" : "Unified emergency"} <span class="num">${CONFIG.emergency.unified}</span></a>
+      <a class="btn btn--2" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
       <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
       <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
       <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
@@ -4639,7 +4657,7 @@ function screenPartnerDoctor(id) {
       <div class="note note-i" style="margin-top:14px">${isAR()
         ? "أول خطوة: أكّد أوقات دوامك. الأطباء اللي أوقاتهم واضحة يوصلهم ضعف الطلبات."
         : "First step: confirm your hours. Doctors with clear hours receive roughly double the requests."}</div>
-      ${partnerTier()}
+      ${partnerTier(d)}
     </section>${nav("doctors")}`;
   }
 
@@ -4724,14 +4742,44 @@ function screenPartnerDoctor(id) {
       </div>
     </div>
 
-    ${partnerTier()}
+    ${partnerTier(d)}
   </section>${nav("doctors")}`;
 }
 
-function partnerTier() {
+/* Arabic counts in four buckets, not two. English needs "1 patient / N
+   patients"; Arabic needs the singular, the dual (مريضان — a distinct form,
+   not "2 patients"), the plural for 3–10, and the accusative singular from 11
+   up. Writing "2 مرضى" is the same class of error as the gender bug in P2:
+   it is English grammar wearing Arabic words. */
+function countAr(n, forms) {
+  const [one, two, few, many] = forms;
+  if (n === 1) return one;
+  if (n === 2) return two;
+  if (n <= 10) return `<span class="num">${n}</span> ${few}`;
+  return `<span class="num">${n}</span> ${many}`;
+}
+
+/* A price with no arithmetic attached is a number the reader has to take on
+   faith, and a doctor deciding in ten seconds will not. So the tier states
+   what it costs *in their own units*: their consultation fee is in the data,
+   so we can say how many extra patients a month clears it. At 45,000 IQD and
+   a 30,000 IQD consultation that is two — which is a claim a doctor can check
+   against their own week, and reject if it is wrong. */
+function partnerTier(ent) {
+  const price = CONFIG.partnerPrice;
+  /* A doctor's fee lives on the session, not on the doctor — the hospital
+     morning is free and the private evening clinic is not. An extra patient
+     only produces revenue at the paid session, so that is the fee the payback
+     has to be computed against. */
+  const fee = Math.max(0, ...(ent && ent.sessions || []).map((x) => x.fee || 0));
+  const payback = fee > 0 ? Math.ceil(price / fee) : null;
   return `<div class="tier surf-key pad-3" style="margin-top:18px">
     <div class="q-eyebrow">${isAR() ? "اشتراك الشريك" : "Partner plan"}</div>
-    <div class="tier-p num">45,000 <span style="font-size:.5em">${L(CONFIG.currency)}/${isAR() ? "شهر" : "mo"}</span></div>
+    <div class="tier-p num">${price.toLocaleString("en-US")} <span style="font-size:.5em">${L(CONFIG.currency)}/${isAR() ? "شهر" : "mo"}</span></div>
+    ${payback ? `<div class="q-sub" style="margin-top:4px">${isAR()
+      ? `أجرة كشفك <span class="num">${fee.toLocaleString("en-US")}</span> — كلفة الاشتراك بالشهر: <b>${countAr(payback,
+          ["مريض إضافي واحد", "مريضان إضافيان", "مرضى إضافيين", "مريضاً إضافياً"])}</b>.`
+      : `Your fee is <span class="num">${fee.toLocaleString("en-US")}</span> — so <b><span class="num">${payback}</span> extra patient${payback === 1 ? "" : "s"} a month</b> covers it.`}</div>` : ""}
     <ul style="margin-top:12px">
       ${(isAR()
         ? ["طلبات المرضى تصلك مباشرة على واتساب", "لوحة الطلب في منطقتك", "أولوية في نتائج اختصاصك", "توثيق ومراجعة دورية للمعلومات"]
@@ -4742,7 +4790,7 @@ function partnerTier() {
        href="${waLink("9647700000001", isAR() ? "مرحباً، أريد الاشتراك كطبيب شريك في قريب." : "Hello, I'd like to join Qareeb as a partner doctor.")}">
       ${icon("wa")}${isAR() ? "اشترك عبر واتساب" : "Join via WhatsApp"}</a>
     <p class="q-eyebrow" style="margin-top:10px;opacity:.75">${isAR()
-      ? "السعر توضيحي في هذا النموذج." : "Illustrative pricing in this prototype."}</p>
+      ? "السعر مبدئي — يُثبَّت قبل الإطلاق." : "Indicative price — fixed before launch."}</p>
   </div>`;
 }
 

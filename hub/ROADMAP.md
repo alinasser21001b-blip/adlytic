@@ -47,6 +47,7 @@ committed and deployed green.
 | **P9** | **v2 board landing** — component layer at `src/styles/qareeb.css`; `/med/:id` rebuilt on freshness bands; QR entry `/start`; error + offline-age + route-matched skeletons | ✅ `962a67e` |
 | **P6** | **Data integrity** — validator catching duplicates, orphan refs, invalid ranges; surfaced in admin | ✅ `PHASE3-6` |
 | **P7** | **Motion** — single 170ms ease-out language, landed in §36 | ✅ |
+| **P10** | **Open questions closed** — emergency number verified against source (unified 911 + MoH 122), partner price anchored to consultation-fee payback, freshness pulse kept and gating proven | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -72,7 +73,11 @@ These were established by research and are not up for re-litigation in later pha
    A confirmation older than three days is not information, so it can never be
    the hero of `/med/:id` and is never promoted by being nearer. Established
    in P9 after `/med/m9` opened on an eight-day-old record styled as live.
-9. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
+9. **Arabic counts in four buckets, not two.** Singular, dual (مريضان — its own
+   form, not "2 patients"), plural for 3–10, accusative singular from 11 up.
+   Where a verb would have to agree with a count, restructure the sentence so
+   it does not. Writing "2 مرضى" is English grammar wearing Arabic words.
+10. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
    citation form, not a male filter. Established in P2 after the first
    implementation wrongly returned zero results for "دكتور اطفال اليوم".
 
