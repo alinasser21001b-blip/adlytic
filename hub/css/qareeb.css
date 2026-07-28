@@ -778,3 +778,17 @@ body.dark .qa-one { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 5
   0%, 100% { box-shadow: 0 0 20px -9px color-mix(in srgb, var(--jade) 55%, transparent); }
   50%      { box-shadow: 0 0 26px -6px color-mix(in srgb, var(--jade) 75%, transparent); }
 }
+
+/* ---------- 30 · native touch feel ----------
+   Two defaults that make a web app feel like a website: the grey Android tap
+   flash on every press, and the double-tap-zoom delay some browsers keep on
+   plain elements. Both removed on controls only — text stays selectable,
+   because a patient copying a medicine name into WhatsApp is a real flow. */
+a, button, .chip, .qa-b, .rush, .slot-btn, .nav a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
+}
+/* The app's own press states replace the flash — they already exist
+   (.btn:active scale, .qa-b:active depress); this just stops the browser
+   painting its grey guess on top of them. */

@@ -771,6 +771,12 @@ function screenHome() {
 }
 
 function screenHomePatient() {
+  /* The local directory (doctors, open-now pharmacies, districts) covers
+     Baghdad. A patient whose governorate is set elsewhere must not be handed
+     Baghdad's numbers as if they were theirs — "5 pharmacies open now" is a
+     lie in Basra. They get the national reading instead, with the coverage
+     boundary stated in words rather than discovered by disappointment. */
+  if ((S.exCity || "baghdad") !== "baghdad") return screenHomeAway();
   const docsOpen = docsOpenNow(), phOpen = phOpenNow(), night = phNight();
   const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
   const scarce = MEDICINES.filter((m) => !m.stock.some((st) => freshBand(freshMins(st)) !== "cold"));
@@ -844,6 +850,60 @@ function screenHomePatient() {
 /* ---------------- role home · pharmacist ----------------
    The case opens on the demand this branch could answer — not on patient
    discovery, which a pharmacist standing behind a counter does not need. */
+/* Home for a patient outside Baghdad: the case opens on what the network
+   can truthfully do for them — the availability field across Iraq — and
+   says plainly where the local layer stops. */
+function screenHomeAway() {
+  const c = cityById(S.exCity);
+  const liveSigs = SIGNALS.filter((g) => g.m < SIG_TTL);
+  const inMine = liveSigs.filter((g) => cityOf(anyFac(g.fac)) === S.exCity);
+  const wanted = liveRequests().filter((r) => r.city === S.exCity);
+
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+      <a class="t3" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
+    </div>
+
+    <button class="lab" style="margin-top:34px;display:block;text-align:start;min-height:0"
+      onclick="pickExCity()">${esc(cityName(c))} · <span class="num">${fmtT(nowMins())}</span></button>
+
+    <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${inMine.length}</div>
+    <div class="d2" style="margin-top:6px;font-weight:500">${isAR()
+      ? `تأكيد توفّر حيّ في ${esc(cityName(c))}` : `live confirmations in ${esc(cityName(c))}`}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? `و<span class="num">${liveSigs.length - inMine.length}</span> في باقي المحافظات — الدواء الناقص عندك قد يكون موجوداً عندهم.`
+      : `and <span class="num">${liveSigs.length - inMine.length}</span> across the rest of Iraq — what is missing here may exist there.`}</div>
+
+    <div style="margin-top:26px" class="v2">
+      <button class="btn" onclick="location.hash='#/rx'">${isAR() ? "دوّر على دواء" : "Look for a medicine"}</button>
+      <button class="btn btn--2" onclick="location.hash='#/need/new'">${isAR() ? "انشر حاجتك — الشبكة تدوّر عنك" : "Publish your need"}</button>
+    </div>
+  </section>
+
+  ${wanted.length ? `<div class="hr" style="margin-top:30px"></div>
+  <section class="pad">
+    <div class="lab" style="padding-top:24px">${isAR() ? `يدوّرون عليه في ${esc(cityName(c))}` : `Wanted in ${esc(cityName(c))}`}</div>
+    ${wanted.slice(0, 3).map((r) => needCard(r, { state: false })).join('<div class="hr"></div>')}
+  </section>` : ""}
+
+  <section class="pad" style="margin-top:26px">
+    <div class="note note-w"><span>${isAR()
+      ? `دليل الأطباء والصيدليات المحلي يغطي بغداد حالياً. في ${esc(cityName(c))} يخدمك مستكشف الأدوية — وهو وطني — وطوارئ الرقم الموحد <b class="num">${CONFIG.emergency.unified}</b> تعمل بكل مكان.`
+      : `The local doctor and pharmacy directory currently covers Baghdad. In ${esc(cityName(c))} the Medicine Explorer — which is national — is what serves you, and the unified emergency line <b class="num">${CONFIG.emergency.unified}</b> works everywhere.`}</span></div>
+    <button class="b-g" style="font-size:12.5px;margin-top:12px" onclick="setExCity('baghdad')">${isAR() ? "أنا في بغداد فعلاً — رجّعني" : "I'm actually in Baghdad — switch back"}</button>
+  </section>
+
+  <section class="pad" style="margin:26px 0 30px">
+    <a class="rowb" style="border-top:1px solid var(--dial-line-2);padding-top:16px" href="tel:${CONFIG.emergency.unified}">
+      <span class="st st-e"><i class="dot"></i>${isAR() ? "طوارئ — الرقم الموحد" : "Emergency"}</span>
+      <span class="n" style="font-size:17px;color:var(--alarm)">${CONFIG.emergency.unified}</span>
+    </a>
+  </section>
+  ${nav("home")}`;
+}
+
 function screenHomePharmacist() {
   const f = S.myBranch ? anyFac(S.myBranch) : null;
   const rows = f ? radarFor(f.id) : [];
@@ -3223,7 +3283,7 @@ function screenExplorer() {
 
   ${EXPLORER_TRENDS.length ? `<div class="hr" style="margin-top:26px"></div>
   <section class="pad">
-    <div class="lab" style="padding-top:24px">${isAR() ? "الأكثر بحثاً هذا الأسبوع" : "Most searched this week"}</div>
+    <div class="lab" style="padding-top:24px">${isAR() ? "الأكثر بحثاً" : "Most searched"}</div>
     <div class="chips chips--wrap" style="margin-top:14px">
       ${EXPLORER_TRENDS.map((tr) => { const x = variantOf(tr.v); return x
         ? `<a class="chip" href="#/rx/${tr.v}">${esc(L(x.med))} <span class="num" style="opacity:.6">${tr.n}</span></a>` : ""; }).join("")}
@@ -3515,6 +3575,14 @@ function submitAuth() {
   LS.set("auth", { phone: phone.trim(), at: Date.now() });
   const next = S.otp.next; S.otp = null;
   closeSheet();
+  /* The gate interrupted a tap on "publish". Making the patient tap it again
+     after verifying punishes them for complying — resume the exact action
+     they already took, now that it is allowed. */
+  if (next === "#/need/new" && S.draft && S.draft.v && String(S.draft.qty || "").trim()) {
+    toast(isAR() ? "تم التحقق" : "Verified");
+    publishNeed();
+    return;
+  }
   toast(isAR() ? "تم — تكدر تنشر طلبك" : "Verified — you can publish");
   if (next) location.hash = next; else render();
 }
@@ -3566,7 +3634,22 @@ function screenNeedNew(qs) {
 
   <section class="pad" style="margin-top:24px">
     <div class="lab">${isAR() ? "٣ · شكد تحتاج" : "3 · How much"}</div>
-    <div class="field"><label for="qty">${isAR() ? "الكمية" : "Quantity"}</label>
+    ${(() => {
+      /* One hand, a sick child in the other: the common quantities are chips,
+         so publishing needs zero typing. The variant's own pack size leads,
+         because "one pack of what the doctor wrote" is the answer nine times
+         out of ten. Free input stays for the tenth. */
+      const packs = x ? [
+        x.v.pack,
+        isAR() ? "علبتان" : "2 packs",
+        isAR() ? "علبة واحدة" : "1 pack",
+      ].filter((v, i, a) => a.indexOf(v) === i) : [];
+      return `<div class="chips chips--wrap" style="margin-top:12px">
+        ${packs.map((q) => `<button class="chip ${d.qty === q ? "on" : ""}" data-qtychip
+          onclick="S.draft.qty='${esc(q)}';document.getElementById('qty').value='${esc(q)}';syncPublish();this.parentElement.querySelectorAll('.chip').forEach(e=>e.classList.remove('on'));this.classList.add('on')">${esc(q)}</button>`).join("")}
+      </div>`;
+    })()}
+    <div class="field"><label for="qty">${isAR() ? "أو اكتبها" : "Or type it"}</label>
       <input id="qty" value="${esc(d.qty)}" placeholder="${x ? esc(x.v.pack) : (isAR() ? "مثلاً ٣٠ قرص" : "e.g. 30 tablets")}"
         oninput="S.draft.qty=this.value;syncPublish()" autocomplete="off"></div>
   </section>
@@ -4073,15 +4156,24 @@ function screenRadar(facId) {
     </div>
     <div class="q-sub" style="margin-top:4px">${esc(cityName(cityById(cityOf(f))))}</div>
 
-    <div style="display:flex;align-items:baseline;gap:12px;margin-top:24px">
+    ${rush
+      /* Rush mode exists to put the first answer under the thumb. The probe
+         caught the opposite: the ceremonial header pushed the first urgent
+         card to 925px — below the fold on the phones pharmacists actually
+         hold. In rush the header collapses to one line; the numeral returns
+         when the rush is over. */
+      ? `<div class="rowb" style="margin-top:18px">
+          <span class="t1" style="font-size:14px"><b class="num">${rows.length}</b> ${isAR() ? "طلب" : "waiting"} · <span class="num">${urgent}</span> ${isAR() ? "عاجل" : "urgent"}</span>
+        </div>`
+      : `<div style="display:flex;align-items:baseline;gap:12px;margin-top:24px">
       <span class="nhuge" style="color:var(--brass-ink)">${rows.length}</span>
       <span><span class="d3" style="font-weight:500;display:block">${isAR() ? "طلب ينتظر جوابك" : "requests waiting on you"}</span>
         <span class="q-sub">${isAR()
           ? `<span class="num">${urgent}</span> عاجل · <span class="num">${holds}</span> لدواء أفدت بتوفّره`
           : `<span class="num">${urgent}</span> urgent · <span class="num">${holds}</span> you already report`}</span></span>
-    </div>
+    </div>`}
 
-    <button class="rush ${rush ? "on" : ""}" onclick="toggleRush()">
+    <button class="rush ${rush ? "on" : ""}" style="${rush ? "margin-top:12px;min-height:48px" : ""}" onclick="toggleRush()">
       <span class="grow" style="text-align:start">
         <span class="t1" style="font-size:14.5px;display:block">${isAR() ? "وضع الزحام" : "Rush mode"}</span>
         <span class="t3">${rush
@@ -4095,6 +4187,8 @@ function screenRadar(facId) {
   ${front.length ? `<section class="pad" style="margin-top:22px">
     ${rush ? `<div class="lab" style="margin-bottom:10px;color:var(--alarm)">${isAR() ? "العاجل فقط" : "Urgent only"}</div>` : ""}
     <div class="v3">${front.slice(0, 12).map((x) => pharmacyQuickCard(f.id, x)).join("")}</div>
+  </section>` : rush && batched.length ? `<section class="pad" style="margin-top:18px">
+    <div class="t3">${isAR() ? "ما في عاجل — هذي المتجمّعة:" : "Nothing urgent — the batched pile:"}</div>
   </section>` : `<section class="pad" style="margin-top:26px">
     <div class="empty" style="padding:26px 0">
       <div class="glyph"><i></i><i></i><i></i><b></b></div>
@@ -4107,7 +4201,7 @@ function screenRadar(facId) {
     </div>
   </section>`}
 
-  ${batched.length ? `<div class="hr" style="margin-top:22px"></div>
+  ${batched.length ? `${front.length ? `<div class="hr" style="margin-top:22px"></div>` : ""}
   <section class="pad">
     <div class="rowb" style="padding-top:22px">
       <span class="lab">${isAR() ? "متجمّع بهدوء" : "Batched quietly"}</span>
