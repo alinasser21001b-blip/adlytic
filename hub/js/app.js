@@ -372,62 +372,95 @@ function updatedLine(ent) {
 }
 
 /* ---------------- CARDS ---------------- */
+/* ---------------- v3 · THE TICK RULE ----------------
+   The identity motif. Twenty-four engraved ticks, majors every four hours,
+   and one brass tick for now. It replaces the ribbon at the top of a screen:
+   the ribbon says "these are the open hours", the tick rule says "this is a
+   measuring instrument and you are here on it".
+------------------------------------------------------------- */
+function ticks(nowM = nowMins()) {
+  const h = Math.floor((nowM % 1440) / 60);
+  return `<div class="ticks" role="img" aria-label="${isAR() ? "الساعة الآن" : "Current hour"} ${fmtT(nowM)}">${
+    Array.from({ length: 24 }, (_, i) =>
+      `<i class="${i === h ? "on" : i % 4 === 0 ? "maj" : ""}"></i>`).join("")}</div>`;
+}
+
+const axis24 = () => `<div class="axis">00<span>06</span><span>12</span><span>18</span>24</div>`;
+
+/* The band: one entity's day drawn as arc segments on a 3px rule. Jade is
+   the hospital shift, brass the private clinic — the same two meanings the
+   whole product uses, and nothing else is ever drawn here. */
+function band(ent, day = null, showNow = true) {
+  const d = day === null ? nowDay() : day;
+  const segs = rawSegs(ent, d);
+  const prev = rawSegs(ent, (d + 6) % 7).filter((x) => x.t > 1440).map((x) => ({ ...x, f: 0, t: x.t - 1440 }));
+  const bars = [...prev, ...segs].map((x) => {
+    const a = Math.max(0, x.f), b = Math.min(1440, x.t);
+    if (b <= a) return "";
+    return `<i class="${x.kind === "priv" ? "cl" : "sh"}" style="inset-inline-start:${pct(a).toFixed(2)}%;width:${pct(b - a).toFixed(2)}%"></i>`;
+  }).join("");
+  const mk = showNow && (day === null || day === nowDay())
+    ? `<span class="nowmk" style="inset-inline-start:${pct(nowMins()).toFixed(2)}%"></span>` : "";
+  return `<div class="band">${bars}${mk}</div>`;
+}
+
+/* ---------------- v3 · THE ROW ----------------
+   Rows, not cards. The list is the surface: a hairline separates entries and
+   a brass lead in the gutter marks "open right now". Nothing here is a box.
+------------------------------------------------------------- */
+function rowEl(o) {
+  return `<a class="rw${o.open ? "" : ""}${o.quiet ? " quiet" : ""}" href="${o.href}">
+    ${o.open ? `<span class="rw-lead"></span>` : ""}
+    <span class="av">${esc(o.mono)}</span>
+    <span class="grow">
+      <span class="rowb"><span class="d3">${esc(o.title)}</span>${o.mark || ""}</span>
+      ${o.sub ? `<span class="q-sub" style="display:block">${o.sub}</span>` : ""}
+      ${o.meta ? `<span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">${o.meta}</span>` : ""}
+      ${o.band ? `<span style="display:block;margin-top:12px">${o.band}</span>` : ""}
+    </span>
+  </a>`;
+}
+
 function doctorCard(x, wide = false) {
   const { d, km, st } = x;
   const sp = specOf(d.spec);
   const f = st.k !== "shut" && st.seg ? st.seg.fac : (st.next ? st.next.fac : docFacs(d)[0]);
   const dist = f && DISTRICTS.find((y) => y.id === f.district);
   const fee = st.k !== "shut" && st.seg ? st.seg.s?.fee : (st.next ? st.next.s?.fee : d.sessions[0].fee);
-  const gender = d.gender === "f" ? (isAR() ? "طبيبة" : "Female") : (isAR() ? "طبيب" : "Male");
-  return `<a class="card ${st.k === "open" ? "is-open" : st.k === "soon" ? "is-soon" : "is-shut"} ${wide ? "card--wide" : ""}" href="#/doctor/${d.id}">
-    <div class="card-top">
-      <div class="avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
-      <div class="grow">
-        <div class="card-t">${esc(L(d))}</div>
-        <div class="card-q">${esc(L(sp))}${d.sub_ar && isAR() ? " · " + esc(d.sub_ar) : ""}</div>
-      </div>
-      ${d.verified ? `<span class="seal seal--pill">${icon("seal")}${t("verified")}</span>` : ""}
-    </div>
-
-    <div class="card-avail">
-      ${statusLabel(st)}
-      ${weekStrip(d)}
-    </div>
-
-    <div class="card-meta">
-      <span class="chip--meta">${gender}</span>
-      ${f ? `<span class="trunc">${esc(L(f))}</span>` : ""}
-      ${dist ? `<i class="dot"></i><span>${esc(L(dist))}</span>` : ""}
-      <i class="dot"></i><span class="dist">${icon("pin")}${fmtKm(km)}</span>
-    </div>
-
-    ${fee !== null && fee !== undefined ? `<div class="card-foot">
-      <span class="fee-l">${t("fee")}</span>
-      <span class="fee ${fee === 0 ? "fee--free" : ""} num">${money(fee)}</span>
-    </div>` : ""}
-  </a>`;
+  const open = st.k === "open";
+  return rowEl({
+    href: `#/doctor/${d.id}`,
+    mono: initials(L(d)).charAt(0),
+    title: L(d),
+    open, quiet: st.k === "shut",
+    mark: d.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
+    meta: [
+      statusLabel(st, true),
+      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
+      fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : "",
+      dist ? `<span class="t3">${esc(L(dist))}</span>` : "",
+    ].filter(Boolean).join(""),
+    band: band(d),
+  });
 }
 
 function pharmacyCard(x, wide = false) {
   const { f, km, st } = x;
   const dist = DISTRICTS.find((d) => d.id === f.district);
-  return `<a class="card ${st.k === "open" ? "is-open" : st.k === "soon" ? "is-soon" : "is-shut"} ${wide ? "card--wide" : ""}" href="#/pharmacy/${f.id}">
-    <div class="card-top">
-      <div class="avatar avatar--sq">${icon("cross")}</div>
-      <div class="grow">
-        <div class="card-t trunc">${esc(L(f))}</div>
-        <div class="card-meta">
-          ${f.verified ? `<span class="seal">${icon("seal")}${t("verified")}</span><i class="dot"></i>` : ""}
-          <span class="dist">${icon("pin")}${fmtKm(km)}</span>
-          <i class="dot"></i><span>${esc(L(dist))}</span>
-          ${f.night ? `<span class="chip chip--meta chip--time">${icon("moon")}${t("nightDuty")}</span>` : ""}
-        </div>
-      </div>
-    </div>
-    <div class="card-ribbon">${ribbon(f)}</div>
-    <div class="card-foot">${statusLabel(st)}</div>
-    ${(f.services || []).length ? `<div class="card-svc">${f.services.slice(0, 4).map((sv) => `<span class="chip chip--meta">${svcLabel(sv)}</span>`).join("")}</div>` : ""}
-  </a>`;
+  return rowEl({
+    href: `#/pharmacy/${f.id}`,
+    mono: initial(L(f)),
+    title: L(f),
+    open: st.k === "open", quiet: st.k === "shut",
+    mark: f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
+    meta: [
+      statusLabel(st, true),
+      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
+    ].join(""),
+    band: band(f),
+  });
 }
 
 const SVC = {
@@ -671,11 +704,12 @@ function netBanner() {
      read at a point in time and may have moved since. Say which is which. */
   const at = LS.get("lastOnline", null);
   const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
-  return `<div class="offline-bar">${icon("alert")}
-    <span>${isAR()
-      ? `ما في اتصال. ${when ? `هذه بيانات محفوظة من <span dir="ltr" class="num">${when}</span> — التوفّر ممكن يكون تغيّر. ` : ""}التصفّح والاتصال الهاتفي شغّالين — بس الإرسال عبر واتساب يحتاج إنترنت.`
-      : `No connection. ${when ? `This is saved data from <span dir="ltr" class="num">${when}</span> — stock may have changed. ` : ""}Browsing and phone calls still work — WhatsApp needs the network.`}</span>
-    <button onclick="render()">${isAR() ? "أعد المحاولة" : "Retry"}</button></div>`;
+  return `<div class="offline-bar">
+    <span class="grow">${isAR()
+      ? `${when ? `بيانات محفوظة من <span class="num">${when}</span>` : "دون اتصال"}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل</span>`
+      : `${when ? `Saved data from <span class="num">${when}</span>` : "Offline"}<br><span class="t3">Stock may have changed · phone calls still work</span>`}</span>
+    <span class="st st-q"><i class="dot"></i>${isAR() ? "محفوظ" : "saved"}</span>
+    <button onclick="render()">${isAR() ? "إعادة" : "Retry"}</button></div>`;
 }
 
 /* ---------------- SHELL ---------------- */
@@ -707,100 +741,81 @@ function nav(active) {
 }
 
 /* ---------------- SCREENS ---------------- */
+/* ---------------- v3 · HOME · 4d ----------------
+   The case opens on the one number that matters. There is no search bar
+   competing with it: a search field is a question the product asks the user,
+   and the home screen's job is to answer one first.
+
+   Which number? Open pharmacies. Not doctors — a doctor is needed a few times
+   a year and the answer is rarely "right now". A pharmacy at 02:40 is the
+   thing a tired parent is actually holding a phone for.
+------------------------------------------------------------- */
 function screenHome() {
-  const needLabel = S.filters.spec ? L(specOf(S.filters.spec)) : t("adoctor");
   const docsOpen = docsOpenNow(), phOpen = phOpenNow(), night = phNight();
-  const confirmedMeds = MEDICINES.filter((m) => m.stock.length).length;
-  const scarce = MEDICINES.length - confirmedMeds;
+  const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
+  const scarce = MEDICINES.filter((m) => !m.stock.some((st) => freshBand(freshMins(st)) !== "cold"));
   const nearby = [
-    ...doctorsFor({ radius: 25 }).list.slice(0, 3).map((x) => doctorCard(x, true)),
-    ...pharmaciesNear({ openOnly: true }).slice(0, 2).map((x) => pharmacyCard(x, true)),
+    ...pharmaciesNear({ openOnly: true }).slice(0, 2).map((x) => pharmacyCard(x)),
+    ...doctorsFor({ radius: 25 }).list.slice(0, 2).map((x) => doctorCard(x)),
   ];
 
-  /* Three intents, sized by how often they are actually needed. Medicine sits
-     first because scarcity is the weekly problem; a doctor is a few times a
-     year. Each tile carries a LIVE number, so the home screen is a reading of
-     the network rather than a menu of links. */
-  const intent = (href, ic, title, sub, n, unit, cls) => `
-    <a class="intent ${cls}" href="${href}">
-      <span class="intent-ic">${icon(ic)}</span>
-      <span class="intent-body">
-        <span class="intent-t">${title}</span>
-        <span class="intent-s">${sub}</span>
-      </span>
-      <span class="intent-n"><b class="num">${n}</b><i>${unit}</i></span>
-    </a>`;
-
-  return `${header()}
-  ${S.qrSource ? qrContext() : ""}
-
-  <section class="hero">
-    <h1 class="hero-line">
-      ${isAR() ? `<span class="fix">أحتاج</span>
-        <button class="blank" onclick="location.hash='#/needs'">${esc(needLabel)}${icon("caret")}</button>
-        <span class="fix">قرب</span>
-        <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
-        <span class="fix">الآن.</span>`
-        : `<span class="fix">I need</span>
-        <button class="blank" onclick="location.hash='#/needs'">${esc(needLabel)}${icon("caret")}</button>
-        <span class="fix">near</span>
-        <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
-        <span class="fix">right now.</span>`}
-    </h1>
-
-    <button class="search-field" style="margin-top:18px" onclick="location.hash='#/search'">
-      ${icon("search")}<span class="muted grow" style="text-align:start">${t("searchPh")}</span>
-    </button>
-  </section>
-
-  <section class="wrap">
-    <div class="netbar">
-      <span class="netbar-live"><i></i>${isAR() ? "الشبكة الآن" : "Network now"}</span>
-      <span class="netbar-t">${fmtTi(nowMins())} · ${esc(L(here()))}</span>
-    </div>
-    <div class="intents stagger">
-      ${intent("#/search", "pill",
-        isAR() ? "مِنو عنده الدوا؟" : "Who has the medicine?",
-        isAR() ? "توفّر مؤكَّد من صيدليات قريبة" : "Stock confirmed by nearby pharmacies",
-        confirmedMeds, isAR() ? "دواء مؤكَّد" : "confirmed", "intent--med")}
-      ${intent("#/needs", "stetho",
-        isAR() ? "طبيب متاح" : "An available doctor",
-        isAR() ? "مرتّبون بأقرب موعد، لا بأقرب مسافة" : "Ranked by soonest slot, not nearest",
-        docsOpen, isAR() ? "متاح الآن" : "open now", "intent--doc")}
-      ${intent("#/pharmacies", "cross",
-        isAR() ? "صيدلية مفتوحة" : "An open pharmacy",
-        night ? (isAR() ? `${night} منها خفارة ليلية` : `${night} on night duty`)
-              : (isAR() ? "الأقرب المفتوحة الآن" : "Nearest open right now"),
-        phOpen, isAR() ? "مفتوحة" : "open", "intent--ph")}
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+      <a class="t3" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
     </div>
 
-    ${scarce ? `<a class="scarce-note" href="#/med/${MEDICINES.find((m) => !m.stock.length).id}">
-      ${icon("alert")}<span>${isAR()
-        ? `<b class="num">${scarce}</b> دواء بلا توفّر مؤكَّد في بغداد الآن — اسأل مباشرة وساعد اللي بعدك.`
-        : `<b class="num">${scarce}</b> medicines have no confirmed stock in Baghdad — ask directly and help the next person.`}</span>
-      ${icon("chev")}</a>` : ""}
+    <button class="lab" style="margin-top:34px;display:block;text-align:start;min-height:0"
+      onclick="openLocation()">${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
 
-    <button class="sos" onclick="openEmergency()">
-      ${icon("alert")}<span class="grow">${isAR() ? "حالة طارئة؟" : "Emergency?"}</span>
-      <b class="num">${CONFIG.emergency.unified}</b></button>
+    <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${phOpen}</div>
+    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? "صيدلية مفتوحة الآن" : phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}</div>
+    <div class="q-sub" style="margin-top:6px">${night
+      ? (isAR() ? `منها <span class="num">${night}</span> خفارة ليلية تعمل حتى الفجر.`
+                : `<span class="num">${night}</span> of them on night duty until dawn.`)
+      : (isAR() ? `و<span class="num">${docsOpen}</span> طبيب يستقبل الآن.`
+                : `and <span class="num">${docsOpen}</span> doctors seeing patients now.`)}</div>
+
+    <div style="margin:26px 0 6px">${ticks()}</div>
+    ${axis24()}
   </section>
 
-  <section class="sec wrap">
-    <div class="sec-h"><h2>${isAR() ? "قريب منك الآن" : "Near you right now"}</h2>
-      <a class="more" href="#/doctors">${isAR() ? "الكل" : "All"}</a></div>
-    <div class="rail bleed">${nearby.join("")}</div>
+  <section class="pad" style="margin-top:26px"><div class="v2">
+    <button class="btn" onclick="location.hash='#/search'">${isAR() ? "شنو تحتاج؟ — ابدأ من هنا" : "What do you need? Start here"}</button>
+    <div style="display:flex;gap:8px">
+      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/search">${isAR() ? "دوا معيّن" : "A medicine"}</a>
+      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/needs">${isAR() ? "دكتور" : "A doctor"}</a>
+      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/care">${isAR() ? "العناية" : "Care"}</a>
+    </div>
+  </div></section>
+
+  ${scarce.length ? `<section class="pad" style="margin-top:26px">
+    <a class="note note-w" href="#/med/${scarce[0].id}">
+      <span>${isAR()
+        ? `<b>${countAr(scarce.length, ["دواء واحد", "دواءان", "أدوية", "دواءً"])}</b> بلا توفّر مؤكَّد في بغداد الآن — أوّلها «${esc(L(scarce[0]))}».`
+        : `<b class="num">${scarce.length}</b> medicines have no confirmed stock in Baghdad — starting with ${esc(L(scarce[0]))}.`}</span>
+    </a></section>` : ""}
+
+  <div class="hr" style="margin:30px 0 0"></div>
+  <section class="pad">
+    <div class="lab" style="padding-top:24px">${isAR() ? "يعمل الآن قربك" : "Open near you"}</div>
+    ${nearby.join('<div class="hr"></div>')}
   </section>
 
-  <section class="wrap" style="padding-bottom:26px">
-    <a class="proof" href="#/trust">
-      <div class="proof-row">
-        <span><b class="num">${DOCTORS.filter((d) => d.verified).length}</b> ${isAR() ? "طبيب موثّق" : "verified doctors"}</span>
-        <span><b class="num">${FACILITIES.filter((f) => f.type === "pharmacy").length}</b> ${isAR() ? "صيدلية" : "pharmacies"}</span>
-        <span><b class="num">${DISTRICTS.length}</b> ${isAR() ? "منطقة" : "areas"}</span>
-      </div>
-      <div class="proof-note">${icon("seal")}<span>${isAR()
-        ? "بلا نجوم ولا تقييمات — توثيق وتاريخ تحديث فقط. اعرف كيف نتحقق."
-        : "No stars, no reviews — verification and update dates only. See how we check."}</span>${icon("chev")}</div>
+  <section class="pad" style="margin-top:22px">
+    <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:18px">
+      <a class="st st-e" href="tel:${CONFIG.emergency.unified}"><i class="dot"></i>${isAR() ? "طوارئ — الرقم الموحد" : "Emergency — unified line"}</a>
+      <a class="n" style="font-size:17px;color:var(--alarm)" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
+    </div>
+  </section>
+
+  <section class="pad" style="margin-top:22px;padding-bottom:26px">
+    <a class="rowb" href="#/trust">
+      <span class="t3">${isAR()
+        ? `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> موثّق · <span class="num">${freshMeds}</span> دواء مؤكَّد · <span class="num">${DISTRICTS.length}</span> منطقة`
+        : `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> verified · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "كيف نتحقق" : "How we verify"}</span>
     </a>
   </section>
   ${nav("home")}`;
@@ -991,127 +1006,128 @@ function emptyDoctors(sp) {
   </div>`;
 }
 
+/* ---------------- v3 · DOCTOR · 4g ----------------
+   The week as an engraved dial. Two practices, one shape: seven bands on the
+   same 24-hour scale, jade for the hospital shift and brass for the private
+   clinic. A patient reading it sees at a glance that "Tuesday evening" and
+   "Tuesday morning" are different places at different prices — which is the
+   single fact a directory listing hides and the reason this screen exists.
+------------------------------------------------------------- */
 function screenDoctor(id) {
   const d = DOCTORS.find((x) => x.id === id);
   if (!d) return screen404();
   const sp = specOf(d.spec), st = status(d), km = docDist(d);
   const facs = docFacs(d);
-  const byFac = facs.map((f) => ({ f, ss: d.sessions.filter((s) => s.fac === f.id) }));
+  const byFac = facs.map((f) => ({ f, ss: d.sessions.filter((x) => x.fac === f.id) }));
   const nx = st.k !== "shut" ? null : st.next;
   const fee = st.k !== "shut" && st.seg ? st.seg.s?.fee : (nx ? nx.s?.fee : d.sessions[0].fee);
-  const saved = S.saved.includes("d:" + d.id);
   const gender = d.gender === "f" ? (isAR() ? "طبيبة" : "Female") : (isAR() ? "طبيب" : "Male");
 
-  /* The decision line. A patient choosing a doctor is answering four questions
-     in order — can I see them soon, where, how much, can I trust this. Anything
-     that does not answer one of those is pushed below the fold. */
-  const when = st.k !== "shut"
-    ? `<b>${t("openNow")}</b> · ${isAR() ? "حتى" : "until"} ${fmtTi(st.seg.t)}`
-    : nx ? `<b>${nx.inDays === 0 ? t("today") : nx.inDays === 1 ? t("tomorrow") : dayName(nx.day)}</b> ${fmtTi(nx.f)}`
-         : `<b>${t("closed")}</b>`;
-  const whereF = st.k !== "shut" && st.seg ? st.seg.fac : (nx ? nx.fac : facs[0]);
-  const whereD = whereF && DISTRICTS.find((x) => x.id === whereF.district);
-
-  return `${header({ back: true, title: "", right:
-      `<button class="icon-btn" onclick="toggleSave('d:${d.id}')" aria-label="${isAR() ? "حفظ" : "Save"}">${icon("bookmark")}</button>
-       <button class="icon-btn" onclick="shareDoctor('${d.id}')" aria-label="${t("share")}">${icon("share")}</button>` })}
-
-  <section class="dp-head">
-    <div class="dp-id">
-      <div class="avatar dp-avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
-      <div class="grow">
-        <h1 class="dp-name">${esc(L(d))}</h1>
-        <div class="dp-spec">${esc(L(sp))}</div>
-        ${d.sub_ar && isAR() ? `<div class="dp-sub">${esc(d.sub_ar)}</div>` : ""}
-      </div>
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="shareDoctor('${d.id}')">${t("share")}</button>
     </div>
 
-    <div class="dp-answers">
-      <div class="dp-a ${st.k !== "shut" ? "live" : ""}">
-        <span class="k">${isAR() ? "متى" : "When"}</span>
-        <span class="v">${when}</span>
-      </div>
-      <div class="dp-a">
-        <span class="k">${isAR() ? "وين" : "Where"}</span>
-        <span class="v"><b>${esc(whereD ? L(whereD) : "")}</b> · ${fmtKm(km)}</span>
-      </div>
-      ${fee !== null && fee !== undefined ? `<div class="dp-a">
-        <span class="k">${t("fee")}</span>
-        <span class="v"><b class="num">${money(fee)}</b></span>
-      </div>` : ""}
-      <div class="dp-a">
-        <span class="k">${isAR() ? "الثقة" : "Trust"}</span>
-        <span class="v">${d.verified
-          ? `<b class="tr-yes">${t("verified")}</b> · ${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span>${isAR() ? " يوم" : "d"}`
-          : `<b class="tr-no">${t("listed")}</b>`}</span>
-      </div>
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-top:26px">
+      <span class="av" style="width:56px;height:56px;font-size:21px">${esc(initials(L(d)).charAt(0))}</span>
+      <span class="grow">
+        <h1 class="d2">${esc(L(d))}</h1>
+        <div class="q-sub" style="margin-top:4px">${esc(L(sp))}${d.sub_ar && isAR() ? " — " + esc(d.sub_ar) : ""}</div>
+      </span>
+      ${d.verified ? `<span class="mark" style="width:44px;height:44px;font-size:10px">${isAR() ? "ختم" : "OK"}</span>` : ""}
     </div>
 
-    <div class="dp-week">${weekStrip(d)}</div>
-
-    ${!d.accepting ? `<div class="banner banner--warn" style="margin-top:14px">${icon("info")}
-      <span>${t("notAccepting")}${d.pause_ar ? " — " + esc(isAR() ? d.pause_ar : d.pause_en) : ""}</span></div>` : ""}
-    ${d.updated > 90 ? `<div class="banner banner--warn" style="margin-top:10px">${icon("alert")}
-      <span>${isAR() ? "لم تُحدَّث هذه المعلومات منذ فترة طويلة. تحقق قبل ما تروح."
-                     : "This information hasn't been updated in a while. Check before travelling."}</span></div>` : ""}
+    <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
+      ${statusLabel(st, true)}
+      <span class="t3"><span class="num">${fmtKm(km)}</span></span>
+      ${fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : ""}
+    </div>
   </section>
 
-  <section class="blk">
-    <h3>${t("week")}</h3>
-    <div class="week">
-      ${DAY_ORDER.map((dy) => {
-        const has = d.sessions.some((s) => s.d === dy);
-        return `<div class="week-row ${dy === nowDay() ? "today" : ""} ${has ? "" : "off"}">
-          <span class="d">${dayName(dy)}</span>${ribbon(d, dy, "ribbon--day", dy === nowDay())}</div>`;
+  <section class="pad" style="margin-top:32px">
+    <div class="lab">${isAR() ? "شكل الأسبوع" : "The shape of the week"}</div>
+    <div style="margin-top:18px">
+      <div style="display:grid;grid-template-columns:44px 1fr;gap:12px 14px;align-items:center">
+        ${DAY_ORDER.map((dy) => {
+          const has = rawSegs(d, dy).length > 0;
+          const today = dy === nowDay();
+          return `<span class="t3" style="${today ? "font-weight:500;color:var(--ink)" : has ? "" : "opacity:.5"}">${dayName(dy)}</span>
+            ${band(d, dy, today)}`;
+        }).join("")}
+      </div>
+      <div class="axis" style="margin-top:10px;padding-inline-start:58px">00<span>08</span><span>16</span>24</div>
+    </div>
+
+    <div class="hr" style="margin:22px 0"></div>
+
+    <div class="v3">
+      ${byFac.map(({ f, ss }) => {
+        const priv = f.type !== "hospital";
+        const dist = DISTRICTS.find((x) => x.id === f.district);
+        const feeSet = [...new Set(ss.map((x) => x.fee).filter((x) => x !== null && x !== undefined))];
+        /* The same hours repeat across several days, so listing sessions
+           verbatim prints "09:00 – 13:00" three times and never says which
+           days — the one fact a patient is actually looking for. Group by
+           the range and name the days against it. */
+        const slots = [...ss.reduce((mp, x) => {
+          const k = fmtRange(mins(x.f), mins(x.t));
+          return mp.set(k, [...(mp.get(k) || []), x.d]);
+        }, new Map())].map(([range, days]) => [range, days.sort((p, q) => DAY_ORDER.indexOf(p) - DAY_ORDER.indexOf(q))]);
+        return `<div>
+          <div class="row" style="gap:8px">
+            <i style="width:10px;height:3px;background:var(--${priv ? "brass" : "jade"});border-radius:999px;flex:none"></i>
+            <span class="t1" style="font-size:14px">${esc(L(f))}</span>
+          </div>
+          <div class="t3" style="margin-top:2px;padding-inline-start:18px">
+            ${slots.map(([range, days]) =>
+              `${days.map(dayName).join("، ")} · ${range}`).join("<br>")}
+          </div>
+          <div class="t3" style="margin-top:2px;padding-inline-start:18px">
+            ${dist ? esc(L(dist)) + " · " : ""}<span class="num">${fmtKm(distTo(f))}</span>
+            ${feeSet.length ? " · " + feeSet.map((x) => `<span class="num">${money(x)}</span>`).join(" / ") : ""}
+          </div>
+          <div class="row" style="margin-top:8px;padding-inline-start:18px">
+            <a class="b-g" style="font-size:12px" href="${mapLink(f)}" target="_blank" rel="noopener">${t("directions")}</a>
+          </div>
+        </div>`;
       }).join("")}
     </div>
-    ${ribbonScale()}
-    <div class="week-legend">
-      <span class="row" style="gap:6px"><i style="background:var(--petrol)"></i>${isAR() ? "مستشفى (بدون أجرة)" : "Hospital (no fee)"}</span>
-      <span class="row" style="gap:6px"><i style="background:var(--amber-b)"></i>${isAR() ? "عيادة خاصة" : "Private clinic"}</span>
-      <span class="row" style="gap:6px"><i style="background:var(--ink);width:2px;height:10px"></i>${isAR() ? "الآن" : "Now"}</span>
+  </section>
+
+  ${!d.accepting ? `<section class="pad" style="margin-top:22px"><div class="note note-w">
+    <span>${t("notAccepting")}${d.pause_ar ? " — " + esc(isAR() ? d.pause_ar : d.pause_en) : ""}</span></div></section>` : ""}
+  ${d.updated > 90 ? `<section class="pad" style="margin-top:12px"><div class="note note-w">
+    <span>${isAR() ? "لم تُحدَّث هذه المعلومات منذ فترة طويلة. تحقق قبل ما تروح."
+                   : "This information hasn't been updated in a while. Check before travelling."}</span></div></section>` : ""}
+
+  <section class="pad" style="margin-top:26px">
+    ${d.creds_ar?.length || d.exp ? `<div class="q-sub" style="max-width:44ch">${
+      [d.creds_ar?.join(" · "), d.exp ? (isAR() ? `<span class="num">${d.exp}</span> سنة خبرة` : `<span class="num">${d.exp}</span> years' experience`) : "",
+       gender, d.langs?.length ? d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ") : ""]
+        .filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+    <div class="rowb" style="margin-top:18px">
+      <span class="t3">${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span> ${isAR() ? "يوم" : "d ago"}</span>
+      <button class="b-g" style="font-size:12px" onclick="reportInfo()">${t("reportInfo")}</button>
     </div>
   </section>
 
-  <section class="blk">
-    <h3>${t("sessions")} · <span class="muted" style="font-weight:400">${facs.length} ${isAR() ? "موقع" : "locations"}</span></h3>
-    ${byFac.map(({ f, ss }) => `<div class="fac-block">
-      <div class="row-b">
-        <div><div class="ft">${esc(L(f))}</div>
-          <div class="fm">${t(f.type)} · ${esc(L(DISTRICTS.find((x) => x.id === f.district)))} · ${fmtKm(distTo(f))}</div></div>
-        <a class="icon-btn" href="${mapLink(f)}" target="_blank" rel="noopener" aria-label="${t("directions")}">${icon("nav")}</a>
-      </div>
-      <div class="stack" style="margin-top:10px">
-        ${ss.sort((a, b) => DAY_ORDER.indexOf(a.d) - DAY_ORDER.indexOf(b.d)).map((s) => `<div class="kv">
-          <span class="k">${dayName(s.d)}</span>
-          <span class="v num">${fmtRange(mins(s.f), mins(s.t))}${s.fee !== null && s.fee !== undefined ? " · " + money(s.fee) : ""}</span></div>`).join("")}
-      </div></div>`).join("")}
-  </section>
-
-  ${d.creds_ar?.length || d.exp || d.langs?.length ? `<section class="blk">
-    <h3>${t("about")}</h3>
-    ${d.creds_ar?.length ? d.creds_ar.map((c) => `<div class="cred">${icon("seal")}<span>${esc(c)}</span></div>`).join("") : ""}
-    ${d.exp ? `<div class="kv"><span class="k">${isAR() ? "سنوات الخبرة" : "Experience"}</span><span class="v num">${d.exp}</span></div>` : ""}
-    ${d.langs?.length ? `<div class="kv"><span class="k">${isAR() ? "اللغات" : "Languages"}</span><span class="v">${d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ")}</span></div>` : ""}
-    <div class="kv"><span class="k">${isAR() ? "الجنس" : "Gender"}</span><span class="v">${gender}</span></div>
-    <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button>
-  </section>` : ""}
-
-  <section class="blk">
-    <a class="lane" href="#/partner/doctor/${d.id}"><span class="ic">${icon("grid")}</span>
-      <span class="grow"><h3>${isAR() ? "هذا ملفك؟" : "Is this your profile?"}</h3>
-        <p>${isAR() ? "شوف كم مريض دوّر على اختصاصك وما وصلك" : "See how many searched your specialty and never reached you"}</p></span>
-      ${icon("chev")}</a>
+  <section class="pad" style="margin-top:26px">
+    <a class="rowb" href="#/partner/doctor/${d.id}">
+      <span class="t3">${isAR() ? "هذا ملفك؟ شوف الطلب اللي ما وصلك" : "Is this your profile? See the demand you missed"}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "افتح" : "Open"}</span>
+    </a>
   </section>
 
   <div class="actionbar">
     ${d.accepting
-      ? `<button class="btn" onclick="openRequest('${d.id}')">${icon("cal")}${t("request")}</button>`
-      : `<button class="btn" disabled>${icon("cal")}${t("notAccepting")}</button>`}
+      ? `<button class="btn" onclick="openRequest('${d.id}')">${t("request")}</button>`
+      : `<button class="btn" disabled>${t("notAccepting")}</button>`}
     ${d.wa ? `<a class="icon-btn" href="${waLink(d.wa, directMsg(d))}" target="_blank" rel="noopener" aria-label="${t("message")}">${icon("wa")}</a>` : ""}
     <a class="icon-btn" href="tel:+${d.phone}" aria-label="${t("call")}">${icon("phone")}</a>
   </div>
-  ${nav("doctors")}`;
+  <div style="height:80px"></div>`;
 }
 
 function screenPharmacies() {
@@ -1489,18 +1505,19 @@ function screenTrust() {
    appeared to do nothing, which reads as "this app is broken" with no way out.
    State it, take the blame, and always leave two doors open. */
 function screenError(err) {
-  return `${header({ back: true, title: "" })}
-  <section class="wrap" style="padding-top:22px">
-    <div class="surf-flat pad-3">
-      <div class="row-b" style="gap:12px;align-items:flex-start">
-        <span style="font-size:12.5px;line-height:1.7">${isAR()
-          ? "ما كدرنا نجيب النتائج.<br><span class=\"muted\">الخلل عدنا، مو عندك.</span>"
-          : "We couldn't load that.<br><span class=\"muted\">That's on us, not on you.</span>"}</span>
-        <button class="btn btn--2 btn--sm" onclick="render()">${icon("refresh")}${isAR() ? "إعادة المحاولة" : "Retry"}</button>
-      </div>
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <div class="lab" style="margin-top:28px">${isAR() ? "خطأ" : "Error"}</div>
+    <div class="rowb" style="margin-top:14px">
+      <span class="q-sub">${isAR()
+        ? "ما كدرنا نجيب النتائج.<br><span class=\"t3\">الخلل عدنا، مو عندك.</span>"
+        : "We couldn't load that.<br><span class=\"t3\">That's on us, not on you.</span>"}</span>
+      <button class="btn btn--2 btn--sm" style="width:auto" onclick="render()">${isAR() ? "إعادة" : "Retry"}</button>
     </div>
-    <a class="btn btn--3" style="margin-top:12px" href="#/">${icon("home")}${isAR() ? "الرئيسية" : "Home"}</a>
-    ${err && CONFIG.debug ? `<pre class="tiny muted" dir="ltr" style="margin-top:14px;white-space:pre-wrap">${esc(String(err && err.stack || err))}</pre>` : ""}
+    <div class="hr" style="margin:26px 0"></div>
+    <a class="b-g" href="#/">${isAR() ? "الرئيسية" : "Home"}</a>
+    ${err && CONFIG.debug ? `<pre class="t3" dir="ltr" style="margin-top:14px;white-space:pre-wrap">${esc(String(err && err.stack || err))}</pre>` : ""}
   </section>${nav("home")}`;
 }
 
@@ -1807,26 +1824,25 @@ function toPreview(id) {
     <div class="sheet-b">
       <div class="slip">
         <div class="slip-h">
-          <div><div class="eyebrow">${isAR() ? "طلب موعد" : "Appointment request"}</div>
-            <div class="card-t" style="margin-top:3px">${esc(L(d))}</div>
-            <div class="card-q">${esc(L(s.seg.fac))}</div></div>
-          <div style="text-align:end"><div class="slip-ref mono" dir="ltr">#${ref}</div>
-            <div class="tiny muted mono">${new Date().toLocaleDateString("en-GB")}</div></div>
+          <span class="lab">${esc(L(CONFIG.brand))} · ${isAR() ? "طلب موعد" : "Appointment request"}</span>
+          <span class="slip-ref" dir="ltr">${ref}</span>
         </div>
-        <div class="slip-to">${isAR() ? "إلى" : "To"}: ${d.wa ? `<span class="mono">+${d.wa}</span>` : (isAR() ? "غير متوفر" : "unavailable")}</div>
         <div class="bubble" id="msg" contenteditable="true" spellcheck="false">${esc(msg)}</div>
-        <button class="slip-edit" onclick="document.getElementById('msg').focus()">${icon("edit")}${t("edit")}</button>
+        <div class="slip-to rowb">
+          <span>${isAR() ? "إلى" : "To"} ${d.wa ? `<span class="num">+${d.wa}</span>` : (isAR() ? "غير متوفر" : "unavailable")}</span>
+          <button class="b-g" style="font-size:12px" onclick="document.getElementById('msg').focus()">${t("edit")}</button>
+        </div>
       </div>
-      ${!d.wa ? `<div class="banner banner--info" style="margin-top:16px">${icon("phone")}<span>${t("noWa")}</span></div>` : ""}
-      <div class="hint" style="margin-top:14px">${icon("info")}<span>${isAR()
-        ? "سيفتح واتساب بهذه الرسالة جاهزة. الإرسال بيدك."
-        : "WhatsApp will open with this message ready. You press send."}</span></div>
+      ${!d.wa ? `<div class="note" style="margin-top:16px"><span>${t("noWa")}</span></div>` : ""}
     </div>
     <div class="sheet-f">
       ${d.wa ? `<a class="btn btn--wa" id="sendbtn" href="${link}" target="_blank" rel="noopener"
           onclick="confirmSent('${d.id}','${ref}','${esc(dayName(s.day))} ${esc(fmtRangeTxt(s.seg.f, s.seg.t))}','${esc(L(s.seg.fac))}')">
-          ${icon("wa")}${t("sendWa")}</a>`
-        : `<a class="btn" href="tel:+${d.phone}">${icon("phone")}${t("call")} +${d.phone}</a>`}
+          ${t("sendWa")}</a>`
+        : `<a class="btn" href="tel:+${d.phone}">${t("call")} +${d.phone}</a>`}
+      <div class="t3" style="text-align:center;margin-top:14px">${isAR()
+        ? "تُرسل من واتسابك — لا نطلب رقمك ولا نُنشئ حساباً."
+        : "Sent from your own WhatsApp — we never ask for your number or create an account."}</div>
     </div>`);
 }
 
@@ -1992,16 +2008,28 @@ const freshMins = (st) => st.mins !== undefined ? st.mins : st.d * 1440;
    cold = older than three days, which is not information any more. */
 const freshBand = (mins) => mins < 720 ? "hot" : mins <= 4320 ? "warm" : "cold";
 
+/* Every duration here goes through countAr, because Arabic has a dual and
+   "2 ساعات" is the same class of error as "2 patients": English grammar
+   wearing Arabic words. See ROADMAP principle 9. */
+/* Genitive dual (ـين), not nominative (ـان): every one of these follows the
+   preposition «قبل». "قبل ساعتان" is wrong in the same way "before two hour"
+   would be. The tier card's "مريضان" stays nominative because it is a
+   predicate, not the object of a preposition — the case has to follow the
+   sentence, which is why the forms live at the call site and not in countAr. */
+const AR_MIN  = ["دقيقة واحدة", "دقيقتين", "دقائق", "دقيقةً"];
+const AR_HOUR = ["ساعة واحدة", "ساعتين", "ساعات", "ساعةً"];
+const AR_DAY  = ["يوم واحد", "يومين", "أيام", "يوماً"];
+
 function freshLabel(mins) {
-  const n = (v) => `<span class="num">${v}</span>`;
   if (isAR()) {
-    if (mins < 60) return `مؤكَّد قبل ${n(Math.max(1, Math.round(mins)))} دقيقة`;
-    if (mins < 1440) return `مؤكَّد قبل ${n(Math.round(mins / 60))} ساعات`;
+    if (mins < 60) return `مؤكَّد قبل ${countAr(Math.max(1, Math.round(mins)), AR_MIN)}`;
+    if (mins < 1440) return `مؤكَّد قبل ${countAr(Math.round(mins / 60), AR_HOUR)}`;
     const d = Math.round(mins / 1440);
     if (d === 1) return "مؤكَّد أمس";
-    if (d <= 3) return `مؤكَّد قبل ${n(d)} أيام`;
-    return `قبل ${n(d)} يوم — غير مؤكّد`;
+    if (d <= 3) return `مؤكَّد قبل ${countAr(d, AR_DAY)}`;
+    return `قبل ${countAr(d, AR_DAY)} — غير مؤكّد`;
   }
+  const n = (v) => `<span class="num">${v}</span>`;
   if (mins < 60) return `confirmed ${n(Math.max(1, Math.round(mins)))} min ago`;
   if (mins < 1440) return `confirmed ${n(Math.round(mins / 60))}h ago`;
   const d = Math.round(mins / 1440);
@@ -2013,10 +2041,10 @@ const freshLabelTxt = (mins) => freshLabel(mins).replace(/<[^>]+>/g, "");
    ("last confirmed …" must not then say "unconfirmed" in the same breath). */
 function ageLabel(mins) {
   const n = (v) => `<span class="num">${v}</span>`;
-  if (mins < 60) return isAR() ? `قبل ${n(Math.max(1, Math.round(mins)))} دقيقة` : `${n(Math.max(1, Math.round(mins)))} min ago`;
-  if (mins < 1440) return isAR() ? `قبل ${n(Math.round(mins / 60))} ساعات` : `${n(Math.round(mins / 60))}h ago`;
+  if (mins < 60) return isAR() ? `قبل ${countAr(Math.max(1, Math.round(mins)), AR_MIN)}` : `${n(Math.max(1, Math.round(mins)))} min ago`;
+  if (mins < 1440) return isAR() ? `قبل ${countAr(Math.round(mins / 60), AR_HOUR)}` : `${n(Math.round(mins / 60))}h ago`;
   const d = Math.round(mins / 1440);
-  return isAR() ? (d === 1 ? "أمس" : `قبل ${n(d)} يوم`) : `${n(d)}d ago`;
+  return isAR() ? (d === 1 ? "أمس" : `قبل ${countAr(d, AR_DAY)}`) : `${n(d)}d ago`;
 }
 
 function medMsg(med, ref) {
@@ -2101,23 +2129,23 @@ function confirmStock(medId, facId, yes) {
 function stockCard(med, x, ref) {
   const stale = x.band === "cold";
   const d = DISTRICTS.find((y) => y.id === x.f.district);
-  return `<div class="surf-${stale ? "flat" : "raise"} qc ${stale ? "quiet" : "rail-stock"}">
-    <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
-    <div class="qc-b">
-      <div class="qc-title">${esc(L(x.f))}</div>
-      <div class="qc-qual">${d ? esc(L(d)) : ""}${d ? " · " : ""}<span class="num">${fmtKm(x.km)}</span></div>
-      <div class="qc-meta">
-        <span class="fresh fresh-${x.band}" style="padding:3px 8px">
-          <span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
-        ${x.price ? `<span class="num">${money(x.price)}</span>` : ""}
-      </div>
-      <div class="row" style="gap:7px;margin-top:9px">
-        ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
-             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
-          : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-        <a class="btn btn--3 btn--sm" href="#/pharmacy/${x.f.id}">${isAR() ? "الصيدلية" : "Pharmacy"}</a>
-      </div>
-    </div></div>`;
+  return `<div class="rw${stale ? " quiet" : ""}">
+    ${stale ? "" : `<span class="rw-lead" style="background:var(--${x.band === "hot" ? "brass" : "jade"})"></span>`}
+    <span class="av">${esc(initial(L(x.f)))}</span>
+    <span class="grow">
+      <span class="d3" style="font-size:17px;display:block">${esc(L(x.f))}</span>
+      <span class="q-sub" style="display:block">${d ? esc(L(d)) + " · " : ""}<span class="num">${fmtKm(x.km)}</span></span>
+      <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
+        <span class="st ${stale ? "st-q" : "st-t"}">${stale ? "" : `<i class="dot${x.band === "hot" ? " dot-live" : ""}"></i>`}${freshLabel(x.mins)}</span>
+        ${x.price ? `<span class="t3"><span class="num">${money(x.price)}</span></span>` : ""}
+      </span>
+      <span class="row" style="gap:14px;margin-top:10px">
+        ${x.f.wa ? `<a class="b-g" style="font-size:12.5px" href="${waLink(x.f.wa, medMsg(med, ref))}"
+             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${isAR() ? "اسأل عبر واتساب" : "Ask on WhatsApp"}</a>`
+          : `<a class="b-g" style="font-size:12.5px" href="tel:+${x.f.phone}">${t("call")}</a>`}
+        <a class="b-g" style="font-size:12.5px" href="#/pharmacy/${x.f.id}">${isAR() ? "الصيدلية" : "Pharmacy"}</a>
+      </span>
+    </span></div>`;
 }
 
 /* 14 days of "how many pharmacies had this confirmed". A shortage that is
@@ -2128,25 +2156,36 @@ function medTrend(med) {
   if (!tr.length) return "";
   const mx = Math.max(...tr, 1);
   const zeros = [...tr].reverse().findIndex((v) => v > 0);
-  const dry = zeros === -1 ? tr.length : zeros;   // trailing days at zero
-  const last = tr[tr.length - 1];                 // trend is oldest-first
-  return `<div class="surf-flat pad-3">
-    <div class="q-eyebrow">${isAR() ? "أسبوعان من التوفّر" : "Two weeks of availability"}</div>
-    <div class="spark" style="margin-top:10px;height:30px" role="img"
+  const dry = zeros === -1 ? tr.length : zeros;
+  const last = tr[tr.length - 1];
+  /* Fourteen engraved ticks, oldest first — which in RTL puts the oldest at
+     the right, the same direction the day runs on every other dial here. A
+     tick that reaches full height is a day this was widely held; a stub is a
+     day it was not. The shortage is a shape, not a sentence. */
+  return `<div>
+    <div class="lab">${isAR() ? "أسبوعان من التوفّر" : "Two weeks of availability"}</div>
+    <div class="ticks" style="margin-top:14px;height:26px" role="img"
       aria-label="${isAR() ? "عدد الصيدليات المؤكِّدة خلال ١٤ يوم" : "Confirming pharmacies over 14 days"}">
-      ${tr.map((v) => `<i class="${dry >= 2 && v === mx ? "hi" : ""}" style="height:${Math.max(6, Math.round((v / mx) * 100))}%"
-        title="${v}"></i>`).join("")}
+      ${tr.map((v) => `<i class="${v === mx && dry >= 2 ? "maj" : ""}"
+        style="height:${Math.max(3, Math.round((v / mx) * 26))}px;background:var(--${v === 0 ? "dial-line" : v === mx && dry >= 2 ? "brass" : "ink-4"})"></i>`).join("")}
     </div>
-    <div class="q-sub" style="margin-top:6px">${dry >= 2
-      ? (isAR() ? `النقص بدأ قبل <span class="num">${dry}</span> أيام ويتّسع. نُبلغ الصيدليات المشتركة بهذا الطلب غير الملبّى.`
-                : `The shortage started <span class="num">${dry}</span> days ago and is widening. Partner pharmacies are told about this unmet demand.`)
+    <div class="t3" style="margin-top:8px">${dry >= 2
+      ? (isAR() ? `التوفّر توقّف قبل <span class="num">${dry}</span> أيام ويتّسع — الشاهد على اليمين من التاريخ.`
+                : `Availability stopped <span class="num">${dry}</span> days ago and is widening.`)
       : last <= 1
-      ? (isAR() ? `التوفّر هش — <span class="num">${last}</span> صيدلية فقط سجّلت توفّره مؤخراً.`
+      ? (isAR() ? `التوفّر هش — <span class="num">${last}</span> صيدلية فقط سجّلته مؤخراً.`
                 : `Thin supply — only <span class="num">${last}</span> pharmacy has it on record lately.`)
       : (isAR() ? "التوفّر مستقر خلال الأسبوعين الماضيين." : "Availability has been steady over the past two weeks.")}</div>
   </div>`;
 }
 
+/* ---------------- v3 · MEDICINE · 4e / 4f ----------------
+   The dial. Freshness is set as the largest thing on the page — a 46px
+   numeral for the minutes since the last confirmation — because that number
+   IS the product. The scarcity variant (4f) is the most designed screen here
+   on purpose: the failure state is where a directory gives up and where this
+   has to be worth opening.
+------------------------------------------------------------- */
 function screenMed(id) {
   const med = medById(id); if (!med) return screen404();
   const { confirmed, others } = pharmaciesForMed(med);
@@ -2154,146 +2193,130 @@ function screenMed(id) {
   const watching = LS.get("watch", []).includes(med.id);
   const waiting = medWaiting(med);
   const lastMins = med.stock.length ? Math.min(...med.stock.map(freshMins)) : null;
-  /* A confirmation older than three days is not an answer, so it cannot be the
-     hero. The screen splits on "is there a live answer", not "is there a row in
-     the table" — otherwise a stale record gets the same triumphant treatment as
-     a pharmacy that confirmed forty minutes ago, which is the exact failure the
-     freshness model exists to prevent. Stale rows still appear below, dimmed. */
   const fresh = confirmed.filter((x) => x.band !== "cold");
   const stale = confirmed.filter((x) => x.band === "cold");
   const rest = [...fresh.slice(1), ...stale];
-  /* "Nothing near you" is a real answer and has to be said out loud. Without
-     it the hero silently shows a pharmacy six districts away and the user has
-     to work out for themselves that their own area came up empty. */
-  const hereId = S.district;
-  const elsewhere = fresh.length && !fresh.some((x) => x.f.district === hereId)
-    ? DISTRICTS.find((d) => d.id === hereId) : null;
   const sub = (med.subs || []).map(medById).filter(Boolean)
     .map((sm) => ({ sm, best: pharmaciesForMed(sm).confirmed[0] })).filter((x) => x.best)[0];
+  const hereD = DISTRICTS.find((d) => d.id === S.district);
+  const elsewhere = fresh.length && !fresh.some((x) => x.f.district === S.district) ? hereD : null;
 
-  const watchBtn = `<button class="btn btn--3 btn--sm" onclick="watchMed('${med.id}')">
-    ${icon(watching ? "check" : "bell")}${watching ? (isAR() ? "نتابعه" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>`;
+  const head = `<section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="watchMed('${med.id}')">${watching
+        ? (isAR() ? "نتابعه لك" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>
+    </div>
+    <div class="lab" style="margin-top:28px${fresh.length ? "" : ";color:var(--brass-ink)"}">${fresh.length
+      ? (isAR() ? "دواء" : "Medicine") + (med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : "")
+      : (isAR() ? "نقص حالي · بغداد" : "Current shortage · Baghdad")}</div>
+    <h1 class="d1" style="margin-top:10px">${esc(L(med))}</h1>
+    <div class="q-sub" style="margin-top:6px">${esc(med.form || "")}${
+      med.equiv?.length ? (isAR() ? " · البديل المكافئ: " : " · equivalent: ") + esc(med.equiv[0]) : ""}</div>
+  </section>`;
 
-  /* The hero. With stock it is the freshest confirmation, in full, with the
-     pharmacy's hours behind it so "open now" is visible and not a claim.
-     Without stock it is the shortage itself — stated, then routed. */
-  const hero = fresh.length ? (() => {
+  /* 4e — there is a live answer. The minutes since confirmation are the hero. */
+  const dial = fresh.length ? (() => {
     const x = fresh[0];
     const d = DISTRICTS.find((y) => y.id === x.f.district);
-    return `<div class="surf-key cham pad-4">
-      <div class="row" style="justify-content:space-between">
-        <span class="fresh fresh-${x.band}"><span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
-        <span class="q-sub num">${fmtKm(x.km)}</span></div>
-      <div class="q-h2" style="margin-top:10px">${esc(L(x.f))}</div>
-      <div class="q-sub">${d ? esc(L(d)) + (isAR() ? d.lm_ar ? " — " + esc(d.lm_ar) : "" : d.lm_en ? " — " + esc(d.lm_en) : "") : ""}${x.price ? ` · <span class="num">${money(x.price)}</span>` : ""}</div>
-      <div style="margin-top:10px">${ribbon(x.f, null, "ribbon--day")}</div>
-      <div class="q-sub" style="margin-top:6px">${statusLabel(x.st, true)}</div>
-      ${x.f.wa ? `<a class="btn btn--wa" style="margin-top:12px" href="${waLink(x.f.wa, medMsg(med, ref))}"
-           target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR()
-             ? "اسأل عبر واتساب — الرسالة جاهزة" : "Ask on WhatsApp — message ready"}</a>`
-        : `<a class="btn" style="margin-top:12px" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-    </div>`;
-  })() : `<div class="surf-key cham pad-4" style="border-color:var(--amber-ink)">
-      <div class="row" style="gap:9px;flex-wrap:wrap">
-        <span class="bdg bdg-n">${isAR() ? "نقص حالي" : "Current shortage"}</span>
-        ${lastMins !== null ? `<span class="q-sub">${isAR() ? "آخر تأكيد " : "last confirmed "}${ageLabel(lastMins)}</span>` : ""}
+    const v = x.mins < 60 ? Math.max(1, Math.round(x.mins))
+            : x.mins < 1440 ? Math.round(x.mins / 60) : Math.round(x.mins / 1440);
+    const unit = x.mins < 60 ? (isAR() ? "دقيقة" : "min") : x.mins < 1440 ? (isAR() ? "ساعة" : "hours") : (isAR() ? "يوم" : "days");
+    return `<section class="pad" style="margin-top:30px"><div class="plate">
+      <div class="lab">${isAR() ? "آخر تأكيد" : "Last confirmed"}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:8px">
+        <span class="nbig" style="color:var(--brass-ink)">${v}</span>
+        <span class="d3" style="font-weight:400;color:var(--ink-2)">${unit}</span>
+        <span class="st st-t" style="margin-inline-start:auto">${x.band === "hot" ? `<i class="dot dot-live"></i>` : ""}${
+          x.band === "hot" ? (isAR() ? "حيّ" : "live") : (isAR() ? "اليوم" : "today")}</span>
       </div>
-      <div class="q-h2" style="margin-top:8px">${stale.length
-        ? (isAR() ? "لا تأكيد حديث — آخر جواب صار له أيام" : "No recent confirmation — the last answer is days old")
-        : (isAR() ? "لا صيدلية مؤكَّدة اليوم في بغداد" : "No pharmacy confirmed today in Baghdad")}</div>
-      <div class="q-sub" style="margin-top:4px">${isAR()
-        ? `سألنا <span class="num">${medPolled()}</span> صيدلية ضمن <span class="num">10 كم</span> خلال <span class="num">24</span> ساعة. لن نتركك هكذا — هذه ثلاثة أبواب:`
-        : `We polled <span class="num">${medPolled()}</span> pharmacies within <span class="num">10 km</span> in <span class="num">24</span> hours. Here are three doors:`}</div>
-      <div class="stack-2" style="margin-top:14px">
-        <button class="btn" onclick="watchMed('${med.id}')">${icon(watching ? "check" : "bell")}${isAR()
-          ? `${watching ? "نتابعه لك" : "نبّهني أول ما يتوفّر"}${waiting ? ` — <span class="num">${waiting}</span> ينتظرون` : ""}`
-          : `${watching ? "Following" : "Notify me"}${waiting ? ` — <span class="num">${waiting}</span> waiting` : ""}`}</button>
-        <button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
-          ? `اسأل <span class="num">6</span> صيدليات دفعة واحدة` : `Ask <span class="num">6</span> pharmacies at once`}</button>
-        ${sub ? `<a class="btn btn--2" href="#/med/${sub.sm.id}">${icon("pill")}${isAR()
-          ? "البدائل المكافئة" : "Equivalent alternatives"} — ${esc(L(sub.sm))}</a>`
-        : med.equiv?.length ? `<button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("pill")}${isAR()
-          ? "اسأل عن البدائل" : "Ask about alternatives"} — ${esc(med.equiv.join("، "))}</button>` : ""}
+      <div class="hr" style="margin:20px 0"></div>
+      <div class="d3">${esc(L(x.f))}</div>
+      <div class="q-sub">${d ? esc(L(d)) + (isAR() ? (d.lm_ar ? " — " + esc(d.lm_ar) : "") : (d.lm_en ? " — " + esc(d.lm_en) : "")) : ""}</div>
+      <div class="row" style="margin-top:12px;gap:16px;flex-wrap:wrap">
+        <span class="t3"><span class="num">${fmtKm(x.km)}</span></span>
+        ${x.price ? `<span class="t3"><span class="num">${money(x.price)}</span></span>` : ""}
+        ${statusLabel(x.st, true)}
       </div>
-    </div>`;
+      <div style="margin-top:14px">${band(x.f)}</div>
+      ${x.f.wa ? `<a class="btn btn--wa" style="margin-top:22px" href="${waLink(x.f.wa, medMsg(med, ref))}"
+           target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${isAR() ? "اسأل عبر واتساب" : "Ask on WhatsApp"}</a>`
+        : `<a class="btn" style="margin-top:22px" href="tel:+${x.f.phone}">${t("call")}</a>`}
+    </div></section>`;
+  })()
+  /* 4f — there is no live answer. A zero, at 76px, and three doors. */
+  : `<section class="pad" style="margin-top:30px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span class="nhuge" style="color:var(--ink-3)">0</span>
+        <span><span class="d3" style="font-weight:500;display:block">${isAR() ? "صيدلية مؤكَّدة اليوم" : "pharmacies confirmed today"}</span>
+          <span class="q-sub">${isAR()
+            ? `من <span class="num">${medPolled()}</span> سُئلت خلال <span class="num">24</span> ساعة`
+            : `of <span class="num">${medPolled()}</span> asked in the last <span class="num">24</span> hours`}</span></span>
+      </div>
+      ${lastMins !== null ? `<div class="t3" style="margin-top:14px">${isAR() ? "آخر تأكيد " : "last confirmed "}${ageLabel(lastMins)}</div>` : ""}
+    </section>
 
-  return `${header({ back: true, title: isAR() ? "توفّر الدواء" : "Medicine availability" })}
-  <section class="wrap" style="padding-top:14px">
-    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px">
-      <div class="grow"><h1 class="q-h1">${esc(L(med))}</h1>
-        <div class="q-sub">${esc(med.form || "")}${med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : ""}${
-          med.equiv?.length ? (isAR() ? " · بديل مقبول: " : " · accepted equivalent: ") + esc(med.equiv[0]) : ""}</div></div>
-      ${watchBtn}
-    </div>
-  </section>
+    <section class="pad" style="margin-top:28px"><div class="v2">
+      <button class="btn" onclick="watchMed('${med.id}')">${isAR()
+        ? `${watching ? "نتابعه لك" : "نبّهني أول ما يتوفّر"}${waiting ? ` — <span class="num">${waiting}</span> ينتظرون` : ""}`
+        : `${watching ? "Following" : "Notify me"}${waiting ? ` — <span class="num">${waiting}</span> waiting` : ""}`}</button>
+      <button class="btn btn--2" onclick="batchAsk('${med.id}')">${isAR()
+        ? `اسأل <span class="num">6</span> صيدليات دفعة واحدة` : `Ask <span class="num">6</span> pharmacies at once`}</button>
+      ${sub ? `<a class="btn btn--2" href="#/med/${sub.sm.id}">${isAR() ? "البديل المكافئ" : "Equivalent"} — ${esc(L(sub.sm))}</a>` : ""}
+    </div></section>`;
 
-  ${elsewhere ? `<section class="wrap" style="margin-top:14px">
-    <div class="note note-i">${isAR()
+  return `${netBanner()}${head}${dial}
+
+  ${!fresh.length && sub ? `<div class="hr" style="margin-top:30px"></div>
+  <section class="pad">
+    <div class="lab" style="padding-top:24px">${isAR() ? "البديل المكافئ المتوفّر الآن" : "Equivalent available now"}</div>
+    ${stockCard(sub.sm, sub.best, ref)}
+    <div class="t3" style="margin-top:4px;color:var(--alarm)">${isAR()
+      ? "نفس الاستطباب — راجع طبيبك قبل التبديل."
+      : "Same indication — ask your doctor before switching."}</div>
+  </section>` : ""}
+
+  ${elsewhere ? `<section class="pad" style="margin-top:24px"><div class="note note-w">
+    <span>${isAR()
       ? `ما لكيناه مؤكَّداً في <b>${esc(L(elsewhere))}</b> — أقرب تأكيد في <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>، <span class="num">${fmtKm(fresh[0].km)}</span>.`
-      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — the nearest confirmation is in <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, <span class="num">${fmtKm(fresh[0].km)}</span> away.`}</div>
+      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — nearest is <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, <span class="num">${fmtKm(fresh[0].km)}</span> away.`}</span>
+  </div></section>` : ""}
+
+  ${rest.length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${fresh.length
+      ? (isAR() ? "توفّر آخر — مرتّب بحداثة التأكيد، لا بالمسافة" : "Also available — by confirmation freshness, not distance")
+      : (isAR() ? "تأكيدات سابقة — مرتّبة بحداثة التأكيد" : "Earlier confirmations — by freshness")}</div>
+    ${rest.slice(0, 4).map((x) => stockCard(med, x, ref)).join('<div class="hr"></div>')}
   </section>` : ""}
 
-  <section class="wrap" style="margin-top:14px">${hero}</section>
+  <section class="pad" style="margin-top:30px">${medTrend(med)}</section>
 
-  ${!fresh.length && sub ? `<section class="wrap" style="margin-top:14px">
-    <div class="surf-raise pad-3">
-      <div class="q-eyebrow">${isAR() ? "البديل الأقرب المتوفّر الآن" : "Nearest available alternative"}</div>
-      <div style="margin-top:10px">${stockCard(sub.sm, sub.best, ref)}</div>
-      <div class="q-sub" style="margin-top:9px">${isAR()
-        ? "بديل شائع لنفس الاستطباب — <b>راجع طبيبك قبل التبديل</b>."
-        : "A common alternative for the same indication — <b>ask your doctor before switching</b>."}</div>
-    </div></section>` : ""}
-
-  ${rest.length ? `<section class="wrap" style="margin-top:16px">
-    <div class="q-eyebrow">${fresh.length
-      ? (isAR() ? "توفّر آخر — مرتّب بحسب " : "Also available — ordered by ")
-      : (isAR() ? "تأكيدات سابقة — مرتّبة بحسب " : "Earlier confirmations — ordered by ")}<b style="color:var(--petrol)">${
-      isAR() ? "حداثة التأكيد" : "confirmation freshness"}</b></div>
-    <div class="stack-2" style="margin-top:8px">${rest.slice(0, 4).map((x) => stockCard(med, x, ref)).join("")}</div>
-    ${rest.slice(0, 4).some((x) => x.band === "cold") ? `<div class="note note-i" style="margin-top:12px">${isAR()
-      ? "الحداثة هي كل شيء هنا: «متوفّر» عمرها أربعة أيام ليست معلومة — لذلك تخفت، ولا نرتّبها بالمسافة."
-      : "Freshness is everything here: a four-day-old \"in stock\" is not information — so it dims, and proximity never promotes it."}</div>` : ""}
+  ${fresh.length ? `<section class="pad" style="margin:26px 0 0">
+    <div class="lab">${isAR() ? "ساعدنا نُحدّث" : "Help us stay current"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "سألت صيدلية ووصلك جواب؟ ثانية واحدة، ويستفيد غيرك."
+      : "Asked a pharmacy and got an answer? One second, and it helps the next person."}</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn--2 btn--sm" style="flex:1" onclick="confirmStock('${med.id}','${fresh[0].f.id}',true)">${isAR() ? "كان متوفّراً" : "It was there"}</button>
+      <button class="btn btn--2 btn--sm" style="flex:1" onclick="confirmStock('${med.id}','${fresh[0].f.id}',false)">${isAR() ? "لم يكن" : "It wasn't"}</button>
+    </div>
   </section>` : ""}
 
-  <section class="wrap" style="margin-top:16px">${medTrend(med)}</section>
-
-  ${fresh.length ? `<section class="wrap" style="margin-top:14px">
-    <div class="surf-flat pad-3">
-      <div class="q-eyebrow">${isAR() ? "ساعدنا نُحدّث" : "Help us stay current"}</div>
-      <div class="q-sub" style="margin-top:4px">${isAR()
-        ? "إن سألت صيدلية ووجدت الجواب، أخبرنا — ثانية واحدة، ويستفيد غيرك."
-        : "If you asked a pharmacy and got an answer, tell us — one second, and it helps the next person."}</div>
-      <div class="row" style="gap:7px;margin-top:9px">
-        <button class="btn btn--2 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',true)">${icon("check")}${
-          isAR() ? "كان متوفّراً" : "It was there"}</button>
-        <button class="btn btn--3 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',false)">${icon("x")}${
-          isAR() ? "لم يكن" : "It wasn't"}</button>
-      </div>
-    </div></section>` : ""}
-
-  ${others.length ? `<section class="blk" style="margin-top:16px"><h3>${isAR() ? "صيدليات لم تؤكّد بعد" : "Not confirmed yet"}</h3>
-    <p class="small muted" style="margin-bottom:12px">${isAR()
-      ? `رسالة جاهزة لكل وحدة، ونفس الرمز <b class="mono" dir="ltr">${ref}</b> — حتى تعرف أي وحدة ردّت.`
-      : `A ready message for each, same code <b class="mono" dir="ltr">${ref}</b> — so you know who replied.`}</p>
-    <div class="stack-2">${others.slice(0, 4).map((x) => `<div class="surf-flat qc">
-      <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
-      <div class="qc-b"><div class="qc-title">${esc(L(x.f))}</div>
-        <div class="qc-qual">${esc(L(DISTRICTS.find((y) => y.id === x.f.district)) || "")} · <span class="num">${fmtKm(x.km)}</span></div>
-        <div class="row" style="gap:7px;margin-top:9px">
-          ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
-             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
-            : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-        </div></div></div>`).join("")}</div>
-    <button class="btn btn--2" style="margin-top:12px" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
+  ${others.length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${isAR() ? "صيدليات لم تؤكّد بعد" : "Not confirmed yet"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? `رسالة جاهزة لكل وحدة، ونفس الرمز <b class="mono">${ref}</b>.`
+      : `A ready message for each, same code <b class="mono">${ref}</b>.`}</div>
+    <button class="btn btn--2" style="margin-top:14px" onclick="batchAsk('${med.id}')">${isAR()
       ? "اسألهم كلهم دفعة واحدة" : "Ask them all at once"}</button>
   </section>` : ""}
 
-  <section class="wrap" style="margin-top:14px">
-    <div class="note note-e">${isAR()
-      ? "هذه معلومة توفّر، لا نصيحة طبية. لا توقف دواءك ولا تبدّله دون طبيبك."
-      : "This is availability information, not medical advice. Never stop or switch a medicine without your doctor."}</div>
+  <section class="pad" style="margin:26px 0 30px">
+    <div class="t3" style="border-top:1px solid var(--dial-line-2);padding-top:16px">${isAR()
+      ? "معلومة توفّر، لا نصيحة طبية. لا توقف دواءك ولا تبدّله دون طبيبك."
+      : "Availability information, not medical advice. Never stop or switch a medicine without your doctor."}</div>
   </section>
-  <div style="height:24px"></div>${nav("pharmacies")}`;
+  ${nav("pharmacies")}`;
 }
 
 function logAsk(medId) {
@@ -2668,6 +2691,16 @@ function render() {
   if (firstPaint) { el.innerHTML = skeletonFor(); firstPaint = false; setTimeout(paint, 260); return; }
   paint();
   function paint() {
+    /* THE CASE. The home screen is the instrument closed — deep ink — and every
+       other screen is the dial it opens onto. In light mode that is one
+       deliberate luminance change, which reads as opening the case. In dark
+       mode there is nothing to flip: the whole app is the case already, so a
+       phone in night mode at 02:00 never gets a flash between screens.
+       This is a class on <body>, not a per-component override: .dark only
+       redefines tokens, so everything written against var(--ink-*) follows. */
+    const home = !location.hash.replace(/^#\/?/, "").split("?")[0];
+    const nightOS = matchMedia("(prefers-color-scheme: dark)").matches;
+    document.body.classList.toggle("dark", S.theme === "dark" || nightOS || (home && S.theme !== "light"));
     let html;
     try {
       html = route();

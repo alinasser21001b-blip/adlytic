@@ -48,6 +48,7 @@ committed and deployed green.
 | **P6** | **Data integrity** — validator catching duplicates, orphan refs, invalid ranges; surfaced in admin | ✅ `PHASE3-6` |
 | **P7** | **Motion** — single 170ms ease-out language, landed in §36 | ✅ |
 | **P10** | **Open questions closed** — emergency number verified against source (unified 911 + MoH 122), partner price anchored to consultation-fee payback, freshness pulse kept and gating proven | ✅ |
+| **P11** | **Identity v3 — «المِسطرة»** — look layer replaced whole: `src/styles/identity.css` verbatim from the board, `css/qareeb.css` rewritten on it, v2 layer retired. Rows not cards, one shadow, radius 10/999 only, Readex Pro + tabular numerals, the tick rule, the case/dial surfaces | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -77,7 +78,16 @@ These were established by research and are not up for re-litigation in later pha
    form, not "2 patients"), plural for 3–10, accusative singular from 11 up.
    Where a verb would have to agree with a count, restructure the sentence so
    it does not. Writing "2 مرضى" is English grammar wearing Arabic words.
-10. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
+10. **Hit size is not visual size.** The design decides how big a control
+    looks; 44px decides how big it is to a finger. They are separated by an
+    inert `::after`, never by inflating the visual box — spraying
+    `min-height: 44px` across anchors fights the layout and loses silently
+    wherever a more specific rule resets it.
+11. **The theme is a token flip, never a component override.** `.dark`
+    redefines `--ink-*` / `--dial-*` and nothing else. A single
+    `.dark .x { color: … }` anywhere reintroduces the class of contrast bug
+    that took two passes to clear in v2.
+12. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
    citation form, not a male filter. Established in P2 after the first
    implementation wrongly returned zero results for "دكتور اطفال اليوم".
 

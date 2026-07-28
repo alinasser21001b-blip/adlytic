@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>قريب — أقرب رعاية إليك</title>
 <meta name="description" content="قريب: أقرب طبيب موثّق وأقرب صيدلية مفتوحة الآن — برسالة واتساب واحدة، بدون حساب.">
-<meta name="theme-color" content="#F1ECE1" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E1416" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F4F1EB" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1412" media="(prefers-color-scheme: dark)">
 
 <!-- WhatsApp / Open Graph share card — the real growth surface -->
 <meta property="og:type" content="website">
@@ -21,1667 +21,662 @@
      renders immediately in the system Arabic face and swaps when the real one
      lands. Text -> structure -> interaction -> polish. -->
 <link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&family=IBM+Plex+Sans:wght@200;300;400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <noscript><link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap"></noscript>
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&family=IBM+Plex+Sans:wght@200;300;400&family=IBM+Plex+Mono:wght@400;500&display=swap"></noscript>
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHBhdGggZD0iTTMgM2gxOWw3IDd2MTlIM3oiIGZpbGw9IiMwRTRGNEEiLz4KICA8cGF0aCBkPSJNMTYgMjNjLTQuNC0zLjEtNi45LTUuNC02LjktOC4zYTMuNTUgMy41NSAwIDAgMSA2LjktMS4yNSAzLjU1IDMuNTUgMCAwIDEgNi45IDEuMjVDMjIuOSAxNy42IDIwLjQgMTkuOSAxNiAyM3oiIGZpbGw9IiNFMjlBMkUiLz4KPC9zdmc+Cg==">
 
 <style>
-/* ============================================================
-   QAREEB — قريب  ·  Design system
-   Visual language: TIME & PLACE
-     1. The Ribbon  — a 24h time band, the product's signature component
-     2. The Chamfer — every surface cuts its LEADING corner (flips with dir)
-     3. The Seal    — verification as a stamp, never a blue checkmark
-     4. Place tiles — location as proud Arabic place names, never a map
-     5. Sand, not white — the single choice that stops this reading as a hospital
+/* ==================================================================
+   QAREEB — IDENTITY v3 · "المِسطرة / THE INSTRUMENT"
+   Extracted verbatim from the v3 design board (section header block).
+   This file is the REFERENCE. Do not hand-edit it to fix a screen —
+   fix the screen. A v4 board should be able to replace this file whole.
+
+   Two notes on landing it in the app:
+   · `.i` is the board's 390px device frame. The app is full-bleed, so it
+     maps onto <body> in the app layer; `.i` itself is never used here.
+     Its box-shadow is board presentation, not a violation of the
+     zero-shadow rule — the only shadow in the product is `.sheet`.
+   · `.dark` redefines TOKENS. Never write `.dark .something { color: … }`
+     in app code: any component written against var(--ink-*) flips on its
+     own. Component-level dark overrides were the source of real contrast
+     bugs in v2 and the fix was structural.
+   ================================================================== */
+/* ==================================================================
+   QAREEB — IDENTITY v3 · "المِسطرة / THE INSTRUMENT"
+   A precision instrument for time, not a directory of people.
+   Two surfaces: THE CASE (deep ink) and THE DIAL (warm paper).
+   Separation by hairline and tone. Shadow ONLY for what floats.
+   ================================================================== */
+:root{
+  /* the case — confident, not corporate */
+  --case:#0B1412; --case-2:#101B18; --case-line:rgba(240,236,228,.14); --case-ink:#F2EFE8;
+  --case-ink-2:rgba(242,239,232,.78); --case-ink-3:rgba(242,239,232,.64);
+  /* the dial — warm paper, never white */
+  --dial:#F4F1EB; --dial-2:#FBF9F5; --dial-line:rgba(11,20,18,.10); --dial-line-2:rgba(11,20,18,.055);
+  --ink:#0B1412; --ink-2:rgba(11,20,18,.72); --ink-3:rgba(11,20,18,.64); --ink-4:rgba(11,20,18,.42);
+  /* one accent, load-bearing */
+  --jade:#0E5450; --jade-2:#14706A; --jade-lit:#5FD0C0;
+  /* brass splits: a FILL brass and a TEXT brass. Never set small text in the fill. */
+  --brass:#C98A18; --brass-ink:#845A09; --brass-lit:#F0C15E;  /* time only */
+  --alarm:#C1121F; --alarm-lit:#F08A80;  /* emergency only */
+  --wa:#128C3E;
+  /* type */
+  --disp:'Readex Pro',system-ui,sans-serif;
+  --num:'IBM Plex Sans',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+  /* a 4px baseline, nothing accidental */
+  --u1:4px;--u2:8px;--u3:12px;--u4:16px;--u5:20px;--u6:28px;--u7:40px;--u8:56px;
+  /* radius logic: 10 for anything that holds content, pill for anything that reads as a control. Nothing else. */
+  --r:10px; --rp:999px;
+  /* elevation philosophy: 0 on the working surface. 1 step for sheets. */
+  --float:0 24px 60px -12px rgba(11,20,18,.42), 0 2px 6px rgba(11,20,18,.10);
+}
+.i{width:390px;background:var(--dial);color:var(--ink);direction:rtl;text-align:right;
+   font:300 15px/1.85 var(--disp);border-radius:26px;overflow:hidden;
+   border:1px solid var(--dial-line);box-shadow:0 30px 70px -30px rgba(11,20,18,.35)}
+/* THE CASE REDEFINES THE TOKENS, it does not override each component.
+   Any component written against --ink-* / --dial-* flips automatically. */
+.dark{
+  --dial:var(--case); --dial-2:var(--case-2);
+  --dial-line:var(--case-line); --dial-line-2:rgba(240,236,228,.07);
+  --ink:var(--case-ink); --ink-2:var(--case-ink-2);
+  --ink-3:var(--case-ink-3); --ink-4:rgba(242,239,232,.34);
+  --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
+}
+.i.dark{background:var(--case);color:var(--case-ink);border-color:var(--case-line)}
+.i.ltr{direction:ltr;text-align:left}
+/* --- typography: display is tight and heavy, body is light and open --- */
+.d1{font:600 34px/1.24 var(--disp);letter-spacing:-.02em;margin:0}
+.d2{font:600 25px/1.32 var(--disp);letter-spacing:-.015em;margin:0}
+.d3{font:500 19px/1.45 var(--disp);letter-spacing:-.01em;margin:0}
+.t1{font:400 15.5px/1.8 var(--disp)}
+.t2{font:300 13.5px/1.8 var(--disp);color:var(--ink-2)}
+.t3{font:400 11.5px/1.6 var(--disp);color:var(--ink-3)}
+.lab{font:500 10.5px/1 var(--disp);letter-spacing:.2em;color:var(--ink-3);text-transform:uppercase}
+.dark .t2{color:var(--case-ink-2)}.dark .t3,.dark .lab{color:var(--case-ink-3)}
+/* numerals are a design element: tabular, LTR-embedded, optically lighter */
+.n{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-weight:400}
+.nbig{font:300 46px/1 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.03em}
+.nhuge{font:200 76px/.92 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.045em}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-size:.92em}
+/* --- structure: hairlines, never boxes-in-boxes --- */
+.pad{padding-inline:var(--u5)}
+.hr{height:1px;background:var(--dial-line-2);border:0;margin:0}
+.dark .hr{background:var(--case-line)}
+.rowb{display:flex;align-items:center;justify-content:space-between;gap:var(--u3)}
+.row{display:flex;align-items:center;gap:var(--u2)}
+.v2>*+*{margin-top:var(--u2)}.v3>*+*{margin-top:var(--u3)}.v5>*+*{margin-top:var(--u5)}
+/* --- the tick rule: the identity motif. Engraved measurement. --- */
+.ticks{display:flex;align-items:flex-end;gap:0;height:16px}
+.ticks>i{flex:1;height:5px;background:var(--dial-line);border-radius:0}
+.ticks>i.maj{height:11px;background:var(--ink-4)}
+.ticks>i.on{height:16px;background:var(--brass);width:2px;flex:none;margin-inline:1px}
+.dark .ticks>i{background:var(--case-line)}.dark .ticks>i.maj{background:var(--case-ink-3)}
+.dark .ticks>i.on{background:var(--brass-lit)}
+/* the dial band — time as an engraved arc segment, not a chunky bar */
+.band{position:relative;height:3px;background:var(--dial-line);border-radius:var(--rp);overflow:hidden}
+.band>i{position:absolute;top:0;bottom:0;border-radius:var(--rp)}
+.band .sh{background:var(--jade)}.band .cl{background:var(--brass)}
+.dark .band{background:var(--case-line)}.dark .band .sh{background:var(--jade-lit)}.dark .band .cl{background:var(--brass-lit)}
+.nowmk{position:absolute;top:-5px;bottom:-5px;width:1.5px;background:var(--ink)}
+.dark .nowmk{background:var(--case-ink)}
+/* --- controls: pill, hairline, no fill unless it acts --- */
+.b{display:flex;align-items:center;justify-content:center;gap:var(--u2);min-height:52px;
+   border-radius:var(--rp);font:500 15px/1 var(--disp);border:1px solid transparent;cursor:pointer;
+   transition:transform .14s cubic-bezier(.2,.7,.3,1),background .16s ease,box-shadow .16s ease}
+.b:hover{transform:translateY(-1px)}
+.b:active{transform:translateY(0) scale(.985)}
+.b:focus-visible{outline:1.5px solid var(--jade);outline-offset:3px}
+.b-p{background:var(--ink);color:var(--dial-2)}
+.b-p:hover{background:#16241f;box-shadow:0 8px 22px -10px rgba(11,20,18,.6)}
+.dark .b-p{background:var(--case-ink);color:var(--case)}
+.b-s{border-color:var(--dial-line);color:var(--ink);background:transparent}
+.b-s:hover{background:rgba(11,20,18,.04)}
+.dark .b-s{border-color:var(--case-line);color:var(--case-ink)}
+.b-g{min-height:auto;background:none;color:var(--jade);font-weight:500}
+.dark .b-g{color:var(--jade-lit)}
+.b-wa{background:var(--wa);color:#fff;font-weight:600}
+.b-sm{min-height:38px;font-size:12.5px;padding-inline:var(--u4)}
+.b[disabled]{opacity:.35;pointer-events:none}
+/* --- chips: hairline, one filled state --- */
+.c{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px;border-radius:var(--rp);
+   border:1px solid var(--dial-line);font:400 13px/1 var(--disp);color:var(--ink-2);white-space:nowrap;background:transparent;
+   transition:background .15s,border-color .15s,color .15s}
+.c:hover{border-color:var(--ink-4);color:var(--ink)}
+.c-on{background:var(--ink);border-color:var(--ink);color:var(--dial-2);font-weight:500}
+.c-off{opacity:.34;pointer-events:none}
+.dark .c{border-color:var(--case-line);color:var(--case-ink-2)}
+.dark .c-on{background:var(--case-ink);border-color:var(--case-ink);color:var(--case)}
+/* --- status: text + mark, never colour alone, never a pill soup --- */
+.st{display:inline-flex;align-items:center;gap:6px;font:500 11.5px/1 var(--disp)}
+.st-t{color:var(--brass-ink)}.st-v{color:var(--jade)}.st-e{color:var(--alarm)}.st-q{color:var(--ink-3)}
+.dark .st-t{color:var(--brass-lit)}.dark .st-v{color:var(--jade-lit)}.dark .st-e{color:var(--alarm-lit)}
+.dot{width:5px;height:5px;border-radius:var(--rp);background:currentColor;flex:none}
+.dot-live{animation:br 2.6s ease-in-out infinite}
+@keyframes br{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+@media (prefers-reduced-motion:reduce){.dot-live{animation:none}}
+/* --- the engraved mark: verification as a struck seal --- */
+.mark{width:34px;height:34px;flex:none;border-radius:var(--rp);border:1px solid var(--jade);
+      display:grid;place-items:center;color:var(--jade);font:600 9px/1 var(--disp)}
+.dark .mark{border-color:var(--jade-lit);color:var(--jade-lit)}
+/* --- avatar fallback: a monogram engraved into the dial, not a coloured blob --- */
+.av{width:44px;height:44px;flex:none;border-radius:var(--rp);display:grid;place-items:center;
+    font:400 17px/1 var(--disp);color:var(--ink-2);background:transparent;
+    border:1px solid var(--dial-line);position:relative}
+.av::after{content:"";position:absolute;inset:-4px;border-radius:var(--rp);border:1px solid var(--dial-line-2)}
+.dark .av{color:var(--case-ink-2);border-color:var(--case-line)}
+.dark .av::after{border-color:rgba(240,236,228,.07)}
+/* --- rows, not cards. The list is the surface. --- */
+.rw{display:flex;gap:var(--u4);padding:var(--u4) 0;align-items:flex-start;position:relative;
+    transition:background .16s ease}
+.rw:hover{background:rgba(11,20,18,.022)}
+.dark .rw:hover{background:rgba(240,236,228,.03)}
+.rw-lead{position:absolute;inset-inline-start:calc(var(--u5) * -1);top:var(--u4);bottom:var(--u4);width:2px;
+         background:var(--brass);border-radius:var(--rp)}
+.quiet{opacity:.46}
+/* a card exists only when the thing genuinely floats or is genuinely singular */
+.plate{background:var(--dial-2);border:1px solid var(--dial-line);border-radius:var(--r);padding:var(--u5)}
+.dark .plate{background:var(--case-2);border-color:var(--case-line)}
+.sheet{background:var(--dial-2);border-radius:22px 22px 0 0;box-shadow:var(--float);padding:var(--u5) var(--u5) var(--u6)}
+.grip{width:32px;height:3px;border-radius:var(--rp);background:var(--ink-4);margin:0 auto var(--u5)}
+/* --- skeleton: the dial breathes, it doesn't shimmer garishly --- */
+.sk{background:var(--dial-line-2);border-radius:3px;animation:pl 1.8s ease-in-out infinite}
+@keyframes pl{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
+/* --- nav: hairline, lowercase weight shift, no icon soup --- */
+.nv{display:flex;border-top:1px solid var(--dial-line);background:var(--dial-2)}
+.nv>span{flex:1;text-align:center;padding:var(--u4) 0 var(--u5);font:400 12px/1 var(--disp);color:var(--ink-3);position:relative}
+.axis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;font-weight:400;
+      font-variant-numeric:tabular-nums;direction:ltr;color:var(--ink-3)}
+.dark .axis{color:var(--case-ink-3)}
+.nv>span.on{color:var(--ink);font-weight:600}
+.nv>span.on::before{content:"";position:absolute;top:-1px;inset-inline:32%;height:2px;background:var(--ink)}
+.dark .nv{background:var(--case-2);border-color:var(--case-line)}
+.dark .nv>span.on{color:var(--case-ink)}.dark .nv>span.on::before{background:var(--case-ink)}
+
+/* ==================================================================
+   QAREEB — APP LAYER on IDENTITY v3
+   Loads AFTER src/styles/identity.css, which owns the tokens and the
+   primitives. Nothing here invents a colour, a radius or a shadow.
+
+   Three rules this file must never break:
+     1. Radius is 10 (holds content) or 999 (reads as a control). Nothing else.
+     2. Zero shadow on the working surface. The only shadow is .sheet, which
+        genuinely floats.
+     3. Never `.dark .x { color: … }`. Write components against var(--ink-*)
+        and let the token flip do the work.
+
+   The app emits ~230 class names inherited from v1/v2. Rather than rewrite
+   twenty screens in one pass, this file re-expresses that whole vocabulary
+   in v3 terms, so a screen nobody touched still reads as the instrument:
+   rows instead of cards, hairlines instead of boxes, one filled control.
+   ================================================================== */
+
+/* ---------- 0 · two token corrections ----------
+   Measured, not preferred. Both are overridden here rather than edited into
+   src/styles/identity.css so that file stays exactly as the board shipped it
+   and a v4 board can replace it whole.
+
+   --wa: white on the board's #128C3E measures 4.33:1, just under the 4.5
+   floor for 15px/600 text. Darkened to the nearest value that clears it while
+   still reading unmistakably as WhatsApp green.
    ============================================================ */
+:root { --wa: #11833A; }   /* was #128C3E — 4.33:1 with white, now 4.85:1 */
 
-/* ---------- 1. TOKENS ---------- */
-:root {
-  --sand:        #F1ECE1;
-  --sand-2:      #E8E1D3;
-  --card:        #FFFDF9;
-  --card-2:      #F7F3EA;
-  --ink:         #2B2723;
-  --ink-2:       #4C463E;
-  --ink-3:       #8B8171;
-  --line:        #D8D0C2;
-  --line-2:      #E6DFD2;
-
-  --petrol:      #16606A;
-  --petrol-2:    #1E7A86;
-  --petrol-soft: #E2EEEF;
-
-  --amber:       #8A5A10;
-  --amber-b:     #E0A029;
-  --amber-soft:  #FAEED7;
-
-  --coral:       #A33326;
-  --coral-soft:  #FBE6E2;
-
-  --wa:          #0E7C3A;
-  --wa-b:        #25D366;
-
-  --chamfer-size: 16px;
-  --chamfer: polygon(0 0, calc(100% - var(--chamfer-size)) 0, 100% var(--chamfer-size), 100% 100%, 0 100%);
-
-  --font: "IBM Plex Sans Arabic", "Noto Sans Arabic", "Geeza Pro", "Segoe UI",
-          system-ui, -apple-system, Tahoma, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
-
-  --sp: 4px;
-  --nav-h: 66px;
-  --ease: cubic-bezier(.22,.61,.36,1);
-  --t: 200ms var(--ease);
-
-  color-scheme: light;
-}
-
-html[dir="ltr"] {
-  --chamfer: polygon(var(--chamfer-size) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer-size));
-}
-
-html[data-theme="dark"] {
-  --sand:        #0E1416;
-  --sand-2:      #141C1E;
-  --card:        #182124;
-  --card-2:      #1E282B;
-  --ink:         #EDE6DA;
-  --ink-2:       #A8B2B4;
-  --ink-3:       #7C8688;
-  --line:        #283335;
-  --line-2:      #1F2A2C;
-  --petrol:      #5FBECB;
-  --petrol-2:    #7FD3DE;
-  --petrol-soft: #143036;
-  --amber:       #E3A64F;
-  --amber-b:     #F0C078;
-  --amber-soft:  #2B2114;
-  --coral:       #E4776A;
-  --coral-soft:  #2E1A17;
-  --wa:          #17A34A;
-  color-scheme: dark;
-
-}
-
-/* ---------- 2. RESET & BASE ---------- */
+/* ---------- 1 · reset + base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+* { margin: 0; padding: 0; }
 html { -webkit-text-size-adjust: 100%; }
+
 body {
-  font-family: var(--font);
-  background: var(--sand);
-  color: var(--ink);
-  line-height: 1.6;
-  font-size: 15px;
-  overflow-x: hidden;
+  background: var(--dial); color: var(--ink);
+  font: 300 15px/1.85 var(--disp);
   -webkit-font-smoothing: antialiased;
-  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  overflow-x: hidden;
 }
-button, input, textarea, select { font: inherit; color: inherit; }
-button { background: none; border: 0; cursor: pointer; padding: 0; }
-a { color: inherit; text-decoration: none; }
-ul, ol { margin: 0; padding: 0; list-style: none; }
-h1, h2, h3, h4, p { margin: 0; }
-img { max-width: 100%; display: block; }
+
+img, svg { max-width: 100%; }
 svg { flex: none; }
-/* Baseline size for any icon emitted without a sizing class. An <svg> with no
-   width/height falls back to its 300x150 default and blows the layout box open
-   (this was overflowing /doctor/:id and /pharmacy/:id). Specificity is 0,1,0 so
-   every existing `.x svg` rule still wins; this is only a floor. */
+/* An <svg> with no width falls back to its 300x150 intrinsic size and blows
+   the layout box open. .ico is the floor for icons emitted without a class;
+   specificity 0,1,0 so every `.x svg` rule still wins. */
 .ico { width: 18px; height: 18px; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select { font: inherit; color: inherit; background: none; border: 0; }
+button { cursor: pointer; }
+:focus-visible { outline: 1.5px solid var(--jade); outline-offset: 3px; }
+ul, ol { list-style: none; }
+::selection { background: var(--brass); color: var(--case); }
 
-:focus-visible { outline: 2px solid var(--petrol-2); outline-offset: 3px; border-radius: 4px; }
-
-/* numerals must align down a list */
-.num, .ribbon-scale, .fee, .dist, .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-.mono { font-family: var(--mono); letter-spacing: .02em; }
-
-/* ---------- 3. LAYOUT ---------- */
-.app { max-width: 480px; margin-inline: auto; min-height: 100vh; position: relative; }
-.wrap { padding-inline: 18px; }
-.stack > * + * { margin-top: 10px; }
-.row { display: flex; align-items: center; gap: 8px; }
-.row-b { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.grow { flex: 1; min-width: 0; }
-.sec { padding-block: 22px; }
-.sec + .sec { padding-top: 4px; }
-
-.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.sec-h h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
-.sec-h .more { font-size: 13px; color: var(--petrol); font-weight: 600; }
-
-.eyebrow {
-  font-size: 11.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--ink-3);
+/* Western tabular numerals, LTR-embedded so bidi can never reorder them
+   inside an Arabic run. Every number in the product goes through this. */
+.num, .n {
+  font-family: var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed; font-weight: 400;
 }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
+
+/* Arabic wraps badly at 375px without help. */
+h1, h2, h3, p, span, div, li { overflow-wrap: anywhere; }
+
+/* ---------- 2 · type · display tight and heavy, body light and open ---------- */
+h1, .q-h1, .prof-name, .dp-name { font: 600 30px/1.26 var(--disp); letter-spacing: -.02em; }
+h2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
+h3, .q-h2, .card-t, .qc-title, .intent-t, .empty-t { font: 500 17px/1.45 var(--disp); letter-spacing: -.01em; }
+p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-spec { font: 300 13.5px/1.8 var(--disp); color: var(--ink-2); }
+.t1 { font: 400 15.5px/1.8 var(--disp); }
+.tiny, .t3, .hint, .m, .prod-brand { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
 .muted { color: var(--ink-3); }
-.small { font-size: 13px; }
-.tiny  { font-size: 11.5px; }
-
-/* ---------- 4. THE CHAMFER (signature silhouette) ---------- */
-.ch { clip-path: var(--chamfer); background: var(--card); position: relative; }
-.ch--sm { --chamfer-size: 10px; }
-.ch--lg { --chamfer-size: 26px; }
-
-/* ---------- 5. THE RIBBON (signature component) ----------
-   A 24h band. In RTL it flows right→left, like the language.
-   Segments are positioned with inset-inline-start so they mirror for free.
--------------------------------------------------------------- */
-.ribbon { position: relative; width: 100%; background: var(--line-2); border-radius: 2px; }
-.ribbon i {
-  position: absolute; inset-block: 0; display: block;
-  inset-inline-start: var(--a); width: var(--w);
-  background: var(--ink-3); border-radius: 2px; opacity: .45;
+.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub {
+  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
+  color: var(--ink-3); text-transform: uppercase;
 }
-.ribbon i.pub  { background: var(--petrol); opacity: .38; }
-.ribbon i.priv { background: var(--amber-b); opacity: .55; }
-.ribbon i.live { opacity: 1; box-shadow: 0 0 0 1px var(--card), 0 0 10px -1px var(--amber-b); }
-.ribbon b {                       /* the NOW marker */
-  position: absolute; inset-block: -3px; inset-inline-start: var(--now);
-  width: 2px; margin-inline-start: -1px; background: var(--ink);
-  border-radius: 2px; z-index: 3;
-}
-.ribbon b::after {
-  content: ''; position: absolute; inset-inline-start: -2px; top: -3px;
-  width: 6px; height: 6px; border-radius: 50%; background: var(--ink);
-}
+.d1 { font: 600 34px/1.24 var(--disp); letter-spacing: -.02em; }
+.d2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
+.d3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
 
-.ribbon--micro { height: 4px; }
-.ribbon--day   { height: 10px; border-radius: 3px; }
-.ribbon--day i { border-radius: 3px; }
+/* ---------- 3 · layout primitives ---------- */
+.app { min-height: 100dvh; padding-bottom: 92px; }
+.wrap, .pad { padding-inline: var(--u5); }
+.blk { padding: var(--u6) var(--u5) 0; }
+.sec { padding-top: var(--u5); }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); margin-bottom: var(--u3); }
 
-.ribbon-scale {
-  position: relative; height: 14px; margin-top: 5px;
-  font-size: 10px; color: var(--ink-3); font-weight: 600;
-}
-.ribbon-scale span { position: absolute; inset-inline-start: var(--a); transform: translateX(50%); }
-html[dir="ltr"] .ribbon-scale span { transform: translateX(-50%); }
-
-/* week shape — the timetable replacement */
-.week { display: grid; gap: 6px; }
-.week-row { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 10px; }
-.week-row .d { font-size: 12px; font-weight: 600; color: var(--ink-3); }
-.week-row.today .d { color: var(--ink); font-weight: 800; }
-.week-row.today .ribbon { background: var(--sand-2); }
-.week-row.off .ribbon { opacity: .55; }
-.week-legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--ink-3); margin-top: 12px; flex-wrap: wrap; }
-.week-legend i { width: 14px; height: 6px; border-radius: 2px; display: inline-block; }
-
-/* ---------- 6. THE SEAL (verification) ---------- */
-.seal { display: inline-flex; align-items: center; gap: 5px; color: var(--petrol); font-size: 12px; font-weight: 700; }
-.seal svg { width: 15px; height: 15px; }
-.seal--stamp {
-  width: 62px; height: 62px; border-radius: 50%;
-  display: grid; place-items: center; color: var(--petrol);
-  border: 2px solid currentColor; opacity: .85;
-  transform: rotate(-11deg); font-size: 10px; font-weight: 800;
-  line-height: 1.15; text-align: center; letter-spacing: .02em;
-}
-.unverified { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-3); font-size: 12px; font-weight: 600; }
-
-/* ---------- 7. CHIPS ---------- */
-.chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; border-radius: 999px;
-  background: var(--card); color: var(--ink-2);
-  font-size: 13px; font-weight: 600; white-space: nowrap;
-  border: 1px solid var(--line); transition: var(--t);
-}
-.chip svg { width: 14px; height: 14px; }
-.chip.on { background: var(--petrol); border-color: var(--petrol); color: #fff; }
-html[data-theme="dark"] .chip.on { color: var(--sand); }
-.chip[disabled] { opacity: .4; }
-.chip--meta { border: 0; background: var(--card-2); padding: 4px 9px; font-size: 12px; border-radius: 6px; }
-.chip--time { background: var(--amber-soft); color: var(--amber); }
-.chip--warn { background: var(--coral-soft); color: var(--coral); }
-.chip--ok   { background: var(--petrol-soft); color: var(--petrol); }
-
-.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-block: 2px; }
-.chips::-webkit-scrollbar { display: none; }
-.chips--wrap { flex-wrap: wrap; overflow: visible; }
-.rail { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+.grow { flex: 1; min-width: 0; }
+.row { display: flex; align-items: center; gap: var(--u2); }
+.row-b, .rowb { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); }
+.stack-2 > * + *, .v2 > * + * { margin-top: var(--u2); }
+.v3 > * + * { margin-top: var(--u3); }
+.v5 > * + * { margin-top: var(--u5); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u3); }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bleed { margin-inline: calc(var(--u5) * -1); padding-inline: var(--u5); }
+.rail { display: flex; gap: var(--u3); overflow-x: auto; scrollbar-width: none; }
 .rail::-webkit-scrollbar { display: none; }
-.rail > * { scroll-snap-align: start; flex: none; }
-.bleed { margin-inline: -18px; padding-inline: 18px; }
+.pad-3 { padding: var(--u4); }
+.pad-4 { padding: var(--u5); }
 
-/* ---------- 8. BUTTONS ---------- */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 50px; padding: 0 20px; font-size: 15.5px; font-weight: 700;
-  clip-path: var(--chamfer); --chamfer-size: 12px;
-  background: var(--petrol); color: #fff; transition: var(--t); width: 100%;
+/* ---------- 4 · the row · the list IS the surface ----------
+   The single biggest change from v2. A card is a box that says "I am a
+   separate thing"; a directory of forty separate things is noise. A row
+   says "I am the next line of the same instrument". */
+.rw, .card, .lane, .place, .need, .qc, .fac-block, .tbl-row, .bar-row, .week-row, .proof-row {
+  position: relative;
+  display: flex; gap: var(--u4); align-items: flex-start;
+  padding: var(--u4) 0;
+  width: 100%; text-align: start;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  transition: background .16s ease;
 }
-html[data-theme="dark"] .btn { color: #06100F; }
-.btn:active { transform: translateY(1px); }
-.btn svg { width: 19px; height: 19px; }
-.btn--2 { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
-html[data-theme="dark"] .btn--2 { color: var(--ink); }
-.btn--3 { background: none; color: var(--petrol); min-height: 42px; font-weight: 700; clip-path: none; }
-.btn--wa { background: var(--wa); color: #fff; }
-html[data-theme="dark"] .btn--wa { color: #fff; }
-.btn--danger { background: var(--coral); color: #fff; }
-.btn[disabled] { background: var(--line); color: var(--ink-3); pointer-events: none; box-shadow: none; }
-.btn--sm { min-height: 40px; font-size: 14px; padding: 0 14px; --chamfer-size: 9px; width: auto; }
-.btn-row { display: flex; gap: 8px; }
-.btn-row .btn { flex: 1; }
+.card-top { display: flex; gap: var(--u4); align-items: flex-start; width: 100%; }
+.card-foot { display: flex; align-items: center; gap: var(--u2); margin-top: var(--u3); }
+.card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; }
+
+/* Hairline between siblings, drawn by the list so a filtered list never
+   leaves a dangling rule. */
+.stack > * + *, .list-2 > * + *, .needs > * + * { border-top: 1px solid var(--dial-line-2); }
+.hr { height: 1px; background: var(--dial-line-2); border: 0; margin: 0; }
+
+/* The brass lead: "open right now". State by position AND colour — it sits
+   in the gutter, where nothing else ever sits. */
+.rw-lead, .card.is-open::before, .lane.on::before, .rail-open::before, .rail-stock::before {
+  content: ""; position: absolute;
+  inset-inline-start: calc(var(--u4) * -1); top: var(--u4); bottom: var(--u4);
+  width: 2px; background: var(--brass); border-radius: var(--rp);
+}
+.rail-stock::before { background: var(--jade); }
+.card.is-shut::before, .card.is-soon::before, .lane--sos::before { content: none; }
+.quiet, .card.is-shut { opacity: .46; }
+
+/* A plate exists only when the thing is genuinely singular. */
+.plate, .ch, .surf-raise, .surf-key, .banner, .note, .slip, .stub, .adm-kpi, .map-peek,
+.qr-ctx, .proof, .fallback, .parsed, .reassure, .tier, .intent {
+  background: var(--dial-2); border: 1px solid var(--dial-line);
+  border-radius: var(--r); padding: var(--u5); box-shadow: none;
+}
+.surf-sunk { background: var(--dial); border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); }
+.surf-flat { background: none; border: 0; border-radius: 0; padding: 0; }
+
+/* ---------- 5 · controls · filled acts, hairline offers, bare navigates ---------- */
+.btn, .b, .slot-btn, .start-tile {
+  display: flex; align-items: center; justify-content: center; gap: var(--u2);
+  min-height: 52px; padding-inline: var(--u5);
+  border-radius: var(--rp); font: 500 15px/1 var(--disp);
+  border: 1px solid transparent; cursor: pointer; text-align: center;
+  background: var(--ink); color: var(--dial-2);
+  transition: transform .14s cubic-bezier(.2,.7,.3,1), background .16s ease;
+}
+.btn, .b { width: 100%; }
+.btn:active, .b:active { transform: scale(.985); }
+.btn svg, .b svg { width: 17px; height: 17px; }
+
+.btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--dial-line); }
+.btn--3, .b-g { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
+.btn--wa, .b-wa, .btn-wa { background: var(--wa); color: #fff; font-weight: 600; border-color: transparent; }
+.btn--danger { background: var(--alarm); color: #fff; border-color: transparent; }
+/* A button is aimed at deliberately, so for buttons the visual size SHOULD
+   be the hit size — raise the small variant rather than hiding an invisible
+   extender behind it. 40 -> 44 is imperceptible. */
+.btn--sm, .b-sm, .btn-sm { min-height: 44px; font-size: 12.5px; padding-inline: var(--u4); }
+.btn[disabled], .b[disabled] { opacity: .35; pointer-events: none; }
+.btn-row { display: flex; gap: var(--u2); }
+.btn-row > * { flex: 1; }
 
 .icon-btn {
-  width: 44px; height: 44px; display: grid; place-items: center;
-  background: var(--card); color: var(--ink); clip-path: var(--chamfer); --chamfer-size: 10px;
+  display: grid; place-items: center; flex: none;
+  width: 48px; height: 48px; border-radius: var(--rp);
+  border: 1px solid var(--dial-line); color: var(--ink); background: transparent;
 }
-.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn svg { width: 19px; height: 19px; }
+.clear-btn { display: grid; place-items: center; width: 36px; height: 36px; flex: none; color: var(--ink-3); min-height: 36px; }
+.clear-btn svg { width: 15px; height: 15px; }
 
-/* ---------- 9. HEADER + PLACE TAG ---------- */
+/* ---------- 6 · chips ---------- */
+.chip, .c, .pchip, .place-tag, .cred {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 14px; border-radius: var(--rp);
+  border: 1px solid var(--dial-line);
+  font: 400 13px/1 var(--disp); color: var(--ink-2);
+  white-space: nowrap; background: transparent;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.chip svg, .c svg { width: 14px; height: 14px; }
+.chip.on, .c-on { background: var(--ink); border-color: var(--ink); color: var(--dial-2); font-weight: 500; }
+.c-off, .chip--off { opacity: .34; pointer-events: none; }
+.chips { display: flex; gap: var(--u2); overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips--wrap { flex-wrap: wrap; overflow: visible; }
+
+/* ---------- 7 · status · text carries it, colour only confirms ---------- */
+.st, .chip--meta, .state-line, .cnt, .dist, .updated, .fee, .fresh, .bdg, .status-strip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 11.5px/1.6 var(--disp); color: var(--ink-3);
+  background: none; border: 0; padding: 0; border-radius: 0; min-height: 0;
+}
+.st-t, .chip--time, .chip--warn, .state-open, .state-soon, .bdg-n, .bdg-t, .fresh-warm { color: var(--brass-ink); }
+.st-v, .chip--ok, .seal, .stamped, .bdg-v, .bdg-stock, .fresh-hot, .tr-yes { color: var(--jade); }
+.st-e, .sos, .bdg-e, .tr-no { color: var(--alarm); }
+.st-q, .state-shut, .unverified, .fresh-cold { color: var(--ink-3); }
+
+.dot, .bulb, .fresh-dot { width: 5px; height: 5px; border-radius: var(--rp); background: currentColor; flex: none; }
+.dot-live, .fresh-dot-live { animation: br 2.6s ease-in-out infinite; }
+@keyframes br { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .dot-live, .fresh-dot-live { animation: none; } }
+
+/* Verification is a struck mark, never a blue tick. */
+.mark, .seal--stamp, .seal--pill {
+  width: 34px; height: 34px; flex: none; border-radius: var(--rp);
+  border: 1px solid var(--jade); display: grid; place-items: center;
+  color: var(--jade); font: 600 9px/1 var(--disp);
+}
+.seal svg, .mark svg { width: 13px; height: 13px; }
+
+/* ---------- 8 · avatars · a monogram engraved into the dial ---------- */
+.av, .avatar, .qc-av, .prof-avatar, .dp-avatar, .ic, .intent-ic {
+  width: 44px; height: 44px; flex: none; border-radius: var(--rp);
+  display: grid; place-items: center;
+  font: 400 17px/1 var(--disp); color: var(--ink-2);
+  background: transparent; border: 1px solid var(--dial-line); position: relative;
+}
+.av::after, .avatar::after, .qc-av::after { content: ""; position: absolute; inset: -4px; border-radius: var(--rp); border: 1px solid var(--dial-line-2); }
+.avatar--sq, .ic, .intent-ic { border-radius: var(--r); }
+.avatar--sq::after, .ic::after { content: none; }
+.avatar svg, .ic svg, .intent-ic svg { width: 20px; height: 20px; }
+.prof-avatar { width: 56px; height: 56px; font-size: 21px; }
+
+/* ---------- 9 · the band · time as an engraved arc, not a chunky bar ---------- */
+.band, .ribbon, .bar-t, .bar {
+  position: relative; height: 3px; background: var(--dial-line);
+  border-radius: var(--rp); display: block;
+}
+.band > i, .bar-t > i, .bar-f { position: absolute; top: 0; bottom: 0; border-radius: var(--rp); }
+.band .sh, .bar-f { background: var(--jade); }
+.band .cl, .bar-f-a { background: var(--brass); }
+.ribbon { overflow: visible; }
+.ribbon > i { position: absolute; top: 0; bottom: 0; border-radius: var(--rp); inset-inline-start: var(--a); width: var(--w); background: var(--jade); }
+.ribbon > i.priv, .ribbon > i.live { background: var(--brass); }
+.nowmk, .ribbon > b { position: absolute; top: -5px; bottom: -5px; width: 1.5px; background: var(--ink); inset-inline-start: var(--now); border-radius: 0; }
+.bar-t { overflow: hidden; }
+.bar-r { display: grid; grid-template-columns: 92px 1fr 46px; gap: var(--u3); align-items: center; font-size: 12px; }
+.bar-v { text-align: left; }
+.bars { display: grid; gap: var(--u2); }
+
+/* The tick rule — the identity motif. Engraved 24h measurement. */
+.ticks { display: flex; align-items: flex-end; gap: 0; height: 16px; }
+.ticks > i { flex: 1; height: 5px; background: var(--dial-line); border-radius: 0; }
+.ticks > i.maj { height: 11px; background: var(--ink-4); }
+.ticks > i.on { height: 16px; background: var(--brass); width: 2px; flex: none; margin-inline: 1px; }
+/* The board sets .axis to direction:ltr while .ticks and .band inherit RTL and
+   position with inset-inline-start — so the scale ran 00→24 left-to-right while
+   the marks it labelled ran right-to-left. The product's established rule is
+   that time mirrors the reading direction, so the axis is the piece that was
+   wrong. Corrected here rather than in the identity file, which stays as the
+   board shipped it. */
+.axis, .ribbon-scale {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 10px; font-weight: 400;
+  font-variant-numeric: tabular-nums; color: var(--ink-3);
+  direction: inherit;
+}
+.axis > * { direction: ltr; unicode-bidi: embed; }
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 42px; }
+.spark > i { flex: 1; background: var(--dial-line); border-radius: 1px; min-height: 2px; }
+.spark > i.hi { background: var(--brass); }
+
+/* ---------- 10 · shell ---------- */
 .hdr {
   position: sticky; top: 0; z-index: 40;
-  background: color-mix(in srgb, var(--sand) 88%, transparent);
-  backdrop-filter: blur(14px) saturate(1.1);
-  padding: 10px 18px; display: flex; align-items: center; gap: 10px;
-  border-bottom: 1px solid transparent; transition: border-color var(--t);
+  display: flex; align-items: center; gap: var(--u3);
+  min-height: 60px; padding: var(--u3) var(--u5);
+  padding-top: calc(var(--u3) + env(safe-area-inset-top));
+  background: var(--dial); border-bottom: 1px solid transparent;
 }
-.hdr.stuck { border-bottom-color: var(--line); }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 19px; letter-spacing: -.02em; }
-.brand-mark { width: 26px; height: 26px; }
-.hdr-back { margin-inline-start: -6px; }
-.hdr-title { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.hdr.stuck { border-bottom-color: var(--dial-line-2); }
+.hdr-title { font: 500 15px/1.4 var(--disp); }
+.hdr-back { width: 44px; height: 44px; }
+.brand { display: flex; align-items: center; gap: var(--u2); font: 600 19px/1 var(--disp); letter-spacing: -.02em; min-height: 44px; }
+.brand-mark { width: 24px; height: 24px; }
 
-.place-tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px 6px 10px; background: var(--petrol-soft); color: var(--petrol);
-  font-size: 13px; font-weight: 700; clip-path: var(--chamfer); --chamfer-size: 9px;
-}
-.place-tag svg { width: 14px; height: 14px; }
-.place-tag .arrow { opacity: .6; width: 11px; height: 11px; }
-.place-tag--gps::after {
-  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--petrol);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 22%, transparent);
-}
-
-/* ---------- 10. HOME — the sentence hero ---------- */
-.hero { padding: 26px 18px 20px; }
-.hero-line {
-  font-size: clamp(27px, 8.2vw, 36px); font-weight: 800;
-  line-height: 1.45; letter-spacing: -.02em;
-}
-.hero-line .blank {
-  display: inline-flex; align-items: center; gap: 6px;
-  color: var(--amber); border-bottom: 2.5px dashed var(--amber-b);
-  padding-bottom: 2px; margin-inline: 3px; transition: var(--t);
-}
-.hero-line .blank svg { width: 16px; height: 16px; opacity: .7; }
-.hero-line .blank:active { background: var(--amber-soft); }
-.hero-line .fix { color: var(--ink); }
-.hero-cta { margin-top: 20px; }
-.hero-sub { margin-top: 12px; font-size: 13px; color: var(--ink-3); }
-
-/* live city pulse */
-.pulse { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
-.pulse-cell { padding: 12px 12px 11px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.pulse-cell .n { font-size: 22px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
-.pulse-cell .l { font-size: 11.5px; color: var(--ink-3); font-weight: 600; margin-top: 1px; }
-.pulse-cell .ribbon { margin-top: 9px; }
-.pulse-cell.night .n { color: var(--amber); }
-
-/* lanes */
-.lane {
-  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-  background: var(--card); clip-path: var(--chamfer); --chamfer-size: 13px; position: relative;
-}
-.lane::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
-.lane.on::before { background: linear-gradient(var(--amber-b), var(--amber)); }
-.lane .ic { width: 40px; height: 40px; display: grid; place-items: center; background: var(--card-2); border-radius: 10px; color: var(--petrol); flex: none; }
-.lane .ic svg { width: 21px; height: 21px; }
-.lane h3 { font-size: 15px; font-weight: 700; }
-.lane p { font-size: 12.5px; color: var(--ink-3); }
-.lane .go { color: var(--ink-3); }
-.lane--sos { background: var(--coral-soft); }
-.lane--sos::before { background: var(--coral); }
-.lane--sos .ic { background: color-mix(in srgb, var(--coral) 14%, transparent); color: var(--coral); }
-.lane--sos h3 { color: var(--coral); }
-
-/* ---------- 11. CARDS (one anatomy, four variants) ---------- */
-.card {
-  position: relative; background: var(--card); clip-path: var(--chamfer);
-  padding: 14px 16px 13px; display: block; transition: var(--t);
-}
-.card::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
-.card.is-open::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
-.card.is-soon::before { background: linear-gradient(180deg, var(--amber-b), var(--line)); }
-.card.is-shut { }
-.card.is-shut .card-t, .card.is-shut .avatar { opacity: .72; }
-.card:active { background: var(--card-2); }
-
-.card-top { display: flex; gap: 12px; align-items: flex-start; }
-.avatar {
-  width: 46px; height: 46px; flex: none; display: grid; place-items: center;
-  background: var(--petrol-soft); color: var(--petrol);
-  font-weight: 800; font-size: 16px; clip-path: var(--chamfer); --chamfer-size: 10px;
-}
-.avatar--ph { background: var(--card-2); color: var(--ink-3); }
-.avatar--sq { border-radius: 10px; clip-path: none; }
-.card-t { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.35; }
-.card-q { font-size: 13px; color: var(--ink-2); margin-top: 1px; }
-.card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
-.card-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .5; }
-.card-ribbon { margin-top: 11px; }
-.card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; }
-
-.state-line { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
-.state-line .bulb { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.state-open  { color: var(--amber); }
-.state-open  .bulb { background: var(--amber-b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-b) 25%, transparent); animation: bulb 2.6s var(--ease) infinite; }
-.state-soon  { color: var(--amber); }
-.state-soon  .bulb { background: var(--amber-b); opacity: .55; }
-.state-shut  { color: var(--ink-3); }
-.state-shut  .bulb { background: var(--ink-3); opacity: .45; }
-@keyframes bulb { 0%,100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-b) 25%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber-b) 6%, transparent); } }
-
-.dist { font-size: 12.5px; font-weight: 700; color: var(--ink-2); display: inline-flex; align-items: center; gap: 4px; }
-.dist svg { width: 12px; height: 12px; opacity: .55; }
-.fee { font-size: 13px; font-weight: 700; }
-.fee--free { color: var(--petrol); }
-
-.card--wide { width: 268px; }
-.card--flat { padding: 12px 14px; }
-
-/* product card */
-.prod { background: var(--card); clip-path: var(--chamfer); --chamfer-size: 12px; overflow: hidden; }
-.prod-img { aspect-ratio: 1; background: var(--card-2); display: grid; place-items: center; position: relative; }
-.prod-img .glyph { width: 46%; height: 46%; color: var(--petrol); opacity: .5; }
-.prod-b { padding: 11px 12px 13px; }
-.prod-t { font-size: 13.5px; font-weight: 700; line-height: 1.4; }
-.prod-brand { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
-.prod-p { font-size: 14px; font-weight: 800; margin-top: 7px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-
-/* ---------- 12. NEED GRID ---------- */
-.needs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.need {
-  position: relative; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 13px;
-  padding: 15px 14px 13px; text-align: start; transition: var(--t);
-}
-.need::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); transition: var(--t); }
-.need.has::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
-.need:active { background: var(--card-2); }
-.need .ic { color: var(--petrol); margin-bottom: 9px; }
-.need .ic svg { width: 25px; height: 25px; }
-.need h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
-.need .cnt { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; font-weight: 600; }
-.need .cnt b { color: var(--amber); font-weight: 800; }
-.need .ribbon { margin-top: 9px; }
-
-/* ---------- 13. PLACE TILES (location selector) ---------- */
-.places { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.place {
-  position: relative; padding: 14px 14px 12px; background: var(--card);
-  clip-path: var(--chamfer); --chamfer-size: 12px; text-align: start; transition: var(--t);
-}
-.place h3 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
-.place .m { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
-.place.on { background: var(--petrol); color: #fff; }
-.place.on .m { color: color-mix(in srgb, #fff 72%, transparent); }
-html[data-theme="dark"] .place.on { color: #06100F; }
-
-/* ---------- 14. SEARCH ---------- */
-.search-field {
-  display: flex; align-items: center; gap: 10px; padding: 0 14px; min-height: 50px;
-  background: var(--card); clip-path: var(--chamfer); --chamfer-size: 12px;
-}
-.search-field svg { width: 19px; height: 19px; color: var(--ink-3); }
-.search-field input { flex: 1; border: 0; background: none; outline: none; font-size: 15px; min-width: 0; }
-.search-field input::placeholder { color: var(--ink-3); }
-
-.res-group + .res-group { margin-top: 20px; }
-.res-group h3 { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px; }
-
-/* ---------- 15. FILTER BAR ---------- */
-.filters { position: sticky; top: 56px; z-index: 30; padding: 10px 18px; background: color-mix(in srgb, var(--sand) 92%, transparent); backdrop-filter: blur(12px); }
-.res-head { padding: 4px 18px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.res-head .n { font-size: 13.5px; font-weight: 700; }
-.radius-note {
-  display: flex; gap: 9px; align-items: flex-start; padding: 11px 13px; margin: 0 18px 12px;
-  background: var(--amber-soft); color: var(--amber); clip-path: var(--chamfer); --chamfer-size: 10px;
-  font-size: 12.5px; font-weight: 600; line-height: 1.5;
-}
-.radius-note svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
-
-/* ---------- 16. PROFILE ---------- */
-.prof-head { padding: 18px 18px 20px; background: var(--card); position: relative; }
-.prof-head::after { content: ''; position: absolute; inset-inline: 0; bottom: 0; height: 1px; background: var(--line); }
-.prof-name { font-size: 23px; font-weight: 800; letter-spacing: -.025em; line-height: 1.25; }
-.prof-spec { font-size: 14px; color: var(--petrol); font-weight: 700; margin-top: 3px; }
-.prof-avatar { width: 62px; height: 62px; font-size: 21px; }
-.prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin-top: 18px; clip-path: var(--chamfer); --chamfer-size: 12px; }
-.prof-fact { background: var(--card); padding: 11px 12px; }
-.prof-fact .k { font-size: 11px; color: var(--ink-3); font-weight: 600; }
-.prof-fact .v { font-size: 15px; font-weight: 800; letter-spacing: -.02em; margin-top: 1px; }
-
-.blk { padding: 20px 18px; border-bottom: 1px solid var(--line); }
-.blk h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
-.kv { display: flex; gap: 10px; justify-content: space-between; padding: 8px 0; font-size: 13.5px; }
-.kv + .kv { border-top: 1px solid var(--line-2); }
-.kv .k { color: var(--ink-3); }
-.kv .v { font-weight: 600; text-align: end; }
-
-.fac-block { padding: 13px 14px; background: var(--card-2); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.fac-block + .fac-block { margin-top: 10px; }
-.fac-block .ft { font-size: 14px; font-weight: 700; }
-.fac-block .fm { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
-
-.updated { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
-.updated svg { width: 13px; height: 13px; }
-.updated.stale { color: var(--amber); }
-
-.actionbar {
-  position: sticky; bottom: 0; z-index: 35; padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--sand) 92%, transparent); backdrop-filter: blur(14px);
-  border-top: 1px solid var(--line); display: flex; gap: 8px;
-}
-.actionbar .btn { flex: 1; }
-.actionbar .icon-btn { flex: none; box-shadow: inset 0 0 0 1.5px var(--line); }
-
-/* ---------- 17. SHEETS ---------- */
-.scrim { position: fixed; inset: 0; background: rgba(8,20,19,.5); z-index: 90; opacity: 0; transition: opacity var(--t); backdrop-filter: blur(2px); }
-.scrim.in { opacity: 1; }
-.sheet {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 91; max-width: 480px; margin-inline: auto;
-  background: var(--sand); border-radius: 22px 22px 0 0;
-  transform: translateY(102%); transition: transform 260ms var(--ease);
-  max-height: 92vh; display: flex; flex-direction: column;
+.nav {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 50;
+  display: flex; border-top: 1px solid var(--dial-line); background: var(--dial-2);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.sheet.in { transform: translateY(0); }
-.sheet-grip { width: 40px; height: 4px; border-radius: 3px; background: var(--line); margin: 10px auto 4px; flex: none; }
-.sheet-h { padding: 8px 18px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex: none; }
-.sheet-h h2 { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
-.sheet-h p { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
-.sheet-b { padding: 0 18px 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.sheet-f { padding: 12px 18px 16px; border-top: 1px solid var(--line); flex: none; background: var(--sand); }
+.nav a, .nv > span {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: var(--u3) 0 var(--u4); min-height: 56px;
+  font: 400 12px/1 var(--disp); color: var(--ink-3); position: relative;
+}
+.nav a svg { width: 20px; height: 20px; }
+.nav a.on, .nv > span.on { color: var(--ink); font-weight: 600; }
+.nav a.on::before, .nv > span.on::before {
+  content: ""; position: absolute; top: -1px; inset-inline: 32%; height: 2px; background: var(--ink);
+}
 
-.field { margin-top: 14px; }
-.field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 7px; }
-.field input, .field textarea {
-  width: 100%; padding: 13px 14px; background: var(--card); border: 1.5px solid var(--line);
-  clip-path: var(--chamfer); --chamfer-size: 11px; outline: none; font-size: 15px; resize: none;
+.actionbar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 55;
+  display: flex; gap: var(--u2); padding: var(--u3) var(--u5);
+  padding-bottom: calc(var(--u3) + env(safe-area-inset-bottom));
+  background: var(--dial); border-top: 1px solid var(--dial-line);
 }
-.field input:focus, .field textarea:focus { border-color: var(--petrol); }
-.hint { font-size: 12px; color: var(--ink-3); margin-top: 7px; display: flex; gap: 6px; align-items: flex-start; }
-.hint svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+.actionbar .btn { flex: 1; }
 
-.slot { display: grid; grid-template-columns: 1fr; gap: 8px; }
-.slot-btn {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 12px 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px;
-  text-align: start; box-shadow: inset 0 0 0 1.5px transparent; transition: var(--t);
+/* ---------- 11 · the sheet · the ONLY shadow in the product ---------- */
+.sheet {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 90;
+  max-height: 88dvh; overflow-y: auto;
+  background: var(--dial-2); border-radius: 22px 22px 0 0;
+  box-shadow: var(--float);
+  padding: var(--u5) var(--u5) var(--u6);
+  padding-bottom: calc(var(--u6) + env(safe-area-inset-bottom));
 }
-.slot-btn .d { font-size: 14.5px; font-weight: 700; }
-.slot-btn .m { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
-.slot-btn .t { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.slot-btn.on { box-shadow: inset 0 0 0 2px var(--petrol); background: var(--petrol-soft); }
-.slot-btn.on .t { color: var(--petrol); }
+.sheet-grip, .grip { width: 32px; height: 3px; border-radius: var(--rp); background: var(--ink-4); margin: 0 auto var(--u5); }
+.sheet-h { margin-bottom: var(--u5); }
+.sheet-h h2 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
+.sheet-h p { margin-top: 4px; }
+.sheet-f { margin-top: var(--u5); }
+.scrim { position: fixed; inset: 0; z-index: 85; background: rgba(11,20,18,.44); }
 
-/* ---------- 18. THE SLIP (WhatsApp handoff — a designed moment) ---------- */
-.slip {
-  position: relative; background: var(--card); padding: 18px 18px 20px;
-  clip-path: var(--chamfer); --chamfer-size: 18px;
+/* ---------- 12 · the slip · a receipt, not a chat bubble ---------- */
+.slip-h { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--u3); }
+.slip-ref { font-family: var(--mono); font-size: 12px; background: var(--ink); color: var(--dial-2); border-radius: 5px; padding: 2px 8px; }
+.slip-to { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); margin-top: var(--u3); border-top: 1px solid var(--dial-line-2); padding-top: var(--u3); }
+.bubble, .msg-pre {
+  font: 400 14.5px/2.05 var(--disp); white-space: pre-wrap; word-break: break-word;
+  margin-top: var(--u3); background: none; border: 0; padding: 0; border-radius: 0;
 }
-.slip::after {                       /* perforated tear edge */
-  content: ''; position: absolute; inset-inline: 0; bottom: -1px; height: 8px;
-  background: radial-gradient(circle at 5px 8px, var(--sand) 5px, transparent 5.5px) repeat-x;
-  background-size: 14px 8px;
-}
-.slip-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1.5px dashed var(--line); }
-.slip-ref { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--petrol); }
-.slip-to { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; }
-.bubble {
-  margin-top: 10px; padding: 13px 14px; background: var(--card-2);
-  border-radius: 14px; border-start-start-radius: 4px;
-  font-size: 14px; line-height: 1.85; white-space: pre-wrap; word-break: break-word;
-}
-.bubble--edit { background: var(--card); border: 1.5px solid var(--petrol); outline: none; }
-.slip-edit { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--petrol); margin-top: 11px; }
+.bubble--edit { border: 1px solid var(--jade); border-radius: var(--r); padding: var(--u3); }
+.slip-edit { display: inline-flex; align-items: center; gap: 5px; font: 500 12px/1 var(--disp); color: var(--jade); margin-top: var(--u3); min-height: 44px; }
 .slip-edit svg { width: 14px; height: 14px; }
 
-.stub {
-  position: relative; background: var(--card); padding: 15px 16px;
-  clip-path: var(--chamfer); --chamfer-size: 14px;
+/* ---------- 13 · fields ---------- */
+/* A labelled field is a stack, not a row: putting the label beside the input
+   at 390px leaves neither enough width and they overlap. */
+.field { display: block; margin-top: var(--u4); background: none; border: 0; padding: 0; }
+.field label {
+  display: block; margin-bottom: 7px;
+  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
+  color: var(--ink-3); text-transform: uppercase;
 }
-.stub::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--petrol); }
-
-@keyframes stamp { 0% { transform: rotate(-11deg) scale(2.4); opacity: 0; } 60% { transform: rotate(-11deg) scale(.94); opacity: 1; } 100% { transform: rotate(-11deg) scale(1); opacity: .85; } }
-.stamped { animation: stamp 420ms var(--ease) both; }
-
-/* ---------- 19. STATES ---------- */
-.skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--card-2) 50%, var(--line-2) 75%); background-size: 300% 100%; animation: shim 1.4s linear infinite; border-radius: 4px; }
-@keyframes shim { to { background-position: -300% 0; } }
-.skel-card { background: var(--card); clip-path: var(--chamfer); padding: 14px 16px; }
-.skel-l { height: 11px; }
-
-.empty { padding: 34px 22px; text-align: center; }
-.empty-mark { width: 68px; height: 68px; margin: 0 auto 16px; color: var(--petrol); opacity: .35; }
-.empty h3 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; line-height: 1.4; }
-.empty p { font-size: 13.5px; color: var(--ink-3); margin-top: 8px; line-height: 1.65; }
-.empty .btn { margin-top: 18px; }
-.empty-alts { margin-top: 20px; text-align: start; }
-
-.banner {
-  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
-  clip-path: var(--chamfer); --chamfer-size: 11px; font-size: 13px; line-height: 1.55; font-weight: 600;
+.field input, .field textarea {
+  width: 100%; min-height: 52px; padding: 0 var(--u4);
+  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  background: var(--dial-2); font: 300 15px/1.6 var(--disp);
 }
-.banner svg { width: 17px; height: 17px; flex: none; margin-top: 1px; }
-.banner--info { background: var(--petrol-soft); color: var(--petrol); }
-.banner--warn { background: var(--amber-soft); color: var(--amber); }
-.banner--stop { background: var(--coral-soft); color: var(--coral); }
+.field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
+.field input::placeholder, .field textarea::placeholder { color: var(--ink-4); }
 
-/* ---------- 20. BOTTOM NAV (exactly 4) ---------- */
-.nav {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 50; max-width: 480px; margin-inline: auto;
-  height: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
-  background: color-mix(in srgb, var(--sand) 94%, transparent); backdrop-filter: blur(16px) saturate(1.15);
-  border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4, 1fr);
+.search-field {
+  display: flex; align-items: center; gap: var(--u2);
+  min-height: 52px; padding: 0 var(--u4); border-radius: var(--rp);
+  border: 1px solid var(--dial-line); background: var(--dial-2);
 }
-.nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-3); position: relative; }
-.nav a svg { width: 22px; height: 22px; }
-.nav a span { font-size: 10.5px; font-weight: 700; }
-.nav a.on { color: var(--petrol); }
-.nav a.on::before { content: ''; position: absolute; top: 0; width: 26px; height: 3px; background: var(--petrol); border-radius: 0 0 3px 3px; }
+.search-field input { flex: 1; min-width: 0; font: 300 15px/1.6 var(--disp); border: 0; background: none; padding: 0; }
+.search-field > svg { width: 18px; height: 18px; color: var(--ink-3); }
 
-/* ---------- 21. QR ENTRY ---------- */
-.qr-ctx {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 0 18px 4px;
-  background: var(--petrol-soft); color: var(--petrol); clip-path: var(--chamfer); --chamfer-size: 10px;
-  font-size: 12.5px; font-weight: 700;
+/* Time slots: a vertical list of choices, each a wide control that states the
+   day, the place and the fee on one line and the hours on the other. */
+.slot { display: grid; gap: var(--u2); }
+.slot-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--u3);
+  width: 100%; min-height: 60px; padding: var(--u3) var(--u4);
+  border: 1px solid var(--dial-line); border-radius: var(--r);
+  background: transparent; color: var(--ink); text-align: start;
 }
-.qr-ctx svg { width: 16px; height: 16px; flex: none; }
-.qr-ctx button { margin-inline-start: auto; opacity: .6; display: grid; place-items: center; }
+.slot-btn.on { border-color: var(--ink); background: var(--dial-2); }
+.slot-btn .d { display: block; font: 500 14px/1.4 var(--disp); }
+.slot-btn .m { display: block; font: 400 11.5px/1.5 var(--disp); color: var(--ink-3); }
+.slot-btn .t { font-family: var(--num); font-variant-numeric: tabular-nums; direction: ltr; flex: none; font-size: 13px; }
 
-/* ---------- 22. ADMIN ---------- */
-.adm { background: var(--sand-2); min-height: 100vh; }
-.adm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.adm-kpi { padding: 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.adm-kpi .n { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
-.adm-kpi .l { font-size: 11.5px; color: var(--ink-3); font-weight: 600; }
-.adm-kpi.alert .n { color: var(--amber); }
-.bar-row { display: grid; grid-template-columns: 1fr 46px; gap: 10px; align-items: center; padding: 7px 0; font-size: 13px; }
-.bar { height: 7px; background: var(--line-2); border-radius: 3px; overflow: hidden; margin-top: 5px; }
-.bar i { display: block; height: 100%; background: var(--petrol); border-radius: 3px; }
-.bar i.warn { background: var(--amber-b); }
-.tbl-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.tbl-row + .tbl-row { margin-top: 6px; }
-
-/* weekly session grid (admin) */
-.wg { display: grid; grid-template-columns: 40px repeat(18, 1fr); gap: 2px; font-size: 9px; }
-.wg .h { color: var(--ink-3); text-align: center; font-weight: 700; }
-.wg .d { color: var(--ink-3); font-weight: 700; display: grid; align-items: center; font-size: 10.5px; }
-.wg .c { height: 22px; background: var(--line-2); border-radius: 2px; }
-.wg .c.pub { background: var(--petrol); opacity: .55; }
-.wg .c.priv { background: var(--amber-b); }
-
-/* ---------- 23. RESPONSIVE — desktop is a different layout ---------- */
-@media (min-width: 900px) {
-  body { padding-bottom: 0; }
-  .app { max-width: 1180px; padding-bottom: 40px; }
-  .nav {
-    position: sticky; top: 0; inset-inline: auto; bottom: auto; max-width: none; height: 58px;
-    grid-template-columns: repeat(4, max-content); gap: 6px; border-top: 0; border-bottom: 1px solid var(--line);
-    padding: 0 18px; justify-content: start; background: color-mix(in srgb, var(--sand) 94%, transparent);
-  }
-  .nav a { flex-direction: row; gap: 8px; padding: 0 16px; }
-  .nav a span { font-size: 13.5px; }
-  .nav a.on::before { top: auto; bottom: 0; width: 100%; border-radius: 3px 3px 0 0; }
-  .hdr { top: 58px; }
-  .filters { top: 116px; }
-  .sheet { max-width: 460px; inset-inline-end: 24px; inset-inline-start: auto; margin-inline: 0; bottom: 24px; border-radius: 18px; max-height: calc(100vh - 48px); }
-  .split { display: grid; grid-template-columns: 300px 1fr; gap: 26px; align-items: start; }
-  .split-rail { position: sticky; top: 130px; }
-  .needs { grid-template-columns: repeat(3, 1fr); }
-  .places { grid-template-columns: repeat(3, 1fr); }
-  .grid-2 { grid-template-columns: repeat(4, 1fr); }
-  .list-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
-  .list-2 > * { margin-top: 0 !important; }
-  .hero-line { font-size: 44px; }
-  .hero { padding: 44px 18px 28px; }
-  .pulse { max-width: 640px; }
-  .actionbar { position: static; border: 0; background: none; padding-inline: 0; }
-  .adm-grid { grid-template-columns: repeat(4, 1fr); }
-  .map-panel { display: block; }
+/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ---------- */
+.note, .banner {
+  display: flex; gap: var(--u3); align-items: flex-start;
+  padding: var(--u4); border-radius: var(--r);
+  font: 300 13.5px/1.8 var(--disp); color: var(--ink-2);
+  background: none; border: 1px solid var(--dial-line);
 }
-@media (max-width: 899px) { .map-panel { display: none; } }
+.note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
+.note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
+.note-e, .banner--stop { border-color: var(--alarm); color: var(--alarm); }
 
-/* static map peek — mobile gets a strip, desktop gets a panel */
-.map-peek {
-  position: relative; height: 96px; background:
-    repeating-linear-gradient(0deg, var(--line-2) 0 1px, transparent 1px 22px),
-    repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 22px),
-    var(--card-2);
-  clip-path: var(--chamfer); --chamfer-size: 12px; overflow: hidden;
+/* ---------- 15 · empty · offline · error ----------
+   The failure states carry the same craft as the hero. */
+.empty { text-align: center; padding: var(--u7) var(--u5); }
+.empty-t, .empty h3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; margin-top: var(--u5); }
+.empty-b, .empty p { margin-top: 6px; }
+.empty-alts { margin-top: var(--u5); text-align: start; }
+.empty .btn { margin-top: var(--u5); }
+
+/* The dial glyph: concentric rings, a crosshair, and one brass point off
+   centre. Pure CSS — a dead end costs nothing to draw. */
+.glyph, .empty-mark {
+  width: 96px; height: 96px; margin: 0 auto; position: relative;
+  background: none; border: 0; border-radius: 0; color: transparent;
 }
-.map-peek .pin { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--petrol); box-shadow: 0 0 0 3px var(--card); }
-.map-peek .me { background: var(--amber); box-shadow: 0 0 0 3px var(--card), 0 0 0 7px color-mix(in srgb, var(--amber-b) 25%, transparent); }
-.map-peek .lbl { position: absolute; inset-inline-start: 12px; bottom: 10px; font-size: 11.5px; font-weight: 700; color: var(--ink-2); background: color-mix(in srgb, var(--card) 86%, transparent); padding: 3px 8px; border-radius: 5px; }
-.map-panel { height: 420px; position: sticky; top: 130px; }
-.map-panel .map-peek { height: 100%; }
-
-/* ---------- 24. MOTION ---------- */
-.fade { animation: fade 260ms var(--ease) both; }
-@keyframes fade { from { opacity: 0; transform: translateY(7px); } }
-.stagger > * { animation: fade 300ms var(--ease) both; }
-.stagger > *:nth-child(1) { animation-delay: 20ms } .stagger > *:nth-child(2) { animation-delay: 45ms }
-.stagger > *:nth-child(3) { animation-delay: 70ms } .stagger > *:nth-child(4) { animation-delay: 95ms }
-.stagger > *:nth-child(5) { animation-delay: 120ms } .stagger > *:nth-child(6) { animation-delay: 145ms }
-.stagger > *:nth-child(n+7) { animation-delay: 165ms }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+.empty-mark > svg { display: none; }
+.glyph::before, .empty-mark::before {
+  content: ""; position: absolute; inset: 0; border: 1px solid var(--dial-line); border-radius: var(--rp);
+}
+.glyph::after, .empty-mark::after {
+  content: ""; position: absolute; inset: 28px; border: 1px solid var(--ink-4); border-radius: var(--rp);
+}
+.glyph > i { position: absolute; inset: 14px; border: 1px solid var(--dial-line); border-radius: var(--rp); transform: none; opacity: 1; }
+.glyph > i:nth-child(2) { inset: 50% 0 auto 0; height: 1px; border: 0; background: var(--dial-line); border-radius: 0; }
+.glyph > i:nth-child(3) { inset: 0 auto 0 50%; width: 1px; height: auto; border: 0; background: var(--dial-line); border-radius: 0; }
+.glyph > b {
+  position: absolute; top: 22px; inset-inline-end: 20px; inset-inline-start: auto; inset-block-end: auto;
+  width: 7px; height: 7px; background: var(--brass); border-radius: var(--rp); transform: none;
 }
 
-/* ============================================================
-   25. FIXES & ADDITIONS (post-review pass)
+.offline-bar, .netbar {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u3) var(--u5); font: 300 12.5px/1.7 var(--disp);
+  color: var(--ink-2); border-bottom: 1px solid var(--dial-line);
+  background: var(--dial-2);
+}
+.offline-bar button { flex: none; min-height: 40px; padding: 0 14px; border-radius: var(--rp); border: 1px solid var(--dial-line); font-size: 12px; font-weight: 500; }
+
+/* ---------- 16 · skeleton · the dial breathes, it does not shimmer ---------- */
+.skel, .sk { background: var(--dial-line-2); border-radius: 3px; animation: pl 1.8s ease-in-out infinite; }
+@keyframes pl { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .skel, .sk { animation: none; } }
+
+/* ---------- 17 · numerals · the number is the largest thing, not the title ---------- */
+.nbig, .kpi-n, .intent-n, .tier-p {
+  font: 300 46px/1 var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed; letter-spacing: -.03em;
+}
+.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.045em; display: inline-block; }
+.nbig, .kpi-n, .intent-n, .tier-p { display: inline-block; }
+.adm-kpi .n { font: 300 34px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; }
+.kpi-d { font-size: 11.5px; color: var(--jade); font-weight: 500; }
+.kpi-d-warn, .kpi-d-neg { color: var(--brass-ink); font-size: 11.5px; font-weight: 500; }
+
+/* ---------- 18 · motion ---------- */
+.page-in { animation: fi .17s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes fi { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .page-in { animation: none; } }
+
+/* ---------- 19 · desktop · a measuring tool has a fixed scale ----------
+   Beyond 560px the column stops and the dial sits on the paper rather than
+   smearing across it. */
+@media (min-width: 560px) {
+  .app { max-width: 560px; margin-inline: auto; border-inline: 1px solid var(--dial-line); }
+  .nav, .actionbar, .sheet { max-width: 560px; margin-inline: auto; }
+}
+
+/* ---------- 20 · hit size is not visual size ----------
+   The identity sets chips at 36px, bare links at their line box, and small
+   buttons at 40px. That is the right LOOK — inflating everything to 44px
+   turns a dense chip row into a stack of lozenges and loses the instrument.
+   But a 23px tap target is a real failure, especially one-handed on a bus.
+
+   So the two are separated completely: the visual box is whatever the design
+   says, and an inert ::after extends the hit area to 44px, centred. Nothing
+   moves. This is why there is no `min-height: 44px` sprayed across anchors —
+   that approach fought the layout and lost, silently, wherever a more
+   specific rule reset it back to 0.
    ============================================================ */
-
-/* directional icons must mirror with the language; logos and numbers must not */
-html[dir="rtl"] .dirflip { transform: scaleX(-1); }
-
-/* text that must never break a card's rhythm */
-.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; display: block; }
-.card-meta .trunc { display: inline-block; max-width: 46%; vertical-align: bottom; }
-
-/* card foot never wraps its status; services get their own line */
-.card-foot { flex-wrap: wrap; }
-.state-line { white-space: nowrap; }
-.card-svc { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
-
-/* a live segment glows in its own colour, not always amber */
-.ribbon i.live { opacity: 1; }
-.ribbon i.pub.live  { box-shadow: 0 0 0 1px var(--card), 0 0 9px -1px var(--petrol); opacity: .9; }
-.ribbon i.priv.live { box-shadow: 0 0 0 1px var(--card), 0 0 9px -1px var(--amber-b); }
-
-/* "open now" earns a full-width strip on profiles, not a third of a row */
-.status-strip {
-  margin-top: 16px; padding: 12px 14px; background: var(--card-2);
-  clip-path: var(--chamfer); --chamfer-size: 12px; position: relative;
+:where(a[href], button, input, [onclick]) { position: relative; }
+:where(a[href], button, input, [onclick])::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  height: 44px; width: 100%; min-width: 44px;
+  pointer-events: none;
 }
-.status-strip::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
-.status-strip.open::before, .status-strip.soon::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
-
-/* the action bar sits above the nav, never under it */
-.actionbar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
-@media (min-width: 900px) { .actionbar { bottom: auto; } }
-
-/* thin result sets get a door, not dead space */
-.list-end { padding: 26px 0 8px; text-align: center; }
-.list-end .btn { margin-top: 12px; }
-.list-end p { margin-bottom: 4px; }
-
-/* mixed-script safety: never let bidi reorder a measurement or a time range */
-[dir="ltr"].num, .num[dir="ltr"] { unicode-bidi: isolate; }
-
-/* slightly tighter hero so the live pulse clears the fold on a 360×640 screen */
-.hero { padding-top: 20px; }
-.hero-line { font-size: clamp(25px, 7.4vw, 33px); line-height: 1.42; }
-@media (min-width: 900px) { .hero-line { font-size: 42px; } }
-
-/* The page container fades on opacity ONLY. A transform here would make it the
-   containing block for position:fixed descendants and detach the bottom nav. */
-.page-in { animation: pagein 240ms var(--ease) both; }
-@keyframes pagein { from { opacity: 0; } }
-
-/* ============================================================
-   26. DESKTOP — a different layout, not a stretched phone.
-   The nav is the LAST node in the DOM (thumb-zone order on mobile),
-   so on desktop it must be positioned, not sticky-hoisted.
-   ============================================================ */
-@media (min-width: 900px) {
-  :root { --hdr-h: 58px; --navd-h: 54px; }
-
-  .app { max-width: 1180px; padding-top: calc(var(--hdr-h) + var(--navd-h) + 18px); padding-inline: 24px; }
-
-  /* brand + location bar on top, section nav beneath it */
-  .hdr {
-    position: fixed; inset-inline: 0; top: 0; height: var(--hdr-h);
-    padding-inline: max(24px, calc((100vw - 1180px) / 2));
-    border-bottom: 1px solid var(--line); z-index: 60;
-  }
-  .nav {
-    position: fixed; inset-inline: 0; top: var(--hdr-h); bottom: auto;
-    height: var(--navd-h); width: 100%; max-width: none;
-    padding-inline: max(24px, calc((100vw - 1180px) / 2));
-    grid-template-columns: repeat(4, max-content); justify-content: start; gap: 4px;
-    border-top: 0; border-bottom: 1px solid var(--line); z-index: 55;
-  }
-  .filters { top: calc(var(--hdr-h) + var(--navd-h)); z-index: 45; }
-
-  /* prose and single-column stacks stay readable; grids get the full width */
-  .hero { max-width: 720px; margin-inline: auto; padding-top: 46px; text-align: center; }
-  .hero .pulse { margin-inline: auto; max-width: 720px; }
-  .hero-cta .btn, .hero .search-field { max-width: 380px; margin-inline: auto; }
-  .hero-line .blank { justify-content: center; }
-
-  .wrap > .stack:not(.list-2) { max-width: 760px; margin-inline: auto; }
-  .sec > .sec-h { max-width: 1132px; margin-inline: auto; }
-  .prof-head, .blk, .res-head, .radius-note, .list-end, .empty { max-width: 860px; margin-inline: auto; }
-  .prof-head { clip-path: var(--chamfer); --chamfer-size: 20px; margin-top: 8px; }
-  .blk:last-of-type { border-bottom: 0; }
-
-  .btn { width: auto; min-width: 200px; }
-  .btn-row .btn, .actionbar .btn, .sheet-f .btn, .empty .btn, .list-end .btn { width: 100%; }
-  .actionbar { max-width: 860px; margin-inline: auto; justify-content: flex-start; }
-  .actionbar .btn { max-width: 320px; }
-
-  .list-2 { grid-template-columns: repeat(2, 1fr); }
-  .needs { grid-template-columns: repeat(4, 1fr); }
-  .grid-2 { grid-template-columns: repeat(4, 1fr); }
-  .places { grid-template-columns: repeat(4, 1fr); }
-  .week-row { grid-template-columns: 70px 1fr; }
-  .map-peek { height: 200px; }
-}
-
-@media (min-width: 900px) and (max-width: 1180px) {
-  .hdr, .nav { padding-inline: 24px; }
-}
-
-/* 27. Product thumbs: a tinted field, not a hollow box */
-.prod-img { aspect-ratio: 4 / 3; background:
-  radial-gradient(120% 90% at 70% 20%, var(--petrol-soft) 0%, transparent 70%), var(--card-2); }
-.prod-img .glyph { width: 34%; height: 34%; opacity: .42; }
-
-/* 28. Theme: tokens follow the OS preference unless the viewer pins one.
-   The host's theme toggle stamps data-theme on the root, which must win both ways. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-  --sand:        #0E1416;
-  --sand-2:      #141C1E;
-  --card:        #182124;
-  --card-2:      #1E282B;
-  --ink:         #EDE6DA;
-  --ink-2:       #A8B2B4;
-  --ink-3:       #7C8688;
-  --line:        #283335;
-  --line-2:      #1F2A2C;
-  --petrol:      #5FBECB;
-  --petrol-2:    #7FD3DE;
-  --petrol-soft: #143036;
-  --amber:       #E3A64F;
-  --amber-b:     #F0C078;
-  --amber-soft:  #2B2114;
-  --coral:       #E4776A;
-  --coral-soft:  #2E1A17;
-  --wa:          #17A34A;
-  color-scheme: dark;
-  }
-}
-:root[data-theme="light"] {
-  --sand:        #F1ECE1;
-  --sand-2:      #E8E1D3;
-  --card:        #FFFDF9;
-  --card-2:      #F7F3EA;
-  --ink:         #2B2723;
-  --ink-2:       #4C463E;
-  --ink-3:       #8B8171;
-  --line:        #D8D0C2;
-  --line-2:      #E6DFD2;
-
-  --petrol:      #16606A;
-  --petrol-2:    #1E7A86;
-  --petrol-soft: #E2EEEF;
-
-  --amber:       #8A5A10;
-  --amber-b:     #E0A029;
-  --amber-soft:  #FAEED7;
-
-  --coral:       #A33326;
-  --coral-soft:  #FBE6E2;
-
-  --wa:          #0E7C3A;
-  --wa-b:        #25D366;
-  color-scheme: light;
-}
-
-/* ============================================================
-   29. From the design board
-   ============================================================ */
-
-/* Place tiles carry a landmark, because that is how Baghdad is navigated.
-   The landmark is the recognition cue; the doctor count is the decision cue. */
-.place .lm {
-  color: var(--petrol); font-weight: 700; margin-top: 3px;
-  display: flex; align-items: center; gap: 4px;
-}
-.place .lm::before { content: '◈'; opacity: .55; font-size: 10px; }
-.place.on .lm { color: color-mix(in srgb, #fff 82%, transparent); }
-html[data-theme="dark"] .place.on .lm { color: color-mix(in srgb, #06100F 72%, transparent); }
-.place h3 { line-height: 1.25; }
-
-/* The board's warmer paper needs a slightly heavier rail to keep the same
-   "open now" punch against a lower-contrast card. */
-.card.is-open::before, .lane.on::before, .need.has::before { width: 5px; }
-
-/* ============================================================
-   30. BOARD CONFORMANCE
-   The design board is the visual identity of record. Reading its own
-   component CSS corrected one thing I had over-applied: the chamfer is a
-   SPARING signature (it appears on the brand mark and the seal demo only),
-   while every real surface in the board is rounded with a 1px border.
-   Overriding here rather than rewriting §1–29 keeps the geometry tokens,
-   the ribbon engine and the layout intact.
-   ============================================================ */
-:root {
-  --chamfer: none;              /* neutralises every clip-path: var(--chamfer) */
-  --r-lg: 22px;                 /* phone frame / large surfaces */
-  --r:    14px;                 /* cards, sheets, tiles */
-  --r-sm: 12px;                 /* buttons, inputs, search */
-  --teal-line: #9DBFC2;         /* the board's muted teal border */
-  --loc-bg: #EEF3F3;
-  --loc-line: #D3E0E1;
-  --wa-board: #1DA851;
-}
-/* :root:not([data-theme="light"]) matches whenever the attribute is absent —
-   which is also true in LIGHT mode. It is only a dark signal INSIDE the
-   prefers-color-scheme query. Outside it, it leaked dark tokens into light. */
-html[data-theme="dark"] { --teal-line: #2E5B62; --loc-bg: #143036; --loc-line: #22484F; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --teal-line: #2E5B62; --loc-bg: #143036; --loc-line: #22484F; }
-}
-html[dir="ltr"] { --chamfer: none; }
-
-/* surfaces: rounded + hairline, per the board */
-.ch, .card, .lane, .need, .place, .prod, .pulse-cell, .status-strip,
-.fac-block, .slot-btn, .search-field, .slip, .stub, .map-peek,
-.adm-kpi, .tbl-row, .prof-facts, .radius-note, .banner, .qr-ctx,
-.field input, .field textarea, .empty-alts .lane {
-  border-radius: var(--r);
-  border: 1px solid var(--line);
-}
-.card, .prod, .pulse-cell, .lane, .need, .place, .slot-btn, .fac-block,
-.status-strip, .search-field, .adm-kpi, .tbl-row { background: var(--card); }
-.status-strip, .fac-block { background: var(--card-2); }
-.prof-facts { overflow: hidden; }
-.prof-head { border-radius: 0; border: 0; }
-
-/* "Open now" is the board's .openrail: a 3px leading border, not a pseudo-bar */
-.card::before, .lane::before, .need::before, .status-strip::before { display: none; }
-.card.is-open, .lane.on, .need.has, .status-strip.open, .status-strip.soon {
-  border-inline-start: 3px solid var(--amber-b);
-}
-.card.is-soon { border-inline-start: 3px solid color-mix(in srgb, var(--amber-b) 55%, var(--line)); }
-.lane--sos { border-color: #ECCFC9; background: #FDF3F1; border-inline-start: 3px solid var(--coral); }
-html[data-theme="dark"] .lane--sos { border-color: #4A2A25; background: var(--coral-soft); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .lane--sos { border-color: #4A2A25; background: var(--coral-soft); }
-}
-.stub { border-inline-start: 3px solid var(--petrol); }
-
-/* buttons */
-.btn { border-radius: var(--r-sm); min-height: 48px; }
-.btn--2 { background: transparent; color: var(--petrol); box-shadow: none; border: 1.5px solid var(--teal-line); font-weight: 500; }
-.btn--3 { border: 0; }
-.btn--wa { background: var(--wa-board); }
-.btn--sm { border-radius: 10px; min-height: 40px; }
-.icon-btn { border-radius: var(--r-sm); border: 1px solid var(--line); }
-.actionbar .icon-btn { box-shadow: none; }
-
-/* chips + badges are pills with tinted grounds */
-.chip { border-radius: 999px; }
-.chip--meta { border-radius: 999px; padding: 2.5px 9px; font-size: 11.5px; font-weight: 700; border: 0; }
-.chip--ok   { background: var(--petrol-soft); color: var(--petrol); }
-.chip--time { background: var(--amber-soft); color: var(--amber); }
-.chip--warn { background: var(--coral-soft); color: var(--coral); }
-.card-svc .chip--meta { background: var(--card-2); color: var(--ink-2); font-weight: 600; }
-
-/* the location pill */
-.place-tag {
-  border-radius: 999px; background: var(--loc-bg);
-  border: 1px solid var(--loc-line); color: var(--petrol); font-weight: 500;
-}
-
-/* avatars: rounded squares */
-.avatar { border-radius: var(--r-sm); }
-.avatar--sq { border-radius: var(--r-sm); }
-
-/* the sentence blank: a solid teal rule, in the accent, not an amber dash */
-.hero-line .blank {
-  color: var(--petrol); border-bottom: 2.5px solid var(--petrol);
-  padding: 0 3px 2px; font-weight: 800;
-}
-.hero-line .blank:active { background: var(--petrol-soft); }
-
-/* ribbon proportions from the board */
-.ribbon--micro { height: 7px; border-radius: 2px; }
-.ribbon--day   { height: 12px; }
-.week-row { grid-template-columns: 44px 1fr; }
-
-/* the seal: a double ring, rotated */
-.seal--stamp {
-  width: 76px; height: 76px; border-width: 2.5px; transform: rotate(-8deg);
-  position: relative; opacity: .9;
-}
-.seal--stamp::before {
-  content: ''; position: absolute; inset: 6px; border-radius: 50%;
-  border: 1.5px solid currentColor;
-}
-
-/* the slip keeps its perforated tear edge, now against a rounded card */
-.slip { border-radius: var(--r); }
-.slip::after {
-  background: radial-gradient(circle at 8px 0, var(--sand) 5px, var(--card) 5.5px) repeat-x;
-  background-size: 16px 12px; background-position: 0 -6px; height: 12px;
-}
-
-/* sheets and nav */
-.sheet { border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.nav { background: var(--card); border-top: 1px solid var(--sand-2); }
-.map-peek { border-radius: var(--r); }
-
-@media (min-width: 900px) {
-  .prof-head { border-radius: var(--r); border: 1px solid var(--line); }
-  .sheet { border-radius: var(--r-lg); }
-}
-
-/* The board runs the ribbon at full strength (.rib .h = #16606a, .rib .a =
-   #e0a029, no opacity). My 38%/55% washed the signature component out to
-   sage and straw against the warmer paper. */
-.ribbon i.pub  { background: var(--petrol);  opacity: 1; }
-.ribbon i.priv { background: var(--amber-b); opacity: 1; }
-.ribbon        { background: #EEE7D9; }
-html[data-theme="dark"] .ribbon { background: var(--line-2); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ribbon { background: var(--line-2); } }
-.week-row.off .ribbon { opacity: 1; }
-.week-legend i:first-child { opacity: 1 !important; }
-
-/* ============================================================
-   31. TYPE SYSTEM  —  the audit found 46 distinct size/weight/line-height
-   combinations across 5 weights. That is not a scale, it is ad-hoc sizing.
-   Eight steps, three weights, Arabic-first line-heights.
-
-   Arabic needs more leading than Latin at the same size: the script has
-   deeper descenders and stacked diacritics, so body runs 1.75 where an
-   English UI would run 1.5. Metadata never drops below 12.5px — Arabic
-   loses letterform detail faster than Latin as it shrinks.
-   ============================================================ */
-:root {
-  --w-reg: 400; --w-med: 600; --w-bold: 700;   /* three weights, no 500/800 */
-
-  --fs-display: 30px; --lh-display: 1.38;
-  --fs-h1: 22px;      --lh-h1: 1.4;
-  --fs-h2: 17px;      --lh-h2: 1.45;
-  --fs-h3: 15px;      --lh-h3: 1.5;
-  --fs-body: 15px;    --lh-body: 1.75;
-  --fs-sm: 13.5px;    --lh-sm: 1.65;
-  --fs-meta: 12.5px;  --lh-meta: 1.5;
-  --fs-micro: 11.5px; --lh-micro: 1.45;
-}
-body { font-size: var(--fs-body); line-height: var(--lh-body); }
-
-.hero-line { font-size: clamp(24px, 7vw, var(--fs-display)); line-height: var(--lh-display); font-weight: var(--w-bold); letter-spacing: -.015em; }
-.prof-name { font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: var(--w-bold); letter-spacing: -.015em; }
-.sec-h h2, .sheet-h h2 { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--w-bold); letter-spacing: -.01em; }
-.card-t, .lane h3, .need h3, .place h3, .blk h3, .prod-t, .slot-btn .d, .hdr-title, .fac-block .ft {
-  font-size: var(--fs-h3); line-height: var(--lh-h3); font-weight: var(--w-bold); letter-spacing: -.005em;
-}
-.card-q, .lane p, .small, .kv, .bubble, .empty p, .banner, .hint, .radius-note, .prof-spec {
-  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--w-reg);
-}
-.prof-spec { font-weight: var(--w-med); }
-.card-meta, .chip, .tiny, .place .m, .need .cnt, .prod-brand, .slot-btn .m, .week-row .d,
-.updated, .seal, .unverified, .state-line, .dist, .fee, .res-head, .pulse-cell .l {
-  font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--w-med);
-}
-.state-line, .fee, .seal { font-weight: var(--w-bold); }
-.eyebrow, .chip--meta, .ribbon-scale, .slip-ref, .week-legend, .bnav span, .nav a span {
-  font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--w-bold);
-}
-.btn { font-size: var(--fs-h3); font-weight: var(--w-bold); }
-.btn--2, .btn--3 { font-weight: var(--w-med); }
-.pulse-cell .n, .adm-kpi .n, .prof-fact .v { font-weight: var(--w-bold); letter-spacing: -.02em; }
-h1, h2, h3, .card-t, .prof-name, .hero-line { text-wrap: balance; }
-
-/* Arabic runs longer than English at the same meaning. Nothing may clip. */
-.card-t, .lane h3, .need h3, .place h3, .prof-name, .prod-t { overflow-wrap: anywhere; }
-.trunc { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
-
-/* ============================================================
-   32. TOUCH TARGETS — audit found chips at 37px, the location pill at 35px,
-   "see all" at 21px. One-handed use on a phone needs 48.
-   ============================================================ */
-.chip { min-height: 44px; padding-block: 10px; }
-.chips { gap: 8px; padding-block: 4px; }
-.place-tag { min-height: 40px; padding-block: 9px; }
-.sec-h .more { min-height: 44px; display: inline-flex; align-items: center; padding-inline: 4px; }
-.brand { min-height: 44px; }
-.slip-edit, .btn--3 { min-height: 44px; }
-.week-row { min-height: 34px; }
-.nav a { min-height: 52px; }
-
-/* ============================================================
-   33. OVERFLOW — /trust pushed the body to 438px at every mobile width:
-   three flex:1 buttons whose Arabic min-content width could not shrink.
-   ============================================================ */
-.btn-row { flex-wrap: wrap; }
-.btn-row .btn { flex: 1 1 auto; min-width: 0; }
-.btn { min-width: 0; }
-.ribbon b::after { inset-inline-start: -2px; }
-.ribbon, .week-row .ribbon { overflow: visible; contain: layout; }
-.week { overflow: hidden; }
-
-/* ============================================================
-   34. PALETTE  —  the specified Qareeb identity, plus two vertical accents.
-   Sage marks pharmacy, clay marks care. They tint one element each (the
-   glyph tile) so the three verticals are distinguishable at a glance while
-   still sharing one card anatomy. Amber stays reserved for TIME and coral
-   for EMERGENCY — those meanings are load-bearing and must not be diluted.
-   ============================================================ */
-:root {
-  --sand: #FAF8F5;  --sand-2: #EFEBE5;  --card: #FFFFFF;  --card-2: #F5F2ED;
-  --ink: #1A1A18;   --ink-2: #3D3B37;   --ink-3: #6B6862;
-  --line: #E3DED6;  --line-2: #EFEBE5;
-  --petrol: #0E5450; --petrol-2: #14746E; --petrol-soft: #E0EDEB;
-  --amber: #8A5A10;  --amber-b: #E0A029;  --amber-soft: #FAEED7;
-  --coral: #C1121F;  --coral-soft: #FCE8E9;
-  --wa: #128C3E;     --wa-b: #25D366;     --wa-board: #128C3E;
-  --pharm: #7FB8A4;  --pharm-soft: #E9F3EF;
-  --cosm:  #C88A72;  --cosm-soft:  #F7EBE6;
-  --teal-line: #A9C7C4; --loc-bg: #E8F0EF; --loc-line: #CBDEDB;
-}
-html[data-theme="dark"] {
-  --sand: #121312;  --sand-2: #1A1C1A;  --card: #1E211F;  --card-2: #262A27;
-  --ink: #ECEAE5;   --ink-2: #B4B1AA;   --ink-3: #8A8780;
-  --line: #2E332F;  --line-2: #242825;
-  --petrol: #55B3AC; --petrol-2: #74CCC5; --petrol-soft: #12302E;
-  --coral: #F06070;  --coral-soft: #2E1618;
-  --pharm: #7FB8A4;  --pharm-soft: #16302A;
-  --cosm:  #D9A38E;  --cosm-soft:  #2E211C;
-  --teal-line: #2F5C58; --loc-bg: #12302E; --loc-line: #234B47;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --sand: #121312;  --sand-2: #1A1C1A;  --card: #1E211F;  --card-2: #262A27;
-    --ink: #ECEAE5;   --ink-2: #B4B1AA;   --ink-3: #8A8780;
-    --line: #2E332F;  --line-2: #242825;
-    --petrol: #55B3AC; --petrol-2: #74CCC5; --petrol-soft: #12302E;
-    --coral: #F06070;  --coral-soft: #2E1618;
-    --pharm: #7FB8A4;  --pharm-soft: #16302A;
-    --cosm:  #D9A38E;  --cosm-soft:  #2E211C;
-    --teal-line: #2F5C58; --loc-bg: #12302E; --loc-line: #234B47;
-  }
-}
-/* vertical accents: one tinted glyph tile each, nothing more */
-.avatar--sq { background: var(--pharm-soft); color: #3E7A66; }
-html[data-theme="dark"] .avatar--sq { color: var(--pharm); }
-.prod-img { background: radial-gradient(120% 90% at 70% 20%, var(--cosm-soft) 0%, transparent 72%), var(--card-2); }
-.prod-img .glyph { color: var(--cosm); opacity: .55; }
-.lane--sos { background: var(--coral-soft); border-color: color-mix(in srgb, var(--coral) 22%, transparent); }
-
-/* ============================================================
-   35. THE WEEK STRIP — seven cells, Saturday-first.
-   State is fill + shape, never colour alone: a working day is filled, a
-   non-working day is hollow, today is ringed, the next open day is dotted.
-   ============================================================ */
-.wk7 { display: flex; gap: 4px; }
-.wk7-d {
-  flex: 1; min-width: 0; height: 22px; border-radius: 6px;
-  display: grid; place-items: center; position: relative;
-  font-size: 10.5px; font-weight: var(--w-bold); line-height: 1;
-  background: var(--petrol-soft); color: var(--petrol);
-}
-.wk7-d.off { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); opacity: .8; }
-.wk7-d.today { box-shadow: inset 0 0 0 2px var(--petrol); }
-.wk7-d.off.today { box-shadow: inset 0 0 0 2px var(--ink-3); }
-.wk7-d.next { background: var(--amber-soft); color: var(--amber); }
-.wk7-d.next::after {
-  content: ''; position: absolute; bottom: 2.5px; width: 3px; height: 3px;
-  border-radius: 50%; background: currentColor;
-}
-
-/* card: availability owns the row above the metadata */
-.card-avail { display: flex; align-items: center; gap: 12px; margin-top: 11px; }
-.card-avail .wk7 { flex: 0 0 46%; max-width: 160px; }
-.card-avail .state-line { flex: 1; min-width: 0; }
-.card-top { align-items: flex-start; }
-.seal--pill { background: var(--petrol-soft); border-radius: 999px; padding: 3px 9px; flex: none; }
-.fee-l { color: var(--ink-3); font-weight: var(--w-med); font-size: var(--fs-micro); }
-.card-foot { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-2); }
-.card-meta { margin-top: 10px; }
-
-/* filter chip carries its own active count */
-.chip--filter .fcount {
-  background: var(--petrol); color: #fff; border-radius: 999px;
-  min-width: 18px; height: 18px; display: inline-grid; place-items: center;
-  font-size: 10.5px; padding: 0 5px;
-}
-.chip--filter.on .fcount { background: #fff; color: var(--petrol); }
-.fgrp + .fgrp { margin-top: 20px; }
-.fgrp .eyebrow { margin-bottom: 9px; display: block; }
-
-/* ============================================================
-   36. MOTION — one language, not one animation per component.
-   150-200ms ease-out. Selection is instant; only position animates.
-   ============================================================ */
-:root { --t: 170ms cubic-bezier(.22,.61,.36,1); --t-sheet: 210ms cubic-bezier(.22,.61,.36,1); }
-.sheet { transition: transform var(--t-sheet); }
-.scrim { transition: opacity var(--t); }
-.chip, .slot-btn, .wk7-d, .place { transition: background-color var(--t), color var(--t), box-shadow var(--t); }
-.btn:active, .chip:active, .card:active { transform: translateY(1px); transition: transform 90ms; }
-.page-in { animation: pagein 170ms cubic-bezier(.22,.61,.36,1) both; }
-.stagger > * { animation-duration: 200ms; }
-.stagger > *:nth-child(n+5) { animation-delay: 90ms; }
-
-/* last touch targets from the audit */
-.qr-ctx button { min-width: 44px; min-height: 44px; }
-.search-field input, .field input { min-height: 44px; }
-.hero-line .blank { padding-block: 4px; }
-
-/* ============================================================
-   37. FINAL PASS
-   ============================================================ */
-/* The results header answers two different questions — how many, and why
-   these. Stacking them stops the Arabic from interleaving into one another. */
-.res-head { display: block; padding: 2px 18px 12px; }
-.res-head .n { font-weight: var(--w-bold); }
-.res-head .why { color: var(--ink-3); font-weight: var(--w-med); }
-.res-head .tiny { margin-top: 2px; }
-
-/* A horizontally scrolling chip row must look scrollable, not clipped.
-   The mask fades the overflowing chip instead of guillotining it. */
-.filters .chips {
-  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-          mask-image: linear-gradient(to left, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-  padding-inline: 2px;
-}
-html[dir="ltr"] .filters .chips {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-          mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-}
-
-/* the gender marker belongs with the person, not adrift in the meta row */
-.card-meta .chip--meta:first-child { background: var(--card-2); color: var(--ink-2); }
-.card-avail { gap: 10px; }
-.card-avail .wk7 { flex: 0 0 44%; max-width: 152px; }
-.wk7-d { height: 24px; font-size: 11px; }
-/* last three from the audit: the location pill one pixel short, the "see all"
-   link narrow, and the QR-context dismiss at 19x27. */
-.place-tag { min-height: 44px; padding-block: 10px; }
-.sec-h .more { min-width: 56px; justify-content: flex-end; }
-.qr-ctx button { width: 44px; height: 44px; margin-inline-start: auto; }
-.qr-ctx { padding-block: 4px; }
-.clear-btn { width: 44px; height: 44px; display: grid; place-items: center; margin-inline-end: -8px; flex: none; }
-
-/* An SVG stroke drawn to the edge of its viewBox can spill a pixel past the
-   layout box once the icon is scaled. Clipping the icon, not the page. */
-.week-legend, .card-meta, .actionbar { overflow: hidden; }
-.week-legend svg, .card-meta svg { overflow: visible; }
-svg { overflow: hidden; }
-
-/* 38. .chip--meta is used standalone as a <span>, so `.chip svg` never
-   matched it — an inline icon rendered at its natural size. */
-.chip--meta { display: inline-flex; align-items: center; gap: 4px; }
-.chip--meta svg { width: 13px; height: 13px; flex: none; }
-.card-foot .btn--sm { flex: none; }
-
-/* ============================================================
-   39. HOME — a reading of the network, not a menu of links.
-   Three intents sized by real frequency: medicine (weekly), doctor (a few
-   times a year), pharmacy (situational). Each carries a live number, so the
-   screen answers "what does Qareeb know right now" before it offers a link.
-   ============================================================ */
-.netbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 2px 10px; font-size: var(--fs-micro); font-weight: var(--w-bold);
-  color: var(--ink-3); letter-spacing: .06em;
-}
-.netbar-live { display: inline-flex; align-items: center; gap: 7px; color: var(--petrol); }
-.netbar-live i {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--petrol);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent);
-  animation: pulse-live 2.4s var(--ease) infinite;
-}
-@keyframes pulse-live {
-  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent); }
-  50%      { box-shadow: 0 0 0 7px color-mix(in srgb, var(--petrol) 4%, transparent); }
-}
-.netbar-t { font-variant-numeric: tabular-nums; }
-
-.intents { display: grid; gap: 10px; }
-.intent {
-  display: flex; align-items: center; gap: 14px; padding: 16px;
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
-  border-inline-start: 3px solid var(--line); transition: var(--t);
-}
-.intent:active { transform: translateY(1px); background: var(--card-2); }
-.intent-ic {
-  width: 44px; height: 44px; flex: none; display: grid; place-items: center;
-  border-radius: var(--r-sm); background: var(--card-2); color: var(--ink-2);
-}
-.intent-ic svg { width: 22px; height: 22px; }
-.intent-body { flex: 1; min-width: 0; display: block; }
-.intent-t { display: block; font-size: var(--fs-h3); font-weight: var(--w-bold); line-height: 1.35; }
-.intent-s { display: block; font-size: var(--fs-meta); color: var(--ink-3); margin-top: 2px; line-height: 1.45; }
-.intent-n { flex: none; text-align: center; min-width: 54px; }
-.intent-n b { display: block; font-size: 24px; font-weight: var(--w-bold); line-height: 1.1; letter-spacing: -.03em; }
-.intent-n i { display: block; font-size: 10.5px; font-style: normal; color: var(--ink-3); font-weight: var(--w-med); margin-top: 1px; }
-
-/* the accent marks which vertical, and only the leading edge carries it */
-.intent--med { border-inline-start-color: var(--amber-b); }
-.intent--med .intent-ic { background: var(--amber-soft); color: var(--amber); }
-.intent--med .intent-n b { color: var(--amber); }
-.intent--doc { border-inline-start-color: var(--petrol); }
-.intent--doc .intent-ic { background: var(--petrol-soft); color: var(--petrol); }
-.intent--doc .intent-n b { color: var(--petrol); }
-.intent--ph { border-inline-start-color: var(--pharm); }
-.intent--ph .intent-ic { background: var(--pharm-soft); color: #3E7A66; }
-html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
-
-/* scarcity is a headline, not a footnote: it is the product's whole reason */
-.scarce-note {
-  display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 13px 15px;
-  background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber-b) 40%, transparent);
-  border-radius: var(--r); color: var(--amber);
-  font-size: var(--fs-sm); font-weight: var(--w-med); line-height: 1.5;
-}
-.scarce-note > span { flex: 1; }
-.scarce-note svg { flex: none; width: 18px; height: 18px; }
-
-.sos {
-  display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px;
-  padding: 13px 15px; border-radius: var(--r); text-align: start;
-  background: transparent; border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
-  color: var(--coral); font-size: var(--fs-sm); font-weight: var(--w-bold); min-height: 48px;
-}
-.sos svg { width: 18px; height: 18px; flex: none; }
-.sos b { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
-.sos:active { background: var(--coral-soft); }
-
-/* the proof block: the trust claim, stated in numbers, one tap from evidence */
-.proof { display: block; padding: 15px 16px; background: var(--card-2); border-radius: var(--r); border: 1px solid var(--line); }
-.proof-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: var(--fs-meta); color: var(--ink-3); }
-.proof-row b { display: block; font-size: 19px; color: var(--ink); font-weight: var(--w-bold); letter-spacing: -.02em; }
-.proof-note {
-  display: flex; align-items: center; gap: 8px; margin-top: 13px; padding-top: 12px;
-  border-top: 1px solid var(--line); font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.5;
-}
-.proof-note > span { flex: 1; }
-.proof-note svg { flex: none; width: 15px; height: 15px; color: var(--petrol); }
-
-@media (min-width: 900px) {
-  .intents { grid-template-columns: repeat(3, 1fr); max-width: 1132px; margin-inline: auto; }
-  .intent { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; }
-  .intent-n { text-align: start; }
-  .netbar, .scarce-note, .sos, .proof { max-width: 1132px; margin-inline: auto; }
-}
-
-/* ============================================================
-   40. PHASE 1 — THE CONVERSION FUNNEL
-   A patient choosing a doctor answers four questions in a fixed order:
-   can I be seen soon, where, how much, can I trust this. The profile now
-   answers all four above the fold and pushes everything else below.
-   ============================================================ */
-.dp-head { padding: 18px 18px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
-.dp-id { display: flex; gap: 14px; align-items: flex-start; }
-.dp-avatar { width: 58px; height: 58px; font-size: 20px; }
-.dp-name { font-size: var(--fs-h1); font-weight: var(--w-bold); line-height: 1.3; letter-spacing: -.02em; }
-.dp-spec { font-size: var(--fs-sm); color: var(--petrol); font-weight: var(--w-bold); margin-top: 3px; }
-.dp-sub  { font-size: var(--fs-meta); color: var(--ink-3); margin-top: 2px; }
-
-.dp-answers {
-  margin-top: 18px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
-}
-.dp-a { display: flex; align-items: baseline; gap: 12px; padding: 11px 14px; }
-.dp-a + .dp-a { border-top: 1px solid var(--line-2); }
-.dp-a .k { flex: 0 0 62px; font-size: var(--fs-micro); color: var(--ink-3); font-weight: var(--w-bold); }
-.dp-a .v { flex: 1; font-size: var(--fs-sm); color: var(--ink-2); }
-.dp-a .v b { color: var(--ink); font-weight: var(--w-bold); }
-.dp-a.live { background: var(--amber-soft); }
-.dp-a.live .v b { color: var(--amber); }
-.tr-yes { color: var(--petrol) !important; }
-.tr-no  { color: var(--ink-3) !important; }
-.dp-week { margin-top: 14px; }
-
-.cred { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; font-size: var(--fs-sm); }
-.cred + .cred { border-top: 1px solid var(--line-2); }
-.cred svg { width: 15px; height: 15px; flex: none; margin-top: 3px; color: var(--petrol); }
-
-/* Reassurance sits ABOVE the form. Asking first and reassuring after is the
-   order that loses people at the exact moment they hesitate. */
-.reassure { display: grid; gap: 9px; padding: 13px 14px; background: var(--petrol-soft); border-radius: var(--r); }
-.reassure-r { display: flex; gap: 9px; align-items: flex-start; font-size: var(--fs-meta); color: var(--petrol); font-weight: var(--w-med); line-height: 1.5; }
-.reassure-r svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
-
-/* The real failure mode of a WhatsApp handoff is silence. Designing for it is
-   the difference between a lead and an abandoned patient. */
-.fallback {
-  margin-top: 18px; padding: 14px 15px; border-radius: var(--r);
-  border: 1px dashed var(--line); background: var(--card-2);
-}
-.fallback-h { display: flex; align-items: center; gap: 8px; font-size: var(--fs-h3); font-weight: var(--w-bold); }
-.fallback-h svg { width: 16px; height: 16px; color: var(--ink-3); }
-.fallback p { font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.6; margin-top: 7px; }
-
-/* ============================================================
-   41. PHASE 2 — QUERY UNDERSTANDING
-   A search that silently guesses is untrustworthy. One that shows what it
-   read — as tokens you can remove — is a tool. This block is the visible
-   contract between the user's sentence and the filters it became.
-   ============================================================ */
-.parsed { padding: 13px 14px; background: var(--petrol-soft); border-radius: var(--r); margin-bottom: 18px; }
-.parsed-h {
-  display: flex; align-items: center; gap: 7px; margin-bottom: 10px;
-  font-size: var(--fs-micro); font-weight: var(--w-bold); color: var(--petrol); letter-spacing: .04em;
-}
-.parsed-h svg { width: 14px; height: 14px; }
-.pchip {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 36px;
-  padding: 6px 10px 6px 12px; border-radius: 999px;
-  background: var(--card); border: 1px solid var(--petrol);
-  color: var(--petrol); font-size: var(--fs-meta); font-weight: var(--w-bold);
-}
-.pchip svg { width: 13px; height: 13px; opacity: .55; }
-.pchip:active { background: var(--petrol); color: #fff; }
-.pchip:active svg { opacity: 1; }
-
-/* ============================================================
-   42. PHASE 4 — RESILIENCE
-   Baghdad mobile data drops mid-session. The app must say so once, plainly,
-   and keep working: the catalogue is already in memory, so discovery never
-   dies. Only the WhatsApp handoff genuinely needs the network.
-   ============================================================ */
-.offline-bar {
-  position: sticky; top: 0; z-index: 70;
-  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
-  background: var(--ink); color: var(--sand);
-  font-size: var(--fs-meta); font-weight: var(--w-med); line-height: 1.45;
-}
-.offline-bar > span { flex: 1; }
-.offline-bar svg { width: 17px; height: 17px; flex: none; }
-.offline-bar button {
-  flex: none; min-height: 36px; padding: 0 13px; border-radius: 999px;
-  background: var(--sand); color: var(--ink);
-  font-size: var(--fs-micro); font-weight: var(--w-bold);
-}
-@media (min-width: 900px) { .offline-bar { top: 0; } .hdr { top: 0; } }
-
-/* ============================================================
-   43 · KPI DELTA — keeping coral honest
-   The v2 board colours a negative KPI delta with --coral. Coral is
-   load-bearing in this system: it means emergency, and nothing else.
-   A doctor replying below the specialty average is a time problem,
-   not an emergency — amber is the correct register, and it also
-   avoids scolding a partner in red on their own dashboard.
-   Defined here (not in the board layer) so a v3 board drops in clean.
-   ============================================================ */
-.kpi-d-warn { color: var(--amber-ink); font-weight: 600; font-size: var(--t-1); }
-
-/* ============================================================
-   44 · QR ENTRY
-   A poster scan is a standing-up, one-handed moment. The bar carries the
-   brand and, more importantly, an always-reachable skip: the screen asks
-   one question and never insists on an answer. Tiles are buttons, so they
-   need the block layout and the 48px floor that .btn would otherwise give.
-   ============================================================ */
-.start-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 18px calc(12px + env(safe-area-inset-top)) 18px;
-}
-.start-bar .brand { font-size: 17px; }
-.start-tile { display: block; width: 100%; text-align: start; min-height: 48px; cursor: pointer; }
-.start-tile .q-h2 { display: block; }
-/* The ambulance link is a tel: on a note, so it inherits note padding rather
-   than button metrics. It is the single control on this screen that must never
-   be hard to hit — hold it to the 48px floor explicitly. */
-.start-bar + .wrap a.note { min-height: 48px; }
-/* The ambulance-direct line under the unified number. Quieter than the note
-   above it — 911 is the number the state wants dialled — but still a real
-   target, because someone reaching for it is not in a state to aim. */
-.emg-alt { min-height: 44px; margin-top: 6px; padding: 0 14px; }
-
-/* ============================================================
-   QAREEB v2 — COMPONENT LAYER
-   Extracted verbatim from section 3a of the v2 design board. The board is
-   authoritative: every screen on it is rendered by exactly these classes.
-   Board chrome (.q phone frame, .dv-* viewer furniture, bare body/a rules)
-   removed — that is how the board displays itself, not part of the product.
-
-   Loaded AFTER css/qareeb.css. Shared selector names (.btn .chip .seal .rib
-   .wk .nav .slip .note .empty .sk .num .mono .row) intentionally win here.
-   ============================================================ */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* greek */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* greek */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* greek */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* arabic */
-
-/* cyrillic-ext */
-
-/* latin-ext */
-
-/* latin */
-
-/* arabic */
-
-/* cyrillic-ext */
-
-/* latin-ext */
-
-/* latin */
-
-/* arabic */
-
-/* cyrillic-ext */
-
-/* latin-ext */
-
-/* latin */
-
-/* ============================================================
-   QAREEB v2 — COMPONENT LAYER. This block IS the deliverable.
-   ============================================================ */
-:root{
-  --sand:#FAF8F5; --card:#FFFFFF; --sunk:#F2EFE9; --line:#E7E2D9;
-  --ink:#1A1A18; --ink-2:#3D3A35; --ink-3:#6B6862; --ink-4:#9E9A92;
-  --petrol:#0E5450; --petrol-tint:#E0EDEB; --petrol-deep:#083734;
-  --amber-b:#E0A029; --amber-tint:#FBEFD9; --amber-ink:#7A5209;
-  --coral:#C1121F; --coral-tint:#FBE7E6;
-  --pharm:#7FB8A4; --pharm-tint:#E9F3EF; --cosm:#C88A72; --cosm-tint:#F7EBE5;
-  --wa:#128C3E; --ok:#1F7A4C;
-  --f-ar:'IBM Plex Sans Arabic','IBM Plex Sans',sans-serif;
-  --f-num:'IBM Plex Sans',sans-serif; --f-mono:'IBM Plex Mono',monospace;
-  --t-1:11px; --t-2:12.5px; --t-3:14px; --t-4:16px; --t-5:19px; --t-6:23px; --t-7:28px; --t-8:34px;
-  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px; --s-7:48px;
-  --r-s:12px; --r-m:14px; --r-p:999px;
-  --e-1:0 1px 2px rgba(26,26,24,.05);
-  --e-2:0 2px 8px rgba(26,26,24,.07);
-  --e-3:0 8px 28px rgba(26,26,24,.13);
-}
-[data-theme=dark]{
-  --sand:#141614; --card:#1E211E; --sunk:#191C19; --line:#2E322E;
-  --ink:#ECE8E0; --ink-2:#C9C4BA; --ink-3:#94908A; --ink-4:#6E6A64;
-  --petrol:#5FB4AC; --petrol-tint:#1B2E2C; --petrol-deep:#8FD0C9;
-  --amber-b:#E8B457; --amber-tint:#332715; --amber-ink:#E8B457;
-  --coral:#E8776F; --coral-tint:#33191A;
-  --pharm:#7FB8A4; --pharm-tint:#1C2A26; --cosm:#C88A72; --cosm-tint:#2C201B;
-  --wa:#2FBB63; --ok:#4FB57F;
-  --e-1:0 1px 2px rgba(0,0,0,.4); --e-2:0 2px 8px rgba(0,0,0,.45); --e-3:0 8px 28px rgba(0,0,0,.55);
-}
-/* --- shell ------------------------------------------------- */
-.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed}
-.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed}
-/* --- surface hierarchy: 4 levels, not one card style ------- */
-.surf-sunk{background:var(--sunk);border-radius:var(--r-s)}
-.surf-flat{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m)}
-.surf-raise{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);box-shadow:var(--e-1)}
-.surf-lift{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);box-shadow:var(--e-2)}
-.surf-key{background:var(--card);border:1.5px solid var(--petrol);border-radius:var(--r-m);box-shadow:var(--e-2)}
-.cham{clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
-.ltr .cham{clip-path:polygon(16px 0,100% 0,100% 100%,0 100%,0 16px)}
-.pad-3{padding:var(--s-3)}.pad-4{padding:var(--s-4)}
-.stack-2>*+*{margin-top:var(--s-2)}.stack-3>*+*{margin-top:var(--s-3)}.stack-4>*+*{margin-top:var(--s-4)}
-.row{display:flex;align-items:center;gap:var(--s-2)}
-.row-b{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
-/* --- buttons: 3 levels, one primary per screen ------------- */
-.btn{display:flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:48px;
-     border-radius:var(--r-s);font:600 var(--t-3)/1 var(--f-ar);border:1.5px solid transparent;cursor:pointer}
-.btn-p{background:var(--petrol);color:#fff;font-weight:700;font-size:var(--t-4)}
-.btn-s{background:transparent;color:var(--petrol);border-color:var(--petrol);opacity:.92}
-.btn-t{min-height:auto;background:none;color:var(--petrol);font-weight:600}
-.btn-wa{background:var(--wa);color:#fff;font-weight:700;font-size:var(--t-4);min-height:50px}
-.btn-sm{min-height:36px;font-size:var(--t-2);border-radius:10px;padding:0 var(--s-3)}
-.btn:hover{filter:brightness(.94)}.btn:active{filter:brightness(.88)}
-.btn:focus-visible{outline:2px solid var(--petrol);outline-offset:2px}
-.btn[disabled]{opacity:.45}
-/* --- chips: filters, needs, sessions ----------------------- */
-.chip{display:inline-flex;align-items:center;gap:var(--s-1);padding:7px 13px;border:1px solid var(--line);
-      border-radius:var(--r-p);background:var(--card);font-size:var(--t-2);color:var(--ink-2);white-space:nowrap}
-.chip-on{background:var(--petrol);border-color:var(--petrol);color:#fff;font-weight:600}
-.chip-off{opacity:.45}
-/* --- badges: legible without colour (icon + text) ---------- */
-.bdg{display:inline-flex;align-items:center;gap:4px;font:700 var(--t-1)/1.6 var(--f-ar);border-radius:var(--r-p);padding:3px 9px}
-.bdg-v{background:var(--petrol-tint);color:var(--petrol-deep)}
-.bdg-t{background:var(--amber-tint);color:var(--amber-ink)}
-.bdg-n{background:var(--amber-ink);color:#fff}
-.bdg-e{background:var(--coral-tint);color:var(--coral)}
-.bdg-stock{background:var(--pharm-tint);color:#2F5F51}
-/* --- the seal: verification as a stamp, never a blue tick -- */
-.seal{width:56px;height:56px;border-radius:var(--r-p);border:2px solid var(--petrol);color:var(--petrol);
-      display:grid;place-items:center;transform:rotate(-8deg);opacity:.92;flex:none}
-.seal-i{width:44px;height:44px;border-radius:var(--r-p);border:1px solid currentColor;display:grid;place-items:center;
-        text-align:center;font:700 9px/1.35 var(--f-ar)}
-.seal-ok{border-color:var(--ok);color:var(--ok);transform:rotate(7deg)}
-/* --- the ribbon: 24h band, mirrored RTL -------------------- */
-.rib{position:relative;display:flex;height:7px;border-radius:2px;overflow:hidden;background:var(--sunk)}
-.rib>i{flex:1}
-.rib .sh{background:var(--petrol)}   /* hospital shift */
-.rib .cl{background:var(--amber-b)}  /* private clinic */
-.rib .pa{background:var(--line)}     /* past/closed */
-.rib-now{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
-/* --- week strip: fill AND shape, never colour alone -------- */
-.wk{display:flex;gap:5px;direction:rtl}
-.wk>b{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
-      font:600 var(--t-1)/1 var(--f-ar);background:var(--sunk);color:var(--ink-4);border:1px solid var(--line)}
-.wk .on{background:var(--petrol);border-color:var(--petrol);color:#fff}
-.wk .today{outline:2px solid var(--ink);outline-offset:2px}
-.wk .next{border:1.5px dashed var(--amber-ink);color:var(--amber-ink);background:var(--amber-tint)}
-/* --- the open rail: "open now" is not a badge -------------- */
-.rail-open{border-inline-start:3px solid var(--amber-b)}
-.rail-stock{border-inline-start:3px solid var(--pharm)}
-.quiet{opacity:.6}
-/* --- canonical card, four variants ------------------------- */
-.qc{display:flex;gap:var(--s-3);padding:var(--s-3)}
-.qc-av{width:46px;height:46px;border-radius:var(--r-s);display:grid;place-items:center;flex:none;
-       font:700 var(--t-5)/1 var(--f-ar);background:var(--petrol-tint);color:var(--petrol-deep)}
-.qc-av-ph{background:var(--pharm-tint);color:#2F5F51}
-.qc-av-co{background:var(--cosm-tint);color:#8A4E36}
-.qc-b{flex:1;min-width:0}
-.qc-title{font-weight:700;font-size:var(--t-3)}
-.qc-qual{font-size:var(--t-2);color:var(--ink-2)}
-.qc-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--t-2);color:var(--ink-3);margin-top:5px}
-/* --- freshness: the medicine screen's primary visual ------- */
-.fresh{display:inline-flex;align-items:center;gap:6px;font:700 var(--t-2)/1 var(--f-ar);border-radius:var(--r-p);padding:5px 11px}
-.fresh-hot{background:var(--pharm-tint);color:#245244}
-.fresh-warm{background:var(--amber-tint);color:var(--amber-ink)}
-.fresh-cold{background:var(--sunk);color:var(--ink-3)}
-.fresh-dot{width:8px;height:8px;border-radius:var(--r-p);background:currentColor}
-.fresh-dot-live{box-shadow:0 0 0 0 currentColor;animation:pulse 2.4s ease-out infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(127,184,164,.7)}100%{box-shadow:0 0 0 9px rgba(127,184,164,0)}}
-@media (prefers-reduced-motion:reduce){.fresh-dot-live{animation:none}}
-/* --- data viz that works in RTL ---------------------------- */
-.bars{display:grid;gap:7px;font-size:var(--t-2)}
-.bar-r{display:grid;grid-template-columns:108px 1fr 38px;gap:var(--s-2);align-items:center}
-.bar-t{height:9px;border-radius:var(--r-p);background:var(--sunk);overflow:hidden;display:flex;justify-content:flex-start}
-.bar-f{height:9px;border-radius:var(--r-p);background:var(--petrol)}
-.bar-f-a{background:var(--amber-b)}.bar-f-c{background:var(--coral)}
-.bar-v{text-align:left;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:700}
-.spark{display:flex;align-items:flex-end;gap:3px;height:38px;direction:rtl}
-.spark>i{flex:1;background:var(--petrol-tint);border-radius:2px 2px 0 0}
-.spark>i.hi{background:var(--petrol)}
-.kpi{padding:var(--s-3)}
-.kpi-l{font:700 var(--t-1)/1.4 var(--f-ar);letter-spacing:.07em;color:var(--ink-4)}
-.kpi-n{font:700 var(--t-7)/1.15 var(--f-num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;text-align:right}
-.kpi-d{font-size:var(--t-1);color:var(--ok);font-weight:600}
-.kpi-d-neg{color:var(--coral)}
-/* --- empty-state graphic language: Iraqi, geometric -------- */
-.glyph{width:84px;height:84px;margin:0 auto;position:relative;opacity:.9}
-.glyph i{position:absolute;inset:0;border:1.5px solid var(--petrol);border-radius:3px;opacity:.55}
-.glyph i:nth-child(1){transform:rotate(0deg) scale(.72)}
-.glyph i:nth-child(2){transform:rotate(30deg) scale(.72)}
-.glyph i:nth-child(3){transform:rotate(60deg) scale(.72)}
-.glyph b{position:absolute;inset:34%;background:var(--amber-b);border-radius:2px;transform:rotate(45deg)}
-.empty{text-align:center;padding:var(--s-6) var(--s-4)}
-.empty-t{font-weight:700;font-size:var(--t-4);margin:var(--s-3) 0 var(--s-1)}
-.empty-b{font-size:var(--t-2);color:var(--ink-3);line-height:1.8}
-/* --- skeleton, offline, error ------------------------------ */
-.sk{background:linear-gradient(90deg,var(--sunk),var(--line),var(--sunk));background-size:200% 100%;
-    border-radius:8px;animation:sh 1.4s linear infinite}
-@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
-@media (prefers-reduced-motion:reduce){.sk{animation:none}}
-.note{border-radius:var(--r-s);padding:9px var(--s-3);font-size:var(--t-2);line-height:1.7}
-.note-i{background:var(--petrol-tint);color:var(--petrol-deep)}
-.note-w{background:var(--amber-tint);color:var(--amber-ink)}
-.note-e{background:var(--coral-tint);color:var(--coral)}
-/* --- the issued slip -------------------------------------- */
-.slip{background:var(--card);border:1px solid var(--line);border-bottom:none;border-radius:var(--r-m) var(--r-m) 0 0;padding:var(--s-4)}
-.perf{height:12px;background:radial-gradient(circle at 8px 0,var(--sand) 5px,var(--card) 5.5px);
-      background-size:16px 12px;background-position:0 -6px;border-inline:1px solid var(--line)}
-/* --- bottom nav: exactly 4 -------------------------------- */
-.nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--card);
-     padding:var(--s-2) var(--s-1) var(--s-3);font-size:var(--t-1);text-align:center;color:var(--ink-4)}
-.nav>span>b{display:block;font:400 17px/1.3 var(--f-ar)}
-.nav .on{color:var(--petrol);font-weight:700}
-/* --- tier / price card ------------------------------------ */
-.tier{padding:var(--s-4)}
-.tier-p{font:700 var(--t-6)/1.2 var(--f-num);direction:ltr;unicode-bidi:embed;text-align:right}
-.tier-li{display:flex;gap:var(--s-2);font-size:var(--t-2);color:var(--ink-2);align-items:flex-start}
-.tier-li::before{content:"—";color:var(--petrol);font-weight:700}
-/* ============================ end component layer ========= */
-
-/* board chrome (not part of the deliverable) */
-a:hover{color:#083734}
-.code{width:760px;max-height:560px;overflow:auto;background:#141614;color:#D6D1C7;border-radius:14px;padding:18px 20px;
-      font:500 11px/1.7 'IBM Plex Mono',monospace;direction:ltr;text-align:left;white-space:pre;-webkit-user-select:all}
-.code b{color:#5FB4AC;font-weight:500}.code i{color:#8A857C;font-style:normal}
+/* Controls already tall enough do not need it, and an extra invisible box
+   only confuses hit-testing at their edges. */
+.btn::after, .b::after, .icon-btn::after, .nav a::after, .slot-btn::after,
+.rw::after, .card::after, .lane::after, .place::after, .need::after,
+.qc::after, .start-tile::after, .field::after, .search-field::after,
+.av::after, .avatar::after, .qc-av::after { content: none; }
+.av::after, .avatar::after, .qc-av::after { content: ""; }
+
+input, textarea { min-height: 44px; }
+.icon-btn, .clear-btn { min-width: 44px; min-height: 44px; }
+.clear-btn { width: 44px; height: 44px; }
 
 </style>
 </head>
@@ -2581,62 +1576,95 @@ function updatedLine(ent) {
 }
 
 /* ---------------- CARDS ---------------- */
+/* ---------------- v3 · THE TICK RULE ----------------
+   The identity motif. Twenty-four engraved ticks, majors every four hours,
+   and one brass tick for now. It replaces the ribbon at the top of a screen:
+   the ribbon says "these are the open hours", the tick rule says "this is a
+   measuring instrument and you are here on it".
+------------------------------------------------------------- */
+function ticks(nowM = nowMins()) {
+  const h = Math.floor((nowM % 1440) / 60);
+  return `<div class="ticks" role="img" aria-label="${isAR() ? "الساعة الآن" : "Current hour"} ${fmtT(nowM)}">${
+    Array.from({ length: 24 }, (_, i) =>
+      `<i class="${i === h ? "on" : i % 4 === 0 ? "maj" : ""}"></i>`).join("")}</div>`;
+}
+
+const axis24 = () => `<div class="axis">00<span>06</span><span>12</span><span>18</span>24</div>`;
+
+/* The band: one entity's day drawn as arc segments on a 3px rule. Jade is
+   the hospital shift, brass the private clinic — the same two meanings the
+   whole product uses, and nothing else is ever drawn here. */
+function band(ent, day = null, showNow = true) {
+  const d = day === null ? nowDay() : day;
+  const segs = rawSegs(ent, d);
+  const prev = rawSegs(ent, (d + 6) % 7).filter((x) => x.t > 1440).map((x) => ({ ...x, f: 0, t: x.t - 1440 }));
+  const bars = [...prev, ...segs].map((x) => {
+    const a = Math.max(0, x.f), b = Math.min(1440, x.t);
+    if (b <= a) return "";
+    return `<i class="${x.kind === "priv" ? "cl" : "sh"}" style="inset-inline-start:${pct(a).toFixed(2)}%;width:${pct(b - a).toFixed(2)}%"></i>`;
+  }).join("");
+  const mk = showNow && (day === null || day === nowDay())
+    ? `<span class="nowmk" style="inset-inline-start:${pct(nowMins()).toFixed(2)}%"></span>` : "";
+  return `<div class="band">${bars}${mk}</div>`;
+}
+
+/* ---------------- v3 · THE ROW ----------------
+   Rows, not cards. The list is the surface: a hairline separates entries and
+   a brass lead in the gutter marks "open right now". Nothing here is a box.
+------------------------------------------------------------- */
+function rowEl(o) {
+  return `<a class="rw${o.open ? "" : ""}${o.quiet ? " quiet" : ""}" href="${o.href}">
+    ${o.open ? `<span class="rw-lead"></span>` : ""}
+    <span class="av">${esc(o.mono)}</span>
+    <span class="grow">
+      <span class="rowb"><span class="d3">${esc(o.title)}</span>${o.mark || ""}</span>
+      ${o.sub ? `<span class="q-sub" style="display:block">${o.sub}</span>` : ""}
+      ${o.meta ? `<span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">${o.meta}</span>` : ""}
+      ${o.band ? `<span style="display:block;margin-top:12px">${o.band}</span>` : ""}
+    </span>
+  </a>`;
+}
+
 function doctorCard(x, wide = false) {
   const { d, km, st } = x;
   const sp = specOf(d.spec);
   const f = st.k !== "shut" && st.seg ? st.seg.fac : (st.next ? st.next.fac : docFacs(d)[0]);
   const dist = f && DISTRICTS.find((y) => y.id === f.district);
   const fee = st.k !== "shut" && st.seg ? st.seg.s?.fee : (st.next ? st.next.s?.fee : d.sessions[0].fee);
-  const gender = d.gender === "f" ? (isAR() ? "طبيبة" : "Female") : (isAR() ? "طبيب" : "Male");
-  return `<a class="card ${st.k === "open" ? "is-open" : st.k === "soon" ? "is-soon" : "is-shut"} ${wide ? "card--wide" : ""}" href="#/doctor/${d.id}">
-    <div class="card-top">
-      <div class="avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
-      <div class="grow">
-        <div class="card-t">${esc(L(d))}</div>
-        <div class="card-q">${esc(L(sp))}${d.sub_ar && isAR() ? " · " + esc(d.sub_ar) : ""}</div>
-      </div>
-      ${d.verified ? `<span class="seal seal--pill">${icon("seal")}${t("verified")}</span>` : ""}
-    </div>
-
-    <div class="card-avail">
-      ${statusLabel(st)}
-      ${weekStrip(d)}
-    </div>
-
-    <div class="card-meta">
-      <span class="chip--meta">${gender}</span>
-      ${f ? `<span class="trunc">${esc(L(f))}</span>` : ""}
-      ${dist ? `<i class="dot"></i><span>${esc(L(dist))}</span>` : ""}
-      <i class="dot"></i><span class="dist">${icon("pin")}${fmtKm(km)}</span>
-    </div>
-
-    ${fee !== null && fee !== undefined ? `<div class="card-foot">
-      <span class="fee-l">${t("fee")}</span>
-      <span class="fee ${fee === 0 ? "fee--free" : ""} num">${money(fee)}</span>
-    </div>` : ""}
-  </a>`;
+  const open = st.k === "open";
+  return rowEl({
+    href: `#/doctor/${d.id}`,
+    mono: initials(L(d)).charAt(0),
+    title: L(d),
+    open, quiet: st.k === "shut",
+    mark: d.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
+    meta: [
+      statusLabel(st, true),
+      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
+      fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : "",
+      dist ? `<span class="t3">${esc(L(dist))}</span>` : "",
+    ].filter(Boolean).join(""),
+    band: band(d),
+  });
 }
 
 function pharmacyCard(x, wide = false) {
   const { f, km, st } = x;
   const dist = DISTRICTS.find((d) => d.id === f.district);
-  return `<a class="card ${st.k === "open" ? "is-open" : st.k === "soon" ? "is-soon" : "is-shut"} ${wide ? "card--wide" : ""}" href="#/pharmacy/${f.id}">
-    <div class="card-top">
-      <div class="avatar avatar--sq">${icon("cross")}</div>
-      <div class="grow">
-        <div class="card-t trunc">${esc(L(f))}</div>
-        <div class="card-meta">
-          ${f.verified ? `<span class="seal">${icon("seal")}${t("verified")}</span><i class="dot"></i>` : ""}
-          <span class="dist">${icon("pin")}${fmtKm(km)}</span>
-          <i class="dot"></i><span>${esc(L(dist))}</span>
-          ${f.night ? `<span class="chip chip--meta chip--time">${icon("moon")}${t("nightDuty")}</span>` : ""}
-        </div>
-      </div>
-    </div>
-    <div class="card-ribbon">${ribbon(f)}</div>
-    <div class="card-foot">${statusLabel(st)}</div>
-    ${(f.services || []).length ? `<div class="card-svc">${f.services.slice(0, 4).map((sv) => `<span class="chip chip--meta">${svcLabel(sv)}</span>`).join("")}</div>` : ""}
-  </a>`;
+  return rowEl({
+    href: `#/pharmacy/${f.id}`,
+    mono: initial(L(f)),
+    title: L(f),
+    open: st.k === "open", quiet: st.k === "shut",
+    mark: f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
+    meta: [
+      statusLabel(st, true),
+      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
+    ].join(""),
+    band: band(f),
+  });
 }
 
 const SVC = {
@@ -2880,11 +1908,12 @@ function netBanner() {
      read at a point in time and may have moved since. Say which is which. */
   const at = LS.get("lastOnline", null);
   const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
-  return `<div class="offline-bar">${icon("alert")}
-    <span>${isAR()
-      ? `ما في اتصال. ${when ? `هذه بيانات محفوظة من <span dir="ltr" class="num">${when}</span> — التوفّر ممكن يكون تغيّر. ` : ""}التصفّح والاتصال الهاتفي شغّالين — بس الإرسال عبر واتساب يحتاج إنترنت.`
-      : `No connection. ${when ? `This is saved data from <span dir="ltr" class="num">${when}</span> — stock may have changed. ` : ""}Browsing and phone calls still work — WhatsApp needs the network.`}</span>
-    <button onclick="render()">${isAR() ? "أعد المحاولة" : "Retry"}</button></div>`;
+  return `<div class="offline-bar">
+    <span class="grow">${isAR()
+      ? `${when ? `بيانات محفوظة من <span class="num">${when}</span>` : "دون اتصال"}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل</span>`
+      : `${when ? `Saved data from <span class="num">${when}</span>` : "Offline"}<br><span class="t3">Stock may have changed · phone calls still work</span>`}</span>
+    <span class="st st-q"><i class="dot"></i>${isAR() ? "محفوظ" : "saved"}</span>
+    <button onclick="render()">${isAR() ? "إعادة" : "Retry"}</button></div>`;
 }
 
 /* ---------------- SHELL ---------------- */
@@ -2916,100 +1945,81 @@ function nav(active) {
 }
 
 /* ---------------- SCREENS ---------------- */
+/* ---------------- v3 · HOME · 4d ----------------
+   The case opens on the one number that matters. There is no search bar
+   competing with it: a search field is a question the product asks the user,
+   and the home screen's job is to answer one first.
+
+   Which number? Open pharmacies. Not doctors — a doctor is needed a few times
+   a year and the answer is rarely "right now". A pharmacy at 02:40 is the
+   thing a tired parent is actually holding a phone for.
+------------------------------------------------------------- */
 function screenHome() {
-  const needLabel = S.filters.spec ? L(specOf(S.filters.spec)) : t("adoctor");
   const docsOpen = docsOpenNow(), phOpen = phOpenNow(), night = phNight();
-  const confirmedMeds = MEDICINES.filter((m) => m.stock.length).length;
-  const scarce = MEDICINES.length - confirmedMeds;
+  const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
+  const scarce = MEDICINES.filter((m) => !m.stock.some((st) => freshBand(freshMins(st)) !== "cold"));
   const nearby = [
-    ...doctorsFor({ radius: 25 }).list.slice(0, 3).map((x) => doctorCard(x, true)),
-    ...pharmaciesNear({ openOnly: true }).slice(0, 2).map((x) => pharmacyCard(x, true)),
+    ...pharmaciesNear({ openOnly: true }).slice(0, 2).map((x) => pharmacyCard(x)),
+    ...doctorsFor({ radius: 25 }).list.slice(0, 2).map((x) => doctorCard(x)),
   ];
 
-  /* Three intents, sized by how often they are actually needed. Medicine sits
-     first because scarcity is the weekly problem; a doctor is a few times a
-     year. Each tile carries a LIVE number, so the home screen is a reading of
-     the network rather than a menu of links. */
-  const intent = (href, ic, title, sub, n, unit, cls) => `
-    <a class="intent ${cls}" href="${href}">
-      <span class="intent-ic">${icon(ic)}</span>
-      <span class="intent-body">
-        <span class="intent-t">${title}</span>
-        <span class="intent-s">${sub}</span>
-      </span>
-      <span class="intent-n"><b class="num">${n}</b><i>${unit}</i></span>
-    </a>`;
-
-  return `${header()}
-  ${S.qrSource ? qrContext() : ""}
-
-  <section class="hero">
-    <h1 class="hero-line">
-      ${isAR() ? `<span class="fix">أحتاج</span>
-        <button class="blank" onclick="location.hash='#/needs'">${esc(needLabel)}${icon("caret")}</button>
-        <span class="fix">قرب</span>
-        <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
-        <span class="fix">الآن.</span>`
-        : `<span class="fix">I need</span>
-        <button class="blank" onclick="location.hash='#/needs'">${esc(needLabel)}${icon("caret")}</button>
-        <span class="fix">near</span>
-        <button class="blank" onclick="openLocation()">${esc(L(here()))}${icon("caret")}</button>
-        <span class="fix">right now.</span>`}
-    </h1>
-
-    <button class="search-field" style="margin-top:18px" onclick="location.hash='#/search'">
-      ${icon("search")}<span class="muted grow" style="text-align:start">${t("searchPh")}</span>
-    </button>
-  </section>
-
-  <section class="wrap">
-    <div class="netbar">
-      <span class="netbar-live"><i></i>${isAR() ? "الشبكة الآن" : "Network now"}</span>
-      <span class="netbar-t">${fmtTi(nowMins())} · ${esc(L(here()))}</span>
-    </div>
-    <div class="intents stagger">
-      ${intent("#/search", "pill",
-        isAR() ? "مِنو عنده الدوا؟" : "Who has the medicine?",
-        isAR() ? "توفّر مؤكَّد من صيدليات قريبة" : "Stock confirmed by nearby pharmacies",
-        confirmedMeds, isAR() ? "دواء مؤكَّد" : "confirmed", "intent--med")}
-      ${intent("#/needs", "stetho",
-        isAR() ? "طبيب متاح" : "An available doctor",
-        isAR() ? "مرتّبون بأقرب موعد، لا بأقرب مسافة" : "Ranked by soonest slot, not nearest",
-        docsOpen, isAR() ? "متاح الآن" : "open now", "intent--doc")}
-      ${intent("#/pharmacies", "cross",
-        isAR() ? "صيدلية مفتوحة" : "An open pharmacy",
-        night ? (isAR() ? `${night} منها خفارة ليلية` : `${night} on night duty`)
-              : (isAR() ? "الأقرب المفتوحة الآن" : "Nearest open right now"),
-        phOpen, isAR() ? "مفتوحة" : "open", "intent--ph")}
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+      <a class="t3" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
     </div>
 
-    ${scarce ? `<a class="scarce-note" href="#/med/${MEDICINES.find((m) => !m.stock.length).id}">
-      ${icon("alert")}<span>${isAR()
-        ? `<b class="num">${scarce}</b> دواء بلا توفّر مؤكَّد في بغداد الآن — اسأل مباشرة وساعد اللي بعدك.`
-        : `<b class="num">${scarce}</b> medicines have no confirmed stock in Baghdad — ask directly and help the next person.`}</span>
-      ${icon("chev")}</a>` : ""}
+    <button class="lab" style="margin-top:34px;display:block;text-align:start;min-height:0"
+      onclick="openLocation()">${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
 
-    <button class="sos" onclick="openEmergency()">
-      ${icon("alert")}<span class="grow">${isAR() ? "حالة طارئة؟" : "Emergency?"}</span>
-      <b class="num">${CONFIG.emergency.unified}</b></button>
+    <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${phOpen}</div>
+    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? "صيدلية مفتوحة الآن" : phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}</div>
+    <div class="q-sub" style="margin-top:6px">${night
+      ? (isAR() ? `منها <span class="num">${night}</span> خفارة ليلية تعمل حتى الفجر.`
+                : `<span class="num">${night}</span> of them on night duty until dawn.`)
+      : (isAR() ? `و<span class="num">${docsOpen}</span> طبيب يستقبل الآن.`
+                : `and <span class="num">${docsOpen}</span> doctors seeing patients now.`)}</div>
+
+    <div style="margin:26px 0 6px">${ticks()}</div>
+    ${axis24()}
   </section>
 
-  <section class="sec wrap">
-    <div class="sec-h"><h2>${isAR() ? "قريب منك الآن" : "Near you right now"}</h2>
-      <a class="more" href="#/doctors">${isAR() ? "الكل" : "All"}</a></div>
-    <div class="rail bleed">${nearby.join("")}</div>
+  <section class="pad" style="margin-top:26px"><div class="v2">
+    <button class="btn" onclick="location.hash='#/search'">${isAR() ? "شنو تحتاج؟ — ابدأ من هنا" : "What do you need? Start here"}</button>
+    <div style="display:flex;gap:8px">
+      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/search">${isAR() ? "دوا معيّن" : "A medicine"}</a>
+      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/needs">${isAR() ? "دكتور" : "A doctor"}</a>
+      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/care">${isAR() ? "العناية" : "Care"}</a>
+    </div>
+  </div></section>
+
+  ${scarce.length ? `<section class="pad" style="margin-top:26px">
+    <a class="note note-w" href="#/med/${scarce[0].id}">
+      <span>${isAR()
+        ? `<b>${countAr(scarce.length, ["دواء واحد", "دواءان", "أدوية", "دواءً"])}</b> بلا توفّر مؤكَّد في بغداد الآن — أوّلها «${esc(L(scarce[0]))}».`
+        : `<b class="num">${scarce.length}</b> medicines have no confirmed stock in Baghdad — starting with ${esc(L(scarce[0]))}.`}</span>
+    </a></section>` : ""}
+
+  <div class="hr" style="margin:30px 0 0"></div>
+  <section class="pad">
+    <div class="lab" style="padding-top:24px">${isAR() ? "يعمل الآن قربك" : "Open near you"}</div>
+    ${nearby.join('<div class="hr"></div>')}
   </section>
 
-  <section class="wrap" style="padding-bottom:26px">
-    <a class="proof" href="#/trust">
-      <div class="proof-row">
-        <span><b class="num">${DOCTORS.filter((d) => d.verified).length}</b> ${isAR() ? "طبيب موثّق" : "verified doctors"}</span>
-        <span><b class="num">${FACILITIES.filter((f) => f.type === "pharmacy").length}</b> ${isAR() ? "صيدلية" : "pharmacies"}</span>
-        <span><b class="num">${DISTRICTS.length}</b> ${isAR() ? "منطقة" : "areas"}</span>
-      </div>
-      <div class="proof-note">${icon("seal")}<span>${isAR()
-        ? "بلا نجوم ولا تقييمات — توثيق وتاريخ تحديث فقط. اعرف كيف نتحقق."
-        : "No stars, no reviews — verification and update dates only. See how we check."}</span>${icon("chev")}</div>
+  <section class="pad" style="margin-top:22px">
+    <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:18px">
+      <a class="st st-e" href="tel:${CONFIG.emergency.unified}"><i class="dot"></i>${isAR() ? "طوارئ — الرقم الموحد" : "Emergency — unified line"}</a>
+      <a class="n" style="font-size:17px;color:var(--alarm)" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
+    </div>
+  </section>
+
+  <section class="pad" style="margin-top:22px;padding-bottom:26px">
+    <a class="rowb" href="#/trust">
+      <span class="t3">${isAR()
+        ? `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> موثّق · <span class="num">${freshMeds}</span> دواء مؤكَّد · <span class="num">${DISTRICTS.length}</span> منطقة`
+        : `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> verified · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "كيف نتحقق" : "How we verify"}</span>
     </a>
   </section>
   ${nav("home")}`;
@@ -3200,127 +2210,128 @@ function emptyDoctors(sp) {
   </div>`;
 }
 
+/* ---------------- v3 · DOCTOR · 4g ----------------
+   The week as an engraved dial. Two practices, one shape: seven bands on the
+   same 24-hour scale, jade for the hospital shift and brass for the private
+   clinic. A patient reading it sees at a glance that "Tuesday evening" and
+   "Tuesday morning" are different places at different prices — which is the
+   single fact a directory listing hides and the reason this screen exists.
+------------------------------------------------------------- */
 function screenDoctor(id) {
   const d = DOCTORS.find((x) => x.id === id);
   if (!d) return screen404();
   const sp = specOf(d.spec), st = status(d), km = docDist(d);
   const facs = docFacs(d);
-  const byFac = facs.map((f) => ({ f, ss: d.sessions.filter((s) => s.fac === f.id) }));
+  const byFac = facs.map((f) => ({ f, ss: d.sessions.filter((x) => x.fac === f.id) }));
   const nx = st.k !== "shut" ? null : st.next;
   const fee = st.k !== "shut" && st.seg ? st.seg.s?.fee : (nx ? nx.s?.fee : d.sessions[0].fee);
-  const saved = S.saved.includes("d:" + d.id);
   const gender = d.gender === "f" ? (isAR() ? "طبيبة" : "Female") : (isAR() ? "طبيب" : "Male");
 
-  /* The decision line. A patient choosing a doctor is answering four questions
-     in order — can I see them soon, where, how much, can I trust this. Anything
-     that does not answer one of those is pushed below the fold. */
-  const when = st.k !== "shut"
-    ? `<b>${t("openNow")}</b> · ${isAR() ? "حتى" : "until"} ${fmtTi(st.seg.t)}`
-    : nx ? `<b>${nx.inDays === 0 ? t("today") : nx.inDays === 1 ? t("tomorrow") : dayName(nx.day)}</b> ${fmtTi(nx.f)}`
-         : `<b>${t("closed")}</b>`;
-  const whereF = st.k !== "shut" && st.seg ? st.seg.fac : (nx ? nx.fac : facs[0]);
-  const whereD = whereF && DISTRICTS.find((x) => x.id === whereF.district);
-
-  return `${header({ back: true, title: "", right:
-      `<button class="icon-btn" onclick="toggleSave('d:${d.id}')" aria-label="${isAR() ? "حفظ" : "Save"}">${icon("bookmark")}</button>
-       <button class="icon-btn" onclick="shareDoctor('${d.id}')" aria-label="${t("share")}">${icon("share")}</button>` })}
-
-  <section class="dp-head">
-    <div class="dp-id">
-      <div class="avatar dp-avatar${d.verified ? "" : " avatar--ph"}">${esc(initials(L(d)))}</div>
-      <div class="grow">
-        <h1 class="dp-name">${esc(L(d))}</h1>
-        <div class="dp-spec">${esc(L(sp))}</div>
-        ${d.sub_ar && isAR() ? `<div class="dp-sub">${esc(d.sub_ar)}</div>` : ""}
-      </div>
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="shareDoctor('${d.id}')">${t("share")}</button>
     </div>
 
-    <div class="dp-answers">
-      <div class="dp-a ${st.k !== "shut" ? "live" : ""}">
-        <span class="k">${isAR() ? "متى" : "When"}</span>
-        <span class="v">${when}</span>
-      </div>
-      <div class="dp-a">
-        <span class="k">${isAR() ? "وين" : "Where"}</span>
-        <span class="v"><b>${esc(whereD ? L(whereD) : "")}</b> · ${fmtKm(km)}</span>
-      </div>
-      ${fee !== null && fee !== undefined ? `<div class="dp-a">
-        <span class="k">${t("fee")}</span>
-        <span class="v"><b class="num">${money(fee)}</b></span>
-      </div>` : ""}
-      <div class="dp-a">
-        <span class="k">${isAR() ? "الثقة" : "Trust"}</span>
-        <span class="v">${d.verified
-          ? `<b class="tr-yes">${t("verified")}</b> · ${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span>${isAR() ? " يوم" : "d"}`
-          : `<b class="tr-no">${t("listed")}</b>`}</span>
-      </div>
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-top:26px">
+      <span class="av" style="width:56px;height:56px;font-size:21px">${esc(initials(L(d)).charAt(0))}</span>
+      <span class="grow">
+        <h1 class="d2">${esc(L(d))}</h1>
+        <div class="q-sub" style="margin-top:4px">${esc(L(sp))}${d.sub_ar && isAR() ? " — " + esc(d.sub_ar) : ""}</div>
+      </span>
+      ${d.verified ? `<span class="mark" style="width:44px;height:44px;font-size:10px">${isAR() ? "ختم" : "OK"}</span>` : ""}
     </div>
 
-    <div class="dp-week">${weekStrip(d)}</div>
-
-    ${!d.accepting ? `<div class="banner banner--warn" style="margin-top:14px">${icon("info")}
-      <span>${t("notAccepting")}${d.pause_ar ? " — " + esc(isAR() ? d.pause_ar : d.pause_en) : ""}</span></div>` : ""}
-    ${d.updated > 90 ? `<div class="banner banner--warn" style="margin-top:10px">${icon("alert")}
-      <span>${isAR() ? "لم تُحدَّث هذه المعلومات منذ فترة طويلة. تحقق قبل ما تروح."
-                     : "This information hasn't been updated in a while. Check before travelling."}</span></div>` : ""}
+    <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
+      ${statusLabel(st, true)}
+      <span class="t3"><span class="num">${fmtKm(km)}</span></span>
+      ${fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : ""}
+    </div>
   </section>
 
-  <section class="blk">
-    <h3>${t("week")}</h3>
-    <div class="week">
-      ${DAY_ORDER.map((dy) => {
-        const has = d.sessions.some((s) => s.d === dy);
-        return `<div class="week-row ${dy === nowDay() ? "today" : ""} ${has ? "" : "off"}">
-          <span class="d">${dayName(dy)}</span>${ribbon(d, dy, "ribbon--day", dy === nowDay())}</div>`;
+  <section class="pad" style="margin-top:32px">
+    <div class="lab">${isAR() ? "شكل الأسبوع" : "The shape of the week"}</div>
+    <div style="margin-top:18px">
+      <div style="display:grid;grid-template-columns:44px 1fr;gap:12px 14px;align-items:center">
+        ${DAY_ORDER.map((dy) => {
+          const has = rawSegs(d, dy).length > 0;
+          const today = dy === nowDay();
+          return `<span class="t3" style="${today ? "font-weight:500;color:var(--ink)" : has ? "" : "opacity:.5"}">${dayName(dy)}</span>
+            ${band(d, dy, today)}`;
+        }).join("")}
+      </div>
+      <div class="axis" style="margin-top:10px;padding-inline-start:58px">00<span>08</span><span>16</span>24</div>
+    </div>
+
+    <div class="hr" style="margin:22px 0"></div>
+
+    <div class="v3">
+      ${byFac.map(({ f, ss }) => {
+        const priv = f.type !== "hospital";
+        const dist = DISTRICTS.find((x) => x.id === f.district);
+        const feeSet = [...new Set(ss.map((x) => x.fee).filter((x) => x !== null && x !== undefined))];
+        /* The same hours repeat across several days, so listing sessions
+           verbatim prints "09:00 – 13:00" three times and never says which
+           days — the one fact a patient is actually looking for. Group by
+           the range and name the days against it. */
+        const slots = [...ss.reduce((mp, x) => {
+          const k = fmtRange(mins(x.f), mins(x.t));
+          return mp.set(k, [...(mp.get(k) || []), x.d]);
+        }, new Map())].map(([range, days]) => [range, days.sort((p, q) => DAY_ORDER.indexOf(p) - DAY_ORDER.indexOf(q))]);
+        return `<div>
+          <div class="row" style="gap:8px">
+            <i style="width:10px;height:3px;background:var(--${priv ? "brass" : "jade"});border-radius:999px;flex:none"></i>
+            <span class="t1" style="font-size:14px">${esc(L(f))}</span>
+          </div>
+          <div class="t3" style="margin-top:2px;padding-inline-start:18px">
+            ${slots.map(([range, days]) =>
+              `${days.map(dayName).join("، ")} · ${range}`).join("<br>")}
+          </div>
+          <div class="t3" style="margin-top:2px;padding-inline-start:18px">
+            ${dist ? esc(L(dist)) + " · " : ""}<span class="num">${fmtKm(distTo(f))}</span>
+            ${feeSet.length ? " · " + feeSet.map((x) => `<span class="num">${money(x)}</span>`).join(" / ") : ""}
+          </div>
+          <div class="row" style="margin-top:8px;padding-inline-start:18px">
+            <a class="b-g" style="font-size:12px" href="${mapLink(f)}" target="_blank" rel="noopener">${t("directions")}</a>
+          </div>
+        </div>`;
       }).join("")}
     </div>
-    ${ribbonScale()}
-    <div class="week-legend">
-      <span class="row" style="gap:6px"><i style="background:var(--petrol)"></i>${isAR() ? "مستشفى (بدون أجرة)" : "Hospital (no fee)"}</span>
-      <span class="row" style="gap:6px"><i style="background:var(--amber-b)"></i>${isAR() ? "عيادة خاصة" : "Private clinic"}</span>
-      <span class="row" style="gap:6px"><i style="background:var(--ink);width:2px;height:10px"></i>${isAR() ? "الآن" : "Now"}</span>
+  </section>
+
+  ${!d.accepting ? `<section class="pad" style="margin-top:22px"><div class="note note-w">
+    <span>${t("notAccepting")}${d.pause_ar ? " — " + esc(isAR() ? d.pause_ar : d.pause_en) : ""}</span></div></section>` : ""}
+  ${d.updated > 90 ? `<section class="pad" style="margin-top:12px"><div class="note note-w">
+    <span>${isAR() ? "لم تُحدَّث هذه المعلومات منذ فترة طويلة. تحقق قبل ما تروح."
+                   : "This information hasn't been updated in a while. Check before travelling."}</span></div></section>` : ""}
+
+  <section class="pad" style="margin-top:26px">
+    ${d.creds_ar?.length || d.exp ? `<div class="q-sub" style="max-width:44ch">${
+      [d.creds_ar?.join(" · "), d.exp ? (isAR() ? `<span class="num">${d.exp}</span> سنة خبرة` : `<span class="num">${d.exp}</span> years' experience`) : "",
+       gender, d.langs?.length ? d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ") : ""]
+        .filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+    <div class="rowb" style="margin-top:18px">
+      <span class="t3">${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span> ${isAR() ? "يوم" : "d ago"}</span>
+      <button class="b-g" style="font-size:12px" onclick="reportInfo()">${t("reportInfo")}</button>
     </div>
   </section>
 
-  <section class="blk">
-    <h3>${t("sessions")} · <span class="muted" style="font-weight:400">${facs.length} ${isAR() ? "موقع" : "locations"}</span></h3>
-    ${byFac.map(({ f, ss }) => `<div class="fac-block">
-      <div class="row-b">
-        <div><div class="ft">${esc(L(f))}</div>
-          <div class="fm">${t(f.type)} · ${esc(L(DISTRICTS.find((x) => x.id === f.district)))} · ${fmtKm(distTo(f))}</div></div>
-        <a class="icon-btn" href="${mapLink(f)}" target="_blank" rel="noopener" aria-label="${t("directions")}">${icon("nav")}</a>
-      </div>
-      <div class="stack" style="margin-top:10px">
-        ${ss.sort((a, b) => DAY_ORDER.indexOf(a.d) - DAY_ORDER.indexOf(b.d)).map((s) => `<div class="kv">
-          <span class="k">${dayName(s.d)}</span>
-          <span class="v num">${fmtRange(mins(s.f), mins(s.t))}${s.fee !== null && s.fee !== undefined ? " · " + money(s.fee) : ""}</span></div>`).join("")}
-      </div></div>`).join("")}
-  </section>
-
-  ${d.creds_ar?.length || d.exp || d.langs?.length ? `<section class="blk">
-    <h3>${t("about")}</h3>
-    ${d.creds_ar?.length ? d.creds_ar.map((c) => `<div class="cred">${icon("seal")}<span>${esc(c)}</span></div>`).join("") : ""}
-    ${d.exp ? `<div class="kv"><span class="k">${isAR() ? "سنوات الخبرة" : "Experience"}</span><span class="v num">${d.exp}</span></div>` : ""}
-    ${d.langs?.length ? `<div class="kv"><span class="k">${isAR() ? "اللغات" : "Languages"}</span><span class="v">${d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ")}</span></div>` : ""}
-    <div class="kv"><span class="k">${isAR() ? "الجنس" : "Gender"}</span><span class="v">${gender}</span></div>
-    <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button>
-  </section>` : ""}
-
-  <section class="blk">
-    <a class="lane" href="#/partner/doctor/${d.id}"><span class="ic">${icon("grid")}</span>
-      <span class="grow"><h3>${isAR() ? "هذا ملفك؟" : "Is this your profile?"}</h3>
-        <p>${isAR() ? "شوف كم مريض دوّر على اختصاصك وما وصلك" : "See how many searched your specialty and never reached you"}</p></span>
-      ${icon("chev")}</a>
+  <section class="pad" style="margin-top:26px">
+    <a class="rowb" href="#/partner/doctor/${d.id}">
+      <span class="t3">${isAR() ? "هذا ملفك؟ شوف الطلب اللي ما وصلك" : "Is this your profile? See the demand you missed"}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "افتح" : "Open"}</span>
+    </a>
   </section>
 
   <div class="actionbar">
     ${d.accepting
-      ? `<button class="btn" onclick="openRequest('${d.id}')">${icon("cal")}${t("request")}</button>`
-      : `<button class="btn" disabled>${icon("cal")}${t("notAccepting")}</button>`}
+      ? `<button class="btn" onclick="openRequest('${d.id}')">${t("request")}</button>`
+      : `<button class="btn" disabled>${t("notAccepting")}</button>`}
     ${d.wa ? `<a class="icon-btn" href="${waLink(d.wa, directMsg(d))}" target="_blank" rel="noopener" aria-label="${t("message")}">${icon("wa")}</a>` : ""}
     <a class="icon-btn" href="tel:+${d.phone}" aria-label="${t("call")}">${icon("phone")}</a>
   </div>
-  ${nav("doctors")}`;
+  <div style="height:80px"></div>`;
 }
 
 function screenPharmacies() {
@@ -3698,18 +2709,19 @@ function screenTrust() {
    appeared to do nothing, which reads as "this app is broken" with no way out.
    State it, take the blame, and always leave two doors open. */
 function screenError(err) {
-  return `${header({ back: true, title: "" })}
-  <section class="wrap" style="padding-top:22px">
-    <div class="surf-flat pad-3">
-      <div class="row-b" style="gap:12px;align-items:flex-start">
-        <span style="font-size:12.5px;line-height:1.7">${isAR()
-          ? "ما كدرنا نجيب النتائج.<br><span class=\"muted\">الخلل عدنا، مو عندك.</span>"
-          : "We couldn't load that.<br><span class=\"muted\">That's on us, not on you.</span>"}</span>
-        <button class="btn btn--2 btn--sm" onclick="render()">${icon("refresh")}${isAR() ? "إعادة المحاولة" : "Retry"}</button>
-      </div>
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <div class="lab" style="margin-top:28px">${isAR() ? "خطأ" : "Error"}</div>
+    <div class="rowb" style="margin-top:14px">
+      <span class="q-sub">${isAR()
+        ? "ما كدرنا نجيب النتائج.<br><span class=\"t3\">الخلل عدنا، مو عندك.</span>"
+        : "We couldn't load that.<br><span class=\"t3\">That's on us, not on you.</span>"}</span>
+      <button class="btn btn--2 btn--sm" style="width:auto" onclick="render()">${isAR() ? "إعادة" : "Retry"}</button>
     </div>
-    <a class="btn btn--3" style="margin-top:12px" href="#/">${icon("home")}${isAR() ? "الرئيسية" : "Home"}</a>
-    ${err && CONFIG.debug ? `<pre class="tiny muted" dir="ltr" style="margin-top:14px;white-space:pre-wrap">${esc(String(err && err.stack || err))}</pre>` : ""}
+    <div class="hr" style="margin:26px 0"></div>
+    <a class="b-g" href="#/">${isAR() ? "الرئيسية" : "Home"}</a>
+    ${err && CONFIG.debug ? `<pre class="t3" dir="ltr" style="margin-top:14px;white-space:pre-wrap">${esc(String(err && err.stack || err))}</pre>` : ""}
   </section>${nav("home")}`;
 }
 
@@ -4016,26 +3028,25 @@ function toPreview(id) {
     <div class="sheet-b">
       <div class="slip">
         <div class="slip-h">
-          <div><div class="eyebrow">${isAR() ? "طلب موعد" : "Appointment request"}</div>
-            <div class="card-t" style="margin-top:3px">${esc(L(d))}</div>
-            <div class="card-q">${esc(L(s.seg.fac))}</div></div>
-          <div style="text-align:end"><div class="slip-ref mono" dir="ltr">#${ref}</div>
-            <div class="tiny muted mono">${new Date().toLocaleDateString("en-GB")}</div></div>
+          <span class="lab">${esc(L(CONFIG.brand))} · ${isAR() ? "طلب موعد" : "Appointment request"}</span>
+          <span class="slip-ref" dir="ltr">${ref}</span>
         </div>
-        <div class="slip-to">${isAR() ? "إلى" : "To"}: ${d.wa ? `<span class="mono">+${d.wa}</span>` : (isAR() ? "غير متوفر" : "unavailable")}</div>
         <div class="bubble" id="msg" contenteditable="true" spellcheck="false">${esc(msg)}</div>
-        <button class="slip-edit" onclick="document.getElementById('msg').focus()">${icon("edit")}${t("edit")}</button>
+        <div class="slip-to rowb">
+          <span>${isAR() ? "إلى" : "To"} ${d.wa ? `<span class="num">+${d.wa}</span>` : (isAR() ? "غير متوفر" : "unavailable")}</span>
+          <button class="b-g" style="font-size:12px" onclick="document.getElementById('msg').focus()">${t("edit")}</button>
+        </div>
       </div>
-      ${!d.wa ? `<div class="banner banner--info" style="margin-top:16px">${icon("phone")}<span>${t("noWa")}</span></div>` : ""}
-      <div class="hint" style="margin-top:14px">${icon("info")}<span>${isAR()
-        ? "سيفتح واتساب بهذه الرسالة جاهزة. الإرسال بيدك."
-        : "WhatsApp will open with this message ready. You press send."}</span></div>
+      ${!d.wa ? `<div class="note" style="margin-top:16px"><span>${t("noWa")}</span></div>` : ""}
     </div>
     <div class="sheet-f">
       ${d.wa ? `<a class="btn btn--wa" id="sendbtn" href="${link}" target="_blank" rel="noopener"
           onclick="confirmSent('${d.id}','${ref}','${esc(dayName(s.day))} ${esc(fmtRangeTxt(s.seg.f, s.seg.t))}','${esc(L(s.seg.fac))}')">
-          ${icon("wa")}${t("sendWa")}</a>`
-        : `<a class="btn" href="tel:+${d.phone}">${icon("phone")}${t("call")} +${d.phone}</a>`}
+          ${t("sendWa")}</a>`
+        : `<a class="btn" href="tel:+${d.phone}">${t("call")} +${d.phone}</a>`}
+      <div class="t3" style="text-align:center;margin-top:14px">${isAR()
+        ? "تُرسل من واتسابك — لا نطلب رقمك ولا نُنشئ حساباً."
+        : "Sent from your own WhatsApp — we never ask for your number or create an account."}</div>
     </div>`);
 }
 
@@ -4201,16 +3212,28 @@ const freshMins = (st) => st.mins !== undefined ? st.mins : st.d * 1440;
    cold = older than three days, which is not information any more. */
 const freshBand = (mins) => mins < 720 ? "hot" : mins <= 4320 ? "warm" : "cold";
 
+/* Every duration here goes through countAr, because Arabic has a dual and
+   "2 ساعات" is the same class of error as "2 patients": English grammar
+   wearing Arabic words. See ROADMAP principle 9. */
+/* Genitive dual (ـين), not nominative (ـان): every one of these follows the
+   preposition «قبل». "قبل ساعتان" is wrong in the same way "before two hour"
+   would be. The tier card's "مريضان" stays nominative because it is a
+   predicate, not the object of a preposition — the case has to follow the
+   sentence, which is why the forms live at the call site and not in countAr. */
+const AR_MIN  = ["دقيقة واحدة", "دقيقتين", "دقائق", "دقيقةً"];
+const AR_HOUR = ["ساعة واحدة", "ساعتين", "ساعات", "ساعةً"];
+const AR_DAY  = ["يوم واحد", "يومين", "أيام", "يوماً"];
+
 function freshLabel(mins) {
-  const n = (v) => `<span class="num">${v}</span>`;
   if (isAR()) {
-    if (mins < 60) return `مؤكَّد قبل ${n(Math.max(1, Math.round(mins)))} دقيقة`;
-    if (mins < 1440) return `مؤكَّد قبل ${n(Math.round(mins / 60))} ساعات`;
+    if (mins < 60) return `مؤكَّد قبل ${countAr(Math.max(1, Math.round(mins)), AR_MIN)}`;
+    if (mins < 1440) return `مؤكَّد قبل ${countAr(Math.round(mins / 60), AR_HOUR)}`;
     const d = Math.round(mins / 1440);
     if (d === 1) return "مؤكَّد أمس";
-    if (d <= 3) return `مؤكَّد قبل ${n(d)} أيام`;
-    return `قبل ${n(d)} يوم — غير مؤكّد`;
+    if (d <= 3) return `مؤكَّد قبل ${countAr(d, AR_DAY)}`;
+    return `قبل ${countAr(d, AR_DAY)} — غير مؤكّد`;
   }
+  const n = (v) => `<span class="num">${v}</span>`;
   if (mins < 60) return `confirmed ${n(Math.max(1, Math.round(mins)))} min ago`;
   if (mins < 1440) return `confirmed ${n(Math.round(mins / 60))}h ago`;
   const d = Math.round(mins / 1440);
@@ -4222,10 +3245,10 @@ const freshLabelTxt = (mins) => freshLabel(mins).replace(/<[^>]+>/g, "");
    ("last confirmed …" must not then say "unconfirmed" in the same breath). */
 function ageLabel(mins) {
   const n = (v) => `<span class="num">${v}</span>`;
-  if (mins < 60) return isAR() ? `قبل ${n(Math.max(1, Math.round(mins)))} دقيقة` : `${n(Math.max(1, Math.round(mins)))} min ago`;
-  if (mins < 1440) return isAR() ? `قبل ${n(Math.round(mins / 60))} ساعات` : `${n(Math.round(mins / 60))}h ago`;
+  if (mins < 60) return isAR() ? `قبل ${countAr(Math.max(1, Math.round(mins)), AR_MIN)}` : `${n(Math.max(1, Math.round(mins)))} min ago`;
+  if (mins < 1440) return isAR() ? `قبل ${countAr(Math.round(mins / 60), AR_HOUR)}` : `${n(Math.round(mins / 60))}h ago`;
   const d = Math.round(mins / 1440);
-  return isAR() ? (d === 1 ? "أمس" : `قبل ${n(d)} يوم`) : `${n(d)}d ago`;
+  return isAR() ? (d === 1 ? "أمس" : `قبل ${countAr(d, AR_DAY)}`) : `${n(d)}d ago`;
 }
 
 function medMsg(med, ref) {
@@ -4310,23 +3333,23 @@ function confirmStock(medId, facId, yes) {
 function stockCard(med, x, ref) {
   const stale = x.band === "cold";
   const d = DISTRICTS.find((y) => y.id === x.f.district);
-  return `<div class="surf-${stale ? "flat" : "raise"} qc ${stale ? "quiet" : "rail-stock"}">
-    <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
-    <div class="qc-b">
-      <div class="qc-title">${esc(L(x.f))}</div>
-      <div class="qc-qual">${d ? esc(L(d)) : ""}${d ? " · " : ""}<span class="num">${fmtKm(x.km)}</span></div>
-      <div class="qc-meta">
-        <span class="fresh fresh-${x.band}" style="padding:3px 8px">
-          <span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
-        ${x.price ? `<span class="num">${money(x.price)}</span>` : ""}
-      </div>
-      <div class="row" style="gap:7px;margin-top:9px">
-        ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
-             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
-          : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-        <a class="btn btn--3 btn--sm" href="#/pharmacy/${x.f.id}">${isAR() ? "الصيدلية" : "Pharmacy"}</a>
-      </div>
-    </div></div>`;
+  return `<div class="rw${stale ? " quiet" : ""}">
+    ${stale ? "" : `<span class="rw-lead" style="background:var(--${x.band === "hot" ? "brass" : "jade"})"></span>`}
+    <span class="av">${esc(initial(L(x.f)))}</span>
+    <span class="grow">
+      <span class="d3" style="font-size:17px;display:block">${esc(L(x.f))}</span>
+      <span class="q-sub" style="display:block">${d ? esc(L(d)) + " · " : ""}<span class="num">${fmtKm(x.km)}</span></span>
+      <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
+        <span class="st ${stale ? "st-q" : "st-t"}">${stale ? "" : `<i class="dot${x.band === "hot" ? " dot-live" : ""}"></i>`}${freshLabel(x.mins)}</span>
+        ${x.price ? `<span class="t3"><span class="num">${money(x.price)}</span></span>` : ""}
+      </span>
+      <span class="row" style="gap:14px;margin-top:10px">
+        ${x.f.wa ? `<a class="b-g" style="font-size:12.5px" href="${waLink(x.f.wa, medMsg(med, ref))}"
+             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${isAR() ? "اسأل عبر واتساب" : "Ask on WhatsApp"}</a>`
+          : `<a class="b-g" style="font-size:12.5px" href="tel:+${x.f.phone}">${t("call")}</a>`}
+        <a class="b-g" style="font-size:12.5px" href="#/pharmacy/${x.f.id}">${isAR() ? "الصيدلية" : "Pharmacy"}</a>
+      </span>
+    </span></div>`;
 }
 
 /* 14 days of "how many pharmacies had this confirmed". A shortage that is
@@ -4337,25 +3360,36 @@ function medTrend(med) {
   if (!tr.length) return "";
   const mx = Math.max(...tr, 1);
   const zeros = [...tr].reverse().findIndex((v) => v > 0);
-  const dry = zeros === -1 ? tr.length : zeros;   // trailing days at zero
-  const last = tr[tr.length - 1];                 // trend is oldest-first
-  return `<div class="surf-flat pad-3">
-    <div class="q-eyebrow">${isAR() ? "أسبوعان من التوفّر" : "Two weeks of availability"}</div>
-    <div class="spark" style="margin-top:10px;height:30px" role="img"
+  const dry = zeros === -1 ? tr.length : zeros;
+  const last = tr[tr.length - 1];
+  /* Fourteen engraved ticks, oldest first — which in RTL puts the oldest at
+     the right, the same direction the day runs on every other dial here. A
+     tick that reaches full height is a day this was widely held; a stub is a
+     day it was not. The shortage is a shape, not a sentence. */
+  return `<div>
+    <div class="lab">${isAR() ? "أسبوعان من التوفّر" : "Two weeks of availability"}</div>
+    <div class="ticks" style="margin-top:14px;height:26px" role="img"
       aria-label="${isAR() ? "عدد الصيدليات المؤكِّدة خلال ١٤ يوم" : "Confirming pharmacies over 14 days"}">
-      ${tr.map((v) => `<i class="${dry >= 2 && v === mx ? "hi" : ""}" style="height:${Math.max(6, Math.round((v / mx) * 100))}%"
-        title="${v}"></i>`).join("")}
+      ${tr.map((v) => `<i class="${v === mx && dry >= 2 ? "maj" : ""}"
+        style="height:${Math.max(3, Math.round((v / mx) * 26))}px;background:var(--${v === 0 ? "dial-line" : v === mx && dry >= 2 ? "brass" : "ink-4"})"></i>`).join("")}
     </div>
-    <div class="q-sub" style="margin-top:6px">${dry >= 2
-      ? (isAR() ? `النقص بدأ قبل <span class="num">${dry}</span> أيام ويتّسع. نُبلغ الصيدليات المشتركة بهذا الطلب غير الملبّى.`
-                : `The shortage started <span class="num">${dry}</span> days ago and is widening. Partner pharmacies are told about this unmet demand.`)
+    <div class="t3" style="margin-top:8px">${dry >= 2
+      ? (isAR() ? `التوفّر توقّف قبل <span class="num">${dry}</span> أيام ويتّسع — الشاهد على اليمين من التاريخ.`
+                : `Availability stopped <span class="num">${dry}</span> days ago and is widening.`)
       : last <= 1
-      ? (isAR() ? `التوفّر هش — <span class="num">${last}</span> صيدلية فقط سجّلت توفّره مؤخراً.`
+      ? (isAR() ? `التوفّر هش — <span class="num">${last}</span> صيدلية فقط سجّلته مؤخراً.`
                 : `Thin supply — only <span class="num">${last}</span> pharmacy has it on record lately.`)
       : (isAR() ? "التوفّر مستقر خلال الأسبوعين الماضيين." : "Availability has been steady over the past two weeks.")}</div>
   </div>`;
 }
 
+/* ---------------- v3 · MEDICINE · 4e / 4f ----------------
+   The dial. Freshness is set as the largest thing on the page — a 46px
+   numeral for the minutes since the last confirmation — because that number
+   IS the product. The scarcity variant (4f) is the most designed screen here
+   on purpose: the failure state is where a directory gives up and where this
+   has to be worth opening.
+------------------------------------------------------------- */
 function screenMed(id) {
   const med = medById(id); if (!med) return screen404();
   const { confirmed, others } = pharmaciesForMed(med);
@@ -4363,146 +3397,130 @@ function screenMed(id) {
   const watching = LS.get("watch", []).includes(med.id);
   const waiting = medWaiting(med);
   const lastMins = med.stock.length ? Math.min(...med.stock.map(freshMins)) : null;
-  /* A confirmation older than three days is not an answer, so it cannot be the
-     hero. The screen splits on "is there a live answer", not "is there a row in
-     the table" — otherwise a stale record gets the same triumphant treatment as
-     a pharmacy that confirmed forty minutes ago, which is the exact failure the
-     freshness model exists to prevent. Stale rows still appear below, dimmed. */
   const fresh = confirmed.filter((x) => x.band !== "cold");
   const stale = confirmed.filter((x) => x.band === "cold");
   const rest = [...fresh.slice(1), ...stale];
-  /* "Nothing near you" is a real answer and has to be said out loud. Without
-     it the hero silently shows a pharmacy six districts away and the user has
-     to work out for themselves that their own area came up empty. */
-  const hereId = S.district;
-  const elsewhere = fresh.length && !fresh.some((x) => x.f.district === hereId)
-    ? DISTRICTS.find((d) => d.id === hereId) : null;
   const sub = (med.subs || []).map(medById).filter(Boolean)
     .map((sm) => ({ sm, best: pharmaciesForMed(sm).confirmed[0] })).filter((x) => x.best)[0];
+  const hereD = DISTRICTS.find((d) => d.id === S.district);
+  const elsewhere = fresh.length && !fresh.some((x) => x.f.district === S.district) ? hereD : null;
 
-  const watchBtn = `<button class="btn btn--3 btn--sm" onclick="watchMed('${med.id}')">
-    ${icon(watching ? "check" : "bell")}${watching ? (isAR() ? "نتابعه" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>`;
+  const head = `<section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="watchMed('${med.id}')">${watching
+        ? (isAR() ? "نتابعه لك" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>
+    </div>
+    <div class="lab" style="margin-top:28px${fresh.length ? "" : ";color:var(--brass-ink)"}">${fresh.length
+      ? (isAR() ? "دواء" : "Medicine") + (med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : "")
+      : (isAR() ? "نقص حالي · بغداد" : "Current shortage · Baghdad")}</div>
+    <h1 class="d1" style="margin-top:10px">${esc(L(med))}</h1>
+    <div class="q-sub" style="margin-top:6px">${esc(med.form || "")}${
+      med.equiv?.length ? (isAR() ? " · البديل المكافئ: " : " · equivalent: ") + esc(med.equiv[0]) : ""}</div>
+  </section>`;
 
-  /* The hero. With stock it is the freshest confirmation, in full, with the
-     pharmacy's hours behind it so "open now" is visible and not a claim.
-     Without stock it is the shortage itself — stated, then routed. */
-  const hero = fresh.length ? (() => {
+  /* 4e — there is a live answer. The minutes since confirmation are the hero. */
+  const dial = fresh.length ? (() => {
     const x = fresh[0];
     const d = DISTRICTS.find((y) => y.id === x.f.district);
-    return `<div class="surf-key cham pad-4">
-      <div class="row" style="justify-content:space-between">
-        <span class="fresh fresh-${x.band}"><span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
-        <span class="q-sub num">${fmtKm(x.km)}</span></div>
-      <div class="q-h2" style="margin-top:10px">${esc(L(x.f))}</div>
-      <div class="q-sub">${d ? esc(L(d)) + (isAR() ? d.lm_ar ? " — " + esc(d.lm_ar) : "" : d.lm_en ? " — " + esc(d.lm_en) : "") : ""}${x.price ? ` · <span class="num">${money(x.price)}</span>` : ""}</div>
-      <div style="margin-top:10px">${ribbon(x.f, null, "ribbon--day")}</div>
-      <div class="q-sub" style="margin-top:6px">${statusLabel(x.st, true)}</div>
-      ${x.f.wa ? `<a class="btn btn--wa" style="margin-top:12px" href="${waLink(x.f.wa, medMsg(med, ref))}"
-           target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR()
-             ? "اسأل عبر واتساب — الرسالة جاهزة" : "Ask on WhatsApp — message ready"}</a>`
-        : `<a class="btn" style="margin-top:12px" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-    </div>`;
-  })() : `<div class="surf-key cham pad-4" style="border-color:var(--amber-ink)">
-      <div class="row" style="gap:9px;flex-wrap:wrap">
-        <span class="bdg bdg-n">${isAR() ? "نقص حالي" : "Current shortage"}</span>
-        ${lastMins !== null ? `<span class="q-sub">${isAR() ? "آخر تأكيد " : "last confirmed "}${ageLabel(lastMins)}</span>` : ""}
+    const v = x.mins < 60 ? Math.max(1, Math.round(x.mins))
+            : x.mins < 1440 ? Math.round(x.mins / 60) : Math.round(x.mins / 1440);
+    const unit = x.mins < 60 ? (isAR() ? "دقيقة" : "min") : x.mins < 1440 ? (isAR() ? "ساعة" : "hours") : (isAR() ? "يوم" : "days");
+    return `<section class="pad" style="margin-top:30px"><div class="plate">
+      <div class="lab">${isAR() ? "آخر تأكيد" : "Last confirmed"}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:8px">
+        <span class="nbig" style="color:var(--brass-ink)">${v}</span>
+        <span class="d3" style="font-weight:400;color:var(--ink-2)">${unit}</span>
+        <span class="st st-t" style="margin-inline-start:auto">${x.band === "hot" ? `<i class="dot dot-live"></i>` : ""}${
+          x.band === "hot" ? (isAR() ? "حيّ" : "live") : (isAR() ? "اليوم" : "today")}</span>
       </div>
-      <div class="q-h2" style="margin-top:8px">${stale.length
-        ? (isAR() ? "لا تأكيد حديث — آخر جواب صار له أيام" : "No recent confirmation — the last answer is days old")
-        : (isAR() ? "لا صيدلية مؤكَّدة اليوم في بغداد" : "No pharmacy confirmed today in Baghdad")}</div>
-      <div class="q-sub" style="margin-top:4px">${isAR()
-        ? `سألنا <span class="num">${medPolled()}</span> صيدلية ضمن <span class="num">10 كم</span> خلال <span class="num">24</span> ساعة. لن نتركك هكذا — هذه ثلاثة أبواب:`
-        : `We polled <span class="num">${medPolled()}</span> pharmacies within <span class="num">10 km</span> in <span class="num">24</span> hours. Here are three doors:`}</div>
-      <div class="stack-2" style="margin-top:14px">
-        <button class="btn" onclick="watchMed('${med.id}')">${icon(watching ? "check" : "bell")}${isAR()
-          ? `${watching ? "نتابعه لك" : "نبّهني أول ما يتوفّر"}${waiting ? ` — <span class="num">${waiting}</span> ينتظرون` : ""}`
-          : `${watching ? "Following" : "Notify me"}${waiting ? ` — <span class="num">${waiting}</span> waiting` : ""}`}</button>
-        <button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
-          ? `اسأل <span class="num">6</span> صيدليات دفعة واحدة` : `Ask <span class="num">6</span> pharmacies at once`}</button>
-        ${sub ? `<a class="btn btn--2" href="#/med/${sub.sm.id}">${icon("pill")}${isAR()
-          ? "البدائل المكافئة" : "Equivalent alternatives"} — ${esc(L(sub.sm))}</a>`
-        : med.equiv?.length ? `<button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("pill")}${isAR()
-          ? "اسأل عن البدائل" : "Ask about alternatives"} — ${esc(med.equiv.join("، "))}</button>` : ""}
+      <div class="hr" style="margin:20px 0"></div>
+      <div class="d3">${esc(L(x.f))}</div>
+      <div class="q-sub">${d ? esc(L(d)) + (isAR() ? (d.lm_ar ? " — " + esc(d.lm_ar) : "") : (d.lm_en ? " — " + esc(d.lm_en) : "")) : ""}</div>
+      <div class="row" style="margin-top:12px;gap:16px;flex-wrap:wrap">
+        <span class="t3"><span class="num">${fmtKm(x.km)}</span></span>
+        ${x.price ? `<span class="t3"><span class="num">${money(x.price)}</span></span>` : ""}
+        ${statusLabel(x.st, true)}
       </div>
-    </div>`;
+      <div style="margin-top:14px">${band(x.f)}</div>
+      ${x.f.wa ? `<a class="btn btn--wa" style="margin-top:22px" href="${waLink(x.f.wa, medMsg(med, ref))}"
+           target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${isAR() ? "اسأل عبر واتساب" : "Ask on WhatsApp"}</a>`
+        : `<a class="btn" style="margin-top:22px" href="tel:+${x.f.phone}">${t("call")}</a>`}
+    </div></section>`;
+  })()
+  /* 4f — there is no live answer. A zero, at 76px, and three doors. */
+  : `<section class="pad" style="margin-top:30px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span class="nhuge" style="color:var(--ink-3)">0</span>
+        <span><span class="d3" style="font-weight:500;display:block">${isAR() ? "صيدلية مؤكَّدة اليوم" : "pharmacies confirmed today"}</span>
+          <span class="q-sub">${isAR()
+            ? `من <span class="num">${medPolled()}</span> سُئلت خلال <span class="num">24</span> ساعة`
+            : `of <span class="num">${medPolled()}</span> asked in the last <span class="num">24</span> hours`}</span></span>
+      </div>
+      ${lastMins !== null ? `<div class="t3" style="margin-top:14px">${isAR() ? "آخر تأكيد " : "last confirmed "}${ageLabel(lastMins)}</div>` : ""}
+    </section>
 
-  return `${header({ back: true, title: isAR() ? "توفّر الدواء" : "Medicine availability" })}
-  <section class="wrap" style="padding-top:14px">
-    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px">
-      <div class="grow"><h1 class="q-h1">${esc(L(med))}</h1>
-        <div class="q-sub">${esc(med.form || "")}${med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : ""}${
-          med.equiv?.length ? (isAR() ? " · بديل مقبول: " : " · accepted equivalent: ") + esc(med.equiv[0]) : ""}</div></div>
-      ${watchBtn}
-    </div>
-  </section>
+    <section class="pad" style="margin-top:28px"><div class="v2">
+      <button class="btn" onclick="watchMed('${med.id}')">${isAR()
+        ? `${watching ? "نتابعه لك" : "نبّهني أول ما يتوفّر"}${waiting ? ` — <span class="num">${waiting}</span> ينتظرون` : ""}`
+        : `${watching ? "Following" : "Notify me"}${waiting ? ` — <span class="num">${waiting}</span> waiting` : ""}`}</button>
+      <button class="btn btn--2" onclick="batchAsk('${med.id}')">${isAR()
+        ? `اسأل <span class="num">6</span> صيدليات دفعة واحدة` : `Ask <span class="num">6</span> pharmacies at once`}</button>
+      ${sub ? `<a class="btn btn--2" href="#/med/${sub.sm.id}">${isAR() ? "البديل المكافئ" : "Equivalent"} — ${esc(L(sub.sm))}</a>` : ""}
+    </div></section>`;
 
-  ${elsewhere ? `<section class="wrap" style="margin-top:14px">
-    <div class="note note-i">${isAR()
+  return `${netBanner()}${head}${dial}
+
+  ${!fresh.length && sub ? `<div class="hr" style="margin-top:30px"></div>
+  <section class="pad">
+    <div class="lab" style="padding-top:24px">${isAR() ? "البديل المكافئ المتوفّر الآن" : "Equivalent available now"}</div>
+    ${stockCard(sub.sm, sub.best, ref)}
+    <div class="t3" style="margin-top:4px;color:var(--alarm)">${isAR()
+      ? "نفس الاستطباب — راجع طبيبك قبل التبديل."
+      : "Same indication — ask your doctor before switching."}</div>
+  </section>` : ""}
+
+  ${elsewhere ? `<section class="pad" style="margin-top:24px"><div class="note note-w">
+    <span>${isAR()
       ? `ما لكيناه مؤكَّداً في <b>${esc(L(elsewhere))}</b> — أقرب تأكيد في <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>، <span class="num">${fmtKm(fresh[0].km)}</span>.`
-      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — the nearest confirmation is in <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, <span class="num">${fmtKm(fresh[0].km)}</span> away.`}</div>
+      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — nearest is <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, <span class="num">${fmtKm(fresh[0].km)}</span> away.`}</span>
+  </div></section>` : ""}
+
+  ${rest.length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${fresh.length
+      ? (isAR() ? "توفّر آخر — مرتّب بحداثة التأكيد، لا بالمسافة" : "Also available — by confirmation freshness, not distance")
+      : (isAR() ? "تأكيدات سابقة — مرتّبة بحداثة التأكيد" : "Earlier confirmations — by freshness")}</div>
+    ${rest.slice(0, 4).map((x) => stockCard(med, x, ref)).join('<div class="hr"></div>')}
   </section>` : ""}
 
-  <section class="wrap" style="margin-top:14px">${hero}</section>
+  <section class="pad" style="margin-top:30px">${medTrend(med)}</section>
 
-  ${!fresh.length && sub ? `<section class="wrap" style="margin-top:14px">
-    <div class="surf-raise pad-3">
-      <div class="q-eyebrow">${isAR() ? "البديل الأقرب المتوفّر الآن" : "Nearest available alternative"}</div>
-      <div style="margin-top:10px">${stockCard(sub.sm, sub.best, ref)}</div>
-      <div class="q-sub" style="margin-top:9px">${isAR()
-        ? "بديل شائع لنفس الاستطباب — <b>راجع طبيبك قبل التبديل</b>."
-        : "A common alternative for the same indication — <b>ask your doctor before switching</b>."}</div>
-    </div></section>` : ""}
-
-  ${rest.length ? `<section class="wrap" style="margin-top:16px">
-    <div class="q-eyebrow">${fresh.length
-      ? (isAR() ? "توفّر آخر — مرتّب بحسب " : "Also available — ordered by ")
-      : (isAR() ? "تأكيدات سابقة — مرتّبة بحسب " : "Earlier confirmations — ordered by ")}<b style="color:var(--petrol)">${
-      isAR() ? "حداثة التأكيد" : "confirmation freshness"}</b></div>
-    <div class="stack-2" style="margin-top:8px">${rest.slice(0, 4).map((x) => stockCard(med, x, ref)).join("")}</div>
-    ${rest.slice(0, 4).some((x) => x.band === "cold") ? `<div class="note note-i" style="margin-top:12px">${isAR()
-      ? "الحداثة هي كل شيء هنا: «متوفّر» عمرها أربعة أيام ليست معلومة — لذلك تخفت، ولا نرتّبها بالمسافة."
-      : "Freshness is everything here: a four-day-old \"in stock\" is not information — so it dims, and proximity never promotes it."}</div>` : ""}
+  ${fresh.length ? `<section class="pad" style="margin:26px 0 0">
+    <div class="lab">${isAR() ? "ساعدنا نُحدّث" : "Help us stay current"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "سألت صيدلية ووصلك جواب؟ ثانية واحدة، ويستفيد غيرك."
+      : "Asked a pharmacy and got an answer? One second, and it helps the next person."}</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn--2 btn--sm" style="flex:1" onclick="confirmStock('${med.id}','${fresh[0].f.id}',true)">${isAR() ? "كان متوفّراً" : "It was there"}</button>
+      <button class="btn btn--2 btn--sm" style="flex:1" onclick="confirmStock('${med.id}','${fresh[0].f.id}',false)">${isAR() ? "لم يكن" : "It wasn't"}</button>
+    </div>
   </section>` : ""}
 
-  <section class="wrap" style="margin-top:16px">${medTrend(med)}</section>
-
-  ${fresh.length ? `<section class="wrap" style="margin-top:14px">
-    <div class="surf-flat pad-3">
-      <div class="q-eyebrow">${isAR() ? "ساعدنا نُحدّث" : "Help us stay current"}</div>
-      <div class="q-sub" style="margin-top:4px">${isAR()
-        ? "إن سألت صيدلية ووجدت الجواب، أخبرنا — ثانية واحدة، ويستفيد غيرك."
-        : "If you asked a pharmacy and got an answer, tell us — one second, and it helps the next person."}</div>
-      <div class="row" style="gap:7px;margin-top:9px">
-        <button class="btn btn--2 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',true)">${icon("check")}${
-          isAR() ? "كان متوفّراً" : "It was there"}</button>
-        <button class="btn btn--3 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',false)">${icon("x")}${
-          isAR() ? "لم يكن" : "It wasn't"}</button>
-      </div>
-    </div></section>` : ""}
-
-  ${others.length ? `<section class="blk" style="margin-top:16px"><h3>${isAR() ? "صيدليات لم تؤكّد بعد" : "Not confirmed yet"}</h3>
-    <p class="small muted" style="margin-bottom:12px">${isAR()
-      ? `رسالة جاهزة لكل وحدة، ونفس الرمز <b class="mono" dir="ltr">${ref}</b> — حتى تعرف أي وحدة ردّت.`
-      : `A ready message for each, same code <b class="mono" dir="ltr">${ref}</b> — so you know who replied.`}</p>
-    <div class="stack-2">${others.slice(0, 4).map((x) => `<div class="surf-flat qc">
-      <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
-      <div class="qc-b"><div class="qc-title">${esc(L(x.f))}</div>
-        <div class="qc-qual">${esc(L(DISTRICTS.find((y) => y.id === x.f.district)) || "")} · <span class="num">${fmtKm(x.km)}</span></div>
-        <div class="row" style="gap:7px;margin-top:9px">
-          ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
-             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
-            : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-        </div></div></div>`).join("")}</div>
-    <button class="btn btn--2" style="margin-top:12px" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
+  ${others.length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${isAR() ? "صيدليات لم تؤكّد بعد" : "Not confirmed yet"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? `رسالة جاهزة لكل وحدة، ونفس الرمز <b class="mono">${ref}</b>.`
+      : `A ready message for each, same code <b class="mono">${ref}</b>.`}</div>
+    <button class="btn btn--2" style="margin-top:14px" onclick="batchAsk('${med.id}')">${isAR()
       ? "اسألهم كلهم دفعة واحدة" : "Ask them all at once"}</button>
   </section>` : ""}
 
-  <section class="wrap" style="margin-top:14px">
-    <div class="note note-e">${isAR()
-      ? "هذه معلومة توفّر، لا نصيحة طبية. لا توقف دواءك ولا تبدّله دون طبيبك."
-      : "This is availability information, not medical advice. Never stop or switch a medicine without your doctor."}</div>
+  <section class="pad" style="margin:26px 0 30px">
+    <div class="t3" style="border-top:1px solid var(--dial-line-2);padding-top:16px">${isAR()
+      ? "معلومة توفّر، لا نصيحة طبية. لا توقف دواءك ولا تبدّله دون طبيبك."
+      : "Availability information, not medical advice. Never stop or switch a medicine without your doctor."}</div>
   </section>
-  <div style="height:24px"></div>${nav("pharmacies")}`;
+  ${nav("pharmacies")}`;
 }
 
 function logAsk(medId) {
@@ -4877,6 +3895,16 @@ function render() {
   if (firstPaint) { el.innerHTML = skeletonFor(); firstPaint = false; setTimeout(paint, 260); return; }
   paint();
   function paint() {
+    /* THE CASE. The home screen is the instrument closed — deep ink — and every
+       other screen is the dial it opens onto. In light mode that is one
+       deliberate luminance change, which reads as opening the case. In dark
+       mode there is nothing to flip: the whole app is the case already, so a
+       phone in night mode at 02:00 never gets a flash between screens.
+       This is a class on <body>, not a per-component override: .dark only
+       redefines tokens, so everything written against var(--ink-*) follows. */
+    const home = !location.hash.replace(/^#\/?/, "").split("?")[0];
+    const nightOS = matchMedia("(prefers-color-scheme: dark)").matches;
+    document.body.classList.toggle("dark", S.theme === "dark" || nightOS || (home && S.theme !== "light"));
     let html;
     try {
       html = route();

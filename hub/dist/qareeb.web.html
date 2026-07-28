@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>قريب — أقرب رعاية إليك</title>
 <meta name="description" content="قريب: أقرب طبيب موثّق وأقرب صيدلية مفتوحة الآن — برسالة واتساب واحدة، بدون حساب.">
-<meta name="theme-color" content="#F1ECE1" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E1416" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F4F1EB" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1412" media="(prefers-color-scheme: dark)">
 
 <!-- WhatsApp / Open Graph share card — the real growth surface -->
 <meta property="og:type" content="website">
@@ -21,1628 +21,635 @@
      renders immediately in the system Arabic face and swaps when the real one
      lands. Text -> structure -> interaction -> polish. -->
 <link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&family=IBM+Plex+Sans:wght@200;300;400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <noscript><link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap"></noscript>
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&family=IBM+Plex+Sans:wght@200;300;400&family=IBM+Plex+Mono:wght@400;500&display=swap"></noscript>
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHBhdGggZD0iTTMgM2gxOWw3IDd2MTlIM3oiIGZpbGw9IiMwRTRGNEEiLz4KICA8cGF0aCBkPSJNMTYgMjNjLTQuNC0zLjEtNi45LTUuNC02LjktOC4zYTMuNTUgMy41NSAwIDAgMSA2LjktMS4yNSAzLjU1IDMuNTUgMCAwIDEgNi45IDEuMjVDMjIuOSAxNy42IDIwLjQgMTkuOSAxNiAyM3oiIGZpbGw9IiNFMjlBMkUiLz4KPC9zdmc+Cg==">
 
 <style>
-/* ============================================================
-   QAREEB — قريب  ·  Design system
-   Visual language: TIME & PLACE
-     1. The Ribbon  — a 24h time band, the product's signature component
-     2. The Chamfer — every surface cuts its LEADING corner (flips with dir)
-     3. The Seal    — verification as a stamp, never a blue checkmark
-     4. Place tiles — location as proud Arabic place names, never a map
-     5. Sand, not white — the single choice that stops this reading as a hospital
-   ============================================================ */
+/* ==================================================================
+   QAREEB — IDENTITY v3 · "المِسطرة / THE INSTRUMENT"
+   Extracted verbatim from the v3 design board (section header block).
+   This file is the REFERENCE. Do not hand-edit it to fix a screen —
+   fix the screen. A v4 board should be able to replace this file whole.
 
-/* ---------- 1. TOKENS ---------- */
-:root {
-  --sand:        #F1ECE1;
-  --sand-2:      #E8E1D3;
-  --card:        #FFFDF9;
-  --card-2:      #F7F3EA;
-  --ink:         #2B2723;
-  --ink-2:       #4C463E;
-  --ink-3:       #8B8171;
-  --line:        #D8D0C2;
-  --line-2:      #E6DFD2;
-
-  --petrol:      #16606A;
-  --petrol-2:    #1E7A86;
-  --petrol-soft: #E2EEEF;
-
-  --amber:       #8A5A10;
-  --amber-b:     #E0A029;
-  --amber-soft:  #FAEED7;
-
-  --coral:       #A33326;
-  --coral-soft:  #FBE6E2;
-
-  --wa:          #0E7C3A;
-  --wa-b:        #25D366;
-
-  --chamfer-size: 16px;
-  --chamfer: polygon(0 0, calc(100% - var(--chamfer-size)) 0, 100% var(--chamfer-size), 100% 100%, 0 100%);
-
-  --font: "IBM Plex Sans Arabic", "Noto Sans Arabic", "Geeza Pro", "Segoe UI",
-          system-ui, -apple-system, Tahoma, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
-
-  --sp: 4px;
-  --nav-h: 66px;
-  --ease: cubic-bezier(.22,.61,.36,1);
-  --t: 200ms var(--ease);
-
-  color-scheme: light;
+   Two notes on landing it in the app:
+   · `.i` is the board's 390px device frame. The app is full-bleed, so it
+     maps onto <body> in the app layer; `.i` itself is never used here.
+     Its box-shadow is board presentation, not a violation of the
+     zero-shadow rule — the only shadow in the product is `.sheet`.
+   · `.dark` redefines TOKENS. Never write `.dark .something { color: … }`
+     in app code: any component written against var(--ink-*) flips on its
+     own. Component-level dark overrides were the source of real contrast
+     bugs in v2 and the fix was structural.
+   ================================================================== */
+/* ==================================================================
+   QAREEB — IDENTITY v3 · "المِسطرة / THE INSTRUMENT"
+   A precision instrument for time, not a directory of people.
+   Two surfaces: THE CASE (deep ink) and THE DIAL (warm paper).
+   Separation by hairline and tone. Shadow ONLY for what floats.
+   ================================================================== */
+:root{
+  /* the case — confident, not corporate */
+  --case:#0B1412; --case-2:#101B18; --case-line:rgba(240,236,228,.14); --case-ink:#F2EFE8;
+  --case-ink-2:rgba(242,239,232,.78); --case-ink-3:rgba(242,239,232,.64);
+  /* the dial — warm paper, never white */
+  --dial:#F4F1EB; --dial-2:#FBF9F5; --dial-line:rgba(11,20,18,.10); --dial-line-2:rgba(11,20,18,.055);
+  --ink:#0B1412; --ink-2:rgba(11,20,18,.72); --ink-3:rgba(11,20,18,.64); --ink-4:rgba(11,20,18,.42);
+  /* one accent, load-bearing */
+  --jade:#0E5450; --jade-2:#14706A; --jade-lit:#5FD0C0;
+  /* brass splits: a FILL brass and a TEXT brass. Never set small text in the fill. */
+  --brass:#C98A18; --brass-ink:#845A09; --brass-lit:#F0C15E;  /* time only */
+  --alarm:#C1121F; --alarm-lit:#F08A80;  /* emergency only */
+  --wa:#128C3E;
+  /* type */
+  --disp:'Readex Pro',system-ui,sans-serif;
+  --num:'IBM Plex Sans',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+  /* a 4px baseline, nothing accidental */
+  --u1:4px;--u2:8px;--u3:12px;--u4:16px;--u5:20px;--u6:28px;--u7:40px;--u8:56px;
+  /* radius logic: 10 for anything that holds content, pill for anything that reads as a control. Nothing else. */
+  --r:10px; --rp:999px;
+  /* elevation philosophy: 0 on the working surface. 1 step for sheets. */
+  --float:0 24px 60px -12px rgba(11,20,18,.42), 0 2px 6px rgba(11,20,18,.10);
 }
-
-html[dir="ltr"] {
-  --chamfer: polygon(var(--chamfer-size) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer-size));
+.i{width:390px;background:var(--dial);color:var(--ink);direction:rtl;text-align:right;
+   font:300 15px/1.85 var(--disp);border-radius:26px;overflow:hidden;
+   border:1px solid var(--dial-line);box-shadow:0 30px 70px -30px rgba(11,20,18,.35)}
+/* THE CASE REDEFINES THE TOKENS, it does not override each component.
+   Any component written against --ink-* / --dial-* flips automatically. */
+.dark{
+  --dial:var(--case); --dial-2:var(--case-2);
+  --dial-line:var(--case-line); --dial-line-2:rgba(240,236,228,.07);
+  --ink:var(--case-ink); --ink-2:var(--case-ink-2);
+  --ink-3:var(--case-ink-3); --ink-4:rgba(242,239,232,.34);
+  --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
 }
+.i.dark{background:var(--case);color:var(--case-ink);border-color:var(--case-line)}
+.i.ltr{direction:ltr;text-align:left}
+/* --- typography: display is tight and heavy, body is light and open --- */
+.d1{font:600 34px/1.24 var(--disp);letter-spacing:-.02em;margin:0}
+.d2{font:600 25px/1.32 var(--disp);letter-spacing:-.015em;margin:0}
+.d3{font:500 19px/1.45 var(--disp);letter-spacing:-.01em;margin:0}
+.t1{font:400 15.5px/1.8 var(--disp)}
+.t2{font:300 13.5px/1.8 var(--disp);color:var(--ink-2)}
+.t3{font:400 11.5px/1.6 var(--disp);color:var(--ink-3)}
+.lab{font:500 10.5px/1 var(--disp);letter-spacing:.2em;color:var(--ink-3);text-transform:uppercase}
+.dark .t2{color:var(--case-ink-2)}.dark .t3,.dark .lab{color:var(--case-ink-3)}
+/* numerals are a design element: tabular, LTR-embedded, optically lighter */
+.n{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-weight:400}
+.nbig{font:300 46px/1 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.03em}
+.nhuge{font:200 76px/.92 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.045em}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-size:.92em}
+/* --- structure: hairlines, never boxes-in-boxes --- */
+.pad{padding-inline:var(--u5)}
+.hr{height:1px;background:var(--dial-line-2);border:0;margin:0}
+.dark .hr{background:var(--case-line)}
+.rowb{display:flex;align-items:center;justify-content:space-between;gap:var(--u3)}
+.row{display:flex;align-items:center;gap:var(--u2)}
+.v2>*+*{margin-top:var(--u2)}.v3>*+*{margin-top:var(--u3)}.v5>*+*{margin-top:var(--u5)}
+/* --- the tick rule: the identity motif. Engraved measurement. --- */
+.ticks{display:flex;align-items:flex-end;gap:0;height:16px}
+.ticks>i{flex:1;height:5px;background:var(--dial-line);border-radius:0}
+.ticks>i.maj{height:11px;background:var(--ink-4)}
+.ticks>i.on{height:16px;background:var(--brass);width:2px;flex:none;margin-inline:1px}
+.dark .ticks>i{background:var(--case-line)}.dark .ticks>i.maj{background:var(--case-ink-3)}
+.dark .ticks>i.on{background:var(--brass-lit)}
+/* the dial band — time as an engraved arc segment, not a chunky bar */
+.band{position:relative;height:3px;background:var(--dial-line);border-radius:var(--rp);overflow:hidden}
+.band>i{position:absolute;top:0;bottom:0;border-radius:var(--rp)}
+.band .sh{background:var(--jade)}.band .cl{background:var(--brass)}
+.dark .band{background:var(--case-line)}.dark .band .sh{background:var(--jade-lit)}.dark .band .cl{background:var(--brass-lit)}
+.nowmk{position:absolute;top:-5px;bottom:-5px;width:1.5px;background:var(--ink)}
+.dark .nowmk{background:var(--case-ink)}
+/* --- controls: pill, hairline, no fill unless it acts --- */
+.b{display:flex;align-items:center;justify-content:center;gap:var(--u2);min-height:52px;
+   border-radius:var(--rp);font:500 15px/1 var(--disp);border:1px solid transparent;cursor:pointer;
+   transition:transform .14s cubic-bezier(.2,.7,.3,1),background .16s ease,box-shadow .16s ease}
+.b:hover{transform:translateY(-1px)}
+.b:active{transform:translateY(0) scale(.985)}
+.b:focus-visible{outline:1.5px solid var(--jade);outline-offset:3px}
+.b-p{background:var(--ink);color:var(--dial-2)}
+.b-p:hover{background:#16241f;box-shadow:0 8px 22px -10px rgba(11,20,18,.6)}
+.dark .b-p{background:var(--case-ink);color:var(--case)}
+.b-s{border-color:var(--dial-line);color:var(--ink);background:transparent}
+.b-s:hover{background:rgba(11,20,18,.04)}
+.dark .b-s{border-color:var(--case-line);color:var(--case-ink)}
+.b-g{min-height:auto;background:none;color:var(--jade);font-weight:500}
+.dark .b-g{color:var(--jade-lit)}
+.b-wa{background:var(--wa);color:#fff;font-weight:600}
+.b-sm{min-height:38px;font-size:12.5px;padding-inline:var(--u4)}
+.b[disabled]{opacity:.35;pointer-events:none}
+/* --- chips: hairline, one filled state --- */
+.c{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px;border-radius:var(--rp);
+   border:1px solid var(--dial-line);font:400 13px/1 var(--disp);color:var(--ink-2);white-space:nowrap;background:transparent;
+   transition:background .15s,border-color .15s,color .15s}
+.c:hover{border-color:var(--ink-4);color:var(--ink)}
+.c-on{background:var(--ink);border-color:var(--ink);color:var(--dial-2);font-weight:500}
+.c-off{opacity:.34;pointer-events:none}
+.dark .c{border-color:var(--case-line);color:var(--case-ink-2)}
+.dark .c-on{background:var(--case-ink);border-color:var(--case-ink);color:var(--case)}
+/* --- status: text + mark, never colour alone, never a pill soup --- */
+.st{display:inline-flex;align-items:center;gap:6px;font:500 11.5px/1 var(--disp)}
+.st-t{color:var(--brass-ink)}.st-v{color:var(--jade)}.st-e{color:var(--alarm)}.st-q{color:var(--ink-3)}
+.dark .st-t{color:var(--brass-lit)}.dark .st-v{color:var(--jade-lit)}.dark .st-e{color:var(--alarm-lit)}
+.dot{width:5px;height:5px;border-radius:var(--rp);background:currentColor;flex:none}
+.dot-live{animation:br 2.6s ease-in-out infinite}
+@keyframes br{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+@media (prefers-reduced-motion:reduce){.dot-live{animation:none}}
+/* --- the engraved mark: verification as a struck seal --- */
+.mark{width:34px;height:34px;flex:none;border-radius:var(--rp);border:1px solid var(--jade);
+      display:grid;place-items:center;color:var(--jade);font:600 9px/1 var(--disp)}
+.dark .mark{border-color:var(--jade-lit);color:var(--jade-lit)}
+/* --- avatar fallback: a monogram engraved into the dial, not a coloured blob --- */
+.av{width:44px;height:44px;flex:none;border-radius:var(--rp);display:grid;place-items:center;
+    font:400 17px/1 var(--disp);color:var(--ink-2);background:transparent;
+    border:1px solid var(--dial-line);position:relative}
+.av::after{content:"";position:absolute;inset:-4px;border-radius:var(--rp);border:1px solid var(--dial-line-2)}
+.dark .av{color:var(--case-ink-2);border-color:var(--case-line)}
+.dark .av::after{border-color:rgba(240,236,228,.07)}
+/* --- rows, not cards. The list is the surface. --- */
+.rw{display:flex;gap:var(--u4);padding:var(--u4) 0;align-items:flex-start;position:relative;
+    transition:background .16s ease}
+.rw:hover{background:rgba(11,20,18,.022)}
+.dark .rw:hover{background:rgba(240,236,228,.03)}
+.rw-lead{position:absolute;inset-inline-start:calc(var(--u5) * -1);top:var(--u4);bottom:var(--u4);width:2px;
+         background:var(--brass);border-radius:var(--rp)}
+.quiet{opacity:.46}
+/* a card exists only when the thing genuinely floats or is genuinely singular */
+.plate{background:var(--dial-2);border:1px solid var(--dial-line);border-radius:var(--r);padding:var(--u5)}
+.dark .plate{background:var(--case-2);border-color:var(--case-line)}
+.sheet{background:var(--dial-2);border-radius:22px 22px 0 0;box-shadow:var(--float);padding:var(--u5) var(--u5) var(--u6)}
+.grip{width:32px;height:3px;border-radius:var(--rp);background:var(--ink-4);margin:0 auto var(--u5)}
+/* --- skeleton: the dial breathes, it doesn't shimmer garishly --- */
+.sk{background:var(--dial-line-2);border-radius:3px;animation:pl 1.8s ease-in-out infinite}
+@keyframes pl{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
+/* --- nav: hairline, lowercase weight shift, no icon soup --- */
+.nv{display:flex;border-top:1px solid var(--dial-line);background:var(--dial-2)}
+.nv>span{flex:1;text-align:center;padding:var(--u4) 0 var(--u5);font:400 12px/1 var(--disp);color:var(--ink-3);position:relative}
+.axis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;font-weight:400;
+      font-variant-numeric:tabular-nums;direction:ltr;color:var(--ink-3)}
+.dark .axis{color:var(--case-ink-3)}
+.nv>span.on{color:var(--ink);font-weight:600}
+.nv>span.on::before{content:"";position:absolute;top:-1px;inset-inline:32%;height:2px;background:var(--ink)}
+.dark .nv{background:var(--case-2);border-color:var(--case-line)}
+.dark .nv>span.on{color:var(--case-ink)}.dark .nv>span.on::before{background:var(--case-ink)}
 
-html[data-theme="dark"] {
-  --sand:        #0E1416;
-  --sand-2:      #141C1E;
-  --card:        #182124;
-  --card-2:      #1E282B;
-  --ink:         #EDE6DA;
-  --ink-2:       #A8B2B4;
-  --ink-3:       #7C8688;
-  --line:        #283335;
-  --line-2:      #1F2A2C;
-  --petrol:      #5FBECB;
-  --petrol-2:    #7FD3DE;
-  --petrol-soft: #143036;
-  --amber:       #E3A64F;
-  --amber-b:     #F0C078;
-  --amber-soft:  #2B2114;
-  --coral:       #E4776A;
-  --coral-soft:  #2E1A17;
-  --wa:          #17A34A;
-  color-scheme: dark;
+/* ==================================================================
+   QAREEB — APP LAYER on IDENTITY v3
+   Loads AFTER src/styles/identity.css, which owns the tokens and the
+   primitives. Nothing here invents a colour, a radius or a shadow.
 
-}
+   Three rules this file must never break:
+     1. Radius is 10 (holds content) or 999 (reads as a control). Nothing else.
+     2. Zero shadow on the working surface. The only shadow is .sheet, which
+        genuinely floats.
+     3. Never `.dark .x { color: … }`. Write components against var(--ink-*)
+        and let the token flip do the work.
 
-/* ---------- 2. RESET & BASE ---------- */
+   The app emits ~230 class names inherited from v1/v2. Rather than rewrite
+   twenty screens in one pass, this file re-expresses that whole vocabulary
+   in v3 terms, so a screen nobody touched still reads as the instrument:
+   rows instead of cards, hairlines instead of boxes, one filled control.
+   ================================================================== */
+
+/* ---------- 1 · reset + base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+* { margin: 0; padding: 0; }
 html { -webkit-text-size-adjust: 100%; }
+
 body {
-  font-family: var(--font);
-  background: var(--sand);
-  color: var(--ink);
-  line-height: 1.6;
-  font-size: 15px;
-  overflow-x: hidden;
+  background: var(--dial); color: var(--ink);
+  font: 300 15px/1.85 var(--disp);
   -webkit-font-smoothing: antialiased;
-  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  overflow-x: hidden;
 }
-button, input, textarea, select { font: inherit; color: inherit; }
-button { background: none; border: 0; cursor: pointer; padding: 0; }
-a { color: inherit; text-decoration: none; }
-ul, ol { margin: 0; padding: 0; list-style: none; }
-h1, h2, h3, h4, p { margin: 0; }
-img { max-width: 100%; display: block; }
+
+img, svg { max-width: 100%; }
 svg { flex: none; }
+/* An <svg> with no width falls back to its 300x150 intrinsic size and blows
+   the layout box open. .ico is the floor for icons emitted without a class;
+   specificity 0,1,0 so every `.x svg` rule still wins. */
+.ico { width: 18px; height: 18px; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select { font: inherit; color: inherit; background: none; border: 0; }
+button { cursor: pointer; }
+:focus-visible { outline: 1.5px solid var(--jade); outline-offset: 3px; }
+ul, ol { list-style: none; }
+::selection { background: var(--brass); color: var(--case); }
 
-:focus-visible { outline: 2px solid var(--petrol-2); outline-offset: 3px; border-radius: 4px; }
-
-/* numerals must align down a list */
-.num, .ribbon-scale, .fee, .dist, .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-.mono { font-family: var(--mono); letter-spacing: .02em; }
-
-/* ---------- 3. LAYOUT ---------- */
-.app { max-width: 480px; margin-inline: auto; min-height: 100vh; position: relative; }
-.wrap { padding-inline: 18px; }
-.stack > * + * { margin-top: 10px; }
-.row { display: flex; align-items: center; gap: 8px; }
-.row-b { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.grow { flex: 1; min-width: 0; }
-.sec { padding-block: 22px; }
-.sec + .sec { padding-top: 4px; }
-
-.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.sec-h h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
-.sec-h .more { font-size: 13px; color: var(--petrol); font-weight: 600; }
-
-.eyebrow {
-  font-size: 11.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--ink-3);
+/* Western tabular numerals, LTR-embedded so bidi can never reorder them
+   inside an Arabic run. Every number in the product goes through this. */
+.num, .n {
+  font-family: var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed; font-weight: 400;
 }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
+
+/* Arabic wraps badly at 375px without help. */
+h1, h2, h3, p, span, div, li { overflow-wrap: anywhere; }
+
+/* ---------- 2 · type · display tight and heavy, body light and open ---------- */
+h1, .q-h1, .prof-name, .dp-name { font: 600 30px/1.26 var(--disp); letter-spacing: -.02em; }
+h2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
+h3, .q-h2, .card-t, .qc-title, .intent-t, .empty-t { font: 500 17px/1.45 var(--disp); letter-spacing: -.01em; }
+p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-spec { font: 300 13.5px/1.8 var(--disp); color: var(--ink-2); }
+.t1 { font: 400 15.5px/1.8 var(--disp); }
+.tiny, .t3, .hint, .m, .prod-brand { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
 .muted { color: var(--ink-3); }
-.small { font-size: 13px; }
-.tiny  { font-size: 11.5px; }
-
-/* ---------- 4. THE CHAMFER (signature silhouette) ---------- */
-.ch { clip-path: var(--chamfer); background: var(--card); position: relative; }
-.ch--sm { --chamfer-size: 10px; }
-.ch--lg { --chamfer-size: 26px; }
-
-/* ---------- 5. THE RIBBON (signature component) ----------
-   A 24h band. In RTL it flows right→left, like the language.
-   Segments are positioned with inset-inline-start so they mirror for free.
--------------------------------------------------------------- */
-.ribbon { position: relative; width: 100%; background: var(--line-2); border-radius: 2px; }
-.ribbon i {
-  position: absolute; inset-block: 0; display: block;
-  inset-inline-start: var(--a); width: var(--w);
-  background: var(--ink-3); border-radius: 2px; opacity: .45;
+.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub {
+  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
+  color: var(--ink-3); text-transform: uppercase;
 }
-.ribbon i.pub  { background: var(--petrol); opacity: .38; }
-.ribbon i.priv { background: var(--amber-b); opacity: .55; }
-.ribbon i.live { opacity: 1; box-shadow: 0 0 0 1px var(--card), 0 0 10px -1px var(--amber-b); }
-.ribbon b {                       /* the NOW marker */
-  position: absolute; inset-block: -3px; inset-inline-start: var(--now);
-  width: 2px; margin-inline-start: -1px; background: var(--ink);
-  border-radius: 2px; z-index: 3;
-}
-.ribbon b::after {
-  content: ''; position: absolute; inset-inline-start: -2px; top: -3px;
-  width: 6px; height: 6px; border-radius: 50%; background: var(--ink);
-}
+.d1 { font: 600 34px/1.24 var(--disp); letter-spacing: -.02em; }
+.d2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
+.d3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
 
-.ribbon--micro { height: 4px; }
-.ribbon--day   { height: 10px; border-radius: 3px; }
-.ribbon--day i { border-radius: 3px; }
+/* ---------- 3 · layout primitives ---------- */
+.app { min-height: 100dvh; padding-bottom: 92px; }
+.wrap, .pad { padding-inline: var(--u5); }
+.blk { padding: var(--u6) var(--u5) 0; }
+.sec { padding-top: var(--u5); }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); margin-bottom: var(--u3); }
 
-.ribbon-scale {
-  position: relative; height: 14px; margin-top: 5px;
-  font-size: 10px; color: var(--ink-3); font-weight: 600;
-}
-.ribbon-scale span { position: absolute; inset-inline-start: var(--a); transform: translateX(50%); }
-html[dir="ltr"] .ribbon-scale span { transform: translateX(-50%); }
-
-/* week shape — the timetable replacement */
-.week { display: grid; gap: 6px; }
-.week-row { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 10px; }
-.week-row .d { font-size: 12px; font-weight: 600; color: var(--ink-3); }
-.week-row.today .d { color: var(--ink); font-weight: 800; }
-.week-row.today .ribbon { background: var(--sand-2); }
-.week-row.off .ribbon { opacity: .55; }
-.week-legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--ink-3); margin-top: 12px; flex-wrap: wrap; }
-.week-legend i { width: 14px; height: 6px; border-radius: 2px; display: inline-block; }
-
-/* ---------- 6. THE SEAL (verification) ---------- */
-.seal { display: inline-flex; align-items: center; gap: 5px; color: var(--petrol); font-size: 12px; font-weight: 700; }
-.seal svg { width: 15px; height: 15px; }
-.seal--stamp {
-  width: 62px; height: 62px; border-radius: 50%;
-  display: grid; place-items: center; color: var(--petrol);
-  border: 2px solid currentColor; opacity: .85;
-  transform: rotate(-11deg); font-size: 10px; font-weight: 800;
-  line-height: 1.15; text-align: center; letter-spacing: .02em;
-}
-.unverified { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-3); font-size: 12px; font-weight: 600; }
-
-/* ---------- 7. CHIPS ---------- */
-.chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; border-radius: 999px;
-  background: var(--card); color: var(--ink-2);
-  font-size: 13px; font-weight: 600; white-space: nowrap;
-  border: 1px solid var(--line); transition: var(--t);
-}
-.chip svg { width: 14px; height: 14px; }
-.chip.on { background: var(--petrol); border-color: var(--petrol); color: #fff; }
-html[data-theme="dark"] .chip.on { color: var(--sand); }
-.chip[disabled] { opacity: .4; }
-.chip--meta { border: 0; background: var(--card-2); padding: 4px 9px; font-size: 12px; border-radius: 6px; }
-.chip--time { background: var(--amber-soft); color: var(--amber); }
-.chip--warn { background: var(--coral-soft); color: var(--coral); }
-.chip--ok   { background: var(--petrol-soft); color: var(--petrol); }
-
-.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-block: 2px; }
-.chips::-webkit-scrollbar { display: none; }
-.chips--wrap { flex-wrap: wrap; overflow: visible; }
-.rail { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+.grow { flex: 1; min-width: 0; }
+.row { display: flex; align-items: center; gap: var(--u2); }
+.row-b, .rowb { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); }
+.stack-2 > * + *, .v2 > * + * { margin-top: var(--u2); }
+.v3 > * + * { margin-top: var(--u3); }
+.v5 > * + * { margin-top: var(--u5); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u3); }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bleed { margin-inline: calc(var(--u5) * -1); padding-inline: var(--u5); }
+.rail { display: flex; gap: var(--u3); overflow-x: auto; scrollbar-width: none; }
 .rail::-webkit-scrollbar { display: none; }
-.rail > * { scroll-snap-align: start; flex: none; }
-.bleed { margin-inline: -18px; padding-inline: 18px; }
+.pad-3 { padding: var(--u4); }
+.pad-4 { padding: var(--u5); }
 
-/* ---------- 8. BUTTONS ---------- */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 50px; padding: 0 20px; font-size: 15.5px; font-weight: 700;
-  clip-path: var(--chamfer); --chamfer-size: 12px;
-  background: var(--petrol); color: #fff; transition: var(--t); width: 100%;
+/* ---------- 4 · the row · the list IS the surface ----------
+   The single biggest change from v2. A card is a box that says "I am a
+   separate thing"; a directory of forty separate things is noise. A row
+   says "I am the next line of the same instrument". */
+.rw, .card, .lane, .place, .need, .qc, .fac-block, .tbl-row, .bar-row, .week-row, .proof-row, .slot {
+  position: relative;
+  display: flex; gap: var(--u4); align-items: flex-start;
+  padding: var(--u4) 0;
+  width: 100%; text-align: start;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  transition: background .16s ease;
 }
-html[data-theme="dark"] .btn { color: #06100F; }
-.btn:active { transform: translateY(1px); }
-.btn svg { width: 19px; height: 19px; }
-.btn--2 { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
-html[data-theme="dark"] .btn--2 { color: var(--ink); }
-.btn--3 { background: none; color: var(--petrol); min-height: 42px; font-weight: 700; clip-path: none; }
-.btn--wa { background: var(--wa); color: #fff; }
-html[data-theme="dark"] .btn--wa { color: #fff; }
-.btn--danger { background: var(--coral); color: #fff; }
-.btn[disabled] { background: var(--line); color: var(--ink-3); pointer-events: none; box-shadow: none; }
-.btn--sm { min-height: 40px; font-size: 14px; padding: 0 14px; --chamfer-size: 9px; width: auto; }
-.btn-row { display: flex; gap: 8px; }
-.btn-row .btn { flex: 1; }
+.card-top { display: flex; gap: var(--u4); align-items: flex-start; width: 100%; }
+.card-foot { display: flex; align-items: center; gap: var(--u2); margin-top: var(--u3); }
+.card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; }
+
+/* Hairline between siblings, drawn by the list so a filtered list never
+   leaves a dangling rule. */
+.stack > * + *, .list-2 > * + *, .needs > * + * { border-top: 1px solid var(--dial-line-2); }
+.hr { height: 1px; background: var(--dial-line-2); border: 0; margin: 0; }
+
+/* The brass lead: "open right now". State by position AND colour — it sits
+   in the gutter, where nothing else ever sits. */
+.rw-lead, .card.is-open::before, .lane.on::before, .rail-open::before, .rail-stock::before {
+  content: ""; position: absolute;
+  inset-inline-start: calc(var(--u4) * -1); top: var(--u4); bottom: var(--u4);
+  width: 2px; background: var(--brass); border-radius: var(--rp);
+}
+.rail-stock::before { background: var(--jade); }
+.card.is-shut::before, .card.is-soon::before, .lane--sos::before { content: none; }
+.quiet, .card.is-shut { opacity: .46; }
+
+/* A plate exists only when the thing is genuinely singular. */
+.plate, .ch, .surf-raise, .surf-key, .banner, .note, .slip, .stub, .adm-kpi, .map-peek,
+.qr-ctx, .proof, .fallback, .parsed, .reassure, .tier, .intent {
+  background: var(--dial-2); border: 1px solid var(--dial-line);
+  border-radius: var(--r); padding: var(--u5); box-shadow: none;
+}
+.surf-sunk { background: var(--dial); border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); }
+.surf-flat { background: none; border: 0; border-radius: 0; padding: 0; }
+
+/* ---------- 5 · controls · filled acts, hairline offers, bare navigates ---------- */
+.btn, .b, .slot-btn, .start-tile {
+  display: flex; align-items: center; justify-content: center; gap: var(--u2);
+  min-height: 52px; padding-inline: var(--u5);
+  border-radius: var(--rp); font: 500 15px/1 var(--disp);
+  border: 1px solid transparent; cursor: pointer; text-align: center;
+  background: var(--ink); color: var(--dial-2);
+  transition: transform .14s cubic-bezier(.2,.7,.3,1), background .16s ease;
+}
+.btn:active, .b:active { transform: scale(.985); }
+.btn svg, .b svg { width: 17px; height: 17px; }
+
+.btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--dial-line); }
+.btn--3, .b-g { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
+.btn--wa, .b-wa, .btn-wa { background: var(--wa); color: #fff; font-weight: 600; border-color: transparent; }
+.btn--danger { background: var(--alarm); color: #fff; border-color: transparent; }
+.btn--sm, .b-sm { min-height: 40px; font-size: 12.5px; padding-inline: var(--u4); }
+.btn[disabled], .b[disabled] { opacity: .35; pointer-events: none; }
+.btn-row { display: flex; gap: var(--u2); }
+.btn-row > * { flex: 1; }
 
 .icon-btn {
-  width: 44px; height: 44px; display: grid; place-items: center;
-  background: var(--card); color: var(--ink); clip-path: var(--chamfer); --chamfer-size: 10px;
+  display: grid; place-items: center; flex: none;
+  width: 48px; height: 48px; border-radius: var(--rp);
+  border: 1px solid var(--dial-line); color: var(--ink); background: transparent;
 }
-.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn svg { width: 19px; height: 19px; }
+.clear-btn { display: grid; place-items: center; width: 36px; height: 36px; flex: none; color: var(--ink-3); min-height: 36px; }
+.clear-btn svg { width: 15px; height: 15px; }
 
-/* ---------- 9. HEADER + PLACE TAG ---------- */
+/* ---------- 6 · chips ---------- */
+.chip, .c, .pchip, .place-tag, .cred {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 14px; border-radius: var(--rp);
+  border: 1px solid var(--dial-line);
+  font: 400 13px/1 var(--disp); color: var(--ink-2);
+  white-space: nowrap; background: transparent;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.chip svg, .c svg { width: 14px; height: 14px; }
+.chip.on, .c-on { background: var(--ink); border-color: var(--ink); color: var(--dial-2); font-weight: 500; }
+.c-off, .chip--off { opacity: .34; pointer-events: none; }
+.chips { display: flex; gap: var(--u2); overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips--wrap { flex-wrap: wrap; overflow: visible; }
+
+/* ---------- 7 · status · text carries it, colour only confirms ---------- */
+.st, .chip--meta, .state-line, .cnt, .dist, .updated, .fee, .fresh, .bdg, .status-strip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 11.5px/1.6 var(--disp); color: var(--ink-3);
+  background: none; border: 0; padding: 0; border-radius: 0; min-height: 0;
+}
+.st-t, .chip--time, .chip--warn, .state-open, .state-soon, .bdg-n, .bdg-t, .fresh-warm { color: var(--brass-ink); }
+.st-v, .chip--ok, .seal, .stamped, .bdg-v, .bdg-stock, .fresh-hot, .tr-yes { color: var(--jade); }
+.st-e, .sos, .bdg-e, .tr-no { color: var(--alarm); }
+.st-q, .state-shut, .unverified, .fresh-cold { color: var(--ink-3); }
+
+.dot, .bulb, .fresh-dot { width: 5px; height: 5px; border-radius: var(--rp); background: currentColor; flex: none; }
+.dot-live, .fresh-dot-live { animation: br 2.6s ease-in-out infinite; }
+@keyframes br { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .dot-live, .fresh-dot-live { animation: none; } }
+
+/* Verification is a struck mark, never a blue tick. */
+.mark, .seal--stamp, .seal--pill {
+  width: 34px; height: 34px; flex: none; border-radius: var(--rp);
+  border: 1px solid var(--jade); display: grid; place-items: center;
+  color: var(--jade); font: 600 9px/1 var(--disp);
+}
+.seal svg, .mark svg { width: 13px; height: 13px; }
+
+/* ---------- 8 · avatars · a monogram engraved into the dial ---------- */
+.av, .avatar, .qc-av, .prof-avatar, .dp-avatar, .ic, .intent-ic {
+  width: 44px; height: 44px; flex: none; border-radius: var(--rp);
+  display: grid; place-items: center;
+  font: 400 17px/1 var(--disp); color: var(--ink-2);
+  background: transparent; border: 1px solid var(--dial-line); position: relative;
+}
+.av::after, .avatar::after, .qc-av::after { content: ""; position: absolute; inset: -4px; border-radius: var(--rp); border: 1px solid var(--dial-line-2); }
+.avatar--sq, .ic, .intent-ic { border-radius: var(--r); }
+.avatar--sq::after, .ic::after { content: none; }
+.avatar svg, .ic svg, .intent-ic svg { width: 20px; height: 20px; }
+.prof-avatar { width: 56px; height: 56px; font-size: 21px; }
+
+/* ---------- 9 · the band · time as an engraved arc, not a chunky bar ---------- */
+.band, .ribbon, .bar-t, .bar {
+  position: relative; height: 3px; background: var(--dial-line);
+  border-radius: var(--rp); display: block;
+}
+.band > i, .bar-t > i, .bar-f { position: absolute; top: 0; bottom: 0; border-radius: var(--rp); }
+.band .sh, .bar-f { background: var(--jade); }
+.band .cl, .bar-f-a { background: var(--brass); }
+.ribbon { overflow: visible; }
+.ribbon > i { position: absolute; top: 0; bottom: 0; border-radius: var(--rp); inset-inline-start: var(--a); width: var(--w); background: var(--jade); }
+.ribbon > i.priv, .ribbon > i.live { background: var(--brass); }
+.nowmk, .ribbon > b { position: absolute; top: -5px; bottom: -5px; width: 1.5px; background: var(--ink); inset-inline-start: var(--now); border-radius: 0; }
+.bar-t { overflow: hidden; }
+.bar-r { display: grid; grid-template-columns: 92px 1fr 46px; gap: var(--u3); align-items: center; font-size: 12px; }
+.bar-v { text-align: left; }
+.bars { display: grid; gap: var(--u2); }
+
+/* The tick rule — the identity motif. Engraved 24h measurement. */
+.ticks { display: flex; align-items: flex-end; gap: 0; height: 16px; }
+.ticks > i { flex: 1; height: 5px; background: var(--dial-line); border-radius: 0; }
+.ticks > i.maj { height: 11px; background: var(--ink-4); }
+.ticks > i.on { height: 16px; background: var(--brass); width: 2px; flex: none; margin-inline: 1px; }
+.axis, .ribbon-scale {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 10px; font-weight: 400;
+  font-variant-numeric: tabular-nums; direction: ltr; color: var(--ink-3);
+}
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 42px; }
+.spark > i { flex: 1; background: var(--dial-line); border-radius: 1px; min-height: 2px; }
+.spark > i.hi { background: var(--brass); }
+
+/* ---------- 10 · shell ---------- */
 .hdr {
   position: sticky; top: 0; z-index: 40;
-  background: color-mix(in srgb, var(--sand) 88%, transparent);
-  backdrop-filter: blur(14px) saturate(1.1);
-  padding: 10px 18px; display: flex; align-items: center; gap: 10px;
-  border-bottom: 1px solid transparent; transition: border-color var(--t);
+  display: flex; align-items: center; gap: var(--u3);
+  min-height: 60px; padding: var(--u3) var(--u5);
+  padding-top: calc(var(--u3) + env(safe-area-inset-top));
+  background: var(--dial); border-bottom: 1px solid transparent;
 }
-.hdr.stuck { border-bottom-color: var(--line); }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 19px; letter-spacing: -.02em; }
-.brand-mark { width: 26px; height: 26px; }
-.hdr-back { margin-inline-start: -6px; }
-.hdr-title { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.hdr.stuck { border-bottom-color: var(--dial-line-2); }
+.hdr-title { font: 500 15px/1.4 var(--disp); }
+.hdr-back { width: 44px; height: 44px; }
+.brand { display: flex; align-items: center; gap: var(--u2); font: 600 19px/1 var(--disp); letter-spacing: -.02em; min-height: 44px; }
+.brand-mark { width: 24px; height: 24px; }
 
-.place-tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px 6px 10px; background: var(--petrol-soft); color: var(--petrol);
-  font-size: 13px; font-weight: 700; clip-path: var(--chamfer); --chamfer-size: 9px;
-}
-.place-tag svg { width: 14px; height: 14px; }
-.place-tag .arrow { opacity: .6; width: 11px; height: 11px; }
-.place-tag--gps::after {
-  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--petrol);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 22%, transparent);
-}
-
-/* ---------- 10. HOME — the sentence hero ---------- */
-.hero { padding: 26px 18px 20px; }
-.hero-line {
-  font-size: clamp(27px, 8.2vw, 36px); font-weight: 800;
-  line-height: 1.45; letter-spacing: -.02em;
-}
-.hero-line .blank {
-  display: inline-flex; align-items: center; gap: 6px;
-  color: var(--amber); border-bottom: 2.5px dashed var(--amber-b);
-  padding-bottom: 2px; margin-inline: 3px; transition: var(--t);
-}
-.hero-line .blank svg { width: 16px; height: 16px; opacity: .7; }
-.hero-line .blank:active { background: var(--amber-soft); }
-.hero-line .fix { color: var(--ink); }
-.hero-cta { margin-top: 20px; }
-.hero-sub { margin-top: 12px; font-size: 13px; color: var(--ink-3); }
-
-/* live city pulse */
-.pulse { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
-.pulse-cell { padding: 12px 12px 11px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.pulse-cell .n { font-size: 22px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
-.pulse-cell .l { font-size: 11.5px; color: var(--ink-3); font-weight: 600; margin-top: 1px; }
-.pulse-cell .ribbon { margin-top: 9px; }
-.pulse-cell.night .n { color: var(--amber); }
-
-/* lanes */
-.lane {
-  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-  background: var(--card); clip-path: var(--chamfer); --chamfer-size: 13px; position: relative;
-}
-.lane::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
-.lane.on::before { background: linear-gradient(var(--amber-b), var(--amber)); }
-.lane .ic { width: 40px; height: 40px; display: grid; place-items: center; background: var(--card-2); border-radius: 10px; color: var(--petrol); flex: none; }
-.lane .ic svg { width: 21px; height: 21px; }
-.lane h3 { font-size: 15px; font-weight: 700; }
-.lane p { font-size: 12.5px; color: var(--ink-3); }
-.lane .go { color: var(--ink-3); }
-.lane--sos { background: var(--coral-soft); }
-.lane--sos::before { background: var(--coral); }
-.lane--sos .ic { background: color-mix(in srgb, var(--coral) 14%, transparent); color: var(--coral); }
-.lane--sos h3 { color: var(--coral); }
-
-/* ---------- 11. CARDS (one anatomy, four variants) ---------- */
-.card {
-  position: relative; background: var(--card); clip-path: var(--chamfer);
-  padding: 14px 16px 13px; display: block; transition: var(--t);
-}
-.card::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
-.card.is-open::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
-.card.is-soon::before { background: linear-gradient(180deg, var(--amber-b), var(--line)); }
-.card.is-shut { }
-.card.is-shut .card-t, .card.is-shut .avatar { opacity: .72; }
-.card:active { background: var(--card-2); }
-
-.card-top { display: flex; gap: 12px; align-items: flex-start; }
-.avatar {
-  width: 46px; height: 46px; flex: none; display: grid; place-items: center;
-  background: var(--petrol-soft); color: var(--petrol);
-  font-weight: 800; font-size: 16px; clip-path: var(--chamfer); --chamfer-size: 10px;
-}
-.avatar--ph { background: var(--card-2); color: var(--ink-3); }
-.avatar--sq { border-radius: 10px; clip-path: none; }
-.card-t { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.35; }
-.card-q { font-size: 13px; color: var(--ink-2); margin-top: 1px; }
-.card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
-.card-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .5; }
-.card-ribbon { margin-top: 11px; }
-.card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; }
-
-.state-line { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
-.state-line .bulb { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.state-open  { color: var(--amber); }
-.state-open  .bulb { background: var(--amber-b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-b) 25%, transparent); animation: bulb 2.6s var(--ease) infinite; }
-.state-soon  { color: var(--amber); }
-.state-soon  .bulb { background: var(--amber-b); opacity: .55; }
-.state-shut  { color: var(--ink-3); }
-.state-shut  .bulb { background: var(--ink-3); opacity: .45; }
-@keyframes bulb { 0%,100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-b) 25%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber-b) 6%, transparent); } }
-
-.dist { font-size: 12.5px; font-weight: 700; color: var(--ink-2); display: inline-flex; align-items: center; gap: 4px; }
-.dist svg { width: 12px; height: 12px; opacity: .55; }
-.fee { font-size: 13px; font-weight: 700; }
-.fee--free { color: var(--petrol); }
-
-.card--wide { width: 268px; }
-.card--flat { padding: 12px 14px; }
-
-/* product card */
-.prod { background: var(--card); clip-path: var(--chamfer); --chamfer-size: 12px; overflow: hidden; }
-.prod-img { aspect-ratio: 1; background: var(--card-2); display: grid; place-items: center; position: relative; }
-.prod-img .glyph { width: 46%; height: 46%; color: var(--petrol); opacity: .5; }
-.prod-b { padding: 11px 12px 13px; }
-.prod-t { font-size: 13.5px; font-weight: 700; line-height: 1.4; }
-.prod-brand { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
-.prod-p { font-size: 14px; font-weight: 800; margin-top: 7px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-
-/* ---------- 12. NEED GRID ---------- */
-.needs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.need {
-  position: relative; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 13px;
-  padding: 15px 14px 13px; text-align: start; transition: var(--t);
-}
-.need::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); transition: var(--t); }
-.need.has::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
-.need:active { background: var(--card-2); }
-.need .ic { color: var(--petrol); margin-bottom: 9px; }
-.need .ic svg { width: 25px; height: 25px; }
-.need h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
-.need .cnt { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; font-weight: 600; }
-.need .cnt b { color: var(--amber); font-weight: 800; }
-.need .ribbon { margin-top: 9px; }
-
-/* ---------- 13. PLACE TILES (location selector) ---------- */
-.places { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.place {
-  position: relative; padding: 14px 14px 12px; background: var(--card);
-  clip-path: var(--chamfer); --chamfer-size: 12px; text-align: start; transition: var(--t);
-}
-.place h3 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
-.place .m { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
-.place.on { background: var(--petrol); color: #fff; }
-.place.on .m { color: color-mix(in srgb, #fff 72%, transparent); }
-html[data-theme="dark"] .place.on { color: #06100F; }
-
-/* ---------- 14. SEARCH ---------- */
-.search-field {
-  display: flex; align-items: center; gap: 10px; padding: 0 14px; min-height: 50px;
-  background: var(--card); clip-path: var(--chamfer); --chamfer-size: 12px;
-}
-.search-field svg { width: 19px; height: 19px; color: var(--ink-3); }
-.search-field input { flex: 1; border: 0; background: none; outline: none; font-size: 15px; min-width: 0; }
-.search-field input::placeholder { color: var(--ink-3); }
-
-.res-group + .res-group { margin-top: 20px; }
-.res-group h3 { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px; }
-
-/* ---------- 15. FILTER BAR ---------- */
-.filters { position: sticky; top: 56px; z-index: 30; padding: 10px 18px; background: color-mix(in srgb, var(--sand) 92%, transparent); backdrop-filter: blur(12px); }
-.res-head { padding: 4px 18px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.res-head .n { font-size: 13.5px; font-weight: 700; }
-.radius-note {
-  display: flex; gap: 9px; align-items: flex-start; padding: 11px 13px; margin: 0 18px 12px;
-  background: var(--amber-soft); color: var(--amber); clip-path: var(--chamfer); --chamfer-size: 10px;
-  font-size: 12.5px; font-weight: 600; line-height: 1.5;
-}
-.radius-note svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
-
-/* ---------- 16. PROFILE ---------- */
-.prof-head { padding: 18px 18px 20px; background: var(--card); position: relative; }
-.prof-head::after { content: ''; position: absolute; inset-inline: 0; bottom: 0; height: 1px; background: var(--line); }
-.prof-name { font-size: 23px; font-weight: 800; letter-spacing: -.025em; line-height: 1.25; }
-.prof-spec { font-size: 14px; color: var(--petrol); font-weight: 700; margin-top: 3px; }
-.prof-avatar { width: 62px; height: 62px; font-size: 21px; }
-.prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin-top: 18px; clip-path: var(--chamfer); --chamfer-size: 12px; }
-.prof-fact { background: var(--card); padding: 11px 12px; }
-.prof-fact .k { font-size: 11px; color: var(--ink-3); font-weight: 600; }
-.prof-fact .v { font-size: 15px; font-weight: 800; letter-spacing: -.02em; margin-top: 1px; }
-
-.blk { padding: 20px 18px; border-bottom: 1px solid var(--line); }
-.blk h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
-.kv { display: flex; gap: 10px; justify-content: space-between; padding: 8px 0; font-size: 13.5px; }
-.kv + .kv { border-top: 1px solid var(--line-2); }
-.kv .k { color: var(--ink-3); }
-.kv .v { font-weight: 600; text-align: end; }
-
-.fac-block { padding: 13px 14px; background: var(--card-2); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.fac-block + .fac-block { margin-top: 10px; }
-.fac-block .ft { font-size: 14px; font-weight: 700; }
-.fac-block .fm { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
-
-.updated { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
-.updated svg { width: 13px; height: 13px; }
-.updated.stale { color: var(--amber); }
-
-.actionbar {
-  position: sticky; bottom: 0; z-index: 35; padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--sand) 92%, transparent); backdrop-filter: blur(14px);
-  border-top: 1px solid var(--line); display: flex; gap: 8px;
-}
-.actionbar .btn { flex: 1; }
-.actionbar .icon-btn { flex: none; box-shadow: inset 0 0 0 1.5px var(--line); }
-
-/* ---------- 17. SHEETS ---------- */
-.scrim { position: fixed; inset: 0; background: rgba(8,20,19,.5); z-index: 90; opacity: 0; transition: opacity var(--t); backdrop-filter: blur(2px); }
-.scrim.in { opacity: 1; }
-.sheet {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 91; max-width: 480px; margin-inline: auto;
-  background: var(--sand); border-radius: 22px 22px 0 0;
-  transform: translateY(102%); transition: transform 260ms var(--ease);
-  max-height: 92vh; display: flex; flex-direction: column;
+.nav {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 50;
+  display: flex; border-top: 1px solid var(--dial-line); background: var(--dial-2);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.sheet.in { transform: translateY(0); }
-.sheet-grip { width: 40px; height: 4px; border-radius: 3px; background: var(--line); margin: 10px auto 4px; flex: none; }
-.sheet-h { padding: 8px 18px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex: none; }
-.sheet-h h2 { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
-.sheet-h p { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
-.sheet-b { padding: 0 18px 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.sheet-f { padding: 12px 18px 16px; border-top: 1px solid var(--line); flex: none; background: var(--sand); }
+.nav a, .nv > span {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: var(--u3) 0 var(--u4); min-height: 56px;
+  font: 400 12px/1 var(--disp); color: var(--ink-3); position: relative;
+}
+.nav a svg { width: 20px; height: 20px; }
+.nav a.on, .nv > span.on { color: var(--ink); font-weight: 600; }
+.nav a.on::before, .nv > span.on::before {
+  content: ""; position: absolute; top: -1px; inset-inline: 32%; height: 2px; background: var(--ink);
+}
 
-.field { margin-top: 14px; }
-.field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 7px; }
-.field input, .field textarea {
-  width: 100%; padding: 13px 14px; background: var(--card); border: 1.5px solid var(--line);
-  clip-path: var(--chamfer); --chamfer-size: 11px; outline: none; font-size: 15px; resize: none;
+.actionbar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 55;
+  display: flex; gap: var(--u2); padding: var(--u3) var(--u5);
+  padding-bottom: calc(var(--u3) + env(safe-area-inset-bottom));
+  background: var(--dial); border-top: 1px solid var(--dial-line);
 }
-.field input:focus, .field textarea:focus { border-color: var(--petrol); }
-.hint { font-size: 12px; color: var(--ink-3); margin-top: 7px; display: flex; gap: 6px; align-items: flex-start; }
-.hint svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+.actionbar .btn { flex: 1; }
 
-.slot { display: grid; grid-template-columns: 1fr; gap: 8px; }
-.slot-btn {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 12px 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px;
-  text-align: start; box-shadow: inset 0 0 0 1.5px transparent; transition: var(--t);
+/* ---------- 11 · the sheet · the ONLY shadow in the product ---------- */
+.sheet {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 90;
+  max-height: 88dvh; overflow-y: auto;
+  background: var(--dial-2); border-radius: 22px 22px 0 0;
+  box-shadow: var(--float);
+  padding: var(--u5) var(--u5) var(--u6);
+  padding-bottom: calc(var(--u6) + env(safe-area-inset-bottom));
 }
-.slot-btn .d { font-size: 14.5px; font-weight: 700; }
-.slot-btn .m { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
-.slot-btn .t { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.slot-btn.on { box-shadow: inset 0 0 0 2px var(--petrol); background: var(--petrol-soft); }
-.slot-btn.on .t { color: var(--petrol); }
+.sheet-grip, .grip { width: 32px; height: 3px; border-radius: var(--rp); background: var(--ink-4); margin: 0 auto var(--u5); }
+.sheet-h { margin-bottom: var(--u5); }
+.sheet-h h2 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
+.sheet-h p { margin-top: 4px; }
+.sheet-f { margin-top: var(--u5); }
+.scrim { position: fixed; inset: 0; z-index: 85; background: rgba(11,20,18,.44); }
 
-/* ---------- 18. THE SLIP (WhatsApp handoff — a designed moment) ---------- */
-.slip {
-  position: relative; background: var(--card); padding: 18px 18px 20px;
-  clip-path: var(--chamfer); --chamfer-size: 18px;
+/* ---------- 12 · the slip · a receipt, not a chat bubble ---------- */
+.slip-h { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--u3); }
+.slip-ref { font-family: var(--mono); font-size: 12px; background: var(--ink); color: var(--dial-2); border-radius: 5px; padding: 2px 8px; }
+.slip-to { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); margin-top: var(--u3); border-top: 1px solid var(--dial-line-2); padding-top: var(--u3); }
+.bubble, .msg-pre {
+  font: 400 14.5px/2.05 var(--disp); white-space: pre-wrap; word-break: break-word;
+  margin-top: var(--u3); background: none; border: 0; padding: 0; border-radius: 0;
 }
-.slip::after {                       /* perforated tear edge */
-  content: ''; position: absolute; inset-inline: 0; bottom: -1px; height: 8px;
-  background: radial-gradient(circle at 5px 8px, var(--sand) 5px, transparent 5.5px) repeat-x;
-  background-size: 14px 8px;
-}
-.slip-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1.5px dashed var(--line); }
-.slip-ref { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--petrol); }
-.slip-to { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; }
-.bubble {
-  margin-top: 10px; padding: 13px 14px; background: var(--card-2);
-  border-radius: 14px; border-start-start-radius: 4px;
-  font-size: 14px; line-height: 1.85; white-space: pre-wrap; word-break: break-word;
-}
-.bubble--edit { background: var(--card); border: 1.5px solid var(--petrol); outline: none; }
-.slip-edit { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--petrol); margin-top: 11px; }
+.bubble--edit { border: 1px solid var(--jade); border-radius: var(--r); padding: var(--u3); }
+.slip-edit { display: inline-flex; align-items: center; gap: 5px; font: 500 12px/1 var(--disp); color: var(--jade); margin-top: var(--u3); min-height: 44px; }
 .slip-edit svg { width: 14px; height: 14px; }
 
-.stub {
-  position: relative; background: var(--card); padding: 15px 16px;
-  clip-path: var(--chamfer); --chamfer-size: 14px;
+/* ---------- 13 · fields ---------- */
+.field, .search-field {
+  display: flex; align-items: center; gap: var(--u2);
+  min-height: 52px; padding: 0 var(--u4); border-radius: var(--rp);
+  border: 1px solid var(--dial-line); background: var(--dial-2);
 }
-.stub::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--petrol); }
+.field input, .search-field input { flex: 1; min-width: 0; font: 300 15px/1.6 var(--disp); }
+.search-field > svg { width: 18px; height: 18px; color: var(--ink-3); }
 
-@keyframes stamp { 0% { transform: rotate(-11deg) scale(2.4); opacity: 0; } 60% { transform: rotate(-11deg) scale(.94); opacity: 1; } 100% { transform: rotate(-11deg) scale(1); opacity: .85; } }
-.stamped { animation: stamp 420ms var(--ease) both; }
-
-/* ---------- 19. STATES ---------- */
-.skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--card-2) 50%, var(--line-2) 75%); background-size: 300% 100%; animation: shim 1.4s linear infinite; border-radius: 4px; }
-@keyframes shim { to { background-position: -300% 0; } }
-.skel-card { background: var(--card); clip-path: var(--chamfer); padding: 14px 16px; }
-.skel-l { height: 11px; }
-
-.empty { padding: 34px 22px; text-align: center; }
-.empty-mark { width: 68px; height: 68px; margin: 0 auto 16px; color: var(--petrol); opacity: .35; }
-.empty h3 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; line-height: 1.4; }
-.empty p { font-size: 13.5px; color: var(--ink-3); margin-top: 8px; line-height: 1.65; }
-.empty .btn { margin-top: 18px; }
-.empty-alts { margin-top: 20px; text-align: start; }
-
-.banner {
-  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
-  clip-path: var(--chamfer); --chamfer-size: 11px; font-size: 13px; line-height: 1.55; font-weight: 600;
+/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ---------- */
+.note, .banner {
+  display: flex; gap: var(--u3); align-items: flex-start;
+  padding: var(--u4); border-radius: var(--r);
+  font: 300 13.5px/1.8 var(--disp); color: var(--ink-2);
+  background: none; border: 1px solid var(--dial-line);
 }
-.banner svg { width: 17px; height: 17px; flex: none; margin-top: 1px; }
-.banner--info { background: var(--petrol-soft); color: var(--petrol); }
-.banner--warn { background: var(--amber-soft); color: var(--amber); }
-.banner--stop { background: var(--coral-soft); color: var(--coral); }
+.note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
+.note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
+.note-e, .banner--stop { border-color: var(--alarm); color: var(--alarm); }
 
-/* ---------- 20. BOTTOM NAV (exactly 4) ---------- */
-.nav {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 50; max-width: 480px; margin-inline: auto;
-  height: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
-  background: color-mix(in srgb, var(--sand) 94%, transparent); backdrop-filter: blur(16px) saturate(1.15);
-  border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4, 1fr);
+/* ---------- 15 · empty · offline · error ----------
+   The failure states carry the same craft as the hero. */
+.empty { text-align: center; padding: var(--u7) var(--u5); }
+.empty-t, .empty h3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; margin-top: var(--u5); }
+.empty-b, .empty p { margin-top: 6px; }
+.empty-alts { margin-top: var(--u5); text-align: start; }
+.empty .btn { margin-top: var(--u5); }
+
+/* The dial glyph: concentric rings, a crosshair, and one brass point off
+   centre. Pure CSS — a dead end costs nothing to draw. */
+.glyph, .empty-mark {
+  width: 96px; height: 96px; margin: 0 auto; position: relative;
+  background: none; border: 0; border-radius: 0; color: transparent;
 }
-.nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-3); position: relative; }
-.nav a svg { width: 22px; height: 22px; }
-.nav a span { font-size: 10.5px; font-weight: 700; }
-.nav a.on { color: var(--petrol); }
-.nav a.on::before { content: ''; position: absolute; top: 0; width: 26px; height: 3px; background: var(--petrol); border-radius: 0 0 3px 3px; }
-
-/* ---------- 21. QR ENTRY ---------- */
-.qr-ctx {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 0 18px 4px;
-  background: var(--petrol-soft); color: var(--petrol); clip-path: var(--chamfer); --chamfer-size: 10px;
-  font-size: 12.5px; font-weight: 700;
+.empty-mark > svg { display: none; }
+.glyph::before, .empty-mark::before {
+  content: ""; position: absolute; inset: 0; border: 1px solid var(--dial-line); border-radius: var(--rp);
 }
-.qr-ctx svg { width: 16px; height: 16px; flex: none; }
-.qr-ctx button { margin-inline-start: auto; opacity: .6; display: grid; place-items: center; }
-
-/* ---------- 22. ADMIN ---------- */
-.adm { background: var(--sand-2); min-height: 100vh; }
-.adm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.adm-kpi { padding: 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.adm-kpi .n { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
-.adm-kpi .l { font-size: 11.5px; color: var(--ink-3); font-weight: 600; }
-.adm-kpi.alert .n { color: var(--amber); }
-.bar-row { display: grid; grid-template-columns: 1fr 46px; gap: 10px; align-items: center; padding: 7px 0; font-size: 13px; }
-.bar { height: 7px; background: var(--line-2); border-radius: 3px; overflow: hidden; margin-top: 5px; }
-.bar i { display: block; height: 100%; background: var(--petrol); border-radius: 3px; }
-.bar i.warn { background: var(--amber-b); }
-.tbl-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--card); clip-path: var(--chamfer); --chamfer-size: 11px; }
-.tbl-row + .tbl-row { margin-top: 6px; }
-
-/* weekly session grid (admin) */
-.wg { display: grid; grid-template-columns: 40px repeat(18, 1fr); gap: 2px; font-size: 9px; }
-.wg .h { color: var(--ink-3); text-align: center; font-weight: 700; }
-.wg .d { color: var(--ink-3); font-weight: 700; display: grid; align-items: center; font-size: 10.5px; }
-.wg .c { height: 22px; background: var(--line-2); border-radius: 2px; }
-.wg .c.pub { background: var(--petrol); opacity: .55; }
-.wg .c.priv { background: var(--amber-b); }
-
-/* ---------- 23. RESPONSIVE — desktop is a different layout ---------- */
-@media (min-width: 900px) {
-  body { padding-bottom: 0; }
-  .app { max-width: 1180px; padding-bottom: 40px; }
-  .nav {
-    position: sticky; top: 0; inset-inline: auto; bottom: auto; max-width: none; height: 58px;
-    grid-template-columns: repeat(4, max-content); gap: 6px; border-top: 0; border-bottom: 1px solid var(--line);
-    padding: 0 18px; justify-content: start; background: color-mix(in srgb, var(--sand) 94%, transparent);
-  }
-  .nav a { flex-direction: row; gap: 8px; padding: 0 16px; }
-  .nav a span { font-size: 13.5px; }
-  .nav a.on::before { top: auto; bottom: 0; width: 100%; border-radius: 3px 3px 0 0; }
-  .hdr { top: 58px; }
-  .filters { top: 116px; }
-  .sheet { max-width: 460px; inset-inline-end: 24px; inset-inline-start: auto; margin-inline: 0; bottom: 24px; border-radius: 18px; max-height: calc(100vh - 48px); }
-  .split { display: grid; grid-template-columns: 300px 1fr; gap: 26px; align-items: start; }
-  .split-rail { position: sticky; top: 130px; }
-  .needs { grid-template-columns: repeat(3, 1fr); }
-  .places { grid-template-columns: repeat(3, 1fr); }
-  .grid-2 { grid-template-columns: repeat(4, 1fr); }
-  .list-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
-  .list-2 > * { margin-top: 0 !important; }
-  .hero-line { font-size: 44px; }
-  .hero { padding: 44px 18px 28px; }
-  .pulse { max-width: 640px; }
-  .actionbar { position: static; border: 0; background: none; padding-inline: 0; }
-  .adm-grid { grid-template-columns: repeat(4, 1fr); }
-  .map-panel { display: block; }
+.glyph::after, .empty-mark::after {
+  content: ""; position: absolute; inset: 28px; border: 1px solid var(--ink-4); border-radius: var(--rp);
 }
-@media (max-width: 899px) { .map-panel { display: none; } }
-
-/* static map peek — mobile gets a strip, desktop gets a panel */
-.map-peek {
-  position: relative; height: 96px; background:
-    repeating-linear-gradient(0deg, var(--line-2) 0 1px, transparent 1px 22px),
-    repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 22px),
-    var(--card-2);
-  clip-path: var(--chamfer); --chamfer-size: 12px; overflow: hidden;
-}
-.map-peek .pin { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--petrol); box-shadow: 0 0 0 3px var(--card); }
-.map-peek .me { background: var(--amber); box-shadow: 0 0 0 3px var(--card), 0 0 0 7px color-mix(in srgb, var(--amber-b) 25%, transparent); }
-.map-peek .lbl { position: absolute; inset-inline-start: 12px; bottom: 10px; font-size: 11.5px; font-weight: 700; color: var(--ink-2); background: color-mix(in srgb, var(--card) 86%, transparent); padding: 3px 8px; border-radius: 5px; }
-.map-panel { height: 420px; position: sticky; top: 130px; }
-.map-panel .map-peek { height: 100%; }
-
-/* ---------- 24. MOTION ---------- */
-.fade { animation: fade 260ms var(--ease) both; }
-@keyframes fade { from { opacity: 0; transform: translateY(7px); } }
-.stagger > * { animation: fade 300ms var(--ease) both; }
-.stagger > *:nth-child(1) { animation-delay: 20ms } .stagger > *:nth-child(2) { animation-delay: 45ms }
-.stagger > *:nth-child(3) { animation-delay: 70ms } .stagger > *:nth-child(4) { animation-delay: 95ms }
-.stagger > *:nth-child(5) { animation-delay: 120ms } .stagger > *:nth-child(6) { animation-delay: 145ms }
-.stagger > *:nth-child(n+7) { animation-delay: 165ms }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+.glyph > i { position: absolute; inset: 14px; border: 1px solid var(--dial-line); border-radius: var(--rp); transform: none; opacity: 1; }
+.glyph > i:nth-child(2) { inset: 50% 0 auto 0; height: 1px; border: 0; background: var(--dial-line); border-radius: 0; }
+.glyph > i:nth-child(3) { inset: 0 auto 0 50%; width: 1px; height: auto; border: 0; background: var(--dial-line); border-radius: 0; }
+.glyph > b {
+  position: absolute; top: 22px; inset-inline-end: 20px; inset-inline-start: auto; inset-block-end: auto;
+  width: 7px; height: 7px; background: var(--brass); border-radius: var(--rp); transform: none;
 }
 
-/* ============================================================
-   25. FIXES & ADDITIONS (post-review pass)
-   ============================================================ */
-
-/* directional icons must mirror with the language; logos and numbers must not */
-html[dir="rtl"] .dirflip { transform: scaleX(-1); }
-
-/* text that must never break a card's rhythm */
-.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; display: block; }
-.card-meta .trunc { display: inline-block; max-width: 46%; vertical-align: bottom; }
-
-/* card foot never wraps its status; services get their own line */
-.card-foot { flex-wrap: wrap; }
-.state-line { white-space: nowrap; }
-.card-svc { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
-
-/* a live segment glows in its own colour, not always amber */
-.ribbon i.live { opacity: 1; }
-.ribbon i.pub.live  { box-shadow: 0 0 0 1px var(--card), 0 0 9px -1px var(--petrol); opacity: .9; }
-.ribbon i.priv.live { box-shadow: 0 0 0 1px var(--card), 0 0 9px -1px var(--amber-b); }
-
-/* "open now" earns a full-width strip on profiles, not a third of a row */
-.status-strip {
-  margin-top: 16px; padding: 12px 14px; background: var(--card-2);
-  clip-path: var(--chamfer); --chamfer-size: 12px; position: relative;
+.offline-bar, .netbar {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u3) var(--u5); font: 300 12.5px/1.7 var(--disp);
+  color: var(--ink-2); border-bottom: 1px solid var(--dial-line);
+  background: var(--dial-2);
 }
-.status-strip::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px; background: var(--line); }
-.status-strip.open::before, .status-strip.soon::before { background: linear-gradient(180deg, var(--amber-b), var(--amber)); }
+.offline-bar button { flex: none; min-height: 40px; padding: 0 14px; border-radius: var(--rp); border: 1px solid var(--dial-line); font-size: 12px; font-weight: 500; }
 
-/* the action bar sits above the nav, never under it */
-.actionbar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
-@media (min-width: 900px) { .actionbar { bottom: auto; } }
+/* ---------- 16 · skeleton · the dial breathes, it does not shimmer ---------- */
+.skel, .sk { background: var(--dial-line-2); border-radius: 3px; animation: pl 1.8s ease-in-out infinite; }
+@keyframes pl { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .skel, .sk { animation: none; } }
 
-/* thin result sets get a door, not dead space */
-.list-end { padding: 26px 0 8px; text-align: center; }
-.list-end .btn { margin-top: 12px; }
-.list-end p { margin-bottom: 4px; }
+/* ---------- 17 · numerals · the number is the largest thing, not the title ---------- */
+.nbig, .kpi-n, .intent-n, .tier-p {
+  font: 300 46px/1 var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed; letter-spacing: -.03em;
+}
+.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.045em; }
+.adm-kpi .n { font: 300 34px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; }
+.kpi-d { font-size: 11.5px; color: var(--jade); font-weight: 500; }
+.kpi-d-warn, .kpi-d-neg { color: var(--brass-ink); font-size: 11.5px; font-weight: 500; }
 
-/* mixed-script safety: never let bidi reorder a measurement or a time range */
-[dir="ltr"].num, .num[dir="ltr"] { unicode-bidi: isolate; }
+/* ---------- 18 · motion ---------- */
+.page-in { animation: fi .17s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes fi { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .page-in { animation: none; } }
 
-/* slightly tighter hero so the live pulse clears the fold on a 360×640 screen */
-.hero { padding-top: 20px; }
-.hero-line { font-size: clamp(25px, 7.4vw, 33px); line-height: 1.42; }
-@media (min-width: 900px) { .hero-line { font-size: 42px; } }
-
-/* The page container fades on opacity ONLY. A transform here would make it the
-   containing block for position:fixed descendants and detach the bottom nav. */
-.page-in { animation: pagein 240ms var(--ease) both; }
-@keyframes pagein { from { opacity: 0; } }
-
-/* ============================================================
-   26. DESKTOP — a different layout, not a stretched phone.
-   The nav is the LAST node in the DOM (thumb-zone order on mobile),
-   so on desktop it must be positioned, not sticky-hoisted.
-   ============================================================ */
-@media (min-width: 900px) {
-  :root { --hdr-h: 58px; --navd-h: 54px; }
-
-  .app { max-width: 1180px; padding-top: calc(var(--hdr-h) + var(--navd-h) + 18px); padding-inline: 24px; }
-
-  /* brand + location bar on top, section nav beneath it */
-  .hdr {
-    position: fixed; inset-inline: 0; top: 0; height: var(--hdr-h);
-    padding-inline: max(24px, calc((100vw - 1180px) / 2));
-    border-bottom: 1px solid var(--line); z-index: 60;
-  }
-  .nav {
-    position: fixed; inset-inline: 0; top: var(--hdr-h); bottom: auto;
-    height: var(--navd-h); width: 100%; max-width: none;
-    padding-inline: max(24px, calc((100vw - 1180px) / 2));
-    grid-template-columns: repeat(4, max-content); justify-content: start; gap: 4px;
-    border-top: 0; border-bottom: 1px solid var(--line); z-index: 55;
-  }
-  .filters { top: calc(var(--hdr-h) + var(--navd-h)); z-index: 45; }
-
-  /* prose and single-column stacks stay readable; grids get the full width */
-  .hero { max-width: 720px; margin-inline: auto; padding-top: 46px; text-align: center; }
-  .hero .pulse { margin-inline: auto; max-width: 720px; }
-  .hero-cta .btn, .hero .search-field { max-width: 380px; margin-inline: auto; }
-  .hero-line .blank { justify-content: center; }
-
-  .wrap > .stack:not(.list-2) { max-width: 760px; margin-inline: auto; }
-  .sec > .sec-h { max-width: 1132px; margin-inline: auto; }
-  .prof-head, .blk, .res-head, .radius-note, .list-end, .empty { max-width: 860px; margin-inline: auto; }
-  .prof-head { clip-path: var(--chamfer); --chamfer-size: 20px; margin-top: 8px; }
-  .blk:last-of-type { border-bottom: 0; }
-
-  .btn { width: auto; min-width: 200px; }
-  .btn-row .btn, .actionbar .btn, .sheet-f .btn, .empty .btn, .list-end .btn { width: 100%; }
-  .actionbar { max-width: 860px; margin-inline: auto; justify-content: flex-start; }
-  .actionbar .btn { max-width: 320px; }
-
-  .list-2 { grid-template-columns: repeat(2, 1fr); }
-  .needs { grid-template-columns: repeat(4, 1fr); }
-  .grid-2 { grid-template-columns: repeat(4, 1fr); }
-  .places { grid-template-columns: repeat(4, 1fr); }
-  .week-row { grid-template-columns: 70px 1fr; }
-  .map-peek { height: 200px; }
+/* ---------- 19 · desktop · a measuring tool has a fixed scale ----------
+   Beyond 560px the column stops and the dial sits on the paper rather than
+   smearing across it. */
+@media (min-width: 560px) {
+  .app { max-width: 560px; margin-inline: auto; border-inline: 1px solid var(--dial-line); }
+  .nav, .actionbar, .sheet { max-width: 560px; margin-inline: auto; }
 }
 
-@media (min-width: 900px) and (max-width: 1180px) {
-  .hdr, .nav { padding-inline: 24px; }
+/* ---------- 20 · touch floor ----------
+   Stated once, structurally, instead of being rediscovered per component. */
+a[href], button { min-height: 44px; }
+.rw a, .card a, .qc a, .row a, .rowb a, .card-meta a, .st a, .card-foot a { min-height: 0; }
+
+/* ---------- 21 · the rest of the v2 vocabulary, re-expressed ----------
+   These classes are still emitted by screens this pass does not hand-rebuild
+   (partner dashboards, admin, trust). They are mapped onto v3 primitives so
+   those screens read as the instrument too — no leftover v2 surfaces, no
+   second visual language hiding two taps deep. */
+.btn-p { background: var(--ink); color: var(--dial-2); }
+.btn-s { background: transparent; color: var(--ink); border-color: var(--dial-line); }
+.btn-t { background: none; color: var(--jade); border-color: transparent; min-height: 44px; }
+.btn-sm { min-height: 40px; font-size: 12.5px; padding-inline: var(--u4); }
+.btn-p, .btn-s, .btn-t, .btn-sm {
+  display: flex; align-items: center; justify-content: center; gap: var(--u2);
+  border-radius: var(--rp); font: 500 15px/1 var(--disp); border: 1px solid transparent;
+  min-height: 52px; padding-inline: var(--u5); cursor: pointer;
 }
+.chip-on { background: var(--ink); border-color: var(--ink); color: var(--dial-2); font-weight: 500; }
+.chip-off { opacity: .34; pointer-events: none; }
 
-/* 27. Product thumbs: a tinted field, not a hollow box */
-.prod-img { aspect-ratio: 4 / 3; background:
-  radial-gradient(120% 90% at 70% 20%, var(--petrol-soft) 0%, transparent 70%), var(--card-2); }
-.prod-img .glyph { width: 34%; height: 34%; opacity: .42; }
+/* v2 cut a chamfer into every surface. v3 does not cut corners at all —
+   the radius carries it. Neutralised rather than deleted so any markup
+   still emitting it simply gets the v3 shape. */
+.cham { clip-path: none; }
 
-/* 28. Theme: tokens follow the OS preference unless the viewer pins one.
-   The host's theme toggle stamps data-theme on the root, which must win both ways. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-  --sand:        #0E1416;
-  --sand-2:      #141C1E;
-  --card:        #182124;
-  --card-2:      #1E282B;
-  --ink:         #EDE6DA;
-  --ink-2:       #A8B2B4;
-  --ink-3:       #7C8688;
-  --line:        #283335;
-  --line-2:      #1F2A2C;
-  --petrol:      #5FBECB;
-  --petrol-2:    #7FD3DE;
-  --petrol-soft: #143036;
-  --amber:       #E3A64F;
-  --amber-b:     #F0C078;
-  --amber-soft:  #2B2114;
-  --coral:       #E4776A;
-  --coral-soft:  #2E1A17;
-  --wa:          #17A34A;
-  color-scheme: dark;
-  }
+.surf-lift { background: var(--dial-2); border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u5); box-shadow: none; }
+.kpi { display: flex; flex-direction: column; gap: 4px; }
+.qc-b { flex: 1; min-width: 0; }
+.qc-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; }
+.qc-av-ph, .qc-av-co { color: var(--ink-2); }
+.note-i { border-color: var(--dial-line); color: var(--ink-2); }
+.tier-li { position: relative; padding-inline-start: 18px; font: 300 13.5px/1.9 var(--disp); color: var(--ink-2); }
+.tier-li::before { content: ""; position: absolute; inset-inline-start: 0; top: .82em; width: 10px; height: 1px; background: var(--jade); }
+.code { font-family: var(--mono); font-size: .92em; direction: ltr; unicode-bidi: embed; }
+.ltr { direction: ltr; text-align: left; }
+.seal-ok, .seal-i { border-color: var(--jade); color: var(--jade); }
+
+/* v2's ribbon and week strip. The band and the tick rule replace them, but
+   the class names survive in untouched markup. */
+.rib { position: relative; height: 3px; background: var(--dial-line); border-radius: var(--rp); display: block; }
+.rib > i { position: absolute; top: 0; bottom: 0; border-radius: var(--rp); background: var(--jade); }
+.rib > i.cl { background: var(--brass); }
+.rib-now { position: absolute; top: -5px; bottom: -5px; width: 1.5px; background: var(--ink); }
+.perf { display: none; }
+
+/* The week: seven cells, state by fill AND shape, never colour alone. */
+.wk, .wk7 { display: flex; gap: 6px; }
+.wk > b, .wk7 > b {
+  flex: 1; min-width: 0; height: 34px; display: grid; place-items: center;
+  border-radius: var(--r); border: 1px solid var(--dial-line);
+  font: 500 12px/1 var(--disp); color: var(--ink-2); background: transparent;
 }
-:root[data-theme="light"] {
-  --sand:        #F1ECE1;
-  --sand-2:      #E8E1D3;
-  --card:        #FFFDF9;
-  --card-2:      #F7F3EA;
-  --ink:         #2B2723;
-  --ink-2:       #4C463E;
-  --ink-3:       #8B8171;
-  --line:        #D8D0C2;
-  --line-2:      #E6DFD2;
-
-  --petrol:      #16606A;
-  --petrol-2:    #1E7A86;
-  --petrol-soft: #E2EEEF;
-
-  --amber:       #8A5A10;
-  --amber-b:     #E0A029;
-  --amber-soft:  #FAEED7;
-
-  --coral:       #A33326;
-  --coral-soft:  #FBE6E2;
-
-  --wa:          #0E7C3A;
-  --wa-b:        #25D366;
-  color-scheme: light;
-}
-
-/* ============================================================
-   29. From the design board
-   ============================================================ */
-
-/* Place tiles carry a landmark, because that is how Baghdad is navigated.
-   The landmark is the recognition cue; the doctor count is the decision cue. */
-.place .lm {
-  color: var(--petrol); font-weight: 700; margin-top: 3px;
-  display: flex; align-items: center; gap: 4px;
-}
-.place .lm::before { content: '◈'; opacity: .55; font-size: 10px; }
-.place.on .lm { color: color-mix(in srgb, #fff 82%, transparent); }
-html[data-theme="dark"] .place.on .lm { color: color-mix(in srgb, #06100F 72%, transparent); }
-.place h3 { line-height: 1.25; }
-
-/* The board's warmer paper needs a slightly heavier rail to keep the same
-   "open now" punch against a lower-contrast card. */
-.card.is-open::before, .lane.on::before, .need.has::before { width: 5px; }
-
-/* ============================================================
-   30. BOARD CONFORMANCE
-   The design board is the visual identity of record. Reading its own
-   component CSS corrected one thing I had over-applied: the chamfer is a
-   SPARING signature (it appears on the brand mark and the seal demo only),
-   while every real surface in the board is rounded with a 1px border.
-   Overriding here rather than rewriting §1–29 keeps the geometry tokens,
-   the ribbon engine and the layout intact.
-   ============================================================ */
-:root {
-  --chamfer: none;              /* neutralises every clip-path: var(--chamfer) */
-  --r-lg: 22px;                 /* phone frame / large surfaces */
-  --r:    14px;                 /* cards, sheets, tiles */
-  --r-sm: 12px;                 /* buttons, inputs, search */
-  --teal-line: #9DBFC2;         /* the board's muted teal border */
-  --loc-bg: #EEF3F3;
-  --loc-line: #D3E0E1;
-  --wa-board: #1DA851;
-}
-/* :root:not([data-theme="light"]) matches whenever the attribute is absent —
-   which is also true in LIGHT mode. It is only a dark signal INSIDE the
-   prefers-color-scheme query. Outside it, it leaked dark tokens into light. */
-html[data-theme="dark"] { --teal-line: #2E5B62; --loc-bg: #143036; --loc-line: #22484F; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --teal-line: #2E5B62; --loc-bg: #143036; --loc-line: #22484F; }
-}
-html[dir="ltr"] { --chamfer: none; }
-
-/* surfaces: rounded + hairline, per the board */
-.ch, .card, .lane, .need, .place, .prod, .pulse-cell, .status-strip,
-.fac-block, .slot-btn, .search-field, .slip, .stub, .map-peek,
-.adm-kpi, .tbl-row, .prof-facts, .radius-note, .banner, .qr-ctx,
-.field input, .field textarea, .empty-alts .lane {
-  border-radius: var(--r);
-  border: 1px solid var(--line);
-}
-.card, .prod, .pulse-cell, .lane, .need, .place, .slot-btn, .fac-block,
-.status-strip, .search-field, .adm-kpi, .tbl-row { background: var(--card); }
-.status-strip, .fac-block { background: var(--card-2); }
-.prof-facts { overflow: hidden; }
-.prof-head { border-radius: 0; border: 0; }
-
-/* "Open now" is the board's .openrail: a 3px leading border, not a pseudo-bar */
-.card::before, .lane::before, .need::before, .status-strip::before { display: none; }
-.card.is-open, .lane.on, .need.has, .status-strip.open, .status-strip.soon {
-  border-inline-start: 3px solid var(--amber-b);
-}
-.card.is-soon { border-inline-start: 3px solid color-mix(in srgb, var(--amber-b) 55%, var(--line)); }
-.lane--sos { border-color: #ECCFC9; background: #FDF3F1; border-inline-start: 3px solid var(--coral); }
-html[data-theme="dark"] .lane--sos { border-color: #4A2A25; background: var(--coral-soft); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .lane--sos { border-color: #4A2A25; background: var(--coral-soft); }
-}
-.stub { border-inline-start: 3px solid var(--petrol); }
-
-/* buttons */
-.btn { border-radius: var(--r-sm); min-height: 48px; }
-.btn--2 { background: transparent; color: var(--petrol); box-shadow: none; border: 1.5px solid var(--teal-line); font-weight: 500; }
-.btn--3 { border: 0; }
-.btn--wa { background: var(--wa-board); }
-.btn--sm { border-radius: 10px; min-height: 40px; }
-.icon-btn { border-radius: var(--r-sm); border: 1px solid var(--line); }
-.actionbar .icon-btn { box-shadow: none; }
-
-/* chips + badges are pills with tinted grounds */
-.chip { border-radius: 999px; }
-.chip--meta { border-radius: 999px; padding: 2.5px 9px; font-size: 11.5px; font-weight: 700; border: 0; }
-.chip--ok   { background: var(--petrol-soft); color: var(--petrol); }
-.chip--time { background: var(--amber-soft); color: var(--amber); }
-.chip--warn { background: var(--coral-soft); color: var(--coral); }
-.card-svc .chip--meta { background: var(--card-2); color: var(--ink-2); font-weight: 600; }
-
-/* the location pill */
-.place-tag {
-  border-radius: 999px; background: var(--loc-bg);
-  border: 1px solid var(--loc-line); color: var(--petrol); font-weight: 500;
-}
-
-/* avatars: rounded squares */
-.avatar { border-radius: var(--r-sm); }
-.avatar--sq { border-radius: var(--r-sm); }
-
-/* the sentence blank: a solid teal rule, in the accent, not an amber dash */
-.hero-line .blank {
-  color: var(--petrol); border-bottom: 2.5px solid var(--petrol);
-  padding: 0 3px 2px; font-weight: 800;
-}
-.hero-line .blank:active { background: var(--petrol-soft); }
-
-/* ribbon proportions from the board */
-.ribbon--micro { height: 7px; border-radius: 2px; }
-.ribbon--day   { height: 12px; }
-.week-row { grid-template-columns: 44px 1fr; }
-
-/* the seal: a double ring, rotated */
-.seal--stamp {
-  width: 76px; height: 76px; border-width: 2.5px; transform: rotate(-8deg);
-  position: relative; opacity: .9;
-}
-.seal--stamp::before {
-  content: ''; position: absolute; inset: 6px; border-radius: 50%;
-  border: 1.5px solid currentColor;
-}
-
-/* the slip keeps its perforated tear edge, now against a rounded card */
-.slip { border-radius: var(--r); }
-.slip::after {
-  background: radial-gradient(circle at 8px 0, var(--sand) 5px, var(--card) 5.5px) repeat-x;
-  background-size: 16px 12px; background-position: 0 -6px; height: 12px;
-}
-
-/* sheets and nav */
-.sheet { border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.nav { background: var(--card); border-top: 1px solid var(--sand-2); }
-.map-peek { border-radius: var(--r); }
-
-@media (min-width: 900px) {
-  .prof-head { border-radius: var(--r); border: 1px solid var(--line); }
-  .sheet { border-radius: var(--r-lg); }
-}
-
-/* The board runs the ribbon at full strength (.rib .h = #16606a, .rib .a =
-   #e0a029, no opacity). My 38%/55% washed the signature component out to
-   sage and straw against the warmer paper. */
-.ribbon i.pub  { background: var(--petrol);  opacity: 1; }
-.ribbon i.priv { background: var(--amber-b); opacity: 1; }
-.ribbon        { background: #EEE7D9; }
-html[data-theme="dark"] .ribbon { background: var(--line-2); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ribbon { background: var(--line-2); } }
-.week-row.off .ribbon { opacity: 1; }
-.week-legend i:first-child { opacity: 1 !important; }
-
-/* ============================================================
-   31. TYPE SYSTEM  —  the audit found 46 distinct size/weight/line-height
-   combinations across 5 weights. That is not a scale, it is ad-hoc sizing.
-   Eight steps, three weights, Arabic-first line-heights.
-
-   Arabic needs more leading than Latin at the same size: the script has
-   deeper descenders and stacked diacritics, so body runs 1.75 where an
-   English UI would run 1.5. Metadata never drops below 12.5px — Arabic
-   loses letterform detail faster than Latin as it shrinks.
-   ============================================================ */
-:root {
-  --w-reg: 400; --w-med: 600; --w-bold: 700;   /* three weights, no 500/800 */
-
-  --fs-display: 30px; --lh-display: 1.38;
-  --fs-h1: 22px;      --lh-h1: 1.4;
-  --fs-h2: 17px;      --lh-h2: 1.45;
-  --fs-h3: 15px;      --lh-h3: 1.5;
-  --fs-body: 15px;    --lh-body: 1.75;
-  --fs-sm: 13.5px;    --lh-sm: 1.65;
-  --fs-meta: 12.5px;  --lh-meta: 1.5;
-  --fs-micro: 11.5px; --lh-micro: 1.45;
-}
-body { font-size: var(--fs-body); line-height: var(--lh-body); }
-
-.hero-line { font-size: clamp(24px, 7vw, var(--fs-display)); line-height: var(--lh-display); font-weight: var(--w-bold); letter-spacing: -.015em; }
-.prof-name { font-size: var(--fs-h1); line-height: var(--lh-h1); font-weight: var(--w-bold); letter-spacing: -.015em; }
-.sec-h h2, .sheet-h h2 { font-size: var(--fs-h2); line-height: var(--lh-h2); font-weight: var(--w-bold); letter-spacing: -.01em; }
-.card-t, .lane h3, .need h3, .place h3, .blk h3, .prod-t, .slot-btn .d, .hdr-title, .fac-block .ft {
-  font-size: var(--fs-h3); line-height: var(--lh-h3); font-weight: var(--w-bold); letter-spacing: -.005em;
-}
-.card-q, .lane p, .small, .kv, .bubble, .empty p, .banner, .hint, .radius-note, .prof-spec {
-  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--w-reg);
-}
-.prof-spec { font-weight: var(--w-med); }
-.card-meta, .chip, .tiny, .place .m, .need .cnt, .prod-brand, .slot-btn .m, .week-row .d,
-.updated, .seal, .unverified, .state-line, .dist, .fee, .res-head, .pulse-cell .l {
-  font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--w-med);
-}
-.state-line, .fee, .seal { font-weight: var(--w-bold); }
-.eyebrow, .chip--meta, .ribbon-scale, .slip-ref, .week-legend, .bnav span, .nav a span {
-  font-size: var(--fs-micro); line-height: var(--lh-micro); font-weight: var(--w-bold);
-}
-.btn { font-size: var(--fs-h3); font-weight: var(--w-bold); }
-.btn--2, .btn--3 { font-weight: var(--w-med); }
-.pulse-cell .n, .adm-kpi .n, .prof-fact .v { font-weight: var(--w-bold); letter-spacing: -.02em; }
-h1, h2, h3, .card-t, .prof-name, .hero-line { text-wrap: balance; }
-
-/* Arabic runs longer than English at the same meaning. Nothing may clip. */
-.card-t, .lane h3, .need h3, .place h3, .prof-name, .prod-t { overflow-wrap: anywhere; }
-.trunc { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
-
-/* ============================================================
-   32. TOUCH TARGETS — audit found chips at 37px, the location pill at 35px,
-   "see all" at 21px. One-handed use on a phone needs 48.
-   ============================================================ */
-.chip { min-height: 44px; padding-block: 10px; }
-.chips { gap: 8px; padding-block: 4px; }
-.place-tag { min-height: 40px; padding-block: 9px; }
-.sec-h .more { min-height: 44px; display: inline-flex; align-items: center; padding-inline: 4px; }
-.brand { min-height: 44px; }
-.slip-edit, .btn--3 { min-height: 44px; }
-.week-row { min-height: 34px; }
-.nav a { min-height: 52px; }
-
-/* ============================================================
-   33. OVERFLOW — /trust pushed the body to 438px at every mobile width:
-   three flex:1 buttons whose Arabic min-content width could not shrink.
-   ============================================================ */
-.btn-row { flex-wrap: wrap; }
-.btn-row .btn { flex: 1 1 auto; min-width: 0; }
-.btn { min-width: 0; }
-.ribbon b::after { inset-inline-start: -2px; }
-.ribbon, .week-row .ribbon { overflow: visible; contain: layout; }
-.week { overflow: hidden; }
-
-/* ============================================================
-   34. PALETTE  —  the specified Qareeb identity, plus two vertical accents.
-   Sage marks pharmacy, clay marks care. They tint one element each (the
-   glyph tile) so the three verticals are distinguishable at a glance while
-   still sharing one card anatomy. Amber stays reserved for TIME and coral
-   for EMERGENCY — those meanings are load-bearing and must not be diluted.
-   ============================================================ */
-:root {
-  --sand: #FAF8F5;  --sand-2: #EFEBE5;  --card: #FFFFFF;  --card-2: #F5F2ED;
-  --ink: #1A1A18;   --ink-2: #3D3B37;   --ink-3: #6B6862;
-  --line: #E3DED6;  --line-2: #EFEBE5;
-  --petrol: #0E5450; --petrol-2: #14746E; --petrol-soft: #E0EDEB;
-  --amber: #8A5A10;  --amber-b: #E0A029;  --amber-soft: #FAEED7;
-  --coral: #C1121F;  --coral-soft: #FCE8E9;
-  --wa: #128C3E;     --wa-b: #25D366;     --wa-board: #128C3E;
-  --pharm: #7FB8A4;  --pharm-soft: #E9F3EF;
-  --cosm:  #C88A72;  --cosm-soft:  #F7EBE6;
-  --teal-line: #A9C7C4; --loc-bg: #E8F0EF; --loc-line: #CBDEDB;
-}
-html[data-theme="dark"] {
-  --sand: #121312;  --sand-2: #1A1C1A;  --card: #1E211F;  --card-2: #262A27;
-  --ink: #ECEAE5;   --ink-2: #B4B1AA;   --ink-3: #8A8780;
-  --line: #2E332F;  --line-2: #242825;
-  --petrol: #55B3AC; --petrol-2: #74CCC5; --petrol-soft: #12302E;
-  --coral: #F06070;  --coral-soft: #2E1618;
-  --pharm: #7FB8A4;  --pharm-soft: #16302A;
-  --cosm:  #D9A38E;  --cosm-soft:  #2E211C;
-  --teal-line: #2F5C58; --loc-bg: #12302E; --loc-line: #234B47;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --sand: #121312;  --sand-2: #1A1C1A;  --card: #1E211F;  --card-2: #262A27;
-    --ink: #ECEAE5;   --ink-2: #B4B1AA;   --ink-3: #8A8780;
-    --line: #2E332F;  --line-2: #242825;
-    --petrol: #55B3AC; --petrol-2: #74CCC5; --petrol-soft: #12302E;
-    --coral: #F06070;  --coral-soft: #2E1618;
-    --pharm: #7FB8A4;  --pharm-soft: #16302A;
-    --cosm:  #D9A38E;  --cosm-soft:  #2E211C;
-    --teal-line: #2F5C58; --loc-bg: #12302E; --loc-line: #234B47;
-  }
-}
-/* vertical accents: one tinted glyph tile each, nothing more */
-.avatar--sq { background: var(--pharm-soft); color: #3E7A66; }
-html[data-theme="dark"] .avatar--sq { color: var(--pharm); }
-.prod-img { background: radial-gradient(120% 90% at 70% 20%, var(--cosm-soft) 0%, transparent 72%), var(--card-2); }
-.prod-img .glyph { color: var(--cosm); opacity: .55; }
-.lane--sos { background: var(--coral-soft); border-color: color-mix(in srgb, var(--coral) 22%, transparent); }
-
-/* ============================================================
-   35. THE WEEK STRIP — seven cells, Saturday-first.
-   State is fill + shape, never colour alone: a working day is filled, a
-   non-working day is hollow, today is ringed, the next open day is dotted.
-   ============================================================ */
-.wk7 { display: flex; gap: 4px; }
-.wk7-d {
-  flex: 1; min-width: 0; height: 22px; border-radius: 6px;
-  display: grid; place-items: center; position: relative;
-  font-size: 10.5px; font-weight: var(--w-bold); line-height: 1;
-  background: var(--petrol-soft); color: var(--petrol);
-}
-.wk7-d.off { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); opacity: .8; }
-.wk7-d.today { box-shadow: inset 0 0 0 2px var(--petrol); }
-.wk7-d.off.today { box-shadow: inset 0 0 0 2px var(--ink-3); }
-.wk7-d.next { background: var(--amber-soft); color: var(--amber); }
-.wk7-d.next::after {
-  content: ''; position: absolute; bottom: 2.5px; width: 3px; height: 3px;
-  border-radius: 50%; background: currentColor;
-}
-
-/* card: availability owns the row above the metadata */
-.card-avail { display: flex; align-items: center; gap: 12px; margin-top: 11px; }
-.card-avail .wk7 { flex: 0 0 46%; max-width: 160px; }
-.card-avail .state-line { flex: 1; min-width: 0; }
-.card-top { align-items: flex-start; }
-.seal--pill { background: var(--petrol-soft); border-radius: 999px; padding: 3px 9px; flex: none; }
-.fee-l { color: var(--ink-3); font-weight: var(--w-med); font-size: var(--fs-micro); }
-.card-foot { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-2); }
-.card-meta { margin-top: 10px; }
-
-/* filter chip carries its own active count */
-.chip--filter .fcount {
-  background: var(--petrol); color: #fff; border-radius: 999px;
-  min-width: 18px; height: 18px; display: inline-grid; place-items: center;
-  font-size: 10.5px; padding: 0 5px;
-}
-.chip--filter.on .fcount { background: #fff; color: var(--petrol); }
-.fgrp + .fgrp { margin-top: 20px; }
-.fgrp .eyebrow { margin-bottom: 9px; display: block; }
-
-/* ============================================================
-   36. MOTION — one language, not one animation per component.
-   150-200ms ease-out. Selection is instant; only position animates.
-   ============================================================ */
-:root { --t: 170ms cubic-bezier(.22,.61,.36,1); --t-sheet: 210ms cubic-bezier(.22,.61,.36,1); }
-.sheet { transition: transform var(--t-sheet); }
-.scrim { transition: opacity var(--t); }
-.chip, .slot-btn, .wk7-d, .place { transition: background-color var(--t), color var(--t), box-shadow var(--t); }
-.btn:active, .chip:active, .card:active { transform: translateY(1px); transition: transform 90ms; }
-.page-in { animation: pagein 170ms cubic-bezier(.22,.61,.36,1) both; }
-.stagger > * { animation-duration: 200ms; }
-.stagger > *:nth-child(n+5) { animation-delay: 90ms; }
-
-/* last touch targets from the audit */
-.qr-ctx button { min-width: 44px; min-height: 44px; }
-.search-field input, .field input { min-height: 44px; }
-.hero-line .blank { padding-block: 4px; }
-
-/* ============================================================
-   37. FINAL PASS
-   ============================================================ */
-/* The results header answers two different questions — how many, and why
-   these. Stacking them stops the Arabic from interleaving into one another. */
-.res-head { display: block; padding: 2px 18px 12px; }
-.res-head .n { font-weight: var(--w-bold); }
-.res-head .why { color: var(--ink-3); font-weight: var(--w-med); }
-.res-head .tiny { margin-top: 2px; }
-
-/* A horizontally scrolling chip row must look scrollable, not clipped.
-   The mask fades the overflowing chip instead of guillotining it. */
-.filters .chips {
-  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-          mask-image: linear-gradient(to left, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-  padding-inline: 2px;
-}
-html[dir="ltr"] .filters .chips {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-          mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
-}
-
-/* the gender marker belongs with the person, not adrift in the meta row */
-.card-meta .chip--meta:first-child { background: var(--card-2); color: var(--ink-2); }
-.card-avail { gap: 10px; }
-.card-avail .wk7 { flex: 0 0 44%; max-width: 152px; }
-.wk7-d { height: 24px; font-size: 11px; }
-/* last three from the audit: the location pill one pixel short, the "see all"
-   link narrow, and the QR-context dismiss at 19x27. */
-.place-tag { min-height: 44px; padding-block: 10px; }
-.sec-h .more { min-width: 56px; justify-content: flex-end; }
-.qr-ctx button { width: 44px; height: 44px; margin-inline-start: auto; }
-.qr-ctx { padding-block: 4px; }
-.clear-btn { width: 44px; height: 44px; display: grid; place-items: center; margin-inline-end: -8px; flex: none; }
-
-/* An SVG stroke drawn to the edge of its viewBox can spill a pixel past the
-   layout box once the icon is scaled. Clipping the icon, not the page. */
-.week-legend, .card-meta, .actionbar { overflow: hidden; }
-.week-legend svg, .card-meta svg { overflow: visible; }
-svg { overflow: hidden; }
-
-/* 38. .chip--meta is used standalone as a <span>, so `.chip svg` never
-   matched it — an inline icon rendered at its natural size. */
-.chip--meta { display: inline-flex; align-items: center; gap: 4px; }
-.chip--meta svg { width: 13px; height: 13px; flex: none; }
-.card-foot .btn--sm { flex: none; }
-
-/* ============================================================
-   39. HOME — a reading of the network, not a menu of links.
-   Three intents sized by real frequency: medicine (weekly), doctor (a few
-   times a year), pharmacy (situational). Each carries a live number, so the
-   screen answers "what does Qareeb know right now" before it offers a link.
-   ============================================================ */
-.netbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 2px 10px; font-size: var(--fs-micro); font-weight: var(--w-bold);
-  color: var(--ink-3); letter-spacing: .06em;
-}
-.netbar-live { display: inline-flex; align-items: center; gap: 7px; color: var(--petrol); }
-.netbar-live i {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--petrol);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent);
-  animation: pulse-live 2.4s var(--ease) infinite;
-}
-@keyframes pulse-live {
-  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--petrol) 20%, transparent); }
-  50%      { box-shadow: 0 0 0 7px color-mix(in srgb, var(--petrol) 4%, transparent); }
-}
-.netbar-t { font-variant-numeric: tabular-nums; }
-
-.intents { display: grid; gap: 10px; }
-.intent {
-  display: flex; align-items: center; gap: 14px; padding: 16px;
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
-  border-inline-start: 3px solid var(--line); transition: var(--t);
-}
-.intent:active { transform: translateY(1px); background: var(--card-2); }
-.intent-ic {
-  width: 44px; height: 44px; flex: none; display: grid; place-items: center;
-  border-radius: var(--r-sm); background: var(--card-2); color: var(--ink-2);
-}
-.intent-ic svg { width: 22px; height: 22px; }
-.intent-body { flex: 1; min-width: 0; display: block; }
-.intent-t { display: block; font-size: var(--fs-h3); font-weight: var(--w-bold); line-height: 1.35; }
-.intent-s { display: block; font-size: var(--fs-meta); color: var(--ink-3); margin-top: 2px; line-height: 1.45; }
-.intent-n { flex: none; text-align: center; min-width: 54px; }
-.intent-n b { display: block; font-size: 24px; font-weight: var(--w-bold); line-height: 1.1; letter-spacing: -.03em; }
-.intent-n i { display: block; font-size: 10.5px; font-style: normal; color: var(--ink-3); font-weight: var(--w-med); margin-top: 1px; }
-
-/* the accent marks which vertical, and only the leading edge carries it */
-.intent--med { border-inline-start-color: var(--amber-b); }
-.intent--med .intent-ic { background: var(--amber-soft); color: var(--amber); }
-.intent--med .intent-n b { color: var(--amber); }
-.intent--doc { border-inline-start-color: var(--petrol); }
-.intent--doc .intent-ic { background: var(--petrol-soft); color: var(--petrol); }
-.intent--doc .intent-n b { color: var(--petrol); }
-.intent--ph { border-inline-start-color: var(--pharm); }
-.intent--ph .intent-ic { background: var(--pharm-soft); color: #3E7A66; }
-html[data-theme="dark"] .intent--ph .intent-ic { color: var(--pharm); }
-
-/* scarcity is a headline, not a footnote: it is the product's whole reason */
-.scarce-note {
-  display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 13px 15px;
-  background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber-b) 40%, transparent);
-  border-radius: var(--r); color: var(--amber);
-  font-size: var(--fs-sm); font-weight: var(--w-med); line-height: 1.5;
-}
-.scarce-note > span { flex: 1; }
-.scarce-note svg { flex: none; width: 18px; height: 18px; }
-
-.sos {
-  display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px;
-  padding: 13px 15px; border-radius: var(--r); text-align: start;
-  background: transparent; border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
-  color: var(--coral); font-size: var(--fs-sm); font-weight: var(--w-bold); min-height: 48px;
-}
-.sos svg { width: 18px; height: 18px; flex: none; }
-.sos b { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
-.sos:active { background: var(--coral-soft); }
-
-/* the proof block: the trust claim, stated in numbers, one tap from evidence */
-.proof { display: block; padding: 15px 16px; background: var(--card-2); border-radius: var(--r); border: 1px solid var(--line); }
-.proof-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: var(--fs-meta); color: var(--ink-3); }
-.proof-row b { display: block; font-size: 19px; color: var(--ink); font-weight: var(--w-bold); letter-spacing: -.02em; }
-.proof-note {
-  display: flex; align-items: center; gap: 8px; margin-top: 13px; padding-top: 12px;
-  border-top: 1px solid var(--line); font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.5;
-}
-.proof-note > span { flex: 1; }
-.proof-note svg { flex: none; width: 15px; height: 15px; color: var(--petrol); }
-
-@media (min-width: 900px) {
-  .intents { grid-template-columns: repeat(3, 1fr); max-width: 1132px; margin-inline: auto; }
-  .intent { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; }
-  .intent-n { text-align: start; }
-  .netbar, .scarce-note, .sos, .proof { max-width: 1132px; margin-inline: auto; }
-}
-
-/* ============================================================
-   40. PHASE 1 — THE CONVERSION FUNNEL
-   A patient choosing a doctor answers four questions in a fixed order:
-   can I be seen soon, where, how much, can I trust this. The profile now
-   answers all four above the fold and pushes everything else below.
-   ============================================================ */
-.dp-head { padding: 18px 18px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
-.dp-id { display: flex; gap: 14px; align-items: flex-start; }
-.dp-avatar { width: 58px; height: 58px; font-size: 20px; }
-.dp-name { font-size: var(--fs-h1); font-weight: var(--w-bold); line-height: 1.3; letter-spacing: -.02em; }
-.dp-spec { font-size: var(--fs-sm); color: var(--petrol); font-weight: var(--w-bold); margin-top: 3px; }
-.dp-sub  { font-size: var(--fs-meta); color: var(--ink-3); margin-top: 2px; }
-
-.dp-answers {
-  margin-top: 18px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
-}
-.dp-a { display: flex; align-items: baseline; gap: 12px; padding: 11px 14px; }
-.dp-a + .dp-a { border-top: 1px solid var(--line-2); }
-.dp-a .k { flex: 0 0 62px; font-size: var(--fs-micro); color: var(--ink-3); font-weight: var(--w-bold); }
-.dp-a .v { flex: 1; font-size: var(--fs-sm); color: var(--ink-2); }
-.dp-a .v b { color: var(--ink); font-weight: var(--w-bold); }
-.dp-a.live { background: var(--amber-soft); }
-.dp-a.live .v b { color: var(--amber); }
-.tr-yes { color: var(--petrol) !important; }
-.tr-no  { color: var(--ink-3) !important; }
-.dp-week { margin-top: 14px; }
-
-.cred { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; font-size: var(--fs-sm); }
-.cred + .cred { border-top: 1px solid var(--line-2); }
-.cred svg { width: 15px; height: 15px; flex: none; margin-top: 3px; color: var(--petrol); }
-
-/* Reassurance sits ABOVE the form. Asking first and reassuring after is the
-   order that loses people at the exact moment they hesitate. */
-.reassure { display: grid; gap: 9px; padding: 13px 14px; background: var(--petrol-soft); border-radius: var(--r); }
-.reassure-r { display: flex; gap: 9px; align-items: flex-start; font-size: var(--fs-meta); color: var(--petrol); font-weight: var(--w-med); line-height: 1.5; }
-.reassure-r svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
-
-/* The real failure mode of a WhatsApp handoff is silence. Designing for it is
-   the difference between a lead and an abandoned patient. */
-.fallback {
-  margin-top: 18px; padding: 14px 15px; border-radius: var(--r);
-  border: 1px dashed var(--line); background: var(--card-2);
-}
-.fallback-h { display: flex; align-items: center; gap: 8px; font-size: var(--fs-h3); font-weight: var(--w-bold); }
-.fallback-h svg { width: 16px; height: 16px; color: var(--ink-3); }
-.fallback p { font-size: var(--fs-meta); color: var(--ink-3); line-height: 1.6; margin-top: 7px; }
-
-/* ============================================================
-   41. PHASE 2 — QUERY UNDERSTANDING
-   A search that silently guesses is untrustworthy. One that shows what it
-   read — as tokens you can remove — is a tool. This block is the visible
-   contract between the user's sentence and the filters it became.
-   ============================================================ */
-.parsed { padding: 13px 14px; background: var(--petrol-soft); border-radius: var(--r); margin-bottom: 18px; }
-.parsed-h {
-  display: flex; align-items: center; gap: 7px; margin-bottom: 10px;
-  font-size: var(--fs-micro); font-weight: var(--w-bold); color: var(--petrol); letter-spacing: .04em;
-}
-.parsed-h svg { width: 14px; height: 14px; }
-.pchip {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 36px;
-  padding: 6px 10px 6px 12px; border-radius: 999px;
-  background: var(--card); border: 1px solid var(--petrol);
-  color: var(--petrol); font-size: var(--fs-meta); font-weight: var(--w-bold);
-}
-.pchip svg { width: 13px; height: 13px; opacity: .55; }
-.pchip:active { background: var(--petrol); color: #fff; }
-.pchip:active svg { opacity: 1; }
-
-/* ============================================================
-   42. PHASE 4 — RESILIENCE
-   Baghdad mobile data drops mid-session. The app must say so once, plainly,
-   and keep working: the catalogue is already in memory, so discovery never
-   dies. Only the WhatsApp handoff genuinely needs the network.
-   ============================================================ */
-.offline-bar {
-  position: sticky; top: 0; z-index: 70;
-  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
-  background: var(--ink); color: var(--sand);
-  font-size: var(--fs-meta); font-weight: var(--w-med); line-height: 1.45;
-}
-.offline-bar > span { flex: 1; }
-.offline-bar svg { width: 17px; height: 17px; flex: none; }
-.offline-bar button {
-  flex: none; min-height: 36px; padding: 0 13px; border-radius: 999px;
-  background: var(--sand); color: var(--ink);
-  font-size: var(--fs-micro); font-weight: var(--w-bold);
-}
-@media (min-width: 900px) { .offline-bar { top: 0; } .hdr { top: 0; } }
-
-/* ============================================================
-   QAREEB v2 — COMPONENT LAYER
-   Extracted verbatim from section 3a of the v2 design board. The board is
-   authoritative: every screen on it is rendered by exactly these classes.
-   Board chrome (.q phone frame, .dv-* viewer furniture, bare body/a rules)
-   removed — that is how the board displays itself, not part of the product.
-
-   Loaded AFTER css/qareeb.css. Shared selector names (.btn .chip .seal .rib
-   .wk .nav .slip .note .empty .sk .num .mono .row) intentionally win here.
-   ============================================================ */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* greek */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* greek */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* cyrillic-ext */
-
-/* cyrillic */
-
-/* greek */
-
-/* vietnamese */
-
-/* latin-ext */
-
-/* latin */
-
-/* arabic */
-
-/* cyrillic-ext */
-
-/* latin-ext */
-
-/* latin */
-
-/* arabic */
-
-/* cyrillic-ext */
-
-/* latin-ext */
-
-/* latin */
-
-/* arabic */
-
-/* cyrillic-ext */
-
-/* latin-ext */
-
-/* latin */
-
-/* ============================================================
-   QAREEB v2 — COMPONENT LAYER. This block IS the deliverable.
-   ============================================================ */
-:root{
-  --sand:#FAF8F5; --card:#FFFFFF; --sunk:#F2EFE9; --line:#E7E2D9;
-  --ink:#1A1A18; --ink-2:#3D3A35; --ink-3:#6B6862; --ink-4:#9E9A92;
-  --petrol:#0E5450; --petrol-tint:#E0EDEB; --petrol-deep:#083734;
-  --amber-b:#E0A029; --amber-tint:#FBEFD9; --amber-ink:#7A5209;
-  --coral:#C1121F; --coral-tint:#FBE7E6;
-  --pharm:#7FB8A4; --pharm-tint:#E9F3EF; --cosm:#C88A72; --cosm-tint:#F7EBE5;
-  --wa:#128C3E; --ok:#1F7A4C;
-  --f-ar:'IBM Plex Sans Arabic','IBM Plex Sans',sans-serif;
-  --f-num:'IBM Plex Sans',sans-serif; --f-mono:'IBM Plex Mono',monospace;
-  --t-1:11px; --t-2:12.5px; --t-3:14px; --t-4:16px; --t-5:19px; --t-6:23px; --t-7:28px; --t-8:34px;
-  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px; --s-7:48px;
-  --r-s:12px; --r-m:14px; --r-p:999px;
-  --e-1:0 1px 2px rgba(26,26,24,.05);
-  --e-2:0 2px 8px rgba(26,26,24,.07);
-  --e-3:0 8px 28px rgba(26,26,24,.13);
-}
-[data-theme=dark]{
-  --sand:#141614; --card:#1E211E; --sunk:#191C19; --line:#2E322E;
-  --ink:#ECE8E0; --ink-2:#C9C4BA; --ink-3:#94908A; --ink-4:#6E6A64;
-  --petrol:#5FB4AC; --petrol-tint:#1B2E2C; --petrol-deep:#8FD0C9;
-  --amber-b:#E8B457; --amber-tint:#332715; --amber-ink:#E8B457;
-  --coral:#E8776F; --coral-tint:#33191A;
-  --pharm:#7FB8A4; --pharm-tint:#1C2A26; --cosm:#C88A72; --cosm-tint:#2C201B;
-  --wa:#2FBB63; --ok:#4FB57F;
-  --e-1:0 1px 2px rgba(0,0,0,.4); --e-2:0 2px 8px rgba(0,0,0,.45); --e-3:0 8px 28px rgba(0,0,0,.55);
-}
-/* --- shell ------------------------------------------------- */
-.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed}
-.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed}
-/* --- surface hierarchy: 4 levels, not one card style ------- */
-.surf-sunk{background:var(--sunk);border-radius:var(--r-s)}
-.surf-flat{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m)}
-.surf-raise{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);box-shadow:var(--e-1)}
-.surf-lift{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);box-shadow:var(--e-2)}
-.surf-key{background:var(--card);border:1.5px solid var(--petrol);border-radius:var(--r-m);box-shadow:var(--e-2)}
-.cham{clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
-.ltr .cham{clip-path:polygon(16px 0,100% 0,100% 100%,0 100%,0 16px)}
-.pad-3{padding:var(--s-3)}.pad-4{padding:var(--s-4)}
-.stack-2>*+*{margin-top:var(--s-2)}.stack-3>*+*{margin-top:var(--s-3)}.stack-4>*+*{margin-top:var(--s-4)}
-.row{display:flex;align-items:center;gap:var(--s-2)}
-.row-b{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
-/* --- buttons: 3 levels, one primary per screen ------------- */
-.btn{display:flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:48px;
-     border-radius:var(--r-s);font:600 var(--t-3)/1 var(--f-ar);border:1.5px solid transparent;cursor:pointer}
-.btn-p{background:var(--petrol);color:#fff;font-weight:700;font-size:var(--t-4)}
-.btn-s{background:transparent;color:var(--petrol);border-color:var(--petrol);opacity:.92}
-.btn-t{min-height:auto;background:none;color:var(--petrol);font-weight:600}
-.btn-wa{background:var(--wa);color:#fff;font-weight:700;font-size:var(--t-4);min-height:50px}
-.btn-sm{min-height:36px;font-size:var(--t-2);border-radius:10px;padding:0 var(--s-3)}
-.btn:hover{filter:brightness(.94)}.btn:active{filter:brightness(.88)}
-.btn:focus-visible{outline:2px solid var(--petrol);outline-offset:2px}
-.btn[disabled]{opacity:.45}
-/* --- chips: filters, needs, sessions ----------------------- */
-.chip{display:inline-flex;align-items:center;gap:var(--s-1);padding:7px 13px;border:1px solid var(--line);
-      border-radius:var(--r-p);background:var(--card);font-size:var(--t-2);color:var(--ink-2);white-space:nowrap}
-.chip-on{background:var(--petrol);border-color:var(--petrol);color:#fff;font-weight:600}
-.chip-off{opacity:.45}
-/* --- badges: legible without colour (icon + text) ---------- */
-.bdg{display:inline-flex;align-items:center;gap:4px;font:700 var(--t-1)/1.6 var(--f-ar);border-radius:var(--r-p);padding:3px 9px}
-.bdg-v{background:var(--petrol-tint);color:var(--petrol-deep)}
-.bdg-t{background:var(--amber-tint);color:var(--amber-ink)}
-.bdg-n{background:var(--amber-ink);color:#fff}
-.bdg-e{background:var(--coral-tint);color:var(--coral)}
-.bdg-stock{background:var(--pharm-tint);color:#2F5F51}
-/* --- the seal: verification as a stamp, never a blue tick -- */
-.seal{width:56px;height:56px;border-radius:var(--r-p);border:2px solid var(--petrol);color:var(--petrol);
-      display:grid;place-items:center;transform:rotate(-8deg);opacity:.92;flex:none}
-.seal-i{width:44px;height:44px;border-radius:var(--r-p);border:1px solid currentColor;display:grid;place-items:center;
-        text-align:center;font:700 9px/1.35 var(--f-ar)}
-.seal-ok{border-color:var(--ok);color:var(--ok);transform:rotate(7deg)}
-/* --- the ribbon: 24h band, mirrored RTL -------------------- */
-.rib{position:relative;display:flex;height:7px;border-radius:2px;overflow:hidden;background:var(--sunk)}
-.rib>i{flex:1}
-.rib .sh{background:var(--petrol)}   /* hospital shift */
-.rib .cl{background:var(--amber-b)}  /* private clinic */
-.rib .pa{background:var(--line)}     /* past/closed */
-.rib-now{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
-/* --- week strip: fill AND shape, never colour alone -------- */
-.wk{display:flex;gap:5px;direction:rtl}
-.wk>b{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
-      font:600 var(--t-1)/1 var(--f-ar);background:var(--sunk);color:var(--ink-4);border:1px solid var(--line)}
-.wk .on{background:var(--petrol);border-color:var(--petrol);color:#fff}
-.wk .today{outline:2px solid var(--ink);outline-offset:2px}
-.wk .next{border:1.5px dashed var(--amber-ink);color:var(--amber-ink);background:var(--amber-tint)}
-/* --- the open rail: "open now" is not a badge -------------- */
-.rail-open{border-inline-start:3px solid var(--amber-b)}
-.rail-stock{border-inline-start:3px solid var(--pharm)}
-.quiet{opacity:.6}
-/* --- canonical card, four variants ------------------------- */
-.qc{display:flex;gap:var(--s-3);padding:var(--s-3)}
-.qc-av{width:46px;height:46px;border-radius:var(--r-s);display:grid;place-items:center;flex:none;
-       font:700 var(--t-5)/1 var(--f-ar);background:var(--petrol-tint);color:var(--petrol-deep)}
-.qc-av-ph{background:var(--pharm-tint);color:#2F5F51}
-.qc-av-co{background:var(--cosm-tint);color:#8A4E36}
-.qc-b{flex:1;min-width:0}
-.qc-title{font-weight:700;font-size:var(--t-3)}
-.qc-qual{font-size:var(--t-2);color:var(--ink-2)}
-.qc-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--t-2);color:var(--ink-3);margin-top:5px}
-/* --- freshness: the medicine screen's primary visual ------- */
-.fresh{display:inline-flex;align-items:center;gap:6px;font:700 var(--t-2)/1 var(--f-ar);border-radius:var(--r-p);padding:5px 11px}
-.fresh-hot{background:var(--pharm-tint);color:#245244}
-.fresh-warm{background:var(--amber-tint);color:var(--amber-ink)}
-.fresh-cold{background:var(--sunk);color:var(--ink-3)}
-.fresh-dot{width:8px;height:8px;border-radius:var(--r-p);background:currentColor}
-.fresh-dot-live{box-shadow:0 0 0 0 currentColor;animation:pulse 2.4s ease-out infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(127,184,164,.7)}100%{box-shadow:0 0 0 9px rgba(127,184,164,0)}}
-@media (prefers-reduced-motion:reduce){.fresh-dot-live{animation:none}}
-/* --- data viz that works in RTL ---------------------------- */
-.bars{display:grid;gap:7px;font-size:var(--t-2)}
-.bar-r{display:grid;grid-template-columns:108px 1fr 38px;gap:var(--s-2);align-items:center}
-.bar-t{height:9px;border-radius:var(--r-p);background:var(--sunk);overflow:hidden;display:flex;justify-content:flex-start}
-.bar-f{height:9px;border-radius:var(--r-p);background:var(--petrol)}
-.bar-f-a{background:var(--amber-b)}.bar-f-c{background:var(--coral)}
-.bar-v{text-align:left;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:700}
-.spark{display:flex;align-items:flex-end;gap:3px;height:38px;direction:rtl}
-.spark>i{flex:1;background:var(--petrol-tint);border-radius:2px 2px 0 0}
-.spark>i.hi{background:var(--petrol)}
-.kpi{padding:var(--s-3)}
-.kpi-l{font:700 var(--t-1)/1.4 var(--f-ar);letter-spacing:.07em;color:var(--ink-4)}
-.kpi-n{font:700 var(--t-7)/1.15 var(--f-num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;text-align:right}
-.kpi-d{font-size:var(--t-1);color:var(--ok);font-weight:600}
-.kpi-d-neg{color:var(--coral)}
-/* --- empty-state graphic language: Iraqi, geometric -------- */
-.glyph{width:84px;height:84px;margin:0 auto;position:relative;opacity:.9}
-.glyph i{position:absolute;inset:0;border:1.5px solid var(--petrol);border-radius:3px;opacity:.55}
-.glyph i:nth-child(1){transform:rotate(0deg) scale(.72)}
-.glyph i:nth-child(2){transform:rotate(30deg) scale(.72)}
-.glyph i:nth-child(3){transform:rotate(60deg) scale(.72)}
-.glyph b{position:absolute;inset:34%;background:var(--amber-b);border-radius:2px;transform:rotate(45deg)}
-.empty{text-align:center;padding:var(--s-6) var(--s-4)}
-.empty-t{font-weight:700;font-size:var(--t-4);margin:var(--s-3) 0 var(--s-1)}
-.empty-b{font-size:var(--t-2);color:var(--ink-3);line-height:1.8}
-/* --- skeleton, offline, error ------------------------------ */
-.sk{background:linear-gradient(90deg,var(--sunk),var(--line),var(--sunk));background-size:200% 100%;
-    border-radius:8px;animation:sh 1.4s linear infinite}
-@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
-@media (prefers-reduced-motion:reduce){.sk{animation:none}}
-.note{border-radius:var(--r-s);padding:9px var(--s-3);font-size:var(--t-2);line-height:1.7}
-.note-i{background:var(--petrol-tint);color:var(--petrol-deep)}
-.note-w{background:var(--amber-tint);color:var(--amber-ink)}
-.note-e{background:var(--coral-tint);color:var(--coral)}
-/* --- the issued slip -------------------------------------- */
-.slip{background:var(--card);border:1px solid var(--line);border-bottom:none;border-radius:var(--r-m) var(--r-m) 0 0;padding:var(--s-4)}
-.perf{height:12px;background:radial-gradient(circle at 8px 0,var(--sand) 5px,var(--card) 5.5px);
-      background-size:16px 12px;background-position:0 -6px;border-inline:1px solid var(--line)}
-/* --- bottom nav: exactly 4 -------------------------------- */
-.nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--card);
-     padding:var(--s-2) var(--s-1) var(--s-3);font-size:var(--t-1);text-align:center;color:var(--ink-4)}
-.nav>span>b{display:block;font:400 17px/1.3 var(--f-ar)}
-.nav .on{color:var(--petrol);font-weight:700}
-/* --- tier / price card ------------------------------------ */
-.tier{padding:var(--s-4)}
-.tier-p{font:700 var(--t-6)/1.2 var(--f-num);direction:ltr;unicode-bidi:embed;text-align:right}
-.tier-li{display:flex;gap:var(--s-2);font-size:var(--t-2);color:var(--ink-2);align-items:flex-start}
-.tier-li::before{content:"—";color:var(--petrol);font-weight:700}
-/* ============================ end component layer ========= */
-
-/* board chrome (not part of the deliverable) */
-a:hover{color:#083734}
-.code{width:760px;max-height:560px;overflow:auto;background:#141614;color:#D6D1C7;border-radius:14px;padding:18px 20px;
-      font:500 11px/1.7 'IBM Plex Mono',monospace;direction:ltr;text-align:left;white-space:pre;-webkit-user-select:all}
-.code b{color:#5FB4AC;font-weight:500}.code i{color:#8A857C;font-style:normal}
+.wk > b.quiet, .wk7 > b.quiet { opacity: .46; border-style: dashed; }
+.wk > b.today, .wk7 > b.today { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.wk > b.on, .wk7 > b.on { background: var(--jade); border-color: var(--jade); color: var(--dial-2); }
 
 </style>
 </head>
@@ -1660,7 +667,23 @@ const CONFIG = {
   brand: { ar: "قريب", en: "Qareeb" },
   city: { ar: "بغداد", en: "Baghdad" },
   currency: { ar: "د.ع", en: "IQD" },
-  emergency: { ambulance: "122", note_ar: "تأكد من الرقم قبل الإطلاق", note_en: "Verify before launch" },
+  /* Verified July 2026. Iraq consolidated 26 emergency lines behind a unified
+     911 (Ministry of Interior; Baghdad 2024, nationwide by mid-2025), which
+     dispatches police, fire and medical. The Ministry of Health ambulance line
+     122 stays live alongside it. We lead with 911 because that is what the
+     state is telling people to call, and keep 122 because a lot of Baghdad
+     still dials it by muscle memory — both connect. Re-check before launch:
+     an emergency number is the one piece of data here that can cost a life if
+     it goes stale. */
+  emergency: { unified: "911", ambulance: "122", verified_ar: "تموز ٢٠٢٦", verified_en: "July 2026" },
+  /* Show a stack trace on the error screen only when explicitly enabled.
+     A user never needs it; whoever is debugging a poster in the field does. */
+  debug: false,
+  /* Anchored to the consultation fee already in this dataset: at a 30,000 IQD
+     consultation, two extra patients a month clears it. That is the argument
+     the tier card makes out loud, so a doctor can check it against their own
+     week instead of being asked to trust a number. Indicative until signed. */
+  partnerPrice: 45000,
   defaultDistrict: "karrada",
   radiusKm: 5,
   radiusSteps: [5, 10, 25],
@@ -2052,27 +1075,53 @@ const PRODUCTS = [
    freshness is the whole point: a two-day-old confirmation is worth calling,
    a two-month-old one is not.
 ------------------------------------------------------------------------- */
+/* A stock entry is a *confirmation event*, not an inventory count. We never
+   claim to know a shelf; we know that someone confirmed availability at a
+   moment in time. `d` is whole days since that confirmation and `mins` refines
+   it below a day — freshness is the sort key on /med/:id, and a four-day-old
+   "yes" is not information, so it is never promoted by being nearer.
+   `p` is the price that pharmacy quoted, in IQD. All of it is synthetic seed.
+   `trend` is 14 days of "how many pharmacies had this confirmed", oldest first
+   — that is what turns a shortage from an anecdote into a visible slope. */
 const MEDICINES = [
-  { id: "m1",  ar: "أنسولين خلطي 30/70", en: "Insulin mix 30/70", form: "قلم", chronic: true,
-    alias: ["انسولين","أنسولين","سكري","insulin"], stock: [{ f: "p1", d: 1 }, { f: "p8", d: 3 }, { f: "p4", d: 12 }] },
+  { id: "m1",  ar: "أنسولين خلطي 30/70", en: "Insulin mix 30/70", form: "قلم 3 مل", chronic: true,
+    alias: ["انسولين","أنسولين","سكري","insulin"], equiv: ["مكستارد 30/70", "هيومولين 30/70"],
+    trend: [3,3,3,2,3,3,2,3,3,3,2,3,3,3],
+    stock: [{ f: "p1", d: 0, mins: 40, p: 42000 }, { f: "p8", d: 0, mins: 360, p: 43500 }, { f: "p4", d: 4 }] },
   { id: "m2",  ar: "ميتفورمين 850 ملغم", en: "Metformin 850mg", form: "حبوب", chronic: true,
-    alias: ["متفورمين","ميتفورمين","سكري","metformin"], stock: [{ f: "p1", d: 2 }, { f: "p3", d: 2 }, { f: "p9", d: 6 }, { f: "p13", d: 4 }] },
+    alias: ["متفورمين","ميتفورمين","سكري","metformin"], trend: [4,4,4,4,3,4,4,4,4,4,4,4,4,4],
+    stock: [{ f: "p1", d: 0, mins: 95, p: 9000 }, { f: "p3", d: 2, p: 9500 }, { f: "p9", d: 6 }, { f: "p13", d: 4, p: 8750 }] },
   { id: "m3",  ar: "أملوديبين 5 ملغم", en: "Amlodipine 5mg", form: "حبوب", chronic: true,
-    alias: ["ضغط","أملوديبين","amlodipine"], stock: [{ f: "p4", d: 1 }, { f: "p8", d: 5 }, { f: "p10", d: 9 }] },
+    alias: ["ضغط","أملوديبين","amlodipine"], trend: [3,3,3,3,3,2,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p4", d: 1, p: 6500 }, { f: "p8", d: 5 }, { f: "p10", d: 9 }] },
   { id: "m4",  ar: "ليفوثيروكسين 50 مايكروغرام", en: "Levothyroxine 50mcg", form: "حبوب", chronic: true,
-    alias: ["غدة","درقية","ليفوثيروكسين","thyroid"], stock: [{ f: "p8", d: 6 }] },
+    alias: ["غدة","درقية","ليفوثيروكسين","thyroid"], trend: [3,3,2,2,2,1,1,1,1,1,1,1,1,1],
+    stock: [{ f: "p8", d: 6, p: 12000 }] },
   { id: "m5",  ar: "سالبيوتامول بخاخ", en: "Salbutamol inhaler", form: "بخاخ", chronic: true,
-    alias: ["ربو","بخاخ","سالبيوتامول","ventolin","asthma"], stock: [{ f: "p2", d: 1 }, { f: "p8", d: 2 }, { f: "p12", d: 3 }] },
+    alias: ["ربو","بخاخ","سالبيوتامول","ventolin","asthma"], trend: [3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p2", d: 0, mins: 150, p: 11500 }, { f: "p8", d: 2, p: 12000 }, { f: "p12", d: 3 }] },
   { id: "m6",  ar: "أموكسيسيلين شراب للأطفال", en: "Amoxicillin syrup (pediatric)", form: "شراب",
-    alias: ["مضاد","اموكسيسيلين","أطفال","amoxicillin"], stock: [{ f: "p2", d: 1 }, { f: "p6", d: 4 }, { f: "p9", d: 2 }] },
+    alias: ["مضاد","اموكسيسيلين","أطفال","amoxicillin"], trend: [3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p2", d: 1, p: 5000 }, { f: "p6", d: 4 }, { f: "p9", d: 2, p: 5250 }] },
   { id: "m7",  ar: "باراسيتامول شراب أطفال", en: "Paracetamol syrup (pediatric)", form: "شراب",
-    alias: ["حرارة","باراسيتامول","بنادول","paracetamol"], stock: [{ f: "p1", d: 1 }, { f: "p2", d: 1 }, { f: "p6", d: 1 }, { f: "p11", d: 3 }] },
+    alias: ["حرارة","باراسيتامول","بنادول","paracetamol"], trend: [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+    stock: [{ f: "p1", d: 0, mins: 25, p: 3000 }, { f: "p2", d: 0, mins: 210, p: 3250 }, { f: "p6", d: 1, p: 3000 }, { f: "p11", d: 3 }] },
+  /* Deliberately unavailable — this is the shortage case the product exists for.
+     The trend shows it closing over nine days rather than vanishing overnight. */
   { id: "m8",  ar: "حديد وريدي — أمبولات", en: "IV iron ampoules", form: "أمبول",
-    alias: ["حديد","فقر دم","انيميا","iron"], stock: [] },   /* deliberately unavailable: the shortage case */
+    alias: ["حديد","فقر دم","انيميا","iron"], subs: ["m11"], trend: [3,4,3,2,1,1,1,0,0,0,0,0,0,0],
+    stock: [] },
   { id: "m9",  ar: "وارفارين 5 ملغم", en: "Warfarin 5mg", form: "حبوب", chronic: true,
-    alias: ["وارفارين","سيولة","warfarin"], stock: [{ f: "p8", d: 8 }] },
+    alias: ["وارفارين","سيولة","warfarin"], trend: [2,2,2,1,1,1,1,1,1,1,1,1,1,1],
+    stock: [{ f: "p8", d: 8 }] },
   { id: "m10", ar: "أوميبرازول 20 ملغم", en: "Omeprazole 20mg", form: "كبسول", chronic: true,
-    alias: ["معدة","حموضة","اوميبرازول","omeprazole"], stock: [{ f: "p1", d: 3 }, { f: "p3", d: 2 }, { f: "p4", d: 5 }, { f: "p14", d: 7 }] },
+    alias: ["معدة","حموضة","اوميبرازول","omeprazole"], trend: [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+    stock: [{ f: "p1", d: 3 }, { f: "p3", d: 0, mins: 480, p: 7000 }, { f: "p4", d: 5 }, { f: "p14", d: 7 }] },
+  /* The oral route the IV shortage pushes people toward. Listed so the
+     substitute door on /med/m8 opens onto something real, not a dead end. */
+  { id: "m11", ar: "حديد فموي 200 ملغم", en: "Oral iron 200mg", form: "أقراص",
+    alias: ["حديد","حديد فموي","فقر دم","iron"], trend: [3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+    stock: [{ f: "p1", d: 0, mins: 90, p: 4500 }, { f: "p3", d: 2, p: 4750 }, { f: "p9", d: 5 }] },
 ];
 
 /* Demand actually recorded by the platform — the asset a pharmacy would pay
@@ -2248,6 +1297,8 @@ const P = {
   flag: '<path d="M5 21V4M5 5h11l-1.6 3.5L16 12H5"/>',
   refresh: '<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3.5V9h-5.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  bell: '<path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
   grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   bookmark: '<path d="M6 3.5h12v17l-6-4-6 4z"/>',
   building: '<path d="M4 21V6l7-3v18M11 21h9V10l-9-3"/><path d="M14.5 12.5v.1M14.5 16v.1M17.5 12.5v.1M17.5 16v.1"/>',
@@ -2272,7 +1323,7 @@ const P = {
 };
 const DIRECTIONAL = new Set(["chev", "back"]);
 const icon = (n, cls = "") =>
-  `<svg class="${cls}${DIRECTIONAL.has(n) ? " dirflip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
+  `<svg class="${cls || "ico"}${DIRECTIONAL.has(n) ? " dirflip" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
 
 const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
   <path d="M4 4h18l6 6v18H4z" fill="var(--petrol)"/>
@@ -2667,6 +1718,11 @@ function parsedChips(pq, q) {
 /* An empty result is a dead end only if we make the user guess which
    constraint killed it. We already know: drop each token in turn, see which
    one restores results, and offer that exact fix as one tap. */
+/* The board's empty mark: three rotated squares around an amber diamond. It is
+   the app's own geometry rather than a generic magnifier or a shrugging doctor,
+   and it is drawn in CSS so an empty state costs nothing to render. */
+const emptyGlyph = () => `<div class="glyph" aria-hidden="true"><i></i><i></i><i></i><b></b></div>`;
+
 function zeroWithWayOut(P) {
   const LABEL = {
     spec: () => L(specOf(P.spec)),
@@ -2686,7 +1742,7 @@ function zeroWithWayOut(P) {
   }
   rescues.sort((a, b) => b.n - a.n);
   return `<div class="empty">
-    <div class="empty-mark">${icon("search")}</div>
+    ${emptyGlyph()}
     <h3>${isAR() ? "ما لگينا أحد يجمع كل هذي الشروط" : "Nothing matches all of those at once"}</h3>
     ${rescues.length ? `<p>${isAR() ? "بس لو تتنازل عن وحدة:" : "But dropping one of them works:"}</p>
       <div class="empty-alts stack">${rescues.map((r) => `
@@ -2754,9 +1810,24 @@ function validateData() {
     });
     if (!d.wa && !d.phone) errs.push({ t: "missing", m: `${d.ar}: بلا واتساب ولا هاتف — غير قابل للتواصل` });
   });
+  const medIds = new Set(MEDICINES.map((m) => m.id));
   MEDICINES.forEach((m) => {
     dup(m.id, "medicine");
-    m.stock.forEach((st) => { if (!facIds.has(st.f)) errs.push({ t: "orphan", m: `${m.ar}: صيدلية غير معروفة «${st.f}»` }); });
+    m.stock.forEach((st) => {
+      if (!facIds.has(st.f)) errs.push({ t: "orphan", m: `${m.ar}: صيدلية غير معروفة «${st.f}»` });
+      /* A confirmation dated in the future, or a "price" of zero, would both
+         render as confident facts. Catch them here rather than on screen. */
+      if (freshMins(st) < 0) errs.push({ t: "range", m: `${m.ar}: تأكيد بتاريخ مستقبلي` });
+      if (st.p !== undefined && !(st.p > 0)) errs.push({ t: "range", m: `${m.ar}: سعر غير صالح` });
+    });
+    /* The substitute door must open onto something. A dangling id would render
+       a button that leads to a 404 on the screen where the user has the fewest
+       options left — the worst possible place for a dead end. */
+    (m.subs || []).forEach((sid) => {
+      if (!medIds.has(sid)) errs.push({ t: "orphan", m: `${m.ar}: بديل غير معروف «${sid}»` });
+      if (sid === m.id) errs.push({ t: "orphan", m: `${m.ar}: بديل يشير إلى نفسه` });
+    });
+    if (m.trend && m.trend.length !== 14) errs.push({ t: "range", m: `${m.ar}: سلسلة التوفّر ليست ١٤ يوماً` });
   });
   PRODUCTS.forEach((pr) => {
     dup(pr.id, "product");
@@ -2772,10 +1843,15 @@ function validateData() {
 ------------------------------------------------------------- */
 function netBanner() {
   if (navigator.onLine !== false) return "";
+  /* "Browsing still works" is only honest if we also say how old the answer is.
+     Opening hours are computed live and stay true; stock confirmations were
+     read at a point in time and may have moved since. Say which is which. */
+  const at = LS.get("lastOnline", null);
+  const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
   return `<div class="offline-bar">${icon("alert")}
     <span>${isAR()
-      ? "ما في اتصال. التصفّح والبحث شغّالين — بس الإرسال عبر واتساب يحتاج إنترنت."
-      : "No connection. Browsing and search still work — sending on WhatsApp needs the network."}</span>
+      ? `ما في اتصال. ${when ? `هذه بيانات محفوظة من <span dir="ltr" class="num">${when}</span> — التوفّر ممكن يكون تغيّر. ` : ""}التصفّح والاتصال الهاتفي شغّالين — بس الإرسال عبر واتساب يحتاج إنترنت.`
+      : `No connection. ${when ? `This is saved data from <span dir="ltr" class="num">${when}</span> — stock may have changed. ` : ""}Browsing and phone calls still work — WhatsApp needs the network.`}</span>
     <button onclick="render()">${isAR() ? "أعد المحاولة" : "Retry"}</button></div>`;
 }
 
@@ -2883,7 +1959,7 @@ function screenHome() {
 
     <button class="sos" onclick="openEmergency()">
       ${icon("alert")}<span class="grow">${isAR() ? "حالة طارئة؟" : "Emergency?"}</span>
-      <b class="num">${CONFIG.emergency.ambulance}</b></button>
+      <b class="num">${CONFIG.emergency.unified}</b></button>
   </section>
 
   <section class="sec wrap">
@@ -2913,6 +1989,101 @@ function qrContext() {
   return `<div class="qr-ctx fade">${icon("qr")}
     <span>${isAR() ? "دخلت من" : "Scanned at"} ${esc(src.label_ar)}</span>
     <button onclick="S.qrSource=null;render()" aria-label="${t("cancel")}">${icon("close")}</button></div>`;
+}
+
+/* ---------------- QR ENTRY ----------------
+   Someone scans a poster at a pharmacy counter. They are standing up, probably
+   holding a prescription, and they did not come here to be onboarded. So this
+   is one question with three answers, every count computed live, and a skip
+   that is always the first thing reachable. It is not a carousel: there is no
+   second slide, and answering is optional — the district is already filled in
+   from the poster, so leaving does not cost them anything.
+------------------------------------------------------------- */
+const qrSeen = () => LS.get("startSeen", []);
+
+function markStartSeen(src) {
+  const seen = qrSeen();
+  if (src && !seen.includes(src)) LS.set("startSeen", [src, ...seen].slice(0, 12));
+}
+
+function skipStart() {
+  markStartSeen(S.qrSource);
+  location.hash = "#/";
+}
+
+function startTo(hash) {
+  markStartSeen(S.qrSource);
+  location.hash = hash;
+}
+
+function screenStart() {
+  const src = QR_SOURCES[S.qrSource];
+  const f = src ? fac(S.qrSource) : null;
+  const dist = DISTRICTS.find((d) => d.id === (src ? src.district : S.district));
+
+  /* Every number here is counted at render time. A poster that promises "96
+     pharmacies" and shows a stale figure is worse than showing nothing. */
+  const openPh = FACILITIES.filter((x) => x.type === "pharmacy" && status(x).k !== "shut").length;
+  const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
+  const verifiedDocs = DOCTORS.filter((d) => d.verified).length;
+
+  const tile = (href, title, sub, badge, badgeCls, rail) => `
+    <button class="surf-raise cham ${rail} pad-4 start-tile" onclick="startTo('${href}')">
+      <div class="row-b" style="gap:12px">
+        <span class="grow" style="text-align:start">
+          <span class="q-h2">${title}</span>
+          <span class="q-sub" style="display:block">${sub}</span></span>
+        <span class="bdg ${badgeCls}">${badge}</span>
+      </div></button>`;
+
+  return `
+  <div class="start-bar">
+    <a class="brand" href="#/" onclick="skipStart()">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+    <button class="btn btn--3 btn--sm" onclick="skipStart()">${isAR() ? "تخطَّ" : "Skip"}${icon("close")}</button>
+  </div>
+  <section class="wrap" style="padding-top:6px">
+    ${f ? `<div class="surf-sunk pad-3 row" style="gap:10px">
+      <span class="qc-av qc-av-ph" style="width:34px;height:34px;font-size:13px">${esc(initial(L(f)))}</span>
+      <span style="font-size:12.5px;line-height:1.6">${isAR() ? "مسحت الملصق في" : "Scanned at"} <b>${esc(L(f))}</b><br>
+        <span class="muted">${dist ? esc(L(dist)) + (isAR() ? (dist.lm_ar ? " — " + esc(dist.lm_ar) : "") : (dist.lm_en ? " — " + esc(dist.lm_en) : "")) : ""}</span></span>
+    </div>` : ""}
+
+    <div style="margin-top:20px">
+      <h1 class="q-h1">${isAR() ? "شنو تحتاج هالوكت؟" : "What do you need right now?"}</h1>
+      <div class="q-sub" style="margin-top:2px">${isAR()
+        ? "اختر واحداً — تكدر تغيّره بأي وقت." : "Pick one — you can change it any time."}</div>
+    </div>
+
+    <div class="stack-2" style="margin-top:14px">
+      ${tile("#/search", isAR() ? "دوا معيّن" : "A specific medicine",
+        isAR() ? "منو عنده الدوا هسّه — مؤكَّد بالساعة" : "Who has it now — confirmed by the hour",
+        `<span class="num">${freshMeds}</span> ${isAR() ? "دواء مؤكَّد" : "confirmed"}`, "bdg-stock", "rail-stock")}
+      ${tile("#/pharmacies", isAR() ? "صيدلية مفتوحة" : "An open pharmacy",
+        isAR() ? "المفتوح الآن والخفارة الليلية" : "Open now and night duty",
+        `<span class="num">${openPh}</span> ${isAR() ? "مفتوحة" : "open"}`, "bdg-t", "rail-open")}
+      ${tile("#/needs", isAR() ? "دكتور" : "A doctor",
+        isAR() ? "مرتّب حسب أقرب موعد، لا أقرب مسافة" : "Ranked by soonest slot, not nearest address",
+        `<span class="num">${verifiedDocs}</span> ${t("verified")}`, "bdg-v", "")}
+    </div>
+
+    <div class="surf-flat pad-3 row-b" style="margin-top:16px;gap:10px">
+      <span style="font-size:12.5px">${isAR() ? "منطقتك" : "Your area"}: <b>${dist ? esc(L(dist)) : ""}</b>
+        <span class="muted">${src ? (isAR() ? "— من الملصق" : "— from the poster") : ""}</span></span>
+      <button class="btn btn--3 btn--sm" onclick="openLocation()">${isAR() ? "تغيير" : "Change"}</button>
+    </div>
+
+    <div class="q-sub" style="margin-top:14px;text-align:center;font-size:11px">${isAR()
+      ? "بلا حساب · بلا تسجيل · ما نحفظ شي عن صحتك"
+      : "No account · no sign-up · nothing about your health is stored"}</div>
+
+    <a class="note note-e row-b" style="margin-top:14px;gap:10px" href="tel:${CONFIG.emergency.unified}">
+      <span><b>${isAR() ? "طوارئ؟" : "Emergency?"}</b> ${isAR() ? "الرقم الموحد" : "Unified line"}</span>
+      <b class="num">${CONFIG.emergency.unified}</b></a>
+    <a class="row-b tiny emg-alt" href="tel:${CONFIG.emergency.ambulance}">
+      <span class="muted">${isAR() ? "أو الإسعاف مباشرة" : "or the ambulance direct"}</span>
+      <b class="num">${CONFIG.emergency.ambulance}</b></a>
+  </section>
+  <div style="height:26px"></div>`;
 }
 
 function screenNeeds() {
@@ -3200,7 +2371,7 @@ function screenPharmacy(id) {
   </section>
   ${(() => {
     const meds = MEDICINES.filter((m) => m.stock.some((st) => st.f === f.id))
-      .map((m) => ({ m, d: m.stock.find((st) => st.f === f.id).d })).sort((a, b) => a.d - b.d);
+      .map((m) => ({ m, mins: freshMins(m.stock.find((st) => st.f === f.id)) })).sort((a, b) => a.mins - b.mins);
     if (!meds.length) return "";
     return `<section class="blk"><h3>${isAR() ? "أدوية أكّدت توفّرها" : "Medicines confirmed in stock"}</h3>
       <p class="small muted" style="margin-bottom:12px">${isAR()
@@ -3209,7 +2380,7 @@ function screenPharmacy(id) {
       <div class="stack">${meds.slice(0, 5).map((x) => `<a class="card is-open" href="#/med/${x.m.id}">
         <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
           <div class="grow"><div class="card-t">${esc(L(x.m))}</div>
-            <div class="card-meta"><span class="chip--meta ${x.d <= 3 ? "chip--ok" : "chip--time"}">${icon("check")}${esc(freshLabel(x.d))}</span></div></div>
+            <div class="card-meta"><span class="chip--meta ${x.mins <= 4320 ? "chip--ok" : "chip--time"}">${icon("check")}${freshLabel(x.mins)}</span></div></div>
           ${icon("chev")}</div></a>`).join("")}</div></section>`;
   })()}
   ${prods.length ? `<section class="blk"><div class="sec-h"><h2 style="font-size:15px">${isAR() ? "متوفر في هذه الصيدلية" : "On the shelf here"}</h2>
@@ -3345,10 +2516,10 @@ function searchResults(q) {
   if (none) {
     const guess = findSpecByQuery(q);
     return `<div class="empty">
-      <div class="empty-mark">${icon("search")}</div>
-      <h3>${isAR() ? `ما لگينا «${esc(q)}» بعد` : `Nothing for "${esc(q)}" yet`}</h3>
-      <p>${isAR() ? "سجّلنا بحثك — نضيف الناقص أسبوعياً. جرّب وحدة من هذي:"
-                  : "We logged it — we add what's missing weekly. Try one of these:"}</p>
+      ${emptyGlyph()}
+      <div class="empty-t">${isAR() ? `ما لگينا «${esc(q)}» بعد` : `Nothing for "${esc(q)}" yet`}</div>
+      <div class="empty-b">${isAR() ? "سجّلنا بحثك — نضيف الناقص أسبوعياً. جرّب وحدة من هذي:"
+                  : "We logged it — we add what's missing weekly. Try one of these:"}</div>
       <div class="empty-alts stack">
         ${guess ? `<button class="lane" onclick="pickNeed('${guess.id}')"><span class="ic">${icon("stetho")}</span>
           <span class="grow" style="text-align:start"><h3>${esc(L(guess))}</h3>
@@ -3381,8 +2552,8 @@ function screenHospitals() {
   return `${header({ back: true, title: isAR() ? "المستشفيات" : "Hospitals" })}
   <section class="wrap sec">
     <div class="banner banner--stop">${icon("alert")}<span>${isAR()
-      ? `للحالات الطارئة اتصل بالإسعاف <b class="num">${CONFIG.emergency.ambulance}</b> مباشرة.`
-      : `For emergencies call the ambulance on <b class="num">${CONFIG.emergency.ambulance}</b> directly.`}</span></div>
+      ? `للحالات الطارئة اتصل بالرقم الموحد <b class="num">${CONFIG.emergency.unified}</b> — أو الإسعاف <b class="num">${CONFIG.emergency.ambulance}</b>.`
+      : `In an emergency call <b class="num">${CONFIG.emergency.unified}</b> — or the ambulance on <b class="num">${CONFIG.emergency.ambulance}</b>.`}</span></div>
     <div class="sec-h" style="margin-top:20px"><h2>${isAR() ? "طوارئ مفتوحة الآن" : "Emergency rooms open now"}</h2></div>
     <div class="stack list-2">${er.map((x) => hospitalRow(x)).join("")}</div>
     <div class="sec-h" style="margin-top:24px"><h2>${isAR() ? "كل المستشفيات والمراكز" : "All hospitals & centres"}</h2></div>
@@ -3415,7 +2586,7 @@ function screenHospital(id) {
         <div class="card-meta" style="margin-top:7px">${sealBadge(f)}<i class="dot"></i>${updatedLine(f)}</div></div>
     </div>
     ${f.er ? `<div class="banner banner--stop" style="margin-top:14px">${icon("alert")}
-      <span>${isAR() ? "طوارئ تعمل ٢٤ ساعة" : "Emergency department open 24h"} · ${CONFIG.emergency.ambulance}</span></div>` : ""}
+      <span>${isAR() ? "طوارئ تعمل ٢٤ ساعة" : "Emergency department open 24h"} · <span class="num">${CONFIG.emergency.unified}</span></span></div>` : ""}
     <div class="prof-facts">
       <div class="prof-fact"><div class="k">${isAR() ? "المسافة" : "Distance"}</div><div class="v">${fmtKm(distTo(f))}</div></div>
       <div class="prof-fact"><div class="k">${isAR() ? "الأطباء" : "Doctors"}</div><div class="v num">${docs.length}</div></div>
@@ -3476,8 +2647,8 @@ function screenTrust() {
       ? "لا نعرض تقييمات أو نجوماً. بدون عدد كافٍ من التقييمات الحقيقية فهي إما فارغة أو مضللة."
       : "We show no ratings or stars. Without real volume they are either empty or gamed."}</span></div>
     <div class="banner banner--warn" style="margin-top:10px">${icon("alert")}<span>${isAR()
-      ? `${L(CONFIG.brand)} لا يقدّم استشارة طبية ولا تشخيصاً. للحالات الطارئة اتصل بالإسعاف ${CONFIG.emergency.ambulance}.`
-      : `${L(CONFIG.brand)} does not provide medical advice or diagnosis. In an emergency call ${CONFIG.emergency.ambulance}.`}</span></div>
+      ? `${L(CONFIG.brand)} لا يقدّم استشارة طبية ولا تشخيصاً. للحالات الطارئة اتصل بالرقم الموحد ${CONFIG.emergency.unified}.`
+      : `${L(CONFIG.brand)} does not provide medical advice or diagnosis. In an emergency call ${CONFIG.emergency.unified}.`}</span></div>
     <div class="banner banner--info" style="margin-top:10px">${icon("check")}<span>${isAR()
       ? "بدون حساب، بدون كلمة مرور، ولا نحتفظ بأي بيانات صحية. طلبك يذهب مباشرة إلى العيادة عبر واتساب."
       : "No account, no password, no health data stored. Your request goes straight to the clinic over WhatsApp."}</span></div>
@@ -3487,6 +2658,26 @@ function screenTrust() {
       <a class="btn btn--3" href="#/me">${icon("user")}${t("myRequests")}</a>
       <a class="btn btn--3" href="#/admin">${icon("grid")}${isAR() ? "لوحة التحكم" : "Admin"}</a>
     </div>
+  </section>${nav("home")}`;
+}
+
+/* The failure the user actually hits is not a 404 — it is a route that throws.
+   Before this, render() left the previous screen on the glass, so a tap simply
+   appeared to do nothing, which reads as "this app is broken" with no way out.
+   State it, take the blame, and always leave two doors open. */
+function screenError(err) {
+  return `${header({ back: true, title: "" })}
+  <section class="wrap" style="padding-top:22px">
+    <div class="surf-flat pad-3">
+      <div class="row-b" style="gap:12px;align-items:flex-start">
+        <span style="font-size:12.5px;line-height:1.7">${isAR()
+          ? "ما كدرنا نجيب النتائج.<br><span class=\"muted\">الخلل عدنا، مو عندك.</span>"
+          : "We couldn't load that.<br><span class=\"muted\">That's on us, not on you.</span>"}</span>
+        <button class="btn btn--2 btn--sm" onclick="render()">${icon("refresh")}${isAR() ? "إعادة المحاولة" : "Retry"}</button>
+      </div>
+    </div>
+    <a class="btn btn--3" style="margin-top:12px" href="#/">${icon("home")}${isAR() ? "الرئيسية" : "Home"}</a>
+    ${err && CONFIG.debug ? `<pre class="tiny muted" dir="ltr" style="margin-top:14px;white-space:pre-wrap">${esc(String(err && err.stack || err))}</pre>` : ""}
   </section>${nav("home")}`;
 }
 
@@ -3861,7 +3052,8 @@ function openEmergency() {
       <p>${isAR() ? "إذا كانت الحالة خطرة، اتصل بالإسعاف فوراً." : "If this is serious, call the ambulance now."}</p></div>
       <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
     <div class="sheet-b">
-      <a class="btn btn--danger" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
+      <a class="btn btn--danger" href="tel:${CONFIG.emergency.unified}">${icon("phone")}${isAR() ? "الطوارئ الموحد" : "Unified emergency"} <span class="num">${CONFIG.emergency.unified}</span></a>
+      <a class="btn btn--2" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
       <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
       <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
       <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
@@ -3943,7 +3135,7 @@ function medRow(m) {
         <div class="card-meta">${c.length
           ? `<span class="chip--meta chip--ok">${icon("check")}<span class="num">${c.length}</span> ${isAR() ? "صيدلية أكّدت" : "confirmed"}</span>`
           : `<span class="chip--meta chip--warn">${isAR() ? "شحيح — اسأل مباشرة" : "scarce — ask directly"}</span>`}
-          ${c.length ? `<i class="dot"></i><span>${esc(freshLabel(c[0].days))}</span>` : ""}</div></div>
+          ${c.length ? `<i class="dot"></i><span>${freshLabel(c[0].mins)}</span>` : ""}</div></div>
       ${icon("chev")}</div></a>`;
 }
 
@@ -3955,18 +3147,54 @@ function medMatches(q) {
 function pharmaciesForMed(med) {
   const confirmed = med.stock.map((st) => {
     const f = fac(st.f); if (!f) return null;
-    return { f, km: distTo(f), days: st.d, st: status(f), confirmed: true };
+    const mins = freshMins(st);
+    return { f, km: distTo(f), mins, band: freshBand(mins), price: st.p, st: status(f), confirmed: true };
   }).filter(Boolean);
   const others = FACILITIES.filter((f) => f.type === "pharmacy" && !med.stock.some((st) => st.f === f.id))
-    .map((f) => ({ f, km: distTo(f), days: null, st: status(f), confirmed: false }));
-  confirmed.sort((a, b) => a.days - b.days || a.km - b.km);
+    .map((f) => ({ f, km: distTo(f), mins: null, band: null, st: status(f), confirmed: false }));
+  /* Freshness first, always. Distance only breaks ties inside the same band —
+     a nearer pharmacy whose last "yes" is four days old is not a better answer. */
+  confirmed.sort((a, b) => a.mins - b.mins || a.km - b.km);
   others.sort((a, b) => (a.st.k === "shut") - (b.st.k === "shut") || a.km - b.km);
   return { confirmed, others };
 }
 
-const freshLabel = (d) => isAR()
-  ? (d <= 1 ? "أُكّد أمس" : d <= 3 ? `أُكّد قبل ${d} أيام` : d <= 14 ? `أُكّد قبل ${d} يوم` : `قديم — قبل ${d} يوم`)
-  : (d <= 1 ? "confirmed yesterday" : `confirmed ${d}d ago`);
+/* Freshness is the only claim this product actually makes. We never say a
+   pharmacy "has" a medicine — we say someone confirmed it, and how long ago.
+   Minutes matter below a day: a confirmation from 40 minutes ago is a different
+   fact from one from this morning, and the screen has to be able to say so. */
+const freshMins = (st) => st.mins !== undefined ? st.mins : st.d * 1440;
+
+/* Three bands, and they are the ranking. hot = today, warm = this week,
+   cold = older than three days, which is not information any more. */
+const freshBand = (mins) => mins < 720 ? "hot" : mins <= 4320 ? "warm" : "cold";
+
+function freshLabel(mins) {
+  const n = (v) => `<span class="num">${v}</span>`;
+  if (isAR()) {
+    if (mins < 60) return `مؤكَّد قبل ${n(Math.max(1, Math.round(mins)))} دقيقة`;
+    if (mins < 1440) return `مؤكَّد قبل ${n(Math.round(mins / 60))} ساعات`;
+    const d = Math.round(mins / 1440);
+    if (d === 1) return "مؤكَّد أمس";
+    if (d <= 3) return `مؤكَّد قبل ${n(d)} أيام`;
+    return `قبل ${n(d)} يوم — غير مؤكّد`;
+  }
+  if (mins < 60) return `confirmed ${n(Math.max(1, Math.round(mins)))} min ago`;
+  if (mins < 1440) return `confirmed ${n(Math.round(mins / 60))}h ago`;
+  const d = Math.round(mins / 1440);
+  return d <= 3 ? `confirmed ${n(d)}d ago` : `${n(d)}d ago — unconfirmed`;
+}
+const freshLabelTxt = (mins) => freshLabel(mins).replace(/<[^>]+>/g, "");
+
+/* Age with no verdict attached, for places that already supply their own
+   ("last confirmed …" must not then say "unconfirmed" in the same breath). */
+function ageLabel(mins) {
+  const n = (v) => `<span class="num">${v}</span>`;
+  if (mins < 60) return isAR() ? `قبل ${n(Math.max(1, Math.round(mins)))} دقيقة` : `${n(Math.max(1, Math.round(mins)))} min ago`;
+  if (mins < 1440) return isAR() ? `قبل ${n(Math.round(mins / 60))} ساعات` : `${n(Math.round(mins / 60))}h ago`;
+  const d = Math.round(mins / 1440);
+  return isAR() ? (d === 1 ? "أمس" : `قبل ${n(d)} يوم`) : `${n(d)}d ago`;
+}
 
 function medMsg(med, ref) {
   return isAR()
@@ -3974,55 +3202,275 @@ function medMsg(med, ref) {
     : `Hello, do you have this in stock?\n\n${med.en}\n\nRef: ${ref}\n— via Qareeb`;
 }
 
+/* People waiting on this medicine — derived from demand we actually logged
+   (asks that never got filled), never a decorative number. */
+/* Every other pharmacy here is "صيدلية الـ…", so naive first-letter avatars all
+   render as ا. Drop the category word and the definite article to get the
+   letter a person would actually use to tell them apart. */
+const initial = (name) => {
+  const w = String(name).replace(/^(صيدلية|صيدليه|مستشفى|عيادة|مركز)\s+/, "").trim();
+  return (w.startsWith("ال") && w.length > 3 ? w.slice(2) : w).charAt(0);
+};
+
+const medWaiting = (med) => MED_DEMAND.filter((r) => r.med === med.id)
+  .reduce((n, r) => n + Math.max(0, r.asks - r.filled), 0);
+
+/* How many pharmacies we could even have asked. Computed from the network, so
+   "we asked 18 within 10 km" is true by construction rather than asserted. */
+const medPolled = (r = 10) => FACILITIES.filter((f) => f.type === "pharmacy" && distTo(f) <= r).length;
+
+/* Batch ask: the whole reason a neutral party is needed. One person messaging
+   six pharmacies one at a time is the status quo; this is the same six, once. */
+function batchAsk(medId) {
+  const med = medById(medId); if (!med) return;
+  const ref = (S.medRef ||= refCode());
+  const targets = FACILITIES.filter((f) => f.type === "pharmacy" && f.wa)
+    .map((f) => ({ f, km: distTo(f), st: status(f) }))
+    .sort((a, b) => (a.st.k === "shut") - (b.st.k === "shut") || a.km - b.km).slice(0, 6);
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${isAR() ? "اسأل الكل دفعة واحدة" : "Ask them all at once"}</h2>
+      <p>${isAR()
+        ? `نفس الرسالة ونفس الرمز لـ<span class="num"> ${targets.length} </span>صيدليات. تفتح واتساب واحدة واحدة — أنت ترسل، لا نرسل نيابة عنك.`
+        : `The same message and code to ${targets.length} pharmacies. Each opens WhatsApp — you send, we never send for you.`}</p></div></div>
+    <div class="sheet-b">
+      <div class="slip">
+        <div class="slip-h">
+          <div><div class="eyebrow">${isAR() ? "سؤال عن توفّر" : "Availability request"}</div>
+            <div class="card-t" style="margin-top:3px">${esc(L(med))}</div>
+            <div class="card-q">${esc(med.form || "")}</div></div>
+          <div style="text-align:end"><div class="slip-ref mono" dir="ltr">#${ref}</div>
+            <div class="tiny muted mono">${new Date().toLocaleDateString("en-GB")}</div></div>
+        </div>
+        <div class="slip-to">${isAR() ? "إلى" : "To"}: <span class="num">${targets.length}</span> ${isAR() ? "صيدلية" : "pharmacies"}</div>
+        <div class="bubble">${esc(medMsg(med, ref))}</div>
+      </div>
+      <div class="stack-2" style="margin-top:12px">
+        ${targets.map((x) => `<a class="btn btn--wa" href="${waLink(x.f.wa, medMsg(med, ref))}"
+          target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${esc(L(x.f))}
+          <span class="num" style="opacity:.75;margin-inline-start:auto">${fmtKm(x.km)}</span></a>`).join("")}
+      </div>
+      <p class="tiny muted" style="margin-top:14px">${isAR()
+        ? "أول جواب يوصلنا نخليه متاح للي بعدك — بدون اسمك."
+        : "The first answer we get is published for the next person — without your name."}</p>
+    </div>`);
+}
+
+/* Notify-me. No account, so it lives in this browser and says so plainly
+   rather than implying a server is watching on the user's behalf. */
+function watchMed(medId) {
+  const w = LS.get("watch", []);
+  const on = w.includes(medId);
+  LS.set("watch", on ? w.filter((x) => x !== medId) : [medId, ...w]);
+  toast(on ? (isAR() ? "أوقفنا المتابعة" : "Stopped following")
+           : (isAR() ? "نتابعه لك — يظهر هنا أول ما تتأكد صيدلية" : "Following — it will show here once a pharmacy confirms"));
+  render();
+}
+
+/* Was it actually there? The answer is the whole dataset. One tap, no form. */
+function confirmStock(medId, facId, yes) {
+  const log = LS.get("reports", []);
+  log.unshift({ med: medId, fac: facId, yes, at: Date.now() });
+  LS.set("reports", log.slice(0, 80));
+  toast(isAR() ? "وصلتنا — شكراً، هذا يفيد اللي بعدك" : "Got it — thank you, this helps the next person");
+  render();
+}
+
+function stockCard(med, x, ref) {
+  const stale = x.band === "cold";
+  const d = DISTRICTS.find((y) => y.id === x.f.district);
+  return `<div class="surf-${stale ? "flat" : "raise"} qc ${stale ? "quiet" : "rail-stock"}">
+    <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
+    <div class="qc-b">
+      <div class="qc-title">${esc(L(x.f))}</div>
+      <div class="qc-qual">${d ? esc(L(d)) : ""}${d ? " · " : ""}<span class="num">${fmtKm(x.km)}</span></div>
+      <div class="qc-meta">
+        <span class="fresh fresh-${x.band}" style="padding:3px 8px">
+          <span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
+        ${x.price ? `<span class="num">${money(x.price)}</span>` : ""}
+      </div>
+      <div class="row" style="gap:7px;margin-top:9px">
+        ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
+             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
+          : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
+        <a class="btn btn--3 btn--sm" href="#/pharmacy/${x.f.id}">${isAR() ? "الصيدلية" : "Pharmacy"}</a>
+      </div>
+    </div></div>`;
+}
+
+/* 14 days of "how many pharmacies had this confirmed". A shortage that is
+   nine days old and widening is a different thing from a bad afternoon, and
+   the slope is the only honest way to say which one you are looking at. */
+function medTrend(med) {
+  const tr = med.trend || [];
+  if (!tr.length) return "";
+  const mx = Math.max(...tr, 1);
+  const zeros = [...tr].reverse().findIndex((v) => v > 0);
+  const dry = zeros === -1 ? tr.length : zeros;   // trailing days at zero
+  const last = tr[tr.length - 1];                 // trend is oldest-first
+  return `<div class="surf-flat pad-3">
+    <div class="q-eyebrow">${isAR() ? "أسبوعان من التوفّر" : "Two weeks of availability"}</div>
+    <div class="spark" style="margin-top:10px;height:30px" role="img"
+      aria-label="${isAR() ? "عدد الصيدليات المؤكِّدة خلال ١٤ يوم" : "Confirming pharmacies over 14 days"}">
+      ${tr.map((v) => `<i class="${dry >= 2 && v === mx ? "hi" : ""}" style="height:${Math.max(6, Math.round((v / mx) * 100))}%"
+        title="${v}"></i>`).join("")}
+    </div>
+    <div class="q-sub" style="margin-top:6px">${dry >= 2
+      ? (isAR() ? `النقص بدأ قبل <span class="num">${dry}</span> أيام ويتّسع. نُبلغ الصيدليات المشتركة بهذا الطلب غير الملبّى.`
+                : `The shortage started <span class="num">${dry}</span> days ago and is widening. Partner pharmacies are told about this unmet demand.`)
+      : last <= 1
+      ? (isAR() ? `التوفّر هش — <span class="num">${last}</span> صيدلية فقط سجّلت توفّره مؤخراً.`
+                : `Thin supply — only <span class="num">${last}</span> pharmacy has it on record lately.`)
+      : (isAR() ? "التوفّر مستقر خلال الأسبوعين الماضيين." : "Availability has been steady over the past two weeks.")}</div>
+  </div>`;
+}
+
 function screenMed(id) {
   const med = medById(id); if (!med) return screen404();
   const { confirmed, others } = pharmaciesForMed(med);
   const ref = (S.medRef ||= refCode());
-  const row = (x) => `<div class="card ${x.st.k === "open" ? "is-open" : "is-shut"}">
-    <div class="card-top">
-      <div class="avatar avatar--sq">${icon("cross")}</div>
-      <div class="grow">
-        <div class="card-t trunc">${esc(L(x.f))}</div>
-        <div class="card-meta">
-          ${x.confirmed ? `<span class="chip--meta ${x.days <= 3 ? "chip--ok" : "chip--time"}">${icon("check")}${freshLabel(x.days)}</span>`
-                        : `<span class="chip--meta">${isAR() ? "غير مؤكَّد" : "unconfirmed"}</span>`}
-          <i class="dot"></i><span class="dist">${icon("pin")}${fmtKm(x.km)}</span>
-          <i class="dot"></i><span>${esc(L(DISTRICTS.find((d) => d.id === x.f.district)))}</span>
-        </div>
+  const watching = LS.get("watch", []).includes(med.id);
+  const waiting = medWaiting(med);
+  const lastMins = med.stock.length ? Math.min(...med.stock.map(freshMins)) : null;
+  /* A confirmation older than three days is not an answer, so it cannot be the
+     hero. The screen splits on "is there a live answer", not "is there a row in
+     the table" — otherwise a stale record gets the same triumphant treatment as
+     a pharmacy that confirmed forty minutes ago, which is the exact failure the
+     freshness model exists to prevent. Stale rows still appear below, dimmed. */
+  const fresh = confirmed.filter((x) => x.band !== "cold");
+  const stale = confirmed.filter((x) => x.band === "cold");
+  const rest = [...fresh.slice(1), ...stale];
+  /* "Nothing near you" is a real answer and has to be said out loud. Without
+     it the hero silently shows a pharmacy six districts away and the user has
+     to work out for themselves that their own area came up empty. */
+  const hereId = S.district;
+  const elsewhere = fresh.length && !fresh.some((x) => x.f.district === hereId)
+    ? DISTRICTS.find((d) => d.id === hereId) : null;
+  const sub = (med.subs || []).map(medById).filter(Boolean)
+    .map((sm) => ({ sm, best: pharmaciesForMed(sm).confirmed[0] })).filter((x) => x.best)[0];
+
+  const watchBtn = `<button class="btn btn--3 btn--sm" onclick="watchMed('${med.id}')">
+    ${icon(watching ? "check" : "bell")}${watching ? (isAR() ? "نتابعه" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>`;
+
+  /* The hero. With stock it is the freshest confirmation, in full, with the
+     pharmacy's hours behind it so "open now" is visible and not a claim.
+     Without stock it is the shortage itself — stated, then routed. */
+  const hero = fresh.length ? (() => {
+    const x = fresh[0];
+    const d = DISTRICTS.find((y) => y.id === x.f.district);
+    return `<div class="surf-key cham pad-4">
+      <div class="row" style="justify-content:space-between">
+        <span class="fresh fresh-${x.band}"><span class="fresh-dot${x.band === "hot" ? " fresh-dot-live" : ""}"></span>${freshLabel(x.mins)}</span>
+        <span class="q-sub num">${fmtKm(x.km)}</span></div>
+      <div class="q-h2" style="margin-top:10px">${esc(L(x.f))}</div>
+      <div class="q-sub">${d ? esc(L(d)) + (isAR() ? d.lm_ar ? " — " + esc(d.lm_ar) : "" : d.lm_en ? " — " + esc(d.lm_en) : "") : ""}${x.price ? ` · <span class="num">${money(x.price)}</span>` : ""}</div>
+      <div style="margin-top:10px">${ribbon(x.f, null, "ribbon--day")}</div>
+      <div class="q-sub" style="margin-top:6px">${statusLabel(x.st, true)}</div>
+      ${x.f.wa ? `<a class="btn btn--wa" style="margin-top:12px" href="${waLink(x.f.wa, medMsg(med, ref))}"
+           target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR()
+             ? "اسأل عبر واتساب — الرسالة جاهزة" : "Ask on WhatsApp — message ready"}</a>`
+        : `<a class="btn" style="margin-top:12px" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
+    </div>`;
+  })() : `<div class="surf-key cham pad-4" style="border-color:var(--amber-ink)">
+      <div class="row" style="gap:9px;flex-wrap:wrap">
+        <span class="bdg bdg-n">${isAR() ? "نقص حالي" : "Current shortage"}</span>
+        ${lastMins !== null ? `<span class="q-sub">${isAR() ? "آخر تأكيد " : "last confirmed "}${ageLabel(lastMins)}</span>` : ""}
       </div>
-    </div>
-    <div class="card-foot" style="border:0;padding-top:8px">
-      ${statusLabel(x.st, true)}
-      ${x.f.wa ? `<a class="btn btn--wa btn--sm" href="${waLink(x.f.wa, medMsg(med, ref))}" target="_blank" rel="noopener"
-           onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
-        : `<a class="btn btn--2 btn--sm" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
-    </div></div>`;
+      <div class="q-h2" style="margin-top:8px">${stale.length
+        ? (isAR() ? "لا تأكيد حديث — آخر جواب صار له أيام" : "No recent confirmation — the last answer is days old")
+        : (isAR() ? "لا صيدلية مؤكَّدة اليوم في بغداد" : "No pharmacy confirmed today in Baghdad")}</div>
+      <div class="q-sub" style="margin-top:4px">${isAR()
+        ? `سألنا <span class="num">${medPolled()}</span> صيدلية ضمن <span class="num">10 كم</span> خلال <span class="num">24</span> ساعة. لن نتركك هكذا — هذه ثلاثة أبواب:`
+        : `We polled <span class="num">${medPolled()}</span> pharmacies within <span class="num">10 km</span> in <span class="num">24</span> hours. Here are three doors:`}</div>
+      <div class="stack-2" style="margin-top:14px">
+        <button class="btn" onclick="watchMed('${med.id}')">${icon(watching ? "check" : "bell")}${isAR()
+          ? `${watching ? "نتابعه لك" : "نبّهني أول ما يتوفّر"}${waiting ? ` — <span class="num">${waiting}</span> ينتظرون` : ""}`
+          : `${watching ? "Following" : "Notify me"}${waiting ? ` — <span class="num">${waiting}</span> waiting` : ""}`}</button>
+        <button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
+          ? `اسأل <span class="num">6</span> صيدليات دفعة واحدة` : `Ask <span class="num">6</span> pharmacies at once`}</button>
+        ${sub ? `<a class="btn btn--2" href="#/med/${sub.sm.id}">${icon("pill")}${isAR()
+          ? "البدائل المكافئة" : "Equivalent alternatives"} — ${esc(L(sub.sm))}</a>`
+        : med.equiv?.length ? `<button class="btn btn--2" onclick="batchAsk('${med.id}')">${icon("pill")}${isAR()
+          ? "اسأل عن البدائل" : "Ask about alternatives"} — ${esc(med.equiv.join("، "))}</button>` : ""}
+      </div>
+    </div>`;
 
   return `${header({ back: true, title: isAR() ? "توفّر الدواء" : "Medicine availability" })}
-  <section class="wrap" style="padding-top:12px">
-    <h1 class="prof-name">${esc(L(med))}</h1>
-    <div class="prof-spec">${esc(med.form || "")}${med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : ""}</div>
-    <div class="banner banner--info" style="margin-top:14px">${icon("info")}<span>${isAR()
-      ? `رمز طلبك <b class="mono" dir="ltr">${ref}</b> — نفس الرمز لكل الصيدليات، حتى تعرف أي واحدة ردّت.`
-      : `Your request code <b class="mono" dir="ltr">${ref}</b> — the same code goes to every pharmacy.`}</span></div>
+  <section class="wrap" style="padding-top:14px">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px">
+      <div class="grow"><h1 class="q-h1">${esc(L(med))}</h1>
+        <div class="q-sub">${esc(med.form || "")}${med.chronic ? (isAR() ? " · علاج مزمن" : " · chronic") : ""}${
+          med.equiv?.length ? (isAR() ? " · بديل مقبول: " : " · accepted equivalent: ") + esc(med.equiv[0]) : ""}</div></div>
+      ${watchBtn}
+    </div>
   </section>
 
-  ${confirmed.length ? `<section class="blk"><h3>${isAR() ? "أكّدت توفّره" : "Confirmed in stock"}
-      <span class="muted" style="font-weight:400">· ${isAR() ? "الأحدث تأكيداً أولاً" : "freshest first"}</span></h3>
-    <div class="stack">${confirmed.slice(0, 4).map(row).join("")}</div></section>`
-  : `<section class="blk"><div class="empty" style="padding:22px 4px">
-      <div class="empty-mark">${icon("alert")}</div>
-      <h3>${isAR() ? "ما عدنا تأكيد توفّر لهذا الدواء" : "No confirmed stock for this yet"}</h3>
-      <p>${isAR() ? "هذا دواء شحيح حالياً. اسأل أقرب الصيدليات مباشرة — وأول ردّ يوصلنا يفيد غيرك بعدك."
-                  : "This one is scarce right now. Ask the nearest pharmacies — the first answer helps the next person too."}</p>
-    </div></section>`}
+  ${elsewhere ? `<section class="wrap" style="margin-top:14px">
+    <div class="note note-i">${isAR()
+      ? `ما لكيناه مؤكَّداً في <b>${esc(L(elsewhere))}</b> — أقرب تأكيد في <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>، <span class="num">${fmtKm(fresh[0].km)}</span>.`
+      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — the nearest confirmation is in <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, <span class="num">${fmtKm(fresh[0].km)}</span> away.`}</div>
+  </section>` : ""}
 
-  <section class="blk"><h3>${isAR() ? "اسأل صيدليات قريبة" : "Ask nearby pharmacies"}</h3>
+  <section class="wrap" style="margin-top:14px">${hero}</section>
+
+  ${!fresh.length && sub ? `<section class="wrap" style="margin-top:14px">
+    <div class="surf-raise pad-3">
+      <div class="q-eyebrow">${isAR() ? "البديل الأقرب المتوفّر الآن" : "Nearest available alternative"}</div>
+      <div style="margin-top:10px">${stockCard(sub.sm, sub.best, ref)}</div>
+      <div class="q-sub" style="margin-top:9px">${isAR()
+        ? "بديل شائع لنفس الاستطباب — <b>راجع طبيبك قبل التبديل</b>."
+        : "A common alternative for the same indication — <b>ask your doctor before switching</b>."}</div>
+    </div></section>` : ""}
+
+  ${rest.length ? `<section class="wrap" style="margin-top:16px">
+    <div class="q-eyebrow">${fresh.length
+      ? (isAR() ? "توفّر آخر — مرتّب بحسب " : "Also available — ordered by ")
+      : (isAR() ? "تأكيدات سابقة — مرتّبة بحسب " : "Earlier confirmations — ordered by ")}<b style="color:var(--petrol)">${
+      isAR() ? "حداثة التأكيد" : "confirmation freshness"}</b></div>
+    <div class="stack-2" style="margin-top:8px">${rest.slice(0, 4).map((x) => stockCard(med, x, ref)).join("")}</div>
+    ${rest.slice(0, 4).some((x) => x.band === "cold") ? `<div class="note note-i" style="margin-top:12px">${isAR()
+      ? "الحداثة هي كل شيء هنا: «متوفّر» عمرها أربعة أيام ليست معلومة — لذلك تخفت، ولا نرتّبها بالمسافة."
+      : "Freshness is everything here: a four-day-old \"in stock\" is not information — so it dims, and proximity never promotes it."}</div>` : ""}
+  </section>` : ""}
+
+  <section class="wrap" style="margin-top:16px">${medTrend(med)}</section>
+
+  ${fresh.length ? `<section class="wrap" style="margin-top:14px">
+    <div class="surf-flat pad-3">
+      <div class="q-eyebrow">${isAR() ? "ساعدنا نُحدّث" : "Help us stay current"}</div>
+      <div class="q-sub" style="margin-top:4px">${isAR()
+        ? "إن سألت صيدلية ووجدت الجواب، أخبرنا — ثانية واحدة، ويستفيد غيرك."
+        : "If you asked a pharmacy and got an answer, tell us — one second, and it helps the next person."}</div>
+      <div class="row" style="gap:7px;margin-top:9px">
+        <button class="btn btn--2 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',true)">${icon("check")}${
+          isAR() ? "كان متوفّراً" : "It was there"}</button>
+        <button class="btn btn--3 btn--sm grow" onclick="confirmStock('${med.id}','${fresh[0].f.id}',false)">${icon("x")}${
+          isAR() ? "لم يكن" : "It wasn't"}</button>
+      </div>
+    </div></section>` : ""}
+
+  ${others.length ? `<section class="blk" style="margin-top:16px"><h3>${isAR() ? "صيدليات لم تؤكّد بعد" : "Not confirmed yet"}</h3>
     <p class="small muted" style="margin-bottom:12px">${isAR()
-      ? "رسالة جاهزة لكل وحدة — ما تحتاج تكتب شي." : "A ready message for each — nothing to type."}</p>
-    <div class="stack">${others.slice(0, 5).map(row).join("")}</div>
+      ? `رسالة جاهزة لكل وحدة، ونفس الرمز <b class="mono" dir="ltr">${ref}</b> — حتى تعرف أي وحدة ردّت.`
+      : `A ready message for each, same code <b class="mono" dir="ltr">${ref}</b> — so you know who replied.`}</p>
+    <div class="stack-2">${others.slice(0, 4).map((x) => `<div class="surf-flat qc">
+      <div class="qc-av qc-av-ph">${esc(initial(L(x.f)))}</div>
+      <div class="qc-b"><div class="qc-title">${esc(L(x.f))}</div>
+        <div class="qc-qual">${esc(L(DISTRICTS.find((y) => y.id === x.f.district)) || "")} · <span class="num">${fmtKm(x.km)}</span></div>
+        <div class="row" style="gap:7px;margin-top:9px">
+          ${x.f.wa ? `<a class="btn btn--wa btn--sm grow" href="${waLink(x.f.wa, medMsg(med, ref))}"
+             target="_blank" rel="noopener" onclick="logAsk('${med.id}')">${icon("wa")}${isAR() ? "اسأل" : "Ask"}</a>`
+            : `<a class="btn btn--2 btn--sm grow" href="tel:+${x.f.phone}">${icon("phone")}${t("call")}</a>`}
+        </div></div></div>`).join("")}</div>
+    <button class="btn btn--2" style="margin-top:12px" onclick="batchAsk('${med.id}')">${icon("wa")}${isAR()
+      ? "اسألهم كلهم دفعة واحدة" : "Ask them all at once"}</button>
+  </section>` : ""}
+
+  <section class="wrap" style="margin-top:14px">
+    <div class="note note-e">${isAR()
+      ? "هذه معلومة توفّر، لا نصيحة طبية. لا توقف دواءك ولا تبدّله دون طبيبك."
+      : "This is availability information, not medical advice. Never stop or switch a medicine without your doctor."}</div>
   </section>
-  <div style="height:20px"></div>${nav("pharmacies")}`;
+  <div style="height:24px"></div>${nav("pharmacies")}`;
 }
 
 function logAsk(medId) {
@@ -4177,7 +3625,7 @@ function screenPartnerDoctor(id) {
       <div class="note note-i" style="margin-top:14px">${isAR()
         ? "أول خطوة: أكّد أوقات دوامك. الأطباء اللي أوقاتهم واضحة يوصلهم ضعف الطلبات."
         : "First step: confirm your hours. Doctors with clear hours receive roughly double the requests."}</div>
-      ${partnerTier()}
+      ${partnerTier(d)}
     </section>${nav("doctors")}`;
   }
 
@@ -4216,14 +3664,14 @@ function screenPartnerDoctor(id) {
       <div class="kpi-l">${isAR() ? "نسبة ردّك" : "Your response rate"}</div>
       <div class="row-b" style="align-items:flex-end">
         <div class="kpi-n num">${Math.round(rate * 100)}٪</div>
-        <div class="kpi-d ${delta < 0 ? "kpi-d-neg" : ""}">${delta >= 0 ? "+" : ""}${delta}${isAR() ? " نقطة عن متوسط الاختصاص" : " pts vs specialty avg"}</div>
+        <div class="${delta < 0 ? "kpi-d-warn" : "kpi-d"}"><span dir="ltr" class="num">${delta >= 0 ? "+" : "−"}${Math.abs(delta)}</span>${isAR() ? " نقطة عن متوسط الاختصاص" : " pts vs specialty avg"}</div>
       </div>
       <div class="bars" style="margin-top:10px">
-        <div class="bar-r"><span class="bar-t">${isAR() ? "أنت" : "You"}</span>
-          <span class="bar-f"><i style="width:${Math.round(rate * 100)}%"></i></span>
+        <div class="bar-r"><span>${isAR() ? "أنت" : "You"}</span>
+          <span class="bar-t"><i class="bar-f" style="width:${Math.round(rate * 100)}%"></i></span>
           <span class="bar-v num">${dm.replied}/${dm.requests}</span></div>
-        <div class="bar-r"><span class="bar-t">${isAR() ? "المتوسط" : "Average"}</span>
-          <span class="bar-f bar-f-a"><i style="width:${Math.round(dm.specAvgRate * 100)}%"></i></span>
+        <div class="bar-r"><span>${isAR() ? "المتوسط" : "Average"}</span>
+          <span class="bar-t"><i class="bar-f bar-f-a" style="width:${Math.round(dm.specAvgRate * 100)}%"></i></span>
           <span class="bar-v num">${Math.round(dm.specAvgRate * 100)}٪</span></div>
       </div>
     </div>
@@ -4262,14 +3710,44 @@ function screenPartnerDoctor(id) {
       </div>
     </div>
 
-    ${partnerTier()}
+    ${partnerTier(d)}
   </section>${nav("doctors")}`;
 }
 
-function partnerTier() {
+/* Arabic counts in four buckets, not two. English needs "1 patient / N
+   patients"; Arabic needs the singular, the dual (مريضان — a distinct form,
+   not "2 patients"), the plural for 3–10, and the accusative singular from 11
+   up. Writing "2 مرضى" is the same class of error as the gender bug in P2:
+   it is English grammar wearing Arabic words. */
+function countAr(n, forms) {
+  const [one, two, few, many] = forms;
+  if (n === 1) return one;
+  if (n === 2) return two;
+  if (n <= 10) return `<span class="num">${n}</span> ${few}`;
+  return `<span class="num">${n}</span> ${many}`;
+}
+
+/* A price with no arithmetic attached is a number the reader has to take on
+   faith, and a doctor deciding in ten seconds will not. So the tier states
+   what it costs *in their own units*: their consultation fee is in the data,
+   so we can say how many extra patients a month clears it. At 45,000 IQD and
+   a 30,000 IQD consultation that is two — which is a claim a doctor can check
+   against their own week, and reject if it is wrong. */
+function partnerTier(ent) {
+  const price = CONFIG.partnerPrice;
+  /* A doctor's fee lives on the session, not on the doctor — the hospital
+     morning is free and the private evening clinic is not. An extra patient
+     only produces revenue at the paid session, so that is the fee the payback
+     has to be computed against. */
+  const fee = Math.max(0, ...(ent && ent.sessions || []).map((x) => x.fee || 0));
+  const payback = fee > 0 ? Math.ceil(price / fee) : null;
   return `<div class="tier surf-key pad-3" style="margin-top:18px">
     <div class="q-eyebrow">${isAR() ? "اشتراك الشريك" : "Partner plan"}</div>
-    <div class="tier-p num">45,000 <span style="font-size:.5em">${L(CONFIG.currency)}/${isAR() ? "شهر" : "mo"}</span></div>
+    <div class="tier-p num">${price.toLocaleString("en-US")} <span style="font-size:.5em">${L(CONFIG.currency)}/${isAR() ? "شهر" : "mo"}</span></div>
+    ${payback ? `<div class="q-sub" style="margin-top:4px">${isAR()
+      ? `أجرة كشفك <span class="num">${fee.toLocaleString("en-US")}</span> — كلفة الاشتراك بالشهر: <b>${countAr(payback,
+          ["مريض إضافي واحد", "مريضان إضافيان", "مرضى إضافيين", "مريضاً إضافياً"])}</b>.`
+      : `Your fee is <span class="num">${fee.toLocaleString("en-US")}</span> — so <b><span class="num">${payback}</span> extra patient${payback === 1 ? "" : "s"} a month</b> covers it.`}</div>` : ""}
     <ul style="margin-top:12px">
       ${(isAR()
         ? ["طلبات المرضى تصلك مباشرة على واتساب", "لوحة الطلب في منطقتك", "أولوية في نتائج اختصاصك", "توثيق ومراجعة دورية للمعلومات"]
@@ -4280,7 +3758,7 @@ function partnerTier() {
        href="${waLink("9647700000001", isAR() ? "مرحباً، أريد الاشتراك كطبيب شريك في قريب." : "Hello, I'd like to join Qareeb as a partner doctor.")}">
       ${icon("wa")}${isAR() ? "اشترك عبر واتساب" : "Join via WhatsApp"}</a>
     <p class="q-eyebrow" style="margin-top:10px;opacity:.75">${isAR()
-      ? "السعر توضيحي في هذا النموذج." : "Illustrative pricing in this prototype."}</p>
+      ? "السعر مبدئي — يُثبَّت قبل الإطلاق." : "Indicative price — fixed before launch."}</p>
   </div>`;
 }
 
@@ -4350,6 +3828,7 @@ function route() {
     case "hospital": return screenHospital(p[1]);
     case "care": return screenCare(p[1]);
     case "product": return screenProduct(p[1]);
+    case "start": return screenStart();
     case "med": return screenMed(p[1]);
     case "partner": return p[1] === "doctor" ? screenPartnerDoctor(p[2]) : screenPartner(p[1]);
     case "search": return screenSearch();
@@ -4363,13 +3842,47 @@ function route() {
 let firstPaint = true;
 function render() {
   const el = app();
-  if (firstPaint) { el.innerHTML = skeletonHome(); firstPaint = false; setTimeout(paint, 260); return; }
+  if (firstPaint) { el.innerHTML = skeletonFor(); firstPaint = false; setTimeout(paint, 260); return; }
   paint();
   function paint() {
-    el.innerHTML = route();
+    let html;
+    try {
+      html = route();
+      if (navigator.onLine !== false) LS.set("lastOnline", Date.now());
+    } catch (e) {
+      console.error(e);
+      try { html = screenError(e); } catch { html = ""; }
+    }
+    el.innerHTML = html;
     el.classList.remove("page-in"); void el.offsetWidth; el.classList.add("page-in");
     document.title = `${L(CONFIG.brand)} — ${isAR() ? "أقرب رعاية إليك" : "The nearest care to you"}`;
   }
+}
+
+/* A deep link to /med/m1 used to flash the home skeleton, so the first thing a
+   scanned poster showed was the shape of a screen it was not going to render.
+   Match the placeholder to the destination. */
+function skeletonFor() {
+  const seg = (location.hash.replace(/^#\/?/, "").split("?")[0].split("/")[0]) || "";
+  if (["med", "doctor", "pharmacy", "hospital", "product", "partner"].includes(seg)) return skeletonDetail();
+  if (["doctors", "pharmacies", "hospitals", "care", "needs", "search"].includes(seg)) return skeletonList();
+  return skeletonHome();
+}
+
+function skeletonDetail() {
+  return `${header({ back: true, title: "" })}<section class="wrap" style="padding-top:16px">
+    <div class="skel skel-l" style="width:72%;height:26px"></div>
+    <div class="skel skel-l" style="width:44%;height:15px;margin-top:10px"></div>
+    <div class="skel" style="height:150px;margin-top:18px"></div>
+    <div class="stack-2" style="margin-top:12px">${[1, 2].map(() => `<div class="skel" style="height:86px"></div>`).join("")}</div>
+  </section>`;
+}
+
+function skeletonList() {
+  return `${header({ back: true, title: "" })}<section class="wrap" style="padding-top:16px">
+    <div class="skel skel-l" style="width:56%;height:20px"></div>
+    <div class="stack-2" style="margin-top:14px">${[1, 2, 3, 4].map(() => `<div class="skel" style="height:86px"></div>`).join("")}</div>
+  </section>`;
 }
 
 function skeletonHome() {
@@ -4388,7 +3901,14 @@ function boot() {
   document.documentElement.dir = isAR() ? "rtl" : "ltr";
   if (S.theme) document.documentElement.dataset.theme = S.theme;   // otherwise let the host decide
   const qp = new URLSearchParams(location.search);
-  if (qp.get("qr")) { S.qrSource = qp.get("qr"); const src = QR_SOURCES[S.qrSource]; if (src && S.locState === "inferred") { S.district = src.district; LS.set("district", src.district); } }
+  if (qp.get("qr")) {
+    S.qrSource = qp.get("qr");
+    const src = QR_SOURCES[S.qrSource];
+    if (src && S.locState === "inferred") { S.district = src.district; LS.set("district", src.district); }
+    /* First scan of this poster gets the question. Every scan after it goes
+       straight where they were already going — asking twice is a toll. */
+    if (src && !qrSeen().includes(S.qrSource) && !location.hash.slice(2)) location.hash = "#/start";
+  }
   addEventListener("online", () => render());
   addEventListener("offline", () => render());
   addEventListener("hashchange", () => { closeSheet(true); render(); scrollTo(0, 0); });
