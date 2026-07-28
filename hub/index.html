@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>قريب — أقرب رعاية إليك</title>
+<meta name="description" content="قريب: أقرب طبيب موثّق وأقرب صيدلية مفتوحة الآن — برسالة واتساب واحدة، بدون حساب.">
+<meta name="theme-color" content="#F4F1EB" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1412" media="(prefers-color-scheme: dark)">
+
+<!-- WhatsApp / Open Graph share card — the real growth surface -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="قريب — أقرب رعاية إليك">
+<meta property="og:description" content="طبيب موثّق قريب منك، وأوقات دوامه الحقيقية، ورسالة واتساب جاهزة. بدون حساب.">
+<meta property="og:locale" content="ar_IQ">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The webfont must never block first paint. On a throttled Baghdad 4G a
+     blocking stylesheet cost ~14s to interactive; loaded this way the app
+     renders immediately in the system Arabic face and swaps when the real one
+     lands. Text -> structure -> interaction -> polish.
+
+     Two families, not three. Readex Pro is the Arabic-native display face,
+     axis narrowed to 300..600 — the range actually used, since 200 appears
+     only on .nhuge which is set in the numeral face anyway. IBM Plex Sans
+     carries every numeral. IBM Plex Mono was dropped: it was pulling a whole
+     third family for nine ref codes and an axis label, which IBM Plex Sans
+     with tabular figures and tracking renders just as legibly. -->
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300..600&family=IBM+Plex+Sans:wght@200;300;400&display=swap">
+<noscript><link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300..600&family=IBM+Plex+Sans:wght@200;300;400&display=swap"></noscript>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicon.svg">
+<link rel="stylesheet" href="src/styles/identity.css">
+<link rel="stylesheet" href="css/qareeb.css">
+</head>
+<body>
+  <main class="app" id="app"></main>
+  <script src="js/domain.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

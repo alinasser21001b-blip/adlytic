@@ -19,3 +19,13 @@ scripts/diag2.ts
 test-results/
 playwright-report/
 .eny
+
+# hub/dist IS committed: dist/qareeb.web.html is the deploy payload that
+# Netlify fetches server-side from raw.githubusercontent.com.
+# Line 2's blanket `dist/` matches it, and git will not un-ignore a file
+# inside an ignored directory — so the directory must be un-ignored first.
+!hub/dist/
+!hub/dist/*.html
+
+# netlify CLI link state (contains a site id, not a secret — still local-only)
+hub/.netlify/

@@ -1,0 +1,168 @@
+/* ==================================================================
+   QAREEB — IDENTITY v3 · "المِسطرة / THE INSTRUMENT"
+   Extracted verbatim from the v3 design board (section header block).
+   This file is the REFERENCE. Do not hand-edit it to fix a screen —
+   fix the screen. A v4 board should be able to replace this file whole.
+
+   Two notes on landing it in the app:
+   · `.i` is the board's 390px device frame. The app is full-bleed, so it
+     maps onto <body> in the app layer; `.i` itself is never used here.
+     Its box-shadow is board presentation, not a violation of the
+     zero-shadow rule — the only shadow in the product is `.sheet`.
+   · `.dark` redefines TOKENS. Never write `.dark .something { color: … }`
+     in app code: any component written against var(--ink-*) flips on its
+     own. Component-level dark overrides were the source of real contrast
+     bugs in v2 and the fix was structural.
+   ================================================================== */
+/* ==================================================================
+   QAREEB — IDENTITY v3 · "المِسطرة / THE INSTRUMENT"
+   A precision instrument for time, not a directory of people.
+   Two surfaces: THE CASE (deep ink) and THE DIAL (warm paper).
+   Separation by hairline and tone. Shadow ONLY for what floats.
+   ================================================================== */
+:root{
+  /* the case — confident, not corporate */
+  --case:#0B1412; --case-2:#101B18; --case-line:rgba(240,236,228,.14); --case-ink:#F2EFE8;
+  --case-ink-2:rgba(242,239,232,.78); --case-ink-3:rgba(242,239,232,.64);
+  /* the dial — warm paper, never white */
+  --dial:#F4F1EB; --dial-2:#FBF9F5; --dial-line:rgba(11,20,18,.10); --dial-line-2:rgba(11,20,18,.055);
+  --ink:#0B1412; --ink-2:rgba(11,20,18,.72); --ink-3:rgba(11,20,18,.64); --ink-4:rgba(11,20,18,.42);
+  /* one accent, load-bearing */
+  --jade:#0E5450; --jade-2:#14706A; --jade-lit:#5FD0C0;
+  /* brass splits: a FILL brass and a TEXT brass. Never set small text in the fill. */
+  --brass:#C98A18; --brass-ink:#845A09; --brass-lit:#F0C15E;  /* time only */
+  --alarm:#C1121F; --alarm-lit:#F08A80;  /* emergency only */
+  --wa:#128C3E;
+  /* type */
+  --disp:'Readex Pro',system-ui,sans-serif;
+  --num:'IBM Plex Sans',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+  /* a 4px baseline, nothing accidental */
+  --u1:4px;--u2:8px;--u3:12px;--u4:16px;--u5:20px;--u6:28px;--u7:40px;--u8:56px;
+  /* radius logic: 10 for anything that holds content, pill for anything that reads as a control. Nothing else. */
+  --r:10px; --rp:999px;
+  /* elevation philosophy: 0 on the working surface. 1 step for sheets. */
+  --float:0 24px 60px -12px rgba(11,20,18,.42), 0 2px 6px rgba(11,20,18,.10);
+}
+.i{width:390px;background:var(--dial);color:var(--ink);direction:rtl;text-align:right;
+   font:300 15px/1.85 var(--disp);border-radius:26px;overflow:hidden;
+   border:1px solid var(--dial-line);box-shadow:0 30px 70px -30px rgba(11,20,18,.35)}
+/* THE CASE REDEFINES THE TOKENS, it does not override each component.
+   Any component written against --ink-* / --dial-* flips automatically. */
+.dark{
+  --dial:var(--case); --dial-2:var(--case-2);
+  --dial-line:var(--case-line); --dial-line-2:rgba(240,236,228,.07);
+  --ink:var(--case-ink); --ink-2:var(--case-ink-2);
+  --ink-3:var(--case-ink-3); --ink-4:rgba(242,239,232,.34);
+  --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
+}
+.i.dark{background:var(--case);color:var(--case-ink);border-color:var(--case-line)}
+.i.ltr{direction:ltr;text-align:left}
+/* --- typography: display is tight and heavy, body is light and open --- */
+.d1{font:600 34px/1.24 var(--disp);letter-spacing:-.02em;margin:0}
+.d2{font:600 25px/1.32 var(--disp);letter-spacing:-.015em;margin:0}
+.d3{font:500 19px/1.45 var(--disp);letter-spacing:-.01em;margin:0}
+.t1{font:400 15.5px/1.8 var(--disp)}
+.t2{font:300 13.5px/1.8 var(--disp);color:var(--ink-2)}
+.t3{font:400 11.5px/1.6 var(--disp);color:var(--ink-3)}
+.lab{font:500 10.5px/1 var(--disp);letter-spacing:.2em;color:var(--ink-3);text-transform:uppercase}
+.dark .t2{color:var(--case-ink-2)}.dark .t3,.dark .lab{color:var(--case-ink-3)}
+/* numerals are a design element: tabular, LTR-embedded, optically lighter */
+.n{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-weight:400}
+.nbig{font:300 46px/1 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.03em}
+.nhuge{font:200 76px/.92 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.045em}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-size:.92em}
+/* --- structure: hairlines, never boxes-in-boxes --- */
+.pad{padding-inline:var(--u5)}
+.hr{height:1px;background:var(--dial-line-2);border:0;margin:0}
+.dark .hr{background:var(--case-line)}
+.rowb{display:flex;align-items:center;justify-content:space-between;gap:var(--u3)}
+.row{display:flex;align-items:center;gap:var(--u2)}
+.v2>*+*{margin-top:var(--u2)}.v3>*+*{margin-top:var(--u3)}.v5>*+*{margin-top:var(--u5)}
+/* --- the tick rule: the identity motif. Engraved measurement. --- */
+.ticks{display:flex;align-items:flex-end;gap:0;height:16px}
+.ticks>i{flex:1;height:5px;background:var(--dial-line);border-radius:0}
+.ticks>i.maj{height:11px;background:var(--ink-4)}
+.ticks>i.on{height:16px;background:var(--brass);width:2px;flex:none;margin-inline:1px}
+.dark .ticks>i{background:var(--case-line)}.dark .ticks>i.maj{background:var(--case-ink-3)}
+.dark .ticks>i.on{background:var(--brass-lit)}
+/* the dial band — time as an engraved arc segment, not a chunky bar */
+.band{position:relative;height:3px;background:var(--dial-line);border-radius:var(--rp);overflow:hidden}
+.band>i{position:absolute;top:0;bottom:0;border-radius:var(--rp)}
+.band .sh{background:var(--jade)}.band .cl{background:var(--brass)}
+.dark .band{background:var(--case-line)}.dark .band .sh{background:var(--jade-lit)}.dark .band .cl{background:var(--brass-lit)}
+.nowmk{position:absolute;top:-5px;bottom:-5px;width:1.5px;background:var(--ink)}
+.dark .nowmk{background:var(--case-ink)}
+/* --- controls: pill, hairline, no fill unless it acts --- */
+.b{display:flex;align-items:center;justify-content:center;gap:var(--u2);min-height:52px;
+   border-radius:var(--rp);font:500 15px/1 var(--disp);border:1px solid transparent;cursor:pointer;
+   transition:transform .14s cubic-bezier(.2,.7,.3,1),background .16s ease,box-shadow .16s ease}
+.b:hover{transform:translateY(-1px)}
+.b:active{transform:translateY(0) scale(.985)}
+.b:focus-visible{outline:1.5px solid var(--jade);outline-offset:3px}
+.b-p{background:var(--ink);color:var(--dial-2)}
+.b-p:hover{background:#16241f;box-shadow:0 8px 22px -10px rgba(11,20,18,.6)}
+.dark .b-p{background:var(--case-ink);color:var(--case)}
+.b-s{border-color:var(--dial-line);color:var(--ink);background:transparent}
+.b-s:hover{background:rgba(11,20,18,.04)}
+.dark .b-s{border-color:var(--case-line);color:var(--case-ink)}
+.b-g{min-height:auto;background:none;color:var(--jade);font-weight:500}
+.dark .b-g{color:var(--jade-lit)}
+.b-wa{background:var(--wa);color:#fff;font-weight:600}
+.b-sm{min-height:38px;font-size:12.5px;padding-inline:var(--u4)}
+.b[disabled]{opacity:.35;pointer-events:none}
+/* --- chips: hairline, one filled state --- */
+.c{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px;border-radius:var(--rp);
+   border:1px solid var(--dial-line);font:400 13px/1 var(--disp);color:var(--ink-2);white-space:nowrap;background:transparent;
+   transition:background .15s,border-color .15s,color .15s}
+.c:hover{border-color:var(--ink-4);color:var(--ink)}
+.c-on{background:var(--ink);border-color:var(--ink);color:var(--dial-2);font-weight:500}
+.c-off{opacity:.34;pointer-events:none}
+.dark .c{border-color:var(--case-line);color:var(--case-ink-2)}
+.dark .c-on{background:var(--case-ink);border-color:var(--case-ink);color:var(--case)}
+/* --- status: text + mark, never colour alone, never a pill soup --- */
+.st{display:inline-flex;align-items:center;gap:6px;font:500 11.5px/1 var(--disp)}
+.st-t{color:var(--brass-ink)}.st-v{color:var(--jade)}.st-e{color:var(--alarm)}.st-q{color:var(--ink-3)}
+.dark .st-t{color:var(--brass-lit)}.dark .st-v{color:var(--jade-lit)}.dark .st-e{color:var(--alarm-lit)}
+.dot{width:5px;height:5px;border-radius:var(--rp);background:currentColor;flex:none}
+.dot-live{animation:br 2.6s ease-in-out infinite}
+@keyframes br{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+@media (prefers-reduced-motion:reduce){.dot-live{animation:none}}
+/* --- the engraved mark: verification as a struck seal --- */
+.mark{width:34px;height:34px;flex:none;border-radius:var(--rp);border:1px solid var(--jade);
+      display:grid;place-items:center;color:var(--jade);font:600 9px/1 var(--disp)}
+.dark .mark{border-color:var(--jade-lit);color:var(--jade-lit)}
+/* --- avatar fallback: a monogram engraved into the dial, not a coloured blob --- */
+.av{width:44px;height:44px;flex:none;border-radius:var(--rp);display:grid;place-items:center;
+    font:400 17px/1 var(--disp);color:var(--ink-2);background:transparent;
+    border:1px solid var(--dial-line);position:relative}
+.av::after{content:"";position:absolute;inset:-4px;border-radius:var(--rp);border:1px solid var(--dial-line-2)}
+.dark .av{color:var(--case-ink-2);border-color:var(--case-line)}
+.dark .av::after{border-color:rgba(240,236,228,.07)}
+/* --- rows, not cards. The list is the surface. --- */
+.rw{display:flex;gap:var(--u4);padding:var(--u4) 0;align-items:flex-start;position:relative;
+    transition:background .16s ease}
+.rw:hover{background:rgba(11,20,18,.022)}
+.dark .rw:hover{background:rgba(240,236,228,.03)}
+.rw-lead{position:absolute;inset-inline-start:calc(var(--u5) * -1);top:var(--u4);bottom:var(--u4);width:2px;
+         background:var(--brass);border-radius:var(--rp)}
+.quiet{opacity:.46}
+/* a card exists only when the thing genuinely floats or is genuinely singular */
+.plate{background:var(--dial-2);border:1px solid var(--dial-line);border-radius:var(--r);padding:var(--u5)}
+.dark .plate{background:var(--case-2);border-color:var(--case-line)}
+.sheet{background:var(--dial-2);border-radius:22px 22px 0 0;box-shadow:var(--float);padding:var(--u5) var(--u5) var(--u6)}
+.grip{width:32px;height:3px;border-radius:var(--rp);background:var(--ink-4);margin:0 auto var(--u5)}
+/* --- skeleton: the dial breathes, it doesn't shimmer garishly --- */
+.sk{background:var(--dial-line-2);border-radius:3px;animation:pl 1.8s ease-in-out infinite}
+@keyframes pl{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
+/* --- nav: hairline, lowercase weight shift, no icon soup --- */
+.nv{display:flex;border-top:1px solid var(--dial-line);background:var(--dial-2)}
+.nv>span{flex:1;text-align:center;padding:var(--u4) 0 var(--u5);font:400 12px/1 var(--disp);color:var(--ink-3);position:relative}
+.axis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;font-weight:400;
+      font-variant-numeric:tabular-nums;direction:ltr;color:var(--ink-3)}
+.dark .axis{color:var(--case-ink-3)}
+.nv>span.on{color:var(--ink);font-weight:600}
+.nv>span.on::before{content:"";position:absolute;top:-1px;inset-inline:32%;height:2px;background:var(--ink)}
+.dark .nv{background:var(--case-2);border-color:var(--case-line)}
+.dark .nv>span.on{color:var(--case-ink)}.dark .nv>span.on::before{background:var(--case-ink)}

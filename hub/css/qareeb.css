@@ -1,0 +1,811 @@
+/* ==================================================================
+   QAREEB — APP LAYER on IDENTITY v3
+   Loads AFTER src/styles/identity.css, which owns the tokens and the
+   primitives. Nothing here invents a colour, a radius or a shadow.
+
+   Three rules this file must never break:
+     1. Radius is 10 (holds content) or 999 (reads as a control). Nothing else.
+     2. Zero shadow on the working surface. The only shadow is .sheet, which
+        genuinely floats.
+     3. Never `.dark .x { color: … }`. Write components against var(--ink-*)
+        and let the token flip do the work.
+
+   The app emits ~230 class names inherited from v1/v2. Rather than rewrite
+   twenty screens in one pass, this file re-expresses that whole vocabulary
+   in v3 terms, so a screen nobody touched still reads as the instrument:
+   rows instead of cards, hairlines instead of boxes, one filled control.
+   ================================================================== */
+
+/* ---------- 0 · two token corrections ----------
+   Measured, not preferred. Both are overridden here rather than edited into
+   src/styles/identity.css so that file stays exactly as the board shipped it
+   and a v4 board can replace it whole.
+
+   --wa: white on the board's #128C3E measures 4.33:1, just under the 4.5
+   floor for 15px/600 text. Darkened to the nearest value that clears it while
+   still reading unmistakably as WhatsApp green.
+   ============================================================ */
+:root {
+  --wa: #11833A;   /* was #128C3E — 4.33:1 with white, now 4.85:1 */
+  /* IBM Plex Mono dropped from the font request: a whole third family for
+     nine reference codes and an axis label. Plex Sans with tabular figures
+     and a little tracking reads the same and costs nothing extra. */
+  --mono: 'IBM Plex Sans', ui-monospace, monospace;
+}
+.mono, .slip-ref, .axis, .ribbon-scale { letter-spacing: .04em; }
+
+/* ---------- 1 · reset + base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--dial); color: var(--ink);
+  font: 300 15px/1.85 var(--disp);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+img, svg { max-width: 100%; }
+svg { flex: none; }
+/* An <svg> with no width falls back to its 300x150 intrinsic size and blows
+   the layout box open. .ico is the floor for icons emitted without a class;
+   specificity 0,1,0 so every `.x svg` rule still wins. */
+.ico { width: 18px; height: 18px; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select { font: inherit; color: inherit; background: none; border: 0; }
+button { cursor: pointer; }
+:focus-visible { outline: 1.5px solid var(--jade); outline-offset: 3px; }
+ul, ol { list-style: none; }
+::selection { background: var(--brass); color: var(--case); }
+
+/* Western tabular numerals, LTR-embedded so bidi can never reorder them
+   inside an Arabic run. Every number in the product goes through this. */
+.num, .n {
+  font-family: var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed; font-weight: 400;
+}
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
+
+/* Arabic wraps badly at 375px without help. */
+h1, h2, h3, p, span, div, li { overflow-wrap: anywhere; }
+
+/* ---------- 2 · type · display tight and heavy, body light and open ---------- */
+h1, .q-h1, .prof-name, .dp-name { font: 600 30px/1.26 var(--disp); letter-spacing: -.02em; }
+h2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
+h3, .q-h2, .card-t, .qc-title, .intent-t, .empty-t { font: 500 17px/1.45 var(--disp); letter-spacing: -.01em; }
+p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-spec { font: 300 13.5px/1.8 var(--disp); color: var(--ink-2); }
+.t1 { font: 400 15.5px/1.8 var(--disp); }
+.tiny, .t3, .hint, .m, .prod-brand { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.muted { color: var(--ink-3); }
+.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub {
+  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+.d1 { font: 600 34px/1.24 var(--disp); letter-spacing: -.02em; }
+.d2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
+.d3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
+
+/* ---------- 3 · layout primitives ---------- */
+.app { min-height: 100dvh; padding-bottom: 92px; }
+.wrap, .pad { padding-inline: var(--u5); }
+.blk { padding: var(--u6) var(--u5) 0; }
+.sec { padding-top: var(--u5); }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); margin-bottom: var(--u3); }
+
+.grow { flex: 1; min-width: 0; }
+.row { display: flex; align-items: center; gap: var(--u2); }
+.row-b, .rowb { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); }
+.stack-2 > * + *, .v2 > * + * { margin-top: var(--u2); }
+.v3 > * + * { margin-top: var(--u3); }
+.v5 > * + * { margin-top: var(--u5); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u3); }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bleed { margin-inline: calc(var(--u5) * -1); padding-inline: var(--u5); }
+.rail { display: flex; gap: var(--u3); overflow-x: auto; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+.pad-3 { padding: var(--u4); }
+.pad-4 { padding: var(--u5); }
+
+/* ---------- 4 · the row · the list IS the surface ----------
+   The single biggest change from v2. A card is a box that says "I am a
+   separate thing"; a directory of forty separate things is noise. A row
+   says "I am the next line of the same instrument". */
+.rw, .card, .lane, .place, .need, .qc, .fac-block, .tbl-row, .bar-row, .week-row, .proof-row {
+  position: relative;
+  display: flex; gap: var(--u4); align-items: flex-start;
+  padding: var(--u4) 0;
+  width: 100%; text-align: start;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  transition: background .16s ease;
+}
+.card-top { display: flex; gap: var(--u4); align-items: flex-start; width: 100%; }
+.card-foot { display: flex; align-items: center; gap: var(--u2); margin-top: var(--u3); }
+.card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; }
+
+/* Hairline between siblings, drawn by the list so a filtered list never
+   leaves a dangling rule. */
+.stack > * + *, .list-2 > * + *, .needs > * + * { border-top: 1px solid var(--dial-line-2); }
+.hr { height: 1px; background: var(--dial-line-2); border: 0; margin: 0; }
+
+/* The brass lead: "open right now". State by position AND colour — it sits
+   in the gutter, where nothing else ever sits. */
+.rw-lead, .card.is-open::before, .lane.on::before, .rail-open::before, .rail-stock::before {
+  content: ""; position: absolute;
+  inset-inline-start: calc(var(--u4) * -1); top: var(--u4); bottom: var(--u4);
+  width: 2px; background: var(--brass); border-radius: var(--rp);
+}
+.rail-stock::before { background: var(--jade); }
+.card.is-shut::before, .card.is-soon::before, .lane--sos::before { content: none; }
+.quiet, .card.is-shut { opacity: .46; }
+
+/* A plate exists only when the thing is genuinely singular. */
+.plate, .ch, .surf-raise, .surf-key, .banner, .note, .slip, .stub, .adm-kpi, .map-peek,
+.qr-ctx, .proof, .fallback, .parsed, .reassure, .tier, .intent {
+  background: var(--dial-2); border: 1px solid var(--dial-line);
+  border-radius: var(--r); padding: var(--u5); box-shadow: none;
+}
+.surf-sunk { background: var(--dial); border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); }
+.surf-flat { background: none; border: 0; border-radius: 0; padding: 0; }
+
+/* ---------- 5 · controls · filled acts, hairline offers, bare navigates ---------- */
+.btn, .b, .slot-btn, .start-tile {
+  display: flex; align-items: center; justify-content: center; gap: var(--u2);
+  min-height: 52px; padding-inline: var(--u5);
+  border-radius: var(--rp); font: 500 15px/1 var(--disp);
+  border: 1px solid transparent; cursor: pointer; text-align: center;
+  background: var(--ink); color: var(--dial-2);
+  transition: transform .14s cubic-bezier(.2,.7,.3,1), background .16s ease;
+}
+.btn, .b { width: 100%; }
+.btn:active, .b:active { transform: scale(.985); }
+.btn svg, .b svg { width: 17px; height: 17px; }
+
+.btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--dial-line); }
+.btn--3, .b-g { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
+.btn--wa, .b-wa, .btn-wa { background: var(--wa); color: #fff; font-weight: 600; border-color: transparent; }
+.btn--danger { background: var(--alarm); color: #fff; border-color: transparent; }
+/* A button is aimed at deliberately, so for buttons the visual size SHOULD
+   be the hit size — raise the small variant rather than hiding an invisible
+   extender behind it. 40 -> 44 is imperceptible. */
+.btn--sm, .b-sm, .btn-sm { min-height: 44px; font-size: 12.5px; padding-inline: var(--u4); }
+.btn[disabled], .b[disabled] { opacity: .35; pointer-events: none; }
+.btn-row { display: flex; gap: var(--u2); }
+.btn-row > * { flex: 1; }
+
+.icon-btn {
+  display: grid; place-items: center; flex: none;
+  width: 48px; height: 48px; border-radius: var(--rp);
+  border: 1px solid var(--dial-line); color: var(--ink); background: transparent;
+}
+.icon-btn svg { width: 19px; height: 19px; }
+.clear-btn { display: grid; place-items: center; width: 36px; height: 36px; flex: none; color: var(--ink-3); min-height: 36px; }
+.clear-btn svg { width: 15px; height: 15px; }
+
+/* ---------- 6 · chips ---------- */
+.chip, .c, .pchip, .place-tag, .cred {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 14px; border-radius: var(--rp);
+  border: 1px solid var(--dial-line);
+  font: 400 13px/1 var(--disp); color: var(--ink-2);
+  white-space: nowrap; background: transparent;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.chip svg, .c svg { width: 14px; height: 14px; }
+.chip.on, .c-on { background: var(--ink); border-color: var(--ink); color: var(--dial-2); font-weight: 500; }
+.c-off, .chip--off { opacity: .34; pointer-events: none; }
+.chips { display: flex; gap: var(--u2); overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips--wrap { flex-wrap: wrap; overflow: visible; }
+
+/* ---------- 7 · status · text carries it, colour only confirms ---------- */
+.st, .chip--meta, .state-line, .cnt, .dist, .updated, .fee, .fresh, .bdg, .status-strip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 11.5px/1.6 var(--disp); color: var(--ink-3);
+  background: none; border: 0; padding: 0; border-radius: 0; min-height: 0;
+}
+.st-t, .chip--time, .chip--warn, .state-open, .state-soon, .bdg-n, .bdg-t, .fresh-warm { color: var(--brass-ink); }
+.st-v, .chip--ok, .seal, .stamped, .bdg-v, .bdg-stock, .fresh-hot, .tr-yes { color: var(--jade); }
+.st-e, .sos, .bdg-e, .tr-no { color: var(--alarm); }
+.st-q, .state-shut, .unverified, .fresh-cold { color: var(--ink-3); }
+
+.dot, .bulb, .fresh-dot { width: 5px; height: 5px; border-radius: var(--rp); background: currentColor; flex: none; }
+.dot-live, .fresh-dot-live { animation: br 2.6s ease-in-out infinite; }
+@keyframes br { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .dot-live, .fresh-dot-live { animation: none; } }
+
+/* Verification is a struck mark, never a blue tick. */
+.mark, .seal--stamp, .seal--pill {
+  width: 34px; height: 34px; flex: none; border-radius: var(--rp);
+  border: 1px solid var(--jade); display: grid; place-items: center;
+  color: var(--jade); font: 600 9px/1 var(--disp);
+}
+.seal svg, .mark svg { width: 13px; height: 13px; }
+
+/* ---------- 8 · avatars · a monogram engraved into the dial ---------- */
+.av, .avatar, .qc-av, .prof-avatar, .dp-avatar, .ic, .intent-ic {
+  width: 44px; height: 44px; flex: none; border-radius: var(--rp);
+  display: grid; place-items: center;
+  font: 400 17px/1 var(--disp); color: var(--ink-2);
+  background: transparent; border: 1px solid var(--dial-line); position: relative;
+}
+.av::after, .avatar::after, .qc-av::after { content: ""; position: absolute; inset: -4px; border-radius: var(--rp); border: 1px solid var(--dial-line-2); }
+.avatar--sq, .ic, .intent-ic { border-radius: var(--r); }
+.avatar--sq::after, .ic::after { content: none; }
+.avatar svg, .ic svg, .intent-ic svg { width: 20px; height: 20px; }
+.prof-avatar { width: 56px; height: 56px; font-size: 21px; }
+
+/* ---------- 9 · the band · time as an engraved arc, not a chunky bar ---------- */
+.band, .ribbon, .bar-t, .bar {
+  position: relative; height: 3px; background: var(--dial-line);
+  border-radius: var(--rp); display: block;
+}
+.band > i, .bar-t > i, .bar-f { position: absolute; top: 0; bottom: 0; border-radius: var(--rp); }
+.band .sh, .bar-f { background: var(--jade); }
+.band .cl, .bar-f-a { background: var(--brass); }
+.ribbon { overflow: visible; }
+.ribbon > i { position: absolute; top: 0; bottom: 0; border-radius: var(--rp); inset-inline-start: var(--a); width: var(--w); background: var(--jade); }
+.ribbon > i.priv, .ribbon > i.live { background: var(--brass); }
+.nowmk, .ribbon > b { position: absolute; top: -5px; bottom: -5px; width: 1.5px; background: var(--ink); inset-inline-start: var(--now); border-radius: 0; }
+.bar-t { overflow: hidden; }
+.bar-r { display: grid; grid-template-columns: 92px 1fr 46px; gap: var(--u3); align-items: center; font-size: 12px; }
+.bar-v { text-align: left; }
+.bars { display: grid; gap: var(--u2); }
+
+/* The tick rule — the identity motif. Engraved 24h measurement. */
+.ticks { display: flex; align-items: flex-end; gap: 0; height: 16px; }
+.ticks > i { flex: 1; height: 5px; background: var(--dial-line); border-radius: 0; }
+.ticks > i.maj { height: 11px; background: var(--ink-4); }
+.ticks > i.on { height: 16px; background: var(--brass); width: 2px; flex: none; margin-inline: 1px; }
+/* The board sets .axis to direction:ltr while .ticks and .band inherit RTL and
+   position with inset-inline-start — so the scale ran 00→24 left-to-right while
+   the marks it labelled ran right-to-left. The product's established rule is
+   that time mirrors the reading direction, so the axis is the piece that was
+   wrong. Corrected here rather than in the identity file, which stays as the
+   board shipped it. */
+.axis, .ribbon-scale {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 10px; font-weight: 400;
+  font-variant-numeric: tabular-nums; color: var(--ink-3);
+  direction: inherit;
+}
+.axis > * { direction: ltr; unicode-bidi: embed; }
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 42px; }
+.spark > i { flex: 1; background: var(--dial-line); border-radius: 1px; min-height: 2px; }
+.spark > i.hi { background: var(--brass); }
+
+/* ---------- 10 · shell ---------- */
+.hdr {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: var(--u3);
+  min-height: 60px; padding: var(--u3) var(--u5);
+  padding-top: calc(var(--u3) + env(safe-area-inset-top));
+  background: var(--dial); border-bottom: 1px solid transparent;
+}
+.hdr.stuck { border-bottom-color: var(--dial-line-2); }
+.hdr-title { font: 500 15px/1.4 var(--disp); }
+.hdr-back { width: 44px; height: 44px; }
+.brand { display: flex; align-items: center; gap: var(--u2); font: 600 19px/1 var(--disp); letter-spacing: -.02em; min-height: 44px; }
+.brand-mark { width: 24px; height: 24px; }
+
+.nav {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 50;
+  display: flex; border-top: 1px solid var(--dial-line); background: var(--dial-2);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.nav a, .nv > span {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: var(--u3) 0 var(--u4); min-height: 56px;
+  font: 400 12px/1 var(--disp); color: var(--ink-3); position: relative;
+}
+.nav a svg { width: 20px; height: 20px; }
+.nav a.on, .nv > span.on { color: var(--ink); font-weight: 600; }
+.nav a.on::before, .nv > span.on::before {
+  content: ""; position: absolute; top: -1px; inset-inline: 32%; height: 2px; background: var(--ink);
+}
+
+.actionbar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 55;
+  display: flex; gap: var(--u2); padding: var(--u3) var(--u5);
+  padding-bottom: calc(var(--u3) + env(safe-area-inset-bottom));
+  background: var(--dial); border-top: 1px solid var(--dial-line);
+}
+.actionbar .btn { flex: 1; }
+
+/* ---------- 11 · the sheet · the ONLY shadow in the product ---------- */
+.sheet {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 90;
+  max-height: 88dvh; overflow-y: auto;
+  background: var(--dial-2); border-radius: 22px 22px 0 0;
+  box-shadow: var(--float);
+  padding: var(--u5) var(--u5) var(--u6);
+  padding-bottom: calc(var(--u6) + env(safe-area-inset-bottom));
+}
+.sheet-grip, .grip { width: 32px; height: 3px; border-radius: var(--rp); background: var(--ink-4); margin: 0 auto var(--u5); }
+.sheet-h { margin-bottom: var(--u5); }
+.sheet-h h2 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
+.sheet-h p { margin-top: 4px; }
+.sheet-f { margin-top: var(--u5); }
+.scrim { position: fixed; inset: 0; z-index: 85; background: rgba(11,20,18,.44); }
+
+/* ---------- 12 · the slip · a receipt, not a chat bubble ---------- */
+.slip-h { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--u3); }
+.slip-ref { font-family: var(--mono); font-size: 12px; background: var(--ink); color: var(--dial-2); border-radius: 5px; padding: 2px 8px; }
+.slip-to { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); margin-top: var(--u3); border-top: 1px solid var(--dial-line-2); padding-top: var(--u3); }
+.bubble, .msg-pre {
+  font: 400 14.5px/2.05 var(--disp); white-space: pre-wrap; word-break: break-word;
+  margin-top: var(--u3); background: none; border: 0; padding: 0; border-radius: 0;
+}
+.bubble--edit { border: 1px solid var(--jade); border-radius: var(--r); padding: var(--u3); }
+.slip-edit { display: inline-flex; align-items: center; gap: 5px; font: 500 12px/1 var(--disp); color: var(--jade); margin-top: var(--u3); min-height: 44px; }
+.slip-edit svg { width: 14px; height: 14px; }
+
+/* ---------- 13 · fields ---------- */
+/* A labelled field is a stack, not a row: putting the label beside the input
+   at 390px leaves neither enough width and they overlap. */
+.field { display: block; margin-top: var(--u4); background: none; border: 0; padding: 0; }
+.field label {
+  display: block; margin-bottom: 7px;
+  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+.field input, .field textarea {
+  width: 100%; min-height: 52px; padding: 0 var(--u4);
+  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  background: var(--dial-2); font: 300 15px/1.6 var(--disp);
+}
+.field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
+.field input::placeholder, .field textarea::placeholder { color: var(--ink-4); }
+
+.search-field {
+  display: flex; align-items: center; gap: var(--u2);
+  min-height: 52px; padding: 0 var(--u4); border-radius: var(--rp);
+  border: 1px solid var(--dial-line); background: var(--dial-2);
+}
+.search-field input { flex: 1; min-width: 0; font: 300 15px/1.6 var(--disp); border: 0; background: none; padding: 0; }
+.search-field > svg { width: 18px; height: 18px; color: var(--ink-3); }
+
+/* Time slots: a vertical list of choices, each a wide control that states the
+   day, the place and the fee on one line and the hours on the other. */
+.slot { display: grid; gap: var(--u2); }
+.slot-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--u3);
+  width: 100%; min-height: 60px; padding: var(--u3) var(--u4);
+  border: 1px solid var(--dial-line); border-radius: var(--r);
+  background: transparent; color: var(--ink); text-align: start;
+}
+.slot-btn.on { border-color: var(--ink); background: var(--dial-2); }
+.slot-btn .d { display: block; font: 500 14px/1.4 var(--disp); }
+.slot-btn .m { display: block; font: 400 11.5px/1.5 var(--disp); color: var(--ink-3); }
+.slot-btn .t { font-family: var(--num); font-variant-numeric: tabular-nums; direction: ltr; flex: none; font-size: 13px; }
+
+/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ---------- */
+.note, .banner {
+  display: flex; gap: var(--u3); align-items: flex-start;
+  padding: var(--u4); border-radius: var(--r);
+  font: 300 13.5px/1.8 var(--disp); color: var(--ink-2);
+  background: none; border: 1px solid var(--dial-line);
+}
+.note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
+.note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
+.note-e, .banner--stop { border-color: var(--alarm); color: var(--alarm); }
+
+/* ---------- 15 · empty · offline · error ----------
+   The failure states carry the same craft as the hero. */
+.empty { text-align: center; padding: var(--u7) var(--u5); }
+.empty-t, .empty h3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; margin-top: var(--u5); }
+.empty-b, .empty p { margin-top: 6px; }
+.empty-alts { margin-top: var(--u5); text-align: start; }
+.empty .btn { margin-top: var(--u5); }
+
+/* The dial glyph: concentric rings, a crosshair, and one brass point off
+   centre. Pure CSS — a dead end costs nothing to draw. */
+.glyph, .empty-mark {
+  width: 96px; height: 96px; margin: 0 auto; position: relative;
+  background: none; border: 0; border-radius: 0; color: transparent;
+}
+.empty-mark > svg { display: none; }
+.glyph::before, .empty-mark::before {
+  content: ""; position: absolute; inset: 0; border: 1px solid var(--dial-line); border-radius: var(--rp);
+}
+.glyph::after, .empty-mark::after {
+  content: ""; position: absolute; inset: 28px; border: 1px solid var(--ink-4); border-radius: var(--rp);
+}
+.glyph > i { position: absolute; inset: 14px; border: 1px solid var(--dial-line); border-radius: var(--rp); transform: none; opacity: 1; }
+.glyph > i:nth-child(2) { inset: 50% 0 auto 0; height: 1px; border: 0; background: var(--dial-line); border-radius: 0; }
+.glyph > i:nth-child(3) { inset: 0 auto 0 50%; width: 1px; height: auto; border: 0; background: var(--dial-line); border-radius: 0; }
+.glyph > b {
+  position: absolute; top: 22px; inset-inline-end: 20px; inset-inline-start: auto; inset-block-end: auto;
+  width: 7px; height: 7px; background: var(--brass); border-radius: var(--rp); transform: none;
+}
+
+.offline-bar, .netbar {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u3) var(--u5); font: 300 12.5px/1.7 var(--disp);
+  color: var(--ink-2); border-bottom: 1px solid var(--dial-line);
+  background: var(--dial-2);
+}
+.offline-bar button { flex: none; min-height: 40px; padding: 0 14px; border-radius: var(--rp); border: 1px solid var(--dial-line); font-size: 12px; font-weight: 500; }
+
+/* ---------- 16 · skeleton · the dial breathes, it does not shimmer ---------- */
+.skel, .sk { background: var(--dial-line-2); border-radius: 3px; animation: pl 1.8s ease-in-out infinite; }
+@keyframes pl { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .skel, .sk { animation: none; } }
+
+/* ---------- 17 · numerals · the number is the largest thing, not the title ---------- */
+.nbig, .kpi-n, .intent-n, .tier-p {
+  font: 300 46px/1 var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed; letter-spacing: -.03em;
+}
+.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.045em; display: inline-block; }
+.nbig, .kpi-n, .intent-n, .tier-p { display: inline-block; }
+.adm-kpi .n { font: 300 34px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; }
+.kpi-d { font-size: 11.5px; color: var(--jade); font-weight: 500; }
+.kpi-d-warn, .kpi-d-neg { color: var(--brass-ink); font-size: 11.5px; font-weight: 500; }
+
+/* ---------- 18 · motion ---------- */
+.page-in { animation: fi .17s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes fi { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .page-in { animation: none; } }
+
+/* ---------- 19 · desktop · a measuring tool has a fixed scale ----------
+   Beyond 560px the column stops and the dial sits on the paper rather than
+   smearing across it. */
+@media (min-width: 560px) {
+  .app { max-width: 560px; margin-inline: auto; border-inline: 1px solid var(--dial-line); }
+  .nav, .actionbar, .sheet { max-width: 560px; margin-inline: auto; }
+}
+
+/* ---------- 20 · hit size is not visual size ----------
+   The identity sets chips at 36px, bare links at their line box, and small
+   buttons at 40px. That is the right LOOK — inflating everything to 44px
+   turns a dense chip row into a stack of lozenges and loses the instrument.
+   But a 23px tap target is a real failure, especially one-handed on a bus.
+
+   So the two are separated completely: the visual box is whatever the design
+   says, and an inert ::after extends the hit area to 44px, centred. Nothing
+   moves. This is why there is no `min-height: 44px` sprayed across anchors —
+   that approach fought the layout and lost, silently, wherever a more
+   specific rule reset it back to 0.
+   ============================================================ */
+:where(a[href], button, input, [onclick]) { position: relative; }
+:where(a[href], button, input, [onclick])::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  height: 44px; width: 100%; min-width: 44px;
+  pointer-events: none;
+}
+/* Controls already tall enough do not need it, and an extra invisible box
+   only confuses hit-testing at their edges. */
+.btn::after, .b::after, .icon-btn::after, .nav a::after, .slot-btn::after,
+.rw::after, .card::after, .lane::after, .place::after, .need::after,
+.qc::after, .start-tile::after, .field::after, .search-field::after,
+.av::after, .avatar::after, .qc-av::after { content: none; }
+.av::after, .avatar::after, .qc-av::after { content: ""; }
+
+input, textarea { min-height: 44px; }
+.icon-btn, .clear-btn { min-width: 44px; min-height: 44px; }
+.clear-btn { width: 44px; height: 44px; }
+
+/* ---------- 23 · the results header ----------
+   Renamed from .n, which collided with the identity's numeral class: .n sets
+   direction:ltr, and applying it to a container of Arabic text flipped the
+   whole line, stranding the count on the wrong side. The numeral inside still
+   gets .num; the line itself must stay RTL. */
+.res-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u5) var(--u5) var(--u3); flex-wrap: wrap; }
+.res-n { font: 500 13px/1.6 var(--disp); color: var(--ink); }
+.res-n .why { color: var(--ink-3); font-weight: 400; }
+
+/* ---------- 24 · key/value rows and the product rail ----------
+   .kv and .prod are still emitted by screens this pass does not rebuild
+   (product detail, admin, care). Without rules they fall back to block
+   layout, which stacks a label above its value and reads as broken data. */
+.kv { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u3) 0; border-top: 1px solid var(--dial-line-2); }
+.kv:first-child { border-top: 0; }
+.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none; }
+.kv .v { font: 400 14px/1.6 var(--disp); text-align: end; }
+.prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u3); margin-top: var(--u5); }
+.prof-fact { display: flex; flex-direction: column; gap: 3px; }
+.prof-fact .k { font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em; color: var(--ink-3); text-transform: uppercase; }
+.prof-fact .v { font: 500 17px/1.3 var(--disp); }
+
+.prod { display: flex; flex-direction: column; gap: 0; padding: 0; width: 150px; flex: none; }
+.prod-img { width: 100%; height: 96px; border-radius: var(--r); border: 1px solid var(--dial-line); display: grid; place-items: center; }
+.prod-img svg { width: 30px; height: 30px; color: var(--ink-4); }
+.prod-b { padding-top: var(--u3); }
+.prod-t { font: 500 13.5px/1.5 var(--disp); }
+.prod-p { font: 400 13px/1.5 var(--num); font-variant-numeric: tabular-nums; direction: ltr; margin-top: 3px; }
+.card-svc, .status-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: var(--u3); }
+.week { display: grid; gap: var(--u3); }
+.week-row { display: grid; grid-template-columns: 44px 1fr; gap: var(--u3); align-items: center; padding: 0; }
+.week-row .d { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.week-row.today .d { color: var(--ink); font-weight: 500; }
+
+/* ---------- 25 · the availability field ----------
+   Not a map. A map of Iraq at 390px is four pixels of Basra and a lot of
+   desert, and it implies a precision about location we do not have. The
+   field is a reading instead: one governorate per row, each carrying
+   engraved marks for the pharmacies reporting stock, brass for anything
+   under an hour old. Same vocabulary as the tick rule, so it belongs. */
+.fld-marks { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.fld-marks > i { width: 3px; height: 14px; background: var(--ink-4); border-radius: 1px; }
+.fld-marks > i.hot { background: var(--brass); height: 18px; }
+.fld-marks > i.none { width: 14px; height: 1px; background: var(--dial-line); border-radius: 0; }
+.fld .rw-lead { top: var(--u3); bottom: var(--u3); }
+
+/* ---------- 26 · the operator console ----------
+   A different product, not a different page. The patient app is a 390px
+   instrument; this is a desk tool. It escapes the 560px column, drops the
+   patient nav entirely, and runs at desk density — smaller type, tighter
+   rows, two columns when the glass allows. Same tokens, same discipline. */
+.ops { min-height: 100dvh; background: var(--dial); font-size: 13px; }
+/* The console must escape the patient column: .app caps everything render()
+   paints at 560px, which crammed the two-column desk layout into a phone
+   width. The operator shell is the one route that is genuinely a different
+   product, so the exemption is structural, not a tweak. */
+.app:has(.ops) { max-width: none; border-inline: 0; padding-bottom: 0; }
+.ops-hdr {
+  display: flex; align-items: center; gap: var(--u4);
+  padding: var(--u4) var(--u6); border-bottom: 1px solid var(--dial-line);
+  background: var(--dial-2); position: sticky; top: 0; z-index: 40;
+}
+.ops-body { max-width: 1160px; margin-inline: auto; padding: var(--u6); }
+.ops-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--u3); }
+.ops-kpi { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
+.ops-kpi.warn { border-color: var(--brass-ink); }
+.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.02em; }
+.ops-l { font: 500 10px/1.5 var(--disp); letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; margin-top: 6px; }
+.ops-cols { display: grid; grid-template-columns: 1fr; gap: var(--u6); margin-top: var(--u6); align-items: start; }
+@media (min-width: 900px) { .ops-cols { grid-template-columns: 1fr 1fr; } }
+.ops-sec { margin-top: var(--u6); }
+.ops-sec:first-child { margin-top: 0; }
+.ops-row {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u2) 0; border-top: 1px solid var(--dial-line-2);
+  font: 400 13px/1.6 var(--disp);
+}
+.ops-row:first-child { border-top: 0; }
+.ops-row b { font-weight: 500; }
+.ops-bars { display: grid; grid-template-columns: 34px 1fr 34px; gap: 4px 8px; align-items: center; margin-top: 6px; }
+.ops-bar { position: relative; height: 3px; background: var(--dial-line); border-radius: var(--rp); display: block; }
+.ops-bar > i { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; border-radius: var(--rp); }
+
+/* ---------- 27 · the 3-second response ----------
+   A pharmacist has one hand free and about three seconds. These are the only
+   controls in the product allowed to be this loud, because the alternative is
+   that nobody answers and the supply network has no supply. 60px tall — well
+   past the 44px floor — and unequal by design: you cannot fat-finger "we have
+   it" while meaning "we don't", because they are different colours, different
+   words, and at opposite ends of the row. */
+.qa { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
+.qa-acts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u2); margin-top: var(--u4); }
+.qa-b {
+  min-height: 60px; border-radius: var(--r); border: 1px solid transparent;
+  font: 500 14.5px/1.3 var(--disp); padding: 0 var(--u3);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  transition: transform .12s cubic-bezier(.2,.7,.3,1), background .14s ease;
+}
+.qa-b:active { transform: scale(.97); }
+.qa-yes { grid-column: 1 / -1; background: var(--jade); color: var(--dial-2); font-weight: 600; font-size: 16px; }
+.qa-one { background: transparent; border-color: var(--brass-ink); color: var(--brass-ink); }
+.qa-no  { background: transparent; border-color: var(--dial-line); color: var(--ink-3); }
+/* Optimistic exit: the card leaves on the same frame as the tap. A pharmacist
+   must never wait to learn whether their answer landed. */
+.qa-gone { overflow: hidden; height: 0 !important; opacity: 0; padding-block: 0; margin: 0; border-width: 0;
+  transition: height .22s cubic-bezier(.2,.7,.3,1), opacity .14s ease, padding .22s, border-width .22s; }
+@media (prefers-reduced-motion: reduce) { .qa-gone { transition: none; } .qa-b:active { transform: none; } }
+
+/* Rush mode: a switch, not a checkbox — it changes how the shift feels. */
+.rush {
+  display: flex; align-items: center; gap: var(--u3); width: 100%;
+  margin-top: var(--u5); padding: var(--u3) var(--u4); min-height: 56px;
+  border: 1px solid var(--dial-line); border-radius: var(--r); background: transparent;
+}
+.rush.on { border-color: var(--brass-ink); background: var(--dial-2); }
+.rush-sw { flex: none; width: 44px; height: 26px; border-radius: var(--rp); background: var(--dial-line); position: relative; transition: background .16s ease; }
+.rush-sw > i { position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: var(--rp); background: var(--dial-2); transition: inset-inline-start .16s cubic-bezier(.2,.7,.3,1); }
+.rush.on .rush-sw { background: var(--brass); }
+.rush.on .rush-sw > i { inset-inline-start: 21px; }
+
+/* Fast responder — earned from behaviour, and it disappears when the
+   behaviour stops. Deliberately quiet: a badge that shouts is a badge that
+   gets sold. */
+.badge-fast {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 500 10.5px/1 var(--disp); letter-spacing: .06em;
+  color: var(--jade); border: 1px solid var(--jade); border-radius: var(--rp);
+  padding: 5px 9px; white-space: nowrap;
+}
+
+/* ==================================================================
+   28 · THE RADAR, TACTILITY, AND THE SYNC CHIP
+   ==================================================================
+   One deliberate substitution from the brief, stated here so nobody has to
+   guess later: the waves are JADE, not cyber-cyan (#00E5FF), and the glow is
+   a light source rather than a drop shadow.
+
+   This product has exactly three meanings — brass is time, jade is trust,
+   alarm is emergency — and every screen has been contrast-verified on two
+   surfaces against that vocabulary. A fourth colour with no meaning does not
+   add a colour; it subtracts meaning from the other three. Jade is already
+   what "the network is working for you" looks like here, which is precisely
+   what a radar sweep is saying.
+
+   The glow is allowed on the core alone. The zero-shadow rule exists to stop
+   fake elevation on the working surface; a radar core is a light, and light
+   is not depth.
+   ============================================================ */
+
+.radar {
+  position: relative; width: 190px; height: 190px; margin: 0 auto;
+  display: grid; place-items: center;
+}
+.radar-w {
+  position: absolute; inset: 0; border-radius: var(--rp);
+  border: 1.5px solid var(--jade);
+  animation: radar-w 2.5s cubic-bezier(.2,.6,.35,1) var(--d, 0s) infinite;
+  opacity: 0;
+}
+@keyframes radar-w {
+  0%   { transform: scale(.28); opacity: .85; }
+  70%  { opacity: .12; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.radar-core {
+  position: relative; z-index: 2;
+  width: 74px; height: 74px; border-radius: var(--rp);
+  display: grid; place-items: center;
+  background: var(--dial-2); border: 1.5px solid var(--jade);
+  color: var(--jade);
+  font: 300 26px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr;
+  box-shadow: 0 0 24px -4px color-mix(in srgb, var(--jade) 45%, transparent);
+  animation: radar-core 2.5s ease-in-out infinite;
+}
+@keyframes radar-core {
+  0%, 100% { box-shadow: 0 0 22px -6px color-mix(in srgb, var(--jade) 40%, transparent); }
+  50%      { box-shadow: 0 0 30px -2px color-mix(in srgb, var(--jade) 60%, transparent); }
+}
+/* Nodes sit at fixed angles, not random ones: a dot that jumps between
+   frames reads as noise, not as a pharmacy. */
+.radar-n {
+  position: absolute; width: 7px; height: 7px; border-radius: var(--rp);
+  background: var(--jade);
+  transform: translate(var(--x), var(--y));
+  animation: radar-n 2.5s ease-in-out var(--d, 0s) infinite;
+}
+@keyframes radar-n { 0%, 100% { opacity: .25; } 45% { opacity: 1; } }
+
+.radar-copy {
+  margin-top: var(--u5); min-height: 3.4em;
+  font: 300 14px/1.85 var(--disp); color: var(--ink-2);
+  transition: opacity .18s ease; max-width: 34ch; margin-inline: auto;
+}
+.radar-copy b { color: var(--ink); font-weight: 500; }
+
+/* Match found: the core turns from "searching" to "found" and the answer
+   scales in rather than appearing. */
+.radar.found .radar-core { border-color: var(--brass); color: var(--brass-ink); animation: none;
+  box-shadow: 0 0 34px -2px color-mix(in srgb, var(--brass) 55%, transparent); }
+.radar.found .radar-w { animation: none; opacity: 0; }
+.unlock { animation: unlock .34s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes unlock { from { transform: scale(.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* The floating bar — the patient keeps the request AND their freedom. */
+.radarbar {
+  position: fixed; inset-inline: var(--u4); bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 60; display: flex; align-items: center; gap: var(--u3);
+  max-width: 528px; margin-inline: auto; width: calc(100% - var(--u4) * 2);
+  padding: var(--u3) var(--u4); min-height: 56px;
+  border: 1px solid var(--jade); border-radius: var(--rp);
+  background: var(--dial-2); box-shadow: var(--float);
+  text-align: start;
+}
+.radarbar.found { border-color: var(--brass); }
+.radarbar-r { position: relative; width: 22px; height: 22px; flex: none; display: grid; place-items: center; }
+.radarbar-r > i { position: absolute; inset: 0; border-radius: var(--rp); border: 1.5px solid var(--jade); opacity: 0;
+  animation: radar-w 2.5s cubic-bezier(.2,.6,.35,1) infinite; }
+.radarbar-r > i:last-child { animation-delay: 1.25s; }
+.radarbar.found .radarbar-r > i { border-color: var(--brass); animation: none; opacity: .8; }
+.radarbar-t { display: block; font: 500 13.5px/1.4 var(--disp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radarbar-s { display: block; font: 400 11.5px/1.5 var(--disp); color: var(--ink-3); }
+.radarbar-x { flex: none; width: 32px; height: 32px; display: grid; place-items: center;
+  border-radius: var(--rp); color: var(--ink-3); font-size: 13px; }
+
+/* The sync chip: reports, never interrupts. */
+.syncchip {
+  position: fixed; inset-inline-start: var(--u4); bottom: calc(150px + env(safe-area-inset-bottom));
+  z-index: 61; display: flex; align-items: center; gap: 7px;
+  padding: 7px 12px; border-radius: var(--rp);
+  background: var(--dial-2); border: 1px solid var(--dial-line);
+  font: 400 11.5px/1 var(--disp); color: var(--ink-3);
+}
+.syncspin { width: 10px; height: 10px; border-radius: var(--rp);
+  border: 1.5px solid var(--dial-line); border-top-color: var(--jade);
+  animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- tactility ----------
+   Buttons take a real depression on press. Not a skeuomorphic bevel — this
+   identity is engraved, not embossed — but the control must move under the
+   finger, because on a mid-range Android the visual acknowledgement often
+   arrives before anything else does. */
+.qa-b, .btn, .b { transform: translateZ(0); }
+.qa-b:active { transform: scale(.965) translateY(1px); }
+.qa-yes:active { box-shadow: inset 0 2px 6px -2px rgba(0,0,0,.35); }
+
+/* Freshness breathes. Under five minutes old, a claim is alive and says so;
+   older than that it simply stops breathing rather than decaying visually,
+   because the age is already written next to it in words. */
+.fresh-live { animation: breathe 3.4s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .58; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-w, .radar-core, .radar-n, .radarbar-r > i,
+  .syncspin, .fresh-live, .unlock { animation: none; }
+  .radar-w { opacity: .2; transform: scale(.7); }
+  .radar-w:nth-child(2) { transform: scale(.85); }
+  .radar-w:nth-child(3) { transform: scale(1); }
+  .qa-b:active { transform: none; }
+}
+
+/* ---------- 29 · the night terminal ----------
+   A pharmacist works the counter after dark with the screen at low
+   brightness. The brief asked for OLED #000000 with neon; the case surface
+   here is #0B1412, a warm near-black chosen because pure black against warm
+   Arabic type produces visible halation at low brightness — the letters
+   smear. The battery difference on an OLED panel between #000 and #0B1412 is
+   negligible; the legibility difference at 02:00 is not.
+
+   What the brief actually wanted — instant scannability without reading — is
+   delivered by position and luminance: the affirmative control is always the
+   full-width one at the top of the action block, the negative is always the
+   short one at the end. Muscle memory comes from geometry, which is reliable
+   in the dark, rather than from hue, which is not. */
+.qa-acts { grid-template-areas: "yes yes" "one no"; }
+.qa-yes { grid-area: yes; }
+.qa-one { grid-area: one; }
+.qa-no  { grid-area: no; }
+@media (min-width: 420px) { .qa-b { min-height: 64px; } }
+
+/* On the case surface the affirmative gains a soft emission so it reads at a
+   glance in a dark room, without becoming a neon sign. */
+body.dark .qa-yes { box-shadow: 0 0 22px -8px color-mix(in srgb, var(--jade) 65%, transparent); }
+body.dark .qa-one { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 55%, transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  body.dark .qa-yes { animation: emit 4s ease-in-out infinite; }
+}
+@keyframes emit {
+  0%, 100% { box-shadow: 0 0 20px -9px color-mix(in srgb, var(--jade) 55%, transparent); }
+  50%      { box-shadow: 0 0 26px -6px color-mix(in srgb, var(--jade) 75%, transparent); }
+}
+
+/* ---------- 30 · native touch feel ----------
+   Two defaults that make a web app feel like a website: the grey Android tap
+   flash on every press, and the double-tap-zoom delay some browsers keep on
+   plain elements. Both removed on controls only — text stays selectable,
+   because a patient copying a medicine name into WhatsApp is a real flow. */
+a, button, .chip, .qa-b, .rush, .slot-btn, .nav a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
+}
+/* The app's own press states replace the flash — they already exist
+   (.btn:active scale, .qa-b:active depress); this just stops the browser
+   painting its grey guess on top of them. */
+
+/* ---------- 31 · the alt answer ----------
+   Appears only when the patient consented. Brass, not jade: it is a
+   time-and-negotiation fact ("a different brand, ask the pharmacist"), not a
+   confirmation of the thing that was requested. Full-width like the yes —
+   it is a real answer, not a footnote — but visually subordinate to it. */
+.qa-acts.has-alt { grid-template-areas: "yes yes" "alt alt" "one no"; }
+.qa-alt {
+  grid-area: alt;
+  background: transparent; border-color: var(--brass-ink); color: var(--brass-ink);
+  font-weight: 500;
+}
+body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 45%, transparent); }
+
+/* A yes/no toggle rendered from its two-letter label collapses to 41px wide.
+   Toggles get a width floor so the target survives the shortest word. */
+#altbtn, .rush .btn--sm { min-width: 72px; }

@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Netlify — publishes QAREEB (قريب) only.
+#
+# Deploy from THIS directory, not the repository root. The root has its own
+# netlify.toml (which publishes ADS PULSE) and a package.json that runs
+# `prisma generate` on postinstall. The two sites never touch.
+#
+# The one header that matters here: the root config sends
+# `Permissions-Policy: geolocation=()`, which silently kills getCurrentPosition.
+# Qareeb's whole premise is "near me", so this site must allow it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[build]
+  publish = "."
+  command = "echo 'Static site — no build step, no dependencies.'"
+
+# ── headers ──────────────────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    X-Frame-Options        = "SAMEORIGIN"
+    # geolocation is the product. camera/mic/payment are not.
+    Permissions-Policy     = "geolocation=(self), microphone=(), camera=(), payment=()"
+
+# CSS and JS are not fingerprinted, so they must revalidate or an edit ships
+# to a stale cache. They are small enough that a 304 costs nothing.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# The service worker decides what everyone else sees. If IT is stale, a deploy
+# is invisible no matter how correct the rest of this file is — so it is the
+# one file that must never be answered from a cache.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# ── routing ──────────────────────────────────────────────────────────────────
+# The app is a hash router, so every real path is "/". A QR poster link like
+# /k or /mansour should still land on the app rather than a 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
