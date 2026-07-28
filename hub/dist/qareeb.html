@@ -701,6 +701,31 @@ input, textarea { min-height: 44px; }
 .res-n { font: 500 13px/1.6 var(--disp); color: var(--ink); }
 .res-n .why { color: var(--ink-3); font-weight: 400; }
 
+/* ---------- 24 · key/value rows and the product rail ----------
+   .kv and .prod are still emitted by screens this pass does not rebuild
+   (product detail, admin, care). Without rules they fall back to block
+   layout, which stacks a label above its value and reads as broken data. */
+.kv { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u3) 0; border-top: 1px solid var(--dial-line-2); }
+.kv:first-child { border-top: 0; }
+.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none; }
+.kv .v { font: 400 14px/1.6 var(--disp); text-align: end; }
+.prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u3); margin-top: var(--u5); }
+.prof-fact { display: flex; flex-direction: column; gap: 3px; }
+.prof-fact .k { font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em; color: var(--ink-3); text-transform: uppercase; }
+.prof-fact .v { font: 500 17px/1.3 var(--disp); }
+
+.prod { display: flex; flex-direction: column; gap: 0; padding: 0; width: 150px; flex: none; }
+.prod-img { width: 100%; height: 96px; border-radius: var(--r); border: 1px solid var(--dial-line); display: grid; place-items: center; }
+.prod-img svg { width: 30px; height: 30px; color: var(--ink-4); }
+.prod-b { padding-top: var(--u3); }
+.prod-t { font: 500 13.5px/1.5 var(--disp); }
+.prod-p { font: 400 13px/1.5 var(--num); font-variant-numeric: tabular-nums; direction: ltr; margin-top: 3px; }
+.card-svc, .status-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: var(--u3); }
+.week { display: grid; gap: var(--u3); }
+.week-row { display: grid; grid-template-columns: 44px 1fr; gap: var(--u3); align-items: center; padding: 0; }
+.week-row .d { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.week-row.today .d { color: var(--ink); font-weight: 500; }
+
 </style>
 </head>
 <body>
@@ -2402,67 +2427,124 @@ function nightFallback() {
   </div>`;
 }
 
+/* ---------------- v3 · PHARMACY ----------------
+   A pharmacy's value here is not its address — Google Maps has that. It is
+   what it has confirmed it holds, and how recently. So the screen leads with
+   confirmed stock, freshest first, and only then explains where and when.
+------------------------------------------------------------- */
 function screenPharmacy(id) {
   const f = fac(id); if (!f) return screen404();
   const st = status(f), km = distTo(f);
-  const prods = PRODUCTS.filter((p) => p.stock.includes(f.id));
-  return `${header({ back: true, title: "" })}
-  <section class="prof-head">
-    <div class="row" style="align-items:flex-start;gap:14px">
-      <div class="avatar prof-avatar avatar--sq">${icon("cross")}</div>
-      <div class="grow">
-        <h1 class="prof-name">${esc(L(f))}</h1>
-        <div class="prof-spec">${t("pharmacy")} · ${esc(L(DISTRICTS.find((d) => d.id === f.district)))}</div>
-        <div class="card-meta" style="margin-top:7px">${sealBadge(f)}<i class="dot"></i>${updatedLine(f)}</div>
+  const dist = DISTRICTS.find((d) => d.id === f.district);
+  const prods = PRODUCTS.filter((x) => x.stock.includes(f.id));
+  const meds = MEDICINES.filter((m) => m.stock.some((x) => x.f === f.id))
+    .map((m) => ({ m, mins: freshMins(m.stock.find((x) => x.f === f.id)) }))
+    .sort((x, y) => x.mins - y.mins);
+  const fresh = meds.filter((x) => freshBand(x.mins) !== "cold");
+
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="toggleSave('f:${f.id}')">${
+        S.saved.includes("f:" + f.id) ? (isAR() ? "محفوظة" : "Saved") : (isAR() ? "احفظ" : "Save")}</button>
+    </div>
+
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-top:26px">
+      <span class="av" style="width:56px;height:56px;font-size:21px">${esc(initial(L(f)))}</span>
+      <span class="grow">
+        <h1 class="d2">${esc(L(f))}</h1>
+        <div class="q-sub" style="margin-top:4px">${t("pharmacy")}${dist ? " — " + esc(L(dist)) : ""}${
+          isAR() ? (dist?.lm_ar ? "، " + esc(dist.lm_ar) : "") : (dist?.lm_en ? ", " + esc(dist.lm_en) : "")}</div>
+      </span>
+      ${f.verified ? `<span class="mark" style="width:44px;height:44px;font-size:10px">${isAR() ? "ختم" : "OK"}</span>` : ""}
+    </div>
+
+    <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
+      ${statusLabel(st, true)}
+      <span class="t3"><span class="num">${fmtKm(km)}</span></span>
+      ${f.night ? `<span class="st st-t">${isAR() ? "خفارة ليلية" : "Night duty"}</span>` : ""}
+      <span class="t3">${updatedLine(f)}</span>
+    </div>
+    <div style="margin-top:16px">${band(f)}</div>
+    ${axis24()}
+  </section>
+
+  ${fresh.length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${isAR() ? "أكّدت توفّرها" : "Confirmed in stock"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "الأحدث تأكيداً أولاً — وهذا سبب اختيار هذي الصيدلية بالذات."
+      : "Freshest confirmation first — this is the reason to pick this one."}</div>
+    ${fresh.slice(0, 6).map((x) => `<a class="rw" href="#/med/${x.m.id}">
+      <span class="rw-lead" style="background:var(--${freshBand(x.mins) === "hot" ? "brass" : "jade"})"></span>
+      <span class="av">${esc(L(x.m).charAt(0))}</span>
+      <span class="grow">
+        <span class="d3" style="display:block">${esc(L(x.m))}</span>
+        <span class="q-sub" style="display:block">${esc(x.m.form || "")}</span>
+        <span class="row" style="margin-top:9px"><span class="st st-t">${
+          freshBand(x.mins) === "hot" ? `<i class="dot dot-live"></i>` : `<i class="dot"></i>`}${freshLabel(x.mins)}</span></span>
+      </span></a>`).join('<div class="hr"></div>')}
+    ${meds.length > fresh.length ? `<div class="t3" style="margin-top:14px">${isAR()
+      ? `و<span class="num">${meds.length - fresh.length}</span> غيرها بتأكيد أقدم من ثلاثة أيام — لا نعدّها توفّراً.`
+      : `and <span class="num">${meds.length - fresh.length}</span> more confirmed over three days ago — we don't count those as stock.`}</div>` : ""}
+  </section>` : `<section class="pad" style="margin-top:30px">
+    <div class="lab">${isAR() ? "التوفّر" : "Stock"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "ما عدنا تأكيد توفّر حديث من هذي الصيدلية. اسألهم مباشرة — وأول جواب يفيد اللي بعدك."
+      : "No recent stock confirmation from this pharmacy. Ask them directly — the first answer helps the next person."}</div>
+  </section>`}
+
+  <section class="pad" style="margin-top:30px">
+    <div class="lab">${isAR() ? "الدوام خلال الأسبوع" : "Weekly hours"}</div>
+    <div style="margin-top:18px">
+      <div style="display:grid;grid-template-columns:44px 1fr;gap:12px 14px;align-items:center">
+        ${DAY_ORDER.map((dy) => {
+          const today = dy === nowDay();
+          const works = rawSegs(f, dy).length > 0;
+          return `<span class="t3" style="${today ? "font-weight:500;color:var(--ink)" : works ? "" : "opacity:.5"}">${dayName(dy)}</span>
+            ${band(f, dy, today)}`;
+        }).join("")}
       </div>
-    </div>
-    <div class="status-strip ${st.k}">
-      <div class="row-b"><span>${statusLabel(st)}</span>
-        ${f.night ? `<span class="chip chip--meta chip--time">${icon("moon")}${t("nightDuty")}</span>` : ""}</div>
-      <div style="margin-top:9px">${ribbon(f, null, "ribbon--day")}</div>
-    </div>
-    <div class="prof-facts">
-      <div class="prof-fact"><div class="k">${isAR() ? "المسافة" : "Distance"}</div><div class="v">${fmtKm(km)}</div></div>
-      <div class="prof-fact"><div class="k">${isAR() ? "المنطقة" : "Area"}</div><div class="v" style="font-size:14px">${esc(L(DISTRICTS.find((d) => d.id === f.district)))}</div></div>
-      <div class="prof-fact"><div class="k">${isAR() ? "الخدمات" : "Services"}</div><div class="v num">${(f.services || []).length}</div></div>
+      <div class="axis" style="margin-top:10px;padding-inline-start:58px">00<span>08</span><span>16</span>24</div>
     </div>
   </section>
-  <section class="blk"><h3>${isAR() ? "الدوام خلال الأسبوع" : "Weekly hours"}</h3>
-    <div class="week">${DAY_ORDER.map((dy) => `<div class="week-row ${dy === nowDay() ? "today" : ""}">
-      <span class="d">${dayName(dy)}</span>${ribbon(f, dy, "ribbon--day", dy === nowDay())}</div>`).join("")}</div>
-    ${ribbonScale()}
+
+  ${(f.services || []).length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${isAR() ? "الخدمات" : "Services"}</div>
+    <div class="chips chips--wrap" style="margin-top:12px">${(f.services || []).map((sv) =>
+      `<span class="chip">${svcLabel(sv)}</span>`).join("")}</div>
+  </section>` : ""}
+
+  ${prods.length ? `<section class="pad" style="margin-top:30px">
+    <div class="rowb"><span class="lab">${isAR() ? "متوفّر في هذه الصيدلية" : "Also stocked here"}</span>
+      <a class="b-g" style="font-size:12px" href="#/care">${isAR() ? "الكل" : "All"}</a></div>
+    ${prods.slice(0, 4).map((x) => `<a class="rw" href="#/product/${x.id}">
+      <span class="av">${esc(L(x).charAt(0))}</span>
+      <span class="grow">
+        <span class="d3" style="display:block">${esc(L(x))}</span>
+        <span class="q-sub" style="display:block">${esc(x.brand || "")}</span>
+      </span>
+      <span class="t3 num" style="align-self:center">${money(x.price)}</span></a>`).join('<div class="hr"></div>')}
+  </section>` : ""}
+
+  <section class="pad" style="margin-top:30px">
+    <a class="rowb" href="#/partner/${f.id}">
+      <span class="t3">${isAR() ? "هذي صيدليتك؟ شوف الطلب اللي ضاع بمنطقتك" : "Is this your pharmacy? See the demand your area lost"}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "افتح" : "Open"}</span>
+    </a>
+    <div class="rowb" style="margin-top:14px;border-top:1px solid var(--dial-line-2);padding-top:14px">
+      <span class="t3">${updatedLine(f)}</span>
+      <button class="b-g" style="font-size:12px" onclick="reportInfo()">${t("reportInfo")}</button>
+    </div>
   </section>
-  <section class="blk"><h3>${isAR() ? "الخدمات" : "Services"}</h3>
-    <div class="chips chips--wrap">${(f.services || []).map((s) => `<span class="chip">${icon(({ delivery: "truck", night: "moon", injections: "syringe", bp: "gauge", baby: "baby" })[s] || "check")}${svcLabel(s)}</span>`).join("")}</div>
-  </section>
-  ${(() => {
-    const meds = MEDICINES.filter((m) => m.stock.some((st) => st.f === f.id))
-      .map((m) => ({ m, mins: freshMins(m.stock.find((st) => st.f === f.id)) })).sort((a, b) => a.mins - b.mins);
-    if (!meds.length) return "";
-    return `<section class="blk"><h3>${isAR() ? "أدوية أكّدت توفّرها" : "Medicines confirmed in stock"}</h3>
-      <p class="small muted" style="margin-bottom:12px">${isAR()
-        ? "التأكيد الأحدث أولاً — وهذا سبب اختيار هذي الصيدلية بالذات."
-        : "Freshest confirmation first — this is the reason to pick this pharmacy."}</p>
-      <div class="stack">${meds.slice(0, 5).map((x) => `<a class="card is-open" href="#/med/${x.m.id}">
-        <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
-          <div class="grow"><div class="card-t">${esc(L(x.m))}</div>
-            <div class="card-meta"><span class="chip--meta ${x.mins <= 4320 ? "chip--ok" : "chip--time"}">${icon("check")}${freshLabel(x.mins)}</span></div></div>
-          ${icon("chev")}</div></a>`).join("")}</div></section>`;
-  })()}
-  ${prods.length ? `<section class="blk"><div class="sec-h"><h2 style="font-size:15px">${isAR() ? "متوفر في هذه الصيدلية" : "On the shelf here"}</h2>
-    <a class="more" href="#/care">${isAR() ? "الكل" : "All"}</a></div>
-    <div class="rail" style="margin-inline:-18px;padding-inline:18px">${prods.slice(0, 6).map((p) => `<div style="width:150px">${productCard(p)}</div>`).join("")}</div></section>` : ""}
-  <section class="blk">
-    <a class="lane" href="#/partner/${f.id}"><span class="ic">${icon("grid")}</span>
-      <span class="grow"><h3>${isAR() ? "هذي صيدليتك؟" : "Is this your pharmacy?"}</h3>
-        <p>${isAR() ? "شوف كم طلب دواء ضاع في منطقتك هذا الشهر" : "See how much medicine demand your area lost this month"}</p></span>
-      ${icon("chev")}</a>
-    <button class="btn btn--3" style="margin-top:10px" onclick="reportInfo()">${icon("flag")}${t("reportInfo")}</button></section>
+
   <div class="actionbar">
-    <a class="btn" href="${mapLink(f)}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>
-    ${f.wa ? `<a class="icon-btn" href="${waLink(f.wa, isAR() ? `السلام عليكم، استفسار من ${L(CONFIG.brand)}:` : `Hello, an enquiry via ${L(CONFIG.brand)}:`)}" target="_blank" rel="noopener">${icon("wa")}</a>` : ""}
-    <a class="icon-btn" href="tel:+${f.phone}">${icon("phone")}</a>
-  </div>${nav("pharmacies")}`;
+    ${f.wa ? `<a class="btn btn--wa" href="${waLink(f.wa, isAR() ? "السلام عليكم، عندكم..." : "Hello, do you have...")}" target="_blank" rel="noopener">${isAR() ? "اسأل عبر واتساب" : "Ask on WhatsApp"}</a>`
+      : `<a class="btn" href="tel:+${f.phone}">${t("call")}</a>`}
+    <a class="icon-btn" href="tel:+${f.phone}" aria-label="${t("call")}">${icon("phone")}</a>
+    <a class="icon-btn" href="${mapLink(f)}" target="_blank" rel="noopener" aria-label="${t("directions")}">${icon("nav")}</a>
+  </div>
+  <div style="height:80px"></div>`;
 }
 
 function screenCare(cat) {
