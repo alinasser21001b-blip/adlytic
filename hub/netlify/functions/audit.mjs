@@ -32,11 +32,19 @@ const ACTIONS = new Set([
   "PRESCRIPTION_VIEWED", "HANDOFF_OPENED", "REQUEST_PUBLISHED", "REQUEST_CANCELLED",
 ]);
 
+/* A read failure must never be mistaken for an empty chain. It used to be:
+   `catch { return [] }` meant one transient Blobs error made the next append
+   write a one-entry chain over the whole history — and because the survivor
+   re-anchors on GENESIS, verifyChain then certified the truncated log as
+   INTACT. A tamper detector that blesses the tampering is worse than none.
+
+   @netlify/blobs returns null for a missing key and throws for everything
+   else, so the two cases are distinguishable and are now distinguished. */
 async function load(store) {
-  try {
-    const raw = await store.get(KEY, { type: "json" });
-    return Array.isArray(raw) ? raw : [];
-  } catch { return []; }
+  const raw = await store.get(KEY, { type: "json" });
+  if (raw == null) return [];                       /* genuinely empty */
+  if (!Array.isArray(raw)) throw new Error("CHAIN_CORRUPT");
+  return raw;
 }
 
 export default async (request) => {
@@ -54,7 +62,9 @@ export default async (request) => {
      checkable rather than something we assert. Reading the entries needs a
      session, because they name pharmacies and requests. */
   if (request.method === "GET") {
-    const chain = await load(store);
+    let chain;
+    try { chain = await load(store); }
+    catch { return json(503, { error: "CHAIN_UNREADABLE", ar: "تعذّرت قراءة السجل." }); }
     const url = new URL(request.url);
     const broken = verifyChain(chain);
     const summary = {
@@ -101,7 +111,12 @@ export default async (request) => {
     at: Date.now(),
   };
 
-  const chain = await load(store);
+  let chain;
+  try { chain = await load(store); }
+  catch {
+    /* Refuse the append rather than silently rebasing on an empty chain. */
+    return json(503, { error: "CHAIN_UNREADABLE", ar: "تعذّرت قراءة السجل — لم يُسجَّل شيء." });
+  }
   const previousHash = chain.length ? chain[chain.length - 1].entryHash : GENESIS;
   const rec = { ...entry, previousHash, entryHash: entryHash(previousHash, entry) };
   chain.push(rec);

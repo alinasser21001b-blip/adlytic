@@ -179,6 +179,23 @@ it("a verified pharmacy may NOT answer for another branch", () => {
   eq(r.reason, "WRONG_BRANCH");
 });
 
+it("a self-asserted prototype session may answer, but is never called verified", () => {
+  /* The on-device path cannot reach a server to check a licence, so it must
+     not be able to write the same word the server writes. It answers — the
+     prototype has to work — but the status is distinguishable, which is what
+     lets every screen label the claim honestly. */
+  const selfAsserted = { role: "VERIFIED_PHARMACIST", pharmacyId: "b1", licenseStatus: "SELF_ASSERTED" };
+  ok(QD.canAnswer(selfAsserted, "b1").ok, "must still be able to answer");
+  ok(QD.isSelfAsserted(selfAsserted), "must be identifiable as self-asserted");
+  no(QD.isSelfAsserted(verified), "a server-verified session is not self-asserted");
+  eq(QD.ANSWERABLE.indexOf("UNKNOWN"), -1, "UNKNOWN must never be answerable");
+});
+
+it("a self-asserted session is still bound to its branch", () => {
+  const selfAsserted = { role: "VERIFIED_PHARMACIST", pharmacyId: "b1", licenseStatus: "SELF_ASSERTED" };
+  eq(QD.canAnswer(selfAsserted, "b9").reason, "WRONG_BRANCH");
+});
+
 it("staff may claim stock but may not open a prescription", () => {
   const staff = { role: "PHARMACY_STAFF", pharmacyId: "b1", licenseStatus: "VERIFIED" };
   ok(QD.canAnswer(staff, "b1").ok, "staff can answer");

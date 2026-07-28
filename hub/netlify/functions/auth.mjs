@@ -108,6 +108,20 @@ export default async (request) => {
 
   /* ---------- step 2: verify and issue a session ---------- */
   if (body.action === "verify") {
+    /* Keyed on the TARGET first, then the caller. Keying only on the caller
+       was the real defect: an attacker with a spread of source addresses
+       (an IPv6 /64 costs nothing) gets a fresh budget per address while the
+       phone under attack absorbs all of them. A 6-digit code with two live
+       windows is ~500k expected guesses — days from one address, hours from
+       a thousand. The target-side counter is what makes that arithmetic
+       stop mattering.
+
+       Honest limit: this counter is per-instance memory, so it blunts a
+       script rather than a distributed attacker. Moving it to shared state
+       is the real fix and Blobs is already a dependency. */
+    if (!rateLimit("otp:" + phone, 10, 10 * 60 * 1000)) {
+      return json(429, { error: "TOO_MANY", ar: "محاولات كثيرة على هذا الرقم. جرّب بعد شوية." });
+    }
     if (!rateLimit("ver:" + ip + ":" + licence, 6, 10 * 60 * 1000)) {
       return json(429, { error: "TOO_MANY", ar: "محاولات كثيرة. جرّب بعد شوية." });
     }

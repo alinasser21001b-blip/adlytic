@@ -796,7 +796,7 @@ function screenHomePatient() {
       onclick="openLocation()">${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
 
     <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${phOpen}</div>
-    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? "صيدلية مفتوحة الآن" : phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}</div>
+    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? countAr(phOpen, AR_PHARM_OPEN) : phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}</div>
     <div class="q-sub" style="margin-top:6px">${night
       ? (isAR() ? `منها <span class="num">${night}</span> خفارة ليلية تعمل حتى الفجر.`
                 : `<span class="num">${night}</span> of them on night duty until dawn.`)
@@ -878,7 +878,7 @@ function screenHomePatient() {
 
   <section class="pad" style="margin-top:22px">
     <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:18px">
-      <a class="st st-e" href="tel:${CONFIG.emergency.unified}"><i class="dot"></i>${isAR() ? "طوارئ — الرقم الموحد" : "Emergency — unified line"}</a>
+      <button class="st st-e" onclick="openEmergency()" style="background:none;border:0;padding:0;font:inherit;color:inherit"><i class="dot"></i>${isAR() ? "طوارئ — أقرب إسعاف" : "Emergency — nearest care"}</button>
       <a class="n" style="font-size:17px;color:var(--alarm)" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
     </div>
   </section>
@@ -904,7 +904,7 @@ function screenHomePatient() {
    says plainly where the local layer stops. */
 function screenHomeAway() {
   const c = cityById(S.exCity);
-  const liveSigs = SIGNALS.filter((g) => g.m < SIG_TTL);
+  const liveSigs = SIGNALS.filter((g) => sigAgeMin(g) < SIG_TTL);
   const inMine = liveSigs.filter((g) => cityOf(anyFac(g.fac)) === S.exCity);
   const wanted = liveRequests().filter((r) => r.city === S.exCity);
 
@@ -957,8 +957,8 @@ function screenHomePharmacist() {
   const f = S.myBranch ? anyFac(S.myBranch) : null;
   const rows = f ? radarFor(f.id) : [];
   const urgent = rows.filter((x) => x.r.urg === "urgent").length;
-  const mySigs = f ? SIGNALS.filter((g) => g.fac === f.id && g.m < SIG_TTL) : [];
-  const aging = mySigs.filter((g) => g.m >= 1440);
+  const mySigs = f ? SIGNALS.filter((g) => g.fac === f.id && sigAgeMin(g) < SIG_TTL) : [];
+  const aging = mySigs.filter((g) => sigAgeMin(g) >= 1440);
   const netReq = liveRequests().length;
 
   return `${netBanner()}
@@ -997,7 +997,7 @@ function screenHomePharmacist() {
       : "Over a day old — patients see them dimmed. Re-confirm if the stock is still there."}</div>
     ${aging.map((g) => { const x = variantOf(g.v); return x ? `<div class="rw">
       <span class="grow"><span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
-        <span class="row" style="margin-top:8px"><span class="st st-t"><i class="dot"></i>${isAR() ? `أفدت ${sigAge(g.m)}` : `reported ${sigAge(g.m)}`}</span></span>
+        <span class="row" style="margin-top:8px"><span class="st st-t"><i class="dot"></i>${isAR() ? `أفدت ${sigAge(sigAgeMin(g))}` : `reported ${sigAge(sigAgeMin(g))}`}</span></span>
       </span></div>` : ""; }).join('<div class="hr"></div>')}
   </section>` : ""}
 
@@ -1433,7 +1433,7 @@ function nightFallback() {
     .sort((a, b) => (a.st.next?.abs ?? 1e9) - (b.st.next?.abs ?? 1e9))[0];
   return `<div class="empty">
     <div class="empty-mark">${icon("moon")}</div>
-    <h3>${isAR() ? "ما في صيدلية مفتوحة قربك هسه" : "Nothing open near you right now"}</h3>
+    <h3>${isAR() ? "ماكو صيدلية مفتوحة قربك هسه" : "Nothing open near you right now"}</h3>
     <p>${isAR() ? "هذي أقرب صيدليات الخفارة الليلية — تشتغل طول الليل."
                 : "These are the nearest night-duty pharmacies — open through the night."}</p>
     <div class="empty-alts stack">${duty.slice(0, 3).map((x) => pharmacyCard(x)).join("")}</div>
@@ -1634,7 +1634,7 @@ function searchResults(q) {
           : ["Pediatrician", "Night pharmacy", "Gynecologist", "Dermatology", "Tooth pain", "Vitamin D", "Sunscreen"])
           .map((q) => `<button class="chip" onclick="runSearch('${esc(q)}')">${esc(q)}</button>`).join("")}</div></div>
       ${S.recent.length ? `<div class="res-group"><h3>${isAR() ? "بحثك السابق" : "Recent"}</h3>
-        <div class="chips chips--wrap">${S.recent.slice(0, 6).map((r) => `<button class="chip" onclick="doSearch('${esc(r)}');document.getElementById('q').value='${esc(r)}'">${esc(r)}</button>`).join("")}</div></div>` : ""}`;
+        <div class="chips chips--wrap">${S.recent.slice(0, 6).map((r, i) => `<button class="chip" onclick="runRecent(${i})">${esc(r)}</button>`).join("")}</div></div>` : ""}`;
   }
   const nq = norm(q);
   const pq = parseQuery(q);
@@ -1696,7 +1696,7 @@ function searchResults(q) {
   }
   const G = (title, body) => body ? `<div class="res-group"><h3>${title}</h3><div class="stack">${body}</div></div>` : "";
   // Medicines lead: "who has this" is the most urgent question a search can carry.
-  return G(isAR() ? "أدوية — مين عنده؟" : "Medicines — who has it?", meds.map(medRow).join(""))
+  return G(isAR() ? "أدوية — منو عنده؟" : "Medicines — who has it?", meds.map(medRow).join(""))
     + G(t("doctors"), docs.map((d) => doctorCard({ d, km: docDist(d), st: status(d) })).join(""))
     + G(isAR() ? "اختصاصات" : "Specialties", specs.map((s) => `<button class="lane" onclick="pickNeed('${s.id}')"><span class="ic">${icon("stetho")}</span>
         <span class="grow" style="text-align:start"><h3>${esc(L(s))}</h3><p><span class="num">${DOCTORS.filter((d) => d.spec === s.id).length}</span> ${isAR() ? "طبيب" : "doctors"}</p></span>
@@ -1941,9 +1941,9 @@ function screenAdmin() {
 
   /* stale: availability claims in the stale band, and profiles nobody has
      touched in 90 days. Both are trust leaks, listed worst-first. */
-  const staleSigs = SIGNALS.filter((g) => g.m < SIG_TTL && g.m >= 1440)
+  const staleSigs = SIGNALS.filter((g) => sigAgeMin(g) < SIG_TTL && sigAgeMin(g) >= 1440)
     .map((g) => ({ g, f: anyFac(g.fac), x: variantOf(g.v) })).filter((r) => r.f && r.x)
-    .sort((p2, q2) => q2.g.m - p2.g.m);
+    .sort((p2, q2) => sigAgeMin(q2.g) - sigAgeMin(p2.g));
   const staleProfiles = [...pharmacies, ...DOCTORS].filter((e) => e.updated > 90);
 
   const unverified = [
@@ -1968,7 +1968,7 @@ function screenAdmin() {
   });
   const controlledCount = RX_MEDS.filter((m) => QD.isControlled(m)).length;
   const liveReq = liveRequests();
-  const liveSig = SIGNALS.filter((g) => g.m < SIG_TTL);
+  const liveSig = SIGNALS.filter((g) => sigAgeMin(g) < SIG_TTL);
 
   const kpi = (n, l, warn) => `<div class="ops-kpi${warn ? " warn" : ""}">
     <div class="ops-n num">${n}</div><div class="ops-l">${l}</div></div>`;
@@ -2047,7 +2047,7 @@ function screenAdmin() {
           ${staleSigs.map(({ g, f, x }) => `<div class="ops-row">
             <span class="grow"><b>${esc(L(x.med))} ${esc(x.v.strength)}</b>
               <span class="t3" style="display:block">${esc(L(f))} · ${esc(cityName(cityById(cityOf(f))))}</span></span>
-            <span class="st st-t">${sigAge(g.m)}</span>
+            <span class="st st-t">${sigAge(sigAgeMin(g))}</span>
           </div>`).join("")}
           ${staleProfiles.map((e) => `<div class="ops-row">
             <span class="grow"><b>${esc(L(e))}</b>
@@ -2183,6 +2183,36 @@ function askGps() {
     (pos) => {
       const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       const near = DISTRICTS.map((d) => ({ d, k: haversine(me, d) })).sort((a, b) => a.k - b.k)[0];
+
+      /* THE SNAP MUST BE BOUNDED. Without this, a patient in Kut — 160 km
+         from Baghdad — was snapped to the nearest Baghdad district, their
+         real coordinates discarded, and then shown "صيدلية زيونة · 3.2 كم"
+         with the approximation caveat suppressed because locState had been
+         set to "precise". A fabricated distance is the most dangerous thing
+         this product can print: someone drives across a governorate at night
+         on the strength of it.
+
+         Outside the covered map we say so. The app already has an honest
+         screen for exactly this case — screenHomeAway, which states the
+         coverage boundary in words — and it was unreachable by GPS. */
+      const CITY_SNAP_KM = 40;
+      if (!near || near.k > CITY_SNAP_KM) {
+        const city = CITIES.map((c) => ({ c, k: haversine(me, c) })).sort((a, b) => a.k - b.k)[0];
+        const known = city && city.k <= 150;
+        S.gps = true; S.locState = "approx"; S.gpsReason = null;
+        LS.set("gps", true); LS.set("locState", "approx");
+        if (known) {
+          S.exCity = city.c.id; LS.set("exCity", city.c.id);
+          toast(isAR() ? `أنت خارج تغطية بغداد — عرضنا ${cityName(city.c)}`
+                       : `Outside Baghdad coverage — showing ${cityName(city.c)}`);
+        } else {
+          toast(isAR() ? "ما نغطّي منطقتك بالدليل المحلي بعد — نعرض الشبكة الوطنية"
+                       : "Your area is not in the local directory yet — showing the national network");
+        }
+        closeSheet(); render();
+        return;
+      }
+
       S.locState = "precise"; S.gps = true; S.gpsReason = null;
       LS.set("gps", true); LS.set("locState", "precise");
       setDistrict(near.d.id);
@@ -2633,6 +2663,12 @@ const freshBand = (mins) => mins < 720 ? "hot" : mins <= 4320 ? "warm" : "cold";
    sentence, which is why the forms live at the call site and not in countAr. */
 const AR_MIN  = ["دقيقة واحدة", "دقيقتين", "دقائق", "دقيقةً"];
 const AR_HOUR = ["ساعة واحدة", "ساعتين", "ساعات", "ساعةً"];
+/* Arabic counts the way Arabic counts: one, two (dual), a few (3-10 takes
+   the plural), many (11+ takes the singular accusative). A binary
+   singular/plural is English grammar wearing Arabic words — principle 9. */
+const AR_PHARM_OPEN = ["صيدلية وحدة مفتوحة الآن", "صيدليتان مفتوحتان الآن", "صيدليات مفتوحة الآن", "صيدليةً مفتوحة الآن"];
+const AR_PHARM_CONF = ["صيدلية وحدة مؤكِّدة", "صيدليتان مؤكِّدتان", "صيدليات مؤكِّدة", "صيدليةً مؤكِّدة"];
+const AR_REQ = ["طلب واحد", "طلبان", "طلبات", "طلباً"];
 const AR_DAY  = ["يوم واحد", "يومين", "أيام", "يوماً"];
 
 function freshLabel(mins) {
@@ -3008,11 +3044,19 @@ const variantLabel = (vid) => { const x = variantOf(vid); return x ? `${L(x.med)
 
 /* Live signals for a variant: expired ones are dropped here, once, so no
    screen downstream can accidentally render one. */
+/* A signal's age: seed rows have a chosen `m`, anything a pharmacy actually
+   claimed carries `at`. Without this, a live claim stayed "قبل ٠ دقيقة"
+   permanently and the freshness engine — the core of the product — never
+   moved a single signal from live to stale. */
+function sigAgeMin(g) {
+  return g.at ? (Date.now() - g.at) / 60000 : (g.m || 0);
+}
+
 function signalsFor(vid) {
-  return SIGNALS.filter((g) => g.v === vid && g.m < SIG_TTL)
+  return SIGNALS.filter((g) => g.v === vid && sigAgeMin(g) < SIG_TTL)
     .map((g) => ({ ...g, f: anyFac(g.fac), state: sigState(g) }))
     .filter((g) => g.f)
-    .sort((a, b) => a.m - b.m);
+    .sort((a, b) => sigAgeMin(a) - sigAgeMin(b));
 }
 
 /* THE AVAILABILITY FIELD — the answer to "where in Iraq might this be?".
@@ -3084,9 +3128,21 @@ function needMedOf(r) {
    in the feed for three days is lying twice: to the patient about being acted
    on, and to the pharmacist about being live. This is also what makes the
    countdown honest — it counts down to a real expiry, not a manufactured one. */
-const REQ_TTL_BY_URG = { urgent: 360, high: 1440, normal: 4320 };
-const reqTtl = (r) => REQ_TTL_BY_URG[r.urg] || 4320;
-const reqLeft = (r) => Math.max(0, reqTtl(r) - r.m);
+/* Age in minutes. Seed rows carry a static `m` because they are fiction with
+   a chosen age; anything a real user creates carries `ts`, a real timestamp,
+   and must be measured against the actual clock.
+
+   This is the fix for the worst bug in the product. `reqLeft` used to be
+   `reqTtl(r) - r.m`, and `r.m` was written once at publish as 0 and never
+   incremented by anything, anywhere. So every request a real user published
+   was immortal, and the countdown beside it displayed the same number
+   forever — the exact "manufactured countdown" the comment above says this
+   code exists to prevent. The tested `QD.isExpired` had it right the whole
+   time and was never called. */
+const REQ_TTL_BY_URG = QD.TTL_BY_URGENCY;
+const reqTtl = (r) => QD.ttlFor(r.urg);
+const reqAge = (r) => (r.ts ? (Date.now() - r.ts) / 60000 : (r.m || 0));
+const reqLeft = (r) => Math.max(0, reqTtl(r) - reqAge(r));
 const REQ_TTL = 4320;
 /* ==================================================================
    REQUEST STATE MACHINE
@@ -3151,7 +3207,7 @@ const REQ_STATE_X = {
 function reqState(r) {
   const st = normState(r.st);
   if (st === "fulfilled" || st === "expired") return st;
-  if (r.m >= reqTtl(r)) return "expired";
+  if (reqAge(r) >= reqTtl(r)) return "expired";
   return st;
 }
 
@@ -3170,7 +3226,7 @@ function expiryLabel(r) {
 const expiryHot = (r) => reqLeft(r) > 0 && reqLeft(r) < 60;
 const LIVE_STATES = ["broadcasting", "acknowledged", "handoff"];
 const liveRequests = () => REQUESTS.filter((r) => LIVE_STATES.includes(reqState(r)))
-  .sort((a, b) => URGENCY[a.urg].w - URGENCY[b.urg].w || a.m - b.m);
+  .sort((a, b) => URGENCY[a.urg].w - URGENCY[b.urg].w || reqAge(a) - reqAge(b));
 
 /* Bounded edit distance. Arabic spelling of transliterated drug names varies
    a lot — ميثوتركسات / ميثوتريكسات / ميثوتريكسيت are the same request — and a
@@ -3222,7 +3278,7 @@ function searchVariants(q) {
    Threshold: at least 2 answered requests AND a median claim age under 12h. */
 function responderStats(facId) {
   const answered = REQUESTS.filter((r) => (r.resp || []).includes(facId)).length;
-  const mine = SIGNALS.filter((g) => g.fac === facId && g.m < SIG_TTL).map((g) => g.m).sort((a, b) => a - b);
+  const mine = SIGNALS.filter((g) => g.fac === facId && sigAgeMin(g) < SIG_TTL).map((g) => sigAgeMin(g)).sort((a, b) => a - b);
   const median = mine.length ? mine[Math.floor(mine.length / 2)] : Infinity;
   return { answered, median, fast: answered >= 2 && median < 720 };
 }
@@ -3250,7 +3306,7 @@ function radarFor(facId) {
 function supplyDemand() {
   const live = liveRequests();
   return CITIES.map((c) => {
-    const supply = SIGNALS.filter((g) => g.m < SIG_TTL && cityOf(anyFac(g.fac)) === c.id).length;
+    const supply = SIGNALS.filter((g) => sigAgeMin(g) < SIG_TTL && cityOf(anyFac(g.fac)) === c.id).length;
     const demand = live.filter((r) => r.city === c.id).length;
     return { c, supply, demand, gap: demand - supply };
   }).filter((x) => x.supply || x.demand).sort((a, b) => b.gap - a.gap || b.demand - a.demand);
@@ -3284,7 +3340,7 @@ function fieldRow(x, vid) {
       </span>
       <span class="t3" style="display:block;margin-top:5px">${
         live
-          ? `<span class="num">${x.n}</span> ${isAR() ? (x.n === 1 ? "صيدلية مؤكِّدة" : "صيدليات مؤكِّدة") : "confirming"} · ${x.best ? sigAge(x.best.m) : ""}`
+          ? `<span class="num">${x.n}</span> ${isAR() ? (countAr(x.n, AR_PHARM_CONF)) : "confirming"} · ${x.best ? sigAge(x.best.m) : ""}`
           : x.stale
             ? (isAR() ? `<span class="num">${x.stale}</span> تأكيد قديم — لا نعدّه توفّراً` : `<span class="num">${x.stale}</span> stale — not counted`)
             : x.demand
@@ -3337,8 +3393,8 @@ function needCard(r, opts = {}) {
 function screenExplorer() {
   const live = liveRequests();
   const urgent = live.filter((r) => r.urg === "urgent");
-  const sigsLive = SIGNALS.filter((g) => g.m < SIG_TTL);
-  const recent = sigsLive.filter((g) => g.m < 360).sort((a, b) => a.m - b.m).slice(0, 4);
+  const sigsLive = SIGNALS.filter((g) => sigAgeMin(g) < SIG_TTL);
+  const recent = sigsLive.filter((g) => sigAgeMin(g) < 360).sort((a, b) => sigAgeMin(a) - sigAgeMin(b)).slice(0, 4);
   const myCity = cityOf(anyFac(null)) && null;
   const here = S.exCity || "baghdad";
   const nearMe = live.filter((r) => r.city === here);
@@ -3411,7 +3467,7 @@ function screenExplorer() {
           <span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
           <span class="q-sub" style="display:block">${esc(L(f))} — ${esc(cityName(cityById(cityOf(f))))}</span>
           <span class="row" style="margin-top:9px;gap:12px">
-            <span class="st st-t"><i class="dot${g.m < 60 ? " dot-live" : ""}"></i>${sigAge(g.m)}</span>
+            <span class="st st-t"><i class="dot${sigAgeMin(g) < 60 ? " dot-live" : ""}"></i>${sigAge(sigAgeMin(g))}</span>
             ${f.verified ? `<span class="st st-v">${isAR() ? "صيدلية موثّقة" : "verified pharmacy"}</span>` : ""}
           </span>
         </span></a>`;
@@ -3552,7 +3608,7 @@ function screenVariant(vid) {
     <div style="display:flex;align-items:baseline;gap:12px">
       <span class="nhuge" style="color:var(--${liveSigs.length ? "brass-ink" : "ink-3"})">${liveSigs.length}</span>
       <span><span class="d3" style="font-weight:500;display:block">${isAR()
-        ? (liveSigs.length === 1 ? "صيدلية مؤكِّدة" : "صيدليات مؤكِّدة") : "pharmacies confirming"}</span>
+        ? (countAr(liveSigs.length, AR_PHARM_CONF)) : "pharmacies confirming"}</span>
         <span class="q-sub">${isAR()
           ? `في <span class="num">${field.filter((c) => c.n > 0).length}</span> من <span class="num">${CITIES.length}</span> محافظة`
           : `across <span class="num">${field.filter((c) => c.n > 0).length}</span> of <span class="num">${CITIES.length}</span> governorates`}</span></span>
@@ -3592,7 +3648,7 @@ function screenVariant(vid) {
   <section class="pad">
     <div class="lab" style="padding-top:24px">${isAR() ? "يدوّرون عليه الآن" : "People looking for this"}</div>
     <div class="q-sub" style="margin-top:6px">${isAR()
-      ? `<span class="num">${reqs.length}</span> ${reqs.length === 1 ? "طلب" : "طلبات"} في ${esc([...new Set(reqs.map((r) => cityName(cityById(r.city))))].join("، "))}`
+      ? `<span class="num">${reqs.length}</span> ${countAr(reqs.length, AR_REQ)} في ${esc([...new Set(reqs.map((r) => cityName(cityById(r.city))))].join("، "))}`
       : `<span class="num">${reqs.length}</span> active in ${esc([...new Set(reqs.map((r) => cityName(cityById(r.city))))].join(", "))}`}</div>
     ${reqs.slice(0, 3).map((r) => needCard(r, { state: false })).join('<div class="hr"></div>')}
   </section>` : ""}
@@ -3612,7 +3668,7 @@ function sigRow(g, vid) {
   const st = g.state, stale = st.k === "stale";
   const c = cityById(cityOf(g.f));
   return `<div class="rw${stale ? " quiet" : ""}">
-    ${stale ? "" : `<span class="rw-lead" style="background:var(--${g.m < 60 ? "brass" : "jade"})"></span>`}
+    ${stale ? "" : `<span class="rw-lead" style="background:var(--${sigAgeMin(g) < 60 ? "brass" : "jade"})"></span>`}
     <span class="av">${esc(initial(L(g.f)))}</span>
     <span class="grow">
       <span class="rowb">
@@ -3622,8 +3678,8 @@ function sigRow(g, vid) {
       ${fastBadge(g.fac) ? `<span style="display:block;margin-top:6px">${fastBadge(g.fac)}</span>` : ""}
       <span class="q-sub" style="display:block">${esc(cityName(c))}${g.f.area_ar && isAR() ? " — " + esc(g.f.area_ar) : g.f.district ? " — " + esc(L(DISTRICTS.find((d) => d.id === g.f.district))) : ""}</span>
       <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
-        <span class="st ${stale ? "st-q" : "st-t"}${g.m < 5 ? " fresh-live" : ""}">${stale ? "" : `<i class="dot${g.m < 60 ? " dot-live" : ""}"></i>`}${
-          isAR() ? `أفادت ${sigAge(g.m)}` : `reported ${sigAge(g.m)}`}</span>
+        <span class="st ${stale ? "st-q" : "st-t"}${sigAgeMin(g) < 5 ? " fresh-live" : ""}">${stale ? "" : `<i class="dot${sigAgeMin(g) < 60 ? " dot-live" : ""}"></i>`}${
+          isAR() ? `أفادت ${sigAge(sigAgeMin(g))}` : `reported ${sigAge(sigAgeMin(g))}`}</span>
         ${!stale ? `<span class="t3">${esc(L(QTY_LABEL[g.q]))}</span>` : ""}
         ${g.dl ? `<span class="t3">${isAR() ? "تقدر ترتّب توصيل" : "may arrange delivery"}</span>` : ""}
       </span>
@@ -3877,11 +3933,16 @@ async function submitPharmacyAuth() {
     } catch { toast(isAR() ? "ما وصلنا للخادم" : "Could not reach the server"); return; }
   }
 
-  /* DEVICE MODE. The prototype path, unchanged and still labelled. */
+  /* DEVICE MODE. A prototype path must not be able to write the same words
+     a verified server writes. It used to set licenseStatus:"VERIFIED", which
+     made an anonymous visitor who typed an invented licence indistinguishable
+     — in the data — from a pharmacy the server had actually checked. The two
+     modes are now different strings, so nothing downstream can confuse them
+     and every claim made this way can be rendered as self-asserted. */
   if (entered !== o.code) { toast(isAR() ? "الرمز غير صحيح" : "Wrong code"); return; }
   LS.set("pharmSession", {
     role, pharmacyId: o.facId, pharmacistId: "ph-" + lic,
-    licence: lic, licenseStatus: "VERIFIED", mode: "device", at: Date.now(),
+    licence: lic, licenseStatus: "SELF_ASSERTED", mode: "device", at: Date.now(),
   });
   S.myBranch = o.facId; LS.set("myBranch", o.facId);
   auditLog({ action: "PHARMACY_SIGNIN", actor: "ph-" + lic, pharmacyId: o.facId, reason: "licence " + lic });
@@ -4154,7 +4215,7 @@ function screenNeedNew(qs) {
     ${(() => {
       const active = myActiveNeeds().length;
       const capped = active >= MAX_ACTIVE_NEEDS;
-      const incomplete = !d.v || !d.qty.trim();
+      const incomplete = !draftReady(d);
       return `<button class="btn" id="pubbtn" ${incomplete || capped ? "disabled" : ""} onclick="publishNeed()">${
         capped ? (isAR() ? "وصلت الحد الأقصى" : "You've hit the limit")
         : isAuthed() ? (isAR() ? "انشر الطلب" : "Publish the request")
@@ -4178,12 +4239,25 @@ function screenNeedNew(qs) {
 
 /* Keep the publish control honest against what is actually typed, without a
    full re-render on every keystroke (which would steal focus mid-word). */
+/* Whether a draft may be published. There used to be two answers to this
+   question — one computed at render time, one in syncPublish — and they
+   disagreed in BOTH directions: a typed medicine went disabled on any
+   re-render (tap urgency, lose your publish button), and a Baghdad draft
+   with no district went ENABLED on re-render, past the guard. One predicate,
+   called from both places, is the only way two answers cannot drift. */
+function draftReady(d) {
+  if (!d) return false;
+  const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
+  const locOk = d.city !== "baghdad" || !!d.district;
+  return medOk && locOk && !!String(d.qty || "").trim();
+}
+
 function syncPublish() {
   const b = document.getElementById("pubbtn"); if (!b) return;
   const d = S.draft || {};
   const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
   const locOk = d.city !== "baghdad" || !!d.district;   /* district data exists for Baghdad only */
-  b.disabled = !medOk || !locOk || !String(d.qty || "").trim() || myActiveNeeds().length >= MAX_ACTIVE_NEEDS;
+  b.disabled = !draftReady(d) || myActiveNeeds().length >= MAX_ACTIVE_NEEDS;
 }
 
 /* The medicine record behind a draft or request, when it came from the
@@ -4494,7 +4568,7 @@ function screenNeed(id) {
             ${(() => { const k = (r.answers || {})[f.id];
               return k === "alt" ? `<span class="st st-t"><i class="dot"></i>${isAR() ? "عندها بديل بنفس المادة — حسب إفادتها" : "has a same-ingredient alt — their claim"}</span>`
                 : k === "one" ? `<span class="st st-t"><i class="dot"></i>${isAR() ? "باقي علبة وحدة" : "one box left"}</span>`
-                : g ? `<span class="st st-t"><i class="dot${g.m < 60 ? " dot-live" : ""}"></i>${isAR() ? `أفادت ${sigAge(g.m)}` : `reported ${sigAge(g.m)}`}</span>`
+                : g ? `<span class="st st-t"><i class="dot${sigAgeMin(g) < 60 ? " dot-live" : ""}"></i>${isAR() ? `أفادت ${sigAge(sigAgeMin(g))}` : `reported ${sigAge(sigAgeMin(g))}`}</span>`
                 : `<span class="st st-t"><i class="dot"></i>${isAR() ? "أفادت بالتوفّر" : "reported available"}</span>`; })()}
             ${g && g.dl ? `<span class="t3">${isAR() ? "تقدر ترتّب توصيل" : "may arrange delivery"}</span>` : ""}
           </span>
@@ -4617,7 +4691,7 @@ function contactPharmacy(facId, vid, qty) {
         <div class="q-sub">${esc(cityName(cityById(cityOf(f))))}${f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</div>
         <div class="row" style="margin-top:10px;gap:14px;flex-wrap:wrap">
           ${f.verified ? `<span class="st st-v"><i class="dot"></i>${isAR() ? "صيدلية موثّقة" : "verified pharmacy"}</span>` : `<span class="st st-q"><i class="dot"></i>${isAR() ? "غير موثّقة" : "unverified"}</span>`}
-          ${g ? `<span class="st st-t"><i class="dot"></i>${isAR() ? `أفادت ${sigAge(g.m)}` : `reported ${sigAge(g.m)}`}</span>` : ""}
+          ${g ? `<span class="st st-t"><i class="dot"></i>${isAR() ? `أفادت ${sigAge(sigAgeMin(g))}` : `reported ${sigAge(sigAgeMin(g))}`}</span>` : ""}
         </div>
       </div>
 
@@ -4702,7 +4776,7 @@ function screenRadar(facId) {
         <div class="note note-w"><span>${esc(authReason(gate.reason) ||
           (isAR() ? "تسجيل الصيدلية مطلوب." : "Pharmacy sign-in is required."))}</span></div>
         <p style="margin-top:18px">${isAR()
-          ? "تأكيد التوفّر يُنسب لهذه الصيدلية باسمها ويظهر للمرضى كإفادة منها. عشان هيك ما يكدر أي أحد يفتح الرابط ويجاوب — هذا الفرق بين شبكة تنفع وبين لوحة إعلانات."
+          ? "تأكيد التوفّر يُنسب لهذه الصيدلية باسمها ويظهر للمرضى كإفادة منها. عشان هيچي ما يكدر أي أحد يفتح الرابط ويجاوب — هذا الفرق بين شبكة تنفع وبين لوحة إعلانات."
           : "A stock confirmation is attributed to this pharmacy by name and shown to patients as its claim. That is why opening the link is not enough."}</p>
         <div class="v2" style="margin-top:22px">
           <button class="btn" onclick="openPharmacyAuth('${esc(f.id)}')">${isAR() ? "دخول الصيدلية" : "Pharmacy sign-in"}</button>
@@ -4756,7 +4830,7 @@ function screenRadar(facId) {
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
       <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
-      <button class="b-g" style="font-size:13px" onclick="location.hash='#/radar'">${isAR() ? "غيّر الصيدلية" : "Switch"}</button>
+      <button class="b-g" style="font-size:13px" onclick="pharmacySignOut()">${isAR() ? "خروج" : "Sign out"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
     <div class="rowb" style="margin-top:8px">
@@ -4797,13 +4871,13 @@ function screenRadar(facId) {
     ${rush ? `<div class="lab" style="margin-bottom:10px;color:var(--alarm)">${isAR() ? "العاجل فقط" : "Urgent only"}</div>` : ""}
     <div class="v3">${front.slice(0, 12).map((x) => pharmacyQuickCard(f.id, x)).join("")}</div>
   </section>` : rush && batched.length ? `<section class="pad" style="margin-top:18px">
-    <div class="t3">${isAR() ? "ما في عاجل — هذي المتجمّعة:" : "Nothing urgent — the batched pile:"}</div>
+    <div class="t3">${isAR() ? "ماكو عاجل — هذي المتجمّعة:" : "Nothing urgent — the batched pile:"}</div>
   </section>` : `<section class="pad" style="margin-top:26px">
     <div class="empty" style="padding:26px 0">
       <div class="glyph"><i></i><i></i><i></i><b></b></div>
       <div class="empty-t">${rush && batched.length
-        ? (isAR() ? "ما في عاجل الآن" : "Nothing urgent right now")
-        : (isAR() ? "ما في طلبات تخصّك" : "Nothing for you right now")}</div>
+        ? (isAR() ? "ماكو عاجل هسّه" : "Nothing urgent right now")
+        : (isAR() ? "ماكو طلبات تخصّك" : "Nothing for you right now")}</div>
       <div class="empty-b">${isAR()
         ? "راح تظهر هنا الطلبات في محافظتك، وأي طلب لدواء تفيد بتوفّره — حتى لو صاحبه في محافظة ثانية."
         : "Requests in your governorate appear here, plus any request for stock you report holding."}</div>
@@ -5356,6 +5430,25 @@ function shareDoctor(id) {
   if (navigator.share) navigator.share({ title: L(d), text, url }).catch(() => {});
   else { navigator.clipboard?.writeText(text); toast(isAR() ? "نُسخ الرابط" : "Link copied"); }
 }
+/* Recent searches are user-typed text. Interpolating them into an inline
+   handler's JS string was an XSS hole and not a theoretical one: the HTML
+   parser decodes &#39; back to a real quote BEFORE the handler is compiled,
+   so esc() — which is an HTML-entity encoder — cannot defend a JavaScript
+   string context. It is the right tool in the wrong place.
+
+   Proven with a payload that executed: "x');window.__pwned=1;//"
+
+   The fix is not a better escaper. It is to never put user text in that
+   position: the button carries an index, and the text is looked up from
+   state at click time, where it is data and never source. */
+function runRecent(i) {
+  const v = S.recent[i];
+  if (v === undefined) return;
+  doSearch(v);
+  const el = document.getElementById("q");
+  if (el) el.value = v;
+}
+
 function doSearch(v) {
   if (v !== LS.get("q", "")) S.parsedDrop = {};
   LS.set("q", v);
@@ -5433,7 +5526,12 @@ function render() {
        redefines tokens, so everything written against var(--ink-*) follows. */
     const home = !location.hash.replace(/^#\/?/, "").split("?")[0];
     const nightOS = matchMedia("(prefers-color-scheme: dark)").matches;
-    document.body.classList.toggle("dark", S.theme === "dark" || nightOS || (home && S.theme !== "light"));
+    /* An explicit choice wins over everything. It used to be
+       `S.theme === "dark" || nightOS || …`, where nightOS was an
+       unconditional OR — so a user on a dark phone could press the toggle
+       forever and nothing moved. A control that cannot control anything is
+       worse than no control: it reads as a broken app. */
+    document.body.classList.toggle("dark", S.theme ? S.theme === "dark" : (nightOS || home));
     let html;
     try {
       html = route();

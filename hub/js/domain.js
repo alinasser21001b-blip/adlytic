@@ -168,11 +168,18 @@
   /* Returns a reason, not just false — the screen has to be able to tell the
      pharmacist WHY they cannot answer, and "no" with no explanation is how
      you lose a supply-side user permanently. */
+  /* Statuses that may answer at all. SELF_ASSERTED exists so the on-device
+     prototype keeps working without borrowing the word the server earns:
+     a claim made under it is the claimant's own word about themselves, and
+     every screen that shows such a claim must say so. */
+  const ANSWERABLE = ["VERIFIED", "SELF_ASSERTED"];
+  const isSelfAsserted = (p) => principalOf(p).licenseStatus === "SELF_ASSERTED";
+
   function canAnswer(principal, pharmacyId) {
     const p = principalOf(principal);
     if (p.role === ROLE.PATIENT) return { ok: false, reason: "NOT_A_PHARMACY" };
     if (p.licenseStatus === "EXPIRED") return { ok: false, reason: "LICENSE_EXPIRED" };
-    if (p.licenseStatus !== "VERIFIED") return { ok: false, reason: "LICENSE_UNVERIFIED" };
+    if (ANSWERABLE.indexOf(p.licenseStatus) === -1) return { ok: false, reason: "LICENSE_UNVERIFIED" };
     if (!p.pharmacyId) return { ok: false, reason: "NO_BRANCH" };
     if (pharmacyId && p.pharmacyId !== pharmacyId) return { ok: false, reason: "WRONG_BRANCH" };
     return { ok: true, reason: null };
@@ -345,6 +352,7 @@
     MACHINE, LIVE_STATES, STAGE, canTransition, isLive, stageOf,
     TTL_BY_URGENCY, ttlFor, isExpired,
     ROLE, principalOf, canAnswer, canReadPrescription,
+    ANSWERABLE, isSelfAsserted,
     CONSENT_VERSION, CONSENT_TERMS, grantConsent, withdrawConsent, consentActive,
     checksum, GENESIS, auditAppend, auditVerify,
     priceView, priceGap,

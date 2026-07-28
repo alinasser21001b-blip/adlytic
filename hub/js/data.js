@@ -48,7 +48,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260728-1913",
+  build: "20260728-2314",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
@@ -568,6 +568,17 @@ const CITIES = [
   { id: "anbar",    ar: "الأنبار",      en: "Anbar",        lat: 33.421, lng: 43.307, seat_ar: "الرمادي", seat_en: "Ramadi" },
   { id: "babil",    ar: "بابل",         en: "Babil",        lat: 32.470, lng: 44.421, seat_ar: "الحلة",   seat_en: "Hilla" },
   { id: "kirkuk",   ar: "كركوك",        en: "Kirkuk",       lat: 35.468, lng: 44.392 },
+  /* The six governorates that were missing. Their residents could still
+     publish a request — by naming a governorate that was not theirs, which
+     then routed it to the wrong province's shelves. An empty governorate is
+     handled honestly downstream (the Explorer renders "لا توفّر · N يدوّرون
+     عليه"), so listing them costs nothing and stops the lie at the source. */
+  { id: "wasit",    ar: "واسط",         en: "Wasit",        lat: 32.513, lng: 45.818, seat_ar: "الكوت", seat_en: "Kut" },
+  { id: "maysan",   ar: "ميسان",        en: "Maysan",       lat: 31.840, lng: 47.145, seat_ar: "العمارة", seat_en: "Amarah" },
+  { id: "muthanna", ar: "المثنى",       en: "Muthanna",     lat: 31.332, lng: 45.281, seat_ar: "السماوة", seat_en: "Samawah" },
+  { id: "qadisiyah",ar: "القادسية",     en: "Qadisiyyah",   lat: 31.989, lng: 44.926, seat_ar: "الديوانية", seat_en: "Diwaniyah" },
+  { id: "saladin",  ar: "صلاح الدين",   en: "Salah al-Din", lat: 34.611, lng: 43.679, seat_ar: "تكريت", seat_en: "Tikrit" },
+  { id: "duhok",    ar: "دهوك",         en: "Duhok",        lat: 36.867, lng: 42.988 },
   { id: "diyala",   ar: "ديالى",        en: "Diyala",       lat: 33.775, lng: 45.144, seat_ar: "بعقوبة", seat_en: "Baquba" },
 ];
 

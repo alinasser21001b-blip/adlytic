@@ -137,8 +137,20 @@ export function verifyChain(chain) {
    a distributed attacker. Stated plainly rather than described as
    "rate limiting" and left to imply more than it does. */
 const hits = new Map();
+const MAX_KEYS = 10000;
+
 export function rateLimit(key, max, windowMs) {
   const now = Date.now();
+  /* The key space is partly attacker-chosen (licence numbers), so the map
+     needs a ceiling or it is a memory-growth primitive. Evict expired
+     entries first; if that is not enough, drop oldest-reset first. */
+  if (hits.size > MAX_KEYS) {
+    for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
+    if (hits.size > MAX_KEYS) {
+      const sorted = [...hits.entries()].sort((a, b) => a[1].reset - b[1].reset);
+      for (let i = 0; i < sorted.length / 2; i++) hits.delete(sorted[i][0]);
+    }
+  }
   const rec = hits.get(key);
   if (!rec || now > rec.reset) { hits.set(key, { n: 1, reset: now + windowMs }); return true; }
   if (rec.n >= max) return false;
