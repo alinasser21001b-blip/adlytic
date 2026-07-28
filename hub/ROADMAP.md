@@ -53,6 +53,7 @@ committed and deployed green.
 | **P13** | **Medicine Explorer** — national availability network: CITIES/BRANCHES/RX_MEDS/SIGNALS/REQUESTS, signal decay + request lifecycle state machines, `/explorer` `/rx` `/rx/:v` `/need/*` `/radar/*`, the availability field, structured contact. Spec at `QAREEB_MEDICINE_EXPLORER_IMPLEMENTATION_SPEC.md` | ✅ |
 | **P14** | **Roles + operator separation** — role-aware homes (patient / pharmacist / doctor mutate structurally), operator console rebuilt as its own shell outside the patient column (stale radar, verification queue, supply gaps, integrity — all live-computed), Explorer contacts wired into the opened/sent/abandoned machine, skeletons cover the Explorer family | ✅ |
 | **P15** | **3-second response + anti-spam** — pharmacy answer cut from 5 interactions to 1 tap (60px buttons, optimistic exit, answered leaves the queue), rush mode batching, simulated-OTP gate on publishing, 3-active-request cap, hidden trust score, Fast Responder from real behaviour, honest countdown on urgency-scaled TTL | ✅ |
+| **P16** | **Local-first + the radar** — request state machine with declared transitions, offline mutation queue with backoff and a non-blocking sync chip, race handling that keeps both true claims, service worker shell cache, patient radar (honest reach copy, minimise-to-bar, unlock), haptics, freshness breathing, spatial pharmacy layout | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -102,7 +103,11 @@ These were established by research and are not up for re-litigation in later pha
     They are rendered as two separate statements and never merged into one
     badge. Every stock claim expires by itself after three days, so nobody has
     to remember to retract it.
-14. **Availability is never a reservation.** A pharmacy confirming stock has
+14. **Say what is true of the network, not what sounds active.** The radar
+    says «نداؤك ظاهر الآن لـ N صيدلية» — visible to N — because that is what
+    is true. It never says «جارِ البحث في N صيدلية», because nothing polls
+    anyone and no phone rings. Established in P16 while building the radar.
+15. **Availability is never a reservation.** A pharmacy confirming stock has
     made a claim about a shelf, not a promise to a person. Every surface where
     a patient acts on a claim says so: الأولوية لمن يصل أولاً أو يتفق مع
     الصيدلية. The word حجز belongs to doctor appointments and nowhere near a

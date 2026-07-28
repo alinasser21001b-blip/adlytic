@@ -2888,19 +2888,71 @@ const REQ_TTL_BY_URG = { urgent: 360, high: 1440, normal: 4320 };
 const reqTtl = (r) => REQ_TTL_BY_URG[r.urg] || 4320;
 const reqLeft = (r) => Math.max(0, reqTtl(r) - r.m);
 const REQ_TTL = 4320;
+/* ==================================================================
+   REQUEST STATE MACHINE
+   ==================================================================
+   Booleans lie by omission. `isLoading && isError` is a state nobody
+   designed, and in a medicine network the undesigned states are the ones
+   that hurt: a request that is simultaneously "searching" and "answered",
+   or "fulfilled" and "expired".
+
+   One state at a time, and transitions declared rather than assumed —
+   anything not in this table cannot happen.
+
+     idle          nothing published yet
+     broadcasting  live, visible to matching pharmacies, nobody has answered
+     acknowledged  at least one pharmacy has reported stock
+     handoff       the patient opened a channel to one of them
+     fulfilled     the patient says they got it
+     expired       the clock ran out (see REQ_TTL_BY_URG)
+
+   `expired` is reachable from every live state because time does not ask
+   permission. `fulfilled` is only reachable once someone has actually been
+   contacted — you cannot fulfil a request nobody answered.
+------------------------------------------------------------- */
+const REQ_MACHINE = {
+  idle:         ["broadcasting"],
+  broadcasting: ["acknowledged", "expired"],
+  acknowledged: ["handoff", "fulfilled", "expired"],
+  handoff:      ["fulfilled", "acknowledged", "expired"],
+  fulfilled:    [],
+  expired:      [],
+};
+
+/* Legacy seed rows use the older vocabulary; map them once, here, so the
+   machine is the only thing the rest of the app reasons about. */
+const REQ_ALIAS = { published: "broadcasting", matched: "broadcasting", responded: "acknowledged", contacted: "handoff" };
+const normState = (v) => REQ_ALIAS[v] || v || "broadcasting";
+
+/* The only way a request changes state. Refuses illegal transitions loudly
+   in debug and silently in production, rather than corrupting the record. */
+function reqTransition(r, next) {
+  const from = normState(r.st);
+  if (from === next) return true;
+  if (!(REQ_MACHINE[from] || []).includes(next)) {
+    if (CONFIG.debug) console.warn(`[machine] refused ${from} -> ${next}`, r.id);
+    return false;
+  }
+  r.st = next;
+  r.ts = Date.now();
+  const mine = LS.get("needs", []);
+  const rec = mine.find((x) => x.id === r.id);
+  if (rec) { rec.st = next; rec.ts = r.ts; LS.set("needs", mine); }
+  return true;
+}
+
 const REQ_STATE_X = {
-  published: { ar: "منشور",           en: "Published" },
-  matched:   { ar: "وصل صيدليات",     en: "Matched" },
-  responded: { ar: "وصلك ردّ",        en: "Responded" },
-  contacted: { ar: "تواصلت",          en: "Contacted" },
-  fulfilled: { ar: "انتهى",           en: "Fulfilled" },
-  expired:   { ar: "انتهت صلاحيته",   en: "Expired" },
+  broadcasting: { ar: "جارِ البحث",       en: "Broadcasting" },
+  acknowledged: { ar: "وصلك ردّ",         en: "Answered" },
+  handoff:      { ar: "تواصلت",           en: "Contacted" },
+  fulfilled:    { ar: "انتهى",            en: "Fulfilled" },
+  expired:      { ar: "انتهت صلاحيته",    en: "Expired" },
 };
 function reqState(r) {
-  if (r.st === "fulfilled") return "fulfilled";
-  if (r.st === "expired") return "expired";
+  const st = normState(r.st);
+  if (st === "fulfilled" || st === "expired") return st;
   if (r.m >= reqTtl(r)) return "expired";
-  return r.st;
+  return st;
 }
 
 /* The countdown. Real remaining time against a real expiry — never a
@@ -2916,7 +2968,8 @@ function expiryLabel(r) {
 }
 /* Urgency of the countdown itself: under an hour reads as pressure. */
 const expiryHot = (r) => reqLeft(r) > 0 && reqLeft(r) < 60;
-const liveRequests = () => REQUESTS.filter((r) => !["fulfilled", "expired"].includes(reqState(r)))
+const LIVE_STATES = ["broadcasting", "acknowledged", "handoff"];
+const liveRequests = () => REQUESTS.filter((r) => LIVE_STATES.includes(reqState(r)))
   .sort((a, b) => URGENCY[a.urg].w - URGENCY[b.urg].w || a.m - b.m);
 
 /* Bounded edit distance. Arabic spelling of transliterated drug names varies
@@ -3369,7 +3422,7 @@ function sigRow(g, vid) {
       ${fastBadge(g.fac) ? `<span style="display:block;margin-top:6px">${fastBadge(g.fac)}</span>` : ""}
       <span class="q-sub" style="display:block">${esc(cityName(c))}${g.f.area_ar && isAR() ? " — " + esc(g.f.area_ar) : g.f.district ? " — " + esc(L(DISTRICTS.find((d) => d.id === g.f.district))) : ""}</span>
       <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
-        <span class="st ${stale ? "st-q" : "st-t"}">${stale ? "" : `<i class="dot${g.m < 60 ? " dot-live" : ""}"></i>`}${
+        <span class="st ${stale ? "st-q" : "st-t"}${g.m < 5 ? " fresh-live" : ""}">${stale ? "" : `<i class="dot${g.m < 60 ? " dot-live" : ""}"></i>`}${
           isAR() ? `أفادت ${sigAge(g.m)}` : `reported ${sigAge(g.m)}`}</span>
         ${!stale ? `<span class="t3">${esc(L(QTY_LABEL[g.q]))}</span>` : ""}
         ${g.dl ? `<span class="t3">${isAR() ? "تقدر ترتّب توصيل" : "may arrange delivery"}</span>` : ""}
@@ -3396,7 +3449,7 @@ function sigRow(g, vid) {
 const MAX_ACTIVE_NEEDS = 3;
 
 const myNeeds = () => LS.get("needs", []);
-const myActiveNeeds = () => myNeeds().filter((r) => !["fulfilled", "expired"].includes(reqState(r)));
+const myActiveNeeds = () => myNeeds().filter((r) => LIVE_STATES.includes(reqState(r)));
 const isAuthed = () => !!LS.get("auth", null);
 const authPhone = () => (LS.get("auth", null) || {}).phone || "";
 
@@ -3583,20 +3636,222 @@ function publishNeed() {
   }
   const ref = refCode();
   const rec = { id: "u" + ref, ref, v: d.v, city: d.city, qty: d.qty.trim(), urg: d.urg,
-    rxHeld: d.rxHeld, m: 0, st: "published", resp: [], ts: Date.now(), mine: true };
+    rxHeld: d.rxHeld, m: 0, st: "broadcasting", resp: [], ts: Date.now(), mine: true };
   const mineList = LS.get("needs", []);
   LS.set("needs", [rec, ...mineList].slice(0, 20));
   REQUESTS.unshift(rec);
   S.draft = null;
   updateUserTrustScore("published");
+  haptic([15, 40, 15]);
   toast(isAR() ? "نُشر — يوصل الصيدليات الموثّقة" : "Published — it reaches verified pharmacies");
-  location.hash = "#/need/" + rec.id;
+  location.hash = "#/wait/" + rec.id;
+}
+
+/* The ticker: advances the radar copy over time and pulses the haptic once
+   per wave. Torn down on navigation so it can never leak or double up. */
+let radarTick = null;
+function startRadarTicker() {
+  if (radarTick) { clearInterval(radarTick); radarTick = null; }
+  const el = document.getElementById("radarcopy");
+  if (!el) return;
+  const id = location.hash.split("/")[2];
+  const r = REQUESTS.find((x) => x.id === id) || LS.get("needs", []).find((x) => x.id === id);
+  if (!r) return;
+  const t0 = Date.now();
+  haptic([10]);
+  radarTick = setInterval(() => {
+    const node = document.getElementById("radarcopy");
+    if (!node) { clearInterval(radarTick); radarTick = null; return; }
+    const secs = Math.floor((Date.now() - (r.ts || t0)) / 1000);
+    const next = radarCopy(r, secs);
+    if (node.innerHTML !== next) {
+      node.style.opacity = "0";
+      setTimeout(() => { node.innerHTML = next; node.style.opacity = "1"; }, 180);
+    }
+    /* One soft pulse per wave cycle, matching what the eye sees. */
+    if (secs % 3 === 0) haptic([10]);
+  }, 1000);
+}
+
+/* ==================================================================
+   THE RADAR — waiting, made bearable and made honest
+   ==================================================================
+   A spinner tells an anxious person nothing except that time is passing. The
+   radar tells them the true thing instead: their request is visible right now
+   to a specific number of verified pharmacies, in named governorates, and it
+   is still live.
+
+   Every number on it is counted from the model at render time. The copy says
+   "ظاهر الآن لـ N صيدلية" — visible to N pharmacies — and never "جارِ البحث في
+   N صيدلية", because nothing is being searched. There is no server polling
+   anyone. Claiming an active sweep would be the same fabrication as a
+   delivery receipt, and it would collapse the moment a patient asked a
+   pharmacist whether their phone had rung.
+
+   The wave is jade, not cyan. Jade is this product's one meaning for trust
+   and for "the network is working"; a fourth colour with no meaning would
+   make the other three mean less.
+------------------------------------------------------------- */
+function radarReach(r) {
+  const v = variantOf(r.v);
+  const inCity = allPharmacies().filter((f) => cityOf(f) === r.city && f.verified);
+  /* Plus any verified branch anywhere that has ever reported this exact
+     variant — the cross-governorate reach that is the whole thesis. */
+  const holders = allPharmacies().filter((f) => f.verified && cityOf(f) !== r.city &&
+    SIGNALS.some((g) => g.fac === f.id && g.v === r.v));
+  const cities = [...new Set([...inCity, ...holders].map((f) => cityOf(f)))];
+  return { n: inCity.length + holders.length, inCity: inCity.length, holders: holders.length, cities, v };
+}
+
+/* Copy that changes as the wait lengthens — each line true at the moment it
+   appears, and the last one hands control back rather than asking for more
+   patience. */
+function radarCopy(r, secs) {
+  const reach = radarReach(r);
+  const city = cityName(cityById(r.city));
+  if (secs < 3) {
+    return isAR() ? "جارِ نشر نداءك على الشبكة…" : "Publishing your request to the network…";
+  }
+  if (secs < 10) {
+    return isAR()
+      ? `نداؤك ظاهر الآن لـ <b class="num">${reach.n}</b> صيدلية موثّقة في ${esc(city)}${
+          reach.holders ? ` و${countAr(reach.cities.length - 1, ["محافظة أخرى", "محافظتين أخريين", "محافظات أخرى", "محافظةً أخرى"])}` : ""}.`
+      : `Your request is now visible to <b class="num">${reach.n}</b> verified pharmacies in ${esc(city)}${
+          reach.holders ? ` and ${reach.cities.length - 1} other governorates` : ""}.`;
+  }
+  return isAR()
+    ? `الصيدليات تراجع رفوفها. تكدر تكمّل تصفّح — الطلب شغّال، و<b>${expiryLabel(r)}</b>.`
+    : `Pharmacies are checking their shelves. Keep browsing — the request stays live, and <b>${expiryLabel(r)}</b>.`;
+}
+
+/* The radar itself. Three expanding rings, a core, and nodes placed at fixed
+   angles rather than at random — a node that jumps position between frames
+   reads as noise, not as a pharmacy. */
+function radarPulse(r) {
+  const reach = radarReach(r);
+  const nodes = Math.min(reach.n, 7);
+  return `<div class="radar" id="radar" role="img"
+      aria-label="${isAR() ? `نداؤك ظاهر لـ ${reach.n} صيدلية موثّقة` : `Visible to ${reach.n} verified pharmacies`}">
+    <span class="radar-w" style="--d:0s"></span>
+    <span class="radar-w" style="--d:.83s"></span>
+    <span class="radar-w" style="--d:1.66s"></span>
+    ${Array.from({ length: nodes }, (_, i) => {
+      const a = (360 / nodes) * i - 90;
+      const rad = 62 + (i % 3) * 14;
+      return `<span class="radar-n" style="--x:${(Math.cos(a * Math.PI / 180) * rad).toFixed(1)}px;--y:${(Math.sin(a * Math.PI / 180) * rad).toFixed(1)}px;--d:${(i * 0.34).toFixed(2)}s"></span>`;
+    }).join("")}
+    <span class="radar-core"><b class="num">${reach.n}</b></span>
+  </div>`;
+}
+
+/* The wait screen. Reachable while a request of the patient's own is live. */
+function screenRadarWait(id) {
+  const r = REQUESTS.find((x) => x.id === id) || LS.get("needs", []).find((x) => x.id === id);
+  if (!r) return screen404();
+  const x = variantOf(r.v); if (!x) return screen404();
+  const st = reqState(r);
+  const reach = radarReach(r);
+  const secs = Math.floor((Date.now() - (r.ts || Date.now())) / 1000);
+
+  /* Answered already? Then this screen has no job — go straight to the match. */
+  if (st === "acknowledged" || st === "handoff") { setTimeout(() => { location.hash = "#/need/" + r.id; }, 0); }
+
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <button class="b-g" style="font-size:13px" onclick="minimiseRadar('${esc(r.id)}')">${isAR() ? "تابع التصفّح" : "Keep browsing"}</button>
+      <button class="b-g" style="font-size:13px" onclick="location.hash='#/need/${esc(r.id)}'">${isAR() ? "تفاصيل الطلب" : "Request details"}</button>
+    </div>
+  </section>
+
+  <section class="pad" style="text-align:center;margin-top:var(--u6)">
+    ${radarPulse(r)}
+    <div class="lab" style="margin-top:var(--u6)">${isAR() ? "نداء دواء" : "Medicine request"}</div>
+    <h1 class="d2" style="margin-top:8px">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></h1>
+    <div class="q-sub" style="margin-top:6px">${esc(x.v.form)} · ${esc(r.qty)} · ${esc(cityName(cityById(r.city)))}</div>
+    <div class="radar-copy" id="radarcopy">${radarCopy(r, secs)}</div>
+  </section>
+
+  <section class="pad" style="margin-top:var(--u6)">
+    <div class="rowb" style="border-top:1px solid var(--dial-line-2);padding-top:var(--u4)">
+      <span class="t3">${isAR() ? "ظاهر في" : "Visible in"}</span>
+      <span class="t3">${esc(reach.cities.map((c) => cityName(cityById(c))).slice(0, 3).join("، "))}${
+        reach.cities.length > 3 ? (isAR() ? ` +${reach.cities.length - 3}` : ` +${reach.cities.length - 3}`) : ""}</span>
+    </div>
+    <div class="rowb" style="margin-top:var(--u3)">
+      <span class="t3">${isAR() ? "ينتهي" : "Expires"}</span>
+      <span class="st ${expiryHot(r) ? "st-e" : "st-q"}">${expiryLabel(r)}</span>
+    </div>
+  </section>
+
+  <section class="pad" style="margin-top:var(--u6)">
+    <button class="btn btn--2" onclick="minimiseRadar('${esc(r.id)}')">${isAR() ? "تابع التصفّح" : "Keep browsing"}</button>
+    <div class="t3" style="margin-top:var(--u3);text-align:center">${isAR()
+      ? "الطلب يبقى شغّالاً وأنت تتصفّح. ما ننشر اسمك ولا رقمك."
+      : "The request stays live while you browse. Your name and number are never published."}</div>
+  </section>
+  <div style="height:26px"></div>${nav("explorer")}`;
+}
+
+/* Minimise to a floating bar. The patient keeps their request AND their
+   freedom — trapping someone on a waiting screen is how you teach them to
+   close the app. */
+function minimiseRadar(id) {
+  LS.set("radarMin", id);
+  location.hash = "#/explorer";
+}
+function expandRadar() {
+  const id = LS.get("radarMin", null);
+  if (id) { LS.set("radarMin", null); location.hash = "#/wait/" + id; }
+}
+function dismissRadar(ev) {
+  if (ev) ev.stopPropagation();
+  LS.set("radarMin", null);
+  const el = document.getElementById("radarbar"); if (el) el.remove();
+}
+
+/* The floating bar, painted outside the router so it survives navigation. */
+function paintRadarBar() {
+  const id = LS.get("radarMin", null);
+  const existing = document.getElementById("radarbar");
+  const r = id && (REQUESTS.find((x) => x.id === id) || LS.get("needs", []).find((x) => x.id === id));
+  const live = r && LIVE_STATES.includes(reqState(r));
+  if (!live) { if (existing) existing.remove(); if (id) LS.set("radarMin", null); return; }
+  const x = variantOf(r.v); if (!x) return;
+  const answered = reqState(r) === "acknowledged";
+
+  const el = existing || document.createElement("button");
+  if (!existing) {
+    el.id = "radarbar"; el.className = "radarbar";
+    el.setAttribute("aria-live", "polite");
+    el.onclick = expandRadar;
+    document.body.appendChild(el);
+  }
+  el.classList.toggle("found", answered);
+  el.innerHTML = `
+    <span class="radarbar-r" aria-hidden="true"><i></i><i></i></span>
+    <span class="grow" style="text-align:start;min-width:0">
+      <span class="radarbar-t">${answered
+        ? (isAR() ? "وصلك ردّ" : "You have an answer")
+        : (isAR() ? "جارِ البحث عن" : "Looking for")} ${esc(L(x.med))}</span>
+      <span class="radarbar-s">${answered
+        ? (isAR() ? "اضغط لتشوف الصيدلية" : "Tap to see the pharmacy")
+        : `${isAR() ? "ظاهر لـ" : "visible to"} <span class="num">${radarReach(r).n}</span> ${isAR() ? "صيدلية" : "pharmacies"}`}</span>
+    </span>
+    <span class="radarbar-x" role="button" tabindex="0" aria-label="${isAR() ? "إخفاء" : "Dismiss"}"
+      onclick="dismissRadar(event)">✕</span>`;
 }
 
 /* ---------------- /need/:id ---------------- */
 function screenNeed(id) {
   const r = REQUESTS.find((x) => x.id === id) || LS.get("needs", []).find((x) => x.id === id);
   if (!r) return screen404();
+  /* Arriving on an answered request is the payoff moment — one success
+     pulse, once, and only if this is the first time we have shown it. */
+  if ((r.resp || []).length && !LS.get("seenAnswer", []).includes(r.id)) {
+    LS.set("seenAnswer", [...LS.get("seenAnswer", []), r.id].slice(-40));
+    setTimeout(() => haptic([30, 50, 30]), 120);
+  }
   const x = variantOf(r.v); if (!x) return screen404();
   const st = reqState(r);
   const u = URGENCY[r.urg];
@@ -3621,8 +3876,8 @@ function screenNeed(id) {
   </section>
 
   ${responders.length ? `<div class="hr" style="margin-top:26px"></div>
-  <section class="pad">
-    <div class="lab" style="padding-top:24px">${isAR() ? "صيدليات ردّت" : "Pharmacies that replied"}</div>
+  <section class="pad unlock">
+    <div class="lab" style="padding-top:24px;color:var(--brass-ink)">${isAR() ? "وصلك ردّ" : "You have an answer"}</div>
     ${responders.map((f) => {
       const g = signalsFor(r.v).find((y) => y.fac === f.id);
       return `<div class="rw">
@@ -3670,6 +3925,7 @@ function screenNeed(id) {
 }
 
 function closeNeed(id, state) {
+  state = state === "expired" ? "expired" : "fulfilled";
   const list = LS.get("needs", []);
   const rec = list.find((x) => x.id === id);
   if (rec) {
@@ -3744,6 +4000,17 @@ function rxHandoff(facId, vid, ref) {
   const f = anyFac(facId), x = variantOf(vid);
   if (!f || !x) return;
   updateUserTrustScore("handoff");
+  haptic([30, 50, 30]);
+  /* Any of the patient's own live requests for this exact variant moves to
+     handoff — that is what "I opened the conversation" means, and it is also
+     what stops the trust penalty from firing later. */
+  LS.get("needs", []).forEach((rec) => {
+    if (rec.v === vid && LIVE_STATES.includes(reqState(rec))) {
+      rec.contacted = true;
+      const live = REQUESTS.find((y) => y.id === rec.id);
+      if (live) reqTransition(live, "handoff"); else reqTransition(rec, "handoff");
+    }
+  });
   S.requests.unshift({
     ref, doc: null, med: vid, doctor: `${L(x.med)} ${x.v.strength}`,
     facility: L(f), when: cityName(cityById(cityOf(f))),
@@ -3861,6 +4128,87 @@ function screenRadar(facId) {
 }
 
 /* ==================================================================
+   LOCAL-FIRST MUTATION QUEUE
+   ==================================================================
+   Baghdad mobile data drops mid-tap. A pharmacist who taps "available" and
+   watches a spinner will stop tapping, so the tap is applied to local state
+   immediately and the write is queued. When the network returns the queue
+   drains silently. The pharmacist is never blocked and never asked to retry.
+
+   There is no server in this build, so `flushQueue` marks entries synced
+   after a round trip that only tests connectivity. The queue, the ordering,
+   the retry and the UI are all real — swapping the transport for a real
+   endpoint is a one-function change, and that is deliberate.
+------------------------------------------------------------- */
+const queueGet = () => LS.get("queue", []);
+const queuePending = () => queueGet().filter((q) => !q.synced).length;
+
+function queueMutation(kind, payload) {
+  const q = queueGet();
+  q.push({ id: refCode(), kind, payload, at: Date.now(), synced: false, tries: 0 });
+  LS.set("queue", q.slice(-100));
+  updateSyncChip();
+  if (navigator.onLine !== false) setTimeout(flushQueue, 60);
+}
+
+let flushing = false;
+async function flushQueue() {
+  if (flushing || navigator.onLine === false) return;
+  const q = queueGet();
+  if (!q.some((x) => !x.synced)) return;
+  flushing = true;
+  updateSyncChip();
+  try {
+    /* Connectivity probe against our own origin. In production this is the
+       mutation POST; the queue semantics around it do not change. */
+    await fetch(location.pathname + "?ping=" + Date.now(), { method: "HEAD", cache: "no-store" });
+    const now = queueGet();
+    now.forEach((x) => { if (!x.synced) { x.synced = true; x.syncedAt = Date.now(); } });
+    LS.set("queue", now.filter((x) => Date.now() - (x.syncedAt || x.at) < 864e5));
+  } catch {
+    const now = queueGet();
+    now.forEach((x) => { if (!x.synced) x.tries++; });
+    LS.set("queue", now);
+    /* Backoff, capped. A phone in a lift should not hammer the radio. */
+    const wait = Math.min(30000, 2000 * Math.pow(2, Math.min(4, (now[0] || {}).tries || 0)));
+    setTimeout(() => { flushing = false; flushQueue(); }, wait);
+    updateSyncChip();
+    return;
+  }
+  flushing = false;
+  updateSyncChip();
+}
+
+/* A chip, not a modal. It reports; it never interrupts. */
+function updateSyncChip() {
+  let el = document.getElementById("syncchip");
+  const n = queuePending();
+  if (!n) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "syncchip"; el.className = "syncchip";
+    el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<i class="syncspin" aria-hidden="true"></i><span>${
+    navigator.onLine === false
+      ? (isAR() ? `<span class="num">${n}</span> بانتظار الشبكة` : `<span class="num">${n}</span> waiting for network`)
+      : (isAR() ? "جارِ المزامنة" : "Syncing")}</span>`;
+}
+
+addEventListener("online", () => { flushQueue(); });
+
+/* Haptics. Feature-detected every call — iOS Safari has never supported it,
+   and a product that assumes it will silently do nothing on half of Iraq's
+   phones. Silence is the correct fallback, never a visual substitute. */
+function haptic(pattern) {
+  try {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch {}
+}
+
+/* ==================================================================
    THE 3-SECOND RESPONSE
    ==================================================================
    The old flow cost five interactions — open a sheet, pick a quantity band,
@@ -3888,23 +4236,45 @@ function quickAnswer(facId, reqId, kind) {
   const card = document.querySelector(`[data-req="${reqId}"]`);
   if (card) { card.style.height = card.offsetHeight + "px"; card.classList.add("qa-gone"); }
 
+  /* Haptic first: the finger should feel the answer land before the eye sees
+     the card go. On a phone that does not support it, nothing happens — we
+     never substitute a visual flash, which would read as an error. */
+  haptic(kind === "none" ? [12] : [18]);
+
   if (kind === "none") {
     /* "Not available" is real information and it is recorded — it stops us
        showing this branch the same request tomorrow — but it never becomes a
        public signal, because absence is not a claim anyone can act on. */
     const seen = LS.get("declined", []);
     LS.set("declined", [...new Set([...seen, facId + ":" + reqId])].slice(0, 200));
+    queueMutation("decline", { fac: facId, req: reqId });
   } else {
-    SIGNALS.unshift({ id: "s" + refCode(), v: r.v, fac: facId, m: 0,
+    /* RACE. Two pharmacies can tap "available" in the same second. Both are
+       telling the truth — the medicine really is on both shelves — so we do
+       NOT discard the second claim; discarding a true signal would make the
+       network less useful, not more honest. What is genuinely scarce is the
+       patient's attention, so only the first timestamp is the one we surface
+       as the answer, and the second is told plainly that someone got there
+       first while their stock stays recorded and findable. */
+    const already = (r.resp || []).length > 0;
+    const at = Date.now();
+    SIGNALS.unshift({ id: "s" + refCode(), v: r.v, fac: facId, m: 0, at,
       q: kind === "one" ? "low" : "few", dl: false, st: kind === "one" ? "low" : "available" });
     r.resp = [...new Set([...(r.resp || []), facId])];
-    /* The request becomes findable: state moves to responded, and on the
-       patient's side the contact channel appears. We do NOT call it "booked"
-       or "reserved" — the pharmacy said it has stock, nothing more. */
-    if (r.st === "published" || r.st === "matched") r.st = "responded";
+    if (!r.firstAt) { r.firstAt = at; r.firstBy = facId; }
+    reqTransition(r, "acknowledged");
+    queueMutation("signal", { fac: facId, req: reqId, v: r.v, kind, at });
+
     const mineList = LS.get("needs", []);
     const mineRec = mineList.find((x) => x.id === reqId);
     if (mineRec) { mineRec.resp = r.resp; mineRec.st = r.st; LS.set("needs", mineList); updateUserTrustScore("answered"); }
+
+    if (already && r.firstBy !== facId) {
+      toast(isAR() ? "تمت الاستجابة من صيدلية أخرى قبلك — شكراً لك، وتوفّرك مسجّل"
+                   : "Another pharmacy answered first — thank you, your stock is still recorded");
+      setTimeout(render, 260);
+      return;
+    }
   }
 
   toast(kind === "none" ? (isAR() ? "شكراً — ما راح نعرضه عليك مرة ثانية" : "Thanks — we won't show it again")
@@ -4306,6 +4676,7 @@ function route() {
     case "rx": return p[1] ? screenVariant(p[1]) : screenRxSearch();
     case "need": return p[1] === "new" ? screenNeedNew(qs) : screenNeed(p[1]);
     case "radar": return screenRadar(p[1]);
+    case "wait": return screenRadarWait(p[1]);
     case "med": return screenMed(p[1]);
     case "partner": return p[1] === "doctor" ? screenPartnerDoctor(p[2]) : screenPartner(p[1]);
     case "search": return screenSearch();
@@ -4342,6 +4713,9 @@ function render() {
     }
     el.innerHTML = html;
     el.classList.remove("page-in"); void el.offsetWidth; el.classList.add("page-in");
+    paintRadarBar();
+    updateSyncChip();
+    startRadarTicker();
     document.title = `${L(CONFIG.brand)} — ${isAR() ? "أقرب رعاية إليك" : "The nearest care to you"}`;
   }
 }
@@ -4410,3 +4784,11 @@ function boot() {
   }, 60000);
 }
 document.addEventListener("DOMContentLoaded", boot);
+
+/* Register the shell cache. Wrapped and silent: a failed registration must
+   never break the app, and the single-file dist build has no sw.js to find. */
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
