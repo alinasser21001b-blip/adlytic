@@ -55,6 +55,7 @@ committed and deployed green.
 | **P15** | **3-second response + anti-spam** — pharmacy answer cut from 5 interactions to 1 tap (60px buttons, optimistic exit, answered leaves the queue), rush mode batching, simulated-OTP gate on publishing, 3-active-request cap, hidden trust score, Fast Responder from real behaviour, honest countdown on urgency-scaled TTL | ✅ |
 | **P16** | **Local-first + the radar** — request state machine with declared transitions, offline mutation queue with backoff and a non-blocking sync chip, race handling that keeps both true claims, service worker shell cache, patient radar (honest reach copy, minimise-to-bar, unlock), haptics, freshness breathing, spatial pharmacy layout | ✅ |
 | **P17** | **Adversarial persona audit** — six probe-confirmed frictions fixed: Basra patient no longer shown a Baghdad home (coverage boundary stated in words), zero-typing quantity chips, OTP gate resumes the interrupted publish, rush mode compacts its header and skips the ceremonial empty state (first answer 925px → 478–577px, above the fold both cases), temporal claim removed from seed trends, native tap feel | ✅ |
+| **P18** | **Request overhaul** — manual medicine entry (closes the /rx dead end), dosage form + strength chips, micro-location (district chips + landmark), same-ingredient alt consent with a conditional fourth answer that never becomes a signal for the original, urgency labels stating their real TTL windows, per-responder answer kinds, contactForNeed with the photo invited inside WhatsApp | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -113,7 +114,13 @@ These were established by research and are not up for re-litigation in later pha
     a patient acts on a claim says so: الأولوية لمن يصل أولاً أو يتفق مع
     الصيدلية. The word حجز belongs to doctor appointments and nowhere near a
     medicine.
-15. **Match the exact variant, never the molecule.** A 50mg vial is not an
+15. **Medical images never touch our storage.** A prescription or box photo
+    carries a name, a prescriber, a diagnosis hint. With no backend, an
+    "upload" would sit in the patient's own browser pretending pharmacies can
+    see it — a fake feature and a privacy regression at once. The photo's
+    honest channel is WhatsApp itself, after the pharmacy replies, and the
+    ready message invites exactly that.
+16. **Match the exact variant, never the molecule.** A 50mg vial is not an
     answer to a 2.5mg tablet request. Alternative brand names exist for search
     recall only and are never surfaced as "you could take this instead" —
     substitution is the prescriber's and the pharmacist's call, not ours.

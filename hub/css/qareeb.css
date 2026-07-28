@@ -792,3 +792,20 @@ a, button, .chip, .qa-b, .rush, .slot-btn, .nav a {
 /* The app's own press states replace the flash — they already exist
    (.btn:active scale, .qa-b:active depress); this just stops the browser
    painting its grey guess on top of them. */
+
+/* ---------- 31 · the alt answer ----------
+   Appears only when the patient consented. Brass, not jade: it is a
+   time-and-negotiation fact ("a different brand, ask the pharmacist"), not a
+   confirmation of the thing that was requested. Full-width like the yes —
+   it is a real answer, not a footnote — but visually subordinate to it. */
+.qa-acts.has-alt { grid-template-areas: "yes yes" "alt alt" "one no"; }
+.qa-alt {
+  grid-area: alt;
+  background: transparent; border-color: var(--brass-ink); color: var(--brass-ink);
+  font-weight: 500;
+}
+body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 45%, transparent); }
+
+/* A yes/no toggle rendered from its two-letter label collapses to 41px wide.
+   Toggles get a width floor so the target survives the shortest word. */
+#altbtn, .rush .btn--sm { min-width: 72px; }
