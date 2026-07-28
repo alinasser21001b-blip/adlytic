@@ -16,14 +16,21 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- The webfont must never block first paint. On a throttled Baghdad 4G the
+<!-- The webfont must never block first paint. On a throttled Baghdad 4G a
      blocking stylesheet cost ~14s to interactive; loaded this way the app
      renders immediately in the system Arabic face and swaps when the real one
-     lands. Text -> structure -> interaction -> polish. -->
+     lands. Text -> structure -> interaction -> polish.
+
+     Two families, not three. Readex Pro is the Arabic-native display face,
+     axis narrowed to 300..600 — the range actually used, since 200 appears
+     only on .nhuge which is set in the numeral face anyway. IBM Plex Sans
+     carries every numeral. IBM Plex Mono was dropped: it was pulling a whole
+     third family for nine ref codes and an axis label, which IBM Plex Sans
+     with tabular figures and tracking renders just as legibly. -->
 <link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
-      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&family=IBM+Plex+Sans:wght@200;300;400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300..600&family=IBM+Plex+Sans:wght@200;300;400&display=swap">
 <noscript><link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200..700&family=IBM+Plex+Sans:wght@200;300;400&family=IBM+Plex+Mono:wght@400;500&display=swap"></noscript>
+      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300..600&family=IBM+Plex+Sans:wght@200;300;400&display=swap"></noscript>
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHBhdGggZD0iTTMgM2gxOWw3IDd2MTlIM3oiIGZpbGw9IiMwRTRGNEEiLz4KICA8cGF0aCBkPSJNMTYgMjNjLTQuNC0zLjEtNi45LTUuNC02LjktOC4zYTMuNTUgMy41NSAwIDAgMSA2LjktMS4yNSAzLjU1IDMuNTUgMCAwIDEgNi45IDEuMjVDMjIuOSAxNy42IDIwLjQgMTkuOSAxNiAyM3oiIGZpbGw9IiNFMjlBMkUiLz4KPC9zdmc+Cg==">
 
 <style>
@@ -223,7 +230,14 @@
    floor for 15px/600 text. Darkened to the nearest value that clears it while
    still reading unmistakably as WhatsApp green.
    ============================================================ */
-:root { --wa: #11833A; }   /* was #128C3E — 4.33:1 with white, now 4.85:1 */
+:root {
+  --wa: #11833A;   /* was #128C3E — 4.33:1 with white, now 4.85:1 */
+  /* IBM Plex Mono dropped from the font request: a whole third family for
+     nine reference codes and an axis label. Plex Sans with tabular figures
+     and a little tracking reads the same and costs nothing extra. */
+  --mono: 'IBM Plex Sans', ui-monospace, monospace;
+}
+.mono, .slip-ref, .axis, .ribbon-scale { letter-spacing: .04em; }
 
 /* ---------- 1 · reset + base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -677,6 +691,15 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 input, textarea { min-height: 44px; }
 .icon-btn, .clear-btn { min-width: 44px; min-height: 44px; }
 .clear-btn { width: 44px; height: 44px; }
+
+/* ---------- 23 · the results header ----------
+   Renamed from .n, which collided with the identity's numeral class: .n sets
+   direction:ltr, and applying it to a container of Arabic text flipped the
+   whole line, stranding the count on the wrong side. The numeral inside still
+   gets .num; the line itself must stay RTL. */
+.res-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u5) var(--u5) var(--u3); flex-wrap: wrap; }
+.res-n { font: 500 13px/1.6 var(--disp); color: var(--ink); }
+.res-n .why { color: var(--ink-3); font-weight: 400; }
 
 </style>
 </head>
@@ -1625,7 +1648,7 @@ function rowEl(o) {
   </a>`;
 }
 
-function doctorCard(x, wide = false) {
+function doctorCard(x, dimIfShut = true) {
   const { d, km, st } = x;
   const sp = specOf(d.spec);
   const f = st.k !== "shut" && st.seg ? st.seg.fac : (st.next ? st.next.fac : docFacs(d)[0]);
@@ -1636,7 +1659,7 @@ function doctorCard(x, wide = false) {
     href: `#/doctor/${d.id}`,
     mono: initials(L(d)).charAt(0),
     title: L(d),
-    open, quiet: st.k === "shut",
+    open, quiet: dimIfShut && st.k === "shut",
     mark: d.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
     sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
     meta: [
@@ -1649,14 +1672,14 @@ function doctorCard(x, wide = false) {
   });
 }
 
-function pharmacyCard(x, wide = false) {
+function pharmacyCard(x, dimIfShut = true) {
   const { f, km, st } = x;
   const dist = DISTRICTS.find((d) => d.id === f.district);
   return rowEl({
     href: `#/pharmacy/${f.id}`,
     mono: initial(L(f)),
     title: L(f),
-    open: st.k === "open", quiet: st.k === "shut",
+    open: st.k === "open", quiet: dimIfShut && st.k === "shut",
     mark: f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
     sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
     meta: [
@@ -2170,7 +2193,7 @@ function screenDoctors(params) {
     </div>
   </div>
   <div class="res-head">
-    <div class="n"><span class="num">${r.list.length}</span> ${t("results")}
+    <div class="res-n"><span class="num">${r.list.length}</span> ${t("results")}
       <span class="why">· ${isAR() ? "الأقرب موعداً أولاً" : "soonest first"}</span></div>
     <div class="tiny muted">${esc(approxNote() || L(here()))}</div>
   </div>
@@ -2178,7 +2201,7 @@ function screenDoctors(params) {
       ? `نتائج قليلة ضمن ${S.radius} كم من ${L(here())}؟ وسّعنا تلقائياً إلى 25 كم — أخبرناك، ولم نقرر عنك.`
       : `Thin results within ${S.radius} km of ${L(here())}? We widened to 25 km — telling you, not deciding for you.`}</span></div>` : ""}
   <section class="wrap"><div class="stack list-2 stagger">
-    ${r.list.length ? r.list.map((x) => doctorCard(x)).join("") : emptyDoctors(sp)}
+    ${r.list.length ? (() => { const live = r.list.some((x) => x.st.k !== "shut"); return r.list.map((x) => doctorCard(x, live)).join(""); })() : emptyDoctors(sp)}
   </div>
   ${r.list.length && r.list.length < 6 ? `<div class="list-end">
     <p class="small muted">${isAR() ? "هذا كل ما لدينا في هذا الاختصاص قرب منطقتك." : "That's everything we have in this specialty near you."}</p>
@@ -2353,10 +2376,10 @@ function screenPharmacies() {
       <span class="lbl">${esc(L(here()))} · <span class="num">${list.length}</span> ${isAR() ? "صيدلية" : "pharmacies"}</span>
     </div>
   </section>
-  <div class="res-head"><span class="n"><span class="num">${list.length}</span> ${t("results")}</span>
+  <div class="res-head"><span class="res-n"><span class="num">${list.length}</span> ${t("results")}</span>
     <span class="tiny muted">${esc(approxNote()) || (isAR() ? "المفتوح أولاً، ثم الأقرب" : "Open first, then nearest")}</span></div>
   <section class="wrap"><div class="stack list-2 stagger">
-    ${list.length ? list.map((x) => pharmacyCard(x)).join("") : nightFallback()}
+    ${list.length ? (() => { const live = list.some((x) => x.st.k !== "shut"); return list.map((x) => pharmacyCard(x, live)).join(""); })() : nightFallback()}
   </div></section>
   <div style="height:24px"></div>${nav("pharmacies")}`;
 }
@@ -2545,7 +2568,7 @@ function searchResults(q) {
     return head + (r.list.length
       ? `<div class="res-group"><h3>${t("doctors")} · <span class="num">${r.list.length}</span>
            <span class="muted" style="font-weight:400">· ${isAR() ? "الأقرب موعداً أولاً" : "soonest first"}</span></h3>
-         <div class="stack">${r.list.slice(0, 8).map((x) => doctorCard(x)).join("")}</div></div>`
+         <div class="stack">${(() => { const live = r.list.slice(0, 8).some((x) => x.st.k !== "shut"); return r.list.slice(0, 8).map((x) => doctorCard(x, live)).join(""); })()}</div></div>`
       : zeroWithWayOut(P));
   }
 
@@ -2646,30 +2669,94 @@ function screenHospital(id) {
   </div>${nav("doctors")}`;
 }
 
+/* ---------------- MY REQUESTS ----------------
+   The receipt drawer. Each entry shows the state we can actually justify —
+   opened / you-sent-it / not-sent — never "delivered" and never "confirmed".
+   Every entry stays actionable: reopen the chat, call, or get directions,
+   because the most common reason to come back here is that nobody replied.
+------------------------------------------------------------- */
 function screenMe() {
-  return `${header({ back: true, title: t("myRequests") })}
-  <section class="wrap sec">
-    ${S.requests.length ? `<div class="stack">${S.requests.map((r) => `<div class="stub">
-      <div class="row-b"><div><div class="card-t">${esc(r.doctor)}</div>
-        <div class="card-q">${esc(r.facility)} · ${esc(r.when)}</div></div>
-        <div class="slip-ref mono" dir="ltr">#${esc(r.ref)}</div></div>
-      <div class="card-meta"><span class="chip chip--meta chip--ok">${icon("check")}${t("sent")}</span>
-        <i class="dot"></i><span dir="ltr" class="num">${esc(r.at)}</span></div>
-      ${r.wa ? `<div class="btn-row" style="margin-top:11px">
-        <a class="btn btn--2 btn--sm" href="https://wa.me/${esc(r.wa)}" target="_blank" rel="noopener">${icon("wa")}${isAR() ? "فتح المحادثة" : "Open chat"}</a>
-        ${r.mapUrl ? `<a class="btn btn--2 btn--sm" href="${esc(r.mapUrl)}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>` : ""}
-      </div>` : ""}</div>`).join("")}</div>`
-    : `<div class="empty"><div class="empty-mark">${icon("cal")}</div>
-        <h3>${isAR() ? "لا توجد طلبات بعد" : "No requests yet"}</h3>
-        <p>${isAR() ? "عند إرسال طلب موعد، يبقى إيصاله هنا مع رمزه — بدون حساب." : "When you send an appointment request, the stub stays here with its code — no account."}</p>
-        <a class="btn" href="#/needs">${icon("stetho")}${isAR() ? "ابحث عن طبيب" : "Find a doctor"}</a></div>`}
-    ${S.saved.length ? `<div class="sec-h" style="margin-top:26px"><h2>${t("savedItems")}</h2></div>
-      <div class="stack">${S.saved.map((k) => {
+  const reqs = S.requests || [];
+  const stale = (r) => Date.now() - (r.ts || 0) > 864e5;   // older than a day
+
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+      <button class="b-g" style="font-size:13px" onclick="location.hash='#/trust'">${isAR() ? "كيف نتحقق" : "How we verify"}</button>
+    </div>
+    <div class="lab" style="margin-top:28px">${t("myRequests")}</div>
+    <h1 class="d2" style="margin-top:8px">${reqs.length
+      ? (isAR() ? countAr(reqs.length, ["طلب واحد", "طلبان", "طلبات", "طلباً"]) : `${reqs.length} request${reqs.length === 1 ? "" : "s"}`)
+      : (isAR() ? "لا توجد طلبات بعد" : "No requests yet")}</h1>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "محفوظة على هذا الجهاز فقط. بلا حساب، وبلا رقمك."
+      : "Saved on this device only. No account, and we never take your number."}</div>
+  </section>
+
+  ${reqs.length ? `<section class="pad" style="margin-top:26px">
+    ${reqs.map((r) => {
+      const st = REQ_STATE[r.state] || REQ_STATE.opened;
+      return `<div class="rw${stale(r) ? " quiet" : ""}">
+        ${r.state === "sent" ? `<span class="rw-lead" style="background:var(--jade)"></span>` : ""}
+        <span class="av mono" style="font-size:12px;letter-spacing:.04em">${esc(r.ref)}</span>
+        <span class="grow">
+          <span class="rowb"><span class="d3">${esc(r.doctor)}</span>
+            <span class="st ${st.cls}"><i class="dot"></i>${esc(isAR() ? st.ar : st.en)}</span></span>
+          <span class="q-sub" style="display:block">${esc(r.facility)} · ${esc(r.when)}</span>
+          <span class="t3" style="display:block;margin-top:4px"><span class="num">${esc(r.at)}</span></span>
+          <span class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap">
+            ${r.wa ? `<a class="b-g" style="font-size:12.5px" href="https://wa.me/${esc(r.wa)}" target="_blank" rel="noopener"
+              onclick="markRequest('${esc(r.ref)}','opened')">${isAR() ? "افتح المحادثة" : "Open chat"}</a>` : ""}
+            ${r.phone ? `<a class="b-g" style="font-size:12.5px" href="tel:+${esc(r.phone)}">${t("call")}</a>` : ""}
+            ${r.mapUrl ? `<a class="b-g" style="font-size:12.5px" href="${esc(r.mapUrl)}" target="_blank" rel="noopener">${t("directions")}</a>` : ""}
+            ${r.state !== "sent" ? `<button class="b-g" style="font-size:12.5px" onclick="markRequest('${esc(r.ref)}','sent')">${isAR() ? "أرسلتها" : "I sent it"}</button>` : ""}
+          </span>
+        </span></div>`;
+    }).join('<div class="hr"></div>')}
+    <div class="t3" style="margin-top:18px;border-top:1px solid var(--dial-line-2);padding-top:14px">${isAR()
+      ? "«أرسلتها» يعني أنك أخبرتنا — ما نكدر نشوف واتساب ولا نأكد وصول الرسالة."
+      : "\"You sent it\" means you told us so — we cannot see inside WhatsApp or confirm delivery."}</div>
+  </section>` : `<section class="pad" style="margin-top:30px">
+    <div class="v2">
+      <a class="btn" href="#/needs">${isAR() ? "ابحث عن طبيب" : "Find a doctor"}</a>
+      <a class="btn btn--2" href="#/search">${isAR() ? "دوّر على دواء" : "Look for a medicine"}</a>
+    </div>
+    <div class="t3" style="margin-top:16px">${isAR()
+      ? "عند إرسال طلب موعد يبقى إيصاله هنا برمزه، حتى تعرف أي عيادة ردّت."
+      : "When you send a request, its stub stays here with a code, so you know which clinic replied."}</div>
+  </section>`}
+
+  ${S.saved.length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${t("savedItems")}</div>
+    ${(() => {
+      const rows = S.saved.map((k) => {
         const [ty, id] = k.split(":");
-        if (ty === "d") { const d = DOCTORS.find((x) => x.id === id); return d ? doctorCard({ d, km: docDist(d), st: status(d) }) : ""; }
-        const f = fac(id); return f ? pharmacyCard({ f, km: distTo(f), st: status(f) }) : "";
-      }).join("")}</div>` : ""}
-  </section>${nav("home")}`;
+        if (ty === "d") { const d = DOCTORS.find((x) => x.id === id); return d ? { st: status(d), html: (live) => doctorCard({ d, km: docDist(d), st: status(d) }, live) } : null; }
+        const f = fac(id); return f ? { st: status(f), html: (live) => pharmacyCard({ f, km: distTo(f), st: status(f) }, live) } : null;
+      }).filter(Boolean);
+      const live = rows.some((x) => x.st.k !== "shut");
+      return rows.map((x) => x.html(live)).join('<div class="hr"></div>');
+    })()}
+  </section>` : ""}
+
+  ${S.watch?.length || LS.get("watch", []).length ? `<section class="pad" style="margin-top:30px">
+    <div class="lab">${isAR() ? "أدوية تتابعها" : "Medicines you follow"}</div>
+    ${LS.get("watch", []).map(medById).filter(Boolean).map((m) => {
+      const c = pharmaciesForMed(m).confirmed.filter((x) => x.band !== "cold");
+      return `<a class="rw" href="#/med/${m.id}">
+        ${c.length ? `<span class="rw-lead" style="background:var(--jade)"></span>` : ""}
+        <span class="av">${esc(L(m).charAt(0))}</span>
+        <span class="grow">
+          <span class="d3" style="display:block">${esc(L(m))}</span>
+          <span class="q-sub" style="display:block">${c.length
+            ? (isAR() ? `متوفّر الآن — ${esc(L(c[0].f))}` : `Available now — ${esc(L(c[0].f))}`)
+            : (isAR() ? "لسّه ما توفّر" : "Still unavailable")}</span>
+        </span></a>`;
+    }).join('<div class="hr"></div>')}
+  </section>` : ""}
+
+  <div style="height:26px"></div>${nav("home")}`;
 }
 
 function screenTrust() {
@@ -3011,6 +3098,21 @@ const productMsg = (p, f) => isAR()
   : `Hello, is this available?\n\nProduct: ${p.en}\nBrand: ${p.brand}\nListed price: ${money(p.price)}\n\n—\nvia Qareeb`;
 
 function toPreview(id) {
+  /* Check for a request to the same doctor and slot before showing the
+     message again. Someone tapping twice usually wants the first one's
+     status, not a second message landing in the clinic's inbox. */
+  const dd = DOCTORS.find((x) => x.id === id);
+  const ss = dd && window.__slots && window.__slots[window.__slot || 0];
+  if (dd && ss && !window.__dupProceed) {
+    const when = `${dayName(ss.day)} ${fmtRangeTxt(ss.seg.f, ss.seg.t)}`;
+    const prior = priorRequest(id, when);
+    if (prior) return duplicateGuard(id, when, () => toPreview(id));
+  }
+  window.__dupProceed = null;
+  return toPreviewInner(id);
+}
+
+function toPreviewInner(id) {
   const d = DOCTORS.find((x) => x.id === id);
   const name = (document.getElementById("nm").value || "").trim();
   const note = (document.getElementById("nt").value || "").trim();
@@ -3041,7 +3143,7 @@ function toPreview(id) {
     </div>
     <div class="sheet-f">
       ${d.wa ? `<a class="btn btn--wa" id="sendbtn" href="${link}" target="_blank" rel="noopener"
-          onclick="confirmSent('${d.id}','${ref}','${esc(dayName(s.day))} ${esc(fmtRangeTxt(s.seg.f, s.seg.t))}','${esc(L(s.seg.fac))}')">
+          onclick="handoffOpened('${d.id}','${ref}','${esc(dayName(s.day))} ${esc(fmtRangeTxt(s.seg.f, s.seg.t))}','${esc(L(s.seg.fac))}')">
           ${t("sendWa")}</a>`
         : `<a class="btn" href="tel:+${d.phone}">${t("call")} +${d.phone}</a>`}
       <div class="t3" style="text-align:center;margin-top:14px">${isAR()
@@ -3050,42 +3152,155 @@ function toPreview(id) {
     </div>`);
 }
 
-function confirmSent(id, ref, when, facility) {
+/* ---------------- THE HANDOFF, HONESTLY ----------------
+   What we actually know when the user taps "send on WhatsApp" is that we
+   asked the OS to open WhatsApp. We do not know that WhatsApp opened, that a
+   message was typed, that send was pressed, that the number was right, or
+   that anyone read it. The previous version stamped "SENT" and told the user
+   "your message reached the clinic" — a claim built on nothing, at the exact
+   moment the product is asking to be trusted.
+
+   So the request is recorded as `opened`, and then we ask. Three states, all
+   of them things we can actually justify:
+
+     opened     — we opened WhatsApp. That is all we know.
+     sent       — the user told us they sent it. Self-reported, labelled so.
+     abandoned  — the user told us they did not. Route them to the phone.
+
+   There is no `delivered` and there is no `confirmed`, because nothing in
+   this architecture can observe either one.
+------------------------------------------------------------- */
+const REQ_STATE = {
+  opened:    { ar: "فتحنا واتساب",    en: "WhatsApp opened",  cls: "st-q" },
+  sent:      { ar: "أرسلتها",          en: "You sent it",      cls: "st-v" },
+  abandoned: { ar: "لم تُرسل",         en: "Not sent",         cls: "st-t" },
+};
+
+/* A person who taps the same doctor twice in five minutes almost never wants
+   two requests — they want to know what happened to the first one. */
+function priorRequest(docId, when) {
+  return S.requests.find((r) => r.doc === docId && r.when === when &&
+    Date.now() - (r.ts || 0) < 36e5);
+}
+
+function handoffOpened(id, ref, when, facility) {
   const d = DOCTORS.find((x) => x.id === id);
-  S.requests.unshift({ ref, doctor: L(d), facility, when, wa: d.wa, mapUrl: mapLink(docFacs(d)[0]), at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) });
+  if (!d) return;
+  S.requests.unshift({
+    ref, doc: d.id, doctor: L(d), facility, when, wa: d.wa, phone: d.phone,
+    state: "opened", ts: Date.now(),
+    mapUrl: mapLink(docFacs(d)[0]),
+    at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
+  });
   LS.set("requests", S.requests.slice(0, 20));
-  setTimeout(() => {
+  /* Deliberately delayed: the sheet must not appear over WhatsApp while the
+     user is still in it. It is waiting when they come back. */
+  setTimeout(() => askHandoff(ref), 1200);
+}
+
+function askHandoff(ref) {
+  const r = S.requests.find((x) => x.ref === ref);
+  if (!r) return;
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div>
+      <div class="lab">${isAR() ? "طلب" : "Request"} <span class="mono">${esc(r.ref)}</span></div>
+      <h2 style="margin-top:8px">${isAR() ? "فتحنا واتساب — أرسلتها؟" : "WhatsApp opened — did you send it?"}</h2>
+      <p>${isAR()
+        ? "ما نكدر نشوف واتساب، فما نعرف. كولنا وبس، حتى نعرض لك الحالة الصح."
+        : "We can't see inside WhatsApp, so we don't know. Tell us, and we'll show you the honest state."}</p>
+    </div></div>
+    <div class="sheet-b">
+      <div class="plate">
+        <div class="rowb"><span class="d3">${esc(r.doctor)}</span><span class="mono">${esc(r.ref)}</span></div>
+        <div class="q-sub" style="margin-top:4px">${esc(r.facility)} · ${esc(r.when)}</div>
+      </div>
+      <div class="v2" style="margin-top:18px">
+        <button class="btn" onclick="markRequest('${esc(r.ref)}','sent')">${isAR() ? "إي، أرسلتها" : "Yes, I sent it"}</button>
+        <button class="btn btn--2" onclick="markRequest('${esc(r.ref)}','abandoned')">${isAR() ? "لا، ما أرسلتها" : "No, I didn't"}</button>
+      </div>
+      <div class="t3" style="text-align:center;margin-top:14px">${isAR()
+        ? "الطلب محفوظ برمزه بأي حال — تكدر ترجعله من «طلباتي»."
+        : "The request is saved with its code either way — you can return to it from My requests."}</div>
+    </div>`);
+}
+
+function markRequest(ref, state) {
+  const r = S.requests.find((x) => x.ref === ref);
+  if (!r) return closeSheet();
+  r.state = state; r.ts = Date.now();
+  LS.set("requests", S.requests.slice(0, 20));
+  const d = DOCTORS.find((x) => x.id === r.doc);
+  if (state === "sent") {
+    /* No "delivered", no "confirmed". What we can honestly add is what
+       happens next and what to do if it doesn't. */
     sheet(`<div class="sheet-grip"></div>
-      <div class="sheet-b" style="padding-top:8px">
-        <div style="display:grid;place-items:center;padding:18px 0 6px">
-          <div class="seal--stamp stamped">${isAR() ? "أُرسل" : "SENT"}<br><span dir="ltr">${ref}</span></div></div>
-        <h2 style="text-align:center;font-size:21px;font-weight:800;letter-spacing:-.02em">${isAR() ? "وصلت رسالتك إلى العيادة" : "Your message reached the clinic"}</h2>
-        <p class="small muted" style="text-align:center;margin-top:6px">${isAR()
-          ? "العيادات ترد عادةً خلال ١٥–٦٠ دقيقة في أوقات الدوام." : "Clinics usually reply within 15–60 minutes during working hours."}</p>
-        <div class="stub" style="margin-top:20px">
-          <div class="row-b"><div><div class="card-t">${esc(L(d))}</div>
-            <div class="card-q">${esc(facility)} · ${esc(when)}</div></div>
-            <div class="slip-ref mono" dir="ltr">#${ref}</div></div>
-          <div class="card-meta"><span class="chip chip--meta chip--ok">${icon("check")}${t("sent")}</span>
-            <i class="dot"></i><span>${isAR() ? "محفوظ في طلباتي" : "Saved in My requests"}</span></div>
+      <div class="sheet-h"><div>
+        <div class="lab">${isAR() ? "محفوظ" : "Saved"}</div>
+        <h2 style="margin-top:8px">${isAR() ? "خلص — رمزك محفوظ" : "Done — your code is saved"}</h2>
+        <p>${isAR()
+          ? "العيادات ترد عادةً خلال ١٥–٦٠ دقيقة بأوقات الدوام. ما نكدر نأكد وصولها، بس رمزك عندك."
+          : "Clinics usually reply within 15–60 minutes during working hours. We can't confirm delivery, but you have your code."}</p>
+      </div></div>
+      <div class="sheet-b">
+        <div class="plate">
+          <div class="rowb"><span class="d3">${esc(r.doctor)}</span><span class="mono">${esc(r.ref)}</span></div>
+          <div class="q-sub" style="margin-top:4px">${esc(r.facility)} · ${esc(r.when)}</div>
+          <div class="row" style="margin-top:10px"><span class="st st-v"><i class="dot"></i>${isAR() ? "أرسلتها" : "You sent it"}</span></div>
         </div>
-        <div class="fallback">
-          <div class="fallback-h">${icon("info")}<span>${isAR() ? "وإذا ما وصلك رد؟" : "And if nobody replies?"}</span></div>
-          <p>${isAR()
-            ? "بعض العيادات ما تتابع واتساب وقت الزحام. الاتصال المباشر أسرع، ورمزك محفوظ عندك بأي حال."
-            : "Some clinics don't watch WhatsApp when busy. Calling is faster, and your code is saved either way."}</p>
-          <div class="btn-row" style="margin-top:12px">
-            <a class="btn btn--2 btn--sm" href="tel:+${d.phone}">${icon("phone")}${t("call")}</a>
-            <button class="btn btn--2 btn--sm" onclick="closeSheet();pickNeed('${d.spec}')">${icon("stetho")}${isAR() ? "طبيب بديل" : "Another doctor"}</button>
-          </div>
-        </div>
-        <div class="stack" style="margin-top:14px">
-          <a class="btn btn--2" href="${mapLink(docFacs(d)[0])}" target="_blank" rel="noopener">${icon("nav")}${t("directions")}</a>
-          <button class="btn btn--2" onclick="shareDoctor('${d.id}')">${icon("share")}${isAR() ? "شارك الطبيب مع العائلة" : "Share this doctor"}</button>
+        <div class="lab" style="margin-top:22px">${isAR() ? "وإذا ما وصلك رد؟" : "And if nobody replies?"}</div>
+        <div class="q-sub" style="margin-top:6px">${isAR()
+          ? "بعض العيادات ما تتابع واتساب وقت الزحام. الاتصال أسرع."
+          : "Some clinics don't watch WhatsApp when busy. Calling is faster."}</div>
+        <div class="v2" style="margin-top:14px">
+          ${r.phone ? `<a class="btn btn--2" href="tel:+${esc(r.phone)}">${t("call")} <span class="num">+${esc(r.phone)}</span></a>` : ""}
+          ${d ? `<button class="btn btn--2" onclick="closeSheet();pickNeed('${d.spec}')">${isAR() ? "طبيب بديل بنفس الاختصاص" : "Another doctor, same specialty"}</button>` : ""}
           <button class="btn btn--3" onclick="closeSheet();location.hash='#/me'">${t("myRequests")}</button>
         </div>
       </div>`);
-  }, 700);
+  } else {
+    sheet(`<div class="sheet-grip"></div>
+      <div class="sheet-h"><div>
+        <h2>${isAR() ? "ما مشكلة" : "No problem"}</h2>
+        <p>${isAR()
+          ? "خلّيناه محفوظاً برمزه. تكدر ترسله بعدين، أو تتصل مباشرة."
+          : "We kept it with its code. Send it later, or just call."}</p>
+      </div></div>
+      <div class="sheet-b"><div class="v2">
+        ${r.wa ? `<a class="btn btn--wa" href="https://wa.me/${esc(r.wa)}" target="_blank" rel="noopener"
+          onclick="markRequest('${esc(r.ref)}','opened')">${isAR() ? "افتح واتساب مرة ثانية" : "Open WhatsApp again"}</a>` : ""}
+        ${r.phone ? `<a class="btn btn--2" href="tel:+${esc(r.phone)}">${t("call")} <span class="num">+${esc(r.phone)}</span></a>` : ""}
+        <button class="btn btn--3" onclick="closeSheet()">${isAR() ? "إغلاق" : "Close"}</button>
+      </div></div>`);
+  }
+}
+
+/* Tapping the same doctor and slot again within the hour is almost never a
+   second request — it is someone checking on the first one. */
+function duplicateGuard(docId, when, proceed) {
+  const prior = priorRequest(docId, when);
+  if (!prior) return proceed();
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div>
+      <h2>${isAR() ? "عندك طلب لنفس الموعد" : "You already have a request for this slot"}</h2>
+      <p>${isAR()
+        ? "أرسلته قبل شوي. إرسال ثاني يوصلهم مرتين — بس القرار قرارك."
+        : "You sent it recently. Sending again reaches them twice — but it's your call."}</p>
+    </div></div>
+    <div class="sheet-b">
+      <div class="plate">
+        <div class="rowb"><span class="d3">${esc(prior.doctor)}</span><span class="mono">${esc(prior.ref)}</span></div>
+        <div class="q-sub" style="margin-top:4px">${esc(prior.facility)} · ${esc(prior.when)}</div>
+        <div class="row" style="margin-top:10px"><span class="st ${REQ_STATE[prior.state].cls}"><i class="dot"></i>${
+          esc(isAR() ? REQ_STATE[prior.state].ar : REQ_STATE[prior.state].en)}</span>
+          <span class="t3" style="margin-inline-start:auto"><span class="num">${esc(prior.at)}</span></span></div>
+      </div>
+      <div class="v2" style="margin-top:18px">
+        <button class="btn btn--2" onclick="closeSheet();location.hash='#/me'">${isAR() ? "شوف الطلب" : "See the request"}</button>
+        ${prior.phone ? `<a class="btn btn--2" href="tel:+${esc(prior.phone)}">${t("call")}</a>` : ""}
+        <button class="btn btn--3" onclick="window.__dupProceed && window.__dupProceed()">${isAR() ? "أرسل مرة ثانية" : "Send anyway"}</button>
+      </div>
+    </div>`);
+  window.__dupProceed = () => { window.__dupProceed = null; proceed(); };
 }
 
 function openEmergency() {

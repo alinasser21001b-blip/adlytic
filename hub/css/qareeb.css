@@ -25,7 +25,14 @@
    floor for 15px/600 text. Darkened to the nearest value that clears it while
    still reading unmistakably as WhatsApp green.
    ============================================================ */
-:root { --wa: #11833A; }   /* was #128C3E — 4.33:1 with white, now 4.85:1 */
+:root {
+  --wa: #11833A;   /* was #128C3E — 4.33:1 with white, now 4.85:1 */
+  /* IBM Plex Mono dropped from the font request: a whole third family for
+     nine reference codes and an axis label. Plex Sans with tabular figures
+     and a little tracking reads the same and costs nothing extra. */
+  --mono: 'IBM Plex Sans', ui-monospace, monospace;
+}
+.mono, .slip-ref, .axis, .ribbon-scale { letter-spacing: .04em; }
 
 /* ---------- 1 · reset + base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -479,3 +486,12 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 input, textarea { min-height: 44px; }
 .icon-btn, .clear-btn { min-width: 44px; min-height: 44px; }
 .clear-btn { width: 44px; height: 44px; }
+
+/* ---------- 23 · the results header ----------
+   Renamed from .n, which collided with the identity's numeral class: .n sets
+   direction:ltr, and applying it to a container of Arabic text flipped the
+   whole line, stranding the count on the wrong side. The numeral inside still
+   gets .num; the line itself must stay RTL. */
+.res-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u5) var(--u5) var(--u3); flex-wrap: wrap; }
+.res-n { font: 500 13px/1.6 var(--disp); color: var(--ink); }
+.res-n .why { color: var(--ink-3); font-weight: 400; }
