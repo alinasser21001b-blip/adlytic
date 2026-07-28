@@ -1,0 +1,15 @@
+{
+  "name": "qareeb-hub",
+  "private": true,
+  "type": "module",
+  "description": "Qareeb — serverless functions only. The client app has no dependencies and no build step; nothing here is shipped to the browser.",
+  "scripts": {
+    "test": "node tools/test.mjs && node tools/test-server.mjs",
+    "preflight": "node tools/preflight.mjs",
+    "stamp": "node tools/stamp.mjs",
+    "build": "node build-single.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

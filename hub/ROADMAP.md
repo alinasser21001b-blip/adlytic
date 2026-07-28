@@ -58,6 +58,7 @@ committed and deployed green.
 | **P18** | **Request overhaul** — manual medicine entry (closes the /rx dead end), dosage form + strength chips, micro-location (district chips + landmark), same-ingredient alt consent with a conditional fourth answer that never becomes a signal for the original, urgency labels stating their real TTL windows, per-responder answer kinds, contactForNeed with the photo invited inside WhatsApp | ✅ |
 | **P19** | **Shipping became visible again** — the service worker was cache-first behind a hand-typed cache key, so three deploys in a row served every returning visitor the *previous* build. Reproduced in a browser, fixed by network-first for the shell (`cache: "reload"`, 3.5s race, cache still answers offline), `tools/stamp.mjs` writing one build stamp into both `sw.js` and `CONFIG.build`, an update-and-reload path, and a footer that states the running build. Also: the patient home had no door to any of P15–P18 | ✅ |
 | **P20** | **Merge: the rigor `hub/` never had** — `qareeb-platform`'s domain discipline brought into the live app as `js/domain.js` + `tools/test.mjs` (35 tests, Node vm, zero deps, tests the shipped bytes). Closes the three gaps that made launch impossible: **pharmacy authentication on `/radar`** (role + licence + branch checked on every claim, enforced in `quickAnswer` so a direct call cannot bypass the UI), **controlled medicines never broadcast** (catalogue-flagged, refused by the domain layer, routed to a licensed-pharmacy handoff), and a **whitelist broadcast payload** (landmark, phone, photo, note provably never leave the device). Plus hash-linked audit, consent terms, price provenance, and a computed launch-readiness board in the operator console | ✅ |
+| **P21** | **The four launch blockers, attacked together** — a real backend (`netlify/functions/auth.mjs`, `audit.mjs`) with server-signed sessions, HMAC one-time codes, an approved-licence list, rate limiting, and a server-written audit chain; 21 security tests covering privilege escalation, cross-branch forgery, cross-secret tokens and chain tampering. The client detects which mode it is in (`server` vs `device`) and says so — the readiness board reads the live deployment instead of constants. Plus `tools/preflight.mjs --release` (exits non-zero on any blocker; currently blocks on 55 placeholder records) and `tools/import-facilities.mjs` (validates real records, refuses malformed/placeholder/duplicate numbers). Two blockers are now *configuration*; two need real-world data | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -126,6 +127,11 @@ These were established by research and are not up for re-litigation in later pha
     answer to a 2.5mg tablet request. Alternative brand names exist for search
     recall only and are never surfaced as "you could take this instead" —
     substitution is the prescriber's and the pharmacist's call, not ours.
+20. **A check that runs on the device of the person being checked is not a
+    check.** The rules may live on the client; the decision about whether a
+    credential is genuine may not. Where the server is absent the app says
+    `device` mode out loud rather than implying protection it does not have.
+
 18. **A rule that cannot be tested is a rule you are guessing about.** Anything
     a user can be harmed by — who may claim stock, what leaves the device,
     which medicines must never be broadcast — lives in `js/domain.js` as a

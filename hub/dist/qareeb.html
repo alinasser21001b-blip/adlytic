@@ -1383,6 +1383,32 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
    (9647700000xxx) and must be replaced before any launch.
    ============================================================ */
 
+/* ---------- DATA PROVENANCE ----------
+   Where this data came from, stated in the data itself so no screen has to
+   guess and no operator has to remember. `real` is what the launch-readiness
+   board reads; it is false while any of the sources below is "synthetic".
+
+   This is deliberately not a flag someone flips to make a warning go away:
+   `tools/preflight.mjs` re-derives it from the actual records and refuses to
+   release if the two disagree. A provenance claim that cannot be contradicted
+   by the data is decoration. */
+const DATA_PROVENANCE = {
+  real: false,
+  sources: {
+    pharmacies: { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "صيدليات نموذجية — أسماء وعناوين وأرقام مُختلقة" },
+    doctors:    { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "أطباء نموذجيون" },
+    medicines:  { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "كتلوك مبني على أسماء حقيقية، لكن التوفّر والأسعار مُختلقة" },
+    signals:    { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "إفادات التوفّر كلها مولّدة" },
+  },
+  /* Filled by tools/import-facilities.mjs when real records are loaded. */
+  importedAt: null,
+  recordCount: 0,
+};
+
 const CONFIG = {
   brand: { ar: "قريب", en: "Qareeb" },
   city: { ar: "بغداد", en: "Baghdad" },
@@ -1400,7 +1426,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260728-1853",
+  build: "20260728-1913",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
@@ -4031,10 +4057,13 @@ function screenAdmin() {
      someone remembered to tick — a readiness board that can be right by
      accident is worse than none, because it grants permission to stop
      looking. Every item here is a thing that would harm a real user. */
+  /* Read from the live deployment, not from constants someone remembers to
+     update. When the backend is configured these two clear themselves; when
+     it is not, no amount of code claiming otherwise can hide it. */
   const blockers = QD.launchBlockers(allPharmacies(), {
-    pharmacyAuthBackend: false,   /* the gate is real; the licence check is on-device */
-    auditServerSide: false,       /* the chain is tamper-evident, not tamper-proof */
-    realData: false,              /* every pharmacy, doctor and signal is synthetic */
+    pharmacyAuthBackend: BACKEND.server,
+    auditServerSide: BACKEND.server,
+    realData: DATA_PROVENANCE.real,
   });
   const controlledCount = RX_MEDS.filter((m) => QD.isControlled(m)).length;
   const liveReq = liveRequests();
@@ -4098,10 +4127,16 @@ function screenAdmin() {
           : "landmark, number, photo and note never leave the device"}</span></span>
         <span class="st st-v"><i class="dot"></i>${isAR() ? "فعّال" : "on"}</span></div>
       <div class="ops-row"><span class="grow"><b>${isAR() ? "سجل تدقيق مترابط" : "Hash-linked audit"}</b>
-        <span class="t3" style="display:block">${isAR()
-          ? "يكشف التعديل والحذف — على الجهاز، فما يمنعهما"
-          : "detects edits and deletions — on-device, so it cannot prevent them"}</span></span>
-        <span class="st st-t"><i class="dot"></i>${isAR() ? "جزئي" : "partial"}</span></div>`)}
+        <span class="t3" style="display:block">${BACKEND.server
+          ? (isAR() ? "يُكتب على الخادم — المُدقَّق ما يكدر يعيد كتابته" : "written server-side — the audited party cannot rewrite it")
+          : (isAR() ? "يكشف التعديل والحذف — على الجهاز، فما يمنعهما" : "detects edits and deletions — on-device, so it cannot prevent them")}</span></span>
+        <span class="st ${BACKEND.server ? "st-v" : "st-t"}"><i class="dot"></i>${
+          BACKEND.server ? (isAR() ? "فعّال" : "on") : (isAR() ? "جزئي" : "partial")}</span></div>
+      <div class="ops-row"><span class="grow"><b>${isAR() ? "وضع التشغيل" : "Runtime mode"}</b>
+        <span class="t3" style="display:block">${BACKEND.server
+          ? (isAR() ? "خادم — الجلسات موقّعة، والإجازة تُفحص مقابل قائمة معتمدة" : "server — sessions signed, licence checked against the approved list")
+          : (isAR() ? "جهاز — القواعد سارية لكن الاعتماد يُفحص على جهاز صاحبه" : "device — rules hold, but the credential is checked on the claimant's own device")}</span></span>
+        <span class="st ${BACKEND.server ? "st-v" : "st-e"}"><i class="dot"></i>${esc(backendMode())}</span></div>`)}
 
     <div class="ops-cols">
       <div>
@@ -5757,6 +5792,40 @@ function updateUserTrustScore(event, meta = {}) {
 
 /* Simulated OTP. Six digits, generated and shown on screen, labelled as a
    prototype. Nothing is sent anywhere. */
+/* ================= BACKEND MODE =================
+   The app runs in one of two modes and must never be vague about which.
+
+     server  — /api/auth answered and is configured. Sessions are signed by
+               a party the claimant does not control, and the audit chain is
+               written where they cannot rewrite it.
+     device  — no backend answered. The rules still hold (they live in the
+               domain layer either way), but the credential check runs on the
+               device of the person being checked, which is not a check.
+
+   The difference is displayed wherever it matters and drives the launch
+   readiness board, so "we have authentication" can never be true in the
+   copy while being false in the deployment. Detection is one probe, cached,
+   and never blocks a screen: a patient looking for a pharmacy at 2am does
+   not wait on an auth endpoint. */
+let BACKEND = { checked: false, server: false, detail: null };
+
+async function probeBackend() {
+  if (BACKEND.checked) return BACKEND;
+  BACKEND.checked = true;
+  try {
+    const res = await fetch("/api/auth", { method: "GET", cache: "no-store" });
+    if (res.ok) {
+      const j = await res.json();
+      BACKEND.server = !!j.configured;
+      BACKEND.detail = j;
+    }
+  } catch { /* offline, or no functions deployed — device mode, silently */ }
+  if (BACKEND.server && location.hash.startsWith("#/admin")) render();
+  return BACKEND;
+}
+
+const backendMode = () => (BACKEND.server ? "server" : "device");
+
 /* ================= PHARMACY AUTHENTICATION =================
    Until now this did not exist, and its absence was the largest hole in the
    product: /radar trusted whoever opened the URL. A stranger could pick any
@@ -5832,9 +5901,15 @@ function openPharmacyAuth(facId) {
           <option value="VERIFIED_PHARMACIST">${isAR() ? "صيدلي مسؤول" : "Responsible pharmacist"}</option>
           <option value="PHARMACY_STAFF">${isAR() ? "موظّف صيدلية" : "Pharmacy staff"}</option>
         </select></div>
-      <div class="note note-w" style="margin-top:14px"><span>${isAR()
+      ${BACKEND.server ? `
+      <button class="btn btn--2" id="sendcode" style="margin-top:12px" onclick="requestPharmacyCode()">${isAR() ? "أرسل الرمز" : "Send code"}</button>
+      <div class="note" style="margin-top:14px"><span>${isAR()
+        ? "التحقق يتم على الخادم مقابل قائمة الإجازات المعتمدة. الرمز يُرسل لموبايل الصيدلي المسجّل."
+        : "Verified on the server against the approved licence list."}</span></div>
+      <div class="t3 mono" id="devcode" style="margin-top:8px"></div>`
+      : `<div class="note note-w" style="margin-top:14px"><span>${isAR()
         ? `نموذج تجريبي — التحقق يتم على هذا الجهاز فقط، ولا يوجد خادم يتأكد من الإجازة. رمزك <b class="mono">${code}</b>.`
-        : `Prototype — the check runs on this device only; no server verifies the licence. Code <b class="mono">${code}</b>.`}</span></div>
+        : `Prototype — the check runs on this device only; no server verifies the licence. Code <b class="mono">${code}</b>.`}</span></div>`}
       <div class="t3" style="margin-top:12px">${isAR()
         ? "الصيدلي المسؤول وحده يكدر يفتح وصفة. الموظّف يكدر يفيد بالتوفّر بس."
         : "Only the responsible pharmacist can open a prescription. Staff can confirm stock only."}</div>
@@ -5844,16 +5919,68 @@ function openPharmacyAuth(facId) {
     </div>`);
 }
 
-function submitPharmacyAuth() {
+/* Ask the server to send a code. In device mode this is a no-op and the
+   sheet keeps showing its own prototype code, labelled as such. */
+async function requestPharmacyCode() {
+  await probeBackend();
+  if (!BACKEND.server) return;
+  const o = S.pharmOtp || {};
+  const btn = document.getElementById("sendcode");
+  if (btn) { btn.disabled = true; btn.textContent = isAR() ? "جارٍ الإرسال…" : "Sending…"; }
+  try {
+    const res = await fetch("/api/auth", { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "request", licence: (document.getElementById("lic") || {}).value || o.licence,
+        phone: (document.getElementById("pph") || {}).value || o.phone }) });
+    const j = await res.json();
+    toast(j.ar || (isAR() ? "إذا كانت بياناتك مسجّلة راح يوصلك رمز" : "If your details are registered, a code is on the way"));
+    /* Only present when the deployment explicitly enables echoing, which
+       production must not. Shown rather than hidden so a misconfiguration
+       is visible to whoever is testing instead of silently insecure. */
+    if (j.devCode) {
+      const el = document.getElementById("devcode");
+      if (el) el.innerHTML = `<b class="mono">${esc(j.devCode)}</b> — <span style="color:var(--alarm)">QAREEB_DEV_ECHO_OTP</span>`;
+    }
+  } catch { toast(isAR() ? "ما وصلنا للخادم" : "Could not reach the server"); }
+  if (btn) { btn.disabled = false; btn.textContent = isAR() ? "أرسل الرمز" : "Send code"; }
+}
+
+async function submitPharmacyAuth() {
   const o = S.pharmOtp || {};
   const lic = String((document.getElementById("lic") || {}).value || o.licence || "").trim();
   const entered = String((document.getElementById("potp") || {}).value || "").trim();
   const role = (document.getElementById("prole") || {}).value || "PHARMACY_STAFF";
+  const phone = String((document.getElementById("pph") || {}).value || o.phone || "").trim();
   if (lic.length < 4) { toast(isAR() ? "اكتب رقم الإجازة" : "Enter the licence number"); return; }
+
+  await probeBackend();
+  if (BACKEND.server) {
+    /* SERVER MODE. The session is whatever the server signs — the client
+       does not choose its own role, branch or licence status, and cannot. */
+    try {
+      const res = await fetch("/api/auth", { method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "verify", licence: lic, phone, code: entered, role }) });
+      const j = await res.json();
+      if (!res.ok || !j.ok) { toast(j.ar || (isAR() ? "التحقق ما نجح" : "Verification failed")); return; }
+      LS.set("pharmSession", {
+        role: j.role, pharmacyId: j.pharmacyId, pharmacistId: j.pharmacistId,
+        licence: lic, licenseStatus: j.licenseStatus, token: j.token, mode: "server", at: Date.now(),
+      });
+      S.myBranch = j.pharmacyId; LS.set("myBranch", j.pharmacyId);
+      auditLog({ action: "PHARMACY_SIGNIN", actor: j.pharmacistId, pharmacyId: j.pharmacyId, reason: "licence " + lic });
+      closeSheet(); haptic([15, 40, 15]);
+      toast(isAR() ? "أهلاً — تكدر تجاوب على الطلبات" : "Signed in — you can answer requests");
+      location.hash = "#/radar/" + j.pharmacyId;
+      return;
+    } catch { toast(isAR() ? "ما وصلنا للخادم" : "Could not reach the server"); return; }
+  }
+
+  /* DEVICE MODE. The prototype path, unchanged and still labelled. */
   if (entered !== o.code) { toast(isAR() ? "الرمز غير صحيح" : "Wrong code"); return; }
   LS.set("pharmSession", {
     role, pharmacyId: o.facId, pharmacistId: "ph-" + lic,
-    licence: lic, licenseStatus: "VERIFIED", at: Date.now(),
+    licence: lic, licenseStatus: "VERIFIED", mode: "device", at: Date.now(),
   });
   S.myBranch = o.facId; LS.set("myBranch", o.facId);
   auditLog({ action: "PHARMACY_SIGNIN", actor: "ph-" + lic, pharmacyId: o.facId, reason: "licence " + lic });
@@ -5873,6 +6000,19 @@ function auditLog(entry) {
   const chain = LS.get("audit", []);
   const next = QD.auditAppend(chain, Object.assign({ at: Date.now() }, entry));
   LS.set("audit", next.slice(-200));
+
+  /* Mirror to the server chain when one exists. The device copy stays either
+     way — it is what shows a pharmacist their own history offline — but the
+     server copy is the one that counts as evidence, because the person being
+     audited cannot rewrite it. Fire-and-forget: an audit write must never
+     make a pharmacist wait, and a failed mirror must never lose their tap. */
+  const ses = pharmacySession();
+  if (BACKEND.server && ses && ses.token) {
+    fetch("/api/audit", { method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + ses.token },
+      body: JSON.stringify({ action: entry.action, subject: entry.subject, reason: entry.reason }),
+    }).catch(() => {});
+  }
   return next;
 }
 
@@ -7474,6 +7614,8 @@ function boot() {
   }, 60000);
 }
 document.addEventListener("DOMContentLoaded", boot);
+/* After first paint, never before it. */
+addEventListener("load", () => { setTimeout(probeBackend, 400); });
 
 /* Register the shell cache. Wrapped and silent: a failed registration must
    never break the app, and the single-file dist build has no sw.js to find.

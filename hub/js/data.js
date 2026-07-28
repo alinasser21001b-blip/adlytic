@@ -5,6 +5,32 @@
    (9647700000xxx) and must be replaced before any launch.
    ============================================================ */
 
+/* ---------- DATA PROVENANCE ----------
+   Where this data came from, stated in the data itself so no screen has to
+   guess and no operator has to remember. `real` is what the launch-readiness
+   board reads; it is false while any of the sources below is "synthetic".
+
+   This is deliberately not a flag someone flips to make a warning go away:
+   `tools/preflight.mjs` re-derives it from the actual records and refuses to
+   release if the two disagree. A provenance claim that cannot be contradicted
+   by the data is decoration. */
+const DATA_PROVENANCE = {
+  real: false,
+  sources: {
+    pharmacies: { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "صيدليات نموذجية — أسماء وعناوين وأرقام مُختلقة" },
+    doctors:    { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "أطباء نموذجيون" },
+    medicines:  { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "كتلوك مبني على أسماء حقيقية، لكن التوفّر والأسعار مُختلقة" },
+    signals:    { origin: "synthetic", verifiedAt: null, verifiedBy: null,
+                  ar: "إفادات التوفّر كلها مولّدة" },
+  },
+  /* Filled by tools/import-facilities.mjs when real records are loaded. */
+  importedAt: null,
+  recordCount: 0,
+};
+
 const CONFIG = {
   brand: { ar: "قريب", en: "Qareeb" },
   city: { ar: "بغداد", en: "Baghdad" },
@@ -22,7 +48,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260728-1853",
+  build: "20260728-1913",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,

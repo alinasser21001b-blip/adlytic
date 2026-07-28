@@ -12,7 +12,15 @@
 
 [build]
   publish = "."
-  command = "echo 'Static site — no build step, no dependencies.'"
+  command = "npm ci --omit=dev || npm install --omit=dev"
+
+# The CLIENT still has no build step and no dependencies — that constraint is
+# the product on a throttled 3G connection and it has not moved. package.json
+# exists only so the two serverless functions can import @netlify/blobs; the
+# browser never downloads any of it.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 # ── headers ──────────────────────────────────────────────────────────────────
 [[headers]]
@@ -52,6 +60,18 @@
 # ── routing ──────────────────────────────────────────────────────────────────
 # The app is a hash router, so every real path is "/". A QR poster link like
 # /k or /mansour should still land on the app rather than a 404.
+# API routes must resolve to functions, not be swallowed by the SPA catch-all
+# below. Order matters here: the first matching rule wins.
+[[redirects]]
+  from = "/api/auth"
+  to = "/.netlify/functions/auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/audit"
+  to = "/.netlify/functions/audit"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
