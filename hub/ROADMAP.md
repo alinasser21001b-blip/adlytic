@@ -51,6 +51,7 @@ committed and deployed green.
 | **P11** | **Identity v3 — «المِسطرة»** — look layer replaced whole: `src/styles/identity.css` verbatim from the board, `css/qareeb.css` rewritten on it, v2 layer retired. Rows not cards, one shadow, radius 10/999 only, Readex Pro + tabular numerals, the tick rule, the case/dial surfaces | ✅ |
 | **P12** | **Honest handoff** — `opened / sent / abandoned` replaces the false "delivered" claim; duplicate guard; `/me` rebuilt on real states; pharmacy profile rebuilt on v3 | ✅ |
 | **P13** | **Medicine Explorer** — national availability network: CITIES/BRANCHES/RX_MEDS/SIGNALS/REQUESTS, signal decay + request lifecycle state machines, `/explorer` `/rx` `/rx/:v` `/need/*` `/radar/*`, the availability field, structured contact. Spec at `QAREEB_MEDICINE_EXPLORER_IMPLEMENTATION_SPEC.md` | ✅ |
+| **P14** | **Roles + operator separation** — role-aware homes (patient / pharmacist / doctor mutate structurally), operator console rebuilt as its own shell outside the patient column (stale radar, verification queue, supply gaps, integrity — all live-computed), Explorer contacts wired into the opened/sent/abandoned machine, skeletons cover the Explorer family | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---

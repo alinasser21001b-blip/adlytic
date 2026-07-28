@@ -738,6 +738,43 @@ input, textarea { min-height: 44px; }
 .fld-marks > i.none { width: 14px; height: 1px; background: var(--dial-line); border-radius: 0; }
 .fld .rw-lead { top: var(--u3); bottom: var(--u3); }
 
+/* ---------- 26 · the operator console ----------
+   A different product, not a different page. The patient app is a 390px
+   instrument; this is a desk tool. It escapes the 560px column, drops the
+   patient nav entirely, and runs at desk density — smaller type, tighter
+   rows, two columns when the glass allows. Same tokens, same discipline. */
+.ops { min-height: 100dvh; background: var(--dial); font-size: 13px; }
+/* The console must escape the patient column: .app caps everything render()
+   paints at 560px, which crammed the two-column desk layout into a phone
+   width. The operator shell is the one route that is genuinely a different
+   product, so the exemption is structural, not a tweak. */
+.app:has(.ops) { max-width: none; border-inline: 0; padding-bottom: 0; }
+.ops-hdr {
+  display: flex; align-items: center; gap: var(--u4);
+  padding: var(--u4) var(--u6); border-bottom: 1px solid var(--dial-line);
+  background: var(--dial-2); position: sticky; top: 0; z-index: 40;
+}
+.ops-body { max-width: 1160px; margin-inline: auto; padding: var(--u6); }
+.ops-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--u3); }
+.ops-kpi { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
+.ops-kpi.warn { border-color: var(--brass-ink); }
+.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.02em; }
+.ops-l { font: 500 10px/1.5 var(--disp); letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; margin-top: 6px; }
+.ops-cols { display: grid; grid-template-columns: 1fr; gap: var(--u6); margin-top: var(--u6); align-items: start; }
+@media (min-width: 900px) { .ops-cols { grid-template-columns: 1fr 1fr; } }
+.ops-sec { margin-top: var(--u6); }
+.ops-sec:first-child { margin-top: 0; }
+.ops-row {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u2) 0; border-top: 1px solid var(--dial-line-2);
+  font: 400 13px/1.6 var(--disp);
+}
+.ops-row:first-child { border-top: 0; }
+.ops-row b { font-weight: 500; }
+.ops-bars { display: grid; grid-template-columns: 34px 1fr 34px; gap: 4px 8px; align-items: center; margin-top: 6px; }
+.ops-bar { position: relative; height: 3px; background: var(--dial-line); border-radius: var(--rp); display: block; }
+.ops-bar > i { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; border-radius: var(--rp); }
+
 </style>
 </head>
 <body>
@@ -1444,6 +1481,14 @@ const S = {
   qrSource: null,
   recent: LS.get("recent", []),
   exCity: LS.get("exCity", "baghdad"),  // Explorer is national; this only orders results
+  /* Who is holding the phone. Changes the STRUCTURE of home, not its labels:
+     a patient opens onto care near them, a pharmacist onto the demand they
+     could answer, a doctor onto the demand that never reached them. No auth
+     in the prototype — the role is a lens, clearly labelled, and any claim
+     that needs identity (signalling stock) says so where it happens. */
+  role: LS.get("role", "patient"),           // patient | pharmacist | doctor
+  myBranch: LS.get("myBranch", null),        // pharmacist's chosen branch
+  myDoc: LS.get("myDoc", null),              // doctor's chosen profile
   draft: null,                          // an unpublished medicine request
   supplyDraft: null,                    // a pharmacy's in-progress availability claim
   filters: { openNow: false, when: null, gender: null, spec: null, district: null, fee: null, facType: null },
@@ -2178,6 +2223,12 @@ function nav(active) {
    thing a tired parent is actually holding a phone for.
 ------------------------------------------------------------- */
 function screenHome() {
+  if (S.role === "pharmacist") return screenHomePharmacist();
+  if (S.role === "doctor") return screenHomeDoctor();
+  return screenHomePatient();
+}
+
+function screenHomePatient() {
   const docsOpen = docsOpenNow(), phOpen = phOpenNow(), night = phNight();
   const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
   const scarce = MEDICINES.filter((m) => !m.stock.some((st) => freshBand(freshMins(st)) !== "cold"));
@@ -2247,6 +2298,138 @@ function screenHome() {
   </section>
   ${nav("home")}`;
 }
+
+/* ---------------- role home · pharmacist ----------------
+   The case opens on the demand this branch could answer — not on patient
+   discovery, which a pharmacist standing behind a counter does not need. */
+function screenHomePharmacist() {
+  const f = S.myBranch ? anyFac(S.myBranch) : null;
+  const rows = f ? radarFor(f.id) : [];
+  const urgent = rows.filter((x) => x.r.urg === "urgent").length;
+  const mySigs = f ? SIGNALS.filter((g) => g.fac === f.id && g.m < SIG_TTL) : [];
+  const aging = mySigs.filter((g) => g.m >= 1440);
+  const netReq = liveRequests().length;
+
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+      <button class="b-g" style="font-size:13px" onclick="pickRole()">${isAR() ? "وضع الصيدلاني" : "Pharmacist mode"}</button>
+    </div>
+
+    ${f ? `
+    <div class="lab" style="margin-top:34px">${esc(L(f))} · ${esc(cityName(cityById(cityOf(f))))}</div>
+    <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${rows.length}</div>
+    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? "طلب تكدر تجاوب عليه" : "requests you could answer"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? `منها <span class="num">${urgent}</span> عاجل · إفاداتك الحية <span class="num">${mySigs.length}</span>`
+      : `<span class="num">${urgent}</span> urgent · your live signals <span class="num">${mySigs.length}</span>`}</div>
+    <div style="margin-top:24px" class="v2">
+      <a class="btn" href="#/radar/${f.id}">${isAR() ? "افتح رادار التوفّر" : "Open Supply Radar"}</a>
+      <a class="btn btn--2" href="#/partner/${FACILITIES.some((y) => y.id === f.id) ? f.id : "p1"}">${isAR() ? "لوحة الطلب في منطقتك" : "Demand in your area"}</a>
+    </div>`
+    : `
+    <div class="lab" style="margin-top:34px">${isAR() ? "وضع الصيدلاني" : "Pharmacist mode"}</div>
+    <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${netReq}</div>
+    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? "طلب دواء نشط في العراق" : "active requests across Iraq"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "اختر فرعك حتى نعرض اللي يخصّك منها — في محافظتك أو لدواء تفيد بتوفّره."
+      : "Pick your branch and we'll narrow these to the ones you can answer."}</div>
+    <div style="margin-top:24px"><a class="btn" href="#/radar">${isAR() ? "اختر فرعك" : "Pick your branch"}</a></div>`}
+  </section>
+
+  ${aging.length ? `<div class="hr" style="margin-top:30px"></div>
+  <section class="pad">
+    <div class="lab" style="padding-top:24px;color:var(--brass-ink)">${isAR() ? "إفاداتك تتقادم" : "Your claims are aging"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "أقدم من يوم — المريض يشوفها باهتة. أكّدها من جديد إذا الدواء بعده موجود."
+      : "Over a day old — patients see them dimmed. Re-confirm if the stock is still there."}</div>
+    ${aging.map((g) => { const x = variantOf(g.v); return x ? `<div class="rw">
+      <span class="grow"><span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
+        <span class="row" style="margin-top:8px"><span class="st st-t"><i class="dot"></i>${isAR() ? `أفدت ${sigAge(g.m)}` : `reported ${sigAge(g.m)}`}</span></span>
+      </span></div>` : ""; }).join('<div class="hr"></div>')}
+  </section>` : ""}
+
+  ${f && rows.length ? `<div class="hr" style="margin-top:26px"></div>
+  <section class="pad">
+    <div class="lab" style="padding-top:24px">${isAR() ? "أقرب الطلبات" : "Nearest requests"}</div>
+    ${rows.slice(0, 3).map(({ r }) => needCard(r, { state: false })).join('<div class="hr"></div>')}
+    <a class="b-g" style="font-size:12.5px;margin-top:12px;display:inline-flex" href="#/radar/${f.id}">${isAR() ? "الكل في الرادار" : "All of them in Radar"}</a>
+  </section>` : ""}
+
+  <section class="pad" style="margin:26px 0 30px">
+    <a class="rowb" style="border-top:1px solid var(--dial-line-2);padding-top:16px" href="#/explorer">
+      <span class="t3">${isAR() ? "رجوع لواجهة المريض — استكشاف الأدوية" : "Back to the patient view — Explorer"}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "افتح" : "Open"}</span>
+    </a>
+  </section>
+  ${nav("home")}`;
+}
+
+/* ---------------- role home · doctor ---------------- */
+function screenHomeDoctor() {
+  const d = S.myDoc ? DOCTORS.find((x) => x.id === S.myDoc) : null;
+  const dm = d && DOC_DEMAND[d.id];
+  return `${netBanner()}
+  <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
+    <div class="rowb">
+      <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+      <button class="b-g" style="font-size:13px" onclick="pickRole()">${isAR() ? "وضع الطبيب" : "Doctor mode"}</button>
+    </div>
+
+    ${d && dm ? `
+    <div class="lab" style="margin-top:34px">${esc(L(d))} · ${esc(L(specOf(d.spec)))}</div>
+    <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${dm.searches - dm.requests}</div>
+    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? "دوّروا على اختصاصك وما وصلوك" : "searched your specialty, never reached you"}</div>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? `خلال ٣٠ يوم · وصلك <span class="num">${dm.requests}</span> طلباً ورددت على <span class="num">${dm.replied}</span>`
+      : `over 30 days · <span class="num">${dm.requests}</span> reached you, you answered <span class="num">${dm.replied}</span>`}</div>
+    <div style="margin-top:24px" class="v2">
+      <a class="btn" href="#/partner/doctor/${d.id}">${isAR() ? "افتح لوحة الطلب" : "Open your demand dashboard"}</a>
+      <a class="btn btn--2" href="#/doctor/${d.id}">${isAR() ? "شوف ملفك مثل ما يشوفه المريض" : "See your profile as a patient does"}</a>
+    </div>`
+    : `
+    <div class="lab" style="margin-top:34px">${isAR() ? "وضع الطبيب" : "Doctor mode"}</div>
+    <h1 class="d2" style="margin-top:12px">${isAR() ? "شوف الطلب اللي ما وصلك" : "See the demand that never reached you"}</h1>
+    <div class="q-sub" style="margin-top:6px">${isAR()
+      ? "اختر ملفك حتى نعرض كم مريض دوّر على اختصاصك في منطقتك — وما وصلك."
+      : "Pick your profile and we'll show how many searched your specialty and never reached you."}</div>
+    <div style="margin-top:24px" class="v2">
+      ${DOCTORS.filter((x) => DOC_DEMAND[x.id]).map((x) => `<button class="btn btn--2" onclick="setMyDoc('${x.id}')">${esc(L(x))} — ${esc(L(specOf(x.spec)))}</button>`).join("")}
+    </div>`}
+  </section>
+
+  <section class="pad" style="margin:30px 0 30px">
+    <a class="rowb" style="border-top:1px solid var(--dial-line-2);padding-top:16px" href="#/needs">
+      <span class="t3">${isAR() ? "رجوع لواجهة المريض" : "Back to the patient view"}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "افتح" : "Open"}</span>
+    </a>
+  </section>
+  ${nav("home")}`;
+}
+
+function setMyDoc(id) { S.myDoc = id; LS.set("myDoc", id); render(); }
+
+/* Role picker. Reachable from every role's home and from /start — never a
+   blocking carousel, and switching back is one tap. */
+function pickRole() {
+  const opt = (k, t1, t2) => `<button class="rw" onclick="setRole('${k}')">
+    <span class="grow"><span class="rowb">
+      <span class="t1" style="font-size:15px">${t1}</span>
+      ${S.role === k ? `<span class="st st-v"><i class="dot"></i>${isAR() ? "الحالي" : "current"}</span>` : ""}
+    </span><span class="q-sub" style="display:block">${t2}</span></span></button>`;
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div><h2>${isAR() ? "منو يستخدم قريب؟" : "Who is using Qareeb?"}</h2>
+      <p>${isAR() ? "يغيّر شكل الرئيسية فقط — بلا حساب، وتكدر ترجع بأي وقت." : "Changes what home opens on — no account, switch back any time."}</p></div></div>
+    <div class="sheet-b">
+      ${opt("patient", isAR() ? "مريض أو مرافق" : "Patient or carer", isAR() ? "أدور على دواء أو طبيب أو صيدلية" : "Looking for medicine, a doctor, a pharmacy")}
+      <div class="hr"></div>
+      ${opt("pharmacist", isAR() ? "صيدلاني" : "Pharmacist", isAR() ? "أشوف الطلبات وأفيد بالتوفّر" : "See requests, report availability")}
+      <div class="hr"></div>
+      ${opt("doctor", isAR() ? "طبيب / طبيبة" : "Doctor", isAR() ? "أشوف الطلب على اختصاصي" : "See the demand on my specialty")}
+    </div>`);
+}
+function setRole(r) { S.role = r; LS.set("role", r); closeSheet(); location.hash = "#/"; render(); }
 
 function qrContext() {
   const src = QR_SOURCES[S.qrSource];
@@ -2340,6 +2523,11 @@ function screenStart() {
     <div class="q-sub" style="margin-top:14px;text-align:center;font-size:11px">${isAR()
       ? "بلا حساب · بلا تسجيل · ما نحفظ شي عن صحتك"
       : "No account · no sign-up · nothing about your health is stored"}</div>
+
+    <button class="rowb" style="width:100%;margin-top:14px;border-top:1px solid var(--dial-line-2);padding-top:14px;min-height:44px" onclick="pickRole()">
+      <span class="t3">${isAR() ? "صيدلاني أو طبيب؟ عندك واجهة ثانية" : "Pharmacist or doctor? You have a different view"}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "اختر دورك" : "Pick your role"}</span>
+    </button>
 
     <a class="note note-e row-b" style="margin-top:14px;gap:10px" href="tel:${CONFIG.emergency.unified}">
       <span><b>${isAR() ? "طوارئ؟" : "Emergency?"}</b> ${isAR() ? "الرقم الموحد" : "Unified line"}</span>
@@ -3081,94 +3269,137 @@ function screen404() {
 }
 
 /* ---------------- ADMIN ---------------- */
+/* ==================================================================
+   OPERATOR CONSOLE — a different product, not a different page
+   ==================================================================
+   The patient app is a 390px instrument used standing up. The operator
+   console is a desk tool: dense, wide, scanning-oriented, and it does not
+   share the patient shell — no bottom nav, no actionbar, its own wrapper,
+   its own width. Everything on it is computed from the live model, because
+   an operator screen showing invented numbers trains operators to ignore it.
+
+   Four jobs, in the order they keep the network honest:
+     1. STALE RADAR        — claims and profiles going bad right now
+     2. VERIFICATION QUEUE — who is in the network without a human check
+     3. SUPPLY GAPS        — where demand is going unanswered, by governorate
+     4. INTEGRITY          — the validator, surfaced
+------------------------------------------------------------- */
 function screenAdmin() {
-  const A = ADMIN_STATS, max = (a) => Math.max(...a.map((x) => x[1]));
-  return `<div class="adm">
-  <header class="hdr"><a class="brand" href="#/">${BRAND_MARK}<span>${isAR() ? "لوحة التحكم" : "Admin"}</span></a>
-    <div class="grow"></div><a class="icon-btn" href="#/">${icon("close")}</a></header>
-  <section class="wrap sec">
-    <div class="adm-grid">
-      <div class="adm-kpi"><div class="n num">${A.scans7d}</div><div class="l">${isAR() ? "مسح QR (٧ أيام)" : "QR scans (7d)"}</div></div>
-      <div class="adm-kpi"><div class="n num">${A.requests7d}</div><div class="l">${isAR() ? "طلبات موعد" : "Requests sent"}</div></div>
-      <div class="adm-kpi"><div class="n num">${A.searches7d}</div><div class="l">${isAR() ? "عمليات بحث" : "Searches"}</div></div>
-      <div class="adm-kpi alert"><div class="n num">${A.zeroResults7d}</div><div class="l">${isAR() ? "بحث بلا نتيجة" : "Zero-result"}</div></div>
+  const A = ADMIN_STATS;
+  const pharmacies = allPharmacies();
+
+  /* stale: availability claims in the stale band, and profiles nobody has
+     touched in 90 days. Both are trust leaks, listed worst-first. */
+  const staleSigs = SIGNALS.filter((g) => g.m < SIG_TTL && g.m >= 1440)
+    .map((g) => ({ g, f: anyFac(g.fac), x: variantOf(g.v) })).filter((r) => r.f && r.x)
+    .sort((p2, q2) => q2.g.m - p2.g.m);
+  const staleProfiles = [...pharmacies, ...DOCTORS].filter((e) => e.updated > 90);
+
+  const unverified = [
+    ...pharmacies.filter((f) => !f.verified).map((f) => ({ e: f, kind: isAR() ? "صيدلية" : "pharmacy", city: cityName(cityById(cityOf(f))) })),
+    ...DOCTORS.filter((d) => !d.verified).map((d) => ({ e: d, kind: isAR() ? "طبيب" : "doctor", city: isAR() ? "بغداد" : "Baghdad" })),
+  ];
+
+  const gaps = supplyDemand();
+  const integrity = validateData();
+  const liveReq = liveRequests();
+  const liveSig = SIGNALS.filter((g) => g.m < SIG_TTL);
+
+  const kpi = (n, l, warn) => `<div class="ops-kpi${warn ? " warn" : ""}">
+    <div class="ops-n num">${n}</div><div class="ops-l">${l}</div></div>`;
+
+  const sec = (title, note, body) => `<section class="ops-sec">
+    <div class="rowb"><span class="lab">${title}</span>${note ? `<span class="t3">${note}</span>` : ""}</div>
+    <div style="margin-top:10px">${body}</div></section>`;
+
+  return `<div class="ops" dir="${isAR() ? "rtl" : "ltr"}">
+  <header class="ops-hdr">
+    <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
+    <span class="lab">${isAR() ? "وحدة التشغيل" : "Operations"}</span>
+    <span class="grow"></span>
+    <span class="t3"><span class="num">${fmtT(nowMins())}</span> · ${isAR() ? "بيانات نموذج" : "prototype data"}</span>
+    <a class="b-g" style="font-size:12.5px" href="#/">${isAR() ? "خروج للتطبيق" : "Exit to app"}</a>
+  </header>
+
+  <div class="ops-body">
+    <div class="ops-kpis">
+      ${kpi(liveSig.length, isAR() ? "إفادة توفّر حية" : "live signals")}
+      ${kpi(liveReq.length, isAR() ? "طلب دواء نشط" : "active requests")}
+      ${kpi(staleSigs.length, isAR() ? "إفادة تتقادم" : "aging claims", staleSigs.length > 0)}
+      ${kpi(unverified.length, isAR() ? "بانتظار التوثيق" : "verification queue", unverified.length > 0)}
+      ${kpi(A.zeroResults7d, isAR() ? "بحث بلا نتيجة (٧ أيام)" : "zero-result (7d)", true)}
+      ${kpi(integrity.length, isAR() ? "خلل بيانات" : "integrity faults", integrity.length > 0)}
     </div>
 
-    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "بحث بلا نتيجة — أهم إشارة نمو" : "Zero-result searches — the growth signal"}</h2></div>
-    <div class="ch" style="padding:14px 16px">${A.zeroQueries.map(([q, n]) => `<div class="bar-row">
-      <div><div>${esc(q)}</div><div class="bar"><i class="warn" style="width:${(n / max(A.zeroQueries)) * 100}%"></i></div></div>
-      <div class="num" style="text-align:end;font-weight:700">${n}</div></div>`).join("")}</div>
+    <div class="ops-cols">
+      <div>
+        ${sec(isAR() ? "رادار التقادم" : "Stale radar",
+          isAR() ? "الأسوأ أولاً" : "worst first",
+          staleSigs.length || staleProfiles.length ? `
+          ${staleSigs.map(({ g, f, x }) => `<div class="ops-row">
+            <span class="grow"><b>${esc(L(x.med))} ${esc(x.v.strength)}</b>
+              <span class="t3" style="display:block">${esc(L(f))} · ${esc(cityName(cityById(cityOf(f))))}</span></span>
+            <span class="st st-t">${sigAge(g.m)}</span>
+          </div>`).join("")}
+          ${staleProfiles.map((e) => `<div class="ops-row">
+            <span class="grow"><b>${esc(L(e))}</b>
+              <span class="t3" style="display:block">${isAR() ? "ملف بلا تحديث" : "profile untouched"}</span></span>
+            <span class="st st-e"><span class="num">${e.updated}</span> ${isAR() ? "يوم" : "d"}</span>
+          </div>`).join("")}`
+          : `<div class="t3">${isAR() ? "لا شيء يتقادم حالياً." : "Nothing going stale."}</div>`)}
 
-    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "طلب الأدوية حسب المنطقة — الأصل القابل للبيع" : "Medicine demand by area — the sellable asset"}</h2></div>
-    <div class="ch" style="padding:14px 16px">
-      <p class="small muted" style="margin-bottom:12px">${isAR()
-        ? "«يُسأل عنه» مقابل «تم توفيره». الفجوة الكبيرة = طلب غير ملبّى — وهذا بالضبط ما تدفع الصيدلية لتعرفه."
-        : "Asked vs filled. A wide gap is unmet demand — precisely what a pharmacy pays to see."}</p>
-      ${MED_DEMAND.map((r) => {
-        const m = medById(r.med), d = DISTRICTS.find((x) => x.id === r.district);
-        const rate = Math.round((r.filled / r.asks) * 100);
-        return `<div class="bar-row">
-          <div><div>${esc(L(m))} <span class="muted">· ${esc(L(d))}</span></div>
-            <div class="bar"><i class="${rate < 30 ? "warn" : ""}" style="width:${rate}%"></i></div></div>
-          <div class="num" style="text-align:end;font-weight:700">${r.asks}<div class="tiny muted">${rate}%</div></div>
-        </div>`;
-      }).join("")}
-      <div class="banner banner--warn" style="margin-top:12px">${icon("alert")}<span>${isAR()
-        ? "حديد وريدي في الكرادة: 71 سؤالاً، 4 تلبية فقط (6٪). أي صيدلية تجلبه تلتقط طلباً مثبتاً."
-        : "IV iron in Karrada: 71 asks, 4 filled (6%). Any pharmacy that stocks it captures proven demand."}</span></div>
-    </div>
+        ${sec(isAR() ? "طابور التوثيق" : "Verification queue",
+          isAR() ? `<span class="num">${unverified.length}</span>` : String(unverified.length),
+          unverified.length ? unverified.map(({ e, kind, city }) => `<div class="ops-row">
+            <span class="grow"><b>${esc(L(e))}</b>
+              <span class="t3" style="display:block">${kind} · ${esc(city)}</span></span>
+            <span class="t3">${isAR() ? "يظهر بلا ختم" : "shown unsealed"}</span>
+          </div>`).join("") : `<div class="t3">${isAR() ? "الكل موثّق." : "Everyone verified."}</div>`)}
 
-    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "مصادر الـ QR" : "QR sources"}</h2></div>
-    <div class="ch" style="padding:14px 16px">${A.sources.map(([q, n]) => `<div class="bar-row">
-      <div><div>${esc(q)}</div><div class="bar"><i style="width:${(n / max(A.sources)) * 100}%"></i></div></div>
-      <div class="num" style="text-align:end;font-weight:700">${n}</div></div>`).join("")}</div>
-
-    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "سلامة البيانات" : "Data integrity"}</h2></div>
-    ${(() => {
-      const errs = validateData();
-      if (!errs.length) return `<div class="banner banner--info">${icon("check")}<span>${isAR()
-        ? "لا أخطاء بنيوية. كل المراجع سليمة وكل أوقات الدوام صالحة."
-        : "No structural errors. Every reference resolves and every time range is valid."}</span></div>`;
-      return `<div class="ch" style="padding:14px 16px">
-        <div class="banner banner--warn" style="margin-bottom:12px">${icon("alert")}<span>${isAR()
-          ? `<b class="num">${errs.length}</b> مشكلة بنيوية — كل واحدة تكسر شاشة بصمت.`
-          : `<b class="num">${errs.length}</b> structural problems — each breaks a screen silently.`}</span></div>
-        ${errs.slice(0, 8).map((e) => `<div class="kv"><span class="k">${
-          { dup: isAR() ? "تكرار" : "duplicate", orphan: isAR() ? "مرجع يتيم" : "orphan",
-            time: isAR() ? "وقت" : "time", missing: isAR() ? "ناقص" : "missing",
-            empty: isAR() ? "فارغ" : "empty" }[e.t]}</span>
-          <span class="v" style="text-align:start;flex:1">${esc(e.m)}</span></div>`).join("")}
-        ${errs.length > 8 ? `<p class="tiny muted" style="margin-top:8px">${isAR() ? `و${errs.length - 8} أخرى` : `and ${errs.length - 8} more`}</p>` : ""}
-      </div>`;
-    })()}
-
-    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "طابور التوثيق والبلاغات" : "Verification & flags queue"}</h2></div>
-    <div>${A.queue.map((q) => `<div class="tbl-row">
-      <span class="ic avatar avatar--sq" style="width:34px;height:34px;background:${q.t === "flag" ? "var(--coral-soft)" : "var(--petrol-soft)"};color:${q.t === "flag" ? "var(--coral)" : "var(--petrol)"}">${icon(q.t === "flag" ? "flag" : "seal")}</span>
-      <span class="grow"><div style="font-weight:700;font-size:14px">${esc(q.ar)}</div><div class="tiny muted">${esc(q.meta)}</div></span>
-      <button class="btn btn--sm">${isAR() ? "افتح" : "Open"}</button></div>`).join("")}</div>
-
-    <div class="sec-h" style="margin-top:26px"><h2>${isAR() ? "شبكة الدوام الأسبوعي — د. زينب عبد الكريم" : "Weekly session grid — Dr. Zainab"}</h2></div>
-    <div class="ch" style="padding:14px 12px">
-      <div class="wg">
-        <span></span>${Array.from({ length: 18 }, (_, i) => `<span class="h">${i + 6}</span>`).join("")}
-        ${DAY_ORDER.map((dy) => {
-          const segs = rawSegs(DOCTORS[1], dy);
-          return `<span class="d">${dayName(dy)}</span>` + Array.from({ length: 18 }, (_, i) => {
-            const m = (i + 6) * 60, s = segs.find((x) => m >= x.f && m < x.t);
-            return `<span class="c ${s ? s.kind : ""}"></span>`;
-          }).join("");
-        }).join("")}
+        ${sec(isAR() ? "سلامة البيانات" : "Data integrity", "",
+          integrity.length ? integrity.map((e) => `<div class="ops-row">
+            <span class="grow">${esc(e.m)}</span><span class="st st-e">${esc(e.t)}</span></div>`).join("")
+          : `<div class="ops-row"><span class="grow">${isAR()
+              ? "المدقّق نظيف — المعرّفات، المراجع، المدد، البدائل."
+              : "Validator clean — ids, references, ranges, substitutes."}</span>
+              <span class="st st-v"><i class="dot"></i>${isAR() ? "سليم" : "ok"}</span></div>`)}
       </div>
-      <div class="week-legend"><span class="row" style="gap:6px"><i style="background:var(--petrol)"></i>${isAR() ? "مستشفى" : "Hospital"}</span>
-        <span class="row" style="gap:6px"><i style="background:var(--amber-b)"></i>${isAR() ? "عيادة" : "Clinic"}</span></div>
+
+      <div>
+        ${sec(isAR() ? "فجوات التوفّر — حسب المحافظة" : "Supply gaps — by governorate",
+          isAR() ? "الطلب مقابل الإفادات الحية" : "demand vs live signals",
+          gaps.map(({ c, supply, demand, gap }) => {
+            const mx = Math.max(...gaps.map((x) => Math.max(x.supply, x.demand)), 1);
+            return `<div class="ops-row" style="display:block">
+              <div class="rowb"><b>${esc(cityName(c))}</b>
+                ${gap > 0 ? `<span class="st st-t">${isAR() ? "فجوة" : "gap"} <span class="num">${gap}</span></span>`
+                          : `<span class="st st-v"><i class="dot"></i>${isAR() ? "مغطّى" : "covered"}</span>`}</div>
+              <div class="ops-bars">
+                <span class="t3">${isAR() ? "طلب" : "D"}</span><span class="ops-bar"><i style="width:${(demand / mx) * 100}%;background:var(--brass)"></i></span><span class="t3 num">${demand}</span>
+                <span class="t3">${isAR() ? "توفّر" : "S"}</span><span class="ops-bar"><i style="width:${(supply / mx) * 100}%;background:var(--jade)"></i></span><span class="t3 num">${supply}</span>
+              </div></div>`;
+          }).join(""))}
+
+        ${sec(isAR() ? "بحث بلا نتيجة — إشارة النمو" : "Zero-result searches — the growth signal", "",
+          A.zeroQueries.map(([q, n]) => `<div class="ops-row">
+            <span class="grow">${esc(q)}</span><span class="num" style="font-weight:500">${n}</span></div>`).join(""))}
+
+        ${sec(isAR() ? "طلب الأدوية حسب المنطقة" : "Medicine demand by district",
+          isAR() ? "يُسأل / يُلبّى" : "asked / filled",
+          MED_DEMAND.map((r) => {
+            const m = medById(r.med), d = DISTRICTS.find((x) => x.id === r.district);
+            const rate = Math.round((r.filled / r.asks) * 100);
+            return `<div class="ops-row">
+              <span class="grow"><b>${esc(L(m))}</b> <span class="t3">· ${esc(L(d))}</span></span>
+              <span class="num" style="font-weight:500">${r.asks}</span>
+              <span class="st ${rate < 30 ? "st-t" : "st-q"}" style="width:44px;justify-content:flex-end"><span class="num">${rate}٪</span></span>
+            </div>`;
+          }).join(""))}
+      </div>
     </div>
-    <div class="btn-row" style="margin-top:20px"><button class="btn btn--2">${icon("plus")}${isAR() ? "أضف طبيباً" : "Add doctor"}</button>
-      <button class="btn btn--2">${icon("qr")}${isAR() ? "أنشئ QR" : "Generate QR"}</button></div>
-  </section></div>`;
+  </div></div>`;
 }
 
-/* ---------------- SHEETS ---------------- */
 function sheet(html, cls = "") {
   closeSheet(true);
   const scrim = document.createElement("div"); scrim.className = "scrim"; scrim.onclick = () => closeSheet();
@@ -4790,10 +5021,25 @@ function contactPharmacy(facId, vid, qty) {
     </div>
     <div class="sheet-f">
       ${f.wa ? `<a class="btn btn--wa" href="${waLink(f.wa, msg)}" target="_blank" rel="noopener"
-        onclick="logAsk('${vid}')">${isAR() ? "افتح واتساب" : "Open WhatsApp"}</a>`
+        onclick="logAsk('${vid}');rxHandoff('${f.id}','${vid}','${ref}')">${isAR() ? "افتح واتساب" : "Open WhatsApp"}</a>`
         : `<a class="btn" href="tel:+${f.phone}">${t("call")} <span class="num">+${esc(f.phone)}</span></a>`}
       ${f.wa ? `<a class="btn btn--3" style="margin-top:8px" href="tel:+${f.phone}">${t("call")}</a>` : ""}
     </div>`);
+}
+
+/* A medicine contact gets the same honest memory as an appointment request:
+   opened → the user tells us sent/abandoned. Same machine, same /me drawer. */
+function rxHandoff(facId, vid, ref) {
+  const f = anyFac(facId), x = variantOf(vid);
+  if (!f || !x) return;
+  S.requests.unshift({
+    ref, doc: null, med: vid, doctor: `${L(x.med)} ${x.v.strength}`,
+    facility: L(f), when: cityName(cityById(cityOf(f))),
+    wa: f.wa, phone: f.phone, state: "opened", ts: Date.now(), mapUrl: null,
+    at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
+  });
+  LS.set("requests", S.requests.slice(0, 20));
+  setTimeout(() => askHandoff(ref), 1200);
 }
 
 /* ---------------- /radar · pharmacy supply mode ---------------- */
@@ -4812,7 +5058,7 @@ function screenRadar(facId) {
     </section>
     <section class="pad" style="margin-top:24px">
       <div class="lab">${isAR() ? "الصيدليات الموثّقة" : "Verified pharmacies"}</div>
-      ${list.map((y) => `<a class="rw" href="#/radar/${y.id}">
+      ${list.map((y) => `<a class="rw" href="#/radar/${y.id}" onclick="S.myBranch='${y.id}';LS.set('myBranch','${y.id}')">
         <span class="av">${esc(initial(L(y)))}</span>
         <span class="grow"><span class="d3" style="display:block">${esc(L(y))}</span>
           <span class="q-sub">${esc(cityName(cityById(cityOf(y))))}</span></span></a>`).join('<div class="hr"></div>')}
@@ -5341,8 +5587,8 @@ function render() {
    Match the placeholder to the destination. */
 function skeletonFor() {
   const seg = (location.hash.replace(/^#\/?/, "").split("?")[0].split("/")[0]) || "";
-  if (["med", "doctor", "pharmacy", "hospital", "product", "partner"].includes(seg)) return skeletonDetail();
-  if (["doctors", "pharmacies", "hospitals", "care", "needs", "search"].includes(seg)) return skeletonList();
+  if (["med", "doctor", "pharmacy", "hospital", "product", "partner", "need"].includes(seg)) return skeletonDetail();
+  if (["doctors", "pharmacies", "hospitals", "care", "needs", "search", "explorer", "rx", "radar"].includes(seg)) return skeletonList();
   return skeletonHome();
 }
 

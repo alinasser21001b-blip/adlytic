@@ -532,3 +532,40 @@ input, textarea { min-height: 44px; }
 .fld-marks > i.hot { background: var(--brass); height: 18px; }
 .fld-marks > i.none { width: 14px; height: 1px; background: var(--dial-line); border-radius: 0; }
 .fld .rw-lead { top: var(--u3); bottom: var(--u3); }
+
+/* ---------- 26 · the operator console ----------
+   A different product, not a different page. The patient app is a 390px
+   instrument; this is a desk tool. It escapes the 560px column, drops the
+   patient nav entirely, and runs at desk density — smaller type, tighter
+   rows, two columns when the glass allows. Same tokens, same discipline. */
+.ops { min-height: 100dvh; background: var(--dial); font-size: 13px; }
+/* The console must escape the patient column: .app caps everything render()
+   paints at 560px, which crammed the two-column desk layout into a phone
+   width. The operator shell is the one route that is genuinely a different
+   product, so the exemption is structural, not a tweak. */
+.app:has(.ops) { max-width: none; border-inline: 0; padding-bottom: 0; }
+.ops-hdr {
+  display: flex; align-items: center; gap: var(--u4);
+  padding: var(--u4) var(--u6); border-bottom: 1px solid var(--dial-line);
+  background: var(--dial-2); position: sticky; top: 0; z-index: 40;
+}
+.ops-body { max-width: 1160px; margin-inline: auto; padding: var(--u6); }
+.ops-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--u3); }
+.ops-kpi { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
+.ops-kpi.warn { border-color: var(--brass-ink); }
+.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.02em; }
+.ops-l { font: 500 10px/1.5 var(--disp); letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; margin-top: 6px; }
+.ops-cols { display: grid; grid-template-columns: 1fr; gap: var(--u6); margin-top: var(--u6); align-items: start; }
+@media (min-width: 900px) { .ops-cols { grid-template-columns: 1fr 1fr; } }
+.ops-sec { margin-top: var(--u6); }
+.ops-sec:first-child { margin-top: 0; }
+.ops-row {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u2) 0; border-top: 1px solid var(--dial-line-2);
+  font: 400 13px/1.6 var(--disp);
+}
+.ops-row:first-child { border-top: 0; }
+.ops-row b { font-weight: 500; }
+.ops-bars { display: grid; grid-template-columns: 34px 1fr 34px; gap: 4px 8px; align-items: center; margin-top: 6px; }
+.ops-bar { position: relative; height: 3px; background: var(--dial-line); border-radius: var(--rp); display: block; }
+.ops-bar > i { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; border-radius: var(--rp); }
