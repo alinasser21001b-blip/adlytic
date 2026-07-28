@@ -56,6 +56,7 @@ committed and deployed green.
 | **P16** | **Local-first + the radar** — request state machine with declared transitions, offline mutation queue with backoff and a non-blocking sync chip, race handling that keeps both true claims, service worker shell cache, patient radar (honest reach copy, minimise-to-bar, unlock), haptics, freshness breathing, spatial pharmacy layout | ✅ |
 | **P17** | **Adversarial persona audit** — six probe-confirmed frictions fixed: Basra patient no longer shown a Baghdad home (coverage boundary stated in words), zero-typing quantity chips, OTP gate resumes the interrupted publish, rush mode compacts its header and skips the ceremonial empty state (first answer 925px → 478–577px, above the fold both cases), temporal claim removed from seed trends, native tap feel | ✅ |
 | **P18** | **Request overhaul** — manual medicine entry (closes the /rx dead end), dosage form + strength chips, micro-location (district chips + landmark), same-ingredient alt consent with a conditional fourth answer that never becomes a signal for the original, urgency labels stating their real TTL windows, per-responder answer kinds, contactForNeed with the photo invited inside WhatsApp | ✅ |
+| **P19** | **Shipping became visible again** — the service worker was cache-first behind a hand-typed cache key, so three deploys in a row served every returning visitor the *previous* build. Reproduced in a browser, fixed by network-first for the shell (`cache: "reload"`, 3.5s race, cache still answers offline), `tools/stamp.mjs` writing one build stamp into both `sw.js` and `CONFIG.build`, an update-and-reload path, and a footer that states the running build. Also: the patient home had no door to any of P15–P18 | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -124,6 +125,12 @@ These were established by research and are not up for re-litigation in later pha
     answer to a 2.5mg tablet request. Alternative brand names exist for search
     recall only and are never surfaced as "you could take this instead" —
     substitution is the prescriber's and the pharmacist's call, not ours.
+17. **A deploy nobody can see did not happen.** Caching that can hide a build is
+    a bug with a schedule. The shell is network-first; the build stamp is
+    written by a tool, never typed; and the app states the version it is
+    running so "did the update reach me?" is answered by looking. Run
+    `node tools/stamp.mjs` before every commit that touches the app.
+
 15. **Arabic marks the feminine, never the masculine.** "دكتور" is the neutral
    citation form, not a male filter. Established in P2 after the first
    implementation wrongly returned zero results for "دكتور اطفال اليوم".

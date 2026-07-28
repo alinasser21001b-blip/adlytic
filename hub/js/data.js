@@ -18,6 +18,11 @@ const CONFIG = {
      an emergency number is the one piece of data here that can cost a life if
      it goes stale. */
   emergency: { unified: "911", ambulance: "122", verified_ar: "تموز ٢٠٢٦", verified_en: "July 2026" },
+  /* Written by tools/stamp.mjs, never by hand. The app states this in its
+     footer so "did the update reach me?" is a question you answer by looking
+     rather than by trusting — the same stamp is the service worker's cache
+     key, so a footer that changed means the shell changed too. */
+  build: "20260728-0917",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,

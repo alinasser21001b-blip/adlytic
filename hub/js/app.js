@@ -810,11 +810,58 @@ function screenHomePatient() {
   <section class="pad" style="margin-top:26px"><div class="v2">
     <button class="btn" onclick="location.hash='#/search'">${isAR() ? "شنو تحتاج؟ — ابدأ من هنا" : "What do you need? Start here"}</button>
     <div style="display:flex;gap:8px">
-      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/search">${isAR() ? "دوا معيّن" : "A medicine"}</a>
+      <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/rx">${isAR() ? "دوا معيّن" : "A medicine"}</a>
       <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/needs">${isAR() ? "دكتور" : "A doctor"}</a>
       <a class="btn btn--2" style="flex:1;min-height:46px;font-size:13.5px" href="#/care">${isAR() ? "العناية" : "Care"}</a>
     </div>
   </div></section>
+
+  ${(() => {
+    const live = myActiveNeeds();
+    if (live.length) {
+      const r = live[0];
+      const md = needMedOf(r);
+      const reach = radarReach(r);
+      const answered = (r.resp || []).length;
+      return `<section class="pad" style="margin-top:26px">
+        <a class="rw" href="#/${reqState(r) === "broadcasting" ? "wait" : "need"}/${esc(r.id)}">
+          <span class="rw-lead" style="background:var(--jade)"></span>
+          <span class="grow">
+            <span class="rowb">
+              <span class="d3">${md ? esc(md.name) : (isAR() ? "طلبك" : "Your request")}</span>
+              <span class="st ${answered ? "st-v" : "st-t"}"><i class="dot${answered ? "" : " dot-live"}"></i>${
+                answered ? (isAR() ? countAr(answered, ["ردّت صيدلية", "ردّت صيدليتان", "ردّت صيدليات", "ردّت صيدلية"])
+                                   : `${answered} replied`)
+                         : (isAR() ? "ينتظر ردّاً" : "waiting")}</span>
+            </span>
+            <span class="q-sub" style="display:block">${answered
+              ? (isAR() ? "افتح الطلب وشوف منو ردّ." : "Open it and see who replied.")
+              : (isAR() ? `ظاهر لـ <span class="num">${reach.n}</span> صيدلية موثّقة.`
+                        : `Visible to <span class="num">${reach.n}</span> verified pharmacies.`)}</span>
+          </span>
+        </a>
+        ${live.length > 1 ? `<a class="t3" href="#/me" style="display:block;margin-top:10px">${isAR()
+          ? `و${countAr(live.length - 1, ["طلب آخر", "طلبان آخران", "طلبات أخرى", "طلباً آخر"])}`
+          : `and ${live.length - 1} more`}</a>` : ""}
+      </section>`;
+    }
+    /* No live request: state the capability instead of hiding it behind a
+       search that only finds what is already catalogued. */
+    return `<section class="pad" style="margin-top:26px">
+      <a class="rw" href="#/need/new">
+        <span class="rw-lead" style="background:var(--brass)"></span>
+        <span class="grow">
+          <span class="rowb">
+            <span class="d3">${isAR() ? "دواء ما لكيته؟" : "Can't find a medicine?"}</span>
+            <span class="b-g" style="font-size:12px">${isAR() ? "اطلبه" : "Request it"}</span>
+          </span>
+          <span class="q-sub" style="display:block">${isAR()
+            ? "اكتب اسمه وتركيزه ومنطقتك — يوصل للصيدليات الموثّقة، والردود تجيك هنا."
+            : "Name, strength and your area — it reaches verified pharmacies, and replies land here."}</span>
+        </span>
+      </a>
+    </section>`;
+  })()}
 
   ${scarce.length ? `<section class="pad" style="margin-top:26px">
     <a class="note note-w" href="#/med/${scarce[0].id}">
@@ -843,6 +890,8 @@ function screenHomePatient() {
         : `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> verified · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
       <span class="b-g" style="font-size:12px">${isAR() ? "كيف نتحقق" : "How we verify"}</span>
     </a>
+    <div class="t3" style="margin-top:12px;opacity:.62">${isAR() ? "النسخة" : "Build"}
+      <span class="num" id="buildstamp">${esc(buildLabel())}</span></div>
   </section>
   ${nav("home")}`;
 }
@@ -3542,6 +3591,21 @@ function sigRow(g, vid) {
 ------------------------------------------------------------- */
 const MAX_ACTIVE_NEEDS = 3;
 
+/* The build the service worker reports it is actually serving, once it
+   answers. Null until then. */
+let SW_BUILD = null;
+
+/* The one string that answers "is what I am looking at the thing that was
+   deployed?". Two sources: what this JS was stamped with, and what the
+   service worker reports it is serving. Agreement prints once; disagreement
+   prints both, because that IS the bug and hiding it would be the old
+   mistake wearing a new coat. */
+function buildLabel() {
+  const app = CONFIG.build || "—";
+  if (!SW_BUILD || SW_BUILD === app) return app;
+  return app + " / " + SW_BUILD;
+}
+
 const myNeeds = () => LS.get("needs", []);
 const myActiveNeeds = () => myNeeds().filter((r) => LIVE_STATES.includes(reqState(r)));
 const isAuthed = () => !!LS.get("auth", null);
@@ -5045,9 +5109,35 @@ function boot() {
 document.addEventListener("DOMContentLoaded", boot);
 
 /* Register the shell cache. Wrapped and silent: a failed registration must
-   never break the app, and the single-file dist build has no sw.js to find. */
+   never break the app, and the single-file dist build has no sw.js to find.
+
+   Registration alone is not enough, and that was the bug. A browser re-checks
+   sw.js on its own unhurried schedule, and a worker that installs while a page
+   is open does not touch the HTML already on screen — so a deploy could sit
+   there, live and paid for, with nobody seeing it. Three things fix that:
+   ask for an update on every launch, reload once when a NEW worker claims a
+   page that already had one, and let the page ask the worker which build is
+   actually answering. */
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading || !hadController) return;
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data && e.data.build) {
+      SW_BUILD = String(e.data.build).replace(/^qareeb-/, "");
+      const el = document.getElementById("buildstamp");
+      if (el) el.textContent = buildLabel();
+    }
+  });
   addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      reg.update().catch(() => {});
+      const w = reg.active || navigator.serviceWorker.controller;
+      if (w) w.postMessage("version");
+    }).catch(() => {});
   });
 }
