@@ -24,11 +24,11 @@
    The version below is stamped by tools/stamp.mjs, not typed by hand — see
    that file for why.
    ================================================================== */
-const V = "qareeb-20260728-0917";
+const V = "qareeb-20260728-1853";
 const SHELL = [
   "./", "./index.html",
   "./css/qareeb.css", "./src/styles/identity.css",
-  "./js/data.js", "./js/app.js",
+  "./js/domain.js", "./js/data.js", "./js/app.js",
   "./favicon.svg",
 ];
 /* Long enough that a slow-but-alive Baghdad connection still delivers the

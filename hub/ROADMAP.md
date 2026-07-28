@@ -57,6 +57,7 @@ committed and deployed green.
 | **P17** | **Adversarial persona audit** — six probe-confirmed frictions fixed: Basra patient no longer shown a Baghdad home (coverage boundary stated in words), zero-typing quantity chips, OTP gate resumes the interrupted publish, rush mode compacts its header and skips the ceremonial empty state (first answer 925px → 478–577px, above the fold both cases), temporal claim removed from seed trends, native tap feel | ✅ |
 | **P18** | **Request overhaul** — manual medicine entry (closes the /rx dead end), dosage form + strength chips, micro-location (district chips + landmark), same-ingredient alt consent with a conditional fourth answer that never becomes a signal for the original, urgency labels stating their real TTL windows, per-responder answer kinds, contactForNeed with the photo invited inside WhatsApp | ✅ |
 | **P19** | **Shipping became visible again** — the service worker was cache-first behind a hand-typed cache key, so three deploys in a row served every returning visitor the *previous* build. Reproduced in a browser, fixed by network-first for the shell (`cache: "reload"`, 3.5s race, cache still answers offline), `tools/stamp.mjs` writing one build stamp into both `sw.js` and `CONFIG.build`, an update-and-reload path, and a footer that states the running build. Also: the patient home had no door to any of P15–P18 | ✅ |
+| **P20** | **Merge: the rigor `hub/` never had** — `qareeb-platform`'s domain discipline brought into the live app as `js/domain.js` + `tools/test.mjs` (35 tests, Node vm, zero deps, tests the shipped bytes). Closes the three gaps that made launch impossible: **pharmacy authentication on `/radar`** (role + licence + branch checked on every claim, enforced in `quickAnswer` so a direct call cannot bypass the UI), **controlled medicines never broadcast** (catalogue-flagged, refused by the domain layer, routed to a licensed-pharmacy handoff), and a **whitelist broadcast payload** (landmark, phone, photo, note provably never leave the device). Plus hash-linked audit, consent terms, price provenance, and a computed launch-readiness board in the operator console | ✅ |
 | **P8** | ⬅ **NEXT** — **Final QA** — full journey timing, a11y, both themes, all breakpoints; `perf.mjs` still clicks a hero CTA removed in P0 | TODO |
 
 ---
@@ -125,6 +126,19 @@ These were established by research and are not up for re-litigation in later pha
     answer to a 2.5mg tablet request. Alternative brand names exist for search
     recall only and are never surfaced as "you could take this instead" —
     substitution is the prescriber's and the pharmacist's call, not ours.
+18. **A rule that cannot be tested is a rule you are guessing about.** Anything
+    a user can be harmed by — who may claim stock, what leaves the device,
+    which medicines must never be broadcast — lives in `js/domain.js` as a
+    pure function with a test, not inside a render function where nothing can
+    assert it. `node tools/test.mjs` before every push.
+
+19. **A controlled medicine is never broadcast.** A public list of who wants
+    morphine near which landmark is a targeting list, not a service. The
+    catalogue flags them, the domain layer refuses to build a payload, and
+    the patient gets the licensed-pharmacy route instead of a dead end.
+    Typed names are screened too — "I could not find it" is exactly how one
+    would otherwise slip through.
+
 17. **A deploy nobody can see did not happen.** Caching that can hide a build is
     a bug with a schedule. The shell is network-first; the build stamp is
     written by a tool, never typed; and the app states the version it is

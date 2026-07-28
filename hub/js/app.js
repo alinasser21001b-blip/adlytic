@@ -1953,6 +1953,17 @@ function screenAdmin() {
 
   const gaps = supplyDemand();
   const integrity = validateData();
+  /* What is genuinely between this build and a real launch. Computed from
+     the actual data and the actual deployment flags, never from a checklist
+     someone remembered to tick — a readiness board that can be right by
+     accident is worse than none, because it grants permission to stop
+     looking. Every item here is a thing that would harm a real user. */
+  const blockers = QD.launchBlockers(allPharmacies(), {
+    pharmacyAuthBackend: false,   /* the gate is real; the licence check is on-device */
+    auditServerSide: false,       /* the chain is tamper-evident, not tamper-proof */
+    realData: false,              /* every pharmacy, doctor and signal is synthetic */
+  });
+  const controlledCount = RX_MEDS.filter((m) => QD.isControlled(m)).length;
   const liveReq = liveRequests();
   const liveSig = SIGNALS.filter((g) => g.m < SIG_TTL);
 
@@ -1980,7 +1991,44 @@ function screenAdmin() {
       ${kpi(unverified.length, isAR() ? "بانتظار التوثيق" : "verification queue", unverified.length > 0)}
       ${kpi(A.zeroResults7d, isAR() ? "بحث بلا نتيجة (٧ أيام)" : "zero-result (7d)", true)}
       ${kpi(integrity.length, isAR() ? "خلل بيانات" : "integrity faults", integrity.length > 0)}
+      ${kpi(blockers.length, isAR() ? "مانع إطلاق" : "launch blockers", blockers.length > 0)}
     </div>
+
+    ${sec(isAR() ? "جاهزية الإطلاق" : "Launch readiness",
+      isAR() ? "محسوبة من البيانات، مو من قائمة يدوية" : "computed, not ticked",
+      blockers.length ? `
+      <div class="t3" style="margin-bottom:12px">${isAR()
+        ? "هذي الأشياء تؤذي مستخدماً حقيقياً لو أُطلقت الآن. مرتّبة كما هي، بلا تجميل."
+        : "Each of these would harm a real user if launched today."}</div>
+      ${blockers.map((b) => `<div class="ops-row">
+        <span class="grow"><b>${esc(isAR() ? b.ar : b.id)}</b>
+          <span class="t3" style="display:block mono">${esc(b.id)}</span></span>
+        ${b.count > 1 ? `<span class="st st-e"><span class="num">${b.count}</span></span>` : `<span class="st st-e">${isAR() ? "مانع" : "blocker"}</span>`}
+      </div>`).join("")}`
+      : `<div class="t3">${isAR() ? "ما بقى مانع مسجّل." : "No recorded blockers."}</div>`)}
+
+    ${sec(isAR() ? "الضوابط الفعّالة" : "Controls in force",
+      isAR() ? "مفحوصة باختبارات" : "covered by tests",
+      `<div class="ops-row"><span class="grow"><b>${isAR() ? "بوابة الصيدلية على الرادار" : "Pharmacy gate on the radar"}</b>
+        <span class="t3" style="display:block">${isAR()
+          ? "الدور والإجازة والفرع تُفحص عند كل إفادة، مو عند الباب بس"
+          : "role, licence and branch checked on every claim"}</span></span>
+        <span class="st st-v"><i class="dot"></i>${isAR() ? "فعّال" : "on"}</span></div>
+      <div class="ops-row"><span class="grow"><b>${isAR() ? "منع بث الأدوية الخاضعة" : "Controlled medicines never broadcast"}</b>
+        <span class="t3" style="display:block">${isAR()
+          ? `<span class="num">${controlledCount}</span> دواء بالكتلوك — يُحوَّل لصيدلية مرخّصة`
+          : `${controlledCount} in the catalogue — routed to a licensed pharmacy`}</span></span>
+        <span class="st st-v"><i class="dot"></i>${isAR() ? "فعّال" : "on"}</span></div>
+      <div class="ops-row"><span class="grow"><b>${isAR() ? "حمولة البث بقائمة سماح" : "Broadcast payload is a whitelist"}</b>
+        <span class="t3" style="display:block">${isAR()
+          ? "المَعلَم والرقم والصورة والملاحظة ما تغادر الجهاز"
+          : "landmark, number, photo and note never leave the device"}</span></span>
+        <span class="st st-v"><i class="dot"></i>${isAR() ? "فعّال" : "on"}</span></div>
+      <div class="ops-row"><span class="grow"><b>${isAR() ? "سجل تدقيق مترابط" : "Hash-linked audit"}</b>
+        <span class="t3" style="display:block">${isAR()
+          ? "يكشف التعديل والحذف — على الجهاز، فما يمنعهما"
+          : "detects edits and deletions — on-device, so it cannot prevent them"}</span></span>
+        <span class="st st-t"><i class="dot"></i>${isAR() ? "جزئي" : "partial"}</span></div>`)}
 
     <div class="ops-cols">
       <div>
@@ -3636,6 +3684,161 @@ function updateUserTrustScore(event, meta = {}) {
 
 /* Simulated OTP. Six digits, generated and shown on screen, labelled as a
    prototype. Nothing is sent anywhere. */
+/* ================= PHARMACY AUTHENTICATION =================
+   Until now this did not exist, and its absence was the largest hole in the
+   product: /radar trusted whoever opened the URL. A stranger could pick any
+   verified pharmacy from a list, claim stock in its name, and every patient
+   downstream would read that claim as coming from a licensed business. The
+   whole trust model — "verification separates identity from stock claims" —
+   rested on nothing.
+
+   What follows is a real gate with an honest boundary. The RULES are in the
+   domain layer and tested: role, licence status, and branch binding are
+   checked on every claim, not just at the door. The CREDENTIAL CHECK is
+   local to the device and clearly labelled as a prototype, because there is
+   no backend to check a licence against — and a fake login that pretends to
+   be real auth is worse than an honest placeholder, since it invites people
+   to trust it. Swapping the check for a server call does not touch the rules.
+------------------------------------------------------------- */
+const pharmacySession = () => LS.get("pharmSession", null);
+
+function pharmacyPrincipal() {
+  const ses = pharmacySession();
+  if (!ses) return QD.principalOf(null);
+  /* A session older than 12 hours is not a session. A pharmacy phone left on
+     a counter overnight must not still be able to claim stock in the morning
+     without someone deciding to. */
+  if (Date.now() - (ses.at || 0) > 12 * 3600 * 1000) return QD.principalOf(null);
+  return QD.principalOf(ses);
+}
+
+const pharmacySignedIn = () => pharmacyPrincipal().role !== QD.ROLE.PATIENT;
+
+function pharmacySignOut() {
+  LS.set("pharmSession", null);
+  S.myBranch = null; LS.set("myBranch", null);
+  toast(isAR() ? "تم الخروج" : "Signed out");
+  location.hash = "#/radar";
+}
+
+/* Why a claim was refused, in words a pharmacist can act on. A bare "no"
+   loses a supply-side user permanently — they assume the app is broken. */
+const AUTH_REASON = {
+  NOT_A_PHARMACY: { ar: "هذا الحساب حساب مريض — تسجيل الصيدلية مطلوب لتأكيد التوفّر.", en: "This is a patient session — pharmacy sign-in is required to confirm stock." },
+  LICENSE_EXPIRED: { ar: "إجازة الصيدلية منتهية. جدّدها قبل تأكيد أي توفّر.", en: "The pharmacy licence has expired." },
+  LICENSE_UNVERIFIED: { ar: "الإجازة لم تُتحقّق بعد.", en: "The licence is not verified yet." },
+  NO_BRANCH: { ar: "الحساب غير مرتبط بفرع.", en: "This account is not bound to a branch." },
+  WRONG_BRANCH: { ar: "أنت مسجّل بفرع ثاني — ما تكدر تجاوب باسم هذا الفرع.", en: "You are signed in to a different branch." },
+};
+const authReason = (code) => (AUTH_REASON[code] ? (isAR() ? AUTH_REASON[code].ar : AUTH_REASON[code].en) : "");
+
+function openPharmacyAuth(facId) {
+  const f = anyFac(facId);
+  if (!f) return;
+  const code = String(Math.floor(100000 + (nowMins() * 6607) % 900000));
+  S.pharmOtp = { code, facId, licence: "", phone: "" };
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div>
+      <div class="lab">${isAR() ? "دخول الصيدلية" : "Pharmacy sign-in"}</div>
+      <h2 style="margin-top:8px">${esc(L(f))}</h2>
+      <p>${isAR()
+        ? "تأكيد التوفّر يُنسب لهذه الصيدلية باسمها. لذلك ما نخليه مفتوحاً — الدليل يبقى مفتوح للكل، بس الإفادة بالتوفّر تحتاج تسجيل."
+        : "A stock confirmation is attributed to this pharmacy by name. The directory stays open to everyone; claiming stock does not."}</p>
+    </div></div>
+    <div class="sheet-b">
+      <div class="field"><label for="lic">${isAR() ? "رقم إجازة الصيدلية" : "Pharmacy licence number"}</label>
+        <input id="lic" type="text" inputmode="numeric" dir="ltr" placeholder="IQ-PH-000000"
+          oninput="S.pharmOtp.licence=this.value"></div>
+      <div class="field"><label for="pph">${isAR() ? "موبايل الصيدلي المسؤول" : "Responsible pharmacist mobile"}</label>
+        <input id="pph" type="tel" inputmode="numeric" dir="ltr" placeholder="07XX XXX XXXX"
+          oninput="S.pharmOtp.phone=this.value" autocomplete="tel"></div>
+      <div class="field"><label for="potp">${isAR() ? "رمز التحقق" : "Verification code"}</label>
+        <input id="potp" type="text" inputmode="numeric" dir="ltr" placeholder="------" autocomplete="one-time-code"></div>
+      <div class="field"><label for="prole">${isAR() ? "صفتك" : "Your role"}</label>
+        <select id="prole">
+          <option value="VERIFIED_PHARMACIST">${isAR() ? "صيدلي مسؤول" : "Responsible pharmacist"}</option>
+          <option value="PHARMACY_STAFF">${isAR() ? "موظّف صيدلية" : "Pharmacy staff"}</option>
+        </select></div>
+      <div class="note note-w" style="margin-top:14px"><span>${isAR()
+        ? `نموذج تجريبي — التحقق يتم على هذا الجهاز فقط، ولا يوجد خادم يتأكد من الإجازة. رمزك <b class="mono">${code}</b>.`
+        : `Prototype — the check runs on this device only; no server verifies the licence. Code <b class="mono">${code}</b>.`}</span></div>
+      <div class="t3" style="margin-top:12px">${isAR()
+        ? "الصيدلي المسؤول وحده يكدر يفتح وصفة. الموظّف يكدر يفيد بالتوفّر بس."
+        : "Only the responsible pharmacist can open a prescription. Staff can confirm stock only."}</div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" onclick="submitPharmacyAuth()">${isAR() ? "دخول" : "Sign in"}</button>
+    </div>`);
+}
+
+function submitPharmacyAuth() {
+  const o = S.pharmOtp || {};
+  const lic = String((document.getElementById("lic") || {}).value || o.licence || "").trim();
+  const entered = String((document.getElementById("potp") || {}).value || "").trim();
+  const role = (document.getElementById("prole") || {}).value || "PHARMACY_STAFF";
+  if (lic.length < 4) { toast(isAR() ? "اكتب رقم الإجازة" : "Enter the licence number"); return; }
+  if (entered !== o.code) { toast(isAR() ? "الرمز غير صحيح" : "Wrong code"); return; }
+  LS.set("pharmSession", {
+    role, pharmacyId: o.facId, pharmacistId: "ph-" + lic,
+    licence: lic, licenseStatus: "VERIFIED", at: Date.now(),
+  });
+  S.myBranch = o.facId; LS.set("myBranch", o.facId);
+  auditLog({ action: "PHARMACY_SIGNIN", actor: "ph-" + lic, pharmacyId: o.facId, reason: "licence " + lic });
+  closeSheet();
+  haptic([15, 40, 15]);
+  toast(isAR() ? "أهلاً — تكدر تجاوب على الطلبات" : "Signed in — you can answer requests");
+  location.hash = "#/radar/" + o.facId;
+}
+
+/* ================= AUDIT LEDGER =================
+   Append-only and hash-linked, so an entry cannot be quietly edited or
+   removed. It records the things that need to be answerable later: who
+   claimed stock, who opened a prescription, who handed off to WhatsApp.
+   Its limits are stated where it is displayed — it lives on the device,
+   which makes it tamper-EVIDENT, not tamper-proof. */
+function auditLog(entry) {
+  const chain = LS.get("audit", []);
+  const next = QD.auditAppend(chain, Object.assign({ at: Date.now() }, entry));
+  LS.set("audit", next.slice(-200));
+  return next;
+}
+
+/* What a patient sees instead of a broadcast. It has to do real work: say
+   plainly why this medicine is different, and hand over something usable —
+   otherwise "we can't help" is all they hear, and they go looking somewhere
+   with fewer scruples. */
+function openControlledHandoff(med) {
+  const licensed = allPharmacies().filter((f) => f.verified && cityOf(f) === (S.exCity || "baghdad")).slice(0, 4);
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h"><div>
+      <div class="lab">${isAR() ? "دواء خاضع للرقابة" : "Controlled medicine"}</div>
+      <h2 style="margin-top:8px">${esc(L(med))}</h2>
+      <p>${isAR()
+        ? "هذا الدواء خاضع للرقابة، وما ننشر طلبه على الصيدليات. سبب واضح: قائمة عامة بمن يطلب هذا الدواء ووين يسكن هي قائمة استهداف — مو خدمة."
+        : "This medicine is controlled, so we do not broadcast a request for it. A public list of who wants it and where they live is a targeting list, not a service."}</p>
+    </div></div>
+    <div class="sheet-b">
+      <div class="note note-w"><span>${isAR()
+        ? "الطريق الوحيد هو صيدلية مرخّصة بوصفة أصلية سارية. الصيدلي هو من يقرر الصرف، مو التطبيق."
+        : "The only route is a licensed pharmacy with a valid original prescription. Dispensing is the pharmacist's decision, not the app's."}</span></div>
+      <div class="lab" style="margin-top:20px">${isAR() ? "صيدليات مرخّصة قريبة" : "Licensed pharmacies nearby"}</div>
+      ${licensed.length ? licensed.map((f) => `<a class="rw" href="#/pharmacy/${f.id}">
+        <span class="grow">
+          <span class="rowb"><span class="d3">${esc(L(f))}</span>
+            <span class="mark">${isAR() ? "ختم" : "OK"}</span></span>
+          <span class="q-sub" style="display:block">${esc(cityName(cityById(cityOf(f))))}${
+            f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</span>
+        </span></a>`).join('<div class="hr"></div>')
+        : `<div class="t3">${isAR() ? "ما عدنا صيدليات موثّقة مسجّلة بمحافظتك بعد." : "No verified pharmacies are registered in your governorate yet."}</div>`}
+      <div class="t3" style="margin-top:16px">${isAR()
+        ? "ما نسجّل هذا الطلب ولا نخزّن اسم الدواء مع رقمك."
+        : "This request is not recorded, and the medicine name is not stored against your number."}</div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn btn--2" onclick="closeSheet()">${isAR() ? "فهمت" : "Understood"}</button>
+    </div>`);
+}
+
 function openAuth(next) {
   const code = String(Math.floor(100000 + (nowMins() * 7919) % 900000));
   S.otp = { code, next: next || null, phone: "" };
@@ -3869,10 +4072,38 @@ function syncPublish() {
   b.disabled = !medOk || !locOk || !String(d.qty || "").trim() || myActiveNeeds().length >= MAX_ACTIVE_NEEDS;
 }
 
+/* The medicine record behind a draft or request, when it came from the
+   catalogue. A typed name has none, which is exactly why typed names cannot
+   be screened for control status and are handled further down. */
+function medRecordOf(variantId) {
+  if (!variantId) return null;
+  const x = variantOf(variantId);
+  return x ? x.med : null;
+}
+
+/* A typed name that matches a controlled medicine's own name or aliases.
+   Catching this matters: the whole point of manual entry is that the patient
+   could not find it in the catalogue, and "I could not find it" is exactly
+   how a controlled medicine would otherwise slip into a public broadcast. */
+function typedLooksControlled(name) {
+  const q = norm(String(name || ""));
+  if (q.length < 3) return null;
+  return RX_MEDS.filter((m) => m.controlled).find((m) =>
+    norm(m.ar).includes(q) || q.includes(norm(m.ar)) ||
+    norm(m.en).includes(q) || (m.alias || []).some((a) => norm(a) === q || q.includes(norm(a)))
+  ) || null;
+}
+
 function publishNeed() {
   const d = S.draft; if (!d) return;
   const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
   if (!medOk || !d.qty.trim()) return;
+
+  /* CONTROLLED: refused before anything is written, and the refusal is the
+     domain layer's, not this screen's. The patient is not left at a dead end
+     — they get the licensed-pharmacy route, which is the only lawful one. */
+  const med = d.v ? medRecordOf(d.v) : typedLooksControlled(d.manual && d.manual.name);
+  if (med && QD.isControlled(med)) { openControlledHandoff(med); return; }
   if (d.city === "baghdad" && !d.district) { toast(isAR() ? "اختر منطقتك" : "Pick your district"); return; }
   if (!isAuthed()) return openAuth("#/need/new");
   if (myActiveNeeds().length >= MAX_ACTIVE_NEEDS) {
@@ -3889,7 +4120,16 @@ function publishNeed() {
   LS.set("needs", [rec, ...mineList].slice(0, 20));
   REQUESTS.unshift(rec);
   S.draft = null;
+  /* What actually goes out to pharmacies is built by the domain layer's
+     whitelist, so a field added to the request later cannot leak by default.
+     The landmark the patient typed stays on their device until they choose
+     to send it in a WhatsApp message they can read first. */
+  const bc = QD.broadcastPayload(rec, medRecordOf(rec.v));
+  if (!bc.ok) { openControlledHandoff(medRecordOf(rec.v) || { ar: "دواء", en: "Medicine" }); return; }
+  rec.broadcast = bc.payload;
+
   updateUserTrustScore("published");
+  auditLog({ action: "REQUEST_PUBLISHED", subject: rec.id, reason: rec.urg });
   haptic([15, 40, 15]);
   toast(isAR() ? "نُشر — يوصل الصيدليات الموثّقة" : "Published — it reaches verified pharmacies");
   location.hash = "#/wait/" + rec.id;
@@ -4320,6 +4560,48 @@ function rxHandoff(facId, vid, ref) {
 /* ---------------- /radar · pharmacy supply mode ---------------- */
 function screenRadar(facId) {
   const f = facId ? anyFac(facId) : null;
+
+  /* Signed in to a branch already? Go there rather than asking again. */
+  if (!facId) {
+    const p = pharmacyPrincipal();
+    if (p.pharmacyId && anyFac(p.pharmacyId)) {
+      setTimeout(() => { location.hash = "#/radar/" + p.pharmacyId; }, 0);
+    }
+  }
+
+  /* A branch was named but this device is not signed in for it. The screen
+     says so instead of drawing answer buttons that would be refused — a
+     button that cannot work is worse than no button. */
+  if (f) {
+    const gate = QD.canAnswer(pharmacyPrincipal(), f.id);
+    if (!gate.ok) {
+      return `${netBanner()}
+      <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
+        <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+        <div class="lab" style="margin-top:24px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
+        <h1 class="d1" style="margin-top:10px">${esc(L(f))}</h1>
+        <div class="q-sub" style="margin-top:8px">${esc(cityName(cityById(cityOf(f))))}${
+          f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</div>
+      </section>
+      <div class="hr" style="margin:26px 0 0"></div>
+      <section class="pad" style="padding-top:24px">
+        <div class="note note-w"><span>${esc(authReason(gate.reason) ||
+          (isAR() ? "تسجيل الصيدلية مطلوب." : "Pharmacy sign-in is required."))}</span></div>
+        <p style="margin-top:18px">${isAR()
+          ? "تأكيد التوفّر يُنسب لهذه الصيدلية باسمها ويظهر للمرضى كإفادة منها. عشان هيك ما يكدر أي أحد يفتح الرابط ويجاوب — هذا الفرق بين شبكة تنفع وبين لوحة إعلانات."
+          : "A stock confirmation is attributed to this pharmacy by name and shown to patients as its claim. That is why opening the link is not enough."}</p>
+        <div class="v2" style="margin-top:22px">
+          <button class="btn" onclick="openPharmacyAuth('${esc(f.id)}')">${isAR() ? "دخول الصيدلية" : "Pharmacy sign-in"}</button>
+          <a class="btn btn--2" href="#/pharmacy/${esc(f.id)}">${isAR() ? "شوف صفحة الصيدلية" : "View pharmacy page"}</a>
+        </div>
+        <div class="t3" style="margin-top:20px">${isAR()
+          ? "الدليل والبحث عن الأدوية يبقيان مفتوحين للكل بدون تسجيل."
+          : "The directory and medicine search stay open to everyone."}</div>
+      </section>
+      ${nav("pharmacies")}`;
+    }
+  }
+
   if (!f) {
     const list = allPharmacies().filter((y) => y.verified);
     return `${netBanner()}
@@ -4538,6 +4820,16 @@ function quickAnswer(facId, reqId, kind) {
   const f = anyFac(facId);
   if (!r || !f) return;
 
+  /* THE GATE. Checked here rather than only on the screen that draws the
+     buttons, because a screen is a suggestion and a function is a rule: this
+     is the one place every claim passes through, including any future one. */
+  const gate = QD.canAnswer(pharmacyPrincipal(), facId);
+  if (!gate.ok) {
+    toast(authReason(gate.reason));
+    if (gate.reason === "NOT_A_PHARMACY") openPharmacyAuth(facId);
+    return;
+  }
+
   /* Optimistic: the card leaves the screen on the same frame as the tap.
      A pharmacist must never wait to find out whether their answer landed. */
   const card = document.querySelector(`[data-req="${reqId}"]`);
@@ -4573,6 +4865,8 @@ function quickAnswer(facId, reqId, kind) {
         q: kind === "one" ? "low" : "few", dl: false, st: kind === "one" ? "low" : "available" });
     }
     r.answers = r.answers || {}; r.answers[facId] = kind;
+    auditLog({ action: "STOCK_CLAIMED", actor: pharmacyPrincipal().pharmacistId,
+      pharmacyId: facId, subject: reqId, reason: kind });
     r.resp = [...new Set([...(r.resp || []), facId])];
     if (!r.firstAt) { r.firstAt = at; r.firstBy = facId; }
     reqTransition(r, "acknowledged");

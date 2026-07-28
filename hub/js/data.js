@@ -22,7 +22,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260728-0917",
+  build: "20260728-1853",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
@@ -609,6 +609,20 @@ const RX_MEDS = [
   { id: "x8", ar: "إيميوغلوبيولين وريدي", en: "IVIG", rx: true, cls_ar: "مناعي وريدي", cold: true,
     alias: ["ايفيج", "ivig", "غاماغلوبيولين"],
     variants: [{ id: "x8a", strength: "5 غم/100 مل", form: "وريدي", pack: "قنينة", alt: [] }] },
+
+  /* CONTROLLED. These are in the catalogue so they can be FOUND — a patient
+     searching for clonazepam should learn what it is and that it exists —
+     but `controlled: true` makes them structurally unbroadcastable: the
+     domain layer refuses to build a public payload for them at all, and the
+     app routes them to a licensed-pharmacy handoff instead. A public list of
+     who wants morphine near which landmark is a targeting list, and no
+     amount of product convenience is worth publishing one. */
+  { id: "x9", ar: "كلونازيبام", en: "Clonazepam", rx: true, controlled: true, cls_ar: "مضاد اختلاج — خاضع للرقابة",
+    alias: ["ريفوتريل", "rivotril", "clonazepam", "كلونازبام"],
+    variants: [{ id: "x9a", strength: "2 ملغم", form: "أقراص", pack: "٣٠ قرص", alt: ["Rivotril"], ref: 8000 }] },
+  { id: "x10", ar: "مورفين", en: "Morphine", rx: true, controlled: true, cls_ar: "مسكّن أفيوني — خاضع للرقابة",
+    alias: ["morphine", "مورفين سلفات"],
+    variants: [{ id: "x10a", strength: "10 ملغم/مل", form: "حقنة", pack: "أمبولة", alt: [], ref: 6500 }] },
 ];
 
 /* Availability signals — a pharmacy's claim about a variant at a moment.
