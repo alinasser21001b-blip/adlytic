@@ -24,7 +24,7 @@
    The version below is stamped by tools/stamp.mjs, not typed by hand — see
    that file for why.
    ================================================================== */
-const V = "qareeb-20260729-1147";
+const V = "qareeb-20260729-1151";
 const SHELL = [
   "./", "./index.html",
   "./css/qareeb.css", "./src/styles/identity.css",
