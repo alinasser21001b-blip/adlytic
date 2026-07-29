@@ -75,7 +75,8 @@ function toggleTheme() {
 function toast(msg) {
   document.querySelectorAll(".toast").forEach((n) => n.remove());
   const el = document.createElement("div"); el.className = "toast ch fade";
-  el.style.cssText = "position:fixed;bottom:calc(var(--nav-h) + 16px);inset-inline:24px;max-width:420px;margin-inline:auto;z-index:95;background:var(--ink);color:var(--sand);padding:13px 16px;font-size:13.5px;font-weight:600;text-align:center";
+  el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite");
+  el.style.cssText = "position:fixed;bottom:calc(var(--nav-h) + 16px);inset-inline:24px;max-width:420px;margin-inline:auto;z-index:95;background:var(--ink);color:var(--sand);padding:13px 16px;font-size:13.5px;font-weight:600;text-align:center;border-radius:10px";
   el.textContent = msg; document.body.append(el);
   setTimeout(() => el.remove(), 2600);
 }
@@ -109,6 +110,9 @@ function route() {
     case "me": return screenMe();
     case "trust": return screenTrust();
     case "admin": return screenAdmin();
+    case "settings": return p[1] ? screenSettingsSub(p[1]) : screenSettings();
+    case "privacy": return screenPrivacy();
+    case "about": return screenAbout();
     /* The health record. Its screens live in js/ui-record.js — the two modes
        (patient and clinician) are a separate domain from the discovery
        network and do not belong in this file. */
@@ -213,7 +217,11 @@ function boot() {
   }
   addEventListener("online", () => render());
   addEventListener("offline", () => render());
-  addEventListener("hashchange", () => { closeSheet(true); render(); scrollTo(0, 0); });
+  addEventListener("hashchange", () => {
+    closeSheet(true); render(); scrollTo(0, 0);
+    const main = document.getElementById("app");
+    if (main) { main.setAttribute("tabindex", "-1"); main.focus({ preventScroll: true }); }
+  });
   addEventListener("scroll", () => { const h = document.querySelector(".hdr"); if (h) h.classList.toggle("stuck", scrollY > 8); }, { passive: true });
   render();
   // keep "now" honest, but never interrupt an open sheet or an active input

@@ -43,7 +43,7 @@ const L = (o) => (o ? (isAR() ? o.ar : (o.en || o.ar)) : "");
 /* ---------------- i18n ---------------- */
 const T = {
   ar: {
-    home: "الرئيسية", doctors: "الأطباء", pharmacies: "الصيدليات", care: "العناية",
+    home: "الرئيسية", doctors: "الأطباء", pharmacies: "الصيدليات", care: "العناية", settings: "حسابي",
     need_a: "أحتاج", near: "قرب", now: "الآن", adoctor: "طبيب",
     show: "اعرض النتائج", searchPh: "طبيب، اختصاص، صيدلية، أو منتج…",
     openNow: "مفتوح الآن", closingSoon: "يغلق قريباً", closed: "مغلق",
@@ -68,7 +68,7 @@ const T = {
     noWa: "لا يوجد واتساب — اتصل هاتفياً", loading: "جارٍ التحميل",
   },
   en: {
-    home: "Home", doctors: "Doctors", pharmacies: "Pharmacies", care: "Care",
+    home: "Home", doctors: "Doctors", pharmacies: "Pharmacies", care: "Care", settings: "Account",
     need_a: "I need", near: "near", now: "right now", adoctor: "a doctor",
     show: "Show results", searchPh: "Doctor, specialty, pharmacy, or product…",
     openNow: "Open now", closingSoon: "Closing soon", closed: "Closed",
@@ -768,7 +768,7 @@ function netBanner() {
      read at a point in time and may have moved since. Say which is which. */
   const at = LS.get("lastOnline", null);
   const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
-  return `<div class="offline-bar">
+  return `<div class="offline-bar" role="alert" aria-live="assertive">
     <span class="grow">${isAR()
       ? `${when ? `بيانات محفوظة من <span class="num">${when}</span>` : "دون اتصال"}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل</span>`
       : `${when ? `Saved data from <span class="num">${when}</span>` : "Offline"}<br><span class="t3">Stock may have changed · phone calls still work</span>`}</span>
@@ -805,7 +805,8 @@ function header(opts = {}) {
    is worth nothing to the doctor it was built for. */
 function nav(active) {
   const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
-    ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
-  return `<nav class="nav">${items.map(([h, i, k]) =>
-    `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
+    ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"],
+    ["#/settings", "user", "settings"]];
+  return `<nav class="nav" role="tablist" aria-label="${isAR() ? "التنقل الرئيسي" : "Main navigation"}">${items.map(([h, i, k]) =>
+    `<a href="${h}" class="${active === k ? "on" : ""}" role="tab" aria-selected="${active === k}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
 }

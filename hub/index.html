@@ -8,6 +8,12 @@
 <meta name="theme-color" content="#F4F1EB" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1412" media="(prefers-color-scheme: dark)">
 
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="قريب">
+<link rel="apple-touch-icon" sizes="180x180" href="favicon.svg">
+
 <!-- WhatsApp / Open Graph share card — the real growth surface -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="قريب — أقرب رعاية إليك">
@@ -37,7 +43,7 @@
 <link rel="stylesheet" href="css/qareeb.css">
 </head>
 <body>
-  <main class="app" id="app"></main>
+  <main class="app" id="app" role="main"></main>
   <script src="js/domain.js"></script>
   <script src="js/emr.js"></script>
   <script src="js/record.js"></script>
