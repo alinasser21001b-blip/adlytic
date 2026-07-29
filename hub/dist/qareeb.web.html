@@ -2228,6 +2228,14 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     return { ok: true, grant: {
       actorId: principal.id, role: principal.role, patientId, reason: r,
       at, expiresAt: at + BREAK_GLASS_MINUTES * 60000,
+      /* Tier 1 by default and always. What this opens is the emergency
+         dataset — allergies, current medicines, major conditions, the
+         summary — not the record. Reaching the rest is a second, separate
+         act of escalation with its own justification; see
+         CONSENT.escalateEmergency. An override that grants everything in one
+         action is a universal key with a form attached, and it gets used for
+         convenience because invoking it costs the same either way. */
+      tier: "critical",
       notifyPatient: true, notifyCompliance: true, audit: "BREAK_GLASS",
     } };
   }
@@ -2448,7 +2456,7 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   }
 
   root.EMR = {
-    ID_TYPE, canRegister, isIdentityBearing, identifiersOf,
+    ID_TYPE, canRegister, isIdentityBearing, identifiersOf, idOf,
     ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
     MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
     matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
@@ -3133,6 +3141,31 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 
   const DEFAULT_SCOPES = [SCOPE.SUMMARY, SCOPE.ALLERGIES, SCOPE.MEDICATIONS, SCOPE.CONDITIONS];
 
+  /* ---------- THE EMERGENCY DATASET ----------
+     What an unconscious patient's care actually requires, and no more.
+
+     This list was WRONG until it was written down. Break-glass used to open
+     the entire record, on the reasoning that an emergency is no time for
+     permissions — which sounds right and is not. Australia's My Health Record
+     emergency-access literature is clear on the mechanism: an override that
+     grants everything is an override that gets used for convenience, because
+     the cost of invoking it is the same whether you needed a blood group or
+     wanted to read a psychiatric admission. Restricting what it opens is what
+     keeps it an emergency tool instead of a universal key with a form
+     attached.
+
+     So there are two tiers. Tier 1 is these scopes, reachable in one action
+     with a stated reason. Tier 2 is the rest of the record, and it requires a
+     SECOND deliberate escalation with its own justification, a shorter clock
+     and a louder notification. A resuscitation needs tier 1 and gets it
+     instantly; reading last year's clinic letters needs tier 2 and should
+     feel like it. */
+  const EMERGENCY_SCOPES = [SCOPE.ALLERGIES, SCOPE.MEDICATIONS, SCOPE.CONDITIONS, SCOPE.SUMMARY];
+  const EMERGENCY_TIER = { CRITICAL: "critical", FULL: "full" };
+  /* Tier 2 is deliberately shorter than tier 1: the broader the access, the
+     less of it there should be. */
+  const EMERGENCY_MINUTES = { critical: 60, full: 30 };
+
   /* =========================================================
      ٢ · مدد المشاركة — DURATIONS
      ========================================================= */
@@ -3281,10 +3314,24 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 
     /* An emergency override is checked BEFORE the share, not after, because
        the entire reason it exists is that no share was granted. It is
-       time-boxed by emr.js and it notifies the patient. */
+       time-boxed by emr.js and it notifies the patient.
+
+       What it opens depends on its TIER, and tier 1 — the one that is one
+       action away — opens the emergency dataset only. */
     if (breakGlass && E.breakGlassActive && E.breakGlassActive(breakGlass, now)) {
-      return { ok: true, basis: "BREAK_GLASS", scopes: ALL_SCOPES,
-        sensitive: true, mustNotify: true, auditRequired: true };
+      const full = breakGlass.tier === EMERGENCY_TIER.FULL;
+      const scopes = full ? ALL_SCOPES : EMERGENCY_SCOPES;
+      if (scope && scopes.indexOf(scope) === -1) {
+        return { ok: false, basis: "BREAK_GLASS", reason: "BEYOND_EMERGENCY_DATASET",
+          scopes, escalationAvailable: true, auditRequired: true, mustNotify: true };
+      }
+      if (dataClass && SENSITIVE_CLASSES.indexOf(dataClass) !== -1 && !full) {
+        return { ok: false, basis: "BREAK_GLASS", reason: "SENSITIVE_NEEDS_ESCALATION",
+          scopes, escalationAvailable: true, auditRequired: true, mustNotify: true };
+      }
+      return { ok: true, basis: "BREAK_GLASS", tier: breakGlass.tier || EMERGENCY_TIER.CRITICAL,
+        scopes, sensitive: full, mustNotify: true, auditRequired: true,
+        expiresAt: breakGlass.expiresAt };
     }
 
     const share = (shares || []).find((s) => s.granteeId === actor.id && s.patientId === patientId
@@ -3325,21 +3372,58 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
      is the question a patient in a small city actually has.
      ========================================================= */
 
+  /* An audit entry must answer six questions, not three. The first version
+     answered WHO, WHAT and WHEN — which is enough to render a list and not
+     enough to investigate anything. "Dr X viewed medications on Tuesday"
+     cannot distinguish a legitimate consultation from a colleague looking up
+     a neighbour, and that distinction is the entire reason the log exists.
+
+       WHO      actor + role + organisation
+       WHAT     scope + data class
+       WHEN     at
+       WHY      purpose — what the actor said they were doing
+       WHERE    context — device, facility, channel
+       UNDER
+       WHICH    authority — the share id, the emergency grant, or nothing
+       AUTH
+
+     `purpose` is carried from the access request the patient approved, so
+     the reason in the log is the same sentence the patient read before
+     saying yes — not a category picked afterwards from a dropdown. */
   function accessEntry(ctx, decision, now) {
-    const { actor, patientId, scope, dataClass } = ctx || {};
+    const { actor, patientId, scope, dataClass, purpose, context } = ctx || {};
+    const d = decision || {};
     return {
+      /* WHO */
       patientId,
       actorId: actor && actor.id || null,
       actorName: actor && actor.name || null,
       actorRole: actor && actor.role || null,
+      staffRole: actor && actor.staffRole || null,
       organizationId: actor && actor.organizationId || null,
+      /* WHAT */
       scope: scope || null,
       dataClass: dataClass || null,
-      granted: !!(decision && decision.ok),
-      basis: decision && decision.basis || null,
-      reason: decision && decision.reason || null,
-      shareId: decision && decision.shareId || null,
+      /* WHEN */
       at: now,
+      /* WHY */
+      purpose: purpose || null,
+      /* WHERE — never an IP address. In a country with no data protection
+         law, a table linking clinicians to network locations is its own
+         hazard; facility and device class answer the investigative question
+         without building that. */
+      context: context ? { facilityId: context.facilityId || null,
+        deviceId: context.deviceId || null, channel: context.channel || null } : null,
+      /* UNDER WHICH AUTHORISATION */
+      granted: !!d.ok,
+      basis: d.basis || null,
+      authority: d.basis === "SHARE" ? { kind: "SHARE", id: d.shareId || null, expiresAt: d.expiresAt || null }
+        : d.basis === "BREAK_GLASS" ? { kind: "BREAK_GLASS", tier: d.tier || EMERGENCY_TIER.CRITICAL,
+            expiresAt: d.expiresAt || null }
+        : d.basis === "SELF" ? { kind: "SELF" }
+        : null,
+      reason: d.reason || null,
+      shareId: d.shareId || null,
     };
   }
 
@@ -3529,8 +3613,64 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   };
   const scopeLabel = (s, lang) => (SCOPE_LABEL[s] || { ar: s, en: s })[lang === "en" ? "en" : "ar"];
 
+  /* =========================================================
+     ١٢ · تصعيد الطوارئ — EMERGENCY ESCALATION
+     =========================================================
+     Getting from tier 1 to tier 2 is a separate, deliberate act with its own
+     justification. It cannot be reached by retrying tier 1.
+     ========================================================= */
+
+  function escalateEmergency(grant, reason, actor, now) {
+    if (!grant) return { ok: false, reason: "NO_GRANT" };
+    if (grant.tier === EMERGENCY_TIER.FULL) return { ok: false, reason: "ALREADY_FULL" };
+    if (!actor || actor.id !== grant.actorId) return { ok: false, reason: "SAME_ACTOR_REQUIRED" };
+    if (!E.breakGlassActive || !E.breakGlassActive(grant, now)) return { ok: false, reason: "GRANT_EXPIRED" };
+    /* The tier-1 reason does not carry over. Opening the whole record needs
+       its own sentence, because the two decisions are not the same decision. */
+    const r = txt(reason);
+    if (r.length < 15) return { ok: false, reason: "ESCALATION_REASON_REQUIRED" };
+    return { ok: true, grant: { ...grant, tier: EMERGENCY_TIER.FULL,
+      escalatedAt: now, escalationReason: r,
+      /* The clock RESTARTS shorter, not longer. */
+      expiresAt: ms(now) + EMERGENCY_MINUTES.full * MIN,
+      notifyPatient: true, notifyCompliance: true } };
+  }
+
+  /* What tier 1 actually renders: the card an ambulance crew needs, built
+     from the record rather than authored separately so it cannot go stale. */
+  function emergencyCard(patient, record, now, lang) {
+    const ar = lang !== "en";
+    const r = record || {};
+    return {
+      name: E.fullName ? E.fullName(patient) : (patient && patient.name) || null,
+      age: E.ageOf ? E.ageOf(patient && patient.birthDate, now) : null,
+      sex: (patient && patient.sex) || null,
+      bloodGroup: r.bloodGroup || null,
+      allergies: (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []))
+        .map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      criticalMedications: (E.currentMedications ? E.currentMedications(r.medications, now) : [])
+        .filter((m) => m.anticoagulant || m.insulin || m.steroid || m.critical)
+        .map((m) => ({ display: m.display, dose: m.dose || null })),
+      majorConditions: (E.activeConditions ? E.activeConditions(r.conditions, now) : [])
+        .filter((c) => c.chronic).map((c) => c.display),
+      warnings: r.clinicalWarnings || [],
+      emergencyContact: (patient && patient.emergencyContact) || null,
+      /* Absence is stated, not left blank — a blank blood group and an
+         unrecorded one look identical on a screen and mean opposite things
+         at a trauma bay. */
+      notRecorded: [
+        !r.bloodGroup && (ar ? "فصيلة الدم غير مسجّلة" : "blood group not recorded"),
+        !(r.allergies || []).length && (ar ? "الحساسية غير مسجّلة — وهذا لا يعني عدمها"
+                                           : "allergies not recorded — which does not mean none"),
+        !(patient && patient.emergencyContact) && (ar ? "ما في جهة اتصال طوارئ"
+                                                      : "no emergency contact"),
+      ].filter(Boolean),
+    };
+  }
+
   root.CONSENT = {
     SCOPE, ALL_SCOPES, DEFAULT_SCOPES, SAFETY_FLOOR, SENSITIVE_CLASSES,
+    EMERGENCY_SCOPES, EMERGENCY_TIER, EMERGENCY_MINUTES, escalateEmergency, emergencyCard,
     DURATION, MAX_DURATION_MS, MODALITY, TERMS_VERSION,
     SHARE_STATE, canGrant, grantShare, grantSensitive,
     shareState, isShareActive, revokeShare, activeShares, expiringSoon,
@@ -3539,6 +3679,1268 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     REQ_STATE, REQUEST_TTL, requestAccess, requestState, respondToRequest,
     CARRY_TTL, issueCarryCode, redeemCarryCode,
     SCOPE_LABEL, scopeLabel,
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/* ============================================================
+   قريب · شبكة الرعاية كفاعلين سريريين — HEALTHCARE NETWORK
+   ============================================================
+   Organizations · Laboratories · Imaging · Pharmacy · Referrals
+
+   `app.js` already has a healthcare DIRECTORY — you can find a pharmacy open
+   at 02:40 and a doctor in your district. This file is a different thing: it
+   makes those places CLINICAL ACTORS that can receive an order, attach a
+   result to the right patient, verify a prescription, and answer a referral —
+   each seeing only what their job requires and nothing else.
+
+   THE RULE THAT SHAPES THIS WHOLE FILE: MINIMUM NECESSARY.
+
+   A laboratory needs to know which test, for which patient, ordered by whom,
+   and whether the patient is pregnant or on anticoagulants when that changes
+   the assay. It does not need the psychiatric history. A pharmacy needs the
+   prescription, the allergies, and the current medication list to catch an
+   interaction. It does not need the imaging reports. Building one "provider
+   can see the record" permission and trusting each provider to look away is
+   not a security model, it is an honour system with an audit log attached.
+
+   So access here is scoped BY WHAT THE ACTOR IS, then narrowed again by what
+   the patient consented to. The two are independent gates and both must pass.
+
+   ⚠ WHAT THIS FILE DOES NOT DO, DELIBERATELY:
+   There is no DICOM implementation here, no HL7 feed, no lab-analyser driver
+   and no connection to any hospital, ministry or insurer. Those integrations
+   do not exist. What exists is the BOUNDARY they would attach to — a study
+   that can hold a real DICOM reference the day there is a PACS to point at,
+   and an order that can carry a real accession number. Marking the boundary
+   honestly is useful. Simulating the integration behind it is a lie that
+   costs a rewrite.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  const E = root.EMR || {};
+  const C = root.CONSENT || {};
+  const ms = E.ms || ((t) => (t == null ? null : (typeof t === "number" ? t : new Date(t).getTime())));
+  const txt = (v) => String(v == null ? "" : v).trim();
+  const DAY = 86400000;
+
+  /* =========================================================
+     ١ · المنشآت — ORGANIZATIONS
+     =========================================================
+     A clinic is not one actor. It is a reception desk, a nurse, several
+     doctors, sometimes a pharmacy and a lab under one licence — and the
+     reception desk must never see a diagnosis. Modelling the organisation as
+     a single principal is how a whole clinic's staff inherits one doctor's
+     consent.
+     ========================================================= */
+
+  const ORG_KIND = { CLINIC: "clinic", HOSPITAL: "hospital", PHARMACY: "pharmacy",
+                     LAB: "laboratory", IMAGING: "imaging-centre", OTHER: "other" };
+
+  /* Roles inside an organisation, separate from EMR.ROLE which is about the
+     clinical relationship. A person can be a DOCTOR clinically and a
+     DEPARTMENT_HEAD administratively, and the two grant different things. */
+  const STAFF_ROLE = {
+    RECEPTION: "reception",       /* appointments and demographics only */
+    NURSE: "nurse",
+    DOCTOR: "doctor",
+    PHARMACIST: "pharmacist",
+    LAB_TECH: "lab-technician",
+    RADIOGRAPHER: "radiographer",
+    RADIOLOGIST: "radiologist",
+    ADMIN: "administrator",       /* runs the business — NOT the charts */
+  };
+
+  /* What each staff role may see AT MOST, before consent narrows it further.
+     An administrator's absence from the clinical scopes is the important
+     line here: running an organisation is not a clinical need, and every
+     health system that conflated the two produced the same headline. */
+  const STAFF_SCOPES = {
+    reception: ["summary_identity", "appointments"],
+    nurse: ["summary", "allergies", "medications", "conditions", "immunizations", "appointments"],
+    doctor: ["summary", "allergies", "medications", "conditions", "procedures", "labs",
+             "imaging", "documents", "encounters", "immunizations", "timeline", "appointments"],
+    pharmacist: ["allergies", "medications", "prescriptions"],
+    "lab-technician": ["labs", "orders"],
+    radiographer: ["imaging", "orders"],
+    radiologist: ["imaging", "orders", "conditions", "summary"],
+    administrator: ["appointments"],
+  };
+
+  function organization(o) {
+    if (!o) return { ok: false, reason: "NO_ORGANIZATION" };
+    if (!txt(o.name)) return { ok: false, reason: "NAME_REQUIRED" };
+    if (!Object.values(ORG_KIND).includes(o.kind)) return { ok: false, reason: "KIND_REQUIRED" };
+    return { ok: true, organization: { ...o, id: o.id || null,
+      departments: o.departments || [], staff: o.staff || [],
+      verified: false, verifiedAt: null } };
+  }
+
+  /* The scopes a staff member can reach: their role's ceiling, intersected
+     with what the patient granted. Neither gate can be skipped by the other,
+     which is the whole point of expressing it as an intersection rather than
+     a chain of ifs someone can reorder. */
+  function staffScopes(staff, share) {
+    const ceiling = STAFF_SCOPES[staff && staff.staffRole] || [];
+    if (!share) return [];
+    const granted = share.scopes || [];
+    return ceiling.filter((s) => granted.indexOf(s) !== -1);
+  }
+
+  /* A department is where a referral lands and where an order comes from.
+     Kept minimal on purpose — an org chart is not clinical data. */
+  const department = (d) => (!d || !txt(d.name) ? { ok: false, reason: "NAME_REQUIRED" }
+    : { ok: true, department: { ...d, id: d.id || null, staff: d.staff || [] } });
+
+  /* =========================================================
+     ٢ · الطلب — THE ORDER
+     =========================================================
+     One order type for lab and imaging both, because the lifecycle is the
+     same and the failure is the same: an order placed and never answered.
+     This is the object the fail-safe register watches.
+     ========================================================= */
+
+  const ORDER_KIND = { LAB: "lab", IMAGING: "imaging" };
+  const ORDER_STATE = { DRAFT: "draft", PLACED: "placed", ACCEPTED: "accepted",
+                        COLLECTED: "collected", IN_PROGRESS: "in-progress",
+                        REPORTED: "reported", CANCELLED: "cancelled", REJECTED: "rejected" };
+
+  const ORDER_MACHINE = {
+    draft: ["placed", "cancelled"],
+    placed: ["accepted", "rejected", "cancelled"],
+    accepted: ["collected", "in-progress", "cancelled", "rejected"],
+    collected: ["in-progress", "rejected"],
+    "in-progress": ["reported", "rejected"],
+    reported: [],
+    cancelled: [],
+    rejected: ["placed"],      /* a rejected specimen is re-ordered, not lost */
+  };
+  const canOrderTransition = (from, to) => (ORDER_MACHINE[from] || []).indexOf(to) !== -1;
+
+  /* URGENCY drives the register's due date, not a doctor's memory. */
+  const URGENCY = { ROUTINE: "routine", URGENT: "urgent", STAT: "stat" };
+  const URGENCY_DAYS = { routine: 14, urgent: 3, stat: 1 };
+
+  function placeOrder(o, orderer, at) {
+    if (!o) return { ok: false, reason: "NO_ORDER" };
+    if (!txt(o.patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!Object.values(ORDER_KIND).includes(o.kind)) return { ok: false, reason: "KIND_REQUIRED" };
+    if (!txt(o.code)) return { ok: false, reason: "CODE_REQUIRED" };
+    if (!orderer || !txt(orderer.id)) return { ok: false, reason: "ORDERER_REQUIRED" };
+    /* Only a verified clinician may place an order that a facility will act
+       on. An unverified account ordering a CT is a person spending someone
+       else's money and radiation dose. */
+    if (orderer.licenseStatus !== "VERIFIED") return { ok: false, reason: "ORDERER_UNVERIFIED" };
+    /* WHY. A lab that receives "HbA1c" with no clinical question cannot flag
+       a result as unexpected, and a radiologist reporting blind is guessing
+       at what was being looked for. It is also what the patient reads. */
+    if (!txt(o.reason)) return { ok: false, reason: "REASON_REQUIRED" };
+    const urg = o.urgency && URGENCY_DAYS[o.urgency] ? o.urgency : URGENCY.ROUTINE;
+    return { ok: true, order: {
+      ...o, id: o.id || null, state: ORDER_STATE.PLACED, urgency: urg,
+      orderedBy: orderer.id, orderedAt: at,
+      /* The date after which nobody having answered is itself a finding. */
+      dueAt: ms(at) + URGENCY_DAYS[urg] * DAY,
+      performerId: o.performerId || null,      /* which lab/centre, if chosen */
+      accession: null,                          /* the facility's own number, when it has one */
+      resultId: null,
+    } };
+  }
+
+  function advanceOrder(order, to, actor, at, note) {
+    if (!order) return { ok: false, reason: "NO_ORDER" };
+    if (!canOrderTransition(order.state, to)) return { ok: false, reason: "BAD_TRANSITION" };
+    if (!actor || !txt(actor.id)) return { ok: false, reason: "ACTOR_REQUIRED" };
+    /* A rejection with no reason is a black hole: the clinician sees the
+       order died and cannot tell whether to redraw the sample or rethink. */
+    if ((to === ORDER_STATE.REJECTED || to === ORDER_STATE.CANCELLED) && !txt(note)) {
+      return { ok: false, reason: "NOTE_REQUIRED" };
+    }
+    return { ok: true, order: { ...order, state: to,
+      history: [...(order.history || []), { state: to, by: actor.id, at, note: note || null }] } };
+  }
+
+  /* WHAT THE LAB SEES. Not the record — this envelope, and only this. */
+  function orderEnvelope(order, patient, record) {
+    const r = record || {};
+    return {
+      orderId: order.id, code: order.code, display: order.display || order.code,
+      kind: order.kind, urgency: order.urgency, reason: order.reason,
+      orderedBy: order.orderedBy, orderedAt: order.orderedAt,
+      patient: {
+        id: patient.id,
+        name: E.fullName ? E.fullName(patient) : patient.name,
+        age: E.ageOf ? E.ageOf(patient.birthDate, Date.now()) : null,
+        sex: patient.sex || null,
+      },
+      /* The narrow clinical context that genuinely changes an assay or a
+         scan, and nothing beyond it. Each item here earns its place by
+         changing what the facility DOES, not by being interesting. */
+      safety: {
+        allergies: (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []))
+          .map((a) => ({ substance: a.substance, criticality: a.criticality })),
+        anticoagulants: (r.medications || []).filter((m) => m.anticoagulant === true)
+          .map((m) => m.display),
+        pregnant: r.pregnant === true ? true : (r.pregnant === false ? false : null),
+        renalImpairment: r.renalImpairment === true || null,
+        implants: (r.procedures || []).filter((p) => p.implant).map((p) => p.implant),
+      },
+    };
+  }
+
+  /* =========================================================
+     ٣ · المختبر — LABORATORY
+     ========================================================= */
+
+  const SPECIMEN = { BLOOD: "blood", URINE: "urine", STOOL: "stool", SWAB: "swab",
+                     TISSUE: "tissue", CSF: "csf", OTHER: "other" };
+
+  /* A structured result. The original PDF is kept as a Document alongside it
+     and is never replaced by this — the structure is for reasoning, the
+     source is for proof, and a system that keeps only one of them fails
+     differently but equally. */
+  function reportResult(order, res, lab, at) {
+    if (!order) return { ok: false, reason: "NO_ORDER" };
+    if (order.state === ORDER_STATE.CANCELLED) return { ok: false, reason: "ORDER_CANCELLED" };
+    if (!lab || !txt(lab.id)) return { ok: false, reason: "LAB_REQUIRED" };
+    if (!res || res.value == null) return { ok: false, reason: "VALUE_REQUIRED" };
+    /* A number with no unit is not a result, it is a rumour. 5 could be
+       mmol/L or mg/dL and those are different clinical situations. */
+    if (!txt(res.unit) && typeof res.value === "number") return { ok: false, reason: "UNIT_REQUIRED" };
+    /* Reference ranges belong to the ANALYSER, not to the app. Storing the
+       lab's own range with each result is what makes a value interpretable
+       years later, when that lab has recalibrated or closed. */
+    if (typeof res.value === "number" && res.refLow == null && res.refHigh == null) {
+      return { ok: false, reason: "REFERENCE_RANGE_REQUIRED" };
+    }
+    const result = {
+      id: res.id || null, orderId: order.id, patientId: order.patientId,
+      code: order.code, display: order.display || order.code,
+      value: res.value, unit: res.unit || null,
+      refLow: res.refLow ?? null, refHigh: res.refHigh ?? null,
+      method: res.method || null, specimen: res.specimen || null,
+      collectedAt: res.collectedAt || null,
+      effectiveAt: res.effectiveAt || at,
+      performerId: lab.id, performerName: lab.name || null,
+      episodeId: order.episodeId || null,
+      sourceDocumentId: res.sourceDocumentId || null,
+      /* NOT acknowledged. A result entering the record is not a result a
+         clinician has seen, and conflating them is the closed-loop failure
+         the whole task register exists to catch. */
+      acknowledgedBy: null, acknowledgedAt: null,
+      source: (E.SOURCE && E.SOURCE.EXTERNAL) || "external-import",
+    };
+    result.flag = E.flagResult ? E.flagResult(result) : null;
+    /* A critical value is not merely abnormal — it is the one that must reach
+       a human NOW, and the lab is the only party that knows its own critical
+       limits. When it says so, we carry that through rather than recomputing
+       it from a range we did not calibrate. */
+    if (res.critical === true) result.flag = "critical";
+    return { ok: true, result,
+      order: { ...order, state: ORDER_STATE.REPORTED, resultId: result.id, reportedAt: at } };
+  }
+
+  /* Two results are only comparable when the same laboratory measured the
+     same analyte in the same unit. Everything else gets drawn, because
+     clinicians need the shape — but declared, because a confident line
+     through two analysers is a clinical hazard dressed as a chart. */
+  function comparableSeries(results, code) {
+    const t = E.trend ? E.trend(results, code) : { points: [] };
+    return { ...t, safeToCompare: !!(t.points && t.points.length > 1) && !t.mixedLabs && !t.mixedUnits };
+  }
+
+  /* =========================================================
+     ٤ · الأشعة — IMAGING
+     =========================================================
+     ⚠ INTEGRATION BOUNDARY, NOT AN IMPLEMENTATION.
+
+     There is no PACS, no DICOM store, no WADO-RS endpoint and no viewer
+     behind this. What is modelled is the STUDY as a clinical object — what
+     was done, to which body part, why, who reported it, and what the report
+     says — plus the exact fields a real DICOM archive would populate, left
+     null and clearly named.
+
+     The reason to build it this way rather than wait: the report is what a
+     clinician reads 95% of the time, and the report is plain text that works
+     over a phone connection in a power cut. The pixels are the 5% and they
+     need infrastructure that does not exist here yet. Getting the report
+     right today costs nothing and is most of the value.
+     ========================================================= */
+
+  const MODALITY = { XR: "XR", CT: "CT", MR: "MR", US: "US", MG: "MG", NM: "NM", PT: "PT", OTHER: "OTHER" };
+
+  function imagingStudy(order, s, centre, at) {
+    if (!order || order.kind !== ORDER_KIND.IMAGING) return { ok: false, reason: "NOT_AN_IMAGING_ORDER" };
+    if (!centre || !txt(centre.id)) return { ok: false, reason: "CENTRE_REQUIRED" };
+    if (!s || !MODALITY[s.modality]) return { ok: false, reason: "MODALITY_REQUIRED" };
+    if (!txt(s.bodySite)) return { ok: false, reason: "BODY_SITE_REQUIRED" };
+    return { ok: true, study: {
+      id: s.id || null, orderId: order.id, patientId: order.patientId,
+      modality: s.modality, bodySite: s.bodySite, contrast: s.contrast === true,
+      performedAt: s.performedAt || at, facilityId: centre.id, facilityName: centre.name || null,
+      episodeId: order.episodeId || null,
+      /* ---- the DICOM boundary ----
+         These are the identifiers a real archive supplies. They stay null
+         until one exists. A UI that shows "images available" because a study
+         row exists would be lying — `hasImages` is derived from the pointer,
+         never asserted. */
+      dicom: {
+        studyInstanceUID: s.studyInstanceUID || null,
+        accessionNumber: s.accessionNumber || null,
+        seriesCount: s.seriesCount ?? null,
+        /* Where a viewer would fetch from. Null means: no archive is
+           connected, and the app must say exactly that. */
+        wadoEndpoint: null,
+      },
+      report: null, reportedBy: null, reportedAt: null,
+      sourceDocumentId: s.sourceDocumentId || null,
+    } };
+  }
+
+  const hasImages = (study) => !!(study && study.dicom && study.dicom.studyInstanceUID && study.dicom.wadoEndpoint);
+
+  /* What the app can honestly tell a user about the pixels. */
+  function imageAvailability(study, lang) {
+    const ar = lang !== "en";
+    if (hasImages(study)) return { available: true, text: ar ? "الصور متاحة" : "images available" };
+    if (study && study.sourceDocumentId) {
+      return { available: false, text: ar ? "التقرير مرفوع كملف — الصور غير متصلة"
+                                          : "the report is uploaded as a file — the images are not connected" };
+    }
+    return { available: false, text: ar ? "الصور عند المركز — قريب غير مربوط بأرشيف صور بعد"
+                                        : "the images are at the centre — Qareeb is not connected to an image archive yet" };
+  }
+
+  function reportStudy(study, report, radiologist, at) {
+    if (!study) return { ok: false, reason: "NO_STUDY" };
+    if (study.report) return { ok: false, reason: "ALREADY_REPORTED" };
+    if (!radiologist || !txt(radiologist.id)) return { ok: false, reason: "RADIOLOGIST_REQUIRED" };
+    if (!report || !txt(report.impression)) return { ok: false, reason: "IMPRESSION_REQUIRED" };
+    return { ok: true, study: { ...study,
+      report: { findings: report.findings || null, impression: txt(report.impression),
+        /* An incidental finding nobody follows up is one of the best
+           documented harms in radiology. Flagging it here is what lets the
+           register open a task for it. */
+        incidental: report.incidental === true,
+        comparison: report.comparison || null },
+      reportedBy: radiologist.id, reportedAt: at } };
+  }
+
+  /* =========================================================
+     ٥ · الصيدلية — PHARMACY
+     =========================================================
+     A pharmacy sees three things: the prescription, the allergy list, and
+     the current medications. That is what is needed to dispense safely and
+     to catch the interaction the prescriber missed. It is not a window into
+     the chart, and it is scoped here rather than trusted to the UI.
+     ========================================================= */
+
+  const PHARMACY_SCOPES = ["prescriptions", "allergies", "medications"];
+
+  const RX_VERIFY = { VALID: "valid", EXPIRED: "expired", ALREADY_DISPENSED: "already-dispensed",
+                      REVOKED: "revoked", UNKNOWN: "unknown" };
+
+  /* A prescription is valid for a bounded window. Iraqi statute on this was
+     NOT FOUND in the research pass, so this is a PRODUCT DEFAULT, stated as
+     one, and configurable per tenant — not a legal claim. */
+  const RX_VALID_DAYS = 30;
+
+  function verifyPrescription(rx, dispenses, now) {
+    if (!rx) return { state: RX_VERIFY.UNKNOWN, reason: "NO_PRESCRIPTION" };
+    if (rx.revokedAt) return { state: RX_VERIFY.REVOKED, at: rx.revokedAt };
+    const issued = ms(rx.issuedAt);
+    if (issued == null) return { state: RX_VERIFY.UNKNOWN, reason: "NO_ISSUE_DATE" };
+    if (ms(now) - issued > RX_VALID_DAYS * DAY) {
+      return { state: RX_VERIFY.EXPIRED, issuedAt: rx.issuedAt, validDays: RX_VALID_DAYS };
+    }
+    const prior = (dispenses || []).filter((d) => d.prescriptionId === rx.id);
+    if (prior.some((d) => d.state === "dispensed")) {
+      return { state: RX_VERIFY.ALREADY_DISPENSED, by: prior[0].pharmacyId, at: prior[0].at };
+    }
+    return { state: RX_VERIFY.VALID, expiresAt: issued + RX_VALID_DAYS * DAY };
+  }
+
+  /* The envelope a pharmacy receives. Note what is absent. */
+  function pharmacyEnvelope(rx, patient, record) {
+    const r = record || {};
+    return {
+      prescription: {
+        id: rx.id, medication: rx.medication, dose: rx.dose, frequency: rx.frequency,
+        durationDays: rx.durationDays ?? null, route: rx.route || null,
+        indication: rx.indication, prescriberId: rx.prescriberId, issuedAt: rx.issuedAt,
+      },
+      patient: { id: patient.id, name: E.fullName ? E.fullName(patient) : patient.name,
+        age: E.ageOf ? E.ageOf(patient.birthDate, Date.now()) : null, sex: patient.sex || null },
+      allergies: (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []))
+        .map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      currentMedications: (E.currentMedications ? E.currentMedications(r.medications, Date.now()) : (r.medications || []))
+        .map((m) => ({ display: m.display, dose: m.dose || null, status: m.status })),
+    };
+  }
+
+  /* Duplicate and allergy checks a pharmacist can act on. Deliberately
+     conservative: it flags what it can prove from the record's own contents
+     and says nothing about interactions, because a real interaction database
+     does not exist here and inventing one would be worse than silence. */
+  /* Drug names in Arabic carry the definite article inconsistently — a
+     pharmacist writes «السلفا» in the allergy field and «سلفاميثوكسازول» on
+     the label, and a plain substring test finds nothing between them. That
+     silence looks exactly like a clean check.
+
+     `normAr` deliberately does not strip ال, because for PATIENT NAMES it
+     would fuse distinct people. For drug-name containment the trade runs the
+     other way: a false flag costs a pharmacist three seconds, and a missed
+     one costs the patient. So the article is stripped here and only here. */
+  const normDrug = (s) => {
+    const base = (E.normAr || ((x) => String(x || "").toLowerCase()))(s);
+    return base.replace(/(^|\s)ال/g, "$1").replace(/\s+/g, "");
+  };
+
+  function dispenseChecks(rx, envelope) {
+    const flags = [];
+    const norm = E.normAr || ((s) => String(s || "").toLowerCase());
+    const med = normDrug(rx.medication);
+
+    for (const a of envelope.allergies || []) {
+      const sub = normDrug(a.substance);
+      /* Bidirectional: the allergy may be to a CLASS whose name is contained
+         in the drug (sulfa → sulfamethoxazole), or to a specific drug whose
+         name contains the class. Both directions are the same clinical
+         question asked from opposite ends. */
+      if (sub && med && (med.includes(sub) || sub.includes(med))) {
+        flags.push({ kind: "ALLERGY", severity: "high", substance: a.substance,
+          detail: a.reaction || null, match: "name-containment" });
+      }
+    }
+    for (const m of envelope.currentMedications || []) {
+      if (norm(m.display) === med && m.status === "active") {
+        flags.push({ kind: "DUPLICATE", severity: "medium", medication: m.display });
+      }
+    }
+    /* An explicit statement of the limit, carried in the data so no screen
+       can imply a clean check means a safe one. The allergy match is a
+       STRING comparison — it cannot know that penicillin and amoxicillin are
+       related, because that needs an ingredient hierarchy we do not have. */
+    return { flags, checked: ["allergy-list", "current-medications"],
+      notChecked: ["drug-drug-interactions", "ingredient-hierarchy", "renal-dosing", "pregnancy"],
+      matchMethod: "name-containment",
+      limitation: "قريب لا يملك قاعدة تداخلات دوائية ولا شجرة مواد فعّالة — هذه ليست مراجعة صيدلانية كاملة" };
+  }
+
+  /* =========================================================
+     ٦ · الإحالة — REFERRAL
+     =========================================================
+     England's e-Referral service is the model worth copying and the reason
+     is not the technology: it is that a referral has a STATE, so "sent and
+     never answered" is a thing the system can see. A referral letter handed
+     to a patient is a referral nobody can follow up.
+     ========================================================= */
+
+  const REF_STATE = { DRAFT: "draft", SENT: "sent", RECEIVED: "received", ACCEPTED: "accepted",
+                      DECLINED: "declined", COMPLETED: "completed", WITHDRAWN: "withdrawn" };
+  const REF_MACHINE = {
+    draft: ["sent", "withdrawn"],
+    sent: ["received", "declined", "withdrawn"],
+    received: ["accepted", "declined"],
+    accepted: ["completed", "withdrawn"],
+    declined: ["sent"],          /* redirected to another provider */
+    completed: [], withdrawn: [],
+  };
+  const canRefTransition = (from, to) => (REF_MACHINE[from] || []).indexOf(to) !== -1;
+  const REF_DUE_DAYS = 21;
+
+  function sendReferral(ref, referrer, at) {
+    if (!ref) return { ok: false, reason: "NO_REFERRAL" };
+    if (!txt(ref.patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!txt(ref.specialty)) return { ok: false, reason: "SPECIALTY_REQUIRED" };
+    if (!referrer || !txt(referrer.id)) return { ok: false, reason: "REFERRER_REQUIRED" };
+    if (referrer.licenseStatus !== "VERIFIED") return { ok: false, reason: "REFERRER_UNVERIFIED" };
+    if (!txt(ref.reason)) return { ok: false, reason: "REASON_REQUIRED" };
+    /* What the receiving clinician needs in order to triage without opening
+       the whole chart. A referral with no question is a referral that gets
+       an appointment six weeks out regardless of urgency. */
+    if (!txt(ref.question)) return { ok: false, reason: "QUESTION_REQUIRED" };
+    return { ok: true, referral: { ...ref, id: ref.id || null, state: REF_STATE.SENT,
+      referrerId: referrer.id, sentAt: at, dueAt: ms(at) + REF_DUE_DAYS * DAY,
+      episodeId: ref.episodeId || null, history: [] } };
+  }
+
+  function advanceReferral(ref, to, actor, at, note) {
+    if (!ref) return { ok: false, reason: "NO_REFERRAL" };
+    if (!canRefTransition(ref.state, to)) return { ok: false, reason: "BAD_TRANSITION" };
+    if (!actor || !txt(actor.id)) return { ok: false, reason: "ACTOR_REQUIRED" };
+    if (to === REF_STATE.DECLINED && !txt(note)) return { ok: false, reason: "NOTE_REQUIRED" };
+    return { ok: true, referral: { ...ref, state: to,
+      history: [...(ref.history || []), { state: to, by: actor.id, at, note: note || null }] } };
+  }
+
+  /* =========================================================
+     ٧ · السجلات الآمنة من الفشل عبر الشبكة — NETWORK REGISTERS
+     =========================================================
+     emr.js derives tasks from the patient's own record. This derives them
+     from the NETWORK: orders nobody answered, referrals nobody replied to,
+     critical results nobody saw. These are the failures that happen in the
+     gap between two organisations, which is exactly where nobody owns them.
+     ========================================================= */
+
+  function networkTasks(ctx, now) {
+    const out = [];
+    const t = ms(now);
+
+    for (const o of ctx.orders || []) {
+      if (o.state === ORDER_STATE.REPORTED || o.state === ORDER_STATE.CANCELLED) continue;
+      out.push({
+        id: "nt-ord-" + o.id, kind: "order-unanswered", patientId: o.patientId,
+        about: o.display || o.code, dueAt: o.dueAt, owner: o.orderedBy,
+        status: (E.TASK_STATE && E.TASK_STATE.OPEN) || "open",
+        detail: { orderState: o.state, urgency: o.urgency, performerId: o.performerId },
+      });
+    }
+    for (const r of ctx.referrals || []) {
+      if ([REF_STATE.ACCEPTED, REF_STATE.COMPLETED, REF_STATE.WITHDRAWN].indexOf(r.state) !== -1) continue;
+      out.push({
+        id: "nt-ref-" + r.id, kind: "referral-unanswered", patientId: r.patientId,
+        about: r.specialty, dueAt: r.dueAt, owner: r.referrerId,
+        status: (E.TASK_STATE && E.TASK_STATE.OPEN) || "open",
+        detail: { referralState: r.state },
+      });
+    }
+    /* A critical result nobody acknowledged is due IMMEDIATELY — it does not
+       get the ordinary grace period, because the whole meaning of critical is
+       that waiting is the harm. */
+    for (const res of ctx.results || []) {
+      if (res.flag !== "critical" || res.acknowledgedBy) continue;
+      out.push({
+        id: "nt-crit-" + res.id, kind: "critical-unacknowledged", patientId: res.patientId,
+        about: res.display || res.code, dueAt: res.effectiveAt, owner: res.orderedBy || null,
+        status: (E.TASK_STATE && E.TASK_STATE.OPEN) || "open",
+        detail: { value: res.value, unit: res.unit },
+      });
+    }
+    for (const s of ctx.studies || []) {
+      if (!s.report) continue;
+      if (s.report.incidental && !s.incidentalActionedBy) {
+        out.push({
+          id: "nt-inc-" + s.id, kind: "incidental-finding", patientId: s.patientId,
+          about: `${s.modality} — ${s.bodySite}`, dueAt: ms(s.reportedAt) + 30 * DAY,
+          owner: s.orderedBy || null, status: (E.TASK_STATE && E.TASK_STATE.OPEN) || "open",
+          detail: { impression: s.report.impression },
+        });
+      }
+    }
+    return out.sort((a, b) => (ms(a.dueAt) ?? Infinity) - (ms(b.dueAt) ?? Infinity));
+  }
+
+  const overdueNetworkTasks = (tasks, now) => (tasks || [])
+    .filter((t) => t.dueAt != null && ms(now) > ms(t.dueAt));
+
+  root.NET = {
+    ORG_KIND, STAFF_ROLE, STAFF_SCOPES, organization, department, staffScopes,
+    ORDER_KIND, ORDER_STATE, ORDER_MACHINE, canOrderTransition, URGENCY, URGENCY_DAYS,
+    placeOrder, advanceOrder, orderEnvelope,
+    SPECIMEN, reportResult, comparableSeries,
+    MODALITY, imagingStudy, hasImages, imageAvailability, reportStudy,
+    PHARMACY_SCOPES, RX_VERIFY, RX_VALID_DAYS, verifyPrescription, pharmacyEnvelope, dispenseChecks,
+    REF_STATE, REF_MACHINE, canRefTransition, REF_DUE_DAYS, sendReferral, advanceReferral,
+    networkTasks, overdueNetworkTasks,
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/* ============================================================
+   قريب · الكتابة دون اتصال والمزامنة — OFFLINE WRITES & SYNC
+   ============================================================
+   Section 16 of the brief, and the one whose failure mode is silent.
+
+   WHY THIS IS ABOUT ELECTRICITY, NOT BANDWIDTH.
+
+   The Iraq research pass was unambiguous on this: technical generating
+   capacity around 26 GW against demand above 50, a national grid collapse in
+   August 2025, shorter cuts almost daily, and businesses running on private
+   generators. Mobile connections meanwhile run at about 103% of population
+   with 83% on 3G/4G/5G.
+
+   So the failure to design for is not "the connection is slow". It is "the
+   device died mid-write". That is a different engineering problem and it has
+   a different answer: nothing important may live only in RAM, every write is
+   journalled before it is attempted, and the journal survives a hard power
+   loss because it is on disk before the network is ever touched.
+
+   THE RULE EVERYTHING ELSE SERVES:
+   NEVER REPORT A SYNC THAT DID NOT HAPPEN.
+
+   A screen that shows a tick when the write is still in the outbox teaches a
+   clinician that the record is safe when it is not — and they will act on
+   that, close the laptop, and the diagnosis they typed will be gone. Every
+   record carries its own sync state, that state is DERIVED from the outbox
+   rather than set by an optimistic handler, and the honest state has four
+   values, not two: `local`, `sending`, `synced`, `failed`. There is no
+   "probably fine".
+
+   This file is pure. It owns no timers, no fetch and no storage — the caller
+   provides the clock, the transport and the persistence, so every rule here
+   runs in Node against the shipped bytes.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  const ms = (t) => (t == null ? null : (typeof t === "number" ? t : new Date(t).getTime()));
+  const txt = (v) => String(v == null ? "" : v).trim();
+  const SEC = 1000, MIN = 60000;
+
+  /* =========================================================
+     ١ · حالة المزامنة — SYNC STATE
+     ========================================================= */
+
+  const SYNC = {
+    LOCAL: "local",     /* written here, never attempted — the honest default */
+    SENDING: "sending", /* in flight right now */
+    SYNCED: "synced",   /* the server acknowledged THIS revision */
+    FAILED: "failed",   /* attempted, refused or unreachable, still held */
+    CONFLICT: "conflict", /* the server has a version we did not start from */
+  };
+
+  /* What the user is told. Deliberately blunt in Arabic: a patient or a
+     clinician must be able to tell at a glance whether the thing they just
+     typed exists anywhere but this phone. */
+  const SYNC_LABEL = {
+    local: { ar: "محفوظ على هذا الجهاز فقط", en: "saved on this device only" },
+    sending: { ar: "جارٍ الرفع", en: "uploading" },
+    synced: { ar: "محفوظ", en: "saved" },
+    failed: { ar: "ما انرفع — محفوظ محلياً", en: "not uploaded — held locally" },
+    conflict: { ar: "يحتاج مراجعتك — تغيّر من مكان ثاني", en: "needs your review — changed elsewhere" },
+  };
+  const syncLabel = (s, lang) => (SYNC_LABEL[s] || SYNC_LABEL.local)[lang === "en" ? "en" : "ar"];
+
+  /* =========================================================
+     ٢ · صندوق الصادر — THE OUTBOX
+     =========================================================
+     A journal, not a queue of callbacks. Every entry is a complete,
+     self-contained description of an intended change, written to disk BEFORE
+     any network attempt, so a power cut between "user pressed save" and "the
+     radio woke up" loses nothing.
+     ========================================================= */
+
+  const OP = { CREATE: "create", UPDATE: "update", APPEND: "append" };
+
+  /* Deliberately NO `delete`. Clinical data is never hard-deleted — a
+     correction is an addendum and a retraction is a status change, both of
+     which are ordinary updates. An outbox that can carry a delete is an
+     outbox that can lose a record to a replay bug. */
+
+  function enqueue(outbox, entry, at) {
+    if (!entry) return { ok: false, reason: "NO_ENTRY" };
+    if (!Object.values(OP).includes(entry.op)) return { ok: false, reason: "BAD_OP" };
+    if (!txt(entry.collection)) return { ok: false, reason: "COLLECTION_REQUIRED" };
+    if (!txt(entry.id)) return { ok: false, reason: "ID_REQUIRED" };
+    if (entry.payload == null) return { ok: false, reason: "PAYLOAD_REQUIRED" };
+    /* The idempotency key is what makes a retry safe. Without it, a request
+       that succeeded on the server but whose response was lost in a dropped
+       connection gets replayed and creates a second encounter — a duplicate
+       clinical assertion that looks exactly like a real one. */
+    if (!txt(entry.opId)) return { ok: false, reason: "OP_ID_REQUIRED" };
+
+    const list = outbox || [];
+    /* Replaying the same operation is a no-op, not a second write. */
+    if (list.some((e) => e.opId === entry.opId)) return { ok: true, outbox: list, deduped: true };
+
+    return { ok: true, deduped: false, outbox: [...list, {
+      opId: entry.opId, op: entry.op, collection: entry.collection, id: entry.id,
+      payload: entry.payload,
+      /* The revision this change was made FROM. It is what lets the server
+         detect that someone else moved the record underneath us, which is
+         the only way to catch a conflict rather than silently overwrite. */
+      baseRev: entry.baseRev ?? null,
+      state: SYNC.LOCAL, attempts: 0, lastAttemptAt: null, lastError: null,
+      queuedAt: at, deviceId: entry.deviceId || null,
+      /* Clinical writes go first when the window is short. A power cut gives
+         you ninety seconds of hotspot, and a signed encounter matters more
+         than a saved bookmark. */
+      priority: entry.priority ?? priorityFor(entry.collection),
+    }] };
+  }
+
+  const CRITICAL_COLLECTIONS = ["encounters", "results", "prescriptions", "allergies",
+                                "medications", "conditions", "accessLog", "shares"];
+  const priorityFor = (c) => (CRITICAL_COLLECTIONS.indexOf(c) !== -1 ? 0 : 1);
+
+  /* What to send next: highest priority, then oldest, and never something
+     already in flight or parked in conflict. */
+  function nextBatch(outbox, now, limit) {
+    return (outbox || [])
+      .filter((e) => e.state === SYNC.LOCAL || (e.state === SYNC.FAILED && isDue(e, now)))
+      .sort((a, b) => a.priority - b.priority || ms(a.queuedAt) - ms(b.queuedAt))
+      .slice(0, limit || 10);
+  }
+
+  /* =========================================================
+     ٣ · إعادة المحاولة — BACKOFF
+     =========================================================
+     Exponential with a ceiling, and a cap on attempts after which the entry
+     stops retrying and starts ASKING. An entry that retries forever is an
+     entry the user is never told about.
+     ========================================================= */
+
+  const BACKOFF = [2 * SEC, 5 * SEC, 15 * SEC, 60 * SEC, 5 * MIN, 15 * MIN];
+  const MAX_ATTEMPTS = 12;
+
+  /* `attempts` is how many have ALREADY failed, so the wait after the first
+     failure is BACKOFF[0]. Indexing by `attempts` directly skipped the first
+     rung and made the very first retry — the one most likely to succeed,
+     because a Baghdad connection usually returns in seconds — wait five
+     instead of two. */
+  function backoffFor(attempts) {
+    return BACKOFF[Math.min(Math.max(attempts - 1, 0), BACKOFF.length - 1)];
+  }
+  function isDue(entry, now) {
+    if (!entry.lastAttemptAt) return true;
+    if (entry.attempts >= MAX_ATTEMPTS) return false;   /* stops retrying; still held, still visible */
+    return ms(now) - ms(entry.lastAttemptAt) >= backoffFor(entry.attempts);
+  }
+  const isStuck = (entry) => entry.attempts >= MAX_ATTEMPTS && entry.state === SYNC.FAILED;
+
+  const markSending = (entry, now) => ({ ...entry, state: SYNC.SENDING, lastAttemptAt: now });
+
+  /* =========================================================
+     ٤ · نتيجة المحاولة — SETTLING AN ATTEMPT
+     =========================================================
+     The three outcomes are NOT "ok" and "not ok". A refusal the server
+     understood (422, a validation error) must never be retried — retrying it
+     twelve times just delays telling the user their input was rejected.
+     ========================================================= */
+
+  const OUTCOME = {
+    ACK: "ack",             /* the server stored it and returned the new revision */
+    RETRYABLE: "retryable", /* unreachable, timeout, 5xx — the write may still land */
+    REJECTED: "rejected",   /* the server understood and refused — do not retry */
+    CONFLICT: "conflict",   /* the server's revision is not the one we started from */
+  };
+
+  function settle(outbox, opId, outcome, info, now) {
+    const list = outbox || [];
+    const i = list.findIndex((e) => e.opId === opId);
+    if (i === -1) return { ok: false, reason: "NOT_IN_OUTBOX" };
+    const e = list[i];
+
+    if (outcome === OUTCOME.ACK) {
+      /* Acknowledged entries LEAVE the outbox. Keeping them would make the
+         outbox grow without bound on a device that is offline half the day. */
+      return { ok: true, outbox: list.filter((x) => x.opId !== opId),
+        applied: { collection: e.collection, id: e.id, rev: (info && info.rev) ?? null,
+          state: SYNC.SYNCED, syncedAt: now } };
+    }
+    const next = { ...e, attempts: e.attempts + 1, lastAttemptAt: now,
+      lastError: (info && info.error) || null };
+    if (outcome === OUTCOME.CONFLICT) {
+      next.state = SYNC.CONFLICT;
+      next.serverRev = (info && info.serverRev) ?? null;
+      next.serverPayload = (info && info.serverPayload) ?? null;
+    } else if (outcome === OUTCOME.REJECTED) {
+      /* Refused, permanently. It stays in the outbox — it is the user's data
+         and deleting it because a server disliked it would be the worst
+         possible resolution — but it never retries and it surfaces. */
+      next.state = SYNC.FAILED;
+      next.attempts = MAX_ATTEMPTS;
+      next.permanent = true;
+    } else {
+      next.state = SYNC.FAILED;
+    }
+    const out = list.slice(); out[i] = next;
+    return { ok: true, outbox: out, applied: null };
+  }
+
+  /* =========================================================
+     ٥ · التعارض — CONFLICT
+     =========================================================
+     Two providers editing the same record is section 27's question, and the
+     answer differs by WHAT is being edited. This is not one policy.
+     ========================================================= */
+
+  const RESOLUTION = {
+    /* Immutable clinical assertions never merge. Two signed encounters are
+       two encounters, and the "conflict" was an illusion created by giving
+       them the same id — the fix is to keep both, always. */
+    KEEP_BOTH: "keep-both",
+    /* Longitudinal lists are append-and-supersede: whoever wrote last owns
+       the current value, but the previous one stays readable with its author. */
+    SUPERSEDE: "supersede",
+    /* Anything a human must look at. The default when in doubt. */
+    ASK_HUMAN: "ask-human",
+  };
+
+  const IMMUTABLE_COLLECTIONS = ["encounters", "prescriptions", "results", "studies", "documents", "accessLog"];
+  const LIST_COLLECTIONS = ["conditions", "medications", "allergies", "procedures", "immunizations"];
+
+  function resolutionFor(collection) {
+    if (IMMUTABLE_COLLECTIONS.indexOf(collection) !== -1) return RESOLUTION.KEEP_BOTH;
+    if (LIST_COLLECTIONS.indexOf(collection) !== -1) return RESOLUTION.SUPERSEDE;
+    return RESOLUTION.ASK_HUMAN;
+  }
+
+  function resolveConflict(entry, choice, actor, now) {
+    if (!entry || entry.state !== SYNC.CONFLICT) return { ok: false, reason: "NOT_IN_CONFLICT" };
+    if (!actor || !txt(actor.id)) return { ok: false, reason: "ACTOR_REQUIRED" };
+    const policy = resolutionFor(entry.collection);
+
+    if (policy === RESOLUTION.KEEP_BOTH) {
+      /* Re-queued under a NEW id and a new op id, so it lands beside the
+         server's copy instead of on top of it. Nothing is lost and nothing
+         is silently merged. */
+      return { ok: true, action: RESOLUTION.KEEP_BOTH, entry: {
+        ...entry, id: entry.id + "-dup", opId: entry.opId + "-dup",
+        state: SYNC.LOCAL, attempts: 0, baseRev: null,
+        payload: { ...entry.payload, id: entry.id + "-dup",
+          duplicateOf: entry.id, duplicateReason: "CONCURRENT_WRITE", resolvedBy: actor.id, resolvedAt: now },
+      } };
+    }
+    if (policy === RESOLUTION.SUPERSEDE) {
+      if (choice !== "mine" && choice !== "theirs") return { ok: false, reason: "CHOICE_REQUIRED" };
+      if (choice === "theirs") {
+        return { ok: true, action: RESOLUTION.SUPERSEDE, entry: null, keepServer: true };
+      }
+      /* Rebased onto the server's revision, carrying who decided and when. */
+      return { ok: true, action: RESOLUTION.SUPERSEDE, entry: {
+        ...entry, state: SYNC.LOCAL, attempts: 0, baseRev: entry.serverRev,
+        payload: { ...entry.payload, supersedes: entry.serverRev,
+          resolvedBy: actor.id, resolvedAt: now },
+      } };
+    }
+    return { ok: false, reason: "HUMAN_REQUIRED", policy };
+  }
+
+  /* =========================================================
+     ٦ · حالة الجهاز — WHAT THE USER IS TOLD
+     ========================================================= */
+
+  function outboxSummary(outbox, now) {
+    const list = outbox || [];
+    const pending = list.filter((e) => e.state === SYNC.LOCAL || e.state === SYNC.SENDING);
+    const failed = list.filter((e) => e.state === SYNC.FAILED);
+    const stuck = failed.filter(isStuck);
+    const conflicts = list.filter((e) => e.state === SYNC.CONFLICT);
+    const clinical = list.filter((e) => e.priority === 0);
+    const oldest = list.length
+      ? list.reduce((a, b) => (ms(a.queuedAt) <= ms(b.queuedAt) ? a : b)).queuedAt : null;
+    return {
+      total: list.length, pending: pending.length, failed: failed.length,
+      stuck: stuck.length, conflicts: conflicts.length, clinical: clinical.length,
+      oldestQueuedAt: oldest,
+      /* The single boolean a screen should key off. TRUE means: some of what
+         you are looking at exists only here. */
+      hasUnsynced: list.length > 0,
+      /* Loud when clinical data has been stranded long enough that the person
+         who wrote it has probably forgotten. */
+      needsAttention: stuck.length > 0 || conflicts.length > 0
+        || (clinical.length > 0 && oldest != null && ms(now) - ms(oldest) > 24 * 3600000),
+    };
+  }
+
+  /* The state of ONE record, derived from the outbox rather than stored on
+     the record. A stored flag is exactly what starts lying the moment a sync
+     fails and nobody clears it. */
+  function recordState(outbox, collection, id) {
+    const mine = (outbox || []).filter((e) => e.collection === collection && e.id === id);
+    if (!mine.length) return SYNC.SYNCED;
+    if (mine.some((e) => e.state === SYNC.CONFLICT)) return SYNC.CONFLICT;
+    if (mine.some((e) => e.state === SYNC.SENDING)) return SYNC.SENDING;
+    if (mine.some((e) => e.state === SYNC.FAILED)) return SYNC.FAILED;
+    return SYNC.LOCAL;
+  }
+
+  /* =========================================================
+     ٧ · معرّفات دون اتصال — OFFLINE IDS
+     =========================================================
+     DHIS2's pattern, which is what a national-scale system actually runs:
+     the device downloads a block of server-issued identifiers while it has a
+     connection and hands them out locally while it does not. Two clinics
+     registering a patient during the same outage cannot collide, because
+     neither is inventing numbers.
+
+     Client-side UUIDs would also not collide, but they cannot be reconciled
+     with a server-side sequence later, and they make every id opaque to the
+     humans who have to read them down a phone line.
+     ========================================================= */
+
+  const POOL_LOW = 20;
+
+  function takeId(pool) {
+    const p = pool || { ids: [], issuedAt: null };
+    if (!p.ids.length) {
+      /* NOT a silent fallback to a random id. Running out is a real
+         operational state and the app must say so rather than paper over it
+         with something the server will later reject. */
+      return { ok: false, reason: "POOL_EMPTY" };
+    }
+    const [id, ...rest] = p.ids;
+    return { ok: true, id, pool: { ...p, ids: rest }, low: rest.length <= POOL_LOW };
+  }
+  const poolNeedsRefill = (pool) => !pool || !pool.ids || pool.ids.length <= POOL_LOW;
+
+  /* =========================================================
+     ٨ · نطاق العيادة — CATCHMENT
+     =========================================================
+     Bahmni's pattern: a device syncs the patients that clinic actually sees,
+     not the national dataset. On a phone with 2 GB of storage in a clinic
+     with four hours of mains power, "download everything" is not a strategy.
+     ========================================================= */
+
+  function catchmentFilter(patients, ctx) {
+    const { facilityId, districts, sinceDays, now } = ctx || {};
+    const cutoff = sinceDays ? ms(now) - sinceDays * 86400000 : null;
+    return (patients || []).filter((p) => {
+      if (facilityId && (p.facilityIds || []).indexOf(facilityId) !== -1) return true;
+      if (districts && districts.indexOf(p.district) !== -1) return true;
+      if (cutoff && ms(p.lastSeenAt) >= cutoff) return true;
+      return false;
+    });
+  }
+
+  root.SYNC = {
+    SYNC, SYNC_LABEL, syncLabel,
+    OP, enqueue, nextBatch, priorityFor, CRITICAL_COLLECTIONS,
+    BACKOFF, MAX_ATTEMPTS, backoffFor, isDue, isStuck, markSending,
+    OUTCOME, settle,
+    RESOLUTION, IMMUTABLE_COLLECTIONS, LIST_COLLECTIONS, resolutionFor, resolveConflict,
+    outboxSummary, recordState,
+    POOL_LOW, takeId, poolNeedsRefill,
+    catchmentFilter,
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/* ============================================================
+   قريب · طبقة المساعدة — THE ASSIST LAYER
+   ============================================================
+   Section 14 of the brief, built the only way it can honestly be built today.
+
+   WHAT THIS IS.
+
+   Every statement this file produces is DERIVED BY RULE from structured data
+   already in the record, and every statement carries the ids of the records
+   it came from. Nothing is generated. Nothing is inferred by a model. If you
+   delete the record it points at, the statement disappears.
+
+   WHY IT IS NOT A LANGUAGE MODEL, AND WHY THAT IS THE POINT.
+
+   The brief says AI must never silently diagnose and must separate fact from
+   interpretation from suggestion. That separation is not a formatting
+   convention you ask a model to follow — it is a property of how the
+   statement was produced. A model asked to label its own output FACT will
+   label a hallucination FACT, confidently, and the label makes it worse
+   rather than better because it borrows the authority of the ones that are
+   true.
+
+   So the epistemic tiers here are structural:
+
+     FACT           computed arithmetically from stored values. Reproducible.
+                    Carries sourceIds. Cannot be wrong unless the data is.
+     INTERPRETATION a named, published clinical rule applied to those facts,
+                    with the rule stated. Falsifiable — you can read the rule
+                    and disagree with it.
+     SUGGESTION     a prompt to a human to look at something. Never an
+                    instruction, never a dose, never a diagnosis.
+
+   This is the boundary a real model would attach to LATER: it may summarise
+   and it may navigate, it may never author a FACT. `MODEL_BOUNDARY` below
+   states that contract in code rather than in a comment nobody reads.
+
+   ⚠ NOTHING HERE DIAGNOSES. NOTHING HERE PRESCRIBES. NOTHING HERE CLOSES A
+   FOLLOW-UP. Those three are enforced by construction: there is no code path
+   in this file that writes to the record at all.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  const E = root.EMR || {};
+  const R = root.REC || {};
+  const N = root.NET || {};
+  const ms = E.ms || ((t) => (t == null ? null : (typeof t === "number" ? t : new Date(t).getTime())));
+  const DAY = 86400000;
+
+  const TIER = { FACT: "FACT", INTERPRETATION: "INTERPRETATION", SUGGESTION: "SUGGESTION" };
+
+  const TIER_LABEL = {
+    FACT: { ar: "حقيقة", en: "Fact" },
+    INTERPRETATION: { ar: "تفسير", en: "Interpretation" },
+    SUGGESTION: { ar: "اقتراح", en: "Suggestion" },
+  };
+  const tierLabel = (t, lang) => (TIER_LABEL[t] || TIER_LABEL.FACT)[lang === "en" ? "en" : "ar"];
+
+  /* Every statement is built here so none can exist without its provenance.
+     `sourceIds` is not decoration: it is what lets a clinician get from the
+     sentence to the evidence in one tap, which is the brief's
+     SUMMARY → CAUSE → EVIDENCE principle made mechanical. */
+  function stmt(tier, ar, en, sourceIds, extra) {
+    return { tier, ar, en, sourceIds: sourceIds || [], ...(extra || {}) };
+  }
+
+  /* The contract a language model would have to satisfy to be added here.
+     Stated as data so a future integration is checked, not trusted. */
+  const MODEL_BOUNDARY = {
+    mayProduce: [TIER.SUGGESTION],
+    mayRephrase: [TIER.FACT, TIER.INTERPRETATION],   /* wording only — never the numbers */
+    mayNever: ["diagnose", "prescribe", "close-task", "write-record",
+               "assert-fact", "acknowledge-result", "grant-access"],
+    /* Any model output must arrive with the source ids it was given and must
+       not introduce new ones. An id it invented is a fabricated citation. */
+    requiresSourceIds: true,
+    /* And it must be visibly labelled as machine-written wherever it lands. */
+    requiresAttribution: true,
+  };
+
+  /* =========================================================
+     ١ · حقائق الاتجاه — TRENDS
+     =========================================================
+     The brief's own example: HbA1c 7.2 in 2024 and 9.2 in 2026 is a FACT;
+     "control appears to have worsened" is an INTERPRETATION; "consider
+     reviewing management" is a SUGGESTION. Below, each of those three is a
+     separate object with a separate justification.
+     ========================================================= */
+
+  /* A change worth mentioning at all. Below this the noise of ordinary
+     assay variation drowns the signal, and a summary that reports every
+     wobble is a summary nobody finishes reading. */
+  const MATERIAL_CHANGE_PCT = 15;
+
+  function trendStatements(record, code, now, lang) {
+    const t = N.comparableSeries ? N.comparableSeries(record.results, code)
+                                 : (E.trend ? E.trend(record.results, code) : null);
+    if (!t || !t.points || t.points.length < 2) return [];
+    const first = t.points[0], last = t.points[t.points.length - 1];
+    const name = (record.results || []).find((x) => x.code === code)?.display || code;
+    const ids = (record.results || []).filter((x) => x.code === code).map((x) => x.id).filter(Boolean);
+    const out = [];
+
+    /* FACT — arithmetic on stored values, nothing else. */
+    out.push(stmt(TIER.FACT,
+      `${name}: ${first.value} ${first.unit || ""} في ${String(first.at).slice(0, 10)}، و${last.value} ${last.unit || ""} في ${String(last.at).slice(0, 10)}.`,
+      `${name}: ${first.value} ${first.unit || ""} on ${String(first.at).slice(0, 10)}, ${last.value} ${last.unit || ""} on ${String(last.at).slice(0, 10)}.`,
+      ids, { code, from: first.value, to: last.value, unit: last.unit || null }));
+
+    /* The single most important honesty check in this file. Two analysers or
+       two units are not a trend, and saying so is more useful than a
+       confident line through incomparable numbers. */
+    if (t.mixedLabs || t.mixedUnits) {
+      out.push(stmt(TIER.FACT,
+        t.mixedUnits ? "النتائج بوحدات قياس مختلفة — المقارنة بينها غير صالحة."
+                     : "النتائج من مختبرات مختلفة — المقارنة بينها ليست موثوقة.",
+        t.mixedUnits ? "The results use different units — comparing them is not valid."
+                     : "The results come from different laboratories — comparing them is not reliable.",
+        ids, { blocksInterpretation: true }));
+      return out;   /* and NO interpretation follows. */
+    }
+
+    const delta = last.value - first.value;
+    const pct = first.value ? Math.abs(delta / first.value) * 100 : 0;
+    if (pct < MATERIAL_CHANGE_PCT) return out;
+
+    /* INTERPRETATION — the rule is named so a clinician can disagree with
+       the rule rather than with an oracle. */
+    const worse = directionIsWorse(code, delta);
+    if (worse !== null) {
+      out.push(stmt(TIER.INTERPRETATION,
+        `${name} ${delta > 0 ? "ارتفع" : "انخفض"} بنسبة ${Math.round(pct)}٪ — ${worse ? "اتجاه غير مرغوب" : "اتجاه نحو الأفضل"} حسب المدى المرجعي للمختبر.`,
+        `${name} ${delta > 0 ? "rose" : "fell"} by ${Math.round(pct)}% — ${worse ? "an unwanted direction" : "a favourable direction"} against the laboratory's own reference range.`,
+        ids, { rule: "direction-vs-reference-range", worse, changePct: Math.round(pct) }));
+
+      /* SUGGESTION — an invitation to look, never an instruction. */
+      if (worse) {
+        out.push(stmt(TIER.SUGGESTION,
+          `يستحق ${name} مراجعة مع المريض في هذه الزيارة.`,
+          `${name} is worth reviewing with the patient at this visit.`,
+          ids, { action: "review-with-patient" }));
+      }
+    }
+    return out;
+  }
+
+  /* Whether "up" is bad depends on the analyte, and we only claim to know
+     for the ones where the answer is not in dispute. Everything else returns
+     null and gets a FACT with no interpretation attached — which is the
+     correct output, not a gap to be filled with a guess. */
+  const HIGHER_IS_WORSE = ["HbA1c", "Creatinine", "LDL", "ALT", "AST", "CRP", "TSH", "Urea", "K"];
+  const LOWER_IS_WORSE = ["Hb", "eGFR", "Albumin", "HDL", "Platelets"];
+  function directionIsWorse(code, delta) {
+    if (HIGHER_IS_WORSE.indexOf(code) !== -1) return delta > 0;
+    if (LOWER_IS_WORSE.indexOf(code) !== -1) return delta < 0;
+    return null;
+  }
+
+  /* =========================================================
+     ٢ · ما ينقص — WHAT IS MISSING
+     =========================================================
+     The brief asks for "identify missing information", and absence is where
+     a rule-based layer genuinely outperforms a reader: a human skims what is
+     there, and what is not there leaves no mark on the page.
+     ========================================================= */
+
+  function gapStatements(record, now, lang) {
+    const out = [];
+    const r = record || {};
+
+    if (!(r.allergies || []).length) {
+      out.push(stmt(TIER.FACT,
+        "ما مسجّل في الملف أي حساسية — وهذا لا يعني أن المريض بلا حساسية.",
+        "No allergy is recorded — which does not mean the patient has none.",
+        [], { gap: "allergies" }));
+      out.push(stmt(TIER.SUGGESTION, "اسأل عن الحساسية وسجّلها ولو كانت لا شيء.",
+        "Ask about allergies and record the answer, including 'none known'.", [], { action: "ask-allergies" }));
+    }
+    if (!r.bloodGroup) {
+      out.push(stmt(TIER.FACT, "فصيلة الدم غير مسجّلة.", "Blood group is not recorded.",
+        [], { gap: "bloodGroup" }));
+    }
+
+    /* A chronic condition nobody has reviewed in a year and a half is not a
+       controlled condition; it is a condition nobody has looked at. */
+    const stale = (E.activeConditions ? E.activeConditions(r.conditions, now) : [])
+      .filter((c) => c.stale && c.chronic);
+    for (const c of stale) {
+      out.push(stmt(TIER.FACT,
+        `«${c.display}» مزمنة ولم تُراجَع منذ ${String(c.lastReviewed || c.onsetDate || "").slice(0, 10)}.`,
+        `"${c.display}" is chronic and has not been reviewed since ${String(c.lastReviewed || c.onsetDate || "").slice(0, 10)}.`,
+        [c.id], { gap: "stale-condition" }));
+    }
+
+    /* A medicine the record cannot vouch for. This is the honest third state
+       the medication layer carries, surfaced rather than smoothed over. */
+    const unconfirmed = (E.currentMedications ? E.currentMedications(r.medications, now) : [])
+      .filter((m) => m.status === (E.MED_STATE && E.MED_STATE.UNCONFIRMED));
+    if (unconfirmed.length) {
+      out.push(stmt(TIER.FACT,
+        `${unconfirmed.length} دواء في القائمة ما أكّده أحد من مدة — لا نعرف إن كان المريض بعده عليها.`,
+        `${unconfirmed.length} medicine(s) on the list have not been reconfirmed — whether the patient still takes them is unknown.`,
+        unconfirmed.map((m) => m.id).filter(Boolean), { gap: "unconfirmed-medications" }));
+      out.push(stmt(TIER.SUGGESTION, "راجع قائمة الأدوية مع المريض.",
+        "Reconcile the medication list with the patient.", [], { action: "reconcile-medications" }));
+    }
+
+    /* Claims read out of documents that no clinician has decided on. */
+    const awaiting = R.awaitingVerification ? R.awaitingVerification(r.documents) : [];
+    if (awaiting.length) {
+      out.push(stmt(TIER.FACT,
+        `${awaiting.length} معلومة مستخرجة من مستندات المريض لم يتحقق منها طبيب — وهي خارج السجل الرسمي.`,
+        `${awaiting.length} claim(s) extracted from the patient's documents are unverified and sit outside the record.`,
+        awaiting.map((x) => x.documentId), { gap: "unverified-claims" }));
+    }
+    return out;
+  }
+
+  /* =========================================================
+     ٣ · الحلقات المفتوحة — OPEN LOOPS
+     ========================================================= */
+
+  function loopStatements(record, now, lang) {
+    const out = [];
+    const r = record || {};
+
+    const unacked = (r.results || []).filter((x) =>
+      (E.isAbnormal ? E.isAbnormal(x) : false) && !x.acknowledgedBy);
+    for (const x of unacked.slice(0, 5)) {
+      const critical = x.flag === "critical";
+      out.push(stmt(TIER.FACT,
+        `${x.display || x.code}: ${x.value} ${x.unit || ""} في ${String(x.effectiveAt).slice(0, 10)} — خارج المدى المرجعي${critical ? " وحرجة" : ""}، ولم يُقرّها أحد.`,
+        `${x.display || x.code}: ${x.value} ${x.unit || ""} on ${String(x.effectiveAt).slice(0, 10)} — outside the reference range${critical ? " and critical" : ""}, unacknowledged.`,
+        [x.id], { loop: "unacknowledged-result", critical }));
+    }
+    if (unacked.length) {
+      out.push(stmt(TIER.SUGGESTION,
+        "أقِرّ النتائج غير الطبيعية أو دوّن سبب عدم التصرّف — الإقرار يغلق الحلقة.",
+        "Acknowledge the abnormal results or record why no action is needed — acknowledgement is what closes the loop.",
+        [], { action: "acknowledge-results" }));
+    }
+
+    const overdue = (E.openTasks ? E.openTasks(r.tasks, now) : [])
+      .filter((t) => (E.isOverdue ? E.isOverdue(t, now) : false));
+    for (const t of overdue.slice(0, 5)) {
+      out.push(stmt(TIER.FACT,
+        `مهمّة «${t.about || t.kind}» كان موعدها ${String(t.dueAt).slice(0, 10)} وما زالت مفتوحة.`,
+        `Task "${t.about || t.kind}" was due ${String(t.dueAt).slice(0, 10)} and is still open.`,
+        [t.id], { loop: "overdue-task", days: Math.round((ms(now) - ms(t.dueAt)) / DAY) }));
+    }
+
+    const netTasks = N.networkTasks ? N.networkTasks(r, now) : [];
+    for (const t of (N.overdueNetworkTasks ? N.overdueNetworkTasks(netTasks, now) : []).slice(0, 5)) {
+      out.push(stmt(TIER.FACT,
+        `${t.kind === "referral-unanswered" ? "إحالة" : "طلب"} «${t.about}» بلا رد منذ ${String(t.dueAt).slice(0, 10)}.`,
+        `${t.kind === "referral-unanswered" ? "Referral" : "Order"} "${t.about}" has had no response since ${String(t.dueAt).slice(0, 10)}.`,
+        [t.id], { loop: t.kind }));
+    }
+    return out;
+  }
+
+  /* =========================================================
+     ٤ · ملخّص التسليم — CLINICAL HANDOFF
+     =========================================================
+     Everything above, ordered by what can hurt the patient soonest, with the
+     tiers kept apart so a reader can stop at FACT and lose nothing true.
+     ========================================================= */
+
+  function handoff(patient, record, now, lang) {
+    const r = record || {};
+    const codes = [...new Set((r.results || []).map((x) => x.code).filter(Boolean))];
+    const statements = [
+      ...loopStatements(r, now, lang),
+      ...codes.flatMap((c) => trendStatements(r, c, now, lang)),
+      ...gapStatements(r, now, lang),
+    ];
+    const brief = R.preVisitBrief ? R.preVisitBrief(patient, r, now, lang) : null;
+    return {
+      patientId: patient && patient.id,
+      generatedAt: now,
+      /* The three tiers, never interleaved. A reader who trusts only the
+         first list still gets everything that is certainly true. */
+      facts: statements.filter((s) => s.tier === TIER.FACT),
+      interpretations: statements.filter((s) => s.tier === TIER.INTERPRETATION),
+      suggestions: statements.filter((s) => s.tier === TIER.SUGGESTION),
+      brief,
+      /* Carried in the data so no screen can render this without it. */
+      provenance: {
+        method: "rule-based-derivation",
+        model: null,
+        aiGenerated: false,
+        note: lang === "en"
+          ? "Derived by rule from the record's own structured data. No model wrote any of it, and nothing here is a diagnosis."
+          : "مشتق بقواعد من بيانات السجل نفسها. ما كتبه نموذج، وما في شي هنا تشخيص.",
+      },
+    };
+  }
+
+  /* =========================================================
+     ٥ · بوابة أي إخراج آلي — THE GATE
+     =========================================================
+     If a language model is ever wired in, its output passes through here or
+     it does not reach a screen. Written now, while there is no model and no
+     pressure to make an exception.
+     ========================================================= */
+
+  function admitModelOutput(out, given) {
+    if (!out || typeof out !== "object") return { ok: false, reason: "NO_OUTPUT" };
+    if (MODEL_BOUNDARY.mayProduce.indexOf(out.tier) === -1) {
+      return { ok: false, reason: "TIER_NOT_PERMITTED", tier: out.tier };
+    }
+    if (MODEL_BOUNDARY.requiresSourceIds) {
+      const ids = out.sourceIds || [];
+      if (!ids.length) return { ok: false, reason: "SOURCE_IDS_REQUIRED" };
+      /* An id the model produced that it was not given is a fabricated
+         citation — the failure mode that makes machine summaries dangerous
+         precisely because they look sourced. */
+      const allowed = new Set(given || []);
+      const invented = ids.filter((i) => !allowed.has(i));
+      if (invented.length) return { ok: false, reason: "FABRICATED_SOURCE", ids: invented };
+    }
+    return { ok: true, statement: { ...out, aiGenerated: true,
+      attribution: { machine: true, reviewed: false } } };
+  }
+
+  root.ASSIST = {
+    TIER, TIER_LABEL, tierLabel, MODEL_BOUNDARY, MATERIAL_CHANGE_PCT,
+    HIGHER_IS_WORSE, LOWER_IS_WORSE, directionIsWorse,
+    trendStatements, gapStatements, loopStatements, handoff, admitModelOutput,
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);
 
@@ -3594,7 +4996,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260729-1053",
+  build: "20260729-1114",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,

@@ -79,6 +79,31 @@
 
   const DEFAULT_SCOPES = [SCOPE.SUMMARY, SCOPE.ALLERGIES, SCOPE.MEDICATIONS, SCOPE.CONDITIONS];
 
+  /* ---------- THE EMERGENCY DATASET ----------
+     What an unconscious patient's care actually requires, and no more.
+
+     This list was WRONG until it was written down. Break-glass used to open
+     the entire record, on the reasoning that an emergency is no time for
+     permissions — which sounds right and is not. Australia's My Health Record
+     emergency-access literature is clear on the mechanism: an override that
+     grants everything is an override that gets used for convenience, because
+     the cost of invoking it is the same whether you needed a blood group or
+     wanted to read a psychiatric admission. Restricting what it opens is what
+     keeps it an emergency tool instead of a universal key with a form
+     attached.
+
+     So there are two tiers. Tier 1 is these scopes, reachable in one action
+     with a stated reason. Tier 2 is the rest of the record, and it requires a
+     SECOND deliberate escalation with its own justification, a shorter clock
+     and a louder notification. A resuscitation needs tier 1 and gets it
+     instantly; reading last year's clinic letters needs tier 2 and should
+     feel like it. */
+  const EMERGENCY_SCOPES = [SCOPE.ALLERGIES, SCOPE.MEDICATIONS, SCOPE.CONDITIONS, SCOPE.SUMMARY];
+  const EMERGENCY_TIER = { CRITICAL: "critical", FULL: "full" };
+  /* Tier 2 is deliberately shorter than tier 1: the broader the access, the
+     less of it there should be. */
+  const EMERGENCY_MINUTES = { critical: 60, full: 30 };
+
   /* =========================================================
      ٢ · مدد المشاركة — DURATIONS
      ========================================================= */
@@ -227,10 +252,24 @@
 
     /* An emergency override is checked BEFORE the share, not after, because
        the entire reason it exists is that no share was granted. It is
-       time-boxed by emr.js and it notifies the patient. */
+       time-boxed by emr.js and it notifies the patient.
+
+       What it opens depends on its TIER, and tier 1 — the one that is one
+       action away — opens the emergency dataset only. */
     if (breakGlass && E.breakGlassActive && E.breakGlassActive(breakGlass, now)) {
-      return { ok: true, basis: "BREAK_GLASS", scopes: ALL_SCOPES,
-        sensitive: true, mustNotify: true, auditRequired: true };
+      const full = breakGlass.tier === EMERGENCY_TIER.FULL;
+      const scopes = full ? ALL_SCOPES : EMERGENCY_SCOPES;
+      if (scope && scopes.indexOf(scope) === -1) {
+        return { ok: false, basis: "BREAK_GLASS", reason: "BEYOND_EMERGENCY_DATASET",
+          scopes, escalationAvailable: true, auditRequired: true, mustNotify: true };
+      }
+      if (dataClass && SENSITIVE_CLASSES.indexOf(dataClass) !== -1 && !full) {
+        return { ok: false, basis: "BREAK_GLASS", reason: "SENSITIVE_NEEDS_ESCALATION",
+          scopes, escalationAvailable: true, auditRequired: true, mustNotify: true };
+      }
+      return { ok: true, basis: "BREAK_GLASS", tier: breakGlass.tier || EMERGENCY_TIER.CRITICAL,
+        scopes, sensitive: full, mustNotify: true, auditRequired: true,
+        expiresAt: breakGlass.expiresAt };
     }
 
     const share = (shares || []).find((s) => s.granteeId === actor.id && s.patientId === patientId
@@ -271,21 +310,58 @@
      is the question a patient in a small city actually has.
      ========================================================= */
 
+  /* An audit entry must answer six questions, not three. The first version
+     answered WHO, WHAT and WHEN — which is enough to render a list and not
+     enough to investigate anything. "Dr X viewed medications on Tuesday"
+     cannot distinguish a legitimate consultation from a colleague looking up
+     a neighbour, and that distinction is the entire reason the log exists.
+
+       WHO      actor + role + organisation
+       WHAT     scope + data class
+       WHEN     at
+       WHY      purpose — what the actor said they were doing
+       WHERE    context — device, facility, channel
+       UNDER
+       WHICH    authority — the share id, the emergency grant, or nothing
+       AUTH
+
+     `purpose` is carried from the access request the patient approved, so
+     the reason in the log is the same sentence the patient read before
+     saying yes — not a category picked afterwards from a dropdown. */
   function accessEntry(ctx, decision, now) {
-    const { actor, patientId, scope, dataClass } = ctx || {};
+    const { actor, patientId, scope, dataClass, purpose, context } = ctx || {};
+    const d = decision || {};
     return {
+      /* WHO */
       patientId,
       actorId: actor && actor.id || null,
       actorName: actor && actor.name || null,
       actorRole: actor && actor.role || null,
+      staffRole: actor && actor.staffRole || null,
       organizationId: actor && actor.organizationId || null,
+      /* WHAT */
       scope: scope || null,
       dataClass: dataClass || null,
-      granted: !!(decision && decision.ok),
-      basis: decision && decision.basis || null,
-      reason: decision && decision.reason || null,
-      shareId: decision && decision.shareId || null,
+      /* WHEN */
       at: now,
+      /* WHY */
+      purpose: purpose || null,
+      /* WHERE — never an IP address. In a country with no data protection
+         law, a table linking clinicians to network locations is its own
+         hazard; facility and device class answer the investigative question
+         without building that. */
+      context: context ? { facilityId: context.facilityId || null,
+        deviceId: context.deviceId || null, channel: context.channel || null } : null,
+      /* UNDER WHICH AUTHORISATION */
+      granted: !!d.ok,
+      basis: d.basis || null,
+      authority: d.basis === "SHARE" ? { kind: "SHARE", id: d.shareId || null, expiresAt: d.expiresAt || null }
+        : d.basis === "BREAK_GLASS" ? { kind: "BREAK_GLASS", tier: d.tier || EMERGENCY_TIER.CRITICAL,
+            expiresAt: d.expiresAt || null }
+        : d.basis === "SELF" ? { kind: "SELF" }
+        : null,
+      reason: d.reason || null,
+      shareId: d.shareId || null,
     };
   }
 
@@ -475,8 +551,64 @@
   };
   const scopeLabel = (s, lang) => (SCOPE_LABEL[s] || { ar: s, en: s })[lang === "en" ? "en" : "ar"];
 
+  /* =========================================================
+     ١٢ · تصعيد الطوارئ — EMERGENCY ESCALATION
+     =========================================================
+     Getting from tier 1 to tier 2 is a separate, deliberate act with its own
+     justification. It cannot be reached by retrying tier 1.
+     ========================================================= */
+
+  function escalateEmergency(grant, reason, actor, now) {
+    if (!grant) return { ok: false, reason: "NO_GRANT" };
+    if (grant.tier === EMERGENCY_TIER.FULL) return { ok: false, reason: "ALREADY_FULL" };
+    if (!actor || actor.id !== grant.actorId) return { ok: false, reason: "SAME_ACTOR_REQUIRED" };
+    if (!E.breakGlassActive || !E.breakGlassActive(grant, now)) return { ok: false, reason: "GRANT_EXPIRED" };
+    /* The tier-1 reason does not carry over. Opening the whole record needs
+       its own sentence, because the two decisions are not the same decision. */
+    const r = txt(reason);
+    if (r.length < 15) return { ok: false, reason: "ESCALATION_REASON_REQUIRED" };
+    return { ok: true, grant: { ...grant, tier: EMERGENCY_TIER.FULL,
+      escalatedAt: now, escalationReason: r,
+      /* The clock RESTARTS shorter, not longer. */
+      expiresAt: ms(now) + EMERGENCY_MINUTES.full * MIN,
+      notifyPatient: true, notifyCompliance: true } };
+  }
+
+  /* What tier 1 actually renders: the card an ambulance crew needs, built
+     from the record rather than authored separately so it cannot go stale. */
+  function emergencyCard(patient, record, now, lang) {
+    const ar = lang !== "en";
+    const r = record || {};
+    return {
+      name: E.fullName ? E.fullName(patient) : (patient && patient.name) || null,
+      age: E.ageOf ? E.ageOf(patient && patient.birthDate, now) : null,
+      sex: (patient && patient.sex) || null,
+      bloodGroup: r.bloodGroup || null,
+      allergies: (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []))
+        .map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      criticalMedications: (E.currentMedications ? E.currentMedications(r.medications, now) : [])
+        .filter((m) => m.anticoagulant || m.insulin || m.steroid || m.critical)
+        .map((m) => ({ display: m.display, dose: m.dose || null })),
+      majorConditions: (E.activeConditions ? E.activeConditions(r.conditions, now) : [])
+        .filter((c) => c.chronic).map((c) => c.display),
+      warnings: r.clinicalWarnings || [],
+      emergencyContact: (patient && patient.emergencyContact) || null,
+      /* Absence is stated, not left blank — a blank blood group and an
+         unrecorded one look identical on a screen and mean opposite things
+         at a trauma bay. */
+      notRecorded: [
+        !r.bloodGroup && (ar ? "فصيلة الدم غير مسجّلة" : "blood group not recorded"),
+        !(r.allergies || []).length && (ar ? "الحساسية غير مسجّلة — وهذا لا يعني عدمها"
+                                           : "allergies not recorded — which does not mean none"),
+        !(patient && patient.emergencyContact) && (ar ? "ما في جهة اتصال طوارئ"
+                                                      : "no emergency contact"),
+      ].filter(Boolean),
+    };
+  }
+
   root.CONSENT = {
     SCOPE, ALL_SCOPES, DEFAULT_SCOPES, SAFETY_FLOOR, SENSITIVE_CLASSES,
+    EMERGENCY_SCOPES, EMERGENCY_TIER, EMERGENCY_MINUTES, escalateEmergency, emergencyCard,
     DURATION, MAX_DURATION_MS, MODALITY, TERMS_VERSION,
     SHARE_STATE, canGrant, grantShare, grantSensitive,
     shareState, isShareActive, revokeShare, activeShares, expiringSoon,

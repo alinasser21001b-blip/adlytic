@@ -420,15 +420,62 @@ it("the patient always reaches their own record", () => {
   ok(d.ok); eq(d.basis, "SELF");
 });
 
-it("break-glass opens what no share covers — and forces a notification", () => {
-  const bg = E.breakGlass({ id: "DR-7", role: E.ROLE.DOCTOR }, PT, "إنعاش — المريض فاقد الوعي", NOW).grant;
-  const d = C.decideAccess({ actor: { id: "DR-7", role: E.ROLE.DOCTOR }, patientId: PT,
-    scope: C.SCOPE.LABS, dataClass: E.CLASS.SENSITIVE, shares: [], breakGlass: bg, now: NOW });
-  ok(d.ok); eq(d.basis, "BREAK_GLASS");
+const ER = { id: "DR-7", role: E.ROLE.DOCTOR, name: "د. طوارئ" };
+const bgGrant = () => E.breakGlass(ER, PT, "إنعاش — المريض فاقد الوعي", NOW).grant;
+
+it("tier 1 opens the emergency dataset in one action — and forces a notification", () => {
+  const d = C.decideAccess({ actor: ER, patientId: PT, scope: C.SCOPE.ALLERGIES,
+    shares: [], breakGlass: bgGrant(), now: NOW });
+  ok(d.ok); eq(d.basis, "BREAK_GLASS"); eq(d.tier, C.EMERGENCY_TIER.CRITICAL);
   ok(d.mustNotify, "the patient learns about it — that is what makes it survivable");
-  no(C.decideAccess({ actor: { id: "DR-7", role: E.ROLE.DOCTOR }, patientId: PT,
-    scope: C.SCOPE.LABS, shares: [], breakGlass: bg, now: NOW + 2 * HOUR }).ok,
-    "and it closes on its own");
+});
+
+it("tier 1 does NOT open the whole record — that was the bug", () => {
+  /* An override that grants everything gets used for convenience, because
+     invoking it costs the same whether you needed a blood group or wanted to
+     read a psychiatric admission. */
+  const bg = bgGrant();
+  const labs = C.decideAccess({ actor: ER, patientId: PT, scope: C.SCOPE.LABS,
+    shares: [], breakGlass: bg, now: NOW });
+  no(labs.ok); eq(labs.reason, "BEYOND_EMERGENCY_DATASET");
+  ok(labs.escalationAvailable, "but the door is named, not hidden");
+
+  const sens = C.decideAccess({ actor: ER, patientId: PT, scope: C.SCOPE.SUMMARY,
+    dataClass: E.CLASS.SENSITIVE, shares: [], breakGlass: bg, now: NOW });
+  no(sens.ok); eq(sens.reason, "SENSITIVE_NEEDS_ESCALATION");
+});
+
+it("escalating to tier 2 needs its OWN justification, not a retry", () => {
+  const bg = bgGrant();
+  eq(C.escalateEmergency(bg, "لازم", ER, NOW).reason, "ESCALATION_REASON_REQUIRED");
+  eq(C.escalateEmergency(bg, "أحتاج التاريخ الكامل قبل التخدير", { id: "DR-9" }, NOW).reason,
+    "SAME_ACTOR_REQUIRED", "a colleague cannot widen someone else's override");
+  const up = C.escalateEmergency(bg, "أحتاج التاريخ الكامل قبل التخدير الطارئ", ER, NOW);
+  ok(up.ok);
+  eq(up.grant.tier, C.EMERGENCY_TIER.FULL);
+  ok(C.decideAccess({ actor: ER, patientId: PT, scope: C.SCOPE.LABS,
+    shares: [], breakGlass: up.grant, now: NOW }).ok, "now the rest opens");
+});
+
+it("the broader tier lasts LESS time, not more", () => {
+  const bg = bgGrant();
+  const up = C.escalateEmergency(bg, "أحتاج التاريخ الكامل قبل التخدير الطارئ", ER, NOW).grant;
+  ok(up.expiresAt - NOW < bg.expiresAt - NOW,
+    "the wider the access, the less of it there should be");
+});
+
+it("emergency access closes on its own either way", () => {
+  no(C.decideAccess({ actor: ER, patientId: PT, scope: C.SCOPE.ALLERGIES,
+    shares: [], breakGlass: bgGrant(), now: NOW + 2 * HOUR }).ok);
+});
+
+it("the emergency card states what is NOT recorded rather than leaving it blank", () => {
+  const card = C.emergencyCard({ id: PT, name: "علي", birthDate: "1981-03-11", sex: "male" },
+    { allergies: [], medications: [], conditions: [] }, NOW);
+  eq(card.bloodGroup, null);
+  ok(card.notRecorded.some((x) => x.includes("فصيلة الدم")),
+    "a blank blood group and an unrecorded one look identical and mean opposite things at a trauma bay");
+  ok(card.notRecorded.some((x) => x.includes("لا يعني عدمها")));
 });
 
 /* ==================== ACCESS LOG ==================== */

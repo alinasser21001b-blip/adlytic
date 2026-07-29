@@ -493,19 +493,35 @@ step("زينب تقدر تلغي أي مشاركة فوراً وبلا سبب", 
   no(read(DR_LAYTH, C.SCOPE.SUMMARY, null, at(258)).ok);
 });
 
-step("طوارئ: لو كانت فاقدة الوعي يُفتح الملف — وتُبلَّغ", () => {
-  const g = E.breakGlass({ id: "DR-ER", role: E.ROLE.DOCTOR }, db.patient.id,
-    "حادث — فاقدة الوعي", at(260));
+step("طوارئ: لو كانت فاقدة الوعي تُفتح بطاقة الطوارئ — لا الملف كله", () => {
+  const ER = { id: "DR-ER", role: E.ROLE.DOCTOR, name: "د. طوارئ" };
+  const g = E.breakGlass(ER, db.patient.id, "حادث — فاقدة الوعي", at(260));
   ok(g.ok);
   db.breakGlass = g.grant;
-  const d = read({ id: "DR-ER", role: E.ROLE.DOCTOR }, C.SCOPE.LABS, E.CLASS.SENSITIVE, at(260));
-  ok(d.ok);
-  ok(d.mustNotify, "what makes emergency access survivable is that she learns about it");
+  /* Tier 1 gives what an unconscious patient's care needs. */
+  const card = read(ER, C.SCOPE.ALLERGIES, null, at(260));
+  ok(card.ok);
+  eq(card.tier, C.EMERGENCY_TIER.CRITICAL);
+  ok(card.mustNotify, "what makes emergency access survivable is that she learns about it");
+  /* And not a word more without a second, separate decision. */
+  const labs = read(ER, C.SCOPE.LABS, null, at(260));
+  no(labs.ok, "an override that opens everything is a universal key with a form attached");
+  eq(labs.reason, "BEYOND_EMERGENCY_DATASET");
   const alerts = C.accessAlerts(db.accessLog, at(260));
   ok(alerts.some((a) => a.kind === "BREAK_GLASS"));
 });
 
-step("وصول الطوارئ ينغلق وحده بعد ساعة", () => {
+step("والتصعيد للملف الكامل قرار ثانٍ بمبرّر خاص به — ومدّته أقصر", () => {
+  const ER = { id: "DR-ER", role: E.ROLE.DOCTOR, name: "د. طوارئ" };
+  const up = C.escalateEmergency(db.breakGlass, "أحتاج التاريخ الكامل قبل التخدير الطارئ", ER, at(260));
+  ok(up.ok);
+  ok(up.grant.expiresAt - at(260) < db.breakGlass.expiresAt - at(260),
+    "the wider the access, the less of it there should be");
+  db.breakGlass = up.grant;
+  ok(read(ER, C.SCOPE.LABS, null, at(260)).ok);
+});
+
+step("وصول الطوارئ ينغلق وحده", () => {
   no(read({ id: "DR-ER", role: E.ROLE.DOCTOR }, C.SCOPE.LABS, null, at(260) + 2 * HOUR).ok);
 });
 

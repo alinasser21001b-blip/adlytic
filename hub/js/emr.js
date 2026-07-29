@@ -834,6 +834,14 @@
     return { ok: true, grant: {
       actorId: principal.id, role: principal.role, patientId, reason: r,
       at, expiresAt: at + BREAK_GLASS_MINUTES * 60000,
+      /* Tier 1 by default and always. What this opens is the emergency
+         dataset — allergies, current medicines, major conditions, the
+         summary — not the record. Reaching the rest is a second, separate
+         act of escalation with its own justification; see
+         CONSENT.escalateEmergency. An override that grants everything in one
+         action is a universal key with a form attached, and it gets used for
+         convenience because invoking it costs the same either way. */
+      tier: "critical",
       notifyPatient: true, notifyCompliance: true, audit: "BREAK_GLASS",
     } };
   }
@@ -1054,7 +1062,7 @@
   }
 
   root.EMR = {
-    ID_TYPE, canRegister, isIdentityBearing, identifiersOf,
+    ID_TYPE, canRegister, isIdentityBearing, identifiersOf, idOf,
     ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
     MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
     matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
