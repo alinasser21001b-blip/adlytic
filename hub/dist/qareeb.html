@@ -5334,7 +5334,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260729-1145",
+  build: "20260729-1147",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
@@ -6015,6 +6015,10 @@ const ADMIN_STATS = {
 };
 
 </script>
+  <!-- ORDER IS LOAD-BEARING. These are classic scripts sharing one global
+       lexical scope, split from a single file at its own section comments.
+       The sequence is the original file's sequence; reordering reintroduces
+       the temporal dead zone that whole-file function hoisting used to hide. -->
   <script>
 /* ============================================================
    QAREEB — قريب  ·  Application
@@ -6776,6 +6780,22 @@ function nav(active) {
   return `<nav class="nav">${items.map(([h, i, k]) =>
     `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
 }
+
+</script>
+  <script>
+/* ============================================================
+   قريب · الاكتشاف — HOME · ROLES · DOCTOR · PHARMACY · MEDICINE · EXPLORER
+   ============================================================
+   Split out of one 5890-line js/app.js. These are CLASSIC SCRIPTS loaded in
+   sequence, not modules: every top-level const, let and function still shares
+   one global lexical scope, so the files see each other exactly as the single
+   file's sections did. The ORDER in index.html is therefore load-bearing and
+   is the original order of the file — changing it reintroduces the temporal
+   dead zone that a single script's function hoisting used to hide.
+
+   Nothing here was rewritten. The cut points are the section comments that
+   were already in the file; the code between them is byte-identical.
+   ============================================================ */
 
 /* ---------------- SCREENS ---------------- */
 /* ---------------- v3 · HOME · 4d ----------------
@@ -9813,6 +9833,23 @@ function updateUserTrustScore(event, meta = {}) {
 
 /* Simulated OTP. Six digits, generated and shown on screen, labelled as a
    prototype. Nothing is sent anywhere. */
+
+</script>
+  <script>
+/* ============================================================
+   قريب · الخادم من جهة العميل — MODE · DATA PLANE · AUTH · AUDIT
+   ============================================================
+   Split out of one 5890-line js/app.js. These are CLASSIC SCRIPTS loaded in
+   sequence, not modules: every top-level const, let and function still shares
+   one global lexical scope, so the files see each other exactly as the single
+   file's sections did. The ORDER in index.html is therefore load-bearing and
+   is the original order of the file — changing it reintroduces the temporal
+   dead zone that a single script's function hoisting used to hide.
+
+   Nothing here was rewritten. The cut points are the section comments that
+   were already in the file; the code between them is byte-identical.
+   ============================================================ */
+
 /* ================= BACKEND MODE =================
    The app runs in one of two modes and must never be vague about which.
 
@@ -10235,6 +10272,22 @@ function submitAuth() {
 }
 
 function signOut() { LS.set("auth", null); toast(isAR() ? "خرجت" : "Signed out"); render(); }
+
+</script>
+  <script>
+/* ============================================================
+   قريب · طلب الدواء — PUBLISH · TRACK · CONTACT · RADAR · PARTNER
+   ============================================================
+   Split out of one 5890-line js/app.js. These are CLASSIC SCRIPTS loaded in
+   sequence, not modules: every top-level const, let and function still shares
+   one global lexical scope, so the files see each other exactly as the single
+   file's sections did. The ORDER in index.html is therefore load-bearing and
+   is the original order of the file — changing it reintroduces the temporal
+   dead zone that a single script's function hoisting used to hide.
+
+   Nothing here was rewritten. The cut points are the section comments that
+   were already in the file; the code between them is byte-identical.
+   ============================================================ */
 
 /* ---------------- /need/new · publishing a need ----------------
    Not a form. A person hunting a rare medicine is already tired, so this
@@ -11650,6 +11703,22 @@ function partnerTier(ent) {
       ? "السعر مبدئي — يُثبَّت قبل الإطلاق." : "Indicative price — fixed before launch."}</p>
   </div>`;
 }
+
+</script>
+  <script>
+/* ============================================================
+   قريب · الأفعال والموجّه — ACTIONS · ROUTER · RENDER · BOOT
+   ============================================================
+   Split out of one 5890-line js/app.js. These are CLASSIC SCRIPTS loaded in
+   sequence, not modules: every top-level const, let and function still shares
+   one global lexical scope, so the files see each other exactly as the single
+   file's sections did. The ORDER in index.html is therefore load-bearing and
+   is the original order of the file — changing it reintroduces the temporal
+   dead zone that a single script's function hoisting used to hide.
+
+   Nothing here was rewritten. The cut points are the section comments that
+   were already in the file; the code between them is byte-identical.
+   ============================================================ */
 
 /* ---------------- ACTIONS ---------------- */
 function pickNeed(spec) {
