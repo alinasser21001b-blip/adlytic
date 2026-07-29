@@ -167,6 +167,7 @@ function screenNeedNew(qs) {
         capped ? (isAR() ? "وصلت الحد الأقصى" : "You've hit the limit")
         : isAuthed() ? (isAR() ? "انشر الطلب" : "Publish the request")
         : (isAR() ? "تحقّق وانشر" : "Verify and publish")}</button>
+      <div class="t3" id="pubwhy" style="margin-top:8px">${esc(capped ? "" : missingLine(d))}</div>
       ${capped ? `<div class="note note-w" style="margin-top:12px"><span>${isAR()
         ? `عندك <b class="num">${active}</b> طلبات نشطة، وهذا الحد. سكّر واحداً من «طلباتي» — الحد موجود حتى ينتبه الصيدلاني للطلبات الحقيقية.`
         : `You have <b class="num">${active}</b> active requests, which is the cap. Close one from My requests — the cap exists so pharmacists keep paying attention to real ones.`}</span></div>`
@@ -192,18 +193,38 @@ function screenNeedNew(qs) {
    re-render (tap urgency, lose your publish button), and a Baghdad draft
    with no district went ENABLED on re-render, past the guard. One predicate,
    called from both places, is the only way two answers cannot drift. */
-function draftReady(d) {
-  if (!d) return false;
-  const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  const locOk = d.city !== "baghdad" || !!d.district;
-  return medOk && locOk && !!String(d.qty || "").trim();
+/* WHAT is missing, not merely THAT something is. A greyed-out button with no
+   explanation is a dead end wearing the costume of a control: the user can
+   see the way forward and cannot tell why it is shut. `draftReady` is
+   `draftMissing().length === 0` so the button state and the explanation can
+   never disagree — they were two separate expressions before, and two
+   expressions of the same rule are two chances to drift. */
+function draftMissing(d) {
+  if (!d) return [["الدواء", "the medicine"]];
+  const out = [];
+  if (!d.v && !(d.manual && String(d.manual.name || "").trim().length >= 3))
+    out.push(["الدواء", "the medicine"]);
+  /* district data exists for Baghdad only, so only Baghdad can be asked */
+  if (d.city === "baghdad" && !d.district) out.push(["منطقتك", "your district"]);
+  if (!String(d.qty || "").trim()) out.push(["الكمية", "the quantity"]);
+  return out;
+}
+const draftReady = (d) => draftMissing(d).length === 0;
+
+function missingLine(d) {
+  const m = draftMissing(d);
+  if (!m.length) return "";
+  const parts = m.map((x) => (isAR() ? x[0] : x[1]));
+  const list = parts.length === 1 ? parts[0]
+    : parts.slice(0, -1).join(isAR() ? "، " : ", ") + (isAR() ? " و" : " and ") + parts[parts.length - 1];
+  return isAR() ? `باقي ${list}.` : `Still need ${list}.`;
 }
 
 function syncPublish() {
   const b = document.getElementById("pubbtn"); if (!b) return;
   const d = S.draft || {};
-  const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  const locOk = d.city !== "baghdad" || !!d.district;   /* district data exists for Baghdad only */
+  const why = document.getElementById("pubwhy");
+  if (why) why.textContent = missingLine(d);
   b.disabled = !draftReady(d) || myActiveNeeds().length >= MAX_ACTIVE_NEEDS;
 }
 
@@ -229,10 +250,38 @@ function typedLooksControlled(name) {
   ) || null;
 }
 
+/* Point the user AT the thing that is missing. A toast that says "pick a
+   quantity" while the quantity field is two screens down is only half an
+   answer on a phone. */
+function scrollToFirst(sel) {
+  const el = document.querySelector(sel);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (typeof el.focus === "function" && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+    setTimeout(() => el.focus({ preventScroll: true }), 220);
+  }
+}
+
 function publishNeed() {
   const d = S.draft; if (!d) return;
   const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  if (!medOk || !d.qty.trim()) return;
+  /* This used to be `if (!medOk || !d.qty.trim()) return;` — a bare return on
+     the guard an incomplete form hits FIRST and most often. Tapping the
+     primary action of the whole flow produced no toast, no message, no
+     movement: total silence, which a user reads as a broken app rather than
+     as an unfinished form. Every other guard in this function speaks; this
+     one now says which part is missing, because "something is wrong" is not
+     an answer a person can act on. */
+  if (!medOk) {
+    toast(isAR() ? "اختر الدواء أو اكتب اسمه" : "Choose the medicine, or type its name");
+    scrollToFirst("#manual-name, a[href='#/rx']");
+    return;
+  }
+  if (!d.qty.trim()) {
+    toast(isAR() ? "شكد تحتاج؟ اختر الكمية" : "How much do you need? Pick a quantity");
+    scrollToFirst("#qty");
+    return;
+  }
 
   /* CONTROLLED: refused before anything is written, and the refusal is the
      domain layer's, not this screen's. The patient is not left at a dead end

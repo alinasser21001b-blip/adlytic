@@ -45,7 +45,7 @@
     const d = LS.get(KEY, null);
     return d || { patient: null, conditions: [], medications: [], allergies: [], procedures: [],
       results: [], documents: [], immunizations: [], encounters: [], prescriptions: [],
-      episodes: [], tasks: [], appointments: [], shares: [], accessLog: [], requests: [] };
+      vitals: [], episodes: [], tasks: [], appointments: [], shares: [], accessLog: [], requests: [] };
   }
   const save = (d) => LS.set(KEY, d);
   function mutate(fn) { const d = store(); fn(d); save(d); return d; }
@@ -121,6 +121,7 @@
           <a class="chip" href="#/record/add/medication">${icon("pill")}${T("دواء", "Medicine")}</a>
           <a class="chip" href="#/record/add/condition">${icon("stetho")}${T("مشكلة صحية", "Condition")}</a>
           <a class="chip" href="#/record/add/document">${icon("cal")}${T("تقرير عندي", "A report I have")}</a>
+          <a class="chip" href="#/record/add/vital">${icon("gauge")}${T("قياس", "A measurement")}</a>
         </div>
       </div>
 
@@ -143,6 +144,7 @@
           ${tile("#/record/documents", T("التقارير والمستندات", "Documents"), (d.documents || []).length)}
           ${tile("#/record/procedures", T("العمليات السابقة", "Previous procedures"), (d.procedures || []).length)}
           ${tile("#/record/immunizations", T("التطعيمات", "Immunizations"), prof.immunizations)}
+          ${tile("#/record/vitals", T("القياسات — ضغط، وزن، سكر", "Measurements — BP, weight, sugar"), (d.vitals || []).length)}
         </div>
       </div>
 
@@ -393,6 +395,7 @@
       case "request": return screenAccessRequest(d, id);
       case "sync": return screenSync(d);
       case "signin": return screenSignin(d);
+      case "vitals": return listVitals(d);
       case "profile": return screenProfile(d);
       default: return screen404();
     }
@@ -510,6 +513,57 @@
         "The trend matters more than any single number — but two laboratories do not draw one confident line."));
   }
 
+  /* ---------- vital signs ----------
+     The cheapest longitudinal signal a patient can carry. A home BP cuff and
+     a bathroom scale are ordinary in Iraqi households, they are exactly what
+     a hypertension or diabetes follow-up turns on, and until now there was
+     nowhere to put the numbers where a doctor would ever see them.
+
+     Blood pressure is shown as ONE reading. FHIR splits it into two
+     Observations on the wire and `bloodPressure()` pairs them back, because a
+     systolic on one row and a diastolic three rows below is not a blood
+     pressure, it is two numbers. */
+  function listVitals(d) {
+    const all = d.vitals || [];
+    const bp = E().bloodPressure(all);
+    const others = E().latestVitals(all.filter((v) => v.kind !== E().VITAL.BP_SYS && v.kind !== E().VITAL.BP_DIA));
+    const lastBp = bp[0];
+
+    const vitalRow = (v) => `<div class="rw"><div style="width:100%">
+        <div class="rowb"><b>${esc(E().vitalLabel(v.kind, ar()))}</b>
+          <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+        <div class="rowb" style="margin-top:5px">
+          <span class="t3">${n(String(v.effectiveAt || "").slice(0, 10))}</span>
+          <span>${flagChip(v.flag)}</span></div>
+        ${rangeLine(v) ? `<div class="t3" style="margin-top:4px">${rangeLine(v)}</div>` : ""}
+        ${selfReported(v) ? `<div style="margin-top:5px">${selfReported(v)}</div>` : ""}
+      </div></div>`;
+
+    return page(T("القياسات", "Measurements"),
+      `${lastBp ? `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
+            <span class="st ${lastBp.abnormal ? "st-e" : "st-v"}">${n(lastBp.systolic.value)} / ${
+              lastBp.diastolic ? n(lastBp.diastolic.value) : "—"} ${esc(lastBp.systolic.unit)}</span></div>
+          <div class="rowb" style="margin-top:5px">
+            <span class="t3">${n(String(lastBp.at || "").slice(0, 10))}</span>
+            <span>${lastBp.abnormal ? `<span class="st st-e">${T("خارج المعتاد", "outside the usual range")}</span>`
+              : `<span class="st st-v">${T("ضمن المعتاد", "within the usual range")}</span>`}</span></div>
+          <div class="t3" style="margin-top:4px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${n(130)} / ${n(85)}</div>
+          ${bp.length > 1 ? `<div class="t3" style="margin-top:8px">${T("قراءات سابقة", "Earlier readings")}</div>
+            ${bp.slice(1, 4).map((x) => `<div class="rowb" style="margin-top:4px">
+              <span class="t3">${n(String(x.at).slice(0, 10))}</span>
+              <span class="t3">${n(x.systolic.value)} / ${x.diastolic ? n(x.diastolic.value) : "—"}</span></div>`).join("")}` : ""}
+        </div></div>` : ""}
+      ${others.length ? `<div class="stack-2">${others.map(vitalRow).join("")}</div>` : ""}
+      ${!lastBp && !others.length ? empty(T("ما سجّلت أي قياس بعد", "No measurements recorded yet")) : ""}
+      ${addButton("vital", T("سجّل قياساً", "Record a measurement"))}
+      <div class="note" style="margin-top:14px">${icon("info")}<div>${T(
+        "الوزن والطول ما إلهم «طبيعي» — القياس يُسجَّل، والحكم عليه شغل طبيبك، مو شغل التطبيق.",
+        "Weight and height have no 'normal' here. The measurement is recorded; judging it is your doctor's job, not the app's.")}</div></div>`,
+      T("قياس البيت مفيد بس إذا انكتب. جهاز ضغط بالبيت ودفتر ما يقراه أحد ما يساوي ملف — هذا يوصل طبيبك.",
+        "A home reading only helps if it is written down. A cuff at home and a notebook nobody reads is not a record — this reaches your doctor."));
+  }
+
   function listDocuments(d) {
     const docs = d.documents || [];
     return page(T("التقارير والمستندات", "Documents"),
@@ -603,19 +657,75 @@
   };
   const taskLabel = (k) => (TASK_LABELS[k] || [k, k])[ar() ? 0 : 1];
 
-  /* ---------- timeline (§9) ---------- */
+  /* ---------- timeline (§9) ----------
+
+     This screen showed "the timeline fills as visits are recorded" on a
+     record holding seven events, for as long as it has existed. Two bugs,
+     stacked, neither of which could throw:
+
+       `timelineByEpisode` returns `{ episodes, unassigned }`, an object. The
+       caller did `Array.isArray(byEp) ? byEp : []`, so `groups` was ALWAYS
+       the empty array and the empty state ALWAYS rendered. A defensive
+       fallback around a wrong assumption is indistinguishable from an empty
+       record.
+
+       And under it, `eventRow` read `e.kind` and `e.label`, while
+       `buildTimeline` emits `type` and `title`. Even with the first bug
+       fixed, every row would have printed a blank label under a blank kind.
+
+     The answer to "what happened to my health over time" is chronological
+     first and episode-second: a person scanning their own record is looking
+     for WHEN, and a year they can find is worth more than a care episode
+     they have to reconstruct. Episodes still label the events that belong to
+     one, in the row, where it costs nothing. */
   function screenTimeline(d) {
-    const byEp = E().timelineByEpisode({ ...d, patientId: d.patient.id });
-    const groups = Array.isArray(byEp) ? byEp : [];
+    const events = E().buildTimeline({ ...d, patientId: d.patient.id }) || [];
+    const epTitle = {};
+    for (const ep of d.episodes || []) epTitle[ep.id] = ep.title || ep.reason || null;
+
+    /* Newest first. Grouped by year, then by month inside it, because a
+       flat list of forty dated rows is a log and not a story. */
+    const years = [];
+    for (const e of events) {
+      const y = String(e.at || "").slice(0, 4);
+      const m = String(e.at || "").slice(0, 7);
+      if (!y) continue;
+      let Y = years.find((x) => x.y === y);
+      if (!Y) years.push(Y = { y, months: [] });
+      let M = Y.months.find((x) => x.m === m);
+      if (!M) Y.months.push(M = { m, events: [] });
+      M.events.push(e);
+    }
+
     return page(T("الخط الزمني", "Timeline"),
-      groups.length ? groups.map((g) => `<div class="sec">
-          <div class="sec-h"><h2 class="d3">${esc(g.title || T("أحداث متفرقة", "Other events"))}</h2>
-            ${g.state ? `<span class="st st-q">${esc(epLabel(g.state))}</span>` : ""}</div>
-          <div class="stack-2">${(g.events || []).map(eventRow).join("")}</div>
+      years.length ? years.map((Y) => `<div class="sec">
+          <div class="sec-h"><h2 class="d3">${n(Y.y)}</h2>
+            <span class="t3">${(() => {
+              const c = Y.months.reduce((s, m) => s + m.events.length, 0);
+              /* Arabic counts in four buckets. "2 حدث" is English grammar
+                 wearing Arabic words. */
+              return ar() ? countAr(c, ["حدث واحد", "حدثان", "أحداث", "حدثاً"]) : `${n(c)} event${c === 1 ? "" : "s"}`;
+            })()}</span></div>
+          ${Y.months.map((M) => `<div class="tl-month">
+            <div class="lab" style="margin:14px 0 2px">${esc(monthLabel(M.m))}</div>
+            <div class="tl">${M.events.map((e) => eventRow(e, epTitle)).join("")}</div>
+          </div>`).join("")}
         </div>`).join("")
-        : empty(T("الخط الزمني يمتلئ مع كل زيارة", "The timeline fills as visits are recorded")),
+        : empty(T("الخط الزمني يمتلئ مع كل زيارة", "The timeline fills as visits are recorded"),
+            addButton("condition", T("سجّل مشكلة صحية تعرفها", "Add a condition you know about"))),
       T("مو كل حدث — بس اللي يغيّر القرار: تشخيص جديد، دواء بدأ أو وقف، نتيجة غير طبيعية، عملية، إحالة.",
         "Not every event — only the ones that change a decision: a new diagnosis, a drug started or stopped, an abnormal result, surgery, a referral."));
+  }
+
+  const MONTHS_AR = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران",
+    "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
+  const MONTHS_EN = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+  /* Iraqi month names, not the Egyptian/Gulf set: يناير/فبراير reads foreign
+     in Baghdad the way "Januarius" would in London. */
+  function monthLabel(ym) {
+    const i = parseInt(String(ym).slice(5, 7), 10) - 1;
+    return i >= 0 && i < 12 ? (ar() ? MONTHS_AR[i] : MONTHS_EN[i]) : String(ym);
   }
 
   const EP_LABELS = { OPEN: ["مفتوحة", "open"], ACTIVE: ["نشطة", "active"], ON_HOLD: ["معلّقة", "on hold"],
@@ -630,12 +740,33 @@
   };
   const evtLabel = (k) => (EVT_LABELS[k] || [k, k])[ar() ? 0 : 1];
 
-  const eventRow = (e) => `<div class="rw"><div style="width:100%">
-      <div class="rowb"><span class="st st-q">${esc(evtLabel(e.kind))}</span>
-        <span class="t3">${n(String(e.at || "").slice(0, 10))}</span></div>
-      <div style="margin-top:6px">${esc(e.label || e.title || "")}</div>
-      ${e.abnormal ? `<span class="st st-e" style="margin-top:6px">${T("غير طبيعية", "abnormal")}</span>` : ""}
-    </div></div>`;
+  /* `type` and `title` — the field names buildTimeline actually emits. The
+     previous version read `kind` and `label`, which exist nowhere, so every
+     row would have rendered a blank event under a blank kind had the screen
+     ever got as far as drawing one. */
+  const DAY_AR = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  function dayOf(at) {
+    const d = new Date(at);
+    return isNaN(d) ? "" : (ar() ? DAY_AR[d.getDay()] : d.toLocaleDateString("en", { weekday: "short" }));
+  }
+
+  const eventRow = (e, epTitle) => {
+    const ep = epTitle && e.episodeId ? epTitle[e.episodeId] : null;
+    const day = String(e.at || "").slice(8, 10);
+    return `<div class="tl-e">
+      <div class="tl-when"><b class="num">${esc(day)}</b><span class="t3">${esc(dayOf(e.at))}</span></div>
+      <div class="tl-body">
+        <div class="rowb"><span class="st ${e.flag && e.flag !== "normal" ? "st-e" : "st-q"}">${
+          esc(evtLabel(e.type))}</span>
+          ${e.significance >= 4 ? `<span class="st st-t">${T("حدث كبير", "major")}</span>` : ""}</div>
+        <div style="margin-top:4px">${esc(e.title || T("بلا عنوان", "untitled"))}</div>
+        ${e.detail ? `<div class="t3" style="margin-top:3px">${esc(e.detail)}</div>` : ""}
+        ${ep ? `<div class="t3" style="margin-top:4px">${T("ضمن", "part of")} ${esc(ep)}</div>` : ""}
+        ${e.flag && e.flag !== "normal" ? `<span class="st st-e" style="margin-top:5px">${
+          e.flag === "unknown" ? T("بلا مدى مرجعي", "no reference range") : T("غير طبيعية", "abnormal")}</span>` : ""}
+      </div>
+    </div>`;
+  };
 
   /* ---------- sharing (§14) ---------- */
   function screenShares(d) {
@@ -1020,6 +1151,52 @@
               onclick="recordPickChip('doct','${k}')">${esc(docTypeLabel(k))}</button>`).join("")}
         </div></div>`,
     },
+    /* A measurement is the one kind where the FIELDS depend on the choice.
+       Blood pressure needs two numbers on one reading; weight needs one.
+       So the chip group is rendered first and the numeric fields swap under
+       it — `recordPickVital` re-renders just that block rather than the
+       screen, so a half-typed date survives changing your mind. */
+    vital: {
+      title: ["قياس", "Measurement"],
+      lead: ["ضغط، وزن، نبض، سكر صائم — القياسات اللي تاخذها بالبيت. اكتبها هنا وتوصل طبيبك مع بقية ملفك.",
+        "Blood pressure, weight, pulse, fasting sugar — the readings you take at home. Written here they reach your doctor with the rest of your record."],
+      fields: [{ id: "effectiveAt", label: ["متى", "When"], type: "date", required: true }],
+      extra: () => `<div class="fld"><span>${T("شنو قِسْت", "What did you measure")}</span>
+        <div class="chips chips--wrap" style="margin-top:8px">
+          ${["bp", ...Object.values(E().VITAL).filter((k) => !/^bp-/.test(k))].map((k, i) =>
+            `<button class="chip${i === 0 ? " c-on" : ""}" data-vk="${k}"
+              onclick="recordPickVital('${k}')">${esc(k === "bp" ? T("ضغط الدم", "Blood pressure")
+                : E().vitalLabel(k, ar()))}</button>`).join("")}
+        </div></div>
+        <div id="vfields">${vitalFields("bp")}</div>`,
+    },
+  };
+
+  /* The numeric part of the measurement form, for one chosen kind. */
+  function vitalFields(kind) {
+    if (kind === "bp") {
+      const s = E().vitalMeta(E().VITAL.BP_SYS), d = E().vitalMeta(E().VITAL.BP_DIA);
+      return `<label class="fld"><span>${T("الرقم الأعلى (الانقباضي)", "Upper number (systolic)")} <span class="t3">${esc(s.unit)}</span></span>
+          <input id="ad-sys" type="number" inputmode="numeric" placeholder="120"></label>
+        <label class="fld"><span>${T("الرقم الأسفل (الانبساطي)", "Lower number (diastolic)")} <span class="t3">${esc(d.unit)}</span></span>
+          <input id="ad-dia" type="number" inputmode="numeric" placeholder="80"></label>
+        <p class="t3" style="margin-top:6px;line-height:1.7">${T(
+          "اقعد مرتاح خمس دقائق قبل القياس، والذراع بمستوى القلب. قراءة وحدة عالية ما تعني ضغط — الطبيب يقرر بعد عدة قراءات.",
+          "Sit for five minutes first, arm at heart height. One high reading is not hypertension — a clinician decides across several.")}</p>`;
+    }
+    const m = E().vitalMeta(kind);
+    if (!m) return "";
+    return `<label class="fld"><span>${esc(E().vitalLabel(kind, ar()))} <span class="t3">${esc(m.unit)}</span></span>
+      <input id="ad-val" type="number" inputmode="decimal" step="any"></label>
+      ${m.refLow == null && m.refHigh == null ? `<p class="t3" style="margin-top:6px;line-height:1.7">${T(
+        "هذا القياس ما إله «طبيعي» — ينحفظ كرقم، والحكم عليه شغل طبيبك.",
+        "This measurement has no 'normal' — it is stored as a number, and judging it is your doctor's job.")}</p>` : ""}`;
+  }
+
+  globalThis.recordPickVital = function recordPickVital(kind) {
+    recordPickChip("vk", kind);
+    const host = document.getElementById("vfields");
+    if (host) host.innerHTML = vitalFields(kind);
   };
 
   function screenAdd(d, kind) {
@@ -1061,6 +1238,11 @@
     for (const f of k.fields) {
       if (f.required && !g(f.id)) { toast(T("اكتب " + f.label[0], "Enter the " + f.label[1].toLowerCase())); return; }
     }
+    /* A measurement form with a date and no numbers would otherwise save a
+       row containing nothing but a timestamp. */
+    if (kind === "vital" && !vitalsFromForm(g, { recordedAt: null }).length) {
+      toast(T("اكتب الرقم", "Enter the reading")); return;
+    }
     /* The stamp. Written once, here, so no call site can add a row to the
        record without saying where it came from. */
     const stamp = {
@@ -1085,12 +1267,35 @@
         x.documents.push({ ...stamp, title: g("title"), type: chipValue("doct", "other"),
           documentDate: g("documentDate") || null, note: g("note") || null,
           heldByPatient: true, claims: [] });
+      } else if (kind === "vital") {
+        x.vitals = x.vitals || [];
+        for (const v of vitalsFromForm(g, stamp)) x.vitals.push(v);
       }
     });
     toast(T("انحفظت", "Saved"));
     location.hash = "#/record/" + { allergy: "allergies", medication: "medications",
-      condition: "conditions", document: "documents" }[kind];
+      condition: "conditions", document: "documents", vital: "vitals" }[kind];
   };
+
+  /* Every measurement goes through `EMR.recordVital`, which is what stamps the
+     unit, the LOINC code and the flag — and what refuses a weight the range
+     table cannot judge rather than calling it normal. A screen that builds
+     the row itself would be inventing a second answer to "is this reading
+     abnormal", and two answers to that question is how they disagree. */
+  function vitalsFromForm(g, stamp) {
+    const at = g("effectiveAt");
+    const kind = chipValue("vk", "bp");
+    const out = [];
+    const push = (k, raw) => {
+      const val = parseFloat(raw);
+      if (!isFinite(val)) return;
+      const r = E().recordVital({ ...stamp, id: uid("V"), kind: k, value: val, effectiveAt: at }, stamp.recordedAt);
+      if (r.ok) out.push(r.vital);
+    };
+    if (kind === "bp") { push(E().VITAL.BP_SYS, g("sys")); push(E().VITAL.BP_DIA, g("dia")); }
+    else push(kind, g("val"));
+    return out;
+  }
 
   /* The mark that travels with everything above.
 
@@ -1229,6 +1434,27 @@
           ${patientToldUs(c)
             || (c.stale ? `<span class="st st-e">${T("ما رُوجعت", "not reviewed")}</span>` : "")}
         </div></div>`).join("") : emptyRow(T("ما مسجّل", "none recorded"))) : lockedSection(T("المشاكل", "Conditions"))}
+
+      <!-- Vitals go ABOVE the trends: a blood pressure taken last week is
+           more likely to change what happens in this consultation than a lab
+           series from last year, and the clinician is reading top-down. -->
+      ${brief.bloodPressure || brief.vitals.length ? section(T("القياسات الأخيرة", "Latest measurements"),
+        `${brief.bloodPressure ? `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
+            <span class="st ${brief.bloodPressure.abnormal ? "st-e" : "st-v"}">${
+              n(brief.bloodPressure.systolic)} / ${brief.bloodPressure.diastolic != null
+                ? n(brief.bloodPressure.diastolic) : "—"} ${esc(brief.bloodPressure.unit || "")}</span></div>
+          <div class="rowb" style="margin-top:4px">
+            <span class="t3">${n(String(brief.bloodPressure.at || "").slice(0, 10))}</span>
+            <span>${patientToldUs(brief.bloodPressure)}</span></div>
+        </div></div>` : ""}
+        ${brief.vitals.map((v) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(v.name)}</b>
+            <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+          <div class="rowb" style="margin-top:4px">
+            <span class="t3">${n(String(v.at || "").slice(0, 10))}</span>
+            <span>${patientToldUs(v) || flagChip(v.flag)}</span></div>
+        </div></div>`).join("")}`) : ""}
 
       ${brief.trends.length ? section(T("اتجاهات تحرّكت", "Trends that moved"),
         brief.trends.map((t) => `<div class="rw"><div style="width:100%">

@@ -171,6 +171,89 @@ function screenHomePatient() {
 /* Home for a patient outside Baghdad: the case opens on what the network
    can truthfully do for them — the availability field across Iraq — and
    says plainly where the local layer stops. */
+/* ---------------- THE COVERAGE BOUNDARY ----------------
+
+   `screenHomePatient` has always guarded this correctly: a patient whose
+   governorate is not Baghdad gets the national reading and is told where the
+   local layer stops. The guard existed on the home screen and NOWHERE ELSE.
+
+   Measured: with the governorate set to Erbil, Kirkuk or Muthanna, the home
+   screen honestly showed zero local cards — and the bottom tab bar, present
+   on every screen in the product, routed straight past it to fourteen
+   Baghdad pharmacies, nine Baghdad doctors and thirteen Baghdad hospitals,
+   with distances computed from a Baghdad district the user never picked. The
+   most honest screen in the app was one tap from the least.
+
+   So the boundary lives here, in one function, and every directory screen
+   asks it the same question. What the answer is NOT: a wall. Nine
+   governorates have verified pharmacies in `BRANCHES` — real hours, real
+   phone, real services — which no screen had ever been able to reach. Being
+   out of the Baghdad directory is not the same as us having nothing, and
+   saying "not available" over data we hold would be its own dishonesty. */
+
+const inLocalCoverage = () => (S.exCity || "baghdad") === "baghdad";
+
+/* Everything we hold in a governorate, Baghdad excluded — these are the
+   records the local directory never reads. */
+const facilitiesInCity = (city, type) => allPharmacies()
+  .filter((f) => cityOf(f) === city && f.city && (!type || f.type === type));
+
+/* One shape for every out-of-coverage screen so the three of them cannot
+   drift into three different explanations of the same fact.
+     `have`  — rows we can honestly show, or [] when there are none
+     `title` — what the user asked for, in their words
+     `body`  — the rows
+   Escapes are constant: change governorate, go national, or say you are in
+   Baghdad after all. Never a dead end, and never a bare "nothing found". */
+function outOfCoverage({ title, kind, have, body }) {
+  const c = cityById(S.exCity);
+  return `${header({ back: true, title })}
+  <section class="wrap" style="padding-top:16px">
+    ${have ? `<div class="note">${icon("info")}<div>${isAR()
+        ? `هذا كل اللي متأكدين منه في ${esc(cityName(c))}. دليل «المفتوح الآن» الكامل — بالمسافات والمواعيد — يغطي بغداد لحد الآن.`
+        : `This is everything we have confirmed in ${esc(cityName(c))}. The full open-now directory, with distances and hours, covers Baghdad so far.`}</div></div>`
+      : `<div class="note note-w">${icon("pin")}<div><b>${isAR()
+        ? `ما عدنا ${esc(kind)} في ${esc(cityName(c))} لحد الآن`
+        : `No Qareeb ${esc(kind)} in ${esc(cityName(c))} yet`}</b>
+        <div class="t3" style="margin-top:4px">${isAR()
+          ? "ما نعرض شي ما تحققنا منه. الدليل المحلي يغطي بغداد حالياً، ونتوسّع بمحافظة بعد محافظة."
+          : "We do not show what we have not checked. The local directory covers Baghdad for now, and we expand one governorate at a time."}</div></div></div>`}
+
+    ${body || ""}
+
+    <div class="sec" style="margin-top:22px">
+      <div class="sec-h"><h2 class="d3">${isAR() ? "شنو ينفعك هسّه" : "What can help right now"}</h2></div>
+      <div class="v2">
+        <a class="btn" href="#/rx">${isAR() ? "مستكشف الأدوية — يغطي العراق كله" : "Medicine Explorer — covers all of Iraq"}</a>
+        <a class="btn btn--2" href="#/need/new">${isAR() ? "انشر حاجتك — الشبكة تدوّر عنك" : "Publish your need"}</a>
+        <button class="btn btn--2" onclick="pickExCity()">${icon("pin")}${isAR() ? "غيّر المحافظة" : "Change governorate"}</button>
+      </div>
+      <a class="rowb" style="border-top:1px solid var(--dial-line);padding-top:16px;margin-top:18px"
+         href="tel:${CONFIG.emergency.unified}">
+        <span class="st st-e"><i class="dot"></i>${isAR() ? "طوارئ — الرقم الموحد يشتغل بكل مكان" : "Emergency — the unified line works everywhere"}</span>
+        <span class="b-g" style="font-size:17px;color:var(--alarm);padding-inline:10px">${CONFIG.emergency.unified}</span>
+      </a>
+      <button class="b-g" style="font-size:12.5px;margin-top:14px" onclick="setExCity('baghdad')">${
+        isAR() ? "أنا في بغداد فعلاً — رجّعني" : "I'm actually in Baghdad — switch back"}</button>
+    </div>
+  </section>
+  ${nav(kind === "pharmacies" || kind === "صيدليات" ? "pharmacies" : "doctors")}`;
+}
+
+/* A governorate pharmacy row. Deliberately NOT `pharmacyCard`: that card
+   promises a distance and a walking time computed from the user's Baghdad
+   district, which for a branch in Basra would be a fabricated number. This
+   says only what we actually know. */
+function branchRow(f) {
+  const st = status(f);
+  return `<a class="rw" href="#/pharmacy/${esc(f.id)}"><div style="width:100%">
+    <div class="rowb"><b>${esc(L(f))}</b>${statusLabel(st, true)}</div>
+    <div class="t3" style="margin-top:4px">${esc(f.area_ar && isAR() ? f.area_ar : cityName(cityById(cityOf(f))))}
+      ${(f.services || []).includes("delivery") ? ` · ${isAR() ? "توصيل" : "delivery"}` : ""}</div>
+    <div style="margin-top:6px">${sealBadge(f, "pharmacies")}</div>
+  </div></a>`;
+}
+
 function screenHomeAway() {
   const c = cityById(S.exCity);
   const liveSigs = SIGNALS.filter((g) => sigAgeMin(g) < SIG_TTL);
@@ -396,7 +479,7 @@ function screenStart() {
   const verifiedDocs = DOCTORS.filter((d) => d.verified).length;
 
   const tile = (href, title, sub, badge, badgeCls, rail) => `
-    <button class="surf-raise cham ${rail} pad-4 start-tile" onclick="startTo('${href}')">
+    <button class="surf-raise ${rail} pad-4 start-tile" onclick="startTo('${href}')">
       <div class="row-b" style="gap:12px">
         <span class="grow" style="text-align:start">
           <span class="q-h2">${title}</span>
@@ -460,9 +543,18 @@ function screenStart() {
 }
 
 function screenNeeds() {
+  /* This is what the bottom bar's «الأطباء» tab opens, so it is the single
+     most-reached doctor screen in the product. Out of coverage it rendered a
+     grid of fourteen specialties every one of which said "none open now" —
+     true of Baghdad, meaningless in Kirkuk, and indistinguishable from a
+     product that is simply broken. */
+  if (!inLocalCoverage()) {
+    return outOfCoverage({ title: isAR() ? "ما الذي تحتاجه؟" : "What do you need?",
+      kind: isAR() ? "أطباء" : "doctors", have: 0, body: "" });
+  }
   return `${header({ back: true, title: isAR() ? "ما الذي تحتاجه؟" : "What do you need?" })}
   <section class="wrap sec">
-    <div class="needs stagger">
+    <div class="needs">
       ${NEEDS.map((n) => {
         const c = needCount(n);
         return `<button class="need ${c ? "has" : ""}" onclick="pickNeed('${n.spec}')">
@@ -482,6 +574,13 @@ function screenNeeds() {
 }
 
 function screenDoctors(params) {
+  /* Every doctor in the directory practises in Baghdad. Showing them to a
+     patient in Najaf — sorted by distance from a district they never chose —
+     is the clearest possible case of the app answering a question it was
+     never asked. */
+  if (!inLocalCoverage()) {
+    return outOfCoverage({ title: t("doctors"), kind: isAR() ? "أطباء" : "doctors", have: 0, body: "" });
+  }
   const spec = params.get("spec");
   if (spec) S.filters.spec = spec;
   const q = params.get("q");
@@ -508,7 +607,7 @@ function screenDoctors(params) {
   ${r.expanded ? `<div class="radius-note">${icon("info")}<span>${isAR()
       ? `نتائج قليلة ضمن ${S.radius} كم من ${L(here())}؟ وسّعنا تلقائياً إلى 25 كم — أخبرناك، ولم نقرر عنك.`
       : `Thin results within ${S.radius} km of ${L(here())}? We widened to 25 km — telling you, not deciding for you.`}</span></div>` : ""}
-  <section class="wrap"><div class="stack list-2 stagger">
+  <section class="wrap"><div class="stack list-2">
     ${r.list.length ? (() => { const live = r.list.some((x) => x.st.k !== "shut"); return r.list.map((x) => doctorCard(x, live)).join(""); })() : emptyDoctors(sp)}
   </div>
   ${r.list.length && r.list.length < 6 ? `<div class="list-end">
@@ -666,6 +765,17 @@ function screenDoctor(id) {
 }
 
 function screenPharmacies() {
+  /* Out of the Baghdad directory we still hold verified branches in nine
+     governorates — show those, and say plainly that the open-now layer with
+     distances is Baghdad-only. */
+  if (!inLocalCoverage()) {
+    const have = facilitiesInCity(S.exCity, "pharmacy");
+    return outOfCoverage({
+      title: t("pharmacies"), kind: isAR() ? "صيدليات" : "pharmacies",
+      have: have.length,
+      body: have.length ? `<div class="stack-2" style="margin-top:16px">${have.map(branchRow).join("")}</div>` : "",
+    });
+  }
   const openOnly = S.filters.openNow;
   let list = pharmaciesNear({ openOnly });
   if (S.phNight) list = list.filter((x) => x.f.night);
@@ -686,7 +796,7 @@ function screenPharmacies() {
   </section>
   <div class="res-head"><span class="res-n"><span class="num">${list.length}</span> ${t("results")}</span>
     <span class="tiny muted">${esc(approxNote()) || (isAR() ? "المفتوح أولاً، ثم الأقرب" : "Open first, then nearest")}</span></div>
-  <section class="wrap"><div class="stack list-2 stagger">
+  <section class="wrap"><div class="stack list-2">
     ${list.length ? (() => { const live = list.some((x) => x.st.k !== "shut"); return list.map((x) => pharmacyCard(x, live)).join(""); })() : nightFallback()}
   </div></section>
   ${nav("pharmacies")}`;
@@ -985,6 +1095,10 @@ function searchResults(q) {
 }
 
 function screenHospitals() {
+  if (!inLocalCoverage()) {
+    return outOfCoverage({ title: isAR() ? "المستشفيات" : "Hospitals",
+      kind: isAR() ? "مستشفيات" : "hospitals", have: 0, body: "" });
+  }
   const list = FACILITIES.filter((f) => f.type !== "pharmacy").map((f) => ({ f, km: distTo(f) })).sort((a, b) => a.km - b.km);
   const er = list.filter((x) => x.f.er);
   return `${header({ back: true, title: isAR() ? "المستشفيات" : "Hospitals" })}

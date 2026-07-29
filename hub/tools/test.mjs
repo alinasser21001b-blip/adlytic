@@ -370,6 +370,31 @@ it("no arrow sits directly against an interpolated value", () => {
   eq(bad.map((x) => x.f), [], "the neutral resolves against its neighbours, not against the author's intent");
 });
 
+/* The timeline screen rendered "the timeline fills as visits are recorded"
+   over a record holding seven events, for as long as it existed.
+   `timelineByEpisode` returns `{episodes, unassigned}`; the caller wrote
+   `Array.isArray(byEp) ? byEp : []`, which is always the empty branch. A
+   defensive fallback wrapped around a wrong assumption is indistinguishable
+   from an empty record, and nothing throws.
+
+   Under it, `eventRow` read `e.kind` and `e.label` while `buildTimeline`
+   emits `type` and `title` — so even with the shape fixed every row would
+   have printed blank. Both are pinned here against the real emitter. */
+it("the timeline reads the fields buildTimeline actually emits", () => {
+  const ui = uiSources.find((x) => x.f === "ui-record.js").src;
+  const emr = uiSources.find((x) => x.f === "emr.js").src;
+  for (const field of ["at", "type", "title"])
+    ok(new RegExp(`push\\(\\{[^}]*\\b${field}:`, "s").test(emr) || emr.includes(`${field}: `),
+      `buildTimeline emits ${field}`);
+  /* Comments describing the old bug are allowed to name it; code is not.
+     Strip block comments before asserting, or this test fails on its own
+     explanation of itself. */
+  const code = ui.replace(/\/\*[\s\S]*?\*\//g, "");
+  no(/e\.kind|e\.label\b/.test(code), "the timeline must not read fields the emitter never sets");
+  no(/Array\.isArray\(byEp\)/.test(code), "the shape must be handled, not guessed at and swallowed");
+  ok(/buildTimeline\(/.test(code), "and it reads the flat event list it groups itself");
+});
+
 it("the lab series renderer states direction as a word", () => {
   const ui = uiSources.find((x) => x.f === "ui-record.js").src;
   ok(/ارتفع/.test(ui) && /انخفض/.test(ui), "rose and fell must exist as words");

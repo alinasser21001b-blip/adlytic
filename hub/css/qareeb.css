@@ -307,6 +307,35 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .brand { display: flex; align-items: center; gap: var(--u2); font: 600 19px/1 var(--disp); letter-spacing: -.02em; min-height: 44px; }
 .brand-mark { width: 24px; height: 24px; }
 
+/* ---------- 6b · the medical timeline ----------
+   A rail with the day on the outside and the event on the inside, so a year
+   of care reads as a column of dates rather than a list of cards. The rail is
+   a logical-side border, so it stays on the reading edge in both directions
+   without a single physical property. Every value below is an existing
+   token — this adds a layout, not a vocabulary. */
+.tl { position: relative; border-inline-start: 1px solid var(--dial-line); margin-inline-start: 26px; }
+.dark .tl { border-inline-start-color: var(--case-line); }
+.tl-e { display: flex; gap: var(--u3); padding: var(--u3) 0 var(--u3) 0; position: relative; }
+.tl-e::before {
+  content: ""; position: absolute; inset-inline-start: -5px; top: 22px;
+  width: 9px; height: 9px; border-radius: var(--rp);
+  background: var(--dial); border: 1px solid var(--ink-4);
+}
+.dark .tl-e::before { background: var(--case); border-color: var(--case-ink-3); }
+/* The day number sits OUTSIDE the rail, in the margin the rail's inset
+   leaves behind, so the column of dates scans on its own. */
+/* 58, not 46: «الأربعاء» and «الخميس» are the widest Arabic weekday names and
+   at 46px «الخميس» broke across two lines mid-word. Sized to the longest
+   label the content can actually produce, and told never to wrap. */
+.tl-when {
+  flex: none; width: 58px; margin-inline-start: -58px; text-align: end;
+  padding-inline-end: var(--u3); display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+}
+.tl-when b { font: 500 15px/1 var(--disp); }
+.tl-when .t3 { font-size: 10px; white-space: nowrap; }
+.tl-body { flex: 1; min-width: 0; padding-inline-start: var(--u3); }
+.tl-month + .tl-month { margin-top: var(--u2); }
+
 /* The tab bar's reserved height. `nav()` emits one of these immediately
    before the bar itself, so the reservation and the thing being reserved for
    can never drift apart. */
@@ -489,6 +518,14 @@ label.row, label.rw { min-height: 44px; cursor: pointer; }
 .note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
 .note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
 .note-e, .banner--stop { border-color: var(--alarm); color: var(--alarm); }
+/* `.banner--info` was used on the GPS-diagnosis banners and defined nowhere,
+   so "we could not get a fix, pick your area" and "location is blocked by
+   policy" rendered identically — the whole point of splitting those messages
+   was that one of them is the user's to fix and the other is not. */
+.banner--info { border-color: var(--jade); color: var(--jade); }
+.dark .banner--info { border-color: var(--jade-lit); color: var(--jade-lit); }
+.dark .note-w, .dark .banner--warn { border-color: var(--brass-lit); color: var(--brass-lit); }
+.dark .note-e, .dark .banner--stop { border-color: var(--alarm-lit); color: var(--alarm-lit); }
 
 /* ---------- 15 · empty · offline · error ----------
    The failure states carry the same craft as the hero. */
@@ -592,6 +629,55 @@ input, textarea { min-height: 44px; }
    direction:ltr, and applying it to a container of Arabic text flipped the
    whole line, stranding the count on the wrong side. The numeral inside still
    gets .num; the line itself must stay RTL. */
+/* ---------- classes that were used in markup and styled nowhere ----------
+   Found by walking every rendered route and diffing the class names in the
+   DOM against the class names in these two stylesheets. Each of these was
+   already in the HTML; none of them had a single rule. */
+
+/* THE IMPORTANT ONE. `updatedLine()` appends `.stale` when a record has not
+   been re-checked in over 90 days — and with no rule for it, "updated 4 days
+   ago" and "updated 210 days ago" rendered in exactly the same ink. The
+   staleness marker is a provenance claim; a provenance claim you cannot see
+   is not one. Brass, and struck through, so it reads as expired at a glance
+   without colour being the only carrier. */
+.stale { color: var(--brass-ink); }
+.dark .stale { color: var(--brass-lit); }
+.stale .num { text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* The filter bar above a result list, and its lead button. */
+.filters { padding: var(--u3) var(--u5) 0; }
+.chip--filter { border-color: var(--ink-4); color: var(--ink); font-weight: 500; }
+.dark .chip--filter { border-color: var(--case-ink-3); color: var(--case-ink); }
+
+/* A display line that carried an inline font-size and nothing else, so it
+   inherited body weight and body leading on every screen that used it. */
+.hero-line { font: 500 25px/1.28 var(--disp); letter-spacing: -.015em; color: var(--ink); }
+.dark .hero-line { color: var(--case-ink); }
+
+.res-group + .res-group { margin-top: var(--u5); }
+.res-group h3 { font: 500 10.5px/1 var(--disp); letter-spacing: .2em; text-transform: uppercase;
+                color: var(--ink-3); margin-bottom: var(--u3); }
+.dark .res-group h3 { color: var(--case-ink-3); }
+
+.start-bar { display: flex; gap: var(--u2); align-items: center; }
+.emg-alt { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); min-height: 44px; }
+.prof-head { padding: var(--u5) var(--u5) 0; }
+
+/* The schematic above a pharmacy list. It is aria-hidden and decorative —
+   but it was rendering as an empty bordered box, because the pins inside it
+   are inline spans with no size. A blank frame captioned "14 pharmacies" is
+   worse than no frame. */
+.map-peek { position: relative; height: 132px; overflow: hidden; }
+.map-peek .pin { position: absolute; width: 7px; height: 7px; border-radius: var(--rp);
+                 background: var(--jade); opacity: .55; }
+.map-peek .pin.me { width: 11px; height: 11px; background: var(--brass); opacity: 1;
+                    box-shadow: 0 0 0 3px var(--dial-2); }
+.dark .map-peek .pin { background: var(--jade-lit); }
+.dark .map-peek .pin.me { background: var(--brass-lit); box-shadow: 0 0 0 3px var(--case-2); }
+.map-peek .lbl { position: absolute; inset-inline-start: var(--u4); bottom: var(--u3);
+                 font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.dark .map-peek .lbl { color: var(--case-ink-3); }
+
 .res-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u5) var(--u5) var(--u3); flex-wrap: wrap; }
 .res-n { font: 500 13px/1.6 var(--disp); color: var(--ink); }
 .res-n .why { color: var(--ink-3); font-weight: 400; }

@@ -563,6 +563,26 @@
         frequency: m.frequency || null, indication: m.indication || null,
         selfReported: isSelfReported(m),
         status: E.medStatus ? E.medStatus(m, now) : m.status })),
+      /* The newest reading of each vital, projected the same way everything
+         else here is. A blood pressure the patient took last week is often
+         the most decision-relevant number in the whole record for a follow-up
+         visit, and it was reaching the clinician nowhere. */
+      /* The two blood-pressure components are excluded here because
+         `bloodPressure` below already carries them as one reading. Leaving
+         them in printed the same measurement three times — 148/92, then
+         systolic 148, then diastolic 92 — which reads to a clinician as three
+         findings rather than one. */
+      vitals: (E.latestVitals ? E.latestVitals(r.vitals) : [])
+        .filter((v) => v.kind !== (E.VITAL && E.VITAL.BP_SYS) && v.kind !== (E.VITAL && E.VITAL.BP_DIA))
+        .map((v) => ({
+        kind: v.kind, name: E.vitalLabel ? E.vitalLabel(v.kind, ar) : v.kind,
+        value: v.value, unit: v.unit || null, at: v.effectiveAt,
+        flag: v.flag || null, selfReported: isSelfReported(v) })),
+      bloodPressure: (E.bloodPressure ? E.bloodPressure(r.vitals) : []).slice(0, 1)
+        .map((x) => ({ at: x.at, systolic: x.systolic.value,
+          diastolic: x.diastolic ? x.diastolic.value : null,
+          unit: x.systolic.unit, abnormal: x.abnormal,
+          selfReported: isSelfReported(x.systolic) }))[0] || null,
       unacknowledgedAbnormal: unacked.slice(0, 4).map((x) => ({ code: x.code, name: x.display || x.code,
         value: x.value, unit: x.unit || null, at: x.effectiveAt })),
       trends: moved.slice(0, 3),

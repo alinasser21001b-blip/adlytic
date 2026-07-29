@@ -721,6 +721,96 @@
 
   const unjudgeableResults = (list) => (list || []).filter(isUnjudgeable);
 
+  /* =========================================================
+     ٧-أ · العلامات الحيوية — VITAL SIGNS
+     =========================================================
+     `CLASS.VITALS` has existed since the access model was written and nothing
+     has ever produced one. Vitals are the cheapest longitudinal signal a
+     patient can carry: a home blood-pressure cuff and a bathroom scale are
+     common in Iraqi households, the readings are what a hypertension or
+     diabetes follow-up actually turns on, and nobody currently writes them
+     down anywhere a doctor will see.
+
+     They are results, not a new kind of thing — same shape, same flag rules,
+     same provenance, same reference-range honesty. A reading with no range
+     is `unknown`, never `normal`. The ranges below are adult resting
+     defaults, and they are DEFAULTS: a value carrying its own refLow/refHigh
+     wins, because a clinician who set a target for this patient outranks a
+     table. */
+  const VITAL = {
+    BP_SYS: "bp-systolic", BP_DIA: "bp-diastolic", PULSE: "pulse",
+    TEMP: "temperature", WEIGHT: "weight", HEIGHT: "height",
+    GLUCOSE: "glucose-fasting", SPO2: "spo2",
+  };
+
+  /* LOINC where a widely-used code exists, so these travel as FHIR
+     Observations rather than as private strings. */
+  const VITAL_META = {
+    [VITAL.BP_SYS]:  { loinc: "8480-6",  unit: "mmHg",  ar: "الضغط الانقباضي", en: "Systolic BP",  refLow: 90,   refHigh: 130 },
+    [VITAL.BP_DIA]:  { loinc: "8462-4",  unit: "mmHg",  ar: "الضغط الانبساطي", en: "Diastolic BP", refLow: 60,   refHigh: 85 },
+    [VITAL.PULSE]:   { loinc: "8867-4",  unit: "/min",  ar: "النبض",           en: "Pulse",        refLow: 60,   refHigh: 100 },
+    [VITAL.TEMP]:    { loinc: "8310-5",  unit: "°C",    ar: "الحرارة",         en: "Temperature",  refLow: 36.1, refHigh: 37.5 },
+    [VITAL.WEIGHT]:  { loinc: "29463-7", unit: "kg",    ar: "الوزن",           en: "Weight",       refLow: null, refHigh: null },
+    [VITAL.HEIGHT]:  { loinc: "8302-2",  unit: "cm",    ar: "الطول",           en: "Height",       refLow: null, refHigh: null },
+    [VITAL.GLUCOSE]: { loinc: "1558-6",  unit: "mg/dL", ar: "سكر صائم",        en: "Fasting glucose", refLow: 70, refHigh: 99 },
+    [VITAL.SPO2]:    { loinc: "59408-5", unit: "%",     ar: "الأكسجين",        en: "Oxygen saturation", refLow: 95, refHigh: 100 },
+  };
+
+  /* Weight and height have no "normal" — a range for them is a judgement
+     about a person, not a measurement of one, and this file does not make
+     those. They stay `unknown` forever and the UI says so, which is the
+     honest answer rather than a silent green tick. */
+  function recordVital(v, at) {
+    if (!v) return { ok: false, reason: "NO_VITAL" };
+    const meta = VITAL_META[v.kind];
+    if (!meta) return { ok: false, reason: "UNKNOWN_VITAL" };
+    if (typeof v.value !== "number" || !isFinite(v.value)) return { ok: false, reason: "VALUE_REQUIRED" };
+    if (!v.effectiveAt) return { ok: false, reason: "DATE_REQUIRED" };
+    const out = {
+      ...v,
+      code: meta.loinc, kind: v.kind,
+      display: v.display || meta.ar,
+      unit: v.unit || meta.unit,
+      /* an explicitly-supplied range wins over the table */
+      refLow: v.refLow !== undefined ? v.refLow : meta.refLow,
+      refHigh: v.refHigh !== undefined ? v.refHigh : meta.refHigh,
+      recordedAt: at || v.recordedAt || null,
+      class: CLASS.VITALS,
+    };
+    out.flag = flagResult(out);
+    return { ok: true, vital: out };
+  }
+
+  const vitalMeta = (kind) => VITAL_META[kind] || null;
+  const vitalLabel = (kind, ar) => {
+    const m = VITAL_META[kind];
+    return m ? (ar ? m.ar : m.en) : kind;
+  };
+  /* Newest first — a vital is asked about in the present tense. */
+  const latestVitals = (list) => {
+    const seen = {};
+    for (const v of (list || []).slice().sort((a, b) => new Date(b.effectiveAt) - new Date(a.effectiveAt)))
+      if (v.kind && !seen[v.kind]) seen[v.kind] = v;
+    return Object.values(seen);
+  };
+
+  /* Blood pressure is ONE reading with two numbers, and splitting it into two
+     independent observations — which is what FHIR does on the wire — is how a
+     screen ends up showing "140" and "70" on separate rows a scroll apart.
+     Paired back together for display, by timestamp. */
+  function bloodPressure(list) {
+    const sys = (list || []).filter((v) => v.kind === VITAL.BP_SYS);
+    const dia = (list || []).filter((v) => v.kind === VITAL.BP_DIA);
+    return sys.map((s) => ({
+      at: s.effectiveAt,
+      systolic: s, diastolic: dia.find((d) => d.effectiveAt === s.effectiveAt) || null,
+      /* the pair is abnormal if EITHER half is; a normal diastolic does not
+         redeem a systolic of 190 */
+      abnormal: isAbnormal(s) || (dia.find((d) => d.effectiveAt === s.effectiveAt)
+        ? isAbnormal(dia.find((d) => d.effectiveAt === s.effectiveAt)) : false),
+    })).sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
+
   /* A trend across laboratories is a clinical hazard: different analysers,
      different calibrations, different reference ranges. We still build the
      trend — clinicians need it — but every point carries its lab, and the
@@ -1112,6 +1202,7 @@
     EP_STATE, EP_MACHINE, canEpTransition, canCloseEpisode,
     TASK_STATE, TASK_KIND, closeTask, isOverdue, openTasks, deriveTasks, ms,
     flagResult, isAbnormal, isUnjudgeable, unjudgeableResults, trend,
+    VITAL, VITAL_META, recordVital, vitalMeta, vitalLabel, latestVitals, bloodPressure,
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,

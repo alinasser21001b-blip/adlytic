@@ -560,6 +560,35 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .brand { display: flex; align-items: center; gap: var(--u2); font: 600 19px/1 var(--disp); letter-spacing: -.02em; min-height: 44px; }
 .brand-mark { width: 24px; height: 24px; }
 
+/* ---------- 6b · the medical timeline ----------
+   A rail with the day on the outside and the event on the inside, so a year
+   of care reads as a column of dates rather than a list of cards. The rail is
+   a logical-side border, so it stays on the reading edge in both directions
+   without a single physical property. Every value below is an existing
+   token — this adds a layout, not a vocabulary. */
+.tl { position: relative; border-inline-start: 1px solid var(--dial-line); margin-inline-start: 26px; }
+.dark .tl { border-inline-start-color: var(--case-line); }
+.tl-e { display: flex; gap: var(--u3); padding: var(--u3) 0 var(--u3) 0; position: relative; }
+.tl-e::before {
+  content: ""; position: absolute; inset-inline-start: -5px; top: 22px;
+  width: 9px; height: 9px; border-radius: var(--rp);
+  background: var(--dial); border: 1px solid var(--ink-4);
+}
+.dark .tl-e::before { background: var(--case); border-color: var(--case-ink-3); }
+/* The day number sits OUTSIDE the rail, in the margin the rail's inset
+   leaves behind, so the column of dates scans on its own. */
+/* 58, not 46: «الأربعاء» and «الخميس» are the widest Arabic weekday names and
+   at 46px «الخميس» broke across two lines mid-word. Sized to the longest
+   label the content can actually produce, and told never to wrap. */
+.tl-when {
+  flex: none; width: 58px; margin-inline-start: -58px; text-align: end;
+  padding-inline-end: var(--u3); display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+}
+.tl-when b { font: 500 15px/1 var(--disp); }
+.tl-when .t3 { font-size: 10px; white-space: nowrap; }
+.tl-body { flex: 1; min-width: 0; padding-inline-start: var(--u3); }
+.tl-month + .tl-month { margin-top: var(--u2); }
+
 /* The tab bar's reserved height. `nav()` emits one of these immediately
    before the bar itself, so the reservation and the thing being reserved for
    can never drift apart. */
@@ -742,6 +771,14 @@ label.row, label.rw { min-height: 44px; cursor: pointer; }
 .note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
 .note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
 .note-e, .banner--stop { border-color: var(--alarm); color: var(--alarm); }
+/* `.banner--info` was used on the GPS-diagnosis banners and defined nowhere,
+   so "we could not get a fix, pick your area" and "location is blocked by
+   policy" rendered identically — the whole point of splitting those messages
+   was that one of them is the user's to fix and the other is not. */
+.banner--info { border-color: var(--jade); color: var(--jade); }
+.dark .banner--info { border-color: var(--jade-lit); color: var(--jade-lit); }
+.dark .note-w, .dark .banner--warn { border-color: var(--brass-lit); color: var(--brass-lit); }
+.dark .note-e, .dark .banner--stop { border-color: var(--alarm-lit); color: var(--alarm-lit); }
 
 /* ---------- 15 · empty · offline · error ----------
    The failure states carry the same craft as the hero. */
@@ -845,6 +882,55 @@ input, textarea { min-height: 44px; }
    direction:ltr, and applying it to a container of Arabic text flipped the
    whole line, stranding the count on the wrong side. The numeral inside still
    gets .num; the line itself must stay RTL. */
+/* ---------- classes that were used in markup and styled nowhere ----------
+   Found by walking every rendered route and diffing the class names in the
+   DOM against the class names in these two stylesheets. Each of these was
+   already in the HTML; none of them had a single rule. */
+
+/* THE IMPORTANT ONE. `updatedLine()` appends `.stale` when a record has not
+   been re-checked in over 90 days — and with no rule for it, "updated 4 days
+   ago" and "updated 210 days ago" rendered in exactly the same ink. The
+   staleness marker is a provenance claim; a provenance claim you cannot see
+   is not one. Brass, and struck through, so it reads as expired at a glance
+   without colour being the only carrier. */
+.stale { color: var(--brass-ink); }
+.dark .stale { color: var(--brass-lit); }
+.stale .num { text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* The filter bar above a result list, and its lead button. */
+.filters { padding: var(--u3) var(--u5) 0; }
+.chip--filter { border-color: var(--ink-4); color: var(--ink); font-weight: 500; }
+.dark .chip--filter { border-color: var(--case-ink-3); color: var(--case-ink); }
+
+/* A display line that carried an inline font-size and nothing else, so it
+   inherited body weight and body leading on every screen that used it. */
+.hero-line { font: 500 25px/1.28 var(--disp); letter-spacing: -.015em; color: var(--ink); }
+.dark .hero-line { color: var(--case-ink); }
+
+.res-group + .res-group { margin-top: var(--u5); }
+.res-group h3 { font: 500 10.5px/1 var(--disp); letter-spacing: .2em; text-transform: uppercase;
+                color: var(--ink-3); margin-bottom: var(--u3); }
+.dark .res-group h3 { color: var(--case-ink-3); }
+
+.start-bar { display: flex; gap: var(--u2); align-items: center; }
+.emg-alt { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); min-height: 44px; }
+.prof-head { padding: var(--u5) var(--u5) 0; }
+
+/* The schematic above a pharmacy list. It is aria-hidden and decorative —
+   but it was rendering as an empty bordered box, because the pins inside it
+   are inline spans with no size. A blank frame captioned "14 pharmacies" is
+   worse than no frame. */
+.map-peek { position: relative; height: 132px; overflow: hidden; }
+.map-peek .pin { position: absolute; width: 7px; height: 7px; border-radius: var(--rp);
+                 background: var(--jade); opacity: .55; }
+.map-peek .pin.me { width: 11px; height: 11px; background: var(--brass); opacity: 1;
+                    box-shadow: 0 0 0 3px var(--dial-2); }
+.dark .map-peek .pin { background: var(--jade-lit); }
+.dark .map-peek .pin.me { background: var(--brass-lit); box-shadow: 0 0 0 3px var(--case-2); }
+.map-peek .lbl { position: absolute; inset-inline-start: var(--u4); bottom: var(--u3);
+                 font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.dark .map-peek .lbl { color: var(--case-ink-3); }
+
 .res-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u5) var(--u5) var(--u3); flex-wrap: wrap; }
 .res-n { font: 500 13px/1.6 var(--disp); color: var(--ink); }
 .res-n .why { color: var(--ink-3); font-weight: 400; }
@@ -2263,6 +2349,96 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 
   const unjudgeableResults = (list) => (list || []).filter(isUnjudgeable);
 
+  /* =========================================================
+     ٧-أ · العلامات الحيوية — VITAL SIGNS
+     =========================================================
+     `CLASS.VITALS` has existed since the access model was written and nothing
+     has ever produced one. Vitals are the cheapest longitudinal signal a
+     patient can carry: a home blood-pressure cuff and a bathroom scale are
+     common in Iraqi households, the readings are what a hypertension or
+     diabetes follow-up actually turns on, and nobody currently writes them
+     down anywhere a doctor will see.
+
+     They are results, not a new kind of thing — same shape, same flag rules,
+     same provenance, same reference-range honesty. A reading with no range
+     is `unknown`, never `normal`. The ranges below are adult resting
+     defaults, and they are DEFAULTS: a value carrying its own refLow/refHigh
+     wins, because a clinician who set a target for this patient outranks a
+     table. */
+  const VITAL = {
+    BP_SYS: "bp-systolic", BP_DIA: "bp-diastolic", PULSE: "pulse",
+    TEMP: "temperature", WEIGHT: "weight", HEIGHT: "height",
+    GLUCOSE: "glucose-fasting", SPO2: "spo2",
+  };
+
+  /* LOINC where a widely-used code exists, so these travel as FHIR
+     Observations rather than as private strings. */
+  const VITAL_META = {
+    [VITAL.BP_SYS]:  { loinc: "8480-6",  unit: "mmHg",  ar: "الضغط الانقباضي", en: "Systolic BP",  refLow: 90,   refHigh: 130 },
+    [VITAL.BP_DIA]:  { loinc: "8462-4",  unit: "mmHg",  ar: "الضغط الانبساطي", en: "Diastolic BP", refLow: 60,   refHigh: 85 },
+    [VITAL.PULSE]:   { loinc: "8867-4",  unit: "/min",  ar: "النبض",           en: "Pulse",        refLow: 60,   refHigh: 100 },
+    [VITAL.TEMP]:    { loinc: "8310-5",  unit: "°C",    ar: "الحرارة",         en: "Temperature",  refLow: 36.1, refHigh: 37.5 },
+    [VITAL.WEIGHT]:  { loinc: "29463-7", unit: "kg",    ar: "الوزن",           en: "Weight",       refLow: null, refHigh: null },
+    [VITAL.HEIGHT]:  { loinc: "8302-2",  unit: "cm",    ar: "الطول",           en: "Height",       refLow: null, refHigh: null },
+    [VITAL.GLUCOSE]: { loinc: "1558-6",  unit: "mg/dL", ar: "سكر صائم",        en: "Fasting glucose", refLow: 70, refHigh: 99 },
+    [VITAL.SPO2]:    { loinc: "59408-5", unit: "%",     ar: "الأكسجين",        en: "Oxygen saturation", refLow: 95, refHigh: 100 },
+  };
+
+  /* Weight and height have no "normal" — a range for them is a judgement
+     about a person, not a measurement of one, and this file does not make
+     those. They stay `unknown` forever and the UI says so, which is the
+     honest answer rather than a silent green tick. */
+  function recordVital(v, at) {
+    if (!v) return { ok: false, reason: "NO_VITAL" };
+    const meta = VITAL_META[v.kind];
+    if (!meta) return { ok: false, reason: "UNKNOWN_VITAL" };
+    if (typeof v.value !== "number" || !isFinite(v.value)) return { ok: false, reason: "VALUE_REQUIRED" };
+    if (!v.effectiveAt) return { ok: false, reason: "DATE_REQUIRED" };
+    const out = {
+      ...v,
+      code: meta.loinc, kind: v.kind,
+      display: v.display || meta.ar,
+      unit: v.unit || meta.unit,
+      /* an explicitly-supplied range wins over the table */
+      refLow: v.refLow !== undefined ? v.refLow : meta.refLow,
+      refHigh: v.refHigh !== undefined ? v.refHigh : meta.refHigh,
+      recordedAt: at || v.recordedAt || null,
+      class: CLASS.VITALS,
+    };
+    out.flag = flagResult(out);
+    return { ok: true, vital: out };
+  }
+
+  const vitalMeta = (kind) => VITAL_META[kind] || null;
+  const vitalLabel = (kind, ar) => {
+    const m = VITAL_META[kind];
+    return m ? (ar ? m.ar : m.en) : kind;
+  };
+  /* Newest first — a vital is asked about in the present tense. */
+  const latestVitals = (list) => {
+    const seen = {};
+    for (const v of (list || []).slice().sort((a, b) => new Date(b.effectiveAt) - new Date(a.effectiveAt)))
+      if (v.kind && !seen[v.kind]) seen[v.kind] = v;
+    return Object.values(seen);
+  };
+
+  /* Blood pressure is ONE reading with two numbers, and splitting it into two
+     independent observations — which is what FHIR does on the wire — is how a
+     screen ends up showing "140" and "70" on separate rows a scroll apart.
+     Paired back together for display, by timestamp. */
+  function bloodPressure(list) {
+    const sys = (list || []).filter((v) => v.kind === VITAL.BP_SYS);
+    const dia = (list || []).filter((v) => v.kind === VITAL.BP_DIA);
+    return sys.map((s) => ({
+      at: s.effectiveAt,
+      systolic: s, diastolic: dia.find((d) => d.effectiveAt === s.effectiveAt) || null,
+      /* the pair is abnormal if EITHER half is; a normal diastolic does not
+         redeem a systolic of 190 */
+      abnormal: isAbnormal(s) || (dia.find((d) => d.effectiveAt === s.effectiveAt)
+        ? isAbnormal(dia.find((d) => d.effectiveAt === s.effectiveAt)) : false),
+    })).sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
+
   /* A trend across laboratories is a clinical hazard: different analysers,
      different calibrations, different reference ranges. We still build the
      trend — clinicians need it — but every point carries its lab, and the
@@ -2654,6 +2830,7 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     EP_STATE, EP_MACHINE, canEpTransition, canCloseEpisode,
     TASK_STATE, TASK_KIND, closeTask, isOverdue, openTasks, deriveTasks, ms,
     flagResult, isAbnormal, isUnjudgeable, unjudgeableResults, trend,
+    VITAL, VITAL_META, recordVital, vitalMeta, vitalLabel, latestVitals, bloodPressure,
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,
@@ -3230,6 +3407,26 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
         frequency: m.frequency || null, indication: m.indication || null,
         selfReported: isSelfReported(m),
         status: E.medStatus ? E.medStatus(m, now) : m.status })),
+      /* The newest reading of each vital, projected the same way everything
+         else here is. A blood pressure the patient took last week is often
+         the most decision-relevant number in the whole record for a follow-up
+         visit, and it was reaching the clinician nowhere. */
+      /* The two blood-pressure components are excluded here because
+         `bloodPressure` below already carries them as one reading. Leaving
+         them in printed the same measurement three times — 148/92, then
+         systolic 148, then diastolic 92 — which reads to a clinician as three
+         findings rather than one. */
+      vitals: (E.latestVitals ? E.latestVitals(r.vitals) : [])
+        .filter((v) => v.kind !== (E.VITAL && E.VITAL.BP_SYS) && v.kind !== (E.VITAL && E.VITAL.BP_DIA))
+        .map((v) => ({
+        kind: v.kind, name: E.vitalLabel ? E.vitalLabel(v.kind, ar) : v.kind,
+        value: v.value, unit: v.unit || null, at: v.effectiveAt,
+        flag: v.flag || null, selfReported: isSelfReported(v) })),
+      bloodPressure: (E.bloodPressure ? E.bloodPressure(r.vitals) : []).slice(0, 1)
+        .map((x) => ({ at: x.at, systolic: x.systolic.value,
+          diastolic: x.diastolic ? x.diastolic.value : null,
+          unit: x.systolic.unit, abnormal: x.abnormal,
+          selfReported: isSelfReported(x.systolic) }))[0] || null,
       unacknowledgedAbnormal: unacked.slice(0, 4).map((x) => ({ code: x.code, name: x.display || x.code,
         value: x.value, unit: x.unit || null, at: x.effectiveAt })),
       trends: moved.slice(0, 3),
@@ -7219,6 +7416,89 @@ function screenHomePatient() {
 /* Home for a patient outside Baghdad: the case opens on what the network
    can truthfully do for them — the availability field across Iraq — and
    says plainly where the local layer stops. */
+/* ---------------- THE COVERAGE BOUNDARY ----------------
+
+   `screenHomePatient` has always guarded this correctly: a patient whose
+   governorate is not Baghdad gets the national reading and is told where the
+   local layer stops. The guard existed on the home screen and NOWHERE ELSE.
+
+   Measured: with the governorate set to Erbil, Kirkuk or Muthanna, the home
+   screen honestly showed zero local cards — and the bottom tab bar, present
+   on every screen in the product, routed straight past it to fourteen
+   Baghdad pharmacies, nine Baghdad doctors and thirteen Baghdad hospitals,
+   with distances computed from a Baghdad district the user never picked. The
+   most honest screen in the app was one tap from the least.
+
+   So the boundary lives here, in one function, and every directory screen
+   asks it the same question. What the answer is NOT: a wall. Nine
+   governorates have verified pharmacies in `BRANCHES` — real hours, real
+   phone, real services — which no screen had ever been able to reach. Being
+   out of the Baghdad directory is not the same as us having nothing, and
+   saying "not available" over data we hold would be its own dishonesty. */
+
+const inLocalCoverage = () => (S.exCity || "baghdad") === "baghdad";
+
+/* Everything we hold in a governorate, Baghdad excluded — these are the
+   records the local directory never reads. */
+const facilitiesInCity = (city, type) => allPharmacies()
+  .filter((f) => cityOf(f) === city && f.city && (!type || f.type === type));
+
+/* One shape for every out-of-coverage screen so the three of them cannot
+   drift into three different explanations of the same fact.
+     `have`  — rows we can honestly show, or [] when there are none
+     `title` — what the user asked for, in their words
+     `body`  — the rows
+   Escapes are constant: change governorate, go national, or say you are in
+   Baghdad after all. Never a dead end, and never a bare "nothing found". */
+function outOfCoverage({ title, kind, have, body }) {
+  const c = cityById(S.exCity);
+  return `${header({ back: true, title })}
+  <section class="wrap" style="padding-top:16px">
+    ${have ? `<div class="note">${icon("info")}<div>${isAR()
+        ? `هذا كل اللي متأكدين منه في ${esc(cityName(c))}. دليل «المفتوح الآن» الكامل — بالمسافات والمواعيد — يغطي بغداد لحد الآن.`
+        : `This is everything we have confirmed in ${esc(cityName(c))}. The full open-now directory, with distances and hours, covers Baghdad so far.`}</div></div>`
+      : `<div class="note note-w">${icon("pin")}<div><b>${isAR()
+        ? `ما عدنا ${esc(kind)} في ${esc(cityName(c))} لحد الآن`
+        : `No Qareeb ${esc(kind)} in ${esc(cityName(c))} yet`}</b>
+        <div class="t3" style="margin-top:4px">${isAR()
+          ? "ما نعرض شي ما تحققنا منه. الدليل المحلي يغطي بغداد حالياً، ونتوسّع بمحافظة بعد محافظة."
+          : "We do not show what we have not checked. The local directory covers Baghdad for now, and we expand one governorate at a time."}</div></div></div>`}
+
+    ${body || ""}
+
+    <div class="sec" style="margin-top:22px">
+      <div class="sec-h"><h2 class="d3">${isAR() ? "شنو ينفعك هسّه" : "What can help right now"}</h2></div>
+      <div class="v2">
+        <a class="btn" href="#/rx">${isAR() ? "مستكشف الأدوية — يغطي العراق كله" : "Medicine Explorer — covers all of Iraq"}</a>
+        <a class="btn btn--2" href="#/need/new">${isAR() ? "انشر حاجتك — الشبكة تدوّر عنك" : "Publish your need"}</a>
+        <button class="btn btn--2" onclick="pickExCity()">${icon("pin")}${isAR() ? "غيّر المحافظة" : "Change governorate"}</button>
+      </div>
+      <a class="rowb" style="border-top:1px solid var(--dial-line);padding-top:16px;margin-top:18px"
+         href="tel:${CONFIG.emergency.unified}">
+        <span class="st st-e"><i class="dot"></i>${isAR() ? "طوارئ — الرقم الموحد يشتغل بكل مكان" : "Emergency — the unified line works everywhere"}</span>
+        <span class="b-g" style="font-size:17px;color:var(--alarm);padding-inline:10px">${CONFIG.emergency.unified}</span>
+      </a>
+      <button class="b-g" style="font-size:12.5px;margin-top:14px" onclick="setExCity('baghdad')">${
+        isAR() ? "أنا في بغداد فعلاً — رجّعني" : "I'm actually in Baghdad — switch back"}</button>
+    </div>
+  </section>
+  ${nav(kind === "pharmacies" || kind === "صيدليات" ? "pharmacies" : "doctors")}`;
+}
+
+/* A governorate pharmacy row. Deliberately NOT `pharmacyCard`: that card
+   promises a distance and a walking time computed from the user's Baghdad
+   district, which for a branch in Basra would be a fabricated number. This
+   says only what we actually know. */
+function branchRow(f) {
+  const st = status(f);
+  return `<a class="rw" href="#/pharmacy/${esc(f.id)}"><div style="width:100%">
+    <div class="rowb"><b>${esc(L(f))}</b>${statusLabel(st, true)}</div>
+    <div class="t3" style="margin-top:4px">${esc(f.area_ar && isAR() ? f.area_ar : cityName(cityById(cityOf(f))))}
+      ${(f.services || []).includes("delivery") ? ` · ${isAR() ? "توصيل" : "delivery"}` : ""}</div>
+    <div style="margin-top:6px">${sealBadge(f, "pharmacies")}</div>
+  </div></a>`;
+}
+
 function screenHomeAway() {
   const c = cityById(S.exCity);
   const liveSigs = SIGNALS.filter((g) => sigAgeMin(g) < SIG_TTL);
@@ -7444,7 +7724,7 @@ function screenStart() {
   const verifiedDocs = DOCTORS.filter((d) => d.verified).length;
 
   const tile = (href, title, sub, badge, badgeCls, rail) => `
-    <button class="surf-raise cham ${rail} pad-4 start-tile" onclick="startTo('${href}')">
+    <button class="surf-raise ${rail} pad-4 start-tile" onclick="startTo('${href}')">
       <div class="row-b" style="gap:12px">
         <span class="grow" style="text-align:start">
           <span class="q-h2">${title}</span>
@@ -7508,9 +7788,18 @@ function screenStart() {
 }
 
 function screenNeeds() {
+  /* This is what the bottom bar's «الأطباء» tab opens, so it is the single
+     most-reached doctor screen in the product. Out of coverage it rendered a
+     grid of fourteen specialties every one of which said "none open now" —
+     true of Baghdad, meaningless in Kirkuk, and indistinguishable from a
+     product that is simply broken. */
+  if (!inLocalCoverage()) {
+    return outOfCoverage({ title: isAR() ? "ما الذي تحتاجه؟" : "What do you need?",
+      kind: isAR() ? "أطباء" : "doctors", have: 0, body: "" });
+  }
   return `${header({ back: true, title: isAR() ? "ما الذي تحتاجه؟" : "What do you need?" })}
   <section class="wrap sec">
-    <div class="needs stagger">
+    <div class="needs">
       ${NEEDS.map((n) => {
         const c = needCount(n);
         return `<button class="need ${c ? "has" : ""}" onclick="pickNeed('${n.spec}')">
@@ -7530,6 +7819,13 @@ function screenNeeds() {
 }
 
 function screenDoctors(params) {
+  /* Every doctor in the directory practises in Baghdad. Showing them to a
+     patient in Najaf — sorted by distance from a district they never chose —
+     is the clearest possible case of the app answering a question it was
+     never asked. */
+  if (!inLocalCoverage()) {
+    return outOfCoverage({ title: t("doctors"), kind: isAR() ? "أطباء" : "doctors", have: 0, body: "" });
+  }
   const spec = params.get("spec");
   if (spec) S.filters.spec = spec;
   const q = params.get("q");
@@ -7556,7 +7852,7 @@ function screenDoctors(params) {
   ${r.expanded ? `<div class="radius-note">${icon("info")}<span>${isAR()
       ? `نتائج قليلة ضمن ${S.radius} كم من ${L(here())}؟ وسّعنا تلقائياً إلى 25 كم — أخبرناك، ولم نقرر عنك.`
       : `Thin results within ${S.radius} km of ${L(here())}? We widened to 25 km — telling you, not deciding for you.`}</span></div>` : ""}
-  <section class="wrap"><div class="stack list-2 stagger">
+  <section class="wrap"><div class="stack list-2">
     ${r.list.length ? (() => { const live = r.list.some((x) => x.st.k !== "shut"); return r.list.map((x) => doctorCard(x, live)).join(""); })() : emptyDoctors(sp)}
   </div>
   ${r.list.length && r.list.length < 6 ? `<div class="list-end">
@@ -7714,6 +8010,17 @@ function screenDoctor(id) {
 }
 
 function screenPharmacies() {
+  /* Out of the Baghdad directory we still hold verified branches in nine
+     governorates — show those, and say plainly that the open-now layer with
+     distances is Baghdad-only. */
+  if (!inLocalCoverage()) {
+    const have = facilitiesInCity(S.exCity, "pharmacy");
+    return outOfCoverage({
+      title: t("pharmacies"), kind: isAR() ? "صيدليات" : "pharmacies",
+      have: have.length,
+      body: have.length ? `<div class="stack-2" style="margin-top:16px">${have.map(branchRow).join("")}</div>` : "",
+    });
+  }
   const openOnly = S.filters.openNow;
   let list = pharmaciesNear({ openOnly });
   if (S.phNight) list = list.filter((x) => x.f.night);
@@ -7734,7 +8041,7 @@ function screenPharmacies() {
   </section>
   <div class="res-head"><span class="res-n"><span class="num">${list.length}</span> ${t("results")}</span>
     <span class="tiny muted">${esc(approxNote()) || (isAR() ? "المفتوح أولاً، ثم الأقرب" : "Open first, then nearest")}</span></div>
-  <section class="wrap"><div class="stack list-2 stagger">
+  <section class="wrap"><div class="stack list-2">
     ${list.length ? (() => { const live = list.some((x) => x.st.k !== "shut"); return list.map((x) => pharmacyCard(x, live)).join(""); })() : nightFallback()}
   </div></section>
   ${nav("pharmacies")}`;
@@ -8033,6 +8340,10 @@ function searchResults(q) {
 }
 
 function screenHospitals() {
+  if (!inLocalCoverage()) {
+    return outOfCoverage({ title: isAR() ? "المستشفيات" : "Hospitals",
+      kind: isAR() ? "مستشفيات" : "hospitals", have: 0, body: "" });
+  }
   const list = FACILITIES.filter((f) => f.type !== "pharmacy").map((f) => ({ f, km: distTo(f) })).sort((a, b) => a.km - b.km);
   const er = list.filter((x) => x.f.er);
   return `${header({ back: true, title: isAR() ? "المستشفيات" : "Hospitals" })}
@@ -10788,6 +11099,7 @@ function screenNeedNew(qs) {
         capped ? (isAR() ? "وصلت الحد الأقصى" : "You've hit the limit")
         : isAuthed() ? (isAR() ? "انشر الطلب" : "Publish the request")
         : (isAR() ? "تحقّق وانشر" : "Verify and publish")}</button>
+      <div class="t3" id="pubwhy" style="margin-top:8px">${esc(capped ? "" : missingLine(d))}</div>
       ${capped ? `<div class="note note-w" style="margin-top:12px"><span>${isAR()
         ? `عندك <b class="num">${active}</b> طلبات نشطة، وهذا الحد. سكّر واحداً من «طلباتي» — الحد موجود حتى ينتبه الصيدلاني للطلبات الحقيقية.`
         : `You have <b class="num">${active}</b> active requests, which is the cap. Close one from My requests — the cap exists so pharmacists keep paying attention to real ones.`}</span></div>`
@@ -10813,18 +11125,38 @@ function screenNeedNew(qs) {
    re-render (tap urgency, lose your publish button), and a Baghdad draft
    with no district went ENABLED on re-render, past the guard. One predicate,
    called from both places, is the only way two answers cannot drift. */
-function draftReady(d) {
-  if (!d) return false;
-  const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  const locOk = d.city !== "baghdad" || !!d.district;
-  return medOk && locOk && !!String(d.qty || "").trim();
+/* WHAT is missing, not merely THAT something is. A greyed-out button with no
+   explanation is a dead end wearing the costume of a control: the user can
+   see the way forward and cannot tell why it is shut. `draftReady` is
+   `draftMissing().length === 0` so the button state and the explanation can
+   never disagree — they were two separate expressions before, and two
+   expressions of the same rule are two chances to drift. */
+function draftMissing(d) {
+  if (!d) return [["الدواء", "the medicine"]];
+  const out = [];
+  if (!d.v && !(d.manual && String(d.manual.name || "").trim().length >= 3))
+    out.push(["الدواء", "the medicine"]);
+  /* district data exists for Baghdad only, so only Baghdad can be asked */
+  if (d.city === "baghdad" && !d.district) out.push(["منطقتك", "your district"]);
+  if (!String(d.qty || "").trim()) out.push(["الكمية", "the quantity"]);
+  return out;
+}
+const draftReady = (d) => draftMissing(d).length === 0;
+
+function missingLine(d) {
+  const m = draftMissing(d);
+  if (!m.length) return "";
+  const parts = m.map((x) => (isAR() ? x[0] : x[1]));
+  const list = parts.length === 1 ? parts[0]
+    : parts.slice(0, -1).join(isAR() ? "، " : ", ") + (isAR() ? " و" : " and ") + parts[parts.length - 1];
+  return isAR() ? `باقي ${list}.` : `Still need ${list}.`;
 }
 
 function syncPublish() {
   const b = document.getElementById("pubbtn"); if (!b) return;
   const d = S.draft || {};
-  const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  const locOk = d.city !== "baghdad" || !!d.district;   /* district data exists for Baghdad only */
+  const why = document.getElementById("pubwhy");
+  if (why) why.textContent = missingLine(d);
   b.disabled = !draftReady(d) || myActiveNeeds().length >= MAX_ACTIVE_NEEDS;
 }
 
@@ -10850,10 +11182,38 @@ function typedLooksControlled(name) {
   ) || null;
 }
 
+/* Point the user AT the thing that is missing. A toast that says "pick a
+   quantity" while the quantity field is two screens down is only half an
+   answer on a phone. */
+function scrollToFirst(sel) {
+  const el = document.querySelector(sel);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (typeof el.focus === "function" && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+    setTimeout(() => el.focus({ preventScroll: true }), 220);
+  }
+}
+
 function publishNeed() {
   const d = S.draft; if (!d) return;
   const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  if (!medOk || !d.qty.trim()) return;
+  /* This used to be `if (!medOk || !d.qty.trim()) return;` — a bare return on
+     the guard an incomplete form hits FIRST and most often. Tapping the
+     primary action of the whole flow produced no toast, no message, no
+     movement: total silence, which a user reads as a broken app rather than
+     as an unfinished form. Every other guard in this function speaks; this
+     one now says which part is missing, because "something is wrong" is not
+     an answer a person can act on. */
+  if (!medOk) {
+    toast(isAR() ? "اختر الدواء أو اكتب اسمه" : "Choose the medicine, or type its name");
+    scrollToFirst("#manual-name, a[href='#/rx']");
+    return;
+  }
+  if (!d.qty.trim()) {
+    toast(isAR() ? "شكد تحتاج؟ اختر الكمية" : "How much do you need? Pick a quantity");
+    scrollToFirst("#qty");
+    return;
+  }
 
   /* CONTROLLED: refused before anything is written, and the refusal is the
      domain layer's, not this screen's. The patient is not left at a dead end
@@ -12369,7 +12729,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     const d = LS.get(KEY, null);
     return d || { patient: null, conditions: [], medications: [], allergies: [], procedures: [],
       results: [], documents: [], immunizations: [], encounters: [], prescriptions: [],
-      episodes: [], tasks: [], appointments: [], shares: [], accessLog: [], requests: [] };
+      vitals: [], episodes: [], tasks: [], appointments: [], shares: [], accessLog: [], requests: [] };
   }
   const save = (d) => LS.set(KEY, d);
   function mutate(fn) { const d = store(); fn(d); save(d); return d; }
@@ -12445,6 +12805,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
           <a class="chip" href="#/record/add/medication">${icon("pill")}${T("دواء", "Medicine")}</a>
           <a class="chip" href="#/record/add/condition">${icon("stetho")}${T("مشكلة صحية", "Condition")}</a>
           <a class="chip" href="#/record/add/document">${icon("cal")}${T("تقرير عندي", "A report I have")}</a>
+          <a class="chip" href="#/record/add/vital">${icon("gauge")}${T("قياس", "A measurement")}</a>
         </div>
       </div>
 
@@ -12467,6 +12828,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
           ${tile("#/record/documents", T("التقارير والمستندات", "Documents"), (d.documents || []).length)}
           ${tile("#/record/procedures", T("العمليات السابقة", "Previous procedures"), (d.procedures || []).length)}
           ${tile("#/record/immunizations", T("التطعيمات", "Immunizations"), prof.immunizations)}
+          ${tile("#/record/vitals", T("القياسات — ضغط، وزن، سكر", "Measurements — BP, weight, sugar"), (d.vitals || []).length)}
         </div>
       </div>
 
@@ -12717,6 +13079,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       case "request": return screenAccessRequest(d, id);
       case "sync": return screenSync(d);
       case "signin": return screenSignin(d);
+      case "vitals": return listVitals(d);
       case "profile": return screenProfile(d);
       default: return screen404();
     }
@@ -12834,6 +13197,57 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
         "The trend matters more than any single number — but two laboratories do not draw one confident line."));
   }
 
+  /* ---------- vital signs ----------
+     The cheapest longitudinal signal a patient can carry. A home BP cuff and
+     a bathroom scale are ordinary in Iraqi households, they are exactly what
+     a hypertension or diabetes follow-up turns on, and until now there was
+     nowhere to put the numbers where a doctor would ever see them.
+
+     Blood pressure is shown as ONE reading. FHIR splits it into two
+     Observations on the wire and `bloodPressure()` pairs them back, because a
+     systolic on one row and a diastolic three rows below is not a blood
+     pressure, it is two numbers. */
+  function listVitals(d) {
+    const all = d.vitals || [];
+    const bp = E().bloodPressure(all);
+    const others = E().latestVitals(all.filter((v) => v.kind !== E().VITAL.BP_SYS && v.kind !== E().VITAL.BP_DIA));
+    const lastBp = bp[0];
+
+    const vitalRow = (v) => `<div class="rw"><div style="width:100%">
+        <div class="rowb"><b>${esc(E().vitalLabel(v.kind, ar()))}</b>
+          <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+        <div class="rowb" style="margin-top:5px">
+          <span class="t3">${n(String(v.effectiveAt || "").slice(0, 10))}</span>
+          <span>${flagChip(v.flag)}</span></div>
+        ${rangeLine(v) ? `<div class="t3" style="margin-top:4px">${rangeLine(v)}</div>` : ""}
+        ${selfReported(v) ? `<div style="margin-top:5px">${selfReported(v)}</div>` : ""}
+      </div></div>`;
+
+    return page(T("القياسات", "Measurements"),
+      `${lastBp ? `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
+            <span class="st ${lastBp.abnormal ? "st-e" : "st-v"}">${n(lastBp.systolic.value)} / ${
+              lastBp.diastolic ? n(lastBp.diastolic.value) : "—"} ${esc(lastBp.systolic.unit)}</span></div>
+          <div class="rowb" style="margin-top:5px">
+            <span class="t3">${n(String(lastBp.at || "").slice(0, 10))}</span>
+            <span>${lastBp.abnormal ? `<span class="st st-e">${T("خارج المعتاد", "outside the usual range")}</span>`
+              : `<span class="st st-v">${T("ضمن المعتاد", "within the usual range")}</span>`}</span></div>
+          <div class="t3" style="margin-top:4px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${n(130)} / ${n(85)}</div>
+          ${bp.length > 1 ? `<div class="t3" style="margin-top:8px">${T("قراءات سابقة", "Earlier readings")}</div>
+            ${bp.slice(1, 4).map((x) => `<div class="rowb" style="margin-top:4px">
+              <span class="t3">${n(String(x.at).slice(0, 10))}</span>
+              <span class="t3">${n(x.systolic.value)} / ${x.diastolic ? n(x.diastolic.value) : "—"}</span></div>`).join("")}` : ""}
+        </div></div>` : ""}
+      ${others.length ? `<div class="stack-2">${others.map(vitalRow).join("")}</div>` : ""}
+      ${!lastBp && !others.length ? empty(T("ما سجّلت أي قياس بعد", "No measurements recorded yet")) : ""}
+      ${addButton("vital", T("سجّل قياساً", "Record a measurement"))}
+      <div class="note" style="margin-top:14px">${icon("info")}<div>${T(
+        "الوزن والطول ما إلهم «طبيعي» — القياس يُسجَّل، والحكم عليه شغل طبيبك، مو شغل التطبيق.",
+        "Weight and height have no 'normal' here. The measurement is recorded; judging it is your doctor's job, not the app's.")}</div></div>`,
+      T("قياس البيت مفيد بس إذا انكتب. جهاز ضغط بالبيت ودفتر ما يقراه أحد ما يساوي ملف — هذا يوصل طبيبك.",
+        "A home reading only helps if it is written down. A cuff at home and a notebook nobody reads is not a record — this reaches your doctor."));
+  }
+
   function listDocuments(d) {
     const docs = d.documents || [];
     return page(T("التقارير والمستندات", "Documents"),
@@ -12927,19 +13341,75 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   };
   const taskLabel = (k) => (TASK_LABELS[k] || [k, k])[ar() ? 0 : 1];
 
-  /* ---------- timeline (§9) ---------- */
+  /* ---------- timeline (§9) ----------
+
+     This screen showed "the timeline fills as visits are recorded" on a
+     record holding seven events, for as long as it has existed. Two bugs,
+     stacked, neither of which could throw:
+
+       `timelineByEpisode` returns `{ episodes, unassigned }`, an object. The
+       caller did `Array.isArray(byEp) ? byEp : []`, so `groups` was ALWAYS
+       the empty array and the empty state ALWAYS rendered. A defensive
+       fallback around a wrong assumption is indistinguishable from an empty
+       record.
+
+       And under it, `eventRow` read `e.kind` and `e.label`, while
+       `buildTimeline` emits `type` and `title`. Even with the first bug
+       fixed, every row would have printed a blank label under a blank kind.
+
+     The answer to "what happened to my health over time" is chronological
+     first and episode-second: a person scanning their own record is looking
+     for WHEN, and a year they can find is worth more than a care episode
+     they have to reconstruct. Episodes still label the events that belong to
+     one, in the row, where it costs nothing. */
   function screenTimeline(d) {
-    const byEp = E().timelineByEpisode({ ...d, patientId: d.patient.id });
-    const groups = Array.isArray(byEp) ? byEp : [];
+    const events = E().buildTimeline({ ...d, patientId: d.patient.id }) || [];
+    const epTitle = {};
+    for (const ep of d.episodes || []) epTitle[ep.id] = ep.title || ep.reason || null;
+
+    /* Newest first. Grouped by year, then by month inside it, because a
+       flat list of forty dated rows is a log and not a story. */
+    const years = [];
+    for (const e of events) {
+      const y = String(e.at || "").slice(0, 4);
+      const m = String(e.at || "").slice(0, 7);
+      if (!y) continue;
+      let Y = years.find((x) => x.y === y);
+      if (!Y) years.push(Y = { y, months: [] });
+      let M = Y.months.find((x) => x.m === m);
+      if (!M) Y.months.push(M = { m, events: [] });
+      M.events.push(e);
+    }
+
     return page(T("الخط الزمني", "Timeline"),
-      groups.length ? groups.map((g) => `<div class="sec">
-          <div class="sec-h"><h2 class="d3">${esc(g.title || T("أحداث متفرقة", "Other events"))}</h2>
-            ${g.state ? `<span class="st st-q">${esc(epLabel(g.state))}</span>` : ""}</div>
-          <div class="stack-2">${(g.events || []).map(eventRow).join("")}</div>
+      years.length ? years.map((Y) => `<div class="sec">
+          <div class="sec-h"><h2 class="d3">${n(Y.y)}</h2>
+            <span class="t3">${(() => {
+              const c = Y.months.reduce((s, m) => s + m.events.length, 0);
+              /* Arabic counts in four buckets. "2 حدث" is English grammar
+                 wearing Arabic words. */
+              return ar() ? countAr(c, ["حدث واحد", "حدثان", "أحداث", "حدثاً"]) : `${n(c)} event${c === 1 ? "" : "s"}`;
+            })()}</span></div>
+          ${Y.months.map((M) => `<div class="tl-month">
+            <div class="lab" style="margin:14px 0 2px">${esc(monthLabel(M.m))}</div>
+            <div class="tl">${M.events.map((e) => eventRow(e, epTitle)).join("")}</div>
+          </div>`).join("")}
         </div>`).join("")
-        : empty(T("الخط الزمني يمتلئ مع كل زيارة", "The timeline fills as visits are recorded")),
+        : empty(T("الخط الزمني يمتلئ مع كل زيارة", "The timeline fills as visits are recorded"),
+            addButton("condition", T("سجّل مشكلة صحية تعرفها", "Add a condition you know about"))),
       T("مو كل حدث — بس اللي يغيّر القرار: تشخيص جديد، دواء بدأ أو وقف، نتيجة غير طبيعية، عملية، إحالة.",
         "Not every event — only the ones that change a decision: a new diagnosis, a drug started or stopped, an abnormal result, surgery, a referral."));
+  }
+
+  const MONTHS_AR = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران",
+    "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
+  const MONTHS_EN = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+  /* Iraqi month names, not the Egyptian/Gulf set: يناير/فبراير reads foreign
+     in Baghdad the way "Januarius" would in London. */
+  function monthLabel(ym) {
+    const i = parseInt(String(ym).slice(5, 7), 10) - 1;
+    return i >= 0 && i < 12 ? (ar() ? MONTHS_AR[i] : MONTHS_EN[i]) : String(ym);
   }
 
   const EP_LABELS = { OPEN: ["مفتوحة", "open"], ACTIVE: ["نشطة", "active"], ON_HOLD: ["معلّقة", "on hold"],
@@ -12954,12 +13424,33 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   };
   const evtLabel = (k) => (EVT_LABELS[k] || [k, k])[ar() ? 0 : 1];
 
-  const eventRow = (e) => `<div class="rw"><div style="width:100%">
-      <div class="rowb"><span class="st st-q">${esc(evtLabel(e.kind))}</span>
-        <span class="t3">${n(String(e.at || "").slice(0, 10))}</span></div>
-      <div style="margin-top:6px">${esc(e.label || e.title || "")}</div>
-      ${e.abnormal ? `<span class="st st-e" style="margin-top:6px">${T("غير طبيعية", "abnormal")}</span>` : ""}
-    </div></div>`;
+  /* `type` and `title` — the field names buildTimeline actually emits. The
+     previous version read `kind` and `label`, which exist nowhere, so every
+     row would have rendered a blank event under a blank kind had the screen
+     ever got as far as drawing one. */
+  const DAY_AR = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  function dayOf(at) {
+    const d = new Date(at);
+    return isNaN(d) ? "" : (ar() ? DAY_AR[d.getDay()] : d.toLocaleDateString("en", { weekday: "short" }));
+  }
+
+  const eventRow = (e, epTitle) => {
+    const ep = epTitle && e.episodeId ? epTitle[e.episodeId] : null;
+    const day = String(e.at || "").slice(8, 10);
+    return `<div class="tl-e">
+      <div class="tl-when"><b class="num">${esc(day)}</b><span class="t3">${esc(dayOf(e.at))}</span></div>
+      <div class="tl-body">
+        <div class="rowb"><span class="st ${e.flag && e.flag !== "normal" ? "st-e" : "st-q"}">${
+          esc(evtLabel(e.type))}</span>
+          ${e.significance >= 4 ? `<span class="st st-t">${T("حدث كبير", "major")}</span>` : ""}</div>
+        <div style="margin-top:4px">${esc(e.title || T("بلا عنوان", "untitled"))}</div>
+        ${e.detail ? `<div class="t3" style="margin-top:3px">${esc(e.detail)}</div>` : ""}
+        ${ep ? `<div class="t3" style="margin-top:4px">${T("ضمن", "part of")} ${esc(ep)}</div>` : ""}
+        ${e.flag && e.flag !== "normal" ? `<span class="st st-e" style="margin-top:5px">${
+          e.flag === "unknown" ? T("بلا مدى مرجعي", "no reference range") : T("غير طبيعية", "abnormal")}</span>` : ""}
+      </div>
+    </div>`;
+  };
 
   /* ---------- sharing (§14) ---------- */
   function screenShares(d) {
@@ -13344,6 +13835,52 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
               onclick="recordPickChip('doct','${k}')">${esc(docTypeLabel(k))}</button>`).join("")}
         </div></div>`,
     },
+    /* A measurement is the one kind where the FIELDS depend on the choice.
+       Blood pressure needs two numbers on one reading; weight needs one.
+       So the chip group is rendered first and the numeric fields swap under
+       it — `recordPickVital` re-renders just that block rather than the
+       screen, so a half-typed date survives changing your mind. */
+    vital: {
+      title: ["قياس", "Measurement"],
+      lead: ["ضغط، وزن، نبض، سكر صائم — القياسات اللي تاخذها بالبيت. اكتبها هنا وتوصل طبيبك مع بقية ملفك.",
+        "Blood pressure, weight, pulse, fasting sugar — the readings you take at home. Written here they reach your doctor with the rest of your record."],
+      fields: [{ id: "effectiveAt", label: ["متى", "When"], type: "date", required: true }],
+      extra: () => `<div class="fld"><span>${T("شنو قِسْت", "What did you measure")}</span>
+        <div class="chips chips--wrap" style="margin-top:8px">
+          ${["bp", ...Object.values(E().VITAL).filter((k) => !/^bp-/.test(k))].map((k, i) =>
+            `<button class="chip${i === 0 ? " c-on" : ""}" data-vk="${k}"
+              onclick="recordPickVital('${k}')">${esc(k === "bp" ? T("ضغط الدم", "Blood pressure")
+                : E().vitalLabel(k, ar()))}</button>`).join("")}
+        </div></div>
+        <div id="vfields">${vitalFields("bp")}</div>`,
+    },
+  };
+
+  /* The numeric part of the measurement form, for one chosen kind. */
+  function vitalFields(kind) {
+    if (kind === "bp") {
+      const s = E().vitalMeta(E().VITAL.BP_SYS), d = E().vitalMeta(E().VITAL.BP_DIA);
+      return `<label class="fld"><span>${T("الرقم الأعلى (الانقباضي)", "Upper number (systolic)")} <span class="t3">${esc(s.unit)}</span></span>
+          <input id="ad-sys" type="number" inputmode="numeric" placeholder="120"></label>
+        <label class="fld"><span>${T("الرقم الأسفل (الانبساطي)", "Lower number (diastolic)")} <span class="t3">${esc(d.unit)}</span></span>
+          <input id="ad-dia" type="number" inputmode="numeric" placeholder="80"></label>
+        <p class="t3" style="margin-top:6px;line-height:1.7">${T(
+          "اقعد مرتاح خمس دقائق قبل القياس، والذراع بمستوى القلب. قراءة وحدة عالية ما تعني ضغط — الطبيب يقرر بعد عدة قراءات.",
+          "Sit for five minutes first, arm at heart height. One high reading is not hypertension — a clinician decides across several.")}</p>`;
+    }
+    const m = E().vitalMeta(kind);
+    if (!m) return "";
+    return `<label class="fld"><span>${esc(E().vitalLabel(kind, ar()))} <span class="t3">${esc(m.unit)}</span></span>
+      <input id="ad-val" type="number" inputmode="decimal" step="any"></label>
+      ${m.refLow == null && m.refHigh == null ? `<p class="t3" style="margin-top:6px;line-height:1.7">${T(
+        "هذا القياس ما إله «طبيعي» — ينحفظ كرقم، والحكم عليه شغل طبيبك.",
+        "This measurement has no 'normal' — it is stored as a number, and judging it is your doctor's job.")}</p>` : ""}`;
+  }
+
+  globalThis.recordPickVital = function recordPickVital(kind) {
+    recordPickChip("vk", kind);
+    const host = document.getElementById("vfields");
+    if (host) host.innerHTML = vitalFields(kind);
   };
 
   function screenAdd(d, kind) {
@@ -13385,6 +13922,11 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     for (const f of k.fields) {
       if (f.required && !g(f.id)) { toast(T("اكتب " + f.label[0], "Enter the " + f.label[1].toLowerCase())); return; }
     }
+    /* A measurement form with a date and no numbers would otherwise save a
+       row containing nothing but a timestamp. */
+    if (kind === "vital" && !vitalsFromForm(g, { recordedAt: null }).length) {
+      toast(T("اكتب الرقم", "Enter the reading")); return;
+    }
     /* The stamp. Written once, here, so no call site can add a row to the
        record without saying where it came from. */
     const stamp = {
@@ -13409,12 +13951,35 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
         x.documents.push({ ...stamp, title: g("title"), type: chipValue("doct", "other"),
           documentDate: g("documentDate") || null, note: g("note") || null,
           heldByPatient: true, claims: [] });
+      } else if (kind === "vital") {
+        x.vitals = x.vitals || [];
+        for (const v of vitalsFromForm(g, stamp)) x.vitals.push(v);
       }
     });
     toast(T("انحفظت", "Saved"));
     location.hash = "#/record/" + { allergy: "allergies", medication: "medications",
-      condition: "conditions", document: "documents" }[kind];
+      condition: "conditions", document: "documents", vital: "vitals" }[kind];
   };
+
+  /* Every measurement goes through `EMR.recordVital`, which is what stamps the
+     unit, the LOINC code and the flag — and what refuses a weight the range
+     table cannot judge rather than calling it normal. A screen that builds
+     the row itself would be inventing a second answer to "is this reading
+     abnormal", and two answers to that question is how they disagree. */
+  function vitalsFromForm(g, stamp) {
+    const at = g("effectiveAt");
+    const kind = chipValue("vk", "bp");
+    const out = [];
+    const push = (k, raw) => {
+      const val = parseFloat(raw);
+      if (!isFinite(val)) return;
+      const r = E().recordVital({ ...stamp, id: uid("V"), kind: k, value: val, effectiveAt: at }, stamp.recordedAt);
+      if (r.ok) out.push(r.vital);
+    };
+    if (kind === "bp") { push(E().VITAL.BP_SYS, g("sys")); push(E().VITAL.BP_DIA, g("dia")); }
+    else push(kind, g("val"));
+    return out;
+  }
 
   /* The mark that travels with everything above.
 
@@ -13553,6 +14118,27 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
           ${patientToldUs(c)
             || (c.stale ? `<span class="st st-e">${T("ما رُوجعت", "not reviewed")}</span>` : "")}
         </div></div>`).join("") : emptyRow(T("ما مسجّل", "none recorded"))) : lockedSection(T("المشاكل", "Conditions"))}
+
+      <!-- Vitals go ABOVE the trends: a blood pressure taken last week is
+           more likely to change what happens in this consultation than a lab
+           series from last year, and the clinician is reading top-down. -->
+      ${brief.bloodPressure || brief.vitals.length ? section(T("القياسات الأخيرة", "Latest measurements"),
+        `${brief.bloodPressure ? `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
+            <span class="st ${brief.bloodPressure.abnormal ? "st-e" : "st-v"}">${
+              n(brief.bloodPressure.systolic)} / ${brief.bloodPressure.diastolic != null
+                ? n(brief.bloodPressure.diastolic) : "—"} ${esc(brief.bloodPressure.unit || "")}</span></div>
+          <div class="rowb" style="margin-top:4px">
+            <span class="t3">${n(String(brief.bloodPressure.at || "").slice(0, 10))}</span>
+            <span>${patientToldUs(brief.bloodPressure)}</span></div>
+        </div></div>` : ""}
+        ${brief.vitals.map((v) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(v.name)}</b>
+            <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+          <div class="rowb" style="margin-top:4px">
+            <span class="t3">${n(String(v.at || "").slice(0, 10))}</span>
+            <span>${patientToldUs(v) || flagChip(v.flag)}</span></div>
+        </div></div>`).join("")}`) : ""}
 
       ${brief.trends.length ? section(T("اتجاهات تحرّكت", "Trends that moved"),
         brief.trends.map((t) => `<div class="rw"><div style="width:100%">

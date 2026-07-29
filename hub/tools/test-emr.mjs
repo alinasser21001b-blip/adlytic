@@ -414,6 +414,63 @@ it("a trend with mixed units is flagged", () => {
   no(t.comparable);
 });
 
+/* ==================== VITAL SIGNS ==================== */
+describe("٧-أ · العلامات الحيوية");
+
+it("a vital carries its unit, its LOINC code and a flag it did not choose", () => {
+  const r = E.recordVital({ kind: E.VITAL.BP_SYS, value: 148, effectiveAt: ago(2) }, ago(2));
+  ok(r.ok);
+  eq(r.vital.unit, "mmHg", "the unit comes from the table, not from the form");
+  eq(r.vital.code, "8480-6", "so it travels as a FHIR Observation, not a private string");
+  eq(r.vital.flag, "high");
+  eq(r.vital.class, E.CLASS.VITALS, "and it lands in the access class that already existed");
+});
+
+it("a measurement with no reference range is UNKNOWN, never normal", () => {
+  /* The same rule the lab results follow. Weight has no "normal" — a range
+     for it is a judgement about a person, and this file does not make those. */
+  const w = E.recordVital({ kind: E.VITAL.WEIGHT, value: 83, effectiveAt: ago(1) });
+  eq(w.vital.flag, "unknown");
+  eq(w.vital.refLow, null);
+  no(E.isAbnormal(w.vital), "unknown is not abnormal either — it is unjudged");
+  ok(E.isUnjudgeable(w.vital), "and it must still be findable as unjudged");
+});
+
+it("a range supplied for THIS patient beats the table", () => {
+  /* A clinician who set a target for someone outranks an adult-average. */
+  const v = E.recordVital({ kind: E.VITAL.BP_SYS, value: 138, effectiveAt: ago(1), refHigh: 150, refLow: 100 });
+  eq(v.vital.flag, "normal", "138 is high by the table and fine against this patient's target");
+});
+
+it("a vital is refused rather than stored half-formed", () => {
+  eq(E.recordVital({ kind: "made-up", value: 1, effectiveAt: ago(1) }).reason, "UNKNOWN_VITAL");
+  eq(E.recordVital({ kind: E.VITAL.PULSE, value: 70 }).reason, "DATE_REQUIRED");
+  eq(E.recordVital({ kind: E.VITAL.PULSE, value: "seventy", effectiveAt: ago(1) }).reason, "VALUE_REQUIRED");
+  eq(E.recordVital({ kind: E.VITAL.PULSE, value: NaN, effectiveAt: ago(1) }).reason, "VALUE_REQUIRED");
+});
+
+it("blood pressure is ONE reading, and abnormal if either half is", () => {
+  /* FHIR splits it into two Observations on the wire. A screen that shows a
+     systolic on one row and a diastolic three rows below has not shown a
+     blood pressure. */
+  const at = ago(3);
+  const sys = E.recordVital({ kind: E.VITAL.BP_SYS, value: 190, effectiveAt: at }).vital;
+  const dia = E.recordVital({ kind: E.VITAL.BP_DIA, value: 78, effectiveAt: at }).vital;
+  const bp = E.bloodPressure([sys, dia]);
+  eq(bp.length, 1, "two observations, one reading");
+  eq(bp[0].systolic.value, 190);
+  eq(bp[0].diastolic.value, 78);
+  ok(bp[0].abnormal, "a normal diastolic does not redeem a systolic of 190");
+});
+
+it("latestVitals answers in the present tense — newest per kind", () => {
+  const mk = (k, v, d) => E.recordVital({ kind: k, value: v, effectiveAt: ago(d) }).vital;
+  const list = [mk(E.VITAL.PULSE, 60, 90), mk(E.VITAL.PULSE, 88, 2), mk(E.VITAL.WEIGHT, 80, 40)];
+  const latest = E.latestVitals(list);
+  eq(latest.length, 2, "one row per kind");
+  eq(latest.find((x) => x.kind === E.VITAL.PULSE).value, 88, "the newest pulse, not the first one stored");
+});
+
 /* ==================== 14-17 · EPISODES, SURGERY, CLOSED LOOP ==================== */
 describe("٦ · الحلقة والجراحة والمتابعة");
 
