@@ -111,6 +111,19 @@
       ${prof.awaitingVerification ? `<a class="note note-w" href="#/record/inbox">${icon("clock")}
         <div>${n(prof.awaitingVerification)} ${T("معلومة مستخرجة من تقاريرك لم يؤكّدها طبيب بعد", "extracted from your reports, not yet confirmed by a doctor")}</div></a>` : ""}
 
+      <!-- The record had four hundred ways to READ it and none to add to it.
+           Four kinds, named for what a patient actually has to say, not for
+           the tables they land in. -->
+      <div class="sec">
+        <div class="sec-h"><h2 class="d3">${T("أضف لملفك", "Add to your record")}</h2></div>
+        <div class="chips chips--wrap" style="margin-top:4px">
+          <a class="chip" href="#/record/add/allergy">${icon("alert")}${T("حساسية", "Allergy")}</a>
+          <a class="chip" href="#/record/add/medication">${icon("pill")}${T("دواء", "Medicine")}</a>
+          <a class="chip" href="#/record/add/condition">${icon("stetho")}${T("مشكلة صحية", "Condition")}</a>
+          <a class="chip" href="#/record/add/document">${icon("cal")}${T("تقرير عندي", "A report I have")}</a>
+        </div>
+      </div>
+
       <div class="sec">
         <div class="sec-h"><h2 class="d3">${T("الآن", "Right now")}</h2></div>
         <div class="stack-2">
@@ -139,6 +152,7 @@
         <div class="sec-h"><h2 class="d3">${T("من يرى ملفي", "Who can see my record")}</h2></div>
         <div class="stack-2">
           ${tile("#/record/shares", T("المشاركات الفعّالة", "Active shares"), live.length)}
+          ${tile("#/record/share", T("شارك ملفك مع طبيب", "Share with a clinician"), null)}
           ${tile("#/record/access", T("سجل الوصول", "Access history"), (d.accessLog || []).length)}
           ${tile("#/record/carry", T("ملخّص أحمله معي", "A summary I carry"), null)}
         </div>
@@ -371,6 +385,8 @@
       case "followups": return listFollowups(d);
       case "timeline": return screenTimeline(d);
       case "shares": return screenShares(d);
+      case "share": return screenShareNew(d);
+      case "add": return screenAdd(d, id);
       case "access": return screenAccess(d);
       case "carry": return screenCarry(d);
       case "inbox": return screenInbox(d);
@@ -415,11 +431,13 @@
           </div>
           ${c.stale ? `<div class="st st-e" style="margin-top:6px">${T(
             "ما راجعها طبيب من مدة طويلة", "not reviewed by a clinician for a long time")}</div>` : ""}
+          ${selfReported(c) ? `<div style="margin-top:6px">${selfReported(c)}</div>` : ""}
         </div></div>`).join("")}</div>`
         : empty(T("ما مسجّل عندك مشاكل نشطة", "No active conditions recorded"))}
       ${past.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${T("سابقة", "Past")}</h2></div>
         <div class="stack-2">${past.map((c) => `<div class="rw"><div class="rowb" style="width:100%">
-          <span>${esc(c.display)}</span><span class="t3">${esc(c.clinicalStatus)}</span></div></div>`).join("")}</div></div>` : ""}`,
+          <span>${esc(c.display)}</span><span class="t3">${esc(c.clinicalStatus)}</span></div></div>`).join("")}</div></div>` : ""}
+      ${addButton("condition", T("سجّل مشكلة صحية", "Add a condition"))}`,
       T("المشاكل النشطة أولاً، والمزمنة قبل غيرها. الحالة الحالية — مو تاريخ كل شي صار.",
         "Active first, chronic before the rest. What is true now — not everything that ever happened."));
   }
@@ -435,6 +453,7 @@
               ? `<span class="st st-q">${T("غير مؤكّد", "unconfirmed")}</span>` : ""}</div>
           <div class="t3" style="margin-top:4px">${[m.dose, freqLabel(m.frequency)].filter(Boolean).map(esc).join(" · ")}</div>
           ${m.indication ? `<div class="t3" style="margin-top:2px">${T("لـ", "for")} ${esc(m.indication)}</div>` : ""}
+          ${selfReported(m) ? `<div style="margin-top:6px">${selfReported(m)}</div>` : ""}
         </div></div>`).join("")}</div>`
         : empty(T("ما مسجّل عندك أدوية حالية", "No current medications recorded"))}
       ${unconf.length ? `<div class="note note-w" style="margin-top:12px">${icon("clock")}<div>${T(
@@ -444,7 +463,8 @@
         <div class="stack-2">${stopped.map((m) => `<div class="rw"><div style="width:100%">
           <div class="rowb"><span>${esc(m.display)}</span><span class="t3">${n(m.stopDate || "")}</span></div>
           <div class="t3" style="margin-top:4px">${T("السبب", "reason")}: ${esc(m.stopReason || "—")}</div>
-        </div></div>`).join("")}</div></div>` : ""}`,
+        </div></div>`).join("")}</div></div>` : ""}
+      ${addButton("medication", T("سجّل دواء تاخذه", "Add a medicine you take"))}`,
       T("لماذا تُوقَف مهم مثل ماذا يُوصَف — الطبيب الجاي يحتاج يعرف إذا الدواء فشل أو سبّب حساسية.",
         "Why a drug stopped matters as much as why it started — the next clinician needs to know whether it failed or harmed you."));
   }
@@ -456,13 +476,15 @@
 
   function listAllergies(d) {
     return page(T("الحساسية", "Allergies"),
-      d.allergies && d.allergies.length
+      `${d.allergies && d.allergies.length
         ? `<div class="stack-2">${E().criticalAllergies(d.allergies).map((a) => `<div class="rw">
             <div style="width:100%"><div class="rowb"><b>${esc(a.substance)}</b>
               <span class="st ${a.criticality === E().CRITICALITY.HIGH ? "st-e" : "st-q"}">${
                 a.criticality === E().CRITICALITY.HIGH ? T("خطرة", "high") : T("خفيفة", "low")}</span></div>
-            ${a.reaction ? `<div class="t3" style="margin-top:4px">${esc(a.reaction)}</div>` : ""}</div></div>`).join("")}</div>`
-        : empty(T("ما مسجّل عندك أي حساسية", "No allergy recorded")),
+            ${a.reaction ? `<div class="t3" style="margin-top:4px">${esc(a.reaction)}</div>` : ""}
+            ${selfReported(a) ? `<div style="margin-top:6px">${selfReported(a)}</div>` : ""}</div></div>`).join("")}</div>`
+        : empty(T("ما مسجّل عندك أي حساسية", "No allergy recorded"))}
+      ${addButton("allergy", T("سجّل حساسية", "Record an allergy"))}`,
       T("هذي أول شي يشوفه أي طبيب يفتح ملفك — حتى لو ما شاركت غيرها.",
         "This is the first thing any clinician sees — even when you shared nothing else."));
   }
@@ -496,8 +518,11 @@
           <div class="t3" style="margin-top:4px">${esc(docTypeLabel(x.type))}
             ${R().pendingClaims(x).length ? ` · <span class="st st-q">${
               n(R().pendingClaims(x).length)} ${T("معلومة تنتظر تأكيد طبيب", "awaiting a clinician")}</span>` : ""}</div>
+          ${x.heldByPatient ? `<div class="t3" style="margin-top:4px">${
+            T("ورقة عندك", "paper you hold")}${x.note ? " · " + esc(x.note) : ""}</div>` : ""}
         </div></div>`).join("")}</div>`
         : empty(T("ما رفعت أي تقرير بعد", "No documents uploaded yet"))}
+      ${addButton("document", T("سجّل تقريراً عندك", "Note a report you hold"))}
       <div class="note" style="margin-top:14px">${icon("info")}<div>${T(
         "التقرير يبقى مثل ما هو — مصدر. أي معلومة تُقرأ منه تبقى «بانتظار التأكيد» حتى يأكّدها طبيب.",
         "A document stays exactly as it is — a source. Anything read out of it stays 'awaiting confirmation' until a clinician confirms it.")}</div></div>`,
@@ -626,6 +651,15 @@
           </div>
         </div></div>`).join("")}</div>`
         : empty(T("ما تشارك ملفك مع أحد حالياً", "You are not sharing your record with anyone right now"))}
+
+      <!-- The screen was named for an action it did not offer. Its empty
+           state said "you are not sharing with anyone" and stopped there, so
+           a patient sitting in front of a doctor had no way to start — the
+           only path into a share was a doctor asking first, which requires
+           the doctor to already have the app. In Iraq that is the rare case,
+           not the common one. -->
+      <a class="btn" style="margin-top:18px" href="#/record/share">${
+        T("شارك ملفك مع طبيب", "Share your record with a clinician")}</a>
       ${past.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${T("منتهية", "Ended")}</h2></div>
         <div class="stack-2">${past.slice(0, 8).map((s) => `<div class="rw"><div class="rowb" style="width:100%">
           <span class="t3">${esc(s.granteeName || s.granteeId)}</span>
@@ -634,6 +668,100 @@
       T("كل مشاركة لها مدة وتنتهي وحدها. تقدر تلغيها بأي لحظة، وما تحتاج تعطي سبب.",
         "Every share has a duration and ends on its own. You can revoke it at any moment, and you owe nobody a reason."));
   }
+
+  /* ---------- the patient starting a share (§13, from the other side) ----------
+
+     Every consent path in the product used to begin with the clinician: they
+     request, the patient answers. That models a country where the doctor
+     already has the app, which is not this one. The common case here is a
+     patient with a phone sitting in front of a doctor with a paper desk, and
+     for that the patient has to be able to START.
+
+     What it produces is the carry code that already existed — the same
+     mechanism the printed summary uses, and the same one a clinic redeems.
+     What is new is that the patient chooses the scope and the duration
+     instead of taking DEFAULT_SCOPES and four hours. */
+  function screenShareNew(d) {
+    const S_ = C().SCOPE;
+    /* Ordered by how often it is the answer, not alphabetically, and not by
+       the order they happen to sit in the enum. */
+    const OFFER = [S_.SUMMARY, S_.MEDICATIONS, S_.CONDITIONS, S_.LABS,
+      S_.DOCUMENTS, S_.PROCEDURES, S_.IMMUNIZATIONS, S_.ENCOUNTERS, S_.IMAGING, S_.TIMELINE];
+    const on = new Set(C().DEFAULT_SCOPES);
+    return page(T("شارك ملفك", "Share your record"),
+      `<div class="sec"><div class="sec-h"><h2 class="d3">${T("شنو يشوف", "What they see")}</h2></div>
+        <div class="stack-2">
+          <!-- The floor is shown as a row like the others and locked like
+               none of them, with the reason in the row rather than in a
+               footnote. A patient who cannot see why it is locked reads it
+               as the app overriding them for its own convenience. -->
+          <div class="rw"><div class="rowb" style="width:100%">
+            <span>${esc(C().scopeLabel(S_.ALLERGIES, S.lang))}
+              <span class="st st-t" style="margin-inline-start:8px">${T("دائماً", "always")}</span></span>
+            <input type="checkbox" checked disabled>
+          </div></div>
+          <p class="t3" style="margin-top:-4px;line-height:1.7">${T(
+            "الحساسية تنشارك دائماً مع أي طبيب تعطيه إذن. طبيب يشوف ملفك ولا يشوف حساسيتك أخطر من طبيب ما يشوف شي — لأنه راح يوصف وهو معتقد إنه تأكّد.",
+            "Allergies are always shared with anyone you grant access. A clinician who can see your record but not your allergy is more dangerous than one who cannot see it at all — they will prescribe believing they checked.")}</p>
+          ${OFFER.map((s) => `<label class="rw"><div class="rowb" style="width:100%">
+            <span>${esc(C().scopeLabel(s, S.lang))}</span>
+            <input type="checkbox" class="sh-scope" value="${esc(s)}"${on.has(s) ? " checked" : ""}>
+          </div></label>`).join("")}
+        </div>
+      </div>
+
+      <div class="sec"><div class="sec-h"><h2 class="d3">${T("لمدة", "For how long")}</h2></div>
+        <div class="chips chips--wrap" style="margin-top:4px">
+          ${["VISIT", "DAY", "WEEK", "MONTH", "QUARTER"].map((k, i) =>
+            `<button class="chip${i === 0 ? " c-on" : ""}" data-dur="${k}"
+              onclick="recordPickShareDuration('${k}')">${esc(ar() ? C().DURATION[k].ar : C().DURATION[k].en)}</button>`).join("")}
+        </div>
+        <p class="t3" style="margin-top:10px;line-height:1.7">${T(
+          "ما في «للأبد». أطول مدة ٩٠ يوماً، وتقدر تلغيها قبلها بأي لحظة بلا ما تعطي سبب.",
+          "There is no 'forever'. The longest is 90 days, and you can revoke it before that at any moment without giving a reason.")}</p>
+      </div>
+
+      <button class="btn" style="margin-top:18px" onclick="recordStartShare()">${
+        T("أصدر رمزاً", "Issue a code")}</button>`,
+      T("تختار شنو يشوف وكم مدة، ويطلعلك رمز تعطيه للعيادة. الرمز يُستعمل مرة وحدة وينتهي وحده.",
+        "You choose what they see and for how long, and get a code to hand to the clinic. The code is single use and expires on its own."),
+      "record");
+  }
+
+  /* The chosen duration lives on the DOM, not in a module variable, because a
+     re-render between choosing and confirming would silently reset a module
+     variable while the chip still looked selected — consent that says one
+     thing on screen and stores another. */
+  globalThis.recordPickShareDuration = function recordPickShareDuration(k) {
+    document.querySelectorAll("[data-dur]").forEach((b) =>
+      b.classList.toggle("c-on", b.getAttribute("data-dur") === k));
+  };
+
+  /* Six characters from an unambiguous alphabet — no 0/O, no 1/I/l. A code
+     read aloud across a clinic desk in a noisy waiting room has to survive
+     being misheard once. */
+  function newCarryCode() {
+    const A = "ACDEFGHJKMNPQRTUVWXY34679";
+    let code = "";
+    for (let i = 0; i < 6; i++) code += A[Math.floor(Math.random() * A.length)];
+    return code;
+  }
+
+  globalThis.recordStartShare = function recordStartShare() {
+    const d = store();
+    const scopes = [...document.querySelectorAll(".sh-scope:checked")].map((x) => x.value);
+    const picked = document.querySelector("[data-dur].c-on");
+    const dur = picked ? picked.getAttribute("data-dur") : "VISIT";
+    const r = C().issueCarryCode(d.patient.id, scopes, now(), newCarryCode(), dur);
+    if (!r.ok) {
+      toast(r.reason === "SCOPE_REQUIRED"
+        ? T("اختر شي واحد على الأقل", "Choose at least one thing")
+        : T("ما قدرنا نصدر رمز", "Could not issue a code"));
+      return;
+    }
+    mutate((x) => { x.carry = r.carry; });
+    location.hash = "#/record/carry";
+  };
 
   function untilLabel(at) {
     const left = new Date(at).getTime() - now();
@@ -748,30 +876,247 @@
       `${live ? `<div class="note note-w">${icon("seal")}<div style="width:100%">
           <b>${T("رمز فعّال", "Live code")}</b>
           <div class="nhuge" style="letter-spacing:.18em;margin-top:8px">${esc(live.code)}</div>
-          <div class="t3" style="margin-top:8px">${T("ينتهي", "expires")} ${esc(untilLabel(live.expiresAt))} ·
+          <div class="t3" style="margin-top:8px">${T("ينتهي الرمز", "the code expires")} ${esc(untilLabel(live.expiresAt))} ·
             ${T("يُستعمل مرة واحدة", "single use")}</div>
-        </div></div>`
-        : `<button class="btn" onclick="recordIssueCarry()">${T("أصدر رمزاً للعيادة", "Issue a code for the clinic")}</button>`}
+        </div></div>
+
+        <!-- A code whose contents are not stated is a code nobody can consent
+             to. This says exactly what handing it over gives away, in the same
+             words the share screen used when the patient chose. -->
+        <div class="sec"><div class="sec-h"><h2 class="d3">${T("اللي راح يشوفه", "What it opens")}</h2></div>
+          <div class="row" style="flex-wrap:wrap;gap:6px">
+            ${live.scopes.map((x) => `<span class="chip">${esc(C().scopeLabel(x, S.lang))}</span>`).join("")}
+          </div>
+          <p class="t3" style="margin-top:12px;line-height:1.7">${T(
+            `العيادة تشوف هذا لمدة ${ar() ? C().DURATION[live.duration || "VISIT"].ar : ""} من لحظة ما تستعمل الرمز، وبعدها ينغلق وحده.`,
+            `The clinic sees this for ${C().DURATION[live.duration || "VISIT"].en} from the moment the code is used, then it closes itself.`)}</p>
+        </div>
+
+        <a class="b-g" style="display:block;margin-top:14px" href="#/record/share">${
+          T("أصدر رمزاً بمحتوى مختلف", "Issue a code covering something else")}</a>`
+        : `<!-- Two doors on purpose. Someone at a clinic desk with the doctor
+                 waiting wants one tap and the sensible default; someone
+                 deciding at home wants to choose. Offering only the second
+                 turns a thirty-second handover into a form. -->
+          <button class="btn" onclick="recordIssueCarry()">${
+            T("أصدر رمز الزيارة الآن", "Issue a visit code now")}</button>
+          <p class="t3" style="margin-top:10px;line-height:1.7">${T(
+            "يفتح اللقطة السريرية وأدويتك ومشاكلك وحساسيتك، لمدة زيارة وحدة.",
+            "Opens your summary, medicines, conditions and allergies, for one visit.")}</p>
+          <a class="b-g" style="display:block;margin-top:14px" href="#/record/share">${
+            T("أو اختار شنو يشوف وكم مدة", "Or choose what they see and for how long")}</a>`}
       <div class="note" style="margin-top:16px">${icon("info")}<div>${T(
-        "اطبع الملخّص أو احفظه بهاتفك، وخذه معك. العيادة تمسح الرمز فتشوف ملفك لمدة الزيارة فقط — بعدها ينغلق وحده.",
-        "Print the summary or keep it on your phone and take it with you. The clinic redeems the code and sees your record for the visit only — then it closes itself.")}</div></div>`,
+        "اطبع الملخّص أو احفظه بهاتفك، وخذه معك. العيادة تستعمل الرمز فتشوف اللي اخترته للمدة اللي اخترتها — بعدها ينغلق وحده.",
+        "Print the summary or keep it on your phone and take it with you. The clinic redeems the code and sees what you chose for the duration you chose — then it closes itself.")}</div></div>`,
       T("في بلد ما بيه ربط بين المستشفيات، أنت أفضل ناقل لملفك. الورقة تشتغل حتى لو انقطعت الكهرباء والإنترنت.",
         "In a country with no exchange between institutions, you are the best carrier of your own record. Paper works when the power and the network do not."));
   }
 
+  /* Kept because it is the one-tap path from anywhere that is not the share
+     builder — it issues the default scopes for a single visit, which is what
+     someone in a hurry at a clinic desk wants. Choosing is the builder's job. */
   globalThis.recordIssueCarry = function recordIssueCarry() {
     const d = store();
-    /* Six characters from an unambiguous alphabet — no 0/O, no 1/I/l. A code
-       read aloud across a clinic desk in a noisy waiting room has to survive
-       being misheard once. */
-    const A = "ACDEFGHJKMNPQRTUVWXY34679";
-    let code = "";
-    for (let i = 0; i < 6; i++) code += A[Math.floor(Math.random() * A.length)];
-    const r = C().issueCarryCode(d.patient.id, C().DEFAULT_SCOPES, now(), code);
+    const r = C().issueCarryCode(d.patient.id, C().DEFAULT_SCOPES, now(), newCarryCode(), "VISIT");
     if (!r.ok) { toast(T("ما قدرنا نصدر رمز", "Could not issue a code")); return; }
     mutate((x) => { x.carry = r.carry; });
     render();
   };
+
+  /* =========================================================
+     المريض يكتب في ملفه — WHAT THE PATIENT PUTS IN
+     =========================================================
+     The record had no patient-authored write path at all. Every screen was a
+     count that opened onto a list, and a patient who knew perfectly well that
+     penicillin gives them a rash could not say so. Measured as infinite taps
+     to add anything, which is the correct number: there was no control.
+
+     That is not a missing button, it is the premise failing. A longitudinal
+     record the patient owns and cannot write to is a viewer, and a viewer of
+     an empty record is nothing at all — in a country with no health
+     information exchange, what the patient carries in their head IS the
+     history, and refusing to take it down does not make the record safer, it
+     makes it empty.
+
+     Everything written here is stamped `source: PATIENT` and
+     `verificationStatus: PATIENT_REPORTED` — the vocabulary emr.js already
+     declared and nothing used. It enters the lists, it reaches the clinician's
+     brief, and everywhere it appears it says who said so. It is never
+     promoted to confirmed by anything the patient does; only a verified
+     clinician moves it, which is the same rule the document-extraction path
+     already follows. The machine does not diagnose, and neither does the
+     person filling in a form about themselves. */
+
+  const ADD_KINDS = {
+    allergy: {
+      title: ["حساسية", "Allergy"],
+      lead: ["أهم شي بالملف كله. اكتب اسم الدوا أو الشي اللي يجيك منه، وشنو يصير لك.",
+        "The most important thing in the record. Name the drug or substance, and what it does to you."],
+      fields: [
+        { id: "substance", label: ["الدوا أو المادة", "Drug or substance"], required: true },
+        { id: "reaction", label: ["شنو يصير", "What happens"] },
+      ],
+      extra: () => `<div class="fld"><span>${T("شكد قوية", "How severe")}</span>
+        <div class="chips chips--wrap" style="margin-top:8px">
+          <button class="chip c-on" data-crit="high" onclick="recordPickChip('crit','high')">${
+            T("خطرة — ضيق نفس أو تورّم", "Severe — breathing or swelling")}</button>
+          <button class="chip" data-crit="low" onclick="recordPickChip('crit','low')">${
+            T("خفيفة — طفح أو حكة", "Mild — rash or itching")}</button>
+        </div></div>`,
+    },
+    medication: {
+      title: ["دواء", "Medication"],
+      lead: ["الدوا اللي تاخذه الآن. حتى لو ما وصفه دكتور — العشبي والمكمّلات تتعارض وية الأدوية.",
+        "What you are taking now. Including anything a doctor did not prescribe — herbal remedies and supplements interact."],
+      fields: [
+        { id: "display", label: ["اسم الدوا", "Medicine name"], required: true },
+        { id: "dose", label: ["الجرعة", "Dose"], placeholder: ["مثلاً ٥٠٠ ملغم", "e.g. 500 mg"] },
+        { id: "indication", label: ["ليش تاخذه", "What for"] },
+      ],
+      extra: () => `<div class="fld"><span>${T("كم مرة", "How often")}</span>
+        <div class="chips chips--wrap" style="margin-top:8px">
+          ${Object.keys(R().FREQ).map((k, i) => `<button class="chip${i === 0 ? " c-on" : ""}"
+            data-freq="${k}" onclick="recordPickChip('freq','${k}')">${
+              esc(ar() ? R().FREQ[k].ar : R().FREQ[k].en)}</button>`).join("")}
+        </div></div>`,
+    },
+    condition: {
+      title: ["مشكلة صحية", "Condition"],
+      lead: ["التشخيصات اللي تعرفها عن نفسك — سكري، ضغط، ربو، أي شي قالك عنه دكتور.",
+        "Diagnoses you know about yourself — diabetes, blood pressure, asthma, anything a doctor has told you."],
+      fields: [
+        { id: "display", label: ["الاسم", "Name"], required: true },
+        { id: "onsetDate", label: ["من متى", "Since when"], type: "date" },
+      ],
+      extra: () => `<div class="fld"><span>${T("مزمنة؟", "Chronic?")}</span>
+        <div class="chips chips--wrap" style="margin-top:8px">
+          <button class="chip c-on" data-chronic="yes" onclick="recordPickChip('chronic','yes')">${
+            T("مستمرة وياي", "ongoing")}</button>
+          <button class="chip" data-chronic="no" onclick="recordPickChip('chronic','no')">${
+            T("انتهت أو مؤقتة", "past or temporary")}</button>
+        </div></div>`,
+    },
+    /* A document here is a REFERENCE to paper the patient holds — a title, a
+       kind and a date — not an upload. Photographs of prescriptions and
+       reports never enter our storage; that is a standing rule of this
+       product, and a "records" feature that quietly starts collecting images
+       of people's diagnoses would break it. Knowing the discharge summary
+       from July 2024 exists, and that the patient has it in a drawer, is
+       most of the value and none of the risk. */
+    document: {
+      title: ["تقرير عندي", "A report I have"],
+      lead: ["سجّل شنو عندك من أوراق ووين. ما نرفع صور — بس نعرف إنها موجودة حتى تذكّرك تاخذها وياك.",
+        "Note what paperwork you hold and where. We store no images — only that it exists, so you remember to bring it."],
+      fields: [
+        { id: "title", label: ["شنو هو", "What is it"], required: true,
+          placeholder: ["مثلاً: تقرير خروج من مستشفى الكندي", "e.g. discharge summary, Al-Kindi hospital"] },
+        { id: "documentDate", label: ["تاريخه", "Its date"], type: "date" },
+        { id: "note", label: ["وين محفوظ", "Where it is"], placeholder: ["مثلاً: بالبيت مع الأوراق", "e.g. at home with the papers"] },
+      ],
+      extra: () => `<div class="fld"><span>${T("نوعه", "Kind")}</span>
+        <div class="chips chips--wrap" style="margin-top:8px">
+          ${["lab-report", "imaging-report", "discharge-summary", "operative-note", "clinical-report", "other"]
+            .map((k, i) => `<button class="chip${i === 0 ? " c-on" : ""}" data-doct="${k}"
+              onclick="recordPickChip('doct','${k}')">${esc(docTypeLabel(k))}</button>`).join("")}
+        </div></div>`,
+    },
+  };
+
+  function screenAdd(d, kind) {
+    const k = ADD_KINDS[kind];
+    if (!k) return screen404();
+    return page(T("أضف " + k.title[0], "Add " + k.title[1].toLowerCase()),
+      `${k.fields.map((f) => `<label class="fld">
+        <!-- Separated by a dash, not a space: «شنو يصير اختياري» reads as one
+             phrase — "what happens optional" — instead of a label and a note
+             about it. -->
+        <span>${T(f.label[0], f.label[1])}${f.required ? ""
+          : ` <span class="t3">— ${T("اختياري", "optional")}</span>`}</span>
+        <input id="ad-${esc(f.id)}" type="${f.type || "text"}"${
+          f.placeholder ? ` placeholder="${esc(T(f.placeholder[0], f.placeholder[1]))}"` : ""}></label>`).join("")}
+      ${k.extra()}
+      <button class="btn" style="margin-top:18px" onclick="recordAddSave('${esc(kind)}')">${T("احفظ", "Save")}</button>
+      <div class="note" style="margin-top:16px">${icon("info")}<div>${T(
+        "هذا اللي تكتبه ينحفظ باسمك: «سجّلها المريض». يوصل الطبيب مثل ما هو، ويبقى مكتوب إنك أنت قلته حتى يأكّده دكتور.",
+        "What you write is saved as yours: 'recorded by the patient'. A clinician sees it exactly as it is, and it stays marked as your account of it until a clinician confirms it.")}</div></div>`,
+      T(k.lead[0], k.lead[1]), "record");
+  }
+
+  /* One chip group per attribute, selected on the DOM for the same reason the
+     share duration is — a re-render must not leave the screen saying one
+     thing and the store holding another. */
+  globalThis.recordPickChip = function recordPickChip(group, value) {
+    document.querySelectorAll(`[data-${group}]`).forEach((b) =>
+      b.classList.toggle("c-on", b.getAttribute("data-" + group) === value));
+  };
+  const chipValue = (group, fallback) => {
+    const el = document.querySelector(`[data-${group}].c-on`);
+    return el ? el.getAttribute("data-" + group) : fallback;
+  };
+
+  globalThis.recordAddSave = function recordAddSave(kind) {
+    const k = ADD_KINDS[kind];
+    if (!k) return;
+    const g = (id) => ((document.getElementById("ad-" + id) || {}).value || "").trim();
+    for (const f of k.fields) {
+      if (f.required && !g(f.id)) { toast(T("اكتب " + f.label[0], "Enter the " + f.label[1].toLowerCase())); return; }
+    }
+    /* The stamp. Written once, here, so no call site can add a row to the
+       record without saying where it came from. */
+    const stamp = {
+      id: uid(kind.slice(0, 1).toUpperCase()),
+      recordedBy: (store().patient || {}).id || null,
+      recordedAt: new Date(now()).toISOString(),
+      source: E().SOURCE.PATIENT,
+      verificationStatus: E().VERIFY.PATIENT_REPORTED,
+    };
+    mutate((x) => {
+      if (kind === "allergy") {
+        x.allergies.push({ ...stamp, substance: g("substance"), reaction: g("reaction") || null,
+          criticality: chipValue("crit", "high") === "high" ? E().CRITICALITY.HIGH : E().CRITICALITY.LOW });
+      } else if (kind === "medication") {
+        x.medications.push({ ...stamp, display: g("display"), dose: g("dose") || null,
+          frequency: chipValue("freq", "OD"), indication: g("indication") || null,
+          status: "active", startDate: null, lastConfirmed: null });
+      } else if (kind === "condition") {
+        x.conditions.push({ ...stamp, display: g("display"), clinicalStatus: E().COND_STATE.ACTIVE,
+          chronic: chipValue("chronic", "yes") === "yes", onsetDate: g("onsetDate") || null, lastReviewed: null });
+      } else if (kind === "document") {
+        x.documents.push({ ...stamp, title: g("title"), type: chipValue("doct", "other"),
+          documentDate: g("documentDate") || null, note: g("note") || null,
+          heldByPatient: true, claims: [] });
+      }
+    });
+    toast(T("انحفظت", "Saved"));
+    location.hash = "#/record/" + { allergy: "allergies", medication: "medications",
+      condition: "conditions", document: "documents" }[kind];
+  };
+
+  /* The mark that travels with everything above.
+
+     It has to answer for TWO shapes. A row read straight out of storage
+     carries `source` and `verificationStatus`; a row that came through
+     `preVisitBrief` carries neither, because the brief is a projection that
+     renames its fields on purpose so no screen is wired to the record's
+     schema. Checking only the storage names is how the first version of this
+     silently dropped the mark from the doctor's brief — the one screen where
+     "who said this" changes what happens next. Verified in the browser, not
+     assumed: the aspirin the patient had just typed in appeared on the
+     clinician's medication list looking exactly like the prescribed one. */
+  const isSelfSaid = (e) => !!e && (e.selfReported === true
+    || e.source === E().SOURCE.PATIENT
+    || e.verificationStatus === E().VERIFY.PATIENT_REPORTED);
+
+  /* Colour is not the carrier — the words are. Two different sets of them,
+     deliberately: the patient needs to recognise their own entry, and the
+     clinician needs to know nobody has verified it. */
+  const selfReported = (e) => isSelfSaid(e)
+    ? `<span class="st st-q">${T("سجّلتها بنفسك", "your own entry")}</span>` : "";
+  const patientToldUs = (e) => isSelfSaid(e)
+    ? `<span class="st st-t">${T("قالها المريض — غير مؤكّدة", "patient-reported, unverified")}</span>` : "";
+
+  const addLink = (kind, label) => `<a class="b-g" href="#/record/add/${kind}">${esc(label)}</a>`;
+  const addButton = (kind, label) => `<a class="btn btn--2" style="margin-top:16px" href="#/record/add/${kind}">${esc(label)}</a>`;
 
   /* ---------- the unverified tray (§11) ---------- */
   function screenInbox(d) {
@@ -840,7 +1185,8 @@
         </div>
         ${brief.allergies.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}
           <div><b>${T("حساسية", "ALLERGY")}</b> — ${brief.allergies.map((a) =>
-            esc(a.substance) + (a.reaction ? ` <span class="t3">(${esc(a.reaction)})</span>` : "")).join(" · ")}</div></div>`
+            esc(a.substance) + (a.reaction ? ` <span class="t3">(${esc(a.reaction)})</span>` : "")
+            + (patientToldUs(a) ? " " + patientToldUs(a) : "")).join(" · ")}</div></div>`
           : `<div class="t3" style="margin-top:10px">${T("ما مسجّل أي حساسية — وهذا مو نفس «ما عنده حساسية»",
               "No allergy recorded — which is not the same as 'no allergies'")}</div>`}
         <div class="row" style="flex-wrap:wrap;gap:6px 10px;margin-top:10px">
@@ -872,15 +1218,16 @@
       <!-- CLINICAL SNAPSHOT -->
       ${has(C().SCOPE.MEDICATIONS) ? section(T("الأدوية الحالية", "Current medications"),
         brief.medications.length ? brief.medications.map((m) => `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc(m.name)}</b>${m.status === "unconfirmed"
-            ? `<span class="st st-q">${T("غير مؤكّد", "unconfirmed")}</span>` : ""}</div>
+          <div class="rowb"><b>${esc(m.name)}</b>${patientToldUs(m)
+            || (m.status === "unconfirmed" ? `<span class="st st-q">${T("غير مؤكّد", "unconfirmed")}</span>` : "")}</div>
           <div class="t3" style="margin-top:4px">${[m.dose, freqLabel(m.frequency), m.indication].filter(Boolean).map(esc).join(" · ")}</div>
         </div></div>`).join("") : emptyRow(T("ما مسجّل", "none recorded"))) : lockedSection(T("الأدوية", "Medications"))}
 
       ${has(C().SCOPE.CONDITIONS) ? section(T("المشاكل النشطة", "Active problems"),
         brief.active.length ? brief.active.map((c) => `<div class="rw"><div class="rowb" style="width:100%">
           <span>${esc(c.name)}${c.chronic ? ` <span class="st st-q">${T("مزمن", "chronic")}</span>` : ""}</span>
-          ${c.stale ? `<span class="st st-e">${T("ما رُوجعت", "not reviewed")}</span>` : ""}
+          ${patientToldUs(c)
+            || (c.stale ? `<span class="st st-e">${T("ما رُوجعت", "not reviewed")}</span>` : "")}
         </div></div>`).join("") : emptyRow(T("ما مسجّل", "none recorded"))) : lockedSection(T("المشاكل", "Conditions"))}
 
       ${brief.trends.length ? section(T("اتجاهات تحرّكت", "Trends that moved"),

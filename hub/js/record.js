@@ -35,6 +35,13 @@
   const DAY = 86400000;
   const txt = (v) => String(v == null ? "" : v).trim();
 
+  /* Did the patient assert this themselves? emr.js declares both halves of
+     the answer — `SOURCE.PATIENT` on the provenance and `PATIENT_REPORTED` as
+     a verification status — and either one alone is enough, because an entry
+     stamped one way and not the other is still not a clinician's word. */
+  const isSelfReported = (e) => !!e && (e.source === (E.SOURCE && E.SOURCE.PATIENT)
+    || e.verificationStatus === (E.VERIFY && E.VERIFY.PATIENT_REPORTED));
+
   /* =========================================================
      ١ · المستندات — DOCUMENTS
      =========================================================
@@ -533,18 +540,28 @@
       headline: `${prof.age != null ? prof.age : "؟"} ${ar ? "سنة" : "y"} · ${sexLabel(prof.sex, ar)}`,
       patient: prof,
       /* Ordered by danger, deliberately. */
-      allergies: allergies.map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      /* `selfReported` is projected, not left for the screen to dig out of
+         storage. A clinician reading "penicillin — anaphylaxis" needs to know
+         whether a colleague verified that or the patient typed it in the
+         waiting room; both are worth having and they are not the same claim.
+         Dropping it here — which this projection did — meant the brief
+         presented every patient-entered line with the same authority as a
+         signed one. */
+      allergies: allergies.map((a) => ({ substance: a.substance, reaction: a.reaction || null,
+        criticality: a.criticality, selfReported: isSelfReported(a) })),
       /* The brief is a PROJECTION with its own field names — `name` here is
          the label a screen prints, deliberately decoupled from the storage
          field it came from. Sections 25 and 29: the UI must not be wired
          straight to the record's schema. */
       active: conds.map((c) => ({ name: c.display, since: c.onsetDate || null,
         lastReviewed: c.lastReviewed || null, chronic: c.chronic === true,
+        selfReported: isSelfReported(c),
         /* activeConditions already computed this — recomputing it here is how
            two answers to the same question start to disagree. */
         stale: c.stale === true })),
       medications: meds.map((m) => ({ name: m.display, dose: m.dose || null,
         frequency: m.frequency || null, indication: m.indication || null,
+        selfReported: isSelfReported(m),
         status: E.medStatus ? E.medStatus(m, now) : m.status })),
       unacknowledgedAbnormal: unacked.slice(0, 4).map((x) => ({ code: x.code, name: x.display || x.code,
         value: x.value, unit: x.unit || null, at: x.effectiveAt })),

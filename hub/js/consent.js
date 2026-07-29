@@ -497,16 +497,23 @@
 
   const CARRY_TTL = 72 * HOUR;
 
-  function issueCarryCode(patientId, scopes, now, code) {
+  function issueCarryCode(patientId, scopes, now, code, duration) {
     if (!txt(patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
     if (!txt(code)) return { ok: false, reason: "CODE_REQUIRED" };
     const chosen = (scopes && scopes.length ? scopes : DEFAULT_SCOPES)
       .filter((s) => ALL_SCOPES.indexOf(s) !== -1);
     if (!chosen.length) return { ok: false, reason: "SCOPE_REQUIRED" };
+    /* The patient chooses how long the access they are handing over lasts,
+       not just what it covers. Unrecognised or absent means the shortest
+       option, never the longest — a defaulting bug should cost the patient
+       less access, not more. Codes issued before this field existed have no
+       `duration` and land on VISIT, which is what they already did. */
+    const dur = DURATION[duration] ? duration : "VISIT";
     return { ok: true, carry: {
       code, patientId,
       scopes: Array.from(new Set([...chosen, ...SAFETY_FLOOR])),
       includesSensitive: false,
+      duration: dur,
       issuedAt: now, expiresAt: ms(now) + CARRY_TTL,
       redeemedBy: null, redeemedAt: null,
     } };
@@ -522,7 +529,8 @@
     const g = grantShare({
       patientId: carry.patientId, grantedBy: carry.patientId,
       granteeId: redeemer.id, granteeName: redeemer.name || null,
-      scopes: carry.scopes, duration: "VISIT", modality: "QR",
+      scopes: carry.scopes, duration: DURATION[carry.duration] ? carry.duration : "VISIT",
+      modality: "QR",
     }, now);
     if (!g.ok) return g;
     return { ok: true, carry: { ...carry, redeemedBy: redeemer.id, redeemedAt: now }, share: g.share };
