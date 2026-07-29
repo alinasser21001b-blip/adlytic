@@ -357,6 +357,48 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
 .field input::placeholder, .field textarea::placeholder { color: var(--ink-4); }
 
+/* .fld — the same control, written as <label class="fld"><span>…</span><input>.
+   The record and network screens use this shape because the label belongs to
+   the input semantically and a wrapping <label> gets that for free.
+
+   It had NO rules at all for its first release. The global reset strips
+   borders and backgrounds from inputs, so every field on those screens was an
+   invisible 44px strip with its label sitting BESIDE it on one crushed line —
+   the whole registration form was unusable and the text-content probes all
+   passed, because they read innerText and innerText does not care whether you
+   can see anything. A form is one of the few things a screenshot catches and
+   an assertion does not. */
+.fld { display: block; margin-top: var(--u4); }
+.fld > span {
+  display: block; margin-bottom: 7px;
+  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+.fld input, .fld textarea, .fld select {
+  display: block; width: 100%; min-height: 52px; padding: 0 var(--u4);
+  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  background: var(--dial-2); font: 300 15px/1.6 var(--disp);
+  color: var(--ink);
+}
+.fld textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; min-height: 96px; }
+.fld select { padding-inline-end: var(--u5); appearance: none; }
+.fld input::placeholder, .fld textarea::placeholder { color: var(--ink-4); }
+.fld input:focus, .fld textarea:focus, .fld select:focus {
+  outline: none; border-color: var(--jade);
+}
+/* A date input renders its own controls; on a 390px RTL screen the default
+   inline layout pushes the picker glyph off the field. */
+.fld input[type="date"] { padding-block: 0; line-height: 52px; }
+
+/* A checkbox row: the box keeps its native size, and the label is the whole
+   row so a thumb hits it rather than a 16px square. */
+.fld input[type="checkbox"],
+label.row > input[type="checkbox"] {
+  display: inline-block; width: 22px; height: 22px; min-height: 22px;
+  padding: 0; accent-color: var(--jade); flex: none;
+}
+label.row { min-height: 44px; cursor: pointer; }
+
 .search-field {
   display: flex; align-items: center; gap: var(--u2);
   min-height: 52px; padding: 0 var(--u4); border-radius: var(--rp);

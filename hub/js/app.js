@@ -5735,6 +5735,11 @@ function route() {
        network and do not belong in this file. */
     case "record": return p[1] ? screenRecordSection(p[1], p[2]) : screenRecord();
     case "clinical": return p[1] === "inbox" ? screenClinicalInbox() : screenClinical(p[1]);
+    /* The network as clinical actors — js/ui-network.js. Each is its own
+       screen with its own vocabulary, not a filtered view of the doctor's. */
+    case "lab": return screenLab(p[1], p[2]);
+    case "imaging": return p[1] === "study" ? screenImagingStudy(p[2]) : screenImaging(p[1], p[2]);
+    case "pharmacy-rx": return screenPharmacyRx(p[1], p[2]);
     default: return screen404();
   }
 }
