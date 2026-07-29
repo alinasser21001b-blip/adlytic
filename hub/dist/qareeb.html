@@ -7158,9 +7158,13 @@ function netBanner() {
   const at = LS.get("lastOnline", null);
   const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
   return `<div class="offline-bar">
+    <!-- The state is NAMED as well as described. Saying only "saved data from
+         14:32" describes the consequence perfectly and leaves a user who has
+         not noticed their signal dropped to keep tapping and wondering. Both,
+         in that order: what is wrong, then what it means for them. -->
     <span class="grow">${isAR()
-      ? `${when ? `بيانات محفوظة من <span class="num">${when}</span>` : "دون اتصال"}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل</span>`
-      : `${when ? `Saved data from <span class="num">${when}</span>` : "Offline"}<br><span class="t3">Stock may have changed · phone calls still work</span>`}</span>
+      ? `دون اتصال${when ? ` — بيانات محفوظة من <span class="num">${when}</span>` : ""}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل · ملفك يفتح ويتحدّث عادي</span>`
+      : `Offline${when ? ` — saved data from <span class="num">${when}</span>` : ""}<br><span class="t3">Stock may have changed · phone calls still work · your record still opens and saves</span>`}</span>
     <span class="st st-q"><i class="dot"></i>${isAR() ? "محفوظ" : "saved"}</span>
     <button onclick="render()">${isAR() ? "إعادة" : "Retry"}</button></div>`;
 }
@@ -7983,13 +7987,41 @@ function screenDoctor(id) {
 
   <section class="pad" style="margin-top:26px">
     ${d.creds_ar?.length || d.exp ? `<div class="q-sub" style="max-width:44ch">${
-      [d.creds_ar?.join(" · "), d.exp ? (isAR() ? `<span class="num">${d.exp}</span> سنة خبرة` : `<span class="num">${d.exp}</span> years' experience`) : "",
-       gender, d.langs?.length ? d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ") : ""]
-        .filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+      /* `.map(esc)` used to run over this whole list, including the one entry
+         that carries deliberate markup — so the experience line rendered as
+         the literal text `<span class="num">12</span> سنة خبرة` on every
+         doctor's profile. Escape the DATA, and let the one intentional span
+         through; a blanket escape over a mixed list escapes the wrong half. */
+      [esc(d.creds_ar?.join(" · ") || ""),
+       d.exp ? `<span class="num">${esc(String(d.exp))}</span> ${isAR() ? "سنة خبرة" : "years' experience"}` : "",
+       esc(gender || ""),
+       d.langs?.length ? esc(d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).filter(Boolean).join("، ")) : ""]
+        .filter(Boolean).join(" · ")}</div>` : ""}
     <div class="rowb" style="margin-top:18px">
       <span class="t3">${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span> ${isAR() ? "يوم" : "d ago"}</span>
       <button class="b-g" style="font-size:12px" onclick="reportInfo()">${t("reportInfo")}</button>
     </div>
+  </section>
+
+  <!-- The directory and the health record were two products sharing a tab
+       bar: nothing on a doctor's page had ever mentioned that the patient
+       holds a record, or answered the question a patient about to walk into
+       this clinic actually has — can he see it?
+
+       The honest answer today is no, not remotely: every doctor here is
+       LISTED from a public directory, not enrolled, and nobody in this list
+       has a Qareeb account waiting. What does work is the thing that already
+       works on paper in Iraq — the patient carries it in. So the answer names
+       the limit and hands over the mechanism that does function. -->
+  <section class="pad" style="margin-top:26px">
+    <div class="note">${icon("seal")}<div style="width:100%">
+      <b>${isAR() ? "ملفك الصحي" : "Your health record"}</b>
+      <div class="t3" style="margin-top:4px">${isAR()
+        ? "هذا الطبيب مدرَج بالدليل، مو مشترك بقريب — يعني ما يقدر يفتح ملفك من عنده. تكدر تاخذ ملخصك وياك: تطلع رمز، وتعطيه بالعيادة، ويشوف اللي تختاره أنت لمدة تختارها أنت."
+        : "This doctor is listed in the directory, not enrolled in Qareeb — so they cannot open your record from their side. You can carry your summary in instead: issue a code, hand it over at the desk, and they see what you chose for as long as you chose."}</div>
+      <a class="b-g" style="display:block;margin-top:8px" href="#/record/share">${
+        isAR() ? "جهّز رمز الزيارة" : "Prepare a visit code"}</a>
+    </div></div>
   </section>
 
   <section class="pad" style="margin-top:26px">
@@ -8195,6 +8227,25 @@ function screenPharmacy(id) {
 function screenCare(cat) {
   const list = cat ? PRODUCTS.filter((p) => p.cat === cat) : PRODUCTS;
   const c = CARE_CATEGORIES.find((x) => x.id === cat);
+  /* An unrecognised category — a stale bookmark, a mistyped link, a category
+     retired from the data — rendered a header with no title above an empty
+     grid: thirty-one characters of page, all of them the tab bar. The route
+     resolved, so nothing 404'd; there was simply nothing there. A screen that
+     is blank because the id was wrong must say the id was wrong. */
+  if (cat && !c) {
+    return `${header({ back: true, title: isAR() ? "العناية" : "Care" })}
+    <section class="wrap" style="padding-top:20px">
+      <div class="note note-w">${icon("info")}<div>${isAR()
+        ? "هذا القسم ما عاد موجود — يمكن الرابط قديم."
+        : "That section no longer exists — the link may be out of date."}</div></div>
+      <div class="sec-h" style="margin-top:22px"><h2>${isAR() ? "الأقسام الموجودة" : "Sections that do exist"}</h2></div>
+      <div class="grid-2">
+        ${CARE_CATEGORIES.map((x) => `<a class="need" href="#/care/${x.id}" style="text-align:start">
+          <span class="ic">${icon(x.icon)}</span><h3>${esc(L(x))}</h3>
+          <div class="cnt"><span class="num">${PRODUCTS.filter((p) => p.cat === x.id).length}</span> ${isAR() ? "منتج" : "products"}</div></a>`).join("")}
+      </div>
+    </section>${nav("care")}`;
+  }
   return `${header({ back: !!cat, title: c ? L(c) : "" })}
   ${!cat ? `<section class="wrap" style="padding-top:20px">
     <h1 class="hero-line" style="font-size:26px">${isAR() ? "رفوف الصيدليات القريبة منك." : "The shelves of the pharmacies near you."}</h1>
@@ -13192,7 +13243,17 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
               last ? n(last.value) + " " + esc(last.unit || "") : ""}</span></div>
           ${trendSeries(t)}
         </div></div>`;
-      }).join("")}</div>` : (pending.length ? "" : empty(T("ما عندك تحاليل مسجّلة", "No lab results recorded")))}`,
+      }).join("")}</div>` : (pending.length ? "" : empty(
+        T("ما عندك تحاليل مسجّلة", "No lab results recorded"),
+        /* A patient cannot type a lab result — a number without the
+           laboratory that produced it is not a result, it is a rumour. What
+           they CAN do is record that they hold the printed report, so the
+           next clinician knows to ask for it. That is the honest action for
+           this screen, so it is the one offered. */
+        `<p class="t3" style="margin-top:12px;line-height:1.7">${T(
+          "نتائجك تجي من المختبر. إذا عندك ورقة تحليل قديمة، سجّلها حتى طبيبك يعرف إنها موجودة ويطلبها منك.",
+          "Results arrive from the laboratory. If you hold an old printed result, note that you have it so your clinician knows to ask.")}</p>
+        ${addButton("document", T("سجّل ورقة تحليل عندك", "Note a printed result you hold"))}`))}`,
       T("الاتجاه أهم من الرقم المفرد — لكن نتائج مختبرين مختلفين ما تنرسم بخط واحد واثق.",
         "The trend matters more than any single number — but two laboratories do not draw one confident line."));
   }
@@ -13610,7 +13671,12 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
           ${r.scopes.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px">
             ${r.scopes.map((x) => `<span class="chip">${esc(C().scopeLabel(x, S.lang))}</span>`).join("")}</div>` : ""}
         </div></div>`).join("")}</div>`
-        : empty(T("ما فتح ملفك أحد بعد", "Nobody has opened your record yet")),
+        : empty(T("ما فتح ملفك أحد بعد", "Nobody has opened your record yet"),
+            `<p class="t3" style="margin-top:12px;line-height:1.7">${T(
+              "راح يمتلئ أول ما تشارك ملفك مع طبيب — وكل فتحة تنكتب هنا باسمها.",
+              "It fills the first time you share your record with a clinician — and every opening is written here by name.")}</p>
+            <a class="btn btn--2" style="margin-top:16px" href="#/record/share">${
+              T("شارك ملفك مع طبيب", "Share your record with a clinician")}</a>`),
       T("كل فتحة مكتوبة هنا — حتى المحاولات المرفوضة. وعد ما تقدر تتأكد منه مو وعد.",
         "Every opening is written here — including refused attempts. A promise you cannot check is not a promise."));
   }

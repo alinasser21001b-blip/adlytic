@@ -769,9 +769,13 @@ function netBanner() {
   const at = LS.get("lastOnline", null);
   const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
   return `<div class="offline-bar">
+    <!-- The state is NAMED as well as described. Saying only "saved data from
+         14:32" describes the consequence perfectly and leaves a user who has
+         not noticed their signal dropped to keep tapping and wondering. Both,
+         in that order: what is wrong, then what it means for them. -->
     <span class="grow">${isAR()
-      ? `${when ? `بيانات محفوظة من <span class="num">${when}</span>` : "دون اتصال"}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل</span>`
-      : `${when ? `Saved data from <span class="num">${when}</span>` : "Offline"}<br><span class="t3">Stock may have changed · phone calls still work</span>`}</span>
+      ? `دون اتصال${when ? ` — بيانات محفوظة من <span class="num">${when}</span>` : ""}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل · ملفك يفتح ويتحدّث عادي</span>`
+      : `Offline${when ? ` — saved data from <span class="num">${when}</span>` : ""}<br><span class="t3">Stock may have changed · phone calls still work · your record still opens and saves</span>`}</span>
     <span class="st st-q"><i class="dot"></i>${isAR() ? "محفوظ" : "saved"}</span>
     <button onclick="render()">${isAR() ? "إعادة" : "Retry"}</button></div>`;
 }

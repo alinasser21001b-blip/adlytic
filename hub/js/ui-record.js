@@ -508,7 +508,17 @@
               last ? n(last.value) + " " + esc(last.unit || "") : ""}</span></div>
           ${trendSeries(t)}
         </div></div>`;
-      }).join("")}</div>` : (pending.length ? "" : empty(T("ما عندك تحاليل مسجّلة", "No lab results recorded")))}`,
+      }).join("")}</div>` : (pending.length ? "" : empty(
+        T("ما عندك تحاليل مسجّلة", "No lab results recorded"),
+        /* A patient cannot type a lab result — a number without the
+           laboratory that produced it is not a result, it is a rumour. What
+           they CAN do is record that they hold the printed report, so the
+           next clinician knows to ask for it. That is the honest action for
+           this screen, so it is the one offered. */
+        `<p class="t3" style="margin-top:12px;line-height:1.7">${T(
+          "نتائجك تجي من المختبر. إذا عندك ورقة تحليل قديمة، سجّلها حتى طبيبك يعرف إنها موجودة ويطلبها منك.",
+          "Results arrive from the laboratory. If you hold an old printed result, note that you have it so your clinician knows to ask.")}</p>
+        ${addButton("document", T("سجّل ورقة تحليل عندك", "Note a printed result you hold"))}`))}`,
       T("الاتجاه أهم من الرقم المفرد — لكن نتائج مختبرين مختلفين ما تنرسم بخط واحد واثق.",
         "The trend matters more than any single number — but two laboratories do not draw one confident line."));
   }
@@ -926,7 +936,12 @@
           ${r.scopes.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px">
             ${r.scopes.map((x) => `<span class="chip">${esc(C().scopeLabel(x, S.lang))}</span>`).join("")}</div>` : ""}
         </div></div>`).join("")}</div>`
-        : empty(T("ما فتح ملفك أحد بعد", "Nobody has opened your record yet")),
+        : empty(T("ما فتح ملفك أحد بعد", "Nobody has opened your record yet"),
+            `<p class="t3" style="margin-top:12px;line-height:1.7">${T(
+              "راح يمتلئ أول ما تشارك ملفك مع طبيب — وكل فتحة تنكتب هنا باسمها.",
+              "It fills the first time you share your record with a clinician — and every opening is written here by name.")}</p>
+            <a class="btn btn--2" style="margin-top:16px" href="#/record/share">${
+              T("شارك ملفك مع طبيب", "Share your record with a clinician")}</a>`),
       T("كل فتحة مكتوبة هنا — حتى المحاولات المرفوضة. وعد ما تقدر تتأكد منه مو وعد.",
         "Every opening is written here — including refused attempts. A promise you cannot check is not a promise."));
   }

@@ -738,13 +738,41 @@ function screenDoctor(id) {
 
   <section class="pad" style="margin-top:26px">
     ${d.creds_ar?.length || d.exp ? `<div class="q-sub" style="max-width:44ch">${
-      [d.creds_ar?.join(" · "), d.exp ? (isAR() ? `<span class="num">${d.exp}</span> سنة خبرة` : `<span class="num">${d.exp}</span> years' experience`) : "",
-       gender, d.langs?.length ? d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).join("، ") : ""]
-        .filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+      /* `.map(esc)` used to run over this whole list, including the one entry
+         that carries deliberate markup — so the experience line rendered as
+         the literal text `<span class="num">12</span> سنة خبرة` on every
+         doctor's profile. Escape the DATA, and let the one intentional span
+         through; a blanket escape over a mixed list escapes the wrong half. */
+      [esc(d.creds_ar?.join(" · ") || ""),
+       d.exp ? `<span class="num">${esc(String(d.exp))}</span> ${isAR() ? "سنة خبرة" : "years' experience"}` : "",
+       esc(gender || ""),
+       d.langs?.length ? esc(d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).filter(Boolean).join("، ")) : ""]
+        .filter(Boolean).join(" · ")}</div>` : ""}
     <div class="rowb" style="margin-top:18px">
       <span class="t3">${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span> ${isAR() ? "يوم" : "d ago"}</span>
       <button class="b-g" style="font-size:12px" onclick="reportInfo()">${t("reportInfo")}</button>
     </div>
+  </section>
+
+  <!-- The directory and the health record were two products sharing a tab
+       bar: nothing on a doctor's page had ever mentioned that the patient
+       holds a record, or answered the question a patient about to walk into
+       this clinic actually has — can he see it?
+
+       The honest answer today is no, not remotely: every doctor here is
+       LISTED from a public directory, not enrolled, and nobody in this list
+       has a Qareeb account waiting. What does work is the thing that already
+       works on paper in Iraq — the patient carries it in. So the answer names
+       the limit and hands over the mechanism that does function. -->
+  <section class="pad" style="margin-top:26px">
+    <div class="note">${icon("seal")}<div style="width:100%">
+      <b>${isAR() ? "ملفك الصحي" : "Your health record"}</b>
+      <div class="t3" style="margin-top:4px">${isAR()
+        ? "هذا الطبيب مدرَج بالدليل، مو مشترك بقريب — يعني ما يقدر يفتح ملفك من عنده. تكدر تاخذ ملخصك وياك: تطلع رمز، وتعطيه بالعيادة، ويشوف اللي تختاره أنت لمدة تختارها أنت."
+        : "This doctor is listed in the directory, not enrolled in Qareeb — so they cannot open your record from their side. You can carry your summary in instead: issue a code, hand it over at the desk, and they see what you chose for as long as you chose."}</div>
+      <a class="b-g" style="display:block;margin-top:8px" href="#/record/share">${
+        isAR() ? "جهّز رمز الزيارة" : "Prepare a visit code"}</a>
+    </div></div>
   </section>
 
   <section class="pad" style="margin-top:26px">
@@ -950,6 +978,25 @@ function screenPharmacy(id) {
 function screenCare(cat) {
   const list = cat ? PRODUCTS.filter((p) => p.cat === cat) : PRODUCTS;
   const c = CARE_CATEGORIES.find((x) => x.id === cat);
+  /* An unrecognised category — a stale bookmark, a mistyped link, a category
+     retired from the data — rendered a header with no title above an empty
+     grid: thirty-one characters of page, all of them the tab bar. The route
+     resolved, so nothing 404'd; there was simply nothing there. A screen that
+     is blank because the id was wrong must say the id was wrong. */
+  if (cat && !c) {
+    return `${header({ back: true, title: isAR() ? "العناية" : "Care" })}
+    <section class="wrap" style="padding-top:20px">
+      <div class="note note-w">${icon("info")}<div>${isAR()
+        ? "هذا القسم ما عاد موجود — يمكن الرابط قديم."
+        : "That section no longer exists — the link may be out of date."}</div></div>
+      <div class="sec-h" style="margin-top:22px"><h2>${isAR() ? "الأقسام الموجودة" : "Sections that do exist"}</h2></div>
+      <div class="grid-2">
+        ${CARE_CATEGORIES.map((x) => `<a class="need" href="#/care/${x.id}" style="text-align:start">
+          <span class="ic">${icon(x.icon)}</span><h3>${esc(L(x))}</h3>
+          <div class="cnt"><span class="num">${PRODUCTS.filter((p) => p.cat === x.id).length}</span> ${isAR() ? "منتج" : "products"}</div></a>`).join("")}
+      </div>
+    </section>${nav("care")}`;
+  }
   return `${header({ back: !!cat, title: c ? L(c) : "" })}
   ${!cat ? `<section class="wrap" style="padding-top:20px">
     <h1 class="hero-line" style="font-size:26px">${isAR() ? "رفوف الصيدليات القريبة منك." : "The shelves of the pharmacies near you."}</h1>
