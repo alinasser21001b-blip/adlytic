@@ -203,8 +203,13 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   display: inline-flex; align-items: center; gap: 6px;
   /* 44, not 36. Chips are this app's primary filter — district, specialty,
      open-now — and the audit found 67 of 81 failing targets were chips. A
-     filter you cannot reliably hit is a filter that does not exist. */
-  min-height: 44px; padding: 0 14px; border-radius: var(--rp);
+     filter you cannot reliably hit is a filter that does not exist.
+
+     min-width matters too, not just min-height: a two-character label like
+     the blood-group chips ("A-", "B-") plus 14px of padding on each side
+     lands at 43.6px wide — under the line by less than a pixel, and the
+     audit caught it. Padding alone cannot guarantee 44 for short labels. */
+  min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--rp);
   border: 1px solid var(--dial-line);
   font: 400 13px/1 var(--disp); color: var(--ink-2);
   white-space: nowrap; background: transparent;

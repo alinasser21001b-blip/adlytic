@@ -373,6 +373,36 @@ it("the seal vocabulary has a word for synthetic, and it is not silence", () => 
   ok(/sample:\s*\[/.test(core), "a declared 'sample data' state");
   ok(/origin !== "imported"/.test(core), "and it is reached by asking the provenance, not the record");
   ok(/function verifiedWord/.test(core), "counts of verified entities go through it too");
+  ok(/function verifiedCount/.test(core),
+    "a COUNT next to that word must be provenance-filtered too, or 'sample data' sits beside a number computed as if every entity were real");
+});
+
+/* The word-level guard above did not catch two adjacent bugs, found by
+   reading rather than by the regex: a COUNT computed with the raw flag
+   printed beside the honest word (`DOCTORS.filter(d => d.verified).length`
+   next to "موثّق"), and a raw flag used to GATE a list of recommended
+   pharmacies — the controlled-medicine handoff recommended four synthetic
+   addresses as "licensed pharmacies nearby" for a real controlled substance.
+   Both classes are pinned here by name so a future edit cannot silently
+   reintroduce either the literal `.filter(...).length` count or the raw-flag
+   gate at these exact sites. */
+it("verification COUNTS go through verifiedCount(), not a raw .filter(...).length", () => {
+  const bad = [];
+  for (const { f, src } of uiSources) {
+    if (f === "ui-core.js" || f === "data.js" || f === "domain.js") continue;
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "");
+    const re = /\.filter\(\s*\([^)]*\)\s*=>\s*[^)]*\.verified\b[^)]*\)\.length/g;
+    for (const m of code.match(re) || []) bad.push(`${f}: ${m.slice(0, 70)}`);
+  }
+  eq(bad, [], "a bare .filter(x => x.verified).length counts synthetic entities as real — use verifiedCount(list, sourceKey)");
+});
+
+it("the controlled-medicine handoff recommends pharmacies by provenance, not by the raw flag", () => {
+  const src = uiSources.find((x) => x.f === "ui-backend.js").src;
+  const fn = (src.match(/function openControlledHandoff[\s\S]*?\n}/) || [""])[0];
+  ok(/verificationState\(f,\s*"pharmacies"\)\.k\s*===\s*"verified"/.test(fn),
+    "recommending a synthetic address for a controlled substance is a patient-safety failure, not a labeling nit");
+  no(/\.filter\(\(f\)\s*=>\s*f\.verified\s*&&/.test(fn), "the raw flag must not gate this list again");
 });
 
 

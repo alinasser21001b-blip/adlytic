@@ -434,6 +434,18 @@ function verifiedWord(sourceKey, plural) {
   return isAR() ? (plural ? "في البيانات النموذجية" : "نموذجي") : "in the sample data";
 }
 
+/* The count that must travel with `verifiedWord()`. `list.filter(e =>
+   e.verified).length` counts the raw flag, which is `true` on 17 of 18
+   synthetic doctors and on most synthetic pharmacies — so a headline number
+   next to the honest word "sample data" would still be counting as if every
+   one of them were real. `verificationState` already asks the provenance
+   first; this is that same check, aggregated. While every source in this
+   build is synthetic, every one of these returns 0 — which is correct: there
+   is nothing to count yet. */
+function verifiedCount(list, sourceKey) {
+  return (list || []).filter((e) => verificationState(e, sourceKey).k === "verified").length;
+}
+
 function sealBadge(ent, sourceKey) {
   const key = sourceKey || (ent && ent.sessions ? "doctors" : "pharmacies");
   const v = verificationState(ent, key);

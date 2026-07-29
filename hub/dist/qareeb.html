@@ -456,8 +456,13 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   display: inline-flex; align-items: center; gap: 6px;
   /* 44, not 36. Chips are this app's primary filter — district, specialty,
      open-now — and the audit found 67 of 81 failing targets were chips. A
-     filter you cannot reliably hit is a filter that does not exist. */
-  min-height: 44px; padding: 0 14px; border-radius: var(--rp);
+     filter you cannot reliably hit is a filter that does not exist.
+
+     min-width matters too, not just min-height: a two-character label like
+     the blood-group chips ("A-", "B-") plus 14px of padding on each side
+     lands at 43.6px wide — under the line by less than a pixel, and the
+     audit caught it. Padding alone cannot guarantee 44 for short labels. */
+  min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--rp);
   border: 1px solid var(--dial-line);
   font: 400 13px/1 var(--disp); color: var(--ink-2);
   white-space: nowrap; background: transparent;
@@ -2179,6 +2184,20 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     .filter((m) => m.status === MED_STATE.ACTIVE || m.status === MED_STATE.UNCONFIRMED)
     .sort((a, b) => (a.status === MED_STATE.ACTIVE ? -1 : 1) - (b.status === MED_STATE.ACTIVE ? -1 : 1));
 
+  /* ---- BLOOD GROUP ----
+     The fastest fact a trauma team needs, and the one this app must never
+     guess. Entered once by the patient, never inferred from anything else in
+     the record. "unknown" is a real, selectable, third state — distinct from
+     never having been asked — for the same reason `birthDateEstimated` and
+     `ID_VERIFY.SELF` exist: a screen that cannot tell "not asked" from
+     "asked, and the patient does not know" will nag someone who already
+     answered honestly, or worse, let a UI silently default a field this
+     consequential to something. */
+  const BLOOD_GROUP = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"];
+  const isValidBloodGroup = (v) => BLOOD_GROUP.indexOf(v) !== -1;
+  const BLOOD_GROUP_LABEL = { unknown: ["غير معروف", "Unknown"] };
+  const bloodGroupLabel = (v, ar) => (BLOOD_GROUP_LABEL[v] ? BLOOD_GROUP_LABEL[v][ar ? 0 : 1] : (v || ""));
+
   /* ---- ALLERGY ---- */
   const CRITICALITY = { HIGH: "high", LOW: "low", UNABLE: "unable-to-assess" };
   const criticalAllergies = (list) => (list || [])
@@ -2821,6 +2840,7 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   root.EMR = {
     ID_TYPE, canRegister, isIdentityBearing, identifiersOf, idOf,
     ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
+    BLOOD_GROUP, isValidBloodGroup, bloodGroupLabel,
     MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
     matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
     ENC_STATE, ENC_TYPE, SIGN_REQUIRED, canSign, signEncounter, addAddendum, voidEncounter,
@@ -6844,6 +6864,18 @@ function verifiedWord(sourceKey, plural) {
   return isAR() ? (plural ? "في البيانات النموذجية" : "نموذجي") : "in the sample data";
 }
 
+/* The count that must travel with `verifiedWord()`. `list.filter(e =>
+   e.verified).length` counts the raw flag, which is `true` on 17 of 18
+   synthetic doctors and on most synthetic pharmacies — so a headline number
+   next to the honest word "sample data" would still be counting as if every
+   one of them were real. `verificationState` already asks the provenance
+   first; this is that same check, aggregated. While every source in this
+   build is synthetic, every one of these returns 0 — which is correct: there
+   is nothing to count yet. */
+function verifiedCount(list, sourceKey) {
+  return (list || []).filter((e) => verificationState(e, sourceKey).k === "verified").length;
+}
+
 function sealBadge(ent, sourceKey) {
   const key = sourceKey || (ent && ent.sessions ? "doctors" : "pharmacies");
   const v = verificationState(ent, key);
@@ -7436,9 +7468,14 @@ function screenHomePatient() {
 
   <section class="pad" style="margin-top:22px;padding-bottom:26px">
     <a class="rowb" href="#/trust">
+      <!-- This used to filter DOCTORS by the raw .verified flag and print the
+           literal word "موثّق"/"verified" beside the count — 17 of 18 doctors
+           in the synthetic dataset carry verified:true, so the home screen's
+           own footer was making the exact claim the rest of the product goes
+           to lengths to avoid. verifiedCount() asks the provenance first. -->
       <span class="t3">${isAR()
-        ? `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> موثّق · <span class="num">${freshMeds}</span> دواء مؤكَّد · <span class="num">${DISTRICTS.length}</span> منطقة`
-        : `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> verified · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
+        ? `<span class="num">${verifiedCount(DOCTORS, "doctors")}</span> ${verifiedWord("doctors", false)} · <span class="num">${freshMeds}</span> دواء مؤكَّد · <span class="num">${DISTRICTS.length}</span> منطقة`
+        : `<span class="num">${verifiedCount(DOCTORS, "doctors")}</span> ${verifiedWord("doctors", false)} · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
       <span class="b-g" style="font-size:12px">${isAR() ? "كيف نتحقق" : "How we verify"}</span>
     </a>
     <div class="t3" style="margin-top:12px;opacity:.62">${isAR() ? "النسخة" : "Build"}
@@ -7758,7 +7795,7 @@ function screenStart() {
      pharmacies" and shows a stale figure is worse than showing nothing. */
   const openPh = FACILITIES.filter((x) => x.type === "pharmacy" && status(x).k !== "shut").length;
   const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
-  const verifiedDocs = DOCTORS.filter((d) => d.verified).length;
+  const verifiedDocs = verifiedCount(DOCTORS, "doctors");
 
   const tile = (href, title, sub, badge, badgeCls, rail) => `
     <button class="surf-raise ${rail} pad-4 start-tile" onclick="startTo('${href}')">
@@ -7796,7 +7833,7 @@ function screenStart() {
         `<span class="num">${openPh}</span> ${isAR() ? "مفتوحة" : "open"}`, "bdg-t", "rail-open")}
       ${tile("#/needs", isAR() ? "دكتور" : "A doctor",
         isAR() ? "مرتّب حسب أقرب موعد، لا أقرب مسافة" : "Ranked by soonest slot, not nearest address",
-        `<span class="num">${verifiedDocs}</span> ${t("verified")}`, "bdg-v", "")}
+        `<span class="num">${verifiedDocs}</span> ${verifiedWord("doctors", false)}`, "bdg-v", "")}
     </div>
 
     <div class="surf-flat pad-3 row-b" style="margin-top:16px;gap:10px">
@@ -9309,6 +9346,52 @@ function dupSendAnyway() {
   go();
 }
 
+/* `CONSENT.emergencyCard` has existed since the consent domain was written:
+   allergies, critical medications, chronic conditions, blood group, an
+   emergency contact — and an explicit `notRecorded[]` so a blank blood group
+   and a checked-and-actually-unknown one never look the same. Nothing in the
+   UI has ever called it, so the emergency sheet showed only phone numbers
+   the phone's own lock screen already has.
+
+   This is deliberately NOT gated by consent or by the break-glass tiers in
+   consent.js — those govern a CLINICIAN reaching into someone ELSE's record.
+   This is the patient's own device, already unlocked, showing the patient's
+   own data to whoever is holding it — the same trust model as a medical-
+   alert bracelet the patient chose to put on. */
+function emergencySelfCard() {
+  const rec = LS.get("qareeb.record.v1", null);
+  if (!rec || !rec.patient) return "";
+  const card = CONSENT.emergencyCard(rec.patient, rec, Date.now(), S.lang);
+  const rows = [];
+  if (card.bloodGroup) rows.push(`<div class="rowb"><span class="t3">${isAR() ? "فصيلة الدم" : "Blood group"}</span>
+    <b>${esc(EMR.bloodGroupLabel(card.bloodGroup, isAR()))}</b></div>`);
+  if (card.allergies.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "حساسية" : "Allergies"}</span>
+    <span style="text-align:end">${card.allergies.map((a) => esc(a.substance)
+      + (a.reaction ? ` (${esc(a.reaction)})` : "")).join("، ")}</span></div>`);
+  if (card.criticalMedications.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "أدوية حرجة" : "Critical medications"}</span>
+    <span style="text-align:end">${card.criticalMedications.map((m) => esc(m.display)).join("، ")}</span></div>`);
+  if (card.majorConditions.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "مشاكل مزمنة" : "Chronic conditions"}</span>
+    <span style="text-align:end">${card.majorConditions.map(esc).join("، ")}</span></div>`);
+  if (card.emergencyContact) {
+    /* A name with no phone is still worth showing — the label alone tells a
+       responder who to ask around for — but `href="tel:"` with nothing after
+       the colon is a link that goes nowhere, so it only becomes a link when
+       there is a number to call. */
+    const label = esc(card.emergencyContact.name || card.emergencyContact.phone || "");
+    const contact = card.emergencyContact.phone
+      ? `<a class="b-g" href="tel:${esc(card.emergencyContact.phone)}">${label}</a>`
+      : `<b>${label}</b>`;
+    rows.push(`<div class="rowb"><span class="t3">${isAR() ? "جهة اتصال" : "Contact"}</span>${contact}</div>`);
+  }
+  if (!rows.length && !card.notRecorded.length) return "";
+  return `<div class="note note-e" style="margin-top:16px">${icon("alert")}<div style="width:100%">
+      <b>${esc(card.name || (isAR() ? "بطاقة الطوارئ" : "Emergency card"))}</b>
+      ${card.age != null ? `<span class="t3"> · <span class="num">${card.age}</span> ${isAR() ? "سنة" : "y"}</span>` : ""}
+      <div class="stack-2" style="margin-top:8px">${rows.join("")}</div>
+      ${card.notRecorded.length ? `<div class="t3" style="margin-top:8px">${card.notRecorded.map(esc).join(" · ")}</div>` : ""}
+    </div></div>`;
+}
+
 function openEmergency() {
   const er = FACILITIES.filter((f) => f.er).map((f) => ({ f, km: distTo(f) })).sort((a, b) => a.km - b.km).slice(0, 3);
   sheet(`<div class="sheet-grip"></div>
@@ -9318,6 +9401,7 @@ function openEmergency() {
     <div class="sheet-b">
       <a class="btn btn--danger" href="tel:${CONFIG.emergency.unified}">${icon("phone")}${isAR() ? "الطوارئ الموحد" : "Unified emergency"} <span class="num">${CONFIG.emergency.unified}</span></a>
       <a class="btn btn--2" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
+      ${emergencySelfCard()}
       <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
       <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
       <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
@@ -10257,8 +10341,8 @@ function screenExplorer() {
     <div class="nhuge" style="color:var(--brass-ink);margin-top:10px">${sigsLive.length}</div>
     <div class="d2" style="margin-top:4px;font-weight:500">${isAR() ? "تأكيد توفّر حيّ في العراق" : "live confirmations across Iraq"}</div>
     <div class="q-sub" style="margin-top:6px">${isAR()
-      ? `من <span class="num">${allPharmacies().filter((f) => f.verified).length}</span> صيدلية موثّقة في <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> محافظات. كل تأكيد ينتهي وحده بعد ثلاثة أيام.`
-      : `from <span class="num">${allPharmacies().filter((f) => f.verified).length}</span> verified pharmacies in <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> governorates. Every confirmation expires on its own after three days.`}</div>
+      ? `من <span class="num">${verifiedCount(allPharmacies(), "pharmacies")}</span> صيدلية ${verifiedWord("pharmacies", true)} في <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> محافظات. كل تأكيد ينتهي وحده بعد ثلاثة أيام.`
+      : `from <span class="num">${verifiedCount(allPharmacies(), "pharmacies")}</span> pharmacies ${verifiedWord("pharmacies", true)} in <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> governorates. Every confirmation expires on its own after three days.`}</div>
 
     <div style="margin-top:24px" class="v2">
       <button class="btn" onclick="location.hash='#/rx'">${isAR() ? "دوّر على دواء صعب" : "Look for a hard-to-find medicine"}</button>
@@ -10951,7 +11035,23 @@ function auditLog(entry) {
    otherwise "we can't help" is all they hear, and they go looking somewhere
    with fewer scruples. */
 function openControlledHandoff(med) {
-  const licensed = allPharmacies().filter((f) => f.verified && cityOf(f) === (S.exCity || "baghdad")).slice(0, 4);
+  /* This is the one screen in the product where getting "verified" wrong is
+     not a labeling mistake — it is telling someone anxious about a controlled
+     substance exactly which door to walk through. The filter used to read the
+     raw `f.verified` flag, which is `true` on every synthetic pharmacy in
+     this dataset (`DATA_PROVENANCE.sources.pharmacies.origin === "synthetic"`
+     today), so this sheet recommended four invented addresses under the
+     header "Licensed pharmacies nearby" for a real drug like clonazepam —
+     each carrying a correct "sample data" badge that a person in this
+     situation has no reason to stop and parse. `verificationState` asks the
+     provenance first and returns `sample` regardless of the flag while the
+     source is synthetic, so gating on it here means this list is
+     legitimately empty until real, verified pharmacy data exists — which is
+     the honest state, and the fallback message below already existed for
+     exactly this case. */
+  const licensed = allPharmacies()
+    .filter((f) => verificationState(f, "pharmacies").k === "verified" && cityOf(f) === (S.exCity || "baghdad"))
+    .slice(0, 4);
   sheet(`<div class="sheet-grip"></div>
     <div class="sheet-h"><div>
       <div class="lab">${isAR() ? "دواء خاضع للرقابة" : "Controlled medicine"}</div>
@@ -11451,11 +11551,15 @@ function startRadarTicker() {
    make the other three mean less.
 ------------------------------------------------------------- */
 function radarReach(r) {
-  const inCity = allPharmacies().filter((f) => cityOf(f) === r.city && f.verified);
+  /* Both filters used the raw .verified flag, so the number attached to
+     "visible to N verified pharmacies" was counting synthetic entries as real
+     reach. verificationState asks the provenance first, matching the badge
+     already shown on every one of these rows individually. */
+  const inCity = allPharmacies().filter((f) => cityOf(f) === r.city && verificationState(f, "pharmacies").k === "verified");
   /* Plus any verified branch anywhere that has ever reported this exact
      variant. A typed medicine has no variant id, so its reach is honestly
      the same-governorate set — and the copy reflects whatever this returns. */
-  const holders = r.v ? allPharmacies().filter((f) => f.verified && cityOf(f) !== r.city &&
+  const holders = r.v ? allPharmacies().filter((f) => verificationState(f, "pharmacies").k === "verified" && cityOf(f) !== r.city &&
     SIGNALS.some((g) => g.fac === f.id && g.v === r.v)) : [];
   const cities = [...new Set([...inCity, ...holders].map((f) => cityOf(f)))];
   return { n: inCity.length + holders.length, inCity: inCity.length, holders: holders.length, cities };
@@ -11878,6 +11982,16 @@ function screenRadar(facId) {
   }
 
   if (!f) {
+    /* NOT switched to verificationState() like the sites above, on purpose.
+       This list is a self-identification convenience — "which of these
+       branches am I" — for a pharmacist choosing their own profile before
+       using the radar; it has no empty-state fallback below, so filtering it
+       to provenance-verified entries would render zero rows and silently
+       break the entire pharmacist role while every source stays synthetic.
+       The REAL security boundary is downstream in `canAnswer()`, which
+       already checks a server-verified licenseStatus and never labels a
+       SELF_ASSERTED session as verified. What was actually false here is the
+       header two lines down, which is fixed instead. */
     const list = allPharmacies().filter((y) => y.verified);
     return `${netBanner()}
     <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
@@ -11889,7 +12003,7 @@ function screenRadar(facId) {
         : "Pick your pharmacy and we'll show the requests you could answer — in your governorate, or for anything you've reported holding."}</div>
     </section>
     <section class="pad" style="margin-top:24px">
-      <div class="lab">${isAR() ? "الصيدليات الموثّقة" : "Verified pharmacies"}</div>
+      <div class="lab">${isAR() ? "اختر صيدليتك" : "Choose your pharmacy"}</div>
       ${list.map((y) => `<a class="rw" href="#/radar/${y.id}" onclick="S.myBranch='${y.id}';LS.set('myBranch','${y.id}')">
         <span class="av">${esc(initial(L(y)))}</span>
         <span class="grow"><span class="d3" style="display:block">${esc(L(y))}</span>
@@ -14147,8 +14261,21 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   const claimText = (c) => c.name || c.code || c.test || "—";
 
   /* ---------- profile ---------- */
+  /* This screen is what the record home's «تعديل» (Edit) link points to, and
+     until now it showed four read-only rows and nothing a person could
+     actually change — a button promising editing that edited nothing.
+
+     Identity (name, birth date, sex) stays read-only here: it is set once at
+     registration under `canRegister`'s rules, and re-opening it to editing
+     is a bigger decision about identity matching than this screen should
+     make alone. What genuinely belongs here, and was simply never built, is
+     the two fields `CONSENT.emergencyCard` has been reading since it was
+     written and finding empty every time: blood group and an emergency
+     contact. Nothing in the product could ever set them. */
   function screenProfile(d) {
     const p = d.patient;
+    const bg = d.bloodGroup || null;
+    const ec = p.emergencyContact || null;
     return page(T("بياناتي", "My details"),
       `<div class="stack-2">
         ${row(T("الاسم", "Name"), E().fullName(p))}
@@ -14158,8 +14285,46 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       </div>
       <div class="note" style="margin-top:16px">${icon("seal")}<div>${T(
         "معرّف قريب هو المفتاح — مو رقم البطاقة الوطنية. الوثائق الرسمية تنربط بالملف وما تكون أساسه، لأن الرقم ممكن يتغيّر والملف ما ينشطر.",
-        "The Qareeb ID is the key — not the national card number. Official documents attach to the record rather than being its foundation, so a changed number never splits a patient in two.")}</div></div>`);
+        "The Qareeb ID is the key — not the national card number. Official documents attach to the record rather than being its foundation, so a changed number never splits a patient in two.")}</div></div>
+
+      <div class="sec" style="margin-top:8px">
+        <div class="sec-h"><h2 class="d3">${T("لحالات الطوارئ", "For an emergency")}</h2></div>
+        <p class="t3" style="line-height:1.7">${T(
+          "هذا اللي يظهر فوراً لمن يفتح زر الطوارئ بهاتفك — أنت، أو من يساعدك.",
+          "This is what shows immediately to whoever opens the emergency button on your phone — you, or whoever is helping you.")}</p>
+
+        <div class="fld" style="margin-top:12px"><span>${T("فصيلة الدم", "Blood group")}</span>
+          <div class="chips chips--wrap" style="margin-top:8px">
+            ${E().BLOOD_GROUP.map((k) => `<button class="chip${bg === k ? " c-on" : ""}" data-bg="${k}"
+              onclick="recordPickChip('bg','${k}')">${esc(E().bloodGroupLabel(k, ar()))}</button>`).join("")}
+          </div>
+        </div>
+
+        <label class="fld" style="margin-top:14px"><span>${T("اسم جهة الاتصال عند الطوارئ", "Emergency contact name")}
+          <span class="t3">— ${T("اختياري", "optional")}</span></span>
+          <input id="ec-name" type="text" value="${esc((ec && ec.name) || "")}"></label>
+        <label class="fld"><span>${T("رقمها", "Their number")}
+          <span class="t3">— ${T("اختياري", "optional")}</span></span>
+          <input id="ec-phone" type="tel" value="${esc((ec && ec.phone) || "")}"
+            placeholder="07xxxxxxxxx"></label>
+
+        <button class="btn" style="margin-top:16px" onclick="recordSaveEmergencyInfo()">${T("احفظ", "Save")}</button>
+      </div>`);
   }
+
+  globalThis.recordSaveEmergencyInfo = function recordSaveEmergencyInfo() {
+    const picked = document.querySelector("[data-bg].c-on");
+    const bg = picked ? picked.getAttribute("data-bg") : null;
+    if (bg && !E().isValidBloodGroup(bg)) { toast(T("فصيلة غير صالحة", "Invalid blood group")); return; }
+    const name = ((document.getElementById("ec-name") || {}).value || "").trim();
+    const phone = ((document.getElementById("ec-phone") || {}).value || "").trim();
+    mutate((x) => {
+      if (bg) x.bloodGroup = bg;
+      x.patient.emergencyContact = (name || phone) ? { name: name || null, phone: phone || null } : null;
+    });
+    toast(T("انحفظ", "Saved"));
+    location.hash = "#/record";
+  };
 
   const row = (k, v) => `<div class="rw"><div class="rowb" style="width:100%">
     <span class="t3">${esc(k)}</span><span>${esc(v)}</span></div></div>`;

@@ -509,6 +509,26 @@ it("the emergency card states what is NOT recorded rather than leaving it blank"
   ok(card.notRecorded.some((x) => x.includes("لا يعني عدمها")));
 });
 
+it("a blood group explicitly recorded as 'unknown' is NOT the same fact as never asked", () => {
+  /* Never entered means the app should still be nudging the patient to add
+     it. Entered-and-the-patient-genuinely-does-not-know is a settled answer
+     — asking again every time is the same failure as forgetting the
+     difference between "no allergies recorded" and "confirmed no allergies". */
+  const card = C.emergencyCard({ id: PT, name: "علي", birthDate: "1981-03-11", sex: "male" },
+    { bloodGroup: "unknown", allergies: [{ substance: "x" }], medications: [], conditions: [] }, NOW);
+  eq(card.bloodGroup, "unknown");
+  no(card.notRecorded.some((x) => x.includes("فصيلة الدم")),
+    "an explicit 'unknown' must not be reported as missing — the question was already answered");
+});
+
+it("an emergency contact with a name and no phone is still carried, not dropped", () => {
+  const card = C.emergencyCard(
+    { id: PT, name: "علي", birthDate: "1981-03-11", sex: "male", emergencyContact: { name: "أم علي", phone: null } },
+    { allergies: [{ substance: "x" }], medications: [], conditions: [] }, NOW);
+  eq(card.emergencyContact.name, "أم علي");
+  no(card.notRecorded.some((x) => x.includes("جهة اتصال")), "a contact IS recorded, even without a number");
+});
+
 /* ==================== ACCESS LOG ==================== */
 describe("٩ · سجل الوصول");
 

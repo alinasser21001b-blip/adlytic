@@ -154,9 +154,14 @@ function screenHomePatient() {
 
   <section class="pad" style="margin-top:22px;padding-bottom:26px">
     <a class="rowb" href="#/trust">
+      <!-- This used to filter DOCTORS by the raw .verified flag and print the
+           literal word "موثّق"/"verified" beside the count — 17 of 18 doctors
+           in the synthetic dataset carry verified:true, so the home screen's
+           own footer was making the exact claim the rest of the product goes
+           to lengths to avoid. verifiedCount() asks the provenance first. -->
       <span class="t3">${isAR()
-        ? `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> موثّق · <span class="num">${freshMeds}</span> دواء مؤكَّد · <span class="num">${DISTRICTS.length}</span> منطقة`
-        : `<span class="num">${DOCTORS.filter((d) => d.verified).length}</span> verified · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
+        ? `<span class="num">${verifiedCount(DOCTORS, "doctors")}</span> ${verifiedWord("doctors", false)} · <span class="num">${freshMeds}</span> دواء مؤكَّد · <span class="num">${DISTRICTS.length}</span> منطقة`
+        : `<span class="num">${verifiedCount(DOCTORS, "doctors")}</span> ${verifiedWord("doctors", false)} · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
       <span class="b-g" style="font-size:12px">${isAR() ? "كيف نتحقق" : "How we verify"}</span>
     </a>
     <div class="t3" style="margin-top:12px;opacity:.62">${isAR() ? "النسخة" : "Build"}
@@ -476,7 +481,7 @@ function screenStart() {
      pharmacies" and shows a stale figure is worse than showing nothing. */
   const openPh = FACILITIES.filter((x) => x.type === "pharmacy" && status(x).k !== "shut").length;
   const freshMeds = MEDICINES.filter((m) => m.stock.some((st) => freshBand(freshMins(st)) !== "cold")).length;
-  const verifiedDocs = DOCTORS.filter((d) => d.verified).length;
+  const verifiedDocs = verifiedCount(DOCTORS, "doctors");
 
   const tile = (href, title, sub, badge, badgeCls, rail) => `
     <button class="surf-raise ${rail} pad-4 start-tile" onclick="startTo('${href}')">
@@ -514,7 +519,7 @@ function screenStart() {
         `<span class="num">${openPh}</span> ${isAR() ? "مفتوحة" : "open"}`, "bdg-t", "rail-open")}
       ${tile("#/needs", isAR() ? "دكتور" : "A doctor",
         isAR() ? "مرتّب حسب أقرب موعد، لا أقرب مسافة" : "Ranked by soonest slot, not nearest address",
-        `<span class="num">${verifiedDocs}</span> ${t("verified")}`, "bdg-v", "")}
+        `<span class="num">${verifiedDocs}</span> ${verifiedWord("doctors", false)}`, "bdg-v", "")}
     </div>
 
     <div class="surf-flat pad-3 row-b" style="margin-top:16px;gap:10px">
@@ -2027,6 +2032,52 @@ function dupSendAnyway() {
   go();
 }
 
+/* `CONSENT.emergencyCard` has existed since the consent domain was written:
+   allergies, critical medications, chronic conditions, blood group, an
+   emergency contact — and an explicit `notRecorded[]` so a blank blood group
+   and a checked-and-actually-unknown one never look the same. Nothing in the
+   UI has ever called it, so the emergency sheet showed only phone numbers
+   the phone's own lock screen already has.
+
+   This is deliberately NOT gated by consent or by the break-glass tiers in
+   consent.js — those govern a CLINICIAN reaching into someone ELSE's record.
+   This is the patient's own device, already unlocked, showing the patient's
+   own data to whoever is holding it — the same trust model as a medical-
+   alert bracelet the patient chose to put on. */
+function emergencySelfCard() {
+  const rec = LS.get("qareeb.record.v1", null);
+  if (!rec || !rec.patient) return "";
+  const card = CONSENT.emergencyCard(rec.patient, rec, Date.now(), S.lang);
+  const rows = [];
+  if (card.bloodGroup) rows.push(`<div class="rowb"><span class="t3">${isAR() ? "فصيلة الدم" : "Blood group"}</span>
+    <b>${esc(EMR.bloodGroupLabel(card.bloodGroup, isAR()))}</b></div>`);
+  if (card.allergies.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "حساسية" : "Allergies"}</span>
+    <span style="text-align:end">${card.allergies.map((a) => esc(a.substance)
+      + (a.reaction ? ` (${esc(a.reaction)})` : "")).join("، ")}</span></div>`);
+  if (card.criticalMedications.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "أدوية حرجة" : "Critical medications"}</span>
+    <span style="text-align:end">${card.criticalMedications.map((m) => esc(m.display)).join("، ")}</span></div>`);
+  if (card.majorConditions.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "مشاكل مزمنة" : "Chronic conditions"}</span>
+    <span style="text-align:end">${card.majorConditions.map(esc).join("، ")}</span></div>`);
+  if (card.emergencyContact) {
+    /* A name with no phone is still worth showing — the label alone tells a
+       responder who to ask around for — but `href="tel:"` with nothing after
+       the colon is a link that goes nowhere, so it only becomes a link when
+       there is a number to call. */
+    const label = esc(card.emergencyContact.name || card.emergencyContact.phone || "");
+    const contact = card.emergencyContact.phone
+      ? `<a class="b-g" href="tel:${esc(card.emergencyContact.phone)}">${label}</a>`
+      : `<b>${label}</b>`;
+    rows.push(`<div class="rowb"><span class="t3">${isAR() ? "جهة اتصال" : "Contact"}</span>${contact}</div>`);
+  }
+  if (!rows.length && !card.notRecorded.length) return "";
+  return `<div class="note note-e" style="margin-top:16px">${icon("alert")}<div style="width:100%">
+      <b>${esc(card.name || (isAR() ? "بطاقة الطوارئ" : "Emergency card"))}</b>
+      ${card.age != null ? `<span class="t3"> · <span class="num">${card.age}</span> ${isAR() ? "سنة" : "y"}</span>` : ""}
+      <div class="stack-2" style="margin-top:8px">${rows.join("")}</div>
+      ${card.notRecorded.length ? `<div class="t3" style="margin-top:8px">${card.notRecorded.map(esc).join(" · ")}</div>` : ""}
+    </div></div>`;
+}
+
 function openEmergency() {
   const er = FACILITIES.filter((f) => f.er).map((f) => ({ f, km: distTo(f) })).sort((a, b) => a.km - b.km).slice(0, 3);
   sheet(`<div class="sheet-grip"></div>
@@ -2036,6 +2087,7 @@ function openEmergency() {
     <div class="sheet-b">
       <a class="btn btn--danger" href="tel:${CONFIG.emergency.unified}">${icon("phone")}${isAR() ? "الطوارئ الموحد" : "Unified emergency"} <span class="num">${CONFIG.emergency.unified}</span></a>
       <a class="btn btn--2" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
+      ${emergencySelfCard()}
       <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
       <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
       <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
@@ -2975,8 +3027,8 @@ function screenExplorer() {
     <div class="nhuge" style="color:var(--brass-ink);margin-top:10px">${sigsLive.length}</div>
     <div class="d2" style="margin-top:4px;font-weight:500">${isAR() ? "تأكيد توفّر حيّ في العراق" : "live confirmations across Iraq"}</div>
     <div class="q-sub" style="margin-top:6px">${isAR()
-      ? `من <span class="num">${allPharmacies().filter((f) => f.verified).length}</span> صيدلية موثّقة في <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> محافظات. كل تأكيد ينتهي وحده بعد ثلاثة أيام.`
-      : `from <span class="num">${allPharmacies().filter((f) => f.verified).length}</span> verified pharmacies in <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> governorates. Every confirmation expires on its own after three days.`}</div>
+      ? `من <span class="num">${verifiedCount(allPharmacies(), "pharmacies")}</span> صيدلية ${verifiedWord("pharmacies", true)} في <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> محافظات. كل تأكيد ينتهي وحده بعد ثلاثة أيام.`
+      : `from <span class="num">${verifiedCount(allPharmacies(), "pharmacies")}</span> pharmacies ${verifiedWord("pharmacies", true)} in <span class="num">${new Set(sigsLive.map((g) => cityOf(anyFac(g.fac)))).size}</span> governorates. Every confirmation expires on its own after three days.`}</div>
 
     <div style="margin-top:24px" class="v2">
       <button class="btn" onclick="location.hash='#/rx'">${isAR() ? "دوّر على دواء صعب" : "Look for a hard-to-find medicine"}</button>

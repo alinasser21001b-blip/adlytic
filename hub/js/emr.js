@@ -551,6 +551,20 @@
     .filter((m) => m.status === MED_STATE.ACTIVE || m.status === MED_STATE.UNCONFIRMED)
     .sort((a, b) => (a.status === MED_STATE.ACTIVE ? -1 : 1) - (b.status === MED_STATE.ACTIVE ? -1 : 1));
 
+  /* ---- BLOOD GROUP ----
+     The fastest fact a trauma team needs, and the one this app must never
+     guess. Entered once by the patient, never inferred from anything else in
+     the record. "unknown" is a real, selectable, third state — distinct from
+     never having been asked — for the same reason `birthDateEstimated` and
+     `ID_VERIFY.SELF` exist: a screen that cannot tell "not asked" from
+     "asked, and the patient does not know" will nag someone who already
+     answered honestly, or worse, let a UI silently default a field this
+     consequential to something. */
+  const BLOOD_GROUP = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"];
+  const isValidBloodGroup = (v) => BLOOD_GROUP.indexOf(v) !== -1;
+  const BLOOD_GROUP_LABEL = { unknown: ["غير معروف", "Unknown"] };
+  const bloodGroupLabel = (v, ar) => (BLOOD_GROUP_LABEL[v] ? BLOOD_GROUP_LABEL[v][ar ? 0 : 1] : (v || ""));
+
   /* ---- ALLERGY ---- */
   const CRITICALITY = { HIGH: "high", LOW: "low", UNABLE: "unable-to-assess" };
   const criticalAllergies = (list) => (list || [])
@@ -1193,6 +1207,7 @@
   root.EMR = {
     ID_TYPE, canRegister, isIdentityBearing, identifiersOf, idOf,
     ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
+    BLOOD_GROUP, isValidBloodGroup, bloodGroupLabel,
     MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
     matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
     ENC_STATE, ENC_TYPE, SIGN_REQUIRED, canSign, signEncounter, addAddendum, voidEncounter,

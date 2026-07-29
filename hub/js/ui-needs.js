@@ -414,11 +414,15 @@ function startRadarTicker() {
    make the other three mean less.
 ------------------------------------------------------------- */
 function radarReach(r) {
-  const inCity = allPharmacies().filter((f) => cityOf(f) === r.city && f.verified);
+  /* Both filters used the raw .verified flag, so the number attached to
+     "visible to N verified pharmacies" was counting synthetic entries as real
+     reach. verificationState asks the provenance first, matching the badge
+     already shown on every one of these rows individually. */
+  const inCity = allPharmacies().filter((f) => cityOf(f) === r.city && verificationState(f, "pharmacies").k === "verified");
   /* Plus any verified branch anywhere that has ever reported this exact
      variant. A typed medicine has no variant id, so its reach is honestly
      the same-governorate set — and the copy reflects whatever this returns. */
-  const holders = r.v ? allPharmacies().filter((f) => f.verified && cityOf(f) !== r.city &&
+  const holders = r.v ? allPharmacies().filter((f) => verificationState(f, "pharmacies").k === "verified" && cityOf(f) !== r.city &&
     SIGNALS.some((g) => g.fac === f.id && g.v === r.v)) : [];
   const cities = [...new Set([...inCity, ...holders].map((f) => cityOf(f)))];
   return { n: inCity.length + holders.length, inCity: inCity.length, holders: holders.length, cities };
@@ -841,6 +845,16 @@ function screenRadar(facId) {
   }
 
   if (!f) {
+    /* NOT switched to verificationState() like the sites above, on purpose.
+       This list is a self-identification convenience — "which of these
+       branches am I" — for a pharmacist choosing their own profile before
+       using the radar; it has no empty-state fallback below, so filtering it
+       to provenance-verified entries would render zero rows and silently
+       break the entire pharmacist role while every source stays synthetic.
+       The REAL security boundary is downstream in `canAnswer()`, which
+       already checks a server-verified licenseStatus and never labels a
+       SELF_ASSERTED session as verified. What was actually false here is the
+       header two lines down, which is fixed instead. */
     const list = allPharmacies().filter((y) => y.verified);
     return `${netBanner()}
     <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
@@ -852,7 +866,7 @@ function screenRadar(facId) {
         : "Pick your pharmacy and we'll show the requests you could answer — in your governorate, or for anything you've reported holding."}</div>
     </section>
     <section class="pad" style="margin-top:24px">
-      <div class="lab">${isAR() ? "الصيدليات الموثّقة" : "Verified pharmacies"}</div>
+      <div class="lab">${isAR() ? "اختر صيدليتك" : "Choose your pharmacy"}</div>
       ${list.map((y) => `<a class="rw" href="#/radar/${y.id}" onclick="S.myBranch='${y.id}';LS.set('myBranch','${y.id}')">
         <span class="av">${esc(initial(L(y)))}</span>
         <span class="grow"><span class="d3" style="display:block">${esc(L(y))}</span>

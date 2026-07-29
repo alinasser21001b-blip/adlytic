@@ -300,6 +300,54 @@ await pg.waitForTimeout(600);
 }
 await ctx.setOffline(false);
 
+/* ---------- 21 · the emergency card ---------- */
+step("٢١ · بطاقة الطوارئ");
+await go("#/");
+await pg.evaluate(() => openEmergency());
+await pg.waitForTimeout(350);
+{
+  const t = await pg.evaluate(() => document.querySelector(".sheet")?.innerText.replace(/\s+/g, " ") || "");
+  /* البنسلين and ميتفورمين were added by this same patient in steps 3-4,
+     still sitting in the record — this asserts the SAME data reaches a
+     completely different screen, not a copy of it. */
+  ok(/البنسلين/.test(t), "الحساسية التي أضافتها المريضة تظهر فوراً في بطاقة الطوارئ");
+  ok(/غير مسجّلة|not recorded|فصيلة الدم/.test(t), "وتُقال فصيلة الدم غير مسجّلة، بدل أن تُترك فارغة بصمت");
+}
+await pg.evaluate(() => closeSheet());
+
+step("٢٢ · فصيلة الدم وجهة الطوارئ تُحفَظ وتصل البطاقة");
+await go("#/record/profile");
+await pg.click('[data-bg="O-"]');
+await pg.fill("#ec-name", "أم علي");
+await pg.fill("#ec-phone", "07701234567");
+await pg.click("button.btn");
+await pg.waitForTimeout(600);
+await reload();
+{
+  const r = await rec();
+  ok(r.bloodGroup === "O-", "فصيلة الدم محفوظة في التخزين");
+  ok(r.patient.emergencyContact?.name === "أم علي", "وجهة الاتصال أيضاً");
+}
+await go("#/");
+await pg.evaluate(() => openEmergency());
+await pg.waitForTimeout(350);
+{
+  const html = await pg.evaluate(() => document.querySelector(".sheet")?.innerHTML || "");
+  const t = await pg.evaluate(() => document.querySelector(".sheet")?.innerText.replace(/\s+/g, " ") || "");
+  ok(/O-/.test(t), "فصيلة الدم المحفوظة تظهر في بطاقة الطوارئ");
+  ok(/أم علي/.test(t), "وجهة الاتصال أيضاً");
+  ok(!/فصيلة الدم غير مسجّلة/.test(t), "ولا يعود يقول إنها غير مسجّلة بعد أن سُجّلت");
+  ok(/href="tel:07701234567"/.test(html), "ورقمها قابل للاتصال المباشر");
+}
+await pg.evaluate(() => closeSheet());
+/* revisiting the profile screen must show what was actually saved, not a
+   form that forgot itself the moment it navigated away */
+await go("#/record/profile");
+{
+  const selected = await pg.evaluate(() => document.querySelector('[data-bg="O-"]')?.classList.contains("c-on"));
+  ok(selected, "شاشة البيانات تعرض فصيلة الدم المحفوظة عند العودة إليها");
+}
+
 /* ---------- 20 · empty states ---------- */
 step("٢٠ · الحالات الفارغة تعطي مخرجاً");
 await pg.evaluate(() => {

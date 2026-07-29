@@ -414,6 +414,25 @@ it("a trend with mixed units is flagged", () => {
   no(t.comparable);
 });
 
+/* ==================== BLOOD GROUP ==================== */
+describe("٧-ب · فصيلة الدم");
+
+it("only the eight real groups plus the explicit 'unknown' are valid", () => {
+  for (const g of ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"])
+    ok(E.isValidBloodGroup(g), g + " must be accepted");
+  no(E.isValidBloodGroup("AB"), "no Rh factor is not a real group");
+  no(E.isValidBloodGroup("O"), "same");
+  no(E.isValidBloodGroup(""), "empty string is not 'unknown' — that is a distinct, explicit value");
+  no(E.isValidBloodGroup(null));
+});
+
+it("'unknown' has a real label, distinct from every other value printing as itself", () => {
+  eq(E.bloodGroupLabel("unknown", true), "غير معروف");
+  eq(E.bloodGroupLabel("unknown", false), "Unknown");
+  eq(E.bloodGroupLabel("O-", true), "O-", "a real group is not translated — it is not a word, it is a fact");
+  eq(E.bloodGroupLabel("O-", false), "O-");
+});
+
 /* ==================== VITAL SIGNS ==================== */
 describe("٧-أ · العلامات الحيوية");
 

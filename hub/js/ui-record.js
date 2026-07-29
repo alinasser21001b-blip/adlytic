@@ -1355,8 +1355,21 @@
   const claimText = (c) => c.name || c.code || c.test || "—";
 
   /* ---------- profile ---------- */
+  /* This screen is what the record home's «تعديل» (Edit) link points to, and
+     until now it showed four read-only rows and nothing a person could
+     actually change — a button promising editing that edited nothing.
+
+     Identity (name, birth date, sex) stays read-only here: it is set once at
+     registration under `canRegister`'s rules, and re-opening it to editing
+     is a bigger decision about identity matching than this screen should
+     make alone. What genuinely belongs here, and was simply never built, is
+     the two fields `CONSENT.emergencyCard` has been reading since it was
+     written and finding empty every time: blood group and an emergency
+     contact. Nothing in the product could ever set them. */
   function screenProfile(d) {
     const p = d.patient;
+    const bg = d.bloodGroup || null;
+    const ec = p.emergencyContact || null;
     return page(T("بياناتي", "My details"),
       `<div class="stack-2">
         ${row(T("الاسم", "Name"), E().fullName(p))}
@@ -1366,8 +1379,46 @@
       </div>
       <div class="note" style="margin-top:16px">${icon("seal")}<div>${T(
         "معرّف قريب هو المفتاح — مو رقم البطاقة الوطنية. الوثائق الرسمية تنربط بالملف وما تكون أساسه، لأن الرقم ممكن يتغيّر والملف ما ينشطر.",
-        "The Qareeb ID is the key — not the national card number. Official documents attach to the record rather than being its foundation, so a changed number never splits a patient in two.")}</div></div>`);
+        "The Qareeb ID is the key — not the national card number. Official documents attach to the record rather than being its foundation, so a changed number never splits a patient in two.")}</div></div>
+
+      <div class="sec" style="margin-top:8px">
+        <div class="sec-h"><h2 class="d3">${T("لحالات الطوارئ", "For an emergency")}</h2></div>
+        <p class="t3" style="line-height:1.7">${T(
+          "هذا اللي يظهر فوراً لمن يفتح زر الطوارئ بهاتفك — أنت، أو من يساعدك.",
+          "This is what shows immediately to whoever opens the emergency button on your phone — you, or whoever is helping you.")}</p>
+
+        <div class="fld" style="margin-top:12px"><span>${T("فصيلة الدم", "Blood group")}</span>
+          <div class="chips chips--wrap" style="margin-top:8px">
+            ${E().BLOOD_GROUP.map((k) => `<button class="chip${bg === k ? " c-on" : ""}" data-bg="${k}"
+              onclick="recordPickChip('bg','${k}')">${esc(E().bloodGroupLabel(k, ar()))}</button>`).join("")}
+          </div>
+        </div>
+
+        <label class="fld" style="margin-top:14px"><span>${T("اسم جهة الاتصال عند الطوارئ", "Emergency contact name")}
+          <span class="t3">— ${T("اختياري", "optional")}</span></span>
+          <input id="ec-name" type="text" value="${esc((ec && ec.name) || "")}"></label>
+        <label class="fld"><span>${T("رقمها", "Their number")}
+          <span class="t3">— ${T("اختياري", "optional")}</span></span>
+          <input id="ec-phone" type="tel" value="${esc((ec && ec.phone) || "")}"
+            placeholder="07xxxxxxxxx"></label>
+
+        <button class="btn" style="margin-top:16px" onclick="recordSaveEmergencyInfo()">${T("احفظ", "Save")}</button>
+      </div>`);
   }
+
+  globalThis.recordSaveEmergencyInfo = function recordSaveEmergencyInfo() {
+    const picked = document.querySelector("[data-bg].c-on");
+    const bg = picked ? picked.getAttribute("data-bg") : null;
+    if (bg && !E().isValidBloodGroup(bg)) { toast(T("فصيلة غير صالحة", "Invalid blood group")); return; }
+    const name = ((document.getElementById("ec-name") || {}).value || "").trim();
+    const phone = ((document.getElementById("ec-phone") || {}).value || "").trim();
+    mutate((x) => {
+      if (bg) x.bloodGroup = bg;
+      x.patient.emergencyContact = (name || phone) ? { name: name || null, phone: phone || null } : null;
+    });
+    toast(T("انحفظ", "Saved"));
+    location.hash = "#/record";
+  };
 
   const row = (k, v) => `<div class="rw"><div class="rowb" style="width:100%">
     <span class="t3">${esc(k)}</span><span>${esc(v)}</span></div></div>`;
