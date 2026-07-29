@@ -779,11 +779,47 @@ function netBanner() {
 /* ---------------- SHELL ---------------- */
 const app = () => document.getElementById("app");
 
+/* ---------------- BACK, WITHOUT LEAVING ----------------
+   A deep link opened cold has no history behind it, so `history.back()` at
+   the top of that screen walks out of the application — measured on all eight
+   deep links the audit tried, from a QR poster, a shared record link, a
+   pharmacy page. `history.length` cannot tell us: it counts the whole tab's
+   life, including whatever page the user was on before. So count OUR OWN
+   moves. If we have not navigated since load, "back" means up one level, not
+   out. */
+let inAppMoves = 0;
+const noteNav = () => { inAppMoves++; };
+
+/* Where "up" is. Declared rather than derived: stripping the last path
+   segment turns #/doctor/d1 into #/doctor, which is not a route — the user
+   would land on a 404 instead of outside the app, which is not an
+   improvement. */
+const UP_FROM = {
+  record: "#/", clinical: "#/record", doctor: "#/doctors", pharmacy: "#/pharmacies",
+  hospital: "#/hospitals", need: "#/needs", med: "#/rx", product: "#/rx",
+  care: "#/", partner: "#/", radar: "#/needs", wait: "#/needs",
+  lab: "#/", imaging: "#/", "pharmacy-rx": "#/",
+};
+function upFrom(hash) {
+  const seg = String(hash == null ? location.hash : hash)
+    .replace(/^#\/?/, "").split("?")[0].split("/").filter(Boolean);
+  if (!seg.length) return "#/";
+  /* The record's own sub-screens go up to the record, not to the home
+     screen: someone three levels into their labs wants their record back. */
+  if (seg[0] === "record" && seg.length > 1) return "#/record";
+  return UP_FROM[seg[0]] || "#/";
+}
+
+globalThis.goBack = function goBack() {
+  if (inAppMoves > 0) { history.back(); return; }
+  location.hash = upFrom(null);
+};
+
 function header(opts = {}) {
   const off = netBanner();
   if (opts.back) {
     return off + `<header class="hdr">
-      <button class="icon-btn hdr-back" onclick="history.back()" aria-label="${t("back")}">${icon("back")}</button>
+      <button class="icon-btn hdr-back" onclick="goBack()" aria-label="${t("back")}">${icon("back")}</button>
       <div class="grow hdr-title">${esc(opts.title || "")}</div>
       ${opts.right || ""}
     </header>`;
@@ -806,6 +842,12 @@ function header(opts = {}) {
 function nav(active) {
   const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
     ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
-  return `<nav class="nav">${items.map(([h, i, k]) =>
-    `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
+  /* The bar is `position: fixed`, so it floats over the end of whatever is
+     behind it. Measured before this existed: the record index's last row —
+     «التحاليل» — sat at y=792 with the bar's top edge at y=778. Unreadable,
+     and untappable. The reservation is emitted HERE rather than left to each
+     call site, because a call site can forget and this cannot. */
+  return `<div class="nav-space" aria-hidden="true"></div>`
+    + `<nav class="nav">${items.map(([h, i, k]) =>
+      `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
 }

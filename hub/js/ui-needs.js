@@ -28,7 +28,7 @@ function screenNeedNew(qs) {
 
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="lab" style="margin-top:24px">${isAR() ? "انشر حاجتك" : "Publish a need"}</div>
     <h1 class="d2" style="margin-top:8px">${isAR() ? "خلّي الشبكة تدوّر بدالك" : "Let the network do the searching"}</h1>
     <div class="q-sub" style="margin-top:6px">${isAR()
@@ -181,7 +181,7 @@ function screenNeedNew(qs) {
       ? `ينتهي الطلب وحده — العاجل خلال <span class="num">6</span> ساعات، والباقي أطول. تكدر تسحبه بأي وقت من «طلباتي».`
       : `The request expires on its own — urgent within <span class="num">6</span> hours, others longer. Withdraw any time from My requests.`}</div>
   </section>
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 /* Keep the publish control honest against what is actually typed, without a
@@ -462,7 +462,7 @@ function screenRadarWait(id) {
       ? "الطلب يبقى شغّالاً وأنت تتصفّح. ما ننشر اسمك ولا رقمك."
       : "The request stays live while you browse. Your name and number are never published."}</div>
   </section>
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 /* Minimise to a floating bar. The patient keeps their request AND their
@@ -533,7 +533,7 @@ function screenNeed(id) {
 
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="rowb" style="margin-top:24px">
       <span class="lab">${isAR() ? "طلب دواء" : "Medicine request"}</span>
       <span class="st ${u.cls}"><i class="dot${r.urg === "urgent" && st !== "expired" ? " dot-live" : ""}"></i>${esc(isAR() ? u.ar : u.en)}</span>
@@ -764,7 +764,7 @@ function screenRadar(facId) {
     if (!gate.ok) {
       return `${netBanner()}
       <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-        <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+        <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
         <div class="lab" style="margin-top:24px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
         <h1 class="d1" style="margin-top:10px">${esc(L(f))}</h1>
         <div class="q-sub" style="margin-top:8px">${esc(cityName(cityById(cityOf(f))))}${
@@ -793,7 +793,7 @@ function screenRadar(facId) {
     const list = allPharmacies().filter((y) => y.verified);
     return `${netBanner()}
     <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <div class="lab" style="margin-top:24px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
       <h1 class="d2" style="margin-top:8px">${isAR() ? "شنو يدوّرون عليه الآن" : "What people are looking for"}</h1>
       <div class="q-sub" style="margin-top:6px">${isAR()
@@ -807,7 +807,7 @@ function screenRadar(facId) {
         <span class="grow"><span class="d3" style="display:block">${esc(L(y))}</span>
           <span class="q-sub">${esc(cityName(cityById(cityOf(y))))}</span></span></a>`).join('<div class="hr"></div>')}
     </section>
-    <div style="height:26px"></div>${nav("explorer")}`;
+    ${nav("explorer")}`;
   }
 
   const declined = new Set(LS.get("declined", []));
@@ -828,7 +828,7 @@ function screenRadar(facId) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="pharmacySignOut()">${isAR() ? "خروج" : "Sign out"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>

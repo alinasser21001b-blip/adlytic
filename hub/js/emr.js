@@ -731,12 +731,23 @@
       .filter((r) => r.code === code && typeof r.value === "number")
       .sort((a, b) => new Date(a.effectiveAt) - new Date(b.effectiveAt))
       .map((r) => ({ at: r.effectiveAt, value: r.value, unit: r.unit,
-                     lab: r.performerId || null, flag: r.flag || flagResult(r) }));
+                     lab: r.performerId || null, flag: r.flag || flagResult(r),
+                     /* The reference range travels WITH the point, not with the
+                        series: two laboratories can report the same analyte
+                        against different ranges, and a screen that borrows the
+                        newest range for an older number invents a verdict the
+                        lab never issued. */
+                     refLow: r.refLow ?? null, refHigh: r.refHigh ?? null }));
     const labs = [...new Set(pts.map((p) => p.lab).filter(Boolean))];
     const units = [...new Set(pts.map((p) => p.unit).filter(Boolean))];
     const first = pts[0], last = pts[pts.length - 1];
     return {
-      code, points: pts, labs,
+      code,
+      /* A brief that prints "4548-4" has told the clinician nothing. The
+         human-readable name lives on the result rows; carry it on the series
+         so every consumer does not have to go back and look it up. */
+      display: ((results || []).find((r) => r.code === code && r.display) || {}).display || null,
+      points: pts, labs,
       mixedLabs: labs.length > 1,
       mixedUnits: units.length > 1,
       comparable: labs.length <= 1 && units.length <= 1,

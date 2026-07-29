@@ -382,11 +382,22 @@
     }
   };
 
-  const page = (title, body, sub) => `${header({ back: true, title })}
+  /* `slot` is the bottom-nav tab this screen belongs to, and it defaults to
+     the record because that is what almost every screen built with this
+     helper is. Sixteen of twenty-six routes shipped with no bottom nav at
+     all: reachable, then a dead end — the only way onward was the back
+     button, and on a cold deep link that left the app entirely.
+
+     Passing `null` is the deliberate opt-out, and the clinician and facility
+     consoles take it. The four tabs are a PATIENT's map of their own care;
+     showing them to a lab technician signed into a facility console offers a
+     door into someone else's product. */
+  const page = (title, body, sub, slot = "record") => `${header({ back: true, title })}
     <section class="wrap" style="padding-top:14px">
       ${sub ? `<p class="t3" style="margin-bottom:14px;line-height:1.7">${sub}</p>` : ""}
       ${body}
-    </section>`;
+    </section>
+    ${slot ? `${nav(slot)}` : ""}`;
 
   const empty = (text, action) => `<div class="note">${icon("info")}<div>${esc(text)}</div></div>${action || ""}`;
 
@@ -467,16 +478,10 @@
         const t = E().trend(d.results, code);
         const last = t.points[t.points.length - 1];
         return `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc((done.find((x) => x.code === code) || {}).display || code)}</b>
-            <span class="${last && last.flag !== "normal" ? "st st-e" : "st st-v"}">${
+          <div class="rowb"><b>${esc(t.display || (done.find((x) => x.code === code) || {}).display || code)}</b>
+            <span class="st ${last ? FLAG_CLASS[flagKey(last.flag)] : "st-q"}">${
               last ? n(last.value) + " " + esc(last.unit || "") : ""}</span></div>
-          ${t.points.length > 1 ? `<div class="t3" style="margin-top:6px">${
-            t.points.map((p) => n(p.value)).join(" ← ")}</div>` : ""}
-          ${t.mixedLabs ? `<div class="st st-q" style="margin-top:6px">${T(
-            "نتائج من مختبرات مختلفة — المقارنة بينها ما تنفع دائماً",
-            "results from different laboratories — comparing them is not always valid")}</div>` : ""}
-          ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(
-            "وحدات قياس مختلفة", "different units of measure")}</div>` : ""}
+          ${trendSeries(t)}
         </div></div>`;
       }).join("")}</div>` : (pending.length ? "" : empty(T("ما عندك تحاليل مسجّلة", "No lab results recorded")))}`,
       T("الاتجاه أهم من الرقم المفرد — لكن نتائج مختبرين مختلفين ما تنرسم بخط واحد واثق.",
@@ -815,7 +820,7 @@
     if (!me) return clinicianSetup();
     const d = store();
     if (!d.patient) return page(T("ملف المريض", "Patient record"),
-      empty(T("ما في ملف على هذا الجهاز", "No record on this device")));
+      empty(T("ما في ملف على هذا الجهاز", "No record on this device")), undefined, null);
 
     const { decision, record } = readRecord(me, C().SCOPE.SUMMARY);
     if (!decision.ok) return screenNoAccess(d, me, decision);
@@ -880,10 +885,8 @@
 
       ${brief.trends.length ? section(T("اتجاهات تحرّكت", "Trends that moved"),
         brief.trends.map((t) => `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc(t.code)}</b><span class="t3">${esc(dirLabel(t.direction))}</span></div>
-          <div class="t3" style="margin-top:6px">${t.points.map((p) => n(p.value)).join(" ← ")}</div>
-          ${t.mixedLabs ? `<div class="st st-e" style="margin-top:6px">${T(
-            "مختبرات مختلفة — لا تقرأها كخط واحد", "different laboratories — do not read as one line")}</div>` : ""}
+          <div class="rowb"><b>${esc(t.display || t.code)}</b></div>
+          ${trendSeries(t)}
         </div></div>`).join("")) : ""}
 
       ${brief.pending.length ? section(T("معلّق", "Pending"),
@@ -914,8 +917,74 @@
   const lockedSection = (title) => `<div class="sec"><div class="sec-h"><h2 class="d3">${esc(title)}</h2>
     <span class="st st-q">${T("ما شاركها المريض", "not shared")}</span></div></div>`;
 
-  const DIR_LABELS = { rising: ["يرتفع", "rising"], falling: ["ينخفض", "falling"], flat: ["ثابت", "flat"] };
+  /* ---------- lab series ----------
+
+     Time is not an arrow.
+
+     U+2190 is Bidi_Class=ON and Bidi_Mirrored=No — the algorithm reorders it
+     but never flips it. Placed between two `.num` spans, which are
+     `unicode-bidi: embed`, the whole group resolves as one left-to-right run
+     inside an Arabic line, so the source "7.1 ← 8.4" renders on screen as
+     "8.4 → 7.1". Measured in the browser at both call sites: a diabetic whose
+     HbA1c had gone from 7.1 to 8.4 was told she had improved from 8.4 to 7.1,
+     and her doctor's shared brief said the same. The series inverted, silently,
+     in the one direction that matters.
+
+     So there is no arrow here. Every point carries its own date on its own
+     line, oldest at the top so that reading downward moves forward in time,
+     and the movement is carried by a word. Nothing in the meaning depends on
+     how bidi resolves. */
+
+  /* Past tense: a series of results is a movement that already happened. */
+  const DIR_LABELS = { rising: ["ارتفع", "rose"], falling: ["انخفض", "fell"], flat: ["ما تغيّر", "unchanged"] };
   const dirLabel = (dd) => (DIR_LABELS[dd] || [dd, dd])[ar() ? 0 : 1];
+
+  /* "unknown" is not "abnormal" and must never be dressed in the abnormal
+     colour: a number that arrived with no reference range has not failed a
+     test, it was never given one to fail. It says so in words. */
+  const FLAG_LABELS = { low: ["منخفض", "low"], high: ["مرتفع", "high"],
+    normal: ["ضمن الطبيعي", "in range"], unknown: ["بلا مدى مرجعي", "no reference range"] };
+  const FLAG_CLASS = { low: "st-e", high: "st-e", normal: "st-v", unknown: "st-q" };
+  const flagKey = (f) => (FLAG_LABELS[f] ? f : "unknown");
+  const flagChip = (f) => `<span class="st ${FLAG_CLASS[flagKey(f)]}">${esc(FLAG_LABELS[flagKey(f)][ar() ? 0 : 1])}</span>`;
+
+  /* Stated in words for the same reason the arrow is gone: "4–5.6" puts a
+     neutral character between two numbers, which is the identical bidi trap
+     in miniature. "من 4 إلى 5.6" has no neutral left to resolve. */
+  function rangeLine(p) {
+    if (!p) return "";
+    if (p.refLow != null && p.refHigh != null)
+      return ar() ? `الطبيعي من ${n(p.refLow)} إلى ${n(p.refHigh)}` : `normal ${n(p.refLow)} to ${n(p.refHigh)}`;
+    if (p.refHigh != null) return ar() ? `الطبيعي تحت ${n(p.refHigh)}` : `normal below ${n(p.refHigh)}`;
+    if (p.refLow != null) return ar() ? `الطبيعي فوق ${n(p.refLow)}` : `normal above ${n(p.refLow)}`;
+    return "";
+  }
+
+  /* The dated body of a series, shared by the patient's labs screen and the
+     clinician's brief so the two can never drift apart on the one thing they
+     must agree about. */
+  function trendSeries(t) {
+    if (!t || !t.points || !t.points.length) return "";
+    const last = t.points[t.points.length - 1];
+    const rows = t.points.map((p) => `<div class="rowb" style="margin-top:6px">
+        <span class="t3">${n(String(p.at || "").slice(0, 10))}</span>
+        <span>${n(p.value)} ${esc(p.unit || "")} ${flagChip(p.flag)}</span>
+      </div>`).join("");
+    /* Direction is arithmetic on raw numbers. Across two units that arithmetic
+       is meaningless, so the word is withheld rather than printed wrong — the
+       warning underneath says why. */
+    const dir = t.points.length > 1 && !t.mixedUnits ? esc(dirLabel(t.direction)) : "";
+    const rng = rangeLine(last);
+    return `${rows}
+      ${dir || rng ? `<div class="rowb" style="margin-top:8px">
+        <span class="st">${dir}</span><span class="t3">${rng}</span></div>` : ""}
+      ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(
+        "وحدات قياس مختلفة — هذي الأرقام ما تنقارن",
+        "different units of measure — these numbers do not compare")}</div>` : ""}
+      ${t.mixedLabs ? `<div class="st st-t" style="margin-top:6px">${T(
+        "نتائج من مختبرات مختلفة — المقارنة بينها ما تنفع دائماً",
+        "results from different laboratories — comparing them is not always valid")}</div>` : ""}`;
+  }
 
   /* The screen a clinician sees when they have no consent — and the point at
      which most systems either leak or dead-end. It does neither: it offers
@@ -1006,7 +1075,8 @@
       <label class="fld"><span>${T("الاختصاص", "Specialty")}</span><input id="dr-spec" type="text"></label>
       <label class="fld"><span>${T("رقم الإجازة", "Licence number")}</span><input id="dr-lic" type="text"></label>
       <label class="fld"><span>${T("رقم النقابة", "Syndicate number")}</span><input id="dr-syn" type="text"></label>
-      <button class="btn" style="margin-top:16px" onclick="clinicianSave()">${T("احفظ", "Save")}</button>`);
+      <button class="btn" style="margin-top:16px" onclick="clinicianSave()">${T("احفظ", "Save")}</button>`,
+      undefined, null);
   }
 
   globalThis.clinicianSave = function clinicianSave() {
@@ -1044,7 +1114,7 @@
         </div></div>`).join("")}</div>`
         : empty(T("ما في شي ينتظر", "Nothing waiting"))}`,
       T("الآلة تقرأ، وأنت تقرّر. ما تدخل معلومة السجل الرسمي إلا بقرارك.",
-        "The machine reads, you decide. Nothing enters the record without your decision."));
+        "The machine reads, you decide. Nothing enters the record without your decision."), null);
   };
 
   const KIND_LABELS = { condition: ["تشخيص", "condition"], medication: ["دواء", "medication"],

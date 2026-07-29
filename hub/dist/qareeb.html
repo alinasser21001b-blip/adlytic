@@ -415,7 +415,23 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .btn svg, .b svg { width: 17px; height: 17px; }
 
 .btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--dial-line); }
-.btn--3, .b-g { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
+.btn--3 { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
+
+/* `.b-g` is the quiet action — «تعديل», «الطريق», «كيف نتحقق» — and it is
+   used BARE, on <span>, <a> and <button> alike, 55 times. Bare means it
+   inherits `.b` nothing: no box, no display type, and `min-height` on an
+   inline box is a no-op. Measured: `تعديل` 34.8px wide, `الطريق` 36.8px.
+   Ten of the audit's failures were this one rule.
+
+   No padding-inline. This stylesheet already decided, a few lines up, that a
+   target's visible size should BE its hit size rather than hiding an
+   invisible extender behind it — so the box grows to 44 and the label sits
+   centred in it, instead of an overlay that could steal a neighbour's tap. */
+.b-g {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; min-width: 44px;
+  background: none; color: var(--jade); border: 0; font-weight: 500; cursor: pointer;
+}
 .btn--wa, .b-wa, .btn-wa { background: var(--wa); color: #fff; font-weight: 600; border-color: transparent; }
 .btn--danger { background: var(--alarm); color: #fff; border-color: transparent; }
 /* A button is aimed at deliberately, so for buttons the visual size SHOULD
@@ -438,7 +454,10 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 /* ---------- 6 · chips ---------- */
 .chip, .c, .pchip, .place-tag, .cred {
   display: inline-flex; align-items: center; gap: 6px;
-  min-height: 36px; padding: 0 14px; border-radius: var(--rp);
+  /* 44, not 36. Chips are this app's primary filter — district, specialty,
+     open-now — and the audit found 67 of 81 failing targets were chips. A
+     filter you cannot reliably hit is a filter that does not exist. */
+  min-height: 44px; padding: 0 14px; border-radius: var(--rp);
   border: 1px solid var(--dial-line);
   font: 400 13px/1 var(--disp); color: var(--ink-2);
   white-space: nowrap; background: transparent;
@@ -540,6 +559,11 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .hdr-back { width: 44px; height: 44px; }
 .brand { display: flex; align-items: center; gap: var(--u2); font: 600 19px/1 var(--disp); letter-spacing: -.02em; min-height: 44px; }
 .brand-mark { width: 24px; height: 24px; }
+
+/* The tab bar's reserved height. `nav()` emits one of these immediately
+   before the bar itself, so the reservation and the thing being reserved for
+   can never drift apart. */
+.nav-space { height: calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px); }
 
 .nav {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 50;
@@ -2241,12 +2265,23 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
       .filter((r) => r.code === code && typeof r.value === "number")
       .sort((a, b) => new Date(a.effectiveAt) - new Date(b.effectiveAt))
       .map((r) => ({ at: r.effectiveAt, value: r.value, unit: r.unit,
-                     lab: r.performerId || null, flag: r.flag || flagResult(r) }));
+                     lab: r.performerId || null, flag: r.flag || flagResult(r),
+                     /* The reference range travels WITH the point, not with the
+                        series: two laboratories can report the same analyte
+                        against different ranges, and a screen that borrows the
+                        newest range for an older number invents a verdict the
+                        lab never issued. */
+                     refLow: r.refLow ?? null, refHigh: r.refHigh ?? null }));
     const labs = [...new Set(pts.map((p) => p.lab).filter(Boolean))];
     const units = [...new Set(pts.map((p) => p.unit).filter(Boolean))];
     const first = pts[0], last = pts[pts.length - 1];
     return {
-      code, points: pts, labs,
+      code,
+      /* A brief that prints "4548-4" has told the clinician nothing. The
+         human-readable name lives on the result rows; carry it on the series
+         so every consumer does not have to go back and look it up. */
+      display: ((results || []).find((r) => r.code === code && r.display) || {}).display || null,
+      points: pts, labs,
       mixedLabs: labs.length > 1,
       mixedUnits: units.length > 1,
       comparable: labs.length <= 1 && units.length <= 1,
@@ -6903,11 +6938,47 @@ function netBanner() {
 /* ---------------- SHELL ---------------- */
 const app = () => document.getElementById("app");
 
+/* ---------------- BACK, WITHOUT LEAVING ----------------
+   A deep link opened cold has no history behind it, so `history.back()` at
+   the top of that screen walks out of the application — measured on all eight
+   deep links the audit tried, from a QR poster, a shared record link, a
+   pharmacy page. `history.length` cannot tell us: it counts the whole tab's
+   life, including whatever page the user was on before. So count OUR OWN
+   moves. If we have not navigated since load, "back" means up one level, not
+   out. */
+let inAppMoves = 0;
+const noteNav = () => { inAppMoves++; };
+
+/* Where "up" is. Declared rather than derived: stripping the last path
+   segment turns #/doctor/d1 into #/doctor, which is not a route — the user
+   would land on a 404 instead of outside the app, which is not an
+   improvement. */
+const UP_FROM = {
+  record: "#/", clinical: "#/record", doctor: "#/doctors", pharmacy: "#/pharmacies",
+  hospital: "#/hospitals", need: "#/needs", med: "#/rx", product: "#/rx",
+  care: "#/", partner: "#/", radar: "#/needs", wait: "#/needs",
+  lab: "#/", imaging: "#/", "pharmacy-rx": "#/",
+};
+function upFrom(hash) {
+  const seg = String(hash == null ? location.hash : hash)
+    .replace(/^#\/?/, "").split("?")[0].split("/").filter(Boolean);
+  if (!seg.length) return "#/";
+  /* The record's own sub-screens go up to the record, not to the home
+     screen: someone three levels into their labs wants their record back. */
+  if (seg[0] === "record" && seg.length > 1) return "#/record";
+  return UP_FROM[seg[0]] || "#/";
+}
+
+globalThis.goBack = function goBack() {
+  if (inAppMoves > 0) { history.back(); return; }
+  location.hash = upFrom(null);
+};
+
 function header(opts = {}) {
   const off = netBanner();
   if (opts.back) {
     return off + `<header class="hdr">
-      <button class="icon-btn hdr-back" onclick="history.back()" aria-label="${t("back")}">${icon("back")}</button>
+      <button class="icon-btn hdr-back" onclick="goBack()" aria-label="${t("back")}">${icon("back")}</button>
       <div class="grow hdr-title">${esc(opts.title || "")}</div>
       ${opts.right || ""}
     </header>`;
@@ -6930,8 +7001,14 @@ function header(opts = {}) {
 function nav(active) {
   const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
     ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
-  return `<nav class="nav">${items.map(([h, i, k]) =>
-    `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
+  /* The bar is `position: fixed`, so it floats over the end of whatever is
+     behind it. Measured before this existed: the record index's last row —
+     «التحاليل» — sat at y=792 with the bar's top edge at y=778. Unreadable,
+     and untappable. The reservation is emitted HERE rather than left to each
+     call site, because a call site can forget and this cannot. */
+  return `<div class="nav-space" aria-hidden="true"></div>`
+    + `<nav class="nav">${items.map(([h, i, k]) =>
+      `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
 }
 
 </script>
@@ -6985,11 +7062,16 @@ function screenHomePatient() {
   <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
     <div class="rowb">
       <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
-      <a class="t3" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
+      <a class="b-g" style="font-size:12.5px" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
     </div>
 
-    <button class="lab" style="margin-top:34px;display:block;text-align:start;min-height:0"
-      onclick="openLocation()">${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
+    <!-- Everything under this line is answered FOR a district: which pharmacies
+         are open, how far, who is on night duty. It was styled as a caption
+         with min-height:0 — 67×15.8 measured, no icon, no affordance — so the
+         one control that changes every answer below read as a timestamp.
+         It is a control now, and the pin says which kind. -->
+    <button class="lab" style="margin-top:26px;display:flex;align-items:center;gap:7px;text-align:start;min-height:44px;width:auto"
+      onclick="openLocation()">${icon("pin")}${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
 
     <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${phOpen}</div>
     <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? countAr(phOpen, AR_PHARM_OPEN) : phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}</div>
@@ -7073,9 +7155,15 @@ function screenHomePatient() {
   </section>
 
   <section class="pad" style="margin-top:22px">
-    <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:18px">
-      <button class="st st-e" onclick="openEmergency()" style="background:none;border:0;padding:0;font:inherit;color:inherit"><i class="dot"></i>${isAR() ? "طوارئ — أقرب إسعاف" : "Emergency — nearest care"}</button>
-      <a class="n" style="font-size:17px;color:var(--alarm)" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
+    <!-- The two highest-stakes taps in the product, and until the audit
+         measured them the pair was built out of text styles: the number was
+         27.1×31.4 and the button 27.8 tall, because .st is a typographic
+         class and the inline padding:0 removed what little box it had.
+         Someone reaching for this is not aiming carefully. Both are controls
+         now, and the number is last in the row so a thumb finds it first. -->
+    <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:8px">
+      <button class="b-g st-e" onclick="openEmergency()" style="justify-content:flex-start"><i class="dot"></i>${isAR() ? "طوارئ — أقرب إسعاف" : "Emergency — nearest care"}</button>
+      <a class="b-g" style="font-size:17px;color:var(--alarm);padding-inline:10px" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
     </div>
   </section>
 
@@ -7108,7 +7196,7 @@ function screenHomeAway() {
   <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
     <div class="rowb">
       <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
-      <a class="t3" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
+      <a class="b-g" style="font-size:12.5px" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
     </div>
 
     <button class="lab" style="margin-top:34px;display:block;text-align:start;min-height:0"
@@ -7443,7 +7531,7 @@ function screenDoctors(params) {
     <button class="btn btn--2" onclick="pickNeed(null)">${icon("grid")}${isAR() ? "جرّب اختصاصاً آخر" : "Try another specialty"}</button>
     <button class="btn btn--3" onclick="openLocation()">${icon("pin")}${isAR() ? "غيّر منطقتي" : "Change my area"}</button>
   </div>` : ""}</section>
-  <div style="height:24px"></div>${nav("doctors")}`;
+  ${nav("doctors")}`;
 }
 
 function emptyDoctors(sp) {
@@ -7488,7 +7576,7 @@ function screenDoctor(id) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="shareDoctor('${d.id}')">${t("share")}</button>
     </div>
 
@@ -7616,7 +7704,7 @@ function screenPharmacies() {
   <section class="wrap"><div class="stack list-2 stagger">
     ${list.length ? (() => { const live = list.some((x) => x.st.k !== "shut"); return list.map((x) => pharmacyCard(x, live)).join(""); })() : nightFallback()}
   </div></section>
-  <div style="height:24px"></div>${nav("pharmacies")}`;
+  ${nav("pharmacies")}`;
 }
 
 // Nothing open nearby is the 2am case — the moment this product matters most.
@@ -7663,7 +7751,7 @@ function screenPharmacy(id) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="toggleSave('f:${f.id}')">${
         S.saved.includes("f:" + f.id) ? (isAR() ? "محفوظة" : "Saved") : (isAR() ? "احفظ" : "Save")}</button>
     </div>
@@ -7781,7 +7869,7 @@ function screenCare(cat) {
     ${cat ? "" : `<div class="sec-h"><h2>${isAR() ? "الأكثر طلباً" : "Most requested"}</h2></div>`}
     <div class="grid-2 stagger">${(cat ? list : list.slice(0, 6)).map(productCard).join("")}</div>
   </section>
-  <div style="height:24px"></div>${nav("care")}`;
+  ${nav("care")}`;
 }
 
 function screenProduct(id) {
@@ -7923,7 +8011,7 @@ function screenHospitals() {
     <div class="stack list-2">${er.map((x) => hospitalRow(x)).join("")}</div>
     <div class="sec-h" style="margin-top:24px"><h2>${isAR() ? "كل المستشفيات والمراكز" : "All hospitals & centres"}</h2></div>
     <div class="stack list-2">${list.filter((x) => !x.f.er).map((x) => hospitalRow(x)).join("")}</div>
-  </section><div style="height:24px"></div>${nav("doctors")}`;
+  </section>${nav("doctors")}`;
 }
 
 function hospitalRow(x) {
@@ -8055,7 +8143,7 @@ function screenMe() {
     }).join('<div class="hr"></div>')}
   </section>` : ""}
 
-  <div style="height:26px"></div>${nav("home")}`;
+  ${nav("home")}`;
 }
 
 function screenTrust() {
@@ -8097,7 +8185,7 @@ function screenTrust() {
 function screenError(err) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="lab" style="margin-top:28px">${isAR() ? "خطأ" : "Error"}</div>
     <div class="rowb" style="margin-top:14px">
       <span class="q-sub">${isAR()
@@ -9102,7 +9190,7 @@ function screenMed(id) {
 
   const head = `<section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="watchMed('${med.id}')">${watching
         ? (isAR() ? "نتابعه لك" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>
     </div>
@@ -9833,7 +9921,7 @@ function screenRxSearch() {
   const hits = q ? searchVariants(q) : [];
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="lab" style="margin-top:24px">${isAR() ? "بحث الدواء" : "Medicine search"}</div>
     <h1 class="d2" style="margin-top:8px">${isAR() ? "شنو الدواء بالضبط؟" : "Which exact medicine?"}</h1>
     <div class="q-sub" style="margin-top:6px">${isAR()
@@ -9882,7 +9970,7 @@ function screenRxSearch() {
           </span>
         </span></a>`; }).join('<div class="hr"></div>')}
   </section>`}
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 function rxSearch(v) { LS.set("rxq", v); const el = document.getElementById("rxq"); const p = el && el.selectionStart; render(); const e2 = document.getElementById("rxq"); if (e2) { e2.focus(); try { e2.setSelectionRange(p, p); } catch {} } }
@@ -9902,7 +9990,7 @@ function screenVariant(vid) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="location.hash='#/need/new?v=${vid}'">${isAR() ? "انشر حاجتك" : "Publish a need"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${esc(med.cls_ar && isAR() ? med.cls_ar : "")}${med.rx ? (isAR() ? " · يُصرف بوصفة" : "Prescription only") : ""}</div>
@@ -10528,7 +10616,7 @@ function screenNeedNew(qs) {
 
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="lab" style="margin-top:24px">${isAR() ? "انشر حاجتك" : "Publish a need"}</div>
     <h1 class="d2" style="margin-top:8px">${isAR() ? "خلّي الشبكة تدوّر بدالك" : "Let the network do the searching"}</h1>
     <div class="q-sub" style="margin-top:6px">${isAR()
@@ -10681,7 +10769,7 @@ function screenNeedNew(qs) {
       ? `ينتهي الطلب وحده — العاجل خلال <span class="num">6</span> ساعات، والباقي أطول. تكدر تسحبه بأي وقت من «طلباتي».`
       : `The request expires on its own — urgent within <span class="num">6</span> hours, others longer. Withdraw any time from My requests.`}</div>
   </section>
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 /* Keep the publish control honest against what is actually typed, without a
@@ -10962,7 +11050,7 @@ function screenRadarWait(id) {
       ? "الطلب يبقى شغّالاً وأنت تتصفّح. ما ننشر اسمك ولا رقمك."
       : "The request stays live while you browse. Your name and number are never published."}</div>
   </section>
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 /* Minimise to a floating bar. The patient keeps their request AND their
@@ -11033,7 +11121,7 @@ function screenNeed(id) {
 
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="rowb" style="margin-top:24px">
       <span class="lab">${isAR() ? "طلب دواء" : "Medicine request"}</span>
       <span class="st ${u.cls}"><i class="dot${r.urg === "urgent" && st !== "expired" ? " dot-live" : ""}"></i>${esc(isAR() ? u.ar : u.en)}</span>
@@ -11264,7 +11352,7 @@ function screenRadar(facId) {
     if (!gate.ok) {
       return `${netBanner()}
       <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-        <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+        <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
         <div class="lab" style="margin-top:24px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
         <h1 class="d1" style="margin-top:10px">${esc(L(f))}</h1>
         <div class="q-sub" style="margin-top:8px">${esc(cityName(cityById(cityOf(f))))}${
@@ -11293,7 +11381,7 @@ function screenRadar(facId) {
     const list = allPharmacies().filter((y) => y.verified);
     return `${netBanner()}
     <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <div class="lab" style="margin-top:24px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
       <h1 class="d2" style="margin-top:8px">${isAR() ? "شنو يدوّرون عليه الآن" : "What people are looking for"}</h1>
       <div class="q-sub" style="margin-top:6px">${isAR()
@@ -11307,7 +11395,7 @@ function screenRadar(facId) {
         <span class="grow"><span class="d3" style="display:block">${esc(L(y))}</span>
           <span class="q-sub">${esc(cityName(cityById(cityOf(y))))}</span></span></a>`).join('<div class="hr"></div>')}
     </section>
-    <div style="height:26px"></div>${nav("explorer")}`;
+    ${nav("explorer")}`;
   }
 
   const declined = new Set(LS.get("declined", []));
@@ -11328,7 +11416,7 @@ function screenRadar(facId) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="pharmacySignOut()">${isAR() ? "خروج" : "Sign out"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
@@ -12144,7 +12232,7 @@ function boot() {
   }
   addEventListener("online", () => render());
   addEventListener("offline", () => render());
-  addEventListener("hashchange", () => { closeSheet(true); render(); scrollTo(0, 0); });
+  addEventListener("hashchange", () => { noteNav(); closeSheet(true); render(); scrollTo(0, 0); });
   addEventListener("scroll", () => { const h = document.querySelector(".hdr"); if (h) h.classList.toggle("stuck", scrollY > 8); }, { passive: true });
   render();
   // keep "now" honest, but never interrupt an open sheet or an active input
@@ -12585,11 +12673,22 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     }
   };
 
-  const page = (title, body, sub) => `${header({ back: true, title })}
+  /* `slot` is the bottom-nav tab this screen belongs to, and it defaults to
+     the record because that is what almost every screen built with this
+     helper is. Sixteen of twenty-six routes shipped with no bottom nav at
+     all: reachable, then a dead end — the only way onward was the back
+     button, and on a cold deep link that left the app entirely.
+
+     Passing `null` is the deliberate opt-out, and the clinician and facility
+     consoles take it. The four tabs are a PATIENT's map of their own care;
+     showing them to a lab technician signed into a facility console offers a
+     door into someone else's product. */
+  const page = (title, body, sub, slot = "record") => `${header({ back: true, title })}
     <section class="wrap" style="padding-top:14px">
       ${sub ? `<p class="t3" style="margin-bottom:14px;line-height:1.7">${sub}</p>` : ""}
       ${body}
-    </section>`;
+    </section>
+    ${slot ? `${nav(slot)}` : ""}`;
 
   const empty = (text, action) => `<div class="note">${icon("info")}<div>${esc(text)}</div></div>${action || ""}`;
 
@@ -12670,16 +12769,10 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
         const t = E().trend(d.results, code);
         const last = t.points[t.points.length - 1];
         return `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc((done.find((x) => x.code === code) || {}).display || code)}</b>
-            <span class="${last && last.flag !== "normal" ? "st st-e" : "st st-v"}">${
+          <div class="rowb"><b>${esc(t.display || (done.find((x) => x.code === code) || {}).display || code)}</b>
+            <span class="st ${last ? FLAG_CLASS[flagKey(last.flag)] : "st-q"}">${
               last ? n(last.value) + " " + esc(last.unit || "") : ""}</span></div>
-          ${t.points.length > 1 ? `<div class="t3" style="margin-top:6px">${
-            t.points.map((p) => n(p.value)).join(" ← ")}</div>` : ""}
-          ${t.mixedLabs ? `<div class="st st-q" style="margin-top:6px">${T(
-            "نتائج من مختبرات مختلفة — المقارنة بينها ما تنفع دائماً",
-            "results from different laboratories — comparing them is not always valid")}</div>` : ""}
-          ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(
-            "وحدات قياس مختلفة", "different units of measure")}</div>` : ""}
+          ${trendSeries(t)}
         </div></div>`;
       }).join("")}</div>` : (pending.length ? "" : empty(T("ما عندك تحاليل مسجّلة", "No lab results recorded")))}`,
       T("الاتجاه أهم من الرقم المفرد — لكن نتائج مختبرين مختلفين ما تنرسم بخط واحد واثق.",
@@ -13018,7 +13111,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     if (!me) return clinicianSetup();
     const d = store();
     if (!d.patient) return page(T("ملف المريض", "Patient record"),
-      empty(T("ما في ملف على هذا الجهاز", "No record on this device")));
+      empty(T("ما في ملف على هذا الجهاز", "No record on this device")), undefined, null);
 
     const { decision, record } = readRecord(me, C().SCOPE.SUMMARY);
     if (!decision.ok) return screenNoAccess(d, me, decision);
@@ -13083,10 +13176,8 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
 
       ${brief.trends.length ? section(T("اتجاهات تحرّكت", "Trends that moved"),
         brief.trends.map((t) => `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc(t.code)}</b><span class="t3">${esc(dirLabel(t.direction))}</span></div>
-          <div class="t3" style="margin-top:6px">${t.points.map((p) => n(p.value)).join(" ← ")}</div>
-          ${t.mixedLabs ? `<div class="st st-e" style="margin-top:6px">${T(
-            "مختبرات مختلفة — لا تقرأها كخط واحد", "different laboratories — do not read as one line")}</div>` : ""}
+          <div class="rowb"><b>${esc(t.display || t.code)}</b></div>
+          ${trendSeries(t)}
         </div></div>`).join("")) : ""}
 
       ${brief.pending.length ? section(T("معلّق", "Pending"),
@@ -13117,8 +13208,74 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   const lockedSection = (title) => `<div class="sec"><div class="sec-h"><h2 class="d3">${esc(title)}</h2>
     <span class="st st-q">${T("ما شاركها المريض", "not shared")}</span></div></div>`;
 
-  const DIR_LABELS = { rising: ["يرتفع", "rising"], falling: ["ينخفض", "falling"], flat: ["ثابت", "flat"] };
+  /* ---------- lab series ----------
+
+     Time is not an arrow.
+
+     U+2190 is Bidi_Class=ON and Bidi_Mirrored=No — the algorithm reorders it
+     but never flips it. Placed between two `.num` spans, which are
+     `unicode-bidi: embed`, the whole group resolves as one left-to-right run
+     inside an Arabic line, so the source "7.1 ← 8.4" renders on screen as
+     "8.4 → 7.1". Measured in the browser at both call sites: a diabetic whose
+     HbA1c had gone from 7.1 to 8.4 was told she had improved from 8.4 to 7.1,
+     and her doctor's shared brief said the same. The series inverted, silently,
+     in the one direction that matters.
+
+     So there is no arrow here. Every point carries its own date on its own
+     line, oldest at the top so that reading downward moves forward in time,
+     and the movement is carried by a word. Nothing in the meaning depends on
+     how bidi resolves. */
+
+  /* Past tense: a series of results is a movement that already happened. */
+  const DIR_LABELS = { rising: ["ارتفع", "rose"], falling: ["انخفض", "fell"], flat: ["ما تغيّر", "unchanged"] };
   const dirLabel = (dd) => (DIR_LABELS[dd] || [dd, dd])[ar() ? 0 : 1];
+
+  /* "unknown" is not "abnormal" and must never be dressed in the abnormal
+     colour: a number that arrived with no reference range has not failed a
+     test, it was never given one to fail. It says so in words. */
+  const FLAG_LABELS = { low: ["منخفض", "low"], high: ["مرتفع", "high"],
+    normal: ["ضمن الطبيعي", "in range"], unknown: ["بلا مدى مرجعي", "no reference range"] };
+  const FLAG_CLASS = { low: "st-e", high: "st-e", normal: "st-v", unknown: "st-q" };
+  const flagKey = (f) => (FLAG_LABELS[f] ? f : "unknown");
+  const flagChip = (f) => `<span class="st ${FLAG_CLASS[flagKey(f)]}">${esc(FLAG_LABELS[flagKey(f)][ar() ? 0 : 1])}</span>`;
+
+  /* Stated in words for the same reason the arrow is gone: "4–5.6" puts a
+     neutral character between two numbers, which is the identical bidi trap
+     in miniature. "من 4 إلى 5.6" has no neutral left to resolve. */
+  function rangeLine(p) {
+    if (!p) return "";
+    if (p.refLow != null && p.refHigh != null)
+      return ar() ? `الطبيعي من ${n(p.refLow)} إلى ${n(p.refHigh)}` : `normal ${n(p.refLow)} to ${n(p.refHigh)}`;
+    if (p.refHigh != null) return ar() ? `الطبيعي تحت ${n(p.refHigh)}` : `normal below ${n(p.refHigh)}`;
+    if (p.refLow != null) return ar() ? `الطبيعي فوق ${n(p.refLow)}` : `normal above ${n(p.refLow)}`;
+    return "";
+  }
+
+  /* The dated body of a series, shared by the patient's labs screen and the
+     clinician's brief so the two can never drift apart on the one thing they
+     must agree about. */
+  function trendSeries(t) {
+    if (!t || !t.points || !t.points.length) return "";
+    const last = t.points[t.points.length - 1];
+    const rows = t.points.map((p) => `<div class="rowb" style="margin-top:6px">
+        <span class="t3">${n(String(p.at || "").slice(0, 10))}</span>
+        <span>${n(p.value)} ${esc(p.unit || "")} ${flagChip(p.flag)}</span>
+      </div>`).join("");
+    /* Direction is arithmetic on raw numbers. Across two units that arithmetic
+       is meaningless, so the word is withheld rather than printed wrong — the
+       warning underneath says why. */
+    const dir = t.points.length > 1 && !t.mixedUnits ? esc(dirLabel(t.direction)) : "";
+    const rng = rangeLine(last);
+    return `${rows}
+      ${dir || rng ? `<div class="rowb" style="margin-top:8px">
+        <span class="st">${dir}</span><span class="t3">${rng}</span></div>` : ""}
+      ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(
+        "وحدات قياس مختلفة — هذي الأرقام ما تنقارن",
+        "different units of measure — these numbers do not compare")}</div>` : ""}
+      ${t.mixedLabs ? `<div class="st st-t" style="margin-top:6px">${T(
+        "نتائج من مختبرات مختلفة — المقارنة بينها ما تنفع دائماً",
+        "results from different laboratories — comparing them is not always valid")}</div>` : ""}`;
+  }
 
   /* The screen a clinician sees when they have no consent — and the point at
      which most systems either leak or dead-end. It does neither: it offers
@@ -13209,7 +13366,8 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       <label class="fld"><span>${T("الاختصاص", "Specialty")}</span><input id="dr-spec" type="text"></label>
       <label class="fld"><span>${T("رقم الإجازة", "Licence number")}</span><input id="dr-lic" type="text"></label>
       <label class="fld"><span>${T("رقم النقابة", "Syndicate number")}</span><input id="dr-syn" type="text"></label>
-      <button class="btn" style="margin-top:16px" onclick="clinicianSave()">${T("احفظ", "Save")}</button>`);
+      <button class="btn" style="margin-top:16px" onclick="clinicianSave()">${T("احفظ", "Save")}</button>`,
+      undefined, null);
   }
 
   globalThis.clinicianSave = function clinicianSave() {
@@ -13247,7 +13405,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
         </div></div>`).join("")}</div>`
         : empty(T("ما في شي ينتظر", "Nothing waiting"))}`,
       T("الآلة تقرأ، وأنت تقرّر. ما تدخل معلومة السجل الرسمي إلا بقرارك.",
-        "The machine reads, you decide. Nothing enters the record without your decision."));
+        "The machine reads, you decide. Nothing enters the record without your decision."), null);
   };
 
   const KIND_LABELS = { condition: ["تشخيص", "condition"], medication: ["دواء", "medication"],

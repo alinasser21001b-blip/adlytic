@@ -213,7 +213,7 @@ function boot() {
   }
   addEventListener("online", () => render());
   addEventListener("offline", () => render());
-  addEventListener("hashchange", () => { closeSheet(true); render(); scrollTo(0, 0); });
+  addEventListener("hashchange", () => { noteNav(); closeSheet(true); render(); scrollTo(0, 0); });
   addEventListener("scroll", () => { const h = document.querySelector(".hdr"); if (h) h.classList.toggle("stuck", scrollY > 8); }, { passive: true });
   render();
   // keep "now" honest, but never interrupt an open sheet or an active input

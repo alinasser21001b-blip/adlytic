@@ -13,7 +13,7 @@
    claim stock, what leaves the device, which medicines must never be
    broadcast, and whether an audit trail actually detects tampering.
    ============================================================ */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import vm from "node:vm";
@@ -326,6 +326,54 @@ it("a missing data plane is the blocker that outranks the rest", () => {
 it("a fully resolved deployment reports nothing", () => {
   eq(QD.launchBlockers([{ phone: "9647801234567" }],
     { dataPlane: true, pharmacyAuthBackend: true, auditServerSide: true, realData: true }), []);
+});
+
+/* ---------------------------------------------------------------- */
+describe("bidi — what the browser actually renders");
+
+/* This is a source guard, not a unit test, and it exists because the bug it
+   guards was invisible to 462 passing assertions and to every reading of the
+   code. `t.points.map(n).join(" ← ")` is correct JavaScript producing the
+   correct DOM in the correct order. U+2190 is Bidi_Class=ON and
+   Bidi_Mirrored=No: the algorithm reorders it and never flips it, so between
+   two `.num` spans — `unicode-bidi: embed` — the group resolves as one
+   left-to-right run inside an Arabic line and "7.1 ← 8.4" reaches the eye as
+   "8.4 → 7.1". A worsening HbA1c read as an improving one, on the patient's
+   screen and in the clinician's brief, for as long as the line existed.
+
+   Direction between rendered values is carried by a word, or it is not
+   carried. */
+const uiSources = readdirSync(join(HUB, "js")).filter((f) => f.endsWith(".js"))
+  .map((f) => ({ f, src: readFileSync(join(HUB, "js", f), "utf8") }));
+
+/* A prose comment inside a template literal is one stray backtick away from
+   terminating the string. That is exactly how this file's own author took the
+   whole app down for the length of one edit: `.st` written in an HTML comment
+   inside a `` ` ``-quoted template ended the literal, ui-discovery.js stopped
+   parsing, and every route rendered a blank page while all 462 assertions
+   still passed — because none of them parses the shipped scripts. This does. */
+it("every shipped script parses", () => {
+  const broken = [];
+  for (const { f, src } of uiSources) {
+    try { new vm.Script(src, { filename: f }); } catch (e) { broken.push(`${f}: ${e.message}`); }
+  }
+  eq(broken, [], "a script that does not parse renders nothing, and no unit test notices");
+});
+
+it("no rendered value sequence is joined by an arrow", () => {
+  const bad = uiSources.filter(({ src }) => /join\(\s*["'`][^"'`]*[←→⟵⟶]/.test(src));
+  eq(bad.map((x) => x.f), [], "an arrow between two numbers inverts under RTL");
+});
+
+it("no arrow sits directly against an interpolated value", () => {
+  const bad = uiSources.filter(({ src }) => /\}\s*[←→⟵⟶]|[←→⟵⟶]\s*\$\{/.test(src));
+  eq(bad.map((x) => x.f), [], "the neutral resolves against its neighbours, not against the author's intent");
+});
+
+it("the lab series renderer states direction as a word", () => {
+  const ui = uiSources.find((x) => x.f === "ui-record.js").src;
+  ok(/ارتفع/.test(ui) && /انخفض/.test(ui), "rose and fell must exist as words");
+  ok(/function trendSeries/.test(ui), "both the patient screen and the clinician brief share one renderer");
 });
 
 /* ---------------------------------------------------------------- */

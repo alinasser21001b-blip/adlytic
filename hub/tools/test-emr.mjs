@@ -384,6 +384,27 @@ it("a trend across DIFFERENT laboratories declares itself incomparable", () => {
   eq(t.labs.length, 2);
 });
 
+it("every trend point carries its OWN reference range and its own date", () => {
+  /* Two laboratories can report the same analyte against different ranges.
+     A screen that borrows the newest range for an older number issues a
+     verdict the lab never issued — so the range travels with the point. */
+  const res = [
+    { code: "718-7", display: "الخضاب", value: 11.2, unit: "g/dL", effectiveAt: ago(700), refLow: 12, refHigh: 16 },
+    { code: "718-7", display: "الخضاب", value: 9.1, unit: "g/dL", effectiveAt: ago(30), refLow: 11.5, refHigh: 15 },
+  ];
+  const t = E.trend(res, "718-7");
+  eq(t.points.map((p) => p.refLow), [12, 11.5], "each point keeps the range it was reported against");
+  eq(t.points.map((p) => p.at), [ago(700), ago(30)], "each point keeps its own date — the UI must never infer it");
+  eq(t.display, "الخضاب", "a brief that prints the LOINC code has told the clinician nothing");
+});
+
+it("a result with no reference range keeps a null range rather than borrowing one", () => {
+  const t = E.trend([{ code: "X", value: 5, effectiveAt: ago(3) }], "X");
+  eq(t.points[0].refLow, null);
+  eq(t.points[0].refHigh, null);
+  eq(t.points[0].flag, "unknown", "unjudgeable is not normal");
+});
+
 it("a trend with mixed units is flagged", () => {
   const t = E.trend([
     { code: "X", value: 1, unit: "mg/dL", effectiveAt: ago(10) },

@@ -47,11 +47,16 @@ function screenHomePatient() {
   <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
     <div class="rowb">
       <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
-      <a class="t3" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
+      <a class="b-g" style="font-size:12.5px" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
     </div>
 
-    <button class="lab" style="margin-top:34px;display:block;text-align:start;min-height:0"
-      onclick="openLocation()">${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
+    <!-- Everything under this line is answered FOR a district: which pharmacies
+         are open, how far, who is on night duty. It was styled as a caption
+         with min-height:0 — 67×15.8 measured, no icon, no affordance — so the
+         one control that changes every answer below read as a timestamp.
+         It is a control now, and the pin says which kind. -->
+    <button class="lab" style="margin-top:26px;display:flex;align-items:center;gap:7px;text-align:start;min-height:44px;width:auto"
+      onclick="openLocation()">${icon("pin")}${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
 
     <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${phOpen}</div>
     <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? countAr(phOpen, AR_PHARM_OPEN) : phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}</div>
@@ -135,9 +140,15 @@ function screenHomePatient() {
   </section>
 
   <section class="pad" style="margin-top:22px">
-    <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:18px">
-      <button class="st st-e" onclick="openEmergency()" style="background:none;border:0;padding:0;font:inherit;color:inherit"><i class="dot"></i>${isAR() ? "طوارئ — أقرب إسعاف" : "Emergency — nearest care"}</button>
-      <a class="n" style="font-size:17px;color:var(--alarm)" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
+    <!-- The two highest-stakes taps in the product, and until the audit
+         measured them the pair was built out of text styles: the number was
+         27.1×31.4 and the button 27.8 tall, because .st is a typographic
+         class and the inline padding:0 removed what little box it had.
+         Someone reaching for this is not aiming carefully. Both are controls
+         now, and the number is last in the row so a thumb finds it first. -->
+    <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:8px">
+      <button class="b-g st-e" onclick="openEmergency()" style="justify-content:flex-start"><i class="dot"></i>${isAR() ? "طوارئ — أقرب إسعاف" : "Emergency — nearest care"}</button>
+      <a class="b-g" style="font-size:17px;color:var(--alarm);padding-inline:10px" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
     </div>
   </section>
 
@@ -170,7 +181,7 @@ function screenHomeAway() {
   <section class="pad" style="padding-top:calc(28px + env(safe-area-inset-top))">
     <div class="rowb">
       <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
-      <a class="t3" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
+      <a class="b-g" style="font-size:12.5px" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
     </div>
 
     <button class="lab" style="margin-top:34px;display:block;text-align:start;min-height:0"
@@ -505,7 +516,7 @@ function screenDoctors(params) {
     <button class="btn btn--2" onclick="pickNeed(null)">${icon("grid")}${isAR() ? "جرّب اختصاصاً آخر" : "Try another specialty"}</button>
     <button class="btn btn--3" onclick="openLocation()">${icon("pin")}${isAR() ? "غيّر منطقتي" : "Change my area"}</button>
   </div>` : ""}</section>
-  <div style="height:24px"></div>${nav("doctors")}`;
+  ${nav("doctors")}`;
 }
 
 function emptyDoctors(sp) {
@@ -550,7 +561,7 @@ function screenDoctor(id) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="shareDoctor('${d.id}')">${t("share")}</button>
     </div>
 
@@ -678,7 +689,7 @@ function screenPharmacies() {
   <section class="wrap"><div class="stack list-2 stagger">
     ${list.length ? (() => { const live = list.some((x) => x.st.k !== "shut"); return list.map((x) => pharmacyCard(x, live)).join(""); })() : nightFallback()}
   </div></section>
-  <div style="height:24px"></div>${nav("pharmacies")}`;
+  ${nav("pharmacies")}`;
 }
 
 // Nothing open nearby is the 2am case — the moment this product matters most.
@@ -725,7 +736,7 @@ function screenPharmacy(id) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="toggleSave('f:${f.id}')">${
         S.saved.includes("f:" + f.id) ? (isAR() ? "محفوظة" : "Saved") : (isAR() ? "احفظ" : "Save")}</button>
     </div>
@@ -843,7 +854,7 @@ function screenCare(cat) {
     ${cat ? "" : `<div class="sec-h"><h2>${isAR() ? "الأكثر طلباً" : "Most requested"}</h2></div>`}
     <div class="grid-2 stagger">${(cat ? list : list.slice(0, 6)).map(productCard).join("")}</div>
   </section>
-  <div style="height:24px"></div>${nav("care")}`;
+  ${nav("care")}`;
 }
 
 function screenProduct(id) {
@@ -985,7 +996,7 @@ function screenHospitals() {
     <div class="stack list-2">${er.map((x) => hospitalRow(x)).join("")}</div>
     <div class="sec-h" style="margin-top:24px"><h2>${isAR() ? "كل المستشفيات والمراكز" : "All hospitals & centres"}</h2></div>
     <div class="stack list-2">${list.filter((x) => !x.f.er).map((x) => hospitalRow(x)).join("")}</div>
-  </section><div style="height:24px"></div>${nav("doctors")}`;
+  </section>${nav("doctors")}`;
 }
 
 function hospitalRow(x) {
@@ -1117,7 +1128,7 @@ function screenMe() {
     }).join('<div class="hr"></div>')}
   </section>` : ""}
 
-  <div style="height:26px"></div>${nav("home")}`;
+  ${nav("home")}`;
 }
 
 function screenTrust() {
@@ -1159,7 +1170,7 @@ function screenTrust() {
 function screenError(err) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="lab" style="margin-top:28px">${isAR() ? "خطأ" : "Error"}</div>
     <div class="rowb" style="margin-top:14px">
       <span class="q-sub">${isAR()
@@ -2164,7 +2175,7 @@ function screenMed(id) {
 
   const head = `<section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="watchMed('${med.id}')">${watching
         ? (isAR() ? "نتابعه لك" : "Following") : (isAR() ? "تابع التوفّر" : "Follow stock")}</button>
     </div>
@@ -2895,7 +2906,7 @@ function screenRxSearch() {
   const hits = q ? searchVariants(q) : [];
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="lab" style="margin-top:24px">${isAR() ? "بحث الدواء" : "Medicine search"}</div>
     <h1 class="d2" style="margin-top:8px">${isAR() ? "شنو الدواء بالضبط؟" : "Which exact medicine?"}</h1>
     <div class="q-sub" style="margin-top:6px">${isAR()
@@ -2944,7 +2955,7 @@ function screenRxSearch() {
           </span>
         </span></a>`; }).join('<div class="hr"></div>')}
   </section>`}
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 function rxSearch(v) { LS.set("rxq", v); const el = document.getElementById("rxq"); const p = el && el.selectionStart; render(); const e2 = document.getElementById("rxq"); if (e2) { e2.focus(); try { e2.setSelectionRange(p, p); } catch {} } }
@@ -2964,7 +2975,7 @@ function screenVariant(vid) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="location.hash='#/need/new?v=${vid}'">${isAR() ? "انشر حاجتك" : "Publish a need"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${esc(med.cls_ar && isAR() ? med.cls_ar : "")}${med.rx ? (isAR() ? " · يُصرف بوصفة" : "Prescription only") : ""}</div>
