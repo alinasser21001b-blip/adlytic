@@ -24,12 +24,12 @@
    The version below is stamped by tools/stamp.mjs, not typed by hand — see
    that file for why.
    ================================================================== */
-const V = "qareeb-20260729-1114";
+const V = "qareeb-20260729-1139";
 const SHELL = [
   "./", "./index.html",
   "./css/qareeb.css", "./src/styles/identity.css",
   "./js/domain.js", "./js/emr.js", "./js/record.js", "./js/consent.js",
-  "./js/network.js", "./js/sync.js", "./js/assist.js",
+  "./js/network.js", "./js/sync.js", "./js/assist.js", "./js/transport.js",
   "./js/data.js", "./js/app.js", "./js/ui-record.js",
   "./favicon.svg",
 ];

@@ -4540,14 +4540,22 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 
   /* The state of ONE record, derived from the outbox rather than stored on
      the record. A stored flag is exactly what starts lying the moment a sync
-     fails and nobody clears it. */
-  function recordState(outbox, collection, id) {
+     fails and nobody clears it.
+
+     `record` is not optional decoration. An earlier version returned SYNCED
+     whenever the outbox held nothing for that id — which is true for a record
+     the server acknowledged AND for a record that was never queued at all,
+     because the patient had not signed in when they wrote it. Those are
+     opposite facts and the screen showed the reassuring one. Absence from the
+     outbox means "nothing pending", never "the server has it": only a
+     server-assigned revision means that. */
+  function recordState(outbox, collection, id, record) {
     const mine = (outbox || []).filter((e) => e.collection === collection && e.id === id);
-    if (!mine.length) return SYNC.SYNCED;
     if (mine.some((e) => e.state === SYNC.CONFLICT)) return SYNC.CONFLICT;
     if (mine.some((e) => e.state === SYNC.SENDING)) return SYNC.SENDING;
     if (mine.some((e) => e.state === SYNC.FAILED)) return SYNC.FAILED;
-    return SYNC.LOCAL;
+    if (mine.length) return SYNC.LOCAL;
+    return record && record.qRev != null ? SYNC.SYNCED : SYNC.LOCAL;
   }
 
   /* =========================================================
@@ -4947,6 +4955,294 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 </script>
   <script>
 /* ============================================================
+   قريب · النقل — TRANSPORT
+   ============================================================
+   The only place in the client that touches the network on the record's
+   behalf. `js/sync.js` decides WHAT to send and what an outcome means; this
+   decides WHEN to try and does the fetch. The split is the same one the rest
+   of the codebase uses: the rules are pure and tested in Node, the I/O is
+   thin enough to read in one sitting.
+
+   THE RULE IT EXISTS TO KEEP:
+   the screen must never show a state the server did not confirm.
+
+   So this file has no optimistic path. A write is enqueued, the UI reads its
+   state from the outbox, and the state only becomes `synced` when the server
+   said so — which, on the outbox model, means the entry is gone. There is no
+   code here that marks anything successful in advance and no `catch` that
+   quietly swallows a failure into a green tick.
+
+   IRAQ SPECIFICS THAT SHAPED IT:
+   - A drain is attempted on load, on `online`, and after each write. It is
+     NOT on a timer: a background poll on a metered connection in a country
+     where data is bought in small bundles is someone else's money.
+   - The whole batch is small (25) and clinical entries go first, because the
+     window may be ninety seconds of a neighbour's hotspot.
+   - Two drains never run at once. A second one starting while the first is
+     in flight would resend entries already marked `sending` and produce
+     duplicate work the idempotency ledger then has to absorb.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  const Y = () => root.SYNC;
+  const BASE = "/.netlify/functions/record";
+  const KEY = "qareeb.record.v1";
+  const TOKEN_KEY = "qareeb.token.v1";
+
+  /* `LS` is declared with `const` in app.js, which makes it a LEXICAL global
+     and NOT a property of globalThis — so `root.LS` is undefined and every
+     read returned null while every write silently did nothing. The record
+     screen looked fine because it references LS the same way this now does:
+     bare, resolved at call time, after app.js has run. A storage layer that
+     fails by doing nothing is the worst kind, because the app keeps
+     rendering. */
+  const store = () => (typeof LS !== "undefined" ? LS : null);
+  const load = () => { const s = store(); return s ? s.get(KEY, null) : null; };
+  const save = (d) => { const s = store(); if (s) s.set(KEY, d); };
+  const token = () => { const s = store(); return s ? s.get(TOKEN_KEY, null) : null; };
+
+  let draining = false;
+
+  /* ---------- enqueue ----------
+     Everything the app writes to the record goes through here, so nothing
+     can reach storage without also being queued for the server. A write that
+     is saved locally and never queued is the exact failure this whole layer
+     exists to prevent — it looks saved forever. */
+  function write(collection, id, payload, opts) {
+    const d = load();
+    if (!d) return { ok: false, reason: "NO_RECORD" };
+    const o = opts || {};
+    const r = Y().enqueue(d.outbox || [], {
+      opId: opId(collection, id),
+      op: o.op || "create",
+      collection, id, payload,
+      baseRev: o.baseRev ?? null,
+      deviceId: deviceId(),
+    }, Date.now());
+    if (!r.ok) return r;
+    d.outbox = r.outbox;
+    save(d);
+    /* Try immediately — but never block the caller on it. The user's write
+       is already durable; the network is a separate concern. */
+    drain();
+    return { ok: true, deduped: !!r.deduped };
+  }
+
+  /* A per-operation key that survives a reload and a power cut, because it
+     is derived from what is being written plus a monotonic-enough counter
+     rather than from a variable in memory. */
+  function opId(collection, id) {
+    const s = store();
+    const n = (s ? s.get("qareeb.opseq", 0) : 0) + 1;
+    if (s) s.set("qareeb.opseq", n);
+    return `${collection}-${id}-${n}`.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+  }
+
+  function deviceId() {
+    const s = store();
+    let id = s && s.get("qareeb.device", null);
+    if (!id) {
+      id = "d" + Math.random().toString(36).slice(2, 10);
+      if (s) s.set("qareeb.device", id);
+    }
+    return id;
+  }
+
+  /* ---------- drain ---------- */
+  async function drain() {
+    if (draining) return { ok: false, reason: "ALREADY_DRAINING" };
+    const d = load();
+    if (!d || !d.patient) return { ok: false, reason: "NO_RECORD" };
+    const t = token();
+    /* No token is not a failure to report loudly — it is the ordinary state
+       of a patient who has not signed in yet. Their record is still theirs
+       and still on the device; it simply is not anywhere else, and the UI
+       already says exactly that. */
+    if (!t) return { ok: false, reason: "NOT_SIGNED_IN" };
+    if (root.navigator && root.navigator.onLine === false) return { ok: false, reason: "OFFLINE" };
+
+    const batch = Y().nextBatch(d.outbox, Date.now(), 25);
+    if (!batch.length) return { ok: true, sent: 0 };
+
+    draining = true;
+    try {
+      /* Marked SENDING before the request leaves, so a reload mid-flight
+         shows "uploading" rather than "saved on this device only" — and so a
+         second drain cannot pick the same entries up. */
+      let ob = d.outbox.map((e) => batch.some((b) => b.opId === e.opId)
+        ? Y().markSending(e, Date.now()) : e);
+      persistOutbox(ob);
+
+      let res, body;
+      try {
+        res = await fetch(BASE + "/sync", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + t },
+          body: JSON.stringify({ patientId: d.patient.id, entries: batch.map(wire),
+            context: { deviceId: deviceId(), channel: "app" } }),
+        });
+        body = await res.json().catch(() => ({}));
+      } catch (err) {
+        /* Unreachable. Every entry in the batch goes back to retryable —
+           NOT to rejected, because we have no idea whether the server saw
+           it, and the idempotency key is what makes guessing unnecessary. */
+        ob = settleAll(ob, batch, "retryable", { error: String(err && err.message || err) });
+        persistOutbox(ob);
+        return { ok: false, reason: "UNREACHABLE" };
+      }
+
+      if (res.status === 401) {
+        /* The session died. The entries stay exactly where they are. */
+        ob = settleAll(ob, batch, "retryable", { error: "UNAUTHENTICATED" });
+        persistOutbox(ob);
+        return { ok: false, reason: "UNAUTHENTICATED" };
+      }
+      if (!res.ok || !Array.isArray(body.results)) {
+        ob = settleAll(ob, batch, "retryable", { error: body.error || ("HTTP " + res.status) });
+        persistOutbox(ob);
+        return { ok: false, reason: body.error || "SERVER_ERROR" };
+      }
+
+      /* Per-entry outcomes. A batch where three landed and one conflicted is
+         not "failed" — telling the client it was is how the three that
+         landed get sent again. */
+      let cur = load().outbox;
+      for (const r of body.results) {
+        const outcome = r.outcome === "ack" ? Y().OUTCOME.ACK
+          : r.outcome === "conflict" ? Y().OUTCOME.CONFLICT
+          : r.outcome === "rejected" ? Y().OUTCOME.REJECTED
+          : Y().OUTCOME.RETRYABLE;
+        const s = Y().settle(cur, r.opId, outcome,
+          { rev: r.rev, error: r.reason, serverRev: r.serverRev, serverPayload: r.serverPayload },
+          Date.now());
+        if (s.ok) {
+          cur = s.outbox;
+          if (s.applied) applyRev(s.applied);
+        }
+      }
+      persistOutbox(cur);
+      const acked = body.results.filter((r) => r.outcome === "ack").length;
+      return { ok: true, sent: batch.length, acked,
+        conflicts: body.results.filter((r) => r.outcome === "conflict").length,
+        rejected: body.results.filter((r) => r.outcome === "rejected").length };
+    } finally {
+      draining = false;
+    }
+  }
+
+  /* Only the fields the server's validator expects. Sending the outbox's own
+     bookkeeping (attempts, lastError) would be leaking client state into a
+     clinical API. */
+  const wire = (e) => ({ opId: e.opId, op: e.op, collection: e.collection,
+    id: e.id, payload: e.payload, baseRev: e.baseRev });
+
+  function settleAll(ob, batch, outcome, info) {
+    let cur = ob;
+    for (const b of batch) {
+      const s = Y().settle(cur, b.opId, outcome, info, Date.now());
+      if (s.ok) cur = s.outbox;
+    }
+    return cur;
+  }
+
+  function persistOutbox(ob) {
+    const d = load();
+    if (!d) return;
+    d.outbox = ob;
+    save(d);
+  }
+
+  /* The server's revision is written onto the local record so the NEXT edit
+     can declare what it started from. Without this every update after the
+     first would arrive with a stale baseRev and conflict forever. */
+  function applyRev(applied) {
+    const d = load();
+    if (!d) return;
+    const list = d[applied.collection];
+    if (Array.isArray(list)) {
+      d[applied.collection] = list.map((x) => x.id === applied.id
+        ? { ...x, qRev: applied.rev, qSyncedAt: applied.syncedAt } : x);
+    } else if (applied.collection === "patient" && d.patient && d.patient.id === applied.id) {
+      d.patient = { ...d.patient, qRev: applied.rev, qSyncedAt: applied.syncedAt };
+    }
+    save(d);
+  }
+
+  /* ---------- pulling a record the device does not hold ----------
+     The doctor's side. Their device has no copy of this patient, so the
+     snapshot is fetched under the share and held only for the session. */
+  async function pull(patientId, scope, purpose) {
+    const t = token();
+    if (!t) return { ok: false, reason: "NOT_SIGNED_IN" };
+    const q = new URLSearchParams({ patient: patientId });
+    if (scope) q.set("scope", scope);
+    if (purpose) q.set("purpose", purpose);
+    q.set("device", deviceId());
+    let res, body;
+    try {
+      res = await fetch(`${BASE}/read?${q}`, { headers: { authorization: "Bearer " + t } });
+      body = await res.json().catch(() => ({}));
+    } catch (err) {
+      return { ok: false, reason: "UNREACHABLE" };
+    }
+    if (res.status === 403) return { ok: false, reason: body.error, ar: body.ar,
+      escalationAvailable: !!body.escalationAvailable };
+    if (res.status === 503) return { ok: false, reason: "STORE_UNREADABLE", ar: body.ar };
+    if (!res.ok) return { ok: false, reason: body.error || "SERVER_ERROR" };
+    return { ok: true, ...body };
+  }
+
+  /* Top up the reserved-id pool while there is a connection, so the device
+     can register patients during the next outage without inventing numbers
+     the server will later reject. */
+  async function refillIds(count) {
+    const t = token();
+    if (!t) return { ok: false, reason: "NOT_SIGNED_IN" };
+    try {
+      const res = await fetch(BASE + "/ids", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + t },
+        body: JSON.stringify({ count: count || 50 }),
+      });
+      if (!res.ok) return { ok: false, reason: "HTTP " + res.status };
+      const body = await res.json();
+      const d = load();
+      if (d) {
+        const pool = d.idPool || { ids: [] };
+        d.idPool = { ids: [...pool.ids, ...(body.ids || [])], issuedAt: body.issuedAt };
+        save(d);
+      }
+      return { ok: true, added: (body.ids || []).length };
+    } catch { return { ok: false, reason: "UNREACHABLE" }; }
+  }
+
+  /* ---------- what the UI asks ---------- */
+  const status = () => {
+    const d = load();
+    return Y().outboxSummary(d ? d.outbox : [], Date.now());
+  };
+  /* The record's own revision is passed in, because "not in the outbox" and
+     "the server has it" are different facts. See SYNC.recordState. */
+  const stateOf = (collection, id) => {
+    const d = load();
+    if (!d) return Y().SYNC.LOCAL;
+    const list = collection === "patient" ? [d.patient].filter(Boolean) : (d[collection] || []);
+    const rec = list.find((x) => x && x.id === id);
+    return Y().recordState(d.outbox, collection, id, rec);
+  };
+  const signedIn = () => !!token();
+
+  if (root.addEventListener) {
+    root.addEventListener("online", () => drain());
+  }
+
+  root.TRANSPORT = { write, drain, pull, refillIds, status, stateOf, signedIn, deviceId };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/* ============================================================
    QAREEB — قريب
    Seed data. Illustrative only.
    All phone / WhatsApp numbers are deliberate placeholders
@@ -4996,7 +5292,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260729-1114",
+  build: "20260729-1139",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
@@ -11659,6 +11955,8 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       ${alerts.map((a) => `<a class="note ${a.kind === "BREAK_GLASS" ? "note-e" : "note-w"}" href="#/record/access">
         ${icon("eye")}<div>${esc(a.text)} — ${n(a.count)}</div></a>`).join("")}
 
+      ${syncBanner()}
+
       <!-- WHO — the identity strip. Small on the patient's own screen: they
            know who they are. It is on the doctor's screen that this matters. -->
       <div class="rowb" style="margin-top:4px">
@@ -11715,6 +12013,109 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
         "Your record stays yours. Nobody opens it without your consent, and every opening is logged here.")}</p>
     </section>${nav("record")}`;
   };
+
+  /* THE SYNC LINE. It says one of three things and never a fourth, because
+     the fourth would be a reassurance nobody checked:
+
+       not signed in  → your record is on this phone and nowhere else
+       unsynced       → this much of it has not reached the server
+       needs you      → something is stuck or conflicted
+
+     Silence means everything the device holds, the server holds too. That is
+     the only case where saying nothing is honest. */
+  function syncBanner() {
+    const T = globalThis.TRANSPORT;
+    if (!T) return "";
+    if (!T.signedIn()) {
+      return `<div class="note note-w" style="margin-top:4px">${icon("info")}<div>${T_(
+        "ملفك محفوظ على هذا الهاتف فقط. لو ضاع الهاتف أو انمسحت بيانات المتصفّح، يروح معه.",
+        "Your record is on this phone only. If the phone is lost or the browser is cleared, it goes with it.")}
+        <a class="b-g" style="display:block;margin-top:6px" href="#/record/signin">${T_(
+          "فعّل الحفظ على الخادم", "Turn on server backup")}</a></div></div>`;
+    }
+    const s = T.status();
+    if (s.needsAttention) {
+      return `<a class="note note-e" href="#/record/sync" style="margin-top:4px">${icon("alert")}
+        <div>${T_("في بيانات ما وصلت الخادم وتحتاج انتباهك",
+                   "Some data has not reached the server and needs your attention")} — ${n(s.stuck + s.conflicts)}</div></a>`;
+    }
+    if (s.hasUnsynced) {
+      return `<a class="note note-w" href="#/record/sync" style="margin-top:4px">${icon("clock")}
+        <div>${n(s.pending + s.failed)} ${T_("عنصر محفوظ محلياً ولم يُرفع بعد",
+          "item(s) saved locally, not uploaded yet")}</div></a>`;
+    }
+    return "";
+  }
+  const T_ = (a, e) => (ar() ? a : e);
+
+  /* The full sync screen. Deliberately blunt: a person looking at this is
+     usually looking because they are worried, and vagueness is the thing
+     that made them worried. */
+  function screenSync(d) {
+    const T = globalThis.TRANSPORT, Y = globalThis.SYNC;
+    const ob = d.outbox || [];
+    const s = T ? T.status() : { total: 0 };
+    return page(T_("حالة الحفظ", "Save status"),
+      `${!ob.length ? `<div class="note">${icon("check")}<div>${T_(
+        "كل شي وصل الخادم.", "Everything has reached the server.")}</div></div>`
+        : `<div class="stack-2">${ob.map((e) => `<div class="rw"><div style="width:100%">
+            <div class="rowb"><b>${esc(collectionLabel(e.collection))}</b>
+              <span class="st ${e.state === "conflict" ? "st-e" : e.state === "failed" ? "st-e" : "st-q"}">${
+                esc(Y.syncLabel(e.state, S.lang))}</span></div>
+            ${e.lastError ? `<div class="t3" style="margin-top:4px">${esc(e.lastError)}</div>` : ""}
+            ${e.attempts ? `<div class="t3" style="margin-top:2px">${T_("محاولات", "attempts")} ${n(e.attempts)}</div>` : ""}
+            ${e.permanent ? `<div class="st st-e" style="margin-top:6px">${T_(
+              "الخادم رفضها — ما راح تُعاد، وبياناتك محفوظة هنا",
+              "the server refused it — it will not retry, and your data is still here")}</div>` : ""}
+          </div></div>`).join("")}</div>`}
+      ${T && T.signedIn() ? `<button class="btn" style="margin-top:16px" onclick="recordSyncNow()">${
+        T_("حاول الرفع الآن", "Try uploading now")}</button>` : ""}`,
+      T_("ما نعرض علامة صح إلا لمّا يأكّد الخادم فعلاً. «محفوظ محلياً» يعني محفوظ محلياً — لا أكثر.",
+         "We never show a tick until the server actually confirms. 'Saved locally' means exactly that."));
+  }
+
+  const COL_LABELS = {
+    encounters: ["زيارة", "Visit"], conditions: ["تشخيص", "Condition"],
+    medications: ["دواء", "Medication"], allergies: ["حساسية", "Allergy"],
+    results: ["نتيجة", "Result"], documents: ["مستند", "Document"],
+    prescriptions: ["وصفة", "Prescription"], shares: ["مشاركة", "Share"],
+    patient: ["بياناتك", "Your details"], immunizations: ["تطعيم", "Immunization"],
+    appointments: ["موعد", "Appointment"],
+  };
+  const collectionLabel = (c) => (COL_LABELS[c] || [c, c])[ar() ? 0 : 1];
+
+  globalThis.recordSyncNow = async function recordSyncNow() {
+    const T = globalThis.TRANSPORT;
+    if (!T) return;
+    toast(T_("جارٍ المحاولة…", "Trying…"));
+    const r = await T.drain();
+    /* The message reports what actually happened, including the boring
+       middle case where some landed and some did not. */
+    toast(!r.ok ? (r.reason === "UNREACHABLE" ? T_("ما وصلنا الخادم — بياناتك محفوظة", "Could not reach the server — your data is safe")
+        : r.reason === "NOT_SIGNED_IN" ? T_("تحتاج تفعّل الحفظ أولاً", "Turn on server backup first")
+        : T_("ما نجحت المحاولة — بياناتك محفوظة", "The attempt failed — your data is safe"))
+      : r.sent === 0 ? T_("ما في شي ينتظر الرفع", "Nothing waiting")
+      : T_(`رُفع ${r.acked} من ${r.sent}`, `${r.acked} of ${r.sent} uploaded`));
+    render();
+  };
+
+  /* Sign-in is the point at which a local record becomes a shareable one.
+     It is offered, never forced: a patient who wants their history on their
+     own phone and nowhere else is making a reasonable choice in a country
+     with no data protection law, and the app should not argue with it. */
+  function screenSignin(d) {
+    return page(T_("الحفظ على الخادم", "Server backup"),
+      `<div class="note">${icon("seal")}<div>${T_(
+        "بدون هذا: ملفك على هذا الهاتف فقط — الطبيب ما يقدر يشوفه حتى لو وافقتِ، ولو انمسح المتصفّح راح.",
+        "Without this your record is on this phone only — a doctor cannot see it even with your consent, and clearing the browser loses it.")}</div></div>
+      <div class="note" style="margin-top:12px">${icon("info")}<div>${T_(
+        "معه: ملفك يوصل أي طبيب توافقين له، وكل فتحة تبقى مسجّلة عندك. وتقدرين توقفينه بأي وقت.",
+        "With it your record reaches any clinician you consent to, and every opening stays logged for you. You can turn it off at any time.")}</div></div>
+      <p class="t3" style="margin-top:18px;line-height:1.8">${T_(
+        "⚠ ما نقدر نفعّله الآن: تسجيل دخول المريض بالرمز غير مبني بعد. الواجهة والنقل جاهزان، والناقص هو نقطة التحقق.",
+        "⚠ Not available yet: patient sign-in by one-time code is not built. The interface and the transport are ready; the verification endpoint is what is missing.")}</p>`,
+      T_("قرارك، لا قرارنا.", "Your decision, not ours."));
+  }
 
   const tile = (href, label, count, tone) =>
     `<a class="rw" href="${href}">
@@ -11838,6 +12239,8 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       case "carry": return screenCarry(d);
       case "inbox": return screenInbox(d);
       case "request": return screenAccessRequest(d, id);
+      case "sync": return screenSync(d);
+      case "signin": return screenSignin(d);
       case "profile": return screenProfile(d);
       default: return screen404();
     }

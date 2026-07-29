@@ -91,6 +91,8 @@
       ${alerts.map((a) => `<a class="note ${a.kind === "BREAK_GLASS" ? "note-e" : "note-w"}" href="#/record/access">
         ${icon("eye")}<div>${esc(a.text)} — ${n(a.count)}</div></a>`).join("")}
 
+      ${syncBanner()}
+
       <!-- WHO — the identity strip. Small on the patient's own screen: they
            know who they are. It is on the doctor's screen that this matters. -->
       <div class="rowb" style="margin-top:4px">
@@ -147,6 +149,109 @@
         "Your record stays yours. Nobody opens it without your consent, and every opening is logged here.")}</p>
     </section>${nav("record")}`;
   };
+
+  /* THE SYNC LINE. It says one of three things and never a fourth, because
+     the fourth would be a reassurance nobody checked:
+
+       not signed in  → your record is on this phone and nowhere else
+       unsynced       → this much of it has not reached the server
+       needs you      → something is stuck or conflicted
+
+     Silence means everything the device holds, the server holds too. That is
+     the only case where saying nothing is honest. */
+  function syncBanner() {
+    const T = globalThis.TRANSPORT;
+    if (!T) return "";
+    if (!T.signedIn()) {
+      return `<div class="note note-w" style="margin-top:4px">${icon("info")}<div>${T_(
+        "ملفك محفوظ على هذا الهاتف فقط. لو ضاع الهاتف أو انمسحت بيانات المتصفّح، يروح معه.",
+        "Your record is on this phone only. If the phone is lost or the browser is cleared, it goes with it.")}
+        <a class="b-g" style="display:block;margin-top:6px" href="#/record/signin">${T_(
+          "فعّل الحفظ على الخادم", "Turn on server backup")}</a></div></div>`;
+    }
+    const s = T.status();
+    if (s.needsAttention) {
+      return `<a class="note note-e" href="#/record/sync" style="margin-top:4px">${icon("alert")}
+        <div>${T_("في بيانات ما وصلت الخادم وتحتاج انتباهك",
+                   "Some data has not reached the server and needs your attention")} — ${n(s.stuck + s.conflicts)}</div></a>`;
+    }
+    if (s.hasUnsynced) {
+      return `<a class="note note-w" href="#/record/sync" style="margin-top:4px">${icon("clock")}
+        <div>${n(s.pending + s.failed)} ${T_("عنصر محفوظ محلياً ولم يُرفع بعد",
+          "item(s) saved locally, not uploaded yet")}</div></a>`;
+    }
+    return "";
+  }
+  const T_ = (a, e) => (ar() ? a : e);
+
+  /* The full sync screen. Deliberately blunt: a person looking at this is
+     usually looking because they are worried, and vagueness is the thing
+     that made them worried. */
+  function screenSync(d) {
+    const T = globalThis.TRANSPORT, Y = globalThis.SYNC;
+    const ob = d.outbox || [];
+    const s = T ? T.status() : { total: 0 };
+    return page(T_("حالة الحفظ", "Save status"),
+      `${!ob.length ? `<div class="note">${icon("check")}<div>${T_(
+        "كل شي وصل الخادم.", "Everything has reached the server.")}</div></div>`
+        : `<div class="stack-2">${ob.map((e) => `<div class="rw"><div style="width:100%">
+            <div class="rowb"><b>${esc(collectionLabel(e.collection))}</b>
+              <span class="st ${e.state === "conflict" ? "st-e" : e.state === "failed" ? "st-e" : "st-q"}">${
+                esc(Y.syncLabel(e.state, S.lang))}</span></div>
+            ${e.lastError ? `<div class="t3" style="margin-top:4px">${esc(e.lastError)}</div>` : ""}
+            ${e.attempts ? `<div class="t3" style="margin-top:2px">${T_("محاولات", "attempts")} ${n(e.attempts)}</div>` : ""}
+            ${e.permanent ? `<div class="st st-e" style="margin-top:6px">${T_(
+              "الخادم رفضها — ما راح تُعاد، وبياناتك محفوظة هنا",
+              "the server refused it — it will not retry, and your data is still here")}</div>` : ""}
+          </div></div>`).join("")}</div>`}
+      ${T && T.signedIn() ? `<button class="btn" style="margin-top:16px" onclick="recordSyncNow()">${
+        T_("حاول الرفع الآن", "Try uploading now")}</button>` : ""}`,
+      T_("ما نعرض علامة صح إلا لمّا يأكّد الخادم فعلاً. «محفوظ محلياً» يعني محفوظ محلياً — لا أكثر.",
+         "We never show a tick until the server actually confirms. 'Saved locally' means exactly that."));
+  }
+
+  const COL_LABELS = {
+    encounters: ["زيارة", "Visit"], conditions: ["تشخيص", "Condition"],
+    medications: ["دواء", "Medication"], allergies: ["حساسية", "Allergy"],
+    results: ["نتيجة", "Result"], documents: ["مستند", "Document"],
+    prescriptions: ["وصفة", "Prescription"], shares: ["مشاركة", "Share"],
+    patient: ["بياناتك", "Your details"], immunizations: ["تطعيم", "Immunization"],
+    appointments: ["موعد", "Appointment"],
+  };
+  const collectionLabel = (c) => (COL_LABELS[c] || [c, c])[ar() ? 0 : 1];
+
+  globalThis.recordSyncNow = async function recordSyncNow() {
+    const T = globalThis.TRANSPORT;
+    if (!T) return;
+    toast(T_("جارٍ المحاولة…", "Trying…"));
+    const r = await T.drain();
+    /* The message reports what actually happened, including the boring
+       middle case where some landed and some did not. */
+    toast(!r.ok ? (r.reason === "UNREACHABLE" ? T_("ما وصلنا الخادم — بياناتك محفوظة", "Could not reach the server — your data is safe")
+        : r.reason === "NOT_SIGNED_IN" ? T_("تحتاج تفعّل الحفظ أولاً", "Turn on server backup first")
+        : T_("ما نجحت المحاولة — بياناتك محفوظة", "The attempt failed — your data is safe"))
+      : r.sent === 0 ? T_("ما في شي ينتظر الرفع", "Nothing waiting")
+      : T_(`رُفع ${r.acked} من ${r.sent}`, `${r.acked} of ${r.sent} uploaded`));
+    render();
+  };
+
+  /* Sign-in is the point at which a local record becomes a shareable one.
+     It is offered, never forced: a patient who wants their history on their
+     own phone and nowhere else is making a reasonable choice in a country
+     with no data protection law, and the app should not argue with it. */
+  function screenSignin(d) {
+    return page(T_("الحفظ على الخادم", "Server backup"),
+      `<div class="note">${icon("seal")}<div>${T_(
+        "بدون هذا: ملفك على هذا الهاتف فقط — الطبيب ما يقدر يشوفه حتى لو وافقتِ، ولو انمسح المتصفّح راح.",
+        "Without this your record is on this phone only — a doctor cannot see it even with your consent, and clearing the browser loses it.")}</div></div>
+      <div class="note" style="margin-top:12px">${icon("info")}<div>${T_(
+        "معه: ملفك يوصل أي طبيب توافقين له، وكل فتحة تبقى مسجّلة عندك. وتقدرين توقفينه بأي وقت.",
+        "With it your record reaches any clinician you consent to, and every opening stays logged for you. You can turn it off at any time.")}</div></div>
+      <p class="t3" style="margin-top:18px;line-height:1.8">${T_(
+        "⚠ ما نقدر نفعّله الآن: تسجيل دخول المريض بالرمز غير مبني بعد. الواجهة والنقل جاهزان، والناقص هو نقطة التحقق.",
+        "⚠ Not available yet: patient sign-in by one-time code is not built. The interface and the transport are ready; the verification endpoint is what is missing.")}</p>`,
+      T_("قرارك، لا قرارنا.", "Your decision, not ours."));
+  }
 
   const tile = (href, label, count, tone) =>
     `<a class="rw" href="${href}">
@@ -270,6 +375,8 @@
       case "carry": return screenCarry(d);
       case "inbox": return screenInbox(d);
       case "request": return screenAccessRequest(d, id);
+      case "sync": return screenSync(d);
+      case "signin": return screenSignin(d);
       case "profile": return screenProfile(d);
       default: return screen404();
     }

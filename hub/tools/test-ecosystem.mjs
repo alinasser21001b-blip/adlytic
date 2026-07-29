@@ -392,6 +392,11 @@ step("الكتابة تُسجَّل قبل ما تُحاول الشبكة — و
 
 step("الشاشة تقول الحقيقة: «محفوظ على هذا الجهاز فقط»", () => {
   eq(Y.recordState(db.outbox, "encounters", "ENC-OFF"), Y.SYNC.LOCAL);
+  /* And a record the server NEVER saw is local too — absence from the outbox
+     is not evidence of a successful upload. */
+  eq(Y.recordState([], "encounters", "NEVER-SENT", { id: "NEVER-SENT" }), Y.SYNC.LOCAL,
+    "only a server-assigned revision means the server has it");
+  eq(Y.recordState([], "encounters", "SENT", { id: "SENT", qRev: 3 }), Y.SYNC.SYNCED);
   ok(Y.syncLabel(Y.SYNC.LOCAL).includes("هذا الجهاز فقط"),
     "a tick while the write is still in the outbox teaches a clinician the record is safe when it is not");
   ok(Y.outboxSummary(db.outbox, at(61)).hasUnsynced);
@@ -431,7 +436,7 @@ step("النجاح يُزيل من الصندوق ويُعلن نسخة الخا
   eq(s.outbox.length, 0);
   eq(s.applied.state, Y.SYNC.SYNCED);
   eq(s.applied.rev, 7);
-  eq(Y.recordState(s.outbox, "results", "RS9"), Y.SYNC.SYNCED);
+  eq(Y.recordState(s.outbox, "results", "RS9", { id: "RS9", qRev: 7 }), Y.SYNC.SYNCED);
 });
 
 act("٨ب · شنو يصير لو حرّر طبيبان نفس الشي");

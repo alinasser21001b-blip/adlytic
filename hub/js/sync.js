@@ -288,14 +288,22 @@
 
   /* The state of ONE record, derived from the outbox rather than stored on
      the record. A stored flag is exactly what starts lying the moment a sync
-     fails and nobody clears it. */
-  function recordState(outbox, collection, id) {
+     fails and nobody clears it.
+
+     `record` is not optional decoration. An earlier version returned SYNCED
+     whenever the outbox held nothing for that id — which is true for a record
+     the server acknowledged AND for a record that was never queued at all,
+     because the patient had not signed in when they wrote it. Those are
+     opposite facts and the screen showed the reassuring one. Absence from the
+     outbox means "nothing pending", never "the server has it": only a
+     server-assigned revision means that. */
+  function recordState(outbox, collection, id, record) {
     const mine = (outbox || []).filter((e) => e.collection === collection && e.id === id);
-    if (!mine.length) return SYNC.SYNCED;
     if (mine.some((e) => e.state === SYNC.CONFLICT)) return SYNC.CONFLICT;
     if (mine.some((e) => e.state === SYNC.SENDING)) return SYNC.SENDING;
     if (mine.some((e) => e.state === SYNC.FAILED)) return SYNC.FAILED;
-    return SYNC.LOCAL;
+    if (mine.length) return SYNC.LOCAL;
+    return record && record.qRev != null ? SYNC.SYNCED : SYNC.LOCAL;
   }
 
   /* =========================================================
