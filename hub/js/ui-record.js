@@ -1477,6 +1477,12 @@
           ${trendSeries(t)}
         </div></div>`).join("")) : ""}
 
+      ${brief.procedures.length ? section(T("عمليات سابقة", "Previous surgery"),
+        brief.procedures.map((x) => `<div class="rw"><div class="rowb" style="width:100%">
+          <span>${esc(x.name)}</span>
+          <span class="t3">${n(String(x.at || "").slice(0, 10))} ${patientToldUs(x)}</span>
+        </div></div>`).join("")) : ""}
+
       ${brief.pending.length ? section(T("معلّق", "Pending"),
         brief.pending.map((x) => `<div class="rw"><div class="rowb" style="width:100%">
           <span>${esc(x.name)}</span><span class="t3">${T("طُلب", "ordered")} ${n(String(x.orderedAt || "").slice(0, 10))}</span>

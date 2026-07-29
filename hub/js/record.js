@@ -586,6 +586,19 @@
       unacknowledgedAbnormal: unacked.slice(0, 4).map((x) => ({ code: x.code, name: x.display || x.code,
         value: x.value, unit: x.unit || null, at: x.effectiveAt })),
       trends: moved.slice(0, 3),
+      /* Surgical history. `EMR.snapshot` has projected `majorProcedures` for
+         a long time; the pre-visit brief — the thing a clinician actually
+         opens — never carried it. A cholecystectomy explains an absent
+         gallbladder on today's ultrasound, and an anaesthetic history is a
+         question somebody has to ask before the next operation. Major only:
+         the brief is what changes a decision in thirty seconds, and a list of
+         every dressing change is not that. */
+      procedures: (r.procedures || [])
+        .filter((x) => x.major)
+        .sort((a, b) => ms(b.performedAt) - ms(a.performedAt))
+        .slice(0, 4)
+        .map((x) => ({ name: x.display, at: x.performedAt || null,
+          selfReported: isSelfReported(x) })),
       pending: pending.map((x) => ({ code: x.code, name: x.display || x.code, orderedAt: x.orderedAt || null })),
       overdue: overdue.map((t) => ({ kind: t.kind, dueAt: t.dueAt, about: t.about || null })),
       lastEncounter: lastEnc ? { at: lastEnc.startedAt, clinicianId: lastEnc.clinicianId,

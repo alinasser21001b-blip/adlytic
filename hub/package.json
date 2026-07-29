@@ -8,7 +8,8 @@
     "preflight": "node tools/preflight.mjs",
     "stamp": "node tools/stamp.mjs",
     "audit:ui": "node tools/audit-ui.mjs",
-    "build": "node build-single.mjs"
+    "build": "node build-single.mjs",
+    "journeys": "node tools/journeys.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0"
