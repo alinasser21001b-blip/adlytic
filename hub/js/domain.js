@@ -331,6 +331,14 @@
       out.push({ id: "PLACEHOLDER_NUMBERS", count: placeholders.length,
         ar: "أرقام هاتف/واتساب نموذجية لم تُستبدل" });
     }
+    /* The one that was missing from every earlier list. Without a shared
+       data plane the product's core loop cannot happen at all — a patient's
+       request never reaches a pharmacy on another device — so it outranks
+       everything else here. */
+    if (!o.dataPlane) {
+      out.push({ id: "NO_DATA_PLANE", count: 1,
+        ar: "لا توجد خلفية بيانات — الطلب ما يغادر جهاز المريض" });
+    }
     if (!o.pharmacyAuthBackend) {
       out.push({ id: "NO_PHARMACY_AUTH_BACKEND", count: 1,
         ar: "بوابة الصيدلية محلية على الجهاز — تحتاج تحققاً من الخادم" });

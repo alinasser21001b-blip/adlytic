@@ -313,9 +313,19 @@ it("real numbers alone do not clear the list — the other blockers stand", () =
   ok(b.some((x) => x.id === "AUDIT_CLIENT_SIDE"));
 });
 
+it("a missing data plane is the blocker that outranks the rest", () => {
+  /* The one every earlier list forgot. Without it the product's core loop
+     cannot happen at all, so it must be reported even when everything else
+     is green. */
+  const b = QD.launchBlockers([{ phone: "9647801234567" }],
+    { pharmacyAuthBackend: true, auditServerSide: true, realData: true });
+  ok(b.some((x) => x.id === "NO_DATA_PLANE"), "must report the missing data plane");
+  eq(b.length, 1, "and it should be the only thing left");
+});
+
 it("a fully resolved deployment reports nothing", () => {
   eq(QD.launchBlockers([{ phone: "9647801234567" }],
-    { pharmacyAuthBackend: true, auditServerSide: true, realData: true }), []);
+    { dataPlane: true, pharmacyAuthBackend: true, auditServerSide: true, realData: true }), []);
 });
 
 /* ---------------------------------------------------------------- */

@@ -1962,6 +1962,7 @@ function screenAdmin() {
      update. When the backend is configured these two clear themselves; when
      it is not, no amount of code claiming otherwise can hide it. */
   const blockers = QD.launchBlockers(allPharmacies(), {
+    dataPlane: NET.on,
     pharmacyAuthBackend: BACKEND.server,
     auditServerSide: BACKEND.server,
     realData: DATA_PROVENANCE.real,
@@ -2033,6 +2034,12 @@ function screenAdmin() {
           : (isAR() ? "يكشف التعديل والحذف — على الجهاز، فما يمنعهما" : "detects edits and deletions — on-device, so it cannot prevent them")}</span></span>
         <span class="st ${BACKEND.server ? "st-v" : "st-t"}"><i class="dot"></i>${
           BACKEND.server ? (isAR() ? "فعّال" : "on") : (isAR() ? "جزئي" : "partial")}</span></div>
+      <div class="ops-row"><span class="grow"><b>${isAR() ? "طبقة البيانات" : "Data plane"}</b>
+        <span class="t3" style="display:block">${NET.on
+          ? (isAR() ? "الطلبات تُنشر على الخادم وتصل صيدليات على أجهزة أخرى" : "requests reach pharmacies on other devices")
+          : (isAR() ? "الطلب ما يغادر جهاز المريض — الحلقة الأساسية معطّلة" : "the request never leaves the patient's device")}</span></span>
+        <span class="st ${NET.on ? "st-v" : "st-e"}"><i class="dot"></i>${
+          NET.on ? (isAR() ? "فعّالة" : "on") : (isAR() ? "غائبة" : "absent")}</span></div>
       <div class="ops-row"><span class="grow"><b>${isAR() ? "وضع التشغيل" : "Runtime mode"}</b>
         <span class="t3" style="display:block">${BACKEND.server
           ? (isAR() ? "خادم — الجلسات موقّعة، والإجازة تُفحص مقابل قائمة معتمدة" : "server — sessions signed, licence checked against the approved list")
@@ -3289,17 +3296,51 @@ const fastBadge = (facId) => responderStats(facId).fast
    request when it is in the same city, OR when it has ever signalled that
    exact variant — which is how a Baghdad pharmacy learns that someone in
    Basra needs what it happens to be holding. */
+/* Requests fetched from the server for this branch's governorate, refreshed
+   on a timer while the radar screen is open. Kept separate from the seed
+   REQUESTS array so a network hiccup can never delete the demo data. */
+let REMOTE_QUEUE = [];
+let queueTimer = null;
+
+function startQueuePolling(facId) {
+  if (queueTimer) { clearInterval(queueTimer); queueTimer = null; }
+  if (!NET.on) return;
+  const f = anyFac(facId); if (!f) return;
+  const city = cityOf(f);
+  const pull = async () => {
+    if (!location.hash.startsWith("#/radar/")) { clearInterval(queueTimer); queueTimer = null; return; }
+    const rows = await netQueue(city);
+    if (rows === null) return;                   /* offline: keep what we have */
+    const next = rows.map(adoptRemote);
+    /* Only repaint when something actually changed — a list that redraws on
+       a timer steals taps from a pharmacist mid-reach. */
+    if (JSON.stringify(next.map((x) => x.id + x.st)) !==
+        JSON.stringify(REMOTE_QUEUE.map((x) => x.id + x.st))) {
+      REMOTE_QUEUE = next;
+      render();
+    } else { REMOTE_QUEUE = next; }
+  };
+  pull();
+  queueTimer = setInterval(pull, 20000);
+}
+
 function radarFor(facId) {
   const f = anyFac(facId); if (!f) return [];
   const myCity = cityOf(f);
   const mine = new Set(SIGNALS.filter((g) => g.fac === facId).map((g) => g.v));
-  return liveRequests().map((r) => ({
+  /* Real requests from the network first, seed rows behind them. A remote id
+     always wins over a local one with the same id so a request this device
+     published does not appear twice. */
+  const seen = new Set(REMOTE_QUEUE.map((r) => r.id));
+  const pool = [...REMOTE_QUEUE, ...liveRequests().filter((r) => !seen.has(r.id))];
+  return pool.map((r) => ({
     r,
     sameCity: r.city === myCity,
     holds: mine.has(r.v),
     answered: (r.resp || []).includes(facId),
   })).filter((x) => x.sameCity || x.holds)
-    .sort((a, b) => (b.holds - a.holds) || URGENCY[a.r.urg].w - URGENCY[b.r.urg].w || a.r.m - b.r.m);
+    .sort((a, b) => (b.holds - a.holds) || URGENCY[a.r.urg].w - URGENCY[b.r.urg].w
+      || reqAge(a.r) - reqAge(b.r));
 }
 
 /* City-level supply and demand, for the operator map. */
@@ -3782,6 +3823,113 @@ async function probeBackend() {
 }
 
 const backendMode = () => (BACKEND.server ? "server" : "device");
+
+/* ================= THE DATA PLANE (client) =================
+   Until this existed, a request was written to the patient's own device and
+   nowhere else, so no pharmacist could ever see it. These four calls are the
+   product's actual loop:
+
+     publish  → POST /api/needs          the request leaves the device
+     queue    → GET  /api/needs?city=    a pharmacy sees real requests
+     answer   → POST /api/needs/answer   the claim is attributed and stored
+     mine     → GET  /api/needs/mine     the patient reads their answers
+
+   Every one degrades to the old local-only behaviour when the backend is
+   absent, and the UI says which mode it is in rather than implying a network
+   that is not there. Offline is not a failure state for a Baghdad phone; it
+   is Tuesday. */
+const NET = {
+  on: false,          /* the data plane answered */
+  checked: false,
+};
+
+async function probeDataPlane() {
+  if (NET.checked) return NET;
+  NET.checked = true;
+  try {
+    const res = await fetch("/api/needs", { method: "GET", cache: "no-store",
+      headers: { accept: "application/json" } });
+    /* 401 is a YES: the endpoint exists and is asking for a session. */
+    NET.on = res.status === 401 || (res.ok && (await res.json()).dataPlane === true);
+  } catch { NET.on = false; }
+  return NET;
+}
+
+const netHeaders = () => {
+  const ses = pharmacySession();
+  return ses && ses.token
+    ? { "content-type": "application/json", authorization: "Bearer " + ses.token }
+    : { "content-type": "application/json" };
+};
+
+/* The owner tokens for requests this device published. They are the only
+   way to read our own answers back, and they never leave this device except
+   as a query parameter on our own request. */
+const ownerTokens = () => LS.get("ownerTokens", {});
+function rememberOwner(id, token) {
+  const m = ownerTokens(); m[id] = token; LS.set("ownerTokens", m);
+}
+
+async function netPublish(rec) {
+  /* What leaves the device is the domain layer's whitelist and nothing else
+     — the landmark the patient typed stays here until they choose to send it
+     inside a WhatsApp message they can read first. */
+  const bc = QD.broadcastPayload(rec, medRecordOf(rec.v));
+  if (!bc.ok) return { ok: false, reason: bc.reason };
+  try {
+    const res = await fetch("/api/needs", { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ payload: bc.payload }) });
+    const j = await res.json();
+    if (!res.ok || !j.ok) return { ok: false, reason: j.error || "HTTP_" + res.status, ar: j.ar };
+    rememberOwner(j.id, j.ownerToken);
+    return { ok: true, id: j.id, expiresAt: j.expiresAt };
+  } catch { return { ok: false, reason: "OFFLINE" }; }
+}
+
+async function netQueue(city) {
+  try {
+    const res = await fetch("/api/needs?city=" + encodeURIComponent(city),
+      { cache: "no-store", headers: netHeaders() });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j.requests || [];
+  } catch { return null; }
+}
+
+async function netAnswer(reqId, kind) {
+  try {
+    const res = await fetch("/api/needs/answer", { method: "POST",
+      headers: netHeaders(), body: JSON.stringify({ requestId: reqId, kind }) });
+    if (!res.ok) return { ok: false, status: res.status };
+    return await res.json();
+  } catch { return { ok: false, status: 0 }; }
+}
+
+async function netMine(id) {
+  const t = ownerTokens()[id];
+  if (!t) return null;
+  try {
+    const res = await fetch(`/api/needs/mine?id=${encodeURIComponent(id)}&t=${encodeURIComponent(t)}`,
+      { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+/* Remote requests arrive in the server's vocabulary; the screens speak the
+   local one. One translation, in one place. */
+function adoptRemote(r) {
+  return {
+    id: r.requestId, ref: r.requestId, v: r.variantId || null,
+    manual: r.variantId ? null : { name: r.typedName, form: r.form, strength: r.strength },
+    city: r.city, district: r.district || null, lm: "",
+    qty: r.quantity || "", urg: r.urgency || "normal",
+    rxHeld: r.prescriptionHeld === true, altOk: !!r.acceptsAlternative,
+    st: r.state === "acknowledged" ? "acknowledged" : "broadcasting",
+    resp: r.answeredBy || [], answers: {}, ts: r.createdAt, remote: true,
+  };
+}
 
 /* ================= PHARMACY AUTHENTICATION =================
    Until now this did not exist, and its absence was the largest hole in the
@@ -4319,6 +4467,24 @@ function publishNeed() {
   updateUserTrustScore("published");
   auditLog({ action: "REQUEST_PUBLISHED", subject: rec.id, reason: rec.urg });
   haptic([15, 40, 15]);
+
+  /* Send it. The screen has already moved — a patient must never wait on a
+     radio to find out their request was accepted — and if the send fails the
+     request stays local and the wait screen says so instead of pretending. */
+  if (NET.on) {
+    netPublish(rec).then((r) => {
+      if (r.ok) {
+        rec.serverId = r.id; rec.published = true;
+        const list = LS.get("needs", []);
+        const mine = list.find((x) => x.id === rec.id);
+        if (mine) { mine.serverId = r.id; mine.published = true; LS.set("needs", list); }
+      } else {
+        rec.published = false; rec.publishError = r.reason;
+        if (r.reason === "CONTROLLED") toast(r.ar || (isAR() ? "دواء خاضع للرقابة" : "Controlled medicine"));
+      }
+      if (location.hash.includes("/wait/")) render();
+    });
+  }
   toast(isAR() ? "نُشر — يوصل الصيدليات الموثّقة" : "Published — it reaches verified pharmacies");
   location.hash = "#/wait/" + rec.id;
 }
@@ -4335,9 +4501,40 @@ function startRadarTicker() {
   if (!r) return;
   const t0 = Date.now();
   haptic([10]);
+
+  /* The patient's side of the loop. Their request now lives on a server, so
+     an answer arrives from outside this device and nothing on screen would
+     ever learn about it without asking. Polled rather than pushed because a
+     push channel is a whole other system; 15s is well inside the time a
+     pharmacist takes to reach a shelf. */
+  let poll = null;
+  if (NET.on && r.serverId) {
+    const check = async () => {
+      if (!document.getElementById("radarcopy")) { clearInterval(poll); return; }
+      const j = await netMine(r.serverId);
+      if (!j || !j.answers || !j.answers.length) return;
+      /* Adopt the answers into the local record so every existing screen —
+         the match list, the contact sheet — keeps working unchanged. */
+      r.resp = [...new Set(j.answers.map((a) => a.pharmacyId))];
+      r.answers = {};
+      for (const a of j.answers) r.answers[a.pharmacyId] = a.kind;
+      r.answerStatus = {};
+      for (const a of j.answers) r.answerStatus[a.pharmacyId] = a.licenseStatus;
+      reqTransition(r, "acknowledged");
+      const list = LS.get("needs", []);
+      const mine = list.find((x) => x.id === r.id);
+      if (mine) { mine.resp = r.resp; mine.answers = r.answers; mine.st = r.st; LS.set("needs", list); }
+      clearInterval(poll);
+      haptic([30, 50, 30]);
+      render();
+    };
+    check();
+    poll = setInterval(check, 15000);
+  }
+
   radarTick = setInterval(() => {
     const node = document.getElementById("radarcopy");
-    if (!node) { clearInterval(radarTick); radarTick = null; return; }
+    if (!node) { clearInterval(radarTick); radarTick = null; if (poll) clearInterval(poll); return; }
     const secs = Math.floor((Date.now() - (r.ts || t0)) / 1000);
     const next = radarCopy(r, secs);
     if (node.innerHTML !== next) {
@@ -4748,6 +4945,9 @@ function rxHandoff(facId, vid, ref) {
 /* ---------------- /radar · pharmacy supply mode ---------------- */
 function screenRadar(facId) {
   const f = facId ? anyFac(facId) : null;
+  /* Pull the real queue for this branch. Idempotent — re-entering the screen
+     restarts the timer rather than stacking a second one. */
+  if (f && NET.on) startQueuePolling(f.id);
 
   /* Signed in to a branch already? Go there rather than asking again. */
   if (!facId) {
@@ -5055,6 +5255,24 @@ function quickAnswer(facId, reqId, kind) {
     r.answers = r.answers || {}; r.answers[facId] = kind;
     auditLog({ action: "STOCK_CLAIMED", actor: pharmacyPrincipal().pharmacistId,
       pharmacyId: facId, subject: reqId, reason: kind });
+
+    /* The claim only means something if it reaches the patient. Fired after
+       the optimistic UI, so the pharmacist's tap never waits on the radio;
+       the race verdict comes back from the server, which is the only party
+       that can order two claims it received independently. */
+    if (NET.on && r.remote) {
+      netAnswer(reqId, kind).then((res) => {
+        if (!res || !res.ok) {
+          toast(isAR() ? "ما وصل للخادم — راح نعيد المحاولة" : "Not sent — will retry");
+          queueMutation("answer", { reqId, kind, facId });
+          return;
+        }
+        if (res.wasFirst === false) {
+          toast(isAR() ? "تمت الاستجابة من صيدلية أخرى قبلك — شكراً لك، وتوفّرك مسجّل"
+                       : "Another pharmacy answered first — thank you, your stock is recorded");
+        }
+      });
+    }
     r.resp = [...new Set([...(r.resp || []), facId])];
     if (!r.firstAt) { r.firstAt = at; r.firstBy = facId; }
     reqTransition(r, "acknowledged");
@@ -5614,7 +5832,13 @@ function boot() {
 }
 document.addEventListener("DOMContentLoaded", boot);
 /* After first paint, never before it. */
-addEventListener("load", () => { setTimeout(probeBackend, 400); });
+addEventListener("load", () => {
+  setTimeout(() => { probeBackend(); probeDataPlane().then((n) => {
+    /* If the data plane is live and we are on a radar screen, start pulling
+       immediately rather than waiting for the next navigation. */
+    if (n.on && location.hash.startsWith("#/radar/")) startQueuePolling(location.hash.split("/")[2]);
+  }); }, 400);
+});
 
 /* Register the shell cache. Wrapped and silent: a failed registration must
    never break the app, and the single-file dist build has no sw.js to find.

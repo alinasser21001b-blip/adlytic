@@ -72,6 +72,18 @@
   to = "/.netlify/functions/audit"
   status = 200
 
+# The data plane. Sub-paths (/answer, /mine, /cancel) route to the same
+# function, which dispatches on the path — one deploy unit for one system.
+[[redirects]]
+  from = "/api/needs"
+  to = "/.netlify/functions/needs"
+  status = 200
+
+[[redirects]]
+  from = "/api/needs/*"
+  to = "/.netlify/functions/needs"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
