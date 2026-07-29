@@ -1418,15 +1418,31 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
       visit-keyed database is a migration, not a feature. It is the thing that
       turns six scattered events into one readable story.
 
-   4. IDENTITY IS NEVER THE NATIONAL ID. Iraq's card coverage is unverified,
-      displaced patients may hold none, and the US spent 27 years proving a
-      system can scale without a national identifier — at a permanent cost.
+   4. IDENTITY IS NEVER THE NATIONAL ID. Coverage turned out to be high —
+      40M+ cards against ~46M people — so this rule survives for a different
+      reason than the one it was written for: nobody could establish whether
+      the 12-digit number is STABLE across reissue or correction. A primary
+      key that may silently change is the worst possible defect in a health
+      record, because it splits one patient into two or fuses two into one
+      without ever raising an error. Add to that a million Iraqis with no
+      civil documentation at all, legacy documents still in circulation whose
+      validity nobody could confirm, and 27 years of US evidence that a system
+      scales without a national identifier at a permanent, measured cost.
       The primary key is ours, opaque and stable; every real-world identifier
-      is one optional, typed attribute among several.
+      is one optional, typed attribute among several, and none of them is
+      unique-not-null.
 
    5. NOTHING MERGES SILENTLY. Not duplicate patients, not external records.
       An overlay — two people fused into one chart — is rarer than a duplicate,
       invisible, self-concealing, and the failure mode that kills.
+
+   6. SOME FIELDS ARE REFUSED, NOT JUST UNUSED. Religion is printed on the
+      Iraqi National Card and Article 26 of the card law makes the designation
+      legally coercive. With no data protection law in force and no data
+      protection authority, a queryable table of citizens with religion
+      attached is a targeting asset, not a data model. The refusal is enforced
+      at the boundary — see FORBIDDEN_FIELDS — because a rule that lives only
+      in a comment is a rule that a future contributor deletes by accident.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -1438,22 +1454,150 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   /* Identifier types we accept. All optional; none is the key. `national` is
      listed first because it is the most useful WHEN present, not because it
      is required — a displaced patient with only a UNHCR number is still a
-     patient, and a system that cannot register them is not usable in Iraq. */
+     patient, and a system that cannot register them is not usable in Iraq.
+
+     The legacy pair (civil status ID, jinsiya) is here because issuance of
+     both stopped inside Iraq in March–April 2024 in favour of the unified
+     National Card — but nobody collected the ones already in wallets, and
+     whether they remain valid is an open question. A patient holding one is
+     not a patient without a document. We record the type and let the clinic
+     decide; we do not adjudicate Iraqi civil law at a registration desk. */
   const ID_TYPE = {
-    NATIONAL: "national",      /* البطاقة الوطنية */
+    NATIONAL: "national",      /* البطاقة الوطنية الموحّدة */
+    CIVIL: "civil",            /* هوية الأحوال المدنية — legacy, still circulating */
+    JINSIYA: "jinsiya",        /* شهادة الجنسية — legacy, still circulating */
     PASSPORT: "passport",
     MOBILE: "mobile",
-    UNHCR: "unhcr",            /* نازح / لاجئ */
+    UNHCR: "unhcr",            /* نازح / لاجئ — UNHCR / IOM documentation */
+    MOH: "moh",                /* رقم ملف وزارة الصحة */
     FACILITY: "facility",      /* رقم الملف في عيادة بعينها */
     EXTERNAL: "external",      /* معرّف من نظام آخر */
   };
 
+  /* An identifier that answers "which person is this" versus one that only
+     answers "how do I reach them". A phone number is the best REACH channel
+     in Iraq — connections run at ~103% of population — and one of the worst
+     identity claims: multi-SIM is common and number portability status is
+     unresolved, so numbers churn and get reassigned. Mobile is a locator. */
+  const IDENTITY_BEARING = [ID_TYPE.NATIONAL, ID_TYPE.CIVIL, ID_TYPE.JINSIYA, ID_TYPE.PASSPORT, ID_TYPE.UNHCR];
+  const isIdentityBearing = (t) => IDENTITY_BEARING.indexOf(t) !== -1;
+
+  /* HOW WE KNOW an identifier, recorded per identifier, not per patient.
+     Iraq's National Card carries an ICAO-standard machine-readable zone AND
+     an NFC chip, which means `machine_read` is reachable TODAY with an
+     ordinary phone camera and zero government integration — no API, no
+     agreement, no dependency on a national platform that may never open to
+     private healthcare. That is why this tier exists in v1 rather than
+     waiting for one: it is the difference between a number a clerk typed
+     from memory and a number the card itself emitted. */
+  const ID_VERIFY = {
+    SELF: "self_declared",       /* the patient said so */
+    SIGHTED: "visually_sighted", /* a human looked at the document */
+    MACHINE: "machine_read",     /* MRZ / NFC — the document emitted it */
+  };
+  const ID_VERIFY_RANK = { self_declared: 0, visually_sighted: 1, machine_read: 2 };
+  /* Confidence multiplier applied to an identifier's match weight in BOTH
+     directions. A self-declared number agreeing is weaker evidence of the
+     same person; a self-declared number disagreeing is likewise weaker
+     evidence of different people, because it is far likelier to be a typo. */
+  const ID_VERIFY_WEIGHT = { self_declared: 0.6, visually_sighted: 0.85, machine_read: 1 };
+  const verifyLevel = (i) => (i && ID_VERIFY_RANK[i.verification] != null ? i.verification : ID_VERIFY.SELF);
+  const verifyFactor = (a, b) => Math.min(ID_VERIFY_WEIGHT[verifyLevel(a)], ID_VERIFY_WEIGHT[verifyLevel(b)]);
+
+  /* Fields we refuse to hold, enforced rather than documented.
+
+     Religion is printed on the Iraqi National Card, and Article 26 of the
+     card law makes the designation legally coercive — a minor is converted
+     with a converting parent, and the change runs one way only. A queryable
+     table of Iraqi citizens with religion attached is a targeting asset in a
+     country with a genocide against Yazidis and Christians inside living
+     memory, and no data protection law in force to restrain what happens to
+     it. Sect and ethnicity follow for the same reason.
+
+     The card IMAGE is on this list too. A scan yields number, name, birth
+     date and sex — take those four and discard the photograph. Retaining the
+     image retains the religion field whether or not we parse it, and retains
+     the biometric portrait, in a system that has no lawful basis to hold
+     either. This is a storage rule, so it is checked at the boundary. */
+  const FORBIDDEN_FIELDS = ["religion", "sect", "ethnicity", "cardImage", "idImage", "idPhoto", "biometric", "الديانة", "المذهب", "القومية"];
+
+  function forbiddenIn(obj) {
+    if (!obj || typeof obj !== "object") return [];
+    return Object.keys(obj).filter((k) => FORBIDDEN_FIELDS.indexOf(k) !== -1);
+  }
+  /* Returns a copy with the forbidden keys removed. Used at every ingest
+     boundary — registration, card scan, external record promotion — so the
+     rule holds even when the caller forgot it. */
+  function sanitisePatient(p) {
+    if (!p || typeof p !== "object") return p;
+    const out = {}, dropped = [];
+    for (const k of Object.keys(p)) {
+      if (FORBIDDEN_FIELDS.indexOf(k) !== -1) { dropped.push(k); continue; }
+      out[k] = p[k];
+    }
+    return { patient: out, dropped };
+  }
+
+  /* A card scan produces four fields and nothing else. Anything the caller
+     hands us beyond that whitelist is dropped, named in `dropped`, and never
+     reaches storage. */
+  const CARD_FIELDS = ["number", "name", "birthDate", "sex"];
+  function acceptCardScan(scan, at) {
+    if (!scan || typeof scan !== "object") return { ok: false, reason: "NO_SCAN" };
+    const num = String(scan.number || "").trim();
+    if (!num) return { ok: false, reason: "NO_NUMBER" };
+    const dropped = Object.keys(scan).filter((k) => CARD_FIELDS.indexOf(k) !== -1 ? false : true);
+    return {
+      ok: true,
+      dropped,
+      identifier: {
+        type: ID_TYPE.NATIONAL, value: num,
+        verification: ID_VERIFY.MACHINE, verifiedAt: at || null,
+        validFrom: null, validTo: null,
+      },
+      demographics: {
+        name: scan.name || null,
+        birthDate: scan.birthDate || null,
+        birthDateEstimated: false,
+        sex: scan.sex || null,
+      },
+    };
+  }
+
+  /* Iraqi names are structured, not a string with spaces in it. The chain is
+     given + father + grandfather + family/tribe, and the father's name is a
+     FIELD — two men both called محمد with different fathers are two men, and
+     a middle-name-shaped model cannot express that. We store the components
+     when we have them and compose for display; `name` remains supported so
+     nothing that already writes a single string breaks. Arabic script is
+     authoritative — any Latin transliteration is a derived alias and is
+     never matched on as primary, because Mohammed / Muhammad / Mohamad and
+     Khaled / Khalid / Halid are the same person. */
+  const NAME_PARTS = ["given", "father", "grandfather", "family"];
+  function fullName(p) {
+    if (!p) return "";
+    const np = p.nameParts;
+    if (np && (np.given || np.father)) {
+      return NAME_PARTS.map((k) => String(np[k] || "").trim()).filter(Boolean).join(" ");
+    }
+    return String(p.name || "").trim();
+  }
+
   /* A patient is identifiable enough to register if we can plausibly find
      them again. Name alone is not enough in a country where a dozen people
-     in one district share it. */
+     in one district share it.
+
+     Note what is NOT required: any government document. Up to a million
+     Iraqis lack civil documentation, and the barriers — Civil Affairs
+     capacity, security clearance, perceived affiliation — are precisely the
+     kind an undocumented patient cannot resolve by walking into an office.
+     A name plus a birth date registers. Rejecting that cohort would exclude
+     exactly the patients whose care continuity is already worst. */
   function canRegister(p) {
     if (!p) return { ok: false, reason: "NO_PATIENT" };
-    const name = String(p.name || "").trim();
+    const bad = forbiddenIn(p);
+    if (bad.length) return { ok: false, reason: "FORBIDDEN_FIELD", fields: bad };
+    const name = fullName(p);
     if (name.length < 3) return { ok: false, reason: "NAME_REQUIRED" };
     const hasId = (p.identifiers || []).some((i) => i.value && String(i.value).trim());
     const hasDob = !!p.birthDate;
@@ -1472,16 +1616,41 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   /* Calibrated so that an exact full name PLUS an exact date of birth
      reaches review on its own (30+30+5 = 65 > REVIEW). An earlier weighting
      scored that pair at 45 and silently dropped a genuine duplicate — which
-     is exactly the failure this whole module exists to prevent. */
+     is exactly the failure this whole module exists to prevent.
+
+     Every identifier weight below is the weight at `machine_read`. It is
+     scaled down by ID_VERIFY_WEIGHT for anything a clerk typed, so the tier is
+     load-bearing rather than a label in a dropdown. */
   const MATCH_WEIGHTS = {
     national: 55,   /* strong when present — but forgeable and mistyped */
+    civil: 45,      /* legacy; still the document many patients actually carry */
+    jinsiya: 40,
     passport: 45,
+    unhcr: 45,
     mobile: 25,     /* shared within families in Iraq; useful, not decisive */
     name: 30,
     birthDate: 30,
+    /* A date of birth is only worth 30 when someone actually knew it. Where
+       it was estimated, or where it is the 1-January default that registration
+       desks across the region reach for when the patient does not know, an
+       exact match is close to meaningless — it says "two people were both
+       guessed at", not "two people were born on the same day". Weighting it
+       fully there manufactures review prompts on the commonest name/date pair
+       in the country, and a review queue nobody believes is a review queue
+       nobody reads. */
+    birthDateDefault: 12,   /* 01-01 of some year — the default, not a date */
+    birthDateEstimated: 5,  /* explicitly flagged as an estimate */
     sex: 5,
     address: 10,
   };
+
+  /* 1 January is not a birthday in a registration system, it is a shrug. */
+  const isDefaultDob = (d) => /^\d{4}-01-01$/.test(String(d || ""));
+  function dobWeight(a, b) {
+    if (a.birthDateEstimated || b.birthDateEstimated) return MATCH_WEIGHTS.birthDateEstimated;
+    if (isDefaultDob(a.birthDate) || isDefaultDob(b.birthDate)) return MATCH_WEIGHTS.birthDateDefault;
+    return MATCH_WEIGHTS.birthDate;
+  }
 
   const MATCH = { AUTO_NONE: 0, REVIEW: 60, STRONG: 85 };
 
@@ -1508,43 +1677,104 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
      token comparison needs them; this drops them for the exact-match test. */
   const normArKey = (s) => normAr(s).replace(/\s+/g, "");
 
-  const idOf = (p, type) => ((p.identifiers || []).find((i) => i.type === type) || {}).value || null;
+  /* Only CURRENTLY VALID identifiers are matched on. An identifier carries an
+     optional validity window because the commonest one — a mobile number —
+     genuinely expires: the patient stops paying, the operator reassigns it,
+     and six months later it belongs to a stranger. Matching a live record
+     against a number its owner gave up is how an overlay gets built out of
+     nothing but ordinary telecom housekeeping. */
+  function identifiersOf(p, type, at) {
+    const t = at == null ? null : (typeof at === "number" ? at : new Date(at).getTime());
+    return (p.identifiers || []).filter((i) => {
+      if (i.type !== type || !i.value) return false;
+      if (t == null) return true;
+      const from = i.validFrom == null ? null : new Date(i.validFrom).getTime();
+      const to = i.validTo == null ? null : new Date(i.validTo).getTime();
+      if (from != null && t < from) return false;
+      if (to != null && t > to) return false;
+      return true;
+    });
+  }
+  const idOf = (p, type, at) => (identifiersOf(p, type, at)[0] || {}).value || null;
 
-  function matchScore(a, b) {
+  /* Compare the Iraqi name chain component-by-component when both sides carry
+     one. This is the whole reason to store parts: a DISAGREEING father's name
+     is positive evidence of two different people, which a single-string
+     comparison can only ever read as "somewhat different text". */
+  function namePartScore(a, b) {
+    const A = a.nameParts, B = b.nameParts;
+    if (!A || !B || !A.given || !B.given) return null;
+    const eq = (x, y) => x && y && normArKey(x) === normArKey(y);
+    const both = (x, y) => !!(String(x || "").trim() && String(y || "").trim());
+    if (!eq(A.given, B.given)) return { w: -MATCH_WEIGHTS.name, f: "name-given-differs" };
+    /* Given name agrees. The father's name decides. */
+    if (both(A.father, B.father) && !eq(A.father, B.father)) return { w: -MATCH_WEIGHTS.name, f: "name-father-differs" };
+    if (both(A.grandfather, B.grandfather) && !eq(A.grandfather, B.grandfather)) return { w: -15, f: "name-grandfather-differs" };
+    const fatherEq = eq(A.father, B.father), grandEq = eq(A.grandfather, B.grandfather);
+    let w = 12;                                 /* given name only */
+    if (fatherEq || grandEq) w = 22;
+    if (fatherEq && grandEq) w = MATCH_WEIGHTS.name;   /* the full chain */
+    /* Family/tribe is often a whole district's name, so agreement adds little
+       and absence means nothing. It is never allowed to subtract. */
+    return { w, f: "name-chain" };
+  }
+
+  function matchScore(a, b, at) {
     const factors = [];
     let score = 0;
 
-    for (const t of [ID_TYPE.NATIONAL, ID_TYPE.PASSPORT, ID_TYPE.MOBILE]) {
-      const x = idOf(a, t), y = idOf(b, t);
-      if (x && y) {
-        if (String(x).trim() === String(y).trim()) {
-          score += MATCH_WEIGHTS[t]; factors.push({ f: t, agree: true, w: MATCH_WEIGHTS[t] });
-        } else {
-          /* A DISAGREEING strong identifier is evidence AGAINST, and must be
-             able to overpower agreeing weak ones. Two people who share a
-             surname and a birth year but hold different national cards are
-             two people. */
-          score -= MATCH_WEIGHTS[t]; factors.push({ f: t, agree: false, w: -MATCH_WEIGHTS[t] });
+    for (const t of [ID_TYPE.NATIONAL, ID_TYPE.CIVIL, ID_TYPE.JINSIYA, ID_TYPE.PASSPORT, ID_TYPE.UNHCR, ID_TYPE.MOBILE]) {
+      const xs = identifiersOf(a, t, at), ys = identifiersOf(b, t, at);
+      if (!xs.length || !ys.length) continue;
+      /* Multi-SIM is ordinary here: a patient may hold three numbers and any
+         one of them agreeing is agreement. Only when NO pair agrees is this
+         a disagreement. */
+      let hit = null;
+      for (const x of xs) {
+        const y = ys.find((z) => String(z.value).trim() === String(x.value).trim());
+        if (y) { hit = [x, y]; break; }
+      }
+      const base = MATCH_WEIGHTS[t] || 0;
+      if (hit) {
+        const w = Math.round(base * verifyFactor(hit[0], hit[1]));
+        score += w; factors.push({ f: t, agree: true, w, verification: verifyLevel(hit[0]) });
+      } else {
+        /* A DISAGREEING strong identifier is evidence AGAINST, and must be
+           able to overpower agreeing weak ones. Two people who share a
+           surname and a birth year but hold different national cards are
+           two people. Scaled by verification for the same reason as the
+           agreeing case — a mistyped number is not a different person. */
+        const w = Math.round(base * verifyFactor(xs[0], ys[0]));
+        score -= w; factors.push({ f: t, agree: false, w: -w, verification: verifyLevel(xs[0]) });
+      }
+    }
+
+    const parts = namePartScore(a, b);
+    if (parts) {
+      score += parts.w; factors.push({ f: parts.f, agree: parts.w > 0, w: parts.w });
+    } else {
+      const na = normAr(fullName(a)), nb = normAr(fullName(b));
+      if (na && nb) {
+        if (normArKey(fullName(a)) === normArKey(fullName(b))) { score += MATCH_WEIGHTS.name; factors.push({ f: "name", agree: true, w: MATCH_WEIGHTS.name }); }
+        else {
+          /* Partial credit for shared name tokens — Iraqi names are long chains
+             (given + father + grandfather + tribe) and get truncated variously. */
+          const ta = na.split(" "), tb = nb.split(" ");
+          const shared = ta.filter((t) => t.length > 2 && tb.includes(t)).length;
+          const w = Math.round((shared / Math.max(ta.length, tb.length)) * MATCH_WEIGHTS.name);
+          if (w > 0) { score += w; factors.push({ f: "name-partial", agree: true, w }); }
         }
       }
     }
 
-    const na = normAr(a.name), nb = normAr(b.name);
-    if (na && nb) {
-      if (normArKey(a.name) === normArKey(b.name)) { score += MATCH_WEIGHTS.name; factors.push({ f: "name", agree: true, w: MATCH_WEIGHTS.name }); }
-      else {
-        /* Partial credit for shared name tokens — Iraqi names are long chains
-           (given + father + grandfather + tribe) and get truncated variously. */
-        const ta = na.split(" "), tb = nb.split(" ");
-        const shared = ta.filter((t) => t.length > 2 && tb.includes(t)).length;
-        const w = Math.round((shared / Math.max(ta.length, tb.length)) * MATCH_WEIGHTS.name);
-        if (w > 0) { score += w; factors.push({ f: "name-partial", agree: true, w }); }
-      }
-    }
-
     if (a.birthDate && b.birthDate) {
-      if (a.birthDate === b.birthDate) { score += MATCH_WEIGHTS.birthDate; factors.push({ f: "birthDate", agree: true, w: MATCH_WEIGHTS.birthDate }); }
-      else { score -= 15; factors.push({ f: "birthDate", agree: false, w: -15 }); }
+      const dw = dobWeight(a, b);
+      if (a.birthDate === b.birthDate) { score += dw; factors.push({ f: "birthDate", agree: true, w: dw }); }
+      else {
+        /* Two estimates disagreeing is not evidence of anything. */
+        const pen = dw <= MATCH_WEIGHTS.birthDateEstimated ? 3 : 15;
+        score -= pen; factors.push({ f: "birthDate", agree: false, w: -pen });
+      }
     }
     if (a.sex && b.sex) {
       if (a.sex === b.sex) { score += MATCH_WEIGHTS.sex; factors.push({ f: "sex", agree: true, w: MATCH_WEIGHTS.sex }); }
@@ -1564,10 +1794,10 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     return "DISTINCT";
   }
 
-  function findCandidates(candidate, population) {
+  function findCandidates(candidate, population, at) {
     return (population || [])
       .filter((p) => p.id !== candidate.id)
-      .map((p) => { const m = matchScore(candidate, p); return { patientId: p.id, ...m, verdict: matchVerdict(m.score) }; })
+      .map((p) => { const m = matchScore(candidate, p, at); return { patientId: p.id, ...m, verdict: matchVerdict(m.score) }; })
       .filter((r) => r.verdict !== "DISTINCT")
       .sort((x, y) => y.score - x.score);
   }
@@ -2218,8 +2448,10 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   }
 
   root.EMR = {
-    ID_TYPE, canRegister,
-    MATCH_WEIGHTS, MATCH, normAr, normArKey, matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
+    ID_TYPE, canRegister, isIdentityBearing, identifiersOf,
+    ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
+    MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
+    matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
     ENC_STATE, ENC_TYPE, SIGN_REQUIRED, canSign, signEncounter, addAddendum, voidEncounter,
     COND_STATE, VERIFY, isChronicActive, isStale, activeConditions, STALE_DAYS,
     MED_STATE, stopMedication, medStatus, currentMedications,
@@ -2233,6 +2465,1080 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     EVT, buildTimeline, timelineByEpisode,
     SOURCE, provenance, isAuthoritative,
     FHIR_MAP, CODE_SYSTEM, codeable,
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/* ============================================================
+   قريب · النطاقات المكمّلة للسجل — RECORD DOMAINS
+   ============================================================
+   Documents · Immunizations · Prescriptions · Appointments ·
+   Providers · Organizations
+
+   These are the domains the brief names that `emr.js` does not carry.
+   `emr.js` holds the clinical CORE — identity, encounters, longitudinal
+   lists, episodes, tasks, labs, access. This file holds the surrounding
+   domains that connect that core to the healthcare network: the paper a
+   patient arrives with, the prescription a doctor writes, the appointment
+   that brings them back, and the people and places on the other end.
+
+   Same contract as emr.js: pure rules, no DOM, no storage, no network, so
+   `tools/test-record.mjs` runs these exact bytes in Node.
+
+   THE ONE RULE THAT SHAPES EVERYTHING HERE:
+
+   A DOCUMENT IS NOT A CLINICAL RECORD.
+
+   A PDF a patient uploads is evidence that a document exists. It is not a
+   diagnosis, not a medication, and not a result — even when it plainly
+   contains all three. Anything a machine reads out of it is a CLAIM, marked
+   as such, unusable by the safety layer, until a human with a licence looks
+   at it and says yes. Australia's My Health Record is the cautionary case:
+   documents were uploaded faithfully for a decade and the record still could
+   not answer "what medicines is this person on", because a pile of documents
+   is not a record. That distinction is enforced below, not merely intended.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  const E = root.EMR || {};
+  const ms = E.ms || ((t) => (t == null ? null : (typeof t === "number" ? t : new Date(t).getTime())));
+  const DAY = 86400000;
+  const txt = (v) => String(v == null ? "" : v).trim();
+
+  /* =========================================================
+     ١ · المستندات — DOCUMENTS
+     =========================================================
+     The Iraqi reality this exists for: care is private, out-of-pocket and
+     fragmented, there is no national exchange to pull from, and the patient
+     is already the integration layer — they carry the films and the reports
+     between clinics in a plastic bag. The app's job is not to replace that
+     bag with a cloud folder. It is to let the bag become a record.
+     ========================================================= */
+
+  const DOC_TYPE = {
+    LAB: "lab-report",            /* تحليل */
+    IMAGING: "imaging-report",    /* تقرير أشعة */
+    OPERATIVE: "operative-note",  /* تقرير عملية */
+    DISCHARGE: "discharge-summary", /* تقرير خروج */
+    PRESCRIPTION: "prescription", /* وصفة */
+    REFERRAL: "referral-letter",
+    CLINICAL: "clinical-report",  /* تقرير طبي عام */
+    VACCINE_CARD: "vaccine-card", /* بطاقة التطعيم */
+    OTHER: "other",
+  };
+
+  /* WHO produced the paper, which is not the same question as who uploaded
+     it. A discharge summary photographed by the patient is still a hospital
+     document; treating it as patient-reported because a patient's phone took
+     the picture loses the only provenance signal that matters. */
+  const DOC_ORIGIN = {
+    FACILITY: "facility",     /* issued by a clinic/hospital/lab */
+    PATIENT: "patient",       /* the patient wrote or holds it themselves */
+    UNKNOWN: "unknown",
+  };
+
+  /* The lifecycle of a claim pulled out of a document. Note there is no
+     "auto-accepted" state, and no path from EXTRACTED to the record that
+     does not pass through a human. */
+  const EXTRACT_STATE = {
+    NONE: "none",             /* nothing has been read out of it */
+    PENDING: "extraction-pending",
+    EXTRACTED: "extracted-awaiting-verification",
+    CONFIRMED: "confirmed",   /* a human said yes */
+    REJECTED: "rejected",     /* a human said no */
+  };
+
+  /* Images of medicines and prescriptions never enter our storage — that is a
+     standing product rule, and WhatsApp is the channel for them. A CLINICAL
+     document the patient chooses to keep in their own record is a different
+     thing with a different consent, so the two must not be silently merged.
+     This flag is what keeps them apart at the boundary. */
+  const RETAINED_TYPES = [DOC_TYPE.LAB, DOC_TYPE.IMAGING, DOC_TYPE.OPERATIVE,
+    DOC_TYPE.DISCHARGE, DOC_TYPE.REFERRAL, DOC_TYPE.CLINICAL, DOC_TYPE.VACCINE_CARD, DOC_TYPE.OTHER];
+  const isRetainable = (type) => RETAINED_TYPES.indexOf(type) !== -1;
+
+  function canAttach(doc) {
+    if (!doc) return { ok: false, reason: "NO_DOCUMENT" };
+    if (!txt(doc.patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!txt(doc.title)) return { ok: false, reason: "TITLE_REQUIRED" };
+    if (!doc.type || !Object.values(DOC_TYPE).includes(doc.type)) return { ok: false, reason: "TYPE_REQUIRED" };
+    if (!isRetainable(doc.type)) return { ok: false, reason: "TYPE_NOT_RETAINED" };
+    /* A document with no date cannot be placed on a timeline, and a document
+       that cannot be placed is a document nobody will find again. */
+    if (!doc.documentDate) return { ok: false, reason: "DATE_REQUIRED" };
+    if (!txt(doc.uploadedBy)) return { ok: false, reason: "UPLOADER_REQUIRED" };
+    return { ok: true };
+  }
+
+  function attachDocument(doc, at) {
+    const g = canAttach(doc);
+    if (!g.ok) return g;
+    return { ok: true, document: {
+      ...doc,
+      id: doc.id || null,
+      origin: doc.origin || DOC_ORIGIN.UNKNOWN,
+      extractState: EXTRACT_STATE.NONE,
+      claims: [],
+      uploadedAt: at,
+      /* The source is never edited and never replaced. Everything downstream
+         of it is derived, and derivation can be re-run; a corrupted original
+         cannot be recovered from its own summary. */
+      immutable: true,
+    } };
+  }
+
+  /* A machine read something. That something is a CLAIM: it names the kind of
+     clinical fact it thinks it found, but it is not that fact yet. */
+  function recordExtraction(doc, claims, by, at) {
+    if (!doc) return { ok: false, reason: "NO_DOCUMENT" };
+    if (!Array.isArray(claims) || !claims.length) return { ok: false, reason: "NO_CLAIMS" };
+    if (!txt(by)) return { ok: false, reason: "EXTRACTOR_REQUIRED" };
+    const bad = claims.find((c) => !CLAIM_KIND_LIST.includes(c && c.kind));
+    if (bad) return { ok: false, reason: "UNKNOWN_CLAIM_KIND" };
+    return { ok: true, document: { ...doc,
+      extractState: EXTRACT_STATE.EXTRACTED,
+      extractedBy: by, extractedAt: at,
+      claims: claims.map((c, i) => ({
+        ...c,
+        id: c.id || `${doc.id || "doc"}-c${i}`,
+        state: EXTRACT_STATE.EXTRACTED,
+        /* Provenance is stamped HERE, at the moment of extraction, so no
+           later screen has to infer where a fact came from. */
+        source: (E.SOURCE && E.SOURCE.EXTERNAL) || "external-import",
+        verified: false,
+      })),
+    } };
+  }
+
+  const CLAIM_KIND = { CONDITION: "condition", MEDICATION: "medication", ALLERGY: "allergy",
+                       PROCEDURE: "procedure", RESULT: "result", IMMUNIZATION: "immunization" };
+  const CLAIM_KIND_LIST = Object.values(CLAIM_KIND);
+
+  /* The gate. An extracted claim becomes a clinical fact only when a licensed
+     human confirms it, and only a clinician can — a patient may upload the
+     document and may say "yes that is my medicine", but a patient cannot
+     write into the authoritative medication list, because the whole point of
+     that list is that a prescriber can rely on it. */
+  function confirmClaim(doc, claimId, decision, actor, at, reason) {
+    if (!doc) return { ok: false, reason: "NO_DOCUMENT" };
+    const claim = (doc.claims || []).find((c) => c.id === claimId);
+    if (!claim) return { ok: false, reason: "NO_CLAIM" };
+    if (claim.state !== EXTRACT_STATE.EXTRACTED) return { ok: false, reason: "ALREADY_DECIDED" };
+    if (!actor || !txt(actor.id)) return { ok: false, reason: "ACTOR_REQUIRED" };
+    if (!CLINICAL_ROLES.includes(actor.role)) return { ok: false, reason: "CLINICIAN_REQUIRED" };
+    if (decision === EXTRACT_STATE.REJECTED && !txt(reason)) return { ok: false, reason: "REASON_REQUIRED" };
+    if (decision !== EXTRACT_STATE.CONFIRMED && decision !== EXTRACT_STATE.REJECTED) {
+      return { ok: false, reason: "BAD_DECISION" };
+    }
+    const claims = doc.claims.map((c) => c.id !== claimId ? c : {
+      ...c, state: decision, verified: decision === EXTRACT_STATE.CONFIRMED,
+      verifiedBy: actor.id, verifiedAt: at, decisionReason: reason || null,
+    });
+    const open = claims.some((c) => c.state === EXTRACT_STATE.EXTRACTED);
+    return { ok: true, document: { ...doc, claims,
+      extractState: open ? EXTRACT_STATE.EXTRACTED : EXTRACT_STATE.CONFIRMED } };
+  }
+
+  /* Who may turn a machine's claim into a clinical fact. A nurse and a
+     receptionist are deliberately absent: this is the act of writing into
+     the list a prescriber will rely on, and it needs the person who carries
+     the clinical responsibility for it. The names come from emr.js rather
+     than being redeclared here — two modules with two vocabularies for the
+     same role is how an authorisation check quietly stops matching. */
+  const RL = (E.ROLE || {});
+  const CLINICAL_ROLES = [RL.DOCTOR || "DOCTOR", RL.SPECIALIST || "SPECIALIST"];
+
+  /* Only confirmed claims may be read as facts. Everything else is visible —
+     hiding it would be its own failure — but visibly unconfirmed. */
+  const confirmedClaims = (doc) => (doc && doc.claims || []).filter((c) => c.state === EXTRACT_STATE.CONFIRMED);
+  const pendingClaims = (doc) => (doc && doc.claims || []).filter((c) => c.state === EXTRACT_STATE.EXTRACTED);
+
+  /* Across a whole record: what is sitting in the tray waiting for a human.
+     This is a work queue, and a work queue nobody can see is a backlog that
+     grows silently. */
+  const awaitingVerification = (docs) => (docs || [])
+    .flatMap((d) => pendingClaims(d).map((c) => ({ documentId: d.id, title: d.title, claim: c })));
+
+  /* =========================================================
+     ٢ · التطعيمات — IMMUNIZATIONS
+     =========================================================
+     Modelled separately from procedures because the question a clinician
+     actually asks is not "was this given" but "is this person covered", and
+     coverage is a function of doses given, the schedule, and time.
+     ========================================================= */
+
+  const IMM_STATE = { COMPLETED: "completed", NOT_DONE: "not-done", ENTERED_IN_ERROR: "entered-in-error" };
+
+  /* Where the assertion came from decides how much it can be relied on. A
+     card in the patient's hand is good evidence; a memory is weaker than a
+     card and stronger than nothing, and the screen must be able to say which
+     it is looking at. */
+  const IMM_EVIDENCE = { CARD: "vaccination-card", RECORD: "facility-record", RECALL: "patient-recall" };
+
+  function recordImmunization(imm) {
+    if (!imm) return { ok: false, reason: "NO_IMMUNIZATION" };
+    if (!txt(imm.patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!txt(imm.vaccine)) return { ok: false, reason: "VACCINE_REQUIRED" };
+    if (!imm.date) return { ok: false, reason: "DATE_REQUIRED" };
+    if (imm.evidence && !Object.values(IMM_EVIDENCE).includes(imm.evidence)) {
+      return { ok: false, reason: "BAD_EVIDENCE" };
+    }
+    return { ok: true, immunization: {
+      ...imm,
+      status: imm.status || IMM_STATE.COMPLETED,
+      evidence: imm.evidence || IMM_EVIDENCE.RECALL,
+      doseNumber: imm.doseNumber || null,
+      /* Recall is never treated as documented. This is the same honesty the
+         medication list enforces with UNCONFIRMED. */
+      documented: imm.evidence === IMM_EVIDENCE.CARD || imm.evidence === IMM_EVIDENCE.RECORD,
+    } };
+  }
+
+  const givenImmunizations = (list) => (list || []).filter((i) => i.status === IMM_STATE.COMPLETED);
+
+  /* "Has this person had this vaccine, and can I trust that answer?" */
+  function immunityFor(list, vaccine, doses) {
+    const given = givenImmunizations(list).filter((i) => E.normAr
+      ? E.normAr(i.vaccine) === E.normAr(vaccine) : txt(i.vaccine) === txt(vaccine));
+    const documented = given.filter((i) => i.documented);
+    const need = doses || 1;
+    return {
+      vaccine, given: given.length, documented: documented.length, required: need,
+      complete: given.length >= need,
+      /* Complete BY RECALL ONLY is a different clinical situation from
+         complete on paper, and collapsing them is how a child gets missed. */
+      documentedComplete: documented.length >= need,
+    };
+  }
+
+  /* =========================================================
+     ٣ · الوصفات — PRESCRIPTIONS
+     =========================================================
+     A prescription is structured or it is not a prescription. "Metformin" is
+     a word; "Metformin 500 mg twice daily for 30 days, started 29 July,
+     prescribed by Dr X for type 2 diabetes" is a clinical instruction that a
+     pharmacist can dispense against and a later clinician can reason about.
+     A medication history that is a list of names cannot answer the two
+     questions that matter — what dose, and why did it stop.
+     ========================================================= */
+
+  const FREQ = {
+    OD: { code: "OD", perDay: 1, ar: "مرة يومياً", en: "once daily" },
+    BID: { code: "BID", perDay: 2, ar: "مرتين يومياً", en: "twice daily" },
+    TID: { code: "TID", perDay: 3, ar: "٣ مرات يومياً", en: "three times daily" },
+    QID: { code: "QID", perDay: 4, ar: "٤ مرات يومياً", en: "four times daily" },
+    PRN: { code: "PRN", perDay: null, ar: "عند اللزوم", en: "as needed" },
+    WEEKLY: { code: "WEEKLY", perDay: 1 / 7, ar: "أسبوعياً", en: "weekly" },
+  };
+
+  const RX_REQUIRED = ["patientId", "prescriberId", "medication", "dose", "frequency"];
+
+  function canPrescribe(rx, prescriber) {
+    if (!rx) return { ok: false, reason: "NO_PRESCRIPTION" };
+    if (!prescriber) return { ok: false, reason: "NO_PRESCRIBER" };
+    /* An unverified account may not write a prescription into a record that
+       other clinicians will trust. The network's verification state is the
+       gate, and it lives in domain.js — read it, do not re-implement it. */
+    if (prescriber.licenseStatus && prescriber.licenseStatus !== "VERIFIED") {
+      return { ok: false, reason: "PRESCRIBER_UNVERIFIED" };
+    }
+    const missing = RX_REQUIRED.filter((k) => !txt(rx[k]));
+    if (missing.length) return { ok: false, reason: "INCOMPLETE", missing };
+    if (!FREQ[rx.frequency]) return { ok: false, reason: "BAD_FREQUENCY" };
+    /* Duration is optional ONLY for an explicitly open-ended course. Silence
+       about duration is how a 5-day antibiotic ends up looking permanent. */
+    if (!rx.openEnded && !(rx.durationDays > 0)) return { ok: false, reason: "DURATION_REQUIRED" };
+    /* The indication is what lets a later clinician decide whether to keep,
+       change or stop. Without it every drug on the list is unexplainable. */
+    if (!txt(rx.indication)) return { ok: false, reason: "INDICATION_REQUIRED" };
+    return { ok: true };
+  }
+
+  /* A prescription PRODUCES a medication-list entry. The two are different
+     objects on purpose: the prescription is an immutable clinical order with
+     an author and a moment; the medication is the mutable longitudinal fact
+     it created, which some later clinician will stop for some later reason.
+     Collapsing them is why so many systems cannot say who started a drug. */
+  function issuePrescription(rx, prescriber, at) {
+    const g = canPrescribe(rx, prescriber);
+    if (!g.ok) return g;
+    const start = rx.startDate || at;
+    const prescription = {
+      ...rx, id: rx.id || null, prescriberId: prescriber.id,
+      issuedAt: at, startDate: start,
+      endDate: rx.openEnded ? null : new Date(ms(start) + rx.durationDays * DAY).toISOString().slice(0, 10),
+      immutable: true,
+    };
+    /* `display` and `prescriberId`, NOT `name` and `prescribedBy`. Those are
+       emr.js's field names and this module conforms to them rather than
+       inventing a parallel vocabulary. The first version used its own names,
+       which produced a medication that worked perfectly everywhere except
+       the timeline — where it appeared with no title and no author, because
+       reading a property that was never there returns undefined instead of
+       raising anything. Two modules, two vocabularies, one silent hole. */
+    const medication = {
+      id: rx.id ? rx.id + "-med" : null,
+      patientId: rx.patientId,
+      display: rx.medication, dose: rx.dose, frequency: rx.frequency,
+      route: rx.route || null,
+      indication: rx.indication,
+      startDate: start,
+      durationDays: rx.openEnded ? null : rx.durationDays,
+      status: (E.MED_STATE && E.MED_STATE.ACTIVE) || "active",
+      prescriberId: prescriber.id,
+      prescriptionId: rx.id || null,
+      lastConfirmed: start,
+      source: (E.SOURCE && E.SOURCE.CLINICIAN) || "clinician",
+    };
+    return { ok: true, prescription, medication };
+  }
+
+  const DISPENSE_STATE = { PENDING: "pending", DISPENSED: "dispensed", PARTIAL: "partial", NOT_DISPENSED: "not-dispensed" };
+
+  /* The pharmacy end of the loop. A dispense is an OBSERVATION about a
+     prescription, never an edit of it — the pharmacy cannot change what the
+     doctor wrote, and the doctor's order stays readable exactly as issued.
+
+     Note what this does NOT do: it does not mark the medication as taken. A
+     dispensed box on a counter is not a swallowed tablet, and a record that
+     conflates the two tells the next clinician a comfortable lie. */
+  function recordDispense(rx, d, at) {
+    if (!rx) return { ok: false, reason: "NO_PRESCRIPTION" };
+    if (!d || !txt(d.pharmacyId)) return { ok: false, reason: "PHARMACY_REQUIRED" };
+    if (!Object.values(DISPENSE_STATE).includes(d.state) || d.state === DISPENSE_STATE.PENDING) {
+      return { ok: false, reason: "BAD_STATE" };
+    }
+    if (d.state === DISPENSE_STATE.PARTIAL && !txt(d.note)) return { ok: false, reason: "NOTE_REQUIRED" };
+    /* A substitution is a clinical event, not a retail one. It is recorded
+       under its own name so a later clinician sees the patient is on a
+       different brand than the one prescribed. */
+    if (d.substituted && !txt(d.substitutedWith)) return { ok: false, reason: "SUBSTITUTE_REQUIRED" };
+    return { ok: true, dispense: {
+      prescriptionId: rx.id, pharmacyId: d.pharmacyId, state: d.state,
+      substituted: !!d.substituted, substitutedWith: d.substitutedWith || null,
+      note: d.note || null, at,
+    } };
+  }
+
+  /* =========================================================
+     ٤ · المواعيد — APPOINTMENTS
+     ========================================================= */
+
+  const APPT_STATE = { REQUESTED: "requested", BOOKED: "booked", ARRIVED: "arrived",
+                       FULFILLED: "fulfilled", CANCELLED: "cancelled", NO_SHOW: "no-show" };
+
+  const APPT_MACHINE = {
+    requested: ["booked", "cancelled"],
+    booked: ["arrived", "cancelled", "no-show"],
+    arrived: ["fulfilled", "cancelled"],
+    fulfilled: [],
+    cancelled: [],
+    "no-show": ["booked"],   /* rebooking a missed appointment is normal */
+  };
+
+  const canApptTransition = (from, to) => (APPT_MACHINE[from] || []).indexOf(to) !== -1;
+
+  function bookAppointment(a, at) {
+    if (!a) return { ok: false, reason: "NO_APPOINTMENT" };
+    if (!txt(a.patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!txt(a.providerId)) return { ok: false, reason: "PROVIDER_REQUIRED" };
+    if (!a.startsAt) return { ok: false, reason: "TIME_REQUIRED" };
+    if (ms(a.startsAt) < ms(at)) return { ok: false, reason: "IN_THE_PAST" };
+    return { ok: true, appointment: { ...a, state: APPT_STATE.BOOKED, bookedAt: at } };
+  }
+
+  /* An appointment becoming an encounter is the hinge of the whole product:
+     it is the moment the network layer hands over to the record layer. It
+     may only happen when the patient actually turned up, because an encounter
+     is an assertion that a clinician saw a person. */
+  function appointmentToEncounter(a) {
+    if (!a) return { ok: false, reason: "NO_APPOINTMENT" };
+    if (a.state !== APPT_STATE.ARRIVED) return { ok: false, reason: "NOT_ARRIVED" };
+    return { ok: true, encounter: {
+      patientId: a.patientId, clinicianId: a.providerId, facilityId: a.facilityId || null,
+      type: a.encounterType || (E.ENC_TYPE && E.ENC_TYPE.OUTPATIENT) || "outpatient",
+      appointmentId: a.id || null,
+      state: (E.ENC_STATE && E.ENC_STATE.DRAFT) || "draft",
+      startedAt: a.arrivedAt || a.startsAt,
+    } };
+  }
+
+  /* =========================================================
+     ٥ · مقدّمو الرعاية والمنشآت — PROVIDERS & ORGANIZATIONS
+     =========================================================
+     Kept deliberately thin. The network already has a rich directory in
+     data.js; this is the CLINICAL contract that directory must satisfy for a
+     provider to be allowed to touch a record.
+     ========================================================= */
+
+  const PROVIDER_KIND = { DOCTOR: "doctor", NURSE: "nurse", PHARMACIST: "pharmacist",
+                          LAB: "lab", RADIOLOGY: "radiology", ADMIN: "admin" };
+
+  const ORG_KIND = { CLINIC: "clinic", HOSPITAL: "hospital", PHARMACY: "pharmacy",
+                     LAB: "laboratory", IMAGING: "imaging-centre" };
+
+  const LICENSE = { VERIFIED: "VERIFIED", SELF_ASSERTED: "SELF_ASSERTED",
+                    UNVERIFIED: "UNVERIFIED", REVOKED: "REVOKED", EXPIRED: "EXPIRED" };
+
+  /* Nobody writes themselves into the record as trustworthy. The three things
+     below are the minimum a provider must have before anything they assert
+     is allowed to carry weight, and each is checkable by a human being. */
+  const VERIFY_REQUIRED = ["licenseNumber", "syndicateId", "specialty"];
+
+  function providerVerification(p) {
+    if (!p) return { status: LICENSE.UNVERIFIED, missing: ["provider"] };
+    const missing = VERIFY_REQUIRED.filter((k) => !txt(p[k]));
+    if (p.licenseStatus === LICENSE.REVOKED) return { status: LICENSE.REVOKED, missing };
+    if (p.licenseExpiry && ms(p.licenseExpiry) < Date.now()) return { status: LICENSE.EXPIRED, missing };
+    if (p.licenseStatus === LICENSE.VERIFIED && !missing.length) return { status: LICENSE.VERIFIED, missing: [] };
+    if (missing.length < VERIFY_REQUIRED.length) return { status: LICENSE.SELF_ASSERTED, missing };
+    return { status: LICENSE.UNVERIFIED, missing };
+  }
+
+  /* Two different gates, and conflating them is a real safety bug: an
+     unverified doctor may still READ a record the patient explicitly shared
+     with them — refusing that would just push the consultation back to a
+     WhatsApp photo, which is strictly worse. What they may not do is WRITE
+     an assertion other clinicians will rely on. */
+  const canWriteClinical = (p) => providerVerification(p).status === LICENSE.VERIFIED;
+  const canReadShared = (p) => {
+    const s = providerVerification(p).status;
+    return s === LICENSE.VERIFIED || s === LICENSE.SELF_ASSERTED;
+  };
+
+  /* =========================================================
+     ٦ · ملف المريض — PATIENT PROFILE
+     =========================================================
+     One assembled view of "who is this person", derived from the domains
+     above rather than stored as its own copy. Stored summaries go stale;
+     that is precisely the mechanism by which a stopped drug keeps appearing
+     on a card for three years.
+     ========================================================= */
+
+  function patientProfile(p, rec, now) {
+    if (!p) return null;
+    const r = rec || {};
+    const meds = E.currentMedications ? E.currentMedications(r.medications, now) : (r.medications || []);
+    const conds = E.activeConditions ? E.activeConditions(r.conditions, now) : (r.conditions || []);
+    const allergies = E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []);
+    return {
+      id: p.id,
+      name: E.fullName ? E.fullName(p) : p.name,
+      age: E.ageOf ? E.ageOf(p.birthDate, now) : null,
+      sex: p.sex || null,
+      birthDate: p.birthDate || null,
+      birthDateEstimated: !!p.birthDateEstimated,
+      photo: p.photo || null,
+      contacts: p.contacts || [],
+      emergencyContact: p.emergencyContact || null,
+      identifiers: (p.identifiers || []).map((i) => ({
+        type: i.type, verification: E.verifyLevel ? E.verifyLevel(i) : "self_declared",
+        /* The VALUE is not in the profile projection. A screen that needs to
+           display a card number asks for it explicitly and gets audited for
+           it; a summary object that carries it everywhere leaks it into every
+           log, cache and share by default. */
+      })),
+      activeConditions: conds.length,
+      currentMedications: meds.length,
+      criticalAllergies: allergies.length,
+      immunizations: givenImmunizations(r.immunizations).length,
+      documents: (r.documents || []).length,
+      awaitingVerification: awaitingVerification(r.documents).length,
+      /* The single most useful number on a doctor's first screen: how much of
+         this record is claims nobody has checked yet. */
+      registeredAt: p.registeredAt || null,
+    };
+  }
+
+  /* =========================================================
+     ٧ · ملخّص ما قبل الزيارة — PRE-VISIT BRIEF
+     =========================================================
+     The brief's section 17, and the real test of the whole product: not how
+     much the record holds, but how fast the important part comes out of it.
+
+     Everything here is DERIVED. Nothing is a stored summary. It is ordered by
+     what can hurt the patient in the next ten minutes, not by recency.
+     ========================================================= */
+
+  function preVisitBrief(p, rec, now, lang) {
+    const ar = lang !== "en";
+    const r = rec || {};
+    const prof = patientProfile(p, r, now);
+    if (!prof) return null;
+
+    const allergies = (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []));
+    const conds = (E.activeConditions ? E.activeConditions(r.conditions, now) : (r.conditions || []));
+    const meds = (E.currentMedications ? E.currentMedications(r.medications, now) : (r.medications || []));
+
+    /* Abnormal results NOBODY has acknowledged. This is the failure mode the
+       closed-loop literature says kills most often: the result arrived, it
+       was abnormal, and it landed in a queue no human owned. */
+    const unacked = (r.results || [])
+      .filter((x) => (E.isAbnormal ? E.isAbnormal(x) : false) && !x.acknowledgedBy)
+      .sort((a, b) => ms(b.effectiveAt) - ms(a.effectiveAt));
+
+    const pending = (r.results || []).filter((x) => x.status === "pending");
+    const open = E.openTasks ? E.openTasks(r.tasks, now) : (r.tasks || []);
+    const overdue = open.filter((t) => (E.isOverdue ? E.isOverdue(t, now) : false));
+
+    /* One trend per test, kept only when it MOVED — not the newest, not the
+       first. A brief that lists every lab is a brief nobody reads.
+
+       `code` and `effectiveAt` are emr.js's field names, not names invented
+       here. The first version of this function used `test` and `at`, which
+       type-checked perfectly and silently produced zero trends forever,
+       because nothing in JavaScript objects to reading a property that was
+       never going to be there. */
+    const moved = [];
+    for (const code of [...new Set((r.results || []).map((x) => x.code).filter(Boolean))]) {
+      const t = E.trend ? E.trend(r.results, code) : null;
+      if (t && t.comparable && t.direction && t.direction !== "flat") moved.push(t);
+    }
+
+    const lastEnc = (r.encounters || [])
+      .filter((e) => e.state !== (E.ENC_STATE && E.ENC_STATE.VOID))
+      .sort((a, b) => ms(b.startedAt) - ms(a.startedAt))[0] || null;
+
+    return {
+      headline: `${prof.age != null ? prof.age : "؟"} ${ar ? "سنة" : "y"} · ${sexLabel(prof.sex, ar)}`,
+      patient: prof,
+      /* Ordered by danger, deliberately. */
+      allergies: allergies.map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      /* The brief is a PROJECTION with its own field names — `name` here is
+         the label a screen prints, deliberately decoupled from the storage
+         field it came from. Sections 25 and 29: the UI must not be wired
+         straight to the record's schema. */
+      active: conds.map((c) => ({ name: c.display, since: c.onsetDate || null,
+        lastReviewed: c.lastReviewed || null, chronic: c.chronic === true,
+        /* activeConditions already computed this — recomputing it here is how
+           two answers to the same question start to disagree. */
+        stale: c.stale === true })),
+      medications: meds.map((m) => ({ name: m.display, dose: m.dose || null,
+        frequency: m.frequency || null, indication: m.indication || null,
+        status: E.medStatus ? E.medStatus(m, now) : m.status })),
+      unacknowledgedAbnormal: unacked.slice(0, 4).map((x) => ({ code: x.code, name: x.display || x.code,
+        value: x.value, unit: x.unit || null, at: x.effectiveAt })),
+      trends: moved.slice(0, 3),
+      pending: pending.map((x) => ({ code: x.code, name: x.display || x.code, orderedAt: x.orderedAt || null })),
+      overdue: overdue.map((t) => ({ kind: t.kind, dueAt: t.dueAt, about: t.about || null })),
+      lastEncounter: lastEnc ? { at: lastEnc.startedAt, clinicianId: lastEnc.clinicianId,
+        assessment: lastEnc.assessment || null } : null,
+      unverifiedClaims: prof.awaitingVerification,
+      /* An explicit statement of what this brief is NOT, carried in the data
+         so no UI can quietly drop it. A brief is a starting point for a
+         conversation with the patient, never a substitute for one. */
+      caveat: ar
+        ? "هذا ملخّص مشتق من السجل. لا يغني عن سؤال المريض، وما لم يُوثَّق لا يظهر هنا."
+        : "Derived from the record. It does not replace asking the patient, and what was never recorded is not here.",
+    };
+  }
+
+  const sexLabel = (s, ar) => s === "male" ? (ar ? "ذكر" : "male")
+    : s === "female" ? (ar ? "أنثى" : "female") : (ar ? "غير محدّد" : "unspecified");
+
+  root.REC = {
+    DOC_TYPE, DOC_ORIGIN, EXTRACT_STATE, CLAIM_KIND, isRetainable,
+    canAttach, attachDocument, recordExtraction, confirmClaim,
+    confirmedClaims, pendingClaims, awaitingVerification,
+    IMM_STATE, IMM_EVIDENCE, recordImmunization, givenImmunizations, immunityFor,
+    FREQ, RX_REQUIRED, canPrescribe, issuePrescription, DISPENSE_STATE, recordDispense,
+    APPT_STATE, APPT_MACHINE, canApptTransition, bookAppointment, appointmentToEncounter,
+    PROVIDER_KIND, ORG_KIND, LICENSE, providerVerification, canWriteClinical, canReadShared,
+    patientProfile, preVisitBrief, sexLabel,
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/* ============================================================
+   قريب · الموافقة والمشاركة وسجل الوصول — CONSENT · SHARING · ACCESS LOG
+   ============================================================
+   Sections 13, 14, 15 and 26 of the brief, and the part of the product that
+   decides whether anyone in Iraq will use it.
+
+   WHY THIS IS OPT-IN, AND WHY THAT IS NOT A DETAIL.
+
+   Abu Dhabi's Malaffi runs an opt-OUT consent model, and it works there. It
+   works because a regulator MANDATED participation for every licensed
+   facility: the patient's data was going into the exchange whether or not
+   they engaged, so opt-out was the mechanism that gave them a way back.
+
+   Qareeb has no mandate and, more importantly, no statute. Iraq has no data
+   protection law in force, no data protection authority, and no statutory
+   basis for consent to health-record sharing at all. In that vacuum,
+   DOCUMENTED CONSENT IS NOT A COMPLIANCE CHECKBOX — IT IS THE ONLY
+   DEFENSIBLE LEGAL BASIS THE PRODUCT HAS. Copying Malaffi's opt-out here
+   would be copying the mechanism while leaving behind the entire legal
+   structure that makes it lawful.
+
+   So every rule below runs the other way: nothing is shared until the
+   patient says so, every share is scoped, every share expires on its own,
+   and every read is written down where the patient can see it.
+
+   THE SECOND RULE: A SHARE THAT DOES NOT EXPIRE IS NOT A SHARE, IT IS A
+   TRANSFER. A patient who taps "share with Dr Ahmed" in a waiting room is
+   consenting to a consultation, not to permanent access. Time-boxing is
+   therefore structural — there is no code path that creates an unbounded
+   grant — and revocation is immediate rather than a request.
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  const E = root.EMR || {};
+  const ms = E.ms || ((t) => (t == null ? null : (typeof t === "number" ? t : new Date(t).getTime())));
+  const MIN = 60000, HOUR = 3600000, DAY = 86400000;
+  const txt = (v) => String(v == null ? "" : v).trim();
+
+  /* =========================================================
+     ١ · نطاقات المشاركة — SHARE SCOPES
+     =========================================================
+     The scopes are deliberately CLINICAL rather than technical. A patient
+     cannot meaningfully consent to "table access"; they can meaningfully
+     consent to "my allergies and my current medicines". Each scope is a thing
+     a person can picture.
+     ========================================================= */
+
+  const SCOPE = {
+    SUMMARY: "summary",             /* اللقطة السريرية */
+    ALLERGIES: "allergies",
+    MEDICATIONS: "medications",
+    CONDITIONS: "conditions",
+    PROCEDURES: "procedures",
+    LABS: "labs",
+    IMAGING: "imaging",
+    DOCUMENTS: "documents",
+    ENCOUNTERS: "encounters",
+    IMMUNIZATIONS: "immunizations",
+    TIMELINE: "timeline",
+  };
+  const ALL_SCOPES = Object.values(SCOPE);
+
+  /* The safety floor. A clinician who has been given ANY access at all gets
+     these three whether or not the patient ticked them, because a doctor who
+     can see the record but not the penicillin allergy is more dangerous than
+     a doctor who cannot see the record at all — the first will prescribe
+     believing they checked. This is the one place where consent is overridden,
+     it overrides in exactly one direction, and it is stated on the share
+     screen rather than buried here. */
+  const SAFETY_FLOOR = [SCOPE.ALLERGIES];
+
+  /* Sensitive material is NEVER in a default share and is never added by the
+     safety floor. Iraq's context makes this sharper than the international
+     literature does: with no data protection law and religion printed on the
+     national ID, a category-level leak is not an embarrassment, it is a
+     danger to the person. */
+  const SENSITIVE_CLASSES = (E.CLASS && [E.CLASS.SENSITIVE]) || ["sensitive"];
+
+  const DEFAULT_SCOPES = [SCOPE.SUMMARY, SCOPE.ALLERGIES, SCOPE.MEDICATIONS, SCOPE.CONDITIONS];
+
+  /* =========================================================
+     ٢ · مدد المشاركة — DURATIONS
+     ========================================================= */
+
+  const DURATION = {
+    VISIT: { code: "VISIT", ms: 4 * HOUR, ar: "هذه الزيارة", en: "this visit" },
+    DAY: { code: "DAY", ms: DAY, ar: "٢٤ ساعة", en: "24 hours" },
+    WEEK: { code: "WEEK", ms: 7 * DAY, ar: "٧ أيام", en: "7 days" },
+    MONTH: { code: "MONTH", ms: 30 * DAY, ar: "٣٠ يوماً", en: "30 days" },
+    /* Ninety days is the ceiling, and it exists so that a patient with a
+       chronic condition and one regular doctor is not re-consenting every
+       week — which is how consent fatigue turns into rubber-stamping. There
+       is deliberately no "forever". */
+    QUARTER: { code: "QUARTER", ms: 90 * DAY, ar: "٩٠ يوماً", en: "90 days" },
+  };
+  const MAX_DURATION_MS = DURATION.QUARTER.ms;
+
+  const SHARE_STATE = { ACTIVE: "active", EXPIRED: "expired", REVOKED: "revoked" };
+
+  /* =========================================================
+     ٣ · إنشاء مشاركة — GRANTING
+     ========================================================= */
+
+  function canGrant(req, now) {
+    if (!req) return { ok: false, reason: "NO_REQUEST" };
+    if (!txt(req.patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!txt(req.granteeId)) return { ok: false, reason: "GRANTEE_REQUIRED" };
+    /* The patient, and only the patient, grants. A clinician cannot grant
+       themselves access to a chart, and a clinic cannot grant access on a
+       patient's behalf "because they said it was fine at the desk". */
+    if (txt(req.grantedBy) !== txt(req.patientId)) return { ok: false, reason: "PATIENT_MUST_GRANT" };
+    const scopes = req.scopes || [];
+    if (!scopes.length) return { ok: false, reason: "SCOPE_REQUIRED" };
+    const unknown = scopes.filter((s) => ALL_SCOPES.indexOf(s) === -1);
+    if (unknown.length) return { ok: false, reason: "UNKNOWN_SCOPE", scopes: unknown };
+    const d = DURATION[req.duration];
+    if (!d) return { ok: false, reason: "DURATION_REQUIRED" };
+    /* How the patient said yes, recorded because it is the evidence that the
+       consent happened at all. In a country with no statute, an undocumented
+       consent is indistinguishable from no consent. */
+    if (!MODALITY[req.modality]) return { ok: false, reason: "MODALITY_REQUIRED" };
+    return { ok: true };
+  }
+
+  const MODALITY = {
+    IN_APP: { code: "IN_APP", ar: "موافقة داخل التطبيق", en: "in-app confirmation" },
+    OTP: { code: "OTP", ar: "رمز تحقق برسالة", en: "SMS one-time code" },
+    QR: { code: "QR", ar: "مسح رمز من هاتف المريض", en: "QR scanned from the patient's phone" },
+    WITNESSED: { code: "WITNESSED", ar: "موافقة شفهية بحضور شاهد", en: "witnessed verbal consent" },
+    PAPER: { code: "PAPER", ar: "استمارة ورقية موقّعة", en: "signed paper form" },
+  };
+
+  function grantShare(req, now) {
+    const g = canGrant(req, now);
+    if (!g.ok) return g;
+    const d = DURATION[req.duration];
+    /* The floor is unioned in, sensitive classes are subtracted out, and both
+       happen HERE rather than at read time — so what the patient is shown on
+       the confirmation screen is exactly what was stored. */
+    const scopes = Array.from(new Set([...(req.scopes || []), ...SAFETY_FLOOR]));
+    return { ok: true, share: {
+      id: req.id || null,
+      patientId: req.patientId,
+      granteeId: req.granteeId,
+      granteeName: req.granteeName || null,
+      scopes,
+      includesSensitive: false,     /* never on a default grant — see grantSensitive */
+      duration: d.code,
+      grantedAt: now,
+      expiresAt: ms(now) + d.ms,
+      modality: req.modality,
+      language: req.language || "ar",
+      state: SHARE_STATE.ACTIVE,
+      revokedAt: null, revokeReason: null,
+      /* What the patient was actually shown when they agreed. Consent to a
+         thing you were not shown is not consent, and a version number is how
+         you prove later which words were on the screen. */
+      termsVersion: req.termsVersion || TERMS_VERSION,
+    } };
+  }
+
+  const TERMS_VERSION = "qareeb-share-1";
+
+  /* Sensitive records take a SECOND, separate act of consent. Bundling them
+     into the same tap as "share my allergies" is how a patient discloses a
+     psychiatric history they did not mean to disclose. */
+  function grantSensitive(share, confirm, now) {
+    if (!share) return { ok: false, reason: "NO_SHARE" };
+    if (share.state !== SHARE_STATE.ACTIVE) return { ok: false, reason: "NOT_ACTIVE" };
+    if (!confirm || confirm.by !== share.patientId) return { ok: false, reason: "PATIENT_MUST_CONFIRM" };
+    if (!confirm.acknowledged) return { ok: false, reason: "ACKNOWLEDGEMENT_REQUIRED" };
+    return { ok: true, share: { ...share, includesSensitive: true, sensitiveGrantedAt: now } };
+  }
+
+  /* =========================================================
+     ٤ · حالة المشاركة — STATE
+     =========================================================
+     Derived, never stored as a mutable flag. A stored "active" boolean is a
+     lie waiting for the clock to catch it — the expiry has to be computed
+     from the timestamp on every read, or a share that lapsed at 3am is still
+     open at 9am because no job ran.
+     ========================================================= */
+
+  function shareState(share, now) {
+    if (!share) return SHARE_STATE.REVOKED;
+    if (share.state === SHARE_STATE.REVOKED) return SHARE_STATE.REVOKED;
+    if (ms(now) >= ms(share.expiresAt)) return SHARE_STATE.EXPIRED;
+    return SHARE_STATE.ACTIVE;
+  }
+
+  const isShareActive = (share, now) => shareState(share, now) === SHARE_STATE.ACTIVE;
+
+  function revokeShare(share, by, now, reason) {
+    if (!share) return { ok: false, reason: "NO_SHARE" };
+    if (share.state === SHARE_STATE.REVOKED) return { ok: false, reason: "ALREADY_REVOKED" };
+    /* Revocation needs no reason and no approval. A patient who has to
+       justify withdrawing consent has not really got consent to withdraw. */
+    if (txt(by) !== txt(share.patientId)) return { ok: false, reason: "PATIENT_MUST_REVOKE" };
+    return { ok: true, share: { ...share, state: SHARE_STATE.REVOKED,
+      revokedAt: now, revokeReason: reason || null } };
+  }
+
+  const activeShares = (list, now) => (list || []).filter((s) => isShareActive(s, now));
+
+  /* Expiring soon, so the patient can extend deliberately rather than
+     discover at the clinic door that access lapsed. */
+  const expiringSoon = (list, now, withinMs) => (list || [])
+    .filter((s) => isShareActive(s, now) && ms(s.expiresAt) - ms(now) <= (withinMs || DAY))
+    .sort((a, b) => ms(a.expiresAt) - ms(b.expiresAt));
+
+  /* =========================================================
+     ٥ · قرار الوصول — THE ACCESS DECISION
+     =========================================================
+     One function, one answer, and it is the only door into the record.
+     Everything else in this file exists to make this call correct.
+     ========================================================= */
+
+  function decideAccess(ctx) {
+    const { actor, patientId, scope, dataClass, shares, breakGlass, now } = ctx || {};
+    if (!actor || !txt(actor.id)) return deny("NO_ACTOR");
+    if (!txt(patientId)) return deny("NO_PATIENT");
+
+    /* The patient's own record. Always readable by them — including the
+       audit log, which is the point of section 15. */
+    if (actor.id === patientId) return allow("SELF", ALL_SCOPES);
+
+    /* An emergency override is checked BEFORE the share, not after, because
+       the entire reason it exists is that no share was granted. It is
+       time-boxed by emr.js and it notifies the patient. */
+    if (breakGlass && E.breakGlassActive && E.breakGlassActive(breakGlass, now)) {
+      return { ok: true, basis: "BREAK_GLASS", scopes: ALL_SCOPES,
+        sensitive: true, mustNotify: true, auditRequired: true };
+    }
+
+    const share = (shares || []).find((s) => s.granteeId === actor.id && s.patientId === patientId
+      && isShareActive(s, now));
+    if (!share) return deny("NO_ACTIVE_SHARE");
+
+    if (scope && share.scopes.indexOf(scope) === -1) {
+      return { ok: false, basis: "SHARE", reason: "SCOPE_NOT_GRANTED", scopes: share.scopes,
+        auditRequired: true };
+    }
+
+    /* Sensitive material needs the second grant even inside an active share,
+       and the check comes BEFORE the general allow so it cannot be skipped
+       by a scope that happens to be ticked. */
+    if (dataClass && SENSITIVE_CLASSES.indexOf(dataClass) !== -1 && !share.includesSensitive) {
+      return { ok: false, basis: "SHARE", reason: "SENSITIVE_NOT_GRANTED",
+        scopes: share.scopes, auditRequired: true };
+    }
+
+    return { ok: true, basis: "SHARE", shareId: share.id, scopes: share.scopes,
+      sensitive: !!share.includesSensitive, mustNotify: false, auditRequired: true,
+      expiresAt: share.expiresAt };
+  }
+
+  const deny = (reason) => ({ ok: false, basis: null, reason, scopes: [], auditRequired: true });
+  const allow = (basis, scopes) => ({ ok: true, basis, scopes, sensitive: true,
+    mustNotify: false, auditRequired: basis !== "SELF" });
+
+  /* =========================================================
+     ٦ · سجل الوصول — ACCESS LOG
+     =========================================================
+     Section 15, and the brief is right that it is not a secondary feature.
+     It is the thing that makes the consent model believable: a promise that
+     can be checked is a different object from a promise that cannot.
+
+     Note that DENIED attempts are logged too. A record that only shows
+     successful reads cannot answer "did anyone TRY to open my file", which
+     is the question a patient in a small city actually has.
+     ========================================================= */
+
+  function accessEntry(ctx, decision, now) {
+    const { actor, patientId, scope, dataClass } = ctx || {};
+    return {
+      patientId,
+      actorId: actor && actor.id || null,
+      actorName: actor && actor.name || null,
+      actorRole: actor && actor.role || null,
+      organizationId: actor && actor.organizationId || null,
+      scope: scope || null,
+      dataClass: dataClass || null,
+      granted: !!(decision && decision.ok),
+      basis: decision && decision.basis || null,
+      reason: decision && decision.reason || null,
+      shareId: decision && decision.shareId || null,
+      at: now,
+    };
+  }
+
+  /* What the patient sees. Grouped by actor and session rather than listed
+     raw, because forty rows saying "viewed medications" is noise, and noise
+     is how a real intrusion hides. */
+  const SESSION_MS = 30 * MIN;
+
+  function accessHistory(log, now, lang) {
+    const ar = lang !== "en";
+    const rows = (log || []).slice().sort((a, b) => ms(b.at) - ms(a.at));
+    const out = [];
+    for (const r of rows) {
+      const prev = out[out.length - 1];
+      if (prev && prev.actorId === r.actorId && prev.granted === r.granted
+          && prev.basis === r.basis && ms(prev.at) - ms(r.at) <= SESSION_MS) {
+        if (r.scope && prev.scopes.indexOf(r.scope) === -1) prev.scopes.push(r.scope);
+        prev.at = r.at;   /* the session's earliest moment */
+        prev.count++;
+        continue;
+      }
+      out.push({ actorId: r.actorId, actorName: r.actorName, actorRole: r.actorRole,
+        organizationId: r.organizationId, granted: r.granted, basis: r.basis,
+        reason: r.reason, scopes: r.scope ? [r.scope] : [], at: r.at, count: 1,
+        label: basisLabel(r, ar) });
+    }
+    return out;
+  }
+
+  function basisLabel(r, ar) {
+    if (!r.granted) return ar ? "محاولة وصول مرفوضة" : "access attempt refused";
+    switch (r.basis) {
+      case "BREAK_GLASS": return ar ? "وصول طوارئ — بلا موافقة مسبقة" : "emergency access — without prior consent";
+      case "SELF": return ar ? "أنت" : "you";
+      default: return ar ? "بموافقتك" : "with your consent";
+    }
+  }
+
+  /* The three things a patient should be told without having to look. */
+  function accessAlerts(log, now, lang) {
+    const ar = lang !== "en";
+    const since = ms(now) - 30 * DAY;
+    const recent = (log || []).filter((r) => ms(r.at) >= since);
+    const alerts = [];
+    const bg = recent.filter((r) => r.basis === "BREAK_GLASS");
+    if (bg.length) alerts.push({ kind: "BREAK_GLASS", count: bg.length, at: bg[0].at,
+      text: ar ? "فُتح ملفك بوصول طوارئ" : "your record was opened under emergency access" });
+    const denied = recent.filter((r) => !r.granted);
+    if (denied.length) alerts.push({ kind: "DENIED", count: denied.length, at: denied[0].at,
+      text: ar ? "محاولات وصول مرفوضة" : "refused access attempts" });
+    return alerts;
+  }
+
+  /* =========================================================
+     ٧ · طلب الوصول — THE DOCTOR'S REQUEST
+     =========================================================
+     The other direction: a clinician in front of a patient asks, the patient
+     approves on their own phone. This is the flow that actually happens in a
+     consulting room, and building only the patient-initiated share would
+     leave the common case to a workaround.
+     ========================================================= */
+
+  const REQ_STATE = { PENDING: "pending", APPROVED: "approved", DECLINED: "declined", EXPIRED: "expired" };
+  /* A request a patient did not answer must die on its own. A pending request
+     that lives forever is a consent prompt waiting to be tapped by accident
+     six weeks later. */
+  const REQUEST_TTL = 15 * MIN;
+
+  function requestAccess(req, now) {
+    if (!req) return { ok: false, reason: "NO_REQUEST" };
+    if (!txt(req.patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!req.requester || !txt(req.requester.id)) return { ok: false, reason: "REQUESTER_REQUIRED" };
+    const scopes = req.scopes && req.scopes.length ? req.scopes : DEFAULT_SCOPES;
+    const unknown = scopes.filter((s) => ALL_SCOPES.indexOf(s) === -1);
+    if (unknown.length) return { ok: false, reason: "UNKNOWN_SCOPE", scopes: unknown };
+    /* The clinician states WHY, and the patient sees it. "Dr Ahmed wants to
+       see your medicines" is a decision a person can make; an unexplained
+       permission prompt is one they can only guess at. */
+    if (!txt(req.purpose)) return { ok: false, reason: "PURPOSE_REQUIRED" };
+    return { ok: true, request: { ...req, scopes, state: REQ_STATE.PENDING,
+      requestedAt: now, expiresAt: ms(now) + REQUEST_TTL } };
+  }
+
+  function requestState(req, now) {
+    if (!req) return REQ_STATE.EXPIRED;
+    if (req.state !== REQ_STATE.PENDING) return req.state;
+    return ms(now) >= ms(req.expiresAt) ? REQ_STATE.EXPIRED : REQ_STATE.PENDING;
+  }
+
+  function respondToRequest(req, decision, by, now, opts) {
+    if (!req) return { ok: false, reason: "NO_REQUEST" };
+    if (requestState(req, now) !== REQ_STATE.PENDING) return { ok: false, reason: "NOT_PENDING" };
+    if (txt(by) !== txt(req.patientId)) return { ok: false, reason: "PATIENT_MUST_RESPOND" };
+    if (decision === REQ_STATE.DECLINED) {
+      return { ok: true, request: { ...req, state: REQ_STATE.DECLINED, respondedAt: now }, share: null };
+    }
+    if (decision !== REQ_STATE.APPROVED) return { ok: false, reason: "BAD_DECISION" };
+    const o = opts || {};
+    /* Approving grants AT MOST what was asked for. A patient may narrow the
+       request; they can never be talked into widening it by the same tap. */
+    const asked = req.scopes || [];
+    const chosen = (o.scopes || asked).filter((s) => asked.indexOf(s) !== -1);
+    const g = grantShare({
+      id: o.shareId || null,
+      patientId: req.patientId, grantedBy: req.patientId,
+      granteeId: req.requester.id, granteeName: req.requester.name || null,
+      scopes: chosen, duration: o.duration || "VISIT",
+      modality: o.modality || "IN_APP", language: o.language || "ar",
+    }, now);
+    if (!g.ok) return g;
+    return { ok: true, request: { ...req, state: REQ_STATE.APPROVED, respondedAt: now }, share: g.share };
+  }
+
+  /* =========================================================
+     ٨ · الملخّص المحمول — THE PATIENT-HELD SUMMARY
+     =========================================================
+     The strongest single evidence in the whole research pass: Mozambique
+     issued 134 patient-held records and 121 (90.3%) were still in the
+     patient's possession twelve months later, in good condition, with every
+     visit captured. The authors concluded it could replace the hospital's own
+     paper file.
+
+     For Iraq that is not a fallback, it is the realistic v1 longitudinal
+     record: care is private and fragmented, there is no national exchange to
+     join, and the patient already carries their own history in a plastic bag.
+     A printable Arabic summary with a redeemable code works in a clinic with
+     no computer, survives a power cut, and needs no institution's permission.
+
+     The code is short-lived and single-use by design. A QR printed on paper
+     that opens the whole record forever is a record with no access control at
+     all — anyone who photographs the page has it.
+     ========================================================= */
+
+  const CARRY_TTL = 72 * HOUR;
+
+  function issueCarryCode(patientId, scopes, now, code) {
+    if (!txt(patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
+    if (!txt(code)) return { ok: false, reason: "CODE_REQUIRED" };
+    const chosen = (scopes && scopes.length ? scopes : DEFAULT_SCOPES)
+      .filter((s) => ALL_SCOPES.indexOf(s) !== -1);
+    if (!chosen.length) return { ok: false, reason: "SCOPE_REQUIRED" };
+    return { ok: true, carry: {
+      code, patientId,
+      scopes: Array.from(new Set([...chosen, ...SAFETY_FLOOR])),
+      includesSensitive: false,
+      issuedAt: now, expiresAt: ms(now) + CARRY_TTL,
+      redeemedBy: null, redeemedAt: null,
+    } };
+  }
+
+  function redeemCarryCode(carry, redeemer, now) {
+    if (!carry) return { ok: false, reason: "NO_CODE" };
+    if (carry.redeemedBy) return { ok: false, reason: "ALREADY_REDEEMED" };
+    if (ms(now) >= ms(carry.expiresAt)) return { ok: false, reason: "EXPIRED" };
+    if (!redeemer || !txt(redeemer.id)) return { ok: false, reason: "REDEEMER_REQUIRED" };
+    /* Redeeming produces an ordinary, ordinary-length share — the paper is
+       the introduction, not the access. */
+    const g = grantShare({
+      patientId: carry.patientId, grantedBy: carry.patientId,
+      granteeId: redeemer.id, granteeName: redeemer.name || null,
+      scopes: carry.scopes, duration: "VISIT", modality: "QR",
+    }, now);
+    if (!g.ok) return g;
+    return { ok: true, carry: { ...carry, redeemedBy: redeemer.id, redeemedAt: now }, share: g.share };
+  }
+
+  /* =========================================================
+     ٩ · التسمية بالعربية — LABELS
+     =========================================================
+     Scope names live with the scopes so that a screen cannot invent its own
+     wording for a legal object. What the patient consented to and what the
+     patient was shown must be the same string.
+     ========================================================= */
+
+  const SCOPE_LABEL = {
+    summary: { ar: "اللقطة السريرية", en: "Clinical summary" },
+    allergies: { ar: "الحساسية", en: "Allergies" },
+    medications: { ar: "الأدوية الحالية", en: "Current medications" },
+    conditions: { ar: "المشاكل الصحية النشطة", en: "Active conditions" },
+    procedures: { ar: "العمليات السابقة", en: "Previous procedures" },
+    labs: { ar: "التحاليل", en: "Lab results" },
+    imaging: { ar: "الأشعة", en: "Imaging" },
+    documents: { ar: "التقارير والمستندات", en: "Documents" },
+    encounters: { ar: "الزيارات السابقة", en: "Previous visits" },
+    immunizations: { ar: "التطعيمات", en: "Immunizations" },
+    timeline: { ar: "الخط الزمني", en: "Timeline" },
+  };
+  const scopeLabel = (s, lang) => (SCOPE_LABEL[s] || { ar: s, en: s })[lang === "en" ? "en" : "ar"];
+
+  root.CONSENT = {
+    SCOPE, ALL_SCOPES, DEFAULT_SCOPES, SAFETY_FLOOR, SENSITIVE_CLASSES,
+    DURATION, MAX_DURATION_MS, MODALITY, TERMS_VERSION,
+    SHARE_STATE, canGrant, grantShare, grantSensitive,
+    shareState, isShareActive, revokeShare, activeShares, expiringSoon,
+    decideAccess,
+    accessEntry, accessHistory, accessAlerts, SESSION_MS,
+    REQ_STATE, REQUEST_TTL, requestAccess, requestState, respondToRequest,
+    CARRY_TTL, issueCarryCode, redeemCarryCode,
+    SCOPE_LABEL, scopeLabel,
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);
 
@@ -2288,7 +3594,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260729-1010",
+  build: "20260729-1053",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
@@ -3030,7 +4336,7 @@ const T = {
     doctorsIn: "طبيب في", allSpecs: "كل الاختصاصات", sessions: "أوقات الدوام",
     week: "أسبوع الطبيب", about: "معلومات", reportInfo: "الإبلاغ عن معلومة خاطئة",
     myRequests: "طلباتي", savedItems: "المحفوظات", trust: "الثقة والتوثيق",
-    explorer: "الأدوية",
+    explorer: "الأدوية", record: "ملفي",
     emergency: "طوارئ", ambulance: "الإسعاف", nearestEr: "أقرب طوارئ",
     orderWa: "اطلب عبر واتساب", availableAt: "متوفر في", stockedBy: "يُصرف من",
     male: "طبيب", female: "طبيبة", anyGender: "الكل",
@@ -3055,7 +4361,7 @@ const T = {
     doctorsIn: "doctors in", allSpecs: "All specialties", sessions: "Sessions",
     week: "The doctor's week", about: "About", reportInfo: "Report incorrect info",
     myRequests: "My requests", savedItems: "Saved", trust: "Trust & verification",
-    explorer: "Medicines",
+    explorer: "Medicines", record: "My record",
     emergency: "Emergency", ambulance: "Ambulance", nearestEr: "Nearest ER",
     orderWa: "Order via WhatsApp", availableAt: "Available at", stockedBy: "Dispensed by",
     male: "Male", female: "Female", anyGender: "Any",
@@ -3719,8 +5025,13 @@ function header(opts = {}) {
   </header>`;
 }
 
+/* Four slots, and the record earns one of them. The product's centre of
+   gravity is no longer "find a pharmacy that is open" — that is the entry
+   point, not the thing being built. A record that lives three taps deep
+   inside a settings menu is a record nobody accumulates, and an empty record
+   is worth nothing to the doctor it was built for. */
 function nav(active) {
-  const items = [["#/", "home", "home"], ["#/explorer", "pill", "explorer"],
+  const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
     ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
   return `<nav class="nav">${items.map(([h, i, k]) =>
     `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
@@ -8697,6 +10008,11 @@ function route() {
     case "me": return screenMe();
     case "trust": return screenTrust();
     case "admin": return screenAdmin();
+    /* The health record. Its screens live in js/ui-record.js — the two modes
+       (patient and clinician) are a separate domain from the discovery
+       network and do not belong in this file. */
+    case "record": return p[1] ? screenRecordSection(p[1], p[2]) : screenRecord();
+    case "clinical": return p[1] === "inbox" ? screenClinicalInbox() : screenClinical(p[1]);
     default: return screen404();
   }
 }
@@ -8845,6 +10161,1032 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     }).catch(() => {});
   });
 }
+
+</script>
+  <script>
+/* ============================================================
+   قريب · واجهة السجل الصحي — RECORD UI
+   ============================================================
+   Two experiences, deliberately not one (brief §22). A patient and a
+   clinician want opposite things from the same data: the patient wants their
+   own story, legible and under their control; the clinician wants the four
+   facts that change what they are about to do, in the next thirty seconds.
+
+   A single "record screen" serving both is the compromise that serves
+   neither — it is how you get a patient portal a doctor cannot use and a
+   clinical view a patient cannot read.
+
+   This file renders. It decides nothing. Every clinical judgement here is a
+   call into EMR / REC / CONSENT, so the rules are testable in Node without a
+   browser and there is exactly one place where each rule lives. If you find
+   yourself writing an `if` about clinical meaning in this file, it belongs in
+   a domain module instead.
+
+   Loaded AFTER app.js and uses its helpers (esc, isAR, header, nav, icon,
+   toast, LS, S). Those are globals by design in this codebase — see app.js.
+   ============================================================ */
+(function () {
+  "use strict";
+
+  const E = () => globalThis.EMR;
+  const R = () => globalThis.REC;
+  const C = () => globalThis.CONSENT;
+  const now = () => Date.now();
+  const ar = () => (typeof isAR === "function" ? isAR() : true);
+  const T = (a, e) => (ar() ? a : e);
+
+  /* Arabic numerals stay Western in the app's numeral face; that is a
+     deliberate identity decision made elsewhere and this file follows it. */
+  const n = (v) => `<span class="num">${esc(String(v))}</span>`;
+
+  /* ---------- the store ----------
+     Local-first on purpose. Power, not bandwidth, is Iraq's failure mode —
+     near-daily cuts, a national grid collapse in August 2025 — so a record
+     that only exists after a successful round trip is a record that vanishes
+     mid-consultation. Everything is written locally first and is readable
+     with the radio off. Server sync is the data plane's job, not this
+     file's. */
+  const KEY = "qareeb.record.v1";
+  function store() {
+    const d = LS.get(KEY, null);
+    return d || { patient: null, conditions: [], medications: [], allergies: [], procedures: [],
+      results: [], documents: [], immunizations: [], encounters: [], prescriptions: [],
+      episodes: [], tasks: [], appointments: [], shares: [], accessLog: [], requests: [] };
+  }
+  const save = (d) => LS.set(KEY, d);
+  function mutate(fn) { const d = store(); fn(d); save(d); return d; }
+  const uid = (p) => p + "-" + Math.random().toString(36).slice(2, 9);
+
+  /* Every read of the record by anyone who is not the patient goes through
+     here, so the access log cannot be forgotten at a call site. */
+  function readRecord(actor, scope, dataClass) {
+    const d = store();
+    const pid = d.patient && d.patient.id;
+    const decision = C().decideAccess({ actor, patientId: pid, scope, dataClass,
+      shares: d.shares, breakGlass: d.breakGlass, now: now() });
+    if (decision.auditRequired) {
+      mutate((x) => { x.accessLog.unshift(C().accessEntry({ actor, patientId: pid, scope, dataClass }, decision, now())); });
+    }
+    return { decision, record: decision.ok ? d : null };
+  }
+
+  /* =========================================================
+     المريض — PATIENT MODE
+     ========================================================= */
+
+  /* §5: progressive disclosure. What is dangerous first, what is current
+     second, everything else behind a tap. A record that opens onto fourteen
+     equal sections is a filing cabinet, not a health record. */
+  globalThis.screenRecord = function screenRecord() {
+    const d = store();
+    if (!d.patient) return screenRecordSetup();
+    const p = d.patient;
+    const prof = R().patientProfile(p, d, now());
+    const brief = R().preVisitBrief(p, d, now());
+    const alerts = C().accessAlerts(d.accessLog, now());
+    const live = C().activeShares(d.shares, now());
+    const pendingReq = (d.requests || []).filter((r) => C().requestState(r, now()) === C().REQ_STATE.PENDING);
+
+    return `${header({ back: true, title: T("ملفي الصحي", "My health record") })}
+    <section class="wrap" style="padding-top:14px">
+
+      ${pendingReq.map((rq) => `<a class="note note-w" href="#/record/request/${esc(rq.id)}">
+        ${icon("seal")}<div><b>${esc(rq.requester.name || rq.requester.id)}</b> ${T("يطلب الاطّلاع على ملفك", "is asking to see your record")}
+        <div class="t3" style="margin-top:2px">${esc(rq.purpose)}</div></div></a>`).join("")}
+
+      ${alerts.map((a) => `<a class="note ${a.kind === "BREAK_GLASS" ? "note-e" : "note-w"}" href="#/record/access">
+        ${icon("eye")}<div>${esc(a.text)} — ${n(a.count)}</div></a>`).join("")}
+
+      <!-- WHO — the identity strip. Small on the patient's own screen: they
+           know who they are. It is on the doctor's screen that this matters. -->
+      <div class="rowb" style="margin-top:4px">
+        <div>
+          <div class="d3" style="font-size:20px">${esc(prof.name)}</div>
+          <div class="t3">${prof.age != null ? n(prof.age) + " " + T("سنة", "y") : T("العمر غير مسجّل", "age not recorded")}
+            · ${esc(R().sexLabel(prof.sex, ar()))}
+            ${prof.birthDateEstimated ? ` · <span class="st st-q">${T("تاريخ تقديري", "estimated date")}</span>` : ""}</div>
+        </div>
+        <a class="b-g" href="#/record/profile">${T("تعديل", "Edit")}</a>
+      </div>
+
+      <!-- DANGER FIRST. Not chronology, not recency: what can hurt you. -->
+      ${panelAllergies(d.allergies)}
+
+      ${prof.awaitingVerification ? `<a class="note note-w" href="#/record/inbox">${icon("clock")}
+        <div>${n(prof.awaitingVerification)} ${T("معلومة مستخرجة من تقاريرك لم يؤكّدها طبيب بعد", "extracted from your reports, not yet confirmed by a doctor")}</div></a>` : ""}
+
+      <div class="sec">
+        <div class="sec-h"><h2 class="d3">${T("الآن", "Right now")}</h2></div>
+        <div class="stack-2">
+          ${tile("#/record/conditions", T("المشاكل الصحية النشطة", "Active conditions"), prof.activeConditions)}
+          ${tile("#/record/medications", T("الأدوية الحالية", "Current medications"), prof.currentMedications)}
+          ${brief.overdue.length ? tile("#/record/followups", T("متابعات متأخّرة", "Overdue follow-ups"), brief.overdue.length, "warn") : ""}
+          ${brief.pending.length ? tile("#/record/labs", T("نتائج معلّقة", "Pending results"), brief.pending.length) : ""}
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h2 class="d3">${T("سجلي", "My record")}</h2></div>
+        <div class="stack-2">
+          ${tile("#/record/timeline", T("الخط الزمني", "Timeline"), null)}
+          ${tile("#/record/visits", T("الزيارات", "Visits"), (d.encounters || []).length)}
+          ${tile("#/record/labs", T("التحاليل", "Lab results"), (d.results || []).filter((x) => x.value != null).length)}
+          ${tile("#/record/documents", T("التقارير والمستندات", "Documents"), (d.documents || []).length)}
+          ${tile("#/record/procedures", T("العمليات السابقة", "Previous procedures"), (d.procedures || []).length)}
+          ${tile("#/record/immunizations", T("التطعيمات", "Immunizations"), prof.immunizations)}
+        </div>
+      </div>
+
+      <!-- CONTROL. Deliberately not buried in settings: if sharing and the
+           access log are hard to find, the consent model is decorative. -->
+      <div class="sec">
+        <div class="sec-h"><h2 class="d3">${T("من يرى ملفي", "Who can see my record")}</h2></div>
+        <div class="stack-2">
+          ${tile("#/record/shares", T("المشاركات الفعّالة", "Active shares"), live.length)}
+          ${tile("#/record/access", T("سجل الوصول", "Access history"), (d.accessLog || []).length)}
+          ${tile("#/record/carry", T("ملخّص أحمله معي", "A summary I carry"), null)}
+        </div>
+      </div>
+
+      <p class="t3" style="margin-top:22px;line-height:1.7">${T(
+        "ملفك يبقى عندك. لا أحد يفتحه إلا بموافقتك، وكل فتح مسجّل هنا.",
+        "Your record stays yours. Nobody opens it without your consent, and every opening is logged here.")}</p>
+    </section>${nav("record")}`;
+  };
+
+  const tile = (href, label, count, tone) =>
+    `<a class="rw" href="${href}">
+      <div class="rowb" style="width:100%">
+        <span${tone === "warn" ? ' class="st st-e"' : ""}>${esc(label)}</span>
+        <span class="t3">${count == null ? "" : n(count)}</span>
+      </div></a>`;
+
+  function panelAllergies(list) {
+    const crit = E().criticalAllergies(list);
+    if (!crit.length) {
+      return `<a class="rw" href="#/record/allergies" style="margin-top:14px">
+        <div class="rowb" style="width:100%"><span class="t3">${T("ما مسجّل عندك أي حساسية", "No allergy recorded")}</span>
+        <span class="b-g">${T("أضف", "Add")}</span></div></a>`;
+    }
+    return `<div class="note note-e" style="margin-top:14px">${icon("alert")}
+      <div style="width:100%">
+        <b>${T("حساسية", "Allergies")}</b>
+        <div class="stack-2" style="margin-top:6px">
+          ${crit.map((a) => `<div class="rowb">
+            <span>${esc(a.substance)}${a.reaction ? ` — <span class="t3">${esc(a.reaction)}</span>` : ""}</span>
+            ${a.criticality === E().CRITICALITY.HIGH ? `<span class="st st-e">${T("خطرة", "high")}</span>` : ""}
+          </div>`).join("")}
+        </div>
+      </div></div>`;
+  }
+
+  /* ---------- first run ---------- */
+  function screenRecordSetup() {
+    return `${header({ back: true, title: T("ملفي الصحي", "My health record") })}
+    <section class="wrap" style="padding-top:22px">
+      <h1 class="d1" style="font-size:26px;line-height:1.35">${T(
+        "ملف صحي واحد، يمشي معك",
+        "One health record, that travels with you")}</h1>
+      <p class="t3" style="margin-top:12px;line-height:1.8">${T(
+        "تحاليلك وأدويتك وعملياتك وتقاريرك في مكان واحد. تروح لأي دكتور جديد — ما تبدي من الصفر، وما تحتاج تتذكّر كل شي.",
+        "Your labs, medicines, operations and reports in one place. Any new doctor you see starts from your story, not from nothing.")}</p>
+
+      <div class="note" style="margin-top:20px">${icon("seal")}
+        <div>${T("ما ننشر شي. الملف ما ينفتح إلا بموافقتك، وكل مرة ينفتح تشوف منو فتحه.",
+                 "Nothing is published. It opens only with your consent, and you see every opening.")}</div></div>
+
+      <button class="btn" style="margin-top:20px" onclick="recordCreate()">${T("ابدأ ملفي", "Start my record")}</button>
+      <p class="t3" style="margin-top:14px">${T(
+        "ما نطلب رقم بطاقة ولا وثيقة. الاسم وتاريخ الميلاد يكفون للبداية.",
+        "No card number and no document required. A name and a date of birth are enough to start.")}</p>
+    </section>${nav("record")}`;
+  }
+
+  /* Registration deliberately succeeds with no government document at all.
+     Up to a million Iraqis lack civil documentation, and the barriers are
+     ones they cannot resolve at an office — refusing them here would exclude
+     exactly the patients whose continuity of care is already worst. */
+  globalThis.recordCreate = function recordCreate() {
+    sheet(`<h3 class="d3">${T("ملفي الصحي", "My health record")}</h3>
+      <label class="fld"><span>${T("الاسم الثلاثي", "Full name")}</span>
+        <input id="r-name" type="text" autocomplete="name" placeholder="${T("مثلاً: زينب كاظم عبدالله", "e.g. Zainab Kadhim Abdullah")}"></label>
+      <label class="fld"><span>${T("تاريخ الميلاد", "Date of birth")}</span>
+        <input id="r-dob" type="date"></label>
+      <label class="row" style="gap:8px;margin-top:6px">
+        <input id="r-dob-est" type="checkbox">
+        <span class="t3">${T("ما أعرف التاريخ بالضبط", "I don't know the exact date")}</span></label>
+      <div class="fld"><span>${T("الجنس", "Sex")}</span>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn btn--2 btn--sm" onclick="recordSex('female',this)">${T("أنثى", "Female")}</button>
+          <button class="btn btn--2 btn--sm" onclick="recordSex('male',this)">${T("ذكر", "Male")}</button>
+        </div></div>
+      <button class="btn" style="margin-top:16px" onclick="recordSave()">${T("احفظ", "Save")}</button>
+      <p class="t3" style="margin-top:12px">${T(
+        "ما نسجّل الديانة ولا القومية، وما نحتفظ بصورة البطاقة.",
+        "We do not record religion or ethnicity, and we keep no image of any ID card.")}</p>`);
+  };
+
+  let pendingSex = null;
+  globalThis.recordSex = function recordSex(v, el) {
+    pendingSex = v;
+    const row = el.parentElement;
+    [...row.children].forEach((b) => b.classList.toggle("c-on", b === el));
+  };
+
+  globalThis.recordSave = function recordSave() {
+    const name = (document.getElementById("r-name") || {}).value || "";
+    const dob = (document.getElementById("r-dob") || {}).value || "";
+    const est = !!((document.getElementById("r-dob-est") || {}).checked);
+    const cand = { name: name.trim(), birthDate: dob || null, birthDateEstimated: est, sex: pendingSex };
+    const g = E().canRegister(cand);
+    if (!g.ok) {
+      toast(g.reason === "NAME_REQUIRED" ? T("اكتب الاسم", "Enter a name")
+        : g.reason === "FORBIDDEN_FIELD" ? T("حقل غير مسموح", "Field not allowed")
+        : T("نحتاج تاريخ الميلاد أو وثيقة", "We need a date of birth or a document"));
+      return;
+    }
+    mutate((d) => {
+      d.patient = { ...cand, id: uid("PAT"), registeredAt: new Date().toISOString(),
+        identifiers: [], contacts: [] };
+    });
+    pendingSex = null;
+    closeSheet();
+    toast(T("انفتح ملفك", "Your record is open"));
+    render();
+  };
+
+  /* ---------- sections ---------- */
+
+  globalThis.screenRecordSection = function screenRecordSection(section, id) {
+    const d = store();
+    if (!d.patient) { location.hash = "#/record"; return ""; }
+    switch (section) {
+      case "conditions": return listConditions(d);
+      case "medications": return listMedications(d);
+      case "allergies": return listAllergies(d);
+      case "labs": return listLabs(d);
+      case "documents": return listDocuments(d);
+      case "immunizations": return listImmunizations(d);
+      case "visits": return listVisits(d);
+      case "procedures": return listProcedures(d);
+      case "followups": return listFollowups(d);
+      case "timeline": return screenTimeline(d);
+      case "shares": return screenShares(d);
+      case "access": return screenAccess(d);
+      case "carry": return screenCarry(d);
+      case "inbox": return screenInbox(d);
+      case "request": return screenAccessRequest(d, id);
+      case "profile": return screenProfile(d);
+      default: return screen404();
+    }
+  };
+
+  const page = (title, body, sub) => `${header({ back: true, title })}
+    <section class="wrap" style="padding-top:14px">
+      ${sub ? `<p class="t3" style="margin-bottom:14px;line-height:1.7">${sub}</p>` : ""}
+      ${body}
+    </section>`;
+
+  const empty = (text, action) => `<div class="note">${icon("info")}<div>${esc(text)}</div></div>${action || ""}`;
+
+  function listConditions(d) {
+    const active = E().activeConditions(d.conditions, now());
+    const past = (d.conditions || []).filter((c) => c.clinicalStatus !== E().COND_STATE.ACTIVE);
+    return page(T("المشاكل الصحية", "Conditions"),
+      `${active.length ? `<div class="stack-2">${active.map((c) => `<div class="rw">
+        <div style="width:100%">
+          <div class="rowb"><b>${esc(c.display)}</b>
+            ${c.chronic ? `<span class="st st-q">${T("مزمن", "chronic")}</span>` : ""}</div>
+          <div class="t3" style="margin-top:4px">
+            ${c.onsetDate ? T("منذ", "since") + " " + n(c.onsetDate) : ""}
+            ${c.lastReviewed ? ` · ${T("آخر مراجعة", "last reviewed")} ${n(c.lastReviewed)}` : ""}
+          </div>
+          ${c.stale ? `<div class="st st-e" style="margin-top:6px">${T(
+            "ما راجعها طبيب من مدة طويلة", "not reviewed by a clinician for a long time")}</div>` : ""}
+        </div></div>`).join("")}</div>`
+        : empty(T("ما مسجّل عندك مشاكل نشطة", "No active conditions recorded"))}
+      ${past.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${T("سابقة", "Past")}</h2></div>
+        <div class="stack-2">${past.map((c) => `<div class="rw"><div class="rowb" style="width:100%">
+          <span>${esc(c.display)}</span><span class="t3">${esc(c.clinicalStatus)}</span></div></div>`).join("")}</div></div>` : ""}`,
+      T("المشاكل النشطة أولاً، والمزمنة قبل غيرها. الحالة الحالية — مو تاريخ كل شي صار.",
+        "Active first, chronic before the rest. What is true now — not everything that ever happened."));
+  }
+
+  function listMedications(d) {
+    const cur = E().currentMedications(d.medications, now());
+    const unconf = cur.filter((m) => m.status === E().MED_STATE.UNCONFIRMED);
+    const stopped = (d.medications || []).filter((m) => m.status === E().MED_STATE.STOPPED);
+    return page(T("الأدوية", "Medications"),
+      `${cur.length ? `<div class="stack-2">${cur.map((m) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(m.display)}</b>
+            ${m.status === E().MED_STATE.UNCONFIRMED
+              ? `<span class="st st-q">${T("غير مؤكّد", "unconfirmed")}</span>` : ""}</div>
+          <div class="t3" style="margin-top:4px">${[m.dose, freqLabel(m.frequency)].filter(Boolean).map(esc).join(" · ")}</div>
+          ${m.indication ? `<div class="t3" style="margin-top:2px">${T("لـ", "for")} ${esc(m.indication)}</div>` : ""}
+        </div></div>`).join("")}</div>`
+        : empty(T("ما مسجّل عندك أدوية حالية", "No current medications recorded"))}
+      ${unconf.length ? `<div class="note note-w" style="margin-top:12px">${icon("clock")}<div>${T(
+        "أدوية ما أكّدها أحد من مدة. اسأل طبيبك إذا بعدك عليها.",
+        "Medicines nobody has reconfirmed for a while. Ask your doctor whether you are still on them.")}</div></div>` : ""}
+      ${stopped.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${T("موقوفة", "Stopped")}</h2></div>
+        <div class="stack-2">${stopped.map((m) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><span>${esc(m.display)}</span><span class="t3">${n(m.stopDate || "")}</span></div>
+          <div class="t3" style="margin-top:4px">${T("السبب", "reason")}: ${esc(m.stopReason || "—")}</div>
+        </div></div>`).join("")}</div></div>` : ""}`,
+      T("لماذا تُوقَف مهم مثل ماذا يُوصَف — الطبيب الجاي يحتاج يعرف إذا الدواء فشل أو سبّب حساسية.",
+        "Why a drug stopped matters as much as why it started — the next clinician needs to know whether it failed or harmed you."));
+  }
+
+  const freqLabel = (f) => {
+    const x = R().FREQ[f];
+    return x ? (ar() ? x.ar : x.en) : (f || "");
+  };
+
+  function listAllergies(d) {
+    return page(T("الحساسية", "Allergies"),
+      d.allergies && d.allergies.length
+        ? `<div class="stack-2">${E().criticalAllergies(d.allergies).map((a) => `<div class="rw">
+            <div style="width:100%"><div class="rowb"><b>${esc(a.substance)}</b>
+              <span class="st ${a.criticality === E().CRITICALITY.HIGH ? "st-e" : "st-q"}">${
+                a.criticality === E().CRITICALITY.HIGH ? T("خطرة", "high") : T("خفيفة", "low")}</span></div>
+            ${a.reaction ? `<div class="t3" style="margin-top:4px">${esc(a.reaction)}</div>` : ""}</div></div>`).join("")}</div>`
+        : empty(T("ما مسجّل عندك أي حساسية", "No allergy recorded")),
+      T("هذي أول شي يشوفه أي طبيب يفتح ملفك — حتى لو ما شاركت غيرها.",
+        "This is the first thing any clinician sees — even when you shared nothing else."));
+  }
+
+  function listLabs(d) {
+    const done = (d.results || []).filter((x) => x.value != null);
+    const pending = (d.results || []).filter((x) => x.status === "pending");
+    const codes = [...new Set(done.map((x) => x.code).filter(Boolean))];
+    return page(T("التحاليل", "Lab results"),
+      `${pending.length ? `<div class="note note-w">${icon("clock")}<div><b>${T("معلّقة", "Pending")}</b>
+        <div class="t3" style="margin-top:4px">${pending.map((x) => esc(x.display || x.code)).join(" · ")}</div></div></div>` : ""}
+      ${codes.length ? `<div class="stack-2" style="margin-top:12px">${codes.map((code) => {
+        const t = E().trend(d.results, code);
+        const last = t.points[t.points.length - 1];
+        return `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc((done.find((x) => x.code === code) || {}).display || code)}</b>
+            <span class="${last && last.flag !== "normal" ? "st st-e" : "st st-v"}">${
+              last ? n(last.value) + " " + esc(last.unit || "") : ""}</span></div>
+          ${t.points.length > 1 ? `<div class="t3" style="margin-top:6px">${
+            t.points.map((p) => n(p.value)).join(" ← ")}</div>` : ""}
+          ${t.mixedLabs ? `<div class="st st-q" style="margin-top:6px">${T(
+            "نتائج من مختبرات مختلفة — المقارنة بينها ما تنفع دائماً",
+            "results from different laboratories — comparing them is not always valid")}</div>` : ""}
+          ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(
+            "وحدات قياس مختلفة", "different units of measure")}</div>` : ""}
+        </div></div>`;
+      }).join("")}</div>` : (pending.length ? "" : empty(T("ما عندك تحاليل مسجّلة", "No lab results recorded")))}`,
+      T("الاتجاه أهم من الرقم المفرد — لكن نتائج مختبرين مختلفين ما تنرسم بخط واحد واثق.",
+        "The trend matters more than any single number — but two laboratories do not draw one confident line."));
+  }
+
+  function listDocuments(d) {
+    const docs = d.documents || [];
+    return page(T("التقارير والمستندات", "Documents"),
+      `${docs.length ? `<div class="stack-2">${docs.map((x) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(x.title)}</b><span class="t3">${n(x.documentDate)}</span></div>
+          <div class="t3" style="margin-top:4px">${esc(docTypeLabel(x.type))}
+            ${R().pendingClaims(x).length ? ` · <span class="st st-q">${
+              n(R().pendingClaims(x).length)} ${T("معلومة تنتظر تأكيد طبيب", "awaiting a clinician")}</span>` : ""}</div>
+        </div></div>`).join("")}</div>`
+        : empty(T("ما رفعت أي تقرير بعد", "No documents uploaded yet"))}
+      <div class="note" style="margin-top:14px">${icon("info")}<div>${T(
+        "التقرير يبقى مثل ما هو — مصدر. أي معلومة تُقرأ منه تبقى «بانتظار التأكيد» حتى يأكّدها طبيب.",
+        "A document stays exactly as it is — a source. Anything read out of it stays 'awaiting confirmation' until a clinician confirms it.")}</div></div>`,
+      T("ارفع تقاريرك القديمة — حتى الورقية. هذا اللي يخلي ملفك يبدي من تاريخك الحقيقي مو من اليوم.",
+        "Upload your old reports, paper included. That is what makes the record start from your actual history rather than from today."));
+  }
+
+  const DOC_LABELS = {
+    "lab-report": ["تحليل", "Lab report"], "imaging-report": ["تقرير أشعة", "Imaging report"],
+    "operative-note": ["تقرير عملية", "Operative note"], "discharge-summary": ["تقرير خروج", "Discharge summary"],
+    "referral-letter": ["إحالة", "Referral"], "clinical-report": ["تقرير طبي", "Clinical report"],
+    "vaccine-card": ["بطاقة تطعيم", "Vaccination card"], "other": ["مستند", "Document"],
+  };
+  const docTypeLabel = (t) => (DOC_LABELS[t] || [t, t])[ar() ? 0 : 1];
+
+  function listImmunizations(d) {
+    const given = R().givenImmunizations(d.immunizations);
+    return page(T("التطعيمات", "Immunizations"),
+      given.length
+        ? `<div class="stack-2">${given.map((i) => `<div class="rw"><div class="rowb" style="width:100%">
+            <span>${esc(i.vaccine)}</span>
+            <span class="${i.documented ? "st st-v" : "st st-q"}">${
+              i.documented ? T("موثّق", "documented") : T("بالذاكرة فقط", "from memory only")}</span>
+          </div></div>`).join("")}</div>`
+        : empty(T("ما مسجّل عندك تطعيمات", "No immunizations recorded")),
+      T("«أتذكّر إني أخذته» شي، و«مكتوب ببطاقة» شي ثاني — والنظام ما يخلطهم.",
+        "'I remember having it' and 'it is written on a card' are different facts, and the record keeps them apart."));
+  }
+
+  function listVisits(d) {
+    const enc = (d.encounters || []).slice().sort((a, b) =>
+      new Date(b.startedAt) - new Date(a.startedAt));
+    return page(T("الزيارات", "Visits"),
+      enc.length ? `<div class="stack-2">${enc.map((e) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(e.chiefComplaint || T("زيارة", "Visit"))}</b>
+            <span class="t3">${n(String(e.startedAt || "").slice(0, 10))}</span></div>
+          <div class="t3" style="margin-top:4px">${esc(e.clinicianName || e.clinicianId || "")}</div>
+          ${e.assessment ? `<div style="margin-top:6px">${esc(e.assessment)}</div>` : ""}
+          ${e.state === E().ENC_STATE.AMENDED ? `<div class="st st-q" style="margin-top:6px">${T(
+            "عليها ملحق تصحيحي", "has a correcting addendum")}</div>` : ""}
+        </div></div>`).join("")}</div>`
+        : empty(T("ما عندك زيارات مسجّلة في قريب بعد", "No visits recorded in Qareeb yet")),
+      T("الزيارة بعد توقيعها ما تتعدّل. التصحيح يجي كملحق باسم صاحبه وسببه — التاريخ ما ينمحي.",
+        "A signed visit is never edited. A correction arrives as an addendum with its author and reason — history is not erased."));
+  }
+
+  function listProcedures(d) {
+    const ps = d.procedures || [];
+    return page(T("العمليات", "Procedures"),
+      ps.length ? `<div class="stack-2">${ps.map((x) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(x.display)}</b><span class="t3">${n(x.performedAt || "")}</span></div>
+          ${x.surgeon ? `<div class="t3" style="margin-top:4px">${esc(x.surgeon)}</div>` : ""}
+          ${x.pathology ? `<div style="margin-top:6px">${T("النسيج المرضي", "Pathology")}: ${esc(x.pathology)}</div>` : ""}
+        </div></div>`).join("")}</div>`
+        : empty(T("ما مسجّل عندك عمليات", "No procedures recorded")));
+  }
+
+  function listFollowups(d) {
+    const open = E().openTasks(d.tasks, now());
+    return page(T("المتابعات", "Follow-ups"),
+      open.length ? `<div class="stack-2">${open.map((t) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(taskLabel(t.kind))}</b>
+            ${t.overdue ? `<span class="st st-e">${T("متأخّرة", "overdue")}</span>` : ""}</div>
+          ${t.about ? `<div class="t3" style="margin-top:4px">${esc(t.about)}</div>` : ""}
+          ${t.dueAt ? `<div class="t3" style="margin-top:2px">${T("الموعد", "due")} ${n(String(t.dueAt).slice(0, 10))}</div>` : ""}
+        </div></div>`).join("")}</div>`
+        : empty(T("ما عندك متابعات مفتوحة", "No open follow-ups")),
+      T("«راجعني لمّا تطلع النتيجة» ما تكفي. النظام يحوّلها مهمّة لها موعد وصاحب — ويعرف إذا تأخّرت.",
+        "'Come back when the result is out' is not enough. It becomes a task with a due date and an owner — and the system knows when it slips."));
+  }
+
+  const TASK_LABELS = {
+    "result-acknowledgement": ["نتيجة تحتاج إقرار طبيب", "Result awaiting acknowledgement"],
+    "referral-response": ["إحالة بلا رد", "Referral without response"],
+    "pathology-pending": ["نسيج مرضي معلّق", "Pathology pending"],
+    "followup-due": ["موعد متابعة", "Follow-up due"],
+    "order-without-result": ["فحص مطلوب بلا نتيجة", "Test ordered, no result"],
+  };
+  const taskLabel = (k) => (TASK_LABELS[k] || [k, k])[ar() ? 0 : 1];
+
+  /* ---------- timeline (§9) ---------- */
+  function screenTimeline(d) {
+    const byEp = E().timelineByEpisode({ ...d, patientId: d.patient.id });
+    const groups = Array.isArray(byEp) ? byEp : [];
+    return page(T("الخط الزمني", "Timeline"),
+      groups.length ? groups.map((g) => `<div class="sec">
+          <div class="sec-h"><h2 class="d3">${esc(g.title || T("أحداث متفرقة", "Other events"))}</h2>
+            ${g.state ? `<span class="st st-q">${esc(epLabel(g.state))}</span>` : ""}</div>
+          <div class="stack-2">${(g.events || []).map(eventRow).join("")}</div>
+        </div>`).join("")
+        : empty(T("الخط الزمني يمتلئ مع كل زيارة", "The timeline fills as visits are recorded")),
+      T("مو كل حدث — بس اللي يغيّر القرار: تشخيص جديد، دواء بدأ أو وقف، نتيجة غير طبيعية، عملية، إحالة.",
+        "Not every event — only the ones that change a decision: a new diagnosis, a drug started or stopped, an abnormal result, surgery, a referral."));
+  }
+
+  const EP_LABELS = { OPEN: ["مفتوحة", "open"], ACTIVE: ["نشطة", "active"], ON_HOLD: ["معلّقة", "on hold"],
+                      COMPLETED: ["منتهية", "completed"], CANCELLED: ["ملغاة", "cancelled"] };
+  const epLabel = (s) => (EP_LABELS[s] || [s, s])[ar() ? 0 : 1];
+
+  const EVT_LABELS = {
+    diagnosis: ["تشخيص", "diagnosis"], "medication-start": ["بدء دواء", "medication started"],
+    "medication-stop": ["إيقاف دواء", "medication stopped"], result: ["نتيجة", "result"],
+    procedure: ["عملية", "procedure"], referral: ["إحالة", "referral"], imaging: ["أشعة", "imaging"],
+    admission: ["دخول مستشفى", "admission"], encounter: ["زيارة", "visit"],
+  };
+  const evtLabel = (k) => (EVT_LABELS[k] || [k, k])[ar() ? 0 : 1];
+
+  const eventRow = (e) => `<div class="rw"><div style="width:100%">
+      <div class="rowb"><span class="st st-q">${esc(evtLabel(e.kind))}</span>
+        <span class="t3">${n(String(e.at || "").slice(0, 10))}</span></div>
+      <div style="margin-top:6px">${esc(e.label || e.title || "")}</div>
+      ${e.abnormal ? `<span class="st st-e" style="margin-top:6px">${T("غير طبيعية", "abnormal")}</span>` : ""}
+    </div></div>`;
+
+  /* ---------- sharing (§14) ---------- */
+  function screenShares(d) {
+    const live = C().activeShares(d.shares, now());
+    const past = (d.shares || []).filter((s) => !C().isShareActive(s, now()));
+    return page(T("المشاركات", "Sharing"),
+      `${live.length ? `<div class="stack-2">${live.map((s) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(s.granteeName || s.granteeId)}</b>
+            <button class="b-g" onclick="recordRevoke('${esc(s.id)}')">${T("إلغاء", "Revoke")}</button></div>
+          <div class="t3" style="margin-top:4px">${T("ينتهي", "ends")} ${esc(untilLabel(s.expiresAt))}</div>
+          <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px">
+            ${s.scopes.map((x) => `<span class="chip">${esc(C().scopeLabel(x, S.lang))}</span>`).join("")}
+          </div>
+        </div></div>`).join("")}</div>`
+        : empty(T("ما تشارك ملفك مع أحد حالياً", "You are not sharing your record with anyone right now"))}
+      ${past.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${T("منتهية", "Ended")}</h2></div>
+        <div class="stack-2">${past.slice(0, 8).map((s) => `<div class="rw"><div class="rowb" style="width:100%">
+          <span class="t3">${esc(s.granteeName || s.granteeId)}</span>
+          <span class="t3">${C().shareState(s, now()) === "revoked" ? T("ألغيتها", "you revoked it") : T("انتهت وحدها", "expired on its own")}</span>
+        </div></div>`).join("")}</div></div>` : ""}`,
+      T("كل مشاركة لها مدة وتنتهي وحدها. تقدر تلغيها بأي لحظة، وما تحتاج تعطي سبب.",
+        "Every share has a duration and ends on its own. You can revoke it at any moment, and you owe nobody a reason."));
+  }
+
+  function untilLabel(at) {
+    const left = new Date(at).getTime() - now();
+    if (left <= 0) return T("انتهت", "ended");
+    const h = Math.round(left / 3600000);
+    if (h < 24) return T(`بعد ${h} ساعة`, `in ${h}h`);
+    const days = Math.round(h / 24);
+    return T(countAr ? countAr(days, ["بعد يوم", "بعد يومين", "بعد # أيام", "بعد # يوماً"]) : `بعد ${days} يوم`,
+             `in ${days}d`);
+  }
+
+  globalThis.recordRevoke = function recordRevoke(id) {
+    const d = store();
+    const s = (d.shares || []).find((x) => x.id === id);
+    if (!s) return;
+    const r = C().revokeShare(s, d.patient.id, now());
+    if (!r.ok) { toast(T("ما قدرنا نلغيها", "Could not revoke")); return; }
+    mutate((x) => { x.shares = x.shares.map((y) => y.id === id ? r.share : y); });
+    toast(T("انلغى الوصول", "Access revoked"));
+    render();
+  };
+
+  /* ---------- access log (§15) ---------- */
+  function screenAccess(d) {
+    const h = C().accessHistory(d.accessLog, now(), S.lang);
+    return page(T("سجل الوصول", "Access history"),
+      h.length ? `<div class="stack-2">${h.map((r) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(r.actorName || r.actorId || T("مجهول", "unknown"))}</b>
+            <span class="t3">${n(String(r.at || "").slice(0, 10) || whenShort(r.at))}</span></div>
+          <div class="${r.granted ? "t3" : "st st-e"}" style="margin-top:4px">${esc(r.label)}</div>
+          ${r.scopes.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px">
+            ${r.scopes.map((x) => `<span class="chip">${esc(C().scopeLabel(x, S.lang))}</span>`).join("")}</div>` : ""}
+        </div></div>`).join("")}</div>`
+        : empty(T("ما فتح ملفك أحد بعد", "Nobody has opened your record yet")),
+      T("كل فتحة مكتوبة هنا — حتى المحاولات المرفوضة. وعد ما تقدر تتأكد منه مو وعد.",
+        "Every opening is written here — including refused attempts. A promise you cannot check is not a promise."));
+  }
+
+  const whenShort = (at) => { try { return new Date(at).toISOString().slice(0, 10); } catch { return ""; } };
+
+  /* ---------- the doctor's request, answered by the patient (§13) ---------- */
+  function screenAccessRequest(d, id) {
+    const rq = (d.requests || []).find((x) => x.id === id);
+    if (!rq) return screen404();
+    const state = C().requestState(rq, now());
+    if (state !== C().REQ_STATE.PENDING) {
+      return page(T("طلب اطّلاع", "Access request"),
+        empty(state === C().REQ_STATE.EXPIRED ? T("الطلب انتهى وقته", "The request expired")
+          : T("تم الرد على هذا الطلب", "You already answered this request")));
+    }
+    return page(T("طلب اطّلاع", "Access request"),
+      `<div class="rw"><div style="width:100%">
+        <div class="d3" style="font-size:18px">${esc(rq.requester.name || rq.requester.id)}</div>
+        <div class="t3" style="margin-top:4px">${esc(rq.purpose)}</div>
+      </div></div>
+      <div class="sec"><div class="sec-h"><h2 class="d3">${T("يطلب يشوف", "Asking to see")}</h2></div>
+        <div class="stack-2">${rq.scopes.map((x) => `<label class="rw"><div class="rowb" style="width:100%">
+          <span>${esc(C().scopeLabel(x, S.lang))}</span>
+          <input type="checkbox" class="req-scope" value="${esc(x)}" checked>
+        </div></label>`).join("")}</div>
+      </div>
+      <div class="fld"><span>${T("لمدة", "For")}</span>
+        <div class="chips chips--wrap" style="margin-top:8px">
+          ${["VISIT", "DAY", "WEEK", "MONTH"].map((k, i) => `<button class="chip${i === 0 ? " c-on" : ""}"
+            onclick="recordPickDuration('${k}',this)">${esc(ar() ? C().DURATION[k].ar : C().DURATION[k].en)}</button>`).join("")}
+        </div></div>
+      <button class="btn" style="margin-top:18px" onclick="recordApprove('${esc(rq.id)}')">${T("وافق", "Approve")}</button>
+      <button class="btn btn--2" style="margin-top:10px" onclick="recordDecline('${esc(rq.id)}')">${T("لا، شكراً", "No thanks")}</button>
+      <p class="t3" style="margin-top:14px;line-height:1.7">${T(
+        "تقدر تشيل أي شي ما تريد تشاركه. الحساسية تنشارك دائماً — طبيب يشوف ملفك بلا ما يشوف حساسيتك أخطر من طبيب ما يشوف شي.",
+        "You can untick anything. Allergies are always shared — a doctor who sees your record without your allergies is more dangerous than one who sees nothing.")}</p>`);
+  }
+
+  let pickedDuration = "VISIT";
+  globalThis.recordPickDuration = function recordPickDuration(k, el) {
+    pickedDuration = k;
+    [...el.parentElement.children].forEach((b) => b.classList.toggle("c-on", b === el));
+  };
+
+  globalThis.recordApprove = function recordApprove(id) {
+    const d = store();
+    const rq = (d.requests || []).find((x) => x.id === id);
+    if (!rq) return;
+    const scopes = [...document.querySelectorAll(".req-scope")].filter((c) => c.checked).map((c) => c.value);
+    if (!scopes.length) { toast(T("اختر شي واحد على الأقل", "Pick at least one thing")); return; }
+    const res = C().respondToRequest(rq, C().REQ_STATE.APPROVED, d.patient.id, now(),
+      { shareId: uid("SH"), scopes, duration: pickedDuration, modality: "IN_APP", language: S.lang });
+    if (!res.ok) { toast(T("ما قدرنا نكمّل", "Could not complete")); return; }
+    mutate((x) => {
+      x.requests = x.requests.map((y) => y.id === id ? res.request : y);
+      x.shares.unshift(res.share);
+    });
+    toast(T("انشارك ملفك", "Your record is shared"));
+    location.hash = "#/record/shares";
+  };
+
+  globalThis.recordDecline = function recordDecline(id) {
+    const d = store();
+    const rq = (d.requests || []).find((x) => x.id === id);
+    if (!rq) return;
+    const res = C().respondToRequest(rq, C().REQ_STATE.DECLINED, d.patient.id, now());
+    if (!res.ok) return;
+    mutate((x) => { x.requests = x.requests.map((y) => y.id === id ? res.request : y); });
+    toast(T("انرفض الطلب", "Request declined"));
+    location.hash = "#/record";
+  };
+
+  /* ---------- the carried summary (§ Mozambique) ---------- */
+  function screenCarry(d) {
+    const live = (d.carry && !d.carry.redeemedBy && new Date(d.carry.expiresAt) > now()) ? d.carry : null;
+    return page(T("ملخّص أحمله معي", "A summary I carry"),
+      `${live ? `<div class="note note-w">${icon("seal")}<div style="width:100%">
+          <b>${T("رمز فعّال", "Live code")}</b>
+          <div class="nhuge" style="letter-spacing:.18em;margin-top:8px">${esc(live.code)}</div>
+          <div class="t3" style="margin-top:8px">${T("ينتهي", "expires")} ${esc(untilLabel(live.expiresAt))} ·
+            ${T("يُستعمل مرة واحدة", "single use")}</div>
+        </div></div>`
+        : `<button class="btn" onclick="recordIssueCarry()">${T("أصدر رمزاً للعيادة", "Issue a code for the clinic")}</button>`}
+      <div class="note" style="margin-top:16px">${icon("info")}<div>${T(
+        "اطبع الملخّص أو احفظه بهاتفك، وخذه معك. العيادة تمسح الرمز فتشوف ملفك لمدة الزيارة فقط — بعدها ينغلق وحده.",
+        "Print the summary or keep it on your phone and take it with you. The clinic redeems the code and sees your record for the visit only — then it closes itself.")}</div></div>`,
+      T("في بلد ما بيه ربط بين المستشفيات، أنت أفضل ناقل لملفك. الورقة تشتغل حتى لو انقطعت الكهرباء والإنترنت.",
+        "In a country with no exchange between institutions, you are the best carrier of your own record. Paper works when the power and the network do not."));
+  }
+
+  globalThis.recordIssueCarry = function recordIssueCarry() {
+    const d = store();
+    /* Six characters from an unambiguous alphabet — no 0/O, no 1/I/l. A code
+       read aloud across a clinic desk in a noisy waiting room has to survive
+       being misheard once. */
+    const A = "ACDEFGHJKMNPQRTUVWXY34679";
+    let code = "";
+    for (let i = 0; i < 6; i++) code += A[Math.floor(Math.random() * A.length)];
+    const r = C().issueCarryCode(d.patient.id, C().DEFAULT_SCOPES, now(), code);
+    if (!r.ok) { toast(T("ما قدرنا نصدر رمز", "Could not issue a code")); return; }
+    mutate((x) => { x.carry = r.carry; });
+    render();
+  };
+
+  /* ---------- the unverified tray (§11) ---------- */
+  function screenInbox(d) {
+    const items = R().awaitingVerification(d.documents);
+    return page(T("بانتظار تأكيد طبيب", "Awaiting a clinician"),
+      items.length ? `<div class="stack-2">${items.map((x) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(claimText(x.claim))}</b>
+            <span class="st st-q">${T("غير مؤكّد", "unconfirmed")}</span></div>
+          <div class="t3" style="margin-top:4px">${T("من", "from")} ${esc(x.title)}</div>
+        </div></div>`).join("")}</div>`
+        : empty(T("ما في شي ينتظر تأكيد", "Nothing is waiting for confirmation")),
+      T("هذي معلومات انقرأت من تقاريرك آلياً. ما تدخل ملفك الرسمي إلا لمّا يأكّدها طبيب — الآلة ما تشخّص.",
+        "These were read out of your reports automatically. They do not enter the record until a clinician confirms them — the machine does not diagnose."));
+  }
+
+  const claimText = (c) => c.name || c.code || c.test || "—";
+
+  /* ---------- profile ---------- */
+  function screenProfile(d) {
+    const p = d.patient;
+    return page(T("بياناتي", "My details"),
+      `<div class="stack-2">
+        ${row(T("الاسم", "Name"), E().fullName(p))}
+        ${row(T("تاريخ الميلاد", "Date of birth"), p.birthDate || "—")}
+        ${row(T("الجنس", "Sex"), R().sexLabel(p.sex, ar()))}
+        ${row(T("معرّف قريب", "Qareeb ID"), p.id)}
+      </div>
+      <div class="note" style="margin-top:16px">${icon("seal")}<div>${T(
+        "معرّف قريب هو المفتاح — مو رقم البطاقة الوطنية. الوثائق الرسمية تنربط بالملف وما تكون أساسه، لأن الرقم ممكن يتغيّر والملف ما ينشطر.",
+        "The Qareeb ID is the key — not the national card number. Official documents attach to the record rather than being its foundation, so a changed number never splits a patient in two.")}</div></div>`);
+  }
+
+  const row = (k, v) => `<div class="rw"><div class="rowb" style="width:100%">
+    <span class="t3">${esc(k)}</span><span>${esc(v)}</span></div></div>`;
+
+  /* =========================================================
+     الطبيب — DOCTOR MODE
+     =========================================================
+     Section 16 and 17. The first screen answers one question — who is this
+     person and what must I know right now — and everything else is a tap
+     away. A doctor with four minutes does not scroll.
+     ========================================================= */
+
+  globalThis.screenClinical = function screenClinical(patientId) {
+    const me = currentClinician();
+    if (!me) return clinicianSetup();
+    const d = store();
+    if (!d.patient) return page(T("ملف المريض", "Patient record"),
+      empty(T("ما في ملف على هذا الجهاز", "No record on this device")));
+
+    const { decision, record } = readRecord(me, C().SCOPE.SUMMARY);
+    if (!decision.ok) return screenNoAccess(d, me, decision);
+
+    const brief = R().preVisitBrief(record.patient, record, now(), S.lang);
+    const sc = decision.scopes;
+    const has = (x) => sc.indexOf(x) !== -1;
+
+    return `${header({ back: true, title: T("لقطة سريرية", "Clinical snapshot") })}
+    <section class="wrap" style="padding-top:12px">
+
+      <!-- PATIENT SAFETY BAR. Fixed content, fixed order, always first. -->
+      <div class="qa" style="padding:14px">
+        <div class="rowb">
+          <div class="d3" style="font-size:19px">${esc(brief.patient.name)}</div>
+          <span class="t3">${esc(brief.headline)}</span>
+        </div>
+        ${brief.allergies.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}
+          <div><b>${T("حساسية", "ALLERGY")}</b> — ${brief.allergies.map((a) =>
+            esc(a.substance) + (a.reaction ? ` <span class="t3">(${esc(a.reaction)})</span>` : "")).join(" · ")}</div></div>`
+          : `<div class="t3" style="margin-top:10px">${T("ما مسجّل أي حساسية — وهذا مو نفس «ما عنده حساسية»",
+              "No allergy recorded — which is not the same as 'no allergies'")}</div>`}
+        <div class="row" style="flex-wrap:wrap;gap:6px 10px;margin-top:10px">
+          ${brief.active.slice(0, 4).map((c) => `<span class="chip">${esc(c.name)}</span>`).join("")}
+          ${brief.medications.length ? `<span class="st st-q">${n(brief.medications.length)} ${T("دواء", "meds")}</span>` : ""}
+        </div>
+      </div>
+
+      <!-- WHAT IS ON FIRE. Unacknowledged abnormals and overdue loops come
+           before the ordinary record, because they are the failures that
+           reach a patient before anyone notices. -->
+      ${brief.unacknowledgedAbnormal.length ? `<div class="note note-e" style="margin-top:12px">${icon("alert")}
+        <div style="width:100%"><b>${T("نتائج غير طبيعية ما أقرّها أحد", "Abnormal, unacknowledged")}</b>
+          <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb">
+            <span>${esc(x.name)}</span><span>${n(x.value)} ${esc(x.unit || "")} · ${n(String(x.at).slice(0, 10))}</span>
+          </div>`).join("")}</div></div></div>` : ""}
+
+      ${brief.overdue.length ? `<div class="note note-w" style="margin-top:10px">${icon("clock")}
+        <div><b>${T("حلقات مفتوحة متأخّرة", "Overdue open loops")}</b>
+          <div class="t3" style="margin-top:4px">${brief.overdue.map((t) =>
+            esc(taskLabel(t.kind)) + (t.about ? " — " + esc(t.about) : "")).join(" · ")}</div></div></div>` : ""}
+
+      ${brief.unverifiedClaims ? `<div class="note note-w" style="margin-top:10px">${icon("info")}
+        <div>${n(brief.unverifiedClaims)} ${T(
+          "معلومة مستخرجة من مستندات المريض ما تحققت — تحتاج قرارك",
+          "claims extracted from the patient's documents, unverified — they need your decision")}
+        <a class="b-g" href="#/clinical/inbox" style="display:block;margin-top:6px">${T("افتحها", "Open them")}</a></div></div>` : ""}
+
+      <!-- CLINICAL SNAPSHOT -->
+      ${has(C().SCOPE.MEDICATIONS) ? section(T("الأدوية الحالية", "Current medications"),
+        brief.medications.length ? brief.medications.map((m) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(m.name)}</b>${m.status === "unconfirmed"
+            ? `<span class="st st-q">${T("غير مؤكّد", "unconfirmed")}</span>` : ""}</div>
+          <div class="t3" style="margin-top:4px">${[m.dose, freqLabel(m.frequency), m.indication].filter(Boolean).map(esc).join(" · ")}</div>
+        </div></div>`).join("") : emptyRow(T("ما مسجّل", "none recorded"))) : lockedSection(T("الأدوية", "Medications"))}
+
+      ${has(C().SCOPE.CONDITIONS) ? section(T("المشاكل النشطة", "Active problems"),
+        brief.active.length ? brief.active.map((c) => `<div class="rw"><div class="rowb" style="width:100%">
+          <span>${esc(c.name)}${c.chronic ? ` <span class="st st-q">${T("مزمن", "chronic")}</span>` : ""}</span>
+          ${c.stale ? `<span class="st st-e">${T("ما رُوجعت", "not reviewed")}</span>` : ""}
+        </div></div>`).join("") : emptyRow(T("ما مسجّل", "none recorded"))) : lockedSection(T("المشاكل", "Conditions"))}
+
+      ${brief.trends.length ? section(T("اتجاهات تحرّكت", "Trends that moved"),
+        brief.trends.map((t) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(t.code)}</b><span class="t3">${esc(dirLabel(t.direction))}</span></div>
+          <div class="t3" style="margin-top:6px">${t.points.map((p) => n(p.value)).join(" ← ")}</div>
+          ${t.mixedLabs ? `<div class="st st-e" style="margin-top:6px">${T(
+            "مختبرات مختلفة — لا تقرأها كخط واحد", "different laboratories — do not read as one line")}</div>` : ""}
+        </div></div>`).join("")) : ""}
+
+      ${brief.pending.length ? section(T("معلّق", "Pending"),
+        brief.pending.map((x) => `<div class="rw"><div class="rowb" style="width:100%">
+          <span>${esc(x.name)}</span><span class="t3">${T("طُلب", "ordered")} ${n(String(x.orderedAt || "").slice(0, 10))}</span>
+        </div></div>`).join("")) : ""}
+
+      ${brief.lastEncounter ? section(T("آخر زيارة", "Last visit"),
+        `<div class="rw"><div style="width:100%">
+          <div class="t3">${n(String(brief.lastEncounter.at).slice(0, 10))} · ${esc(brief.lastEncounter.clinicianId || "")}</div>
+          ${brief.lastEncounter.assessment ? `<div style="margin-top:6px">${esc(brief.lastEncounter.assessment)}</div>` : ""}
+        </div></div>`) : ""}
+
+      <div class="btn-row" style="margin-top:20px">
+        <a class="btn" href="#/clinical/encounter">${T("سجّل زيارة", "Record a visit")}</a>
+        <a class="btn btn--2" href="#/record/timeline">${T("الخط الزمني", "Timeline")}</a>
+      </div>
+
+      <p class="t3" style="margin-top:18px;line-height:1.7">${esc(brief.caveat)}</p>
+      <p class="t3" style="margin-top:8px">${T("وصولك ينتهي", "Your access ends")}
+        ${decision.expiresAt ? esc(untilLabel(decision.expiresAt)) : ""}.</p>
+    </section>`;
+  };
+
+  const section = (title, body) => `<div class="sec"><div class="sec-h"><h2 class="d3">${esc(title)}</h2></div>
+    <div class="stack-2">${body}</div></div>`;
+  const emptyRow = (t) => `<div class="rw"><span class="t3">${esc(t)}</span></div>`;
+  const lockedSection = (title) => `<div class="sec"><div class="sec-h"><h2 class="d3">${esc(title)}</h2>
+    <span class="st st-q">${T("ما شاركها المريض", "not shared")}</span></div></div>`;
+
+  const DIR_LABELS = { rising: ["يرتفع", "rising"], falling: ["ينخفض", "falling"], flat: ["ثابت", "flat"] };
+  const dirLabel = (dd) => (DIR_LABELS[dd] || [dd, dd])[ar() ? 0 : 1];
+
+  /* The screen a clinician sees when they have no consent — and the point at
+     which most systems either leak or dead-end. It does neither: it offers
+     the two lawful routes, and names the price of the second one. */
+  function screenNoAccess(d, me, decision) {
+    return `${header({ back: true, title: T("ملف المريض", "Patient record") })}
+    <section class="wrap" style="padding-top:20px">
+      <div class="note note-w">${icon("seal")}<div>${
+        decision.reason === "SCOPE_NOT_GRANTED" ? T("المريض ما شارك هذا الجزء", "The patient did not share this part")
+        : T("ما عندك إذن من المريض", "You do not have the patient's consent")}</div></div>
+
+      <button class="btn" style="margin-top:18px" onclick="clinicalRequest()">${T("اطلب من المريض", "Ask the patient")}</button>
+      <p class="t3" style="margin-top:10px">${T(
+        "يوصله طلب على هاتفه، ويقرّر هو شنو يشارك ولمدة كم.",
+        "A request reaches their phone and they decide what to share and for how long.")}</p>
+
+      <div class="sec" style="margin-top:26px">
+        <div class="sec-h"><h2 class="d3">${T("حالة طارئة", "Emergency")}</h2></div>
+        <p class="t3" style="line-height:1.7">${T(
+          "إذا المريض ما يكدر يوافق — فاقد وعي مثلاً — تقدر تفتح الملف بوصول طوارئ. ينفتح الملف كامل لساعة، ويوصل المريض إشعار بأنك فتحته، ويبقى مسجّلاً باسمك للأبد.",
+          "If the patient cannot consent — unconscious, for example — you can open the record under emergency access. It opens fully for one hour, the patient is notified that you opened it, and it stays recorded under your name permanently.")}</p>
+        <button class="btn btn--danger" style="margin-top:12px" onclick="clinicalBreakGlass()">${
+          T("وصول طوارئ", "Emergency access")}</button>
+      </div>
+    </section>`;
+  }
+
+  globalThis.clinicalRequest = function clinicalRequest() {
+    const me = currentClinician();
+    const d = store();
+    sheet(`<h3 class="d3">${T("اطلب الاطّلاع", "Ask to view")}</h3>
+      <label class="fld"><span>${T("ليش تحتاج الملف؟ المريض راح يقرأ هذا", "Why do you need it? The patient will read this")}</span>
+        <input id="cr-purpose" type="text" placeholder="${T("مثلاً: مراجعة أدويتك قبل الوصفة", "e.g. reviewing your medicines before prescribing")}"></label>
+      <button class="btn" style="margin-top:14px" onclick="clinicalSendRequest()">${T("أرسل الطلب", "Send request")}</button>
+      <p class="t3" style="margin-top:12px">${T(
+        "الطلب ينتهي بعد ١٥ دقيقة إذا ما رد.", "The request expires after 15 minutes if unanswered.")}</p>`);
+  };
+
+  globalThis.clinicalSendRequest = function clinicalSendRequest() {
+    const me = currentClinician();
+    const d = store();
+    const purpose = (document.getElementById("cr-purpose") || {}).value || "";
+    const r = C().requestAccess({ id: uid("REQ"), patientId: d.patient.id, requester: me,
+      purpose: purpose.trim() }, now());
+    if (!r.ok) {
+      toast(r.reason === "PURPOSE_REQUIRED" ? T("اكتب سبب الطلب", "State why") : T("ما قدرنا نرسل", "Could not send"));
+      return;
+    }
+    mutate((x) => { x.requests.unshift(r.request); });
+    closeSheet();
+    toast(T("وصل الطلب لهاتف المريض", "The request reached the patient's phone"));
+    render();
+  };
+
+  globalThis.clinicalBreakGlass = function clinicalBreakGlass() {
+    sheet(`<h3 class="d3">${T("وصول طوارئ", "Emergency access")}</h3>
+      <div class="note note-e">${icon("alert")}<div>${T(
+        "هذا مو اختصار. يوصل المريض إشعار، ويبقى باسمك في السجل، وينفتح ساعة وحدة وينغلق وحده.",
+        "This is not a shortcut. The patient is notified, it stays under your name, it lasts one hour and closes itself.")}</div></div>
+      <label class="fld" style="margin-top:12px"><span>${T("السبب السريري", "Clinical reason")}</span>
+        <input id="bg-reason" type="text" placeholder="${T("مثلاً: فاقد الوعي — إنعاش", "e.g. unconscious — resuscitation")}"></label>
+      <button class="btn btn--danger" style="margin-top:14px" onclick="clinicalBreakGlassGo()">${
+        T("افتح الملف", "Open the record")}</button>`);
+  };
+
+  globalThis.clinicalBreakGlassGo = function clinicalBreakGlassGo() {
+    const me = currentClinician();
+    const d = store();
+    const reason = (document.getElementById("bg-reason") || {}).value || "";
+    const g = E().breakGlass(me, d.patient.id, reason.trim(), now());
+    if (!g.ok) { toast(T("اكتب السبب", "State the reason")); return; }
+    mutate((x) => { x.breakGlass = g.grant; });
+    closeSheet();
+    toast(T("انفتح — والمريض انبلّغ", "Opened — and the patient has been told"));
+    render();
+  };
+
+  /* ---------- the clinician's own identity ---------- */
+  const DOC_KEY = "qareeb.clinician.v1";
+  const currentClinician = () => LS.get(DOC_KEY, null);
+
+  function clinicianSetup() {
+    return page(T("حسابك المهني", "Your professional account"),
+      `<div class="note">${icon("seal")}<div>${T(
+        "قريب ما يخلي أي أحد يسجّل نفسه كطبيب موثّق. تقدر تشوف ملف مريض شاركه وياك من الحين، لكن الكتابة بالسجل تحتاج توثيق: رقم الإجازة، ورقم النقابة، والاختصاص.",
+        "Qareeb does not let anyone register themselves as a verified doctor. You can view a record a patient shares with you now, but writing into the record needs verification: licence number, syndicate number and specialty.")}</div></div>
+      <label class="fld" style="margin-top:14px"><span>${T("الاسم", "Name")}</span><input id="dr-name" type="text"></label>
+      <label class="fld"><span>${T("الاختصاص", "Specialty")}</span><input id="dr-spec" type="text"></label>
+      <label class="fld"><span>${T("رقم الإجازة", "Licence number")}</span><input id="dr-lic" type="text"></label>
+      <label class="fld"><span>${T("رقم النقابة", "Syndicate number")}</span><input id="dr-syn" type="text"></label>
+      <button class="btn" style="margin-top:16px" onclick="clinicianSave()">${T("احفظ", "Save")}</button>`);
+  }
+
+  globalThis.clinicianSave = function clinicianSave() {
+    const g = (id) => ((document.getElementById(id) || {}).value || "").trim();
+    const me = { id: uid("DR"), name: g("dr-name"), role: E().ROLE.DOCTOR,
+      specialty: g("dr-spec"), licenseNumber: g("dr-lic"), syndicateId: g("dr-syn"),
+      licenseStatus: "SELF_ASSERTED" };
+    if (!me.name) { toast(T("اكتب الاسم", "Enter a name")); return; }
+    const v = R().providerVerification(me);
+    LS.set(DOC_KEY, me);
+    toast(v.status === "UNVERIFIED"
+      ? T("انحفظ — تقدر تشوف بس ما تكتب", "Saved — you can view but not write")
+      : T("انحفظ — التوثيق قيد المراجعة", "Saved — verification pending review"));
+    render();
+  };
+
+  /* ---------- clinician inbox: confirm or reject extracted claims ---------- */
+  globalThis.screenClinicalInbox = function screenClinicalInbox() {
+    const me = currentClinician();
+    if (!me) return clinicianSetup();
+    const d = store();
+    const items = R().awaitingVerification(d.documents);
+    const canWrite = R().canWriteClinical(me);
+    return page(T("معلومات تنتظر قرارك", "Awaiting your decision"),
+      `${canWrite ? "" : `<div class="note note-w">${icon("seal")}<div>${T(
+        "حسابك غير موثّق بعد — تقدر تقرأ، لكن التأكيد يحتاج توثيق.",
+        "Your account is not verified yet — you can read, but confirming needs verification.")}</div></div>`}
+      ${items.length ? `<div class="stack-2" style="margin-top:12px">${items.map((x) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(claimText(x.claim))}</b><span class="st st-q">${esc(kindLabel(x.claim.kind))}</span></div>
+          <div class="t3" style="margin-top:4px">${T("من", "from")} ${esc(x.title)}</div>
+          ${canWrite ? `<div class="btn-row" style="margin-top:10px">
+            <button class="btn btn--sm" onclick="clinicalConfirm('${esc(x.documentId)}','${esc(x.claim.id)}')">${T("أكّد", "Confirm")}</button>
+            <button class="btn btn--2 btn--sm" onclick="clinicalReject('${esc(x.documentId)}','${esc(x.claim.id)}')">${T("ارفض", "Reject")}</button>
+          </div>` : ""}
+        </div></div>`).join("")}</div>`
+        : empty(T("ما في شي ينتظر", "Nothing waiting"))}`,
+      T("الآلة تقرأ، وأنت تقرّر. ما تدخل معلومة السجل الرسمي إلا بقرارك.",
+        "The machine reads, you decide. Nothing enters the record without your decision."));
+  };
+
+  const KIND_LABELS = { condition: ["تشخيص", "condition"], medication: ["دواء", "medication"],
+    allergy: ["حساسية", "allergy"], procedure: ["عملية", "procedure"], result: ["نتيجة", "result"],
+    immunization: ["تطعيم", "immunization"] };
+  const kindLabel = (k) => (KIND_LABELS[k] || [k, k])[ar() ? 0 : 1];
+
+  globalThis.clinicalConfirm = function clinicalConfirm(docId, claimId) {
+    decideClaim(docId, claimId, "confirmed", null);
+  };
+  globalThis.clinicalReject = function clinicalReject(docId, claimId) {
+    sheet(`<h3 class="d3">${T("سبب الرفض", "Reason for rejecting")}</h3>
+      <label class="fld"><span>${T("ليش؟", "Why?")}</span><input id="rj-reason" type="text"
+        placeholder="${T("مثلاً: غير مقروء", "e.g. illegible")}"></label>
+      <button class="btn" style="margin-top:14px"
+        onclick="decideClaimFromSheet('${esc(docId)}','${esc(claimId)}')">${T("ارفض", "Reject")}</button>`);
+  };
+  globalThis.decideClaimFromSheet = function decideClaimFromSheet(docId, claimId) {
+    const reason = ((document.getElementById("rj-reason") || {}).value || "").trim();
+    if (!reason) { toast(T("اكتب السبب", "State the reason")); return; }
+    closeSheet();
+    decideClaim(docId, claimId, "rejected", reason);
+  };
+
+  function decideClaim(docId, claimId, decision, reason) {
+    const me = currentClinician();
+    const d = store();
+    const doc = (d.documents || []).find((x) => x.id === docId);
+    if (!doc) return;
+    const r = R().confirmClaim(doc, claimId,
+      decision === "confirmed" ? R().EXTRACT_STATE.CONFIRMED : R().EXTRACT_STATE.REJECTED,
+      me, now(), reason);
+    if (!r.ok) {
+      toast(r.reason === "CLINICIAN_REQUIRED" ? T("يحتاج حساب طبيب", "A clinician account is required")
+        : T("ما قدرنا نكمّل", "Could not complete"));
+      return;
+    }
+    mutate((x) => {
+      x.documents = x.documents.map((y) => y.id === docId ? r.document : y);
+      /* Confirming a claim is what PROMOTES it into the longitudinal list.
+         Until this moment it was a claim about a document; from here it is a
+         clinical fact with a named human behind it. */
+      const claim = r.document.claims.find((c) => c.id === claimId);
+      if (decision === "confirmed" && claim) promoteClaim(x, claim, me);
+    });
+    toast(decision === "confirmed" ? T("دخلت السجل", "Entered the record") : T("انرفضت", "Rejected"));
+    render();
+  }
+
+  function promoteClaim(d, claim, by) {
+    const stamp = { recordedBy: by.id, recordedAt: new Date().toISOString(),
+      source: E().SOURCE.EXTERNAL, verificationStatus: E().VERIFY.CONFIRMED, verifiedBy: by.id };
+    switch (claim.kind) {
+      case "condition":
+        d.conditions.push({ id: uid("C"), display: claim.name, clinicalStatus: E().COND_STATE.ACTIVE,
+          chronic: !!claim.chronic, onsetDate: claim.date || null, lastReviewed: stamp.recordedAt, ...stamp });
+        break;
+      case "allergy":
+        d.allergies.push({ id: uid("A"), substance: claim.name, reaction: claim.reaction || null,
+          criticality: claim.criticality || E().CRITICALITY.UNABLE, ...stamp });
+        break;
+      case "medication":
+        /* Promoted medicines start UNCONFIRMED, not ACTIVE. A clinician
+           confirming that a document mentions a drug is not the same as
+           confirming the patient is currently taking it. */
+        d.medications.push({ id: uid("M"), display: claim.name, dose: claim.dose || null,
+          status: E().MED_STATE.UNCONFIRMED, startDate: claim.date || null, ...stamp });
+        break;
+      case "procedure":
+        d.procedures.push({ id: uid("P"), display: claim.name, performedAt: claim.date || null, ...stamp });
+        break;
+      case "result":
+        d.results.push({ id: uid("R"), code: claim.code || claim.name, display: claim.name,
+          value: claim.value, unit: claim.unit || null, effectiveAt: claim.date || null,
+          refLow: claim.refLow ?? null, refHigh: claim.refHigh ?? null, ...stamp });
+        break;
+      case "immunization":
+        d.immunizations.push({ id: uid("I"), vaccine: claim.name, date: claim.date || null,
+          status: "completed", evidence: "facility-record", documented: true, ...stamp });
+        break;
+    }
+  }
+})();
 
 </script>
 </body>

@@ -58,7 +58,7 @@ const T = {
     doctorsIn: "طبيب في", allSpecs: "كل الاختصاصات", sessions: "أوقات الدوام",
     week: "أسبوع الطبيب", about: "معلومات", reportInfo: "الإبلاغ عن معلومة خاطئة",
     myRequests: "طلباتي", savedItems: "المحفوظات", trust: "الثقة والتوثيق",
-    explorer: "الأدوية",
+    explorer: "الأدوية", record: "ملفي",
     emergency: "طوارئ", ambulance: "الإسعاف", nearestEr: "أقرب طوارئ",
     orderWa: "اطلب عبر واتساب", availableAt: "متوفر في", stockedBy: "يُصرف من",
     male: "طبيب", female: "طبيبة", anyGender: "الكل",
@@ -83,7 +83,7 @@ const T = {
     doctorsIn: "doctors in", allSpecs: "All specialties", sessions: "Sessions",
     week: "The doctor's week", about: "About", reportInfo: "Report incorrect info",
     myRequests: "My requests", savedItems: "Saved", trust: "Trust & verification",
-    explorer: "Medicines",
+    explorer: "Medicines", record: "My record",
     emergency: "Emergency", ambulance: "Ambulance", nearestEr: "Nearest ER",
     orderWa: "Order via WhatsApp", availableAt: "Available at", stockedBy: "Dispensed by",
     male: "Male", female: "Female", anyGender: "Any",
@@ -747,8 +747,13 @@ function header(opts = {}) {
   </header>`;
 }
 
+/* Four slots, and the record earns one of them. The product's centre of
+   gravity is no longer "find a pharmacy that is open" — that is the entry
+   point, not the thing being built. A record that lives three taps deep
+   inside a settings menu is a record nobody accumulates, and an empty record
+   is worth nothing to the doctor it was built for. */
 function nav(active) {
-  const items = [["#/", "home", "home"], ["#/explorer", "pill", "explorer"],
+  const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
     ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
   return `<nav class="nav">${items.map(([h, i, k]) =>
     `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
@@ -5725,6 +5730,11 @@ function route() {
     case "me": return screenMe();
     case "trust": return screenTrust();
     case "admin": return screenAdmin();
+    /* The health record. Its screens live in js/ui-record.js — the two modes
+       (patient and clinician) are a separate domain from the discovery
+       network and do not belong in this file. */
+    case "record": return p[1] ? screenRecordSection(p[1], p[2]) : screenRecord();
+    case "clinical": return p[1] === "inbox" ? screenClinicalInbox() : screenClinical(p[1]);
     default: return screen404();
   }
 }
