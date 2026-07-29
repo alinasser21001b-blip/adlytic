@@ -109,7 +109,7 @@
       ${mine.length ? `<div class="stack-2" style="margin-top:12px">${mine.map((o) => `
         <a class="rw" href="#/lab/order/${esc(o.id)}"><div style="width:100%">
           <div class="rowb"><b>${esc(o.display || o.code)}</b>
-            <span class="st ${o.urgency === "stat" ? "st-e" : o.urgency === "urgent" ? "st-w" : "st-q"}">${
+            <span class="st ${o.urgency === "stat" ? "st-e" : o.urgency === "urgent" ? "st-t" : "st-q"}">${
               esc(urgencyLabel(o.urgency))}</span></div>
           <div class="t3" style="margin-top:4px">${esc(o.reason)}</div>
           <div class="t3" style="margin-top:2px">${T("الموعد", "due")} ${n(String(o.dueAt).slice(0, 10) || dayOf(o.dueAt))}
@@ -283,7 +283,7 @@
       ${safetyPanel(env.safety)}
       <div class="sec"><div class="sec-h"><h2 class="d3">${T("سجّل الدراسة", "Record the study")}</h2></div>
         <label class="fld"><span>${T("النوع", "Modality")}</span>
-          <select id="im-mod" class="fld-in">${Object.keys(N().MODALITY).map((m) =>
+          <select id="im-mod">${Object.keys(N().MODALITY).map((m) =>
             `<option value="${esc(m)}">${esc(m)}</option>`).join("")}</select></label>
         <label class="fld"><span>${T("المنطقة", "Body site")}</span><input id="im-site" type="text"></label>
         <label class="row" style="gap:8px;margin-top:6px"><input id="im-contrast" type="checkbox">
@@ -322,7 +322,7 @@
         `<div class="rw"><div style="width:100%">
           <b>${esc(s.modality)} — ${esc(s.bodySite)}</b>
           <div style="margin-top:8px">${esc(s.report.impression)}</div>
-          ${s.report.incidental ? `<div class="st st-w" style="margin-top:8px">${T(
+          ${s.report.incidental ? `<div class="st st-t" style="margin-top:8px">${T(
             "فيه اكتشاف عَرَضي — فُتحت له متابعة", "contains an incidental finding — a follow-up was opened")}</div>` : ""}
         </div></div>
         <div class="note" style="margin-top:12px">${icon("info")}<div>${esc(av.text)}</div></div>`);
