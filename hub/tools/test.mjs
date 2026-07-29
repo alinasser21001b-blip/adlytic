@@ -346,6 +346,36 @@ describe("bidi — what the browser actually renders");
 const uiSources = readdirSync(join(HUB, "js")).filter((f) => f.endsWith(".js"))
   .map((f) => ({ f, src: readFileSync(join(HUB, "js", f), "utf8") }));
 
+/* ---------------------------------------------------------------- */
+describe("data honesty — the seal may not outrun the provenance");
+
+/* `verificationState` asks DATA_PROVENANCE before it will say "verified", and
+   returns "sample data" while a source is synthetic. Several screens bypassed
+   it and read `ent.verified` straight off the record — a flag that is `true`
+   on 17 of 18 synthetic doctors — and printed "verified pharmacy" over data
+   nobody has ever checked. This is the rule that stops the bypass coming
+   back: outside ui-core.js, which owns the mechanism, no screen may branch on
+   a raw `.verified` to produce the WORD. */
+it("no screen prints a verification claim straight from a raw .verified flag", () => {
+  const bad = [];
+  for (const { f, src } of uiSources) {
+    if (f === "ui-core.js" || f === "data.js" || f === "domain.js") continue;
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "");
+    /* `x.verified ? "…موثّق…" : …` — the flag decides the word */
+    const re = /\.verified\s*\?[^:]{0,160}(موثّق|موثقة|verified)/gi;
+    for (const m of code.match(re) || []) bad.push(`${f}: ${m.slice(0, 60).replace(/\s+/g, " ")}`);
+  }
+  eq(bad, [], "use sealBadge()/verifiedWord(), which consult DATA_PROVENANCE");
+});
+
+it("the seal vocabulary has a word for synthetic, and it is not silence", () => {
+  const core = uiSources.find((x) => x.f === "ui-core.js").src;
+  ok(/sample:\s*\[/.test(core), "a declared 'sample data' state");
+  ok(/origin !== "imported"/.test(core), "and it is reached by asking the provenance, not the record");
+  ok(/function verifiedWord/.test(core), "counts of verified entities go through it too");
+});
+
+
 /* A prose comment inside a template literal is one stray backtick away from
    terminating the string. That is exactly how this file's own author took the
    whole app down for the length of one edit: `.st` written in an HTML comment

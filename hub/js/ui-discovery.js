@@ -99,8 +99,8 @@ function screenHomePatient() {
             </span>
             <span class="q-sub" style="display:block">${answered
               ? (isAR() ? "افتح الطلب وشوف منو ردّ." : "Open it and see who replied.")
-              : (isAR() ? `ظاهر لـ <span class="num">${reach.n}</span> صيدلية موثّقة.`
-                        : `Visible to <span class="num">${reach.n}</span> verified pharmacies.`)}</span>
+              : (isAR() ? `ظاهر لـ <span class="num">${reach.n}</span> صيدلية ${verifiedWord("pharmacies", true)}.`
+                        : `Visible to <span class="num">${reach.n}</span> pharmacies ${verifiedWord("pharmacies", true)}.`)}</span>
           </span>
         </a>
         ${live.length > 1 ? `<a class="t3" href="#/me" style="display:block;margin-top:10px">${isAR()
@@ -1165,7 +1165,7 @@ function hospitalRow(x) {
   return `<a class="card ${x.f.er ? "is-open" : ""}" href="#/hospital/${x.f.id}">
     <div class="card-top"><div class="avatar avatar--sq">${icon("building")}</div>
       <div class="grow"><div class="card-t">${esc(L(x.f))}</div>
-        <div class="card-meta">${x.f.verified ? `<span class="seal">${icon("seal")}${t("verified")}</span><i class="dot"></i>` : ""}
+        <div class="card-meta">${sealBadge(x.f, "pharmacies")}<i class="dot"></i>
           <span class="dist">${icon("pin")}${fmtKm(x.km)}</span><i class="dot"></i>
           <span><span class="num">${n}</span> ${isAR() ? "طبيب" : "doctors"}</span></div></div>
       ${x.f.er ? `<span class="chip chip--meta chip--warn">${isAR() ? "طوارئ ٢٤ ساعة" : "24h ER"}</span>` : ""}
@@ -1296,6 +1296,17 @@ function screenTrust() {
   return `${header({ back: true, title: t("trust") })}
   <section class="wrap sec">
     <h1 class="hero-line" style="font-size:25px">${isAR() ? "نعرض ما تحققنا منه فقط." : "We only show what we've checked."}</h1>
+
+    <!-- FIRST, not last. This page's headline promises verification and its
+         disclaimer used to sit eight paragraphs below it, under the fold —
+         which means the promise was read by everyone and the qualification by
+         nobody. On a page whose whole subject is what we have and have not
+         checked, the state of the data being described belongs above the
+         description, not in the footnotes. -->
+    <div class="banner banner--warn" style="margin-top:16px">${icon("alert")}<span>${isAR()
+      ? `كل الأطباء والصيدليات المعروضة الآن <b>بيانات نموذجية</b> — أسماء وأرقام موضوعة للعرض، ما تحققنا منها لأنها ليست حقيقية أصلاً. القواعد المكتوبة تحت هي ما سيُطبَّق على البيانات الحقيقية عند إدخالها.`
+      : `Every doctor and pharmacy shown right now is <b>sample data</b> — names and numbers put there to demonstrate the product, unverified because there is nothing real to verify. The rules below are what will be applied to real data when it is loaded.`}</span></div>
+
     <div class="stack" style="margin-top:20px">
       <div class="lane"><span class="ic">${icon("seal")}</span><span class="grow"><h3>${t("verified")}</h3>
         <p>${isAR() ? "تأكدنا من الهوية والاختصاص وجهة العمل ورقم الواتساب." : "Identity, specialty, affiliation and WhatsApp number confirmed."}</p></span></div>
@@ -1313,8 +1324,13 @@ function screenTrust() {
       ? `${L(CONFIG.brand)} لا يقدّم استشارة طبية ولا تشخيصاً. للحالات الطارئة اتصل بالرقم الموحد ${CONFIG.emergency.unified}.`
       : `${L(CONFIG.brand)} does not provide medical advice or diagnosis. In an emergency call ${CONFIG.emergency.unified}.`}</span></div>
     <div class="banner banner--info" style="margin-top:10px">${icon("check")}<span>${isAR()
-      ? "بدون حساب، بدون كلمة مرور، ولا نحتفظ بأي بيانات صحية. طلبك يذهب مباشرة إلى العيادة عبر واتساب."
-      : "No account, no password, no health data stored. Your request goes straight to the clinic over WhatsApp."}</span></div>
+      /* This used to read "no health data stored", which was true when the
+         product was a directory and stopped being true the day the health
+         record shipped. A privacy claim that has quietly become false is
+         worse than no claim: it is the one sentence a user will rely on. The
+         accurate version is also the stronger one. */
+      ? "بدون حساب وبدون كلمة مرور. ملفك الصحي محفوظ على هاتفك أنت — ما يطلع منه شي إلا بموافقتك، ولمدة تحدّدها، وكل فتحة مكتوبة عندك. وطلب الدواء يذهب للعيادة عبر واتساب بلا مرورك علينا."
+      : "No account, no password. Your health record is stored on your own phone — nothing leaves it without your consent, for a period you set, and every opening is logged for you. Medicine requests go to the clinic over WhatsApp without passing through us."}</span></div>
     <p class="tiny muted" style="margin-top:18px">${isAR() ? "البيانات المعروضة في هذا النموذج توضيحية. أرقام الهواتف غير حقيقية." : "Data in this prototype is illustrative. Phone numbers are not real."}</p>
     <div class="btn-row" style="margin-top:14px">
       <a class="btn btn--3" href="#/hospitals">${icon("building")}${isAR() ? "المستشفيات" : "Hospitals"}</a>
@@ -3009,7 +3025,12 @@ function screenExplorer() {
           <span class="q-sub" style="display:block">${esc(L(f))} — ${esc(cityName(cityById(cityOf(f))))}</span>
           <span class="row" style="margin-top:9px;gap:12px">
             <span class="st st-t"><i class="dot${sigAgeMin(g) < 60 ? " dot-live" : ""}"></i>${sigAge(sigAgeMin(g))}</span>
-            ${f.verified ? `<span class="st st-v">${isAR() ? "صيدلية موثّقة" : "verified pharmacy"}</span>` : ""}
+            <!-- f.verified is a flag on a SYNTHETIC record, and reading it
+                 directly prints "verified pharmacy" over data nobody has
+                 checked. sealBadge asks DATA_PROVENANCE first and returns
+                 "sample data" while the source is synthetic — the mechanism
+                 already existed; this call site bypassed it. -->
+            ${sealBadge(f, "pharmacies")}
           </span>
         </span></a>`;
     }).join('<div class="hr"></div>')}

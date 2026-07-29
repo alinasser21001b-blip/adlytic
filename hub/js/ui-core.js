@@ -422,6 +422,18 @@ const SEAL_TEXT = {
 
 /* `sourceKey` defaults by entity shape: a doctor has sessions, a facility has
    a type. Callers may pass it explicitly. */
+/* A COUNT of verified pharmacies is a verification claim too, and one that
+   is harder to see: "visible to 14 verified pharmacies" reads as a fact about
+   the network, and while every one of those records is synthetic it is a
+   fabricated reach figure. `sealBadge` already protects the per-entity claim;
+   this protects the aggregate one. Returns the word to use for "verified"
+   given what the source actually is. */
+function verifiedWord(sourceKey, plural) {
+  const origin = ((DATA_PROVENANCE.sources[sourceKey] || {}).origin) || "synthetic";
+  if (origin === "imported") return isAR() ? (plural ? "موثّقة" : "موثّق") : "verified";
+  return isAR() ? (plural ? "في البيانات النموذجية" : "نموذجي") : "in the sample data";
+}
+
 function sealBadge(ent, sourceKey) {
   const key = sourceKey || (ent && ent.sessions ? "doctors" : "pharmacies");
   const v = verificationState(ent, key);

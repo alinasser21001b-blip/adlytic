@@ -435,9 +435,9 @@ function radarCopy(r, secs) {
   }
   if (secs < 10) {
     return isAR()
-      ? `نداؤك ظاهر الآن لـ <b class="num">${reach.n}</b> صيدلية موثّقة في ${esc(city)}${
+      ? `نداؤك ظاهر الآن لـ <b class="num">${reach.n}</b> صيدلية ${verifiedWord("pharmacies", true)} في ${esc(city)}${
           reach.holders ? ` و${countAr(reach.cities.length - 1, ["محافظة أخرى", "محافظتين أخريين", "محافظات أخرى", "محافظةً أخرى"])}` : ""}.`
-      : `Your request is now visible to <b class="num">${reach.n}</b> verified pharmacies in ${esc(city)}${
+      : `Your request is now visible to <b class="num">${reach.n}</b> pharmacies ${verifiedWord("pharmacies", true)} in ${esc(city)}${
           reach.holders ? ` and ${reach.cities.length - 1} other governorates` : ""}.`;
   }
   return isAR()
@@ -452,7 +452,7 @@ function radarPulse(r) {
   const reach = radarReach(r);
   const nodes = Math.min(reach.n, 7);
   return `<div class="radar" id="radar" role="img"
-      aria-label="${isAR() ? `نداؤك ظاهر لـ ${reach.n} صيدلية موثّقة` : `Visible to ${reach.n} verified pharmacies`}">
+      aria-label="${isAR() ? `نداؤك ظاهر لـ ${reach.n} صيدلية ${verifiedWord("pharmacies", true)}` : `Visible to ${reach.n} pharmacies ${verifiedWord("pharmacies", true)}`}">
     <span class="radar-w" style="--d:0s"></span>
     <span class="radar-w" style="--d:.83s"></span>
     <span class="radar-w" style="--d:1.66s"></span>
@@ -735,7 +735,9 @@ function contactPharmacy(facId, vid, qty) {
         <div class="d3" style="margin-top:6px">${esc(L(f))}</div>
         <div class="q-sub">${esc(cityName(cityById(cityOf(f))))}${f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</div>
         <div class="row" style="margin-top:10px;gap:14px;flex-wrap:wrap">
-          ${f.verified ? `<span class="st st-v"><i class="dot"></i>${isAR() ? "صيدلية موثّقة" : "verified pharmacy"}</span>` : `<span class="st st-q"><i class="dot"></i>${isAR() ? "غير موثّقة" : "unverified"}</span>`}
+          <!-- Same bypass, and this one sits on the handoff screen: the
+               moment a patient decides to walk into this pharmacy. -->
+          ${sealBadge(f, "pharmacies")}
           ${g ? `<span class="st st-t"><i class="dot"></i>${isAR() ? `أفادت ${sigAge(sigAgeMin(g))}` : `reported ${sigAge(sigAgeMin(g))}`}</span>` : ""}
         </div>
       </div>
@@ -1229,7 +1231,8 @@ function screenPartner(id) {
   <section class="wrap" style="padding-top:14px">
     <div class="eyebrow">${isAR() ? "لوحة الصيدلية" : "Pharmacy dashboard"}</div>
     <h1 class="prof-name" style="margin-top:4px">${esc(L(f))}</h1>
-    <div class="prof-spec">${esc(L(dist))} · ${f.verified ? t("verified") : t("listed")}</div>
+    <div class="prof-spec">${esc(L(dist))}</div>
+    <div style="margin-top:6px">${sealBadge(f, "pharmacies")}</div>
 
     <div class="banner banner--warn" style="margin-top:16px">${icon("alert")}<span>${isAR()
       ? `في ${L(dist)} وحدها: <b class="num">${unfilled}</b> طلب دواء لم يُلبَّ خلال 30 يوماً. كل واحد منها زبون خرج بلا شراء.`
