@@ -113,6 +113,135 @@ it("a decided review cannot be decided again", () => {
   no(E.mergeDecision(done, E.MERGE_STATE.DIFFERENT, "DR1", NOW, "x").ok);
 });
 
+/* ==================== 2b · IRAQ ====================
+   Everything here comes from the Iraq validation pass, and every case is one
+   a design built for a country WITH a working national patient index would
+   get wrong. These are not localisation tests; they are correctness tests
+   that only fail in Iraq. */
+describe("٢ب · عدسة العراق — الهوية والاسم والتاريخ");
+
+it("religion is refused at registration, not merely undisplayed", () => {
+  const r = E.canRegister({ name: "زينب كاظم", birthDate: "1988-04-02", religion: "مسيحية" });
+  eq(r.reason, "FORBIDDEN_FIELD");
+  eq(r.fields, ["religion"]);
+});
+
+it("sanitise drops every forbidden field and names what it dropped", () => {
+  const { patient, dropped } = E.sanitisePatient({ name: "س", religion: "x", sect: "y", cardImage: "data:...", district: "mansour" });
+  eq(Object.keys(patient).sort(), ["district", "name"]);
+  eq(dropped.sort(), ["cardImage", "religion", "sect"]);
+});
+
+it("a card scan yields four fields and never keeps the image", () => {
+  const r = E.acceptCardScan({ number: "199012345", name: "علي حسن محمود", birthDate: "1990-03-11",
+    sex: "male", religion: "مسلم", image: "data:image/jpeg;base64,AAA", iris: "..." }, NOW);
+  ok(r.ok);
+  eq(r.dropped.sort(), ["image", "iris", "religion"]);
+  no(JSON.stringify(r).includes("base64"), "no card image may survive a scan");
+  no(JSON.stringify(r).includes("مسلم"), "no religion may survive a scan");
+  eq(r.identifier.verification, E.ID_VERIFY.MACHINE, "MRZ/NFC is machine_read, not self_declared");
+});
+
+it("a machine-read card outweighs the same number typed from memory", () => {
+  const mk = (id, v) => ({ id, name: "علي حسن محمود", identifiers: [{ type: E.ID_TYPE.NATIONAL, value: "199012345", verification: v }] });
+  const machine = E.matchScore(mk("A", E.ID_VERIFY.MACHINE), mk("B", E.ID_VERIFY.MACHINE)).score;
+  const typed = E.matchScore(mk("A", E.ID_VERIFY.SELF), mk("B", E.ID_VERIFY.SELF)).score;
+  ok(machine > typed, `machine ${machine} must beat self-declared ${typed}`);
+});
+
+it("an unverified identifier missing entirely defaults to self_declared, never to trusted", () => {
+  eq(E.verifyLevel({ type: "national", value: "1" }), E.ID_VERIFY.SELF);
+  eq(E.verifyLevel({ type: "national", value: "1", verification: "nonsense" }), E.ID_VERIFY.SELF);
+});
+
+it("a self-declared card DISAGREEING is treated as a probable typo, not proof of two people", () => {
+  const mk = (id, val, v) => ({ id, name: "علي حسن محمود", sex: "male", birthDate: "1990-03-11",
+    identifiers: [{ type: E.ID_TYPE.NATIONAL, value: val, verification: v }] });
+  const soft = E.matchScore(mk("A", "199012345", E.ID_VERIFY.SELF), mk("B", "199012346", E.ID_VERIFY.SELF)).score;
+  const hard = E.matchScore(mk("A", "199012345", E.ID_VERIFY.MACHINE), mk("B", "199012346", E.ID_VERIFY.MACHINE)).score;
+  ok(soft > hard, `typed disagreement ${soft} must be weaker evidence than scanned disagreement ${hard}`);
+});
+
+it("legacy civil-status and jinsiya documents still register a patient", () => {
+  ok(E.canRegister({ name: "حسين عبد الأمير", identifiers: [{ type: E.ID_TYPE.CIVIL, value: "AH-1998-22" }] }).ok);
+  ok(E.canRegister({ name: "حسين عبد الأمير", identifiers: [{ type: E.ID_TYPE.JINSIYA, value: "J-7781" }] }).ok);
+});
+
+it("a mobile number is a locator, never an identity document", () => {
+  no(E.isIdentityBearing(E.ID_TYPE.MOBILE), "a phone number does not identify a person");
+  no(E.isIdentityBearing(E.ID_TYPE.FACILITY));
+  ok(E.isIdentityBearing(E.ID_TYPE.NATIONAL));
+  ok(E.isIdentityBearing(E.ID_TYPE.UNHCR), "a UNHCR document is a first-class identity document");
+});
+
+it("an expired mobile number does not match its new owner", () => {
+  const old = { id: "A", name: "سارة منير جاسم", identifiers: [
+    { type: E.ID_TYPE.MOBILE, value: "9647801111111", validTo: "2025-01-01" }] };
+  const stranger = { id: "B", name: "هدى عادل رشيد", identifiers: [
+    { type: E.ID_TYPE.MOBILE, value: "9647801111111", validFrom: "2025-06-01" }] };
+  const now = E.matchScore(old, stranger, NOW);
+  no(now.factors.some((f) => f.f === E.ID_TYPE.MOBILE && f.agree),
+    "a number outside its validity window must not count as agreement");
+});
+
+it("multi-SIM: any one number agreeing is agreement", () => {
+  const a = { id: "A", name: "علي حسن محمود", identifiers: [
+    { type: E.ID_TYPE.MOBILE, value: "9647801111111" }, { type: E.ID_TYPE.MOBILE, value: "9647702222222" }] };
+  const b = { id: "B", name: "علي حسن محمود", identifiers: [{ type: E.ID_TYPE.MOBILE, value: "9647702222222" }] };
+  ok(E.matchScore(a, b).factors.some((f) => f.f === E.ID_TYPE.MOBILE && f.agree),
+    "the second SIM agreeing is still the same person");
+});
+
+it("1 January is a shrug, not a birthday — it must not carry a real date's weight", () => {
+  ok(E.isDefaultDob("1990-01-01"));
+  no(E.isDefaultDob("1990-01-02"));
+  ok(E.dobWeight({ birthDate: "1990-01-01" }, { birthDate: "1990-01-01" }) < E.MATCH_WEIGHTS.birthDate);
+  ok(E.dobWeight({ birthDate: "1990-03-11", birthDateEstimated: true }, { birthDate: "1990-03-11" })
+     <= E.MATCH_WEIGHTS.birthDateEstimated, "an estimate is worth almost nothing");
+});
+
+it("a common name plus a default birth date is NOT enough to raise a review", () => {
+  /* Otherwise every محمد علي born "1 January" in Baghdad queues a review,
+     and a queue nobody believes is a queue nobody reads. */
+  const a = { id: "A", name: "محمد علي حسين", sex: "male", birthDate: "1985-01-01" };
+  const b = { id: "B", name: "محمد علي حسين", sex: "male", birthDate: "1985-01-01" };
+  eq(E.matchVerdict(E.matchScore(a, b).score), "DISTINCT");
+});
+
+it("...but the same pair sharing a phone number IS", () => {
+  const sim = [{ type: E.ID_TYPE.MOBILE, value: "9647801234567" }];
+  const a = { id: "A", name: "محمد علي حسين", sex: "male", birthDate: "1985-01-01", identifiers: sim };
+  const b = { id: "B", name: "محمد علي حسين", sex: "male", birthDate: "1985-01-01", identifiers: sim };
+  ok(E.matchVerdict(E.matchScore(a, b).score).startsWith("REVIEW"));
+});
+
+it("a real birth date still reaches review on name alone — the old calibration holds", () => {
+  const a = { id: "A", name: "علي حسن محمود", sex: "male", birthDate: "1990-03-11" };
+  const b = { id: "B", name: "علي حسن محمود", sex: "male", birthDate: "1990-03-11" };
+  ok(E.matchScore(a, b).score >= E.MATCH.REVIEW);
+});
+
+it("the father's name is a field: same given name, different father = different people", () => {
+  const a = { id: "A", nameParts: { given: "محمد", father: "علي", grandfather: "حسين" }, sex: "male", birthDate: "1990-03-11" };
+  const b = { id: "B", nameParts: { given: "محمد", father: "كاظم", grandfather: "حسين" }, sex: "male", birthDate: "1990-03-11" };
+  const m = E.matchScore(a, b);
+  ok(m.factors.some((f) => f.f === "name-father-differs"), "the father's name must be compared as a field");
+  eq(E.matchVerdict(m.score), "DISTINCT");
+});
+
+it("a truncated name chain is not a different person", () => {
+  const full = { id: "A", nameParts: { given: "زينب", father: "كاظم", grandfather: "عبدالله", family: "الجبوري" }, birthDate: "1988-04-02" };
+  const short = { id: "B", nameParts: { given: "زينب", father: "كاظم", grandfather: "عبد الله" }, birthDate: "1988-04-02" };
+  ok(E.matchVerdict(E.matchScore(full, short).score).startsWith("REVIEW"),
+    "dropping the tribe name and splitting عبدالله must not split the patient");
+});
+
+it("structured names compose for display and keep the plain string working", () => {
+  eq(E.fullName({ nameParts: { given: "زينب", father: "كاظم", grandfather: "عبدالله", family: "الجبوري" } }),
+     "زينب كاظم عبدالله الجبوري");
+  eq(E.fullName({ name: "علي حسن محمود" }), "علي حسن محمود", "records written before nameParts must keep working");
+});
+
 /* ==================== 4-6 · ENCOUNTER ==================== */
 describe("٣ · الزيارة والتوقيع والملحق");
 

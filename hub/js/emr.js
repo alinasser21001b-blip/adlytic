@@ -24,15 +24,31 @@
       visit-keyed database is a migration, not a feature. It is the thing that
       turns six scattered events into one readable story.
 
-   4. IDENTITY IS NEVER THE NATIONAL ID. Iraq's card coverage is unverified,
-      displaced patients may hold none, and the US spent 27 years proving a
-      system can scale without a national identifier — at a permanent cost.
+   4. IDENTITY IS NEVER THE NATIONAL ID. Coverage turned out to be high —
+      40M+ cards against ~46M people — so this rule survives for a different
+      reason than the one it was written for: nobody could establish whether
+      the 12-digit number is STABLE across reissue or correction. A primary
+      key that may silently change is the worst possible defect in a health
+      record, because it splits one patient into two or fuses two into one
+      without ever raising an error. Add to that a million Iraqis with no
+      civil documentation at all, legacy documents still in circulation whose
+      validity nobody could confirm, and 27 years of US evidence that a system
+      scales without a national identifier at a permanent, measured cost.
       The primary key is ours, opaque and stable; every real-world identifier
-      is one optional, typed attribute among several.
+      is one optional, typed attribute among several, and none of them is
+      unique-not-null.
 
    5. NOTHING MERGES SILENTLY. Not duplicate patients, not external records.
       An overlay — two people fused into one chart — is rarer than a duplicate,
       invisible, self-concealing, and the failure mode that kills.
+
+   6. SOME FIELDS ARE REFUSED, NOT JUST UNUSED. Religion is printed on the
+      Iraqi National Card and Article 26 of the card law makes the designation
+      legally coercive. With no data protection law in force and no data
+      protection authority, a queryable table of citizens with religion
+      attached is a targeting asset, not a data model. The refusal is enforced
+      at the boundary — see FORBIDDEN_FIELDS — because a rule that lives only
+      in a comment is a rule that a future contributor deletes by accident.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -44,22 +60,150 @@
   /* Identifier types we accept. All optional; none is the key. `national` is
      listed first because it is the most useful WHEN present, not because it
      is required — a displaced patient with only a UNHCR number is still a
-     patient, and a system that cannot register them is not usable in Iraq. */
+     patient, and a system that cannot register them is not usable in Iraq.
+
+     The legacy pair (civil status ID, jinsiya) is here because issuance of
+     both stopped inside Iraq in March–April 2024 in favour of the unified
+     National Card — but nobody collected the ones already in wallets, and
+     whether they remain valid is an open question. A patient holding one is
+     not a patient without a document. We record the type and let the clinic
+     decide; we do not adjudicate Iraqi civil law at a registration desk. */
   const ID_TYPE = {
-    NATIONAL: "national",      /* البطاقة الوطنية */
+    NATIONAL: "national",      /* البطاقة الوطنية الموحّدة */
+    CIVIL: "civil",            /* هوية الأحوال المدنية — legacy, still circulating */
+    JINSIYA: "jinsiya",        /* شهادة الجنسية — legacy, still circulating */
     PASSPORT: "passport",
     MOBILE: "mobile",
-    UNHCR: "unhcr",            /* نازح / لاجئ */
+    UNHCR: "unhcr",            /* نازح / لاجئ — UNHCR / IOM documentation */
+    MOH: "moh",                /* رقم ملف وزارة الصحة */
     FACILITY: "facility",      /* رقم الملف في عيادة بعينها */
     EXTERNAL: "external",      /* معرّف من نظام آخر */
   };
 
+  /* An identifier that answers "which person is this" versus one that only
+     answers "how do I reach them". A phone number is the best REACH channel
+     in Iraq — connections run at ~103% of population — and one of the worst
+     identity claims: multi-SIM is common and number portability status is
+     unresolved, so numbers churn and get reassigned. Mobile is a locator. */
+  const IDENTITY_BEARING = [ID_TYPE.NATIONAL, ID_TYPE.CIVIL, ID_TYPE.JINSIYA, ID_TYPE.PASSPORT, ID_TYPE.UNHCR];
+  const isIdentityBearing = (t) => IDENTITY_BEARING.indexOf(t) !== -1;
+
+  /* HOW WE KNOW an identifier, recorded per identifier, not per patient.
+     Iraq's National Card carries an ICAO-standard machine-readable zone AND
+     an NFC chip, which means `machine_read` is reachable TODAY with an
+     ordinary phone camera and zero government integration — no API, no
+     agreement, no dependency on a national platform that may never open to
+     private healthcare. That is why this tier exists in v1 rather than
+     waiting for one: it is the difference between a number a clerk typed
+     from memory and a number the card itself emitted. */
+  const ID_VERIFY = {
+    SELF: "self_declared",       /* the patient said so */
+    SIGHTED: "visually_sighted", /* a human looked at the document */
+    MACHINE: "machine_read",     /* MRZ / NFC — the document emitted it */
+  };
+  const ID_VERIFY_RANK = { self_declared: 0, visually_sighted: 1, machine_read: 2 };
+  /* Confidence multiplier applied to an identifier's match weight in BOTH
+     directions. A self-declared number agreeing is weaker evidence of the
+     same person; a self-declared number disagreeing is likewise weaker
+     evidence of different people, because it is far likelier to be a typo. */
+  const ID_VERIFY_WEIGHT = { self_declared: 0.6, visually_sighted: 0.85, machine_read: 1 };
+  const verifyLevel = (i) => (i && ID_VERIFY_RANK[i.verification] != null ? i.verification : ID_VERIFY.SELF);
+  const verifyFactor = (a, b) => Math.min(ID_VERIFY_WEIGHT[verifyLevel(a)], ID_VERIFY_WEIGHT[verifyLevel(b)]);
+
+  /* Fields we refuse to hold, enforced rather than documented.
+
+     Religion is printed on the Iraqi National Card, and Article 26 of the
+     card law makes the designation legally coercive — a minor is converted
+     with a converting parent, and the change runs one way only. A queryable
+     table of Iraqi citizens with religion attached is a targeting asset in a
+     country with a genocide against Yazidis and Christians inside living
+     memory, and no data protection law in force to restrain what happens to
+     it. Sect and ethnicity follow for the same reason.
+
+     The card IMAGE is on this list too. A scan yields number, name, birth
+     date and sex — take those four and discard the photograph. Retaining the
+     image retains the religion field whether or not we parse it, and retains
+     the biometric portrait, in a system that has no lawful basis to hold
+     either. This is a storage rule, so it is checked at the boundary. */
+  const FORBIDDEN_FIELDS = ["religion", "sect", "ethnicity", "cardImage", "idImage", "idPhoto", "biometric", "الديانة", "المذهب", "القومية"];
+
+  function forbiddenIn(obj) {
+    if (!obj || typeof obj !== "object") return [];
+    return Object.keys(obj).filter((k) => FORBIDDEN_FIELDS.indexOf(k) !== -1);
+  }
+  /* Returns a copy with the forbidden keys removed. Used at every ingest
+     boundary — registration, card scan, external record promotion — so the
+     rule holds even when the caller forgot it. */
+  function sanitisePatient(p) {
+    if (!p || typeof p !== "object") return p;
+    const out = {}, dropped = [];
+    for (const k of Object.keys(p)) {
+      if (FORBIDDEN_FIELDS.indexOf(k) !== -1) { dropped.push(k); continue; }
+      out[k] = p[k];
+    }
+    return { patient: out, dropped };
+  }
+
+  /* A card scan produces four fields and nothing else. Anything the caller
+     hands us beyond that whitelist is dropped, named in `dropped`, and never
+     reaches storage. */
+  const CARD_FIELDS = ["number", "name", "birthDate", "sex"];
+  function acceptCardScan(scan, at) {
+    if (!scan || typeof scan !== "object") return { ok: false, reason: "NO_SCAN" };
+    const num = String(scan.number || "").trim();
+    if (!num) return { ok: false, reason: "NO_NUMBER" };
+    const dropped = Object.keys(scan).filter((k) => CARD_FIELDS.indexOf(k) !== -1 ? false : true);
+    return {
+      ok: true,
+      dropped,
+      identifier: {
+        type: ID_TYPE.NATIONAL, value: num,
+        verification: ID_VERIFY.MACHINE, verifiedAt: at || null,
+        validFrom: null, validTo: null,
+      },
+      demographics: {
+        name: scan.name || null,
+        birthDate: scan.birthDate || null,
+        birthDateEstimated: false,
+        sex: scan.sex || null,
+      },
+    };
+  }
+
+  /* Iraqi names are structured, not a string with spaces in it. The chain is
+     given + father + grandfather + family/tribe, and the father's name is a
+     FIELD — two men both called محمد with different fathers are two men, and
+     a middle-name-shaped model cannot express that. We store the components
+     when we have them and compose for display; `name` remains supported so
+     nothing that already writes a single string breaks. Arabic script is
+     authoritative — any Latin transliteration is a derived alias and is
+     never matched on as primary, because Mohammed / Muhammad / Mohamad and
+     Khaled / Khalid / Halid are the same person. */
+  const NAME_PARTS = ["given", "father", "grandfather", "family"];
+  function fullName(p) {
+    if (!p) return "";
+    const np = p.nameParts;
+    if (np && (np.given || np.father)) {
+      return NAME_PARTS.map((k) => String(np[k] || "").trim()).filter(Boolean).join(" ");
+    }
+    return String(p.name || "").trim();
+  }
+
   /* A patient is identifiable enough to register if we can plausibly find
      them again. Name alone is not enough in a country where a dozen people
-     in one district share it. */
+     in one district share it.
+
+     Note what is NOT required: any government document. Up to a million
+     Iraqis lack civil documentation, and the barriers — Civil Affairs
+     capacity, security clearance, perceived affiliation — are precisely the
+     kind an undocumented patient cannot resolve by walking into an office.
+     A name plus a birth date registers. Rejecting that cohort would exclude
+     exactly the patients whose care continuity is already worst. */
   function canRegister(p) {
     if (!p) return { ok: false, reason: "NO_PATIENT" };
-    const name = String(p.name || "").trim();
+    const bad = forbiddenIn(p);
+    if (bad.length) return { ok: false, reason: "FORBIDDEN_FIELD", fields: bad };
+    const name = fullName(p);
     if (name.length < 3) return { ok: false, reason: "NAME_REQUIRED" };
     const hasId = (p.identifiers || []).some((i) => i.value && String(i.value).trim());
     const hasDob = !!p.birthDate;
@@ -78,16 +222,41 @@
   /* Calibrated so that an exact full name PLUS an exact date of birth
      reaches review on its own (30+30+5 = 65 > REVIEW). An earlier weighting
      scored that pair at 45 and silently dropped a genuine duplicate — which
-     is exactly the failure this whole module exists to prevent. */
+     is exactly the failure this whole module exists to prevent.
+
+     Every identifier weight below is the weight at `machine_read`. It is
+     scaled down by ID_VERIFY_WEIGHT for anything a clerk typed, so the tier is
+     load-bearing rather than a label in a dropdown. */
   const MATCH_WEIGHTS = {
     national: 55,   /* strong when present — but forgeable and mistyped */
+    civil: 45,      /* legacy; still the document many patients actually carry */
+    jinsiya: 40,
     passport: 45,
+    unhcr: 45,
     mobile: 25,     /* shared within families in Iraq; useful, not decisive */
     name: 30,
     birthDate: 30,
+    /* A date of birth is only worth 30 when someone actually knew it. Where
+       it was estimated, or where it is the 1-January default that registration
+       desks across the region reach for when the patient does not know, an
+       exact match is close to meaningless — it says "two people were both
+       guessed at", not "two people were born on the same day". Weighting it
+       fully there manufactures review prompts on the commonest name/date pair
+       in the country, and a review queue nobody believes is a review queue
+       nobody reads. */
+    birthDateDefault: 12,   /* 01-01 of some year — the default, not a date */
+    birthDateEstimated: 5,  /* explicitly flagged as an estimate */
     sex: 5,
     address: 10,
   };
+
+  /* 1 January is not a birthday in a registration system, it is a shrug. */
+  const isDefaultDob = (d) => /^\d{4}-01-01$/.test(String(d || ""));
+  function dobWeight(a, b) {
+    if (a.birthDateEstimated || b.birthDateEstimated) return MATCH_WEIGHTS.birthDateEstimated;
+    if (isDefaultDob(a.birthDate) || isDefaultDob(b.birthDate)) return MATCH_WEIGHTS.birthDateDefault;
+    return MATCH_WEIGHTS.birthDate;
+  }
 
   const MATCH = { AUTO_NONE: 0, REVIEW: 60, STRONG: 85 };
 
@@ -114,43 +283,104 @@
      token comparison needs them; this drops them for the exact-match test. */
   const normArKey = (s) => normAr(s).replace(/\s+/g, "");
 
-  const idOf = (p, type) => ((p.identifiers || []).find((i) => i.type === type) || {}).value || null;
+  /* Only CURRENTLY VALID identifiers are matched on. An identifier carries an
+     optional validity window because the commonest one — a mobile number —
+     genuinely expires: the patient stops paying, the operator reassigns it,
+     and six months later it belongs to a stranger. Matching a live record
+     against a number its owner gave up is how an overlay gets built out of
+     nothing but ordinary telecom housekeeping. */
+  function identifiersOf(p, type, at) {
+    const t = at == null ? null : (typeof at === "number" ? at : new Date(at).getTime());
+    return (p.identifiers || []).filter((i) => {
+      if (i.type !== type || !i.value) return false;
+      if (t == null) return true;
+      const from = i.validFrom == null ? null : new Date(i.validFrom).getTime();
+      const to = i.validTo == null ? null : new Date(i.validTo).getTime();
+      if (from != null && t < from) return false;
+      if (to != null && t > to) return false;
+      return true;
+    });
+  }
+  const idOf = (p, type, at) => (identifiersOf(p, type, at)[0] || {}).value || null;
 
-  function matchScore(a, b) {
+  /* Compare the Iraqi name chain component-by-component when both sides carry
+     one. This is the whole reason to store parts: a DISAGREEING father's name
+     is positive evidence of two different people, which a single-string
+     comparison can only ever read as "somewhat different text". */
+  function namePartScore(a, b) {
+    const A = a.nameParts, B = b.nameParts;
+    if (!A || !B || !A.given || !B.given) return null;
+    const eq = (x, y) => x && y && normArKey(x) === normArKey(y);
+    const both = (x, y) => !!(String(x || "").trim() && String(y || "").trim());
+    if (!eq(A.given, B.given)) return { w: -MATCH_WEIGHTS.name, f: "name-given-differs" };
+    /* Given name agrees. The father's name decides. */
+    if (both(A.father, B.father) && !eq(A.father, B.father)) return { w: -MATCH_WEIGHTS.name, f: "name-father-differs" };
+    if (both(A.grandfather, B.grandfather) && !eq(A.grandfather, B.grandfather)) return { w: -15, f: "name-grandfather-differs" };
+    const fatherEq = eq(A.father, B.father), grandEq = eq(A.grandfather, B.grandfather);
+    let w = 12;                                 /* given name only */
+    if (fatherEq || grandEq) w = 22;
+    if (fatherEq && grandEq) w = MATCH_WEIGHTS.name;   /* the full chain */
+    /* Family/tribe is often a whole district's name, so agreement adds little
+       and absence means nothing. It is never allowed to subtract. */
+    return { w, f: "name-chain" };
+  }
+
+  function matchScore(a, b, at) {
     const factors = [];
     let score = 0;
 
-    for (const t of [ID_TYPE.NATIONAL, ID_TYPE.PASSPORT, ID_TYPE.MOBILE]) {
-      const x = idOf(a, t), y = idOf(b, t);
-      if (x && y) {
-        if (String(x).trim() === String(y).trim()) {
-          score += MATCH_WEIGHTS[t]; factors.push({ f: t, agree: true, w: MATCH_WEIGHTS[t] });
-        } else {
-          /* A DISAGREEING strong identifier is evidence AGAINST, and must be
-             able to overpower agreeing weak ones. Two people who share a
-             surname and a birth year but hold different national cards are
-             two people. */
-          score -= MATCH_WEIGHTS[t]; factors.push({ f: t, agree: false, w: -MATCH_WEIGHTS[t] });
+    for (const t of [ID_TYPE.NATIONAL, ID_TYPE.CIVIL, ID_TYPE.JINSIYA, ID_TYPE.PASSPORT, ID_TYPE.UNHCR, ID_TYPE.MOBILE]) {
+      const xs = identifiersOf(a, t, at), ys = identifiersOf(b, t, at);
+      if (!xs.length || !ys.length) continue;
+      /* Multi-SIM is ordinary here: a patient may hold three numbers and any
+         one of them agreeing is agreement. Only when NO pair agrees is this
+         a disagreement. */
+      let hit = null;
+      for (const x of xs) {
+        const y = ys.find((z) => String(z.value).trim() === String(x.value).trim());
+        if (y) { hit = [x, y]; break; }
+      }
+      const base = MATCH_WEIGHTS[t] || 0;
+      if (hit) {
+        const w = Math.round(base * verifyFactor(hit[0], hit[1]));
+        score += w; factors.push({ f: t, agree: true, w, verification: verifyLevel(hit[0]) });
+      } else {
+        /* A DISAGREEING strong identifier is evidence AGAINST, and must be
+           able to overpower agreeing weak ones. Two people who share a
+           surname and a birth year but hold different national cards are
+           two people. Scaled by verification for the same reason as the
+           agreeing case — a mistyped number is not a different person. */
+        const w = Math.round(base * verifyFactor(xs[0], ys[0]));
+        score -= w; factors.push({ f: t, agree: false, w: -w, verification: verifyLevel(xs[0]) });
+      }
+    }
+
+    const parts = namePartScore(a, b);
+    if (parts) {
+      score += parts.w; factors.push({ f: parts.f, agree: parts.w > 0, w: parts.w });
+    } else {
+      const na = normAr(fullName(a)), nb = normAr(fullName(b));
+      if (na && nb) {
+        if (normArKey(fullName(a)) === normArKey(fullName(b))) { score += MATCH_WEIGHTS.name; factors.push({ f: "name", agree: true, w: MATCH_WEIGHTS.name }); }
+        else {
+          /* Partial credit for shared name tokens — Iraqi names are long chains
+             (given + father + grandfather + tribe) and get truncated variously. */
+          const ta = na.split(" "), tb = nb.split(" ");
+          const shared = ta.filter((t) => t.length > 2 && tb.includes(t)).length;
+          const w = Math.round((shared / Math.max(ta.length, tb.length)) * MATCH_WEIGHTS.name);
+          if (w > 0) { score += w; factors.push({ f: "name-partial", agree: true, w }); }
         }
       }
     }
 
-    const na = normAr(a.name), nb = normAr(b.name);
-    if (na && nb) {
-      if (normArKey(a.name) === normArKey(b.name)) { score += MATCH_WEIGHTS.name; factors.push({ f: "name", agree: true, w: MATCH_WEIGHTS.name }); }
-      else {
-        /* Partial credit for shared name tokens — Iraqi names are long chains
-           (given + father + grandfather + tribe) and get truncated variously. */
-        const ta = na.split(" "), tb = nb.split(" ");
-        const shared = ta.filter((t) => t.length > 2 && tb.includes(t)).length;
-        const w = Math.round((shared / Math.max(ta.length, tb.length)) * MATCH_WEIGHTS.name);
-        if (w > 0) { score += w; factors.push({ f: "name-partial", agree: true, w }); }
-      }
-    }
-
     if (a.birthDate && b.birthDate) {
-      if (a.birthDate === b.birthDate) { score += MATCH_WEIGHTS.birthDate; factors.push({ f: "birthDate", agree: true, w: MATCH_WEIGHTS.birthDate }); }
-      else { score -= 15; factors.push({ f: "birthDate", agree: false, w: -15 }); }
+      const dw = dobWeight(a, b);
+      if (a.birthDate === b.birthDate) { score += dw; factors.push({ f: "birthDate", agree: true, w: dw }); }
+      else {
+        /* Two estimates disagreeing is not evidence of anything. */
+        const pen = dw <= MATCH_WEIGHTS.birthDateEstimated ? 3 : 15;
+        score -= pen; factors.push({ f: "birthDate", agree: false, w: -pen });
+      }
     }
     if (a.sex && b.sex) {
       if (a.sex === b.sex) { score += MATCH_WEIGHTS.sex; factors.push({ f: "sex", agree: true, w: MATCH_WEIGHTS.sex }); }
@@ -170,10 +400,10 @@
     return "DISTINCT";
   }
 
-  function findCandidates(candidate, population) {
+  function findCandidates(candidate, population, at) {
     return (population || [])
       .filter((p) => p.id !== candidate.id)
-      .map((p) => { const m = matchScore(candidate, p); return { patientId: p.id, ...m, verdict: matchVerdict(m.score) }; })
+      .map((p) => { const m = matchScore(candidate, p, at); return { patientId: p.id, ...m, verdict: matchVerdict(m.score) }; })
       .filter((r) => r.verdict !== "DISTINCT")
       .sort((x, y) => y.score - x.score);
   }
@@ -824,8 +1054,10 @@
   }
 
   root.EMR = {
-    ID_TYPE, canRegister,
-    MATCH_WEIGHTS, MATCH, normAr, normArKey, matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
+    ID_TYPE, canRegister, isIdentityBearing, identifiersOf,
+    ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
+    MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
+    matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
     ENC_STATE, ENC_TYPE, SIGN_REQUIRED, canSign, signEncounter, addAddendum, voidEncounter,
     COND_STATE, VERIFY, isChronicActive, isStale, activeConditions, STALE_DAYS,
     MED_STATE, stopMedication, medStatus, currentMedications,
