@@ -370,7 +370,7 @@ function openControlledHandoff(med) {
       ${licensed.length ? licensed.map((f) => `<a class="rw" href="#/pharmacy/${f.id}">
         <span class="grow">
           <span class="rowb"><span class="d3">${esc(L(f))}</span>
-            <span class="mark">${isAR() ? "ختم" : "OK"}</span></span>
+            ${sealBadge(f, "pharmacies")}</span>
           <span class="q-sub" style="display:block">${esc(cityName(cityById(cityOf(f))))}${
             f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</span>
         </span></a>`).join('<div class="hr"></div>')

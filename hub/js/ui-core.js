@@ -359,7 +359,18 @@ const specOf = (id) => SPECIALTIES.find((s) => s.id === id);
 const needCount = (n) => DOCTORS.filter((d) => d.spec === n.spec && status(d).k !== "shut").length;
 const docsOpenNow = () => DOCTORS.filter((d) => status(d).k !== "shut").length;
 const phOpenNow = () => FACILITIES.filter((f) => f.type === "pharmacy" && status(f).k !== "shut").length;
-const phNight = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night).length;
+/* Night-duty pharmacies that are OPEN, not merely labelled night-duty.
+   `phNight` used to count the label alone, and the home screen presented the
+   result as "منها N" — "N OF THEM" — over the open count. Two sets that were
+   never intersected, stated as a subset. Measured at 12:53 on the seed data:
+   home claimed 5 night-duty out of 11 open while 3 of those 5 were shut.
+   The rule this breaks is the product's own: say what is true of the network,
+   not what sounds active. */
+const phNight = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night && status(f).k !== "shut").length;
+/* The label count, for the places that genuinely mean "has a night licence"
+   rather than "is open now" — kept separate so the two can never be confused
+   again by whoever reads this next. */
+const phNightListed = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night).length;
 
 /* ---------------- HELPERS ---------------- */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -374,10 +385,50 @@ const refCode = () => { const C = "ABCDEFGHJKLMNPQRTUVWXY3479"; return Array.fro
 const waLink = (num, msg) => `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
 const mapLink = (f) => `https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lng}`;
 
-function sealBadge(ent) {
-  return ent.verified
-    ? `<span class="seal">${icon("seal")}${t("verified")}</span>`
-    : `<span class="unverified">${icon("info")}${t("listed")}</span>`;
+/* THE VERIFICATION STATE OF ONE RECORD — four states, and none of them is
+   absence.
+
+   Two things were wrong and they compounded. First, every card rendered a
+   jade `ختم` seal whenever `verified === true` and rendered NOTHING when it
+   was false — so "we have not checked this doctor" was communicated by the
+   quiet absence of a 34px box, which is to say not communicated at all.
+
+   Second, and worse: `DATA_PROVENANCE.sources.doctors.origin` is "synthetic"
+   (js/data.js:22), and 17 of 18 seeded doctors carry `verified: true`. The
+   product was stamping a trust mark on records it declares fabricated. The
+   file that defines provenance says it plainly — "a provenance claim that
+   cannot be contradicted by the data is decoration" — and nothing was reading
+   it outside the admin screen and preflight.
+
+   So the seal is now DERIVED from provenance first and the record second. It
+   cannot be turned on by hand: while a source is synthetic, every record from
+   it says so, and `tools/preflight.mjs` refuses a release whose provenance
+   and records disagree. */
+function verificationState(ent, sourceKey) {
+  if (!ent) return { k: "listed" };
+  const origin = ((DATA_PROVENANCE.sources[sourceKey] || {}).origin) || "synthetic";
+  if (origin !== "imported") return { k: "sample" };
+  if (!ent.verified) return { k: "listed" };
+  if (ent.updated > 90) return { k: "stale", days: ent.updated };
+  return { k: "verified", days: ent.updated };
+}
+
+const SEAL_TEXT = {
+  verified: ["موثّق", "Verified"],
+  stale: ["توثيق قديم", "Verification is old"],
+  listed: ["مدرج — ما تحققنا", "Listed — not verified"],
+  sample: ["بيانات نموذجية", "Sample data"],
+};
+
+/* `sourceKey` defaults by entity shape: a doctor has sessions, a facility has
+   a type. Callers may pass it explicitly. */
+function sealBadge(ent, sourceKey) {
+  const key = sourceKey || (ent && ent.sessions ? "doctors" : "pharmacies");
+  const v = verificationState(ent, key);
+  const txt = esc(SEAL_TEXT[v.k][isAR() ? 0 : 1]);
+  if (v.k === "verified") return `<span class="seal">${icon("seal")}${txt}</span>`;
+  if (v.k === "stale") return `<span class="st st-t">${icon("clock")}${txt}</span>`;
+  return `<span class="unverified">${icon("info")}${txt}</span>`;
 }
 function updatedLine(ent) {
   const stale = ent.updated > 90;
@@ -446,7 +497,7 @@ function doctorCard(x, dimIfShut = true) {
     mono: initials(L(d)).charAt(0),
     title: L(d),
     open, quiet: dimIfShut && st.k === "shut",
-    mark: d.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    mark: sealBadge(d, "doctors"),
     sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
     meta: [
       statusLabel(st, true),
@@ -466,7 +517,7 @@ function pharmacyCard(x, dimIfShut = true) {
     mono: initial(L(f)),
     title: L(f),
     open: st.k === "open", quiet: dimIfShut && st.k === "shut",
-    mark: f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    mark: sealBadge(f, "pharmacies"),
     sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
     meta: [
       statusLabel(st, true),

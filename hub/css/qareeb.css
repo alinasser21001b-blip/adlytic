@@ -357,6 +357,32 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
 .field input::placeholder, .field textarea::placeholder { color: var(--ink-4); }
 
+/* DIRECTIONAL ICONS. js/ui-core.js marks `back` and `chev` with `.dirflip`
+   because their meaning is "the way you came" / "onward", and in Arabic that
+   is the opposite side of the screen. The class was emitted on every one of
+   them and had no rule anywhere, so in an RTL app the back chevron pointed
+   left — away from the corner it sits in. Visible in nine of twelve screens.
+
+   scaleX on the glyph rather than a second icon path: one sprite, one source
+   of truth, and it stays correct if the app is ever read in English. */
+[dir="rtl"] .dirflip { transform: scaleX(-1); }
+
+/* SHEET MOTION. `sheet()` adds `.in` on the next animation frame and
+   `closeSheet()` waits 260ms before removing the node — a choreography with
+   nothing to choreograph, because neither `.sheet.in` nor `.scrim.in` had a
+   rule. The sheet appeared and vanished instantly, and the 260ms was dead
+   time the user waited through. */
+.sheet { transform: translateY(100%); transition: transform 220ms cubic-bezier(.2,.7,.3,1); }
+.sheet.in { transform: none; }
+.scrim { opacity: 0; transition: opacity 220ms ease; }
+.scrim.in { opacity: 1; }
+/* A sheet taller than the screen must scroll its own body, not the page
+   behind it. `.sheet-b` is used eighteen times and had no rule. */
+.sheet-b { max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .scrim { transition: none; }
+}
+
 /* .fld — the same control, written as <label class="fld"><span>…</span><input>.
    The record and network screens use this shape because the label belongs to
    the input semantically and a wrapping <label> gets that for free.

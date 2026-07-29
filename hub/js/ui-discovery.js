@@ -560,7 +560,7 @@ function screenDoctor(id) {
         <h1 class="d2">${esc(L(d))}</h1>
         <div class="q-sub" style="margin-top:4px">${esc(L(sp))}${d.sub_ar && isAR() ? " — " + esc(d.sub_ar) : ""}</div>
       </span>
-      ${d.verified ? `<span class="mark" style="width:44px;height:44px;font-size:10px">${isAR() ? "ختم" : "OK"}</span>` : ""}
+      ${sealBadge(d, "doctors")}
     </div>
 
     <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
@@ -705,7 +705,15 @@ function nightFallback() {
    confirmed stock, freshest first, and only then explains where and when.
 ------------------------------------------------------------- */
 function screenPharmacy(id) {
-  const f = fac(id); if (!f) return screen404();
+  /* `anyFac`, not `fac`. `fac` searches FACILITIES only, which is Baghdad;
+     the governorate branches live in BRANCHES. Three call sites pass a branch
+     id — the radar sign-in gate, the stock card, and, worst, the controlled-
+     medicine handoff in js/ui-backend.js, which lists "licensed pharmacies
+     near you" for a patient who has just been refused a public request for a
+     controlled drug. For every user outside Baghdad each of those rows was a
+     404: the one safe recovery path the product offers for its most sensitive
+     refusal ended in a dead screen. */
+  const f = anyFac(id); if (!f) return screen404();
   const st = status(f), km = distTo(f);
   const dist = DISTRICTS.find((d) => d.id === f.district);
   const prods = PRODUCTS.filter((x) => x.stock.includes(f.id));
@@ -726,15 +734,14 @@ function screenPharmacy(id) {
       <span class="av" style="width:56px;height:56px;font-size:21px">${esc(initial(L(f)))}</span>
       <span class="grow">
         <h1 class="d2">${esc(L(f))}</h1>
-        <div class="q-sub" style="margin-top:4px">${t("pharmacy")}${dist ? " — " + esc(L(dist)) : ""}${
-          isAR() ? (dist?.lm_ar ? "، " + esc(dist.lm_ar) : "") : (dist?.lm_en ? ", " + esc(dist.lm_en) : "")}</div>
+        <div class="q-sub" style="margin-top:4px">${t("pharmacy")}${placeOf(f)}</div>
       </span>
-      ${f.verified ? `<span class="mark" style="width:44px;height:44px;font-size:10px">${isAR() ? "ختم" : "OK"}</span>` : ""}
+      ${sealBadge(f)}
     </div>
 
     <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
       ${statusLabel(st, true)}
-      <span class="t3"><span class="num">${fmtKm(km)}</span></span>
+      ${sameCityAsUser(f) ? `<span class="t3"><span class="num">${fmtKm(km)}</span></span>` : ""}
       ${f.night ? `<span class="st st-t">${isAR() ? "خفارة ليلية" : "Night duty"}</span>` : ""}
       <span class="t3">${updatedLine(f)}</span>
     </div>
@@ -1591,23 +1598,41 @@ const productMsg = (p, f) => isAR()
 function toPreview(id) {
   /* Check for a request to the same doctor and slot before showing the
      message again. Someone tapping twice usually wants the first one's
-     status, not a second message landing in the clinic's inbox. */
+     status, not a second message landing in the clinic's inbox.
+
+     The name and note are read HERE, before anything can open a sheet. The
+     guard's sheet replaces the DOM that holds #nm and #nt, so reading them
+     after it has opened throws on null — which is what happened on every
+     "send anyway": the loop above kept it from ever getting that far, and the
+     crash was waiting behind it. */
+  const val = (elId) => { const el = document.getElementById(elId); return el ? (el.value || "").trim() : null; };
+  const typed = { name: val("nm"), note: val("nt") };
+  if (typed.name !== null) window.__typed = typed;
+
   const dd = DOCTORS.find((x) => x.id === id);
   const ss = dd && window.__slots && window.__slots[window.__slot || 0];
-  if (dd && ss && !window.__dupProceed) {
+  if (dd && ss && !window.__dupOK) {
     const when = `${dayName(ss.day)} ${fmtRangeTxt(ss.seg.f, ss.seg.t)}`;
     const prior = priorRequest(id, when);
     if (prior) return duplicateGuard(id, when, () => toPreview(id));
   }
-  window.__dupProceed = null;
+  window.__dupOK = false;        /* one shot, consumed */
   return toPreviewInner(id);
 }
 
 function toPreviewInner(id) {
   const d = DOCTORS.find((x) => x.id === id);
-  const name = (document.getElementById("nm").value || "").trim();
-  const note = (document.getElementById("nt").value || "").trim();
-  if (!name) { toast(isAR() ? "اكتب اسمك من فضلك" : "Please enter your name"); document.getElementById("nm").focus(); return; }
+  /* Prefer the live fields; fall back to what toPreview captured before a
+     sheet replaced them. */
+  const live = (elId) => { const el = document.getElementById(elId); return el ? (el.value || "").trim() : null; };
+  const kept = window.__typed || {};
+  const name = live("nm") ?? kept.name ?? "";
+  const note = live("nt") ?? kept.note ?? "";
+  if (!name) {
+    toast(isAR() ? "اكتب اسمك من فضلك" : "Please enter your name");
+    const el = document.getElementById("nm"); if (el) el.focus();
+    return;
+  }
   S.name = name; LS.set("name", name);
   const s = window.__slots[window.__slot];
   const ref = refCode();
@@ -1788,10 +1813,30 @@ function duplicateGuard(docId, when, proceed) {
       <div class="v2" style="margin-top:18px">
         <button class="btn btn--2" onclick="closeSheet();location.hash='#/me'">${isAR() ? "شوف الطلب" : "See the request"}</button>
         ${prior.phone ? `<a class="btn btn--2" href="tel:+${esc(prior.phone)}">${t("call")}</a>` : ""}
-        <button class="btn btn--3" onclick="window.__dupProceed && window.__dupProceed()">${isAR() ? "أرسل مرة ثانية" : "Send anyway"}</button>
+        <button class="btn btn--3" onclick="dupSendAnyway()">${isAR() ? "أرسل مرة ثانية" : "Send anyway"}</button>
       </div>
     </div>`);
-  window.__dupProceed = () => { window.__dupProceed = null; proceed(); };
+  window.__dupPending = proceed;
+}
+
+/* "Send anyway" was an infinite loop, and reading the two lines apart from
+   each other is why it survived.
+
+   `toPreview` gates on `!window.__dupProceed` — "no override is in flight, so
+   check for a duplicate". The override handler set that same variable to null
+   BEFORE calling proceed(). So proceed() re-entered toPreview, the gate saw
+   null, and the guard sheet opened again. The prior request is still in
+   S.requests, so it opened forever.
+
+   One flag cannot mean both "here is the override" and "an override is
+   running". Now there are two: __dupPending holds the continuation, and
+   __dupOK is the one-shot permission that toPreview consumes. */
+function dupSendAnyway() {
+  const go = window.__dupPending;
+  if (!go) return;
+  window.__dupPending = null;
+  window.__dupOK = true;      /* consumed by toPreview, once */
+  go();
 }
 
 function openEmergency() {
@@ -2297,6 +2342,31 @@ const anyFac = (id) => allPharmacies().find((f) => f.id === id);
 /* A Baghdad facility's city is Baghdad; a branch carries its own. */
 const cityOf = (f) => f && (f.city || "baghdad");
 const cityById = (id) => CITIES.find((c) => c.id === id);
+
+/* Where a facility IS, in one phrase, for either shape of record. Baghdad
+   facilities carry a `district` id; governorate branches carry `city` and a
+   free-text `area_ar` with `district: null`. A screen that reads only
+   `district` renders an empty place for every branch — which is how a
+   pharmacy in Basra ends up looking like a pharmacy with no address. */
+function placeOf(f) {
+  if (!f) return "";
+  const d = f.district && DISTRICTS.find((x) => x.id === f.district);
+  if (d) {
+    const lm = isAR() ? d.lm_ar : d.lm_en;
+    return " — " + esc(L(d)) + (lm ? (isAR() ? "، " : ", ") + esc(lm) : "");
+  }
+  const c = cityName(cityById(cityOf(f)));
+  const area = isAR() ? f.area_ar : (f.area_en || f.area_ar);
+  return c ? " — " + esc(c) + (area ? (isAR() ? "، " : ", ") + esc(area) : "") : "";
+}
+
+/* A distance is only meaningful inside the user's own city. `distTo` is a
+   straight haversine from the user's district centre, so on a Basra branch it
+   confidently returns ~450 km under a header that reads "distances are
+   approximate from Karrada centre". A number that is arithmetically right and
+   contextually meaningless is worse than no number: the screen states the
+   city instead. */
+const sameCityAsUser = (f) => cityOf(f) === (S.exCity || "baghdad");
 /* Governorates whose seat has its own name (نينوى / الموصل) show the seat,
    because that is what a person says out loud. */
 const cityName = (c) => !c ? "" : (isAR() ? (c.seat_ar || c.ar) : (c.seat_en || c.en));
@@ -2972,7 +3042,7 @@ function sigRow(g, vid) {
     <span class="grow">
       <span class="rowb">
         <span class="d3" style="font-size:17px">${esc(L(g.f))}</span>
-        ${g.f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}
+        ${sealBadge(g.f, "pharmacies")}
       </span>
       ${fastBadge(g.fac) ? `<span style="display:block;margin-top:6px">${fastBadge(g.fac)}</span>` : ""}
       <span class="q-sub" style="display:block">${esc(cityName(c))}${g.f.area_ar && isAR() ? " — " + esc(g.f.area_ar) : g.f.district ? " — " + esc(L(DISTRICTS.find((d) => d.id === g.f.district))) : ""}</span>

@@ -676,9 +676,22 @@
      ٧ · المختبر — LABORATORY
      ========================================================= */
 
+  /* A result can only be called normal against a range. Without one the honest
+     answer is "unknown", and the guard that was supposed to say so did not.
+
+     It read `!r.refLow == null`, which JavaScript parses as `(!r.refLow) == null`
+     — a boolean compared to null, which is ALWAYS false. So the guard never
+     fired, and `flagResult({value: 8.4})` with no reference range returned
+     "normal". That is not a cosmetic mislabel: `isAbnormal` then returned
+     false, so `deriveTasks` raised no RESULT_ACK, the value never reached
+     `unacknowledgedAbnormal`, and it never appeared in the pre-visit brief.
+     An unjudgeable result was silently declared fine and removed from every
+     safety register in the product — the exact failure this module exists to
+     catch, produced by a missing pair of parentheses. */
   function flagResult(r) {
-    if (!r || r.value == null || !r.refLow == null) return "unknown";
+    if (!r || r.value == null) return "unknown";
     if (typeof r.value !== "number") return "unknown";
+    if (r.refLow == null && r.refHigh == null) return "unknown";
     if (r.refLow != null && r.value < r.refLow) return "low";
     if (r.refHigh != null && r.value > r.refHigh) return "high";
     return "normal";
@@ -692,6 +705,21 @@
     if (r.abnormal === true) return true;
     return ["low", "high", "critical"].includes(r.flag || flagResult(r));
   };
+
+  /* The honest third state, and it needs a name for the same reason
+     MED_STATE.UNCONFIRMED and EXTRACT_STATE.EXTRACTED do: "we cannot judge
+     this" is a different fact from "this is fine", and collapsing them is how
+     a result disappears.
+
+     `isAbnormal` correctly stays false here — we do not know that it is
+     abnormal — but that means an unjudgeable result raises no task and enters
+     no register. Without this predicate it would simply vanish, which is the
+     behaviour the broken guard used to produce. A screen that cannot say
+     "this number arrived with no reference range" will show it as ordinary. */
+  const isUnjudgeable = (r) => !!r && r.abnormal !== true
+    && (r.flag ? r.flag === "unknown" : flagResult(r) === "unknown");
+
+  const unjudgeableResults = (list) => (list || []).filter(isUnjudgeable);
 
   /* A trend across laboratories is a clinical hazard: different analysers,
      different calibrations, different reference ranges. We still build the
@@ -1072,7 +1100,7 @@
     CRITICALITY, criticalAllergies,
     EP_STATE, EP_MACHINE, canEpTransition, canCloseEpisode,
     TASK_STATE, TASK_KIND, closeTask, isOverdue, openTasks, deriveTasks, ms,
-    flagResult, isAbnormal, trend,
+    flagResult, isAbnormal, isUnjudgeable, unjudgeableResults, trend,
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,

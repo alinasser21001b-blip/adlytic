@@ -79,6 +79,41 @@
   --r:10px; --rp:999px;
   /* elevation philosophy: 0 on the working surface. 1 step for sheets. */
   --float:0 24px 60px -12px rgba(11,20,18,.42), 0 2px 6px rgba(11,20,18,.10);
+
+  /* ---- FIVE TOKENS THE APP REFERENCES AND NOBODY DEFINED ----
+     Found by checking every var() in js/*.js against every declaration here.
+     An undefined custom property does not fall back — the declaration is
+     simply invalid at computed-value time, so the property either inherits
+     or reverts to its initial value. Silently. Measured consequences:
+
+     --nav-h   js/app.js toast(): `bottom: calc(var(--nav-h) + 16px)` was
+               invalid, so bottom fell to `auto` and the toast rendered at
+               y=1600 in an 844px viewport. Off-screen.
+     --sand    the same rule's `color: var(--sand)` was invalid, so colour
+               INHERITED — landing on var(--ink), which is also the toast's
+               own background. Measured: text rgb(242,239,232) on background
+               rgb(242,239,232). Identical.
+
+     Together: every confirmation in the product — every "حُفظ", every
+     "نُسخ الرابط", every save and every error — has been invisible and in the
+     wrong place. Twelve call sites. Nobody has ever seen one.
+
+     --petrol / --amber-b  BRAND_MARK's two fills. Invalid `fill` falls back
+               to black, so the logo is a black square on a near-black case.
+     --coral   the emergency sheet's heading and the unfilled-needs count.
+               Invalid colour inherits, so the one heading that must read as
+               alarm reads as body text.
+
+     Each is defined here as an ALIAS of the token that already carries that
+     meaning, so there is one source of truth per colour and the dark mode
+     flip keeps working by itself. `--sand` resolves to --dial-2, which .dark
+     redefines to the case — so light-on-dark and dark-on-light both come out
+     right with no second rule. */
+  --nav-h:66px;
+  --sand:var(--dial-2);
+  --petrol:var(--jade);
+  --amber-b:var(--brass);
+  --coral:var(--alarm);
 }
 .i{width:390px;background:var(--dial);color:var(--ink);direction:rtl;text-align:right;
    font:300 15px/1.85 var(--disp);border-radius:26px;overflow:hidden;
@@ -91,6 +126,19 @@
   --ink:var(--case-ink); --ink-2:var(--case-ink-2);
   --ink-3:var(--case-ink-3); --ink-4:rgba(242,239,232,.34);
   --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
+  /* The three aliases that point at tokens .dark redefines must be redeclared
+     HERE, not just in :root.
+
+     A var() inside a custom-property declaration is substituted where the
+     property is DECLARED, not where it is used. `--sand: var(--dial-2)` on
+     :root resolves against :root's --dial-2 and then inherits down as an
+     already-substituted colour — and `.dark` is on <body>, one level below
+     :root. So the toast came out light-on-light: background var(--ink) had
+     flipped to the case ink, and --sand had not.
+     Measured before: text #FBF9F5 on background #F2EFE8, a ratio of 1.05. */
+  --sand:var(--case-2);
+  --petrol:var(--jade-lit);
+  --coral:var(--alarm-lit);
 }
 .i.dark{background:var(--case);color:var(--case-ink);border-color:var(--case-line)}
 .i.ltr{direction:ltr;text-align:left}
@@ -561,6 +609,32 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 }
 .field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
 .field input::placeholder, .field textarea::placeholder { color: var(--ink-4); }
+
+/* DIRECTIONAL ICONS. js/ui-core.js marks `back` and `chev` with `.dirflip`
+   because their meaning is "the way you came" / "onward", and in Arabic that
+   is the opposite side of the screen. The class was emitted on every one of
+   them and had no rule anywhere, so in an RTL app the back chevron pointed
+   left — away from the corner it sits in. Visible in nine of twelve screens.
+
+   scaleX on the glyph rather than a second icon path: one sprite, one source
+   of truth, and it stays correct if the app is ever read in English. */
+[dir="rtl"] .dirflip { transform: scaleX(-1); }
+
+/* SHEET MOTION. `sheet()` adds `.in` on the next animation frame and
+   `closeSheet()` waits 260ms before removing the node — a choreography with
+   nothing to choreograph, because neither `.sheet.in` nor `.scrim.in` had a
+   rule. The sheet appeared and vanished instantly, and the 260ms was dead
+   time the user waited through. */
+.sheet { transform: translateY(100%); transition: transform 220ms cubic-bezier(.2,.7,.3,1); }
+.sheet.in { transform: none; }
+.scrim { opacity: 0; transition: opacity 220ms ease; }
+.scrim.in { opacity: 1; }
+/* A sheet taller than the screen must scroll its own body, not the page
+   behind it. `.sheet-b` is used eighteen times and had no rule. */
+.sheet-b { max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .scrim { transition: none; }
+}
 
 /* .fld — the same control, written as <label class="fld"><span>…</span><input>.
    The record and network screens use this shape because the label belongs to
@@ -2112,9 +2186,22 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
      ٧ · المختبر — LABORATORY
      ========================================================= */
 
+  /* A result can only be called normal against a range. Without one the honest
+     answer is "unknown", and the guard that was supposed to say so did not.
+
+     It read `!r.refLow == null`, which JavaScript parses as `(!r.refLow) == null`
+     — a boolean compared to null, which is ALWAYS false. So the guard never
+     fired, and `flagResult({value: 8.4})` with no reference range returned
+     "normal". That is not a cosmetic mislabel: `isAbnormal` then returned
+     false, so `deriveTasks` raised no RESULT_ACK, the value never reached
+     `unacknowledgedAbnormal`, and it never appeared in the pre-visit brief.
+     An unjudgeable result was silently declared fine and removed from every
+     safety register in the product — the exact failure this module exists to
+     catch, produced by a missing pair of parentheses. */
   function flagResult(r) {
-    if (!r || r.value == null || !r.refLow == null) return "unknown";
+    if (!r || r.value == null) return "unknown";
     if (typeof r.value !== "number") return "unknown";
+    if (r.refLow == null && r.refHigh == null) return "unknown";
     if (r.refLow != null && r.value < r.refLow) return "low";
     if (r.refHigh != null && r.value > r.refHigh) return "high";
     return "normal";
@@ -2128,6 +2215,21 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     if (r.abnormal === true) return true;
     return ["low", "high", "critical"].includes(r.flag || flagResult(r));
   };
+
+  /* The honest third state, and it needs a name for the same reason
+     MED_STATE.UNCONFIRMED and EXTRACT_STATE.EXTRACTED do: "we cannot judge
+     this" is a different fact from "this is fine", and collapsing them is how
+     a result disappears.
+
+     `isAbnormal` correctly stays false here — we do not know that it is
+     abnormal — but that means an unjudgeable result raises no task and enters
+     no register. Without this predicate it would simply vanish, which is the
+     behaviour the broken guard used to produce. A screen that cannot say
+     "this number arrived with no reference range" will show it as ordinary. */
+  const isUnjudgeable = (r) => !!r && r.abnormal !== true
+    && (r.flag ? r.flag === "unknown" : flagResult(r) === "unknown");
+
+  const unjudgeableResults = (list) => (list || []).filter(isUnjudgeable);
 
   /* A trend across laboratories is a clinical hazard: different analysers,
      different calibrations, different reference ranges. We still build the
@@ -2508,7 +2610,7 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     CRITICALITY, criticalAllergies,
     EP_STATE, EP_MACHINE, canEpTransition, canCloseEpisode,
     TASK_STATE, TASK_KIND, closeTask, isOverdue, openTasks, deriveTasks, ms,
-    flagResult, isAbnormal, trend,
+    flagResult, isAbnormal, isUnjudgeable, unjudgeableResults, trend,
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,
@@ -5334,7 +5436,7 @@ const CONFIG = {
      footer so "did the update reach me?" is a question you answer by looking
      rather than by trusting — the same stamp is the service worker's cache
      key, so a footer that changed means the shell changed too. */
-  build: "20260729-1253",
+  build: "20260729-1308",
   /* Show a stack trace on the error screen only when explicitly enabled.
      A user never needs it; whoever is debugging a poster in the field does. */
   debug: false,
@@ -6381,7 +6483,18 @@ const specOf = (id) => SPECIALTIES.find((s) => s.id === id);
 const needCount = (n) => DOCTORS.filter((d) => d.spec === n.spec && status(d).k !== "shut").length;
 const docsOpenNow = () => DOCTORS.filter((d) => status(d).k !== "shut").length;
 const phOpenNow = () => FACILITIES.filter((f) => f.type === "pharmacy" && status(f).k !== "shut").length;
-const phNight = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night).length;
+/* Night-duty pharmacies that are OPEN, not merely labelled night-duty.
+   `phNight` used to count the label alone, and the home screen presented the
+   result as "منها N" — "N OF THEM" — over the open count. Two sets that were
+   never intersected, stated as a subset. Measured at 12:53 on the seed data:
+   home claimed 5 night-duty out of 11 open while 3 of those 5 were shut.
+   The rule this breaks is the product's own: say what is true of the network,
+   not what sounds active. */
+const phNight = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night && status(f).k !== "shut").length;
+/* The label count, for the places that genuinely mean "has a night licence"
+   rather than "is open now" — kept separate so the two can never be confused
+   again by whoever reads this next. */
+const phNightListed = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.night).length;
 
 /* ---------------- HELPERS ---------------- */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -6396,10 +6509,50 @@ const refCode = () => { const C = "ABCDEFGHJKLMNPQRTUVWXY3479"; return Array.fro
 const waLink = (num, msg) => `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
 const mapLink = (f) => `https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lng}`;
 
-function sealBadge(ent) {
-  return ent.verified
-    ? `<span class="seal">${icon("seal")}${t("verified")}</span>`
-    : `<span class="unverified">${icon("info")}${t("listed")}</span>`;
+/* THE VERIFICATION STATE OF ONE RECORD — four states, and none of them is
+   absence.
+
+   Two things were wrong and they compounded. First, every card rendered a
+   jade `ختم` seal whenever `verified === true` and rendered NOTHING when it
+   was false — so "we have not checked this doctor" was communicated by the
+   quiet absence of a 34px box, which is to say not communicated at all.
+
+   Second, and worse: `DATA_PROVENANCE.sources.doctors.origin` is "synthetic"
+   (js/data.js:22), and 17 of 18 seeded doctors carry `verified: true`. The
+   product was stamping a trust mark on records it declares fabricated. The
+   file that defines provenance says it plainly — "a provenance claim that
+   cannot be contradicted by the data is decoration" — and nothing was reading
+   it outside the admin screen and preflight.
+
+   So the seal is now DERIVED from provenance first and the record second. It
+   cannot be turned on by hand: while a source is synthetic, every record from
+   it says so, and `tools/preflight.mjs` refuses a release whose provenance
+   and records disagree. */
+function verificationState(ent, sourceKey) {
+  if (!ent) return { k: "listed" };
+  const origin = ((DATA_PROVENANCE.sources[sourceKey] || {}).origin) || "synthetic";
+  if (origin !== "imported") return { k: "sample" };
+  if (!ent.verified) return { k: "listed" };
+  if (ent.updated > 90) return { k: "stale", days: ent.updated };
+  return { k: "verified", days: ent.updated };
+}
+
+const SEAL_TEXT = {
+  verified: ["موثّق", "Verified"],
+  stale: ["توثيق قديم", "Verification is old"],
+  listed: ["مدرج — ما تحققنا", "Listed — not verified"],
+  sample: ["بيانات نموذجية", "Sample data"],
+};
+
+/* `sourceKey` defaults by entity shape: a doctor has sessions, a facility has
+   a type. Callers may pass it explicitly. */
+function sealBadge(ent, sourceKey) {
+  const key = sourceKey || (ent && ent.sessions ? "doctors" : "pharmacies");
+  const v = verificationState(ent, key);
+  const txt = esc(SEAL_TEXT[v.k][isAR() ? 0 : 1]);
+  if (v.k === "verified") return `<span class="seal">${icon("seal")}${txt}</span>`;
+  if (v.k === "stale") return `<span class="st st-t">${icon("clock")}${txt}</span>`;
+  return `<span class="unverified">${icon("info")}${txt}</span>`;
 }
 function updatedLine(ent) {
   const stale = ent.updated > 90;
@@ -6468,7 +6621,7 @@ function doctorCard(x, dimIfShut = true) {
     mono: initials(L(d)).charAt(0),
     title: L(d),
     open, quiet: dimIfShut && st.k === "shut",
-    mark: d.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    mark: sealBadge(d, "doctors"),
     sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
     meta: [
       statusLabel(st, true),
@@ -6488,7 +6641,7 @@ function pharmacyCard(x, dimIfShut = true) {
     mono: initial(L(f)),
     title: L(f),
     open: st.k === "open", quiet: dimIfShut && st.k === "shut",
-    mark: f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : "",
+    mark: sealBadge(f, "pharmacies"),
     sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
     meta: [
       statusLabel(st, true),
@@ -7345,7 +7498,7 @@ function screenDoctor(id) {
         <h1 class="d2">${esc(L(d))}</h1>
         <div class="q-sub" style="margin-top:4px">${esc(L(sp))}${d.sub_ar && isAR() ? " — " + esc(d.sub_ar) : ""}</div>
       </span>
-      ${d.verified ? `<span class="mark" style="width:44px;height:44px;font-size:10px">${isAR() ? "ختم" : "OK"}</span>` : ""}
+      ${sealBadge(d, "doctors")}
     </div>
 
     <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
@@ -7490,7 +7643,15 @@ function nightFallback() {
    confirmed stock, freshest first, and only then explains where and when.
 ------------------------------------------------------------- */
 function screenPharmacy(id) {
-  const f = fac(id); if (!f) return screen404();
+  /* `anyFac`, not `fac`. `fac` searches FACILITIES only, which is Baghdad;
+     the governorate branches live in BRANCHES. Three call sites pass a branch
+     id — the radar sign-in gate, the stock card, and, worst, the controlled-
+     medicine handoff in js/ui-backend.js, which lists "licensed pharmacies
+     near you" for a patient who has just been refused a public request for a
+     controlled drug. For every user outside Baghdad each of those rows was a
+     404: the one safe recovery path the product offers for its most sensitive
+     refusal ended in a dead screen. */
+  const f = anyFac(id); if (!f) return screen404();
   const st = status(f), km = distTo(f);
   const dist = DISTRICTS.find((d) => d.id === f.district);
   const prods = PRODUCTS.filter((x) => x.stock.includes(f.id));
@@ -7511,15 +7672,14 @@ function screenPharmacy(id) {
       <span class="av" style="width:56px;height:56px;font-size:21px">${esc(initial(L(f)))}</span>
       <span class="grow">
         <h1 class="d2">${esc(L(f))}</h1>
-        <div class="q-sub" style="margin-top:4px">${t("pharmacy")}${dist ? " — " + esc(L(dist)) : ""}${
-          isAR() ? (dist?.lm_ar ? "، " + esc(dist.lm_ar) : "") : (dist?.lm_en ? ", " + esc(dist.lm_en) : "")}</div>
+        <div class="q-sub" style="margin-top:4px">${t("pharmacy")}${placeOf(f)}</div>
       </span>
-      ${f.verified ? `<span class="mark" style="width:44px;height:44px;font-size:10px">${isAR() ? "ختم" : "OK"}</span>` : ""}
+      ${sealBadge(f)}
     </div>
 
     <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
       ${statusLabel(st, true)}
-      <span class="t3"><span class="num">${fmtKm(km)}</span></span>
+      ${sameCityAsUser(f) ? `<span class="t3"><span class="num">${fmtKm(km)}</span></span>` : ""}
       ${f.night ? `<span class="st st-t">${isAR() ? "خفارة ليلية" : "Night duty"}</span>` : ""}
       <span class="t3">${updatedLine(f)}</span>
     </div>
@@ -8376,23 +8536,41 @@ const productMsg = (p, f) => isAR()
 function toPreview(id) {
   /* Check for a request to the same doctor and slot before showing the
      message again. Someone tapping twice usually wants the first one's
-     status, not a second message landing in the clinic's inbox. */
+     status, not a second message landing in the clinic's inbox.
+
+     The name and note are read HERE, before anything can open a sheet. The
+     guard's sheet replaces the DOM that holds #nm and #nt, so reading them
+     after it has opened throws on null — which is what happened on every
+     "send anyway": the loop above kept it from ever getting that far, and the
+     crash was waiting behind it. */
+  const val = (elId) => { const el = document.getElementById(elId); return el ? (el.value || "").trim() : null; };
+  const typed = { name: val("nm"), note: val("nt") };
+  if (typed.name !== null) window.__typed = typed;
+
   const dd = DOCTORS.find((x) => x.id === id);
   const ss = dd && window.__slots && window.__slots[window.__slot || 0];
-  if (dd && ss && !window.__dupProceed) {
+  if (dd && ss && !window.__dupOK) {
     const when = `${dayName(ss.day)} ${fmtRangeTxt(ss.seg.f, ss.seg.t)}`;
     const prior = priorRequest(id, when);
     if (prior) return duplicateGuard(id, when, () => toPreview(id));
   }
-  window.__dupProceed = null;
+  window.__dupOK = false;        /* one shot, consumed */
   return toPreviewInner(id);
 }
 
 function toPreviewInner(id) {
   const d = DOCTORS.find((x) => x.id === id);
-  const name = (document.getElementById("nm").value || "").trim();
-  const note = (document.getElementById("nt").value || "").trim();
-  if (!name) { toast(isAR() ? "اكتب اسمك من فضلك" : "Please enter your name"); document.getElementById("nm").focus(); return; }
+  /* Prefer the live fields; fall back to what toPreview captured before a
+     sheet replaced them. */
+  const live = (elId) => { const el = document.getElementById(elId); return el ? (el.value || "").trim() : null; };
+  const kept = window.__typed || {};
+  const name = live("nm") ?? kept.name ?? "";
+  const note = live("nt") ?? kept.note ?? "";
+  if (!name) {
+    toast(isAR() ? "اكتب اسمك من فضلك" : "Please enter your name");
+    const el = document.getElementById("nm"); if (el) el.focus();
+    return;
+  }
   S.name = name; LS.set("name", name);
   const s = window.__slots[window.__slot];
   const ref = refCode();
@@ -8573,10 +8751,30 @@ function duplicateGuard(docId, when, proceed) {
       <div class="v2" style="margin-top:18px">
         <button class="btn btn--2" onclick="closeSheet();location.hash='#/me'">${isAR() ? "شوف الطلب" : "See the request"}</button>
         ${prior.phone ? `<a class="btn btn--2" href="tel:+${esc(prior.phone)}">${t("call")}</a>` : ""}
-        <button class="btn btn--3" onclick="window.__dupProceed && window.__dupProceed()">${isAR() ? "أرسل مرة ثانية" : "Send anyway"}</button>
+        <button class="btn btn--3" onclick="dupSendAnyway()">${isAR() ? "أرسل مرة ثانية" : "Send anyway"}</button>
       </div>
     </div>`);
-  window.__dupProceed = () => { window.__dupProceed = null; proceed(); };
+  window.__dupPending = proceed;
+}
+
+/* "Send anyway" was an infinite loop, and reading the two lines apart from
+   each other is why it survived.
+
+   `toPreview` gates on `!window.__dupProceed` — "no override is in flight, so
+   check for a duplicate". The override handler set that same variable to null
+   BEFORE calling proceed(). So proceed() re-entered toPreview, the gate saw
+   null, and the guard sheet opened again. The prior request is still in
+   S.requests, so it opened forever.
+
+   One flag cannot mean both "here is the override" and "an override is
+   running". Now there are two: __dupPending holds the continuation, and
+   __dupOK is the one-shot permission that toPreview consumes. */
+function dupSendAnyway() {
+  const go = window.__dupPending;
+  if (!go) return;
+  window.__dupPending = null;
+  window.__dupOK = true;      /* consumed by toPreview, once */
+  go();
 }
 
 function openEmergency() {
@@ -9082,6 +9280,31 @@ const anyFac = (id) => allPharmacies().find((f) => f.id === id);
 /* A Baghdad facility's city is Baghdad; a branch carries its own. */
 const cityOf = (f) => f && (f.city || "baghdad");
 const cityById = (id) => CITIES.find((c) => c.id === id);
+
+/* Where a facility IS, in one phrase, for either shape of record. Baghdad
+   facilities carry a `district` id; governorate branches carry `city` and a
+   free-text `area_ar` with `district: null`. A screen that reads only
+   `district` renders an empty place for every branch — which is how a
+   pharmacy in Basra ends up looking like a pharmacy with no address. */
+function placeOf(f) {
+  if (!f) return "";
+  const d = f.district && DISTRICTS.find((x) => x.id === f.district);
+  if (d) {
+    const lm = isAR() ? d.lm_ar : d.lm_en;
+    return " — " + esc(L(d)) + (lm ? (isAR() ? "، " : ", ") + esc(lm) : "");
+  }
+  const c = cityName(cityById(cityOf(f)));
+  const area = isAR() ? f.area_ar : (f.area_en || f.area_ar);
+  return c ? " — " + esc(c) + (area ? (isAR() ? "، " : ", ") + esc(area) : "") : "";
+}
+
+/* A distance is only meaningful inside the user's own city. `distTo` is a
+   straight haversine from the user's district centre, so on a Basra branch it
+   confidently returns ~450 km under a header that reads "distances are
+   approximate from Karrada centre". A number that is arithmetically right and
+   contextually meaningless is worse than no number: the screen states the
+   city instead. */
+const sameCityAsUser = (f) => cityOf(f) === (S.exCity || "baghdad");
 /* Governorates whose seat has its own name (نينوى / الموصل) show the seat,
    because that is what a person says out loud. */
 const cityName = (c) => !c ? "" : (isAR() ? (c.seat_ar || c.ar) : (c.seat_en || c.en));
@@ -9757,7 +9980,7 @@ function sigRow(g, vid) {
     <span class="grow">
       <span class="rowb">
         <span class="d3" style="font-size:17px">${esc(L(g.f))}</span>
-        ${g.f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}
+        ${sealBadge(g.f, "pharmacies")}
       </span>
       ${fastBadge(g.fac) ? `<span style="display:block;margin-top:6px">${fastBadge(g.fac)}</span>` : ""}
       <span class="q-sub" style="display:block">${esc(cityName(c))}${g.f.area_ar && isAR() ? " — " + esc(g.f.area_ar) : g.f.district ? " — " + esc(L(DISTRICTS.find((d) => d.id === g.f.district))) : ""}</span>
@@ -10208,7 +10431,7 @@ function openControlledHandoff(med) {
       ${licensed.length ? licensed.map((f) => `<a class="rw" href="#/pharmacy/${f.id}">
         <span class="grow">
           <span class="rowb"><span class="d3">${esc(L(f))}</span>
-            <span class="mark">${isAR() ? "ختم" : "OK"}</span></span>
+            ${sealBadge(f, "pharmacies")}</span>
           <span class="q-sub" style="display:block">${esc(cityName(cityById(cityOf(f))))}${
             f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</span>
         </span></a>`).join('<div class="hr"></div>')
@@ -10835,7 +11058,7 @@ function screenNeed(id) {
         <span class="av">${esc(initial(L(f)))}</span>
         <span class="grow">
           <span class="rowb"><span class="d3" style="font-size:17px">${esc(L(f))}</span>
-            ${f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}</span>
+            ${sealBadge(f, "pharmacies")}</span>
           <span class="q-sub" style="display:block">${esc(cityName(cityById(cityOf(f))))}${f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</span>
           <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
             ${(() => { const k = (r.answers || {})[f.id];
@@ -10920,7 +11143,7 @@ function contactForNeed(facId, reqId) {
     <div class="sheet-b">
       <div class="plate">
         <div class="rowb"><span class="d3">${esc(L(f))}</span>
-          ${f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}</div>
+          ${sealBadge(f, "pharmacies")}</div>
         <div class="q-sub" style="margin-top:4px">${esc(cityName(cityById(cityOf(f))))}${f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</div>
       </div>
       <div class="slip" style="margin-top:16px">

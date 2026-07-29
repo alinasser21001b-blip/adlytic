@@ -558,7 +558,7 @@ function screenNeed(id) {
         <span class="av">${esc(initial(L(f)))}</span>
         <span class="grow">
           <span class="rowb"><span class="d3" style="font-size:17px">${esc(L(f))}</span>
-            ${f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}</span>
+            ${sealBadge(f, "pharmacies")}</span>
           <span class="q-sub" style="display:block">${esc(cityName(cityById(cityOf(f))))}${f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</span>
           <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
             ${(() => { const k = (r.answers || {})[f.id];
@@ -643,7 +643,7 @@ function contactForNeed(facId, reqId) {
     <div class="sheet-b">
       <div class="plate">
         <div class="rowb"><span class="d3">${esc(L(f))}</span>
-          ${f.verified ? `<span class="mark">${isAR() ? "ختم" : "OK"}</span>` : ""}</div>
+          ${sealBadge(f, "pharmacies")}</div>
         <div class="q-sub" style="margin-top:4px">${esc(cityName(cityById(cityOf(f))))}${f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</div>
       </div>
       <div class="slip" style="margin-top:16px">
