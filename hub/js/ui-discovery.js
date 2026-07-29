@@ -28,6 +28,81 @@ function screenHome() {
   return screenHomePatient();
 }
 
+/* ---------------- THE HEALTH STATUS CARD ----------------
+   Until now the home screen never mentioned that the person opening it has a
+   health record at all. Every pixel above the fold answered "where can I buy
+   a medicine right now" and never "how am I doing" — a first-principles
+   review of what a returning patient needs to understand in three seconds
+   found the product's most substantial piece of infrastructure, the
+   longitudinal record, invisible from the one screen every session opens on.
+
+   Nothing here is new domain logic — it is `preVisitBrief`, the same
+   function the clinician's screen already uses, read for the patient's own
+   eyes instead. The full detail stays on `#/record`; this is the one honest
+   sentence worth reading before deciding whether to open it. And it is never
+   "2 conditions, 2 medications" — a count is a database fact, not a health
+   summary, and the brief this was built against names that exact pattern as
+   the failure to avoid. */
+function healthStatusCard() {
+  const rec = LS.get("qareeb.record.v1", null);
+  if (!rec || !rec.patient) {
+    return `<section class="pad" style="margin-top:22px">
+      <a class="rw" href="#/record">
+        <span class="rw-lead" style="background:var(--jade)"></span>
+        <span class="grow">
+          <span class="rowb"><span class="d3">${isAR() ? "ابدأ ملفك الصحي" : "Start your health record"}</span>
+            <span class="b-g" style="font-size:12px">${isAR() ? "افتح" : "Open"}</span></span>
+          <span class="q-sub" style="display:block">${isAR()
+            ? "حساسيتك وأدويتك وتاريخك — بمكان واحد يوصل أي طبيب تختارينه."
+            : "Your allergies, medicines and history — in one place that reaches any clinician you choose."}</span>
+        </span>
+      </a>
+    </section>`;
+  }
+  const brief = REC.preVisitBrief(rec.patient, rec, Date.now(), S.lang);
+  if (!brief) return "";
+
+  /* WHAT IS ON FIRE, if anything, comes first and alone — the same ordering
+     rule the clinician's own brief follows. An abnormal result nobody has
+     acknowledged or a follow-up gone overdue outranks a calm summary. */
+  const urgent = [
+    ...brief.unacknowledgedAbnormal.map((x) => isAR()
+      ? `${esc(x.name)} <span class="num">${x.value}</span>${x.unit ? " " + esc(x.unit) : ""} — نتيجة غير طبيعية ما أقرّها أحد`
+      : `${esc(x.name)} <span class="num">${x.value}</span>${x.unit ? " " + esc(x.unit) : ""} — abnormal, not yet acknowledged`),
+    ...brief.overdue.map((t) => isAR()
+      ? `متابعة متأخّرة${t.about ? " — " + esc(t.about) : ""}`
+      : `Overdue follow-up${t.about ? " — " + esc(t.about) : ""}`),
+  ].slice(0, 2);
+
+  /* Names, not counts. "تتابعين السكري وضغط الدم" tells a person something;
+     "٢ مشكلة نشطة" tells them a table has two rows. */
+  const asList = (list, max) => {
+    const items = (list || []).slice(0, max).map((x) => esc(x.name));
+    const rest = (list || []).length - items.length;
+    if (!items.length) return "";
+    return items.join(isAR() ? "، " : ", ") + (rest > 0 ? (isAR() ? ` و${rest === 1 ? "أخرى" : "أخريات"}` : ` and ${rest} more`) : "");
+  };
+  const condLine = asList(brief.active, 2);
+  const medLine = asList(brief.medications, 2);
+  const allergyTag = brief.allergies.length
+    ? `<span class="st st-e" style="margin-inline-start:10px">${icon("alert")}${esc(brief.allergies[0].substance)}</span>` : "";
+
+  return `<section class="pad" style="margin-top:22px">
+    <a class="rowb" href="#/record" style="text-decoration:none">
+      <span class="lab">${isAR() ? "ملفي الصحي" : "My health"}</span>
+      <span class="b-g" style="font-size:12px">${isAR() ? "الملف الكامل" : "Full record"}</span>
+    </a>
+    ${urgent.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}<div class="stack-2">
+        ${urgent.map((x) => `<div>${x}</div>`).join("")}
+      </div></div>`
+    : `<div class="note" style="margin-top:10px">${icon("check")}<div class="rowb" style="width:100%;flex-wrap:wrap">
+        <span>${condLine ? (isAR() ? `تتابعين ${condLine}` : `Managing ${condLine}`)
+                         : (isAR() ? "ما مسجّل مشاكل صحية نشطة" : "No active conditions recorded")}${
+          medLine ? (isAR() ? `، على ${medLine}` : `, on ${medLine}`) : ""}.</span>${allergyTag}
+      </div></div>`}
+  </section>`;
+}
+
 function screenHomePatient() {
   /* The local directory (doctors, open-now pharmacies, districts) covers
      Baghdad. A patient whose governorate is set elsewhere must not be handed
@@ -49,7 +124,33 @@ function screenHomePatient() {
       <a class="brand" href="#/">${BRAND_MARK}<span>${esc(L(CONFIG.brand))}</span></a>
       <a class="b-g" style="font-size:12.5px" href="#/me">${isAR() ? "طلباتي" : "My requests"}</a>
     </div>
+  </section>
 
+  <!-- Hierarchy, evidence-based: what a returning patient needs to
+       understand first is their own health, second is how to reach help if
+       something is wrong right now, and only third is "where can I buy a
+       medicine" — which is what this screen used to open on exclusively.
+       Both blocks below reuse existing primitives (.note, .rowb, .b-g,
+       .st-e) rather than a new visual language. -->
+  ${healthStatusCard()}
+
+  <section class="pad" style="margin-top:14px">
+    <!-- The two highest-stakes taps in the product, and until an earlier
+         audit measured them the pair was built out of text styles: the
+         number was 27.1×31.4 and the button 27.8 tall, because .st is a
+         typographic class and the inline padding:0 removed what little box
+         it had. Both are controls now, the number last so a thumb finds it
+         first — and the row itself now sits second on the screen rather than
+         last, since reaching help is the second most important thing here,
+         not an afterthought below a medicine-availability directory. -->
+    <div class="rowb" style="border-top:1px solid var(--dial-line);border-bottom:1px solid var(--dial-line);padding-block:10px">
+      <button class="b-g st-e" onclick="openEmergency()" style="justify-content:flex-start"><i class="dot"></i>${isAR() ? "طوارئ — أقرب إسعاف" : "Emergency — nearest care"}</button>
+      <a class="b-g" style="font-size:17px;color:var(--alarm);padding-inline:10px" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
+    </div>
+  </section>
+
+  <section class="pad" style="padding-top:20px">
+    <div class="lab">${isAR() ? "دوّر على رعاية" : "Find care"}</div>
     <!-- Everything under this line is answered FOR a district: which pharmacies
          are open, how far, who is on night duty. It was styled as a caption
          with min-height:0 — 67×15.8 measured, no icon, no affordance — so the
@@ -139,18 +240,6 @@ function screenHomePatient() {
     ${nearby.join('<div class="hr"></div>')}
   </section>
 
-  <section class="pad" style="margin-top:22px">
-    <!-- The two highest-stakes taps in the product, and until the audit
-         measured them the pair was built out of text styles: the number was
-         27.1×31.4 and the button 27.8 tall, because .st is a typographic
-         class and the inline padding:0 removed what little box it had.
-         Someone reaching for this is not aiming carefully. Both are controls
-         now, and the number is last in the row so a thumb finds it first. -->
-    <div class="rowb" style="border-top:1px solid var(--dial-line);padding-top:8px">
-      <button class="b-g st-e" onclick="openEmergency()" style="justify-content:flex-start"><i class="dot"></i>${isAR() ? "طوارئ — أقرب إسعاف" : "Emergency — nearest care"}</button>
-      <a class="b-g" style="font-size:17px;color:var(--alarm);padding-inline:10px" href="tel:${CONFIG.emergency.unified}">${CONFIG.emergency.unified}</a>
-    </div>
-  </section>
 
   <section class="pad" style="margin-top:22px;padding-bottom:26px">
     <a class="rowb" href="#/trust">
@@ -2080,10 +2169,14 @@ function emergencySelfCard() {
 
 function openEmergency() {
   const er = FACILITIES.filter((f) => f.er).map((f) => ({ f, km: distTo(f) })).sort((a, b) => a.km - b.km).slice(0, 3);
-  sheet(`<div class="sheet-grip"></div>
-    <div class="sheet-h"><div><h2 style="color:var(--coral)">${t("emergency")}</h2>
+  /* Deliberately NOT `.sheet-grip`: a drag handle teaches "swipe down to
+     dismiss casually", which is the wrong lesson for a screen someone opened
+     because something is wrong. The close button is still here — never trap
+     someone — but it is quiet, in the corner, while the two things that
+     matter (the calls) are what a thumb actually lands on first. */
+  sheet(`<div class="sheet-h"><div><h2 style="color:var(--coral)">${t("emergency")}</h2>
       <p>${isAR() ? "إذا كانت الحالة خطرة، اتصل بالإسعاف فوراً." : "If this is serious, call the ambulance now."}</p></div>
-      <button class="icon-btn" onclick="closeSheet()">${icon("close")}</button></div>
+      <button class="icon-btn" onclick="closeSheet()" aria-label="${isAR() ? "إغلاق" : "Close"}" style="opacity:.55">${icon("close")}</button></div>
     <div class="sheet-b">
       <a class="btn btn--danger" href="tel:${CONFIG.emergency.unified}">${icon("phone")}${isAR() ? "الطوارئ الموحد" : "Unified emergency"} <span class="num">${CONFIG.emergency.unified}</span></a>
       <a class="btn btn--2" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
@@ -2091,7 +2184,7 @@ function openEmergency() {
       <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
       <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
       <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
-    </div>`);
+    </div>`, "sheet--emergency");
 }
 
 function reportInfo() {

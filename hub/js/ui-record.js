@@ -111,6 +111,8 @@
       ${prof.awaitingVerification ? `<a class="note note-w" href="#/record/inbox">${icon("clock")}
         <div>${n(prof.awaitingVerification)} ${T("معلومة مستخرجة من تقاريرك لم يؤكّدها طبيب بعد", "extracted from your reports, not yet confirmed by a doctor")}</div></a>` : ""}
 
+      ${currentStatusPanel(brief)}
+
       <!-- The record had four hundred ways to READ it and none to add to it.
            Four kinds, named for what a patient actually has to say, not for
            the tables they land in. -->
@@ -293,6 +295,63 @@
           </div>`).join("")}
         </div>
       </div></div>`;
+  }
+
+  /* ---------- current status (record home) ----------
+     Everything below the allergy panel used to be an undifferentiated list
+     of category rows, each showing a bare count — an abnormal blood pressure
+     reading looked exactly like "التطعيمات ٠" in every way that matters
+     visually, and a person had to open every single category to find out
+     whether anything here was worth their attention today.
+
+     This is the one prose summary worth reading before deciding whether to
+     open anything else. It is built entirely from `preVisitBrief` — the same
+     computation the clinician's own screen uses — and it never repeats what
+     a category screen already shows in full; a trend's dates, reference
+     range and every point stay on `#/record/labs`, this states only the
+     single most current fact. Returns "" when there is genuinely nothing to
+     say, rather than inventing a placeholder line to avoid a gap. */
+  function currentStatusPanel(brief) {
+    if (!brief) return "";
+    /* One list, not two competing branches. The first version put an
+       abnormal home blood-pressure reading in a separate "calm state" branch
+       that only rendered when NOTHING else was urgent — so a patient with
+       both an unacknowledged lab result and a genuinely high blood pressure
+       this week would never see the blood pressure at all here, because the
+       lab result had already filled the slot. An abnormal reading does not
+       stop being worth seeing because a different abnormal reading exists. */
+    const urgent = [];
+    for (const x of brief.unacknowledgedAbnormal || []) urgent.push(
+      `<div><div class="rowb"><span>${esc(x.name)}</span><span class="num">${esc(String(x.value))}</span>${x.unit ? ` ${esc(x.unit)}` : ""}</div>
+        <div class="t3" style="margin-top:2px">${T("نتيجة غير طبيعية ما أقرّها أحد", "abnormal, not yet acknowledged by a clinician")}</div></div>`);
+    if (brief.bloodPressure && brief.bloodPressure.abnormal) { const bp = brief.bloodPressure; urgent.push(
+      `<div><div class="rowb"><span>${T("ضغط الدم", "Blood pressure")}</span>
+        <span class="num">${n(bp.systolic)} / ${bp.diastolic != null ? n(bp.diastolic) : "—"}</span> ${esc(bp.unit || "")}</div>
+        <div class="t3" style="margin-top:2px">${T("خارج المعتاد", "outside the usual range")}</div></div>`); }
+    for (const t of brief.overdue || []) urgent.push(
+      `<div>${T("متابعة متأخّرة", "Overdue follow-up")}${t.about ? " — " + esc(t.about) : ""}</div>`);
+
+    if (urgent.length) {
+      return `<div class="note note-e" style="margin-top:14px">${icon("alert")}<div class="stack-2" style="width:100%">
+        ${urgent.slice(0, 3).join("")}
+      </div></div>`;
+    }
+
+    /* Calm state: the single most current reading, if there is one — a blood
+       pressure taken this week outranks a lab trend from last month, and
+       either outranks nothing at all. */
+    const bp = brief.bloodPressure;
+    const trendLine = (brief.trends || [])[0];
+    let line = "";
+    if (bp) {
+      line = `<span class="t3">${T("آخر ضغط دم", "Latest blood pressure")}</span>
+        <span class="st st-v">${n(bp.systolic)} / ${bp.diastolic != null ? n(bp.diastolic) : "—"} ${esc(bp.unit || "")}</span>`;
+    } else if (trendLine && trendLine.direction && trendLine.direction !== "flat") {
+      line = `<span class="t3">${esc(trendLine.display || trendLine.code)}</span>
+        <span class="st st-t">${esc(dirLabel(trendLine.direction))}</span>`;
+    }
+    if (!line) return "";
+    return `<div class="note" style="margin-top:14px">${icon("check")}<div class="rowb" style="width:100%">${line}</div></div>`;
   }
 
   /* ---------- first run ---------- */

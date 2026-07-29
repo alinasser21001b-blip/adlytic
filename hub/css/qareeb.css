@@ -380,6 +380,17 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   padding-bottom: calc(var(--u6) + env(safe-area-inset-bottom));
 }
 .sheet-grip, .grip { width: 32px; height: 3px; border-radius: var(--rp); background: var(--ink-4); margin: 0 auto var(--u5); }
+
+/* The emergency sheet is not a filter panel with red text — it needed to be
+   structurally distinguishable from every other bottom sheet in the product,
+   not just recoloured. Two changes, both functional rather than decorative:
+   a solid top band in the one colour this product reserves for danger
+   (no new hue, no gradient), and — in the markup, not here — the drag grip
+   is omitted, because "swipe down to dismiss" is the wrong affordance to
+   teach someone mid-emergency. Corner radius and shadow are untouched; this
+   is not a cosmetic pass. */
+.sheet--emergency { border-top: 3px solid var(--alarm); }
+.dark .sheet--emergency { border-top-color: var(--alarm-lit); }
 .sheet-h { margin-bottom: var(--u5); }
 .sheet-h h2 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
 .sheet-h p { margin-top: 4px; }
