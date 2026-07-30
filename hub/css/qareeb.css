@@ -59,16 +59,62 @@ button { cursor: pointer; }
 ul, ol { list-style: none; }
 ::selection { background: var(--brass); color: var(--case); }
 
-/* Western tabular numerals, LTR-embedded so bidi can never reorder them
-   inside an Arabic run. Every number in the product goes through this. */
+/* Western tabular numerals in an LTR run, so bidi can never reorder them
+   inside an Arabic line. Every number in the product goes through this.
+
+   `isolate`, not `embed`. The difference is not cosmetic: an EMBED opens a
+   directional run but leaves the neutrals AROUND it resolvable against its
+   contents, so the numeral migrates to the wrong end of the Arabic phrase it
+   belongs to — «٨ دواء مؤكَّد» put the 8 at the far left of the line — and a
+   sign or separator adjacent to the run detaches from its digits. That is how
+   a blood group of O- rendered as -O on the emergency card: `-` is
+   Bidi_Class=ON, and against an embedded LTR run in an RTL paragraph it
+   resolves to the far side of the letter. An ISOLATE is opaque to the
+   surrounding algorithm in both directions, which is the whole reason the
+   primitive exists. */
 .num, .n {
   font-family: var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed; font-weight: 400;
+  direction: ltr; unicode-bidi: isolate; font-weight: 400;
+  /* A number is one token. `2026-07-01` was wrapping as `2026-07-` / `01`
+     and `148/92` as `148/` / `92` — a broken date is a wrong date. */
+  white-space: nowrap;
 }
-.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: .92em; }
 
-/* Arabic wraps badly at 375px without help. */
-h1, h2, h3, p, span, div, li { overflow-wrap: anywhere; }
+/* A quantity, a date, a blood pressure: one unbreakable run. */
+.nw { white-space: nowrap; }
+
+/* A DRUG STRENGTH. «20 ملغم» is a number plus an ARABIC unit, and it used to be
+   wrapped in `.n` — `direction: ltr` — on eleven sites. Inside that LTR run the
+   unit is AL, the joining space resolves to R because the digits act as R, and
+   reversing the level-1 region puts the UNIT BEFORE THE NUMBER: every row of
+   the medicine list read «ريفاروكسابان ملغم 20», on the same screen whose own
+   body copy warns «التركيز مهم — 2.5 ملغم غير 50 ملغم».
+
+   `<bdi>` is `unicode-bidi: isolate` with `dir=auto`: opaque to the surrounding
+   text in both directions, but resolving INTERNALLY in its own base direction,
+   which for «20 ملغم» is number-then-unit. It also cannot break mid-quantity.
+   The lighter weight that `.n` was really being used for stays. */
+.strength { unicode-bidi: isolate; white-space: nowrap;
+            font-family: var(--num); font-variant-numeric: tabular-nums; font-weight: 300; }
+
+/* `overflow-wrap: anywhere` was set on h1,h2,h3,p,span,div,li — everything.
+   Arabic has no hyphenation convention, so `anywhere` breaks words at
+   arbitrary letters with nothing to mark the break: «حساسية» rendered as
+   حساس / ية on the emergency card at 390px, «الهيموغلوبين» as الهيموغلوبي / ن,
+   and a doctor's family name «الجبوري» as الجبور / ي. A reader sees two
+   words that do not exist.
+
+   `break-word` breaks only when a single token genuinely cannot fit, which is
+   the case this was reaching for. `anywhere` is kept for the few classes that
+   really do hold unbreakable machine tokens. */
+h1, h2, h3, p, span, div, li { overflow-wrap: break-word; }
+.mono, .slip-ref, .brk { overflow-wrap: anywhere; }
+
+/* Anything a thumb can hit gets `--line-ctl` (3:1, WCAG 1.4.11) rather than
+   `--dial-line`; decorative surfaces and separators keep the quiet hairline.
+   The classes carrying it: .btn--2/.b-s/.slot-btn/.start-tile, .icon-btn, .chip,
+   .av, .field input, .fld input, .offline-bar button, .qa-no, .rush. */
 
 /* ---------- 2 · type · display tight and heavy, body light and open ---------- */
 h1, .q-h1, .prof-name, .dp-name { font: 600 30px/1.26 var(--disp); letter-spacing: -.02em; }
@@ -78,25 +124,85 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .t1 { font: 400 15.5px/1.8 var(--disp); }
 .tiny, .t3, .hint, .m, .prod-brand { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
 .muted { color: var(--ink-3); }
-.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub {
-  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
-  color: var(--ink-3); text-transform: uppercase;
+/* THE LABEL. Two typographic tricks carry "this is a label, not content" in
+   Latin: small caps and wide tracking. Neither survives translation.
+
+   `letter-spacing` inserts space between GLYPHS, and Arabic is cursive — the
+   letters are joined. Tracking an Arabic word at .2em pulls those joins apart,
+   so «سجلي» rendered as disconnected shapes: not a label, a damaged word. And
+   `text-transform: uppercase` has no meaning in a script with no letter case,
+   so it bought nothing to pay for it with.
+
+   Worse, the size chosen to make tracked Latin caps read as a quiet label —
+   10.5px at 64% alpha — left every group heading on the health record SMALLER
+   and FAINTER than the grey subtitles inside the rows it was labelling. Four
+   labelled groups read as one flat list of twelve rows.
+
+   So the two languages get the two devices that work in each. Latin keeps the
+   tracked caps. Arabic gets size and weight instead: bigger than the body it
+   labels, full-strength ink, no tracking, joins intact.
+
+   Every label in the product resolves here and nowhere else — form field
+   labels included, where the damage was worst: «الرقم الأعلى (الانقباضي)»
+   above a blood-pressure input, tracked apart, is a form asking a question
+   the reader has to decode. Six rules further down this file used to restate
+   this style with their own copy of the tracking; they now set layout only. */
+.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub,
+.field label, .fld > span, .res-group h3, .prof-fact .k, .ops-l, .badge-fast {
+  letter-spacing: 0; text-transform: none;
 }
+.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub,
+.field label, .fld > span, .res-group h3, .prof-fact .k, .ops-l {
+  font-family: var(--disp); font-size: 13px; font-weight: 500; line-height: 1.5;
+  color: var(--ink-2);
+}
+:root:lang(en) :is(.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend,
+  .fee-l, .dp-sub, .field label, .fld > span, .res-group h3, .prof-fact .k, .ops-l) {
+  font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3);
+}
+:root:lang(en) .ops-l { font-size: 10px; letter-spacing: .16em; }
+:root:lang(en) .badge-fast { letter-spacing: .06em; }
 .d1 { font: 600 34px/1.24 var(--disp); letter-spacing: -.02em; }
 .d2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
 .d3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
+
+/* THE READING. On a labs or vitals screen the number is the reason the screen
+   exists, and it was set in `.n` at body weight — so the metric's NAME (`.d3`,
+   19px/500) outranked its VALUE. One class, three screens: labs, vitals, and
+   the clinician's brief. Numeral face, tabular, LTR-embedded like every other
+   number in the product. */
+.nval {
+  font-family: var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: isolate;
+  font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -.01em;
+}
+.nval .u { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-inline-start: 3px; }
+.dark .nval .u { color: var(--case-ink-3); }
 
 /* ---------- 3 · layout primitives ---------- */
 .app { min-height: 100dvh; padding-bottom: 92px; }
 .wrap, .pad { padding-inline: var(--u5); }
 .blk { padding: var(--u6) var(--u5) 0; }
 .sec { padding-top: var(--u5); }
+/* Consecutive groups of rows had the same gap between GROUPS as between the
+   rows inside them, so four labelled groups read as one undifferentiated list
+   of twelve and the labels did nothing. A group boundary is a change of
+   subject and gets a rule and real air. */
+.sec + .sec { padding-top: var(--u6); margin-top: var(--u5); border-top: 1px solid var(--dial-line-2); }
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); margin-bottom: var(--u3); }
+
+/* A record row's title. It was unclassed, so it inherited body copy — 300
+   weight, the lightest thing in the type scale — for what is the primary
+   navigation of the whole record. */
+.rw-t { font: 500 16px/1.4 var(--disp); letter-spacing: -.01em; }
+/* The newest fact a row holds, under its label. */
+.rw-fact { display: block; margin-top: 3px; }
 
 .grow { flex: 1; min-width: 0; }
 .row { display: flex; align-items: center; gap: var(--u2); }
 .row-b, .rowb { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); }
 .stack-2 > * + *, .v2 > * + * { margin-top: var(--u2); }
+.stack-3 > * + * { margin-top: var(--u4); }
 .v3 > * + * { margin-top: var(--u3); }
 .v5 > * + * { margin-top: var(--u5); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u3); }
@@ -119,6 +225,13 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   background: none; border: 0; border-radius: 0; box-shadow: none;
   transition: background .16s ease;
 }
+/* "This row opens something." Aligned to the first line of the title, not
+   centred on the row, so it reads as belonging to the name rather than
+   floating in the row's whitespace. */
+.rw-go { flex: 0 0 auto; align-self: flex-start; margin-top: 2px; color: var(--ink-3); opacity: .65; }
+.rw-go svg { width: 17px; height: 17px; }
+a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
+
 .card-top { display: flex; gap: var(--u4); align-items: flex-start; width: 100%; }
 .card-foot { display: flex; align-items: center; gap: var(--u2); margin-top: var(--u3); }
 .card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; }
@@ -132,12 +245,22 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
    in the gutter, where nothing else ever sits. */
 .rw-lead, .card.is-open::before, .lane.on::before, .rail-open::before, .rail-stock::before {
   content: ""; position: absolute;
-  inset-inline-start: calc(var(--u4) * -1); top: var(--u4); bottom: var(--u4);
+  /* Was `--u4` (-16px) while every container that holds these rows pads by
+     `--u5` (20px) — so the brass "open now" mark landed 4px from the viewport
+     edge and read as a rendering artefact rather than a gutter annotation. On
+     the start screen the three coloured bars were visibly detached from the
+     tiles they belong to. */
+  inset-inline-start: calc(var(--u5) * -1); top: var(--u4); bottom: var(--u4);
   width: 2px; background: var(--brass); border-radius: var(--rp);
 }
 .rail-stock::before { background: var(--jade); }
 .card.is-shut::before, .card.is-soon::before, .lane--sos::before { content: none; }
-.quiet, .card.is-shut { opacity: .46; }
+/* `.46` multiplied against `--case-ink-2` (itself .78 alpha) left dark-mode
+   rows at roughly .36 effective — past legible, on the closed-pharmacy and
+   dimmed-doctor rows. My own contrast audit never caught it because it
+   composites an element's OWN alpha and does not walk ancestor `opacity`;
+   found by eye instead. De-emphasis has to stay readable to mean anything. */
+.quiet, .card.is-shut { opacity: .62; }
 
 /* A plate exists only when the thing is genuinely singular. */
 .plate, .ch, .surf-raise, .surf-key, .banner, .note, .slip, .stub, .adm-kpi, .map-peek,
@@ -161,22 +284,52 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .btn:active, .b:active { transform: scale(.985); }
 .btn svg, .b svg { width: 17px; height: 17px; }
 
-.btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--dial-line); }
-.btn--3, .b-g { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
+.btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--line-ctl); }
+.btn--3 { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
+
+/* `.b-g` is the quiet action — «تعديل», «الطريق», «كيف نتحقق» — and it is
+   used BARE, on <span>, <a> and <button> alike, 55 times. Bare means it
+   inherits `.b` nothing: no box, no display type, and `min-height` on an
+   inline box is a no-op. Measured: `تعديل` 34.8px wide, `الطريق` 36.8px.
+   Ten of the audit's failures were this one rule.
+
+   No padding-inline. This stylesheet already decided, a few lines up, that a
+   target's visible size should BE its hit size rather than hiding an
+   invisible extender behind it — so the box grows to 44 and the label sits
+   centred in it, instead of an overlay that could steal a neighbour's tap. */
+.b-g {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; min-width: 44px;
+  background: none; color: var(--jade); border: 0; font-weight: 500; cursor: pointer;
+}
 .btn--wa, .b-wa, .btn-wa { background: var(--wa); color: #fff; font-weight: 600; border-color: transparent; }
-.btn--danger { background: var(--alarm); color: #fff; border-color: transparent; }
+/* The 911 control. Its text colour was hardcoded `#fff` — the only filled
+   control in the product not using a token — so in the dark theme, where
+   `--alarm` resolves to the lighter `--alarm-lit` #F08A80, it rendered white on
+   salmon at 2.43:1. The highest-stakes control in the product, below the WCAG
+   floor, in the theme a night emergency actually happens in. Tokenised it
+   flips: #fff on #C1121F is 6.2:1 in light, and the near-black case colour on
+   #F08A80 is 7.7:1 in dark. */
+.btn--danger { background: var(--alarm); color: var(--alarm-on); border-color: transparent; }
+/* The emergency contact call sits with the two emergency numbers, so it is a
+   control of the same size — not a text link the width of a name. */
+.emg-call { justify-content: flex-start; gap: var(--u3); text-align: start; }
 /* A button is aimed at deliberately, so for buttons the visual size SHOULD
    be the hit size — raise the small variant rather than hiding an invisible
    extender behind it. 40 -> 44 is imperceptible. */
 .btn--sm, .b-sm, .btn-sm { min-height: 44px; font-size: 12.5px; padding-inline: var(--u4); }
 .btn[disabled], .b[disabled] { opacity: .35; pointer-events: none; }
-.btn-row { display: flex; gap: var(--u2); }
-.btn-row > * { flex: 1; }
+/* Wraps rather than overflows. Three Arabic labels in one 360px row do not
+   fit, and the row used to "fit" only because a global `overflow-wrap:
+   anywhere` was breaking «المستشفيات» in half to make room. With word-breaking
+   gone the row must be allowed a second line instead. */
+.btn-row { display: flex; flex-wrap: wrap; gap: var(--u2); }
+.btn-row > * { flex: 1 1 auto; min-inline-size: 0; }
 
 .icon-btn {
   display: grid; place-items: center; flex: none;
   width: 48px; height: 48px; border-radius: var(--rp);
-  border: 1px solid var(--dial-line); color: var(--ink); background: transparent;
+  border: 1px solid var(--line-ctl); color: var(--ink); background: transparent;
 }
 .icon-btn svg { width: 19px; height: 19px; }
 .clear-btn { display: grid; place-items: center; width: 36px; height: 36px; flex: none; color: var(--ink-3); min-height: 36px; }
@@ -185,8 +338,16 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 /* ---------- 6 · chips ---------- */
 .chip, .c, .pchip, .place-tag, .cred {
   display: inline-flex; align-items: center; gap: 6px;
-  min-height: 36px; padding: 0 14px; border-radius: var(--rp);
-  border: 1px solid var(--dial-line);
+  /* 44, not 36. Chips are this app's primary filter — district, specialty,
+     open-now — and the audit found 67 of 81 failing targets were chips. A
+     filter you cannot reliably hit is a filter that does not exist.
+
+     min-width matters too, not just min-height: a two-character label like
+     the blood-group chips ("A-", "B-") plus 14px of padding on each side
+     lands at 43.6px wide — under the line by less than a pixel, and the
+     audit caught it. Padding alone cannot guarantee 44 for short labels. */
+  min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--rp);
+  border: 1px solid var(--line-ctl);
   font: 400 13px/1 var(--disp); color: var(--ink-2);
   white-space: nowrap; background: transparent;
   transition: background .15s, border-color .15s, color .15s;
@@ -227,7 +388,7 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   width: 44px; height: 44px; flex: none; border-radius: var(--rp);
   display: grid; place-items: center;
   font: 400 17px/1 var(--disp); color: var(--ink-2);
-  background: transparent; border: 1px solid var(--dial-line); position: relative;
+  background: transparent; border: 1px solid var(--line-ctl); position: relative;
 }
 .av::after, .avatar::after, .qc-av::after { content: ""; position: absolute; inset: -4px; border-radius: var(--rp); border: 1px solid var(--dial-line-2); }
 .avatar--sq, .ic, .intent-ic { border-radius: var(--r); }
@@ -249,7 +410,9 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .nowmk, .ribbon > b { position: absolute; top: -5px; bottom: -5px; width: 1.5px; background: var(--ink); inset-inline-start: var(--now); border-radius: 0; }
 .bar-t { overflow: hidden; }
 .bar-r { display: grid; grid-template-columns: 92px 1fr 46px; gap: var(--u3); align-items: center; font-size: 12px; }
-.bar-v { text-align: left; }
+/* `left` was the only physical text-align outside the identity demo frame.
+   The grid columns around it mirror under RTL; this did not. */
+.bar-v { text-align: end; }
 .bars { display: grid; gap: var(--u2); }
 
 /* The tick rule — the identity motif. Engraved 24h measurement. */
@@ -257,6 +420,57 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .ticks > i { flex: 1; height: 5px; background: var(--dial-line); border-radius: 0; }
 .ticks > i.maj { height: 11px; background: var(--ink-4); }
 .ticks > i.on { height: 16px; background: var(--brass); width: 2px; flex: none; margin-inline: 1px; }
+
+/* ---------- the reference-range scale · the reading against its own range ----
+   The one place the product's infrastructure was most visibly ahead of its
+   interface. Every lab result and every vital already carries `value`,
+   `refLow` and `refHigh`; every screen rendered those as three separate
+   pieces of text — the number, the word "high", and "normal 4 to 5.6" in grey
+   — leaving the reader to do the arithmetic for the only question they asked:
+   how far out is this?
+
+   Deliberately built as a sibling of `.ticks` above, not as a new vocabulary:
+   same 16px height, same engraved baseline, and the reading is the identical
+   2px brass mark as `.ticks > i.on`. The instrument motif and this data want
+   the same shape.
+
+   Geometry comes from `EMR.rangePosition()` — which returns null when there is
+   no reference range, so no scale is ever drawn for a weight or a height. A
+   drawn scale is a claim that we know what normal looks like.
+
+   Positioned with `inset-inline-start`, so it mirrors with the reading
+   direction exactly like the 24-hour axis above: low at the start edge. */
+.rng { position: relative; height: 16px; margin-top: var(--u2); }
+.rng::before {                                  /* the baseline */
+  content: ""; position: absolute; inset-inline: 0; bottom: 0;
+  height: 2px; background: var(--dial-line); border-radius: var(--rp);
+}
+.rng > .bnd {                                   /* the normal zone */
+  position: absolute; bottom: 0; height: 5px;
+  inset-inline-start: var(--lo); width: calc(var(--hi) - var(--lo));
+  background: var(--jade); opacity: .5; border-radius: var(--rp);
+}
+.dark .rng > .bnd { background: var(--jade-lit); opacity: .42; }
+.rng > .at {                                    /* the reading */
+  position: absolute; bottom: 0; height: 16px; width: 2px;
+  inset-inline-start: var(--at); margin-inline-start: -1px;
+  background: var(--brass); border-radius: var(--rp);
+}
+.dark .rng > .at { background: var(--brass-lit); }
+.rng > .at.out { background: var(--alarm); }
+.dark .rng > .at.out { background: var(--alarm-lit); }
+/* Past the end of the drawn scale. HbA1c 8.4 and a mis-keyed 84 would
+   otherwise pin to the same edge and look identical; this says "further than
+   this track reaches". A CSS triangle, not a glyph — an arrow character is
+   Bidi_Class=ON and would be reordered. */
+.rng > .at.far::after {
+  content: ""; position: absolute; bottom: 5px; inset-inline-start: 3px;
+  border-block: 4px solid transparent;
+  border-inline-start: 5px solid currentColor; border-inline-end: 0;
+  color: inherit;
+}
+.rng > .at.far { background: var(--alarm); }
+.dark .rng > .at.far { background: var(--alarm-lit); }
 /* The board sets .axis to direction:ltr while .ticks and .band inherit RTL and
    position with inset-inline-start — so the scale ran 00→24 left-to-right while
    the marks it labelled ran right-to-left. The product's established rule is
@@ -269,7 +483,7 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   font-variant-numeric: tabular-nums; color: var(--ink-3);
   direction: inherit;
 }
-.axis > * { direction: ltr; unicode-bidi: embed; }
+.axis > * { direction: ltr; unicode-bidi: isolate; }
 .spark { display: flex; align-items: flex-end; gap: 2px; height: 42px; }
 .spark > i { flex: 1; background: var(--dial-line); border-radius: 1px; min-height: 2px; }
 .spark > i.hi { background: var(--brass); }
@@ -287,6 +501,40 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .hdr-back { width: 44px; height: 44px; }
 .brand { display: flex; align-items: center; gap: var(--u2); font: 600 19px/1 var(--disp); letter-spacing: -.02em; min-height: 44px; }
 .brand-mark { width: 24px; height: 24px; }
+
+/* ---------- 6b · the medical timeline ----------
+   A rail with the day on the outside and the event on the inside, so a year
+   of care reads as a column of dates rather than a list of cards. The rail is
+   a logical-side border, so it stays on the reading edge in both directions
+   without a single physical property. Every value below is an existing
+   token — this adds a layout, not a vocabulary. */
+.tl { position: relative; border-inline-start: 1px solid var(--dial-line); margin-inline-start: 26px; }
+.dark .tl { border-inline-start-color: var(--case-line); }
+.tl-e { display: flex; gap: var(--u3); padding: var(--u3) 0 var(--u3) 0; position: relative; }
+.tl-e::before {
+  content: ""; position: absolute; inset-inline-start: -5px; top: 22px;
+  width: 9px; height: 9px; border-radius: var(--rp);
+  background: var(--dial); border: 1px solid var(--ink-4);
+}
+.dark .tl-e::before { background: var(--case); border-color: var(--case-ink-3); }
+/* The day number sits OUTSIDE the rail, in the margin the rail's inset
+   leaves behind, so the column of dates scans on its own. */
+/* 58, not 46: «الأربعاء» and «الخميس» are the widest Arabic weekday names and
+   at 46px «الخميس» broke across two lines mid-word. Sized to the longest
+   label the content can actually produce, and told never to wrap. */
+.tl-when {
+  flex: none; width: 58px; margin-inline-start: -58px; text-align: end;
+  padding-inline-end: var(--u3); display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+}
+.tl-when b { font: 500 15px/1 var(--disp); }
+.tl-when .t3 { font-size: 10px; white-space: nowrap; }
+.tl-body { flex: 1; min-width: 0; padding-inline-start: var(--u3); }
+.tl-month + .tl-month { margin-top: var(--u2); }
+
+/* The tab bar's reserved height. `nav()` emits one of these immediately
+   before the bar itself, so the reservation and the thing being reserved for
+   can never drift apart. */
+.nav-space { height: calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px); }
 
 .nav {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 50;
@@ -313,6 +561,9 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   background: var(--dial); border-top: 1px solid var(--dial-line);
 }
 .actionbar .btn { flex: 1; }
+/* A bar that says what its button will do, above the button. */
+.actionbar--stack { flex-direction: column; align-items: stretch; gap: var(--u2); }
+.actionbar--stack > .t3 { text-align: center; }
 
 /* ---------- 11 · the sheet · the ONLY shadow in the product ---------- */
 .sheet {
@@ -324,7 +575,26 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   padding-bottom: calc(var(--u6) + env(safe-area-inset-bottom));
 }
 .sheet-grip, .grip { width: 32px; height: 3px; border-radius: var(--rp); background: var(--ink-4); margin: 0 auto var(--u5); }
-.sheet-h { margin-bottom: var(--u5); }
+
+/* The emergency sheet is not a filter panel with red text — it needed to be
+   structurally distinguishable from every other bottom sheet in the product,
+   not just recoloured. Two changes, both functional rather than decorative:
+   a solid top band in the one colour this product reserves for danger
+   (no new hue, no gradient), and — in the markup, not here — the drag grip
+   is omitted, because "swipe down to dismiss" is the wrong affordance to
+   teach someone mid-emergency. Corner radius and shadow are untouched; this
+   is not a cosmetic pass. */
+.sheet--emergency { border-top: 3px solid var(--alarm); }
+.dark .sheet--emergency { border-top-color: var(--alarm-lit); }
+/* `.sheet-h` declared a margin and nothing else, so the close button — a
+   48px `.icon-btn` — fell onto its own line BELOW the subtitle and floated
+   mid-sheet at the inline end. On the emergency sheet that put it between
+   «اتصل بالإسعاف فوراً» and the 911 button: a broken-looking layout on the one
+   screen that must not look broken. Two columns, the button spanning both rows
+   of the title block. */
+.sheet-h { display: grid; grid-template-columns: 1fr auto; align-items: start;
+           column-gap: var(--u3); margin-bottom: var(--u5); }
+.sheet-h > .icon-btn { grid-column: 2; grid-row: 1 / span 2; }
 .sheet-h h2 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
 .sheet-h p { margin-top: 4px; }
 .sheet-f { margin-top: var(--u5); }
@@ -346,14 +616,11 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 /* A labelled field is a stack, not a row: putting the label beside the input
    at 390px leaves neither enough width and they overlap. */
 .field { display: block; margin-top: var(--u4); background: none; border: 0; padding: 0; }
-.field label {
-  display: block; margin-bottom: 7px;
-  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
-  color: var(--ink-3); text-transform: uppercase;
-}
+/* Style resolves in THE LABEL near the top of this file; layout only here. */
+.field label { display: block; margin-bottom: 7px; }
 .field input, .field textarea {
   width: 100%; min-height: 52px; padding: 0 var(--u4);
-  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  border: 1px solid var(--line-ctl); border-radius: var(--rp);
   background: var(--dial-2); font: 300 15px/1.6 var(--disp);
 }
 .field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
@@ -397,14 +664,10 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
    can see anything. A form is one of the few things a screenshot catches and
    an assertion does not. */
 .fld { display: block; margin-top: var(--u4); }
-.fld > span {
-  display: block; margin-bottom: 7px;
-  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
-  color: var(--ink-3); text-transform: uppercase;
-}
+.fld > span { display: block; margin-bottom: 7px; }
 .fld input, .fld textarea, .fld select {
   display: block; width: 100%; min-height: 52px; padding: 0 var(--u4);
-  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  border: 1px solid var(--line-ctl); border-radius: var(--rp);
   background: var(--dial-2); font: 300 15px/1.6 var(--disp);
   color: var(--ink);
 }
@@ -418,14 +681,22 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
    inline layout pushes the picker glyph off the field. */
 .fld input[type="date"] { padding-block: 0; line-height: 52px; }
 
-/* A checkbox row: the box keeps its native size, and the label is the whole
-   row so a thumb hits it rather than a 16px square. */
+/* A checkbox row: the label is the whole row so a thumb hits it rather than a
+   16px square, and the box itself is enlarged so it can still be SEEN and
+   aimed at.
+
+   The selector used to be `label.row > input`, direct-child only. Every
+   consent screen — the doctor's access request, the share builder, the two
+   places where a person decides what a stranger may read about them — puts
+   the input inside a `.rowb` for layout, so none of them matched and every
+   one of those checkboxes rendered at the browser's native 13px. */
 .fld input[type="checkbox"],
-label.row > input[type="checkbox"] {
+label.row input[type="checkbox"],
+.rw input[type="checkbox"] {
   display: inline-block; width: 22px; height: 22px; min-height: 22px;
   padding: 0; accent-color: var(--jade); flex: none;
 }
-label.row { min-height: 44px; cursor: pointer; }
+label.row, label.rw { min-height: 44px; cursor: pointer; }
 
 .search-field {
   display: flex; align-items: center; gap: var(--u2);
@@ -449,16 +720,37 @@ label.row { min-height: 44px; cursor: pointer; }
 .slot-btn .m { display: block; font: 400 11.5px/1.5 var(--disp); color: var(--ink-3); }
 .slot-btn .t { font-family: var(--num); font-variant-numeric: tabular-nums; direction: ltr; flex: none; font-size: 13px; }
 
-/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ---------- */
+/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ----------
+   That heading has been the stated intent since this file was written, and the
+   code underneath it drew a full hairline box anyway. The cost was structural,
+   not cosmetic: `.note` is the app's alert primitive, so on the record screen
+   three stacked boxes (storage warning, allergies, abnormal results) appeared
+   BEFORE the patient's own name, and on the clinician brief a red box rendered
+   inside a grey box containing chips — boxes inside boxes, which the UI
+   contract outlaws by name.
+
+   A rule carries the same three states (brass / alarm / jade) with none of the
+   enclosure. The variants below still set `border-color` for all four sides;
+   only the inline-start edge is drawn, so every existing variant keeps working
+   untouched. */
 .note, .banner {
   display: flex; gap: var(--u3); align-items: flex-start;
-  padding: var(--u4); border-radius: var(--r);
+  padding: var(--u3) var(--u4);
+  border: 0; border-inline-start: 2px solid var(--dial-line); border-radius: 0;
   font: 300 13.5px/1.8 var(--disp); color: var(--ink-2);
-  background: none; border: 1px solid var(--dial-line);
+  background: none;
 }
 .note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
 .note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
 .note-e, .banner--stop { border-color: var(--alarm); color: var(--alarm); }
+/* `.banner--info` was used on the GPS-diagnosis banners and defined nowhere,
+   so "we could not get a fix, pick your area" and "location is blocked by
+   policy" rendered identically — the whole point of splitting those messages
+   was that one of them is the user's to fix and the other is not. */
+.banner--info { border-color: var(--jade); color: var(--jade); }
+.dark .banner--info { border-color: var(--jade-lit); color: var(--jade-lit); }
+.dark .note-w, .dark .banner--warn { border-color: var(--brass-lit); color: var(--brass-lit); }
+.dark .note-e, .dark .banner--stop { border-color: var(--alarm-lit); color: var(--alarm-lit); }
 
 /* ---------- 15 · empty · offline · error ----------
    The failure states carry the same craft as the hero. */
@@ -495,7 +787,7 @@ label.row { min-height: 44px; cursor: pointer; }
   color: var(--ink-2); border-bottom: 1px solid var(--dial-line);
   background: var(--dial-2);
 }
-.offline-bar button { flex: none; min-height: 40px; padding: 0 14px; border-radius: var(--rp); border: 1px solid var(--dial-line); font-size: 12px; font-weight: 500; }
+.offline-bar button { flex: none; min-height: 40px; padding: 0 14px; border-radius: var(--rp); border: 1px solid var(--line-ctl); font-size: 12px; font-weight: 500; }
 
 /* ---------- 16 · skeleton · the dial breathes, it does not shimmer ---------- */
 .skel, .sk { background: var(--dial-line-2); border-radius: 3px; animation: pl 1.8s ease-in-out infinite; }
@@ -505,9 +797,9 @@ label.row { min-height: 44px; cursor: pointer; }
 /* ---------- 17 · numerals · the number is the largest thing, not the title ---------- */
 .nbig, .kpi-n, .intent-n, .tier-p {
   font: 300 46px/1 var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed; letter-spacing: -.03em;
+  direction: ltr; unicode-bidi: isolate; letter-spacing: -.03em;
 }
-.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.045em; display: inline-block; }
+.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; letter-spacing: -.045em; display: inline-block; }
 .nbig, .kpi-n, .intent-n, .tier-p { display: inline-block; }
 .adm-kpi .n { font: 300 34px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; }
 .kpi-d { font-size: 11.5px; color: var(--jade); font-weight: 500; }
@@ -562,6 +854,77 @@ input, textarea { min-height: 44px; }
    direction:ltr, and applying it to a container of Arabic text flipped the
    whole line, stranding the count on the wrong side. The numeral inside still
    gets .num; the line itself must stay RTL. */
+/* ---------- classes that were used in markup and styled nowhere ----------
+   Found by walking every rendered route and diffing the class names in the
+   DOM against the class names in these two stylesheets. Each of these was
+   already in the HTML; none of them had a single rule. */
+
+/* THE IMPORTANT ONE. `updatedLine()` appends `.stale` when a record has not
+   been re-checked in over 90 days — and with no rule for it, "updated 4 days
+   ago" and "updated 210 days ago" rendered in exactly the same ink. The
+   staleness marker is a provenance claim; a provenance claim you cannot see
+   is not one. Brass, and struck through, so it reads as expired at a glance
+   without colour being the only carrier. */
+.stale { color: var(--brass-ink); }
+.dark .stale { color: var(--brass-lit); }
+.stale .num { text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* The filter bar above a result list, and its lead button. */
+.filters { padding: var(--u3) var(--u5) 0; }
+/* A filter chip is a control, so its edge resolves through the control
+   boundary rather than through an ink alpha chosen for text. `--ink-4` (.42)
+   measured 2.71:1 on the lighter `--dial-2` surface these sit on. */
+.chip--filter { border-color: var(--line-ctl); color: var(--ink); font-weight: 500; }
+.dark .chip--filter { color: var(--case-ink); }
+
+/* A display line that carried an inline font-size and nothing else, so it
+   inherited body weight and body leading on every screen that used it. */
+.hero-line { font: 500 25px/1.28 var(--disp); letter-spacing: -.015em; color: var(--ink); }
+.dark .hero-line { color: var(--case-ink); }
+
+.res-group + .res-group { margin-top: var(--u5); }
+.res-group h3 { margin-bottom: var(--u3); }
+.dark .res-group h3 { color: var(--case-ink-3); }
+
+.start-bar { display: flex; gap: var(--u2); align-items: center; }
+.emg-alt { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); min-height: 44px; }
+.prof-head { padding: var(--u5) var(--u5) 0; }
+
+/* Doctor profile header. The name gets whatever the avatar does not, so the
+   avatar shrinks first at the width where an Arabic family name would
+   otherwise have to break. */
+.dp-head { display: flex; gap: var(--u4); align-items: flex-start; margin-top: 26px; }
+.dp-av { width: 56px; height: 56px; font-size: 21px; flex: 0 0 auto; }
+@media (max-width: 359px) {
+  .dp-av { width: 40px; height: 40px; font-size: 16px; }
+  .dp-head { gap: var(--u3); }
+}
+
+/* A meta list: distinct facts, each unbreakable, each visibly separated.
+   `::before` on the sibling rather than a character in the markup, so the
+   separator is never a neutral inside a rendered value. */
+.meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--u2) 0; margin-top: 18px; }
+.meta-row > * { white-space: nowrap; }
+.meta-row > * + *::before {
+  content: "·"; color: var(--ink-3); opacity: .7;
+  margin-inline: var(--u3); display: inline-block;
+}
+
+/* The schematic above a pharmacy list. It is aria-hidden and decorative —
+   but it was rendering as an empty bordered box, because the pins inside it
+   are inline spans with no size. A blank frame captioned "14 pharmacies" is
+   worse than no frame. */
+.map-peek { position: relative; height: 132px; overflow: hidden; }
+.map-peek .pin { position: absolute; width: 7px; height: 7px; border-radius: var(--rp);
+                 background: var(--jade); opacity: .55; }
+.map-peek .pin.me { width: 11px; height: 11px; background: var(--brass); opacity: 1;
+                    box-shadow: 0 0 0 3px var(--dial-2); }
+.dark .map-peek .pin { background: var(--jade-lit); }
+.dark .map-peek .pin.me { background: var(--brass-lit); box-shadow: 0 0 0 3px var(--case-2); }
+.map-peek .lbl { position: absolute; inset-inline-start: var(--u4); bottom: var(--u3);
+                 font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.dark .map-peek .lbl { color: var(--case-ink-3); }
+
 .res-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u5) var(--u5) var(--u3); flex-wrap: wrap; }
 .res-n { font: 500 13px/1.6 var(--disp); color: var(--ink); }
 .res-n .why { color: var(--ink-3); font-weight: 400; }
@@ -572,11 +935,15 @@ input, textarea { min-height: 44px; }
    layout, which stacks a label above its value and reads as broken data. */
 .kv { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u3) 0; border-top: 1px solid var(--dial-line-2); }
 .kv:first-child { border-top: 0; }
-.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none; }
+.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none;
+  /* `flex:none` without this let the label column collapse to its minimum and
+     break inside the word — "حساسية" rendered as حساس/ية on the emergency
+     card, which is the one screen where a label must be read at a glance. */
+  white-space: nowrap; }
 .kv .v { font: 400 14px/1.6 var(--disp); text-align: end; }
 .prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u3); margin-top: var(--u5); }
 .prof-fact { display: flex; flex-direction: column; gap: 3px; }
-.prof-fact .k { font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em; color: var(--ink-3); text-transform: uppercase; }
+.prof-fact .k { /* THE LABEL */ }
 .prof-fact .v { font: 500 17px/1.3 var(--disp); }
 
 .prod { display: flex; flex-direction: column; gap: 0; padding: 0; width: 150px; flex: none; }
@@ -623,8 +990,8 @@ input, textarea { min-height: 44px; }
 .ops-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--u3); }
 .ops-kpi { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
 .ops-kpi.warn { border-color: var(--brass-ink); }
-.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.02em; }
-.ops-l { font: 500 10px/1.5 var(--disp); letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; margin-top: 6px; }
+.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; letter-spacing: -.02em; }
+.ops-l { margin-top: 6px; }
 .ops-cols { display: grid; grid-template-columns: 1fr; gap: var(--u6); margin-top: var(--u6); align-items: start; }
 @media (min-width: 900px) { .ops-cols { grid-template-columns: 1fr 1fr; } }
 .ops-sec { margin-top: var(--u6); }
@@ -658,7 +1025,7 @@ input, textarea { min-height: 44px; }
 .qa-b:active { transform: scale(.97); }
 .qa-yes { grid-column: 1 / -1; background: var(--jade); color: var(--dial-2); font-weight: 600; font-size: 16px; }
 .qa-one { background: transparent; border-color: var(--brass-ink); color: var(--brass-ink); }
-.qa-no  { background: transparent; border-color: var(--dial-line); color: var(--ink-3); }
+.qa-no  { background: transparent; border-color: var(--line-ctl); color: var(--ink-3); }
 /* Optimistic exit: the card leaves on the same frame as the tap. A pharmacist
    must never wait to learn whether their answer landed. */
 .qa-gone { overflow: hidden; height: 0 !important; opacity: 0; padding-block: 0; margin: 0; border-width: 0;
@@ -669,7 +1036,7 @@ input, textarea { min-height: 44px; }
 .rush {
   display: flex; align-items: center; gap: var(--u3); width: 100%;
   margin-top: var(--u5); padding: var(--u3) var(--u4); min-height: 56px;
-  border: 1px solid var(--dial-line); border-radius: var(--r); background: transparent;
+  border: 1px solid var(--line-ctl); border-radius: var(--r); background: transparent;
 }
 .rush.on { border-color: var(--brass-ink); background: var(--dial-2); }
 .rush-sw { flex: none; width: 44px; height: 26px; border-radius: var(--rp); background: var(--dial-line); position: relative; transition: background .16s ease; }
@@ -682,7 +1049,7 @@ input, textarea { min-height: 44px; }
    gets sold. */
 .badge-fast {
   display: inline-flex; align-items: center; gap: 5px;
-  font: 500 10.5px/1 var(--disp); letter-spacing: .06em;
+  font: 500 10.5px/1 var(--disp);
   color: var(--jade); border: 1px solid var(--jade); border-radius: var(--rp);
   padding: 5px 9px; white-space: nowrap;
 }
@@ -879,3 +1246,501 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 /* A yes/no toggle rendered from its two-letter label collapses to 41px wide.
    Toggles get a width floor so the target survives the shortest word. */
 #altbtn, .rush .btn--sm { min-width: 72px; }
+
+/* ---------- 31 · reduced motion, guaranteed rather than remembered ----------
+   Six separate `prefers-reduced-motion` blocks in this file each named the
+   animated selectors they knew about. That works exactly until someone adds an
+   animation and forgets — and thirty-seven transitions and animations had
+   accumulated against six hand-written lists. Vestibular disorders and
+   migraine are not edge cases, and "we listed most of them" is not a setting
+   a person can rely on.
+
+   So the guarantee is made once, for everything, at the end of the cascade.
+   Durations collapse rather than being set to `none`, which matters: an
+   entrance animation running from `opacity: 0` and switched off with
+   `animation: none` can leave its element permanently invisible, whereas a
+   .01ms duration runs it instantly to its FINAL state. The blocks above stay,
+   because several of them also correct a static resting transform or opacity
+   that the animation would otherwise have supplied. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- 32 · Arabic leading, measured from Arabic ink ----------
+   The type scale's leading was derived from Latin extents. Measured ink at
+   100px in the shipped display face: Latin "Hjgqy" occupies 0.90em top to
+   bottom; «الهيموغلوبين» occupies 1.04em; and «مضبوط جزئياً» — a shadda and a
+   tanwīn, both ordinary in this product's own copy — occupies 1.33em.
+
+   So `h1` at 30px/1.26 gives 37.8px of leading for 39.9px of Arabic ink, and
+   every `line-height: 1` control (.chip, .btn, .nav a) is 4-5px short. Nothing
+   clips, because overflow is visible — but two-line Arabic display headings
+   collide, and Arabic in a centred flex control sits low in its box because the
+   half-leading was computed from a Latin ascent.
+
+   Scoped to `:lang(ar)` so Latin keeps the tight display setting it was tuned
+   for, the same axis on which this file already scopes tracking and caps.
+   Padding is deliberately NOT the fix: it grows the box and leaves the
+   two-line collision exactly where it was. */
+:root:lang(ar) :is(h1, .q-h1, .prof-name, .dp-name, .d1) { line-height: 1.42; }
+:root:lang(ar) :is(h2, .d2, .hero-line) { line-height: 1.45; }
+:root:lang(ar) :is(.chip, .c, .btn, .b, .b-g, .b-s, .nav a, .av, .mark,
+  .qa-b, .slot-btn, .icon-btn, .seal, .st) { line-height: 1.5; }
+
+/* ---------- 33 · THE CARE THREAD ----------
+   The redesign's one new component, and the argument for it is structural
+   rather than visual: a CONTINUOUS RAIL says "these events belong to each
+   other", where a card says "this is a separate thing". The record's problem was
+   never that its cards were ugly — it was that twelve sibling cards asserted
+   twelve unrelated things about one person.
+
+   Weight is `significance`, which the domain has always computed and no screen
+   had ever read: encounter 1, medicine 2, diagnosis/result/imaging 3, major
+   operation 4. So the dot size and the type weight below are not styling
+   choices — a bigger dot means the event mattered more, and a reader can follow
+   the trajectory of a problem without opening a single event.
+
+   Logical properties throughout: the rail sits on the inline START edge, which
+   is the right edge in Arabic, and mirrors with no extra rules. */
+.th {
+  display: block; position: relative;
+  padding: var(--u4) 0;
+  border-block-end: 1px solid var(--dial-line-2);
+}
+.th:last-child { border-block-end: 0; }
+.th-h { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--u3); }
+.th-title { font: 500 19px/1.4 var(--disp); letter-spacing: -.01em; }
+.th-sub { margin-top: 2px; }
+.th.is-done .th-title { color: var(--ink-2); }
+
+/* Where this problem stands right now — one line, above the story. */
+.th-stand { display: inline-block; margin-top: var(--u3); }
+.th-stand-big { font: 400 17px/1.55 var(--disp); margin-top: var(--u3); }
+.th-stand-big.is-alarm { color: var(--alarm); }
+.th-head { padding-block-end: var(--u4); border-block-end: 1px solid var(--dial-line-2); }
+
+/* THE RAIL. One line, drawn once, behind every dot. */
+.th-rail {
+  position: relative; margin: var(--u4) 0 0; padding: 0;
+  padding-inline-start: var(--u5);
+}
+/* The line is the component's whole argument — "these events belong to one
+   problem" — so it is drawn at the control-boundary weight, not the decorative
+   hairline weight. At `--dial-line` (1.4:1 in dark) the dots read as scattered
+   and the connection was invisible, which is the one thing this must not be. */
+.th-rail::before {
+  content: ""; position: absolute; inset-block: 6px 6px;
+  inset-inline-start: 4px; width: 1.5px; background: var(--line-ctl); opacity: .5;
+}
+.th-e { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px var(--u3); }
+.th-e + .th-e { margin-top: var(--u4); }
+.th-dot {
+  position: absolute; inset-inline-start: calc(var(--u5) * -1 + 1px); top: 5px;
+  width: 7px; height: 7px; border-radius: var(--rp);
+  background: var(--dial); border: 1px solid var(--ink-3);
+}
+.th-when { grid-column: 2; grid-row: 1; align-self: baseline; }
+.th-what { grid-column: 1; grid-row: 1; min-inline-size: 0; }
+.th-t { display: block; font: 400 15px/1.5 var(--disp); }
+.th-kind { display: block; margin-top: 1px; }
+.th-more { margin-top: var(--u3); padding-inline-start: var(--u5); }
+
+/* The four significance steps. This is the hierarchy the timeline was missing:
+   a routine visit should recede and a major operation should not. */
+.th-e.s1 .th-t { font-weight: 400; color: var(--ink-2); font-size: 14px; }
+.th-e.s1 .th-dot { width: 5px; height: 5px; inset-inline-start: calc(var(--u5) * -1 + 2px); opacity: .8; }
+.th-e.s2 .th-t { font-weight: 400; }
+.th-e.s3 .th-t { font-weight: 500; }
+.th-e.s3 .th-dot { background: var(--ink-3); border-color: var(--ink-3); }
+.th-e.s4 .th-t { font: 500 17px/1.45 var(--disp); }
+.th-e.s4 .th-dot {
+  width: 11px; height: 11px; inset-inline-start: calc(var(--u5) * -1 - 1px); top: 4px;
+  background: var(--brass); border-color: var(--brass);
+}
+/* Abnormal is the one state allowed to recolour a dot, and it also changes its
+   shape — never colour alone. */
+.th-e.is-flag .th-dot { background: var(--alarm); border-color: var(--alarm); }
+.th-e.is-flag .th-dot::after {
+  content: ""; position: absolute; inset: -4px; border-radius: var(--rp);
+  border: 1px solid var(--alarm); opacity: .45;
+}
+.dark .th-e.is-flag .th-dot,
+.dark .th-e.is-flag .th-dot::after { background: var(--alarm-lit); border-color: var(--alarm-lit); }
+.dark .th-e.s4 .th-dot { background: var(--brass-lit); border-color: var(--brass-lit); }
+.dark .th-dot { background: var(--case); }
+
+/* At 430 the date column gets its own gutter instead of the row stretching. */
+@media (min-width: 412px) {
+  .th-e { grid-template-columns: 1fr 92px; }
+  .th-when { text-align: end; }
+}
+
+/* ---------- 34 · CUSTODY — who holds this record right now ----------
+   `activeShares` and the outstanding carry code were computed on the record
+   screen and buried nine rows down among category counts. For a product whose
+   central promise is that the patient owns and lends their record, "who can see
+   it right now" is a live state, not an archive entry — so it sits on home,
+   directly under what is on fire.
+
+   A row, not a card: it is a fact about now, and it links to the control. */
+.custody { margin-top: var(--u4); border-block: 1px solid var(--dial-line-2); }
+.custody-r {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u3) 0; min-height: 44px;
+}
+.custody-r + .custody-r { border-block-start: 1px solid var(--dial-line-2); }
+.custody-r svg { width: 16px; height: 16px; color: var(--ink-3); flex: none; }
+/* Live = jade and steady. Waiting = brass, the product's colour for time. */
+.custody-dot {
+  width: 8px; height: 8px; border-radius: var(--rp); flex: none;
+  background: var(--jade); box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 18%, transparent);
+}
+.custody-dot.is-wait { background: var(--brass); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass) 18%, transparent); }
+
+/* The thread list on home and on the record index. */
+.threads > .th:first-child { padding-block-start: var(--u2); }
+
+/* ---------- 35 · SEGMENTS — filters that used to be destinations ----------
+   Doctors and pharmacies each owned a tab while answering the same question, and
+   the medicine network answered it too with no tab at all. As segments they read
+   as what they are: four ways to filter one list of "who near me can help".
+
+   A rule under the active segment rather than a filled pill — the bar is a
+   position on a set, not four competing buttons, and an underline is the only
+   affordance that says "you are here in a sequence". */
+.segs {
+  display: flex; gap: 0; overflow-x: auto; scrollbar-width: none;
+  border-block-end: 1px solid var(--dial-line-2);
+  padding-inline: var(--u5);
+}
+.segs::-webkit-scrollbar { display: none; }
+.seg {
+  flex: 0 0 auto; position: relative;
+  padding: var(--u3) var(--u4); min-height: 44px;
+  display: inline-flex; align-items: center;
+  font: 400 14.5px/1.5 var(--disp); color: var(--ink-3);
+  white-space: nowrap;
+}
+.seg.on { color: var(--ink); font-weight: 500; }
+.seg.on::after {
+  content: ""; position: absolute; inset-inline: var(--u3); bottom: -1px;
+  height: 2px; background: var(--jade); border-radius: var(--rp);
+}
+.seg:first-child { padding-inline-start: 0; }
+
+/* ---------- 36 · THE REGISTER — one time axis, closed by a labelled boundary
+   ----------------------------------------------------------------------------
+   The booklet's time view. ONE row type, ordered strictly by time, with two
+   sticky headers naming the two sides of now. Everything unfinished sits above
+   the first header because it has not ended yet — urgency is a POSITION IN
+   TIME, not an alert box, so there is no alert stack and no section chrome.
+
+   Why two headers and not one rule: the first draft had a single «الآن» rule
+   below the unfinished rows, and measured, its bottom edge landed at 946px in
+   an 844px viewport — the boundary that carries the whole idea was off-screen
+   on the reference device. Two `position: sticky` headers each name their own
+   side, swap natively as the second scrolls under the first, and one of them is
+   always visible. No JS, no scroll listener.
+---------------------------------------------------------------------------- */
+.reg { --gut: 58px; }
+.reg-hdr {
+  position: sticky; top: 0; z-index: 6;
+  display: grid; grid-template-columns: 1fr auto; gap: var(--u2); align-items: baseline;
+  padding: 7px var(--u5); background: var(--dial);
+  border-block: 2px solid var(--ink);
+  font: 600 13.5px/1.55 var(--disp);
+}
+.reg-hdr .reg-hdr-sub { font: 400 12px/1.6 var(--disp); color: var(--ink-3); text-align: end; }
+.reg-hdr--done { background: var(--dial-2); }
+
+.reg-row {
+  display: grid; grid-template-columns: var(--gut) 1fr;
+  padding-block: 11px; border-bottom: 1px solid var(--dial-line-2);
+}
+.reg-gut {
+  grid-column: 1; padding-inline-start: var(--u5);
+  font: 400 12px/1.5 var(--disp); color: var(--ink-3);
+}
+.reg-gut b { display: block; font-weight: 400; }
+.reg-gut .yr { display: block; font-size: 11px; color: var(--ink-3); }
+.reg-bd { grid-column: 2; padding-inline-end: var(--u5); min-width: 0; }
+.reg-what { font: 500 15px/1.6 var(--disp); color: var(--ink); }
+.reg-sub { font: 400 13px/1.6 var(--disp); color: var(--ink-3); }
+
+/* WHAT CAME BACK. Indent + a hairline on the leading edge means "this is part
+   of the row above", and it is only ever drawn where the data carries the link
+   — never to suggest one. */
+.reg-back {
+  grid-column: 2; margin-block-start: 6px;
+  margin-inline-start: var(--u3); padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--line-ctl);
+  font: 400 13px/1.65 var(--disp); color: var(--ink-3);
+}
+.reg-why { font-size: 12px; color: var(--ink-3); }
+.reg-back b { color: var(--ink-2); font-weight: 500; }
+
+/* A COPY IS OUT. Four channels, never colour alone: the wash, the leading
+   border, the word, and the countdown. */
+.reg-row--out { background: var(--wash-time); border-inline-start: 2px solid var(--brass); }
+.reg-row--open { background: var(--wash-alarm); border-inline-start: 2px solid var(--alarm); }
+
+/* An aggregate row: collapses a KIND. Never a critical result, never a custody
+   event — those two always get their own row at any record size. */
+.reg-row.agg { display: block; padding-block: 0; }
+.reg-row.agg > summary { list-style: none; display: grid; grid-template-columns: var(--gut) 1fr; padding-block: 11px; }
+.reg-row.agg > summary::-webkit-details-marker { display: none; }
+.reg-row.agg .more { color: var(--ink-3); font-size: 12px; }
+.reg-row.agg[open] .more { display: none; }
+.reg-kids {
+  margin-inline-start: calc(var(--gut) + var(--u4)); padding-inline-start: 10px;
+  margin-block-end: 11px; border-inline-start: 1px solid var(--line-ctl);
+  font: 400 13px/1.7 var(--disp); color: var(--ink-3);
+}
+.reg-kids > div { padding-block: 3px; }
+
+/* A YEAR, beyond two years back. Counting only. */
+.reg-yr { display: grid; grid-template-columns: var(--gut) 1fr; padding-block: 8px;
+  border-bottom: 1px solid var(--dial-line-2); }
+.reg-yr .reg-gut { font-weight: 600; font-size: 13px; color: var(--ink-2); }
+.reg-yr .reg-bd { font: 400 13px/1.7 var(--disp); color: var(--ink-3); }
+
+/* ---------- 37 · THE DECK — sheets grouped by SHARING BEHAVIOUR
+   ----------------------------------------------------------------------------
+   The record's sections ARE the units of consent (`CONSENT.SCOPE`), and the
+   bands are derived exhaustively from consent.js rather than named by a human:
+   SAFETY_FLOOR / EMERGENCY_SCOPES−SAFETY_FLOOR / the remainder /
+   SENSITIVE_CLASSES / gapStatements. There is deliberately no neutral "your
+   sheets" bucket — a bucket named after nothing is where storage nouns hide,
+   and eleven scope nouns in one flat list is the table of contents this
+   replaced.
+
+   The leading edge states DETACHABILITY, which is the one thing a sheet's
+   name cannot say: dashed = can be handed over on its own, solid = cannot.
+---------------------------------------------------------------------------- */
+.dband { padding: var(--u5) var(--u5) 5px; display: grid; grid-template-columns: 1fr auto;
+  gap: var(--u2); align-items: baseline; }
+.dband h2 { font: 600 13px/1.55 var(--disp); color: var(--ink); }
+.dband .dband-k { font: 400 12px/1.6 var(--disp); color: var(--ink-3); white-space: nowrap; }
+.dband-note { padding: 0 var(--u5) 6px; font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+
+.sheet-row {
+  display: grid; gap: 2px; text-decoration: none; color: inherit;
+  padding: 11px var(--u5); min-height: 44px;
+  border-bottom: 1px solid var(--dial-line-2);
+  border-inline-start: 2px dashed var(--line-ctl);
+  margin-inline-start: var(--u5);
+}
+.sh-t { font: 500 15px/1.6 var(--disp); color: var(--ink); }
+.sh-c { font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+.sheet-row--fixed { border-inline-start-style: solid; border-inline-start-color: var(--ink); }
+.sheet-row--out { background: var(--wash-time); border-inline-start-style: solid;
+  border-inline-start-color: var(--brass); }
+
+/* Seven scopes that behave identically do not need seven top-level rows. */
+.grp { margin-inline-start: var(--u5); border-inline-start: 2px dashed var(--line-ctl); }
+.grp > summary { list-style: none; display: grid; grid-template-columns: 1fr auto; gap: var(--u2);
+  align-items: center; padding: 11px var(--u5); min-height: 44px;
+  border-bottom: 1px solid var(--dial-line-2); font: 500 15px/1.6 var(--disp); }
+.grp > summary::-webkit-details-marker { display: none; }
+.grp-c { font: 400 12.5px/1.6 var(--disp); color: var(--ink-3); }
+.grp .sheet-row { margin-inline-start: 0; border-inline-start: 0; padding-inline-start: var(--u6); }
+
+/* ---------- 38 · REFUSAL IN PLACE, ATTRIBUTED TO A RULE
+   ----------------------------------------------------------------------------
+   `SAFETY_FLOOR` used to be a pinned, undeselectable row — a pre-disabled
+   control, which teaches nothing and gives assistive technology a state with no
+   reason. Now the sheet looks like every other sheet, is already taken, and
+   refuses ON THE LINE at the moment of the attempt, in the domain's own words.
+
+   The refusal is attributed to the RULE, not to the app's voice, and it is
+   announced: a `role="status"` region, because a control that silently declines
+   is indistinguishable from a control that is broken.
+---------------------------------------------------------------------------- */
+.refuse {
+  grid-column: 1 / -1; margin-block-start: var(--u2);
+  margin-inline-start: var(--u3); padding: var(--u2) 10px;
+  border-inline-start: 2px solid var(--alarm); background: var(--wash-alarm);
+  font: 400 13px/1.7 var(--disp); color: var(--ink-2);
+}
+.refuse .rule-name { display: block; font: 600 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.refuse b { display: block; font-weight: 600; color: var(--ink); }
+
+/* ---------- 39 · THE SHAPE OF THE HOLES — «خارج نطاق الإعارة»
+   ----------------------------------------------------------------------------
+   On a lent record, a scope that was NOT granted must appear as a named, empty,
+   requestable slot. A clinician who cannot see the labs must never be able to
+   read that as "this patient has no labs" — that is guardrail §3 applied at the
+   consent boundary, and it is the difference between a record with a hole in it
+   and a record that is simply short.
+---------------------------------------------------------------------------- */
+.hole { display: grid; grid-template-columns: 1fr auto; gap: var(--u3); align-items: center;
+  padding: 10px var(--u5); border-bottom: 1px dashed var(--line-ctl); }
+.hole-t { font: 400 14px/1.6 var(--disp); color: var(--ink-3); }
+.hole-t b { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- 40 · OWNERSHIP — the clinician's first partition
+   ----------------------------------------------------------------------------
+   A clinician's question is not "what is unfinished" but "what is unfinished
+   that I must act on now". That is a question about ownership, and
+   `deriveTasks`/`networkTasks` have always carried an owner that nothing
+   rendered. Filled control = the act is yours. Outlined = note it and move on.
+
+   HARD RULE, enforced at the call site: a result with flag === "critical"
+   always lands in «عليك أنت» with its real owner named beneath, because a
+   critical result nobody acknowledged is everyone's, and a partition that could
+   route one into somebody else's column would be a partition that kills people.
+---------------------------------------------------------------------------- */
+.own { border-top: 2px solid var(--ink); }
+.own > h2 { display: grid; grid-template-columns: 1fr auto; padding: var(--u2) var(--u5) 6px;
+  font: 600 13px/1.6 var(--disp); }
+.own > h2 .own-k { font-weight: 600; font-size: 15px; }
+.task { padding: 9px var(--u5); border-bottom: 1px solid var(--dial-line-2);
+  display: grid; grid-template-columns: 1fr auto; gap: var(--u3); align-items: center; }
+.task-t { font: 500 14.5px/1.6 var(--disp); color: var(--ink); }
+.task-m { font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+
+/* The clinician's value row: the reading and its geometry on ONE row.
+   Round 1 of this design pushed the range scale behind an evidence tap for
+   both readers. Testing changed the answer: a bar is answered
+   preattentively, a sentence is not, and taking it away costs a clinician
+   reading eight results the one glance they wanted. So geometry is demoted by
+   AUDIENCE, not by tap — the patient gets the sentence first, the clinician
+   gets value + geometry on a scannable row. The epistemic tiers did not move. */
+.vrow { display: grid; grid-template-columns: 1fr auto; gap: var(--u3); align-items: center;
+  padding: var(--u2) var(--u5); border-bottom: 1px solid var(--dial-line-2); min-height: 44px; }
+.vrow .vrow-nm { font: 500 14.5px/1.6 var(--disp); color: var(--ink); }
+.vrow .vrow-fl { font: 400 12.5px/1.6 var(--disp); color: var(--ink-3); }
+.vrow .vrow-vv { font: 500 20px/1.1 var(--num); color: var(--ink); font-variant-numeric: tabular-nums; }
+.vrow .vrow-geo { display: flex; gap: 10px; align-items: center; }
+
+/* ---------- 41 · 430 RE-COMPOSES, it does not merely reflow
+   ----------------------------------------------------------------------------
+   The measured baseline records byte-identical scroll heights at 390 and 430 on
+   four of six surfaces: the layout reflows but never re-composes. Every rule
+   here changes WHAT SITS BESIDE WHAT, not how long a line is.
+
+   Two re-compositions were built, measured and REJECTED, and are named so
+   nobody re-derives them:
+     · the year rows in two columns (−30% on the register) — a chronology read
+       down one column and then jumped back to the top of another is no longer
+       ONE TIME AXIS, which is the whole concept;
+     · an actor column promoted out of the sentence at 430 — it scanned better
+       and cost 223px at 390 to save 30px at 430, which is paying at the
+       reference width to look good at the widest.
+---------------------------------------------------------------------------- */
+@media (min-width: 415px) {
+  .reg { --gut: 78px; }
+  /* a returned loan absorbs its write-back list into a third column */
+  .reg-row--wide { grid-template-columns: var(--gut) 1fr 42%; }
+  .reg-row--wide .reg-back { grid-column: 3; grid-row: 1; margin: 0; padding-inline-start: var(--u3); }
+  .reg-gut .yr { display: inline; margin-inline-start: 4px; }
+  /* an aggregate's children are a SET, not a sequence — they may pair up */
+  .reg-kids { columns: 2; column-gap: var(--u4); }
+  /* a sheet's custody line moves beside its title */
+  .sheet-row { grid-template-columns: 1fr 44%; gap: var(--u3); align-items: baseline; }
+  /* THE DOCK. Three stacked full-width controls is the right shape at 320 and a
+     waste at 430 — a 430 phone has room for two acts on one line, and the
+     register's dock is the same three every time, so this applies always rather
+     than only when the data happens to produce a wide row. */
+  .dock-acts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u2) var(--u3); }
+  .dock-acts > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* THE TIMELINE at 430: the event's TYPE and its TITLE stop being stacked.
+     Two lines per event became one, which is a saving on every row rather than
+     on the rows that happen to carry a write-back. */
+  .tl-e-head { display: grid; grid-template-columns: auto 1fr; gap: var(--u3); align-items: baseline; }
+  .tl-e-head .tl-title { margin-top: 0; }
+
+  /* the clinician's two ownership registers sit side by side */
+  .owncols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--u4); align-items: start; }
+  /* the withheld scopes are a SET, not a sequence — a clinician reads them to
+     find one name, never in order, so they may pair up. The same reasoning that
+     allows `.reg-kids` two columns and forbids it on the year rows. */
+  .holes-2 { columns: 2; column-gap: var(--u4); }
+  .holes-2 .hole { break-inside: avoid; }
+}
+
+/* ---------- 42 · THE EPISTEMIC TIERS, RENDERED
+   `assist.js` separates FACT from INTERPRETATION from SUGGESTION structurally —
+   by how the statement was PRODUCED, not by a label a model was asked to apply.
+   The rendering has to keep them apart or it throws that away. Never
+   interleaved, never restyled into each other, and a refusal is a block that is
+   PRESENT and says why it is empty: an absent block reads as "nothing to say",
+   a refusal reads as "we will not say it".
+---------------------------------------------------------------------------- */
+/* The metric NAME is a label; the statement is the content. The measured
+   baseline names this exact inversion as a defect — on the results screen the
+   title and two metric names outweighed the numbers. Here the FACT sentence is
+   the heaviest rendered run on the patient's screen (16 x 500 = 8000 against the
+   header's 13 x 600 = 7800), and on the clinician's screen the VALUE is
+   (20 x 700). Each reader's first object is the heaviest thing they see. */
+.panel-h { padding: var(--u4) var(--u5) var(--u2); font: 600 13px/1.6 var(--disp);
+  color: var(--ink-2); border-top: 2px solid var(--ink); margin-top: var(--u5); }
+.stmt { padding: 10px var(--u5); border-bottom: 1px solid var(--dial-line-2); }
+.stmt-lb { font: 600 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.stmt p { font: 500 16px/1.72 var(--disp); color: var(--ink); }
+.stmt-rule, .stmt-ev { font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+.stmt--stop { background: var(--wash-alarm); border-inline-start: 2px solid var(--alarm); }
+.ser { padding: 4px var(--u5) var(--u4); }
+/* the range bar, inline on a clinician's row rather than block under a hero */
+.rng--row { width: 96px; flex: 0 0 96px; }
+/* An act inside a task row keeps `.b`'s own 52px — §20 switches OFF the
+   invisible 44px extender for `.b` precisely because `.b` is tall enough on its
+   own, so a "compact" modifier here would silently create a 40px target. Only
+   the horizontal padding narrows. */
+.task-act, .hole .b { padding-inline: var(--u4); min-width: 84px; font-size: 13.5px; }
+
+/* ---------- 43 · THE DELTA — continuity as change, not adjacency
+   A rail of dots says "these happened near each other". A delta says what was
+   ADDED, STOPPED, ASKED FOR and CAME BACK on a given day, which is the thing a
+   reader actually needs from a longitudinal record. No dots, no rail: the date
+   column is the axis and the verbs carry the meaning.
+---------------------------------------------------------------------------- */
+.deltas { margin-top: var(--u2); }
+.delta { display: grid; grid-template-columns: 72px 1fr; gap: var(--u3);
+  padding-block: var(--u3); border-bottom: 1px solid var(--dial-line-2); }
+.delta-d { font: 400 12px/1.5 var(--disp); color: var(--ink-3); }
+.delta-d .yr { display: block; font-size: 11px; color: var(--ink-3); }
+.delta-h { font: 500 15px/1.6 var(--disp); color: var(--ink); margin-bottom: 2px; }
+.delta-l { font: 400 14px/1.7 var(--disp); color: var(--ink-2); }
+.delta-k { font-weight: 600; color: var(--ink-3); font-size: 12.5px;
+  display: inline-block; min-width: 42px; }
+@media (min-width: 415px) {
+  /* The extra width goes to the CONTENT. A first attempt gave the verb its own
+     56px column at 430 and the surface came out TALLER than at 390 — the new
+     gutter took more width than the viewport had gained, so every line wrapped
+     one word earlier. Measured, then removed. */
+  .delta { grid-template-columns: 84px 1fr; }
+}
+
+/* the timeline's day number is the axis, not the content — see eventRow */
+.tl-when b { font-weight: 400; font-size: 13px; color: var(--ink-3); }
+.tl-title { font: 500 15px/1.65 var(--disp); color: var(--ink); margin-top: 4px; }
+
+/* ---------- 44 · THE DARK-THEME BOUNDARY OVERRIDES §0 MISSED
+   ----------------------------------------------------------------------------
+   §0 split the CONTROL boundary (`--line-ctl`, 3.42:1) from the decorative
+   hairline (`--case-line`, 1.43:1) precisely because every chip, field, icon
+   button and nav border in the dark theme was being drawn at roughly 1.4:1. The
+   split landed on the single-class rules in this file — but `identity.css`
+   carries `.dark .b-s`, `.dark .c` and `.dark .av` at specificity (0,2,0),
+   which OUTRANK it and kept the old hairline.
+
+   Nothing caught this because the audit walks 31 routes and, until the register
+   put one on `#/`, not one of them rendered a `.b-s` in the dark theme. The
+   audit found it the same hour it existed: "137 control edges measured, 1 below
+   3:1, worst 1.43:1 — dark #/ .b b-s".
+
+   Fixed HERE rather than in `identity.css`, because that file states it is the
+   reference and that a screen's problem is fixed in the app layer. The token
+   itself is unchanged and stays at the value it was measured to hold. */
+.dark .b-s, .dark .btn--2, .dark .slot-btn, .dark .start-tile { border-color: var(--line-ctl); }
+.dark .c { border-color: var(--line-ctl); }
+.dark .av { border-color: var(--line-ctl); }

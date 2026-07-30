@@ -551,6 +551,38 @@
     .filter((m) => m.status === MED_STATE.ACTIVE || m.status === MED_STATE.UNCONFIRMED)
     .sort((a, b) => (a.status === MED_STATE.ACTIVE ? -1 : 1) - (b.status === MED_STATE.ACTIVE ? -1 : 1));
 
+  /* ---- BLOOD GROUP ----
+     The fastest fact a trauma team needs, and the one this app must never
+     guess. Entered once by the patient, never inferred from anything else in
+     the record. "unknown" is a real, selectable, third state — distinct from
+     never having been asked — for the same reason `birthDateEstimated` and
+     `ID_VERIFY.SELF` exist: a screen that cannot tell "not asked" from
+     "asked, and the patient does not know" will nag someone who already
+     answered honestly, or worse, let a UI silently default a field this
+     consequential to something. */
+  const BLOOD_GROUP = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"];
+  const isValidBloodGroup = (v) => BLOOD_GROUP.indexOf(v) !== -1;
+  const BLOOD_GROUP_LABEL = { unknown: ["غير معروف", "Unknown"] };
+  /* The sign is isolated IN THE DOMAIN, not left to each screen.
+
+     "O-" printed into an Arabic line rendered "-O", and "A+" rendered "+A":
+     `+` and `-` are Bidi_Class=ON, so against a Latin letter inside an RTL
+     paragraph they resolve to the far side of it. On a narrow wrap the sign can
+     land on a different line from the letter entirely. This is the one field on
+     an emergency card where an ambiguous reading is least tolerable, and it was
+     the one field emitted with no isolate at all — a bare string into a bare
+     `<b>` on the emergency sheet and into a `.chip` on the profile screen.
+
+     U+2068 FIRST STRONG ISOLATE … U+2069 POP DIRECTIONAL ISOLATE does it in
+     the returned VALUE, so every present and future call site is safe whether
+     or not its author thought about bidi. Characters, not CSS, because this
+     string also travels into plain text — an emergency card read aloud, a
+     WhatsApp handoff — where there is no stylesheet to help. */
+  const FSI = "⁨", PDI = "⁩";
+  const bloodGroupLabel = (v, ar) => BLOOD_GROUP_LABEL[v]
+    ? BLOOD_GROUP_LABEL[v][ar ? 0 : 1]
+    : (v ? FSI + v + PDI : "");
+
   /* ---- ALLERGY ---- */
   const CRITICALITY = { HIGH: "high", LOW: "low", UNABLE: "unable-to-assess" };
   const criticalAllergies = (list) => (list || [])
@@ -721,6 +753,153 @@
 
   const unjudgeableResults = (list) => (list || []).filter(isUnjudgeable);
 
+  /* =========================================================
+     ٧-ج · موضع القيمة في مداها — WHERE A VALUE SITS
+     =========================================================
+     Every result and every vital already carries `value`, `refLow` and
+     `refHigh`, and every screen rendered them as three separate pieces of
+     text: the number, the word "high", and "normal 4 to 5.6" in grey. A
+     reader has to hold three facts and do the arithmetic themselves to answer
+     the only question they actually asked — how far out is this?
+
+     This returns the geometry for drawing that answer: the normal band's
+     start and end as percentages, and the value's own position. Pure
+     arithmetic, no DOM, so it is testable in Node like everything else here.
+
+     Two rules it will not break:
+
+     · NO REFERENCE RANGE, NO SCALE. Returns null. A drawn scale is a claim
+       that we know what normal looks like for this measurement, and for a
+       weight or a height we do not. The screens already say "no reference
+       range" in words; they must not then draw a picture implying otherwise.
+
+     · A CLAMPED MARKER SAYS SO. The domain is padded by half the reference
+       width on each side, so an ordinary out-of-range value still lands
+       inside the track rather than on its edge. But a scale has finite width
+       and some values are far past it — HbA1c 8.4 and a mis-keyed 84 would
+       both pin to the same end, and those two mean completely different
+       things to a diabetic. So when the value falls outside the drawn domain
+       the position is clamped AND `clamped` is set, letting the marker say
+       "further than this track can show" instead of quietly implying the
+       edge is the value. The number itself is always printed beside the
+       scale, so the exact figure is never only in the geometry. */
+  const RANGE_PAD = 0.5;
+
+  function rangePosition(r) {
+    if (!r || typeof r.value !== "number" || !isFinite(r.value)) return null;
+    const lo = r.refLow, hi = r.refHigh;
+    /* Both bounds are required. A one-sided range ("under 130") has no
+       geometry — there is no left edge to draw from — and inventing one
+       would put the marker at a position that means nothing. */
+    if (typeof lo !== "number" || typeof hi !== "number") return null;
+    if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return null;
+
+    const width = hi - lo;
+    const pad = width * RANGE_PAD;
+    const min = lo - pad, max = hi + pad;
+    const span = max - min;
+    const raw = ((r.value - min) / span) * 100;
+    const pct = (v) => +Math.max(0, Math.min(100, ((v - min) / span) * 100)).toFixed(2);
+
+    return {
+      lo: pct(lo),
+      hi: pct(hi),
+      at: +Math.max(0, Math.min(100, raw)).toFixed(2),
+      clamped: raw < 0 || raw > 100,
+      out: r.value < lo ? "low" : r.value > hi ? "high" : null,
+    };
+  }
+
+  /* =========================================================
+     ٧-أ · العلامات الحيوية — VITAL SIGNS
+     =========================================================
+     `CLASS.VITALS` has existed since the access model was written and nothing
+     has ever produced one. Vitals are the cheapest longitudinal signal a
+     patient can carry: a home blood-pressure cuff and a bathroom scale are
+     common in Iraqi households, the readings are what a hypertension or
+     diabetes follow-up actually turns on, and nobody currently writes them
+     down anywhere a doctor will see.
+
+     They are results, not a new kind of thing — same shape, same flag rules,
+     same provenance, same reference-range honesty. A reading with no range
+     is `unknown`, never `normal`. The ranges below are adult resting
+     defaults, and they are DEFAULTS: a value carrying its own refLow/refHigh
+     wins, because a clinician who set a target for this patient outranks a
+     table. */
+  const VITAL = {
+    BP_SYS: "bp-systolic", BP_DIA: "bp-diastolic", PULSE: "pulse",
+    TEMP: "temperature", WEIGHT: "weight", HEIGHT: "height",
+    GLUCOSE: "glucose-fasting", SPO2: "spo2",
+  };
+
+  /* LOINC where a widely-used code exists, so these travel as FHIR
+     Observations rather than as private strings. */
+  const VITAL_META = {
+    [VITAL.BP_SYS]:  { loinc: "8480-6",  unit: "mmHg",  ar: "الضغط الانقباضي", en: "Systolic BP",  refLow: 90,   refHigh: 130 },
+    [VITAL.BP_DIA]:  { loinc: "8462-4",  unit: "mmHg",  ar: "الضغط الانبساطي", en: "Diastolic BP", refLow: 60,   refHigh: 85 },
+    [VITAL.PULSE]:   { loinc: "8867-4",  unit: "/min",  ar: "النبض",           en: "Pulse",        refLow: 60,   refHigh: 100 },
+    [VITAL.TEMP]:    { loinc: "8310-5",  unit: "°C",    ar: "الحرارة",         en: "Temperature",  refLow: 36.1, refHigh: 37.5 },
+    [VITAL.WEIGHT]:  { loinc: "29463-7", unit: "kg",    ar: "الوزن",           en: "Weight",       refLow: null, refHigh: null },
+    [VITAL.HEIGHT]:  { loinc: "8302-2",  unit: "cm",    ar: "الطول",           en: "Height",       refLow: null, refHigh: null },
+    [VITAL.GLUCOSE]: { loinc: "1558-6",  unit: "mg/dL", ar: "سكر صائم",        en: "Fasting glucose", refLow: 70, refHigh: 99 },
+    [VITAL.SPO2]:    { loinc: "59408-5", unit: "%",     ar: "الأكسجين",        en: "Oxygen saturation", refLow: 95, refHigh: 100 },
+  };
+
+  /* Weight and height have no "normal" — a range for them is a judgement
+     about a person, not a measurement of one, and this file does not make
+     those. They stay `unknown` forever and the UI says so, which is the
+     honest answer rather than a silent green tick. */
+  function recordVital(v, at) {
+    if (!v) return { ok: false, reason: "NO_VITAL" };
+    const meta = VITAL_META[v.kind];
+    if (!meta) return { ok: false, reason: "UNKNOWN_VITAL" };
+    if (typeof v.value !== "number" || !isFinite(v.value)) return { ok: false, reason: "VALUE_REQUIRED" };
+    if (!v.effectiveAt) return { ok: false, reason: "DATE_REQUIRED" };
+    const out = {
+      ...v,
+      code: meta.loinc, kind: v.kind,
+      display: v.display || meta.ar,
+      unit: v.unit || meta.unit,
+      /* an explicitly-supplied range wins over the table */
+      refLow: v.refLow !== undefined ? v.refLow : meta.refLow,
+      refHigh: v.refHigh !== undefined ? v.refHigh : meta.refHigh,
+      recordedAt: at || v.recordedAt || null,
+      class: CLASS.VITALS,
+    };
+    out.flag = flagResult(out);
+    return { ok: true, vital: out };
+  }
+
+  const vitalMeta = (kind) => VITAL_META[kind] || null;
+  const vitalLabel = (kind, ar) => {
+    const m = VITAL_META[kind];
+    return m ? (ar ? m.ar : m.en) : kind;
+  };
+  /* Newest first — a vital is asked about in the present tense. */
+  const latestVitals = (list) => {
+    const seen = {};
+    for (const v of (list || []).slice().sort((a, b) => new Date(b.effectiveAt) - new Date(a.effectiveAt)))
+      if (v.kind && !seen[v.kind]) seen[v.kind] = v;
+    return Object.values(seen);
+  };
+
+  /* Blood pressure is ONE reading with two numbers, and splitting it into two
+     independent observations — which is what FHIR does on the wire — is how a
+     screen ends up showing "140" and "70" on separate rows a scroll apart.
+     Paired back together for display, by timestamp. */
+  function bloodPressure(list) {
+    const sys = (list || []).filter((v) => v.kind === VITAL.BP_SYS);
+    const dia = (list || []).filter((v) => v.kind === VITAL.BP_DIA);
+    return sys.map((s) => ({
+      at: s.effectiveAt,
+      systolic: s, diastolic: dia.find((d) => d.effectiveAt === s.effectiveAt) || null,
+      /* the pair is abnormal if EITHER half is; a normal diastolic does not
+         redeem a systolic of 190 */
+      abnormal: isAbnormal(s) || (dia.find((d) => d.effectiveAt === s.effectiveAt)
+        ? isAbnormal(dia.find((d) => d.effectiveAt === s.effectiveAt)) : false),
+    })).sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
+
   /* A trend across laboratories is a clinical hazard: different analysers,
      different calibrations, different reference ranges. We still build the
      trend — clinicians need it — but every point carries its lab, and the
@@ -731,12 +910,23 @@
       .filter((r) => r.code === code && typeof r.value === "number")
       .sort((a, b) => new Date(a.effectiveAt) - new Date(b.effectiveAt))
       .map((r) => ({ at: r.effectiveAt, value: r.value, unit: r.unit,
-                     lab: r.performerId || null, flag: r.flag || flagResult(r) }));
+                     lab: r.performerId || null, flag: r.flag || flagResult(r),
+                     /* The reference range travels WITH the point, not with the
+                        series: two laboratories can report the same analyte
+                        against different ranges, and a screen that borrows the
+                        newest range for an older number invents a verdict the
+                        lab never issued. */
+                     refLow: r.refLow ?? null, refHigh: r.refHigh ?? null }));
     const labs = [...new Set(pts.map((p) => p.lab).filter(Boolean))];
     const units = [...new Set(pts.map((p) => p.unit).filter(Boolean))];
     const first = pts[0], last = pts[pts.length - 1];
     return {
-      code, points: pts, labs,
+      code,
+      /* A brief that prints "4548-4" has told the clinician nothing. The
+         human-readable name lives on the result rows; carry it on the series
+         so every consumer does not have to go back and look it up. */
+      display: ((results || []).find((r) => r.code === code && r.display) || {}).display || null,
+      points: pts, labs,
       mixedLabs: labs.length > 1,
       mixedUnits: units.length > 1,
       comparable: labs.length <= 1 && units.length <= 1,
@@ -960,11 +1150,18 @@
       if (!isAbnormal(r)) continue;
       push({ at: r.effectiveAt, type: EVT.RESULT, title: r.display,
              detail: `${r.value} ${r.unit || ""}`.trim(), flag: r.flag || flagResult(r),
-             episodeId: r.episodeId || null, facilityId: r.performerId, significance: 3 });
+             /* `conditionId` is passed through ONLY when someone set it. It is
+                never inferred from a LOINC code — deciding that an HbA1c "is
+                about" a diabetes diagnosis is a clinical judgement, and this
+                layer does not make those. An unlinked result belongs to no
+                thread and says so. */
+             episodeId: r.episodeId || null, conditionId: r.conditionId || null,
+             facilityId: r.performerId, significance: 3 });
     }
     for (const i of p.imaging || []) {
       push({ at: i.effectiveAt, type: EVT.IMAGING, title: `${i.modality} — ${i.bodySite || ""}`.trim(),
-             detail: i.impression, episodeId: i.episodeId || null, facilityId: i.facilityId, significance: 3 });
+             detail: i.impression, episodeId: i.episodeId || null,
+             conditionId: i.conditionId || null, facilityId: i.facilityId, significance: 3 });
     }
     for (const pr of p.procedures || []) {
       push({ at: pr.performedAt, type: EVT.PROCEDURE, title: pr.display,
@@ -974,7 +1171,8 @@
     for (const e of p.encounters || []) {
       if (e.state === ENC_STATE.VOID) continue;
       push({ at: e.startedAt, type: EVT.ENCOUNTER, title: e.chiefComplaint || e.type,
-             detail: e.assessment, episodeId: e.episodeId || null, encounterId: e.id,
+             detail: e.assessment, episodeId: e.episodeId || null,
+             conditionId: e.conditionId || null, encounterId: e.id,
              actorId: e.clinicianId, facilityId: e.facilityId, significance: 1 });
     }
     for (const r of p.referrals || []) {
@@ -992,6 +1190,75 @@
     if (o.to) out = out.filter((e) => new Date(e.at) <= new Date(o.to));
     if (o.minSignificance) out = out.filter((e) => (e.significance || 0) >= o.minSignificance);
     return out;
+  }
+
+  /* =========================================================
+     CARE THREADS — the problem, and everything that happened to it
+     =========================================================
+     `timelineByEpisode` below has always grouped events by an EXPLICIT episode.
+     That is the right shape and the wrong key for the data this product
+     actually holds: almost no record has hand-authored episodes, so grouping by
+     `episodeId` alone produced nothing and the whole idea stayed invisible.
+
+     A thread is assembled from keys that already exist, and NOTHING here is
+     invented:
+       · an explicit episode, when one exists — its own events, its own state;
+       · otherwise an ACTIVE CONDITION, threading the events that already carry
+         its `conditionId` (its diagnosis, the medicines prescribed for it, the
+         medicines stopped);
+       · plus the lab series a clinician has actually attached to it.
+
+     What it must never do is guess. A lab result with no link to a problem
+     belongs to no thread and stays in the unattached stream, because inferring
+     "this HbA1c is about the diabetes" from a code would be the app forming a
+     clinical opinion. `link` records WHY each event is in the thread, so a
+     screen can show the join rather than assert it.
+
+     `trend` is passed in rather than computed here: the caller already has the
+     series and this stays a pure grouping. */
+  function careThreads(p, opts) {
+    const o = opts || {};
+    const all = buildTimeline(p, o);
+    const byId = new Map();
+
+    const add = (key, title, kind, state, since, ev, extra) => {
+      byId.set(key, Object.assign({
+        id: key, title, kind, state, since,
+        events: ev.slice().sort((a, b) => String(a.at).localeCompare(String(b.at))),
+        peak: ev.reduce((m, e) => Math.max(m, e.significance || 0), 0),
+        lastAt: ev.reduce((m, e) => (String(e.at) > m ? String(e.at) : m), ""),
+      }, extra || {}));
+    };
+
+    /* Explicit episodes first — they are authored, so they outrank a derived
+       thread and own their events exclusively. */
+    const claimed = new Set();
+    for (const ep of p.episodes || []) {
+      const ev = all.filter((e) => e.episodeId === ep.id);
+      if (!ev.length) continue;
+      ev.forEach((e) => claimed.add(e));
+      add("ep:" + ep.id, ep.title || ep.display || ep.id, "episode",
+        ep.status || EP_STATE.ACTIVE, ep.startedAt || (ev[0] && ev[0].at) || null, ev,
+        { episode: ep, link: "episode" });
+    }
+
+    /* Then active problems, over whatever an episode did not already claim. */
+    for (const c of activeConditions(p.conditions, o.now)) {
+      const ev = all.filter((e) => e.conditionId === c.id && !claimed.has(e));
+      if (!ev.length) continue;
+      ev.forEach((e) => claimed.add(e));
+      add("cond:" + c.id, c.display, "condition",
+        c.clinicalStatus === COND_STATE.ACTIVE ? EP_STATE.ACTIVE : EP_STATE.ON_HOLD,
+        c.onsetDate || null, ev,
+        { condition: c, chronic: !!c.chronic, link: "condition" });
+    }
+
+    const threads = [...byId.values()].sort((a, b) =>
+      (b.peak - a.peak) || String(b.lastAt).localeCompare(String(a.lastAt)));
+    /* Everything with no problem to belong to. Not a failure state — a lab
+       result genuinely may not be about any recorded problem. */
+    const unattached = all.filter((e) => !claimed.has(e));
+    return { threads, unattached };
   }
 
   /* The problem-clustered reading. A patient with four chronic diseases has a
@@ -1012,6 +1279,15 @@
      ========================================================= */
   const SOURCE = { CLINICIAN: "clinician", PATIENT: "patient-reported", EXTERNAL: "external-import",
                    DEVICE: "device", AI: "ai-generated" };
+
+  /* "The patient told us this" — the one provenance question every screen and
+     every projection has to be able to ask. It lived in record.js, so
+     consent.js could not reach it and the emergency card silently treated
+     every medication as clinician-confirmed. It belongs beside the constants it
+     reads. Either stamp alone is enough: an entry marked one way and not the
+     other is still not a clinician's word. */
+  const isSelfReported = (e) => !!e
+    && (e.source === SOURCE.PATIENT || e.verificationStatus === VERIFY.PATIENT_REPORTED);
 
   function provenance(entry) {
     return {
@@ -1092,6 +1368,8 @@
   root.EMR = {
     ID_TYPE, canRegister, isIdentityBearing, identifiersOf, idOf,
     ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
+    BLOOD_GROUP, isValidBloodGroup, bloodGroupLabel,
+    isSelfReported,
     MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
     matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
     ENC_STATE, ENC_TYPE, SIGN_REQUIRED, canSign, signEncounter, addAddendum, voidEncounter,
@@ -1101,10 +1379,12 @@
     EP_STATE, EP_MACHINE, canEpTransition, canCloseEpisode,
     TASK_STATE, TASK_KIND, closeTask, isOverdue, openTasks, deriveTasks, ms,
     flagResult, isAbnormal, isUnjudgeable, unjudgeableResults, trend,
+    VITAL, VITAL_META, recordVital, vitalMeta, vitalLabel, latestVitals, bloodPressure,
+    rangePosition,
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,
-    EVT, buildTimeline, timelineByEpisode,
+    EVT, buildTimeline, timelineByEpisode, careThreads,
     SOURCE, provenance, isAuthoritative,
     FHIR_MAP, CODE_SYSTEM, codeable,
   };

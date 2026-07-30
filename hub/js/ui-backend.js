@@ -353,7 +353,23 @@ function auditLog(entry) {
    otherwise "we can't help" is all they hear, and they go looking somewhere
    with fewer scruples. */
 function openControlledHandoff(med) {
-  const licensed = allPharmacies().filter((f) => f.verified && cityOf(f) === (S.exCity || "baghdad")).slice(0, 4);
+  /* This is the one screen in the product where getting "verified" wrong is
+     not a labeling mistake — it is telling someone anxious about a controlled
+     substance exactly which door to walk through. The filter used to read the
+     raw `f.verified` flag, which is `true` on every synthetic pharmacy in
+     this dataset (`DATA_PROVENANCE.sources.pharmacies.origin === "synthetic"`
+     today), so this sheet recommended four invented addresses under the
+     header "Licensed pharmacies nearby" for a real drug like clonazepam —
+     each carrying a correct "sample data" badge that a person in this
+     situation has no reason to stop and parse. `verificationState` asks the
+     provenance first and returns `sample` regardless of the flag while the
+     source is synthetic, so gating on it here means this list is
+     legitimately empty until real, verified pharmacy data exists — which is
+     the honest state, and the fallback message below already existed for
+     exactly this case. */
+  const licensed = allPharmacies()
+    .filter((f) => verificationState(f, "pharmacies").k === "verified" && cityOf(f) === (S.exCity || "baghdad"))
+    .slice(0, 4);
   sheet(`<div class="sheet-grip"></div>
     <div class="sheet-h"><div>
       <div class="lab">${isAR() ? "دواء خاضع للرقابة" : "Controlled medicine"}</div>

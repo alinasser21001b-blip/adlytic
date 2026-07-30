@@ -35,6 +35,14 @@
   const DAY = 86400000;
   const txt = (v) => String(v == null ? "" : v).trim();
 
+  /* Did the patient assert this themselves? emr.js declares both halves of
+     the answer — `SOURCE.PATIENT` on the provenance and `PATIENT_REPORTED` as
+     a verification status — and either one alone is enough, because an entry
+     stamped one way and not the other is still not a clinician's word. */
+  /* Delegates to the domain rather than restating the rule, so a change to
+     what counts as patient-reported cannot apply on one screen and not another. */
+  const isSelfReported = (e) => E.isSelfReported(e);
+
   /* =========================================================
      ١ · المستندات — DOCUMENTS
      =========================================================
@@ -533,22 +541,65 @@
       headline: `${prof.age != null ? prof.age : "؟"} ${ar ? "سنة" : "y"} · ${sexLabel(prof.sex, ar)}`,
       patient: prof,
       /* Ordered by danger, deliberately. */
-      allergies: allergies.map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      /* `selfReported` is projected, not left for the screen to dig out of
+         storage. A clinician reading "penicillin — anaphylaxis" needs to know
+         whether a colleague verified that or the patient typed it in the
+         waiting room; both are worth having and they are not the same claim.
+         Dropping it here — which this projection did — meant the brief
+         presented every patient-entered line with the same authority as a
+         signed one. */
+      allergies: allergies.map((a) => ({ substance: a.substance, reaction: a.reaction || null,
+        criticality: a.criticality, selfReported: isSelfReported(a) })),
       /* The brief is a PROJECTION with its own field names — `name` here is
          the label a screen prints, deliberately decoupled from the storage
          field it came from. Sections 25 and 29: the UI must not be wired
          straight to the record's schema. */
       active: conds.map((c) => ({ name: c.display, since: c.onsetDate || null,
         lastReviewed: c.lastReviewed || null, chronic: c.chronic === true,
+        selfReported: isSelfReported(c),
         /* activeConditions already computed this — recomputing it here is how
            two answers to the same question start to disagree. */
         stale: c.stale === true })),
       medications: meds.map((m) => ({ name: m.display, dose: m.dose || null,
         frequency: m.frequency || null, indication: m.indication || null,
+        selfReported: isSelfReported(m),
         status: E.medStatus ? E.medStatus(m, now) : m.status })),
+      /* The newest reading of each vital, projected the same way everything
+         else here is. A blood pressure the patient took last week is often
+         the most decision-relevant number in the whole record for a follow-up
+         visit, and it was reaching the clinician nowhere. */
+      /* The two blood-pressure components are excluded here because
+         `bloodPressure` below already carries them as one reading. Leaving
+         them in printed the same measurement three times — 148/92, then
+         systolic 148, then diastolic 92 — which reads to a clinician as three
+         findings rather than one. */
+      vitals: (E.latestVitals ? E.latestVitals(r.vitals) : [])
+        .filter((v) => v.kind !== (E.VITAL && E.VITAL.BP_SYS) && v.kind !== (E.VITAL && E.VITAL.BP_DIA))
+        .map((v) => ({
+        kind: v.kind, name: E.vitalLabel ? E.vitalLabel(v.kind, ar) : v.kind,
+        value: v.value, unit: v.unit || null, at: v.effectiveAt,
+        flag: v.flag || null, selfReported: isSelfReported(v) })),
+      bloodPressure: (E.bloodPressure ? E.bloodPressure(r.vitals) : []).slice(0, 1)
+        .map((x) => ({ at: x.at, systolic: x.systolic.value,
+          diastolic: x.diastolic ? x.diastolic.value : null,
+          unit: x.systolic.unit, abnormal: x.abnormal,
+          selfReported: isSelfReported(x.systolic) }))[0] || null,
       unacknowledgedAbnormal: unacked.slice(0, 4).map((x) => ({ code: x.code, name: x.display || x.code,
         value: x.value, unit: x.unit || null, at: x.effectiveAt })),
       trends: moved.slice(0, 3),
+      /* Surgical history. `EMR.snapshot` has projected `majorProcedures` for
+         a long time; the pre-visit brief — the thing a clinician actually
+         opens — never carried it. A cholecystectomy explains an absent
+         gallbladder on today's ultrasound, and an anaesthetic history is a
+         question somebody has to ask before the next operation. Major only:
+         the brief is what changes a decision in thirty seconds, and a list of
+         every dressing change is not that. */
+      procedures: (r.procedures || [])
+        .filter((x) => x.major)
+        .sort((a, b) => ms(b.performedAt) - ms(a.performedAt))
+        .slice(0, 4)
+        .map((x) => ({ name: x.display, at: x.performedAt || null,
+          selfReported: isSelfReported(x) })),
       pending: pending.map((x) => ({ code: x.code, name: x.display || x.code, orderedAt: x.orderedAt || null })),
       overdue: overdue.map((t) => ({ kind: t.kind, dueAt: t.dueAt, about: t.about || null })),
       lastEncounter: lastEnc ? { at: lastEnc.startedAt, clinicianId: lastEnc.clinicianId,

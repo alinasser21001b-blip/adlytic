@@ -28,7 +28,7 @@ function screenNeedNew(qs) {
 
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="lab" style="margin-top:24px">${isAR() ? "انشر حاجتك" : "Publish a need"}</div>
     <h1 class="d2" style="margin-top:8px">${isAR() ? "خلّي الشبكة تدوّر بدالك" : "Let the network do the searching"}</h1>
     <div class="q-sub" style="margin-top:6px">${isAR()
@@ -40,7 +40,7 @@ function screenNeedNew(qs) {
     <div class="lab">${isAR() ? "١ · الدواء بالضبط" : "1 · The exact medicine"}</div>
     ${x ? `<div class="plate" style="margin-top:12px">
       <div class="rowb">
-        <span><span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
+        <span><span class="d3" style="display:block">${esc(L(x.med))} <bdi class="strength">${esc(x.v.strength)}</bdi></span>
           <span class="q-sub">${esc(x.v.form)} · ${esc(x.v.pack)}</span></span>
         <button class="b-g" style="font-size:12px" onclick="S.draft.v=null;render()">${isAR() ? "غيّر" : "Change"}</button>
       </div>
@@ -167,6 +167,7 @@ function screenNeedNew(qs) {
         capped ? (isAR() ? "وصلت الحد الأقصى" : "You've hit the limit")
         : isAuthed() ? (isAR() ? "انشر الطلب" : "Publish the request")
         : (isAR() ? "تحقّق وانشر" : "Verify and publish")}</button>
+      <div class="t3" id="pubwhy" style="margin-top:8px">${esc(capped ? "" : missingLine(d))}</div>
       ${capped ? `<div class="note note-w" style="margin-top:12px"><span>${isAR()
         ? `عندك <b class="num">${active}</b> طلبات نشطة، وهذا الحد. سكّر واحداً من «طلباتي» — الحد موجود حتى ينتبه الصيدلاني للطلبات الحقيقية.`
         : `You have <b class="num">${active}</b> active requests, which is the cap. Close one from My requests — the cap exists so pharmacists keep paying attention to real ones.`}</span></div>`
@@ -181,7 +182,7 @@ function screenNeedNew(qs) {
       ? `ينتهي الطلب وحده — العاجل خلال <span class="num">6</span> ساعات، والباقي أطول. تكدر تسحبه بأي وقت من «طلباتي».`
       : `The request expires on its own — urgent within <span class="num">6</span> hours, others longer. Withdraw any time from My requests.`}</div>
   </section>
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 /* Keep the publish control honest against what is actually typed, without a
@@ -192,18 +193,38 @@ function screenNeedNew(qs) {
    re-render (tap urgency, lose your publish button), and a Baghdad draft
    with no district went ENABLED on re-render, past the guard. One predicate,
    called from both places, is the only way two answers cannot drift. */
-function draftReady(d) {
-  if (!d) return false;
-  const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  const locOk = d.city !== "baghdad" || !!d.district;
-  return medOk && locOk && !!String(d.qty || "").trim();
+/* WHAT is missing, not merely THAT something is. A greyed-out button with no
+   explanation is a dead end wearing the costume of a control: the user can
+   see the way forward and cannot tell why it is shut. `draftReady` is
+   `draftMissing().length === 0` so the button state and the explanation can
+   never disagree — they were two separate expressions before, and two
+   expressions of the same rule are two chances to drift. */
+function draftMissing(d) {
+  if (!d) return [["الدواء", "the medicine"]];
+  const out = [];
+  if (!d.v && !(d.manual && String(d.manual.name || "").trim().length >= 3))
+    out.push(["الدواء", "the medicine"]);
+  /* district data exists for Baghdad only, so only Baghdad can be asked */
+  if (d.city === "baghdad" && !d.district) out.push(["منطقتك", "your district"]);
+  if (!String(d.qty || "").trim()) out.push(["الكمية", "the quantity"]);
+  return out;
+}
+const draftReady = (d) => draftMissing(d).length === 0;
+
+function missingLine(d) {
+  const m = draftMissing(d);
+  if (!m.length) return "";
+  const parts = m.map((x) => (isAR() ? x[0] : x[1]));
+  const list = parts.length === 1 ? parts[0]
+    : parts.slice(0, -1).join(isAR() ? "، " : ", ") + (isAR() ? " و" : " and ") + parts[parts.length - 1];
+  return isAR() ? `باقي ${list}.` : `Still need ${list}.`;
 }
 
 function syncPublish() {
   const b = document.getElementById("pubbtn"); if (!b) return;
   const d = S.draft || {};
-  const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  const locOk = d.city !== "baghdad" || !!d.district;   /* district data exists for Baghdad only */
+  const why = document.getElementById("pubwhy");
+  if (why) why.textContent = missingLine(d);
   b.disabled = !draftReady(d) || myActiveNeeds().length >= MAX_ACTIVE_NEEDS;
 }
 
@@ -229,10 +250,38 @@ function typedLooksControlled(name) {
   ) || null;
 }
 
+/* Point the user AT the thing that is missing. A toast that says "pick a
+   quantity" while the quantity field is two screens down is only half an
+   answer on a phone. */
+function scrollToFirst(sel) {
+  const el = document.querySelector(sel);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (typeof el.focus === "function" && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+    setTimeout(() => el.focus({ preventScroll: true }), 220);
+  }
+}
+
 function publishNeed() {
   const d = S.draft; if (!d) return;
   const medOk = !!d.v || !!(d.manual && String(d.manual.name || "").trim().length >= 3);
-  if (!medOk || !d.qty.trim()) return;
+  /* This used to be `if (!medOk || !d.qty.trim()) return;` — a bare return on
+     the guard an incomplete form hits FIRST and most often. Tapping the
+     primary action of the whole flow produced no toast, no message, no
+     movement: total silence, which a user reads as a broken app rather than
+     as an unfinished form. Every other guard in this function speaks; this
+     one now says which part is missing, because "something is wrong" is not
+     an answer a person can act on. */
+  if (!medOk) {
+    toast(isAR() ? "اختر الدواء أو اكتب اسمه" : "Choose the medicine, or type its name");
+    scrollToFirst("#manual-name, a[href='#/rx']");
+    return;
+  }
+  if (!d.qty.trim()) {
+    toast(isAR() ? "شكد تحتاج؟ اختر الكمية" : "How much do you need? Pick a quantity");
+    scrollToFirst("#qty");
+    return;
+  }
 
   /* CONTROLLED: refused before anything is written, and the refusal is the
      domain layer's, not this screen's. The patient is not left at a dead end
@@ -365,11 +414,15 @@ function startRadarTicker() {
    make the other three mean less.
 ------------------------------------------------------------- */
 function radarReach(r) {
-  const inCity = allPharmacies().filter((f) => cityOf(f) === r.city && f.verified);
+  /* Both filters used the raw .verified flag, so the number attached to
+     "visible to N verified pharmacies" was counting synthetic entries as real
+     reach. verificationState asks the provenance first, matching the badge
+     already shown on every one of these rows individually. */
+  const inCity = allPharmacies().filter((f) => cityOf(f) === r.city && verificationState(f, "pharmacies").k === "verified");
   /* Plus any verified branch anywhere that has ever reported this exact
      variant. A typed medicine has no variant id, so its reach is honestly
      the same-governorate set — and the copy reflects whatever this returns. */
-  const holders = r.v ? allPharmacies().filter((f) => f.verified && cityOf(f) !== r.city &&
+  const holders = r.v ? allPharmacies().filter((f) => verificationState(f, "pharmacies").k === "verified" && cityOf(f) !== r.city &&
     SIGNALS.some((g) => g.fac === f.id && g.v === r.v)) : [];
   const cities = [...new Set([...inCity, ...holders].map((f) => cityOf(f)))];
   return { n: inCity.length + holders.length, inCity: inCity.length, holders: holders.length, cities };
@@ -386,9 +439,9 @@ function radarCopy(r, secs) {
   }
   if (secs < 10) {
     return isAR()
-      ? `نداؤك ظاهر الآن لـ <b class="num">${reach.n}</b> صيدلية موثّقة في ${esc(city)}${
+      ? `نداؤك ظاهر الآن لـ <b class="num">${reach.n}</b> صيدلية ${verifiedWord("pharmacies", true)} في ${esc(city)}${
           reach.holders ? ` و${countAr(reach.cities.length - 1, ["محافظة أخرى", "محافظتين أخريين", "محافظات أخرى", "محافظةً أخرى"])}` : ""}.`
-      : `Your request is now visible to <b class="num">${reach.n}</b> verified pharmacies in ${esc(city)}${
+      : `Your request is now visible to <b class="num">${reach.n}</b> pharmacies ${verifiedWord("pharmacies", true)} in ${esc(city)}${
           reach.holders ? ` and ${reach.cities.length - 1} other governorates` : ""}.`;
   }
   return isAR()
@@ -403,7 +456,7 @@ function radarPulse(r) {
   const reach = radarReach(r);
   const nodes = Math.min(reach.n, 7);
   return `<div class="radar" id="radar" role="img"
-      aria-label="${isAR() ? `نداؤك ظاهر لـ ${reach.n} صيدلية موثّقة` : `Visible to ${reach.n} verified pharmacies`}">
+      aria-label="${isAR() ? `نداؤك ظاهر لـ ${reach.n} صيدلية ${verifiedWord("pharmacies", true)}` : `Visible to ${reach.n} pharmacies ${verifiedWord("pharmacies", true)}`}">
     <span class="radar-w" style="--d:0s"></span>
     <span class="radar-w" style="--d:.83s"></span>
     <span class="radar-w" style="--d:1.66s"></span>
@@ -439,7 +492,7 @@ function screenRadarWait(id) {
   <section class="pad" style="text-align:center;margin-top:var(--u6)">
     ${radarPulse(r)}
     <div class="lab" style="margin-top:var(--u6)">${isAR() ? "نداء دواء" : "Medicine request"}</div>
-    <h1 class="d2" style="margin-top:8px">${esc(x.name)} ${x.strength ? `<span class="n" style="font-weight:300">${esc(x.strength)}</span>` : ""}</h1>
+    <h1 class="d2" style="margin-top:8px">${esc(x.name)} ${x.strength ? `<bdi class="strength">${esc(x.strength)}</bdi>` : ""}</h1>
     <div class="q-sub" style="margin-top:6px">${x.form ? esc(x.form) + " · " : ""}${esc(r.qty)} · ${esc(needPlace(r))}</div>
     <div class="radar-copy" id="radarcopy">${radarCopy(r, secs)}</div>
   </section>
@@ -462,7 +515,7 @@ function screenRadarWait(id) {
       ? "الطلب يبقى شغّالاً وأنت تتصفّح. ما ننشر اسمك ولا رقمك."
       : "The request stays live while you browse. Your name and number are never published."}</div>
   </section>
-  <div style="height:26px"></div>${nav("explorer")}`;
+  ${nav("explorer")}`;
 }
 
 /* Minimise to a floating bar. The patient keeps their request AND their
@@ -508,7 +561,7 @@ function paintRadarBar() {
         : (isAR() ? "جارِ البحث عن" : "Looking for")} ${esc(x.name)}</span>
       <span class="radarbar-s">${answered
         ? (isAR() ? "اضغط لتشوف الصيدلية" : "Tap to see the pharmacy")
-        : `${isAR() ? "ظاهر لـ" : "visible to"} <span class="num">${radarReach(r).n}</span> ${isAR() ? "صيدلية" : "pharmacies"}`}</span>
+        : `${isAR() ? "ظاهر لـ" : "visible to"} ${isAR() ? countAr(radarReach(r).n, AR_PHARM) : `<span class="num">${radarReach(r).n}</span> pharmacies`}`}</span>
     </span>
     <span class="radarbar-x" role="button" tabindex="0" aria-label="${isAR() ? "إخفاء" : "Dismiss"}"
       onclick="dismissRadar(event)">✕</span>`;
@@ -533,12 +586,12 @@ function screenNeed(id) {
 
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-    <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
     <div class="rowb" style="margin-top:24px">
       <span class="lab">${isAR() ? "طلب دواء" : "Medicine request"}</span>
       <span class="st ${u.cls}"><i class="dot${r.urg === "urgent" && st !== "expired" ? " dot-live" : ""}"></i>${esc(isAR() ? u.ar : u.en)}</span>
     </div>
-    <h1 class="d1" style="margin-top:10px">${esc(md0.name)} ${md0.strength ? `<span class="n" style="font-weight:300">${esc(md0.strength)}</span>` : ""}</h1>
+    <h1 class="d1" style="margin-top:10px">${esc(md0.name)} ${md0.strength ? `<bdi class="strength">${esc(md0.strength)}</bdi>` : ""}</h1>
     <div class="q-sub" style="margin-top:6px">${md0.form ? esc(md0.form) + " · " : ""}${esc(r.qty)} · ${esc(needPlace(r))}</div>
     <div class="row" style="margin-top:14px;gap:16px;flex-wrap:wrap">
       <span class="t3">${sigAge(r.m)}</span>
@@ -686,7 +739,9 @@ function contactPharmacy(facId, vid, qty) {
         <div class="d3" style="margin-top:6px">${esc(L(f))}</div>
         <div class="q-sub">${esc(cityName(cityById(cityOf(f))))}${f.area_ar && isAR() ? " — " + esc(f.area_ar) : ""}</div>
         <div class="row" style="margin-top:10px;gap:14px;flex-wrap:wrap">
-          ${f.verified ? `<span class="st st-v"><i class="dot"></i>${isAR() ? "صيدلية موثّقة" : "verified pharmacy"}</span>` : `<span class="st st-q"><i class="dot"></i>${isAR() ? "غير موثّقة" : "unverified"}</span>`}
+          <!-- Same bypass, and this one sits on the handoff screen: the
+               moment a patient decides to walk into this pharmacy. -->
+          ${sealBadge(f, "pharmacies")}
           ${g ? `<span class="st st-t"><i class="dot"></i>${isAR() ? `أفادت ${sigAge(sigAgeMin(g))}` : `reported ${sigAge(sigAgeMin(g))}`}</span>` : ""}
         </div>
       </div>
@@ -764,7 +819,7 @@ function screenRadar(facId) {
     if (!gate.ok) {
       return `${netBanner()}
       <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-        <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+        <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
         <div class="lab" style="margin-top:24px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
         <h1 class="d1" style="margin-top:10px">${esc(L(f))}</h1>
         <div class="q-sub" style="margin-top:8px">${esc(cityName(cityById(cityOf(f))))}${
@@ -790,10 +845,20 @@ function screenRadar(facId) {
   }
 
   if (!f) {
+    /* NOT switched to verificationState() like the sites above, on purpose.
+       This list is a self-identification convenience — "which of these
+       branches am I" — for a pharmacist choosing their own profile before
+       using the radar; it has no empty-state fallback below, so filtering it
+       to provenance-verified entries would render zero rows and silently
+       break the entire pharmacist role while every source stays synthetic.
+       The REAL security boundary is downstream in `canAnswer()`, which
+       already checks a server-verified licenseStatus and never labels a
+       SELF_ASSERTED session as verified. What was actually false here is the
+       header two lines down, which is fixed instead. */
     const list = allPharmacies().filter((y) => y.verified);
     return `${netBanner()}
     <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <div class="lab" style="margin-top:24px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
       <h1 class="d2" style="margin-top:8px">${isAR() ? "شنو يدوّرون عليه الآن" : "What people are looking for"}</h1>
       <div class="q-sub" style="margin-top:6px">${isAR()
@@ -801,13 +866,13 @@ function screenRadar(facId) {
         : "Pick your pharmacy and we'll show the requests you could answer — in your governorate, or for anything you've reported holding."}</div>
     </section>
     <section class="pad" style="margin-top:24px">
-      <div class="lab">${isAR() ? "الصيدليات الموثّقة" : "Verified pharmacies"}</div>
+      <div class="lab">${isAR() ? "اختر صيدليتك" : "Choose your pharmacy"}</div>
       ${list.map((y) => `<a class="rw" href="#/radar/${y.id}" onclick="S.myBranch='${y.id}';LS.set('myBranch','${y.id}')">
         <span class="av">${esc(initial(L(y)))}</span>
         <span class="grow"><span class="d3" style="display:block">${esc(L(y))}</span>
           <span class="q-sub">${esc(cityName(cityById(cityOf(y))))}</span></span></a>`).join('<div class="hr"></div>')}
     </section>
-    <div style="height:26px"></div>${nav("explorer")}`;
+    ${nav("explorer")}`;
   }
 
   const declined = new Set(LS.get("declined", []));
@@ -828,7 +893,7 @@ function screenRadar(facId) {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <div class="rowb">
-      <button class="b-g" style="font-size:13px" onclick="history.back()">${isAR() ? "→ رجوع" : "← Back"}</button>
+      <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
       <button class="b-g" style="font-size:13px" onclick="pharmacySignOut()">${isAR() ? "خروج" : "Sign out"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${isAR() ? "رادار التوفّر" : "Supply Radar"}</div>
@@ -845,7 +910,7 @@ function screenRadar(facId) {
          hold. In rush the header collapses to one line; the numeral returns
          when the rush is over. */
       ? `<div class="rowb" style="margin-top:18px">
-          <span class="t1" style="font-size:14px"><b class="num">${rows.length}</b> ${isAR() ? "طلب" : "waiting"} · <span class="num">${urgent}</span> ${isAR() ? "عاجل" : "urgent"}</span>
+          <span class="t1" style="font-size:14px">${isAR() ? `${countAr(rows.length, AR_REQ_WAIT)} · <span class="num">${urgent}</span> عاجل` : `<b class="num">${rows.length}</b> waiting · <span class="num">${urgent}</span> urgent`}</span>
         </div>`
       : `<div style="display:flex;align-items:baseline;gap:12px;margin-top:24px">
       <span class="nhuge" style="color:var(--brass-ink)">${rows.length}</span>
@@ -1114,7 +1179,7 @@ function pharmacyQuickCard(facId, x) {
       <span class="t3">${esc(needPlace(r))}${km !== null ? ` · <span class="num">≈${fmtKm(km)}</span>` : ""}${
         !sameCity ? (isAR() ? " — خارج محافظتك" : " — outside your area") : ""}</span>
     </div>
-    <div class="d3" style="font-size:18px;margin-top:8px">${esc(md.name)} ${md.strength ? `<span class="n" style="font-weight:300">${esc(md.strength)}</span>` : ""}</div>
+    <div class="d3" style="font-size:18px;margin-top:8px">${esc(md.name)} ${md.strength ? `<bdi class="strength">${esc(md.strength)}</bdi>` : ""}</div>
     <div class="q-sub" style="margin-top:2px">${md.form ? esc(md.form) + " · " : ""}${esc(r.qty)}${
       r.manual ? ` · <span class="st st-q" style="font-size:10.5px">${isAR() ? "مكتوب يدوياً" : "typed by patient"}</span>` : ""}</div>
     <div class="row" style="margin-top:8px;gap:14px;flex-wrap:wrap">
@@ -1180,7 +1245,8 @@ function screenPartner(id) {
   <section class="wrap" style="padding-top:14px">
     <div class="eyebrow">${isAR() ? "لوحة الصيدلية" : "Pharmacy dashboard"}</div>
     <h1 class="prof-name" style="margin-top:4px">${esc(L(f))}</h1>
-    <div class="prof-spec">${esc(L(dist))} · ${f.verified ? t("verified") : t("listed")}</div>
+    <div class="prof-spec">${esc(L(dist))}</div>
+    <div style="margin-top:6px">${sealBadge(f, "pharmacies")}</div>
 
     <div class="banner banner--warn" style="margin-top:16px">${icon("alert")}<span>${isAR()
       ? `في ${L(dist)} وحدها: <b class="num">${unfilled}</b> طلب دواء لم يُلبَّ خلال 30 يوماً. كل واحد منها زبون خرج بلا شراء.`
@@ -1204,7 +1270,7 @@ function screenPartner(id) {
         <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
           <div class="grow"><div class="card-t">${esc(L(m))}</div>
             <div class="card-meta">
-              <span class="chip--meta chip--warn"><span class="num">${gap}</span> ${isAR() ? "طلب ضائع" : "lost asks"}</span>
+              <span class="chip--meta chip--warn">${isAR() ? countAr(gap, AR_LOST) : `<span class="num">${gap}</span> lost asks`}</span>
               <i class="dot"></i><span>${isAR() ? "لُبّي" : "filled"} <span class="num">${Math.round((r.filled / r.asks) * 100)}%</span></span>
             </div></div></div></div>`;
     }).join("")}</div></section>` : ""}

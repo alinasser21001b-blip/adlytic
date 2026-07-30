@@ -384,6 +384,27 @@ it("a trend across DIFFERENT laboratories declares itself incomparable", () => {
   eq(t.labs.length, 2);
 });
 
+it("every trend point carries its OWN reference range and its own date", () => {
+  /* Two laboratories can report the same analyte against different ranges.
+     A screen that borrows the newest range for an older number issues a
+     verdict the lab never issued — so the range travels with the point. */
+  const res = [
+    { code: "718-7", display: "الخضاب", value: 11.2, unit: "g/dL", effectiveAt: ago(700), refLow: 12, refHigh: 16 },
+    { code: "718-7", display: "الخضاب", value: 9.1, unit: "g/dL", effectiveAt: ago(30), refLow: 11.5, refHigh: 15 },
+  ];
+  const t = E.trend(res, "718-7");
+  eq(t.points.map((p) => p.refLow), [12, 11.5], "each point keeps the range it was reported against");
+  eq(t.points.map((p) => p.at), [ago(700), ago(30)], "each point keeps its own date — the UI must never infer it");
+  eq(t.display, "الخضاب", "a brief that prints the LOINC code has told the clinician nothing");
+});
+
+it("a result with no reference range keeps a null range rather than borrowing one", () => {
+  const t = E.trend([{ code: "X", value: 5, effectiveAt: ago(3) }], "X");
+  eq(t.points[0].refLow, null);
+  eq(t.points[0].refHigh, null);
+  eq(t.points[0].flag, "unknown", "unjudgeable is not normal");
+});
+
 it("a trend with mixed units is flagged", () => {
   const t = E.trend([
     { code: "X", value: 1, unit: "mg/dL", effectiveAt: ago(10) },
@@ -391,6 +412,98 @@ it("a trend with mixed units is flagged", () => {
   ], "X");
   ok(t.mixedUnits);
   no(t.comparable);
+});
+
+/* ==================== BLOOD GROUP ==================== */
+describe("٧-ب · فصيلة الدم");
+
+it("only the eight real groups plus the explicit 'unknown' are valid", () => {
+  for (const g of ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"])
+    ok(E.isValidBloodGroup(g), g + " must be accepted");
+  no(E.isValidBloodGroup("AB"), "no Rh factor is not a real group");
+  no(E.isValidBloodGroup("O"), "same");
+  no(E.isValidBloodGroup(""), "empty string is not 'unknown' — that is a distinct, explicit value");
+  no(E.isValidBloodGroup(null));
+});
+
+it("'unknown' has a real label, distinct from every other value printing as itself", () => {
+  eq(E.bloodGroupLabel("unknown", true), "غير معروف");
+  eq(E.bloodGroupLabel("unknown", false), "Unknown");
+  /* A real group is not translated — it is not a word, it is a fact. But it IS
+     wrapped in U+2068/U+2069, because "O-" printed bare into an Arabic line
+     renders "-O": `-` is Bidi_Class=ON and resolves to the far side of the
+     Latin letter. The isolate is part of the returned value rather than left to
+     each screen, so the assertion checks BOTH — the fact survives unchanged,
+     and it arrives safe to print anywhere including plain text. */
+  const strip = (x) => x.replace(/[\u2066-\u2069]/g, "");
+  eq(strip(E.bloodGroupLabel("O-", true)), "O-", "a real group is not translated");
+  for (const g of ["O-", "A+", "AB-"]) {
+    const s = E.bloodGroupLabel(g, true);
+    ok(s.startsWith("\u2068") && s.endsWith("\u2069"),
+      g + " must be isolated — an unisolated sign renders on the wrong side in RTL");
+  }
+  ok(!E.bloodGroupLabel("unknown", true).includes("\u2068"),
+    "a translated word needs no isolate — it has no neutral to strand");
+  /* The isolate is not a localisation choice — an English UI can still sit
+     inside an RTL document, and the value travels into plain text either way. */
+  eq(strip(E.bloodGroupLabel("O-", false)), "O-");
+});
+
+/* ==================== VITAL SIGNS ==================== */
+describe("٧-أ · العلامات الحيوية");
+
+it("a vital carries its unit, its LOINC code and a flag it did not choose", () => {
+  const r = E.recordVital({ kind: E.VITAL.BP_SYS, value: 148, effectiveAt: ago(2) }, ago(2));
+  ok(r.ok);
+  eq(r.vital.unit, "mmHg", "the unit comes from the table, not from the form");
+  eq(r.vital.code, "8480-6", "so it travels as a FHIR Observation, not a private string");
+  eq(r.vital.flag, "high");
+  eq(r.vital.class, E.CLASS.VITALS, "and it lands in the access class that already existed");
+});
+
+it("a measurement with no reference range is UNKNOWN, never normal", () => {
+  /* The same rule the lab results follow. Weight has no "normal" — a range
+     for it is a judgement about a person, and this file does not make those. */
+  const w = E.recordVital({ kind: E.VITAL.WEIGHT, value: 83, effectiveAt: ago(1) });
+  eq(w.vital.flag, "unknown");
+  eq(w.vital.refLow, null);
+  no(E.isAbnormal(w.vital), "unknown is not abnormal either — it is unjudged");
+  ok(E.isUnjudgeable(w.vital), "and it must still be findable as unjudged");
+});
+
+it("a range supplied for THIS patient beats the table", () => {
+  /* A clinician who set a target for someone outranks an adult-average. */
+  const v = E.recordVital({ kind: E.VITAL.BP_SYS, value: 138, effectiveAt: ago(1), refHigh: 150, refLow: 100 });
+  eq(v.vital.flag, "normal", "138 is high by the table and fine against this patient's target");
+});
+
+it("a vital is refused rather than stored half-formed", () => {
+  eq(E.recordVital({ kind: "made-up", value: 1, effectiveAt: ago(1) }).reason, "UNKNOWN_VITAL");
+  eq(E.recordVital({ kind: E.VITAL.PULSE, value: 70 }).reason, "DATE_REQUIRED");
+  eq(E.recordVital({ kind: E.VITAL.PULSE, value: "seventy", effectiveAt: ago(1) }).reason, "VALUE_REQUIRED");
+  eq(E.recordVital({ kind: E.VITAL.PULSE, value: NaN, effectiveAt: ago(1) }).reason, "VALUE_REQUIRED");
+});
+
+it("blood pressure is ONE reading, and abnormal if either half is", () => {
+  /* FHIR splits it into two Observations on the wire. A screen that shows a
+     systolic on one row and a diastolic three rows below has not shown a
+     blood pressure. */
+  const at = ago(3);
+  const sys = E.recordVital({ kind: E.VITAL.BP_SYS, value: 190, effectiveAt: at }).vital;
+  const dia = E.recordVital({ kind: E.VITAL.BP_DIA, value: 78, effectiveAt: at }).vital;
+  const bp = E.bloodPressure([sys, dia]);
+  eq(bp.length, 1, "two observations, one reading");
+  eq(bp[0].systolic.value, 190);
+  eq(bp[0].diastolic.value, 78);
+  ok(bp[0].abnormal, "a normal diastolic does not redeem a systolic of 190");
+});
+
+it("latestVitals answers in the present tense — newest per kind", () => {
+  const mk = (k, v, d) => E.recordVital({ kind: k, value: v, effectiveAt: ago(d) }).vital;
+  const list = [mk(E.VITAL.PULSE, 60, 90), mk(E.VITAL.PULSE, 88, 2), mk(E.VITAL.WEIGHT, 80, 40)];
+  const latest = E.latestVitals(list);
+  eq(latest.length, 2, "one row per kind");
+  eq(latest.find((x) => x.kind === E.VITAL.PULSE).value, 88, "the newest pulse, not the first one stored");
 });
 
 /* ==================== 14-17 · EPISODES, SURGERY, CLOSED LOOP ==================== */
@@ -706,3 +819,79 @@ if (fails.length) {
   process.exit(1);
 }
 console.log(`${pass} passed, 0 failed`);
+
+/* ==================== CARE THREADS ==================== */
+describe("حلقات الرعاية — care threads");
+
+const TP = {
+  conditions: [
+    { id: "C1", display: "داء السكري", clinicalStatus: "active", chronic: true, onsetDate: "2025-02-09" },
+    { id: "C2", display: "ارتفاع ضغط", clinicalStatus: "active", chronic: true, onsetDate: "2024-05-01" },
+    { id: "C3", display: "مشكلة منتهية", clinicalStatus: "resolved", onsetDate: "2020-01-01" },
+  ],
+  medications: [
+    { id: "M1", display: "ميتفورمين", status: "active", startDate: "2025-02-09", indicationId: "C1" },
+    { id: "M2", display: "أملوديبين", status: "active", startDate: "2024-05-01", indicationId: "C2" },
+    { id: "M3", display: "أسبرين", status: "active", startDate: "2024-06-01" },
+  ],
+  results: [
+    { id: "R1", conditionId: "C1", code: "4548-4", display: "الخضاب السكري", value: 8.4, unit: "%",
+      refLow: 4, refHigh: 5.6, effectiveAt: "2026-07-01" },
+    /* Abnormal (so `buildTimeline` carries it — the timeline deliberately holds
+       only abnormal results, since a stream of normal ones is noise) but linked
+       to NO problem, which is the case this test exists for. */
+    { id: "R2", code: "718-7", display: "الهيموغلوبين", value: 11.2, unit: "g/dL",
+      refLow: 12, refHigh: 16, effectiveAt: "2026-07-01" },
+  ],
+  procedures: [{ id: "P1", display: "استئصال المرارة", performedAt: "2024-11-14", major: true }],
+  encounters: [], episodes: [], documents: [], immunizations: [], vitals: [],
+};
+
+it("a thread is built per ACTIVE problem, and a resolved one produces none", () => {
+  const { threads } = E.careThreads(TP, { now: NOW });
+  const ids = threads.map((t) => t.id);
+  ok(ids.includes("cond:C1"), "the diabetes thread must exist");
+  ok(ids.includes("cond:C2"), "the hypertension thread must exist");
+  no(ids.includes("cond:C3"), "a resolved problem is not an open thread");
+});
+
+it("an event joins a thread only through a link that EXISTS", () => {
+  const { threads, unattached } = E.careThreads(TP, { now: NOW });
+  const c1 = threads.find((t) => t.id === "cond:C1");
+  ok(c1.events.some((e) => e.title === "الخضاب السكري"), "a result linked by conditionId joins its problem");
+  no(c1.events.some((e) => e.title === "الهيموغلوبين"),
+    "an UNLINKED result must never be attributed to a problem — inferring that from a code is a clinical judgement");
+  no(c1.events.some((e) => e.title === "أسبرين"), "a medicine with no indication belongs to no thread");
+  ok(unattached.some((e) => e.title === "الهيموغلوبين"), "and it stays visible in the unattached stream");
+  ok(unattached.some((e) => e.title === "استئصال المرارة"), "as does an unlinked operation");
+});
+
+it("an explicit episode outranks a derived one and owns its events exclusively", () => {
+  const p = { ...TP, episodes: [{ id: "EP1", title: "حلقة المرارة", status: "ACTIVE", startedAt: "2024-11-01" }],
+    procedures: [{ id: "P1", display: "استئصال المرارة", performedAt: "2024-11-14", major: true, episodeId: "EP1" }] };
+  const { threads } = E.careThreads(p, { now: NOW });
+  const ep = threads.find((t) => t.id === "ep:EP1");
+  ok(ep, "an authored episode must produce a thread");
+  eq(ep.events.length, 1);
+  eq(ep.peak, 4, "a major operation is the top significance step");
+  for (const t of threads.filter((x) => x.id !== "ep:EP1"))
+    no(t.events.some((e) => e.episodeId === "EP1"), "no other thread may claim an episode's events");
+});
+
+it("threads sort by what matters, and each carries its own trajectory bounds", () => {
+  const { threads } = E.careThreads(TP, { now: NOW });
+  for (let i = 1; i < threads.length; i++)
+    ok(threads[i - 1].peak >= threads[i].peak, "higher significance first");
+  const c1 = threads.find((t) => t.id === "cond:C1");
+  eq(c1.events[0].at < c1.events[c1.events.length - 1].at, true, "events run oldest to newest");
+  ok(c1.lastAt >= c1.events[0].at, "lastAt is the newest event");
+});
+
+it("a record with no problems and no episodes yields no threads and loses nothing", () => {
+  const bare = { conditions: [], medications: [], results: [], procedures: [],
+    encounters: [{ id: "E9", startedAt: "2026-01-01", assessment: "فحص" }],
+    episodes: [], documents: [], immunizations: [], vitals: [] };
+  const { threads, unattached } = E.careThreads(bare, { now: NOW });
+  eq(threads.length, 0, "no invented thread");
+  eq(unattached.length, 1, "and the event is still there");
+});

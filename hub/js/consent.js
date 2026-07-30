@@ -497,16 +497,23 @@
 
   const CARRY_TTL = 72 * HOUR;
 
-  function issueCarryCode(patientId, scopes, now, code) {
+  function issueCarryCode(patientId, scopes, now, code, duration) {
     if (!txt(patientId)) return { ok: false, reason: "PATIENT_REQUIRED" };
     if (!txt(code)) return { ok: false, reason: "CODE_REQUIRED" };
     const chosen = (scopes && scopes.length ? scopes : DEFAULT_SCOPES)
       .filter((s) => ALL_SCOPES.indexOf(s) !== -1);
     if (!chosen.length) return { ok: false, reason: "SCOPE_REQUIRED" };
+    /* The patient chooses how long the access they are handing over lasts,
+       not just what it covers. Unrecognised or absent means the shortest
+       option, never the longest — a defaulting bug should cost the patient
+       less access, not more. Codes issued before this field existed have no
+       `duration` and land on VISIT, which is what they already did. */
+    const dur = DURATION[duration] ? duration : "VISIT";
     return { ok: true, carry: {
       code, patientId,
       scopes: Array.from(new Set([...chosen, ...SAFETY_FLOOR])),
       includesSensitive: false,
+      duration: dur,
       issuedAt: now, expiresAt: ms(now) + CARRY_TTL,
       redeemedBy: null, redeemedAt: null,
     } };
@@ -522,7 +529,8 @@
     const g = grantShare({
       patientId: carry.patientId, grantedBy: carry.patientId,
       granteeId: redeemer.id, granteeName: redeemer.name || null,
-      scopes: carry.scopes, duration: "VISIT", modality: "QR",
+      scopes: carry.scopes, duration: DURATION[carry.duration] ? carry.duration : "VISIT",
+      modality: "QR",
     }, now);
     if (!g.ok) return g;
     return { ok: true, carry: { ...carry, redeemedBy: redeemer.id, redeemedAt: now }, share: g.share };
@@ -586,9 +594,29 @@
       bloodGroup: r.bloodGroup || null,
       allergies: (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []))
         .map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      /* EVERY current medication, with the flagged ones pinned first.
+         This used to return ONLY drugs carrying `anticoagulant || insulin ||
+         steroid || critical`. No ordinary Iraqi outpatient regimen carries any
+         of those flags, so the row rendered for almost nobody — a patient on
+         aspirin 81mg and metformin 500mg BID appeared on the emergency card as
+         taking nothing at all, and silently, because `notRecorded` did not
+         cover medications either.
+
+         Both of those drugs change emergency management: aspirin changes
+         bleeding management in trauma and head injury, and metformin must be
+         held around iodinated contrast and is a lactic-acidosis consideration
+         in a shocked patient. A whitelist that decides which medicines a
+         responder is allowed to know about is a decision this layer is not
+         entitled to make. The flags now decide ORDER, not inclusion. */
       criticalMedications: (E.currentMedications ? E.currentMedications(r.medications, now) : [])
-        .filter((m) => m.anticoagulant || m.insulin || m.steroid || m.critical)
-        .map((m) => ({ display: m.display, dose: m.dose || null })),
+        .slice()
+        .sort((a, b) => (!!(b.anticoagulant || b.insulin || b.steroid || b.critical))
+                      - (!!(a.anticoagulant || a.insulin || a.steroid || a.critical)))
+        .map((m) => ({ display: m.display, dose: m.dose || null,
+          flagged: !!(m.anticoagulant || m.insulin || m.steroid || m.critical),
+          /* A responder must be able to tell a drug a clinician confirmed from
+             one the patient typed in. */
+          selfReported: E.isSelfReported ? E.isSelfReported(m) : false })),
       majorConditions: (E.activeConditions ? E.activeConditions(r.conditions, now) : [])
         .filter((c) => c.chronic).map((c) => c.display),
       warnings: r.clinicalWarnings || [],

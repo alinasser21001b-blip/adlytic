@@ -321,6 +321,37 @@ it("the pre-visit brief answers the 30-second question", () => {
   eq(b.unverifiedClaims, 1, "and one claim nobody has checked");
 });
 
+it("the brief says which lines the PATIENT told us, not just what they say", () => {
+  /* The brief is a projection with its own field names — deliberately, so no
+     screen is wired to storage. That renaming is also how provenance gets
+     lost: the first version dropped it, and a medicine the patient had typed
+     into a form five minutes earlier arrived on the clinician's list looking
+     exactly like one a colleague had prescribed. Both are worth having. They
+     are not the same claim. */
+  const rec = {
+    ...REC_FIXTURE,
+    medications: [
+      ...REC_FIXTURE.medications,
+      { id: "M-self", display: "أسبرين", dose: "٨١ ملغم", frequency: "OD", status: "active",
+        source: E.SOURCE.PATIENT, verificationStatus: E.VERIFY.PATIENT_REPORTED, recordedBy: PT },
+    ],
+    allergies: [{ substance: "السلفا", reaction: "طفح", criticality: E.CRITICALITY.HIGH,
+      source: E.SOURCE.PATIENT, verificationStatus: E.VERIFY.PATIENT_REPORTED }],
+    conditions: [
+      ...REC_FIXTURE.conditions,
+      { id: "C-self", display: "ربو", clinicalStatus: E.COND_STATE.ACTIVE, chronic: true,
+        source: E.SOURCE.PATIENT, verificationStatus: E.VERIFY.PATIENT_REPORTED },
+    ],
+  };
+  const b = R.preVisitBrief(PATIENT, rec, NOW);
+  eq(b.medications.find((m) => m.name === "أسبرين").selfReported, true);
+  eq(b.medications.find((m) => m.name === "ميتفورمين").selfReported, false,
+    "a prescribed medicine must NOT be tarred with the same mark");
+  eq(b.allergies[0].selfReported, true);
+  eq((b.active.find((c) => c.name === "ربو") || {}).selfReported, true);
+  eq((b.active.find((c) => c.name === "داء السكري النوع ٢") || {}).selfReported, false);
+});
+
 it("the brief carries its own caveat so no screen can drop it", () => {
   ok(R.preVisitBrief(PATIENT, REC_FIXTURE, NOW).caveat.includes("لا يغني عن سؤال المريض"));
 });
@@ -478,6 +509,26 @@ it("the emergency card states what is NOT recorded rather than leaving it blank"
   ok(card.notRecorded.some((x) => x.includes("لا يعني عدمها")));
 });
 
+it("a blood group explicitly recorded as 'unknown' is NOT the same fact as never asked", () => {
+  /* Never entered means the app should still be nudging the patient to add
+     it. Entered-and-the-patient-genuinely-does-not-know is a settled answer
+     — asking again every time is the same failure as forgetting the
+     difference between "no allergies recorded" and "confirmed no allergies". */
+  const card = C.emergencyCard({ id: PT, name: "علي", birthDate: "1981-03-11", sex: "male" },
+    { bloodGroup: "unknown", allergies: [{ substance: "x" }], medications: [], conditions: [] }, NOW);
+  eq(card.bloodGroup, "unknown");
+  no(card.notRecorded.some((x) => x.includes("فصيلة الدم")),
+    "an explicit 'unknown' must not be reported as missing — the question was already answered");
+});
+
+it("an emergency contact with a name and no phone is still carried, not dropped", () => {
+  const card = C.emergencyCard(
+    { id: PT, name: "علي", birthDate: "1981-03-11", sex: "male", emergencyContact: { name: "أم علي", phone: null } },
+    { allergies: [{ substance: "x" }], medications: [], conditions: [] }, NOW);
+  eq(card.emergencyContact.name, "أم علي");
+  no(card.notRecorded.some((x) => x.includes("جهة اتصال")), "a contact IS recorded, even without a number");
+});
+
 /* ==================== ACCESS LOG ==================== */
 describe("٩ · سجل الوصول");
 
@@ -591,6 +642,24 @@ it("redeeming produces an ordinary visit-length share, not permanent access", ()
   eq(r.share.duration, "VISIT");
   eq(r.share.modality, "QR");
   ok(r.share.scopes.includes(C.SCOPE.ALLERGIES), "the safety floor applies to paper too");
+});
+
+it("the patient chooses the duration the code hands over, not just the scope", () => {
+  const c = C.issueCarryCode(PT, [C.SCOPE.SUMMARY], NOW, "QR-ABC", "WEEK").carry;
+  eq(c.duration, "WEEK");
+  eq(C.redeemCarryCode(c, DR, NOW).share.duration, "WEEK",
+    "what the patient chose is what the clinic gets");
+});
+
+it("an unrecognised or absent duration costs the patient LESS access, never more", () => {
+  /* Direction matters in a defaulting bug. A code issued before this field
+     existed carries no duration at all, and the safe reading of silence is
+     the shortest option — not the longest. */
+  eq(C.issueCarryCode(PT, [C.SCOPE.SUMMARY], NOW, "QR-A").carry.duration, "VISIT");
+  eq(C.issueCarryCode(PT, [C.SCOPE.SUMMARY], NOW, "QR-B", "FOREVER").carry.duration, "VISIT");
+  eq(C.redeemCarryCode({ code: "X", patientId: PT, scopes: [C.SCOPE.SUMMARY],
+    issuedAt: NOW, expiresAt: NOW + 10 * HOUR, redeemedBy: null }, DR, NOW).share.duration, "VISIT",
+    "a code stored before the field existed still redeems, and redeems short");
 });
 
 /* ==================== REPORT ==================== */

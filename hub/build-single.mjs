@@ -35,7 +35,12 @@ let out = html
    globals before app.js reads them, and ui-record.js is last because it
    uses app.js's helpers. Preserving the page's own sequence is what keeps
    the two builds behaving identically. */
-const tags = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)];
+/* `defer` (and any other attribute) must be tolerated here. index.html defers
+   all sixteen so the browser downloads them in parallel instead of making
+   sixteen sequential round trips; a regex that only matched the bare form
+   silently found zero scripts and the build refused to run — loudly, which is
+   the only reason this was a one-line fix rather than a shipped empty page. */
+const tags = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)];
 if (!tags.length) throw new Error('index.html has no local <script src> tags — refusing to build a page with no code');
 for (const [tag, src] of tags) {
   const code = readFileSync(src, 'utf8');   /* throws loudly if the page references a missing file */
@@ -43,7 +48,7 @@ for (const [tag, src] of tags) {
 }
 
 /* Nothing may reference a file that will not be beside it. */
-const leftover = out.match(/<script src="[^"]+"><\/script>/);
+const leftover = out.match(/<script\b[^>]*\bsrc="[^"]+"[^>]*><\/script>/);
 if (leftover) throw new Error('a script tag survived inlining: ' + leftover[0]);
 
 if (!withFonts) out = out.replace(/<link rel="preconnect"[\s\S]*?rel="stylesheet">\n/, '');

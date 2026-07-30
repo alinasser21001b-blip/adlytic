@@ -58,7 +58,7 @@ const T = {
     doctorsIn: "طبيب في", allSpecs: "كل الاختصاصات", sessions: "أوقات الدوام",
     week: "أسبوع الطبيب", about: "معلومات", reportInfo: "الإبلاغ عن معلومة خاطئة",
     myRequests: "طلباتي", savedItems: "المحفوظات", trust: "الثقة والتوثيق",
-    explorer: "الأدوية", record: "ملفي",
+    explorer: "الأدوية", record: "ملفي", booklet: "الدفتر", sheets: "أوراقي", available: "المتوفّر",
     emergency: "طوارئ", ambulance: "الإسعاف", nearestEr: "أقرب طوارئ",
     orderWa: "اطلب عبر واتساب", availableAt: "متوفر في", stockedBy: "يُصرف من",
     male: "طبيب", female: "طبيبة", anyGender: "الكل",
@@ -83,7 +83,7 @@ const T = {
     doctorsIn: "doctors in", allSpecs: "All specialties", sessions: "Sessions",
     week: "The doctor's week", about: "About", reportInfo: "Report incorrect info",
     myRequests: "My requests", savedItems: "Saved", trust: "Trust & verification",
-    explorer: "Medicines", record: "My record",
+    explorer: "Medicines", record: "My record", booklet: "Booklet", sheets: "My sheets", available: "Available",
     emergency: "Emergency", ambulance: "Ambulance", nearestEr: "Nearest ER",
     orderWa: "Order via WhatsApp", availableAt: "Available at", stockedBy: "Dispensed by",
     male: "Male", female: "Female", anyGender: "Any",
@@ -178,8 +178,22 @@ const fmtT = (m) => {
   const h = Math.floor((m % 1440) / 60), mm = m % 60;
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 };
-const fmtRangeTxt = (a, b) => `${fmtT(a)} – ${fmtT(b)}`;                       // plain text: messages, stored records
-const fmtRange = (a, b) => `<span dir="ltr" class="num">${fmtRangeTxt(a, b)}</span>`;   // markup: UI
+/* PLAIN TEXT — WhatsApp messages, stored records. This used to be
+   `${fmtT(a)} – ${fmtT(b)}`, which is the trend-arrow bug in plain text: the
+   en dash is a NEUTRAL between two number runs, so an Arabic WhatsApp bubble
+   resolves it right-to-left and "08:00 – 14:00" reaches the clinic reading
+   "14:00 – 08:00". There is no CSS in a message body to isolate it with, so
+   the range is stated in words — the same answer the lab reference range
+   already uses ("من ٤ إلى ٥.٦"), for the same reason. No neutral is left.
+
+   (`fmtT`'s own colon is safe and is left alone: `:` is Bidi_Class=CS, which
+   between two European numbers binds to them and cannot separate them. The
+   danger is only the separators that are Bidi_Class=ON.) */
+const fmtRangeTxt = (a, b) => isAR() ? `من ${fmtT(a)} إلى ${fmtT(b)}` : `${fmtT(a)} to ${fmtT(b)}`;
+/* MARKUP — one LTR run, so the dash is inside the run and has nothing to
+   reorder against. Built here rather than from fmtRangeTxt, which now carries
+   Arabic words that must not be forced LTR. */
+const fmtRange = (a, b) => `<span dir="ltr" class="num">${fmtT(a)} – ${fmtT(b)}</span>`;
 const fmtTi = (m) => `<span dir="ltr" class="num">${fmtT(m)}</span>`;
 
 /* raw segments on a weekday; t may exceed 1440 when it wraps past midnight */
@@ -294,7 +308,11 @@ function distTo(f) { return haversine(here(), f); }
 function fmtKm(k) {
   const n = k < 1 ? Math.round(k * 1000) : k.toFixed(1);
   const u = k < 1 ? (isAR() ? "م" : "m") : t("km");
-  return `<span class="num">${n}</span> ${u}`;
+  /* `.nw` and a non-breaking space: at 320px «207 م» was breaking across two
+     visual lines with the unit on the line ABOVE its own number. The unit stays
+     outside the `.num` run — it is Arabic, and inside an LTR run it would
+     render before the digits. */
+  return `<span class="nw"><span class="num">${n}</span>\u00A0${u}</span>`;
 }
 const approxNote = () => S.locState === "precise" ? "" :
   (isAR() ? `المسافات تقريبية من مركز ${L(here())}` : `Distances approximate from ${L(here())} centre`);
@@ -375,7 +393,13 @@ const phNightListed = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.
 /* ---------------- HELPERS ---------------- */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 // An unknown fee is omitted by the caller. This never invents certainty.
-const money = (n) => (n === null || n === undefined) ? "" : n === 0 ? t("free") : `${n.toLocaleString("en-US")} ${L(CONFIG.currency)}`;
+/* Latin digits and an ARABIC currency word, so the digits get the LTR run and
+   «د.ع» stays outside it. Ten call sites used to wrap this whole return value in
+   a second `.num`, which put the currency BEFORE the amount on some screens and
+   after it on others — the same value rendering «25,000 د.ع» on the doctors list
+   and «د.ع 18,000» on the pharmacy screen, one tap apart. */
+const money = (n) => (n === null || n === undefined) ? "" : n === 0 ? t("free")
+  : `<span class="nw"><span class="num">${n.toLocaleString("en-US")}</span>\u00A0${L(CONFIG.currency)}</span>`;
 const initials = (name) => {
   const clean = name.replace(/^د\.\s*/, "").replace(/^Dr\.\s*/, "").trim();
   // Arabic letters join into pseudo-words, so one letter reads better than two
@@ -422,6 +446,41 @@ const SEAL_TEXT = {
 
 /* `sourceKey` defaults by entity shape: a doctor has sessions, a facility has
    a type. Callers may pass it explicitly. */
+/* A COUNT of verified pharmacies is a verification claim too, and one that
+   is harder to see: "visible to 14 verified pharmacies" reads as a fact about
+   the network, and while every one of those records is synthetic it is a
+   fabricated reach figure. `sealBadge` already protects the per-entity claim;
+   this protects the aggregate one. Returns the word to use for "verified"
+   given what the source actually is. */
+function verifiedWord(sourceKey, plural) {
+  const origin = ((DATA_PROVENANCE.sources[sourceKey] || {}).origin) || "synthetic";
+  if (origin === "imported") return isAR() ? (plural ? "موثّقة" : "موثّق") : "verified";
+  return isAR() ? (plural ? "في البيانات النموذجية" : "نموذجي") : "in the sample data";
+}
+
+/* The count that must travel with `verifiedWord()`. `list.filter(e =>
+   e.verified).length` counts the raw flag, which is `true` on 17 of 18
+   synthetic doctors and on most synthetic pharmacies — so a headline number
+   next to the honest word "sample data" would still be counting as if every
+   one of them were real. `verificationState` already asks the provenance
+   first; this is that same check, aggregated. While every source in this
+   build is synthetic, every one of these returns 0 — which is correct: there
+   is nothing to count yet. */
+function verifiedCount(list, sourceKey) {
+  return (list || []).filter((e) => verificationState(e, sourceKey).k === "verified").length;
+}
+
+/* The count and the word have to be composed, not concatenated. While every
+   source in this build is synthetic the count is 0 and the word is «نموذجي»,
+   and `${count} ${word}` produced «0 نموذجي» in the footer of the home screen —
+   not a sentence in either language, and the honest fact it was reaching for
+   ("nothing here has been verified yet") is one a reader would want stated. */
+function verifiedTally(list, sourceKey, forms, zeroAr, enPlural) {
+  const c = verifiedCount(list, sourceKey);
+  if (!c) return isAR() ? zeroAr : `no ${enPlural} verified yet`;
+  return isAR() ? countAr(c, forms) : `<span class="num">${c}</span> ${enPlural} verified`;
+}
+
 function sealBadge(ent, sourceKey) {
   const key = sourceKey || (ent && ent.sessions ? "doctors" : "pharmacies");
   const v = verificationState(ent, key);
@@ -468,20 +527,77 @@ function band(ent, day = null, showNow = true) {
   return `<div class="band">${bars}${mk}</div>`;
 }
 
+/* One quantity is one cell. "8.4" sat mid-row with "%" stranded at the far
+   edge of the same row, so the quantity read as two unrelated fields; and
+   the French space before "%" put the sign flush against the following
+   Arabic word. The unit joins the number inside a single run that cannot
+   wrap and cannot be reordered. */
+const UNIT_TIGHT = /^(%|°C|°F|°)$/;
+const HAS_ARABIC = /[\u0600-\u06FF]/;
+function measure(v, unit) {
+  const u = String(unit || "").trim();
+  const num = `<span class="num">${esc(String(v))}</span>`;
+  if (!u) return `<span class="nw">${num}</span>`;
+  /* THE UNIT GOES OUTSIDE THE LTR RUN WHENEVER IT IS ARABIC.
+     `direction: ltr` protects a number from the Arabic AROUND it. It does
+     nothing about Arabic INSIDE it — and inside an LTR isolate, «ملغم» is AL,
+     the joining space resolves to R by N1 because the digits act as R, and
+     reversing that level-1 region puts the UNIT BEFORE THE NUMBER. Measured:
+     «ميتفورمين <span class="num">500 ملغم</span>» renders «ميتفورمين ملغم 500».
+     A dose whose unit precedes its number is a prescribing hazard, and it was
+     rendering on every row of the medicine list.
+
+     Digits in the LTR run, Arabic unit outside it in the page's own direction,
+     the pair held together by `.nw` and a non-breaking space so a narrow column
+     can never put the unit on a different line from its number either. */
+  if (HAS_ARABIC.test(u)) return `<span class="nw">${num}\u00A0${esc(u)}</span>`;
+  return `<span class="num nw">${esc(String(v))}${
+    UNIT_TIGHT.test(u) ? "" : "\u00A0"}${esc(u)}</span>`;
+}
+
+/* A blood pressure is ONE reading, so it must be ONE bidi run.
+   `${n(148)} / ${n(92)}` leaves " / " as a NEUTRAL between two LTR embeds.
+   Inside an Arabic line bidi resolves that neutral right-to-left and the
+   pair renders "92 / 148" — while the identical pair wrapped in an outer
+   `.num` renders "148 / 92". Both spellings shipped, on different screens,
+   for the same reading: on one the reference line read "130 / 85" directly
+   under a value reading "92 / 148". Systolic and diastolic became
+   indistinguishable.
+
+   This is the trend arrow again in a new costume. The rule it taught holds
+   without exception: never place a neutral character between two rendered
+   numbers. Every blood pressure in the product goes through here. */
+function bpPair(sys, dia, unit) {
+  const u = String(unit || "").trim();
+  return `<span class="num nw">${esc(String(sys))}/${
+    dia == null ? "—" : esc(String(dia))}${u ? " " + esc(u) : ""}</span>`;
+}
+
 /* ---------------- v3 · THE ROW ----------------
    Rows, not cards. The list is the surface: a hairline separates entries and
    a brass lead in the gutter marks "open right now". Nothing here is a box.
 ------------------------------------------------------------- */
+/* The name and the provenance badge used to share one line. An Arabic name is
+   long and «بيانات نموذجية» is long, and neither yields: at 320px the pair
+   produced a three-line name beside a two-line badge — a five-line ragged
+   header on a row whose job is to say who this is. The badge describes the
+   whole entry, so it drops below the name and the name gets the full width.
+
+   The chevron: these rows were the only tappable surface in the product with
+   no affordance at all, which read as inert at 430px where the row is mostly
+   empty space. */
 function rowEl(o) {
-  return `<a class="rw${o.open ? "" : ""}${o.quiet ? " quiet" : ""}" href="${o.href}">
+  return `<a class="rw${o.quiet ? " quiet" : ""}" href="${o.href}">
     ${o.open ? `<span class="rw-lead"></span>` : ""}
     <span class="av">${esc(o.mono)}</span>
-    <span class="grow">
-      <span class="rowb"><span class="d3">${esc(o.title)}</span>${o.mark || ""}</span>
+    <span class="grow" style="min-inline-size:0">
+      <span class="d3" style="display:block">${esc(o.title)}</span>
       ${o.sub ? `<span class="q-sub" style="display:block">${o.sub}</span>` : ""}
-      ${o.meta ? `<span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">${o.meta}</span>` : ""}
+      ${o.mark ? `<span style="display:block;margin-top:8px">${o.mark}</span>` : ""}
+      ${o.meta ? `<span class="meta-row">${o.meta}</span>` : ""}
       ${o.band ? `<span style="display:block;margin-top:12px">${o.band}</span>` : ""}
     </span>
+    <span class="rw-go" aria-hidden="true">${icon("chev")}</span>
   </a>`;
 }
 
@@ -501,8 +617,11 @@ function doctorCard(x, dimIfShut = true) {
     sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
     meta: [
       statusLabel(st, true),
-      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
-      fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : "",
+      /* `fmtKm` returns "٢٠٧ م" / "0.2 كم" — a number AND an Arabic unit. In
+         a `.num` LTR run the unit was forced to the wrong side, which is how
+         "م" ended up abutting a time and reading as مساءً. */
+      `<span class="t3">${fmtKm(km)}</span>`,
+      fee !== null && fee !== undefined ? `<span class="t3">${money(fee)}</span>` : "",
       dist ? `<span class="t3">${esc(L(dist))}</span>` : "",
     ].filter(Boolean).join(""),
     band: band(d),
@@ -521,7 +640,10 @@ function pharmacyCard(x, dimIfShut = true) {
     sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
     meta: [
       statusLabel(st, true),
-      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
+      /* `fmtKm` returns "٢٠٧ م" / "0.2 كم" — a number AND an Arabic unit. In
+         a `.num` LTR run the unit was forced to the wrong side, which is how
+         "م" ended up abutting a time and reading as مساءً. */
+      `<span class="t3">${fmtKm(km)}</span>`,
     ].join(""),
     band: band(f),
   });
@@ -540,7 +662,7 @@ function productCard(p) {
     <div class="prod-b">
       <div class="prod-t">${esc(L(p))}</div>
       <div class="prod-brand">${esc(p.brand)}</div>
-      <div class="prod-p num">${money(p.price)}</div>
+      <div class="prod-p">${money(p.price)}</div>
     </div>
   </a>`;
 }
@@ -769,9 +891,17 @@ function netBanner() {
   const at = LS.get("lastOnline", null);
   const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
   return `<div class="offline-bar" role="alert" aria-live="assertive">
+    <!-- The state is NAMED as well as described. Saying only "saved data from
+         14:32" describes the consequence perfectly and leaves a user who has
+         not noticed their signal dropped to keep tapping and wondering. Both,
+         in that order: what is wrong, then what it means for them.
+
+         role=alert + aria-live=assertive come from the Apple accessibility
+         track: losing connectivity changes what the screen can be trusted to
+         say, so it is announced rather than left to be discovered. -->
     <span class="grow">${isAR()
-      ? `${when ? `بيانات محفوظة من <span class="num">${when}</span>` : "دون اتصال"}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل</span>`
-      : `${when ? `Saved data from <span class="num">${when}</span>` : "Offline"}<br><span class="t3">Stock may have changed · phone calls still work</span>`}</span>
+      ? `دون اتصال${when ? ` — بيانات محفوظة من <span class="num">${when}</span>` : ""}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل · ملفك يفتح ويتحدّث عادي</span>`
+      : `Offline${when ? ` — saved data from <span class="num">${when}</span>` : ""}<br><span class="t3">Stock may have changed · phone calls still work · your record still opens and saves</span>`}</span>
     <span class="st st-q"><i class="dot"></i>${isAR() ? "محفوظ" : "saved"}</span>
     <button onclick="render()">${isAR() ? "إعادة" : "Retry"}</button></div>`;
 }
@@ -779,11 +909,69 @@ function netBanner() {
 /* ---------------- SHELL ---------------- */
 const app = () => document.getElementById("app");
 
+/* ---------------- BACK, WITHOUT LEAVING ----------------
+   A deep link opened cold has no history behind it, so `history.back()` at
+   the top of that screen walks out of the application — measured on all eight
+   deep links the audit tried, from a QR poster, a shared record link, a
+   pharmacy page. `history.length` cannot tell us: it counts the whole tab's
+   life, including whatever page the user was on before. So count OUR OWN
+   moves. If we have not navigated since load, "back" means up one level, not
+   out. */
+let inAppMoves = 0;
+const noteNav = () => { inAppMoves++; };
+
+/* Where "up" is. Declared rather than derived: stripping the last path
+   segment turns #/doctor/d1 into #/doctor, which is not a route — the user
+   would land on a 404 instead of outside the app, which is not an
+   improvement. */
+/* Four of these were pointing at the wrong product.
+   `need` is a MEDICINE request («أحتاج دوا») and `needs` is the doctor
+   specialty grid — two routes one letter apart, meaning two unrelated things —
+   so «أحتاج دوا» went "up" to a doctor picker, and so did the availability
+   radar and its waiting screen. All three belong to the medicine family.
+   `clinical` went up to `#/record`, which put a clinician's back button inside
+   the patient's own record, one tap from the patient's share controls and edit
+   forms; it goes up to the code entry it came from. And `rx` and `doctors`
+   were absent, so a shared variant link or a specialty-filtered doctor list
+   fell all the way to the home screen. */
+const UP_FROM = {
+  record: "#/", clinical: "#/redeem", redeem: "#/", doctor: "#/doctors",
+  pharmacy: "#/pharmacies", hospital: "#/hospitals", doctors: "#/needs",
+  need: "#/rx", rx: "#/rx", med: "#/rx", product: "#/rx",
+  care: "#/", partner: "#/", radar: "#/rx", wait: "#/rx",
+  lab: "#/", imaging: "#/", "pharmacy-rx": "#/",
+  /* The settings family arrived from the Apple track with sub-routes
+     (`#/settings/:sub`) and no entry here, so a privacy or deletion sub-page
+     went "up" to the home screen rather than back to settings. The self-loop
+     guard below means the root still climbs to home; only the sub-pages climb
+     to `#/settings`. */
+  settings: "#/settings",
+};
+function upFrom(hash) {
+  const seg = String(hash == null ? location.hash : hash)
+    .replace(/^#\/?/, "").split("?")[0].split("/").filter(Boolean);
+  if (!seg.length) return "#/";
+  /* The record's own sub-screens go up to the record, not to the home
+     screen: someone three levels into their labs wants their record back. */
+  if (seg[0] === "record" && seg.length > 1) return "#/record";
+  /* A family whose root is also its own key must not send its root to itself —
+     `#/rx` going up to `#/rx` is a back button that does nothing. Only the
+     sub-routes climb. */
+  const up = UP_FROM[seg[0]];
+  if (up === "#/" + seg[0]) return seg.length > 1 ? up : "#/";
+  return up || "#/";
+}
+
+globalThis.goBack = function goBack() {
+  if (inAppMoves > 0) { history.back(); return; }
+  location.hash = upFrom(null);
+};
+
 function header(opts = {}) {
   const off = netBanner();
   if (opts.back) {
     return off + `<header class="hdr">
-      <button class="icon-btn hdr-back" onclick="history.back()" aria-label="${t("back")}">${icon("back")}</button>
+      <button class="icon-btn hdr-back" onclick="goBack()" aria-label="${t("back")}">${icon("back")}</button>
       <div class="grow hdr-title">${esc(opts.title || "")}</div>
       ${opts.right || ""}
     </header>`;
@@ -803,10 +991,90 @@ function header(opts = {}) {
    point, not the thing being built. A record that lives three taps deep
    inside a settings menu is a record nobody accumulates, and an empty record
    is worth nothing to the doctor it was built for. */
+/* The bar was cut from six tabs to four and eleven call sites were never
+   reconciled: `nav("explorer")` and `nav("care")` are passed by the whole
+   medicine layer (#/rx, #/explorer, #/need/*, #/radar, #/wait) and the
+   care-products layer (#/care, #/product), and neither key exists here. The
+   bar rendered with NO tab lit — the user standing somewhere the map does not
+   contain. Those screens all answer "where do I get this", which is what the
+   pharmacies tab is for, and `#/med/:id` already passed `nav("pharmacies")`
+   for exactly that reason. A test now fails if a call site passes a key this
+   function cannot light. */
+/* FOUR TABS, NOT FIVE — and the fifth was a duplicate, not a feature.
+   `الأطباء` and `الصيدليات` were the same destination twice: both are lists of
+   facilities near you, sorted by distance and opening hours, differing only in
+   which entity type is filtered — which is the definition of a filter, not a
+   destination. `#/needs` was a third doorway to the same job. Meanwhile the
+   medicine-availability network, the product's other differentiator, had no tab
+   at all and eleven screens were passing a nav key this bar could not light.
+
+   So the two collapse into one CARE destination with a segmented control, which
+   REMOVES a duplicate rather than adding anything, and gives the medicine
+   network a real home. Every route stays reachable — the doorway changed, not
+   the rooms. The Account tab stays exactly where the Apple track put it. */
+/* THREE DESTINATIONS, NOT FOUR — and the one that went is the digest.
+   The product has exactly two subjects and they have opposite physics. Your
+   record is YOURS, STILL, PRIVATE and works with the radio off. The
+   availability network is THEIRS, MOVING, PUBLIC and worthless offline. Every
+   screen belongs to one or the other; there is no third subject. The account
+   tab is not a subject — it is the Apple track's destination and stays exactly
+   where that developer put it.
+
+   What went is the home DIGEST. A home screen in a health record summarises the
+   other destinations, which means it duplicates them and then disagrees with
+   them. The register is not a digest — it is the primary object, and it already
+   answers the three questions a home screen exists to answer (what needs me,
+   who has my record, what happened last) as rows of ONE list rather than three
+   sections that have to be kept in sync. Deleting the digest is what buys the
+   third tab back.
+
+   And the record is not its own destination either: the register and the deck
+   are one booklet indexed two ways — by date and by sheet. That is a view
+   toggle, not a journey, and making them two tabs would ask a patient to know
+   which index their question lives in before they have asked it.
+
+   FOUR, NOT THREE, AND THE REASON IS A MEASUREMENT THAT KILLED THE ARGUMENT
+   FOR THREE. The design that won this work claimed three destinations, on the
+   grounds that at 320px a fourth Arabic label would elide. That was asserted
+   and never measured. Measured here: at 320px four cells are 80px wide and the
+   widest label — «المتوفّر» — is 38.9px. Nothing elides. Three was buying
+   nothing, and it was costing the thing the same design named as its own
+   weakness: with the sheet view behind an in-page toggle, a patient who never
+   finds the toggle has a record they cannot browse.
+
+   So the booklet gets two doorways because it has two indexes, and both are
+   real destinations a thumb can reach:
+     الدفتر    #/         by DATE  — the register, one time axis
+     أوراقي    #/record   by SHEET — the deck, grouped by sharing behaviour
+   They are one object. Each cross-links to the other, and neither is a digest
+   of the other. What is gone is the home DIGEST: a home screen in a health
+   record summarises the other destinations, which means it duplicates them and
+   then disagrees with them. The register is not a digest — it is the primary
+   object, and it answers what a home screen exists to answer (what needs me,
+   who has my record, what happened last) as rows of ONE list. */
+const NAV_ALIAS = { explorer: "available", pharmacies: "available", doctors: "available",
+  care: "available",
+  /* every existing call site keeps working: the doorway moved, not the room */
+  home: "booklet", record: "sheets" };
 function nav(active) {
-  const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
-    ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"],
+  active = NAV_ALIAS[active] || active;
+  const items = [["#/", "clock", "booklet"], ["#/record", "seal", "sheets"],
+    ["#/care", "stetho", "available"],
+    /* The settings tab belongs to the Apple track — App Store compliance needs
+       privacy, data export and account deletion reachable without a hunt. Kept
+       as that developer placed it; not redesigned here. */
     ["#/settings", "user", "settings"]];
-  return `<nav class="nav" role="tablist" aria-label="${isAR() ? "التنقل الرئيسي" : "Main navigation"}">${items.map(([h, i, k]) =>
-    `<a href="${h}" class="${active === k ? "on" : ""}" role="tab" aria-selected="${active === k}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
+  /* The bar is `position: fixed`, so it floats over the end of whatever is
+     behind it. Measured before this existed: the record index's last row —
+     «التحاليل» — sat at y=792 with the bar's top edge at y=778. Unreadable,
+     and untappable. The reservation is emitted HERE rather than left to each
+     call site, because a call site can forget and this cannot.
+
+     It is `aria-hidden` because it is spacing, not content — which is also why
+     it must survive alongside the tablist roles rather than instead of them:
+     one fixes what a screen reader hears, the other fixes what a thumb can
+     reach, and losing either reintroduces a real defect. */
+  return `<div class="nav-space" aria-hidden="true"></div>`
+    + `<nav class="nav" role="tablist" aria-label="${isAR() ? "التنقل الرئيسي" : "Main navigation"}">${items.map(([h, i, k]) =>
+      `<a href="${h}" class="${active === k ? "on" : ""}" role="tab" aria-selected="${active === k}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
 }

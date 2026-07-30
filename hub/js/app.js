@@ -96,7 +96,14 @@ function route() {
     case "pharmacy": return screenPharmacy(p[1]);
     case "hospitals": return screenHospitals();
     case "hospital": return screenHospital(p[1]);
-    case "care": return screenCare(p[1]);
+    /* Bare `#/care` is the destination; the default segment is the doctors
+       list, which is what the tab has always opened. `#/care/:cat` keeps the
+       product categories. */
+    /* `#/care` is the availability network's own front door now — the body the
+       home screen used to open on, with the record no longer competing with it
+       for the first viewport. `#/care/:cat` keeps the care-product categories,
+       and `#/doctors` / `#/pharmacies` keep their own routes. */
+    case "care": return p[1] ? screenCare(p[1]) : screenAvailable();
     case "product": return screenProduct(p[1]);
     case "start": return screenStart();
     case "explorer": return screenExplorer();
@@ -118,6 +125,11 @@ function route() {
        network and do not belong in this file. */
     case "record": return p[1] ? screenRecordSection(p[1], p[2]) : screenRecord();
     case "clinical": return p[1] === "inbox" ? screenClinicalInbox() : screenClinical(p[1]);
+    /* The receiving end of a carry code. `redeemCarryCode` has existed in
+       consent.js since the consent engine shipped and NOTHING called it, so a
+       patient could issue a code no screen in the product could accept. The
+       code may arrive in the URL so it can travel by WhatsApp. */
+    case "redeem": return screenRedeem(p[1]);
     /* The network as clinical actors — js/ui-network.js. Each is its own
        screen with its own vocabulary, not a filtered view of the doctor's. */
     case "lab": return screenLab(p[1], p[2]);
@@ -217,7 +229,16 @@ function boot() {
   }
   addEventListener("online", () => render());
   addEventListener("offline", () => render());
+  /* Both halves are load-bearing and independent.
+     `noteNav()` counts the app's OWN navigations so `goBack()` can tell a
+     normal back step from a cold deep link, where `history.back()` would leave
+     the app entirely. It must run before render, as it did.
+     Moving focus to the main landmark is the SPA accessibility requirement from
+     the Apple track: a hash route change paints new content without moving the
+     screen reader's cursor or the keyboard focus, so the next Tab resumes from
+     the previous screen's position. */
   addEventListener("hashchange", () => {
+    noteNav();
     closeSheet(true); render(); scrollTo(0, 0);
     const main = document.getElementById("app");
     if (main) { main.setAttribute("tabindex", "-1"); main.focus({ preventScroll: true }); }

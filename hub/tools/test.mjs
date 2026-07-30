@@ -13,7 +13,7 @@
    claim stock, what leaves the device, which medicines must never be
    broadcast, and whether an audit trail actually detects tampering.
    ============================================================ */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import vm from "node:vm";
@@ -326,6 +326,233 @@ it("a missing data plane is the blocker that outranks the rest", () => {
 it("a fully resolved deployment reports nothing", () => {
   eq(QD.launchBlockers([{ phone: "9647801234567" }],
     { dataPlane: true, pharmacyAuthBackend: true, auditServerSide: true, realData: true }), []);
+});
+
+/* ---------------------------------------------------------------- */
+describe("bidi — what the browser actually renders");
+
+/* This is a source guard, not a unit test, and it exists because the bug it
+   guards was invisible to 462 passing assertions and to every reading of the
+   code. `t.points.map(n).join(" ← ")` is correct JavaScript producing the
+   correct DOM in the correct order. U+2190 is Bidi_Class=ON and
+   Bidi_Mirrored=No: the algorithm reorders it and never flips it, so between
+   two `.num` spans — `unicode-bidi: embed` — the group resolves as one
+   left-to-right run inside an Arabic line and "7.1 ← 8.4" reaches the eye as
+   "8.4 → 7.1". A worsening HbA1c read as an improving one, on the patient's
+   screen and in the clinician's brief, for as long as the line existed.
+
+   Direction between rendered values is carried by a word, or it is not
+   carried. */
+const uiSources = readdirSync(join(HUB, "js")).filter((f) => f.endsWith(".js"))
+  .map((f) => ({ f, src: readFileSync(join(HUB, "js", f), "utf8") }));
+
+/* ---------------------------------------------------------------- */
+describe("data honesty — the seal may not outrun the provenance");
+
+/* `verificationState` asks DATA_PROVENANCE before it will say "verified", and
+   returns "sample data" while a source is synthetic. Several screens bypassed
+   it and read `ent.verified` straight off the record — a flag that is `true`
+   on 17 of 18 synthetic doctors — and printed "verified pharmacy" over data
+   nobody has ever checked. This is the rule that stops the bypass coming
+   back: outside ui-core.js, which owns the mechanism, no screen may branch on
+   a raw `.verified` to produce the WORD. */
+it("no screen prints a verification claim straight from a raw .verified flag", () => {
+  const bad = [];
+  for (const { f, src } of uiSources) {
+    if (f === "ui-core.js" || f === "data.js" || f === "domain.js") continue;
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "");
+    /* `x.verified ? "…موثّق…" : …` — the flag decides the word */
+    const re = /\.verified\s*\?[^:]{0,160}(موثّق|موثقة|verified)/gi;
+    for (const m of code.match(re) || []) bad.push(`${f}: ${m.slice(0, 60).replace(/\s+/g, " ")}`);
+  }
+  eq(bad, [], "use sealBadge()/verifiedWord(), which consult DATA_PROVENANCE");
+});
+
+it("the seal vocabulary has a word for synthetic, and it is not silence", () => {
+  const core = uiSources.find((x) => x.f === "ui-core.js").src;
+  ok(/sample:\s*\[/.test(core), "a declared 'sample data' state");
+  ok(/origin !== "imported"/.test(core), "and it is reached by asking the provenance, not the record");
+  ok(/function verifiedWord/.test(core), "counts of verified entities go through it too");
+  ok(/function verifiedCount/.test(core),
+    "a COUNT next to that word must be provenance-filtered too, or 'sample data' sits beside a number computed as if every entity were real");
+});
+
+/* The word-level guard above did not catch two adjacent bugs, found by
+   reading rather than by the regex: a COUNT computed with the raw flag
+   printed beside the honest word (`DOCTORS.filter(d => d.verified).length`
+   next to "موثّق"), and a raw flag used to GATE a list of recommended
+   pharmacies — the controlled-medicine handoff recommended four synthetic
+   addresses as "licensed pharmacies nearby" for a real controlled substance.
+   Both classes are pinned here by name so a future edit cannot silently
+   reintroduce either the literal `.filter(...).length` count or the raw-flag
+   gate at these exact sites. */
+it("verification COUNTS go through verifiedCount(), not a raw .filter(...).length", () => {
+  const bad = [];
+  for (const { f, src } of uiSources) {
+    if (f === "ui-core.js" || f === "data.js" || f === "domain.js") continue;
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "");
+    const re = /\.filter\(\s*\([^)]*\)\s*=>\s*[^)]*\.verified\b[^)]*\)\.length/g;
+    for (const m of code.match(re) || []) bad.push(`${f}: ${m.slice(0, 70)}`);
+  }
+  eq(bad, [], "a bare .filter(x => x.verified).length counts synthetic entities as real — use verifiedCount(list, sourceKey)");
+});
+
+it("the controlled-medicine handoff recommends pharmacies by provenance, not by the raw flag", () => {
+  const src = uiSources.find((x) => x.f === "ui-backend.js").src;
+  const fn = (src.match(/function openControlledHandoff[\s\S]*?\n}/) || [""])[0];
+  ok(/verificationState\(f,\s*"pharmacies"\)\.k\s*===\s*"verified"/.test(fn),
+    "recommending a synthetic address for a controlled substance is a patient-safety failure, not a labeling nit");
+  no(/\.filter\(\(f\)\s*=>\s*f\.verified\s*&&/.test(fn), "the raw flag must not gate this list again");
+});
+
+
+/* A prose comment inside a template literal is one stray backtick away from
+   terminating the string. That is exactly how this file's own author took the
+   whole app down for the length of one edit: `.st` written in an HTML comment
+   inside a `` ` ``-quoted template ended the literal, ui-discovery.js stopped
+   parsing, and every route rendered a blank page while all 462 assertions
+   still passed — because none of them parses the shipped scripts. This does. */
+it("every shipped script parses", () => {
+  const broken = [];
+  for (const { f, src } of uiSources) {
+    try { new vm.Script(src, { filename: f }); } catch (e) { broken.push(`${f}: ${e.message}`); }
+  }
+  eq(broken, [], "a script that does not parse renders nothing, and no unit test notices");
+});
+
+/* The parse test above catches the consequence. This catches the cause, which
+   this author has now reached for FOUR separate times: writing prose inside an
+   HTML comment inside a template literal, and reaching for a backtick to quote
+   an identifier the way one would in Markdown. The backtick ends the template,
+   the rest of the file reinterprets as code, and the whole script stops
+   parsing. The habit is the bug, so the habit is what gets flagged — by line,
+   with the fix, instead of by a parser error pointing at whatever identifier
+   happened to follow. */
+/* The bottom bar was cut from six tabs to four; eleven screens kept passing
+   the two keys that no longer existed, and rendered a nav with NO tab lit.
+   Nothing failed, because an unmatched key is just an empty class attribute. */
+it("every nav() call passes a key the bar can actually light", () => {
+  const core = uiSources.find((x) => x.f === "ui-core.js").src;
+  const fn = (core.match(/function nav\(active\)[\s\S]*?\n}/) || [""])[0];
+  const keys = new Set([...fn.matchAll(/\["#\/[^"]*",\s*"[^"]*",\s*"([^"]+)"\]/g)].map((m) => m[1]));
+  const alias = new Set([...(core.match(/const NAV_ALIAS = \{[^}]*\}/) || [""])[0]
+    .matchAll(/(\w+)\s*:/g)].map((m) => m[1]));
+  ok(keys.size >= 4, "the bar must define its tabs here");
+  const bad = [];
+  for (const { f, src } of uiSources)
+    for (const m of src.matchAll(/\bnav\("([^"]+)"\)/g))
+      if (!keys.has(m[1]) && !alias.has(m[1])) bad.push(`${f}: nav("${m[1]}")`);
+  eq([...new Set(bad)], [], "a nav key with no tab renders a bar where the user is nowhere");
+});
+
+/* The consent engine's receiving end. `redeemCarryCode` shipped with the
+   engine, was covered by tests in two suites, and was called by NO screen —
+   so a patient could curate scopes, choose a duration, issue a code, and hand
+   over something nothing in the product could accept. Five screens described a
+   handover with no other end. Both halves are pinned here: the route exists,
+   and something reachable links to it. */
+it("a carry code can actually be redeemed", () => {
+  const all = uiSources.map((x) => x.src).join("\n");
+  ok(/case "redeem":/.test(uiSources.find((x) => x.f === "app.js").src),
+    "the redeem route must be in the router");
+  ok(/C\(\)\.redeemCarryCode\(/.test(all), "and something must call redeemCarryCode");
+  ok(/href="#\/redeem/.test(all), "and a screen must link to it — an unlinked route is not a feature");
+});
+
+it("no HTML comment inside a template literal contains a backtick", () => {
+  const bad = [];
+  for (const { f, src } of uiSources)
+    for (const m of src.matchAll(/<!--[\s\S]*?-->/g))
+      if (m[0].includes("`"))
+        bad.push(`${f}: ${m[0].replace(/\s+/g, " ").slice(0, 70)} — use plain words, not backticks`);
+  eq(bad, [], "a backtick in an HTML comment ends the template literal it sits in");
+});
+
+it("no rendered value sequence is joined by an arrow", () => {
+  const bad = uiSources.filter(({ src }) => /join\(\s*["'`][^"'`]*[←→⟵⟶]/.test(src));
+  eq(bad.map((x) => x.f), [], "an arrow between two numbers inverts under RTL");
+});
+
+it("no arrow sits directly against an interpolated value", () => {
+  const bad = uiSources.filter(({ src }) => /\}\s*[←→⟵⟶]|[←→⟵⟶]\s*\$\{/.test(src));
+  eq(bad.map((x) => x.f), [], "the neutral resolves against its neighbours, not against the author's intent");
+});
+
+/* The arrow was only the first costume. The same defect shipped again as a
+   blood pressure written `${n(148)} / ${n(92)}`: " / " is a NEUTRAL between two
+   LTR embeds, so inside an Arabic line bidi resolved it right-to-left and the
+   pair rendered "92 / 148" — while the identical pair wrapped in an outer
+   `.num` rendered "148 / 92". Both spellings were live at once, on the record
+   screen and the vitals screen, for one reading; the vitals card printed a
+   value reading "92 / 148" directly above its own reference reading "130 / 85".
+   Nothing distinguished systolic from diastolic.
+
+   So the rule is not "no arrows", it is: no neutral separator may sit between
+   two interpolated values. A pair belongs inside ONE run — `bpPair()` — where
+   there is no neutral left for bidi to move.
+
+   `·` was exempted here on the reasoning that it separates items of DIFFERENT
+   kinds — a measurement and a date — where a reader cannot mistake one for the
+   other. The exemption was wrong twice over. It reverses just the same (U+00B7
+   is Bidi_Class=ON), so `8.4% · 2026-07-01` rendered date-first, the opposite
+   of what was written; and on a narrow wrap the separator orphans beside one
+   value with the other alone on the next line. Two facts get two elements. */
+it("no neutral separator sits between two interpolated numbers", () => {
+  /* An em dash between two WORDS is ordinary prose and reorders harmlessly —
+     a reader can tell a modality from a body site whichever side it lands on.
+     The defect is specific to numbers, where the two sides are
+     indistinguishable once swapped. So both sides must look numeric. */
+  const NUMERIC = /\b(?:n|measure|money|bpPair|fmtT|padStart)\s*\(|\.(?:value|systolic|diastolic|refLow|refHigh|count|replied|requests)\b|^\s*\d[\d.]*\s*$/;
+  /* `:` is deliberately absent: Bidi_Class=CS binds a colon to the European
+     numbers on either side of it, so "08:00" survives an RTL line intact.
+     Only Bidi_Class=ON separators can be pulled away and reordered. */
+  const re = /\$\{([^{}]*)\}[ \t]*([/–—><÷×·-])[ \t]*\$\{([^{}]*)/g;
+  const bad = [];
+  for (const { f, src } of uiSources) {
+    /* Comments are prose about this very bug and must be allowed to spell it. */
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    for (const line of code.split("\n")) {
+      /* Not rendered text: inline styles, URLs, CSS functions, storage keys. */
+      if (/style="|url\(|href="|https?:|calc\(|var\(--|\.replace\(/.test(line)) continue;
+      /* Already inside ONE `.num` run — which is the prescribed fix, not the
+         bug. A single LTR run has no neutral left for bidi to move. */
+      if (/class="[^"]*\bnum\b/.test(line)) continue;
+      for (const m of line.matchAll(re))
+        if (NUMERIC.test(m[1]) && NUMERIC.test(m[3])) bad.push(`${f}: ${line.trim().slice(0, 88)}`);
+    }
+  }
+  eq(bad, [], "two numbers with a neutral between them are one reading bidi is free to reverse");
+});
+
+/* The timeline screen rendered "the timeline fills as visits are recorded"
+   over a record holding seven events, for as long as it existed.
+   `timelineByEpisode` returns `{episodes, unassigned}`; the caller wrote
+   `Array.isArray(byEp) ? byEp : []`, which is always the empty branch. A
+   defensive fallback wrapped around a wrong assumption is indistinguishable
+   from an empty record, and nothing throws.
+
+   Under it, `eventRow` read `e.kind` and `e.label` while `buildTimeline`
+   emits `type` and `title` — so even with the shape fixed every row would
+   have printed blank. Both are pinned here against the real emitter. */
+it("the timeline reads the fields buildTimeline actually emits", () => {
+  const ui = uiSources.find((x) => x.f === "ui-record.js").src;
+  const emr = uiSources.find((x) => x.f === "emr.js").src;
+  for (const field of ["at", "type", "title"])
+    ok(new RegExp(`push\\(\\{[^}]*\\b${field}:`, "s").test(emr) || emr.includes(`${field}: `),
+      `buildTimeline emits ${field}`);
+  /* Comments describing the old bug are allowed to name it; code is not.
+     Strip block comments before asserting, or this test fails on its own
+     explanation of itself. */
+  const code = ui.replace(/\/\*[\s\S]*?\*\//g, "");
+  no(/e\.kind|e\.label\b/.test(code), "the timeline must not read fields the emitter never sets");
+  no(/Array\.isArray\(byEp\)/.test(code), "the shape must be handled, not guessed at and swallowed");
+  ok(/buildTimeline\(/.test(code), "and it reads the flat event list it groups itself");
+});
+
+it("the lab series renderer states direction as a word", () => {
+  const ui = uiSources.find((x) => x.f === "ui-record.js").src;
+  ok(/ارتفع/.test(ui) && /انخفض/.test(ui), "rose and fell must exist as words");
+  ok(/function trendSeries/.test(ui), "both the patient screen and the clinician brief share one renderer");
 });
 
 /* ---------------------------------------------------------------- */
