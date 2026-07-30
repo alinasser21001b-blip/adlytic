@@ -245,7 +245,12 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
    in the gutter, where nothing else ever sits. */
 .rw-lead, .card.is-open::before, .lane.on::before, .rail-open::before, .rail-stock::before {
   content: ""; position: absolute;
-  inset-inline-start: calc(var(--u4) * -1); top: var(--u4); bottom: var(--u4);
+  /* Was `--u4` (-16px) while every container that holds these rows pads by
+     `--u5` (20px) — so the brass "open now" mark landed 4px from the viewport
+     edge and read as a rendering artefact rather than a gutter annotation. On
+     the start screen the three coloured bars were visibly detached from the
+     tiles they belong to. */
+  inset-inline-start: calc(var(--u5) * -1); top: var(--u4); bottom: var(--u4);
   width: 2px; background: var(--brass); border-radius: var(--rp);
 }
 .rail-stock::before { background: var(--jade); }
@@ -579,7 +584,15 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
    is not a cosmetic pass. */
 .sheet--emergency { border-top: 3px solid var(--alarm); }
 .dark .sheet--emergency { border-top-color: var(--alarm-lit); }
-.sheet-h { margin-bottom: var(--u5); }
+/* `.sheet-h` declared a margin and nothing else, so the close button — a
+   48px `.icon-btn` — fell onto its own line BELOW the subtitle and floated
+   mid-sheet at the inline end. On the emergency sheet that put it between
+   «اتصل بالإسعاف فوراً» and the 911 button: a broken-looking layout on the one
+   screen that must not look broken. Two columns, the button spanning both rows
+   of the title block. */
+.sheet-h { display: grid; grid-template-columns: 1fr auto; align-items: start;
+           column-gap: var(--u3); margin-bottom: var(--u5); }
+.sheet-h > .icon-btn { grid-column: 2; grid-row: 1 / span 2; }
 .sheet-h h2 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
 .sheet-h p { margin-top: 4px; }
 .sheet-f { margin-top: var(--u5); }

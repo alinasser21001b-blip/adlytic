@@ -701,26 +701,46 @@
     const others = E().latestVitals(all.filter((v) => v.kind !== E().VITAL.BP_SYS && v.kind !== E().VITAL.BP_DIA));
     const lastBp = bp[0];
 
+    /* The reading against its own reference range, the same component the labs
+       screen leads with. It shipped on ONE screen out of the four that carry
+       exactly this data — value, refLow, refHigh, all present here, which
+       `rangeLine` already proves by printing them in prose. So the screen whose
+       entire purpose is a measurement rendered it as three separate strings
+       while the labs screen drew it. Same function, no new CSS. */
     const vitalRow = (v) => `<div class="rw"><div style="width:100%">
-        <div class="rowb"><b>${esc(E().vitalLabel(v.kind, ar()))}</b>
-          <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${measure(v.value, v.unit)}</span></div>
+        <div class="lab">${esc(E().vitalLabel(v.kind, ar()))}</div>
+        <div class="rowb" style="margin-top:2px;align-items:flex-end">
+          ${bigValue(v.value, v.unit)}
+          <span>${flagChip(v.flag)}</span></div>
+        ${rangeScale(v)}
+        ${rangeLine(v) ? `<div class="t3" style="margin-top:6px">${rangeLine(v)}</div>` : ""}
         <div class="rowb" style="margin-top:5px">
           <span class="t3">${n(String(v.effectiveAt || "").slice(0, 10))}</span>
-          <span>${flagChip(v.flag)}</span></div>
-        ${rangeLine(v) ? `<div class="t3" style="margin-top:4px">${rangeLine(v)}</div>` : ""}
-        ${selfReported(v) ? `<div style="margin-top:5px">${selfReported(v)}</div>` : ""}
+          <span>${selfReported(v)}</span></div>
       </div></div>`;
 
     return page(T("القياسات", "Measurements"),
       `${lastBp ? `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
-            <span class="st ${lastBp.abnormal ? "st-e" : "st-v"}">${bpPair(lastBp.systolic.value,
-              lastBp.diastolic ? lastBp.diastolic.value : null, lastBp.systolic.unit)}</span></div>
-          <div class="rowb" style="margin-top:5px">
-            <span class="t3">${n(String(lastBp.at || "").slice(0, 10))}</span>
+          <div class="lab">${T("ضغط الدم", "Blood pressure")}</div>
+          <!-- At the same weight as every other reading on this screen. It was
+               the only one left in an 11.5px chip class while its neighbours
+               used the display face — so the reading most likely to matter here
+               was the quietest thing on the screen. -->
+          <div class="rowb" style="margin-top:2px;align-items:flex-end">
+            <span class="nval">${bpPair(lastBp.systolic.value,
+              lastBp.diastolic ? lastBp.diastolic.value : null, "")}<span class="u">${
+              esc(lastBp.systolic.unit || "")}</span></span>
             <span>${lastBp.abnormal ? `<span class="st st-e">${T("خارج المعتاد", "outside the usual range")}</span>`
               : `<span class="st st-v">${T("ضمن المعتاد", "within the usual range")}</span>`}</span></div>
-          <div class="t3" style="margin-top:4px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${
+          <div class="rowb" style="margin-top:5px">
+            <span class="t3">${n(String(lastBp.at || "").slice(0, 10))}</span><span></span></div>
+          <!-- The systolic drawn against its own range. A blood pressure is one
+               reading but it is two numbers, and only one scale can be drawn
+               honestly, so it is labelled as the systolic rather than left to
+               look like the pair. -->
+          ${rangeScale(lastBp.systolic) ? `<div class="t3" style="margin-top:8px">${
+            T("الرقم الأعلى", "upper number")}</div>${rangeScale(lastBp.systolic)}` : ""}
+          <div class="t3" style="margin-top:6px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${
             bpPair(130, 85, "")}</div>
           <!-- The provenance marker was on vitalRow and missing from this
                hand-written block, so of the three readings on this screen the
@@ -1763,9 +1783,10 @@
             <span>${patientToldUs(brief.bloodPressure)}</span></div>
         </div></div>` : ""}
         ${brief.vitals.map((v) => `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc(v.name)}</b>
-            <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${measure(v.value, v.unit)}</span></div>
-          <div class="rowb" style="margin-top:4px">
+          <div class="rowb" style="align-items:flex-end"><b>${esc(v.name)}</b>
+            ${bigValue(v.value, v.unit)}</div>
+          ${rangeScale(v)}
+          <div class="rowb" style="margin-top:5px">
             <span class="t3">${n(String(v.at || "").slice(0, 10))}</span>
             <span>${patientToldUs(v) || flagChip(v.flag)}</span></div>
         </div></div>`).join("")}`) : ""}
