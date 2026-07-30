@@ -194,7 +194,7 @@
       <p class="t3" style="margin-top:22px;line-height:1.7">${T(
         "ملفك يبقى عندك. لا أحد يفتحه إلا بموافقتك، وكل فتح مسجّل هنا.",
         "Your record stays yours. Nobody opens it without your consent, and every opening is logged here.")}</p>
-    </section>${nav("record")}`;
+    </section>${nav(slot || "sheets")}`;
   };
 
   /* THE SYNC LINE. It says one of three things and never a fourth, because
@@ -479,7 +479,10 @@
   }
 
   /* ---------- first run ---------- */
-  function screenRecordSetup() {
+  /* `slot` because this screen is reached from BOTH doorways: `#/` (the booklet
+     by date) and `#/record` (by sheet). A first-run user landing on `#/` had
+     «أوراقي» lit — a bar reporting a destination they had not chosen. */
+  function screenRecordSetup(slot) {
     return `${header({ back: true, title: T("ملفي الصحي", "My health record") })}
     <section class="wrap" style="padding-top:22px">
       <h1 class="d1" style="font-size:26px;line-height:1.35">${T(
@@ -497,7 +500,7 @@
       <p class="t3" style="margin-top:14px">${T(
         "ما نطلب رقم بطاقة ولا وثيقة. الاسم وتاريخ الميلاد يكفون للبداية.",
         "No card number and no document required. A name and a date of birth are enough to start.")}</p>
-    </section>${nav("record")}`;
+    </section>${nav(slot || "sheets")}`;
   }
 
   /* Registration deliberately succeeds with no government document at all.
@@ -2872,7 +2875,7 @@
   /* ---------- THE SCREEN ---------- */
   globalThis.screenRegister = function screenRegister() {
     const d = store();
-    if (!d.patient) return screenRecordSetup();
+    if (!d.patient) return screenRecordSetup("booklet");
     const at = now();
     const p = d.patient;
     const prof = R().patientProfile(p, d, at);
