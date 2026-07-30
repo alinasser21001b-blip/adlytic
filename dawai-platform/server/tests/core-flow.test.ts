@@ -22,7 +22,7 @@ describe("Dawai production core loop", () => {
   });
 
   afterEach(async () => {
-    await database.close();
+    await database?.close();
   });
 
   async function jsonRequest(

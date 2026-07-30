@@ -98,5 +98,11 @@ export async function migrateDatabase(database: DbExecutor): Promise<void> {
     resolve(process.cwd(), "migrations", "0001_init.sql"),
     "utf8",
   );
-  await database.query(migration);
+  const statements = migration
+    .split(/;\s*(?:\n|$)/)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  for (const statement of statements) {
+    await database.query(statement);
+  }
 }
