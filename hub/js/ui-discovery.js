@@ -22,7 +22,31 @@
    a year and the answer is rarely "right now". A pharmacy at 02:40 is the
    thing a tired parent is actually holding a phone for.
 ------------------------------------------------------------- */
+/* `#/` IS THE REGISTER, not a digest of it.
+   A home screen in a health record summarises the other destinations, which
+   means it duplicates them and then disagrees with them. The register is the
+   primary object: one time axis, everything unfinished sitting at «الآن»
+   because it has not ended yet, and every custody event in the same list. It
+   answers the three questions a home screen exists to answer without being a
+   dashboard.
+
+   The availability network — pharmacies open now, doctors seeing patients,
+   medicine requests — is a DIFFERENT SUBJECT with opposite physics: theirs,
+   moving, public, worthless offline. It keeps every screen it had and gains a
+   real front door at `#/care`, which is what its tab has always pointed at.
+
+   The role consoles are untouched: a pharmacist's or a doctor's `#/` is their
+   working surface, not a patient's booklet. */
 function screenHome() {
+  if (S.role === "pharmacist") return screenHomePharmacist();
+  if (S.role === "doctor") return screenHomeDoctor();
+  if (typeof screenRegister === "function") return screenRegister();
+  return screenHomePatient();
+}
+
+/* The availability network's own front door. Same body it has always had; it is
+   simply no longer competing with the record for the first screen. */
+function screenAvailable() {
   if (S.role === "pharmacist") return screenHomePharmacist();
   if (S.role === "doctor") return screenHomeDoctor();
   return screenHomePatient();
@@ -192,7 +216,14 @@ function screenHomePatient() {
        medicine" — which is what this screen used to open on exclusively.
        Both blocks below reuse existing primitives (.note, .rowb, .b-g,
        .st-e) rather than a new visual language. -->
-  ${healthStatusCard()}
+  <!-- The health-status card is GONE from here, and this is a subtraction not a
+       move. It existed because the home screen never mentioned that the person
+       opening it had a record at all. The booklet is now the front door, so the
+       card would be a summary of the destination one tab away — and worse, it
+       put the patient's lab names at the top of the AVAILABILITY network, whose
+       subject is what is open near you right now. Measured before removing it:
+       the three heaviest elements on this surface were the wordmark, «الهيموغلوبين»
+       and «الخضاب السكري» — two of the three belonged to a different subject. -->
 
   <section class="pad" style="margin-top:14px">
     <!-- The two highest-stakes taps in the product, and until an earlier
@@ -325,7 +356,7 @@ function screenHomePatient() {
     <div class="t3" style="margin-top:12px;opacity:.62">${isAR() ? "النسخة" : "Build"}
       <span class="num" id="buildstamp">${esc(buildLabel())}</span></div>
   </section>
-  ${nav("home")}`;
+  ${nav("available")}`;
 }
 
 /* ---------------- role home · pharmacist ----------------
@@ -465,7 +496,7 @@ function screenHomeAway() {
       <span class="n" style="font-size:17px;color:var(--alarm)">${CONFIG.emergency.unified}</span>
     </a>
   </section>
-  ${nav("home")}`;
+  ${nav("available")}`;
 }
 
 function screenHomePharmacist() {
@@ -1249,7 +1280,7 @@ function screenSearch() {
       <input id="q" value="${esc(q)}" placeholder="${t("searchPh")}" oninput="doSearch(this.value)" autocomplete="off">
       <button class="clear-btn" onclick="doSearch('');document.getElementById('q').value='';document.getElementById('q').focus()" aria-label="${isAR() ? "مسح البحث" : "Clear search"}">${icon("close")}</button></div>
   </section>
-  <section class="wrap sec" id="sres">${searchResults(q)}</section>${nav("home")}`;
+  <section class="wrap sec" id="sres">${searchResults(q)}</section>${nav("available")}`;
 }
 
 function searchResults(q) {
@@ -1487,7 +1518,7 @@ function screenMe() {
     }).join('<div class="hr"></div>')}
   </section>` : ""}
 
-  ${nav("home")}`;
+  ${nav("available")}`;
 }
 
 function screenTrust() {

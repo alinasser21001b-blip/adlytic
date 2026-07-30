@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Qareeb — serverless functions only. The client app has no dependencies and no build step; nothing here is shipped to the browser.",
   "scripts": {
-    "test": "node tools/test.mjs && node tools/test-server.mjs && node tools/test-needs.mjs && node tools/test-e2e.mjs && node tools/test-emr.mjs && node tools/test-record.mjs && node tools/test-journey.mjs && node tools/test-qareeb.mjs && node tools/test-ecosystem.mjs && node tools/test-record-plane.mjs && node tools/test-import.mjs",
+    "test": "node tools/test.mjs && node tools/test-server.mjs && node tools/test-needs.mjs && node tools/test-e2e.mjs && node tools/test-emr.mjs && node tools/test-record.mjs && node tools/test-journey.mjs && node tools/test-qareeb.mjs && node tools/test-ecosystem.mjs && node tools/test-record-plane.mjs && node tools/test-import.mjs && node tools/test-register.mjs",
     "preflight": "node tools/preflight.mjs",
     "stamp": "node tools/stamp.mjs",
     "audit:ui": "node tools/audit-ui.mjs",

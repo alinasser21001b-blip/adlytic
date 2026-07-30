@@ -1434,3 +1434,313 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   height: 2px; background: var(--jade); border-radius: var(--rp);
 }
 .seg:first-child { padding-inline-start: 0; }
+
+/* ---------- 36 · THE REGISTER — one time axis, closed by a labelled boundary
+   ----------------------------------------------------------------------------
+   The booklet's time view. ONE row type, ordered strictly by time, with two
+   sticky headers naming the two sides of now. Everything unfinished sits above
+   the first header because it has not ended yet — urgency is a POSITION IN
+   TIME, not an alert box, so there is no alert stack and no section chrome.
+
+   Why two headers and not one rule: the first draft had a single «الآن» rule
+   below the unfinished rows, and measured, its bottom edge landed at 946px in
+   an 844px viewport — the boundary that carries the whole idea was off-screen
+   on the reference device. Two `position: sticky` headers each name their own
+   side, swap natively as the second scrolls under the first, and one of them is
+   always visible. No JS, no scroll listener.
+---------------------------------------------------------------------------- */
+.reg { --gut: 58px; }
+.reg-hdr {
+  position: sticky; top: 0; z-index: 6;
+  display: grid; grid-template-columns: 1fr auto; gap: var(--u2); align-items: baseline;
+  padding: 7px var(--u5); background: var(--dial);
+  border-block: 2px solid var(--ink);
+  font: 600 13.5px/1.55 var(--disp);
+}
+.reg-hdr .reg-hdr-sub { font: 400 12px/1.6 var(--disp); color: var(--ink-3); text-align: end; }
+.reg-hdr--done { background: var(--dial-2); }
+
+.reg-row {
+  display: grid; grid-template-columns: var(--gut) 1fr;
+  padding-block: 11px; border-bottom: 1px solid var(--dial-line-2);
+}
+.reg-gut {
+  grid-column: 1; padding-inline-start: var(--u5);
+  font: 400 12px/1.5 var(--disp); color: var(--ink-3);
+}
+.reg-gut b { display: block; font-weight: 400; }
+.reg-gut .yr { display: block; font-size: 11px; color: var(--ink-3); }
+.reg-bd { grid-column: 2; padding-inline-end: var(--u5); min-width: 0; }
+.reg-what { font: 500 15px/1.6 var(--disp); color: var(--ink); }
+.reg-sub { font: 400 13px/1.6 var(--disp); color: var(--ink-3); }
+
+/* WHAT CAME BACK. Indent + a hairline on the leading edge means "this is part
+   of the row above", and it is only ever drawn where the data carries the link
+   — never to suggest one. */
+.reg-back {
+  grid-column: 2; margin-block-start: 6px;
+  margin-inline-start: var(--u3); padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--line-ctl);
+  font: 400 13px/1.65 var(--disp); color: var(--ink-3);
+}
+.reg-why { font-size: 12px; color: var(--ink-3); }
+.reg-back b { color: var(--ink-2); font-weight: 500; }
+
+/* A COPY IS OUT. Four channels, never colour alone: the wash, the leading
+   border, the word, and the countdown. */
+.reg-row--out { background: var(--wash-time); border-inline-start: 2px solid var(--brass); }
+.reg-row--open { background: var(--wash-alarm); border-inline-start: 2px solid var(--alarm); }
+
+/* An aggregate row: collapses a KIND. Never a critical result, never a custody
+   event — those two always get their own row at any record size. */
+.reg-row.agg { display: block; padding-block: 0; }
+.reg-row.agg > summary { list-style: none; display: grid; grid-template-columns: var(--gut) 1fr; padding-block: 11px; }
+.reg-row.agg > summary::-webkit-details-marker { display: none; }
+.reg-row.agg .more { color: var(--ink-3); font-size: 12px; }
+.reg-row.agg[open] .more { display: none; }
+.reg-kids {
+  margin-inline-start: calc(var(--gut) + var(--u4)); padding-inline-start: 10px;
+  margin-block-end: 11px; border-inline-start: 1px solid var(--line-ctl);
+  font: 400 13px/1.7 var(--disp); color: var(--ink-3);
+}
+.reg-kids > div { padding-block: 3px; }
+
+/* A YEAR, beyond two years back. Counting only. */
+.reg-yr { display: grid; grid-template-columns: var(--gut) 1fr; padding-block: 8px;
+  border-bottom: 1px solid var(--dial-line-2); }
+.reg-yr .reg-gut { font-weight: 600; font-size: 13px; color: var(--ink-2); }
+.reg-yr .reg-bd { font: 400 13px/1.7 var(--disp); color: var(--ink-3); }
+
+/* ---------- 37 · THE DECK — sheets grouped by SHARING BEHAVIOUR
+   ----------------------------------------------------------------------------
+   The record's sections ARE the units of consent (`CONSENT.SCOPE`), and the
+   bands are derived exhaustively from consent.js rather than named by a human:
+   SAFETY_FLOOR / EMERGENCY_SCOPES−SAFETY_FLOOR / the remainder /
+   SENSITIVE_CLASSES / gapStatements. There is deliberately no neutral "your
+   sheets" bucket — a bucket named after nothing is where storage nouns hide,
+   and eleven scope nouns in one flat list is the table of contents this
+   replaced.
+
+   The leading edge states DETACHABILITY, which is the one thing a sheet's
+   name cannot say: dashed = can be handed over on its own, solid = cannot.
+---------------------------------------------------------------------------- */
+.dband { padding: var(--u5) var(--u5) 5px; display: grid; grid-template-columns: 1fr auto;
+  gap: var(--u2); align-items: baseline; }
+.dband h2 { font: 600 13px/1.55 var(--disp); color: var(--ink); }
+.dband .dband-k { font: 400 12px/1.6 var(--disp); color: var(--ink-3); white-space: nowrap; }
+.dband-note { padding: 0 var(--u5) 6px; font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+
+.sheet-row {
+  display: grid; gap: 2px; text-decoration: none; color: inherit;
+  padding: 11px var(--u5); min-height: 44px;
+  border-bottom: 1px solid var(--dial-line-2);
+  border-inline-start: 2px dashed var(--line-ctl);
+  margin-inline-start: var(--u5);
+}
+.sh-t { font: 500 15px/1.6 var(--disp); color: var(--ink); }
+.sh-c { font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+.sheet-row--fixed { border-inline-start-style: solid; border-inline-start-color: var(--ink); }
+.sheet-row--out { background: var(--wash-time); border-inline-start-style: solid;
+  border-inline-start-color: var(--brass); }
+
+/* Seven scopes that behave identically do not need seven top-level rows. */
+.grp { margin-inline-start: var(--u5); border-inline-start: 2px dashed var(--line-ctl); }
+.grp > summary { list-style: none; display: grid; grid-template-columns: 1fr auto; gap: var(--u2);
+  align-items: center; padding: 11px var(--u5); min-height: 44px;
+  border-bottom: 1px solid var(--dial-line-2); font: 500 15px/1.6 var(--disp); }
+.grp > summary::-webkit-details-marker { display: none; }
+.grp-c { font: 400 12.5px/1.6 var(--disp); color: var(--ink-3); }
+.grp .sheet-row { margin-inline-start: 0; border-inline-start: 0; padding-inline-start: var(--u6); }
+
+/* ---------- 38 · REFUSAL IN PLACE, ATTRIBUTED TO A RULE
+   ----------------------------------------------------------------------------
+   `SAFETY_FLOOR` used to be a pinned, undeselectable row — a pre-disabled
+   control, which teaches nothing and gives assistive technology a state with no
+   reason. Now the sheet looks like every other sheet, is already taken, and
+   refuses ON THE LINE at the moment of the attempt, in the domain's own words.
+
+   The refusal is attributed to the RULE, not to the app's voice, and it is
+   announced: a `role="status"` region, because a control that silently declines
+   is indistinguishable from a control that is broken.
+---------------------------------------------------------------------------- */
+.refuse {
+  grid-column: 1 / -1; margin-block-start: var(--u2);
+  margin-inline-start: var(--u3); padding: var(--u2) 10px;
+  border-inline-start: 2px solid var(--alarm); background: var(--wash-alarm);
+  font: 400 13px/1.7 var(--disp); color: var(--ink-2);
+}
+.refuse .rule-name { display: block; font: 600 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.refuse b { display: block; font-weight: 600; color: var(--ink); }
+
+/* ---------- 39 · THE SHAPE OF THE HOLES — «خارج نطاق الإعارة»
+   ----------------------------------------------------------------------------
+   On a lent record, a scope that was NOT granted must appear as a named, empty,
+   requestable slot. A clinician who cannot see the labs must never be able to
+   read that as "this patient has no labs" — that is guardrail §3 applied at the
+   consent boundary, and it is the difference between a record with a hole in it
+   and a record that is simply short.
+---------------------------------------------------------------------------- */
+.hole { display: grid; grid-template-columns: 1fr auto; gap: var(--u3); align-items: center;
+  padding: 10px var(--u5); border-bottom: 1px dashed var(--line-ctl); }
+.hole-t { font: 400 14px/1.6 var(--disp); color: var(--ink-3); }
+.hole-t b { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- 40 · OWNERSHIP — the clinician's first partition
+   ----------------------------------------------------------------------------
+   A clinician's question is not "what is unfinished" but "what is unfinished
+   that I must act on now". That is a question about ownership, and
+   `deriveTasks`/`networkTasks` have always carried an owner that nothing
+   rendered. Filled control = the act is yours. Outlined = note it and move on.
+
+   HARD RULE, enforced at the call site: a result with flag === "critical"
+   always lands in «عليك أنت» with its real owner named beneath, because a
+   critical result nobody acknowledged is everyone's, and a partition that could
+   route one into somebody else's column would be a partition that kills people.
+---------------------------------------------------------------------------- */
+.own { border-top: 2px solid var(--ink); }
+.own > h2 { display: grid; grid-template-columns: 1fr auto; padding: var(--u2) var(--u5) 6px;
+  font: 600 13px/1.6 var(--disp); }
+.own > h2 .own-k { font-weight: 600; font-size: 15px; }
+.task { padding: 9px var(--u5); border-bottom: 1px solid var(--dial-line-2);
+  display: grid; grid-template-columns: 1fr auto; gap: var(--u3); align-items: center; }
+.task-t { font: 500 14.5px/1.6 var(--disp); color: var(--ink); }
+.task-m { font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+
+/* The clinician's value row: the reading and its geometry on ONE row.
+   Round 1 of this design pushed the range scale behind an evidence tap for
+   both readers. Testing changed the answer: a bar is answered
+   preattentively, a sentence is not, and taking it away costs a clinician
+   reading eight results the one glance they wanted. So geometry is demoted by
+   AUDIENCE, not by tap — the patient gets the sentence first, the clinician
+   gets value + geometry on a scannable row. The epistemic tiers did not move. */
+.vrow { display: grid; grid-template-columns: 1fr auto; gap: var(--u3); align-items: center;
+  padding: var(--u2) var(--u5); border-bottom: 1px solid var(--dial-line-2); min-height: 44px; }
+.vrow .vrow-nm { font: 500 14.5px/1.6 var(--disp); color: var(--ink); }
+.vrow .vrow-fl { font: 400 12.5px/1.6 var(--disp); color: var(--ink-3); }
+.vrow .vrow-vv { font: 500 20px/1.1 var(--num); color: var(--ink); font-variant-numeric: tabular-nums; }
+.vrow .vrow-geo { display: flex; gap: 10px; align-items: center; }
+
+/* ---------- 41 · 430 RE-COMPOSES, it does not merely reflow
+   ----------------------------------------------------------------------------
+   The measured baseline records byte-identical scroll heights at 390 and 430 on
+   four of six surfaces: the layout reflows but never re-composes. Every rule
+   here changes WHAT SITS BESIDE WHAT, not how long a line is.
+
+   Two re-compositions were built, measured and REJECTED, and are named so
+   nobody re-derives them:
+     · the year rows in two columns (−30% on the register) — a chronology read
+       down one column and then jumped back to the top of another is no longer
+       ONE TIME AXIS, which is the whole concept;
+     · an actor column promoted out of the sentence at 430 — it scanned better
+       and cost 223px at 390 to save 30px at 430, which is paying at the
+       reference width to look good at the widest.
+---------------------------------------------------------------------------- */
+@media (min-width: 415px) {
+  .reg { --gut: 78px; }
+  /* a returned loan absorbs its write-back list into a third column */
+  .reg-row--wide { grid-template-columns: var(--gut) 1fr 42%; }
+  .reg-row--wide .reg-back { grid-column: 3; grid-row: 1; margin: 0; padding-inline-start: var(--u3); }
+  .reg-gut .yr { display: inline; margin-inline-start: 4px; }
+  /* an aggregate's children are a SET, not a sequence — they may pair up */
+  .reg-kids { columns: 2; column-gap: var(--u4); }
+  /* a sheet's custody line moves beside its title */
+  .sheet-row { grid-template-columns: 1fr 44%; gap: var(--u3); align-items: baseline; }
+  /* THE DOCK. Three stacked full-width controls is the right shape at 320 and a
+     waste at 430 — a 430 phone has room for two acts on one line, and the
+     register's dock is the same three every time, so this applies always rather
+     than only when the data happens to produce a wide row. */
+  .dock-acts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u2) var(--u3); }
+  .dock-acts > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* THE TIMELINE at 430: the event's TYPE and its TITLE stop being stacked.
+     Two lines per event became one, which is a saving on every row rather than
+     on the rows that happen to carry a write-back. */
+  .tl-e-head { display: grid; grid-template-columns: auto 1fr; gap: var(--u3); align-items: baseline; }
+  .tl-e-head .tl-title { margin-top: 0; }
+
+  /* the clinician's two ownership registers sit side by side */
+  .owncols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--u4); align-items: start; }
+  /* the withheld scopes are a SET, not a sequence — a clinician reads them to
+     find one name, never in order, so they may pair up. The same reasoning that
+     allows `.reg-kids` two columns and forbids it on the year rows. */
+  .holes-2 { columns: 2; column-gap: var(--u4); }
+  .holes-2 .hole { break-inside: avoid; }
+}
+
+/* ---------- 42 · THE EPISTEMIC TIERS, RENDERED
+   `assist.js` separates FACT from INTERPRETATION from SUGGESTION structurally —
+   by how the statement was PRODUCED, not by a label a model was asked to apply.
+   The rendering has to keep them apart or it throws that away. Never
+   interleaved, never restyled into each other, and a refusal is a block that is
+   PRESENT and says why it is empty: an absent block reads as "nothing to say",
+   a refusal reads as "we will not say it".
+---------------------------------------------------------------------------- */
+/* The metric NAME is a label; the statement is the content. The measured
+   baseline names this exact inversion as a defect — on the results screen the
+   title and two metric names outweighed the numbers. Here the FACT sentence is
+   the heaviest rendered run on the patient's screen (16 x 500 = 8000 against the
+   header's 13 x 600 = 7800), and on the clinician's screen the VALUE is
+   (20 x 700). Each reader's first object is the heaviest thing they see. */
+.panel-h { padding: var(--u4) var(--u5) var(--u2); font: 600 13px/1.6 var(--disp);
+  color: var(--ink-2); border-top: 2px solid var(--ink); margin-top: var(--u5); }
+.stmt { padding: 10px var(--u5); border-bottom: 1px solid var(--dial-line-2); }
+.stmt-lb { font: 600 11.5px/1.6 var(--disp); color: var(--ink-3); }
+.stmt p { font: 500 16px/1.72 var(--disp); color: var(--ink); }
+.stmt-rule, .stmt-ev { font: 400 12.5px/1.65 var(--disp); color: var(--ink-3); }
+.stmt--stop { background: var(--wash-alarm); border-inline-start: 2px solid var(--alarm); }
+.ser { padding: 4px var(--u5) var(--u4); }
+/* the range bar, inline on a clinician's row rather than block under a hero */
+.rng--row { width: 96px; flex: 0 0 96px; }
+/* An act inside a task row keeps `.b`'s own 52px — §20 switches OFF the
+   invisible 44px extender for `.b` precisely because `.b` is tall enough on its
+   own, so a "compact" modifier here would silently create a 40px target. Only
+   the horizontal padding narrows. */
+.task-act, .hole .b { padding-inline: var(--u4); min-width: 84px; font-size: 13.5px; }
+
+/* ---------- 43 · THE DELTA — continuity as change, not adjacency
+   A rail of dots says "these happened near each other". A delta says what was
+   ADDED, STOPPED, ASKED FOR and CAME BACK on a given day, which is the thing a
+   reader actually needs from a longitudinal record. No dots, no rail: the date
+   column is the axis and the verbs carry the meaning.
+---------------------------------------------------------------------------- */
+.deltas { margin-top: var(--u2); }
+.delta { display: grid; grid-template-columns: 72px 1fr; gap: var(--u3);
+  padding-block: var(--u3); border-bottom: 1px solid var(--dial-line-2); }
+.delta-d { font: 400 12px/1.5 var(--disp); color: var(--ink-3); }
+.delta-d .yr { display: block; font-size: 11px; color: var(--ink-3); }
+.delta-h { font: 500 15px/1.6 var(--disp); color: var(--ink); margin-bottom: 2px; }
+.delta-l { font: 400 14px/1.7 var(--disp); color: var(--ink-2); }
+.delta-k { font-weight: 600; color: var(--ink-3); font-size: 12.5px;
+  display: inline-block; min-width: 42px; }
+@media (min-width: 415px) {
+  /* The extra width goes to the CONTENT. A first attempt gave the verb its own
+     56px column at 430 and the surface came out TALLER than at 390 — the new
+     gutter took more width than the viewport had gained, so every line wrapped
+     one word earlier. Measured, then removed. */
+  .delta { grid-template-columns: 84px 1fr; }
+}
+
+/* the timeline's day number is the axis, not the content — see eventRow */
+.tl-when b { font-weight: 400; font-size: 13px; color: var(--ink-3); }
+.tl-title { font: 500 15px/1.65 var(--disp); color: var(--ink); margin-top: 4px; }
+
+/* ---------- 44 · THE DARK-THEME BOUNDARY OVERRIDES §0 MISSED
+   ----------------------------------------------------------------------------
+   §0 split the CONTROL boundary (`--line-ctl`, 3.42:1) from the decorative
+   hairline (`--case-line`, 1.43:1) precisely because every chip, field, icon
+   button and nav border in the dark theme was being drawn at roughly 1.4:1. The
+   split landed on the single-class rules in this file — but `identity.css`
+   carries `.dark .b-s`, `.dark .c` and `.dark .av` at specificity (0,2,0),
+   which OUTRANK it and kept the old hairline.
+
+   Nothing caught this because the audit walks 31 routes and, until the register
+   put one on `#/`, not one of them rendered a `.b-s` in the dark theme. The
+   audit found it the same hour it existed: "137 control edges measured, 1 below
+   3:1, worst 1.43:1 — dark #/ .b b-s".
+
+   Fixed HERE rather than in `identity.css`, because that file states it is the
+   reference and that a screen's problem is fixed in the app layer. The token
+   itself is unchanged and stays at the value it was measured to hold. */
+.dark .b-s, .dark .btn--2, .dark .slot-btn, .dark .start-tile { border-color: var(--line-ctl); }
+.dark .c { border-color: var(--line-ctl); }
+.dark .av { border-color: var(--line-ctl); }
