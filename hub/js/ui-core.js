@@ -308,7 +308,11 @@ function distTo(f) { return haversine(here(), f); }
 function fmtKm(k) {
   const n = k < 1 ? Math.round(k * 1000) : k.toFixed(1);
   const u = k < 1 ? (isAR() ? "م" : "m") : t("km");
-  return `<span class="num">${n}</span> ${u}`;
+  /* `.nw` and a non-breaking space: at 320px «207 م» was breaking across two
+     visual lines with the unit on the line ABOVE its own number. The unit stays
+     outside the `.num` run — it is Arabic, and inside an LTR run it would
+     render before the digits. */
+  return `<span class="nw"><span class="num">${n}</span>\u00A0${u}</span>`;
 }
 const approxNote = () => S.locState === "precise" ? "" :
   (isAR() ? `المسافات تقريبية من مركز ${L(here())}` : `Distances approximate from ${L(here())} centre`);
@@ -389,7 +393,13 @@ const phNightListed = () => FACILITIES.filter((f) => f.type === "pharmacy" && f.
 /* ---------------- HELPERS ---------------- */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 // An unknown fee is omitted by the caller. This never invents certainty.
-const money = (n) => (n === null || n === undefined) ? "" : n === 0 ? t("free") : `${n.toLocaleString("en-US")} ${L(CONFIG.currency)}`;
+/* Latin digits and an ARABIC currency word, so the digits get the LTR run and
+   «د.ع» stays outside it. Ten call sites used to wrap this whole return value in
+   a second `.num`, which put the currency BEFORE the amount on some screens and
+   after it on others — the same value rendering «25,000 د.ع» on the doctors list
+   and «د.ع 18,000» on the pharmacy screen, one tap apart. */
+const money = (n) => (n === null || n === undefined) ? "" : n === 0 ? t("free")
+  : `<span class="nw"><span class="num">${n.toLocaleString("en-US")}</span>\u00A0${L(CONFIG.currency)}</span>`;
 const initials = (name) => {
   const clean = name.replace(/^د\.\s*/, "").replace(/^Dr\.\s*/, "").trim();
   // Arabic letters join into pseudo-words, so one letter reads better than two
@@ -523,10 +533,26 @@ function band(ent, day = null, showNow = true) {
    Arabic word. The unit joins the number inside a single run that cannot
    wrap and cannot be reordered. */
 const UNIT_TIGHT = /^(%|°C|°F|°)$/;
+const HAS_ARABIC = /[\u0600-\u06FF]/;
 function measure(v, unit) {
   const u = String(unit || "").trim();
+  const num = `<span class="num">${esc(String(v))}</span>`;
+  if (!u) return `<span class="nw">${num}</span>`;
+  /* THE UNIT GOES OUTSIDE THE LTR RUN WHENEVER IT IS ARABIC.
+     `direction: ltr` protects a number from the Arabic AROUND it. It does
+     nothing about Arabic INSIDE it — and inside an LTR isolate, «ملغم» is AL,
+     the joining space resolves to R by N1 because the digits act as R, and
+     reversing that level-1 region puts the UNIT BEFORE THE NUMBER. Measured:
+     «ميتفورمين <span class="num">500 ملغم</span>» renders «ميتفورمين ملغم 500».
+     A dose whose unit precedes its number is a prescribing hazard, and it was
+     rendering on every row of the medicine list.
+
+     Digits in the LTR run, Arabic unit outside it in the page's own direction,
+     the pair held together by `.nw` and a non-breaking space so a narrow column
+     can never put the unit on a different line from its number either. */
+  if (HAS_ARABIC.test(u)) return `<span class="nw">${num}\u00A0${esc(u)}</span>`;
   return `<span class="num nw">${esc(String(v))}${
-    u ? (UNIT_TIGHT.test(u) ? "" : " ") + esc(u) : ""}</span>`;
+    UNIT_TIGHT.test(u) ? "" : "\u00A0"}${esc(u)}</span>`;
 }
 
 /* A blood pressure is ONE reading, so it must be ONE bidi run.
@@ -636,7 +662,7 @@ function productCard(p) {
     <div class="prod-b">
       <div class="prod-t">${esc(L(p))}</div>
       <div class="prod-brand">${esc(p.brand)}</div>
-      <div class="prod-p num">${money(p.price)}</div>
+      <div class="prod-p">${money(p.price)}</div>
     </div>
   </a>`;
 }

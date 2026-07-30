@@ -84,6 +84,20 @@ ul, ol { list-style: none; }
 /* A quantity, a date, a blood pressure: one unbreakable run. */
 .nw { white-space: nowrap; }
 
+/* A DRUG STRENGTH. «20 ملغم» is a number plus an ARABIC unit, and it used to be
+   wrapped in `.n` — `direction: ltr` — on eleven sites. Inside that LTR run the
+   unit is AL, the joining space resolves to R because the digits act as R, and
+   reversing the level-1 region puts the UNIT BEFORE THE NUMBER: every row of
+   the medicine list read «ريفاروكسابان ملغم 20», on the same screen whose own
+   body copy warns «التركيز مهم — 2.5 ملغم غير 50 ملغم».
+
+   `<bdi>` is `unicode-bidi: isolate` with `dir=auto`: opaque to the surrounding
+   text in both directions, but resolving INTERNALLY in its own base direction,
+   which for «20 ملغم» is number-then-unit. It also cannot break mid-quantity.
+   The lighter weight that `.n` was really being used for stays. */
+.strength { unicode-bidi: isolate; white-space: nowrap;
+            font-family: var(--num); font-variant-numeric: tabular-nums; font-weight: 300; }
+
 /* `overflow-wrap: anywhere` was set on h1,h2,h3,p,span,div,li — everything.
    Arabic has no hyphenation convention, so `anywhere` breaks words at
    arbitrary letters with nothing to mark the break: «حساسية» rendered as
@@ -96,6 +110,11 @@ ul, ol { list-style: none; }
    really do hold unbreakable machine tokens. */
 h1, h2, h3, p, span, div, li { overflow-wrap: break-word; }
 .mono, .slip-ref, .brk { overflow-wrap: anywhere; }
+
+/* Anything a thumb can hit gets `--line-ctl` (3:1, WCAG 1.4.11) rather than
+   `--dial-line`; decorative surfaces and separators keep the quiet hairline.
+   The classes carrying it: .btn--2/.b-s/.slot-btn/.start-tile, .icon-btn, .chip,
+   .av, .field input, .fld input, .offline-bar button, .qa-no, .rush. */
 
 /* ---------- 2 · type · display tight and heavy, body light and open ---------- */
 h1, .q-h1, .prof-name, .dp-name { font: 600 30px/1.26 var(--disp); letter-spacing: -.02em; }
@@ -260,7 +279,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
 .btn:active, .b:active { transform: scale(.985); }
 .btn svg, .b svg { width: 17px; height: 17px; }
 
-.btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--dial-line); }
+.btn--2, .b-s, .slot-btn, .start-tile { background: transparent; color: var(--ink); border-color: var(--line-ctl); }
 .btn--3 { background: none; color: var(--jade); border-color: transparent; font-weight: 500; min-height: 44px; }
 
 /* `.b-g` is the quiet action — «تعديل», «الطريق», «كيف نتحقق» — and it is
@@ -305,7 +324,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
 .icon-btn {
   display: grid; place-items: center; flex: none;
   width: 48px; height: 48px; border-radius: var(--rp);
-  border: 1px solid var(--dial-line); color: var(--ink); background: transparent;
+  border: 1px solid var(--line-ctl); color: var(--ink); background: transparent;
 }
 .icon-btn svg { width: 19px; height: 19px; }
 .clear-btn { display: grid; place-items: center; width: 36px; height: 36px; flex: none; color: var(--ink-3); min-height: 36px; }
@@ -323,7 +342,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
      lands at 43.6px wide — under the line by less than a pixel, and the
      audit caught it. Padding alone cannot guarantee 44 for short labels. */
   min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--rp);
-  border: 1px solid var(--dial-line);
+  border: 1px solid var(--line-ctl);
   font: 400 13px/1 var(--disp); color: var(--ink-2);
   white-space: nowrap; background: transparent;
   transition: background .15s, border-color .15s, color .15s;
@@ -364,7 +383,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   width: 44px; height: 44px; flex: none; border-radius: var(--rp);
   display: grid; place-items: center;
   font: 400 17px/1 var(--disp); color: var(--ink-2);
-  background: transparent; border: 1px solid var(--dial-line); position: relative;
+  background: transparent; border: 1px solid var(--line-ctl); position: relative;
 }
 .av::after, .avatar::after, .qc-av::after { content: ""; position: absolute; inset: -4px; border-radius: var(--rp); border: 1px solid var(--dial-line-2); }
 .avatar--sq, .ic, .intent-ic { border-radius: var(--r); }
@@ -386,7 +405,9 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
 .nowmk, .ribbon > b { position: absolute; top: -5px; bottom: -5px; width: 1.5px; background: var(--ink); inset-inline-start: var(--now); border-radius: 0; }
 .bar-t { overflow: hidden; }
 .bar-r { display: grid; grid-template-columns: 92px 1fr 46px; gap: var(--u3); align-items: center; font-size: 12px; }
-.bar-v { text-align: left; }
+/* `left` was the only physical text-align outside the identity demo frame.
+   The grid columns around it mirror under RTL; this did not. */
+.bar-v { text-align: end; }
 .bars { display: grid; gap: var(--u2); }
 
 /* The tick rule — the identity motif. Engraved 24h measurement. */
@@ -584,7 +605,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
 .field label { display: block; margin-bottom: 7px; }
 .field input, .field textarea {
   width: 100%; min-height: 52px; padding: 0 var(--u4);
-  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  border: 1px solid var(--line-ctl); border-radius: var(--rp);
   background: var(--dial-2); font: 300 15px/1.6 var(--disp);
 }
 .field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
@@ -631,7 +652,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
 .fld > span { display: block; margin-bottom: 7px; }
 .fld input, .fld textarea, .fld select {
   display: block; width: 100%; min-height: 52px; padding: 0 var(--u4);
-  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  border: 1px solid var(--line-ctl); border-radius: var(--rp);
   background: var(--dial-2); font: 300 15px/1.6 var(--disp);
   color: var(--ink);
 }
@@ -751,7 +772,7 @@ label.row, label.rw { min-height: 44px; cursor: pointer; }
   color: var(--ink-2); border-bottom: 1px solid var(--dial-line);
   background: var(--dial-2);
 }
-.offline-bar button { flex: none; min-height: 40px; padding: 0 14px; border-radius: var(--rp); border: 1px solid var(--dial-line); font-size: 12px; font-weight: 500; }
+.offline-bar button { flex: none; min-height: 40px; padding: 0 14px; border-radius: var(--rp); border: 1px solid var(--line-ctl); font-size: 12px; font-weight: 500; }
 
 /* ---------- 16 · skeleton · the dial breathes, it does not shimmer ---------- */
 .skel, .sk { background: var(--dial-line-2); border-radius: 3px; animation: pl 1.8s ease-in-out infinite; }
@@ -835,8 +856,11 @@ input, textarea { min-height: 44px; }
 
 /* The filter bar above a result list, and its lead button. */
 .filters { padding: var(--u3) var(--u5) 0; }
-.chip--filter { border-color: var(--ink-4); color: var(--ink); font-weight: 500; }
-.dark .chip--filter { border-color: var(--case-ink-3); color: var(--case-ink); }
+/* A filter chip is a control, so its edge resolves through the control
+   boundary rather than through an ink alpha chosen for text. `--ink-4` (.42)
+   measured 2.71:1 on the lighter `--dial-2` surface these sit on. */
+.chip--filter { border-color: var(--line-ctl); color: var(--ink); font-weight: 500; }
+.dark .chip--filter { color: var(--case-ink); }
 
 /* A display line that carried an inline font-size and nothing else, so it
    inherited body weight and body leading on every screen that used it. */
@@ -986,7 +1010,7 @@ input, textarea { min-height: 44px; }
 .qa-b:active { transform: scale(.97); }
 .qa-yes { grid-column: 1 / -1; background: var(--jade); color: var(--dial-2); font-weight: 600; font-size: 16px; }
 .qa-one { background: transparent; border-color: var(--brass-ink); color: var(--brass-ink); }
-.qa-no  { background: transparent; border-color: var(--dial-line); color: var(--ink-3); }
+.qa-no  { background: transparent; border-color: var(--line-ctl); color: var(--ink-3); }
 /* Optimistic exit: the card leaves on the same frame as the tap. A pharmacist
    must never wait to learn whether their answer landed. */
 .qa-gone { overflow: hidden; height: 0 !important; opacity: 0; padding-block: 0; margin: 0; border-width: 0;
@@ -997,7 +1021,7 @@ input, textarea { min-height: 44px; }
 .rush {
   display: flex; align-items: center; gap: var(--u3); width: 100%;
   margin-top: var(--u5); padding: var(--u3) var(--u4); min-height: 56px;
-  border: 1px solid var(--dial-line); border-radius: var(--r); background: transparent;
+  border: 1px solid var(--line-ctl); border-radius: var(--r); background: transparent;
 }
 .rush.on { border-color: var(--brass-ink); background: var(--dial-2); }
 .rush-sw { flex: none; width: 44px; height: 26px; border-radius: var(--rp); background: var(--dial-line); position: relative; transition: background .16s ease; }
@@ -1233,3 +1257,24 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- 32 · Arabic leading, measured from Arabic ink ----------
+   The type scale's leading was derived from Latin extents. Measured ink at
+   100px in the shipped display face: Latin "Hjgqy" occupies 0.90em top to
+   bottom; «الهيموغلوبين» occupies 1.04em; and «مضبوط جزئياً» — a shadda and a
+   tanwīn, both ordinary in this product's own copy — occupies 1.33em.
+
+   So `h1` at 30px/1.26 gives 37.8px of leading for 39.9px of Arabic ink, and
+   every `line-height: 1` control (.chip, .btn, .nav a) is 4-5px short. Nothing
+   clips, because overflow is visible — but two-line Arabic display headings
+   collide, and Arabic in a centred flex control sits low in its box because the
+   half-leading was computed from a Latin ascent.
+
+   Scoped to `:lang(ar)` so Latin keeps the tight display setting it was tuned
+   for, the same axis on which this file already scopes tracking and caps.
+   Padding is deliberately NOT the fix: it grows the box and leaves the
+   two-line collision exactly where it was. */
+:root:lang(ar) :is(h1, .q-h1, .prof-name, .dp-name, .d1) { line-height: 1.42; }
+:root:lang(ar) :is(h2, .d2, .hero-line) { line-height: 1.45; }
+:root:lang(ar) :is(.chip, .c, .btn, .b, .b-g, .b-s, .nav a, .av, .mark,
+  .qa-b, .slot-btn, .icon-btn, .seal, .st) { line-height: 1.5; }

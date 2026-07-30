@@ -467,7 +467,7 @@ function screenHomePharmacist() {
       ? "أقدم من يوم — المريض يشوفها باهتة. أكّدها من جديد إذا الدواء بعده موجود."
       : "Over a day old — patients see them dimmed. Re-confirm if the stock is still there."}</div>
     ${aging.map((g) => { const x = variantOf(g.v); return x ? `<div class="rw">
-      <span class="grow"><span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
+      <span class="grow"><span class="d3" style="display:block">${esc(L(x.med))} <bdi class="strength">${esc(x.v.strength)}</bdi></span>
         <span class="row" style="margin-top:8px"><span class="st st-t"><i class="dot"></i>${isAR() ? `أفدت ${sigAge(sigAgeMin(g))}` : `reported ${sigAge(sigAgeMin(g))}`}</span></span>
       </span></div>` : ""; }).join('<div class="hr"></div>')}
   </section>` : ""}
@@ -719,7 +719,7 @@ function screenDoctors(params) {
     </div>
   </div>
   <div class="res-head">
-    <div class="res-n"><span class="num">${r.list.length}</span> ${t("results")}
+    <div class="res-n">${isAR() ? countAr(r.list.length, AR_RESULT) : `<span class="num">${r.list.length}</span> ${t("results")}`}
       <span class="why">· ${isAR() ? "الأقرب موعداً أولاً" : "soonest first"}</span></div>
     <div class="tiny muted">${esc(approxNote() || L(here()))}</div>
   </div>
@@ -849,8 +849,8 @@ function screenDoctor(id) {
               `${days.map(dayName).join("، ")} · ${range}`).join("<br>")}
           </div>
           <div class="t3" style="margin-top:2px;padding-inline-start:18px">
-            ${dist ? esc(L(dist)) + " · " : ""}<span class="num">${fmtKm(distTo(f))}</span>
-            ${feeSet.length ? " · " + feeSet.map((x) => `<span class="num">${money(x)}</span>`).join(" / ") : ""}
+            ${dist ? esc(L(dist)) + " · " : ""}${fmtKm(distTo(f))}
+            ${feeSet.length ? " · " + feeSet.map((x) => `${money(x)}`).join(" / ") : ""}
           </div>
           <div class="row" style="margin-top:8px;padding-inline-start:18px">
             <a class="b-g" style="font-size:12px" href="${mapLink(f)}" target="_blank" rel="noopener">${t("directions")}</a>
@@ -952,7 +952,7 @@ function screenPharmacies() {
       <span class="lbl">${esc(L(here()))} · ${isAR() ? countAr(list.length, AR_PHARM) : `<span class="num">${list.length}</span> pharmacies`}</span>
     </div>
   </section>
-  <div class="res-head"><span class="res-n"><span class="num">${list.length}</span> ${t("results")}</span>
+  <div class="res-head"><span class="res-n">${isAR() ? countAr(list.length, AR_RESULT) : `<span class="num">${list.length}</span> ${t("results")}`}</span>
     <span class="tiny muted">${esc(approxNote()) || (isAR() ? "المفتوح أولاً، ثم الأقرب" : "Open first, then nearest")}</span></div>
   <section class="wrap"><div class="stack list-2">
     ${list.length ? (() => { const live = list.some((x) => x.st.k !== "shut"); return list.map((x) => pharmacyCard(x, live)).join(""); })() : nightFallback()}
@@ -1020,7 +1020,7 @@ function screenPharmacy(id) {
 
     <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
       ${statusLabel(st, true)}
-      ${sameCityAsUser(f) ? `<span class="t3"><span class="num">${fmtKm(km)}</span></span>` : ""}
+      ${sameCityAsUser(f) ? `<span class="t3">${fmtKm(km)}</span>` : ""}
       ${f.night ? `<span class="st st-t">${isAR() ? "خفارة ليلية" : "Night duty"}</span>` : ""}
       <span class="t3">${updatedLine(f)}</span>
     </div>
@@ -1082,7 +1082,7 @@ function screenPharmacy(id) {
         <span class="d3" style="display:block">${esc(L(x))}</span>
         <span class="q-sub" style="display:block">${esc(x.brand || "")}</span>
       </span>
-      <span class="t3 num" style="align-self:center">${money(x.price)}</span></a>`).join('<div class="hr"></div>')}
+      <span class="t3" style="align-self:center">${money(x.price)}</span></a>`).join('<div class="hr"></div>')}
   </section>` : ""}
 
   <section class="pad" style="margin-top:30px">
@@ -1155,7 +1155,7 @@ function screenProduct(id) {
     <h1 class="prof-name" style="margin-top:16px">${esc(L(p))}</h1>
     <div class="prof-spec">${esc(p.brand)}</div>
     <div class="row" style="margin-top:10px;gap:10px">
-      <span class="prod-p num" style="font-size:20px">${money(p.price)}</span>
+      <span class="prod-p" style="font-size:20px">${money(p.price)}</span>
       <span class="chip chip--meta chip--ok">${esc(L(CARE_CATEGORIES.find((c) => c.id === p.cat)))}</span>
     </div>
   </section>
@@ -2386,6 +2386,9 @@ const AR_YEAR  = ["سنة واحدة", "سنتان", "سنوات", "سنةً"];
 const AR_YEAR_EXP = ["سنة خبرة واحدة", "سنتا خبرة", "سنوات خبرة", "سنةَ خبرة"];
 const AR_REQ_WAIT = ["طلب واحد", "طلبان", "طلبات", "طلباً"];
 const AR_SEARCH = ["بحث واحد", "بحثان", "عمليات بحث", "بحثاً"];
+/* «9 نتيجة» is wrong — 3-10 takes the broken plural. This is the FIRST line of
+   the two busiest screens in the product, and the countAr pass missed both. */
+const AR_RESULT = ["نتيجة واحدة", "نتيجتان", "نتائج", "نتيجةً"];
 const AR_CONFIRMING = ["صيدلية واحدة مؤكِّدة", "صيدليتان مؤكِّدتان", "صيدليات مؤكِّدة", "صيدليةً مؤكِّدة"];
 const AR_LOST = ["طلب ضائع واحد", "طلبان ضائعان", "طلبات ضائعة", "طلباً ضائعاً"];
 
@@ -2503,10 +2506,10 @@ function stockCard(med, x, ref) {
     <span class="av">${esc(initial(L(x.f)))}</span>
     <span class="grow">
       <span class="d3" style="font-size:17px;display:block">${esc(L(x.f))}</span>
-      <span class="q-sub" style="display:block">${d ? esc(L(d)) + " · " : ""}<span class="num">${fmtKm(x.km)}</span></span>
+      <span class="q-sub" style="display:block">${d ? esc(L(d)) + " · " : ""}${fmtKm(x.km)}</span>
       <span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">
         <span class="st ${stale ? "st-q" : "st-t"}">${stale ? "" : `<i class="dot${x.band === "hot" ? " dot-live" : ""}"></i>`}${freshLabel(x.mins)}</span>
-        ${x.price ? `<span class="t3"><span class="num">${money(x.price)}</span></span>` : ""}
+        ${x.price ? `<span class="t3">${money(x.price)}</span>` : ""}
       </span>
       <span class="row" style="gap:14px;margin-top:10px">
         ${x.f.wa ? `<a class="b-g" style="font-size:12.5px" href="${waLink(x.f.wa, medMsg(med, ref))}"
@@ -2603,8 +2606,8 @@ function screenMed(id) {
       <div class="d3">${esc(L(x.f))}</div>
       <div class="q-sub">${d ? esc(L(d)) + (isAR() ? (d.lm_ar ? " — " + esc(d.lm_ar) : "") : (d.lm_en ? " — " + esc(d.lm_en) : "")) : ""}</div>
       <div class="row" style="margin-top:12px;gap:16px;flex-wrap:wrap">
-        <span class="t3"><span class="num">${fmtKm(x.km)}</span></span>
-        ${x.price ? `<span class="t3"><span class="num">${money(x.price)}</span></span>` : ""}
+        <span class="t3">${fmtKm(x.km)}</span>
+        ${x.price ? `<span class="t3">${money(x.price)}</span>` : ""}
         ${statusLabel(x.st, true)}
       </div>
       <div style="margin-top:14px">${band(x.f)}</div>
@@ -2647,8 +2650,8 @@ function screenMed(id) {
 
   ${elsewhere ? `<section class="pad" style="margin-top:24px"><div class="note note-w">
     <span>${isAR()
-      ? `ما لكيناه مؤكَّداً في <b>${esc(L(elsewhere))}</b> — أقرب تأكيد في <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>، <span class="num">${fmtKm(fresh[0].km)}</span>.`
-      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — nearest is <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, <span class="num">${fmtKm(fresh[0].km)}</span> away.`}</span>
+      ? `ما لكيناه مؤكَّداً في <b>${esc(L(elsewhere))}</b> — أقرب تأكيد في <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>، ${fmtKm(fresh[0].km)}.`
+      : `Not confirmed in <b>${esc(L(elsewhere))}</b> — nearest is <b>${esc(L(DISTRICTS.find((d) => d.id === fresh[0].f.district)) || "")}</b>, ${fmtKm(fresh[0].km)} away.`}</span>
   </div></section>` : ""}
 
   ${rest.length ? `<section class="pad" style="margin-top:30px">
@@ -3145,7 +3148,7 @@ function needCard(r, opts = {}) {
     ${r.urg === "urgent" && st !== "expired" ? `<span class="rw-lead" style="background:var(--alarm)"></span>` : ""}
     <span class="grow">
       <span class="rowb">
-        <span class="d3">${esc(md.name)} ${md.strength ? `<span class="n" style="font-weight:300">${esc(md.strength)}</span>` : ""}</span>
+        <span class="d3">${esc(md.name)} ${md.strength ? `<bdi class="strength">${esc(md.strength)}</bdi>` : ""}</span>
         <span class="st ${u.cls}"><i class="dot${r.urg === "urgent" ? " dot-live" : ""}"></i>${esc(urgShort(u))}</span>
       </span>
       <span class="q-sub" style="display:block">${md.form ? esc(md.form) + " · " : ""}${esc(r.qty)} · ${esc(needPlace(r))}</span>
@@ -3224,7 +3227,7 @@ function screenExplorer() {
       return `<a class="rw" href="#/rx/${v.id}">
         <span class="rw-lead" style="background:var(--jade)"></span>
         <span class="grow">
-          <span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(v.strength)}</span></span>
+          <span class="d3" style="display:block">${esc(L(x.med))} <bdi class="strength">${esc(v.strength)}</bdi></span>
           <span class="q-sub" style="display:block">${isAR() ? "متوفّر في" : "available in"} <b>${esc(cityName(other.c))}</b> — ${isAR() ? countAr(other.n, AR_PHARM) : `<span class="num">${other.n}</span> pharmacies`}</span>
           <span class="row" style="margin-top:9px"><span class="st st-t"><i class="dot"></i>${other.best ? sigAge(other.best.m) : ""}</span></span>
         </span></a>`;
@@ -3241,7 +3244,7 @@ function screenExplorer() {
         <span class="rw-lead"></span>
         <span class="av">${esc(initial(L(f)))}</span>
         <span class="grow">
-          <span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
+          <span class="d3" style="display:block">${esc(L(x.med))} <bdi class="strength">${esc(x.v.strength)}</bdi></span>
           <span class="q-sub" style="display:block">${esc(L(f))} — ${esc(cityName(cityById(cityOf(f))))}</span>
           <span class="row" style="margin-top:9px;gap:12px">
             <span class="st st-t"><i class="dot${sigAgeMin(g) < 60 ? " dot-live" : ""}"></i>${sigAge(sigAgeMin(g))}</span>
@@ -3326,7 +3329,7 @@ function screenRxSearch() {
     ${hits.slice(0, 8).map(({ med, v, n }) => `<a class="rw" href="#/rx/${v.id}">
       ${n ? `<span class="rw-lead" style="background:var(--jade)"></span>` : ""}
       <span class="grow">
-        <span class="d3" style="display:block">${esc(L(med))} <span class="n" style="font-weight:300">${esc(v.strength)}</span></span>
+        <span class="d3" style="display:block">${esc(L(med))} <bdi class="strength">${esc(v.strength)}</bdi></span>
         <span class="q-sub" style="display:block">${esc(v.form)} · ${esc(v.pack)}${med.rx ? (isAR() ? " · بوصفة" : " · prescription") : ""}</span>
         <span class="row" style="margin-top:9px">${n
           ? `<span class="st st-v"><i class="dot"></i>${isAR() ? `<span class="num">${n}</span> صيدلية مؤكِّدة` : `<span class="num">${n}</span> confirming`}</span>`
@@ -3348,7 +3351,7 @@ function screenRxSearch() {
       return `<a class="rw" href="#/rx/${tr.v}">
         ${n ? `<span class="rw-lead" style="background:var(--jade)"></span>` : ""}
         <span class="grow">
-          <span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
+          <span class="d3" style="display:block">${esc(L(x.med))} <bdi class="strength">${esc(x.v.strength)}</bdi></span>
           <span class="q-sub" style="display:block">${esc(x.v.form)}</span>
           <span class="row" style="margin-top:9px;gap:12px">
             <span class="t3">${isAR() ? countAr(tr.n, AR_SEARCH) : `<span class="num">${tr.n}</span> searches`}</span>
@@ -3381,7 +3384,7 @@ function screenVariant(vid) {
       <button class="b-g" style="font-size:13px" onclick="location.hash='#/need/new?v=${vid}'">${isAR() ? "انشر حاجتك" : "Publish a need"}</button>
     </div>
     <div class="lab" style="margin-top:26px">${esc(med.cls_ar && isAR() ? med.cls_ar : "")}${med.rx ? (isAR() ? " · يُصرف بوصفة" : "Prescription only") : ""}</div>
-    <h1 class="d1" style="margin-top:10px">${esc(L(med))} <span class="n" style="font-weight:300">${esc(v.strength)}</span></h1>
+    <h1 class="d1" style="margin-top:10px">${esc(L(med))} <bdi class="strength">${esc(v.strength)}</bdi></h1>
     <div class="q-sub" style="margin-top:6px">${esc(v.form)} · ${esc(v.pack)}${
       (v.alt || []).length ? ` · ${isAR() ? "يُباع أيضاً باسم" : "also sold as"} ${esc(v.alt.join("، "))}` : ""}</div>
   </section>

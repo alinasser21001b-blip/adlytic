@@ -77,7 +77,7 @@ const SEED = () => {
 
 const CHROME = process.env.QAREEB_CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const WIDTHS = [390, 360];
-const fail = { render: [], touch: [], overflow: [], contrast: [], rtl: [], deadend: [], clip: [], focus: [], motion: [] };
+const fail = { render: [], touch: [], overflow: [], contrast: [], rtl: [], deadend: [], clip: [], focus: [], motion: [], ltrun: [] };
 const note = (bucket, s) => fail[bucket].push(s);
 
 /* ---------- contrast maths, WCAG 2.1 ---------- */
@@ -210,6 +210,77 @@ for (const theme of ["dark", "light"]) {
     }
   }
   console.log(`   ${theme}: ${bad} below threshold, worst ${worst.r.toFixed(2)}:1 — ${worst.what}`);
+  await ctx.close();
+}
+
+/* ---------- ٣-ب · the boundary of a CONTROL, WCAG 1.4.11 ----------
+   This detector did not exist, and its absence let a real failure ship for the
+   life of the project: every chip outline, field outline, icon button and
+   monogram ring in the dark theme was drawn at 1.43:1 against its own surface,
+   against a 3:1 requirement. Text contrast was measured from the beginning;
+   the edge of the thing you tap was not measured at all. A flat, unfinished
+   look was the symptom — the cause was arithmetic nobody had checked. */
+console.log("\n── ٣-ب · حدود عناصر التحكّم — control boundaries (WCAG 1.4.11)");
+for (const theme of ["dark", "light"]) {
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
+  const pg = await ctx.newPage();
+  await pg.goto(B + "/index.html", { waitUntil: "domcontentloaded" });
+  await pg.waitForTimeout(400); await pg.evaluate(SEED);
+  await pg.evaluate((t) => localStorage.setItem("qrb.theme", JSON.stringify(t)), theme);
+  let worst = { r: 99, what: "" }, bad = 0, seen = 0;
+  for (const r of ROUTES) {
+    await pg.goto(B + "/index.html" + r, { waitUntil: "domcontentloaded" });
+    await pg.waitForTimeout(430);
+    const rows = await pg.evaluate(() => {
+      const out = [];
+      const bgOf = (el) => {
+        for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+          const c = getComputedStyle(n).backgroundColor;
+          if (c && c !== "rgba(0, 0, 0, 0)" && !/, *0\)$/.test(c)) return c;
+        }
+        return getComputedStyle(document.body).backgroundColor;
+      };
+      /* Only things a person can operate: the boundary of a decorative panel
+         is not what 1.4.11 is about, and holding it to 3:1 would force a
+         heavier line than the design wants for a surface nobody touches. */
+      for (const el of document.querySelectorAll(
+        "button, a[href], input, select, textarea, label.rw, .chip, .icon-btn, .btn")) {
+        const cs = getComputedStyle(el);
+        if (cs.visibility === "hidden" || cs.display === "none" || +cs.opacity === 0) continue;
+        if (el.disabled) continue;
+        const box = el.getBoundingClientRect();
+        if (box.width < 8 || box.height < 8) continue;
+        /* A BOX, not a separator. `.stack > * + * { border-top }` draws a
+           hairline BETWEEN sibling rows, and a row's identity comes from its
+           content, not from that rule — holding a separator to 3:1 would force
+           a heavy line between every row for no gain. Only a border on all four
+           sides is the boundary of a control, which is what 1.4.11 is about. */
+        const w = parseFloat(cs.borderTopWidth) || 0;
+        const sides = ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"];
+        if (!sides.every((k) => (parseFloat(cs[k]) || 0) > 0)) continue;
+        const bc = cs.borderTopColor;
+        if (!w || !bc || bc === "rgba(0, 0, 0, 0)" || /, *0\)$/.test(bc)) continue;
+        /* A filled control carries its own contrast through its background;
+           the border is then decoration on top of a shape already visible. */
+        const own = cs.backgroundColor;
+        if (own && own !== "rgba(0, 0, 0, 0)" && !/, *0\)$/.test(own)) continue;
+        out.push({ border: bc, bg: bgOf(el),
+          cls: (el.className || "").toString().slice(0, 22) || el.tagName.toLowerCase() });
+      }
+      return out;
+    });
+    for (const x of rows) {
+      const fg = parse(x.border), bg = parse(x.bg);
+      if (fg.length < 3 || bg.length < 3) continue;
+      const a = fg.length > 3 ? fg[3] : 1;
+      const eff = a < 1 ? fg.slice(0, 3).map((c, i) => c * a + bg[i] * (1 - a)) : fg.slice(0, 3);
+      const rr = ratio(eff, bg.slice(0, 3));
+      seen++;
+      if (rr < worst.r) worst = { r: rr, what: `${theme} ${r} .${x.cls}` };
+      if (rr < 3) { note("contrast", `${theme} ${r} — border of .${x.cls} ${rr.toFixed(2)}:1 (needs 3)`); bad++; }
+    }
+  }
+  console.log(`   ${theme}: ${seen} control edges measured, ${bad} below 3:1, worst ${worst.r.toFixed(2)}:1 — ${worst.what}`);
   await ctx.close();
 }
 
@@ -389,12 +460,58 @@ console.log("\n── ٨ · الحركة عند تفضيل تقليلها — re
   await ctx.close();
 }
 
+/* ============ ٩ · ARABIC INSIDE AN LTR RUN ============
+   `direction: ltr` on `.num`/`.n`/`.nval`/`.mono` protects a number from the
+   Arabic AROUND it. It does nothing about Arabic INSIDE it — and there the
+   effect reverses: an Arabic unit is AL, the joining space resolves to R
+   because the digits act as R, and reversing that level-1 region puts the unit
+   BEFORE the number. «20 ملغم» rendered «ملغم 20» on every row of the medicine
+   list, and «25,000 د.ع» rendered «د.ع 18,000» on the pharmacy screen while the
+   same helper rendered it correctly on the doctors list one tap away.
+
+   A dose whose unit precedes its number is a prescribing hazard, so this is
+   measured rather than remembered: any element that forces an LTR direction and
+   contains an Arabic character is reported, with its text. */
+console.log("\n── ٩ · العربي داخل مجرى LTR — Arabic inside an LTR run");
+{
+  const ctx = await b.newContext({ viewport: { width: 390, height: 880 } });
+  const pg = await ctx.newPage();
+  await pg.goto(B + "/index.html", { waitUntil: "domcontentloaded" });
+  await pg.waitForTimeout(400); await pg.evaluate(SEED);
+  await pg.evaluate(() => localStorage.setItem("qrb.lang", JSON.stringify("ar")));
+  let bad = 0, walked = 0;
+  for (const r of ROUTES) {
+    await pg.goto(B + "/index.html" + r, { waitUntil: "domcontentloaded" });
+    await pg.waitForTimeout(430);
+    const hits = await pg.evaluate(() => {
+      const out = [];
+      for (const el of document.querySelectorAll("*")) {
+        const cs = getComputedStyle(el);
+        if (cs.direction !== "ltr") continue;
+        /* Only a run that IMPOSES ltr on itself. An element merely inheriting
+           ltr from an English document is not the defect. */
+        const pd = el.parentElement ? getComputedStyle(el.parentElement).direction : "ltr";
+        if (pd === "ltr") continue;
+        const txt = (el.textContent || "");
+        if (!/[\u0600-\u06FF]/.test(txt)) continue;
+        out.push(`.${String(el.className).slice(0, 20) || el.tagName.toLowerCase()} "${
+          txt.replace(/\s+/g, " ").trim().slice(0, 28)}"`);
+      }
+      return [...new Set(out)];
+    });
+    walked++;
+    for (const h of hits.slice(0, 4)) { note("ltrun", `${r} — ${h}`); bad++; }
+  }
+  console.log(`   ${walked} routes walked, ${bad} LTR runs containing Arabic`);
+  await ctx.close();
+}
+
 /* ============ REPORT ============ */
 await b.close();
 console.log("\n" + "═".repeat(60));
 const order = [["render", "شاشة ما رسمت"], ["touch", "هدف لمس أصغر من ٤٤"], ["overflow", "فيضان أفقي"],
   ["contrast", "تباين تحت الحد"], ["rtl", "مشكلة اتجاه"], ["deadend", "طريق مسدود"],
-  ["clip", "نص مقصوص"], ["focus", "تركيز غير مرئي"], ["motion", "حركة مع تفضيل التقليل"]];
+  ["clip", "نص مقصوص"], ["focus", "تركيز غير مرئي"], ["motion", "حركة مع تفضيل التقليل"], ["ltrun", "عربي داخل مجرى LTR"]];
 let total = 0;
 for (const [k, ar] of order) {
   const list = fail[k];

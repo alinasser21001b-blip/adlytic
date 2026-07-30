@@ -40,7 +40,7 @@ function screenNeedNew(qs) {
     <div class="lab">${isAR() ? "١ · الدواء بالضبط" : "1 · The exact medicine"}</div>
     ${x ? `<div class="plate" style="margin-top:12px">
       <div class="rowb">
-        <span><span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
+        <span><span class="d3" style="display:block">${esc(L(x.med))} <bdi class="strength">${esc(x.v.strength)}</bdi></span>
           <span class="q-sub">${esc(x.v.form)} · ${esc(x.v.pack)}</span></span>
         <button class="b-g" style="font-size:12px" onclick="S.draft.v=null;render()">${isAR() ? "غيّر" : "Change"}</button>
       </div>
@@ -492,7 +492,7 @@ function screenRadarWait(id) {
   <section class="pad" style="text-align:center;margin-top:var(--u6)">
     ${radarPulse(r)}
     <div class="lab" style="margin-top:var(--u6)">${isAR() ? "نداء دواء" : "Medicine request"}</div>
-    <h1 class="d2" style="margin-top:8px">${esc(x.name)} ${x.strength ? `<span class="n" style="font-weight:300">${esc(x.strength)}</span>` : ""}</h1>
+    <h1 class="d2" style="margin-top:8px">${esc(x.name)} ${x.strength ? `<bdi class="strength">${esc(x.strength)}</bdi>` : ""}</h1>
     <div class="q-sub" style="margin-top:6px">${x.form ? esc(x.form) + " · " : ""}${esc(r.qty)} · ${esc(needPlace(r))}</div>
     <div class="radar-copy" id="radarcopy">${radarCopy(r, secs)}</div>
   </section>
@@ -591,7 +591,7 @@ function screenNeed(id) {
       <span class="lab">${isAR() ? "طلب دواء" : "Medicine request"}</span>
       <span class="st ${u.cls}"><i class="dot${r.urg === "urgent" && st !== "expired" ? " dot-live" : ""}"></i>${esc(isAR() ? u.ar : u.en)}</span>
     </div>
-    <h1 class="d1" style="margin-top:10px">${esc(md0.name)} ${md0.strength ? `<span class="n" style="font-weight:300">${esc(md0.strength)}</span>` : ""}</h1>
+    <h1 class="d1" style="margin-top:10px">${esc(md0.name)} ${md0.strength ? `<bdi class="strength">${esc(md0.strength)}</bdi>` : ""}</h1>
     <div class="q-sub" style="margin-top:6px">${md0.form ? esc(md0.form) + " · " : ""}${esc(r.qty)} · ${esc(needPlace(r))}</div>
     <div class="row" style="margin-top:14px;gap:16px;flex-wrap:wrap">
       <span class="t3">${sigAge(r.m)}</span>
@@ -1179,7 +1179,7 @@ function pharmacyQuickCard(facId, x) {
       <span class="t3">${esc(needPlace(r))}${km !== null ? ` · <span class="num">≈${fmtKm(km)}</span>` : ""}${
         !sameCity ? (isAR() ? " — خارج محافظتك" : " — outside your area") : ""}</span>
     </div>
-    <div class="d3" style="font-size:18px;margin-top:8px">${esc(md.name)} ${md.strength ? `<span class="n" style="font-weight:300">${esc(md.strength)}</span>` : ""}</div>
+    <div class="d3" style="font-size:18px;margin-top:8px">${esc(md.name)} ${md.strength ? `<bdi class="strength">${esc(md.strength)}</bdi>` : ""}</div>
     <div class="q-sub" style="margin-top:2px">${md.form ? esc(md.form) + " · " : ""}${esc(r.qty)}${
       r.manual ? ` · <span class="st st-q" style="font-size:10.5px">${isAR() ? "مكتوب يدوياً" : "typed by patient"}</span>` : ""}</div>
     <div class="row" style="margin-top:8px;gap:14px;flex-wrap:wrap">
