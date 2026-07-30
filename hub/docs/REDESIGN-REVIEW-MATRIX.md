@@ -90,3 +90,89 @@ an Arabic-Indic digit are section-header comments, not rendered strings.
 
 Credit to E3 for probing the guard rather than trusting it. The diagnosis was
 wrong; the instinct was right.
+
+---
+
+# Round 2 — decision
+
+Both carried explorations returned. Both held the boundary again (repo clean,
+CORE INTACT). Both self-corrected in ways that materially raised their
+credibility, and both were re-verified rather than believed.
+
+## Verification of round-2 claims
+
+**E1's headline, re-measured by the supervisor** on its own `compare.html`,
+inline-start offset taken as distance from the viewport's right edge in RTL:
+
+| | E1 claimed | measured | |
+|---|---|---|---|
+| σ verdict offset @390 prose | 56.1px | 56.1px | ✓ |
+| σ verdict offset @390 fielded | 0.0px | 0.0px | ✓ |
+| spread first→last @430 prose | 226px | 226px | ✓ |
+| mean row height @390 | 71.0 → 48.3 | 71.1 → 48.5 | ✓ |
+
+It had warned me that two of its round-1 numbers were "arithmetic dressed as
+measurement." These are real.
+
+**E3's `--line-ctl` finding — CORRECTED.** It reported the banked token at
+2.88:1, below the 3:1 floor. The shipped build measures **3.42:1 minimum across
+143 control edges** in both themes, and computation confirms 3.42–3.48:1 on every
+surface the product uses. The 2.88:1 was its own mock's surface, not the token.
+The token is sound and stays. Had this been accepted, a passing token would have
+been "fixed" and weakened.
+
+**E3's bidi retraction accepted, and its reasoning credited.** It withdrew the
+claim, noted its own round-1 probe had already printed the correct answer and
+that it had believed a low-res screenshot over its own numbers, and drew the right
+distinction: a bidi rule needs an audit detector, a glyph rule needs a lint.
+
+## Ruling requested by E3 — the «رجعت» join
+
+E3 flagged that «رجعت» (a loan returning with changes) is the one place it
+assembles a fact from two others: an access-log actor equal to the share's
+grantee, inside that share's active window.
+
+**Ruled: ACCEPTED**, because this is the join the consent model already *means* —
+the same identity acting inside a grant window is that grantee acting under that
+grant — and both underlying facts are recorded. It is not an inference about
+clinical content. Three conditions:
+
+1. The row states its own basis in words, as proposed. Non-negotiable.
+2. It may assert **custody** ("this changed while X held your record"), never
+   **causation** ("X changed this because of Y").
+3. Where `actorId` is absent it degrades to stating that something changed and
+   that the actor is unrecorded — never to naming the grantee by assumption.
+
+## Decision: E3 implements
+
+| | E1 | E3 |
+|---|---|---|
+| fixed its own biggest risk by | **adding** a second register | **deleting** a bucket |
+| 430 re-composition | −1.9% … −6.6% | **−2.0% … −13.8%, zero byte-identical pairs** |
+| baseline weakness §3 (results buries the value) | ledger, value beside geometry | **clinician panel's heaviest run IS the value, 20px/700** |
+| self-falsification | found a safety-class defect in its own run-grouping | **its signature now-rule failed its own test at 946px vs an 844px viewport, and was replaced** |
+| refused an optimisation | — | **declined a change worth −30% on its headline surface because it broke "one time axis"** |
+
+E3 wins on four grounds. Its fix to my objection was *subtraction* — it deleted
+the neutral «أوراقك» band rather than adding a surface, and derived all five bands
+exhaustively from `consent.js` behaviours. It surfaced
+`EMERGENCY_SCOPES − SAFETY_FLOOR` as «تنفتح بالطوارئ بلا ما تسألك» — the four
+scopes an ambulance can open without asking, never once stated in this product,
+which is a genuine safety-transparency gain rather than a layout improvement. It
+partly conceded on geometry *because testing changed its answer* ("a range bar is
+preattentive; a sentence is not"), and demoted by audience rather than by tap. And
+it refused an optimisation that would have improved its own headline metric by
+30% because it violated a conceptual invariant — the clearest evidence of design
+judgement either produced.
+
+**E1 is not discarded.** Two of its devices are stronger than anything in E3 and
+are offered to E3 to accept or refuse with reasons, not imposed:
+«خارج نطاق الإعارة» — the lent record showing the shape of its own holes with a
+control to request the withheld scope — and «الأرضية», the margin attributing a
+statement to a *rule* rather than a person when `SAFETY_FLOOR` refuses.
+
+**E3's residual weakness stands and is now implementation risk to watch:** one
+interleaved register scatters a four-chronic-problem patient's thread. Its 20-year
+test proves the register *fits*, not that a patient can find one problem inside
+it. Its problem-strand leaf must carry that weight, and it is the first thing the
+visual review will probe.
