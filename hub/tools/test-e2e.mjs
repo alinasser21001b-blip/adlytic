@@ -16,7 +16,25 @@
    WHAT THIS DOES NOT PROVE: that Netlify's Blobs service behaves as the stub
    does under concurrency and failure. That needs a deployed environment.
    ============================================================ */
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { BlobsServer, setEnvironmentContext } from "@netlify/blobs";
+
 process.env.QAREEB_AUTH_SECRET = "e2e-secret-long-enough-to-be-accepted-01";
+
+/* Run the SDK's real local Blobs implementation. The original test described
+   an in-memory substitute but never installed one, so getStore() failed closed
+   with NO_BLOB_STORE before any product assertion ran. */
+const blobDirectory = await mkdtemp(join(tmpdir(), "qareeb-e2e-blobs-"));
+const blobToken = "qareeb-e2e-local-token";
+const blobServer = new BlobsServer({ directory: blobDirectory, token: blobToken });
+const { port: blobPort } = await blobServer.start();
+setEnvironmentContext({
+  edgeURL: `http://127.0.0.1:${blobPort}`,
+  siteID: "qareeb-e2e",
+  token: blobToken,
+});
 
 const { sign } = await import("../netlify/functions/_lib.mjs");
 const handler = (await import("../netlify/functions/needs.mjs")).default;
@@ -143,6 +161,8 @@ ok((bq.body.requests || []).some((r) => r.requestId === basra.body.id),
   "it reaches a Basra pharmacy");
 
 console.log("\n" + "─".repeat(52));
+await blobServer.stop();
+await rm(blobDirectory, { recursive: true, force: true });
 if (fails.length) {
   console.log(`${pass} passed, ${fails.length} FAILED\n`);
   fails.forEach((f) => console.log("  ✗ " + f));
