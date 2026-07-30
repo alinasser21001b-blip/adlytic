@@ -32,6 +32,11 @@
   /* brass splits: a FILL brass and a TEXT brass. Never set small text in the fill. */
   --brass:#C98A18; --brass-ink:#845A09; --brass-lit:#F0C15E;  /* time only */
   --alarm:#C1121F; --alarm-lit:#F08A80;  /* emergency only */
+  /* The ink that goes ON the alarm fill. It was hardcoded #fff at the call
+     site, which is 6.2:1 against the dark red and 2.43:1 against the light one
+     the dark theme substitutes — so the 911 button failed contrast in the theme
+     a night emergency happens in. */
+  --alarm-on:#fff;
   --wa:#128C3E;
   /* type */
   --disp:'Readex Pro',system-ui,sans-serif;
@@ -90,6 +95,7 @@
   --ink:var(--case-ink); --ink-2:var(--case-ink-2);
   --ink-3:var(--case-ink-3); --ink-4:rgba(242,239,232,.34);
   --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
+  --alarm-on:var(--case);
   /* The three aliases that point at tokens .dark redefines must be redeclared
      HERE, not just in :root.
 
@@ -116,10 +122,10 @@
 .lab{font:500 10.5px/1 var(--disp);letter-spacing:.2em;color:var(--ink-3);text-transform:uppercase}
 .dark .t2{color:var(--case-ink-2)}.dark .t3,.dark .lab{color:var(--case-ink-3)}
 /* numerals are a design element: tabular, LTR-embedded, optically lighter */
-.n{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-weight:400}
-.nbig{font:300 46px/1 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.03em}
-.nhuge{font:200 76px/.92 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.045em}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-size:.92em}
+.n{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;font-weight:400}
+.nbig{font:300 46px/1 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;letter-spacing:-.03em}
+.nhuge{font:200 76px/.92 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;letter-spacing:-.045em}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;font-size:.92em}
 /* --- structure: hairlines, never boxes-in-boxes --- */
 .pad{padding-inline:var(--u5)}
 .hr{height:1px;background:var(--dial-line-2);border:0;margin:0}

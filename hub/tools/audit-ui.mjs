@@ -77,7 +77,7 @@ const SEED = () => {
 
 const CHROME = process.env.QAREEB_CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const WIDTHS = [390, 360];
-const fail = { render: [], touch: [], overflow: [], contrast: [], rtl: [], deadend: [], clip: [], focus: [] };
+const fail = { render: [], touch: [], overflow: [], contrast: [], rtl: [], deadend: [], clip: [], focus: [], motion: [] };
 const note = (bucket, s) => fail[bucket].push(s);
 
 /* ---------- contrast maths, WCAG 2.1 ---------- */
@@ -347,12 +347,54 @@ console.log("\n── ٧ · التركيز بلوحة المفاتيح — visib
   await ctx.close();
 }
 
+/* ============ ٨ · REDUCED MOTION ============
+   This file had six separate `prefers-reduced-motion` blocks, each listing the
+   animated selectors its author remembered. A person who sets that preference
+   because motion makes them ill cannot audit a stylesheet to find out which
+   animations were on the list. So it is measured instead of asserted: emulate
+   the preference, walk every element on the busiest routes, and report anything
+   still carrying a real animation or transition duration. */
+console.log("\n── ٨ · الحركة عند تفضيل تقليلها — reduced motion");
+{
+  const ctx = await b.newContext({ viewport: { width: 390, height: 880 },
+    reducedMotion: "reduce" });
+  const pg = await ctx.newPage();
+  await pg.goto(B + "/index.html", { waitUntil: "domcontentloaded" });
+  await pg.waitForTimeout(400); await pg.evaluate(SEED);
+  let moving = 0, walked = 0;
+  for (const r of ["#/", "#/record", "#/record/labs", "#/needs", "#/doctors"]) {
+    await pg.goto(B + "/index.html" + r, { waitUntil: "domcontentloaded" });
+    await pg.reload({ waitUntil: "domcontentloaded" });
+    await pg.waitForTimeout(500);
+    const bad = await pg.evaluate(() => {
+      const out = [];
+      const dur = (v) => Math.max(0, ...String(v).split(",").map((x) => {
+        const t = x.trim();
+        return t.endsWith("ms") ? parseFloat(t) : parseFloat(t) * 1000;
+      }).filter((x) => !isNaN(x)));
+      for (const el of document.querySelectorAll("*")) {
+        const cs = getComputedStyle(el);
+        const a = cs.animationName !== "none" ? dur(cs.animationDuration) : 0;
+        const t = dur(cs.transitionDuration);
+        /* 1ms is the collapse target; anything above it is real motion. */
+        if (a > 1 || t > 1) out.push(`${el.tagName.toLowerCase()}.${
+          String(el.className).split(" ")[0]} anim=${Math.round(a)}ms trans=${Math.round(t)}ms`);
+      }
+      return [...new Set(out)];
+    });
+    walked++;
+    for (const x of bad.slice(0, 4)) { note("motion", `${r} — ${x}`); moving++; }
+  }
+  console.log(`   ${walked} routes walked with the preference set, ${moving} elements still animating`);
+  await ctx.close();
+}
+
 /* ============ REPORT ============ */
 await b.close();
 console.log("\n" + "═".repeat(60));
 const order = [["render", "شاشة ما رسمت"], ["touch", "هدف لمس أصغر من ٤٤"], ["overflow", "فيضان أفقي"],
   ["contrast", "تباين تحت الحد"], ["rtl", "مشكلة اتجاه"], ["deadend", "طريق مسدود"],
-  ["clip", "نص مقصوص"], ["focus", "تركيز غير مرئي"]];
+  ["clip", "نص مقصوص"], ["focus", "تركيز غير مرئي"], ["motion", "حركة مع تفضيل التقليل"]];
 let total = 0;
 for (const [k, ar] of order) {
   const list = fail[k];

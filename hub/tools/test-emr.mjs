@@ -429,8 +429,24 @@ it("only the eight real groups plus the explicit 'unknown' are valid", () => {
 it("'unknown' has a real label, distinct from every other value printing as itself", () => {
   eq(E.bloodGroupLabel("unknown", true), "غير معروف");
   eq(E.bloodGroupLabel("unknown", false), "Unknown");
-  eq(E.bloodGroupLabel("O-", true), "O-", "a real group is not translated — it is not a word, it is a fact");
-  eq(E.bloodGroupLabel("O-", false), "O-");
+  /* A real group is not translated — it is not a word, it is a fact. But it IS
+     wrapped in U+2068/U+2069, because "O-" printed bare into an Arabic line
+     renders "-O": `-` is Bidi_Class=ON and resolves to the far side of the
+     Latin letter. The isolate is part of the returned value rather than left to
+     each screen, so the assertion checks BOTH — the fact survives unchanged,
+     and it arrives safe to print anywhere including plain text. */
+  const strip = (x) => x.replace(/[\u2066-\u2069]/g, "");
+  eq(strip(E.bloodGroupLabel("O-", true)), "O-", "a real group is not translated");
+  for (const g of ["O-", "A+", "AB-"]) {
+    const s = E.bloodGroupLabel(g, true);
+    ok(s.startsWith("\u2068") && s.endsWith("\u2069"),
+      g + " must be isolated — an unisolated sign renders on the wrong side in RTL");
+  }
+  ok(!E.bloodGroupLabel("unknown", true).includes("\u2068"),
+    "a translated word needs no isolate — it has no neutral to strand");
+  /* The isolate is not a localisation choice — an English UI can still sit
+     inside an RTL document, and the value travels into plain text either way. */
+  eq(strip(E.bloodGroupLabel("O-", false)), "O-");
 });
 
 /* ==================== VITAL SIGNS ==================== */

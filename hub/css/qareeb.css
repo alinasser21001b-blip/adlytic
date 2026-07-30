@@ -59,16 +59,27 @@ button { cursor: pointer; }
 ul, ol { list-style: none; }
 ::selection { background: var(--brass); color: var(--case); }
 
-/* Western tabular numerals, LTR-embedded so bidi can never reorder them
-   inside an Arabic run. Every number in the product goes through this. */
+/* Western tabular numerals in an LTR run, so bidi can never reorder them
+   inside an Arabic line. Every number in the product goes through this.
+
+   `isolate`, not `embed`. The difference is not cosmetic: an EMBED opens a
+   directional run but leaves the neutrals AROUND it resolvable against its
+   contents, so the numeral migrates to the wrong end of the Arabic phrase it
+   belongs to — «٨ دواء مؤكَّد» put the 8 at the far left of the line — and a
+   sign or separator adjacent to the run detaches from its digits. That is how
+   a blood group of O- rendered as -O on the emergency card: `-` is
+   Bidi_Class=ON, and against an embedded LTR run in an RTL paragraph it
+   resolves to the far side of the letter. An ISOLATE is opaque to the
+   surrounding algorithm in both directions, which is the whole reason the
+   primitive exists. */
 .num, .n {
   font-family: var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed; font-weight: 400;
+  direction: ltr; unicode-bidi: isolate; font-weight: 400;
   /* A number is one token. `2026-07-01` was wrapping as `2026-07-` / `01`
      and `148/92` as `148/` / `92` — a broken date is a wrong date. */
   white-space: nowrap;
 }
-.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: .92em; }
 
 /* A quantity, a date, a blood pressure: one unbreakable run. */
 .nw { white-space: nowrap; }
@@ -143,7 +154,7 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
    number in the product. */
 .nval {
   font-family: var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed;
+  direction: ltr; unicode-bidi: isolate;
   font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -.01em;
 }
 .nval .u { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-inline-start: 3px; }
@@ -268,7 +279,17 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   background: none; color: var(--jade); border: 0; font-weight: 500; cursor: pointer;
 }
 .btn--wa, .b-wa, .btn-wa { background: var(--wa); color: #fff; font-weight: 600; border-color: transparent; }
-.btn--danger { background: var(--alarm); color: #fff; border-color: transparent; }
+/* The 911 control. Its text colour was hardcoded `#fff` — the only filled
+   control in the product not using a token — so in the dark theme, where
+   `--alarm` resolves to the lighter `--alarm-lit` #F08A80, it rendered white on
+   salmon at 2.43:1. The highest-stakes control in the product, below the WCAG
+   floor, in the theme a night emergency actually happens in. Tokenised it
+   flips: #fff on #C1121F is 6.2:1 in light, and the near-black case colour on
+   #F08A80 is 7.7:1 in dark. */
+.btn--danger { background: var(--alarm); color: var(--alarm-on); border-color: transparent; }
+/* The emergency contact call sits with the two emergency numbers, so it is a
+   control of the same size — not a text link the width of a name. */
+.emg-call { justify-content: flex-start; gap: var(--u3); text-align: start; }
 /* A button is aimed at deliberately, so for buttons the visual size SHOULD
    be the hit size — raise the small variant rather than hiding an invisible
    extender behind it. 40 -> 44 is imperceptible. */
@@ -436,7 +457,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   font-variant-numeric: tabular-nums; color: var(--ink-3);
   direction: inherit;
 }
-.axis > * { direction: ltr; unicode-bidi: embed; }
+.axis > * { direction: ltr; unicode-bidi: isolate; }
 .spark { display: flex; align-items: flex-end; gap: 2px; height: 42px; }
 .spark > i { flex: 1; background: var(--dial-line); border-radius: 1px; min-height: 2px; }
 .spark > i.hi { background: var(--brass); }
@@ -740,9 +761,9 @@ label.row, label.rw { min-height: 44px; cursor: pointer; }
 /* ---------- 17 · numerals · the number is the largest thing, not the title ---------- */
 .nbig, .kpi-n, .intent-n, .tier-p {
   font: 300 46px/1 var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed; letter-spacing: -.03em;
+  direction: ltr; unicode-bidi: isolate; letter-spacing: -.03em;
 }
-.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.045em; display: inline-block; }
+.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; letter-spacing: -.045em; display: inline-block; }
 .nbig, .kpi-n, .intent-n, .tier-p { display: inline-block; }
 .adm-kpi .n { font: 300 34px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; }
 .kpi-d { font-size: 11.5px; color: var(--jade); font-weight: 500; }
@@ -930,7 +951,7 @@ input, textarea { min-height: 44px; }
 .ops-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--u3); }
 .ops-kpi { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
 .ops-kpi.warn { border-color: var(--brass-ink); }
-.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.02em; }
+.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; letter-spacing: -.02em; }
 .ops-l { margin-top: 6px; }
 .ops-cols { display: grid; grid-template-columns: 1fr; gap: var(--u6); margin-top: var(--u6); align-items: start; }
 @media (min-width: 900px) { .ops-cols { grid-template-columns: 1fr 1fr; } }
@@ -1186,3 +1207,29 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 /* A yes/no toggle rendered from its two-letter label collapses to 41px wide.
    Toggles get a width floor so the target survives the shortest word. */
 #altbtn, .rush .btn--sm { min-width: 72px; }
+
+/* ---------- 31 · reduced motion, guaranteed rather than remembered ----------
+   Six separate `prefers-reduced-motion` blocks in this file each named the
+   animated selectors they knew about. That works exactly until someone adds an
+   animation and forgets — and thirty-seven transitions and animations had
+   accumulated against six hand-written lists. Vestibular disorders and
+   migraine are not edge cases, and "we listed most of them" is not a setting
+   a person can rely on.
+
+   So the guarantee is made once, for everything, at the end of the cascade.
+   Durations collapse rather than being set to `none`, which matters: an
+   entrance animation running from `opacity: 0` and switched off with
+   `animation: none` can leave its element permanently invisible, whereas a
+   .01ms duration runs it instantly to its FINAL state. The blocks above stay,
+   because several of them also correct a static resting transform or opacity
+   that the animation would otherwise have supplied. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

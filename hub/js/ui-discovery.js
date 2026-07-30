@@ -2179,8 +2179,20 @@ function emergencySelfCard() {
   if (card.allergies.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "حساسية" : "Allergies"}</span>
     <span style="text-align:end">${card.allergies.map((a) => esc(a.substance)
       + (a.reaction ? ` (${esc(a.reaction)})` : "")).join("، ")}</span></div>`);
-  if (card.criticalMedications.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "أدوية حرجة" : "Critical medications"}</span>
-    <span style="text-align:end">${card.criticalMedications.map((m) => esc(m.display)).join("، ")}</span></div>`);
+  /* Every current medicine with its dose, flagged ones first, and each one
+     marked when the patient typed it rather than a clinician confirming it.
+     `emergencyCard` used to whitelist anticoagulants, insulin, steroids and an
+     explicit `critical` flag — which no ordinary Iraqi outpatient regimen
+     carries — so this row rendered for almost nobody and its absence read as
+     "takes no medication". The dose is included because a responder holding
+     this card needs the dose, not just the name. */
+  if (card.criticalMedications.length) rows.push(`<div class="rowb" style="align-items:flex-start">
+    <span class="t3">${isAR() ? "أدوية حالية" : "Current medicines"}</span>
+    <span style="text-align:end">${card.criticalMedications.map((m) => `<span style="display:block">${
+      m.flagged ? `<b>${esc(m.display)}</b>` : esc(m.display)}${
+      m.dose ? ` <span class="num nw">${esc(m.dose)}</span>` : ""}${
+      m.selfReported ? ` <span class="t3">${isAR() ? "(قالها المريض)" : "(patient-stated)"}</span>` : ""
+      }</span>`).join("")}</span></div>`);
   if (card.majorConditions.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "مشاكل مزمنة" : "Chronic conditions"}</span>
     <span style="text-align:end">${card.majorConditions.map(esc).join("، ")}</span></div>`);
   if (card.emergencyContact) {
@@ -2190,9 +2202,18 @@ function emergencySelfCard() {
        there is a number to call. */
     const label = esc(card.emergencyContact.name || card.emergencyContact.phone || "");
     const contact = card.emergencyContact.phone
-      ? `<a class="b-g" href="tel:${esc(card.emergencyContact.phone)}">${label}</a>`
+      /* Was a jade text link the width of the name — roughly 90x30px — with
+         the number NEVER printed, sitting under two full-width call buttons.
+         Under stress a helper needs two things from this row: to dial the
+         family, and to READ THE NUMBER ALOUD to a dispatcher or type it into
+         their own phone. Neither was possible. It is a control now, at the same
+         weight as the other calls, with the number visible. */
+      ? `<a class="btn btn--2 emg-call" href="tel:${esc(card.emergencyContact.phone)}">${icon("phone")}
+          <span>${isAR() ? "اتصل بـ " : "Call "}${label}
+            <span class="num nw" style="display:block">${esc(card.emergencyContact.phone)}</span></span></a>`
       : `<b>${label}</b>`;
-    rows.push(`<div class="rowb"><span class="t3">${isAR() ? "جهة اتصال" : "Contact"}</span>${contact}</div>`);
+    rows.push(card.emergencyContact.phone ? contact
+      : `<div class="rowb"><span class="t3">${isAR() ? "جهة اتصال" : "Contact"}</span>${contact}</div>`);
   }
   if (!rows.length && !card.notRecorded.length) return "";
   return `<div class="note note-e" style="margin-top:16px">${icon("alert")}<div style="width:100%">
@@ -2216,10 +2237,13 @@ function openEmergency() {
     <div class="sheet-b">
       <a class="btn btn--danger" href="tel:${CONFIG.emergency.unified}">${icon("phone")}${isAR() ? "الطوارئ الموحد" : "Unified emergency"} <span class="num">${CONFIG.emergency.unified}</span></a>
       <a class="btn btn--2" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
+      <!-- This caveat qualifies the two buttons above it, and it used to sit
+           roughly 1,200px BELOW them, under the hospital list. Nobody in an
+           emergency reads a footer. It goes directly under what it qualifies. -->
+      <p class="tiny muted" style="margin-top:8px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
       ${emergencySelfCard()}
       <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
       <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
-      <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
     </div>`, "sheet--emergency");
 }
 

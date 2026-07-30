@@ -114,6 +114,11 @@ function route() {
        network and do not belong in this file. */
     case "record": return p[1] ? screenRecordSection(p[1], p[2]) : screenRecord();
     case "clinical": return p[1] === "inbox" ? screenClinicalInbox() : screenClinical(p[1]);
+    /* The receiving end of a carry code. `redeemCarryCode` has existed in
+       consent.js since the consent engine shipped and NOTHING called it, so a
+       patient could issue a code no screen in the product could accept. The
+       code may arrive in the URL so it can travel by WhatsApp. */
+    case "redeem": return screenRedeem(p[1]);
     /* The network as clinical actors — js/ui-network.js. Each is its own
        screen with its own vocabulary, not a filtered view of the doctor's. */
     case "lab": return screenLab(p[1], p[2]);

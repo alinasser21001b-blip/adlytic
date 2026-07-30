@@ -428,6 +428,37 @@ it("every shipped script parses", () => {
    parsing. The habit is the bug, so the habit is what gets flagged — by line,
    with the fix, instead of by a parser error pointing at whatever identifier
    happened to follow. */
+/* The bottom bar was cut from six tabs to four; eleven screens kept passing
+   the two keys that no longer existed, and rendered a nav with NO tab lit.
+   Nothing failed, because an unmatched key is just an empty class attribute. */
+it("every nav() call passes a key the bar can actually light", () => {
+  const core = uiSources.find((x) => x.f === "ui-core.js").src;
+  const fn = (core.match(/function nav\(active\)[\s\S]*?\n}/) || [""])[0];
+  const keys = new Set([...fn.matchAll(/\["#\/[^"]*",\s*"[^"]*",\s*"([^"]+)"\]/g)].map((m) => m[1]));
+  const alias = new Set([...(core.match(/const NAV_ALIAS = \{[^}]*\}/) || [""])[0]
+    .matchAll(/(\w+)\s*:/g)].map((m) => m[1]));
+  ok(keys.size >= 4, "the bar must define its tabs here");
+  const bad = [];
+  for (const { f, src } of uiSources)
+    for (const m of src.matchAll(/\bnav\("([^"]+)"\)/g))
+      if (!keys.has(m[1]) && !alias.has(m[1])) bad.push(`${f}: nav("${m[1]}")`);
+  eq([...new Set(bad)], [], "a nav key with no tab renders a bar where the user is nowhere");
+});
+
+/* The consent engine's receiving end. `redeemCarryCode` shipped with the
+   engine, was covered by tests in two suites, and was called by NO screen —
+   so a patient could curate scopes, choose a duration, issue a code, and hand
+   over something nothing in the product could accept. Five screens described a
+   handover with no other end. Both halves are pinned here: the route exists,
+   and something reachable links to it. */
+it("a carry code can actually be redeemed", () => {
+  const all = uiSources.map((x) => x.src).join("\n");
+  ok(/case "redeem":/.test(uiSources.find((x) => x.f === "app.js").src),
+    "the redeem route must be in the router");
+  ok(/C\(\)\.redeemCarryCode\(/.test(all), "and something must call redeemCarryCode");
+  ok(/href="#\/redeem/.test(all), "and a screen must link to it — an unlinked route is not a feature");
+});
+
 it("no HTML comment inside a template literal contains a backtick", () => {
   const bad = [];
   for (const { f, src } of uiSources)
@@ -458,9 +489,14 @@ it("no arrow sits directly against an interpolated value", () => {
 
    So the rule is not "no arrows", it is: no neutral separator may sit between
    two interpolated values. A pair belongs inside ONE run — `bpPair()` — where
-   there is no neutral left for bidi to move. `·` is exempt: it separates items
-   of different kinds in a meta list (a measurement and a date), where order
-   carries no arithmetic and a reader cannot misread one as the other. */
+   there is no neutral left for bidi to move.
+
+   `·` was exempted here on the reasoning that it separates items of DIFFERENT
+   kinds — a measurement and a date — where a reader cannot mistake one for the
+   other. The exemption was wrong twice over. It reverses just the same (U+00B7
+   is Bidi_Class=ON), so `8.4% · 2026-07-01` rendered date-first, the opposite
+   of what was written; and on a narrow wrap the separator orphans beside one
+   value with the other alone on the next line. Two facts get two elements. */
 it("no neutral separator sits between two interpolated numbers", () => {
   /* An em dash between two WORDS is ordinary prose and reorders harmlessly —
      a reader can tell a modality from a body site whichever side it lands on.
@@ -470,7 +506,7 @@ it("no neutral separator sits between two interpolated numbers", () => {
   /* `:` is deliberately absent: Bidi_Class=CS binds a colon to the European
      numbers on either side of it, so "08:00" survives an RTL line intact.
      Only Bidi_Class=ON separators can be pulled away and reordered. */
-  const re = /\$\{([^{}]*)\}[ \t]*([/–—><÷×-])[ \t]*\$\{([^{}]*)/g;
+  const re = /\$\{([^{}]*)\}[ \t]*([/–—><÷×·-])[ \t]*\$\{([^{}]*)/g;
   const bad = [];
   for (const { f, src } of uiSources) {
     /* Comments are prose about this very bug and must be allowed to spell it. */

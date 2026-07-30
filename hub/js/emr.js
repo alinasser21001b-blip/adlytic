@@ -563,7 +563,25 @@
   const BLOOD_GROUP = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"];
   const isValidBloodGroup = (v) => BLOOD_GROUP.indexOf(v) !== -1;
   const BLOOD_GROUP_LABEL = { unknown: ["غير معروف", "Unknown"] };
-  const bloodGroupLabel = (v, ar) => (BLOOD_GROUP_LABEL[v] ? BLOOD_GROUP_LABEL[v][ar ? 0 : 1] : (v || ""));
+  /* The sign is isolated IN THE DOMAIN, not left to each screen.
+
+     "O-" printed into an Arabic line rendered "-O", and "A+" rendered "+A":
+     `+` and `-` are Bidi_Class=ON, so against a Latin letter inside an RTL
+     paragraph they resolve to the far side of it. On a narrow wrap the sign can
+     land on a different line from the letter entirely. This is the one field on
+     an emergency card where an ambiguous reading is least tolerable, and it was
+     the one field emitted with no isolate at all — a bare string into a bare
+     `<b>` on the emergency sheet and into a `.chip` on the profile screen.
+
+     U+2068 FIRST STRONG ISOLATE … U+2069 POP DIRECTIONAL ISOLATE does it in
+     the returned VALUE, so every present and future call site is safe whether
+     or not its author thought about bidi. Characters, not CSS, because this
+     string also travels into plain text — an emergency card read aloud, a
+     WhatsApp handoff — where there is no stylesheet to help. */
+  const FSI = "⁨", PDI = "⁩";
+  const bloodGroupLabel = (v, ar) => BLOOD_GROUP_LABEL[v]
+    ? BLOOD_GROUP_LABEL[v][ar ? 0 : 1]
+    : (v ? FSI + v + PDI : "");
 
   /* ---- ALLERGY ---- */
   const CRITICALITY = { HIGH: "high", LOW: "low", UNABLE: "unable-to-assess" };
@@ -1185,6 +1203,15 @@
   const SOURCE = { CLINICIAN: "clinician", PATIENT: "patient-reported", EXTERNAL: "external-import",
                    DEVICE: "device", AI: "ai-generated" };
 
+  /* "The patient told us this" — the one provenance question every screen and
+     every projection has to be able to ask. It lived in record.js, so
+     consent.js could not reach it and the emergency card silently treated
+     every medication as clinician-confirmed. It belongs beside the constants it
+     reads. Either stamp alone is enough: an entry marked one way and not the
+     other is still not a clinician's word. */
+  const isSelfReported = (e) => !!e
+    && (e.source === SOURCE.PATIENT || e.verificationStatus === VERIFY.PATIENT_REPORTED);
+
   function provenance(entry) {
     return {
       recordedBy: entry.recordedBy || null,
@@ -1265,6 +1292,7 @@
     ID_TYPE, canRegister, isIdentityBearing, identifiersOf, idOf,
     ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
     BLOOD_GROUP, isValidBloodGroup, bloodGroupLabel,
+    isSelfReported,
     MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
     matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
     ENC_STATE, ENC_TYPE, SIGN_REQUIRED, canSign, signEncounter, addAddendum, voidEncounter,

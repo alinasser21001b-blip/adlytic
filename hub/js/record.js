@@ -39,8 +39,9 @@
      the answer — `SOURCE.PATIENT` on the provenance and `PATIENT_REPORTED` as
      a verification status — and either one alone is enough, because an entry
      stamped one way and not the other is still not a clinician's word. */
-  const isSelfReported = (e) => !!e && (e.source === (E.SOURCE && E.SOURCE.PATIENT)
-    || e.verificationStatus === (E.VERIFY && E.VERIFY.PATIENT_REPORTED));
+  /* Delegates to the domain rather than restating the rule, so a change to
+     what counts as patient-reported cannot apply on one screen and not another. */
+  const isSelfReported = (e) => E.isSelfReported(e);
 
   /* =========================================================
      ١ · المستندات — DOCUMENTS

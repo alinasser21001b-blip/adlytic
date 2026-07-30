@@ -1238,6 +1238,12 @@
             `The clinic sees this for ${C().DURATION[live.duration || "VISIT"].en} from the moment the code is used, then it closes itself.`)}</p>
         </div>
 
+        <!-- The clinician is looking at THIS screen, across the desk, while the
+             patient holds the phone. So the door into the redeem screen is here,
+             addressed to them — and it carries the code, so the same link works
+             when it is sent instead of shown. -->
+        <a class="b-g" style="display:block;margin-top:16px" href="#/redeem/${esc(live.code)}">${
+          T("أنا الطبيب — افتح الملف بهذا الرمز", "I am the clinician — open the record with this code")}</a>
         <a class="b-g" style="display:block;margin-top:14px" href="#/record/share">${
           T("أصدر رمزاً بمحتوى مختلف", "Issue a code covering something else")}</a>`
         : `<!-- Two doors on purpose. Someone at a clinic desk with the doctor
@@ -1654,15 +1660,48 @@
           <div class="d3" style="font-size:19px">${esc(brief.patient.name)}</div>
           <span class="t3">${esc(brief.headline)}</span>
         </div>
+        <!-- ONE ROW PER ALLERGEN, and this is a safety fix rather than a
+             layout preference.
+
+             The allergens used to be joined into one sentence with " · " and
+             each one's provenance badge appended inline. Two failures came out
+             of that single line. the criticality was dropped entirely — the
+             projection carries it (record.js:551) and BOTH patient screens
+             render «خطرة»/«خفيفة», so the one screen where severity decides
+             whether a beta-lactam gets test-dosed was the only screen that
+             omitted it, and a mild sulfa itch read as equal to a
+             rash-and-swelling penicillin reaction.
+
+             Worse, the badge's SCOPE inverted. Only the sulfamethoxazole was
+             patient-reported; the penicillin was clinician-recorded. But joined
+             into one sentence, the badge wrapped onto its own line beneath both
+             and read as qualifying the whole ALLERGY statement — so a doctor
+             scanning for thirty seconds concluded the PENICILLIN allergy was
+             unverified hearsay. That reasoning ends in a penicillin challenge.
+
+             High criticality sorts first, each allergen owns its own severity
+             chip and its own provenance mark, and no two allergens are ever
+             joined by a separator again. -->
         ${brief.allergies.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}
-          <div><b>${T("حساسية", "ALLERGY")}</b> — ${brief.allergies.map((a) =>
-            esc(a.substance) + (a.reaction ? ` <span class="t3">(${esc(a.reaction)})</span>` : "")
-            + (patientToldUs(a) ? " " + patientToldUs(a) : "")).join(" · ")}</div></div>`
+          <div style="width:100%"><b>${T("حساسية", "ALLERGY")}</b>
+          <div class="stack-2" style="margin-top:6px">${brief.allergies.slice().sort((a, b) =>
+            (b.criticality === E().CRITICALITY.HIGH) - (a.criticality === E().CRITICALITY.HIGH))
+            .map((a) => `<div>
+              <div class="rowb"><b>${esc(a.substance)}</b>
+                <span class="st ${a.criticality === E().CRITICALITY.HIGH ? "st-e" : "st-q"}">${
+                  a.criticality === E().CRITICALITY.HIGH ? T("خطرة", "high")
+                  : a.criticality === E().CRITICALITY.LOW ? T("خفيفة", "low")
+                  : T("الشدة غير محدّدة", "severity not assessed")}</span></div>
+              ${a.reaction ? `<div class="t3" style="margin-top:2px">${esc(a.reaction)}</div>` : ""}
+              ${patientToldUs(a) ? `<div style="margin-top:4px">${patientToldUs(a)}</div>` : ""}
+            </div>`).join("")}</div></div></div>`
           : `<div class="t3" style="margin-top:10px">${T("ما مسجّل أي حساسية — وهذا مو نفس «ما عنده حساسية»",
               "No allergy recorded — which is not the same as 'no allergies'")}</div>`}
         <div class="row" style="flex-wrap:wrap;gap:6px 10px;margin-top:10px">
           ${brief.active.slice(0, 4).map((c) => `<span class="chip">${esc(c.name)}</span>`).join("")}
-          ${brief.medications.length ? `<span class="st st-q">${n(brief.medications.length)} ${T("دواء", "meds")}</span>` : ""}
+          ${brief.medications.length ? `<span class="st st-q">${ar()
+            ? countAr(brief.medications.length, ["دواء واحد", "دواءان", "أدوية", "دواءً"])
+            : `${n(brief.medications.length)} meds`}</span>` : ""}
         </div>
       </div>
 
@@ -1671,8 +1710,17 @@
            reach a patient before anyone notices. -->
       ${brief.unacknowledgedAbnormal.length ? `<div class="note note-e" style="margin-top:12px">${icon("alert")}
         <div style="width:100%"><b>${T("نتائج غير طبيعية ما أقرّها أحد", "Abnormal, unacknowledged")}</b>
-          <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb">
-            <span>${esc(x.name)}</span><span>${measure(x.value, x.unit)} · ${n(String(x.at).slice(0, 10))}</span>
+          <!-- The value and the date were joined with a "·" — two LTR runs
+               with a Bidi_Class=ON neutral between them, inside an Arabic line.
+               It rendered date-then-value, the reverse of what was written, and
+               at 320px the row wrapped leaving the "·" orphaned beside the
+               value with the date alone on the next line. Same defect as the
+               blood pressure, in a row this file's own comments forbid. They
+               are two separate facts, so they get two separate elements. -->
+          <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb" style="align-items:flex-end">
+            <span>${esc(x.name)}
+              <span class="t3" style="display:block;margin-top:1px">${n(String(x.at).slice(0, 10))}</span></span>
+            ${measure(x.value, x.unit)}
           </div>`).join("")}</div></div></div>` : ""}
 
       ${brief.overdue.length ? `<div class="note note-w" style="margin-top:10px">${icon("clock")}
@@ -1989,6 +2037,98 @@
       ? T("انحفظ — تقدر تشوف بس ما تكتب", "Saved — you can view but not write")
       : T("انحفظ — التوثيق قيد المراجعة", "Saved — verification pending review"));
     render();
+  };
+
+  /* =========================================================
+     THE MISSING EDGE — redeeming a code
+     =========================================================
+     `consent.js` has had `redeemCarryCode` since the consent engine shipped:
+     it validates the code, refuses a second redemption, refuses an expired
+     one, and converts the paper into an ordinary time-limited share. It is
+     covered by tests in two suites.
+
+     Nothing in the interface called it, and no screen in the product linked to
+     `#/clinical`. So the entire spine of the product — a patient curates
+     scopes and a duration, issues a code, hands it across a clinic desk —
+     terminated in a code that nothing could accept. The share builder, the
+     carry screen, the active-shares list, the access log and the clinician's
+     brief were five screens describing a handover whose receiving end did not
+     exist. `#/record/access` would have read «ما فتح ملفك أحد بعد» forever.
+
+     This is the receiving end. It is deliberately reachable WITHOUT the
+     patient's phone — the clinician types the six characters into their own
+     device — and it accepts the code in the URL too, so a code can travel by
+     WhatsApp the way the rest of this product's handoffs do.
+
+     What it does NOT do is invent authority. A redeemed code produces exactly
+     the share `grantShare` produces, attributed to whoever redeemed it, and
+     the clinician's own identity is still self-asserted until a licence is
+     verified. The code is an introduction, not a credential. */
+  globalThis.screenRedeem = function screenRedeem(codeFromUrl) {
+    const me = currentClinician();
+    if (!me) return clinicianSetup();
+    const pre = String(codeFromUrl || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    return page(T("عندي رمز مريض", "I have a patient's code"),
+      `<div class="note">${icon("seal")}<div>${T(
+        "المريض يعطيك رمزاً من ستة أحرف. تكتبه هنا، فينفتح لك اللي اختاره هو — لا أكثر — وللمدة اللي حدّدها هو. يوصله إنك فتحته، ويبقى مكتوباً باسمك.",
+        "The patient gives you a six-character code. Type it here and you get exactly what they chose — no more — for exactly as long as they chose. They are told you opened it, and it stays recorded under your name.")}</div></div>
+
+      <label class="fld" style="margin-top:18px"><span>${T("الرمز", "The code")}</span>
+        <!-- One field, six characters, from an alphabet with no 0/O and no
+             1/I/l — because this code is usually read aloud across a desk in a
+             noisy waiting room. inputmode/autocapitalize so a phone keyboard
+             offers the right thing on the first tap. -->
+        <input id="rd-code" type="text" class="mono" maxlength="6" value="${esc(pre)}"
+          inputmode="latin" autocapitalize="characters" autocomplete="off" spellcheck="false"
+          style="font-size:26px;letter-spacing:.22em;text-align:center"></label>
+
+      <button class="btn" style="margin-top:16px" onclick="redeemSubmit()">${
+        T("افتح الملف", "Open the record")}</button>
+
+      <p class="t3" style="margin-top:14px;line-height:1.7">${T(
+        "الرمز يُستعمل مرة واحدة. إذا انتهت صلاحيته أو استعمله أحد قبلك، ما ينفتح — اطلب من المريض رمزاً جديداً.",
+        "A code is single use. If it has expired or someone used it before you, it will not open — ask the patient for a new one.")}</p>
+
+      <div class="hr" style="margin:24px 0"></div>
+      <p class="t3" style="line-height:1.7">${T(
+        "ما عندك رمز؟ تقدر تطلب الاطّلاع من المريض، ويقرّر هو.",
+        "No code? You can ask the patient for access and they decide.")}</p>
+      <a class="b-g" style="display:inline-block;margin-top:8px" href="#/clinical/inbox">${
+        T("طلباتي السابقة", "My earlier requests")}</a>`,
+      T("أنت تفتح ملف شخص آخر. كل فتحة مسجّلة عنده باسمك ووقتها.",
+        "You are opening someone else's record. Every opening is logged for them, under your name, with its time."),
+      /* No patient tab bar for a clinician — the same reason screenClinical
+         renders none. This screen is a door into someone else's product. */
+      null);
+  };
+
+  globalThis.redeemSubmit = function redeemSubmit() {
+    const me = currentClinician();
+    if (!me) { render(); return; }
+    const el = document.getElementById("rd-code");
+    const code = ((el || {}).value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (code.length !== 6) { toast(T("الرمز ستة أحرف", "The code is six characters")); return; }
+    const d = store();
+    /* The code is matched against the record this device holds. On a clinician
+       device with no patient record there is nothing to match, and saying so is
+       the honest answer — inventing a lookup we cannot perform would be worse. */
+    const carry = d.carry && String(d.carry.code || "").toUpperCase() === code ? d.carry : null;
+    const r = C().redeemCarryCode(carry, me, now());
+    if (!r.ok) {
+      toast({
+        NO_CODE: T("ما لقينا هذا الرمز على هذا الجهاز", "That code is not on this device"),
+        ALREADY_REDEEMED: T("الرمز مستعمل — اطلب رمزاً جديداً", "Already used — ask for a new code"),
+        EXPIRED: T("الرمز انتهت صلاحيته", "That code has expired"),
+        REDEEMER_REQUIRED: T("سجّل حسابك المهني أولاً", "Set up your professional account first"),
+      }[r.reason] || T("ما قدرنا نفتح الملف", "Could not open the record"));
+      return;
+    }
+    mutate((x) => {
+      x.carry = r.carry;
+      x.shares = [...(x.shares || []), r.share];
+    });
+    toast(T("انفتح الملف", "Record opened"));
+    location.hash = `#/clinical/${r.share.patientId}`;
   };
 
   /* ---------- clinician inbox: confirm or reject extracted claims ---------- */

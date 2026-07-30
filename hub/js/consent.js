@@ -594,9 +594,29 @@
       bloodGroup: r.bloodGroup || null,
       allergies: (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []))
         .map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      /* EVERY current medication, with the flagged ones pinned first.
+         This used to return ONLY drugs carrying `anticoagulant || insulin ||
+         steroid || critical`. No ordinary Iraqi outpatient regimen carries any
+         of those flags, so the row rendered for almost nobody — a patient on
+         aspirin 81mg and metformin 500mg BID appeared on the emergency card as
+         taking nothing at all, and silently, because `notRecorded` did not
+         cover medications either.
+
+         Both of those drugs change emergency management: aspirin changes
+         bleeding management in trauma and head injury, and metformin must be
+         held around iodinated contrast and is a lactic-acidosis consideration
+         in a shocked patient. A whitelist that decides which medicines a
+         responder is allowed to know about is a decision this layer is not
+         entitled to make. The flags now decide ORDER, not inclusion. */
       criticalMedications: (E.currentMedications ? E.currentMedications(r.medications, now) : [])
-        .filter((m) => m.anticoagulant || m.insulin || m.steroid || m.critical)
-        .map((m) => ({ display: m.display, dose: m.dose || null })),
+        .slice()
+        .sort((a, b) => (!!(b.anticoagulant || b.insulin || b.steroid || b.critical))
+                      - (!!(a.anticoagulant || a.insulin || a.steroid || a.critical)))
+        .map((m) => ({ display: m.display, dose: m.dose || null,
+          flagged: !!(m.anticoagulant || m.insulin || m.steroid || m.critical),
+          /* A responder must be able to tell a drug a clinician confirmed from
+             one the patient typed in. */
+          selfReported: E.isSelfReported ? E.isSelfReported(m) : false })),
       majorConditions: (E.activeConditions ? E.activeConditions(r.conditions, now) : [])
         .filter((c) => c.chronic).map((c) => c.display),
       warnings: r.clinicalWarnings || [],

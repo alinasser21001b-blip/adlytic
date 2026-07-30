@@ -894,10 +894,21 @@ const noteNav = () => { inAppMoves++; };
    segment turns #/doctor/d1 into #/doctor, which is not a route — the user
    would land on a 404 instead of outside the app, which is not an
    improvement. */
+/* Four of these were pointing at the wrong product.
+   `need` is a MEDICINE request («أحتاج دوا») and `needs` is the doctor
+   specialty grid — two routes one letter apart, meaning two unrelated things —
+   so «أحتاج دوا» went "up" to a doctor picker, and so did the availability
+   radar and its waiting screen. All three belong to the medicine family.
+   `clinical` went up to `#/record`, which put a clinician's back button inside
+   the patient's own record, one tap from the patient's share controls and edit
+   forms; it goes up to the code entry it came from. And `rx` and `doctors`
+   were absent, so a shared variant link or a specialty-filtered doctor list
+   fell all the way to the home screen. */
 const UP_FROM = {
-  record: "#/", clinical: "#/record", doctor: "#/doctors", pharmacy: "#/pharmacies",
-  hospital: "#/hospitals", need: "#/needs", med: "#/rx", product: "#/rx",
-  care: "#/", partner: "#/", radar: "#/needs", wait: "#/needs",
+  record: "#/", clinical: "#/redeem", redeem: "#/", doctor: "#/doctors",
+  pharmacy: "#/pharmacies", hospital: "#/hospitals", doctors: "#/needs",
+  need: "#/rx", rx: "#/rx", med: "#/rx", product: "#/rx",
+  care: "#/", partner: "#/", radar: "#/rx", wait: "#/rx",
   lab: "#/", imaging: "#/", "pharmacy-rx": "#/",
 };
 function upFrom(hash) {
@@ -907,7 +918,12 @@ function upFrom(hash) {
   /* The record's own sub-screens go up to the record, not to the home
      screen: someone three levels into their labs wants their record back. */
   if (seg[0] === "record" && seg.length > 1) return "#/record";
-  return UP_FROM[seg[0]] || "#/";
+  /* A family whose root is also its own key must not send its root to itself —
+     `#/rx` going up to `#/rx` is a back button that does nothing. Only the
+     sub-routes climb. */
+  const up = UP_FROM[seg[0]];
+  if (up === "#/" + seg[0]) return seg.length > 1 ? up : "#/";
+  return up || "#/";
 }
 
 globalThis.goBack = function goBack() {
@@ -939,7 +955,18 @@ function header(opts = {}) {
    point, not the thing being built. A record that lives three taps deep
    inside a settings menu is a record nobody accumulates, and an empty record
    is worth nothing to the doctor it was built for. */
+/* The bar was cut from six tabs to four and eleven call sites were never
+   reconciled: `nav("explorer")` and `nav("care")` are passed by the whole
+   medicine layer (#/rx, #/explorer, #/need/*, #/radar, #/wait) and the
+   care-products layer (#/care, #/product), and neither key exists here. The
+   bar rendered with NO tab lit — the user standing somewhere the map does not
+   contain. Those screens all answer "where do I get this", which is what the
+   pharmacies tab is for, and `#/med/:id` already passed `nav("pharmacies")`
+   for exactly that reason. A test now fails if a call site passes a key this
+   function cannot light. */
+const NAV_ALIAS = { explorer: "pharmacies", care: "pharmacies" };
 function nav(active) {
+  active = NAV_ALIAS[active] || active;
   const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
     ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
   /* The bar is `position: fixed`, so it floats over the end of whatever is
