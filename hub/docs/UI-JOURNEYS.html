@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>قريب — رحلات الواجهة · Qareeb Flow Journeys</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- TWO FAMILIES, NOT THREE — the same decision the product itself made.
+     Readex Pro carries Arabic display; IBM Plex Sans carries every numeral and,
+     with tracking and tabular figures, every label a monospace face would have
+     carried. This document practises what it documents. -->
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300..600&family=IBM+Plex+Sans:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Tokens — copied VERBATIM from src/styles/identity.css.
+   If they drift from that file, that file wins.
+   ============================================================ */
+:root{
+  --case:#0B1412; --case-2:#101B18; --case-line:rgba(240,236,228,.14);
+  --case-ink:#F2EFE8; --case-ink-2:rgba(242,239,232,.78); --case-ink-3:rgba(242,239,232,.64);
+  --dial:#F4F1EB; --dial-2:#FBF9F5; --dial-line:rgba(11,20,18,.10); --dial-line-2:rgba(11,20,18,.055);
+  --line-ctl:rgba(11,20,18,.50);
+  --ink:#0B1412; --ink-2:rgba(11,20,18,.72); --ink-3:rgba(11,20,18,.64); --ink-4:rgba(11,20,18,.42);
+  --jade:#0E5450; --jade-2:#14706A; --jade-lit:#5FD0C0;
+  --brass:#C98A18; --brass-ink:#845A09; --brass-lit:#F0C15E;
+  --alarm:#C1121F; --alarm-lit:#F08A80; --alarm-on:#fff;
+  --wash-time:#F0E7D6; --wash-alarm:#F0E0DC;
+  --disp:'Readex Pro',system-ui,sans-serif;
+  --num:'IBM Plex Sans',system-ui,sans-serif;
+  --r:12px; --rp:999px;
+  --u1:4px;--u2:8px;--u3:12px;--u4:16px;--u5:20px;--u6:28px;--u7:40px;--u8:56px;--u9:72px;--u10:96px;
+  --shadow:0 24px 60px -12px rgba(11,20,18,.42), 0 2px 6px rgba(11,20,18,.10);
+  /* page surfaces — dark is the default, as the product's home screen is */
+  --bg:var(--case); --bg2:var(--case-2); --surf:#151F1B; --surf2:#1A2622;
+  --line:var(--case-line); --txt:var(--case-ink); --txt2:var(--case-ink-2); --txt3:var(--case-ink-3);
+  --acc:var(--jade-lit); --alarm-c:var(--alarm-lit); --brass-c:var(--brass-lit);
+}
+[data-theme="light"]{
+  --bg:var(--dial); --bg2:var(--dial-2); --surf:#fff; --surf2:#F7F4EE;
+  --line:var(--dial-line); --txt:var(--ink); --txt2:var(--ink-2); --txt3:var(--ink-3);
+  --acc:var(--jade); --alarm-c:var(--alarm); --brass-c:var(--brass-ink);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;}
+body{font-family:var(--disp);background:var(--bg);color:var(--txt);line-height:1.7;overflow-x:hidden;
+     transition:background .3s ease,color .3s ease;}
+.container{max-width:1180px;margin-inline:auto;padding-inline:var(--u5);}
+::selection{background:color-mix(in oklch, var(--acc) 30%, transparent);}
+
+/* Numerals. Same rule as the product: isolate, tabular, never wrapping. */
+.num{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;
+     unicode-bidi:isolate;white-space:nowrap;font-weight:400;}
+.mark{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:.08em;font-weight:400;}
+
+/* ===== TOP BAR ===== */
+header.top{position:sticky;top:0;z-index:100;background:color-mix(in oklch, var(--bg) 82%, transparent);
+           backdrop-filter:blur(14px);border-bottom:1px solid var(--line);}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:var(--u2) var(--u5);
+        max-width:1180px;margin-inline:auto;gap:var(--u4);}
+.brand{display:flex;align-items:center;gap:var(--u3);font-weight:600;font-size:.95rem;flex-shrink:0;}
+@media (max-width:620px){.brand span[data-t]{display:none;}}
+.brand .ring{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--acc);display:flex;
+             align-items:center;justify-content:center;position:relative;flex-shrink:0;}
+.brand .ring::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--acc);}
+.brand .ring::after{content:'';position:absolute;width:1px;height:8px;background:var(--acc);
+                    top:-1px;left:50%;transform:translateX(-50%);}
+/* min-width:0 is load-bearing. A flex item refuses to shrink below its own
+   min-content width without it, so at 320px this scroller pushed the two
+   control buttons 36px (ar) / 68px (en) off the edge — measured, not guessed. */
+.chase{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1 1 auto;}
+.chase::-webkit-scrollbar{display:none;}
+/* 44px minimum, as the product's own gate requires of every target. */
+.chase a{font-size:.74rem;font-weight:500;padding:0 .8rem;min-height:44px;display:inline-flex;
+         align-items:center;border-radius:var(--rp);color:var(--txt3);text-decoration:none;
+         white-space:nowrap;transition:background .16s ease,color .16s ease;border:1px solid transparent;}
+.chase a:hover{background:var(--surf2);color:var(--txt);}
+.chase a.active{color:var(--acc);border-color:color-mix(in oklch, var(--acc) 35%, transparent);
+                background:color-mix(in oklch, var(--acc) 10%, transparent);}
+.ctl{display:flex;gap:var(--u2);flex-shrink:0;}
+.ctl button{min-width:44px;min-height:44px;padding-inline:var(--u3);border-radius:var(--rp);
+            border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;
+            gap:6px;color:var(--txt);background:var(--surf);cursor:pointer;font-family:var(--disp);
+            font-size:.76rem;font-weight:500;transition:transform .2s ease,border-color .16s ease;}
+.ctl button:hover{border-color:var(--acc);}
+.ctl button:active{transform:scale(.94);}
+.ctl button:focus-visible{outline:2px solid var(--acc);outline-offset:2px;}
+
+/* ===== HERO ===== */
+.hero{padding:var(--u10) 0 var(--u8);}
+.hero-grid{display:grid;grid-template-columns:1.3fr .7fr;gap:var(--u8);align-items:end;}
+.eyebrow{font-family:var(--num);font-size:.7rem;letter-spacing:.12em;color:var(--acc);
+         margin-bottom:var(--u4);display:flex;align-items:center;gap:var(--u2);}
+.eyebrow .tick{width:16px;height:1px;background:var(--acc);}
+h1.hero-h{font-family:var(--disp);font-weight:600;font-size:clamp(2rem,1.3rem + 2.6vw,3.6rem);
+          line-height:1.28;letter-spacing:-.02em;max-width:20ch;}
+:root:lang(en) h1.hero-h{line-height:1.05;max-width:16ch;}
+.hero-h em{color:var(--acc);font-style:normal;}
+.lead{margin-top:var(--u5);color:var(--txt2);max-width:56ch;font-size:1.02rem;}
+.hero-stats{display:flex;flex-direction:column;gap:var(--u4);border-inline-start:1px solid var(--line);
+            padding-inline-start:var(--u6);}
+.stat b{font-family:var(--num);font-size:1.9rem;font-weight:400;color:var(--acc);display:block;
+        letter-spacing:-.02em;direction:ltr;unicode-bidi:isolate;}
+.stat span{font-size:.8rem;color:var(--txt3);line-height:1.6;display:block;}
+.ticks-strip{display:flex;gap:3px;height:20px;align-items:flex-end;margin-top:var(--u8);opacity:.5;}
+.ticks-strip i{width:1px;background:var(--txt3);flex-shrink:0;}
+
+/* ===== PROGRESS RAIL ===== */
+.progress-rail{position:fixed;inset-inline-end:var(--u5);top:50%;transform:translateY(-50%);z-index:60;
+               display:flex;flex-direction:column;gap:var(--u3);}
+@media (max-width:1000px){.progress-rail{display:none;}}
+.progress-rail button{width:10px;height:10px;border-radius:50%;background:var(--line);border:none;
+                      cursor:pointer;transition:background .25s ease,transform .25s ease;padding:0;position:relative;}
+.progress-rail button.active{background:var(--acc);transform:scale(1.5);}
+.progress-rail button:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+.progress-rail button::after{content:attr(data-label);position:absolute;inset-inline-end:calc(100% + 10px);
+  top:50%;transform:translateY(-50%);font-size:.7rem;white-space:nowrap;color:var(--txt2);opacity:0;
+  transition:opacity .16s ease;background:var(--surf);padding:.25rem .6rem;border-radius:var(--rp);
+  border:1px solid var(--line);pointer-events:none;}
+.progress-rail button:hover::after,.progress-rail button:focus-visible::after{opacity:1;}
+
+/* ===== SECTION ===== */
+section{padding-block:var(--u9);border-top:1px solid var(--line);}
+.sec-head{display:grid;grid-template-columns:auto 1fr;gap:var(--u6);align-items:start;margin-bottom:var(--u7);}
+.sec-index{font-family:var(--num);font-size:3.2rem;font-weight:200;color:var(--line);line-height:.9;
+           direction:ltr;unicode-bidi:isolate;}
+.kicker{font-family:var(--num);font-size:.7rem;letter-spacing:.1em;color:var(--acc);margin-bottom:var(--u2);}
+h2.sec-title{font-family:var(--disp);font-size:clamp(1.4rem,1rem + 1.4vw,2.1rem);font-weight:600;
+             letter-spacing:-.01em;line-height:1.45;}
+.sec-sub{margin-top:var(--u3);color:var(--txt2);max-width:70ch;font-size:.96rem;}
+
+/* ===== PHONE MOCKUPS ===== */
+.journey-strip{display:flex;gap:var(--u6);overflow-x:auto;padding:var(--u3) 0 var(--u5);
+               scroll-snap-type:x proximity;}
+.journey-strip::-webkit-scrollbar{height:6px;}
+.journey-strip::-webkit-scrollbar-thumb{background:var(--line);border-radius:var(--rp);}
+.phone-step{flex-shrink:0;width:224px;scroll-snap-align:start;}
+.phone{width:224px;height:404px;border-radius:26px;border:1px solid var(--line);background:var(--surf);
+       box-shadow:var(--shadow);position:relative;overflow:hidden;padding:var(--u2);
+       transition:transform .25s ease,border-color .25s ease;}
+.phone-step:hover .phone{transform:translateY(-4px);border-color:color-mix(in oklch, var(--acc) 45%, var(--line));}
+.phone-notch{width:60px;height:4px;background:var(--line);border-radius:var(--rp);margin:6px auto 8px;}
+.phone-screen{background:var(--bg2);border-radius:18px;height:100%;padding:var(--u3);display:flex;
+              flex-direction:column;gap:var(--u2);overflow:hidden;}
+.ps-topline{display:flex;justify-content:space-between;align-items:center;gap:var(--u2);margin-bottom:var(--u1);}
+.ps-badge{font-family:var(--num);font-size:.58rem;letter-spacing:.04em;color:var(--txt3);background:var(--surf);
+          padding:.15rem .4rem;border-radius:var(--rp);border:1px solid var(--line);direction:ltr;
+          unicode-bidi:isolate;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%;}
+.ps-title{font-family:var(--disp);font-weight:600;font-size:.85rem;margin-top:var(--u1);line-height:1.5;}
+.ps-row{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:var(--u2) var(--u3);
+        font-size:.72rem;color:var(--txt2);display:flex;flex-direction:column;gap:2px;}
+.ps-row.alarm{border-color:color-mix(in oklch, var(--alarm-c) 45%, var(--line));
+              background:color-mix(in oklch, var(--alarm-c) 8%, var(--surf));}
+.ps-row.brass{border-color:color-mix(in oklch, var(--brass-c) 45%, var(--line));
+              background:color-mix(in oklch, var(--brass-c) 8%, var(--surf));}
+.ps-row.jade{border-color:color-mix(in oklch, var(--acc) 40%, var(--line));
+             background:color-mix(in oklch, var(--acc) 8%, var(--surf));}
+.ps-row b{font-size:.76rem;color:var(--txt);font-weight:600;line-height:1.5;}
+.ps-row small{font-size:.63rem;color:var(--txt3);line-height:1.55;}
+.ps-btn{margin-top:auto;background:var(--acc);color:var(--case);font-size:.68rem;font-weight:600;
+        text-align:center;padding:.5rem;border-radius:var(--rp);line-height:1.5;}
+[data-theme="light"] .ps-btn{color:var(--dial-2);}
+.ps-btn.ghost{background:none;border:1px solid var(--line);color:var(--txt2);}
+.step-caption{margin-top:var(--u3);padding-inline:var(--u1);}
+.step-caption .n{font-family:var(--num);font-size:.7rem;color:var(--acc);direction:ltr;unicode-bidi:isolate;}
+.step-caption p{font-size:.8rem;color:var(--txt2);margin-top:2px;line-height:1.65;}
+/* A machine token IS one of the few things that may break anywhere — the same
+   exception css/qareeb.css keeps after removing the global `overflow-wrap:
+   anywhere` that was cutting Arabic words in half. `nowrap` here pushed the
+   page 68px sideways at 320. */
+code{font-family:var(--num);font-size:.72rem;color:var(--acc);direction:ltr;unicode-bidi:isolate;
+     background:color-mix(in oklch, var(--acc) 10%, transparent);padding:.05rem .32rem;border-radius:4px;
+     overflow-wrap:anywhere;}
+.arrow-connector{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:32px;
+                 color:var(--line);font-size:1.1rem;}
+
+/* ===== BRANCH CARDS ===== */
+.branch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:var(--u4);margin-top:var(--u5);}
+.branch{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:var(--u5);position:relative;}
+.branch .bnum{position:absolute;top:var(--u4);inset-inline-end:var(--u4);font-family:var(--num);
+              font-size:.68rem;color:var(--txt3);direction:ltr;unicode-bidi:isolate;}
+.branch h4{font-family:var(--disp);font-weight:600;font-size:.96rem;margin-bottom:var(--u2);
+           padding-inline-end:var(--u7);line-height:1.5;}
+.branch p{font-size:.85rem;color:var(--txt2);}
+.tag-row{margin-top:var(--u3);display:flex;gap:var(--u2);flex-wrap:wrap;}
+.mini-tag{overflow-wrap:anywhere;font-size:.66rem;font-family:var(--num);padding:.2rem .5rem;border-radius:var(--rp);
+          border:1px solid var(--line);color:var(--txt3);direction:ltr;unicode-bidi:isolate;}
+.mini-tag.warn{border-color:color-mix(in oklch, var(--alarm-c) 50%, var(--line));color:var(--alarm-c);}
+.mini-tag.good{border-color:color-mix(in oklch, var(--acc) 50%, var(--line));color:var(--acc);}
+
+/* ===== ROUTE TABLE ===== */
+.route-table{margin-top:var(--u6);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;}
+.rt-row{display:grid;grid-template-columns:1.1fr 1.1fr 2fr;gap:var(--u4);padding:var(--u3) var(--u4);
+        border-bottom:1px solid var(--line);align-items:center;}
+.rt-row:last-child{border-bottom:none;}
+.rt-row.head{background:var(--surf2);font-family:var(--num);font-size:.66rem;letter-spacing:.06em;color:var(--txt3);}
+.rt-row .route{font-family:var(--num);font-size:.78rem;color:var(--acc);direction:ltr;unicode-bidi:isolate;overflow-wrap:anywhere;}
+.rt-row .fn,.rt-row .desc{font-size:.83rem;color:var(--txt2);line-height:1.6;}
+@media (max-width:760px){
+  .rt-row{grid-template-columns:1fr;gap:var(--u1);padding:var(--u4);}
+  .rt-row.head{display:none;}
+  .rt-row>div::before{font-family:var(--num);font-size:.6rem;color:var(--txt3);display:block;letter-spacing:.06em;}
+  .rt-row .route::before{content:attr(data-l1);}
+  .rt-row .fn::before{content:attr(data-l2);}
+  .rt-row .desc::before{content:attr(data-l3);}
+}
+
+/* ===== BIDI DEMO ===== */
+.bidi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:var(--u5);margin-top:var(--u6);}
+.bidi-case{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surf);}
+.bidi-case>h4{font-family:var(--disp);font-weight:600;font-size:.92rem;padding:var(--u4) var(--u5) var(--u2);line-height:1.5;}
+.bidi-case>p.why{font-size:.82rem;color:var(--txt3);padding:0 var(--u5) var(--u4);line-height:1.7;}
+.bidi-pair{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);}
+.bidi-half{padding:var(--u4) var(--u5);}
+.bidi-half+.bidi-half{border-inline-start:1px solid var(--line);}
+.bidi-half .lb{font-family:var(--num);font-size:.62rem;letter-spacing:.08em;display:block;margin-bottom:var(--u2);}
+.bidi-half.is-bad .lb{color:var(--alarm-c);}
+.bidi-half.is-good .lb{color:var(--acc);}
+.bidi-out{font-size:1.02rem;line-height:2;min-height:2.4em;}
+.bidi-half code.decl{display:block;margin-top:var(--u3);font-size:.66rem;white-space:normal;background:none;
+                     padding:0;color:var(--txt3);}
+/* The two renderings under test. `.wrong` reproduces the shipped defect. */
+.wrong-embed{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;}
+.right-iso{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;white-space:nowrap;}
+.wrong-unit{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-weight:300;}
+.right-unit{unicode-bidi:isolate;white-space:nowrap;font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:300;}
+.trend-list{list-style:none;}
+.trend-list li{display:flex;justify-content:space-between;gap:var(--u4);padding-block:2px;
+               border-bottom:1px solid var(--line);}
+.trend-list li:last-child{border-bottom:none;}
+.trend-list .d{font-size:.72rem;color:var(--txt3);}
+.verdict{margin-top:var(--u6);border:1px solid color-mix(in oklch, var(--brass-c) 40%, var(--line));
+         border-radius:var(--r);padding:var(--u5);background:color-mix(in oklch, var(--brass-c) 7%, var(--surf));}
+.verdict b{color:var(--brass-c);}
+.verdict p{font-size:.88rem;color:var(--txt2);margin-top:var(--u2);}
+
+/* ===== RULE RAIL ===== */
+.rule-rail{margin-top:var(--u6);position:relative;padding-inline-start:var(--u6);}
+.rule-rail::before{content:'';position:absolute;inset-inline-start:5px;top:6px;bottom:6px;width:1px;background:var(--line);}
+.rule-item{position:relative;padding-block:var(--u4);}
+.rule-item::before{content:'';position:absolute;inset-inline-start:-19px;top:26px;width:9px;height:9px;
+                   border-radius:50%;background:var(--bg);border:2px solid var(--acc);}
+.rule-item h4{font-family:var(--disp);font-weight:600;font-size:.95rem;margin-bottom:var(--u2);line-height:1.5;}
+.rule-item p{font-size:.86rem;color:var(--txt2);max-width:66ch;}
+.rule-item .sig{font-family:var(--num);font-size:.68rem;color:var(--txt3);margin-top:var(--u2);
+                direction:ltr;unicode-bidi:isolate;}
+
+/* ===== SIMULATOR ===== */
+.sim-wrap{margin-top:var(--u6);background:var(--surf);border:1px solid var(--line);border-radius:20px;
+          padding:var(--u6);display:grid;grid-template-columns:270px 1fr;gap:var(--u7);align-items:center;}
+@media (max-width:840px){.sim-wrap{grid-template-columns:1fr;}}
+.sim-phone{width:min(246px,100%);height:444px;border-radius:28px;border:1px solid var(--line);background:var(--bg2);
+           box-shadow:var(--shadow);margin-inline:auto;padding:var(--u3);}
+.sim-notch{width:64px;height:4px;background:var(--line);border-radius:var(--rp);margin:6px auto 10px;}
+.sim-screen{height:calc(100% - 22px);display:flex;flex-direction:column;gap:var(--u2);}
+.sim-screen .sst{font-family:var(--num);font-size:.6rem;color:var(--acc);letter-spacing:.05em;
+                 direction:ltr;unicode-bidi:isolate;}
+.sim-screen h5{font-family:var(--disp);font-weight:600;font-size:1rem;margin-top:2px;line-height:1.5;}
+.sim-body{flex:1;display:flex;flex-direction:column;gap:var(--u2);margin-top:var(--u3);}
+.sim-card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:var(--u3);
+          font-size:.75rem;color:var(--txt2);line-height:1.6;}
+.sim-controls{display:flex;flex-direction:column;gap:var(--u4);}
+.sim-steps{display:flex;flex-direction:column;gap:var(--u2);}
+.sim-step-btn{display:flex;align-items:center;gap:var(--u3);padding:var(--u3);min-height:44px;
+              border-radius:var(--r);border:1px solid var(--line);background:var(--bg);cursor:pointer;
+              text-align:start;font-family:var(--disp);color:var(--txt2);font-size:.86rem;
+              transition:border-color .16s ease,color .16s ease,background .16s ease;}
+.sim-step-btn .idx{font-family:var(--num);font-size:.7rem;color:var(--txt3);width:20px;flex-shrink:0;
+                   direction:ltr;unicode-bidi:isolate;}
+.sim-step-btn.active{border-color:var(--acc);color:var(--txt);background:color-mix(in oklch, var(--acc) 8%, var(--bg));}
+.sim-step-btn.active .idx{color:var(--acc);}
+.sim-step-btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px;}
+.sim-nav{display:flex;gap:var(--u3);margin-top:var(--u2);}
+.sim-nav button{flex:1;min-height:44px;padding:.65rem;border-radius:var(--rp);border:1px solid var(--line);
+                background:var(--bg);color:var(--txt);font-size:.82rem;font-weight:500;cursor:pointer;
+                font-family:var(--disp);transition:border-color .16s ease,color .16s ease;}
+.sim-nav button:hover{border-color:var(--acc);color:var(--acc);}
+.sim-nav button:focus-visible{outline:2px solid var(--acc);outline-offset:2px;}
+
+footer{text-align:center;padding:var(--u9) 0;color:var(--txt3);font-size:.8rem;border-top:1px solid var(--line);line-height:1.9;}
+footer .fmark{font-family:var(--num);color:var(--acc);direction:ltr;unicode-bidi:isolate;}
+
+@media (max-width:400px){
+  .container{padding-inline:var(--u4);}
+  .sim-wrap{padding:var(--u4);}
+  .branch,.bidi-half{padding:var(--u4);}
+  .bidi-case>h4,.bidi-case>p.why{padding-inline:var(--u4);}
+}
+@media (max-width:900px){
+  .hero-grid{grid-template-columns:1fr;gap:var(--u5);}
+  .hero-stats{border-inline-start:none;padding-inline-start:0;border-top:1px solid var(--line);
+              padding-top:var(--u5);flex-direction:row;flex-wrap:wrap;gap:var(--u6);}
+  .sec-head{grid-template-columns:1fr;gap:var(--u2);}
+  .sec-index{font-size:2rem;}
+  .bidi-pair{grid-template-columns:1fr;}
+  .bidi-half+.bidi-half{border-inline-start:0;border-top:1px solid var(--line);}
+}
+
+/* The guarantee is made once, for everything — the same shape as §31 of
+   css/qareeb.css, and for the same reason: a hand-written list of animated
+   selectors works exactly until someone adds one and forgets. Durations
+   collapse rather than being set to `none`, so an entrance animation runs
+   instantly to its FINAL state instead of being frozen at opacity 0. */
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *,*::before,*::after{
+    animation-duration:.01ms !important;animation-iteration-count:1 !important;animation-delay:0s !important;
+    transition-duration:.01ms !important;transition-delay:0s !important;scroll-behavior:auto !important;
+  }
+}
+</style>
+</head>
+<body data-theme="dark">
+
+<div class="progress-rail" id="progressRail"></div>
+
+<header class="top">
+  <div class="topbar">
+    <div class="brand"><span class="ring"></span><span data-t="brand">قريب · رحلات الواجهة</span></div>
+    <nav class="chase" id="chaseNav" aria-label="انتقل إلى قسم"></nav>
+    <div class="ctl">
+      <button id="langToggle" aria-label="تبديل اللغة"><span class="mark">EN</span></button>
+      <button id="themeToggle" aria-label="تبديل المظهر"></button>
+    </div>
+  </div>
+</header>
+
+<div class="hero container">
+  <div class="hero-grid">
+    <div>
+      <div class="eyebrow"><span class="tick"></span><span data-t="eyebrow">تسليم الواجهة · رحلات المستخدم</span></div>
+      <h1 class="hero-h" data-t="heroH"></h1>
+      <p class="lead" data-t="lead"></p>
+    </div>
+    <div class="hero-stats" id="heroStats"></div>
+  </div>
+  <div class="ticks-strip" id="ticksStrip" aria-hidden="true"></div>
+</div>
+
+<main id="sections"></main>
+
+<footer>
+  <span data-t="footer"></span><br>
+  <span class="fmark">hub/docs/UI-HANDOFF.md</span>
+</footer>
+
+<script>
+"use strict";
+
+/* ============================================================
+   EVERY FACT BELOW IS TRACEABLE TO THE REPOSITORY.
+   Where a value comes from a seed or a domain constant, the source is named.
+   Nothing here is invented — an invented fee or an invented patient name in a
+   handoff document is the same defect the product itself refuses.
+   ============================================================ */
+
+const DATA = {
+  /* ---- chrome ---- */
+  brand:   { ar:"قريب · رحلات الواجهة",  en:"Qareeb · Flow Journeys" },
+  eyebrow: { ar:"تسليم الواجهة · رحلات المستخدم", en:"UI HANDOFF · FLOW JOURNEYS" },
+  heroH:   { ar:"ثماني رحلات داخل <em>أداة واحدة</em> — لا ثمانية تطبيقات.",
+             en:"Eight paths through <em>one instrument</em>, not eight apps." },
+  lead:    { ar:"كل شاشة أدناه مربوطة بمسارها الحقيقي وبنداء النطاق الذي يغذّيها. مرّر أفقياً داخل كل رحلة كأنك تقلّب الدفتر نفسه، ثم اضغط في المحاكي لتحسّ التسلسل بدل أن تقرأ عنه.",
+             en:"Every screen below is traced to its real route and its domain call. Scroll each journey horizontally as if flipping through the register itself, then step through the simulator to feel the sequence rather than read about it." },
+  footer:  { ar:"رحلات قريب الأساسية — مشتقّة من", en:"Qareeb core user flows — derived from" },
+
+  stats: [
+    { n:"65", ar:"مساراً تُفتح باردة، وصفر شاشة فارغة مسموحة",
+              en:"routes opened cold, zero blank screens permitted" },
+    { n:"04", ar:"نطاقات تنفتح بالطوارئ بلا سؤال، لمدة ٦٠ دقيقة",
+              en:"scopes open in an emergency without asking, for 60 minutes" },
+    { n:"09", ar:"رحلات مرسومة من طرفها إلى طرفها",
+              en:"journeys mapped end to end" },
+  ],
+};
+
+/* Seeded values, taken from the repository rather than imagined:
+   patient  — «زينب» (tools/routes.mjs, tools/audit-ui.mjs seed)
+   doctor   — «د. علي حسين الجبوري» (js/data.js, d1)
+   fee      — js/data.js carries 20000..40000 and 0; CONFIG.currency is «د.ع» / IQD
+   blood    — the seed records none, so the honest render is «غير مسجّلة» */
+const SEED = {
+  patient:  { ar:"زينب · 39 سنة · أنثى", en:"Zainab · 39 · female" },
+  blood:    { ar:"فصيلة الدم غير مسجّلة", en:"blood group not recorded" },
+  doctor:   { ar:"د. علي حسين الجبوري", en:"Dr. Ali Hussein Al-Jubouri" },
+  fee:      { ar:"25,000 د.ع", en:"25,000 IQD" },
+};
+
+const JOURNEYS = [
+  /* ============ 01 · REGISTER ============ */
+  {
+    id:"register", label:{ar:"الدفتر",en:"Register"}, index:"01",
+    kicker:"#/ · screenRegister()",
+    title:{ ar:"الدفتر — شنو صاير هسّه", en:"Register — what is happening now" },
+    sub:{ ar:"الزمن هو المحور الوحيد. سجلّ واحد يقسمه خطّ ثقيل إلى «مفتوح الآن» (أخطرها فوق) و«انتهى» (من الأحدث للأقدم). المستخدم ما يحتاج يخمّن شنو ينظر إليه أول.",
+          en:"Time is the only axis. One ledger split by a heavy rule into Open Now (worst first) and Ended (newest first). The reader never has to guess what to look at first." },
+    steps:[
+      { badge:"#/", badge2:"screenRegister", title:{ar:"الغلاف",en:"Cover"},
+        rows:[ {k:"", b:SEED.patient, s:{ar:SEED.blood.ar+" · REC.patientProfile()", en:SEED.blood.en+" · REC.patientProfile()"}},
+               {k:"brass", b:{ar:"محفوظ على هذا الهاتف فقط",en:"Saved on this phone only"}, s:{ar:"TRANSPORT.status()",en:"TRANSPORT.status()"}} ],
+        btn:{ghost:true, t:{ar:"بطاقة الطوارئ",en:"Emergency card"}},
+        cap:{ ar:"الغلاف يحمل الهوية وحالة المزامنة الصادقة. <code>openEmergency()</code> على بُعد ضغطة واحدة.",
+              en:"The cover carries identity and an honest sync state. <code>openEmergency()</code> is one tap away." } },
+      { badge:"alert", badge2:"CONSENT", title:{ar:"طلب معلّق",en:"Pending request"},
+        rows:[ {k:"alarm", b:{ar:SEED.doctor.ar+" يطلب الاطّلاع",en:SEED.doctor.en+" is asking to see it"},
+                s:{ar:"requestState() → #/record/request/:id",en:"requestState() → #/record/request/:id"}} ],
+        cap:{ ar:"طلبات الوصول تظهر هنا كتنبيه — لا مدفونة في الإعدادات.",
+              en:"Access requests surface here as an alert, not buried in settings." } },
+      { badge:"open now", badge2:"openRows", title:{ar:"مفتوح الآن",en:"Open Now"},
+        rows:[ {k:"alarm", b:{ar:"الخضاب السكري — غير طبيعي",en:"HbA1c — flagged abnormal"},
+                s:{ar:"EMR.isAbnormal() · أخطرها فوق",en:"EMR.isAbnormal() · worst first"}},
+               {k:"brass", b:{ar:"متابعة متأخّرة",en:"Follow-up overdue"}, s:{ar:"EMR.openTasks()",en:"EMR.openTasks()"}} ],
+        cap:{ ar:"أخطر بند مفتوح يجلس في القمة — دائماً، وبالخطورة السريرية لا بالحداثة.",
+              en:"The most dangerous open item sits at the very top — always, by clinical severity rather than recency." } },
+      { badge:"ended", badge2:"historyRows", title:{ar:"انتهى",en:"Ended"},
+        rows:[ {k:"jade", b:{ar:"حلقة رعاية أُغلقت",en:"Care episode closed"}, s:{ar:"EMR.canCloseEpisode()",en:"EMR.canCloseEpisode()"}},
+               {k:"", b:{ar:"زيارة — عيادة الكرادة",en:"Visit — Karrada clinic"}, s:{ar:"قبل 3 أسابيع",en:"3 weeks ago"}} ],
+        cap:{ ar:"التاريخ يُقرأ نزولاً كدفتر يوميات، والأحدث في الأعلى.",
+              en:"History reads downward like a diary, newest on top." } },
+      { badge:"dock", badge2:"3 exits", title:{ar:"رصيف الأفعال",en:"Dock actions"},
+        rows:[], btns:[ {t:{ar:"سلّم أوراقاً لطبيب",en:"Hand sheets to a clinician"}},
+                        {ghost:true,t:{ar:"اقرأه لمشكلة وحدة",en:"Read it for one problem"}},
+                        {ghost:true,t:{ar:"شوف أوراقك كلها",en:"See all your sheets"}} ],
+        cap:{ ar:"ثلاثة مخارج: المشاركة <code>#/record/share</code>، فلتر المشكلة <code>regProblemSheet()</code>، والأوراق كاملة <code>#/record</code>.",
+              en:"Three exits: share <code>#/record/share</code>, problem filter <code>regProblemSheet()</code>, full deck <code>#/record</code>." } },
+    ],
+    branches:[
+      { n:"edge", h:{ar:"عرض مقيّد بمشكلة",en:"Problem-scoped view"},
+        p:{ar:"<code>#/?problem=:id</code> يفلتر على خيط واحد، ولازم <b>يصرّح</b> أن غير المربوط مخفيّ — الصمت هنا يُقرأ «ما في شي غيره».",
+           en:"<code>#/?problem=:id</code> filters to one thread and must <b>say so</b> — silence here reads as “nothing else exists”."},
+        tags:[{c:"warn",t:"disclosure required"}] },
+      { n:"edge", h:{ar:"صدق المزامنة",en:"Sync truthfulness"},
+        p:{ar:"لا علامة صحّ قبل تأكيد الخادم. «محفوظ على هذا الهاتف فقط» حالة حقيقية معروضة، لا دوّامة تكذب.",
+           en:"No checkmark before the server confirms. “Saved on this phone only” is a real, visible state, not a spinner that lies."},
+        tags:[{c:"good",t:"TRANSPORT.status()"}] },
+      { n:"edge", h:{ar:"الترتيب بالخطورة",en:"Worst-first ordering"},
+        p:{ar:"الصفوف المفتوحة تُرتَّب بالخطورة السريرية لا بالحداثة — نتيجة موسومة تسبق تذكيراً روتينياً حتى لو كان التذكير أحدث.",
+           en:"Open rows sort by clinical severity, not recency — a flagged lab outranks a routine reminder even when the reminder is newer."},
+        tags:[{c:"",t:"openRows()"}] },
+    ],
+  },
+
+  /* ============ 02 · DECK ============ */
+  {
+    id:"deck", label:{ar:"الأوراق",en:"Deck"}, index:"02",
+    kicker:"#/record · screenDeck()",
+    title:{ ar:"الأوراق — شنو معروف، ومنو يقدر يشوفه", en:"Deck — what is known, and who can see it" },
+    sub:{ ar:"الأشرطة مشتقّة برمجياً من <code>consent.js</code>، ما مسمّاة بيد. سلوك المشاركة هو ما ينظّم الصفحة، لا نوع البيانات — وسلّة محايدة اسمها «أوراقك» هي حيث تتسرّب أسماء التخزين إلى الواجهة.",
+          en:"The bands are derived programmatically from <code>consent.js</code>, never hand-labelled. Sharing behaviour organises the page, not data type — a neutral “your papers” bucket is where storage-schema names leak into the UI." },
+    steps:[
+      { badge:"band 1", badge2:"SAFETY_FLOOR", title:{ar:"تروح حتى لو ما اخترتها",en:"Travels even if you don't pick it"},
+        rows:[ {k:"alarm", b:{ar:"الحساسية",en:"Allergies"}, s:{ar:"SAFETY_FLOOR — ورقة واحدة",en:"SAFETY_FLOOR — one sheet"}} ],
+        cap:{ ar:"الأرضية. ما ينفع الانسحاب منها: طبيب يشوف الملف بلا الحساسية أخطر من طبيب ما يشوف شي.",
+              en:"The floor. It cannot be opted out of: a clinician who sees the record without the allergies is more dangerous than one who sees nothing." } },
+      { badge:"band 2", badge2:"EMERGENCY_SCOPES", title:{ar:"تنفتح بالطوارئ بلا ما تسألك",en:"Opens in an emergency without asking"},
+        rows:[ {k:"brass", b:{ar:"الأدوية",en:"Medications"}, s:{ar:"EMERGENCY_SCOPES − SAFETY_FLOOR",en:"EMERGENCY_SCOPES − SAFETY_FLOOR"}},
+               {k:"brass", b:{ar:"المشاكل الصحية",en:"Conditions"}},
+               {k:"brass", b:{ar:"اللقطة السريرية",en:"Clinical summary"}} ],
+        cap:{ ar:"إفصاح جديد — أول ٦٠ دقيقة عند المسعف، وكانت مخزّنة في <code>EMERGENCY_SCOPES</code> بلا ما تعرضها أي شاشة.",
+              en:"A new disclosure — a responder's first 60 minutes, which sat in <code>EMERGENCY_SCOPES</code> unrendered by any screen." } },
+      { badge:"band 3", badge2:"ALL_SCOPES", title:{ar:"ما تروح إلا إذا سلّمتها بيدك",en:"Travels only if you hand it over"},
+        rows:[ {k:"", b:{ar:"7 أوراق، مطويّة",en:"7 sheets, collapsed"}, s:{ar:"ALL_SCOPES − ما فوق",en:"ALL_SCOPES − the above"}} ],
+        cap:{ ar:"احتكاك مقصود — المشاركة قرار، لا افتراض. والطوارئ ما توصل هذي.",
+              en:"Deliberate friction — sharing is a decision, not a default. Break-glass does not reach these." } },
+      { badge:"custody", badge2:"lastOut()", title:{ar:"تفصيل صفّ الورقة",en:"Sheet row detail"},
+        rows:[ {k:"jade", b:{ar:"التحاليل",en:"Lab results"},
+                s:{ar:"4 نتائج — عند "+SEED.doctor.ar+" الآن، باقي 3 أيام",
+                   en:"4 results — with "+SEED.doctor.en+" now, 3 days left"}} ],
+        cap:{ ar:"سجلّ الحيازة هو ما يحوّل عدّاداً ساكناً إلى سجلّ ملكية حيّ — وهو الفرق بين فهرس محتويات وهذه الشاشة.",
+              en:"The custody line turns a static count into a live possession record — the difference between a table of contents and this screen." } },
+    ],
+    branches:[
+      { n:"01", h:{ar:"أرضية السلامة",en:"Safety floor"},
+        p:{ar:"الحساسية — تسافر بغضّ النظر عن اختيار المستخدم. مكان واحد في المنتج كلّه تُتجاوَز فيه الموافقة، وباتجاه واحد فقط.",
+           en:"Allergies — travel regardless of the user's choice. The one place in the whole product where consent is overridden, and it overrides in exactly one direction."},
+        tags:[{c:"warn",t:"SAFETY_FLOOR"}] },
+      { n:"02", h:{ar:"نطاقات الطوارئ",en:"Emergency scopes"},
+        p:{ar:"الأدوية والمشاكل واللقطة — تنفتح بلا سؤال ٦٠ دقيقة، والمريض يوصله إشعار.",
+           en:"Medications, conditions and summary — open without asking for 60 minutes, and the patient is notified."},
+        tags:[{c:"warn",t:"break-glass tier 1"}] },
+      { n:"03", h:{ar:"بموافقة صريحة",en:"Consent required"},
+        p:{ar:"النطاقات السبعة الباقية — ما تتحرّك إلا بتسليم صريح.",
+           en:"The remaining seven scopes — they move only with an explicit handover."},
+        tags:[{c:"",t:"ALL_SCOPES"}] },
+      { n:"04", h:{ar:"الأصناف الحسّاسة",en:"Sensitive classes"},
+        p:{ar:"لا تدخل منحة عادية أبداً مهما كان اختيار النطاقات. بلا قانون حماية بيانات نافذ، تسريب على مستوى الصنف ليس إحراجاً — هو خطر على الشخص.",
+           en:"Never enter an ordinary grant, whatever scopes are selected. With no data-protection law in force, a category-level leak is not an embarrassment — it is a danger to the person."},
+        tags:[{c:"warn",t:"SENSITIVE_CLASSES"}] },
+    ],
+  },
+
+  /* ============ 03 · SHARING ============ */
+  {
+    id:"sharing", label:{ar:"المشاركة",en:"Sharing"}, index:"03",
+    kicker:"CONSENT",
+    title:{ ar:"المشاركة وحلقة رمز الحمل", en:"Sharing and the carry-code loop" },
+    sub:{ ar:"فجوة كود ميت حقيقية أُغلقت: <code>CONSENT.redeemCarryCode()</code> كانت موجودة ومُختبَرة، ولا شيء ينادِيها. المريض كان يقدر يُصدر رمزاً لا تقدر أي شاشة في المنتج أن تقبله.",
+          en:"A real dead-code gap closed: <code>CONSENT.redeemCarryCode()</code> existed and was tested with zero callers. The patient could issue a code no screen in the product could accept." },
+    table:{ head:{ ar:["المسار","الشاشة","الفعل الأساسي"], en:["Route","Screen","Core action"] },
+      rows:[
+        ["#/record/share","screenShareNew",{ar:"اختيار النطاقات والمدة ← recordStartShare()",en:"Pick scopes + duration → recordStartShare()"}],
+        ["#/record/shares","screenShares",{ar:"recordRevoke(id) — فوري وبلا سبب مطلوب",en:"recordRevoke(id) — instant, no reason required"}],
+        ["#/record/access","screenAccess",{ar:"السجل الكامل، بما فيه المحاولات المرفوضة",en:"The full history, including refused attempts"}],
+        ["#/record/carry","screenCarry",{ar:"recordIssueCarry() — الرمز يسافر بالواتساب",en:"recordIssueCarry() — the code travels by WhatsApp"}],
+        ["#/redeem/:code","screenRedeem",{ar:"redeemSubmit() — الطرف المستقبِل، وهو ما أغلق الفجوة",en:"redeemSubmit() — the receiving end that closed the gap"}],
+        ["#/record/request/:id","screenAccessRequest",{ar:"recordApprove(id) / recordDecline(id)",en:"recordApprove(id) / recordDecline(id)"}],
+      ]},
+    branches:[
+      { n:"rule", h:{ar:"لا مشاركة بلا نهاية",en:"No share without an end"},
+        p:{ar:"السقف ٩٠ يوماً، ولا يوجد «للأبد» في أي مسار كود. والانتهاء <b>مشتقّ</b> يُحسب كل قراءة — مشاركة انتهت ٣ فجراً ليست مفتوحة ٩ صباحاً.",
+           en:"The ceiling is 90 days and there is deliberately no “forever” on any code path. Expiry is <b>derived</b> on every read — a share that ended at 03:00 is not open at 09:00."},
+        tags:[{c:"",t:"MAX_DURATION_MS"}] },
+      { n:"rule", h:{ar:"الافتراضي عند الغموض هو الأقصر",en:"The default under ambiguity is the shortest"},
+        p:{ar:"خطأ في القيمة الافتراضية يجب أن يكلّف المريض وصولاً <b>أقلّ</b>، لا أكثر.",
+           en:"A mistake in a default must cost the patient <b>less</b> access, never more."},
+        tags:[{c:"good",t:"DURATION"}] },
+      { n:"rule", h:{ar:"كل قراءة مسجّلة",en:"Every read is logged"},
+        p:{ar:"بما فيها المرفوضة. سجلّ النجاحات وحده لا يجيب على السؤال الوحيد المهم: «هل حاول أحد؟»",
+           en:"Including the refused ones. A log of successes alone cannot answer the only question that matters: did anyone try?"},
+        tags:[{c:"warn",t:"accessEntry()"}] },
+    ],
+  },
+
+  /* ============ 04 · EMERGENCY ============ */
+  {
+    id:"emergency", label:{ar:"الطوارئ",en:"Emergency"}, index:"04",
+    kicker:"safety-critical",
+    title:{ ar:"الطوارئ — ضغطة واحدة، وإفصاح صادق", en:"Emergency — one tap, honest disclosure" },
+    sub:{ ar:"الفراغ وعدم التسجيل يبدوان متطابقين على الشاشة ويعنيان عكسين في ردهة الحوادث. البطاقة لازم تقول «غير مسجّلة» بصوت عالٍ، لا تتركها فارغة.",
+          en:"Blank and unrecorded look identical on screen and mean opposites in an emergency hallway. The card must say “not recorded” out loud rather than leave it empty." },
+    steps:[
+      { badge:"tap", badge2:"openEmergency", title:{ar:"من غلاف الدفتر",en:"From the register cover"},
+        rows:[], btns:[{t:{ar:"بطاقة الطوارئ",en:"Emergency card"}}],
+        cap:{ ar:"<code>openEmergency()</code> — تُفتح من أي مكان بضغطة واحدة.",
+              en:"<code>openEmergency()</code> — reachable from anywhere in one tap." } },
+      { badge:"card", badge2:"emergencyCard", title:{ar:"فصيلة الدم",en:"Blood group"},
+        rows:[ {k:"alarm", b:{ar:"غير مسجّلة",en:"Not recorded"}, s:{ar:"ما تُرسم فارغة أبداً",en:"never rendered blank"}},
+               {k:"", b:{ar:"الحساسية: البنسلين",en:"Allergy: penicillin"}, s:{ar:"CRITICALITY.HIGH",en:"CRITICALITY.HIGH"}} ],
+        cap:{ ar:"الغياب يُصرَّح به. وفصيلة الدم هنا معزولة اتجاهياً وإلا رُسمت <code>O-</code> كـ<code>-O</code>.",
+              en:"Absence is stated. The blood group here is direction-isolated, or <code>O-</code> renders as <code>-O</code>." } },
+      { badge:"doctor", badge2:"breakGlass", title:{ar:"كسر الزجاج — الطبقة ١",en:"Break-glass — tier 1"},
+        rows:[ {k:"brass", b:{ar:"clinicalBreakGlass()",en:"clinicalBreakGlass()"},
+                s:{ar:"نافذة 60 دقيقة تُفتح، والفاعل مكتوب باسمه للأبد",en:"a 60-minute window opens, and the actor is named permanently"}} ],
+        cap:{ ar:"<code>EMR.BREAK_GLASS_MINUTES = 60</code>. الطبقة ٢ تحتاج تصعيداً ثانياً بمبرّر خاص، ومدتها <b>أقصر</b> — كلّما اتّسع الوصول قلّ.",
+              en:"<code>EMR.BREAK_GLASS_MINUTES = 60</code>. Tier 2 needs a second escalation with its own justification and is <b>shorter</b> — the broader the access, the less of it there is." } },
+    ],
+    branches:[
+      { n:"why", h:{ar:"لماذا طبقتان لا واحدة",en:"Why two tiers and not one"},
+        p:{ar:"كسر الزجاج كان يفتح <b>السجل كله</b>، بمنطق أن الطوارئ ليست وقت صلاحيات. يبدو صحيحاً وهو ليس كذلك: تجاوز يمنح كل شيء هو تجاوز يُستعمل للراحة، لأن كلفة استدعائه واحدة سواء احتجتَ فصيلة دم أو أردتَ قراءة إدخال نفسي.",
+           en:"Break-glass used to open the <b>entire record</b>, on the reasoning that an emergency is no time for permissions. That sounds right and is not: an override that grants everything gets used for convenience, because invoking it costs the same whether you needed a blood group or wanted to read a psychiatric admission."},
+        tags:[{c:"warn",t:"EMERGENCY_TIER"}] },
+    ],
+  },
+
+  /* ============ 05 · CLINICIAN ============ */
+  {
+    id:"clinician", label:{ar:"الطبيب",en:"Clinician"}, index:"05",
+    kicker:"#/clinical/:id",
+    title:{ ar:"الطبيب — الشاشة المعاكسة، عن قصد", en:"Clinician — the opposite screen, on purpose" },
+    sub:{ ar:"المريض والطبيب يريدان أشياء متعاكسة من نفس البيانات. شاشة واحدة تخدمهما هي التسوية التي لا تخدم أحداً: بوّابة مريض لا يقدر الطبيب يستعملها، وعرض سريري لا يقدر المريض يقرأه.",
+          en:"A patient and a clinician want opposite things from the same data. One screen serving both is the compromise that serves neither: a patient portal a doctor cannot use, and a clinical view a patient cannot read." },
+    steps:[
+      { badge:"#/clinical/:id", badge2:"screenClinical", title:{ar:"الموجز السريري",en:"Clinical brief"},
+        rows:[ {k:"", b:{ar:"أربع حقائق، ثلاثون ثانية",en:"Four facts, thirty seconds"}, s:{ar:"REC.preVisitBrief()",en:"REC.preVisitBrief()"}},
+               {k:"brass", b:{ar:"ميتفورمين — كتبه المريض",en:"Metformin — patient reported"}, s:{ar:"SOURCE.PATIENT",en:"SOURCE.PATIENT"}} ],
+        cap:{ ar:"كل حقيقة كتبها المريض موسومة — <b>على شاشة الطبيب أيضاً</b>. مرّة ظهر دواء كتبه المريض قبل خمس دقائق في قائمة الطبيب مطابقاً تماماً للموصوف.",
+              en:"Every patient-authored fact is stamped — <b>on the clinician's screen too</b>. A medicine the patient typed five minutes earlier once appeared in the clinician's list identical to a prescribed one." } },
+      { badge:"inbox", badge2:"screenClinicalInbox", title:{ar:"صندوق التأكيد",en:"Confirmation queue"},
+        rows:[ {k:"", b:{ar:"مستخرَج: حساسية بنسلين",en:"Extracted: penicillin allergy"},
+                s:{ar:"EXTRACT_STATE.EXTRACTED — بانتظار إنسان",en:"EXTRACT_STATE.EXTRACTED — awaiting a human"}} ],
+        btns:[{t:{ar:"أكّد",en:"Confirm"}},{ghost:true,t:{ar:"ارفض",en:"Reject"}}],
+        cap:{ ar:"<code>clinicalConfirm(id)</code> / <code>clinicalReject(id)</code> — ما قرأته الآلة <b>ادعاء</b> لا حقيقة، ولا مسار كود يجعله حقيقة بلا إنسان مرخّص.",
+              en:"<code>clinicalConfirm(id)</code> / <code>clinicalReject(id)</code> — what a machine read is a <b>claim</b>, not a fact, and no code path turns it into one without a licensed human." } },
+    ],
+  },
+
+  /* ============ 06 · NETWORK ============ */
+  {
+    id:"network", label:{ar:"الشبكة",en:"Network"}, index:"06",
+    kicker:"#/care · #/doctors · #/need/new",
+    title:{ ar:"الشبكة — الحاجة أولاً، لا الدليل", en:"Network — need-first, not directory-first" },
+    sub:{ ar:"التوفّر يتصدّر والتصفّح يتبع. «١١ صيدلية مفتوحة الآن» تغلب شبكة فئات في كل مرّة.",
+          en:"Availability leads and browsing follows. “11 pharmacies open now” beats a category grid every time." },
+    steps:[
+      { badge:"#/care", badge2:"screenAvailable", title:{ar:"المتوفّر الآن",en:"Available now"},
+        rows:[ {k:"jade", b:{ar:"11 صيدلية مفتوحة الآن",en:"11 pharmacies open now"}, s:{ar:"status() على كل منشأة",en:"status() over every facility"}} ],
+        cap:{ ar:"الواجهة الأمامية للتوفّر، ومعها قوس الأربع وعشرين ساعة.",
+              en:"The front door of availability, with the twenty-four-hour band beside it." } },
+      { badge:"#/doctors", badge2:"screenDoctors", title:{ar:"قائمة الأطباء",en:"Doctor list"},
+        rows:[ {k:"", b:SEED.doctor, s:{ar:"باطنية · مفتوح الآن · "+SEED.fee.ar+" · 2.1 كم",
+                                        en:"Internal medicine · open now · "+SEED.fee.en+" · 2.1 km"}} ],
+        cap:{ ar:"أقوى شاشة في المنتج. التسلسل: اسم ← اختصاص ومكان ← حالة الآن ← أجرة ← مسافة ← منطقة.",
+              en:"The strongest screen in the product. The sequence: name → specialty and place → status now → fee → distance → area." } },
+      { badge:"#/need/new", badge2:"screenNeedNew", title:{ar:"انشر حاجة",en:"Publish a need"},
+        rows:[], btns:[{t:{ar:"انشر طلب دواء",en:"Publish a medicine request"}}],
+        cap:{ ar:"المستخدم يبثّ بدل ما يتصفّح — والبثّ يحذف ما لا يجوز بثّه قبل أن يغادر الجهاز.",
+              en:"The user broadcasts instead of browsing — and the broadcast strips what may not be broadcast before it leaves the device." } },
+      { badge:"#/radar/:id", badge2:"startRadarTicker", title:{ar:"الرادار",en:"Radar"},
+        rows:[ {k:"brass", b:{ar:"3 صيدليات ترد",en:"3 pharmacies responding"}, s:{ar:"startQueuePolling()",en:"startQueuePolling()"}} ],
+        cap:{ ar:"ردود حيّة. والطلب يموت وحده — <code>TTL_BY_URGENCY</code> — فما تبقى نافذة مفتوحة للأبد.",
+              en:"Live responses. The request dies on its own — <code>TTL_BY_URGENCY</code> — so no window stays open forever." } },
+    ],
+  },
+
+  /* ============ 07 · CLINICAL ACTORS ============ */
+  {
+    id:"actors", label:{ar:"المختبر والصيدلية",en:"Lab & Pharmacy"}, index:"07",
+    kicker:"NET",
+    title:{ ar:"المختبر والأشعة والصيدلية — الحدّ الأدنى الضروري", en:"Lab, imaging and pharmacy — minimal by design" },
+    sub:{ ar:"بوّابتان مستقلّتان: <b>سقف الدور ∩ موافقة المريض</b>. تعبير عن تقاطع، لا سلسلة <code>if</code> يقدر أحد يعيد ترتيبها. بناء صلاحية واحدة اسمها «المزوّد يرى السجل» والثقة بأن كل مزوّد يشيح بنظره ليس نموذج أمان — هو نظام شرف مع سجلّ تدقيق ملحق به.",
+          en:"Two independent gates: <b>role ceiling ∩ patient consent</b>. An intersection, not an <code>if</code> chain someone can reorder. Building one permission called “the provider sees the record” and trusting every provider to look away is not a security model — it is an honour system with an audit log attached." },
+    table:{ head:{ ar:["المسار","يرى","لا يرى"], en:["Route","Sees","Never sees"] },
+      rows:[
+        ["#/lab · #/lab/:id",{ar:"الفحص وسببه · العمر والجنس · الحساسية · مضادات التخثر · الحمل · الغرسات",
+                              en:"The test and its reason · age and sex · allergies · anticoagulants · pregnancy · implants"},
+                             {ar:"التشخيص · الأدوية · التقارير",en:"Diagnosis · medications · reports"}],
+        ["#/imaging",{ar:"الطلب وسببه · سياق السلامة",en:"The order and its reason · safety context"},
+                     {ar:"السجل",en:"The record"}],
+        ["#/pharmacy-rx",{ar:"الوصفة · الحساسية · الأدوية الحالية",en:"The prescription · allergies · current medications"},
+                         {ar:"التحاليل · الأشعة · الحلقات · الزيارات",en:"Labs · imaging · episodes · visits"}],
+      ]},
+    branches:[
+      { n:"flow", h:{ar:"صرف كامل",en:"Full dispense"},
+        p:{ar:"<code>pharmacyOpen(id)</code> ← <code>pharmacyDispense(rxId, state, opts)</code>.",
+           en:"<code>pharmacyOpen(id)</code> → <code>pharmacyDispense(rxId, state, opts)</code>."} },
+      { n:"flow", h:{ar:"صرف جزئي أو بديل",en:"Partial or substitute"},
+        p:{ar:"<code>pharmacyPartial(id)</code> / <code>pharmacyPartialGo(rxId)</code> — ما يُعامَل أبداً كأنه كامل بصمت. البديل حدث سريري لا تجاري: الطبيب الجاي لازم يشوف أن المريض على علامة غير المكتوبة.",
+           en:"<code>pharmacyPartial(id)</code> / <code>pharmacyPartialGo(rxId)</code> — never silently treated as complete. A substitution is a clinical event, not a retail one: the next clinician must see the patient is on a different brand than the one written."},
+        tags:[{c:"warn",t:"must disclose"}] },
+      { n:"limit", h:{ar:"حدّ معلَن: لا قاعدة تداخلات",en:"Declared limit: no interaction database"},
+        p:{ar:"<code>dispenseChecks()</code> يُعلن ما لم يفحصه: التداخلات، شجرة المواد الفعّالة، جرعات الكلى، الحمل. ومطابقة الحساسية <b>نصّية</b> لا تعرف أن البنسلين والأموكسيسيلين قرابة. الواجهة تعرض هذا الإعلان ولا تخفيه.",
+           en:"<code>dispenseChecks()</code> declares what it did not check: interactions, ingredient trees, renal dosing, pregnancy. Allergy matching is <b>textual</b> and does not know penicillin and amoxicillin are related. The UI shows that declaration rather than hiding it."},
+        tags:[{c:"warn",t:"notChecked"}] },
+    ],
+  },
+];
+
+/* Bidi cases — every one is a defect that actually shipped and was measured. */
+const BIDI = {
+  id:"bidi", label:{ar:"الاتجاه",en:"Bidi"}, index:"08",
+  kicker:"RTL · the expensive part",
+  title:{ ar:"الاتجاه — العيوب الثلاثة، معروضة لا موصوفة", en:"Direction — the three defects, shown rather than described" },
+  sub:{ ar:"هذي ليست تفضيلات. كل حالة أدناه شُحنت فعلاً وقيست بـ<code>getBoundingClientRect()</code>. انظر إلى العمودين: اليسار هو ما كان يُرسم، واليمين هو الصواب. الفرق كلّه سطر CSS واحد.",
+        en:"These are not preferences. Every case below actually shipped and was measured with <code>getBoundingClientRect()</code>. Look at the two columns: one is what rendered, the other is correct. The whole difference is one CSS declaration." },
+  cases:[
+    { h:{ar:"فصيلة الدم — <code>O-</code> تُرسم <code>-O</code>",en:"Blood group — <code>O-</code> renders as <code>-O</code>"},
+      why:{ar:"الشرطة <code>-</code> صنفها <code>Bidi_Class=ON</code>، فاتجاهها يُحلّ من جيرانها. سلسلة نصّية عارية مقحمة في فقرة عربية تترك الشرطة تهاجر إلى الجهة البعيدة من الحرف. <b>وهذا مقيس هنا، لا منقول:</b> ستّة تراكيب قيست بـ<code>getBoundingClientRect()</code>، والانقلاب وقع في الاثنين اللذين <b>بلا أي عزل</b> فقط — <code>embed</code> و<code>isolate</code> كلاهما رسمها سليمة في هذا التركيب. العلاج ليس اختيار البدائية الأصحّ، بل <b>ألّا يُترك الرقم بلا عزل أصلاً</b>.",
+           en:"The hyphen <code>-</code> is <code>Bidi_Class=ON</code>, so its direction resolves from its neighbours. A bare string interpolated into an Arabic paragraph lets the hyphen migrate to the far side of the letter. <b>Measured here, not quoted:</b> six constructions were measured with <code>getBoundingClientRect()</code> and the flip occurred only in the two with <b>no isolation at all</b> — both <code>embed</code> and <code>isolate</code> rendered it correctly in this construction. The cure is not picking the better primitive, it is <b>never leaving the value unisolated</b>."},
+      bad:'فصيلة الدم O-',
+      good:'فصيلة الدم <span class="right-iso">O-</span>',
+      declBad:"no isolation — a bare interpolated string", declGood:"unicode-bidi: isolate" },
+    { h:{ar:"جرعة الدواء — <code>20 ملغم</code> تُرسم <code>ملغم 20</code>",en:"Drug strength — <code>20 mg</code> renders unit-first"},
+      why:{ar:"كان في <b>أحد عشر موضعاً</b>. داخل مجرى LTR الوحدة العربية صنفها AL، والمسافة تُحلّ إلى R لأن الأرقام تتصرّف كـR، فينعكس الترتيب. كل صفّ في قائمة الأدوية كان يُقرأ «ريفاروكسابان ملغم 20» — على الشاشة نفسها التي يحذّر متنها «التركيز مهم».",
+           en:"It was in <b>eleven places</b>. Inside an LTR run the Arabic unit is AL and the joining space resolves to R because the digits act as R, so the order reverses. Every row of the medicine list read unit-before-number — on the same screen whose own copy warns that strength matters."},
+      bad:'ريفاروكسابان <span class="wrong-unit">20 ملغم</span>',
+      good:'ريفاروكسابان <span class="right-unit">20 ملغم</span>',
+      declBad:"direction: ltr · embed", declGood:".strength — isolate" },
+    { h:{ar:"السهم بين رقمين — <code>7.1 ← 8.4</code> يصل معكوساً",en:"An arrow between two numbers arrives reversed"},
+      why:{ar:"<code>U+2190</code> صنفه ON و<code>Bidi_Mirrored=No</code>، فيُعاد ترتيبه ولا يُقلَب. الصناديق مقيسة: <code>7.1</code> عند x321‑337، السهم 337‑354، <code>8.4</code> عند 354‑370. <b>مريضة سكري ارتفع خضابها من ٧٫١ إلى ٨٫٤ قرأت أنها تحسّنت، وقرأ طبيبها الشيء نفسه.</b> البديل ليس سهماً أفضل — هو ألّا يوجد سهم.",
+           en:"<code>U+2190</code> is ON and <code>Bidi_Mirrored=No</code>, so it is reordered and never flipped. The boxes were measured: <code>7.1</code> at x321‑337, the arrow 337‑354, <code>8.4</code> at 354‑370. <b>A diabetic patient whose HbA1c rose from 7.1 to 8.4 read that she had improved, and so did her doctor.</b> The fix is not a better arrow — it is no arrow."},
+      badHtml:'<div>الخضاب السكري <span class="wrong-embed">7.1 ← 8.4</span></div>',
+      goodHtml:'<ul class="trend-list">'+
+        '<li><span class="d">2025-11-02</span><span class="right-iso">7.1 %</span></li>'+
+        '<li><span class="d">2026-07-01</span><span class="right-iso">8.4 %</span></li>'+
+        '</ul><div style="font-size:.8rem;margin-top:8px">ارتفع — المدى المرجعي من 4 إلى 5.6</div>',
+      declBad:"arrow between .num runs", declGood:"one point per line, oldest first, direction as a WORD" },
+  ],
+  verdict:{ ar:"القاعدة العملية الوحيدة التي تحتاج تحفظها: <b>كل رقم داخل نصّ عربي يُعزَل</b> (<code>.num</code> / <code>.strength</code> / <code>bpPair()</code> / <code>measure()</code>)، و<b>لا محايد بين رقمين أبداً</b> — لا سهم، ولا <code>–</code>، ولا <code>·</code>. يحرس هذا اختباران في <code>tools/test.mjs</code> وكاشفان في <code>tools/audit-ui.mjs</code> اسمهما <code>rtl</code> و<code>ltrun</code>، والاثنان يجب أن يبقيا صفراً.",
+            en:"The one practical rule worth memorising: <b>every number inside Arabic text is isolated</b> (<code>.num</code> / <code>.strength</code> / <code>bpPair()</code> / <code>measure()</code>), and <b>never a neutral between two numbers</b> — no arrow, no <code>–</code>, no <code>·</code>. Two tests in <code>tools/test.mjs</code> and two detectors in <code>tools/audit-ui.mjs</code> named <code>rtl</code> and <code>ltrun</code> guard this, and both must stay at zero." },
+};
+
+const RULES = {
+  id:"rules", label:{ar:"القواعد",en:"Rules"}, index:"09",
+  kicker:"guardrails",
+  title:{ ar:"قواعد تعلو على كل رأي تصميمي", en:"Rules that outrank every design opinion" },
+  sub:{ ar:"طبقة النطاق تفرضها. وظيفة الواجهة ألّا تنقضها، مهما تطوّر التصميم.",
+        en:"The domain layer enforces these. The UI's job is to never contradict them, however the design evolves." },
+  items:[
+    { h:{ar:"الحساسية أولاً، دائماً",en:"Allergies render first, always"},
+      p:{ar:"قبل أي شيء آخر، على أي شاشة تعرض مريضاً.",en:"Ahead of everything else, on any screen that shows a patient."} },
+    { h:{ar:"غير مؤكَّد ≠ حالي، و≠ موقوف",en:"Unconfirmed ≠ current, ≠ discontinued"},
+      p:{ar:"<code>MED_STATE.UNCONFIRMED</code> يحتاج حالته الصادقة الخاصة — ما يُقرَّب لأي من جاريه. عرضه كـ«حالي» كذب مريح.",
+         en:"<code>MED_STATE.UNCONFIRMED</code> needs its own honest state — never rounded to either neighbour. Showing it as current is a comfortable lie."} },
+    { h:{ar:"الادّعاء ليس حقيقة",en:"A claim is not a fact"},
+      p:{ar:"<code>EXTRACT_STATE.EXTRACTED</code> يُعرض «بانتظار تأكيد طبيب» حتى يوقّع إنسان مرخّص.",
+         en:"<code>EXTRACT_STATE.EXTRACTED</code> renders as awaiting confirmation until a licensed human signs off."} },
+    { h:{ar:"المزامنة لا تكذب",en:"Sync never lies"},
+      p:{ar:"لا علامة صحّ قبل تأكيد الخادم. الحالات أربع لا اثنتان، وهي <b>مشتقّة من الصندوق</b> لا مخزّنة على السجل — لأن علماً مخزّناً يبدأ بالكذب لحظة فشل المزامنة ولا أحد يمسحه.",
+         en:"No checkmark before the server confirms. There are four states, not two, and they are <b>derived from the outbox</b> rather than stored on the record — a stored flag starts lying the moment a sync fails and nobody clears it."} },
+    { h:{ar:"«غير معروف» ≠ «غير طبيعي»",en:"Unknown ≠ abnormal"},
+      p:{ar:"نتيجة بلا مدى مرجعي لم تفشل في فحص — لم يُعطَ لها فحص تفشل فيه. تقول ذلك بالكلمات، ولا تلبس لون الخطر.",
+         en:"A result with no reference range did not fail a test — it was never given one to fail. It says so in words and does not wear the colour of danger."} },
+    { h:{ar:"الغياب يُصرَّح به",en:"Absence is stated"},
+      p:{ar:"«ما مسجّل أي حساسية» ≠ فراغ. الفراغ وعدم التسجيل يبدوان متطابقين ويعنيان عكسين.",
+         en:"“No allergy recorded” is not the same as blank. Blank and unrecorded look identical and mean opposites."} },
+  ],
+};
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let LANG = "ar";
+const isAr = () => LANG === "ar";
+const T = (o) => !o ? "" : (typeof o === "string" ? o : (isAr() ? o.ar : (o.en || o.ar)));
+
+function phone(step){
+  const rows = (step.rows || []).map((r) => `<div class="ps-row ${r.k || ""}">
+      <b>${T(r.b)}</b>${r.s ? `<small>${T(r.s)}</small>` : ""}</div>`).join("");
+  const btns = (step.btns || (step.btn ? [step.btn] : []))
+    .map((b) => `<div class="ps-btn ${b.ghost ? "ghost" : ""}">${T(b.t)}</div>`).join("");
+  return `<div class="phone-step">
+    <div class="phone"><div class="phone-notch"></div>
+      <div class="phone-screen" dir="${isAr() ? "rtl" : "ltr"}" lang="${LANG}">
+        <div class="ps-topline"><span class="ps-badge">${step.badge}</span>${
+          step.badge2 ? `<span class="ps-badge">${step.badge2}</span>` : ""}</div>
+        <div class="ps-title">${T(step.title)}</div>
+        ${rows}${btns ? `<div style="margin-top:auto;display:flex;flex-direction:column;gap:6px">${btns}</div>` : ""}
+      </div></div>
+    <div class="step-caption"><span class="n">${step.n}</span><p>${T(step.cap)}</p></div>
+  </div>`;
+}
+
+function branchCards(list){
+  if (!list || !list.length) return "";
+  return `<div class="branch-grid">${list.map((b) => `<div class="branch">
+    <span class="bnum">${b.n}</span><h4>${T(b.h)}</h4><p>${T(b.p)}</p>
+    ${b.tags && b.tags.length ? `<div class="tag-row">${b.tags.map((t) =>
+      `<span class="mini-tag ${t.c}">${t.t}</span>`).join("")}</div>` : ""}
+  </div>`).join("")}</div>`;
+}
+
+function routeTable(tb){
+  if (!tb) return "";
+  const h = isAr() ? tb.head.ar : tb.head.en;
+  return `<div class="route-table">
+    <div class="rt-row head"><div>${h[0]}</div><div>${h[1]}</div><div>${h[2]}</div></div>
+    ${tb.rows.map((r) => `<div class="rt-row">
+      <div class="route" data-l1="${h[0]}">${r[0]}</div>
+      <div class="fn" data-l2="${h[1]}">${T(r[1])}</div>
+      <div class="desc" data-l3="${h[2]}">${T(r[2])}</div></div>`).join("")}
+  </div>`;
+}
+
+function head(j){
+  return `<div class="sec-head"><div class="sec-index">${j.index}</div>
+    <div class="sec-title-wrap"><div class="kicker">${j.kicker}</div>
+      <h2 class="sec-title">${T(j.title)}</h2>
+      <p class="sec-sub">${T(j.sub)}</p></div></div>`;
+}
+
+function journeySection(j){
+  const strip = (j.steps || []).map((s, i) => { s.n = String(i + 1).padStart(2, "0"); return phone(s); })
+    .join(`<div class="arrow-connector" aria-hidden="true">${isAr() ? "←" : "→"}</div>`);
+  return `<section id="${j.id}"><div class="container">${head(j)}
+    ${j.steps ? `<div class="journey-strip">${strip}</div>` : ""}
+    ${routeTable(j.table)}${branchCards(j.branches)}</div></section>`;
+}
+
+function bidiSection(){
+  const cases = BIDI.cases.map((c) => `<div class="bidi-case">
+    <h4>${T(c.h)}</h4><p class="why">${T(c.why)}</p>
+    <div class="bidi-pair">
+      <div class="bidi-half is-bad" dir="rtl" lang="ar">
+        <span class="lb">${isAr() ? "كان يُرسم هيك" : "RENDERED LIKE THIS"}</span>
+        <div class="bidi-out">${c.badHtml || c.bad}</div>
+        <code class="decl">${c.declBad}</code></div>
+      <div class="bidi-half is-good" dir="rtl" lang="ar">
+        <span class="lb">${isAr() ? "الصواب" : "CORRECT"}</span>
+        <div class="bidi-out">${c.goodHtml || c.good}</div>
+        <code class="decl">${c.declGood}</code></div>
+    </div></div>`).join("");
+  return `<section id="${BIDI.id}"><div class="container">${head(BIDI)}
+    <div class="bidi-grid">${cases}</div>
+    <div class="verdict"><b>${isAr() ? "الخلاصة" : "The takeaway"}</b><p>${T(BIDI.verdict)}</p></div>
+  </div></section>`;
+}
+
+function rulesSection(){
+  return `<section id="${RULES.id}"><div class="container">${head(RULES)}
+    <div class="rule-rail">${RULES.items.map((r, i) => `<div class="rule-item">
+      <h4>${T(r.h)}</h4><p>${T(r.p)}</p>
+      <div class="sig">rule ${String(i + 1).padStart(2, "0")}</div></div>`).join("")}</div>
+  </div></section>`;
+}
+
+const SIM = [
+  { badge:"#/", label:"screenRegister()", title:{ar:"الغلاف",en:"Cover"},
+    body:[SEED.patient, SEED.blood, {ar:"محفوظ على هذا الهاتف فقط",en:"Saved on this phone only"}] },
+  { badge:"alert", label:"CONSENT.requestState()", title:{ar:"طلب معلّق",en:"Pending request"},
+    body:[{ar:SEED.doctor.ar+" يطلب الاطّلاع",en:SEED.doctor.en+" is asking to see it"},
+          {ar:"اضغط لفتح #/record/request/:id",en:"Tap to open #/record/request/:id"}] },
+  { badge:"open now", label:"openRows()", title:{ar:"مفتوح الآن",en:"Open Now"},
+    body:[{ar:"الخضاب السكري — غير طبيعي",en:"HbA1c — flagged abnormal"},
+          {ar:"متابعة متأخّرة",en:"Follow-up overdue"}] },
+  { badge:"ended", label:"historyRows()", title:{ar:"انتهى",en:"Ended"},
+    body:[{ar:"حلقة رعاية أُغلقت",en:"Care episode closed"},
+          {ar:"زيارة — عيادة الكرادة، قبل 3 أسابيع",en:"Visit — Karrada clinic, 3 weeks ago"}] },
+  { badge:"dock", label:"3 exits", title:{ar:"رصيف الأفعال",en:"Dock actions"},
+    body:[{ar:"سلّم أوراقاً لطبيب",en:"Hand sheets to a clinician"},
+          {ar:"اقرأه لمشكلة وحدة",en:"Read it for one problem"},
+          {ar:"شوف أوراقك كلها",en:"See all your sheets"}] },
+];
+let simIdx = 0;
+
+function simSection(){
+  return `<section id="simulator"><div class="container">
+    <div class="sec-head"><div class="sec-index">*</div>
+      <div class="sec-title-wrap"><div class="kicker">${isAr() ? "جرّبه" : "try it"}</div>
+        <h2 class="sec-title">${isAr() ? "امشِ في رحلة الدفتر خطوة خطوة" : "Step through the Register journey"}</h2>
+        <p class="sec-sub">${isAr()
+          ? "اضغط خطوة، أو استعمل التالي والسابق، لتحسّ التسلسل بدل أن تقرأ عنه."
+          : "Click a step, or use next and previous, to feel the sequence rather than read about it."}</p></div></div>
+    <div class="sim-wrap">
+      <div class="sim-phone"><div class="sim-notch"></div>
+        <div class="sim-screen" id="simScreen" dir="${isAr() ? "rtl" : "ltr"}" lang="${LANG}" aria-live="polite"></div></div>
+      <div class="sim-controls">
+        <div class="sim-steps" id="simSteps"></div>
+        <div class="sim-nav">
+          <button id="simPrev">${isAr() ? "السابق" : "Prev"}</button>
+          <button id="simNext">${isAr() ? "التالي" : "Next"}</button>
+        </div></div>
+    </div></div></section>`;
+}
+
+function renderSim(){
+  const s = SIM[simIdx];
+  const el = document.getElementById("simScreen");
+  if (!el) return;
+  el.innerHTML = `<span class="sst">${s.badge} · ${s.label}</span>
+    <h5>${T(s.title)}</h5>
+    <div class="sim-body">${s.body.map((l) => `<div class="sim-card">${T(l)}</div>`).join("")}</div>`;
+  document.querySelectorAll(".sim-step-btn").forEach((b, i) => {
+    b.classList.toggle("active", i === simIdx);
+    b.setAttribute("aria-current", i === simIdx ? "step" : "false");
+  });
+}
+
+const ALL = () => [...JOURNEYS, BIDI, RULES, { id:"simulator", label:{ar:"المحاكي",en:"Simulate"} }];
+
+function render(){
+  const root = document.documentElement;
+  root.lang = LANG; root.dir = isAr() ? "rtl" : "ltr";
+
+  document.querySelectorAll("[data-t]").forEach((el) => { el.innerHTML = T(DATA[el.dataset.t]); });
+
+  document.getElementById("heroStats").innerHTML = DATA.stats.map((s) =>
+    `<div class="stat"><b>${s.n}</b><span>${isAr() ? s.ar : s.en}</span></div>`).join("");
+
+  document.getElementById("sections").innerHTML =
+    JOURNEYS.map(journeySection).join("") + bidiSection() + rulesSection() + simSection();
+
+  const chase = document.getElementById("chaseNav");
+  const rail = document.getElementById("progressRail");
+  chase.innerHTML = ""; rail.innerHTML = "";
+  ALL().forEach((s) => {
+    const a = document.createElement("a");
+    a.href = "#" + s.id; a.textContent = T(s.label); a.dataset.id = s.id;
+    chase.appendChild(a);
+    const b = document.createElement("button");
+    b.dataset.id = s.id; b.setAttribute("data-label", T(s.label));
+    b.setAttribute("aria-label", T(s.label));
+    b.addEventListener("click", () => document.getElementById(s.id)
+      .scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+    rail.appendChild(b);
+  });
+
+  const steps = document.getElementById("simSteps");
+  SIM.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "sim-step-btn";
+    b.innerHTML = `<span class="idx">${String(i + 1).padStart(2, "0")}</span><span>${T(s.title)}</span>`;
+    b.addEventListener("click", () => { simIdx = i; renderSim(); });
+    steps.appendChild(b);
+  });
+  document.getElementById("simPrev").addEventListener("click",
+    () => { simIdx = (simIdx - 1 + SIM.length) % SIM.length; renderSim(); });
+  document.getElementById("simNext").addEventListener("click",
+    () => { simIdx = (simIdx + 1) % SIM.length; renderSim(); });
+  renderSim();
+
+  observe();
+  document.getElementById("langToggle").innerHTML =
+    `<span class="mark">${isAr() ? "EN" : "ع"}</span>`;
+}
+
+let obs = null;
+function observe(){
+  if (obs) obs.disconnect();
+  obs = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      document.querySelectorAll(".chase a").forEach((a) => a.classList.toggle("active", a.dataset.id === e.target.id));
+      document.querySelectorAll(".progress-rail button").forEach((b) => b.classList.toggle("active", b.dataset.id === e.target.id));
+    });
+  }, { rootMargin: "-40% 0px -50% 0px" });
+  ALL().forEach((s) => { const el = document.getElementById(s.id); if (el) obs.observe(el); });
+}
+
+/* ticks — the identity motif, decorative only */
+(function(){
+  const t = document.getElementById("ticksStrip");
+  for (let i = 0; i < 70; i++){
+    const el = document.createElement("i");
+    el.style.height = i % 5 === 0 ? "20px" : i % 2 === 0 ? "12px" : "7px";
+    t.appendChild(el);
+  }
+})();
+
+/* theme */
+(function(){
+  const btn = document.getElementById("themeToggle");
+  const sun = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+  const moon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  let d = "dark";
+  btn.innerHTML = sun;
+  btn.addEventListener("click", () => {
+    d = d === "dark" ? "light" : "dark";
+    document.body.setAttribute("data-theme", d);
+    btn.innerHTML = d === "dark" ? sun : moon;
+  });
+})();
+
+/* language */
+document.getElementById("langToggle").addEventListener("click", () => {
+  LANG = isAr() ? "en" : "ar";
+  simIdx = 0;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
