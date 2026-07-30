@@ -87,7 +87,7 @@ These cannot proceed until another team acts:
 
 | Item | Blocked On | Who |
 |---|---|---|
-| Health data encryption at rest | Native wrapper must exist first (Capacitor Preferences / Keychain) | Product + Apple Dev |
+| Health data security (engineering recommendation, not an explicit Apple mandate — §1.6 says "appropriate security measures" generically) | Native wrapper must exist first (Capacitor Preferences / Keychain) | Product + Apple Dev |
 | Server-side account deletion | Backend must create `POST /record/delete` endpoint | Backend |
 | Medical disclaimers | Product team must approve wording and placement | Product |
 | Location pre-prompt | Product team must design the pre-prompt UX | Product |
