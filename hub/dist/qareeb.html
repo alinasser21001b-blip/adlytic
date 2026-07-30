@@ -68,6 +68,11 @@
   /* brass splits: a FILL brass and a TEXT brass. Never set small text in the fill. */
   --brass:#C98A18; --brass-ink:#845A09; --brass-lit:#F0C15E;  /* time only */
   --alarm:#C1121F; --alarm-lit:#F08A80;  /* emergency only */
+  /* The ink that goes ON the alarm fill. It was hardcoded #fff at the call
+     site, which is 6.2:1 against the dark red and 2.43:1 against the light one
+     the dark theme substitutes — so the 911 button failed contrast in the theme
+     a night emergency happens in. */
+  --alarm-on:#fff;
   --wa:#128C3E;
   /* type */
   --disp:'Readex Pro',system-ui,sans-serif;
@@ -126,6 +131,7 @@
   --ink:var(--case-ink); --ink-2:var(--case-ink-2);
   --ink-3:var(--case-ink-3); --ink-4:rgba(242,239,232,.34);
   --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
+  --alarm-on:var(--case);
   /* The three aliases that point at tokens .dark redefines must be redeclared
      HERE, not just in :root.
 
@@ -152,10 +158,10 @@
 .lab{font:500 10.5px/1 var(--disp);letter-spacing:.2em;color:var(--ink-3);text-transform:uppercase}
 .dark .t2{color:var(--case-ink-2)}.dark .t3,.dark .lab{color:var(--case-ink-3)}
 /* numerals are a design element: tabular, LTR-embedded, optically lighter */
-.n{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-weight:400}
-.nbig{font:300 46px/1 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.03em}
-.nhuge{font:200 76px/.92 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;letter-spacing:-.045em}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:embed;font-size:.92em}
+.n{font-family:var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;font-weight:400}
+.nbig{font:300 46px/1 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;letter-spacing:-.03em}
+.nhuge{font:200 76px/.92 var(--num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;letter-spacing:-.045em}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;font-size:.92em}
 /* --- structure: hairlines, never boxes-in-boxes --- */
 .pad{padding-inline:var(--u5)}
 .hr{height:1px;background:var(--dial-line-2);border:0;margin:0}
@@ -312,16 +318,27 @@ button { cursor: pointer; }
 ul, ol { list-style: none; }
 ::selection { background: var(--brass); color: var(--case); }
 
-/* Western tabular numerals, LTR-embedded so bidi can never reorder them
-   inside an Arabic run. Every number in the product goes through this. */
+/* Western tabular numerals in an LTR run, so bidi can never reorder them
+   inside an Arabic line. Every number in the product goes through this.
+
+   `isolate`, not `embed`. The difference is not cosmetic: an EMBED opens a
+   directional run but leaves the neutrals AROUND it resolvable against its
+   contents, so the numeral migrates to the wrong end of the Arabic phrase it
+   belongs to — «٨ دواء مؤكَّد» put the 8 at the far left of the line — and a
+   sign or separator adjacent to the run detaches from its digits. That is how
+   a blood group of O- rendered as -O on the emergency card: `-` is
+   Bidi_Class=ON, and against an embedded LTR run in an RTL paragraph it
+   resolves to the far side of the letter. An ISOLATE is opaque to the
+   surrounding algorithm in both directions, which is the whole reason the
+   primitive exists. */
 .num, .n {
   font-family: var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed; font-weight: 400;
+  direction: ltr; unicode-bidi: isolate; font-weight: 400;
   /* A number is one token. `2026-07-01` was wrapping as `2026-07-` / `01`
      and `148/92` as `148/` / `92` — a broken date is a wrong date. */
   white-space: nowrap;
 }
-.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; font-size: .92em; }
 
 /* A quantity, a date, a blood pressure: one unbreakable run. */
 .nw { white-space: nowrap; }
@@ -396,7 +413,7 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
    number in the product. */
 .nval {
   font-family: var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed;
+  direction: ltr; unicode-bidi: isolate;
   font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -.01em;
 }
 .nval .u { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-inline-start: 3px; }
@@ -521,7 +538,17 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   background: none; color: var(--jade); border: 0; font-weight: 500; cursor: pointer;
 }
 .btn--wa, .b-wa, .btn-wa { background: var(--wa); color: #fff; font-weight: 600; border-color: transparent; }
-.btn--danger { background: var(--alarm); color: #fff; border-color: transparent; }
+/* The 911 control. Its text colour was hardcoded `#fff` — the only filled
+   control in the product not using a token — so in the dark theme, where
+   `--alarm` resolves to the lighter `--alarm-lit` #F08A80, it rendered white on
+   salmon at 2.43:1. The highest-stakes control in the product, below the WCAG
+   floor, in the theme a night emergency actually happens in. Tokenised it
+   flips: #fff on #C1121F is 6.2:1 in light, and the near-black case colour on
+   #F08A80 is 7.7:1 in dark. */
+.btn--danger { background: var(--alarm); color: var(--alarm-on); border-color: transparent; }
+/* The emergency contact call sits with the two emergency numbers, so it is a
+   control of the same size — not a text link the width of a name. */
+.emg-call { justify-content: flex-start; gap: var(--u3); text-align: start; }
 /* A button is aimed at deliberately, so for buttons the visual size SHOULD
    be the hit size — raise the small variant rather than hiding an invisible
    extender behind it. 40 -> 44 is imperceptible. */
@@ -689,7 +716,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   font-variant-numeric: tabular-nums; color: var(--ink-3);
   direction: inherit;
 }
-.axis > * { direction: ltr; unicode-bidi: embed; }
+.axis > * { direction: ltr; unicode-bidi: isolate; }
 .spark { display: flex; align-items: flex-end; gap: 2px; height: 42px; }
 .spark > i { flex: 1; background: var(--dial-line); border-radius: 1px; min-height: 2px; }
 .spark > i.hi { background: var(--brass); }
@@ -993,9 +1020,9 @@ label.row, label.rw { min-height: 44px; cursor: pointer; }
 /* ---------- 17 · numerals · the number is the largest thing, not the title ---------- */
 .nbig, .kpi-n, .intent-n, .tier-p {
   font: 300 46px/1 var(--num); font-variant-numeric: tabular-nums;
-  direction: ltr; unicode-bidi: embed; letter-spacing: -.03em;
+  direction: ltr; unicode-bidi: isolate; letter-spacing: -.03em;
 }
-.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.045em; display: inline-block; }
+.nhuge { font: 200 76px/.92 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; letter-spacing: -.045em; display: inline-block; }
 .nbig, .kpi-n, .intent-n, .tier-p { display: inline-block; }
 .adm-kpi .n { font: 300 34px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; }
 .kpi-d { font-size: 11.5px; color: var(--jade); font-weight: 500; }
@@ -1183,7 +1210,7 @@ input, textarea { min-height: 44px; }
 .ops-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--u3); }
 .ops-kpi { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
 .ops-kpi.warn { border-color: var(--brass-ink); }
-.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.02em; }
+.ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; letter-spacing: -.02em; }
 .ops-l { margin-top: 6px; }
 .ops-cols { display: grid; grid-template-columns: 1fr; gap: var(--u6); margin-top: var(--u6); align-items: start; }
 @media (min-width: 900px) { .ops-cols { grid-template-columns: 1fr 1fr; } }
@@ -1439,6 +1466,32 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 /* A yes/no toggle rendered from its two-letter label collapses to 41px wide.
    Toggles get a width floor so the target survives the shortest word. */
 #altbtn, .rush .btn--sm { min-width: 72px; }
+
+/* ---------- 31 · reduced motion, guaranteed rather than remembered ----------
+   Six separate `prefers-reduced-motion` blocks in this file each named the
+   animated selectors they knew about. That works exactly until someone adds an
+   animation and forgets — and thirty-seven transitions and animations had
+   accumulated against six hand-written lists. Vestibular disorders and
+   migraine are not edge cases, and "we listed most of them" is not a setting
+   a person can rely on.
+
+   So the guarantee is made once, for everything, at the end of the cascade.
+   Durations collapse rather than being set to `none`, which matters: an
+   entrance animation running from `opacity: 0` and switched off with
+   `animation: none` can leave its element permanently invisible, whereas a
+   .01ms duration runs it instantly to its FINAL state. The blocks above stay,
+   because several of them also correct a static resting transform or opacity
+   that the animation would otherwise have supplied. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 </style>
 </head>
@@ -2382,7 +2435,25 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   const BLOOD_GROUP = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"];
   const isValidBloodGroup = (v) => BLOOD_GROUP.indexOf(v) !== -1;
   const BLOOD_GROUP_LABEL = { unknown: ["غير معروف", "Unknown"] };
-  const bloodGroupLabel = (v, ar) => (BLOOD_GROUP_LABEL[v] ? BLOOD_GROUP_LABEL[v][ar ? 0 : 1] : (v || ""));
+  /* The sign is isolated IN THE DOMAIN, not left to each screen.
+
+     "O-" printed into an Arabic line rendered "-O", and "A+" rendered "+A":
+     `+` and `-` are Bidi_Class=ON, so against a Latin letter inside an RTL
+     paragraph they resolve to the far side of it. On a narrow wrap the sign can
+     land on a different line from the letter entirely. This is the one field on
+     an emergency card where an ambiguous reading is least tolerable, and it was
+     the one field emitted with no isolate at all — a bare string into a bare
+     `<b>` on the emergency sheet and into a `.chip` on the profile screen.
+
+     U+2068 FIRST STRONG ISOLATE … U+2069 POP DIRECTIONAL ISOLATE does it in
+     the returned VALUE, so every present and future call site is safe whether
+     or not its author thought about bidi. Characters, not CSS, because this
+     string also travels into plain text — an emergency card read aloud, a
+     WhatsApp handoff — where there is no stylesheet to help. */
+  const FSI = "⁨", PDI = "⁩";
+  const bloodGroupLabel = (v, ar) => BLOOD_GROUP_LABEL[v]
+    ? BLOOD_GROUP_LABEL[v][ar ? 0 : 1]
+    : (v ? FSI + v + PDI : "");
 
   /* ---- ALLERGY ---- */
   const CRITICALITY = { HIGH: "high", LOW: "low", UNABLE: "unable-to-assess" };
@@ -3004,6 +3075,15 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   const SOURCE = { CLINICIAN: "clinician", PATIENT: "patient-reported", EXTERNAL: "external-import",
                    DEVICE: "device", AI: "ai-generated" };
 
+  /* "The patient told us this" — the one provenance question every screen and
+     every projection has to be able to ask. It lived in record.js, so
+     consent.js could not reach it and the emergency card silently treated
+     every medication as clinician-confirmed. It belongs beside the constants it
+     reads. Either stamp alone is enough: an entry marked one way and not the
+     other is still not a clinician's word. */
+  const isSelfReported = (e) => !!e
+    && (e.source === SOURCE.PATIENT || e.verificationStatus === VERIFY.PATIENT_REPORTED);
+
   function provenance(entry) {
     return {
       recordedBy: entry.recordedBy || null,
@@ -3084,6 +3164,7 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     ID_TYPE, canRegister, isIdentityBearing, identifiersOf, idOf,
     ID_VERIFY, verifyLevel, FORBIDDEN_FIELDS, forbiddenIn, sanitisePatient, acceptCardScan, NAME_PARTS, fullName,
     BLOOD_GROUP, isValidBloodGroup, bloodGroupLabel,
+    isSelfReported,
     MATCH_WEIGHTS, MATCH, normAr, normArKey, isDefaultDob, dobWeight, namePartScore,
     matchScore, matchVerdict, findCandidates, MERGE_STATE, mergeDecision,
     ENC_STATE, ENC_TYPE, SIGN_REQUIRED, canSign, signEncounter, addAddendum, voidEncounter,
@@ -3147,8 +3228,9 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
      the answer — `SOURCE.PATIENT` on the provenance and `PATIENT_REPORTED` as
      a verification status — and either one alone is enough, because an entry
      stamped one way and not the other is still not a clinician's word. */
-  const isSelfReported = (e) => !!e && (e.source === (E.SOURCE && E.SOURCE.PATIENT)
-    || e.verificationStatus === (E.VERIFY && E.VERIFY.PATIENT_REPORTED));
+  /* Delegates to the domain rather than restating the rule, so a change to
+     what counts as patient-reported cannot apply on one screen and not another. */
+  const isSelfReported = (e) => E.isSelfReported(e);
 
   /* =========================================================
      ١ · المستندات — DOCUMENTS
@@ -4334,9 +4416,29 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
       bloodGroup: r.bloodGroup || null,
       allergies: (E.criticalAllergies ? E.criticalAllergies(r.allergies) : (r.allergies || []))
         .map((a) => ({ substance: a.substance, reaction: a.reaction || null, criticality: a.criticality })),
+      /* EVERY current medication, with the flagged ones pinned first.
+         This used to return ONLY drugs carrying `anticoagulant || insulin ||
+         steroid || critical`. No ordinary Iraqi outpatient regimen carries any
+         of those flags, so the row rendered for almost nobody — a patient on
+         aspirin 81mg and metformin 500mg BID appeared on the emergency card as
+         taking nothing at all, and silently, because `notRecorded` did not
+         cover medications either.
+
+         Both of those drugs change emergency management: aspirin changes
+         bleeding management in trauma and head injury, and metformin must be
+         held around iodinated contrast and is a lactic-acidosis consideration
+         in a shocked patient. A whitelist that decides which medicines a
+         responder is allowed to know about is a decision this layer is not
+         entitled to make. The flags now decide ORDER, not inclusion. */
       criticalMedications: (E.currentMedications ? E.currentMedications(r.medications, now) : [])
-        .filter((m) => m.anticoagulant || m.insulin || m.steroid || m.critical)
-        .map((m) => ({ display: m.display, dose: m.dose || null })),
+        .slice()
+        .sort((a, b) => (!!(b.anticoagulant || b.insulin || b.steroid || b.critical))
+                      - (!!(a.anticoagulant || a.insulin || a.steroid || a.critical)))
+        .map((m) => ({ display: m.display, dose: m.dose || null,
+          flagged: !!(m.anticoagulant || m.insulin || m.steroid || m.critical),
+          /* A responder must be able to tell a drug a clinician confirmed from
+             one the patient typed in. */
+          selfReported: E.isSelfReported ? E.isSelfReported(m) : false })),
       majorConditions: (E.activeConditions ? E.activeConditions(r.conditions, now) : [])
         .filter((c) => c.chronic).map((c) => c.display),
       warnings: r.clinicalWarnings || [],
@@ -7568,10 +7670,21 @@ const noteNav = () => { inAppMoves++; };
    segment turns #/doctor/d1 into #/doctor, which is not a route — the user
    would land on a 404 instead of outside the app, which is not an
    improvement. */
+/* Four of these were pointing at the wrong product.
+   `need` is a MEDICINE request («أحتاج دوا») and `needs` is the doctor
+   specialty grid — two routes one letter apart, meaning two unrelated things —
+   so «أحتاج دوا» went "up" to a doctor picker, and so did the availability
+   radar and its waiting screen. All three belong to the medicine family.
+   `clinical` went up to `#/record`, which put a clinician's back button inside
+   the patient's own record, one tap from the patient's share controls and edit
+   forms; it goes up to the code entry it came from. And `rx` and `doctors`
+   were absent, so a shared variant link or a specialty-filtered doctor list
+   fell all the way to the home screen. */
 const UP_FROM = {
-  record: "#/", clinical: "#/record", doctor: "#/doctors", pharmacy: "#/pharmacies",
-  hospital: "#/hospitals", need: "#/needs", med: "#/rx", product: "#/rx",
-  care: "#/", partner: "#/", radar: "#/needs", wait: "#/needs",
+  record: "#/", clinical: "#/redeem", redeem: "#/", doctor: "#/doctors",
+  pharmacy: "#/pharmacies", hospital: "#/hospitals", doctors: "#/needs",
+  need: "#/rx", rx: "#/rx", med: "#/rx", product: "#/rx",
+  care: "#/", partner: "#/", radar: "#/rx", wait: "#/rx",
   lab: "#/", imaging: "#/", "pharmacy-rx": "#/",
 };
 function upFrom(hash) {
@@ -7581,7 +7694,12 @@ function upFrom(hash) {
   /* The record's own sub-screens go up to the record, not to the home
      screen: someone three levels into their labs wants their record back. */
   if (seg[0] === "record" && seg.length > 1) return "#/record";
-  return UP_FROM[seg[0]] || "#/";
+  /* A family whose root is also its own key must not send its root to itself —
+     `#/rx` going up to `#/rx` is a back button that does nothing. Only the
+     sub-routes climb. */
+  const up = UP_FROM[seg[0]];
+  if (up === "#/" + seg[0]) return seg.length > 1 ? up : "#/";
+  return up || "#/";
 }
 
 globalThis.goBack = function goBack() {
@@ -7613,7 +7731,18 @@ function header(opts = {}) {
    point, not the thing being built. A record that lives three taps deep
    inside a settings menu is a record nobody accumulates, and an empty record
    is worth nothing to the doctor it was built for. */
+/* The bar was cut from six tabs to four and eleven call sites were never
+   reconciled: `nav("explorer")` and `nav("care")` are passed by the whole
+   medicine layer (#/rx, #/explorer, #/need/*, #/radar, #/wait) and the
+   care-products layer (#/care, #/product), and neither key exists here. The
+   bar rendered with NO tab lit — the user standing somewhere the map does not
+   contain. Those screens all answer "where do I get this", which is what the
+   pharmacies tab is for, and `#/med/:id` already passed `nav("pharmacies")`
+   for exactly that reason. A test now fails if a call site passes a key this
+   function cannot light. */
+const NAV_ALIAS = { explorer: "pharmacies", care: "pharmacies" };
 function nav(active) {
+  active = NAV_ALIAS[active] || active;
   const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
     ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
   /* The bar is `position: fixed`, so it floats over the end of whatever is
@@ -9809,8 +9938,20 @@ function emergencySelfCard() {
   if (card.allergies.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "حساسية" : "Allergies"}</span>
     <span style="text-align:end">${card.allergies.map((a) => esc(a.substance)
       + (a.reaction ? ` (${esc(a.reaction)})` : "")).join("، ")}</span></div>`);
-  if (card.criticalMedications.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "أدوية حرجة" : "Critical medications"}</span>
-    <span style="text-align:end">${card.criticalMedications.map((m) => esc(m.display)).join("، ")}</span></div>`);
+  /* Every current medicine with its dose, flagged ones first, and each one
+     marked when the patient typed it rather than a clinician confirming it.
+     `emergencyCard` used to whitelist anticoagulants, insulin, steroids and an
+     explicit `critical` flag — which no ordinary Iraqi outpatient regimen
+     carries — so this row rendered for almost nobody and its absence read as
+     "takes no medication". The dose is included because a responder holding
+     this card needs the dose, not just the name. */
+  if (card.criticalMedications.length) rows.push(`<div class="rowb" style="align-items:flex-start">
+    <span class="t3">${isAR() ? "أدوية حالية" : "Current medicines"}</span>
+    <span style="text-align:end">${card.criticalMedications.map((m) => `<span style="display:block">${
+      m.flagged ? `<b>${esc(m.display)}</b>` : esc(m.display)}${
+      m.dose ? ` <span class="num nw">${esc(m.dose)}</span>` : ""}${
+      m.selfReported ? ` <span class="t3">${isAR() ? "(قالها المريض)" : "(patient-stated)"}</span>` : ""
+      }</span>`).join("")}</span></div>`);
   if (card.majorConditions.length) rows.push(`<div class="rowb" style="align-items:flex-start"><span class="t3">${isAR() ? "مشاكل مزمنة" : "Chronic conditions"}</span>
     <span style="text-align:end">${card.majorConditions.map(esc).join("، ")}</span></div>`);
   if (card.emergencyContact) {
@@ -9820,9 +9961,18 @@ function emergencySelfCard() {
        there is a number to call. */
     const label = esc(card.emergencyContact.name || card.emergencyContact.phone || "");
     const contact = card.emergencyContact.phone
-      ? `<a class="b-g" href="tel:${esc(card.emergencyContact.phone)}">${label}</a>`
+      /* Was a jade text link the width of the name — roughly 90x30px — with
+         the number NEVER printed, sitting under two full-width call buttons.
+         Under stress a helper needs two things from this row: to dial the
+         family, and to READ THE NUMBER ALOUD to a dispatcher or type it into
+         their own phone. Neither was possible. It is a control now, at the same
+         weight as the other calls, with the number visible. */
+      ? `<a class="btn btn--2 emg-call" href="tel:${esc(card.emergencyContact.phone)}">${icon("phone")}
+          <span>${isAR() ? "اتصل بـ " : "Call "}${label}
+            <span class="num nw" style="display:block">${esc(card.emergencyContact.phone)}</span></span></a>`
       : `<b>${label}</b>`;
-    rows.push(`<div class="rowb"><span class="t3">${isAR() ? "جهة اتصال" : "Contact"}</span>${contact}</div>`);
+    rows.push(card.emergencyContact.phone ? contact
+      : `<div class="rowb"><span class="t3">${isAR() ? "جهة اتصال" : "Contact"}</span>${contact}</div>`);
   }
   if (!rows.length && !card.notRecorded.length) return "";
   return `<div class="note note-e" style="margin-top:16px">${icon("alert")}<div style="width:100%">
@@ -9846,10 +9996,13 @@ function openEmergency() {
     <div class="sheet-b">
       <a class="btn btn--danger" href="tel:${CONFIG.emergency.unified}">${icon("phone")}${isAR() ? "الطوارئ الموحد" : "Unified emergency"} <span class="num">${CONFIG.emergency.unified}</span></a>
       <a class="btn btn--2" href="tel:${CONFIG.emergency.ambulance}">${icon("phone")}${t("ambulance")} <span class="num">${CONFIG.emergency.ambulance}</span></a>
+      <!-- This caveat qualifies the two buttons above it, and it used to sit
+           roughly 1,200px BELOW them, under the hospital list. Nobody in an
+           emergency reads a footer. It goes directly under what it qualifies. -->
+      <p class="tiny muted" style="margin-top:8px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
       ${emergencySelfCard()}
       <h3 class="eyebrow" style="margin:20px 0 10px">${t("nearestEr")}</h3>
       <div class="stack">${er.map((x) => hospitalRow(x)).join("")}</div>
-      <p class="tiny muted" style="margin-top:14px">${isAR() ? "تحقق من رقم الإسعاف المحلي قبل الاعتماد عليه." : "Verify the local ambulance number before relying on it."}</p>
     </div>`, "sheet--emergency");
 }
 
@@ -13208,6 +13361,11 @@ function route() {
        network and do not belong in this file. */
     case "record": return p[1] ? screenRecordSection(p[1], p[2]) : screenRecord();
     case "clinical": return p[1] === "inbox" ? screenClinicalInbox() : screenClinical(p[1]);
+    /* The receiving end of a carry code. `redeemCarryCode` has existed in
+       consent.js since the consent engine shipped and NOTHING called it, so a
+       patient could issue a code no screen in the product could accept. The
+       code may arrive in the URL so it can travel by WhatsApp. */
+    case "redeem": return screenRedeem(p[1]);
     /* The network as clinical actors — js/ui-network.js. Each is its own
        screen with its own vocabulary, not a filtered view of the doctor's. */
     case "lab": return screenLab(p[1], p[2]);
@@ -14604,6 +14762,12 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
             `The clinic sees this for ${C().DURATION[live.duration || "VISIT"].en} from the moment the code is used, then it closes itself.`)}</p>
         </div>
 
+        <!-- The clinician is looking at THIS screen, across the desk, while the
+             patient holds the phone. So the door into the redeem screen is here,
+             addressed to them — and it carries the code, so the same link works
+             when it is sent instead of shown. -->
+        <a class="b-g" style="display:block;margin-top:16px" href="#/redeem/${esc(live.code)}">${
+          T("أنا الطبيب — افتح الملف بهذا الرمز", "I am the clinician — open the record with this code")}</a>
         <a class="b-g" style="display:block;margin-top:14px" href="#/record/share">${
           T("أصدر رمزاً بمحتوى مختلف", "Issue a code covering something else")}</a>`
         : `<!-- Two doors on purpose. Someone at a clinic desk with the doctor
@@ -15020,15 +15184,48 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
           <div class="d3" style="font-size:19px">${esc(brief.patient.name)}</div>
           <span class="t3">${esc(brief.headline)}</span>
         </div>
+        <!-- ONE ROW PER ALLERGEN, and this is a safety fix rather than a
+             layout preference.
+
+             The allergens used to be joined into one sentence with " · " and
+             each one's provenance badge appended inline. Two failures came out
+             of that single line. the criticality was dropped entirely — the
+             projection carries it (record.js:551) and BOTH patient screens
+             render «خطرة»/«خفيفة», so the one screen where severity decides
+             whether a beta-lactam gets test-dosed was the only screen that
+             omitted it, and a mild sulfa itch read as equal to a
+             rash-and-swelling penicillin reaction.
+
+             Worse, the badge's SCOPE inverted. Only the sulfamethoxazole was
+             patient-reported; the penicillin was clinician-recorded. But joined
+             into one sentence, the badge wrapped onto its own line beneath both
+             and read as qualifying the whole ALLERGY statement — so a doctor
+             scanning for thirty seconds concluded the PENICILLIN allergy was
+             unverified hearsay. That reasoning ends in a penicillin challenge.
+
+             High criticality sorts first, each allergen owns its own severity
+             chip and its own provenance mark, and no two allergens are ever
+             joined by a separator again. -->
         ${brief.allergies.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}
-          <div><b>${T("حساسية", "ALLERGY")}</b> — ${brief.allergies.map((a) =>
-            esc(a.substance) + (a.reaction ? ` <span class="t3">(${esc(a.reaction)})</span>` : "")
-            + (patientToldUs(a) ? " " + patientToldUs(a) : "")).join(" · ")}</div></div>`
+          <div style="width:100%"><b>${T("حساسية", "ALLERGY")}</b>
+          <div class="stack-2" style="margin-top:6px">${brief.allergies.slice().sort((a, b) =>
+            (b.criticality === E().CRITICALITY.HIGH) - (a.criticality === E().CRITICALITY.HIGH))
+            .map((a) => `<div>
+              <div class="rowb"><b>${esc(a.substance)}</b>
+                <span class="st ${a.criticality === E().CRITICALITY.HIGH ? "st-e" : "st-q"}">${
+                  a.criticality === E().CRITICALITY.HIGH ? T("خطرة", "high")
+                  : a.criticality === E().CRITICALITY.LOW ? T("خفيفة", "low")
+                  : T("الشدة غير محدّدة", "severity not assessed")}</span></div>
+              ${a.reaction ? `<div class="t3" style="margin-top:2px">${esc(a.reaction)}</div>` : ""}
+              ${patientToldUs(a) ? `<div style="margin-top:4px">${patientToldUs(a)}</div>` : ""}
+            </div>`).join("")}</div></div></div>`
           : `<div class="t3" style="margin-top:10px">${T("ما مسجّل أي حساسية — وهذا مو نفس «ما عنده حساسية»",
               "No allergy recorded — which is not the same as 'no allergies'")}</div>`}
         <div class="row" style="flex-wrap:wrap;gap:6px 10px;margin-top:10px">
           ${brief.active.slice(0, 4).map((c) => `<span class="chip">${esc(c.name)}</span>`).join("")}
-          ${brief.medications.length ? `<span class="st st-q">${n(brief.medications.length)} ${T("دواء", "meds")}</span>` : ""}
+          ${brief.medications.length ? `<span class="st st-q">${ar()
+            ? countAr(brief.medications.length, ["دواء واحد", "دواءان", "أدوية", "دواءً"])
+            : `${n(brief.medications.length)} meds`}</span>` : ""}
         </div>
       </div>
 
@@ -15037,8 +15234,17 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
            reach a patient before anyone notices. -->
       ${brief.unacknowledgedAbnormal.length ? `<div class="note note-e" style="margin-top:12px">${icon("alert")}
         <div style="width:100%"><b>${T("نتائج غير طبيعية ما أقرّها أحد", "Abnormal, unacknowledged")}</b>
-          <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb">
-            <span>${esc(x.name)}</span><span>${measure(x.value, x.unit)} · ${n(String(x.at).slice(0, 10))}</span>
+          <!-- The value and the date were joined with a "·" — two LTR runs
+               with a Bidi_Class=ON neutral between them, inside an Arabic line.
+               It rendered date-then-value, the reverse of what was written, and
+               at 320px the row wrapped leaving the "·" orphaned beside the
+               value with the date alone on the next line. Same defect as the
+               blood pressure, in a row this file's own comments forbid. They
+               are two separate facts, so they get two separate elements. -->
+          <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb" style="align-items:flex-end">
+            <span>${esc(x.name)}
+              <span class="t3" style="display:block;margin-top:1px">${n(String(x.at).slice(0, 10))}</span></span>
+            ${measure(x.value, x.unit)}
           </div>`).join("")}</div></div></div>` : ""}
 
       ${brief.overdue.length ? `<div class="note note-w" style="margin-top:10px">${icon("clock")}
@@ -15355,6 +15561,98 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       ? T("انحفظ — تقدر تشوف بس ما تكتب", "Saved — you can view but not write")
       : T("انحفظ — التوثيق قيد المراجعة", "Saved — verification pending review"));
     render();
+  };
+
+  /* =========================================================
+     THE MISSING EDGE — redeeming a code
+     =========================================================
+     `consent.js` has had `redeemCarryCode` since the consent engine shipped:
+     it validates the code, refuses a second redemption, refuses an expired
+     one, and converts the paper into an ordinary time-limited share. It is
+     covered by tests in two suites.
+
+     Nothing in the interface called it, and no screen in the product linked to
+     `#/clinical`. So the entire spine of the product — a patient curates
+     scopes and a duration, issues a code, hands it across a clinic desk —
+     terminated in a code that nothing could accept. The share builder, the
+     carry screen, the active-shares list, the access log and the clinician's
+     brief were five screens describing a handover whose receiving end did not
+     exist. `#/record/access` would have read «ما فتح ملفك أحد بعد» forever.
+
+     This is the receiving end. It is deliberately reachable WITHOUT the
+     patient's phone — the clinician types the six characters into their own
+     device — and it accepts the code in the URL too, so a code can travel by
+     WhatsApp the way the rest of this product's handoffs do.
+
+     What it does NOT do is invent authority. A redeemed code produces exactly
+     the share `grantShare` produces, attributed to whoever redeemed it, and
+     the clinician's own identity is still self-asserted until a licence is
+     verified. The code is an introduction, not a credential. */
+  globalThis.screenRedeem = function screenRedeem(codeFromUrl) {
+    const me = currentClinician();
+    if (!me) return clinicianSetup();
+    const pre = String(codeFromUrl || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    return page(T("عندي رمز مريض", "I have a patient's code"),
+      `<div class="note">${icon("seal")}<div>${T(
+        "المريض يعطيك رمزاً من ستة أحرف. تكتبه هنا، فينفتح لك اللي اختاره هو — لا أكثر — وللمدة اللي حدّدها هو. يوصله إنك فتحته، ويبقى مكتوباً باسمك.",
+        "The patient gives you a six-character code. Type it here and you get exactly what they chose — no more — for exactly as long as they chose. They are told you opened it, and it stays recorded under your name.")}</div></div>
+
+      <label class="fld" style="margin-top:18px"><span>${T("الرمز", "The code")}</span>
+        <!-- One field, six characters, from an alphabet with no 0/O and no
+             1/I/l — because this code is usually read aloud across a desk in a
+             noisy waiting room. inputmode/autocapitalize so a phone keyboard
+             offers the right thing on the first tap. -->
+        <input id="rd-code" type="text" class="mono" maxlength="6" value="${esc(pre)}"
+          inputmode="latin" autocapitalize="characters" autocomplete="off" spellcheck="false"
+          style="font-size:26px;letter-spacing:.22em;text-align:center"></label>
+
+      <button class="btn" style="margin-top:16px" onclick="redeemSubmit()">${
+        T("افتح الملف", "Open the record")}</button>
+
+      <p class="t3" style="margin-top:14px;line-height:1.7">${T(
+        "الرمز يُستعمل مرة واحدة. إذا انتهت صلاحيته أو استعمله أحد قبلك، ما ينفتح — اطلب من المريض رمزاً جديداً.",
+        "A code is single use. If it has expired or someone used it before you, it will not open — ask the patient for a new one.")}</p>
+
+      <div class="hr" style="margin:24px 0"></div>
+      <p class="t3" style="line-height:1.7">${T(
+        "ما عندك رمز؟ تقدر تطلب الاطّلاع من المريض، ويقرّر هو.",
+        "No code? You can ask the patient for access and they decide.")}</p>
+      <a class="b-g" style="display:inline-block;margin-top:8px" href="#/clinical/inbox">${
+        T("طلباتي السابقة", "My earlier requests")}</a>`,
+      T("أنت تفتح ملف شخص آخر. كل فتحة مسجّلة عنده باسمك ووقتها.",
+        "You are opening someone else's record. Every opening is logged for them, under your name, with its time."),
+      /* No patient tab bar for a clinician — the same reason screenClinical
+         renders none. This screen is a door into someone else's product. */
+      null);
+  };
+
+  globalThis.redeemSubmit = function redeemSubmit() {
+    const me = currentClinician();
+    if (!me) { render(); return; }
+    const el = document.getElementById("rd-code");
+    const code = ((el || {}).value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (code.length !== 6) { toast(T("الرمز ستة أحرف", "The code is six characters")); return; }
+    const d = store();
+    /* The code is matched against the record this device holds. On a clinician
+       device with no patient record there is nothing to match, and saying so is
+       the honest answer — inventing a lookup we cannot perform would be worse. */
+    const carry = d.carry && String(d.carry.code || "").toUpperCase() === code ? d.carry : null;
+    const r = C().redeemCarryCode(carry, me, now());
+    if (!r.ok) {
+      toast({
+        NO_CODE: T("ما لقينا هذا الرمز على هذا الجهاز", "That code is not on this device"),
+        ALREADY_REDEEMED: T("الرمز مستعمل — اطلب رمزاً جديداً", "Already used — ask for a new code"),
+        EXPIRED: T("الرمز انتهت صلاحيته", "That code has expired"),
+        REDEEMER_REQUIRED: T("سجّل حسابك المهني أولاً", "Set up your professional account first"),
+      }[r.reason] || T("ما قدرنا نفتح الملف", "Could not open the record"));
+      return;
+    }
+    mutate((x) => {
+      x.carry = r.carry;
+      x.shares = [...(x.shares || []), r.share];
+    });
+    toast(T("انفتح الملف", "Record opened"));
+    location.hash = `#/clinical/${r.share.patientId}`;
   };
 
   /* ---------- clinician inbox: confirm or reject extracted claims ---------- */
