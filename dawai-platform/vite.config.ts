@@ -3,6 +3,13 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      "/api": "http://127.0.0.1:8787",
+      "/health": "http://127.0.0.1:8787",
+    },
+  },
   build: {
     target: "es2022",
     sourcemap: true,
@@ -12,5 +19,7 @@ export default defineConfig({
     globals: true,
     setupFiles: "./src/test/setup.ts",
     css: true,
+    include: ["src/**/*.test.{ts,tsx}", "server/**/*.test.ts"],
+    exclude: ["e2e/**", "node_modules/**"],
   },
 });
