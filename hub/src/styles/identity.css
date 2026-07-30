@@ -94,6 +94,37 @@
      redefines to the case — so light-on-dark and dark-on-light both come out
      right with no second rule. */
   --nav-h:66px;
+  /* ---- THE REGISTER's two washes ----
+     The register needs to mark two row states on the surface itself, and
+     deliberately introduces NO new hue to do it. The identity already carries
+     the two meanings:
+
+       brass = TIME ONLY          -> a share is the product's most important
+                                     clock. "A copy of your record is in
+                                     someone else's hands and it expires at
+                                     <time>" is a time fact before it is
+                                     anything else, so custody is brass.
+       alarm = EMERGENCY ONLY     -> a loop nobody closed is the harm this
+                                     product exists to catch. Unclosed is alarm.
+
+     OPAQUE, PRE-COMPOSITED, ONE VALUE PER THEME — and that is not a stylistic
+     choice. The first version used a low-alpha wash so it would composite over
+     whatever surface it landed on. The UI audit raised 24 contrast findings on
+     it, all in the dark theme, reading 1.00:1 and 1.62:1 — and the audit was
+     RIGHT to refuse: its `bgOf` walker takes the first non-transparent
+     background it finds and cannot composite alpha, so it measured light text
+     against the wash's own undiluted hue. Any tool that inspects a computed
+     background has the same problem, and so does anyone reading the stylesheet.
+     A translucent surface whose real colour only exists after painting is not
+     checkable. These are the composited results, computed once:
+       brass  #C98A18 @10%  over --dial #F4F1EB  ->  #F0E7D6   (ink 15.23:1)
+       alarm  #C1121F @7.5% over --dial          ->  #F0E0DC   (ink 14.60:1)
+       brass-lit #F0C15E @13% over --case #0B1412 -> #292A1C  (ink 12.68:1)
+       alarm-lit #F08A80 @12% over --case         -> #26221F  (ink 13.74:1)
+     `color-mix()` would express this in one line and is deliberately not used:
+     no build step, and mid-range Android WebViews are a real target. */
+  --wash-time:#F0E7D6;
+  --wash-alarm:#F0E0DC;
   --sand:var(--dial-2);
   --petrol:var(--jade);
   --amber-b:var(--brass);
@@ -112,6 +143,10 @@
   --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
   --alarm-on:var(--case);
   --line-ctl:rgba(240,236,228,.40);
+  /* The washes lift in the dark theme for the same reason --line-ctl does: the
+     same tint over ink reads as nothing at all. Pre-composited over --case. */
+  --wash-time:#292A1C;
+  --wash-alarm:#26221F;
   /* .07 composited to 1.17:1 — a separator nobody could see. */
   --dial-line-2:rgba(240,236,228,.14);
   /* The three aliases that point at tokens .dark redefines must be redeclared

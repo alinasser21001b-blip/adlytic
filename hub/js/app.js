@@ -99,7 +99,11 @@ function route() {
     /* Bare `#/care` is the destination; the default segment is the doctors
        list, which is what the tab has always opened. `#/care/:cat` keeps the
        product categories. */
-    case "care": return p[1] ? screenCare(p[1]) : screenDoctors(params);
+    /* `#/care` is the availability network's own front door now — the body the
+       home screen used to open on, with the record no longer competing with it
+       for the first viewport. `#/care/:cat` keeps the care-product categories,
+       and `#/doctors` / `#/pharmacies` keep their own routes. */
+    case "care": return p[1] ? screenCare(p[1]) : screenAvailable();
     case "product": return screenProduct(p[1]);
     case "start": return screenStart();
     case "explorer": return screenExplorer();

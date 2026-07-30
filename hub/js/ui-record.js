@@ -71,7 +71,14 @@
   /* §5: progressive disclosure. What is dangerous first, what is current
      second, everything else behind a tap. A record that opens onto fourteen
      equal sections is a filing cabinet, not a health record. */
-  globalThis.screenRecord = function screenRecord() {
+  /* The record index is the DECK — see «THE DECK» below. The former index, a
+     twelve-row table of contents with the care threads bolted above it, is
+     replaced rather than restyled: its rows were named after storage tables and
+     sat at one weight, which is the defect the whole redesign exists to fix.
+     Every row it linked to is still a route and still reachable. */
+  globalThis.screenRecord = function screenRecord() { return screenDeck(); };
+
+  globalThis.screenRecordLegacy = function screenRecordLegacy() {
     const d = store();
     if (!d.patient) return screenRecordSetup();
     const p = d.patient;
@@ -555,7 +562,7 @@
       case "conditions": return listConditions(d);
       case "medications": return listMedications(d);
       case "allergies": return listAllergies(d);
-      case "labs": return listLabs(d);
+      case "labs": return screenResults();
       case "documents": return listDocuments(d);
       case "immunizations": return listImmunizations(d);
       case "visits": return listVisits(d);
@@ -567,7 +574,7 @@
       case "add": return screenAdd(d, id);
       case "access": return screenAccess(d);
       case "carry": return screenCarry(d);
-      case "thread": return screenThread(d, id);
+      case "thread": return screenStrand(d, id);
       case "inbox": return screenInbox(d);
       case "request": return screenAccessRequest(d, id);
       case "sync": return screenSync(d);
@@ -599,9 +606,16 @@
 
   function listConditions(d) {
     const active = E().activeConditions(d.conditions, now());
+    /* Every active problem is a doorway into its own story. This is the third
+       and most-used route to the strand — the register's acknowledged weakness
+       is that one interleaved axis scatters a problem, and the fix has to be
+       reachable from where a patient looks for a problem BY NAME. */
+    const strandOf = (c) => (E().careThreads({ ...d, patientId: d.patient.id }, { now: now() })
+      .threads.find((x) => (x.condition || {}).id === c.id) || null);
     const past = (d.conditions || []).filter((c) => c.clinicalStatus !== E().COND_STATE.ACTIVE);
     return page(T("المشاكل الصحية", "Conditions"),
-      `${active.length ? `<div class="stack-2">${active.map((c) => `<div class="rw">
+      `${active.length ? `<div class="stack-2">${active.map((c) => { const th = strandOf(c);
+        return `<div class="rw">
         <div style="width:100%">
           <div class="rowb"><b>${esc(c.display)}</b>
             ${c.chronic ? `<span class="st st-q">${T("مزمن", "chronic")}</span>` : ""}</div>
@@ -612,7 +626,12 @@
           ${c.stale ? `<div class="st st-e" style="margin-top:6px">${T(
             "ما راجعها طبيب من مدة طويلة", "not reviewed by a clinician for a long time")}</div>` : ""}
           ${selfReported(c) ? `<div style="margin-top:6px">${selfReported(c)}</div>` : ""}
-        </div></div>`).join("")}</div>`
+          ${th ? `<a class="b-g" style="margin-top:8px;display:inline-block"
+            href="#/record/thread/${esc(th.id)}">${T("شوف شنو تغيّر ومتى", "See what changed, and when")}</a>`
+            : `<div class="t3" style="margin-top:8px">${T(
+                "ما في أحداث مربوطة بهذي المشكلة بالسجل",
+                "no events in the record are linked to this problem")}</div>`}
+        </div></div>`; }).join("")}</div>`
         : empty(T("ما مسجّل عندك مشاكل نشطة", "No active conditions recorded"))}
       ${past.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${T("سابقة", "Past")}</h2></div>
         <div class="stack-2">${past.map((c) => `<div class="rw"><div class="rowb" style="width:100%">
@@ -856,7 +875,17 @@
           ${x.surgeon ? `<div class="t3" style="margin-top:4px">${esc(x.surgeon)}</div>` : ""}
           ${x.pathology ? `<div style="margin-top:6px">${T("النسيج المرضي", "Pathology")}: ${esc(x.pathology)}</div>` : ""}
         </div></div>`).join("")}</div>`
-        : empty(T("ما مسجّل عندك عمليات", "No procedures recorded")));
+        /* An empty screen is an invitation, not a full stop. A patient cannot
+           author an operation — the operative note belongs to the theatre — but
+           they can record that they HOLD the discharge summary, which is what
+           makes the next clinician ask for it. Same honest action the labs
+           screen offers, for the same reason. Measured before this: 58
+           characters of text and no way to act, on a cold deep link. */
+        : empty(T("ما مسجّل عندك عمليات", "No procedures recorded"),
+          `<p class="t3" style="margin-top:12px;line-height:1.7">${T(
+            "العمليات تنكتب من المستشفى. إذا عندك تقرير عملية أو خروج، سجّله حتى الطبيب الجاي يعرف إنه موجود ويطلبه منك — وخصوصاً إذا انسحب نسيج للتحليل.",
+            "Operations are recorded by the hospital. If you hold an operative or discharge report, note that you have it so the next clinician knows to ask — especially if a specimen was sent for analysis.")}</p>
+          ${addButton("document", T("سجّل تقرير عملية عندك", "Note an operative report you hold"))}`));
   }
 
   function listFollowups(d) {
@@ -981,10 +1010,16 @@
     return `<div class="tl-e">
       <div class="tl-when"><b class="num">${esc(day)}</b><span class="t3">${esc(dayOf(e.at))}</span></div>
       <div class="tl-body">
-        <div class="rowb"><span class="st ${e.flag && e.flag !== "normal" ? "st-e" : "st-q"}">${
-          esc(evtLabel(e.type))}</span>
-          ${e.significance >= 4 ? `<span class="st st-t">${T("حدث كبير", "major")}</span>` : ""}</div>
-        <div style="margin-top:4px">${esc(e.title || T("بلا عنوان", "untitled"))}</div>
+        <div class="tl-e-head"><span class="st ${e.flag && e.flag !== "normal" ? "st-e" : "st-q"}">${
+          esc(evtLabel(e.type))}${e.significance >= 4
+            ? ` <span class="st st-t">${T("حدث كبير", "major")}</span>` : ""}</span>
+        <!-- The EVENT, not the date, is the heaviest thing in this row. The
+             measured baseline recorded the timeline's three heaviest elements as
+             the screen title and two bare day numbers — on a longitudinal
+             record's own chronology, nothing about the trajectory reached the
+             top of the visual hierarchy. A date is the axis; the axis does not
+             outrank the thing it measures. -->
+        <div class="tl-title">${esc(e.title || T("بلا عنوان", "untitled"))}</div></div>
         ${e.detail ? `<div class="t3" style="margin-top:3px">${esc(e.detail)}</div>` : ""}
         ${ep ? `<div class="t3" style="margin-top:4px">${T("ضمن", "part of")} ${esc(ep)}</div>` : ""}
         ${e.flag && e.flag !== "normal" ? `<span class="st st-e" style="margin-top:5px">${
@@ -1248,18 +1283,32 @@
     return page(T("شارك ملفك", "Share your record"),
       `<div class="sec"><div class="sec-h"><h2 class="d3">${T("شنو يشوف", "What they see")}</h2></div>
         <div class="stack-2">
-          <!-- The floor is shown as a row like the others and locked like
-               none of them, with the reason in the row rather than in a
-               footnote. A patient who cannot see why it is locked reads it
-               as the app overriding them for its own convenience. -->
+          <!-- THE FLOOR REFUSES IN PLACE, AND IT REFUSES AS A RULE.
+               This was a checkbox rendered "checked disabled" — a pre-disabled
+               control, which teaches nothing and hands assistive technology a
+               state with no reason. Two changes, both taken from the other
+               exploration's «الأرضية»:
+
+               · the row looks and behaves like every other row, and the refusal
+                 happens ON THE LINE at the moment the patient tries to withhold
+                 it, in the domain's own words rather than a footnote;
+               · the refusal is attributed to the RULE, not to the app's voice,
+                 and it is ANNOUNCED — a status role with aria-live, because
+                 a control that silently declines is indistinguishable from a
+                 control that is broken. -->
           <div class="rw"><div class="rowb" style="width:100%">
             <span>${esc(C().scopeLabel(S_.ALLERGIES, S.lang))}
-              <span class="st st-t" style="margin-inline-start:8px">${T("دائماً", "always")}</span></span>
-            <input type="checkbox" checked disabled>
+              <span class="st st-t" style="margin-inline-start:8px">${T("مأخوذة", "taken")}</span></span>
+            <button class="b b-s task-act" aria-describedby="floor-why"
+              onclick="recordFloorRefuse()">${T("شيلها", "Remove it")}</button>
           </div></div>
-          <p class="t3" style="margin-top:-4px;line-height:1.7">${T(
-            "الحساسية تنشارك دائماً مع أي طبيب تعطيه إذن. طبيب يشوف ملفك ولا يشوف حساسيتك أخطر من طبيب ما يشوف شي — لأنه راح يوصف وهو معتقد إنه تأكّد.",
-            "Allergies are always shared with anyone you grant access. A clinician who can see your record but not your allergy is more dangerous than one who cannot see it at all — they will prescribe believing they checked.")}</p>
+          <div class="refuse" id="floor-why" role="status" aria-live="polite" hidden>
+            <span class="rule-name">${T("أرضية السلامة — قاعدة في النظام، مو قرار التطبيق",
+              "The safety floor — a rule in the system, not the app's choice")}</span>
+            <b>${T("ما تنشال.", "This cannot be removed.")}</b>
+            ${T("الطبيب اللي يشوف ملفك بلا حساسيتك أخطر من طبيب ما يشوف الملف أبداً، لأنه راح يوصف وهو يحسب إنه تأكّد.",
+                "A clinician who sees your record without your allergies is more dangerous than one who never sees it at all — they will prescribe believing they checked.")}
+          </div>
           ${OFFER.map((s) => `<label class="rw"><div class="rowb" style="width:100%">
             <span>${esc(C().scopeLabel(s, S.lang))}</span>
             <input type="checkbox" class="sh-scope" value="${esc(s)}"${on.has(s) ? " checked" : ""}
@@ -1310,6 +1359,17 @@
   const shareCountText = (k) => ar()
     ? `${k ? countAr(k, ["قسم واحد", "قسمان", "أقسام", "قسماً"]) : "ما اخترت شي"} + الحساسية`
     : `${k || "no"} section${k === 1 ? "" : "s"} + allergies`;
+
+  /* The refusal is revealed rather than toasted: a toast is gone before a
+     screen-reader user reaches it, and this is the one place in the flow where
+     the system overrides the patient. It stays on the line it belongs to. */
+  globalThis.recordFloorRefuse = function recordFloorRefuse() {
+    const el = document.getElementById("floor-why");
+    if (!el) return;
+    el.hidden = false;
+    /* re-announce if it was already open — the patient pressed again */
+    el.setAttribute("role", "status");
+  };
 
   globalThis.recordShareCount = function recordShareCount() {
     const el = document.getElementById("sh-count");
@@ -1950,28 +2010,16 @@
         </div>
       </div>
 
-      <!-- WHAT IS ON FIRE. Unacknowledged abnormals and overdue loops come
-           before the ordinary record, because they are the failures that
-           reach a patient before anyone notices. -->
-      ${brief.unacknowledgedAbnormal.length ? `<div class="note note-e" style="margin-top:12px">${icon("alert")}
-        <div style="width:100%"><b>${T("نتائج غير طبيعية ما أقرّها أحد", "Abnormal, unacknowledged")}</b>
-          <!-- The value and the date were joined with a "·" — two LTR runs
-               with a Bidi_Class=ON neutral between them, inside an Arabic line.
-               It rendered date-then-value, the reverse of what was written, and
-               at 320px the row wrapped leaving the "·" orphaned beside the
-               value with the date alone on the next line. Same defect as the
-               blood pressure, in a row this file's own comments forbid. They
-               are two separate facts, so they get two separate elements. -->
-          <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb" style="align-items:flex-end">
-            <span>${esc(x.name)}
-              <span class="t3" style="display:block;margin-top:1px">${n(String(x.at).slice(0, 10))}</span></span>
-            ${measure(x.value, x.unit)}
-          </div>`).join("")}</div></div></div>` : ""}
-
-      ${brief.overdue.length ? `<div class="note note-w" style="margin-top:10px">${icon("clock")}
-        <div><b>${T("حلقات مفتوحة متأخّرة", "Overdue open loops")}</b>
-          <div class="t3" style="margin-top:4px">${brief.overdue.map((t) =>
-            esc(taskLabel(t.kind)) + (t.about ? " — " + esc(t.about) : "")).join(" · ")}</div></div></div>` : ""}
+      <!-- WHAT IS UNFINISHED, AND WHO OWNS IT — the clinician's first partition.
+           This replaced three loose alert boxes (unacknowledged abnormals,
+           overdue loops, unverified claims) that stated danger and never stated
+           OWNERSHIP, so a clinician with seven minutes could not tell what was
+           theirs to do from what was somebody else's to chase. -->
+      ${(() => { const w = clinicianWork(record, me, now());
+        return `<div class="owncols">
+          ${ownBlock("own-mine", T("عليك أنت", "On you"), w.mine, true)}
+          ${ownBlock("own-theirs", T("على غيرك", "On someone else"), w.theirs, false)}
+        </div>`; })()}
 
       ${brief.unverifiedClaims ? `<div class="note note-w" style="margin-top:10px">${icon("info")}
         <div>${n(brief.unverifiedClaims)} ${T(
@@ -2039,6 +2087,8 @@
           ${brief.lastEncounter.assessment ? `<div style="margin-top:6px">${esc(brief.lastEncounter.assessment)}</div>` : ""}
         </div></div>`) : ""}
 
+      ${holesBlock(record, sc)}
+
       <div class="btn-row" style="margin-top:20px">
         <a class="btn" href="#/clinical/encounter">${T("سجّل زيارة", "Record a visit")}</a>
         <a class="btn btn--2" href="#/record/timeline">${T("الخط الزمني", "Timeline")}</a>
@@ -2053,8 +2103,14 @@
   const section = (title, body) => `<div class="sec"><div class="sec-h"><h2 class="d3">${esc(title)}</h2></div>
     <div class="stack-2">${body}</div></div>`;
   const emptyRow = (t) => `<div class="rw"><span class="t3">${esc(t)}</span></div>`;
+  /* A withheld section states that it was NOT LENT, never that it is empty —
+     see «THE SHAPE OF THE HOLES». The old version printed a heading and a quiet
+     chip reading «ما شاركها المريض», which a clinician scanning downward reads
+     as "there is nothing here". */
   const lockedSection = (title) => `<div class="sec"><div class="sec-h"><h2 class="d3">${esc(title)}</h2>
-    <span class="st st-q">${T("ما شاركها المريض", "not shared")}</span></div></div>`;
+    <span class="st st-q">${T("خارج نطاق الإعارة", "outside what was lent")}</span></div>
+    <div class="dband-note">${T("ما سلّمها المريض. وهذا مو نفس إنها فارغة.",
+      "The patient did not lend this. That is not the same as it being empty.")}</div></div>`;
 
   /* ---------- lab series ----------
 
@@ -2481,4 +2537,1090 @@
         break;
     }
   }
+
+  /* ============================================================
+     THE REGISTER — the booklet by date
+     ============================================================
+     ONE row type, ordered strictly by time, closed by two labelled sticky
+     headers. Everything unfinished sits above the first header BECAUSE IT HAS
+     NOT ENDED YET: urgency is a position in time, not an alert box. There is no
+     alert stack and no section chrome, and nothing here is a digest of another
+     screen — the register is the primary object.
+
+     Two aggregation laws, because the two halves fail differently. Above the
+     boundary the risk is HIDING SOMETHING DANGEROUS, so two kinds never
+     aggregate at all. Below it the risk is DROWNING, so time coarsens as it
+     recedes.
+     ============================================================ */
+
+  /* A date with NO SEPARATOR BETWEEN NUMBERS, ever. The gutter prints a day and
+     an Iraqi month name, and the year only when it changes — which removes the
+     bidi hazard of guardrail §5 rather than isolating it. The ISO form stays
+     available wherever a clinician needs it, isolated, in the series.
+     MONTHS_AR is the array the timeline already uses; one source per month. */
+  const rDay = (iso) => { const x = E().ms(iso); return x == null ? "" : new Date(x).getDate(); };
+  const rMon = (iso) => { const x = E().ms(iso); return x == null ? -1 : new Date(x).getMonth(); };
+  const rYr = (iso) => { const x = E().ms(iso); return x == null ? "" : new Date(x).getFullYear(); };
+  const monName = (i) => (ar() ? MONTHS_AR[i] : MONTHS_EN[i]);
+  const dateWord = (iso) => (rMon(iso) < 0 ? T("بتاريخ غير مسجّل", "on an unrecorded date")
+    : `${n(rDay(iso))} ${esc(monName(rMon(iso)))}`);
+  function gutDate(iso, prevIso) {
+    if (rMon(iso) < 0) return `<b>${T("بلا تاريخ", "no date")}</b>`;
+    const same = prevIso && rYr(prevIso) === rYr(iso);
+    return `<b>${n(rDay(iso))} ${esc(monName(rMon(iso)))}</b>${
+      same ? "" : `<span class="yr">${n(rYr(iso))}</span>`}`;
+  }
+
+  const R_DAY = 86400000;
+  const daysAgo = (iso, at) => Math.round((at - E().ms(iso)) / R_DAY);
+  const stripTags = (h) => String(h).replace(/<[^>]*>/g, "");
+
+  /* "how long left", WORDED rather than clocked. A HH:MM countdown puts a colon
+     between two numbers on a one-second timer, which is the §5 hazard running in
+     a loop. The number is isolated; the Arabic unit sits outside it. */
+  function leftLabel(expiresAt, at) {
+    const ms = E().ms(expiresAt) - at;
+    if (!isFinite(ms)) return T("مدّتها غير معروفة", "duration unknown");
+    if (ms <= 0) return T("انتهت", "ended");
+    const h = Math.floor(ms / 3600000);
+    if (h < 1) return T("باقي أقل من ساعة", "under an hour left");
+    if (h < 24) return ar() ? `باقي ${countAr(h, ["ساعة", "ساعتان", "ساعات", "ساعة"])}` : `${h}h left`;
+    const dd = Math.round(h / 24);
+    return ar() ? `باقي ${countAr(dd, ["يوم", "يومان", "أيام", "يوماً"])}` : `${dd}d left`;
+  }
+
+  const regRow = (o) => `<div class="reg-row ${o.cls || ""}${o.wide ? " reg-row--wide" : ""}"${
+    o.alert ? ' role="alert"' : ""}>
+      <div class="reg-gut">${o.gut}</div>
+      <div class="reg-bd"><div class="reg-what">${o.what}</div>${
+        o.sub ? `<div class="reg-sub">${o.sub}</div>` : ""}</div>
+      ${o.back || ""}</div>`;
+
+  const aggRow = (o) => `<details class="reg-row agg ${o.cls || ""}"><summary>
+      <div class="reg-gut">${o.gut}</div>
+      <div class="reg-bd"><div class="reg-what">${o.what}</div>
+        <div class="reg-sub">${o.sub} <span class="more">${T("— اضغط تشوفهن", "— tap to see them")}</span></div>
+      </div></summary><div class="reg-kids">${o.kids}</div></details>`;
+
+  const NOWGUT = () => `<b>${T("الآن", "now")}</b>`;
+
+  /* ---------- ABOVE THE BOUNDARY ----------
+     HARD RULE: a result whose flag is `critical`, and ANY custody event, always
+     get their own row at any record size. Everything else aggregates by KIND,
+     and an aggregate always states its WORST member — so aggregation hides
+     enumeration and never severity. */
+  function openRows(d, at) {
+    const rows = [];
+    const unacked = (d.results || []).filter((x) => E().isAbnormal(x) && !x.acknowledgedBy)
+      .sort((a, b) => E().ms(b.effectiveAt) - E().ms(a.effectiveAt));
+    const crit = unacked.filter((x) => (x.flag || E().flagResult(x)) === "critical");
+    const other = unacked.filter((x) => crit.indexOf(x) === -1);
+
+    for (const x of crit) rows.push(regRow({ gut: NOWGUT(), cls: "reg-row--open", alert: true,
+      what: `${esc(x.display || x.code)} ${measure(x.value, x.unit)} — ${T("حرجة", "critical")}
+        <span class="st st-e">${T("ما أُقرّت", "unacknowledged")}</span>`,
+      sub: ar() ? `وصلت ${dateWord(x.effectiveAt)}، وما أقرّها أحد`
+                : `arrived ${dateWord(x.effectiveAt)}, nobody has acknowledged it` }));
+
+    if (other.length) {
+      const oldest = other[other.length - 1];
+      rows.push(aggRow({ gut: NOWGUT(), cls: "reg-row--open",
+        what: `${ar() ? countAr(other.length, ["نتيجة خارج المدى ما أقرّها أحد",
+                 "نتيجتان خارج المدى ما أقرّهن أحد", "نتائج خارج المدى ما أقرّهن أحد",
+                 "نتيجة خارج المدى ما أقرّها أحد"])
+               : `${other.length} unacknowledged out-of-range result(s)`}
+               <span class="st st-e">${T("متأخّرة", "overdue")}</span>`,
+        sub: ar() ? `أقدمها من ${countAr(daysAgo(oldest.effectiveAt, at), ["يوم", "يومين", "أيام", "يوماً"])}`
+                  : `oldest is ${daysAgo(oldest.effectiveAt, at)} days old`,
+        kids: other.map((x) => `<div>${esc(x.display || x.code)} ${measure(x.value, x.unit)} — ${
+          dateWord(x.effectiveAt)}</div>`).join("") }));
+    }
+
+    /* CUSTODY — never aggregated. Who is holding you is never a summary. */
+    for (const sh of C().activeShares(d.shares, at)) {
+      const who = esc(sh.granteeName || sh.granteeId);
+      const k = (sh.scopes || []).length;
+      rows.push(regRow({ gut: NOWGUT(), cls: "reg-row--out",
+        what: ar() ? `${who} ماسك ${countAr(k, ["ورقة", "ورقتين", "أوراق", "ورقة"])} من دفترك`
+                   : `${who} holds ${k} of your sheets`,
+        sub: `${T("بموافقتك", "with your consent")} — <span class="st st-t">${leftLabel(sh.expiresAt, at)}</span>` }));
+    }
+    if (d.carry && !d.carry.redeemedBy && E().ms(d.carry.expiresAt) > at) {
+      const k = (d.carry.scopes || []).length;
+      rows.push(regRow({ gut: NOWGUT(), cls: "reg-row--out",
+        what: T("رمز تسليم ما استُخدم", "an unredeemed handover code"),
+        sub: `${ar() ? `${countAr(k, ["ورقة", "ورقتان", "أوراق", "ورقة"])} ومعها الحساسية`
+                     : `${k} sheet(s), allergies included`} — <span class="st st-t">${
+          leftLabel(d.carry.expiresAt, at)}</span>` }));
+    }
+    for (const a of C().accessAlerts(d.accessLog, at)) {
+      rows.push(regRow({ gut: NOWGUT(), cls: "reg-row--open", alert: a.kind === "BREAK_GLASS",
+        what: `${esc(a.text)} <span class="st st-e">${a.kind === "BREAK_GLASS"
+          ? T("بلا موافقة", "without consent") : T("مرفوضة", "refused")}</span>`,
+        sub: ar() ? `${countAr(a.count, ["مرة", "مرتين", "مرات", "مرة"])}، آخرها ${dateWord(a.at)}`
+                  : `${a.count} time(s), last ${dateWord(a.at)}` }));
+    }
+
+    /* The fail-safe registers. `deriveTasks` and `networkTasks` both carry an
+       owner and neither has ever been rendered on the patient's own screen. */
+    for (const [kind, list] of openLoops(d, at)) {
+      const worst = list[0];
+      const late = list.some((x) => x.overdue);
+      const stamp = late ? ` <span class="st st-e">${T("متأخّر", "overdue")}</span>` : "";
+      if (list.length === 1) {
+        rows.push(regRow({ gut: NOWGUT(), cls: "reg-row--open",
+          what: esc(worst.label) + stamp, sub: worst.detail }));
+      } else {
+        rows.push(aggRow({ gut: NOWGUT(), cls: "reg-row--open",
+          what: esc(loopKindLabel(kind, list.length)) + stamp, sub: worst.detail,
+          kids: list.map((x) => `<div>${esc(x.label)} — ${x.detail}</div>`).join("") }));
+      }
+    }
+    return rows;
+  }
+
+  function loopKindLabel(kind, k) {
+    const F = {
+      "order-without-result": [["طلب بلا نتيجة", "طلبان بلا نتيجة", "طلبات بلا نتيجة", "طلباً بلا نتيجة"], "order(s) with no result"],
+      "order-unanswered": [["طلب بلا رد", "طلبان بلا رد", "طلبات بلا رد", "طلباً بلا رد"], "unanswered order(s)"],
+      "pathology-pending": [["نسيج بلا تقرير", "نسيجان بلا تقرير", "أنسجة بلا تقرير", "نسيجاً بلا تقرير"], "specimen(s) unreported"],
+      "referral-response": [["إحالة بلا رد", "إحالتان بلا رد", "إحالات بلا رد", "إحالة بلا رد"], "unanswered referral(s)"],
+      "referral-unanswered": [["إحالة بلا رد", "إحالتان بلا رد", "إحالات بلا رد", "إحالة بلا رد"], "unanswered referral(s)"],
+      "followup-due": [["مراجعة مستحقّة", "مراجعتان مستحقّتان", "مراجعات مستحقّة", "مراجعة مستحقّة"], "follow-up(s) due"],
+      "result-acknowledgement": [["نتيجة تنتظر إقراراً", "نتيجتان تنتظران إقراراً", "نتائج تنتظر إقراراً", "نتيجة تنتظر إقراراً"], "result(s) awaiting acknowledgement"],
+      "incidental-finding": [["اكتشاف عارض", "اكتشافان عارضان", "اكتشافات عارضة", "اكتشافاً عارضاً"], "incidental finding(s)"],
+      "critical-unacknowledged": [["نتيجة حرجة", "نتيجتان حرجتان", "نتائج حرجة", "نتيجة حرجة"], "critical result(s)"],
+    }[kind] || [["حلقة مفتوحة", "حلقتان مفتوحتان", "حلقات مفتوحة", "حلقة مفتوحة"], "open loop(s)"];
+    return ar() ? stripTags(countAr(k, F[0])) : `${k} ${F[1]}`;
+  }
+
+  /* A thin record holds no orders, specimens or studies at all. Every list is
+     optional and the domain functions tolerate that, so a new record produces an
+     empty band rather than an error. */
+  function openLoops(d, at) {
+    const ctx = { results: d.results || [], orders: d.orders || [], specimens: d.specimens || [],
+      followUps: d.followUps || [], referrals: d.referrals || [], studies: d.studies || [] };
+    const derived = (E().deriveTasks ? E().deriveTasks(ctx, at) : [])
+      /* RESULT_ACK is already rendered above, straight from the results, with
+         severity split out. Rendering it again from the task register would
+         print one fact twice under two different names. */
+      .filter((x) => x.kind !== E().TASK_KIND.RESULT_ACK);
+    /* `networkTasks` raises its own register for the same two facts —
+       `critical-unacknowledged` from the results and `result-acknowledgement`
+       from the tasks. Both are already rows above, built straight from the
+       results with severity split out, so admitting them here prints one fact
+       twice under two different names. Measured on the register: potassium 6.4
+       appeared as a critical row AND as an "overdue" row directly beneath it. */
+    const DUP = ["critical-unacknowledged", "result-acknowledgement"];
+    const stored = E().openTasks ? E().openTasks(d.tasks, at) : [];
+    const net = globalThis.NET && globalThis.NET.networkTasks
+      ? globalThis.NET.networkTasks({ ...ctx, patientId: d.patient && d.patient.id }, at)
+          .filter((x) => DUP.indexOf(x.kind) === -1) : [];
+    const all = [...derived, ...stored, ...net].map((x) => ({
+      kind: x.kind,
+      overdue: x.overdue === true || (E().isOverdue ? E().isOverdue(x, at) : false),
+      label: x.about || loopKindLabel(x.kind, 1),
+      detail: x.dueAt ? (ar() ? `موعدها ${dateWord(x.dueAt)}` : `due ${dateWord(x.dueAt)}`)
+                      : T("بلا موعد مسجّل", "no due date recorded"),
+    }));
+    const by = new Map();
+    for (const x of all) { if (!by.has(x.kind)) by.set(x.kind, []); by.get(x.kind).push(x); }
+    for (const list of by.values()) list.sort((a, b) => (b.overdue - a.overdue));
+    return [...by.entries()];
+  }
+
+  /* ---------- «رجعت» — LENDING'S FOURTH STATE ----------
+     A loan that came back, and what changed while it was out. This is the atomic
+     unit of continuity of care in a country where care breaks at the counter
+     between two providers who never speak.
+
+     THE JOIN, and its three binding conditions. Grouping a write-back under a
+     loan is a conjunction of two RECORDED facts — an event whose `actorId`
+     equals that share's `granteeId`, at a time inside the window the share was
+     active. It is not a claim about clinical content.
+       1 · the row states its own basis in words, always;
+       2 · it asserts CUSTODY ("this changed while X held your record") and never
+           CAUSATION ("X changed this because of Y");
+       3 · where `actorId` is absent it says that something changed and that the
+           actor is UNRECORDED — it never names the grantee by assumption. */
+  function loanBack(share, tl) {
+    const from = E().ms(share.grantedAt), to = E().ms(share.revokedAt || share.expiresAt);
+    if (from == null || to == null) return null;
+    const win = tl.filter((e) => { const x = E().ms(e.at); return x != null && x >= from && x <= to; });
+    const named = win.filter((e) => e.actorId && e.actorId === share.granteeId);
+    const anon = win.filter((e) => !e.actorId);
+    return { named, anon, empty: !named.length && !anon.length };
+  }
+
+  function loanRow(share, tl, at, prevIso) {
+    const b = loanBack(share, tl);
+    const who = esc(share.granteeName || share.granteeId);
+    const k = (share.scopes || []).length;
+    const revoked = C().shareState(share, at) === C().SHARE_STATE.REVOKED;
+    const back = !b ? "" : b.empty
+      ? `<div class="reg-back"><div class="reg-why">${T("ما كتب أحد شي وهو ماسك أوراقك",
+          "nobody wrote anything while your sheets were out")}</div></div>`
+      : `<div class="reg-back">
+          ${b.named.length ? `<div class="reg-why">${ar() ? `كتبها ${who} وهو ماسك أوراقك`
+            : `written by ${who} while holding your sheets`}</div>` : ""}
+          ${b.named.map((e) => `<div>— <b>${esc(evtWord(e.type))}</b> ${esc(e.title || "")}</div>`).join("")}
+          ${b.anon.length ? `<div class="reg-why">${ar()
+            ? `و${countAr(b.anon.length, ["تغيير", "تغييران", "تغييرات", "تغييراً"])} صار بنفس المدة، وما مسجّل منو غيّره`
+            : `and ${b.anon.length} change(s) in the same window, actor unrecorded`}</div>` : ""}
+        </div>`;
+    return regRow({ gut: gutDate(share.grantedAt, prevIso), wide: !!back,
+      what: ar() ? `سلّمت ${countAr(k, ["ورقة", "ورقتين", "أوراق", "ورقة"])} لـ${who}`
+                 : `you handed ${k} sheet(s) to ${who}`,
+      sub: revoked ? T("ألغيتها بنفسك", "you revoked it yourself")
+        : ar() ? `رجعت${b && !b.empty ? "، ومعها تغييرات" : " بلا تغييرات"}`
+               : `returned${b && !b.empty ? " with changes" : " with no changes"}`,
+      back });
+  }
+
+  const evtWord = (type) => ({
+    diagnosis: T("تشخيص", "diagnosis"), "medication-start": T("دواء", "medicine started"),
+    "medication-stop": T("إيقاف دواء", "medicine stopped"), result: T("نتيجة", "result"),
+    imaging: T("أشعة", "imaging"), procedure: T("عملية", "procedure"),
+    encounter: T("زيارة", "visit"), referral: T("إحالة", "referral"),
+    admission: T("دخول", "admission"), discharge: T("خروج", "discharge"),
+    "follow-up": T("مراجعة", "follow-up"),
+  }[type] || type);
+
+  /* ---------- BELOW THE BOUNDARY ----------
+     Time coarsens as it recedes, and every tier is pure counting over
+     `buildTimeline` — nothing is inferred:
+       <= 90 days   every event at minSignificance 2, by day
+       90d - 2y     visits and major events only (minSignificance 3)
+       > 2y         ONE ROW PER YEAR, expandable
+     A 20-year record with twelve open items renders as about thirty rows, not
+     four hundred. */
+  function historyRows(d, at) {
+    const tl0 = E().buildTimeline({ ...d, patientId: d.patient && d.patient.id }, { minSignificance: 2 });
+    /* ONE FACT, ONE SIDE OF THE BOUNDARY. `buildTimeline` deliberately carries
+       every abnormal result, and the ones nobody has acknowledged are already
+       rows above «الآن» — they have not ended. Printing them under «انتهى» too
+       says the opposite of what the register is for. Matched on the pair the
+       timeline actually exposes (time + title), because a timeline event does
+       not carry the result's id. */
+    const openKey = new Set((d.results || [])
+      .filter((x) => E().isAbnormal(x) && !x.acknowledgedBy)
+      .map((x) => `${x.effectiveAt}|${x.display || x.code}`));
+    const tl = tl0.filter((e) => !(e.type === E().EVT.RESULT
+      && openKey.has(`${e.at}|${e.title}`)));
+    const ended = (d.shares || []).filter((sh) => C().shareState(sh, at) !== C().SHARE_STATE.ACTIVE);
+    const items = [
+      ...tl.map((e) => ({ at: e.at, sig: e.significance || 0, kind: "evt", e })),
+      ...ended.map((sh) => ({ at: sh.grantedAt, sig: 4, kind: "loan", sh })),
+    ].filter((x) => x.at).sort((a, b) => E().ms(b.at) - E().ms(a.at));
+
+    const recent = [], mid = [], deep = new Map();
+    for (const it of items) {
+      const age = daysAgo(it.at, at);
+      if (age <= 90) recent.push(it);
+      else if (age <= 730) { if (it.kind === "loan" || it.sig >= 3 || it.e.type === E().EVT.ENCOUNTER) mid.push(it); }
+      else { const y = rYr(it.at); if (!deep.has(y)) deep.set(y, []); deep.get(y).push(it); }
+    }
+
+    let prev = null;
+    const draw = (it) => {
+      const gut = gutDate(it.at, prev); prev = it.at;
+      if (it.kind === "loan") return loanRow(it.sh, tl, at, null);
+      const e = it.e;
+      return regRow({ gut,
+        what: `${esc(evtWord(e.type))} — ${esc(e.title || "")}`,
+        sub: [e.detail ? esc(e.detail) : "", e.flag && e.flag !== "normal"
+          ? `<span class="st st-t">${esc(flagWord(e.flag))}</span>` : ""].filter(Boolean).join(" ") });
+    };
+    const yearRow = (y, list) => `<details class="reg-row agg"><summary>
+        <div class="reg-gut"><b>${n(y)}</b></div>
+        <div class="reg-bd"><div class="reg-sub">${esc(yearTally(list))}
+          <span class="more">${T("— اضغط تشوفها", "— tap to open")}</span></div></div></summary>
+        <div class="reg-kids">${list.map((it) => `<div>${it.kind === "loan"
+          ? T("تسليم أوراق", "a handover") : `${esc(evtWord(it.e.type))} — ${esc(it.e.title || "")}`}
+          — ${dateWord(it.at)}</div>`).join("")}</div></details>`;
+
+    return `${recent.map(draw).join("")}${mid.map(draw).join("")}${
+      [...deep.entries()].sort((a, b) => b[0] - a[0]).map(([y, l]) => yearRow(y, l)).join("")}`;
+  }
+
+  const YR_FORMS = {
+    loan: [["تسليم", "تسليمان", "تسليمات", "تسليماً"], "handover(s)"],
+    encounter: [["زيارة", "زيارتان", "زيارات", "زيارة"], "visit(s)"],
+    result: [["نتيجة", "نتيجتان", "نتائج", "نتيجة"], "result(s)"],
+    diagnosis: [["تشخيص", "تشخيصان", "تشخيصات", "تشخيصاً"], "diagnosis/es"],
+    procedure: [["عملية", "عمليتان", "عمليات", "عملية"], "procedure(s)"],
+    imaging: [["أشعة", "صورتان", "صور أشعة", "صورة أشعة"], "imaging study/ies"],
+    referral: [["إحالة", "إحالتان", "إحالات", "إحالة"], "referral(s)"],
+    "medication-start": [["دواء", "دواءان", "أدوية", "دواءً"], "medicine(s) started"],
+    "medication-stop": [["إيقاف دواء", "إيقافان", "إيقافات", "إيقافاً"], "medicine(s) stopped"],
+  };
+  function yearTally(list) {
+    const c = {};
+    for (const it of list) { const k = it.kind === "loan" ? "loan" : it.e.type; c[k] = (c[k] || 0) + 1; }
+    const parts = [];
+    for (const [k, v] of Object.entries(c)) {
+      const w = YR_FORMS[k];
+      if (!w) { parts.push(ar() ? `${v} ${evtWord(k)}` : `${v} ${evtWord(k)}`); continue; }
+      parts.push(ar() ? stripTags(countAr(v, w[0])) : `${v} ${w[1]}`);
+    }
+    return parts.join(ar() ? "، " : ", ");
+  }
+
+  const flagWord = (f) => ({ high: T("مرتفع", "high"), low: T("منخفض", "low"),
+    critical: T("حرجة", "critical"), unknown: T("بلا مدى مرجعي", "no reference range") }[f] || f);
+
+  /* ---------- THE SCREEN ---------- */
+  globalThis.screenRegister = function screenRegister() {
+    const d = store();
+    if (!d.patient) return screenRecordSetup();
+    const at = now();
+    const p = d.patient;
+    const prof = R().patientProfile(p, d, at);
+    const pid = regProblem();
+    const thread = pid ? (E().careThreads({ ...d, patientId: p.id }, { now: at }).threads
+      .find((x) => x.id === pid) || null) : null;
+    const dv = thread ? problemView(d, thread) : d;
+    const open = openRows(dv, at);
+    const pendingReq = (d.requests || []).filter((r) => C().requestState(r, at) === C().REQ_STATE.PENDING);
+    const bg = d.bloodGroup;
+
+    return `${netBanner()}<section class="reg">
+      <!-- THE COVER. What a stranger holding this phone needs, and the only part
+           that must be legible with the radio off. A band, not a hero. -->
+      <div class="rowb pad" style="padding-block:12px 10px;border-bottom:1px solid var(--dial-line)">
+        <div>
+          <div class="d3" style="font-size:19px">${esc(prof.name)}</div>
+          <div class="t3">${prof.age != null ? n(prof.age) + " " + T("سنة", "y")
+            : T("العمر غير مسجّل", "age not recorded")} · ${esc(R().sexLabel(prof.sex, ar()))}
+            · ${bg ? T("فصيلة الدم ", "blood group ") + `<span class="num">${esc(bg)}</span>`
+                   : `<span class="st st-e">${T("فصيلة الدم غير مسجّلة", "blood group not recorded")}</span>`}</div>
+        </div>
+        <button class="b-g st-e" onclick="openEmergency()" style="font-size:12.5px">${
+          T("بطاقة الطوارئ", "Emergency card")}</button>
+      </div>
+
+      ${syncBanner()}
+      ${pendingReq.map((rq) => `<a class="note note-w" href="#/record/request/${esc(rq.id)}">
+        ${icon("seal")}<div><b>${esc(rq.requester.name || rq.requester.id)}</b> ${
+        T("يطلب الاطّلاع على ملفك", "is asking to see your record")}</div></a>`).join("")}
+
+      ${thread ? `<div class="dband-note" style="padding-block:8px">
+        <b>${T("الدفتر لمشكلة وحدة", "The booklet, one problem")}: ${esc(thread.title)}</b> —
+        ${T("بس اللي مربوط بها. اللي ما مربوط ما يظهر، وهذا ما يعني إنه ما موجود.",
+            "only what is linked to it. What is not linked does not appear, which does not mean it is absent.")}
+        <a class="b-g" href="#/">${T("رجّع كل شي", "Show everything")}</a></div>` : ""}
+
+      <section aria-labelledby="reg-open">
+        <h2 class="reg-hdr" id="reg-open"><span>${T("مفتوح الآن", "Open now")}</span>
+          <span class="reg-hdr-sub">${open.length
+            ? T("أخطرها فوق", "the most dangerous first")
+            : T("ما في شي مفتوح", "nothing is open")}</span></h2>
+        ${open.join("")}
+      </section>
+
+      <section aria-labelledby="reg-done">
+        <h2 class="reg-hdr reg-hdr--done" id="reg-done"><span>${T("انتهى", "Ended")}</span>
+          <span class="reg-hdr-sub">${T("من الأحدث للأقدم", "newest first")}</span></h2>
+        ${historyRows(dv, at) || `<div class="reg-row"><div class="reg-gut"></div>
+          <div class="reg-bd"><div class="reg-sub">${T(
+            "ما صار شي بعد. أول زيارة تسلّم فيها أوراقك تظهر هنا.",
+            "Nothing yet. The first visit you hand sheets to will appear here.")}</div></div></div>`}
+      </section>
+
+      <div class="pad" style="padding-block:18px 4px">
+        <div class="dock-acts">
+          <a class="btn" href="#/record/share">${T("سلّم أوراقاً لطبيب", "Hand sheets to a clinician")}</a>
+          <button class="b b-s" onclick="regProblemSheet()">${
+            T("اقرأه لمشكلة وحدة", "Read it for one problem")}</button>
+        </div>
+        <a class="b-g" style="margin-top:12px;display:block" href="#/record">${
+          T("شوف أوراقك كلها", "See all your sheets")}</a>
+      </div>
+    </section>${nav("booklet")}`;
+  };
+
+
+  /* ============================================================
+     THE DECK — the booklet by sheet
+     ============================================================
+     `CONSENT.SCOPE` is already this product's real information architecture and
+     no screen had ever used it. The scopes were written to be things a person
+     can picture — "my allergies and my current medicines" — and `SCOPE_LABEL`
+     already carries their Arabic. A record whose sections ARE the units of
+     consent means a patient learns the sharing model by reading their own
+     record, and the share flow stops being a separate thing beside it.
+
+     THERE IS NO NEUTRAL BAND. The first draft of this screen had one called
+     «أوراقك», and a bucket named after nothing is where storage nouns hide:
+     «الأدوية الحالية / التحاليل / المشاكل الصحية النشطة» under a neutral
+     heading is a table of contents with a better font, which is exactly what
+     this replaced. Every sheet now sits under a statement about what it DOES,
+     and the five statements are derived exhaustively from consent.js rather
+     than named by a human:
+
+       SAFETY_FLOOR                     travels even unticked
+       EMERGENCY_SCOPES − SAFETY_FLOOR  opens to break-glass without asking you
+       ALL_SCOPES − the above           travels only if you hand it over
+       SENSITIVE_CLASSES               never in an ordinary handover
+       gapStatements                    not scopes at all — unanswered questions
+
+     The second band is new information no screen in this product has ever
+     shown: there are four scopes an ambulance crew can open WITHOUT ASKING,
+     tier-1 break-glass, sixty minutes. That is the most consequential fact
+     about a patient's own record and it has been sitting in `EMERGENCY_SCOPES`
+     unrendered.
+
+     The seven scopes in the third band all behave identically, so they collapse
+     behind ONE behavioural row rather than each taking a top-level line. The
+     nouns are leaves, not the spine, and none of them is ever read without the
+     behaviour that governs it.
+     ============================================================ */
+
+  /* What each scope's sheet holds, and the route that opens it. Counts come from
+     the record; the ROUTE is an existing one in every case — the deck changed
+     the doorway, not the room. */
+  function scopeSheet(scope, d, at) {
+    const S_ = C().SCOPE;
+    const prof = R().patientProfile(d.patient, d, at);
+    const map = {
+      [S_.SUMMARY]: { href: "#/record/vitals",
+        c: T("مشتقّة من السجل، ما أحد يكتبها — وفيها آخر قياساتك",
+             "derived from the record, authored by nobody — carries your latest measurements") },
+      [S_.ALLERGIES]: { href: "#/record/allergies", k: (d.allergies || []).length,
+        forms: [["حساسية واحدة", "حساسيتان", "حساسيات", "حساسية"], "allergy/ies"] },
+      [S_.MEDICATIONS]: { href: "#/record/medications", k: prof.currentMedications,
+        forms: [["دواء واحد", "دواءان", "أدوية", "دواءً"], "medicine(s)"] },
+      [S_.CONDITIONS]: { href: "#/record/conditions", k: prof.activeConditions,
+        forms: [["مشكلة نشطة", "مشكلتان نشطتان", "مشاكل نشطة", "مشكلة نشطة"], "active condition(s)"] },
+      [S_.LABS]: { href: "#/record/labs", k: (d.results || []).filter((x) => x.value != null).length,
+        forms: [["نتيجة", "نتيجتان", "نتائج", "نتيجة"], "result(s)"] },
+      [S_.IMAGING]: { href: "#/record/documents", k: (d.imaging || []).length,
+        forms: [["تقرير أشعة", "تقريران", "تقارير أشعة", "تقرير أشعة"], "imaging report(s)"] },
+      [S_.DOCUMENTS]: { href: "#/record/documents", k: (d.documents || []).length,
+        forms: [["مستند", "مستندان", "مستندات", "مستنداً"], "document(s)"] },
+      [S_.PROCEDURES]: { href: "#/record/procedures", k: (d.procedures || []).length,
+        forms: [["عملية", "عمليتان", "عمليات", "عملية"], "procedure(s)"] },
+      [S_.ENCOUNTERS]: { href: "#/record/visits", k: (d.encounters || []).length,
+        forms: [["زيارة", "زيارتان", "زيارات", "زيارة"], "visit(s)"] },
+      [S_.IMMUNIZATIONS]: { href: "#/record/immunizations", k: prof.immunizations,
+        forms: [["تطعيم", "تطعيمان", "تطعيمات", "تطعيماً"], "immunization(s)"] },
+      [S_.TIMELINE]: { href: "#/record/timeline",
+        c: T("كل شي بترتيب الوقت", "everything, in time order") },
+    }[scope] || { href: "#/record" };
+    const count = map.forms
+      ? (ar() ? stripTags(countAr(map.k || 0, map.forms[0])) : `${map.k || 0} ${map.forms[1]}`)
+      : null;
+    return { href: map.href, count, note: map.c || null, empty: map.forms ? !map.k : false };
+  }
+
+  /* When this sheet last travelled, and to whom. This is what turns a sheet row
+     from an inventory line into a custody record — the difference between a
+     table of contents and this screen. */
+  function lastOut(scope, d, at) {
+    const out = (d.shares || []).filter((sh) => (sh.scopes || []).indexOf(scope) !== -1)
+      .sort((a, b) => E().ms(b.grantedAt) - E().ms(a.grantedAt));
+    if (!out.length) return { text: T("ما راحت من قبل", "has never travelled"), live: false };
+    const sh = out[0];
+    const who = esc(sh.granteeName || sh.granteeId);
+    if (C().isShareActive(sh, at)) {
+      return { text: ar() ? `عند ${who} الآن — ${leftLabel(sh.expiresAt, at)}`
+                          : `with ${who} now — ${leftLabel(sh.expiresAt, at)}`, live: true };
+    }
+    return { text: ar() ? `آخر مرة راحت ${dateWord(sh.grantedAt)} مع ${who}`
+                        : `last travelled ${dateWord(sh.grantedAt)} with ${who}`, live: false };
+  }
+
+  function sheetRow(scope, d, at, opts) {
+    const o = opts || {};
+    const info = scopeSheet(scope, d, at);
+    const cust = lastOut(scope, d, at);
+    if (info.empty && !o.keepEmpty) return "";
+    const bits = [info.count, info.note, cust.text].filter(Boolean);
+    return `<a class="sheet-row ${o.fixed ? "sheet-row--fixed" : ""} ${
+      cust.live ? "sheet-row--out" : ""}" href="${info.href}">
+      <span class="sh-t">${esc(C().scopeLabel(scope, S.lang))}${cust.live
+        ? ` <span class="st st-t">${T("معارة الآن", "out on loan")}</span>` : ""}</span>
+      <span class="sh-c">${bits.join(ar() ? " — " : " — ")}</span></a>`;
+  }
+
+  globalThis.screenDeck = function screenDeck() {
+    const d = store();
+    if (!d.patient) return screenRecordSetup();
+    const at = now();
+    const p = d.patient;
+    const prof = R().patientProfile(p, d, at);
+    const S_ = C().SCOPE;
+    const floor = C().SAFETY_FLOOR;
+    const emerg = C().EMERGENCY_SCOPES.filter((x) => floor.indexOf(x) === -1);
+    const byHand = C().ALL_SCOPES.filter((x) => floor.indexOf(x) === -1 && emerg.indexOf(x) === -1);
+    const bgOpen = (d.accessLog || []).filter((r) => r.basis === "BREAK_GLASS");
+    const gaps = assistGaps(d, at);
+    const handRows = byHand.map((sc) => sheetRow(sc, d, at)).filter(Boolean);
+
+    return `${header({ back: true, title: T("ملفي الصحي", "My health record") })}
+    <section>
+      <div class="pad" style="padding-block:10px 12px;border-bottom:1px solid var(--dial-line)">
+        <div class="d3" style="font-size:19px">${esc(prof.name)}</div>
+        <div class="t3">${T("أوراق دفترك، مرتّبة على شكل ما تتصرّف — لا على شكل ما هي",
+          "your booklet's sheets, ordered by how they behave — not by what they are")}</div>
+      </div>
+
+      <div class="dband"><h2>${T("تروح حتى لو ما اخترتها", "Travels even if you don't pick it")}</h2>
+        <span class="dband-k">${ar() ? countAr(floor.length, ["ورقة", "ورقتان", "أوراق", "ورقة"]) : floor.length}</span></div>
+      <div class="dband-note">${T(
+        "الطبيب اللي يشوف ملفك بلا حساسيتك أخطر من طبيب ما يشوف الملف أبداً، لأنه يوصف وهو يحسب إنه تأكّد.",
+        "A clinician who sees your record without your allergies is more dangerous than one who sees nothing — they prescribe believing they checked.")}</div>
+      ${floor.map((sc) => sheetRow(sc, d, at, { fixed: true, keepEmpty: true })).join("")}
+
+      <div class="dband"><h2>${T("تنفتح بالطوارئ بلا ما تسألك", "Opens in an emergency without asking you")}</h2>
+        <span class="dband-k">${ar() ? countAr(emerg.length, ["ورقة", "ورقتان", "أوراق", "ورقة"]) : emerg.length}</span></div>
+      <div class="dband-note">${T(
+        `هذي الأوراق يفتحها المسعف بلا موافقتك لمدة ${countAr(C().EMERGENCY_MINUTES.critical, ["دقيقة", "دقيقتين", "دقائق", "دقيقة"])}، ويوصلك إشعار.`,
+        `A responder can open these without your consent for ${C().EMERGENCY_MINUTES.critical} minutes, and you are notified.`)}
+        ${bgOpen.length ? ` ${ar() ? `صار ${countAr(bgOpen.length, ["مرة", "مرتين", "مرات", "مرة"])}، آخرها ${dateWord(bgOpen[0].at)}.`
+          : `It has happened ${bgOpen.length} time(s), last ${dateWord(bgOpen[0].at)}.`}`
+          : ` ${T("ما صار لحد الآن.", "It has not happened yet.")}`}</div>
+      ${emerg.map((sc) => sheetRow(sc, d, at, { keepEmpty: true })).join("")}
+
+      ${handRows.length ? `<div class="dband"><h2>${T("ما تروح إلا إذا سلّمتها بيدك",
+        "Travels only if you hand it over yourself")}</h2>
+        <span class="dband-k">${ar() ? countAr(handRows.length, ["ورقة", "ورقتان", "أوراق", "ورقة"]) : handRows.length}</span></div>
+      <div class="dband-note">${T("الطوارئ ما توصلها. إذا ما سلّمتها إنت، ما أحد يشوفها.",
+        "Break-glass does not reach these. If you do not hand them over, nobody sees them.")}</div>
+      <details class="grp"><summary><span>${ar()
+        ? `افتح ${countAr(handRows.length, ["الورقة", "الورقتين", "الأوراق", "الورقة"])}`
+        : `Open the ${handRows.length} sheets`}</span>
+        <span class="sh-c">${byHand.slice(0, 3).map((sc) => esc(C().scopeLabel(sc, S.lang))).join(ar() ? "، " : ", ")}…</span>
+      </summary>${handRows.join("")}</details>` : ""}
+
+      <div class="dband"><h2>${T("ما تروح بأي تسليم عادي", "Never travels in an ordinary handover")}</h2></div>
+      <div class="dband-note">${T(
+        "المواد الحسّاسة تحتاج موافقة منفصلة منك كل مرة، وولا الطوارئ تفتحها إلا بتصعيد ثاني مكتوب سببه.",
+        "Sensitive material needs a separate consent from you every time, and break-glass cannot open it without a second escalation with its own stated reason.")}</div>
+      <div class="hole"><span class="sh-t">${T("المواد الحسّاسة", "Sensitive material")}
+        — <b>${T("مقفلة", "locked")}</b></span>
+        <a class="b-g" href="#/record/share">${T("موافقة منفصلة", "Separate consent")}</a></div>
+
+      ${gaps.length ? `<div class="dband"><h2>${T("ما سألك عنها أحد", "Nobody has asked you for these")}</h2>
+        <span class="dband-k">${n(gaps.length)}</span></div>
+      ${gaps.map((g) => `<a class="sheet-row" href="${g.href}">
+        <span class="sh-t">${esc(g.title)}</span><span class="sh-c">${esc(g.text)}</span></a>`).join("")}` : ""}
+
+      <div class="pad" style="padding-block:18px 4px">
+        <div class="dock-acts">
+          <a class="btn" href="#/record/share">${T("سلّم أوراقاً لطبيب", "Hand sheets to a clinician")}</a>
+          <a class="b b-s" href="#/">${T("شوف الدفتر بالتاريخ", "See the booklet by date")}</a>
+        </div>
+      </div>
+    </section>${nav("sheets")}`;
+  };
+
+  /* `gapStatements` finally rendered. Absence is a question somebody has to
+     answer, not an empty row — and «not recorded» is never «none». Each gap
+     carries the route that answers it, so the band is a worklist. */
+  function assistGaps(d, at) {
+    const A = globalThis.ASSIST;
+    const out = [];
+    if (!d.bloodGroup) out.push({ title: T("فصيلة الدم", "Blood group"),
+      text: T("غير مسجّلة. لا فارغة ولا معروفة.", "Not recorded. Neither empty nor known."),
+      href: "#/record/profile" });
+    if (!(d.patient && d.patient.emergencyContact)) out.push({
+      title: T("جهة اتصال للطوارئ", "Emergency contact"),
+      text: T("ما في واحدة مسجّلة", "none recorded"), href: "#/record/profile" });
+    if (!(d.allergies || []).length) out.push({ title: T("الحساسية", "Allergies"),
+      text: T("ما مسجّل شي — وهذا لا يعني إنك بلا حساسية", "nothing recorded — which does not mean you have none"),
+      href: "#/record/add/allergy" });
+    if (!A) return out;
+    for (const st of A.gapStatements(d, at, S.lang)) {
+      if (st.tier !== A.TIER.FACT) continue;
+      if (st.gap === "allergies" || st.gap === "bloodGroup") continue;
+      out.push({ title: gapTitle(st.gap), text: stripTags(ar() ? st.ar : st.en),
+        href: st.gap === "unverified-claims" ? "#/record/inbox"
+          : st.gap === "unconfirmed-medications" ? "#/record/medications" : "#/record/conditions" });
+    }
+    return out;
+  }
+  const gapTitle = (g) => ({
+    "stale-condition": T("مشكلة ما راجعها أحد", "A condition nobody has reviewed"),
+    "unconfirmed-medications": T("دواء ما أكّده أحد", "A medicine nobody has reconfirmed"),
+    "unverified-claims": T("معلومات من مستنداتك", "Claims read out of your documents"),
+  }[g] || T("ناقص", "Missing"));
+
+
+  /* ============================================================
+     RESULTS — meaning before the number, and the tiers kept apart
+     ============================================================
+     `assist.js` has produced tiered, sourced statements since the epistemic
+     layer shipped and NOTHING rendered them. This is where they land.
+
+     Four rules:
+     1 · FACT / INTERPRETATION / SUGGESTION are never interleaved and never
+         restyled into each other. A reader who stops after FACT loses nothing
+         true.
+     2 · A REFUSED INTERPRETATION OCCUPIES ITS SLOT VISIBLY. When
+         `trendStatements` returns early on `mixedLabs`/`mixedUnits`, the
+         interpretation block is not absent — it is present and it says why it is
+         empty. An absent block reads as "nothing to say"; a refusal reads as
+         "we will not say it", and those are opposite meanings. This is the most
+         important rendering decision on the screen.
+     3 · An INTERPRETATION always prints the RULE it applied, so a clinician can
+         disagree with the rule rather than with an oracle.
+     4 · Geometry is demoted BY AUDIENCE, not by tap. The first design of this
+         screen pushed the reference-range scale behind a disclosure for both
+         readers. Testing changed the answer: a bar is answered preattentively
+         and a sentence is not, so taking it away costs a clinician reading eight
+         results the one glance they wanted. The patient gets the sentence first;
+         the clinician gets value + geometry on one scannable row. The epistemic
+         tiers did not move.
+     ============================================================ */
+
+  /* An ISO date inside Arabic prose is a §5 hazard: unisolated, «2025-08-03»
+     renders «03-08-2025». The domain writes these strings and this layer must
+     not rewrite their content — so it isolates them without touching them. */
+  const isoWrap = (txt) => esc(String(txt || ""))
+    .replace(/\d{4}-\d{2}-\d{2}/g, (m) => `<span class="num">${m}</span>`);
+
+  const TIER_CLS = { FACT: "", INTERPRETATION: "", SUGGESTION: "" };
+
+  function tierBlock(label, items, opts) {
+    const o = opts || {};
+    if (!items.length && !o.refusal) return "";
+    return `<div class="stmt ${o.stop ? 'stmt--stop' : ''}">
+      <div class="stmt-lb">${esc(label)}</div>
+      ${items.map((st) => `<p>${isoWrap(ar() ? st.ar : st.en)}</p>${
+        st.rule ? `<div class="stmt-rule">${T("القاعدة", "the rule")}: ${esc(st.rule)}</div>` : ""}${
+        (st.sourceIds || []).length ? `<div class="stmt-ev">${T("المصدر", "source")}: ${
+          ar() ? countAr(st.sourceIds.length, ["سطر بالسجل", "سطران بالسجل", "أسطر بالسجل", "سطراً بالسجل"])
+               : `${st.sourceIds.length} record entr(ies)`}</div>` : ""}`).join("")}
+      ${o.note ? `<div class="stmt-rule">${esc(o.note)}</div>` : ""}</div>`;
+  }
+
+  /* The patient's reading of one series. */
+  function seriesPatient(d, code, at) {
+    const A = globalThis.ASSIST;
+    const t = E().trend(d.results, code);
+    if (!A) return trendSeries(t, {});
+    const sts = A.trendStatements(d, code, at, S.lang);
+    const facts = sts.filter((x) => x.tier === A.TIER.FACT && !x.blocksInterpretation);
+    const blocked = sts.find((x) => x.blocksInterpretation);
+    const interp = sts.filter((x) => x.tier === A.TIER.INTERPRETATION);
+    const sugg = sts.filter((x) => x.tier === A.TIER.SUGGESTION);
+    return `<div class="panel-h">${esc(t.display || code)}</div>
+      ${tierBlock(T("حقيقة", "Fact"), facts)}
+      ${blocked
+        /* THE REFUSAL, occupying its slot. */
+        ? tierBlock(T("ما نقدر نفسّر", "We will not interpret this"), [blocked], { stop: true,
+            note: T("ولذلك ما في تفسير ولا اقتراح تحت هذا السطر.",
+                    "So there is no interpretation and no suggestion below this line.") })
+        : `${tierBlock(T("تفسير", "Interpretation"), interp)}
+           ${tierBlock(T("اقتراح", "Suggestion"), sugg, {
+             note: T("ما هو تشخيص ولا وصفة — اقتراح تنظر به.",
+                     "Not a diagnosis and not a prescription — something to look at.") })}`}
+      <div class="ser">${trendSeries(t, {})}</div>`;
+  }
+
+  globalThis.screenResults = function screenResults() {
+    const d = store();
+    if (!d.patient) { location.hash = "#/record"; return ""; }
+    const at = now();
+    const done = (d.results || []).filter((x) => x.value != null);
+    const pending = (d.results || []).filter((x) => x.status === "pending");
+    const codes = [...new Set(done.map((x) => x.code).filter(Boolean))];
+    const unjudge = E().unjudgeableResults ? E().unjudgeableResults(done) : [];
+
+    return page(T("التحاليل", "Lab results"),
+      `${pending.length ? `<div class="note note-w">${icon("clock")}<div><b>${T("معلّقة", "Pending")}</b>
+        <div class="t3" style="margin-top:4px">${pending.map((x) => esc(x.display || x.code)).join(" · ")}</div></div></div>` : ""}
+
+      ${unjudge.length ? `<div class="stmt stmt--stop" style="margin-top:12px">
+        <div class="stmt-lb">${T("وصلت بلا مدى مرجعي", "Arrived with no reference range")}</div>
+        <p>${T("هذي القيم وصلت بلا مدى مرجعي من المختبر، فما نقدر نحكم عليها — لا طبيعية ولا غير طبيعية.",
+               "These values arrived with no reference range, so no verdict can be given — neither normal nor abnormal.")}</p>
+        ${unjudge.map((x) => `<div class="stmt-ev">${esc(x.display || x.code)} ${
+          measure(x.value, x.unit)} — ${dateWord(x.effectiveAt)}</div>`).join("")}</div>` : ""}
+
+      ${codes.length ? codes.map((code) => seriesPatient(d, code, at)).join("")
+        : (pending.length ? "" : empty(
+          T("ما عندك تحاليل مسجّلة", "No lab results recorded"),
+          `<p class="t3" style="margin-top:12px;line-height:1.7">${T(
+            "نتائجك تجي من المختبر. إذا عندك ورقة تحليل قديمة، سجّلها حتى طبيبك يعرف إنها موجودة ويطلبها منك.",
+            "Results arrive from the laboratory. If you hold an old printed result, note that you have it so your clinician knows to ask.")}</p>
+          ${addButton("document", T("سجّل ورقة تحليل عندك", "Note a printed result you hold"))}`))}`,
+      T("المعنى أولاً، والرقم دليله. ونتائج مختبرين مختلفين ما تنرسم بخط واحد واثق.",
+        "Meaning first, the number as its evidence. And two laboratories do not draw one confident line."));
+  };
+
+  /* The clinician's reading of the same data: value and geometry on ONE row, at
+     the density of somebody reading eight results in seven minutes. */
+  function vrowFor(r) {
+    const g = E().rangePosition(r);
+    const flag = r.flag || E().flagResult(r);
+    return `<div class="vrow">
+      <div><div class="vrow-nm">${esc(r.display || r.code)}</div>
+        <div class="vrow-fl">${g ? esc(flagWord(flag))
+          : T("وصلت بلا مدى مرجعي — ما نقدر نحكم عليها", "no reference range — no verdict possible")}${
+          r.acknowledgedBy ? "" : ` · <span class="st st-e">${T("ما أُقرّت", "unacknowledged")}</span>`}</div></div>
+      <div class="vrow-geo"><span class="vrow-vv">${esc(String(r.value))}</span>${
+        g ? `<span class="rng rng--row ${g.clamped ? "clamped" : ""}" aria-hidden="true"
+              style="--lo:${g.lo}%;--hi:${g.hi}%;--at:${g.at}%">
+            <i class="bnd"></i><i class="${g.clamped ? "at far" : g.out ? "at out" : "at"}"></i></span>` : ""}</div>
+    </div>`;
+  }
+
+
+  /* ============================================================
+     THE CLINICIAN'S FIRST PARTITION — ownership, before anything else
+     ============================================================
+     A clinician's question is not "what is unfinished in this record" but "what
+     is unfinished THAT I MUST ACT ON IN THE NEXT SEVEN MINUTES". That is a
+     question about ownership, and `deriveTasks` and `networkTasks` have carried
+     an owner on every task since the closed-loop registers shipped — and
+     nothing has ever rendered it. Ordering by danger within ownership is
+     strictly better for somebody with seven minutes than ordering by danger
+     alone: a critical result belonging to another named clinician still needs
+     noting, but it does not need doing by the person in the room.
+
+     THE HARD RULE THAT KEEPS THE PARTITION HONEST: a result whose flag is
+     `critical` ALWAYS lands under «عليك أنت», with its real owner named in the
+     line beneath. A critical result nobody acknowledged is everyone's, and a
+     partition that could route one into "somebody else's problem" would be a
+     partition that kills people. Same reasoning `networkTasks` uses when it
+     makes a critical result due immediately rather than after a grace period.
+     ============================================================ */
+  function clinicianWork(d, me, at) {
+    const mine = [], theirs = [];
+    const push = (row) => (row.mine ? mine : theirs).push(row);
+    const meId = me && me.id;
+
+    for (const x of (d.results || []).filter((r) => E().isAbnormal(r) && !r.acknowledgedBy)) {
+      const crit = (x.flag || E().flagResult(x)) === "critical";
+      const owner = x.orderedBy || x.urgentContactId || null;
+      push({
+        /* critical is never anyone else's */
+        mine: crit || !owner || owner === meId,
+        crit,
+        title: `${esc(x.display || x.code)} ${measure(x.value, x.unit)}${
+          crit ? ` — ${T("حرجة", "critical")}` : ""}`,
+        meta: [dateWord(x.effectiveAt),
+          owner ? (owner === meId ? T("إنت طلبتها", "you ordered it")
+                                  : (ar() ? `طلبها ${esc(owner)}` : `ordered by ${esc(owner)}`))
+                : T("ما مسجّل منو طلبها", "orderer unrecorded")].join(ar() ? "، " : ", "),
+        act: T("أقِرّ", "Acknowledge"), href: "#/record/labs",
+      });
+    }
+
+    const ctx = { results: d.results || [], orders: d.orders || [], specimens: d.specimens || [],
+      followUps: d.followUps || [], referrals: d.referrals || [], studies: d.studies || [] };
+    const tasks = [
+      ...(E().deriveTasks ? E().deriveTasks(ctx, at) : []).filter((x) => x.kind !== E().TASK_KIND.RESULT_ACK),
+      ...(E().openTasks ? E().openTasks(d.tasks, at) : []),
+      ...(globalThis.NET && globalThis.NET.networkTasks
+        ? globalThis.NET.networkTasks({ ...ctx, patientId: d.patient && d.patient.id }, at)
+          .filter((x) => ["critical-unacknowledged", "result-acknowledgement"].indexOf(x.kind) === -1) : []),
+    ];
+    for (const t of tasks) {
+      const owner = t.ownerId || t.owner || null;
+      push({ mine: !owner || owner === meId, crit: false,
+        title: esc(t.about || loopKindLabel(t.kind, 1)),
+        meta: [t.dueAt ? (ar() ? `موعدها ${dateWord(t.dueAt)}` : `due ${dateWord(t.dueAt)}`)
+                       : T("بلا موعد مسجّل", "no due date recorded"),
+          owner ? (owner === meId ? T("إنت طلبتها", "you ordered it")
+                                  : (ar() ? `عند ${esc(owner)}` : `with ${esc(owner)}`))
+                : T("ما مسجّل منو يملكها", "owner unrecorded"),
+          (t.overdue || (E().isOverdue && E().isOverdue(t, at)))
+            ? `<span class="st st-e">${T("متأخّرة", "overdue")}</span>` : ""].filter(Boolean).join(ar() ? "، " : ", "),
+        act: owner && owner !== meId ? T("ذكّره", "Chase") : T("تابِع", "Follow up"),
+        href: "#/record/timeline" });
+    }
+    /* Danger first inside each column. */
+    const bySev = (a, b) => (b.crit - a.crit);
+    return { mine: mine.sort(bySev), theirs: theirs.sort(bySev) };
+  }
+
+  const ownBlock = (id, title, list, filled) => `<section class="own" aria-labelledby="${id}">
+    <h2 id="${id}"><span>${esc(title)}</span><span class="own-k">${n(list.length)}</span></h2>
+    ${list.length ? list.map((x) => `<div class="task"${x.crit ? ' role="alert"' : ""}>
+      <div><div class="task-t">${x.title}${x.crit
+        ? ` <span class="st st-e">${T("ما أُقرّت", "unacknowledged")}</span>` : ""}</div>
+        <div class="task-m">${x.meta}</div></div>
+      <a class="b ${filled ? "b-p" : "b-s"} task-act" href="${x.href}">${esc(x.act)}</a>
+    </div>`).join("")
+      : `<div class="task"><div class="task-m">${T("ما في شي", "nothing here")}</div></div>`}
+  </section>`;
+
+  /* ---------- «خارج نطاق الإعارة» — THE SHAPE OF THE HOLES ----------
+     Taken from the other exploration, and it fits this axis better than it fit
+     its author's: when the record's own sections ARE the units of consent, a
+     withheld scope is a first-class object rather than a missing div.
+
+     A clinician who cannot see the labs must never be able to read that as
+     "this patient has no labs". That is guardrail §3 — «not recorded» is never
+     «none» — applied at the consent boundary, and it is the difference between
+     a record with a hole in it and a record that is simply short. Each hole is
+     NAMED, states that it was not lent rather than not present, and carries the
+     lawful way to ask for it: `requestAccess`, scoped to that one scope. */
+  function holesBlock(d, granted) {
+    const missing = C().ALL_SCOPES.filter((s) => granted.indexOf(s) === -1);
+    if (!missing.length) return "";
+    return `<section class="own" aria-labelledby="holes"><h2 id="holes">
+        <span>${T("خارج نطاق الإعارة", "Outside what was lent")}</span>
+        <span class="own-k">${n(missing.length)}</span></h2>
+      <div class="dband-note">${T(
+        "هذي الأوراق ما سلّمها المريض لك. «ما سلّمها» مو «ما عنده» — قد تكون مليانة وقد تكون فارغة، وما نعرف.",
+        "The patient did not lend you these. \"Not lent\" is not \"not present\" — they may be full or empty, and this screen does not know which.")}</div>
+      <div class="holes-2">${missing.map((s) => `<div class="hole">
+        <span class="hole-t"><b>${esc(C().scopeLabel(s, S.lang))}</b> — ${
+          T("ما سُلّمت", "not lent")}</span>
+        <button class="b b-s" onclick="clinicalRequestScope('${esc(s)}')">${T("اطلبها", "Ask for it")}</button>
+      </div>`).join("")}</div></section>`;
+  }
+
+  /* One scope, one purpose, one request — through the same `requestAccess` the
+     general request already uses. Nothing new is invented: the patient sees the
+     same sentence the clinician wrote, on their own phone, and answers it. */
+  globalThis.clinicalRequestScope = function clinicalRequestScope(scope) {
+    const me = currentClinician();
+    const d = store();
+    if (!me || !d.patient) return;
+    sheet(`<h3 class="d3">${T("اطلب", "Ask for")} ${esc(C().scopeLabel(scope, S.lang))}</h3>
+      <p class="t3" style="margin-top:8px;line-height:1.7">${T(
+        "المريض يقرأ سببك على هاتفه ويقرّر. اكتبه بكلماتك.",
+        "The patient reads your reason on their own phone and decides. Write it in your own words.")}</p>
+      <div class="fld" style="margin-top:12px"><label for="cs-purpose">${T("ليش تحتاجها؟", "Why do you need it?")}</label>
+        <input id="cs-purpose" type="text" autocomplete="off"></div>
+      <button class="btn" style="margin-top:14px"
+        onclick="clinicalSendScopeRequest('${esc(scope)}')">${T("أرسل الطلب", "Send request")}</button>`);
+  };
+
+  globalThis.clinicalSendScopeRequest = function clinicalSendScopeRequest(scope) {
+    const me = currentClinician();
+    const d = store();
+    const purpose = ((document.getElementById("cs-purpose") || {}).value || "").trim();
+    const r = C().requestAccess({ id: uid("REQ"), patientId: d.patient.id, requester: me,
+      scopes: [scope], purpose }, now());
+    if (!r.ok) { toast(r.reason === "PURPOSE_REQUIRED"
+      ? T("اكتب سبب الطلب", "State why") : T("ما قدرنا نرسل", "Could not send")); return; }
+    mutate((x) => { x.requests.unshift(r.request); });
+    closeSheet();
+    toast(T("وصل الطلب لهاتف المريض", "The request reached the patient's phone"));
+    render();
+  };
+
+
+  /* ============================================================
+     THE STRAND — one problem's own story
+     ============================================================
+     This screen carries the register's ONE ACKNOWLEDGED WEAKNESS. A single
+     interleaved time axis is the right front door and it is genuinely worse than
+     problem-grouping at one job: a patient with four chronic problems has their
+     diabetes story scattered through sixty rows. The 20-year test proves the
+     register FITS; it does not prove a problem can be found inside it. So the
+     strand has to be reachable, and it is reachable three ways — from the
+     conditions sheet, from any diagnosis row, and as a FILTER ON THE REGISTER
+     ITSELF (`#/?problem=…`), which is the important one: it lets the same one
+     time axis be read as one problem's story rather than adding a second spine.
+
+     Two things this screen does that a rail of dots did not:
+
+     1 · IT IS ANCHORED BY WHY IT CANNOT CLOSE. `canCloseEpisode` carries the
+         cancer-loss guard — an episode may not be declared finished while a
+         specimen is unreported or a required follow-up is open — and it has
+         only ever existed as a return value. A guard that fires into something
+         nobody renders is not a guard. The blockers come FIRST, in words, so
+         the screen answers "is this finished?" before "what happened?".
+     2 · THE STORY IS VISIT-TO-VISIT DELTAS, not adjacency. Each dated block
+         says what was ADDED, STOPPED, ORDERED or ANSWERED. Continuity reads as
+         change. `significance` decides what is INCLUDED rather than how big a
+         dot is, which is what `minSignificance` was built for.
+     ============================================================ */
+
+  const BLOCKER_WORD = (b) => {
+    if (b === "SUPPLEMENTARY_PENDING") return T("تقرير إضافي ما وصل", "a supplementary report has not arrived");
+    if (b === "NO_EPISODE") return T("ما في حلقة", "no episode");
+    if (b === "ILLEGAL_TRANSITION") return T("حالتها ما تسمح بالإغلاق", "its state does not allow closing");
+    if (String(b).startsWith("OPEN_TASK:")) return null;   /* named from the task itself */
+    return String(b);
+  };
+
+  function strandBlockers(d, t, at) {
+    if (!t.episode) return null;
+    const ctx = { results: d.results || [], orders: d.orders || [], specimens: d.specimens || [],
+      followUps: d.followUps || [], referrals: d.referrals || [] };
+    const tasks = [...(E().deriveTasks ? E().deriveTasks(ctx, at) : []),
+      ...(E().openTasks ? E().openTasks(d.tasks, at) : [])];
+    const g = E().canCloseEpisode(t.episode, tasks);
+    if (g.ok) return { ok: true, lines: [] };
+    const lines = [];
+    for (const b of g.blockers) {
+      const w = BLOCKER_WORD(b);
+      if (w) { lines.push(w); continue; }
+      const id = String(b).slice("OPEN_TASK:".length);
+      const task = tasks.find((x) => x.id === id);
+      lines.push(task ? (task.about || loopKindLabel(task.kind, 1))
+                      : T("مهمّة مفتوحة", "an open task"));
+    }
+    return { ok: false, lines };
+  }
+
+  /* One dated block per occasion, saying what CHANGED. Events are grouped by
+     day because that is the grain a visit happens on; nothing is grouped across
+     days, which would be inventing an encounter that is not in the record. */
+  function strandDeltas(t) {
+    const byDay = new Map();
+    for (const e of t.events) {
+      const k = String(e.at || "").slice(0, 10);
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(e);
+    }
+    return [...byDay.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+      .map(([day, evs]) => {
+        const add = evs.filter((e) => [E().EVT.DIAGNOSIS, E().EVT.MED_START, E().EVT.PROCEDURE,
+          E().EVT.IMAGING, E().EVT.ADMISSION].indexOf(e.type) !== -1);
+        const stop = evs.filter((e) => [E().EVT.MED_STOP, E().EVT.DISCHARGE].indexOf(e.type) !== -1);
+        const ask = evs.filter((e) => [E().EVT.REFERRAL, E().EVT.FOLLOWUP].indexOf(e.type) !== -1);
+        const ans = evs.filter((e) => e.type === E().EVT.RESULT);
+        const visit = evs.find((e) => e.type === E().EVT.ENCOUNTER);
+        /* A dose is ONE run and must not break across a line: «500 ملغم» split
+           over two lines separates a number from its unit, which is the hazard
+           §5 names arriving by wrapping instead of by bidi. */
+        const detailOf = (e) => {
+          if (!e.detail) return "";
+          const dose = e.type === E().EVT.MED_START || e.type === E().EVT.MED_STOP;
+          return ` <span class="t3${dose ? " nw" : ""}">${esc(e.detail)}</span>`;
+        };
+        const line = (label, list) => list.length ? `<div class="delta-l"><span class="delta-k">${
+          esc(label)}</span> <span>${list.map((e) => esc(e.title || evtWord(e.type))
+            + detailOf(e)).join(ar() ? "، " : ", ")}</span></div>` : "";
+        return `<div class="delta">
+          <div class="delta-d">${gutDate(day, null)}</div>
+          <div class="delta-b">
+            ${visit ? `<div class="delta-h">${esc(visit.title || T("زيارة", "a visit"))}</div>` : ""}
+            ${line(T("زاد", "added"), add)}
+            ${line(T("وقّف", "stopped"), stop)}
+            ${line(T("طلب", "asked for"), ask)}
+            ${line(T("رجع", "came back"), ans)}
+          </div></div>`;
+      }).join("");
+  }
+
+  function screenStrand(d, id) {
+    const at = now();
+    const brief = R().preVisitBrief(d.patient, d, at);
+    const { threads } = E().careThreads({ ...d, patientId: d.patient.id }, { now: at });
+    const t = threads.find((x) => x.id === id);
+    if (!t) {
+      return page(T("مسار مشكلة", "A problem's story"),
+        empty(T("ما لقينا هذا المسار", "That story is not in this record"),
+          `<a class="b-g" style="display:inline-block;margin-top:12px" href="#/record/conditions">${
+            T("شوف مشاكلك", "See your problems")}</a>`));
+    }
+    const blk = strandBlockers(d, t, at);
+    const st = threadStanding(t, brief);
+    const codes = [...new Set((d.results || [])
+      .filter((r) => t.events.some((e) => e.type === E().EVT.RESULT && e.title === (r.display || r.code)))
+      .map((r) => r.code).filter(Boolean))];
+    const cid = (t.condition || {}).id || null;
+    const eid = (t.episode || {}).id || null;
+    const meds = (d.medications || []).filter((m) => m.status === "active"
+      && ((cid && m.indicationId === cid) || (eid && m.episodeId === eid)));
+
+    return page(esc(t.title),
+      `<div class="th-head">
+        <div class="rowb">
+          <span class="st st-${t.state === E().EP_STATE.COMPLETED ? "v" : "t"}">${esc(epStateLabel(t.state))}</span>
+          ${t.chronic ? `<span class="st st-q">${T("مزمن", "chronic")}</span>` : ""}
+        </div>
+        ${st ? `<div class="th-stand-big ${st.tone === "e" ? "is-alarm" : ""}">${st.text}</div>` : ""}
+      </div>
+
+      ${blk && !blk.ok ? `<section class="own" aria-labelledby="blk" style="margin-top:14px">
+        <h2 id="blk"><span>${T("ما تنغلق لأن", "It cannot be closed because")}</span>
+          <span class="own-k">${n(blk.lines.length)}</span></h2>
+        ${blk.lines.map((l) => `<div class="task"><div><div class="task-t">${esc(l)}</div></div></div>`).join("")}
+        <div class="dband-note">${T(
+          "الحلقة ما تنغلق وفيها نسيج بلا تقرير أو مراجعة ما صارت — هذا هو الطريق اللي يضيع فيه تشخيص بين غرفة العمليات والعيادة.",
+          "An episode may not close while a specimen is unreported or a follow-up is open — that is the route by which a diagnosis is lost between theatre and clinic.")}</div>
+      </section>` : ""}
+      ${blk && blk.ok ? `<div class="note note-v" style="margin-top:14px">${icon("seal")}<div>${
+        T("ما في شي يمنع إغلاقها", "Nothing is blocking closure")}</div></div>` : ""}
+      ${!blk ? `<div class="dband-note" style="padding-block:10px">${t.chronic
+        ? T("مزمنة — ما تنغلق، تُراجَع. الحلقات اللي تنغلق هي اللي عندها بداية ونهاية، وهذي ما عندها.",
+            "Chronic — it is not closed, it is reviewed. Only an episode with a beginning and an end can be closed, and this is not one.")
+        : T("هذي مشكلة مسجّلة، مو حلقة رعاية بحالة — فما في شرط إغلاق يُفحص عليها.",
+            "This is a recorded problem, not an episode with a state — so there is no closure condition to check.")}</div>` : ""}
+
+      ${codes.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${T("الاتجاه", "The trend")}</h2>
+        <a class="b-g" href="#/record/labs">${T("كل التحاليل", "All results")}</a></div>
+        ${codes.map((code) => `<div class="ser">${trendSeries(E().trend(d.results, code), {})}</div>`).join("")}
+      </div>` : ""}
+
+      ${meds.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${
+        T("الأدوية لهذي المشكلة", "Medicines for this problem")}</h2></div>
+        <div class="stack">${meds.map((m) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(m.display)}</b>${m.dose
+            ? `<bdi class="strength">${esc(m.dose)}</bdi>` : ""}</div>
+          ${selfReported(m) ? `<div style="margin-top:5px">${selfReported(m)}</div>` : ""}
+        </div></div>`).join("")}</div></div>` : ""}
+
+      <div class="sec"><div class="sec-h"><h2 class="d3">${T("شنو تغيّر، ومتى", "What changed, and when")}</h2></div>
+        <div class="deltas">${strandDeltas(t)}</div>
+      </div>
+
+      <div class="pad" style="padding-block:16px 4px">
+        <a class="btn btn--2" href="#/?problem=${esc(id)}">${
+          T("اقرأ الدفتر لهذي المشكلة وحدها", "Read the booklet for this problem alone")}</a>
+      </div>`,
+      T("مربوط بهذي المشكلة فقط. اللي ما مربوط بها ما يظهر هنا — وهذا ما يعني إنه ما موجود.",
+        "Linked to this problem only. What is not linked does not appear here — which does not mean it does not exist."));
+  }
+
+  /* The filtered record: every list narrowed to the rows this problem's own keys
+     claim. `careThreads` already recorded WHY each event belongs; this reuses
+     that rather than re-deciding it, and a row with no link is simply absent —
+     never reassigned to the nearest problem. */
+  function problemView(d, t) {
+    const cid = (t.condition || {}).id || null;
+    const eid = (t.episode || {}).id || null;
+    const mine = (x) => (cid && (x.conditionId === cid || x.indicationId === cid || x.id === cid))
+      || (eid && x.episodeId === eid);
+    return { ...d,
+      results: (d.results || []).filter(mine),
+      conditions: (d.conditions || []).filter((c) => c.id === cid || (eid && c.episodeId === eid)),
+      medications: (d.medications || []).filter(mine),
+      procedures: (d.procedures || []).filter(mine),
+      imaging: (d.imaging || []).filter(mine),
+      encounters: (d.encounters || []).filter(mine),
+      referrals: (d.referrals || []).filter(mine),
+      tasks: (d.tasks || []).filter((x) => eid && x.episodeId === eid),
+      /* custody is never per-problem: a share is of the whole record */
+      shares: [], carry: null, accessLog: [],
+    };
+  }
+
+  /* ---------- the register, read as ONE PROBLEM ----------
+     A filter on the one time axis, never a second spine. The join is the
+     `conditionId` / `episodeId` a clinician actually set; an unlinked event does
+     not appear, and the screen SAYS so rather than letting absence read as
+     completeness. */
+  const regProblem = () => {
+    const qs = (location.hash.split("?")[1] || "");
+    return new URLSearchParams(qs).get("problem");
+  };
+  globalThis.regProblemSheet = function regProblemSheet() {
+    const d = store();
+    const { threads } = E().careThreads({ ...d, patientId: d.patient.id }, { now: now() });
+    sheet(`<h3 class="d3">${T("اقرأ الدفتر لمشكلة وحدة", "Read the booklet for one problem")}</h3>
+      <p class="t3" style="margin-top:8px;line-height:1.7">${T(
+        "نفس الدفتر، نفس الترتيب — بس اللي مربوط بالمشكلة اللي تختارها.",
+        "The same booklet, the same order — only what is linked to the problem you pick.")}</p>
+      <div class="stack-2" style="margin-top:12px">
+        ${threads.length ? threads.map((t) => `<a class="rw" href="#/?problem=${esc(t.id)}"
+          onclick="closeSheet()"><div style="width:100%">
+          <div class="rowb"><b>${esc(t.title)}</b><span class="t3">${esc(epStateLabel(t.state))}</span></div>
+        </div></a>`).join("")
+        : `<p class="t3">${T("ما في مشكلة مربوطة بأحداث بعد.", "No problem has linked events yet.")}</p>`}
+        <a class="b b-s" href="#/" onclick="closeSheet()">${T("رجّع كل شي", "Show everything again")}</a>
+      </div>`);
+  };
+
 })();

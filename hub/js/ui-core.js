@@ -58,7 +58,7 @@ const T = {
     doctorsIn: "طبيب في", allSpecs: "كل الاختصاصات", sessions: "أوقات الدوام",
     week: "أسبوع الطبيب", about: "معلومات", reportInfo: "الإبلاغ عن معلومة خاطئة",
     myRequests: "طلباتي", savedItems: "المحفوظات", trust: "الثقة والتوثيق",
-    explorer: "الأدوية", record: "ملفي",
+    explorer: "الأدوية", record: "ملفي", booklet: "الدفتر", sheets: "أوراقي", available: "المتوفّر",
     emergency: "طوارئ", ambulance: "الإسعاف", nearestEr: "أقرب طوارئ",
     orderWa: "اطلب عبر واتساب", availableAt: "متوفر في", stockedBy: "يُصرف من",
     male: "طبيب", female: "طبيبة", anyGender: "الكل",
@@ -83,7 +83,7 @@ const T = {
     doctorsIn: "doctors in", allSpecs: "All specialties", sessions: "Sessions",
     week: "The doctor's week", about: "About", reportInfo: "Report incorrect info",
     myRequests: "My requests", savedItems: "Saved", trust: "Trust & verification",
-    explorer: "Medicines", record: "My record",
+    explorer: "Medicines", record: "My record", booklet: "Booklet", sheets: "My sheets", available: "Available",
     emergency: "Emergency", ambulance: "Ambulance", nearestEr: "Nearest ER",
     orderWa: "Order via WhatsApp", availableAt: "Available at", stockedBy: "Dispensed by",
     male: "Male", female: "Female", anyGender: "Any",
@@ -1012,11 +1012,54 @@ function header(opts = {}) {
    REMOVES a duplicate rather than adding anything, and gives the medicine
    network a real home. Every route stays reachable — the doorway changed, not
    the rooms. The Account tab stays exactly where the Apple track put it. */
-const NAV_ALIAS = { explorer: "care", pharmacies: "care", doctors: "care" };
+/* THREE DESTINATIONS, NOT FOUR — and the one that went is the digest.
+   The product has exactly two subjects and they have opposite physics. Your
+   record is YOURS, STILL, PRIVATE and works with the radio off. The
+   availability network is THEIRS, MOVING, PUBLIC and worthless offline. Every
+   screen belongs to one or the other; there is no third subject. The account
+   tab is not a subject — it is the Apple track's destination and stays exactly
+   where that developer put it.
+
+   What went is the home DIGEST. A home screen in a health record summarises the
+   other destinations, which means it duplicates them and then disagrees with
+   them. The register is not a digest — it is the primary object, and it already
+   answers the three questions a home screen exists to answer (what needs me,
+   who has my record, what happened last) as rows of ONE list rather than three
+   sections that have to be kept in sync. Deleting the digest is what buys the
+   third tab back.
+
+   And the record is not its own destination either: the register and the deck
+   are one booklet indexed two ways — by date and by sheet. That is a view
+   toggle, not a journey, and making them two tabs would ask a patient to know
+   which index their question lives in before they have asked it.
+
+   FOUR, NOT THREE, AND THE REASON IS A MEASUREMENT THAT KILLED THE ARGUMENT
+   FOR THREE. The design that won this work claimed three destinations, on the
+   grounds that at 320px a fourth Arabic label would elide. That was asserted
+   and never measured. Measured here: at 320px four cells are 80px wide and the
+   widest label — «المتوفّر» — is 38.9px. Nothing elides. Three was buying
+   nothing, and it was costing the thing the same design named as its own
+   weakness: with the sheet view behind an in-page toggle, a patient who never
+   finds the toggle has a record they cannot browse.
+
+   So the booklet gets two doorways because it has two indexes, and both are
+   real destinations a thumb can reach:
+     الدفتر    #/         by DATE  — the register, one time axis
+     أوراقي    #/record   by SHEET — the deck, grouped by sharing behaviour
+   They are one object. Each cross-links to the other, and neither is a digest
+   of the other. What is gone is the home DIGEST: a home screen in a health
+   record summarises the other destinations, which means it duplicates them and
+   then disagrees with them. The register is not a digest — it is the primary
+   object, and it answers what a home screen exists to answer (what needs me,
+   who has my record, what happened last) as rows of ONE list. */
+const NAV_ALIAS = { explorer: "available", pharmacies: "available", doctors: "available",
+  care: "available",
+  /* every existing call site keeps working: the doorway moved, not the room */
+  home: "booklet", record: "sheets" };
 function nav(active) {
   active = NAV_ALIAS[active] || active;
-  const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
-    ["#/care", "stetho", "care"],
+  const items = [["#/", "clock", "booklet"], ["#/record", "seal", "sheets"],
+    ["#/care", "stetho", "available"],
     /* The settings tab belongs to the Apple track — App Store compliance needs
        privacy, data export and account deletion reachable without a hunt. Kept
        as that developer placed it; not redesigned here. */
