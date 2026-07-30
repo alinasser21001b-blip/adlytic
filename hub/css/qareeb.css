@@ -94,10 +94,44 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .t1 { font: 400 15.5px/1.8 var(--disp); }
 .tiny, .t3, .hint, .m, .prod-brand { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); }
 .muted { color: var(--ink-3); }
-.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub {
-  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
-  color: var(--ink-3); text-transform: uppercase;
+/* THE LABEL. Two typographic tricks carry "this is a label, not content" in
+   Latin: small caps and wide tracking. Neither survives translation.
+
+   `letter-spacing` inserts space between GLYPHS, and Arabic is cursive — the
+   letters are joined. Tracking an Arabic word at .2em pulls those joins apart,
+   so «سجلي» rendered as disconnected shapes: not a label, a damaged word. And
+   `text-transform: uppercase` has no meaning in a script with no letter case,
+   so it bought nothing to pay for it with.
+
+   Worse, the size chosen to make tracked Latin caps read as a quiet label —
+   10.5px at 64% alpha — left every group heading on the health record SMALLER
+   and FAINTER than the grey subtitles inside the rows it was labelling. Four
+   labelled groups read as one flat list of twelve rows.
+
+   So the two languages get the two devices that work in each. Latin keeps the
+   tracked caps. Arabic gets size and weight instead: bigger than the body it
+   labels, full-strength ink, no tracking, joins intact.
+
+   Every label in the product resolves here and nowhere else — form field
+   labels included, where the damage was worst: «الرقم الأعلى (الانقباضي)»
+   above a blood-pressure input, tracked apart, is a form asking a question
+   the reader has to decode. Six rules further down this file used to restate
+   this style with their own copy of the tracking; they now set layout only. */
+.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub,
+.field label, .fld > span, .res-group h3, .prof-fact .k, .ops-l, .badge-fast {
+  letter-spacing: 0; text-transform: none;
 }
+.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend, .fee-l, .dp-sub,
+.field label, .fld > span, .res-group h3, .prof-fact .k, .ops-l {
+  font-family: var(--disp); font-size: 13px; font-weight: 500; line-height: 1.5;
+  color: var(--ink-2);
+}
+:root:lang(en) :is(.eyebrow, .lab, .q-eyebrow, .kpi-l, .lbl, .sec-h h2, .week-legend,
+  .fee-l, .dp-sub, .field label, .fld > span, .res-group h3, .prof-fact .k, .ops-l) {
+  font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3);
+}
+:root:lang(en) .ops-l { font-size: 10px; letter-spacing: .16em; }
+:root:lang(en) .badge-fast { letter-spacing: .06em; }
 .d1 { font: 600 34px/1.24 var(--disp); letter-spacing: -.02em; }
 .d2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
 .d3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
@@ -120,12 +154,25 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .wrap, .pad { padding-inline: var(--u5); }
 .blk { padding: var(--u6) var(--u5) 0; }
 .sec { padding-top: var(--u5); }
+/* Consecutive groups of rows had the same gap between GROUPS as between the
+   rows inside them, so four labelled groups read as one undifferentiated list
+   of twelve and the labels did nothing. A group boundary is a change of
+   subject and gets a rule and real air. */
+.sec + .sec { padding-top: var(--u6); margin-top: var(--u5); border-top: 1px solid var(--dial-line-2); }
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); margin-bottom: var(--u3); }
+
+/* A record row's title. It was unclassed, so it inherited body copy — 300
+   weight, the lightest thing in the type scale — for what is the primary
+   navigation of the whole record. */
+.rw-t { font: 500 16px/1.4 var(--disp); letter-spacing: -.01em; }
+/* The newest fact a row holds, under its label. */
+.rw-fact { display: block; margin-top: 3px; }
 
 .grow { flex: 1; min-width: 0; }
 .row { display: flex; align-items: center; gap: var(--u2); }
 .row-b, .rowb { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); }
 .stack-2 > * + *, .v2 > * + * { margin-top: var(--u2); }
+.stack-3 > * + * { margin-top: var(--u4); }
 .v3 > * + * { margin-top: var(--u3); }
 .v5 > * + * { margin-top: var(--u5); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u3); }
@@ -509,11 +556,8 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
 /* A labelled field is a stack, not a row: putting the label beside the input
    at 390px leaves neither enough width and they overlap. */
 .field { display: block; margin-top: var(--u4); background: none; border: 0; padding: 0; }
-.field label {
-  display: block; margin-bottom: 7px;
-  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
-  color: var(--ink-3); text-transform: uppercase;
-}
+/* Style resolves in THE LABEL near the top of this file; layout only here. */
+.field label { display: block; margin-bottom: 7px; }
 .field input, .field textarea {
   width: 100%; min-height: 52px; padding: 0 var(--u4);
   border: 1px solid var(--dial-line); border-radius: var(--rp);
@@ -560,11 +604,7 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
    can see anything. A form is one of the few things a screenshot catches and
    an assertion does not. */
 .fld { display: block; margin-top: var(--u4); }
-.fld > span {
-  display: block; margin-bottom: 7px;
-  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
-  color: var(--ink-3); text-transform: uppercase;
-}
+.fld > span { display: block; margin-bottom: 7px; }
 .fld input, .fld textarea, .fld select {
   display: block; width: 100%; min-height: 52px; padding: 0 var(--u4);
   border: 1px solid var(--dial-line); border-radius: var(--rp);
@@ -780,8 +820,7 @@ input, textarea { min-height: 44px; }
 .dark .hero-line { color: var(--case-ink); }
 
 .res-group + .res-group { margin-top: var(--u5); }
-.res-group h3 { font: 500 10.5px/1 var(--disp); letter-spacing: .2em; text-transform: uppercase;
-                color: var(--ink-3); margin-bottom: var(--u3); }
+.res-group h3 { margin-bottom: var(--u3); }
 .dark .res-group h3 { color: var(--case-ink-3); }
 
 .start-bar { display: flex; gap: var(--u2); align-items: center; }
@@ -841,7 +880,7 @@ input, textarea { min-height: 44px; }
 .kv .v { font: 400 14px/1.6 var(--disp); text-align: end; }
 .prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u3); margin-top: var(--u5); }
 .prof-fact { display: flex; flex-direction: column; gap: 3px; }
-.prof-fact .k { font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em; color: var(--ink-3); text-transform: uppercase; }
+.prof-fact .k { /* THE LABEL */ }
 .prof-fact .v { font: 500 17px/1.3 var(--disp); }
 
 .prod { display: flex; flex-direction: column; gap: 0; padding: 0; width: 150px; flex: none; }
@@ -889,7 +928,7 @@ input, textarea { min-height: 44px; }
 .ops-kpi { border: 1px solid var(--dial-line); border-radius: var(--r); padding: var(--u4); background: var(--dial-2); }
 .ops-kpi.warn { border-color: var(--brass-ink); }
 .ops-n { font: 300 30px/1 var(--num); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; letter-spacing: -.02em; }
-.ops-l { font: 500 10px/1.5 var(--disp); letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; margin-top: 6px; }
+.ops-l { margin-top: 6px; }
 .ops-cols { display: grid; grid-template-columns: 1fr; gap: var(--u6); margin-top: var(--u6); align-items: start; }
 @media (min-width: 900px) { .ops-cols { grid-template-columns: 1fr 1fr; } }
 .ops-sec { margin-top: var(--u6); }
@@ -947,7 +986,7 @@ input, textarea { min-height: 44px; }
    gets sold. */
 .badge-fast {
   display: inline-flex; align-items: center; gap: 5px;
-  font: 500 10.5px/1 var(--disp); letter-spacing: .06em;
+  font: 500 10.5px/1 var(--disp);
   color: var(--jade); border: 1px solid var(--jade); border-radius: var(--rp);
   padding: 5px 9px; white-space: nowrap;
 }

@@ -80,6 +80,7 @@
     const alerts = C().accessAlerts(d.accessLog, now());
     const live = C().activeShares(d.shares, now());
     const pendingReq = (d.requests || []).filter((r) => C().requestState(r, now()) === C().REQ_STATE.PENDING);
+    const f = recordFacts(d, live);
 
     return `${header({ back: true, title: T("ملفي الصحي", "My health record") })}
     <section class="wrap" style="padding-top:14px">
@@ -130,8 +131,10 @@
       <div class="sec">
         <div class="sec-h"><h2 class="d3">${T("الآن", "Right now")}</h2></div>
         <div class="stack-2">
-          ${tile("#/record/conditions", T("المشاكل الصحية النشطة", "Active conditions"), prof.activeConditions)}
-          ${tile("#/record/medications", T("الأدوية الحالية", "Current medications"), prof.currentMedications)}
+          ${tile("#/record/conditions", T("المشاكل الصحية النشطة", "Active conditions"),
+            prof.activeConditions, null, f.conditions)}
+          ${tile("#/record/medications", T("الأدوية الحالية", "Current medications"),
+            prof.currentMedications, null, f.medications)}
           ${brief.overdue.length ? tile("#/record/followups", T("متابعات متأخّرة", "Overdue follow-ups"), brief.overdue.length, "warn") : ""}
           ${brief.pending.length ? tile("#/record/labs", T("نتائج معلّقة", "Pending results"), brief.pending.length) : ""}
         </div>
@@ -140,13 +143,15 @@
       <div class="sec">
         <div class="sec-h"><h2 class="d3">${T("سجلي", "My record")}</h2></div>
         <div class="stack-2">
-          ${tile("#/record/timeline", T("الخط الزمني", "Timeline"), null)}
-          ${tile("#/record/visits", T("الزيارات", "Visits"), (d.encounters || []).length)}
-          ${tile("#/record/labs", T("التحاليل", "Lab results"), (d.results || []).filter((x) => x.value != null).length)}
-          ${tile("#/record/documents", T("التقارير والمستندات", "Documents"), (d.documents || []).length)}
-          ${tile("#/record/procedures", T("العمليات السابقة", "Previous procedures"), (d.procedures || []).length)}
+          ${tile("#/record/timeline", T("الخط الزمني", "Timeline"), null, null, f.span)}
+          ${tile("#/record/visits", T("الزيارات", "Visits"), (d.encounters || []).length, null, f.visit)}
+          ${tile("#/record/labs", T("التحاليل", "Lab results"),
+            (d.results || []).filter((x) => x.value != null).length, null, f.lab)}
+          ${tile("#/record/documents", T("التقارير والمستندات", "Documents"), (d.documents || []).length, null, f.doc)}
+          ${tile("#/record/procedures", T("العمليات السابقة", "Previous procedures"), (d.procedures || []).length, null, f.proc)}
           ${tile("#/record/immunizations", T("التطعيمات", "Immunizations"), prof.immunizations)}
-          ${tile("#/record/vitals", T("القياسات — ضغط، وزن، سكر", "Measurements — BP, weight, sugar"), (d.vitals || []).length)}
+          ${tile("#/record/vitals", T("القياسات — ضغط، وزن، سكر", "Measurements — BP, weight, sugar"),
+            (d.vitals || []).length, null, f.vital)}
         </div>
       </div>
 
@@ -155,9 +160,9 @@
       <div class="sec">
         <div class="sec-h"><h2 class="d3">${T("من يرى ملفي", "Who can see my record")}</h2></div>
         <div class="stack-2">
-          ${tile("#/record/shares", T("المشاركات الفعّالة", "Active shares"), live.length)}
+          ${tile("#/record/shares", T("المشاركات الفعّالة", "Active shares"), live.length, null, f.share)}
           ${tile("#/record/share", T("شارك ملفك مع طبيب", "Share with a clinician"), null)}
-          ${tile("#/record/access", T("سجل الوصول", "Access history"), (d.accessLog || []).length)}
+          ${tile("#/record/access", T("سجل الوصول", "Access history"), (d.accessLog || []).length, null, f.access)}
           ${tile("#/record/carry", T("ملخّص أحمله معي", "A summary I carry"), null)}
         </div>
       </div>
@@ -271,19 +276,108 @@
       T_("قرارك، لا قرارنا.", "Your decision, not ours."));
   }
 
-  const tile = (href, label, count, tone) =>
+  /* THE RECORD ROW.
+     This screen was twelve of these, and every one of them said the same
+     thing: a label, and a count. A count is cardinality, and cardinality is
+     almost never what a person came for. "التحاليل ٤" tells a patient nothing
+     they can act on, and it is visually indistinguishable from "التطعيمات ٠" —
+     so the only way to find out whether anything here mattered was to open all
+     twelve. The screen read as a table of contents for a database.
+
+     Two changes. Each row now carries the newest FACT it holds, drawn from the
+     record itself and never invented — the names of the conditions, the date
+     of the last visit, the title of the newest report. And a row holding
+     nothing says so in words: a bare "٠" beside a label reads as a
+     measurement, as though zero were a finding. It is an absence, and absence
+     is a word. */
+  const tile = (href, label, count, tone, fact) =>
     `<a class="rw" href="${href}">
-      <div class="rowb" style="width:100%">
-        <span${tone === "warn" ? ' class="st st-e"' : ""}>${esc(label)}</span>
-        <span class="t3">${count == null ? "" : n(count)}</span>
-      </div></a>`;
+      <span class="grow" style="min-inline-size:0">
+        <span class="rowb">
+          <span class="${tone === "warn" ? "st st-e" : "rw-t"}">${esc(label)}</span>
+          ${count == null ? "" : count === 0
+            ? `<span class="t3 quiet">${T("ما مسجّل", "none")}</span>`
+            : `<span class="t3">${n(count)}</span>`}
+        </span>
+        ${fact ? `<span class="t3 rw-fact">${fact}</span>` : ""}
+      </span>
+      <span class="rw-go" aria-hidden="true">${icon("chev")}</span>
+    </a>`;
+
+  /* The newest fact a section holds, as a phrase. Returns "" rather than a
+     placeholder when the section is empty — the count already says "ما مسجّل"
+     and repeating it in prose is noise.
+
+     `names` lists what is actually there up to a limit and then counts the
+     remainder in agreeing Arabic, because «و٣ آخرين» beside two named
+     medicines is information and «٥ أدوية» is not. */
+  const dateOf = (v) => n(String(v || "").slice(0, 10));
+  function names(list, max) {
+    const shown = list.slice(0, max).map((x) => esc(String(x))).join(T("، ", ", "));
+    const rest = list.length - max;
+    if (rest <= 0) return shown;
+    return shown + (ar()
+      ? ` و${countAr(rest, ["واحد آخر", "اثنان آخران", "آخرون", "آخرون"])}`
+      : ` and ${rest} more`);
+  }
+
+  /* Every phrase below is read straight out of the record. Nothing here
+     summarises, interprets or estimates: an empty section produces "" and the
+     row falls back to saying it holds nothing. That matters more here than
+     anywhere else on the screen — a fact printed under a label looks
+     authoritative, and a plausible-sounding invented one would be trusted. */
+  function recordFacts(d, live) {
+    const newest = (list, key) => (list || []).slice()
+      .sort((a, b) => String(b[key] || "").localeCompare(String(a[key] || "")))[0];
+    const active = (d.conditions || []).filter((c) => c.clinicalStatus === "active");
+    const meds = (d.medications || []).filter((m) => m.status === "active");
+    const lastVisit = newest(d.encounters, "startedAt");
+    const lastLab = newest((d.results || []).filter((x) => x.value != null), "effectiveAt");
+    const lastDoc = newest(d.documents, "documentDate");
+    const lastProc = newest(d.procedures, "performedAt");
+    const lastVital = newest(d.vitals, "effectiveAt");
+    const lastAccess = newest(d.accessLog, "at");
+    /* The timeline's own span, from the oldest and newest dates the record
+       actually contains — not a count of rows, which is what "الخط الزمني ٩"
+       would have been. */
+    const dates = [].concat(
+      (d.encounters || []).map((x) => x.startedAt), (d.results || []).map((x) => x.effectiveAt),
+      (d.procedures || []).map((x) => x.performedAt), (d.documents || []).map((x) => x.documentDate),
+    ).filter(Boolean).map((x) => String(x).slice(0, 4)).sort();
+    const y0 = dates[0], y1 = dates[dates.length - 1];
+    return {
+      conditions: active.length ? names(active.map((c) => c.display), 2) : "",
+      medications: meds.length ? names(meds.map((m) => m.display), 2) : "",
+      span: y0 ? (y0 === y1 ? n(y0) : T(`من ${n(y0)} إلى ${n(y1)}`, `${n(y0)} to ${n(y1)}`)) : "",
+      visit: lastVisit ? T("آخر زيارة ", "last visit ") + dateOf(lastVisit.startedAt) : "",
+      lab: lastLab ? esc(lastLab.display || lastLab.code) + " · " + dateOf(lastLab.effectiveAt) : "",
+      doc: lastDoc ? esc(lastDoc.title || "") : "",
+      proc: lastProc ? esc(lastProc.display || "") + " · " + dateOf(lastProc.performedAt) : "",
+      vital: lastVital ? T("آخر قياس ", "last measurement ") + dateOf(lastVital.effectiveAt) : "",
+      access: lastAccess ? T("آخر فتح ", "last opened ") + dateOf(lastAccess.at) : "",
+      /* Who, not how many. A patient checking this is checking for a name. */
+      share: (live || []).length
+        ? names((live || []).map((s) => s.granteeName || s.granteeId), 2) : "",
+    };
+  }
 
   function panelAllergies(list) {
     const crit = E().criticalAllergies(list);
+    /* "No allergy recorded" and "no allergies" are different claims, and a
+       clinician reading the second where only the first is true can give a
+       drug that kills. An empty allergy field is an UNKNOWN, said plainly, at
+       the weight an unknown on this field deserves — not a quiet grey line
+       that reads as a clean bill of health. It also carries no checkmark: a
+       tick against absent safety data is a reassurance nobody earned. */
     if (!crit.length) {
-      return `<a class="rw" href="#/record/allergies" style="margin-top:14px">
-        <div class="rowb" style="width:100%"><span class="t3">${T("ما مسجّل عندك أي حساسية", "No allergy recorded")}</span>
-        <span class="b-g">${T("أضف", "Add")}</span></div></a>`;
+      return `<a class="note note-w" href="#/record/allergies" style="margin-top:14px">${icon("alert")}
+        <div style="width:100%">
+          <b>${T("حساسيتك غير معروفة", "Your allergies are unknown")}</b>
+          <div class="t3" style="margin-top:3px">${T(
+            "ما مسجّل عندك شي — وهذا مو نفس إنك ما عندك حساسية. طبيبك يقرأ هذا الحقل قبل أي دواء.",
+            "Nothing is recorded here — which is not the same as having none. Your clinician reads this field before prescribing.")}</div>
+          <span class="b-g" style="display:inline-block;margin-top:8px">${T("سجّل حساسيتك", "Record your allergies")}</span>
+        </div></a>`;
     }
     return `<div class="note note-e" style="margin-top:14px">${icon("alert")}
       <div style="width:100%">
@@ -1701,36 +1795,6 @@
   /* The reading itself, at the weight the reason-for-the-screen deserves. */
   const bigValue = (v, unit) => `<span class="nval">${esc(String(v))}${
     unit ? `<span class="u">${esc(unit)}</span>` : ""}</span>`;
-
-  /* One quantity is one cell. "8.4" sat mid-row with "%" stranded at the far
-     edge of the same row, so the quantity read as two unrelated fields; and
-     the French space before "%" put the sign flush against the following
-     Arabic word. The unit joins the number inside a single run that cannot
-     wrap and cannot be reordered. */
-  const UNIT_TIGHT = /^(%|°C|°F|°)$/;
-  function measure(v, unit) {
-    const u = String(unit || "").trim();
-    return `<span class="num nw">${esc(String(v))}${
-      u ? (UNIT_TIGHT.test(u) ? "" : " ") + esc(u) : ""}</span>`;
-  }
-
-  /* A blood pressure is ONE reading, so it must be ONE bidi run.
-     `${n(148)} / ${n(92)}` leaves " / " as a NEUTRAL between two LTR embeds.
-     Inside an Arabic line bidi resolves that neutral right-to-left and the
-     pair renders "92 / 148" — while the identical pair wrapped in an outer
-     `.num` renders "148 / 92". Both spellings shipped, on different screens,
-     for the same reading: on one the reference line read "130 / 85" directly
-     under a value reading "92 / 148". Systolic and diastolic became
-     indistinguishable.
-
-     This is the trend arrow again in a new costume. The rule it taught holds
-     without exception: never place a neutral character between two rendered
-     numbers. Every blood pressure in the product goes through here. */
-  function bpPair(sys, dia, unit) {
-    const u = String(unit || "").trim();
-    return `<span class="num nw">${esc(String(sys))}/${
-      dia == null ? "—" : esc(String(dia))}${u ? " " + esc(u) : ""}</span>`;
-  }
 
   /* The dated body of a series, shared by the patient's labs screen and the
      clinician's brief so the two can never drift apart on the one thing they

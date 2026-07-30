@@ -561,7 +561,7 @@ function paintRadarBar() {
         : (isAR() ? "جارِ البحث عن" : "Looking for")} ${esc(x.name)}</span>
       <span class="radarbar-s">${answered
         ? (isAR() ? "اضغط لتشوف الصيدلية" : "Tap to see the pharmacy")
-        : `${isAR() ? "ظاهر لـ" : "visible to"} <span class="num">${radarReach(r).n}</span> ${isAR() ? "صيدلية" : "pharmacies"}`}</span>
+        : `${isAR() ? "ظاهر لـ" : "visible to"} ${isAR() ? countAr(radarReach(r).n, AR_PHARM) : `<span class="num">${radarReach(r).n}</span> pharmacies`}`}</span>
     </span>
     <span class="radarbar-x" role="button" tabindex="0" aria-label="${isAR() ? "إخفاء" : "Dismiss"}"
       onclick="dismissRadar(event)">✕</span>`;
@@ -910,7 +910,7 @@ function screenRadar(facId) {
          hold. In rush the header collapses to one line; the numeral returns
          when the rush is over. */
       ? `<div class="rowb" style="margin-top:18px">
-          <span class="t1" style="font-size:14px"><b class="num">${rows.length}</b> ${isAR() ? "طلب" : "waiting"} · <span class="num">${urgent}</span> ${isAR() ? "عاجل" : "urgent"}</span>
+          <span class="t1" style="font-size:14px">${isAR() ? `${countAr(rows.length, AR_REQ_WAIT)} · <span class="num">${urgent}</span> عاجل` : `<b class="num">${rows.length}</b> waiting · <span class="num">${urgent}</span> urgent`}</span>
         </div>`
       : `<div style="display:flex;align-items:baseline;gap:12px;margin-top:24px">
       <span class="nhuge" style="color:var(--brass-ink)">${rows.length}</span>
@@ -1270,7 +1270,7 @@ function screenPartner(id) {
         <div class="card-top"><div class="avatar avatar--sq">${icon("pill")}</div>
           <div class="grow"><div class="card-t">${esc(L(m))}</div>
             <div class="card-meta">
-              <span class="chip--meta chip--warn"><span class="num">${gap}</span> ${isAR() ? "طلب ضائع" : "lost asks"}</span>
+              <span class="chip--meta chip--warn">${isAR() ? countAr(gap, AR_LOST) : `<span class="num">${gap}</span> lost asks`}</span>
               <i class="dot"></i><span>${isAR() ? "لُبّي" : "filled"} <span class="num">${Math.round((r.filled / r.asks) * 100)}%</span></span>
             </div></div></div></div>`;
     }).join("")}</div></section>` : ""}

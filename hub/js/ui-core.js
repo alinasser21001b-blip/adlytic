@@ -460,6 +460,17 @@ function verifiedCount(list, sourceKey) {
   return (list || []).filter((e) => verificationState(e, sourceKey).k === "verified").length;
 }
 
+/* The count and the word have to be composed, not concatenated. While every
+   source in this build is synthetic the count is 0 and the word is «نموذجي»,
+   and `${count} ${word}` produced «0 نموذجي» in the footer of the home screen —
+   not a sentence in either language, and the honest fact it was reaching for
+   ("nothing here has been verified yet") is one a reader would want stated. */
+function verifiedTally(list, sourceKey, forms, zeroAr, enPlural) {
+  const c = verifiedCount(list, sourceKey);
+  if (!c) return isAR() ? zeroAr : `no ${enPlural} verified yet`;
+  return isAR() ? countAr(c, forms) : `<span class="num">${c}</span> ${enPlural} verified`;
+}
+
 function sealBadge(ent, sourceKey) {
   const key = sourceKey || (ent && ent.sessions ? "doctors" : "pharmacies");
   const v = verificationState(ent, key);
@@ -504,6 +515,36 @@ function band(ent, day = null, showNow = true) {
   const mk = showNow && (day === null || day === nowDay())
     ? `<span class="nowmk" style="inset-inline-start:${pct(nowMins()).toFixed(2)}%"></span>` : "";
   return `<div class="band">${bars}${mk}</div>`;
+}
+
+/* One quantity is one cell. "8.4" sat mid-row with "%" stranded at the far
+   edge of the same row, so the quantity read as two unrelated fields; and
+   the French space before "%" put the sign flush against the following
+   Arabic word. The unit joins the number inside a single run that cannot
+   wrap and cannot be reordered. */
+const UNIT_TIGHT = /^(%|°C|°F|°)$/;
+function measure(v, unit) {
+  const u = String(unit || "").trim();
+  return `<span class="num nw">${esc(String(v))}${
+    u ? (UNIT_TIGHT.test(u) ? "" : " ") + esc(u) : ""}</span>`;
+}
+
+/* A blood pressure is ONE reading, so it must be ONE bidi run.
+   `${n(148)} / ${n(92)}` leaves " / " as a NEUTRAL between two LTR embeds.
+   Inside an Arabic line bidi resolves that neutral right-to-left and the
+   pair renders "92 / 148" — while the identical pair wrapped in an outer
+   `.num` renders "148 / 92". Both spellings shipped, on different screens,
+   for the same reading: on one the reference line read "130 / 85" directly
+   under a value reading "92 / 148". Systolic and diastolic became
+   indistinguishable.
+
+   This is the trend arrow again in a new costume. The rule it taught holds
+   without exception: never place a neutral character between two rendered
+   numbers. Every blood pressure in the product goes through here. */
+function bpPair(sys, dia, unit) {
+  const u = String(unit || "").trim();
+  return `<span class="num nw">${esc(String(sys))}/${
+    dia == null ? "—" : esc(String(dia))}${u ? " " + esc(u) : ""}</span>`;
 }
 
 /* ---------------- v3 · THE ROW ----------------

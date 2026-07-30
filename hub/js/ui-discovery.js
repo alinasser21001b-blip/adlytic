@@ -65,13 +65,29 @@ function healthStatusCard() {
   /* WHAT IS ON FIRE, if anything, comes first and alone — the same ordering
      rule the clinician's own brief follows. An abnormal result nobody has
      acknowledged or a follow-up gone overdue outranks a calm summary. */
+  /* At display weight, because of where it sits. This card used to state an
+     unacknowledged abnormal lab result in 11.5px body copy — and eighty pixels
+     below it, the number of pharmacies open right now was set at 76px in
+     brass. The loudest thing on a patient's home screen was a shop count; the
+     quietest was a result nobody had looked at. Whatever else the screen does,
+     the reading a clinician has not seen is the reading that gets the weight.
+
+     The value and its unit go through `measure()`: they were a `.num` span
+     with the unit dropped outside it, which is the split-cell defect the
+     record screen was already fixed for. */
   const urgent = [
-    ...brief.unacknowledgedAbnormal.map((x) => isAR()
-      ? `${esc(x.name)} <span class="num">${x.value}</span>${x.unit ? " " + esc(x.unit) : ""} — نتيجة غير طبيعية ما أقرّها أحد`
-      : `${esc(x.name)} <span class="num">${x.value}</span>${x.unit ? " " + esc(x.unit) : ""} — abnormal, not yet acknowledged`),
-    ...brief.overdue.map((t) => isAR()
-      ? `متابعة متأخّرة${t.about ? " — " + esc(t.about) : ""}`
-      : `Overdue follow-up${t.about ? " — " + esc(t.about) : ""}`),
+    ...brief.unacknowledgedAbnormal.map((x) => `<div class="rowb" style="align-items:flex-end">
+        <span>
+          <span class="d3">${esc(x.name)}</span>
+          <span class="t3" style="display:block;margin-top:2px">${isAR()
+            ? "نتيجة غير طبيعية ما أقرّها أحد" : "abnormal, not yet acknowledged"}</span>
+        </span>
+        <span class="nval">${x.value}${x.unit ? `<span class="u">${esc(x.unit)}</span>` : ""}</span>
+      </div>`),
+    ...brief.overdue.map((t) => `<div>
+        <span class="d3">${isAR() ? "متابعة متأخّرة" : "Overdue follow-up"}</span>
+        ${t.about ? `<span class="t3" style="display:block;margin-top:2px">${esc(t.about)}</span>` : ""}
+      </div>`),
   ].slice(0, 2);
 
   /* Names, not counts. "تتابعين السكري وضغط الدم" tells a person something;
@@ -92,8 +108,8 @@ function healthStatusCard() {
       <span class="lab">${isAR() ? "ملفي الصحي" : "My health"}</span>
       <span class="b-g" style="font-size:12px">${isAR() ? "الملف الكامل" : "Full record"}</span>
     </a>
-    ${urgent.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}<div class="stack-2">
-        ${urgent.map((x) => `<div>${x}</div>`).join("")}
+    ${urgent.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}<div class="stack-3" style="width:100%">
+        ${urgent.join("")}
       </div></div>`
     : `<div class="note" style="margin-top:10px">${icon("check")}<div class="rowb" style="width:100%;flex-wrap:wrap">
         <span>${condLine ? (isAR() ? `تتابعين ${condLine}` : `Managing ${condLine}`)
@@ -159,8 +175,15 @@ function screenHomePatient() {
     <button class="lab" style="margin-top:26px;display:flex;align-items:center;gap:7px;text-align:start;min-height:44px;width:auto"
       onclick="openLocation()">${icon("pin")}${esc(L(here()))} · <span class="num">${fmtT(nowMins())}</span></button>
 
-    <div class="nhuge" style="color:var(--brass-ink);margin-top:12px">${phOpen}</div>
-    <div class="d2" style="margin-top:6px;font-weight:500">${isAR() ? countAr(phOpen, AR_PHARM_OPEN) : phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}</div>
+    <!-- This was a 76px brass numeral with the same number repeated in the
+         sentence directly beneath it — "5" then "5 صيدليات مفتوحة الآن". Two
+         separate defects sharing one cause: the count had been given hero
+         treatment on a screen whose hero belongs to the patient's own health.
+         It reads as a sentence now, at the weight a directory fact deserves,
+         and the number appears once. -->
+    <div class="d2" style="margin-top:14px;font-weight:500">${isAR()
+      ? countAr(phOpen, AR_PHARM_OPEN)
+      : `<span class="num">${phOpen}</span> ${phOpen === 1 ? "pharmacy open now" : "pharmacies open now"}`}</div>
     <div class="q-sub" style="margin-top:6px">${night
       ? (isAR() ? `منها <span class="num">${night}</span> خفارة ليلية تعمل حتى الفجر.`
                 : `<span class="num">${night}</span> of them on night duty until dawn.`)
@@ -249,8 +272,10 @@ function screenHomePatient() {
            own footer was making the exact claim the rest of the product goes
            to lengths to avoid. verifiedCount() asks the provenance first. -->
       <span class="t3">${isAR()
-        ? `<span class="num">${verifiedCount(DOCTORS, "doctors")}</span> ${verifiedWord("doctors", false)} · <span class="num">${freshMeds}</span> دواء مؤكَّد · <span class="num">${DISTRICTS.length}</span> منطقة`
-        : `<span class="num">${verifiedCount(DOCTORS, "doctors")}</span> ${verifiedWord("doctors", false)} · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
+        ? `${verifiedTally(DOCTORS, "doctors", AR_DOC_V, "ما في طبيب موثَّق بعد")} · ${
+            countAr(freshMeds, ["دواء واحد مؤكَّد", "دواءان مؤكَّدان", "أدوية مؤكَّدة", "دواءً مؤكَّداً"])} · ${
+            countAr(DISTRICTS.length, ["منطقة واحدة", "منطقتان", "مناطق", "منطقةً"])}`
+        : `${verifiedTally(DOCTORS, "doctors", AR_DOC_V, "", "doctors")} · <span class="num">${freshMeds}</span> confirmed · <span class="num">${DISTRICTS.length}</span> areas`}</span>
       <span class="b-g" style="font-size:12px">${isAR() ? "كيف نتحقق" : "How we verify"}</span>
     </a>
     <div class="t3" style="margin-top:12px;opacity:.62">${isAR() ? "النسخة" : "Build"}
@@ -605,7 +630,7 @@ function screenStart() {
         `<span class="num">${freshMeds}</span> ${isAR() ? "دواء مؤكَّد" : "confirmed"}`, "bdg-stock", "rail-stock")}
       ${tile("#/pharmacies", isAR() ? "صيدلية مفتوحة" : "An open pharmacy",
         isAR() ? "المفتوح الآن والخفارة الليلية" : "Open now and night duty",
-        `<span class="num">${openPh}</span> ${isAR() ? "مفتوحة" : "open"}`, "bdg-t", "rail-open")}
+        `${isAR() ? countAr(openPh, AR_PHARM_OPEN_S) : `<span class="num">${openPh}</span> open`}`, "bdg-t", "rail-open")}
       ${tile("#/needs", isAR() ? "دكتور" : "A doctor",
         isAR() ? "مرتّب حسب أقرب موعد، لا أقرب مسافة" : "Ranked by soonest slot, not nearest address",
         `<span class="num">${verifiedDocs}</span> ${verifiedWord("doctors", false)}`, "bdg-v", "")}
@@ -726,7 +751,7 @@ function emptyDoctors(sp) {
       ${alt.map((x) => `<button class="lane" onclick="setDistrict('${x.d.id}')">
         <span class="ic">${icon("pin")}</span>
         <span class="grow" style="text-align:start"><h3>${esc(L(x.d))}</h3>
-          <p><span class="num">${x.n}</span> ${isAR() ? "طبيب" : "doctors"}</p></span>
+          <p>${isAR() ? countAr(x.n, AR_DOC) : `<span class="num">${x.n}</span> doctors`}</p></span>
         <span class="go">${icon("chev")}</span></button>`).join("")}
     </div>
     <button class="btn btn--2" style="margin-top:14px" onclick="S.filters={openNow:false,gender:null,spec:null};render()">
@@ -849,12 +874,12 @@ function screenDoctor(id) {
          doctor's profile. Escape the DATA, and let the one intentional span
          through; a blanket escape over a mixed list escapes the wrong half. */
       [esc(d.creds_ar?.join(" · ") || ""),
-       d.exp ? `<span class="num">${esc(String(d.exp))}</span> ${isAR() ? "سنة خبرة" : "years' experience"}` : "",
+       d.exp ? `${isAR() ? countAr(d.exp, AR_YEAR_EXP) : `<span class="num">${esc(String(d.exp))}</span> years' experience`}` : "",
        esc(gender || ""),
        d.langs?.length ? esc(d.langs.map((x) => ({ ar: isAR() ? "العربية" : "Arabic", en: isAR() ? "الإنجليزية" : "English", ku: isAR() ? "الكردية" : "Kurdish", tr: isAR() ? "التركية" : "Turkish" }[x])).filter(Boolean).join("، ")) : ""]
         .filter(Boolean).join(" · ")}</div>` : ""}
     <div class="rowb" style="margin-top:18px">
-      <span class="t3">${isAR() ? "حُدّث قبل" : "updated"} <span class="num">${d.updated}</span> ${isAR() ? "يوم" : "d ago"}</span>
+      <span class="t3">${isAR() ? `حُدّث قبل ${countAr(d.updated, AR_DAY)}` : `updated <span class="num">${d.updated}</span> d ago`}</span>
       <button class="b-g" style="font-size:12px" onclick="reportInfo()">${t("reportInfo")}</button>
     </div>
   </section>
@@ -924,7 +949,7 @@ function screenPharmacies() {
     <div class="map-peek" aria-hidden="true">
       ${list.slice(0, 7).map((x, i) => `<span class="pin" style="inset-inline-start:${12 + ((i * 37) % 76)}%;top:${18 + ((i * 29) % 60)}%"></span>`).join("")}
       <span class="pin me" style="inset-inline-start:48%;top:46%"></span>
-      <span class="lbl">${esc(L(here()))} · <span class="num">${list.length}</span> ${isAR() ? "صيدلية" : "pharmacies"}</span>
+      <span class="lbl">${esc(L(here()))} · ${isAR() ? countAr(list.length, AR_PHARM) : `<span class="num">${list.length}</span> pharmacies`}</span>
     </div>
   </section>
   <div class="res-head"><span class="res-n"><span class="num">${list.length}</span> ${t("results")}</span>
@@ -1272,8 +1297,8 @@ function hospitalRow(x) {
       <div class="grow"><div class="card-t">${esc(L(x.f))}</div>
         <div class="card-meta">${sealBadge(x.f, "pharmacies")}<i class="dot"></i>
           <span class="dist">${icon("pin")}${fmtKm(x.km)}</span><i class="dot"></i>
-          <span><span class="num">${n}</span> ${isAR() ? "طبيب" : "doctors"}</span></div></div>
-      ${x.f.er ? `<span class="chip chip--meta chip--warn">${isAR() ? "طوارئ ٢٤ ساعة" : "24h ER"}</span>` : ""}
+          <span>${isAR() ? countAr(n, AR_DOC) : `<span class="num">${n}</span> doctors`}</span></div></div>
+      ${x.f.er ? `<span class="chip chip--meta chip--warn">${isAR() ? `طوارئ <span class="num">24</span> ساعة` : "24h ER"}</span>` : ""}
     </div></a>`;
 }
 
@@ -1617,7 +1642,7 @@ function screenAdmin() {
           ${staleProfiles.map((e) => `<div class="ops-row">
             <span class="grow"><b>${esc(L(e))}</b>
               <span class="t3" style="display:block">${isAR() ? "ملف بلا تحديث" : "profile untouched"}</span></span>
-            <span class="st st-e"><span class="num">${e.updated}</span> ${isAR() ? "يوم" : "d"}</span>
+            <span class="st st-e">${isAR() ? countAr(e.updated, AR_DAY) : `<span class="num">${e.updated}</span> d`}</span>
           </div>`).join("")}`
           : `<div class="t3">${isAR() ? "لا شيء يتقادم حالياً." : "Nothing going stale."}</div>`)}
 
@@ -1696,7 +1721,7 @@ function openLocation() {
     return `<button class="place ${d.id === S.district ? "on" : ""}" onclick="setDistrict('${d.id}')">
       <h3>${esc(L(d))}</h3>
       <div class="m lm">${esc(lm)}</div>
-      <div class="m"><span class="num">${n}</span> ${isAR() ? "طبيب قريب" : "doctors near"}</div></button>`;
+      <div class="m">${isAR() ? countAr(n, AR_DOC_NEAR) : `<span class="num">${n}</span> doctors near`}</div></button>`;
   }).join("");
   sheet(`<div class="sheet-grip"></div>
     <div class="sheet-h"><div><h2>${t("pickArea")}</h2>
@@ -2172,7 +2197,7 @@ function emergencySelfCard() {
   if (!rows.length && !card.notRecorded.length) return "";
   return `<div class="note note-e" style="margin-top:16px">${icon("alert")}<div style="width:100%">
       <b>${esc(card.name || (isAR() ? "بطاقة الطوارئ" : "Emergency card"))}</b>
-      ${card.age != null ? `<span class="t3"> · <span class="num">${card.age}</span> ${isAR() ? "سنة" : "y"}</span>` : ""}
+      ${card.age != null ? `<span class="t3"> · ${isAR() ? countAr(card.age, AR_YEAR) : `<span class="num">${card.age}</span> y`}</span>` : ""}
       <div class="stack-2" style="margin-top:8px">${rows.join("")}</div>
       ${card.notRecorded.length ? `<div class="t3" style="margin-top:8px">${card.notRecorded.map(esc).join(" · ")}</div>` : ""}
     </div></div>`;
@@ -2324,6 +2349,21 @@ const AR_PHARM_OPEN = ["صيدلية وحدة مفتوحة الآن", "صيدل�
 const AR_PHARM_CONF = ["صيدلية وحدة مؤكِّدة", "صيدليتان مؤكِّدتان", "صيدليات مؤكِّدة", "صيدليةً مؤكِّدة"];
 const AR_REQ = ["طلب واحد", "طلبان", "طلبات", "طلباً"];
 const AR_DAY  = ["يوم واحد", "يومين", "أيام", "يوماً"];
+/* `countAr` existed and was used in twenty places, and sixteen OTHER places
+   still wrote `${n} طبيب` — so the same product said «طبيبان» on one screen and
+   «2 طبيب» on the next. The forms it needed and did not have are here, and
+   nothing counts a noun in Arabic without one of them. */
+const AR_DOC   = ["طبيب واحد", "طبيبان", "أطباء", "طبيباً"];
+const AR_DOC_V = ["طبيب واحد موثّق", "طبيبان موثّقان", "أطباء موثّقون", "طبيباً موثّقاً"];
+const AR_DOC_NEAR = ["طبيب واحد قريب", "طبيبان قريبان", "أطباء قريبون", "طبيباً قريباً"];
+const AR_PHARM = ["صيدلية واحدة", "صيدليتان", "صيدليات", "صيدليةً"];
+const AR_PHARM_OPEN_S = ["صيدلية واحدة مفتوحة", "صيدليتان مفتوحتان", "صيدليات مفتوحة", "صيدليةً مفتوحة"];
+const AR_YEAR  = ["سنة واحدة", "سنتان", "سنوات", "سنةً"];
+const AR_YEAR_EXP = ["سنة خبرة واحدة", "سنتا خبرة", "سنوات خبرة", "سنةَ خبرة"];
+const AR_REQ_WAIT = ["طلب واحد", "طلبان", "طلبات", "طلباً"];
+const AR_SEARCH = ["بحث واحد", "بحثان", "عمليات بحث", "بحثاً"];
+const AR_CONFIRMING = ["صيدلية واحدة مؤكِّدة", "صيدليتان مؤكِّدتان", "صيدليات مؤكِّدة", "صيدليةً مؤكِّدة"];
+const AR_LOST = ["طلب ضائع واحد", "طلبان ضائعان", "طلبات ضائعة", "طلباً ضائعاً"];
 
 function freshLabel(mins) {
   if (isAR()) {
@@ -2397,7 +2437,7 @@ function batchAsk(medId) {
           <div style="text-align:end"><div class="slip-ref mono" dir="ltr">#${ref}</div>
             <div class="tiny muted mono">${new Date().toLocaleDateString("en-GB")}</div></div>
         </div>
-        <div class="slip-to">${isAR() ? "إلى" : "To"}: <span class="num">${targets.length}</span> ${isAR() ? "صيدلية" : "pharmacies"}</div>
+        <div class="slip-to">${isAR() ? "إلى" : "To"}: ${isAR() ? countAr(targets.length, AR_PHARM) : `<span class="num">${targets.length}</span> pharmacies`}</div>
         <div class="bubble">${esc(medMsg(med, ref))}</div>
       </div>
       <div class="stack-2" style="margin-top:12px">
@@ -3161,7 +3201,7 @@ function screenExplorer() {
         <span class="rw-lead" style="background:var(--jade)"></span>
         <span class="grow">
           <span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(v.strength)}</span></span>
-          <span class="q-sub" style="display:block">${isAR() ? "متوفّر في" : "available in"} <b>${esc(cityName(other.c))}</b> — <span class="num">${other.n}</span> ${isAR() ? "صيدلية" : "pharmacies"}</span>
+          <span class="q-sub" style="display:block">${isAR() ? "متوفّر في" : "available in"} <b>${esc(cityName(other.c))}</b> — ${isAR() ? countAr(other.n, AR_PHARM) : `<span class="num">${other.n}</span> pharmacies`}</span>
           <span class="row" style="margin-top:9px"><span class="st st-t"><i class="dot"></i>${other.best ? sigAge(other.best.m) : ""}</span></span>
         </span></a>`;
     }).join('<div class="hr"></div>')}
@@ -3287,8 +3327,8 @@ function screenRxSearch() {
           <span class="d3" style="display:block">${esc(L(x.med))} <span class="n" style="font-weight:300">${esc(x.v.strength)}</span></span>
           <span class="q-sub" style="display:block">${esc(x.v.form)}</span>
           <span class="row" style="margin-top:9px;gap:12px">
-            <span class="t3"><span class="num">${tr.n}</span> ${isAR() ? "بحث" : "searches"}</span>
-            ${n ? `<span class="st st-v"><i class="dot"></i><span class="num">${n}</span> ${isAR() ? "مؤكِّدة" : "confirming"}</span>`
+            <span class="t3">${isAR() ? countAr(tr.n, AR_SEARCH) : `<span class="num">${tr.n}</span> searches`}</span>
+            ${n ? `<span class="st st-v"><i class="dot"></i>${isAR() ? countAr(n, AR_CONFIRMING) : `<span class="num">${n}</span> confirming`}</span>`
                 : `<span class="st st-q"><i class="dot"></i>${isAR() ? "لا تأكيد" : "none"}</span>`}
           </span>
         </span></a>`; }).join('<div class="hr"></div>')}
