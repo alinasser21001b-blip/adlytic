@@ -218,8 +218,17 @@ semantics, and the patient's ability to identify who opened the record.
 - A wrong actor, wrong patient, expired grant, local-storage edit, or
   self-asserted identity must fail closed and create a denied audit event at
   the trusted boundary.
-- Tier 1 must remain limited to the emergency dataset; full-record escalation
-  remains a separate, reasoned act.
+- Tier 1 must remain limited to the server's explicit
+  `EMERGENCY_COLLECTIONS` allow-list: `patient`, `allergies`, `medications`,
+  and `conditions`, exposed only through the `summary`, `allergies`,
+  `medications`, and `conditions` scopes. Every other collection and every
+  field outside the `CONSENT.emergencyCard(...)` response contract must be
+  denied. That contract is limited to name, age, sex, blood group, allergy
+  substance/reaction/criticality, critical-medication display/dose, major
+  conditions, clinical warnings, emergency contact, and explicit
+  not-recorded warnings. Raw collection records, identifiers, notes,
+  documents, and historical inactive entries must not be returned at tier 1.
+- Full-record escalation remains a separate, reasoned act.
 
 ### 6. Minimal acceptable remediation
 
@@ -235,6 +244,14 @@ Two layers are required:
 Until that server issuance flow exists, the emergency action must be disabled
 in production. A local `licenseStatus: "VERIFIED"` flag is not an acceptable
 substitute because the same origin can edit it.
+
+Disabling the action is containment only. It does not close P0-02 or satisfy
+the required emergency workflow.
+
+Before implementation review, the remediation team must identify the exact
+HTTP method/path, handler symbol, grant schema/store key, expiry source, and
+audit writer for issuance and revocation. “Authenticated server flow” without
+those concrete boundaries is not an acceptable submission.
 
 ### 7. What must NOT be changed
 
@@ -357,6 +374,10 @@ integrity, and patient-safety invariants.
 - Offline output from a previously verified, device-bound session may be
   retained as explicitly pending, but must remain distinguishable from
   server-accepted clinical data.
+- Replay acceptance must revalidate current credential expiry/revocation,
+  facility verification, patient/order/prescription binding, and payload
+  provenance at the server. Verification at offline capture time is not
+  sufficient.
 - A rejected assertion must never continue to appear as accepted. It must be
   quarantined with a visible failure requiring resolution; historical accepted
   events must not be rewritten.
@@ -370,10 +391,10 @@ integrity, and patient-safety invariants.
   provenance.
 - Block self-asserted facility submission before mutating `results`, `studies`,
   or `dispenses`.
-- Separate pending/rejected local assertions from accepted clinical
-  collections, or attach a mandatory trust state that every clinical consumer
-  checks and names explicitly. A server acknowledgement is the transition to
-  accepted.
+- Store pending and rejected assertions in a separate non-authoritative store
+  consumed only by reconciliation/status UI. Server acceptance performs the
+  sole atomic transition into authoritative `results`, `studies`, or
+  `dispenses` collections.
 - For offline operation, require a still-valid, previously verified
   device/session credential and preserve the pending state until replay is
   acknowledged.
@@ -408,11 +429,16 @@ dispense paths:
 - verified bound facility submits online → accepted once with trusted
   provenance;
 - verified bound facility submits offline → visible only as pending, then
-  transitions once on acknowledgement;
+  transitions once on acknowledgement after current server-side credential,
+  verification, and resource-binding revalidation;
+- credential revoked or verification expired after offline capture but before
+  replay → server rejects and the assertion remains quarantined;
 - server rejects a pending submission → it is quarantined and excluded from
   trends, alerts, summaries, timelines, and accepted counts;
-- payload claims a different facility/performer than the token → rejected or
-  server-normalised to the authenticated identity;
+- payload claims a different facility than the token → rejected and audited;
+- a typed human performer may be retained separately as explicitly unverified
+  metadata, but must never replace or be normalised into the authenticated
+  asserting facility principal;
 - replay of an accepted operation → idempotent, with no duplicate clinical
   event.
 
@@ -482,24 +508,44 @@ notification are different states and must not be conflated.
   obligation at the trusted server boundary.
 - The system tracks at least `queued`, `sent`, `delivered` where supported, and
   `failed/needs-attention`; it never describes one state as another.
+- `queued` means durably persisted by Qareeb; `sent` means accepted by the
+  external channel provider; `delivered` is allowed only when that channel
+  returns a terminal device/recipient delivery receipt. Provider acceptance,
+  an APNs response, or an HTTP 2xx is not delivery evidence.
 - UI and privacy language describe only the capability actually deployed.
 - Patient-facing content uses the minimum necessary information and does not
   expose clinical detail on a lock screen.
+- The lock-screen/SMS payload is limited to an opaque notification ID, locale,
+  and generic security-notification template code. Patient identity, actor
+  name, emergency reason, diagnosis, medicines, results, and other clinical
+  content are available only after authenticated in-app retrieval.
 - Notification failure does not erase the emergency access/audit event; it
   remains visible for retry and operational follow-up.
 
 ### 6. Minimal acceptable remediation
 
-Before production enablement, choose one safe path:
+Required P0 closure:
 
 1. Implement a durable server-side notification workflow with a configured
    delivery channel, idempotent retries, failure state, and evidence of
    delivery; update the UI to report the actual state.
-2. Disable effective break-glass in production until that workflow exists.
+
+Until closure:
+
+2. Disable effective break-glass in production while that workflow does not
+   exist.
 
 In either path, remove every false present/past-tense delivery claim. Merely
 changing the toast to “will be notified” while no durable delivery path exists
 does not close this P0.
+
+Path 2 is temporary containment only. It does not close P0-04 or authorise a
+clinical release where emergency access is a required product capability.
+
+Before Path 1 implementation review, the remediation team must identify the
+exact producer function, durable store/schema, worker/adapter, delivery-status
+or receipt endpoint, patient-history consumer, files, and symbols. A generic
+“notification service” claim is not an implementation boundary.
 
 ### 7. What must NOT be changed
 
@@ -515,20 +561,31 @@ does not close this P0.
 
 ### 8. Regression test that must exist after remediation
 
-Tests must prove:
+Path 1 tests must prove:
 
 - emergency grant creates exactly one durable notification obligation for the
   same patient and grant;
 - retry/replay does not send duplicates;
-- no configured channel → no claim of sent/delivered and, if that is the
-  release policy, emergency action is disabled;
+- no configured channel → no claim of sent/delivered;
 - queue accepted but no receipt → UI says queued/pending, not delivered;
+- provider acceptance without a terminal delivery receipt → at most `sent`;
 - adapter failure → retained failed state and operational visibility;
 - successful sandbox delivery → UI may show only the state supported by the
   returned receipt;
 - notification payload contains no unnecessary PHI;
 - Arabic/English no-access text, confirmation text, toast, privacy page, and
   patient alert all agree with deployed behaviour.
+
+Path 2 containment tests must prove:
+
+- the UI cannot invoke break-glass;
+- direct API issuance is denied;
+- no success or notification-delivery claim appears;
+- the enablement decision is enforced by server deployment configuration under
+  the release gate, not a mutable client/local flag;
+- when disabled, no client flag or direct request can re-enable issuance;
+- a temporary adapter outage after safe deployment leaves obligations durably
+  queued rather than relabelling them or erasing emergency access/audit.
 
 ### 9. How the Guardian will independently verify the fix
 
@@ -604,8 +661,12 @@ entire record.
 
 ### 5. Expected safe behaviour
 
-- Sensitive routes start locked and disclose no patient identity or clinical
-  data until successful local patient verification.
+- Patient clinical routes start locked and disclose no patient identity or
+  clinical data until successful local patient verification.
+- Patient routes require patient/device unlock. Clinician and facility routes
+  require a separately authenticated, eligible professional principal plus
+  patient/resource authorization. Patient unlock must never confer
+  professional capabilities.
 - Clinical data is encrypted at rest with authenticated encryption.
 - The decryption key is not stored beside the ciphertext in localStorage,
   sessionStorage, source code, or another trivially readable value.
@@ -623,7 +684,9 @@ entire record.
 
 This requires a security design, not only a route guard:
 
-- add a patient authentication/unlock bootstrap before any sensitive route;
+- add patient authentication/unlock before patient clinical routes;
+- require separately authenticated professional principals and existing
+  patient/resource authorization before clinician or facility routes;
 - replace plaintext record persistence with authenticated encryption and
   platform-appropriate secure key storage;
 - add a rollback-safe migration that verifies encrypted round-trip integrity
@@ -637,6 +700,15 @@ equivalent device-bound design and state its limitations. A PIN-derived key
 without a memory-hard KDF, attempt controls, and recovery design is not
 acceptable. If secure storage cannot be delivered, clinical-record routes must
 remain disabled in production.
+
+Route disablement is temporary containment only. It does not close P0-05,
+satisfy the offline/local-first requirement, or authorise clinical release.
+
+Before implementation approval, the security design must provide testable
+values for the AEAD algorithm/key length/nonce/AAD rules; KDF and work factors
+if a human secret is involved; key wrapping/storage and exportability;
+failed-attempt threshold/window; exact session and background relock
+conditions; recovery/revocation; and migration rollback.
 
 ### 7. What must NOT be changed
 
@@ -661,11 +733,16 @@ Security and browser tests must cover:
   links → locked; no seeded patient marker appears in DOM/accessibility tree;
 - localStorage/IndexedDB/cache inspection → no plaintext patient marker,
   medicine, allergy, result, or document content;
-- encryption key/unlock secret is absent from web-readable storage;
+- no raw/exportable key or equivalent unlock secret exists in web-readable
+  storage; any persisted non-exportable key handle is unusable while locked;
 - correct patient unlock → exact record restored, including all historical
   links and hashes/counts;
 - wrong credential or wrong patient/device key → no decryption and rate
   limiting/lockout;
+- patient unlock alone → cannot enter clinician/facility routes or acquire
+  professional write/read capability;
+- professional principal → remains limited to the authorised patient,
+  order/prescription, facility, scope, and role;
 - offline authorised unlock → works under the approved device-bound policy;
 - background/session expiry/logout → relocks and clears decrypted state;
 - interrupted migration → recoverable without duplicate/lost events;
@@ -757,17 +834,29 @@ not a release control when every deployment path can omit it.
 - Placeholder/malformed contacts, synthetic provenance, contradictory
   provenance, unsupported verification claims, and stale/unverified emergency
   configuration are release blockers.
+- Verification evidence identifies the authority/source, subject identifier,
+  verifier, `verifiedAt`, `expiresAt` or `reverifyBy`, and an evidence
+  hash/reference. A date or free-text licence value alone is not evidence.
+- Staleness is determined by a named and tested maximum verification interval,
+  not an operator's judgement at deployment time.
 - Every Qareeb deployment path runs the same fail-closed preflight.
 - A Qareeb CI required check runs on relevant `hub/**` and workflow/config
   changes, and deployment depends on that check.
 
 ### 6. Minimal acceptable remediation
 
-- Add a Qareeb workflow that installs in `hub/`, runs the complete Hub tests,
-  and runs `npm run preflight -- --release`.
+- Add `.github/workflows/qareeb-release.yml`. It must install in `hub/`, run
+  the complete Hub tests, and run `npm run preflight -- --release`.
 - Make the Qareeb deployment job depend on that successful gate.
 - Invoke the release preflight from the actual Netlify build path as defence
   against deployment outside GitHub Actions.
+- Production, manual/UI/API, retry/rebuild, and every other
+  production-capable Netlify path must execute the same fail-closed gate.
+  Direct production uploads that bypass the build command must be prohibited
+  by deployment permissions/policy.
+- Preview/demo deployments must use a separate site/environment, domain,
+  credentials, and data store; must have `DATA_PROVENANCE.real === false`; and
+  must have no production alias or ability to write production data.
 - Promote unsupported `verified: true` records without verification evidence
   from a note to a release blocker.
 - Replace/exclude synthetic and placeholder release data through the approved
@@ -808,11 +897,14 @@ independent condition:
 They must also include one fully valid fixture that exits zero. CI/deployment
 tests or policy evidence must prove:
 
-- a `hub/**` change triggers the Qareeb gate;
+- a `hub/**`, `hub/netlify.toml`, `hub/package*.json`, or
+  `.github/workflows/qareeb-release.yml` change triggers the Qareeb gate;
 - failed preflight prevents the deployment job;
 - the Netlify build command also fails on the unsafe fixture/current unsafe
   data;
-- skipping or masking the command is not treated as success.
+- skipping or masking the command is not treated as success;
+- a synthetic preview cannot receive a production domain/alias, credential, or
+  data-store binding, and cannot write production data.
 
 ### 9. How the Guardian will independently verify the fix
 
