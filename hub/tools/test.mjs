@@ -179,6 +179,23 @@ it("a verified pharmacy may NOT answer for another branch", () => {
   eq(r.reason, "WRONG_BRANCH");
 });
 
+it("a self-asserted prototype session may answer, but is never called verified", () => {
+  /* The on-device path cannot reach a server to check a licence, so it must
+     not be able to write the same word the server writes. It answers — the
+     prototype has to work — but the status is distinguishable, which is what
+     lets every screen label the claim honestly. */
+  const selfAsserted = { role: "VERIFIED_PHARMACIST", pharmacyId: "b1", licenseStatus: "SELF_ASSERTED" };
+  ok(QD.canAnswer(selfAsserted, "b1").ok, "must still be able to answer");
+  ok(QD.isSelfAsserted(selfAsserted), "must be identifiable as self-asserted");
+  no(QD.isSelfAsserted(verified), "a server-verified session is not self-asserted");
+  eq(QD.ANSWERABLE.indexOf("UNKNOWN"), -1, "UNKNOWN must never be answerable");
+});
+
+it("a self-asserted session is still bound to its branch", () => {
+  const selfAsserted = { role: "VERIFIED_PHARMACIST", pharmacyId: "b1", licenseStatus: "SELF_ASSERTED" };
+  eq(QD.canAnswer(selfAsserted, "b9").reason, "WRONG_BRANCH");
+});
+
 it("staff may claim stock but may not open a prescription", () => {
   const staff = { role: "PHARMACY_STAFF", pharmacyId: "b1", licenseStatus: "VERIFIED" };
   ok(QD.canAnswer(staff, "b1").ok, "staff can answer");
@@ -296,9 +313,19 @@ it("real numbers alone do not clear the list — the other blockers stand", () =
   ok(b.some((x) => x.id === "AUDIT_CLIENT_SIDE"));
 });
 
+it("a missing data plane is the blocker that outranks the rest", () => {
+  /* The one every earlier list forgot. Without it the product's core loop
+     cannot happen at all, so it must be reported even when everything else
+     is green. */
+  const b = QD.launchBlockers([{ phone: "9647801234567" }],
+    { pharmacyAuthBackend: true, auditServerSide: true, realData: true });
+  ok(b.some((x) => x.id === "NO_DATA_PLANE"), "must report the missing data plane");
+  eq(b.length, 1, "and it should be the only thing left");
+});
+
 it("a fully resolved deployment reports nothing", () => {
   eq(QD.launchBlockers([{ phone: "9647801234567" }],
-    { pharmacyAuthBackend: true, auditServerSide: true, realData: true }), []);
+    { dataPlane: true, pharmacyAuthBackend: true, auditServerSide: true, realData: true }), []);
 });
 
 /* ---------------------------------------------------------------- */

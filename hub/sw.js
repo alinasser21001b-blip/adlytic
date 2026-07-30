@@ -24,12 +24,15 @@
    The version below is stamped by tools/stamp.mjs, not typed by hand — see
    that file for why.
    ================================================================== */
-const V = "qareeb-20260728-1853";
+const V = "qareeb-20260729-1308";
 const SHELL = [
   "./", "./index.html",
   "./css/qareeb.css", "./src/styles/identity.css",
-  "./js/domain.js", "./js/data.js", "./js/app.js",
-  "./favicon.svg",
+  "./js/domain.js", "./js/emr.js", "./js/record.js", "./js/consent.js",
+  "./js/network.js", "./js/sync.js", "./js/assist.js", "./js/transport.js",
+  "./js/data.js", "./js/ui-core.js", "./js/ui-discovery.js", "./js/ui-backend.js",
+  "./js/ui-needs.js", "./js/app.js", "./js/ui-record.js", "./js/ui-network.js",
+  "./favicon.svg", "./manifest.webmanifest", "./privacy.html",
 ];
 /* Long enough that a slow-but-alive Baghdad connection still delivers the
    real thing; short enough that a dead one never holds the screen hostage. */

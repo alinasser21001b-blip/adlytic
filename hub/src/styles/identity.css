@@ -43,6 +43,41 @@
   --r:10px; --rp:999px;
   /* elevation philosophy: 0 on the working surface. 1 step for sheets. */
   --float:0 24px 60px -12px rgba(11,20,18,.42), 0 2px 6px rgba(11,20,18,.10);
+
+  /* ---- FIVE TOKENS THE APP REFERENCES AND NOBODY DEFINED ----
+     Found by checking every var() in js/*.js against every declaration here.
+     An undefined custom property does not fall back — the declaration is
+     simply invalid at computed-value time, so the property either inherits
+     or reverts to its initial value. Silently. Measured consequences:
+
+     --nav-h   js/app.js toast(): `bottom: calc(var(--nav-h) + 16px)` was
+               invalid, so bottom fell to `auto` and the toast rendered at
+               y=1600 in an 844px viewport. Off-screen.
+     --sand    the same rule's `color: var(--sand)` was invalid, so colour
+               INHERITED — landing on var(--ink), which is also the toast's
+               own background. Measured: text rgb(242,239,232) on background
+               rgb(242,239,232). Identical.
+
+     Together: every confirmation in the product — every "حُفظ", every
+     "نُسخ الرابط", every save and every error — has been invisible and in the
+     wrong place. Twelve call sites. Nobody has ever seen one.
+
+     --petrol / --amber-b  BRAND_MARK's two fills. Invalid `fill` falls back
+               to black, so the logo is a black square on a near-black case.
+     --coral   the emergency sheet's heading and the unfilled-needs count.
+               Invalid colour inherits, so the one heading that must read as
+               alarm reads as body text.
+
+     Each is defined here as an ALIAS of the token that already carries that
+     meaning, so there is one source of truth per colour and the dark mode
+     flip keeps working by itself. `--sand` resolves to --dial-2, which .dark
+     redefines to the case — so light-on-dark and dark-on-light both come out
+     right with no second rule. */
+  --nav-h:66px;
+  --sand:var(--dial-2);
+  --petrol:var(--jade);
+  --amber-b:var(--brass);
+  --coral:var(--alarm);
 }
 .i{width:390px;background:var(--dial);color:var(--ink);direction:rtl;text-align:right;
    font:300 15px/1.85 var(--disp);border-radius:26px;overflow:hidden;
@@ -55,6 +90,19 @@
   --ink:var(--case-ink); --ink-2:var(--case-ink-2);
   --ink-3:var(--case-ink-3); --ink-4:rgba(242,239,232,.34);
   --jade:var(--jade-lit); --brass-ink:var(--brass-lit); --alarm:var(--alarm-lit);
+  /* The three aliases that point at tokens .dark redefines must be redeclared
+     HERE, not just in :root.
+
+     A var() inside a custom-property declaration is substituted where the
+     property is DECLARED, not where it is used. `--sand: var(--dial-2)` on
+     :root resolves against :root's --dial-2 and then inherits down as an
+     already-substituted colour — and `.dark` is on <body>, one level below
+     :root. So the toast came out light-on-light: background var(--ink) had
+     flipped to the case ink, and --sand had not.
+     Measured before: text #FBF9F5 on background #F2EFE8, a ratio of 1.05. */
+  --sand:var(--case-2);
+  --petrol:var(--jade-lit);
+  --coral:var(--alarm-lit);
 }
 .i.dark{background:var(--case);color:var(--case-ink);border-color:var(--case-line)}
 .i.ltr{direction:ltr;text-align:left}

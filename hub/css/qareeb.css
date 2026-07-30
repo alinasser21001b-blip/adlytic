@@ -299,6 +299,8 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   font: 400 12px/1 var(--disp); color: var(--ink-3); position: relative;
 }
 .nav a svg { width: 20px; height: 20px; }
+.nav a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+@media (max-width: 374px) { .nav a, .nv > span { font-size: 10.5px; gap: 3px; } }
 .nav a.on, .nv > span.on { color: var(--ink); font-weight: 600; }
 .nav a.on::before, .nv > span.on::before {
   content: ""; position: absolute; top: -1px; inset-inline: 32%; height: 2px; background: var(--ink);
@@ -356,6 +358,74 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 }
 .field textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; }
 .field input::placeholder, .field textarea::placeholder { color: var(--ink-4); }
+
+/* DIRECTIONAL ICONS. js/ui-core.js marks `back` and `chev` with `.dirflip`
+   because their meaning is "the way you came" / "onward", and in Arabic that
+   is the opposite side of the screen. The class was emitted on every one of
+   them and had no rule anywhere, so in an RTL app the back chevron pointed
+   left — away from the corner it sits in. Visible in nine of twelve screens.
+
+   scaleX on the glyph rather than a second icon path: one sprite, one source
+   of truth, and it stays correct if the app is ever read in English. */
+[dir="rtl"] .dirflip { transform: scaleX(-1); }
+
+/* SHEET MOTION. `sheet()` adds `.in` on the next animation frame and
+   `closeSheet()` waits 260ms before removing the node — a choreography with
+   nothing to choreograph, because neither `.sheet.in` nor `.scrim.in` had a
+   rule. The sheet appeared and vanished instantly, and the 260ms was dead
+   time the user waited through. */
+.sheet { transform: translateY(100%); transition: transform 220ms cubic-bezier(.2,.7,.3,1); }
+.sheet.in { transform: none; }
+.scrim { opacity: 0; transition: opacity 220ms ease; }
+.scrim.in { opacity: 1; }
+/* A sheet taller than the screen must scroll its own body, not the page
+   behind it. `.sheet-b` is used eighteen times and had no rule. */
+.sheet-b { max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .scrim { transition: none; }
+}
+
+/* .fld — the same control, written as <label class="fld"><span>…</span><input>.
+   The record and network screens use this shape because the label belongs to
+   the input semantically and a wrapping <label> gets that for free.
+
+   It had NO rules at all for its first release. The global reset strips
+   borders and backgrounds from inputs, so every field on those screens was an
+   invisible 44px strip with its label sitting BESIDE it on one crushed line —
+   the whole registration form was unusable and the text-content probes all
+   passed, because they read innerText and innerText does not care whether you
+   can see anything. A form is one of the few things a screenshot catches and
+   an assertion does not. */
+.fld { display: block; margin-top: var(--u4); }
+.fld > span {
+  display: block; margin-bottom: 7px;
+  font: 500 10.5px/1.5 var(--disp); letter-spacing: .2em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+.fld input, .fld textarea, .fld select {
+  display: block; width: 100%; min-height: 52px; padding: 0 var(--u4);
+  border: 1px solid var(--dial-line); border-radius: var(--rp);
+  background: var(--dial-2); font: 300 15px/1.6 var(--disp);
+  color: var(--ink);
+}
+.fld textarea { padding: var(--u3) var(--u4); line-height: 1.8; resize: vertical; min-height: 96px; }
+.fld select { padding-inline-end: var(--u5); appearance: none; }
+.fld input::placeholder, .fld textarea::placeholder { color: var(--ink-4); }
+.fld input:focus, .fld textarea:focus, .fld select:focus {
+  outline: none; border-color: var(--jade);
+}
+/* A date input renders its own controls; on a 390px RTL screen the default
+   inline layout pushes the picker glyph off the field. */
+.fld input[type="date"] { padding-block: 0; line-height: 52px; }
+
+/* A checkbox row: the box keeps its native size, and the label is the whole
+   row so a thumb hits it rather than a 16px square. */
+.fld input[type="checkbox"],
+label.row > input[type="checkbox"] {
+  display: inline-block; width: 22px; height: 22px; min-height: 22px;
+  padding: 0; accent-color: var(--jade); flex: none;
+}
+label.row { min-height: 44px; cursor: pointer; }
 
 .search-field {
   display: flex; align-items: center; gap: var(--u2);
