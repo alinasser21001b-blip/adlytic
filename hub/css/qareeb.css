@@ -1293,3 +1293,144 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
 :root:lang(ar) :is(h2, .d2, .hero-line) { line-height: 1.45; }
 :root:lang(ar) :is(.chip, .c, .btn, .b, .b-g, .b-s, .nav a, .av, .mark,
   .qa-b, .slot-btn, .icon-btn, .seal, .st) { line-height: 1.5; }
+
+/* ---------- 33 · THE CARE THREAD ----------
+   The redesign's one new component, and the argument for it is structural
+   rather than visual: a CONTINUOUS RAIL says "these events belong to each
+   other", where a card says "this is a separate thing". The record's problem was
+   never that its cards were ugly — it was that twelve sibling cards asserted
+   twelve unrelated things about one person.
+
+   Weight is `significance`, which the domain has always computed and no screen
+   had ever read: encounter 1, medicine 2, diagnosis/result/imaging 3, major
+   operation 4. So the dot size and the type weight below are not styling
+   choices — a bigger dot means the event mattered more, and a reader can follow
+   the trajectory of a problem without opening a single event.
+
+   Logical properties throughout: the rail sits on the inline START edge, which
+   is the right edge in Arabic, and mirrors with no extra rules. */
+.th {
+  display: block; position: relative;
+  padding: var(--u4) 0;
+  border-block-end: 1px solid var(--dial-line-2);
+}
+.th:last-child { border-block-end: 0; }
+.th-h { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--u3); }
+.th-title { font: 500 19px/1.4 var(--disp); letter-spacing: -.01em; }
+.th-sub { margin-top: 2px; }
+.th.is-done .th-title { color: var(--ink-2); }
+
+/* Where this problem stands right now — one line, above the story. */
+.th-stand { display: inline-block; margin-top: var(--u3); }
+.th-stand-big { font: 400 17px/1.55 var(--disp); margin-top: var(--u3); }
+.th-stand-big.is-alarm { color: var(--alarm); }
+.th-head { padding-block-end: var(--u4); border-block-end: 1px solid var(--dial-line-2); }
+
+/* THE RAIL. One line, drawn once, behind every dot. */
+.th-rail {
+  position: relative; margin: var(--u4) 0 0; padding: 0;
+  padding-inline-start: var(--u5);
+}
+/* The line is the component's whole argument — "these events belong to one
+   problem" — so it is drawn at the control-boundary weight, not the decorative
+   hairline weight. At `--dial-line` (1.4:1 in dark) the dots read as scattered
+   and the connection was invisible, which is the one thing this must not be. */
+.th-rail::before {
+  content: ""; position: absolute; inset-block: 6px 6px;
+  inset-inline-start: 4px; width: 1.5px; background: var(--line-ctl); opacity: .5;
+}
+.th-e { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px var(--u3); }
+.th-e + .th-e { margin-top: var(--u4); }
+.th-dot {
+  position: absolute; inset-inline-start: calc(var(--u5) * -1 + 1px); top: 5px;
+  width: 7px; height: 7px; border-radius: var(--rp);
+  background: var(--dial); border: 1px solid var(--ink-3);
+}
+.th-when { grid-column: 2; grid-row: 1; align-self: baseline; }
+.th-what { grid-column: 1; grid-row: 1; min-inline-size: 0; }
+.th-t { display: block; font: 400 15px/1.5 var(--disp); }
+.th-kind { display: block; margin-top: 1px; }
+.th-more { margin-top: var(--u3); padding-inline-start: var(--u5); }
+
+/* The four significance steps. This is the hierarchy the timeline was missing:
+   a routine visit should recede and a major operation should not. */
+.th-e.s1 .th-t { font-weight: 400; color: var(--ink-2); font-size: 14px; }
+.th-e.s1 .th-dot { width: 5px; height: 5px; inset-inline-start: calc(var(--u5) * -1 + 2px); opacity: .8; }
+.th-e.s2 .th-t { font-weight: 400; }
+.th-e.s3 .th-t { font-weight: 500; }
+.th-e.s3 .th-dot { background: var(--ink-3); border-color: var(--ink-3); }
+.th-e.s4 .th-t { font: 500 17px/1.45 var(--disp); }
+.th-e.s4 .th-dot {
+  width: 11px; height: 11px; inset-inline-start: calc(var(--u5) * -1 - 1px); top: 4px;
+  background: var(--brass); border-color: var(--brass);
+}
+/* Abnormal is the one state allowed to recolour a dot, and it also changes its
+   shape — never colour alone. */
+.th-e.is-flag .th-dot { background: var(--alarm); border-color: var(--alarm); }
+.th-e.is-flag .th-dot::after {
+  content: ""; position: absolute; inset: -4px; border-radius: var(--rp);
+  border: 1px solid var(--alarm); opacity: .45;
+}
+.dark .th-e.is-flag .th-dot,
+.dark .th-e.is-flag .th-dot::after { background: var(--alarm-lit); border-color: var(--alarm-lit); }
+.dark .th-e.s4 .th-dot { background: var(--brass-lit); border-color: var(--brass-lit); }
+.dark .th-dot { background: var(--case); }
+
+/* At 430 the date column gets its own gutter instead of the row stretching. */
+@media (min-width: 412px) {
+  .th-e { grid-template-columns: 1fr 92px; }
+  .th-when { text-align: end; }
+}
+
+/* ---------- 34 · CUSTODY — who holds this record right now ----------
+   `activeShares` and the outstanding carry code were computed on the record
+   screen and buried nine rows down among category counts. For a product whose
+   central promise is that the patient owns and lends their record, "who can see
+   it right now" is a live state, not an archive entry — so it sits on home,
+   directly under what is on fire.
+
+   A row, not a card: it is a fact about now, and it links to the control. */
+.custody { margin-top: var(--u4); border-block: 1px solid var(--dial-line-2); }
+.custody-r {
+  display: flex; align-items: center; gap: var(--u3);
+  padding: var(--u3) 0; min-height: 44px;
+}
+.custody-r + .custody-r { border-block-start: 1px solid var(--dial-line-2); }
+.custody-r svg { width: 16px; height: 16px; color: var(--ink-3); flex: none; }
+/* Live = jade and steady. Waiting = brass, the product's colour for time. */
+.custody-dot {
+  width: 8px; height: 8px; border-radius: var(--rp); flex: none;
+  background: var(--jade); box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 18%, transparent);
+}
+.custody-dot.is-wait { background: var(--brass); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass) 18%, transparent); }
+
+/* The thread list on home and on the record index. */
+.threads > .th:first-child { padding-block-start: var(--u2); }
+
+/* ---------- 35 · SEGMENTS — filters that used to be destinations ----------
+   Doctors and pharmacies each owned a tab while answering the same question, and
+   the medicine network answered it too with no tab at all. As segments they read
+   as what they are: four ways to filter one list of "who near me can help".
+
+   A rule under the active segment rather than a filled pill — the bar is a
+   position on a set, not four competing buttons, and an underline is the only
+   affordance that says "you are here in a sequence". */
+.segs {
+  display: flex; gap: 0; overflow-x: auto; scrollbar-width: none;
+  border-block-end: 1px solid var(--dial-line-2);
+  padding-inline: var(--u5);
+}
+.segs::-webkit-scrollbar { display: none; }
+.seg {
+  flex: 0 0 auto; position: relative;
+  padding: var(--u3) var(--u4); min-height: 44px;
+  display: inline-flex; align-items: center;
+  font: 400 14.5px/1.5 var(--disp); color: var(--ink-3);
+  white-space: nowrap;
+}
+.seg.on { color: var(--ink); font-weight: 500; }
+.seg.on::after {
+  content: ""; position: absolute; inset-inline: var(--u3); bottom: -1px;
+  height: 2px; background: var(--jade); border-radius: var(--rp);
+}
+.seg:first-child { padding-inline-start: 0; }

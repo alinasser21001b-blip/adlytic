@@ -96,7 +96,10 @@ function route() {
     case "pharmacy": return screenPharmacy(p[1]);
     case "hospitals": return screenHospitals();
     case "hospital": return screenHospital(p[1]);
-    case "care": return screenCare(p[1]);
+    /* Bare `#/care` is the destination; the default segment is the doctors
+       list, which is what the tab has always opened. `#/care/:cat` keeps the
+       product categories. */
+    case "care": return p[1] ? screenCare(p[1]) : screenDoctors(params);
     case "product": return screenProduct(p[1]);
     case "start": return screenStart();
     case "explorer": return screenExplorer();

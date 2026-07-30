@@ -1000,11 +1000,23 @@ function header(opts = {}) {
    pharmacies tab is for, and `#/med/:id` already passed `nav("pharmacies")`
    for exactly that reason. A test now fails if a call site passes a key this
    function cannot light. */
-const NAV_ALIAS = { explorer: "pharmacies", care: "pharmacies" };
+/* FOUR TABS, NOT FIVE — and the fifth was a duplicate, not a feature.
+   `الأطباء` and `الصيدليات` were the same destination twice: both are lists of
+   facilities near you, sorted by distance and opening hours, differing only in
+   which entity type is filtered — which is the definition of a filter, not a
+   destination. `#/needs` was a third doorway to the same job. Meanwhile the
+   medicine-availability network, the product's other differentiator, had no tab
+   at all and eleven screens were passing a nav key this bar could not light.
+
+   So the two collapse into one CARE destination with a segmented control, which
+   REMOVES a duplicate rather than adding anything, and gives the medicine
+   network a real home. Every route stays reachable — the doorway changed, not
+   the rooms. The Account tab stays exactly where the Apple track put it. */
+const NAV_ALIAS = { explorer: "care", pharmacies: "care", doctors: "care" };
 function nav(active) {
   active = NAV_ALIAS[active] || active;
   const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
-    ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"],
+    ["#/care", "stetho", "care"],
     /* The settings tab belongs to the Apple track — App Store compliance needs
        privacy, data export and account deletion reachable without a hunt. Kept
        as that developer placed it; not redesigned here. */

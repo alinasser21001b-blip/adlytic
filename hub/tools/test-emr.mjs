@@ -819,3 +819,79 @@ if (fails.length) {
   process.exit(1);
 }
 console.log(`${pass} passed, 0 failed`);
+
+/* ==================== CARE THREADS ==================== */
+describe("حلقات الرعاية — care threads");
+
+const TP = {
+  conditions: [
+    { id: "C1", display: "داء السكري", clinicalStatus: "active", chronic: true, onsetDate: "2025-02-09" },
+    { id: "C2", display: "ارتفاع ضغط", clinicalStatus: "active", chronic: true, onsetDate: "2024-05-01" },
+    { id: "C3", display: "مشكلة منتهية", clinicalStatus: "resolved", onsetDate: "2020-01-01" },
+  ],
+  medications: [
+    { id: "M1", display: "ميتفورمين", status: "active", startDate: "2025-02-09", indicationId: "C1" },
+    { id: "M2", display: "أملوديبين", status: "active", startDate: "2024-05-01", indicationId: "C2" },
+    { id: "M3", display: "أسبرين", status: "active", startDate: "2024-06-01" },
+  ],
+  results: [
+    { id: "R1", conditionId: "C1", code: "4548-4", display: "الخضاب السكري", value: 8.4, unit: "%",
+      refLow: 4, refHigh: 5.6, effectiveAt: "2026-07-01" },
+    /* Abnormal (so `buildTimeline` carries it — the timeline deliberately holds
+       only abnormal results, since a stream of normal ones is noise) but linked
+       to NO problem, which is the case this test exists for. */
+    { id: "R2", code: "718-7", display: "الهيموغلوبين", value: 11.2, unit: "g/dL",
+      refLow: 12, refHigh: 16, effectiveAt: "2026-07-01" },
+  ],
+  procedures: [{ id: "P1", display: "استئصال المرارة", performedAt: "2024-11-14", major: true }],
+  encounters: [], episodes: [], documents: [], immunizations: [], vitals: [],
+};
+
+it("a thread is built per ACTIVE problem, and a resolved one produces none", () => {
+  const { threads } = E.careThreads(TP, { now: NOW });
+  const ids = threads.map((t) => t.id);
+  ok(ids.includes("cond:C1"), "the diabetes thread must exist");
+  ok(ids.includes("cond:C2"), "the hypertension thread must exist");
+  no(ids.includes("cond:C3"), "a resolved problem is not an open thread");
+});
+
+it("an event joins a thread only through a link that EXISTS", () => {
+  const { threads, unattached } = E.careThreads(TP, { now: NOW });
+  const c1 = threads.find((t) => t.id === "cond:C1");
+  ok(c1.events.some((e) => e.title === "الخضاب السكري"), "a result linked by conditionId joins its problem");
+  no(c1.events.some((e) => e.title === "الهيموغلوبين"),
+    "an UNLINKED result must never be attributed to a problem — inferring that from a code is a clinical judgement");
+  no(c1.events.some((e) => e.title === "أسبرين"), "a medicine with no indication belongs to no thread");
+  ok(unattached.some((e) => e.title === "الهيموغلوبين"), "and it stays visible in the unattached stream");
+  ok(unattached.some((e) => e.title === "استئصال المرارة"), "as does an unlinked operation");
+});
+
+it("an explicit episode outranks a derived one and owns its events exclusively", () => {
+  const p = { ...TP, episodes: [{ id: "EP1", title: "حلقة المرارة", status: "ACTIVE", startedAt: "2024-11-01" }],
+    procedures: [{ id: "P1", display: "استئصال المرارة", performedAt: "2024-11-14", major: true, episodeId: "EP1" }] };
+  const { threads } = E.careThreads(p, { now: NOW });
+  const ep = threads.find((t) => t.id === "ep:EP1");
+  ok(ep, "an authored episode must produce a thread");
+  eq(ep.events.length, 1);
+  eq(ep.peak, 4, "a major operation is the top significance step");
+  for (const t of threads.filter((x) => x.id !== "ep:EP1"))
+    no(t.events.some((e) => e.episodeId === "EP1"), "no other thread may claim an episode's events");
+});
+
+it("threads sort by what matters, and each carries its own trajectory bounds", () => {
+  const { threads } = E.careThreads(TP, { now: NOW });
+  for (let i = 1; i < threads.length; i++)
+    ok(threads[i - 1].peak >= threads[i].peak, "higher significance first");
+  const c1 = threads.find((t) => t.id === "cond:C1");
+  eq(c1.events[0].at < c1.events[c1.events.length - 1].at, true, "events run oldest to newest");
+  ok(c1.lastAt >= c1.events[0].at, "lastAt is the newest event");
+});
+
+it("a record with no problems and no episodes yields no threads and loses nothing", () => {
+  const bare = { conditions: [], medications: [], results: [], procedures: [],
+    encounters: [{ id: "E9", startedAt: "2026-01-01", assessment: "فحص" }],
+    episodes: [], documents: [], immunizations: [], vitals: [] };
+  const { threads, unattached } = E.careThreads(bare, { now: NOW });
+  eq(threads.length, 0, "no invented thread");
+  eq(unattached.length, 1, "and the event is still there");
+});

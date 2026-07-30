@@ -1150,11 +1150,18 @@
       if (!isAbnormal(r)) continue;
       push({ at: r.effectiveAt, type: EVT.RESULT, title: r.display,
              detail: `${r.value} ${r.unit || ""}`.trim(), flag: r.flag || flagResult(r),
-             episodeId: r.episodeId || null, facilityId: r.performerId, significance: 3 });
+             /* `conditionId` is passed through ONLY when someone set it. It is
+                never inferred from a LOINC code — deciding that an HbA1c "is
+                about" a diabetes diagnosis is a clinical judgement, and this
+                layer does not make those. An unlinked result belongs to no
+                thread and says so. */
+             episodeId: r.episodeId || null, conditionId: r.conditionId || null,
+             facilityId: r.performerId, significance: 3 });
     }
     for (const i of p.imaging || []) {
       push({ at: i.effectiveAt, type: EVT.IMAGING, title: `${i.modality} — ${i.bodySite || ""}`.trim(),
-             detail: i.impression, episodeId: i.episodeId || null, facilityId: i.facilityId, significance: 3 });
+             detail: i.impression, episodeId: i.episodeId || null,
+             conditionId: i.conditionId || null, facilityId: i.facilityId, significance: 3 });
     }
     for (const pr of p.procedures || []) {
       push({ at: pr.performedAt, type: EVT.PROCEDURE, title: pr.display,
@@ -1164,7 +1171,8 @@
     for (const e of p.encounters || []) {
       if (e.state === ENC_STATE.VOID) continue;
       push({ at: e.startedAt, type: EVT.ENCOUNTER, title: e.chiefComplaint || e.type,
-             detail: e.assessment, episodeId: e.episodeId || null, encounterId: e.id,
+             detail: e.assessment, episodeId: e.episodeId || null,
+             conditionId: e.conditionId || null, encounterId: e.id,
              actorId: e.clinicianId, facilityId: e.facilityId, significance: 1 });
     }
     for (const r of p.referrals || []) {
@@ -1182,6 +1190,75 @@
     if (o.to) out = out.filter((e) => new Date(e.at) <= new Date(o.to));
     if (o.minSignificance) out = out.filter((e) => (e.significance || 0) >= o.minSignificance);
     return out;
+  }
+
+  /* =========================================================
+     CARE THREADS — the problem, and everything that happened to it
+     =========================================================
+     `timelineByEpisode` below has always grouped events by an EXPLICIT episode.
+     That is the right shape and the wrong key for the data this product
+     actually holds: almost no record has hand-authored episodes, so grouping by
+     `episodeId` alone produced nothing and the whole idea stayed invisible.
+
+     A thread is assembled from keys that already exist, and NOTHING here is
+     invented:
+       · an explicit episode, when one exists — its own events, its own state;
+       · otherwise an ACTIVE CONDITION, threading the events that already carry
+         its `conditionId` (its diagnosis, the medicines prescribed for it, the
+         medicines stopped);
+       · plus the lab series a clinician has actually attached to it.
+
+     What it must never do is guess. A lab result with no link to a problem
+     belongs to no thread and stays in the unattached stream, because inferring
+     "this HbA1c is about the diabetes" from a code would be the app forming a
+     clinical opinion. `link` records WHY each event is in the thread, so a
+     screen can show the join rather than assert it.
+
+     `trend` is passed in rather than computed here: the caller already has the
+     series and this stays a pure grouping. */
+  function careThreads(p, opts) {
+    const o = opts || {};
+    const all = buildTimeline(p, o);
+    const byId = new Map();
+
+    const add = (key, title, kind, state, since, ev, extra) => {
+      byId.set(key, Object.assign({
+        id: key, title, kind, state, since,
+        events: ev.slice().sort((a, b) => String(a.at).localeCompare(String(b.at))),
+        peak: ev.reduce((m, e) => Math.max(m, e.significance || 0), 0),
+        lastAt: ev.reduce((m, e) => (String(e.at) > m ? String(e.at) : m), ""),
+      }, extra || {}));
+    };
+
+    /* Explicit episodes first — they are authored, so they outrank a derived
+       thread and own their events exclusively. */
+    const claimed = new Set();
+    for (const ep of p.episodes || []) {
+      const ev = all.filter((e) => e.episodeId === ep.id);
+      if (!ev.length) continue;
+      ev.forEach((e) => claimed.add(e));
+      add("ep:" + ep.id, ep.title || ep.display || ep.id, "episode",
+        ep.status || EP_STATE.ACTIVE, ep.startedAt || (ev[0] && ev[0].at) || null, ev,
+        { episode: ep, link: "episode" });
+    }
+
+    /* Then active problems, over whatever an episode did not already claim. */
+    for (const c of activeConditions(p.conditions, o.now)) {
+      const ev = all.filter((e) => e.conditionId === c.id && !claimed.has(e));
+      if (!ev.length) continue;
+      ev.forEach((e) => claimed.add(e));
+      add("cond:" + c.id, c.display, "condition",
+        c.clinicalStatus === COND_STATE.ACTIVE ? EP_STATE.ACTIVE : EP_STATE.ON_HOLD,
+        c.onsetDate || null, ev,
+        { condition: c, chronic: !!c.chronic, link: "condition" });
+    }
+
+    const threads = [...byId.values()].sort((a, b) =>
+      (b.peak - a.peak) || String(b.lastAt).localeCompare(String(a.lastAt)));
+    /* Everything with no problem to belong to. Not a failure state — a lab
+       result genuinely may not be about any recorded problem. */
+    const unattached = all.filter((e) => !claimed.has(e));
+    return { threads, unattached };
   }
 
   /* The problem-clustered reading. A patient with four chronic diseases has a
@@ -1307,7 +1384,7 @@
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,
-    EVT, buildTimeline, timelineByEpisode,
+    EVT, buildTimeline, timelineByEpisode, careThreads,
     SOURCE, provenance, isAuthoritative,
     FHIR_MAP, CODE_SYSTEM, codeable,
   };

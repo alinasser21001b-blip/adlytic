@@ -103,6 +103,22 @@ function healthStatusCard() {
   const allergyTag = brief.allergies.length
     ? `<span class="st st-e" style="margin-inline-start:10px">${icon("alert")}${esc(brief.allergies[0].substance)}</span>` : "";
 
+  /* CONTINUITY — the care threads, as the story so far. Home's job is not to
+     list what the record contains; it is to say where the patient's care
+     stands. The threads are the only object on this screen that answers that,
+     so they sit directly under what is on fire and above everything the app
+     merely offers. Two, not all of them: home is a signal, the record is the
+     index. */
+  const threads = (EMR.careThreads
+    ? EMR.careThreads({ ...rec, patientId: rec.patient.id }, { now: Date.now() }).threads
+    : []).slice(0, 2);
+  /* TODAY — live custody. `activeShares` and `accessAlerts` were computed on the
+     record screen and buried nine rows down; a patient's own answer to "what is
+     happening now" is who currently holds their record. */
+  const live = CONSENT.activeShares ? CONSENT.activeShares(rec.shares, Date.now()) : [];
+  const carryLive = rec.carry && !rec.carry.redeemedBy
+    && new Date(rec.carry.expiresAt) > new Date() ? rec.carry : null;
+
   return `<section class="pad" style="margin-top:22px">
     <a class="rowb" href="#/record" style="text-decoration:none">
       <span class="lab">${isAR() ? "ملفي الصحي" : "My health"}</span>
@@ -111,11 +127,39 @@ function healthStatusCard() {
     ${urgent.length ? `<div class="note note-e" style="margin-top:10px">${icon("alert")}<div class="stack-3" style="width:100%">
         ${urgent.join("")}
       </div></div>`
-    : `<div class="note" style="margin-top:10px">${icon("check")}<div class="rowb" style="width:100%;flex-wrap:wrap">
+    : `<div class="note" style="margin-top:10px">${icon("info")}<div class="rowb" style="width:100%;flex-wrap:wrap">
+        <!-- Was a CHECKMARK. A tick beside "no active conditions recorded" on a
+             record the user has not filled in reads as a clean bill of health
+             the engine never issued — and it directly contradicted the allergy
+             panel one screen away, which correctly says that nothing recorded is
+             not the same as nothing wrong. -->
         <span>${condLine ? (isAR() ? `تتابعين ${condLine}` : `Managing ${condLine}`)
-                         : (isAR() ? "ما مسجّل مشاكل صحية نشطة" : "No active conditions recorded")}${
-          medLine ? (isAR() ? `، على ${medLine}` : `, on ${medLine}`) : ""}.</span>${allergyTag}
+                         : (isAR() ? "ما مسجّل مشاكل صحية نشطة — وهذا مو نفس «ما عندك شي»"
+                                   : "No active conditions recorded — which is not the same as none")}${
+          medLine ? (isAR() ? `، على ${medLine}` : `, on ${medLine}`) : ""}${condLine ? "." : ""}</span>${allergyTag}
       </div></div>`}
+
+    <!-- TODAY · who holds this record right now. -->
+    ${live.length || carryLive ? `<div class="custody">
+      ${live.length ? `<a class="custody-r" href="#/record/shares">
+        <span class="custody-dot" aria-hidden="true"></span>
+        <span class="grow">${isAR()
+          ? `<b>${countAr(live.length, ["طبيب يشوف ملفك الآن", "طبيبان يشوفان ملفك الآن", "أطباء يشوفون ملفك الآن", "طبيباً يشوف ملفك الآن"])}</b>`
+          : `<b>${live.length} clinician${live.length === 1 ? "" : "s"} can see your record now</b>`}
+          <span class="t3" style="display:block">${live.map((x) => esc(x.granteeName || x.granteeId)).join(isAR() ? "، " : ", ")}</span></span>
+        ${icon("chev")}</a>` : ""}
+      ${carryLive ? `<a class="custody-r" href="#/record/carry">
+        <span class="custody-dot is-wait" aria-hidden="true"></span>
+        <span class="grow"><b>${isAR() ? "عندك رمز زيارة فعّال" : "You have a live visit code"}</b>
+          <span class="t3" style="display:block">${isAR() ? "ما استعمله أحد بعد" : "nobody has used it yet"}</span></span>
+        ${icon("chev")}</a>` : ""}
+    </div>` : ""}
+
+    <!-- CONTINUITY · the story so far. -->
+    ${threads.length ? `<div class="threads" style="margin-top:16px">${
+      threads.map((t) => homeThread(t)).join("")}</div>
+      <a class="b-g" style="display:inline-block;margin-top:12px" href="#/record">${
+        isAR() ? "بقية ملفك" : "The rest of your record"}</a>` : ""}
   </section>`;
 }
 
@@ -661,6 +705,24 @@ function screenStart() {
   <div style="height:26px"></div>`;
 }
 
+/* CARE — one destination, filtered. The doctors list, the pharmacy list and the
+   medicine network were three top-level places answering one question: who or
+   what near me can help right now. Two of them owned a tab each and the third
+   owned none. They are segments now, so the tab bar stops claiming that finding
+   a doctor and finding a pharmacy are different kinds of activity. */
+const CARE_SEGS = [
+  ["#/doctors", ["طبيب", "Doctor"], "doctors"],
+  ["#/pharmacies", ["صيدلية", "Pharmacy"], "pharmacies"],
+  ["#/rx", ["دوا", "Medicine"], "rx"],
+  ["#/care/all", ["مستلزمات", "Supplies"], "products"],
+];
+function careSegs(active) {
+  return `<div class="segs" role="tablist" aria-label="${isAR() ? "نوع الرعاية" : "Kind of care"}">
+    ${CARE_SEGS.map(([href, label, k]) => `<a class="seg${k === active ? " on" : ""}" href="${href}"
+      role="tab" aria-selected="${k === active}">${esc(label[isAR() ? 0 : 1])}</a>`).join("")}
+  </div>`;
+}
+
 function screenNeeds() {
   /* This is what the bottom bar's «الأطباء» tab opens, so it is the single
      most-reached doctor screen in the product. Out of coverage it rendered a
@@ -707,6 +769,7 @@ function screenDoctors(params) {
   const sp = S.filters.spec ? specOf(S.filters.spec) : null;
   const f = S.filters;
   return `${header({ back: true, title: sp ? L(sp) : t("doctors") })}
+  ${careSegs("doctors")}
   <div class="filters">
     <div class="chips">
       <button class="chip chip--filter ${activeFilterCount() ? "on" : ""}" onclick="openFilters()">
@@ -940,6 +1003,7 @@ function screenPharmacies() {
   if (S.phSvc) list = list.filter((x) => (x.f.services || []).includes(S.phSvc));
   const night = list.filter((x) => x.f.night);
   return `${header({ back: true, title: t("pharmacies") })}
+  ${careSegs("pharmacies")}
   <div class="filters"><div class="chips">
     <button class="chip ${openOnly ? "on" : ""}" onclick="tf('openNow')">${icon("clock")}${t("openNow")}</button>
     <button class="chip ${S.phNight ? "on" : ""}" onclick="S.phNight=!S.phNight;render()">${icon("moon")}${t("nightDuty")} <span class="num">${night.length}</span></button>
@@ -1106,6 +1170,9 @@ function screenPharmacy(id) {
 }
 
 function screenCare(cat) {
+  /* `all` is the products segment of the Care destination — an explicit id
+     rather than a bare `#/care`, which is now the destination itself. */
+  if (cat === "all") cat = null;
   const list = cat ? PRODUCTS.filter((p) => p.cat === cat) : PRODUCTS;
   const c = CARE_CATEGORIES.find((x) => x.id === cat);
   /* An unrecognised category — a stale bookmark, a mistyped link, a category
@@ -1128,6 +1195,7 @@ function screenCare(cat) {
     </section>${nav("care")}`;
   }
   return `${header({ back: !!cat, title: c ? L(c) : "" })}
+  ${careSegs("products")}
   ${!cat ? `<section class="wrap" style="padding-top:20px">
     <h1 class="hero-line" style="font-size:26px">${isAR() ? "رفوف الصيدليات القريبة منك." : "The shelves of the pharmacies near you."}</h1>
     <p class="hero-sub">${isAR() ? "كل منتج يُطلب من صيدلية حقيقية قريبة — لا سلة ولا دفع." : "Every product is ordered from a real nearby pharmacy — no cart, no payment."}</p>
@@ -3327,6 +3395,7 @@ function screenRxSearch() {
   return `${netBanner()}
   <section class="pad" style="padding-top:calc(26px + env(safe-area-inset-top))">
     <button class="b-g" style="font-size:13px" onclick="goBack()">${isAR() ? "→ رجوع" : "← Back"}</button>
+    ${careSegs("rx")}
     <div class="lab" style="margin-top:24px">${isAR() ? "بحث الدواء" : "Medicine search"}</div>
     <h1 class="d2" style="margin-top:8px">${isAR() ? "شنو الدواء بالضبط؟" : "Which exact medicine?"}</h1>
     <div class="q-sub" style="margin-top:6px">${isAR()

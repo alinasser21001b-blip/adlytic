@@ -81,6 +81,7 @@
     const live = C().activeShares(d.shares, now());
     const pendingReq = (d.requests || []).filter((r) => C().requestState(r, now()) === C().REQ_STATE.PENDING);
     const f = recordFacts(d, live);
+    const { threads } = E().careThreads({ ...d, patientId: p.id }, { now: now() });
 
     return `${header({ back: true, title: T("ملفي الصحي", "My health record") })}
     <section class="wrap" style="padding-top:14px">
@@ -128,42 +129,58 @@
         </div>
       </div>
 
+      <!-- THE SPINE. Care threads, not storage tables. This section replaced
+           two groups of sibling rows that between them named eleven database
+           tables — "Conditions 2", "Medications 3", "Labs 4" — none of which is
+           an object a patient or a clinician holds in their head. They hold "my
+           diabetes, and what has happened to it".
+           The threads are grouped by keys that already existed on every event;
+           nothing here is inferred. A problem with no linked events produces no
+           thread rather than an empty one. -->
+      ${threads.length ? `<div class="sec">
+        <div class="sec-h"><h2 class="d3">${T("مشاكلي ومسارها", "My problems, and where they stand")}</h2>
+          <a class="b-g" href="#/record/timeline">${T("كل شي", "Everything")}</a></div>
+        <div class="threads">${threads.map((t) => threadCard(t, brief, { compact: true, trend: threadTrend(t, d) })).join("")}</div>
+      </div>` : ""}
+
+      <!-- The one next step, once, at the weight of a decision. This used to be
+           three near-identical rows in a four-row group — Share / Active shares
+           / Carry summary — that a reader could not tell apart, all three of
+           which issue a code. -->
       <div class="sec">
-        <div class="sec-h"><h2 class="d3">${T("الآن", "Right now")}</h2></div>
-        <div class="stack-2">
-          ${tile("#/record/conditions", T("المشاكل الصحية النشطة", "Active conditions"),
-            prof.activeConditions, null, f.conditions)}
-          ${tile("#/record/medications", T("الأدوية الحالية", "Current medications"),
-            prof.currentMedications, null, f.medications)}
-          ${brief.overdue.length ? tile("#/record/followups", T("متابعات متأخّرة", "Overdue follow-ups"), brief.overdue.length, "warn") : ""}
-          ${brief.pending.length ? tile("#/record/labs", T("نتائج معلّقة", "Pending results"), brief.pending.length) : ""}
-        </div>
+        <div class="sec-h"><h2 class="d3">${T("مشاركة ملفك", "Sharing your record")}</h2></div>
+        ${live.length ? `<a class="note" href="#/record/shares">${icon("eye")}<div style="width:100%">
+            <b>${ar() ? countAr(live.length, ["طبيب واحد يشوف ملفك الآن", "طبيبان يشوفان ملفك الآن",
+                 "أطباء يشوفون ملفك الآن", "طبيباً يشوف ملفك الآن"])
+               : `${live.length} clinician${live.length === 1 ? "" : "s"} can see your record now`}</b>
+            ${f.share ? `<div class="t3" style="margin-top:2px">${f.share}</div>` : ""}
+          </div></a>` : ""}
+        <a class="btn btn--2" style="margin-top:${live.length ? "12px" : "0"}" href="#/record/carry">${
+          T("أصدر رمز زيارة", "Issue a visit code")}</a>
+        <p class="t3" style="margin-top:10px;line-height:1.7">${T(
+          "الرمز يعطي الطبيب اللي تختاره ما تختاره أنت، للمدة اللي تحدّدها — وينغلق وحده.",
+          "The code gives a clinician you choose exactly what you choose, for as long as you set — then it closes itself.")}</p>
       </div>
 
+      <!-- THE ARCHIVE. The old twelve rows, demoted to what they are: a drawer
+           you open when you already know what you are looking for. A row appears
+           only when it holds something, so an empty record shows a short list
+           of real options instead of eleven lines reading «ما مسجّل». -->
       <div class="sec">
-        <div class="sec-h"><h2 class="d3">${T("سجلي", "My record")}</h2></div>
+        <div class="sec-h"><h2 class="d3">${T("كل شي محفوظ", "Everything on file")}</h2></div>
         <div class="stack-2">
           ${tile("#/record/timeline", T("الخط الزمني", "Timeline"), null, null, f.span)}
-          ${tile("#/record/visits", T("الزيارات", "Visits"), (d.encounters || []).length, null, f.visit)}
-          ${tile("#/record/labs", T("التحاليل", "Lab results"),
-            (d.results || []).filter((x) => x.value != null).length, null, f.lab)}
-          ${tile("#/record/documents", T("التقارير والمستندات", "Documents"), (d.documents || []).length, null, f.doc)}
-          ${tile("#/record/procedures", T("العمليات السابقة", "Previous procedures"), (d.procedures || []).length, null, f.proc)}
-          ${tile("#/record/immunizations", T("التطعيمات", "Immunizations"), prof.immunizations)}
-          ${tile("#/record/vitals", T("القياسات — ضغط، وزن، سكر", "Measurements — BP, weight, sugar"),
-            (d.vitals || []).length, null, f.vital)}
-        </div>
-      </div>
-
-      <!-- CONTROL. Deliberately not buried in settings: if sharing and the
-           access log are hard to find, the consent model is decorative. -->
-      <div class="sec">
-        <div class="sec-h"><h2 class="d3">${T("من يرى ملفي", "Who can see my record")}</h2></div>
-        <div class="stack-2">
-          ${tile("#/record/shares", T("المشاركات الفعّالة", "Active shares"), live.length, null, f.share)}
-          ${tile("#/record/share", T("شارك ملفك مع طبيب", "Share with a clinician"), null)}
-          ${tile("#/record/access", T("سجل الوصول", "Access history"), (d.accessLog || []).length, null, f.access)}
-          ${tile("#/record/carry", T("ملخّص أحمله معي", "A summary I carry"), null)}
+          ${arch("#/record/labs", T("التحاليل", "Lab results"),
+            (d.results || []).filter((x) => x.value != null).length, f.lab)}
+          ${arch("#/record/medications", T("الأدوية", "Medications"), prof.currentMedications, f.medications)}
+          ${arch("#/record/conditions", T("المشاكل الصحية", "Conditions"), prof.activeConditions, f.conditions)}
+          ${arch("#/record/vitals", T("قياسات البيت — ضغط، وزن، سكر", "Home measurements — BP, weight, sugar"),
+            (d.vitals || []).length, f.vital)}
+          ${arch("#/record/visits", T("الزيارات", "Visits"), (d.encounters || []).length, f.visit)}
+          ${arch("#/record/documents", T("التقارير والمستندات", "Documents"), (d.documents || []).length, f.doc)}
+          ${arch("#/record/procedures", T("العمليات السابقة", "Previous procedures"), (d.procedures || []).length, f.proc)}
+          ${arch("#/record/immunizations", T("التطعيمات", "Immunizations"), prof.immunizations, "")}
+          ${tile("#/record/access", T("منو فتح ملفي", "Who opened my record"), (d.accessLog || []).length, null, f.access)}
         </div>
       </div>
 
@@ -290,6 +307,12 @@
      nothing says so in words: a bare "٠" beside a label reads as a
      measurement, as though zero were a finding. It is an absence, and absence
      is a word. */
+  /* An archive row renders only when it holds something. Eleven rows reading
+     «ما مسجّل» is a filing cabinet with the drawers welded shut; the same eleven
+     rows, present only when real, is a record that grows with the patient. The
+     add-actions above are how an empty one gets filled. */
+  const arch = (href, label, count, fact) => (count ? tile(href, label, count, null, fact) : "");
+
   const tile = (href, label, count, tone, fact) =>
     `<a class="rw" href="${href}">
       <span class="grow" style="min-inline-size:0">
@@ -544,6 +567,7 @@
       case "add": return screenAdd(d, id);
       case "access": return screenAccess(d);
       case "carry": return screenCarry(d);
+      case "thread": return screenThread(d, id);
       case "inbox": return screenInbox(d);
       case "request": return screenAccessRequest(d, id);
       case "sync": return screenSync(d);
@@ -968,6 +992,207 @@
       </div>
     </div>`;
   };
+
+  /* =========================================================
+     THE CARE THREAD — the redesign's spine
+     =========================================================
+     The record used to be twelve rows, each naming a storage table. A patient
+     does not hold "Labs" and "Visits" in their head; they hold "my diabetes,
+     and what has happened to it". That object existed in the domain from day
+     one — episodes, `conditionId` on every event, `significance` per event —
+     and no screen had ever rendered it, so the interface could only ever be a
+     list of tables.
+
+     A thread renders as ONE CONTINUOUS RAIL, and that is the whole point: a
+     connected line means "these things belong to each other", where a card
+     means "this is a separate thing". Weight comes from `significance`, which
+     the domain already computes — a major operation is a large dot and a bold
+     line, an ordinary visit recedes to a hairline. Nothing here is decoration:
+     if a dot is bigger, the event mattered more.
+
+     `compact` renders the story down to its shape for the record index and
+     home; the full screen adds the trend, the medicines and the open end. */
+  const EP_STATE_LABEL = {
+    ACTIVE: ["نشط", "active"], OPEN: ["مفتوح", "open"],
+    ON_HOLD: ["متوقّف مؤقتاً", "on hold"], COMPLETED: ["مكتمل", "completed"],
+    CANCELLED: ["ملغى", "cancelled"],
+  };
+  const epStateLabel = (k) => (EP_STATE_LABEL[k] || [k, k])[ar() ? 0 : 1];
+
+  /* Significance 1-4 → a visual step. Four steps, because the domain emits
+     four: encounter 1, medicine 2, diagnosis/result/imaging 3, major surgery 4. */
+  const sigClass = (n) => "s" + Math.max(1, Math.min(4, n || 1));
+
+  function threadEvent(e) {
+    const abnormal = e.flag && e.flag !== "normal" && e.flag !== "unknown";
+    return `<li class="th-e ${sigClass(e.significance)}${abnormal ? " is-flag" : ""}">
+      <span class="th-dot" aria-hidden="true"></span>
+      <span class="th-when t3">${n(String(e.at || "").slice(0, 10))}</span>
+      <span class="th-what">
+        <span class="th-t">${esc(e.title || T("بلا عنوان", "untitled"))}</span>
+        <span class="t3 th-kind">${esc(evtLabel(e.type))}${e.detail ? " · " + esc(e.detail) : ""}</span>
+        ${abnormal ? `<span class="st st-e">${T("غير طبيعية", "abnormal")}</span>` : ""}
+      </span>
+    </li>`;
+  }
+
+  /* The one line that says where this problem stands right now. It is assembled
+     only from facts already on the thread — never a prognosis, never a
+     judgement the app is not entitled to make. */
+  function threadStanding(t, brief, opts) {
+    const o = opts || {};
+    /* On the record index and on home, the attention panel at the top of the
+       screen already names every unacknowledged abnormal result. Repeating it
+       here made one fact appear three times on one scroll — the panel, this
+       line, and the event itself. In `compact` mode the thread states its
+       TRAJECTORY instead, which is the thing the panel cannot say. */
+    const un = (brief && brief.unacknowledgedAbnormal || [])
+      .filter((x) => t.events.some((e) => e.type === E().EVT.RESULT && e.title === x.name));
+    if (un.length && !o.compact) return { tone: "e", text: ar()
+      ? `نتيجة ${esc(un[0].name)} غير طبيعية وما أقرّها أحد`
+      : `${esc(un[0].name)} is abnormal and nobody has acknowledged it` };
+    if (t.state === E().EP_STATE.COMPLETED) return { tone: "v", text: T("انتهت هذه الحلقة", "this episode is closed") };
+    /* THE TRAJECTORY, which is what a thread knows and a flat alert does not.
+       The direction is `trend()`'s own word — never arithmetic done here, and
+       withheld entirely across mixed units or mixed laboratories, exactly as the
+       labs screen withholds it. */
+    if (o.trend && o.trend.direction && o.trend.points.length > 1 && !o.trend.mixedUnits) {
+      const first = o.trend.points[0], lastP = o.trend.points[o.trend.points.length - 1];
+      const worse = lastP.flag && lastP.flag !== "normal" && lastP.flag !== "unknown";
+      return { tone: worse ? "e" : "t", text: `${esc(o.trend.display || "")} ${
+        esc(dirLabel(o.trend.direction))} ${ar() ? "من" : "from"} ${measure(first.value, first.unit)} ${
+        ar() ? "إلى" : "to"} ${measure(lastP.value, lastP.unit)}` };
+    }
+    const last = t.events[t.events.length - 1];
+    if (last) return { tone: "q", text: (ar() ? "آخر شي صار: " : "last event: ")
+      + esc(evtLabel(last.type)) + " · " + n(String(last.at).slice(0, 10)) };
+    return null;
+  }
+
+  /* The thread's own lab series, from codes that appear as events IN it — so no
+     series is ever claimed by a problem nobody attached it to. */
+  function threadTrend(t, d) {
+    const codes = [...new Set((d.results || [])
+      .filter((r) => t.events.some((e) => e.type === E().EVT.RESULT && e.title === (r.display || r.code)))
+      .map((r) => r.code).filter(Boolean))];
+    for (const c of codes) {
+      const tr = E().trend(d.results, c);
+      if (tr.points.length > 1) return tr;
+    }
+    return codes.length ? E().trend(d.results, codes[0]) : null;
+  }
+
+  function threadCard(t, brief, opts) {
+    const o = opts || {};
+    const st = threadStanding(t, brief, { compact: !!o.compact, trend: o.trend });
+    /* Newest first on the summary — a reader scanning threads wants the current
+       state. The full screen runs oldest-first, because there the point is the
+       trajectory and reading downward must move forward in time. */
+    /* Home shows ONE event; the record index shows three. Home is the signal
+       layer — the trajectory line above already carries the story, and two full
+       threads pushed everything else on the screen below the fold. The record is
+       the index, and the thread's own screen is the detail. That is the
+       progressive disclosure, expressed as how much of the rail each surface
+       draws rather than as a widget that expands. */
+    const cap = o.max || (o.compact ? 3 : 0);
+    const shown = cap ? t.events.slice().reverse().slice(0, cap) : t.events;
+    return `<a class="th ${t.state === E().EP_STATE.COMPLETED ? "is-done" : ""}" href="#/record/thread/${esc(t.id)}">
+      <div class="th-h">
+        <div>
+          <div class="th-title">${esc(t.title)}</div>
+          <div class="t3 th-sub">${esc(epStateLabel(t.state))}${
+            t.chronic ? " · " + T("مزمن", "chronic") : ""}${
+            t.since ? " · " + T("من ", "since ") + n(String(t.since).slice(0, 10)) : ""}</div>
+        </div>
+        <span class="rw-go" aria-hidden="true">${icon("chev")}</span>
+      </div>
+      ${st ? `<div class="th-stand st st-${st.tone}">${st.text}</div>` : ""}
+      <ul class="th-rail">${shown.map(threadEvent).join("")}</ul>
+      ${cap && t.events.length > cap
+        ? `<div class="t3 th-more">${ar()
+            ? countAr(t.events.length - cap, ["حدث واحد قبلها", "حدثان قبلها", "أحداث قبلها", "حدثاً قبلها"])
+            : `${t.events.length - cap} earlier`}</div>` : ""}
+    </a>`;
+  }
+
+  /* ONE thread component, used by the record index and by home. Exposed rather
+     than reimplemented, because two renderers for the product's central object
+     is exactly how the interface became a collection of screens in the first
+     place. Home passes no brief — `threadStanding` handles that and falls back
+     to the last event. */
+  globalThis.homeThread = function homeThread(t) {
+    return threadCard(t, null, { compact: true, max: 1, trend: threadTrend(t, store()) });
+  };
+
+  /* The thread's own screen: the story in full, its trend, its medicines, and
+     the one thing that is still open. */
+  function screenThread(d, id) {
+    const brief = R().preVisitBrief(d.patient, d, now());
+    const { threads } = E().careThreads({ ...d, patientId: d.patient.id }, { now: now() });
+    const t = threads.find((x) => x.id === id);
+    if (!t) {
+      return page(T("حلقة رعاية", "Care thread"),
+        empty(T("ما لقينا هذي الحلقة", "That thread is not in this record"),
+          `<a class="b-g" style="display:inline-block;margin-top:12px" href="#/record">${
+            T("رجوع للملف", "Back to the record")}</a>`));
+    }
+    const codes = [...new Set((d.results || [])
+      .filter((r) => t.events.some((e) => e.type === E().EVT.RESULT && e.title === (r.display || r.code)))
+      .map((r) => r.code).filter(Boolean))];
+    /* A medicine joins this thread only through a link that EXISTS. The first
+       version compared `m.episodeId === (t.episode || {}).id`, and for a thread
+       with no episode both sides were `undefined` — so every medicine with no
+       episode matched every thread, and amlodipine (prescribed for the
+       hypertension) and aspirin (linked to nothing) rendered under the diabetes
+       heading. Attributing a drug to the wrong problem on a screen a clinician
+       reads is a prescribing hazard, not a display nit. */
+    const cid = (t.condition || {}).id || null;
+    const eid = (t.episode || {}).id || null;
+    const meds = (d.medications || []).filter((m) => m.status === "active"
+      && ((cid && m.indicationId === cid) || (eid && m.episodeId === eid)));
+    const st = threadStanding(t, brief);
+
+    return page(esc(t.title),
+      `<div class="th-head">
+        <div class="rowb">
+          <span class="st st-${t.state === E().EP_STATE.COMPLETED ? "v" : "t"}">${esc(epStateLabel(t.state))}</span>
+          ${t.chronic ? `<span class="st st-q">${T("مزمن", "chronic")}</span>` : ""}
+        </div>
+        ${st ? `<div class="th-stand-big ${st.tone === "e" ? "is-alarm" : ""}">${st.text}</div>` : ""}
+      </div>
+
+      ${codes.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${
+        T("الاتجاه", "The trend")}</h2></div>
+        ${codes.map((code) => {
+          const tr = E().trend(d.results, code);
+          const last = tr.points[tr.points.length - 1];
+          return `<div class="rw"><div style="width:100%">
+            <div class="lab">${esc(tr.display || code)}</div>
+            <div class="rowb" style="margin-top:2px;align-items:flex-end">
+              ${last ? bigValue(last.value, last.unit) : ""}
+              <span>${last ? flagChip(last.flag) : ""}</span></div>
+            ${last ? rangeScale(last) : ""}
+            ${last && rangeLine(last) ? `<div class="t3" style="margin-top:6px">${rangeLine(last)}</div>` : ""}
+            ${trendSeries(tr, { headlined: true })}
+          </div></div>`;
+        }).join("")}</div>` : ""}
+
+      ${meds.length ? `<div class="sec"><div class="sec-h"><h2 class="d3">${
+        T("الأدوية لهذي المشكلة", "Medicines for this problem")}</h2></div>
+        <div class="stack">${meds.map((m) => `<div class="rw"><div style="width:100%">
+          <div class="rowb"><b>${esc(m.display)}</b>${m.dose
+            ? `<bdi class="strength">${esc(m.dose)}</bdi>` : ""}</div>
+          ${selfReported(m) ? `<div style="margin-top:5px">${selfReported(m)}</div>` : ""}
+        </div></div>`).join("")}</div></div>` : ""}
+
+      <div class="sec"><div class="sec-h"><h2 class="d3">${T("القصة", "The story")}</h2></div>
+        <!-- Oldest first, so reading downward moves forward in time — the same
+             invariant the lab series holds, for the same reason. -->
+        <ul class="th-rail th-rail--full">${t.events.map(threadEvent).join("")}</ul>
+      </div>`,
+      T("كل شي انسجّل عن هذي المشكلة، بترتيب حدوثه.",
+        "Everything recorded about this problem, in the order it happened."));
+  }
 
   /* ---------- sharing (§14) ---------- */
   function screenShares(d) {
