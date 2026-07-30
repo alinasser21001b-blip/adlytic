@@ -150,7 +150,11 @@ export function fileRoutes(database: Database) {
     context.header("Cache-Control", "no-store, private");
     context.header("Content-Type", decrypted.row.media_type);
     context.header("Content-Disposition", 'inline; filename="secure-image.jpg"');
-    return context.body(decrypted.data);
+    const body = decrypted.data.buffer.slice(
+      decrypted.data.byteOffset,
+      decrypted.data.byteOffset + decrypted.data.byteLength,
+    ) as ArrayBuffer;
+    return context.body(body);
   });
 
   routes.delete("/:fileId", async (context) => {

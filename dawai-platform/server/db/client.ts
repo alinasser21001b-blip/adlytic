@@ -35,7 +35,9 @@ function wrapPglite(client: PGlite): Database {
   return {
     ...executor(client),
     transaction: (run) =>
-      client.transaction(async (transaction) => run(executor(transaction))),
+      client.transaction(async (transaction) =>
+        run(executor(transaction as unknown as PGlite)),
+      ),
     close: () => client.close(),
   };
 }
