@@ -512,6 +512,9 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   background: var(--dial); border-top: 1px solid var(--dial-line);
 }
 .actionbar .btn { flex: 1; }
+/* A bar that says what its button will do, above the button. */
+.actionbar--stack { flex-direction: column; align-items: stretch; gap: var(--u2); }
+.actionbar--stack > .t3 { text-align: center; }
 
 /* ---------- 11 · the sheet · the ONLY shadow in the product ---------- */
 .sheet {

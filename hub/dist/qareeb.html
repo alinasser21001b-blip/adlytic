@@ -765,6 +765,9 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   background: var(--dial); border-top: 1px solid var(--dial-line);
 }
 .actionbar .btn { flex: 1; }
+/* A bar that says what its button will do, above the button. */
+.actionbar--stack { flex-direction: column; align-items: stretch; gap: var(--u2); }
+.actionbar--stack > .t3 { text-align: center; }
 
 /* ---------- 11 · the sheet · the ONLY shadow in the product ---------- */
 .sheet {
@@ -14380,7 +14383,8 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
             "Allergies are always shared with anyone you grant access. A clinician who can see your record but not your allergy is more dangerous than one who cannot see it at all — they will prescribe believing they checked.")}</p>
           ${OFFER.map((s) => `<label class="rw"><div class="rowb" style="width:100%">
             <span>${esc(C().scopeLabel(s, S.lang))}</span>
-            <input type="checkbox" class="sh-scope" value="${esc(s)}"${on.has(s) ? " checked" : ""}>
+            <input type="checkbox" class="sh-scope" value="${esc(s)}"${on.has(s) ? " checked" : ""}
+              onchange="recordShareCount()">
           </div></label>`).join("")}
         </div>
       </div>
@@ -14396,8 +14400,22 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
           "There is no 'forever'. The longest is 90 days, and you can revoke it before that at any moment without giving a reason.")}</p>
       </div>
 
-      <button class="btn" style="margin-top:18px" onclick="recordStartShare()">${
-        T("أصدر رمزاً", "Issue a code")}</button>`,
+      <!-- The action was the last thing on a 2,800px scroll, below eleven
+           checkboxes and five duration chips. This is the counter-at-the-clinic
+           moment: the patient is standing at a desk with a receptionist
+           waiting, and the button that ends the interaction was off-screen for
+           the entire time they were choosing. It is fixed to the bottom now,
+           and it carries the count of what is selected — so the thing the
+           button will actually do is legible without scrolling back up to
+           re-read eleven checkboxes. -->
+      <div class="actionbar actionbar--stack">
+        <!-- Seeded from the same set the checkboxes are rendered from, so the
+             bar is correct on first paint without waiting for a hook that may
+             not run on a cold deep link. -->
+        <span class="t3" id="sh-count">${shareCountText(
+          OFFER.filter((s) => on.has(s)).length)}</span>
+        <button class="btn" onclick="recordStartShare()">${T("أصدر رمزاً", "Issue a code")}</button>
+      </div>`,
       T("تختار شنو يشوف وكم مدة، ويطلعلك رمز تعطيه للعيادة. الرمز يُستعمل مرة وحدة وينتهي وحده.",
         "You choose what they see and for how long, and get a code to hand to the clinic. The code is single use and expires on its own."),
       "record");
@@ -14407,6 +14425,18 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
      re-render between choosing and confirming would silently reset a module
      variable while the chip still looked selected — consent that says one
      thing on screen and stores another. */
+  /* Allergies are the locked floor and are always shared, so the count says
+     "+ الحساسية" rather than folding an unremovable item into a number the
+     patient cannot change. */
+  const shareCountText = (k) => ar()
+    ? `${k ? countAr(k, ["قسم واحد", "قسمان", "أقسام", "قسماً"]) : "ما اخترت شي"} + الحساسية`
+    : `${k || "no"} section${k === 1 ? "" : "s"} + allergies`;
+
+  globalThis.recordShareCount = function recordShareCount() {
+    const el = document.getElementById("sh-count");
+    if (el) el.innerHTML = shareCountText(document.querySelectorAll(".sh-scope:checked").length);
+  };
+
   globalThis.recordPickShareDuration = function recordPickShareDuration(k) {
     document.querySelectorAll("[data-dur]").forEach((b) =>
       b.classList.toggle("c-on", b.getAttribute("data-dur") === k));
@@ -14444,8 +14474,10 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     const h = Math.round(left / 3600000);
     if (h < 24) return T(`بعد ${h} ساعة`, `in ${h}h`);
     const days = Math.round(h / 24);
-    return T(countAr ? countAr(days, ["بعد يوم", "بعد يومين", "بعد # أيام", "بعد # يوماً"]) : `بعد ${days} يوم`,
-             `in ${days}d`);
+    /* `countAr` prepends the numeral itself, so the "#" in the old forms was
+       never substituted — an active share read «5 بعد # أيام» on screen. The
+       number goes where countAr puts it and the preposition goes outside. */
+    return T(`بعد ${countAr(days, AR_DAY)}`, `in ${days}d`);
   }
 
   globalThis.recordRevoke = function recordRevoke(id) {
@@ -15175,12 +15207,22 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
      visible date at all, and left the vertical order running newest → oldest →
      second-newest. The headline is a summary; the series is the record, and
      the record stays complete. Repeating the value at 11.5px under its date,
-     beneath the same value at 26px, is an audit trail, not noise. */
+     beneath the same value at 26px, is an audit trail, not noise.
+
+     A series of exactly ONE point is the exception, and only when headlined:
+     there is no movement to show and no history to compare against, so the row
+     would repeat the value and the flag the caller printed at 26px two lines
+     above and add nothing but the date. The date is the whole contribution, so
+     the date is all it prints. */
   function trendSeries(t, opts) {
     if (!t || !t.points || !t.points.length) return "";
     const o = opts || {};
     const last = t.points[t.points.length - 1];
-    const rows = t.points.map((p) => `<div class="rowb" style="margin-top:6px">
+    const single = o.headlined && t.points.length === 1;
+    const rows = single
+      ? `<div class="t3" style="margin-top:8px">${T("قياس بتاريخ ", "measured ")}${
+          n(String(last.at || "").slice(0, 10))}</div>`
+      : t.points.map((p) => `<div class="rowb" style="margin-top:6px">
         <span class="t3">${n(String(p.at || "").slice(0, 10))}</span>
         <span>${measure(p.value, p.unit)} ${flagChip(p.flag)}</span>
       </div>`).join("");
@@ -15189,10 +15231,16 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
        warning underneath says why. */
     const dir = t.points.length > 1 && !t.mixedUnits ? esc(dirLabel(t.direction)) : "";
     const rng = o.headlined ? "" : rangeLine(last);
+    /* The direction word used to sit alone at the foot of the list, under a
+       suppressed range line, reading as an orphan. It belongs to the list of
+       readings, so it sits in that list's own heading — the one place where
+       "كل القراءات … ارتفع" is a sentence about exactly what follows. */
     const cap = o.headlined && t.points.length > 1
-      ? `<div class="t3" style="margin-top:12px">${T("كل القراءات", "Every reading")}</div>` : "";
+      ? `<div class="rowb" style="margin-top:14px">
+          <span class="t3">${T("كل القراءات", "Every reading")}</span>
+          ${dir ? `<span class="st st-t">${dir}</span>` : ""}</div>` : "";
     return `${cap}${rows}
-      ${dir || rng ? `<div class="rowb" style="margin-top:8px">
+      ${!cap && (dir || rng) ? `<div class="rowb" style="margin-top:8px">
         <span class="st">${dir}</span><span class="t3">${rng}</span></div>` : ""}
       ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(
         "وحدات قياس مختلفة — هذي الأرقام ما تنقارن",

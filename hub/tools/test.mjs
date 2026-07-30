@@ -420,6 +420,23 @@ it("every shipped script parses", () => {
   eq(broken, [], "a script that does not parse renders nothing, and no unit test notices");
 });
 
+/* The parse test above catches the consequence. This catches the cause, which
+   this author has now reached for FOUR separate times: writing prose inside an
+   HTML comment inside a template literal, and reaching for a backtick to quote
+   an identifier the way one would in Markdown. The backtick ends the template,
+   the rest of the file reinterprets as code, and the whole script stops
+   parsing. The habit is the bug, so the habit is what gets flagged — by line,
+   with the fix, instead of by a parser error pointing at whatever identifier
+   happened to follow. */
+it("no HTML comment inside a template literal contains a backtick", () => {
+  const bad = [];
+  for (const { f, src } of uiSources)
+    for (const m of src.matchAll(/<!--[\s\S]*?-->/g))
+      if (m[0].includes("`"))
+        bad.push(`${f}: ${m[0].replace(/\s+/g, " ").slice(0, 70)} — use plain words, not backticks`);
+  eq(bad, [], "a backtick in an HTML comment ends the template literal it sits in");
+});
+
 it("no rendered value sequence is joined by an arrow", () => {
   const bad = uiSources.filter(({ src }) => /join\(\s*["'`][^"'`]*[←→⟵⟶]/.test(src));
   eq(bad.map((x) => x.f), [], "an arrow between two numbers inverts under RTL");
