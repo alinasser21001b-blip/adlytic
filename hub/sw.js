@@ -32,7 +32,7 @@ const SHELL = [
   "./js/network.js", "./js/sync.js", "./js/assist.js", "./js/transport.js",
   "./js/data.js", "./js/ui-core.js", "./js/ui-discovery.js", "./js/ui-backend.js",
   "./js/ui-needs.js", "./js/app.js", "./js/ui-record.js", "./js/ui-network.js",
-  "./favicon.svg",
+  "./favicon.svg", "./manifest.webmanifest", "./privacy.html",
 ];
 /* Long enough that a slow-but-alive Baghdad connection still delivers the
    real thing; short enough that a dead one never holds the screen hostage. */

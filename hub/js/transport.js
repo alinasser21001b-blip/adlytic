@@ -87,7 +87,7 @@
     const s = store();
     let id = s && s.get("qareeb.device", null);
     if (!id) {
-      id = "d" + Math.random().toString(36).slice(2, 10);
+      id = "d" + Array.from(crypto.getRandomValues(new Uint8Array(6)), b => b.toString(36).padStart(2, "0")).join("").slice(0, 10);
       if (s) s.set("qareeb.device", id);
     }
     return id;

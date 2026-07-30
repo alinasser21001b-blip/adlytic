@@ -1701,14 +1701,29 @@ function screenAdmin() {
 function sheet(html, cls = "") {
   closeSheet(true);
   const scrim = document.createElement("div"); scrim.className = "scrim"; scrim.onclick = () => closeSheet();
-  const el = document.createElement("div"); el.className = "sheet " + cls; el.innerHTML = html;
+  const el = document.createElement("div"); el.className = "sheet " + cls;
+  el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
+  el.innerHTML = html;
   document.body.append(scrim, el);
   requestAnimationFrame(() => { scrim.classList.add("in"); el.classList.add("in"); });
   document.body.style.overflow = "hidden";
+  const first = el.querySelector("button, input, a, [tabindex]");
+  if (first) first.focus();
+  el._trap = (e) => {
+    if (e.key === "Escape") { closeSheet(); return; }
+    if (e.key !== "Tab") return;
+    const focusable = el.querySelectorAll('button, input, a, textarea, select, [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  document.addEventListener("keydown", el._trap);
 }
 function closeSheet(instant) {
   document.body.style.overflow = "";
   document.querySelectorAll(".sheet,.scrim").forEach((n) => {
+    if (n._trap) { document.removeEventListener("keydown", n._trap); delete n._trap; }
     if (instant) return n.remove();
     n.classList.remove("in"); setTimeout(() => n.remove(), 260);
   });
@@ -3534,3 +3549,321 @@ function updateUserTrustScore(event, meta = {}) {
 
 /* Simulated OTP. Six digits, generated and shown on screen, labelled as a
    prototype. Nothing is sent anywhere. */
+
+/* ============================================================
+   قريب · الإعدادات والخصوصية وحذف الحساب — SETTINGS · PRIVACY · ABOUT
+   ============================================================
+   Apple App Store requires:
+     1. A clear path to account deletion (Guideline 5.1.1(v))
+     2. A privacy policy accessible from within the app
+     3. App information visible to the user
+   These screens fulfil those requirements while respecting the reality that
+   Qareeb stores health data — deletion must distinguish between the user's
+   device data and any clinical obligations.
+   ============================================================ */
+
+function screenSettings() {
+  const d = LS.get("qareeb.record.v1", null);
+  const hasRecord = d && d.patient;
+  const live = d && globalThis.CONSENT ? globalThis.CONSENT.activeShares(d.shares || [], Date.now()) : [];
+
+  return `${header({ back: true, title: isAR() ? "حسابي" : "My account" })}
+  <section class="wrap" style="padding-top:14px">
+
+    ${hasRecord ? `<div class="rw" style="padding:var(--u4) 0">
+      <span class="av" style="width:56px;height:56px;font-size:21px">${esc((d.patient.name || {}).given || "").charAt(0) || "?"}</span>
+      <span class="grow">
+        <span class="d3">${esc(d.patient.name ? (isAR() ? (d.patient.name.given || "") : ((d.patient.name.given || "") + " " + (d.patient.name.family || "")).trim()) : (isAR() ? "بلا اسم" : "No name"))}</span>
+        <span class="t3" style="display:block">${isAR() ? "ملف صحي محلّي" : "Local health record"}</span>
+      </span>
+      <a class="b-g" href="#/record/profile">${isAR() ? "تعديل" : "Edit"}</a>
+    </div><div class="hr"></div>` : ""}
+
+    <div class="sec">
+      <div class="sec-h"><h2 class="d3">${isAR() ? "الإعدادات" : "Settings"}</h2></div>
+      <div class="stack">
+        <button class="rw" onclick="toggleLang()" style="width:100%">
+          <span class="ic">${icon("globe")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "اللغة" : "Language"}</h3>
+            <p class="t3">${isAR() ? "English" : "العربية"}</p></span>
+          <span class="t3">${icon("chev")}</span></button>
+        <button class="rw" onclick="toggleTheme()" style="width:100%">
+          <span class="ic">${icon(S.theme === "dark" || (!S.theme && prefersDark()) ? "sun" : "moon")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "المظهر" : "Appearance"}</h3>
+            <p class="t3">${(S.theme === "dark" || (!S.theme && prefersDark())) ? (isAR() ? "داكن" : "Dark") : (isAR() ? "فاتح" : "Light")}</p></span>
+          <span class="t3">${icon("chev")}</span></button>
+        <button class="rw" onclick="openLocation()" style="width:100%">
+          <span class="ic">${icon("pin")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "المنطقة" : "Area"}</h3>
+            <p class="t3">${esc(L(here()))}</p></span>
+          <span class="t3">${icon("chev")}</span></button>
+      </div>
+    </div>
+
+    ${hasRecord ? `<div class="sec">
+      <div class="sec-h"><h2 class="d3">${isAR() ? "السجل الصحي" : "Health record"}</h2></div>
+      <div class="stack">
+        <a class="rw" href="#/record/shares" style="width:100%">
+          <span class="ic">${icon("share")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "المشاركات الفعّالة" : "Active shares"}</h3>
+            <p class="t3"><span class="num">${live.length}</span> ${isAR() ? "مشاركة" : "active"}</p></span>
+          <span class="t3">${icon("chev")}</span></a>
+        <a class="rw" href="#/record/access" style="width:100%">
+          <span class="ic">${icon("eye")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "سجل الوصول" : "Access history"}</h3></span>
+          <span class="t3">${icon("chev")}</span></a>
+      </div>
+    </div>` : ""}
+
+    <div class="sec">
+      <div class="sec-h"><h2 class="d3">${isAR() ? "حول قريب" : "About Qareeb"}</h2></div>
+      <div class="stack">
+        <a class="rw" href="#/privacy" style="width:100%">
+          <span class="ic">${icon("seal")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "سياسة الخصوصية" : "Privacy policy"}</h3></span>
+          <span class="t3">${icon("chev")}</span></a>
+        <a class="rw" href="#/trust" style="width:100%">
+          <span class="ic">${icon("check")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "الثقة والتوثيق" : "Trust & verification"}</h3></span>
+          <span class="t3">${icon("chev")}</span></a>
+        <a class="rw" href="#/about" style="width:100%">
+          <span class="ic">${icon("info")}</span>
+          <span class="grow" style="text-align:start"><h3>${isAR() ? "معلومات التطبيق" : "App info"}</h3></span>
+          <span class="t3">${icon("chev")}</span></a>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-h"><h2 class="d3" style="color:var(--alarm)">${isAR() ? "حذف البيانات" : "Delete data"}</h2></div>
+      <a class="rw" href="#/settings/delete" style="width:100%">
+        <span class="ic" style="color:var(--alarm);border-color:var(--alarm)">${icon("close")}</span>
+        <span class="grow" style="text-align:start"><h3 style="color:var(--alarm)">${isAR() ? "حذف بياناتي من هذا الجهاز" : "Delete my data from this device"}</h3>
+          <p class="t3">${isAR() ? "يمسح كل البيانات المخزّنة محلياً" : "Erases all locally stored data"}</p></span>
+        <span class="t3" style="color:var(--alarm)">${icon("chev")}</span></a>
+    </div>
+
+    <p class="t3" style="margin-top:22px;text-align:center;line-height:1.7">${esc(L(CONFIG.brand))} · ${isAR() ? "النسخة التجريبية" : "Preview"}<br>
+      ${isAR() ? "بُني في بغداد" : "Built in Baghdad"}</p>
+  </section>${nav("settings")}`;
+}
+
+function screenSettingsSub(sub) {
+  if (sub === "delete") return screenDeleteData();
+  return screen404();
+}
+
+function screenDeleteData() {
+  const d = LS.get("qareeb.record.v1", null);
+  const hasRecord = d && d.patient;
+  const hasRequests = (S.requests || []).length > 0;
+  const hasSaved = (S.saved || []).length > 0;
+
+  return `${header({ back: true, title: isAR() ? "حذف البيانات" : "Delete data" })}
+  <section class="wrap" style="padding-top:14px">
+
+    <div class="banner banner--stop" style="margin-bottom:16px">
+      ${icon("alert")}<span>${isAR()
+        ? "هذا الإجراء لا يمكن التراجع عنه. ستُحذف جميع بياناتك المخزّنة على هذا الجهاز نهائياً."
+        : "This action cannot be undone. All data stored on this device will be permanently deleted."}</span>
+    </div>
+
+    <h2 class="d3" style="margin-top:20px">${isAR() ? "ما الذي سيُحذف؟" : "What will be deleted?"}</h2>
+    <div class="stack" style="margin-top:12px">
+      ${hasRecord ? `<div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow"><b>${isAR() ? "السجل الصحي المحلي" : "Local health record"}</b>
+          <span class="t3" style="display:block">${isAR() ? "المعلومات الصحية، الأمراض، الأدوية، التحاليل، المستندات" : "Health info, conditions, medications, labs, documents"}</span></span></div>` : ""}
+      ${hasRequests ? `<div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow"><b>${isAR() ? "الطلبات المحفوظة" : "Saved requests"}</b>
+          <span class="t3" style="display:block"><span class="num">${S.requests.length}</span> ${isAR() ? "طلب" : "requests"}</span></span></div>` : ""}
+      ${hasSaved ? `<div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow"><b>${isAR() ? "المحفوظات" : "Saved items"}</b>
+          <span class="t3" style="display:block"><span class="num">${S.saved.length}</span> ${isAR() ? "عنصر" : "items"}</span></span></div>` : ""}
+      <div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow"><b>${isAR() ? "الإعدادات والتفضيلات" : "Settings & preferences"}</b>
+          <span class="t3" style="display:block">${isAR() ? "اللغة، المنطقة، المظهر" : "Language, area, appearance"}</span></span></div>
+    </div>
+
+    ${hasRecord ? `<div class="sec" style="margin-top:20px">
+      <h2 class="d3">${isAR() ? "ملاحظة عن السجل الصحي" : "Note about health records"}</h2>
+      <div class="note" style="margin-top:10px">${icon("info")}<div>${isAR()
+        ? "إذا كانت بياناتك الصحية قد تمّت مزامنتها مع خادم قريب، فقد يحتفظ الخادم بنسخة وفقاً للالتزامات القانونية والسريرية. حذف البيانات من جهازك لا يحذفها من الخادم تلقائياً."
+        : "If your health data was synced to the Qareeb server, the server may retain a copy per legal and clinical obligations. Deleting from your device does not automatically delete from the server."}</div></div>
+      <p class="t3" style="margin-top:10px">${isAR()
+        ? "لطلب حذف بياناتك من الخادم أيضاً، تواصل معنا: support@qareeb.iq"
+        : "To request deletion from the server as well, contact us: support@qareeb.iq"}</p>
+      <!-- TODO: implement server-side data deletion endpoint when legal framework is clear -->
+    </div>` : ""}
+
+    <div style="margin-top:26px">
+      <button class="btn btn--danger" onclick="confirmDeleteData()">${isAR() ? "حذف جميع بياناتي نهائياً" : "Permanently delete all my data"}</button>
+      <button class="btn btn--2" style="margin-top:10px" onclick="history.back()">${isAR() ? "إلغاء — لا تحذف" : "Cancel — don't delete"}</button>
+    </div>
+
+  </section>`;
+}
+
+globalThis.confirmDeleteData = function confirmDeleteData() {
+  sheet(`<div class="sheet-grip"></div>
+    <div class="sheet-h">
+      <h2 style="color:var(--alarm)">${isAR() ? "تأكيد الحذف" : "Confirm deletion"}</h2>
+      <p style="margin-top:6px">${isAR()
+        ? "اكتب «حذف» لتأكيد رغبتك في مسح جميع بياناتك من هذا الجهاز."
+        : "Type \"delete\" to confirm you want to erase all your data from this device."}</p>
+    </div>
+    <label class="fld"><span>${isAR() ? "اكتب «حذف» للتأكيد" : "Type \"delete\" to confirm"}</span>
+      <input id="del-confirm" type="text" autocomplete="off" placeholder="${isAR() ? "حذف" : "delete"}"></label>
+    <div style="margin-top:16px">
+      <button class="btn btn--danger" onclick="executeDeleteData()">${isAR() ? "حذف نهائياً" : "Delete permanently"}</button>
+      <button class="btn btn--2" style="margin-top:10px" onclick="closeSheet()">${isAR() ? "إلغاء" : "Cancel"}</button>
+    </div>`);
+};
+
+globalThis.executeDeleteData = function executeDeleteData() {
+  const input = (document.getElementById("del-confirm") || {}).value || "";
+  if (input.trim() !== (isAR() ? "حذف" : "delete")) {
+    toast(isAR() ? "اكتب «حذف» للتأكيد" : "Type \"delete\" to confirm"); return;
+  }
+  const keys = Object.keys(localStorage).filter((k) => k.startsWith("qrb.") || k.startsWith("qareeb."));
+  keys.forEach((k) => { try { localStorage.removeItem(k); } catch {} });
+  S.lang = "ar"; S.theme = null; S.district = CONFIG.defaultDistrict; S.saved = []; S.requests = [];
+  S.recent = []; S.role = "patient"; S.myBranch = null; S.myDoc = null; S.name = "";
+  closeSheet(true);
+  location.hash = "#/";
+  toast(isAR() ? "حُذفت جميع بياناتك" : "All your data has been deleted");
+  render();
+};
+
+function screenPrivacy() {
+  return `${header({ back: true, title: isAR() ? "سياسة الخصوصية" : "Privacy policy" })}
+  <section class="wrap" style="padding-top:14px">
+
+    <p class="t3" style="margin-bottom:18px">${isAR() ? "آخر تحديث: ٢٠٢٦/٧/٢٩" : "Last updated: 29 July 2026"}</p>
+
+    <h2 class="d3">${isAR() ? "ما البيانات التي نجمعها" : "What data we collect"}</h2>
+    <div class="stack" style="margin-top:10px">
+      <div class="rw"><span class="ic">${icon("pin")}</span>
+        <span class="grow" style="text-align:start"><b>${isAR() ? "الموقع (اختياري)" : "Location (optional)"}</b>
+          <p class="t3">${isAR()
+            ? "فقط عند طلبك — لعرض أقرب طبيب أو صيدلية. لا نخزّنه ولا نشاركه."
+            : "Only when you ask — to show the nearest doctor or pharmacy. We never store or share it."}</p></span></div>
+      <div class="rw"><span class="ic">${icon("pill")}</span>
+        <span class="grow" style="text-align:start"><b>${isAR() ? "طلبات الأدوية" : "Medicine requests"}</b>
+          <p class="t3">${isAR()
+            ? "اسم الدواء والكمية والمنطقة. لا نطلب رقم هاتفك. الطلب يُحذف تلقائياً بعد ٧٢ ساعة."
+            : "Medicine name, quantity, and area. We never ask for your phone number. Requests are auto-deleted after 72 hours."}</p></span></div>
+      <div class="rw"><span class="ic">${icon("heartbeat")}</span>
+        <span class="grow" style="text-align:start"><b>${isAR() ? "السجل الصحي (اختياري)" : "Health record (optional)"}</b>
+          <p class="t3">${isAR()
+            ? "إذا أنشأت سجلاً صحياً، يُخزَّن أولاً على جهازك. لا يُشارك إلا بموافقتك الصريحة، ولكل مشاركة مدة تنتهي تلقائياً."
+            : "If you create a health record, it is stored locally on your device first. It is shared only with your explicit consent, and every share has an expiration."}</p></span></div>
+    </div>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "ما لا نجمعه أبداً" : "What we never collect"}</h2>
+    <div class="stack" style="margin-top:10px">
+      <div class="rw"><span class="st st-v"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا حساب مطلوب ولا كلمة مرور" : "No account required, no password"}</span></div>
+      <div class="rw"><span class="st st-v"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا نحتفظ برقم هاتفك" : "We don't keep your phone number"}</span></div>
+      <div class="rw"><span class="st st-v"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا نخزّن صور الوصفات أو الهوية" : "We don't store prescription or ID photos"}</span></div>
+      <div class="rw"><span class="st st-v"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا نجمع: الديانة، المذهب، القومية، البيانات البيومترية" : "We don't collect: religion, sect, ethnicity, or biometric data"}</span></div>
+    </div>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "من يرى بياناتك" : "Who sees your data"}</h2>
+    <div class="note" style="margin-top:10px">${icon("seal")}<div>${isAR()
+      ? "لا أحد يرى سجلك الصحي إلا بموافقتك. كل مشاركة محددة بنطاق ومدة. كل فتح مسجّل في سجل الوصول."
+      : "Nobody sees your health record without your consent. Every share is scoped and time-bounded. Every access is logged."}</div></div>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "كيف تتحكم ببياناتك" : "How you control your data"}</h2>
+    <div class="stack" style="margin-top:10px">
+      <div class="rw"><span class="st st-v"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start"><b>${isAR() ? "إلغاء المشاركة" : "Revoke sharing"}</b>
+          <p class="t3">${isAR() ? "في أي وقت، فوراً، بدون سبب." : "At any time, immediately, without a reason."}</p></span></div>
+      <div class="rw"><span class="st st-v"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start"><b>${isAR() ? "سجل الوصول" : "Access log"}</b>
+          <p class="t3">${isAR() ? "ترى من فتح سجلك، ومتى، ولماذا." : "See who opened your record, when, and why."}</p></span></div>
+      <div class="rw"><span class="st st-v"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start"><b>${isAR() ? "حذف البيانات" : "Delete data"}</b>
+          <p class="t3">${isAR() ? "يمكنك مسح جميع بياناتك من الجهاز في أي وقت من الإعدادات." : "You can erase all your data from the device at any time from Settings."}</p></span></div>
+    </div>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "البيانات الحساسة" : "Sensitive data"}</h2>
+    <div class="note note-w" style="margin-top:10px">${icon("alert")}<div>${isAR()
+      ? "البيانات الحساسة (الصحة النفسية، الصحة الإنجابية) لا تُشارك أبداً ضمن المشاركة التلقائية. تحتاج موافقة منفصلة صريحة."
+      : "Sensitive data (mental health, reproductive health) is never included in default shares. It requires a separate, explicit consent."}</div></div>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "الطوارئ" : "Emergencies"}</h2>
+    <p style="margin-top:10px">${isAR()
+      ? "في حالة الطوارئ، يمكن لمقدّم الرعاية الوصول إلى معلومات محدودة (الحساسية، الأدوية الحالية، الأمراض) لمدة ساعة واحدة، مع سبب مسجّل وإشعار فوري لك."
+      : "In an emergency, a care provider can access limited information (allergies, current medications, conditions) for one hour, with a recorded reason and an immediate notification to you."}</p>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "الأطفال" : "Children"}</h2>
+    <p style="margin-top:10px">${isAR()
+      ? "قريب لا يجمع بيانات شخصية من أطفال دون ١٣ سنة بشكل مقصود."
+      : "Qareeb does not knowingly collect personal data from children under 13."}</p>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "تواصل معنا" : "Contact us"}</h2>
+    <p style="margin-top:10px">${isAR()
+      ? "لأي استفسار عن الخصوصية: support@qareeb.iq"
+      : "For any privacy question: support@qareeb.iq"}</p>
+
+    <div class="banner" style="margin-top:24px">${icon("alert")}<span>${isAR()
+      ? `${esc(L(CONFIG.brand))} لا يقدّم استشارة طبية ولا تشخيصاً. للحالات الطارئة اتصل بالرقم الموحد ${CONFIG.emergency.unified}.`
+      : `${esc(L(CONFIG.brand))} does not provide medical advice or diagnosis. In an emergency call ${CONFIG.emergency.unified}.`}</span></div>
+
+  </section>${nav("settings")}`;
+}
+
+function screenAbout() {
+  return `${header({ back: true, title: isAR() ? "معلومات التطبيق" : "App info" })}
+  <section class="wrap" style="padding-top:14px">
+
+    <div style="text-align:center;padding:26px 0">
+      <div style="margin:0 auto;width:64px;height:64px">${BRAND_MARK.replace('class="brand-mark"', 'style="width:64px;height:64px"')}</div>
+      <h1 class="d2" style="margin-top:14px">${esc(L(CONFIG.brand))}</h1>
+      <p class="t3" style="margin-top:6px">${isAR() ? "أقرب رعاية إليك" : "The nearest care to you"}</p>
+    </div>
+
+    <div class="stack" style="margin-top:10px">
+      <div class="kv"><span class="k">${isAR() ? "الإصدار" : "Version"}</span><span class="v">${isAR() ? "نسخة تجريبية" : "Preview"}</span></div>
+      <div class="kv"><span class="k">${isAR() ? "التغطية" : "Coverage"}</span><span class="v">${isAR() ? "بغداد" : "Baghdad"}</span></div>
+      <div class="kv"><span class="k">${isAR() ? "اللغات" : "Languages"}</span><span class="v">${isAR() ? "العربية · English" : "Arabic · English"}</span></div>
+    </div>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "ما هو قريب؟" : "What is Qareeb?"}</h2>
+    <p style="margin-top:10px">${isAR()
+      ? "قريب هو منصة رعاية صحية عراقية تساعدك في إيجاد أقرب طبيب وأقرب صيدلية مفتوحة الآن، مع سجل صحي يبقى عندك ومشاركة طبية آمنة ومحددة المدة."
+      : "Qareeb is an Iraqi healthcare platform that helps you find the nearest doctor and nearest open pharmacy, with a health record you own and time-bounded medical sharing."}</p>
+
+    <h2 class="d3" style="margin-top:24px">${isAR() ? "ما لا يفعله قريب" : "What Qareeb does NOT do"}</h2>
+    <div class="stack" style="margin-top:10px">
+      <div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا يشخّص أمراضاً" : "Does not diagnose diseases"}</span></div>
+      <div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا يصف أدوية" : "Does not prescribe medications"}</span></div>
+      <div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا يحلّ محلّ الطبيب" : "Does not replace a doctor"}</span></div>
+      <div class="rw"><span class="st st-e"><i class="dot"></i></span>
+        <span class="grow" style="text-align:start">${isAR() ? "لا يبيع أدوية" : "Does not sell medications"}</span></div>
+    </div>
+
+    <div class="banner banner--warn" style="margin-top:24px">${icon("alert")}<span>${isAR()
+      ? `للحالات الطارئة اتصل فوراً بالرقم الموحد: <span class="num">${CONFIG.emergency.unified}</span>`
+      : `For emergencies call immediately: <span class="num">${CONFIG.emergency.unified}</span>`}</span></div>
+
+    <div class="stack" style="margin-top:24px">
+      <a class="rw" href="#/privacy">
+        <span class="ic">${icon("seal")}</span>
+        <span class="grow" style="text-align:start"><h3>${isAR() ? "سياسة الخصوصية" : "Privacy policy"}</h3></span>
+        <span class="t3">${icon("chev")}</span></a>
+      <a class="rw" href="#/trust">
+        <span class="ic">${icon("check")}</span>
+        <span class="grow" style="text-align:start"><h3>${isAR() ? "الثقة والتوثيق" : "Trust & verification"}</h3></span>
+        <span class="t3">${icon("chev")}</span></a>
+    </div>
+
+    <p class="t3" style="margin-top:26px;text-align:center;line-height:1.7">${isAR() ? "بُني في بغداد 🇮🇶" : "Built in Baghdad 🇮🇶"}</p>
+
+  </section>${nav("settings")}`;
+}

@@ -43,7 +43,7 @@ const L = (o) => (o ? (isAR() ? o.ar : (o.en || o.ar)) : "");
 /* ---------------- i18n ---------------- */
 const T = {
   ar: {
-    home: "الرئيسية", doctors: "الأطباء", pharmacies: "الصيدليات", care: "العناية",
+    home: "الرئيسية", doctors: "الأطباء", pharmacies: "الصيدليات", care: "العناية", settings: "حسابي",
     need_a: "أحتاج", near: "قرب", now: "الآن", adoctor: "طبيب",
     show: "اعرض النتائج", searchPh: "طبيب، اختصاص، صيدلية، أو منتج…",
     openNow: "مفتوح الآن", closingSoon: "يغلق قريباً", closed: "مغلق",
@@ -68,7 +68,7 @@ const T = {
     noWa: "لا يوجد واتساب — اتصل هاتفياً", loading: "جارٍ التحميل",
   },
   en: {
-    home: "Home", doctors: "Doctors", pharmacies: "Pharmacies", care: "Care",
+    home: "Home", doctors: "Doctors", pharmacies: "Pharmacies", care: "Care", settings: "Account",
     need_a: "I need", near: "near", now: "right now", adoctor: "a doctor",
     show: "Show results", searchPh: "Doctor, specialty, pharmacy, or product…",
     openNow: "Open now", closingSoon: "Closing soon", closed: "Closed",
@@ -890,11 +890,15 @@ function netBanner() {
      read at a point in time and may have moved since. Say which is which. */
   const at = LS.get("lastOnline", null);
   const when = at ? fmtT(new Date(at).getHours() * 60 + new Date(at).getMinutes()) : null;
-  return `<div class="offline-bar">
+  return `<div class="offline-bar" role="alert" aria-live="assertive">
     <!-- The state is NAMED as well as described. Saying only "saved data from
          14:32" describes the consequence perfectly and leaves a user who has
          not noticed their signal dropped to keep tapping and wondering. Both,
-         in that order: what is wrong, then what it means for them. -->
+         in that order: what is wrong, then what it means for them.
+
+         role=alert + aria-live=assertive come from the Apple accessibility
+         track: losing connectivity changes what the screen can be trusted to
+         say, so it is announced rather than left to be discovered. -->
     <span class="grow">${isAR()
       ? `دون اتصال${when ? ` — بيانات محفوظة من <span class="num">${when}</span>` : ""}<br><span class="t3">التوفّر قد يكون تغيّر · الاتصال الهاتفي يعمل · ملفك يفتح ويتحدّث عادي</span>`
       : `Offline${when ? ` — saved data from <span class="num">${when}</span>` : ""}<br><span class="t3">Stock may have changed · phone calls still work · your record still opens and saves</span>`}</span>
@@ -936,6 +940,12 @@ const UP_FROM = {
   need: "#/rx", rx: "#/rx", med: "#/rx", product: "#/rx",
   care: "#/", partner: "#/", radar: "#/rx", wait: "#/rx",
   lab: "#/", imaging: "#/", "pharmacy-rx": "#/",
+  /* The settings family arrived from the Apple track with sub-routes
+     (`#/settings/:sub`) and no entry here, so a privacy or deletion sub-page
+     went "up" to the home screen rather than back to settings. The self-loop
+     guard below means the root still climbs to home; only the sub-pages climb
+     to `#/settings`. */
+  settings: "#/settings",
 };
 function upFrom(hash) {
   const seg = String(hash == null ? location.hash : hash)
@@ -994,13 +1004,22 @@ const NAV_ALIAS = { explorer: "pharmacies", care: "pharmacies" };
 function nav(active) {
   active = NAV_ALIAS[active] || active;
   const items = [["#/", "home", "home"], ["#/record", "seal", "record"],
-    ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"]];
+    ["#/needs", "stetho", "doctors"], ["#/pharmacies", "cross", "pharmacies"],
+    /* The settings tab belongs to the Apple track — App Store compliance needs
+       privacy, data export and account deletion reachable without a hunt. Kept
+       as that developer placed it; not redesigned here. */
+    ["#/settings", "user", "settings"]];
   /* The bar is `position: fixed`, so it floats over the end of whatever is
      behind it. Measured before this existed: the record index's last row —
      «التحاليل» — sat at y=792 with the bar's top edge at y=778. Unreadable,
      and untappable. The reservation is emitted HERE rather than left to each
-     call site, because a call site can forget and this cannot. */
+     call site, because a call site can forget and this cannot.
+
+     It is `aria-hidden` because it is spacing, not content — which is also why
+     it must survive alongside the tablist roles rather than instead of them:
+     one fixes what a screen reader hears, the other fixes what a thumb can
+     reach, and losing either reintroduces a real defect. */
   return `<div class="nav-space" aria-hidden="true"></div>`
-    + `<nav class="nav">${items.map(([h, i, k]) =>
-      `<a href="${h}" class="${active === k ? "on" : ""}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
+    + `<nav class="nav" role="tablist" aria-label="${isAR() ? "التنقل الرئيسي" : "Main navigation"}">${items.map(([h, i, k]) =>
+      `<a href="${h}" class="${active === k ? "on" : ""}" role="tab" aria-selected="${active === k}">${icon(i)}<span>${t(k)}</span></a>`).join("")}</nav>`;
 }

@@ -1,0 +1,22 @@
+{
+  "name": "قريب — أقرب رعاية إليك",
+  "short_name": "قريب",
+  "description": "أقرب طبيب موثّق وأقرب صيدلية مفتوحة الآن — بدون حساب.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#0E4F4A",
+  "background_color": "#F4F1EB",
+  "categories": ["medical", "health"],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

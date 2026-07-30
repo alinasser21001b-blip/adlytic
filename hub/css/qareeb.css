@@ -547,6 +547,8 @@ a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
   font: 400 12px/1 var(--disp); color: var(--ink-3); position: relative;
 }
 .nav a svg { width: 20px; height: 20px; }
+.nav a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+@media (max-width: 374px) { .nav a, .nv > span { font-size: 10.5px; gap: 3px; } }
 .nav a.on, .nv > span.on { color: var(--ink); font-weight: 600; }
 .nav a.on::before, .nv > span.on::before {
   content: ""; position: absolute; top: -1px; inset-inline: 32%; height: 2px; background: var(--ink);
