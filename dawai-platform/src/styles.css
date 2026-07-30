@@ -1,0 +1,2465 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap");
+
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+  font-synthesis: none;
+  --forest-950: #102e2b;
+  --forest-900: #173c37;
+  --forest-700: #23665c;
+  --forest-500: #348b7c;
+  --mint-100: #dff1eb;
+  --mint-50: #eff8f4;
+  --ink-950: #17201f;
+  --ink-700: #43514f;
+  --ink-500: #6d7876;
+  --paper: #fbfaf6;
+  --white: #fff;
+  --line: #d8dcd8;
+  --line-dark: #aeb8b4;
+  --coral: #df664d;
+  --coral-soft: #fbe9e4;
+  --blue: #436a91;
+  --blue-soft: #e8eff6;
+  --amber: #a76614;
+  --amber-soft: #fbf0dc;
+  --lime: #dceab8;
+  --shadow: 0 18px 55px rgb(23 60 55 / 8%);
+  background: var(--paper);
+  color: var(--ink-950);
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  overflow-x: clip;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(90deg, rgb(23 60 55 / 2%) 1px, transparent 1px) 0 0 / 84px 84px,
+    var(--paper);
+  color: var(--ink-950);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a,
+input,
+textarea,
+select,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--coral);
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+}
+
+h1,
+h2,
+h3,
+.brand strong {
+  font-family: "Noto Kufi Arabic", Tahoma, Arial, sans-serif;
+  line-height: 1.42;
+}
+
+h1 {
+  letter-spacing: -0.035em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 1000;
+  inset-block-start: 0.75rem;
+  inset-inline-start: 0.75rem;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  background: var(--forest-950);
+  color: white;
+  transform: translateY(-160%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+.site-header {
+  position: sticky;
+  z-index: 50;
+  inset-block-start: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76px;
+  padding: 0.7rem max(1rem, calc((100vw - 1200px) / 2));
+  background: rgb(251 250 246 / 94%);
+  border-block-end: 1px solid rgb(174 184 180 / 55%);
+  backdrop-filter: blur(16px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+.brand > span:last-child {
+  display: grid;
+}
+
+.brand strong {
+  color: var(--forest-900);
+  font-size: 1.32rem;
+  line-height: 1.2;
+}
+
+.brand small {
+  color: var(--ink-500);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.brand-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 41px;
+  height: 41px;
+  border-radius: 13px 13px 13px 5px;
+  background: var(--forest-900);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
+}
+
+.brand-mark span {
+  position: absolute;
+  width: 22px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--lime);
+  transform: rotate(-42deg);
+}
+
+.brand-mark span:last-child {
+  transform: rotate(48deg);
+}
+
+.header-actions,
+.header-location,
+.role-switch,
+.role-switch button,
+.pharmacy-online {
+  display: flex;
+  align-items: center;
+}
+
+.header-actions {
+  gap: 0.65rem;
+}
+
+.header-location {
+  gap: 0.35rem;
+  min-height: 40px;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.role-switch {
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: white;
+}
+
+.role-switch button {
+  gap: 0.35rem;
+  min-height: 38px;
+  padding: 0.35rem 0.65rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.role-switch button.active {
+  background: var(--forest-900);
+  color: white;
+}
+
+.pharmacy-online {
+  gap: 0.4rem;
+  color: var(--forest-700);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.demo-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 36px;
+  padding: 0.35rem 1rem;
+  background: var(--forest-950);
+  color: #e1eeea;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+main {
+  min-height: 68vh;
+}
+
+.hero,
+.section-block,
+.flow-shell,
+.pharmacy-shell {
+  width: min(calc(100% - 2rem), 1200px);
+  margin-inline: auto;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 0.92fr);
+  gap: clamp(2rem, 6vw, 5rem);
+  align-items: center;
+  min-height: 650px;
+  padding-block: clamp(3rem, 8vw, 6.5rem);
+}
+
+.location-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-block-end: 1.2rem;
+  color: var(--forest-700);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.location-line button {
+  padding: 0.1rem 0.35rem;
+  border: 0;
+  border-block-end: 1px solid currentColor;
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.overline {
+  margin-block-end: 0.5rem;
+  color: var(--forest-700);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.hero h1 {
+  max-width: 10ch;
+  margin-block-end: 1rem;
+  color: var(--forest-950);
+  font-size: clamp(2.7rem, 6.5vw, 5.4rem);
+  line-height: 1.18;
+}
+
+.hero h1 span {
+  display: block;
+  color: var(--coral);
+}
+
+.hero-lede {
+  max-width: 52ch;
+  margin-block-end: 1.5rem;
+  color: var(--ink-700);
+  font-size: clamp(1rem, 1.8vw, 1.2rem);
+}
+
+.medicine-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 650px;
+  padding: 0.5rem 0.55rem 0.5rem 0.5rem;
+  border: 1px solid var(--line-dark);
+  border-radius: 15px 15px 15px 5px;
+  background: white;
+  box-shadow: 0 16px 45px rgb(23 60 55 / 10%);
+}
+
+.medicine-search > svg {
+  color: var(--forest-700);
+}
+
+.medicine-search input {
+  min-width: 0;
+  min-height: 48px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font-size: 1rem;
+}
+
+.medicine-search input::placeholder,
+.form-field textarea::placeholder {
+  color: #858f8d;
+  opacity: 1;
+}
+
+.medicine-search button,
+.primary-cta,
+.secondary-cta,
+.quiet-button,
+.text-action,
+.available-button,
+.not-available-button {
+  min-height: 46px;
+  border-radius: 10px 10px 10px 3px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.medicine-search button,
+.primary-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--forest-900);
+  background: var(--forest-900);
+  color: white;
+}
+
+.medicine-search button:hover,
+.primary-cta:hover:not(:disabled) {
+  background: var(--forest-700);
+  border-color: var(--forest-700);
+}
+
+.request-link,
+.text-action,
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.4rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--forest-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.request-link svg,
+.back-button svg {
+  transform: scaleX(-1);
+}
+
+.hero-signal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(100%, 500px);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(223 241 235 / 70%) 0 7%, transparent 8%);
+}
+
+.hero-signal::before {
+  position: absolute;
+  inset: 7%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, transparent 0 46%, rgb(35 102 92 / 6%) 47% 49%, transparent 50%),
+    repeating-conic-gradient(from 20deg, rgb(23 60 55 / 13%) 0 1deg, transparent 1deg 18deg);
+  mask: radial-gradient(circle, transparent 0 40%, black 41% 42%, transparent 43% 72%, black 73% 74%, transparent 75%);
+  content: "";
+}
+
+.orbit {
+  position: absolute;
+  border: 1px dashed rgb(35 102 92 / 32%);
+  border-radius: 50%;
+}
+
+.orbit-one {
+  inset: 22%;
+}
+
+.orbit-two {
+  inset: 6%;
+}
+
+.signal-center {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 118px;
+  height: 118px;
+  border: 9px solid var(--mint-100);
+  border-radius: 50%;
+  background: var(--forest-900);
+  color: white;
+  box-shadow: 0 13px 35px rgb(23 60 55 / 24%);
+}
+
+.signal-center strong {
+  margin-block-start: -0.5rem;
+  font-size: 0.82rem;
+}
+
+.signal-center span {
+  margin-block-start: -0.8rem;
+  color: #c4dcd5;
+  font-size: 0.65rem;
+}
+
+.pharmacy-node {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 0.45rem;
+  align-items: center;
+  min-width: 126px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 11px 11px 11px 3px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.pharmacy-node strong {
+  color: var(--forest-900);
+  font-size: 0.72rem;
+}
+
+.pharmacy-node small {
+  grid-column: 2;
+  color: var(--ink-500);
+  font-size: 0.63rem;
+}
+
+.node-icon {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--mint-100);
+  color: var(--forest-700);
+}
+
+.node-one {
+  inset-block-start: 14%;
+  inset-inline-end: 1%;
+}
+
+.node-two {
+  inset-block-end: 14%;
+  inset-inline-start: 0;
+}
+
+.node-three {
+  inset-block-start: 32%;
+  inset-inline-start: -4%;
+}
+
+.signal-caption {
+  position: absolute;
+  inset-block-end: 4%;
+  inset-inline-end: 13%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink-500);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.live-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2b9b6f;
+  box-shadow: 0 0 0 3px rgb(43 155 111 / 13%);
+}
+
+.section-block {
+  padding-block: clamp(2.5rem, 6vw, 5rem);
+  border-block-start: 1px solid var(--line);
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-block-end: 1.5rem;
+}
+
+.section-heading h2,
+.inbox-heading h2 {
+  margin-block-end: 0;
+  color: var(--forest-950);
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.section-heading > p {
+  max-width: 53ch;
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.82rem;
+}
+
+.way-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.way-grid > button {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.1rem 0.75rem;
+  min-height: 122px;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 14px 4px;
+  background: white;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.way-grid > button:hover {
+  border-color: var(--forest-500);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.way-grid strong {
+  color: var(--forest-950);
+  font-size: 0.95rem;
+}
+
+.way-grid button > span:nth-of-type(2) {
+  grid-column: 2;
+  color: var(--ink-500);
+  font-size: 0.72rem;
+}
+
+.way-grid button > svg {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  color: var(--ink-500);
+}
+
+.way-icon {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 15px 15px 15px 5px;
+}
+
+.way-icon.coral {
+  background: var(--coral-soft);
+  color: var(--coral);
+}
+
+.way-icon.blue {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.way-icon.green {
+  background: var(--mint-100);
+  color: var(--forest-700);
+}
+
+.section-heading.compact {
+  align-items: center;
+}
+
+.text-action {
+  padding-inline: 0.5rem;
+}
+
+.pharmacy-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.nearby-card,
+.search-result-card,
+.directory-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 13px 13px 13px 4px;
+  background: white;
+}
+
+.pharmacy-avatar {
+  display: grid;
+  place-items: center;
+  width: 45px;
+  height: 45px;
+  border-radius: 12px 12px 12px 4px;
+  background: var(--mint-100);
+  color: var(--forest-700);
+}
+
+.card-title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.card-title-line h2,
+.card-title-line h3 {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.card-title-line > svg {
+  color: var(--forest-500);
+}
+
+.nearby-card p,
+.search-result-card p,
+.directory-card p {
+  margin-block: 0.15rem 0.4rem;
+  color: var(--ink-500);
+  font-size: 0.69rem;
+}
+
+.fresh-line,
+.stock-signal {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--forest-700);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.distance {
+  color: var(--ink-700);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.promise {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-block-end: 5rem;
+  padding: 1.2rem 1.4rem;
+  border: 1px solid #bed2cb;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--mint-50);
+  color: var(--forest-900);
+}
+
+.promise > svg {
+  flex: 0 0 auto;
+}
+
+.promise strong,
+.promise span {
+  display: block;
+}
+
+.promise strong {
+  font-size: 0.88rem;
+}
+
+.promise span {
+  margin-block-start: 0.2rem;
+  color: var(--ink-700);
+  font-size: 0.72rem;
+}
+
+/* Shared flow surfaces */
+.flow-shell {
+  padding-block: clamp(2rem, 5vw, 4rem) 6rem;
+}
+
+.back-button {
+  margin-block-end: 1.5rem;
+}
+
+.flow-heading {
+  max-width: 740px;
+  margin-block-end: 2rem;
+}
+
+.flow-heading h1,
+.results-heading h1,
+.matching-screen h1,
+.pharmacy-hero h1,
+.reserved-screen h1 {
+  margin-block-end: 0.65rem;
+  color: var(--forest-950);
+  font-size: clamp(2rem, 5vw, 3.4rem);
+}
+
+.flow-heading > p:last-child,
+.results-heading p,
+.matching-screen > p,
+.pharmacy-hero p,
+.reserved-screen > p {
+  margin-block-end: 0;
+  color: var(--ink-700);
+}
+
+.request-form,
+.pharmacy-offer-form form {
+  max-width: 780px;
+  padding: clamp(1rem, 4vw, 2rem);
+  border: 1px solid var(--line);
+  border-radius: 17px 17px 17px 5px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.mode-tabs,
+.display-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+
+.mode-tabs {
+  width: 100%;
+  margin-block-end: 1.4rem;
+}
+
+.mode-tabs button,
+.display-switch button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mode-tabs button.active,
+.display-switch button.active {
+  background: white;
+  color: var(--forest-900);
+  box-shadow: 0 3px 12px rgb(23 60 55 / 9%);
+}
+
+.form-field {
+  display: grid;
+  gap: 0.45rem;
+  margin-block: 1rem;
+}
+
+.form-field > span,
+.fulfillment-options legend {
+  color: var(--ink-700);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.form-field input,
+.form-field textarea,
+.form-field select {
+  width: 100%;
+  min-height: 52px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line-dark);
+  border-radius: 9px 9px 9px 3px;
+  background: var(--paper);
+  color: var(--ink-950);
+}
+
+.form-field textarea {
+  min-height: 115px;
+  resize: vertical;
+}
+
+.form-field small {
+  color: var(--ink-500);
+  font-size: 0.67rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.upload-zone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 1.5rem;
+  border: 1px dashed var(--forest-500);
+  border-radius: 13px 13px 13px 4px;
+  background:
+    radial-gradient(circle at center, var(--mint-50), transparent 65%),
+    white;
+  text-align: center;
+  cursor: pointer;
+}
+
+.upload-zone input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-zone strong {
+  color: var(--forest-900);
+}
+
+.upload-zone > span:last-child {
+  max-width: 50ch;
+  color: var(--ink-500);
+  font-size: 0.72rem;
+}
+
+.upload-illustration {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  margin-block-end: 0.6rem;
+  border-radius: 20px 20px 20px 6px;
+  background: var(--mint-100);
+  color: var(--forest-700);
+}
+
+.request-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-block: 1.2rem;
+  padding: 0.8rem;
+  border-block: 1px solid var(--line);
+}
+
+.request-summary div {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--ink-700);
+  font-size: 0.7rem;
+}
+
+.request-summary button {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--forest-700);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.safety-note,
+.pharmacy-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-block: 1rem;
+  padding: 0.8rem;
+  border: 1px solid #c5d6e4;
+  border-radius: 10px;
+  background: var(--blue-soft);
+  color: #274866;
+}
+
+.safety-note p {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.request-form > .primary-cta,
+.pharmacy-offer-form form > .primary-cta {
+  width: 100%;
+  margin-block-start: 0.6rem;
+}
+
+/* Matching */
+.matching-screen {
+  display: grid;
+  justify-items: center;
+  width: min(calc(100% - 2rem), 720px);
+  margin-inline: auto;
+  padding-block: clamp(2.5rem, 7vw, 5rem) 6rem;
+  text-align: center;
+}
+
+.matching-radar {
+  position: relative;
+  width: 250px;
+  aspect-ratio: 1;
+  margin-block-end: 1.5rem;
+  overflow: hidden;
+  border: 1px solid #bfd1cb;
+  border-radius: 50%;
+  background: var(--mint-50);
+}
+
+.radar-ring {
+  position: absolute;
+  border: 1px solid rgb(35 102 92 / 22%);
+  border-radius: 50%;
+}
+
+.ring-1 {
+  inset: 33%;
+}
+
+.ring-2 {
+  inset: 17%;
+}
+
+.ring-3 {
+  inset: 1%;
+}
+
+.radar-ring::after,
+.radar-ring::before {
+  position: absolute;
+  background: rgb(35 102 92 / 14%);
+  content: "";
+}
+
+.radar-ring::after {
+  inset-block: 0;
+  inset-inline-start: 50%;
+  width: 1px;
+}
+
+.radar-ring::before {
+  inset-inline: 0;
+  inset-block-start: 50%;
+  height: 1px;
+}
+
+.radar-sweep {
+  position: absolute;
+  inset: 50% 50% 0 0;
+  border-block-start: 2px solid var(--forest-500);
+  background: conic-gradient(from 270deg, rgb(52 139 124 / 28%), transparent 22%);
+  transform-origin: 0 0;
+  animation: radar-sweep 2.4s linear infinite;
+}
+
+@keyframes radar-sweep {
+  to { transform: rotate(1turn); }
+}
+
+.radar-home {
+  position: absolute;
+  z-index: 3;
+  inset: 50% auto auto 50%;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--forest-900);
+  color: white;
+  transform: translate(-50%, -50%);
+}
+
+.radar-dot {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border: 3px solid var(--mint-50);
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 3px rgb(223 102 77 / 17%);
+}
+
+.dot-a { inset-block-start: 28%; inset-inline-start: 24%; }
+.dot-b { inset-block-start: 63%; inset-inline-start: 26%; }
+.dot-c { inset-block-start: 41%; inset-inline-start: 72%; }
+
+.matching-screen h1 {
+  margin-block-end: 0.2rem;
+}
+
+.matching-medicine {
+  margin-block-end: 1.6rem !important;
+  font-weight: 700;
+}
+
+.search-progress {
+  width: min(100%, 600px);
+  margin-block: 1rem 1.4rem;
+  border-block-start: 1px solid var(--line);
+  text-align: start;
+}
+
+.search-progress > div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-block: 0.75rem;
+  border-block-end: 1px solid var(--line);
+  color: var(--ink-500);
+}
+
+.search-progress > div > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-block-start: 0.1rem;
+  border: 1px solid var(--line-dark);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.search-progress .done > span {
+  border-color: var(--forest-500);
+  background: var(--forest-700);
+  color: white;
+}
+
+.search-progress .current {
+  color: var(--forest-900);
+}
+
+.search-progress .current > span {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+
+.search-progress p,
+.search-progress strong,
+.search-progress small {
+  display: block;
+  margin: 0;
+}
+
+.search-progress strong {
+  font-size: 0.8rem;
+}
+
+.search-progress small {
+  color: var(--ink-500);
+  font-size: 0.68rem;
+}
+
+.matching-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem 1.2rem;
+  margin-block-end: 1.2rem;
+  color: var(--ink-500);
+  font-size: 0.7rem;
+}
+
+.matching-meta span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.matching-actions {
+  display: grid;
+  gap: 0.4rem;
+  width: min(100%, 360px);
+}
+
+.quiet-button {
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-500);
+}
+
+/* Offers */
+.results-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 1.5rem;
+}
+
+.results-heading .status-pill {
+  margin-block-end: 0.7rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 27px;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.63rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-pill.green {
+  border-color: #acd3c2;
+  background: var(--mint-50);
+  color: #176044;
+}
+
+.status-pill.amber {
+  border-color: #e2c48d;
+  background: var(--amber-soft);
+  color: #74460e;
+}
+
+.status-pill.blue {
+  border-color: #b6c9da;
+  background: var(--blue-soft);
+  color: #305878;
+}
+
+.request-clock {
+  display: grid;
+  min-width: 130px;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: white;
+}
+
+.request-clock span {
+  color: var(--ink-500);
+  font-size: 0.65rem;
+}
+
+.request-clock strong {
+  color: var(--forest-900);
+  font-family: ui-monospace, monospace;
+  font-size: 1.15rem;
+}
+
+.result-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 1rem;
+}
+
+.result-tools p {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.72rem;
+}
+
+.result-tools label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 150px;
+  padding-inline: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+}
+
+.result-tools select {
+  min-height: 42px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink-700);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.offer-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.offer-card {
+  position: relative;
+  padding: 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 15px 15px 15px 5px;
+  background: white;
+}
+
+.offer-card.featured {
+  border-color: var(--forest-500);
+  box-shadow: var(--shadow);
+}
+
+.best-label {
+  position: absolute;
+  inset-block-start: -13px;
+  inset-inline-end: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--forest-950);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.offer-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.offer-top p {
+  margin: 0.1rem 0 0;
+  color: var(--ink-500);
+  font-size: 0.69rem;
+}
+
+.offer-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  margin-block: 0.9rem;
+  padding-block: 0.6rem;
+  border-block: 1px solid var(--line);
+  color: var(--ink-500);
+  font-size: 0.67rem;
+}
+
+.offer-evidence span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.alternative-note {
+  margin-block: 0.7rem;
+  padding: 0.65rem;
+  border-inline-start: 3px solid var(--amber);
+  background: var(--amber-soft);
+  color: #68420f;
+  font-size: 0.7rem;
+}
+
+.offer-details {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 1px;
+  margin-block-end: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--line);
+}
+
+.offer-details > div {
+  min-width: 0;
+  padding: 0.65rem;
+  background: var(--paper);
+}
+
+.offer-details small,
+.offer-details strong {
+  display: block;
+}
+
+.offer-details small {
+  margin-block-end: 0.2rem;
+  color: var(--ink-500);
+  font-size: 0.61rem;
+}
+
+.offer-details strong {
+  color: var(--ink-950);
+  font-size: 0.75rem;
+}
+
+.offer-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.45rem;
+}
+
+.icon-button,
+.directory-actions button {
+  display: grid;
+  place-items: center;
+  width: 47px;
+  min-height: 47px;
+  border: 1px solid var(--line-dark);
+  border-radius: 9px;
+  background: white;
+  color: var(--forest-700);
+  cursor: pointer;
+}
+
+.expand-card,
+.request-conversion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-start: 1rem;
+  padding: 1rem;
+  border: 1px dashed var(--line-dark);
+  border-radius: 12px;
+  background: var(--mint-50);
+}
+
+.expand-card > div,
+.request-conversion > div {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.expand-card p,
+.request-conversion div {
+  margin: 0;
+}
+
+.expand-card strong,
+.expand-card span,
+.request-conversion strong,
+.request-conversion span {
+  display: block;
+}
+
+.expand-card strong,
+.request-conversion strong {
+  font-size: 0.78rem;
+}
+
+.expand-card span,
+.request-conversion span {
+  color: var(--ink-500);
+  font-size: 0.68rem;
+}
+
+.expand-card button {
+  min-height: 42px;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--forest-700);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--forest-700);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* Reservation */
+.reserved-screen {
+  display: grid;
+  justify-items: center;
+  width: min(calc(100% - 2rem), 680px);
+  text-align: center;
+}
+
+.success-seal {
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 82px;
+  margin-block-end: 1rem;
+  border: 8px solid var(--mint-100);
+  border-radius: 50%;
+  background: var(--forest-700);
+  color: white;
+}
+
+.reserved-screen > p {
+  max-width: 55ch;
+}
+
+.reservation-ticket {
+  width: 100%;
+  margin-block: 1.6rem;
+  overflow: hidden;
+  border: 1px solid var(--forest-900);
+  border-radius: 16px 16px 16px 5px;
+  background: white;
+  text-align: start;
+  box-shadow: var(--shadow);
+}
+
+.ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+  background: var(--forest-900);
+  color: white;
+}
+
+.ticket-header span {
+  color: #c7ded7;
+  font-size: 0.7rem;
+}
+
+.ticket-header strong {
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.08em;
+}
+
+.ticket-medicine {
+  display: grid;
+  padding: 1rem;
+  border-block-end: 1px dashed var(--line-dark);
+}
+
+.ticket-medicine small,
+.ticket-grid small {
+  color: var(--ink-500);
+  font-size: 0.64rem;
+}
+
+.ticket-medicine strong {
+  color: var(--forest-950);
+  font-size: 1.1rem;
+}
+
+.ticket-medicine span {
+  color: var(--ink-500);
+  font-size: 0.72rem;
+}
+
+.ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ticket-grid > div {
+  display: grid;
+  padding: 0.8rem 1rem;
+  border-block-end: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
+}
+
+.ticket-grid strong {
+  font-size: 0.74rem;
+}
+
+.ticket-timer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: var(--amber-soft);
+  color: #6c430e;
+}
+
+.ticket-timer span {
+  font-size: 0.7rem;
+}
+
+.ticket-timer strong {
+  font-family: ui-monospace, monospace;
+  font-size: 1.15rem;
+}
+
+.reservation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.secondary-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--forest-700);
+  background: white;
+  color: var(--forest-700);
+}
+
+/* Direct search */
+.search-result-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.search-result-card {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.search-result-card > strong {
+  color: var(--forest-900);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.search-result-card .secondary-cta {
+  min-height: 42px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.7rem;
+}
+
+.request-conversion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-block-start: 1.5rem;
+}
+
+/* Pharmacy directory */
+.results-heading > div:first-child > p:last-child {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.display-switch {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.map-panel {
+  position: relative;
+  height: 360px;
+  margin-block-end: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 16px 5px;
+  background:
+    linear-gradient(35deg, transparent 0 46%, rgb(255 255 255 / 84%) 47% 53%, transparent 54%),
+    linear-gradient(125deg, transparent 0 43%, rgb(255 255 255 / 74%) 44% 50%, transparent 51%),
+    #e7ede9;
+}
+
+.map-panel::before,
+.map-panel::after {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0 24%, rgb(255 255 255 / 65%) 25% 27%, transparent 28% 68%, rgb(255 255 255 / 65%) 69% 71%, transparent 72%),
+    linear-gradient(0deg, transparent 0 29%, rgb(255 255 255 / 68%) 30% 33%, transparent 34% 74%, rgb(255 255 255 / 68%) 75% 78%, transparent 79%);
+  content: "";
+}
+
+.map-panel::after {
+  background:
+    repeating-linear-gradient(25deg, transparent 0 40px, rgb(35 102 92 / 6%) 41px 42px),
+    repeating-linear-gradient(115deg, transparent 0 58px, rgb(35 102 92 / 6%) 59px 60px);
+}
+
+.map-pin,
+.map-home {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 45px;
+  height: 45px;
+  border: 4px solid white;
+  border-radius: 50% 50% 50% 8px;
+  background: var(--forest-700);
+  color: white;
+  box-shadow: 0 6px 18px rgb(23 60 55 / 25%);
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.map-pin {
+  inset-inline-start: var(--x);
+  inset-block-start: var(--y);
+  cursor: pointer;
+}
+
+.map-pin svg,
+.map-home svg {
+  transform: rotate(45deg);
+}
+
+.map-pin span {
+  position: absolute;
+  inset-block-start: -9px;
+  inset-inline-end: -9px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: white;
+  font-size: 0.62rem;
+  transform: rotate(45deg);
+}
+
+.map-home {
+  inset-inline-start: 48%;
+  inset-block-start: 52%;
+  background: var(--coral);
+}
+
+.map-key {
+  position: absolute;
+  z-index: 4;
+  inset-block-end: 0.8rem;
+  inset-inline-start: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgb(255 255 255 / 92%);
+  color: var(--ink-500);
+  font-size: 0.65rem;
+}
+
+.pharmacy-directory {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.directory-card {
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.directory-index {
+  color: var(--ink-500);
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+}
+
+.service-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-block: 0.4rem;
+}
+
+.service-tags span {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-700);
+  font-size: 0.6rem;
+}
+
+.directory-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.directory-actions button {
+  width: 42px;
+  min-height: 42px;
+}
+
+/* Pharmacy workspace */
+.pharmacy-shell {
+  padding-block: clamp(2rem, 5vw, 4rem) 6rem;
+}
+
+.pharmacy-hero {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 1.2rem;
+}
+
+.pharmacy-hero h1 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.pharmacy-hero p {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.pharmacy-stat {
+  display: grid;
+  min-width: 180px;
+  padding: 0.9rem 1rem;
+  border-radius: 13px 13px 13px 4px;
+  background: var(--forest-900);
+  color: white;
+}
+
+.pharmacy-stat span,
+.pharmacy-stat small {
+  color: #bad3cc;
+  font-size: 0.65rem;
+}
+
+.pharmacy-stat strong {
+  font-family: "Noto Kufi Arabic", sans-serif;
+  font-size: 1.6rem;
+}
+
+.pharmacy-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--line);
+}
+
+.pharmacy-metrics > div {
+  display: grid;
+  padding: 0.85rem;
+  background: white;
+}
+
+.pharmacy-metrics span,
+.pharmacy-metrics small {
+  color: var(--ink-500);
+  font-size: 0.64rem;
+}
+
+.pharmacy-metrics strong {
+  color: var(--forest-900);
+  font-size: 1.1rem;
+}
+
+.inbox-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block: 2rem 1rem;
+}
+
+.inbox-heading > span {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: var(--coral-soft);
+  color: #8b3d2d;
+  font-size: 0.67rem;
+  font-weight: 800;
+}
+
+.request-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.pharmacy-request {
+  position: relative;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 15px 15px 15px 5px;
+  background: white;
+}
+
+.pharmacy-request.new {
+  border-inline-start: 4px solid var(--coral);
+}
+
+.request-clock-line,
+.request-clock-line > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.request-clock-line > span {
+  color: var(--ink-500);
+  font-size: 0.67rem;
+}
+
+.request-clock-line b {
+  color: var(--coral);
+  font-family: ui-monospace, monospace;
+}
+
+.request-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block: 1rem;
+}
+
+.request-body small {
+  color: var(--ink-500);
+  font-size: 0.63rem;
+}
+
+.request-body h3 {
+  margin-block: 0.25rem;
+  color: var(--forest-950);
+  font-size: 1.12rem;
+}
+
+.request-body p {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.72rem;
+}
+
+.request-distance {
+  display: grid;
+  min-width: 95px;
+  text-align: end;
+}
+
+.request-distance strong {
+  color: var(--forest-900);
+}
+
+.request-distance span {
+  color: var(--ink-500);
+  font-size: 0.65rem;
+}
+
+.request-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  padding-block: 0.7rem;
+  border-block: 1px solid var(--line);
+}
+
+.request-flags span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--ink-700);
+  font-size: 0.68rem;
+}
+
+.pharmacy-response-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  margin-block-start: 0.8rem;
+}
+
+.available-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--forest-700);
+  background: var(--forest-700);
+  color: white;
+}
+
+.not-available-button {
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--line-dark);
+  background: white;
+  color: var(--ink-700);
+}
+
+.pharmacy-privacy {
+  margin-block-start: 1rem;
+}
+
+.pharmacy-privacy p,
+.pharmacy-privacy strong,
+.pharmacy-privacy span {
+  display: block;
+  margin: 0;
+}
+
+.pharmacy-privacy strong {
+  font-size: 0.74rem;
+}
+
+.pharmacy-privacy span {
+  font-size: 0.67rem;
+}
+
+.medicine-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  max-width: 780px;
+  margin-block-end: 0.8rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--mint-50);
+}
+
+.medicine-identity > svg {
+  color: var(--forest-700);
+}
+
+.medicine-identity strong,
+.medicine-identity span {
+  display: block;
+}
+
+.medicine-identity span {
+  color: var(--ink-500);
+  font-size: 0.67rem;
+}
+
+.fulfillment-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0;
+  padding: 0;
+  border: 0;
+}
+
+.fulfillment-options legend {
+  margin-block-end: 0.5rem;
+}
+
+.fulfillment-options label {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.fulfillment-options label.selected {
+  border-color: var(--forest-500);
+  background: var(--mint-50);
+}
+
+.fulfillment-options input {
+  position: absolute;
+  opacity: 0;
+}
+
+.fulfillment-options svg {
+  color: var(--forest-700);
+}
+
+.fulfillment-options strong,
+.fulfillment-options small {
+  display: block;
+}
+
+.fulfillment-options strong {
+  font-size: 0.75rem;
+}
+
+.fulfillment-options small {
+  color: var(--ink-500);
+  font-size: 0.64rem;
+}
+
+.confirmation-check {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  margin-block: 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--forest-500);
+  border-radius: 10px;
+  background: var(--mint-50);
+  color: var(--ink-700);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.confirmation-check input {
+  position: absolute;
+  opacity: 0;
+}
+
+.confirmation-check > span {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border: 2px solid var(--forest-500);
+  border-radius: 5px;
+  color: transparent;
+}
+
+.confirmation-check input:checked + span {
+  background: var(--forest-700);
+  color: white;
+}
+
+.pharmacy-sent > p {
+  max-width: 56ch;
+}
+
+.sent-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  margin-block: 1.2rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--line);
+}
+
+.sent-summary > div {
+  display: grid;
+  padding: 0.8rem;
+  background: white;
+}
+
+.sent-summary span {
+  color: var(--ink-500);
+  font-size: 0.65rem;
+}
+
+.sent-summary strong {
+  font-size: 0.76rem;
+}
+
+/* Footer */
+.site-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: center;
+  min-height: 130px;
+  padding: 1.5rem max(1rem, calc((100vw - 1200px) / 2));
+  border-block-start: 1px solid var(--line);
+  background: #f3f3ee;
+}
+
+.site-footer p {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.72rem;
+}
+
+.site-footer > span {
+  color: var(--ink-500);
+  font-size: 0.64rem;
+  text-align: end;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding-block: 3rem;
+  }
+
+  .hero-copy {
+    max-width: 680px;
+  }
+
+  .hero-signal {
+    width: min(100%, 460px);
+  }
+
+  .way-grid,
+  .pharmacy-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .way-grid > button {
+    min-height: 100px;
+  }
+
+  .pharmacy-strip {
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
+    margin-inline-end: calc((100vw - min(calc(100vw - 2rem), 1200px)) / -2);
+    padding-inline-end: 1rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  .nearby-card {
+    scroll-snap-align: start;
+  }
+
+  .search-result-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .search-result-card .secondary-cta {
+    grid-column: 2 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .site-header {
+    min-height: 66px;
+    padding-inline: 0.75rem;
+  }
+
+  .brand small,
+  .header-location,
+  .pharmacy-online,
+  .role-switch svg {
+    display: none;
+  }
+
+  .brand-mark {
+    width: 35px;
+    height: 35px;
+    border-radius: 11px 11px 11px 4px;
+  }
+
+  .brand-mark span {
+    width: 19px;
+    height: 6px;
+  }
+
+  .brand strong {
+    font-size: 1.1rem;
+  }
+
+  .role-switch button {
+    padding-inline: 0.55rem;
+    font-size: 0.67rem;
+  }
+
+  .demo-notice {
+    align-items: flex-start;
+    font-size: 0.62rem;
+  }
+
+  .hero,
+  .section-block,
+  .flow-shell,
+  .pharmacy-shell {
+    width: min(calc(100% - 1.25rem), 1200px);
+  }
+
+  .hero {
+    gap: 1rem;
+    padding-block-start: 2.2rem;
+  }
+
+  .location-line {
+    margin-block-end: 0.8rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(2.55rem, 15vw, 4rem);
+  }
+
+  .hero-lede {
+    font-size: 0.94rem;
+  }
+
+  .medicine-search {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 0.45rem 0.7rem;
+  }
+
+  .medicine-search button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .hero-signal {
+    width: min(100%, 370px);
+  }
+
+  .pharmacy-node {
+    min-width: 112px;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .node-three {
+    inset-inline-start: 0;
+  }
+
+  .section-heading,
+  .results-heading,
+  .pharmacy-hero {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .section-heading > p {
+    font-size: 0.74rem;
+  }
+
+  .way-grid > button {
+    min-height: 94px;
+  }
+
+  .promise {
+    align-items: flex-start;
+    margin-block-end: 3rem;
+  }
+
+  .request-form,
+  .pharmacy-offer-form form {
+    padding: 0.85rem;
+  }
+
+  .form-row,
+  .offer-details,
+  .reservation-actions,
+  .fulfillment-options {
+    grid-template-columns: 1fr;
+  }
+
+  .request-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .request-summary button {
+    justify-self: start;
+  }
+
+  .matching-radar {
+    width: 215px;
+  }
+
+  .result-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .offer-top {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .offer-top .status-pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .offer-details {
+    background: transparent;
+  }
+
+  .offer-details > div {
+    border-block-end: 1px solid var(--line);
+  }
+
+  .offer-actions {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .expand-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .request-conversion {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .request-conversion .primary-cta {
+    grid-column: 1 / -1;
+  }
+
+  .directory-card {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
+  .directory-card > .distance {
+    grid-column: 3;
+  }
+
+  .directory-actions {
+    grid-column: 2 / -1;
+  }
+
+  .pharmacy-stat {
+    width: 100%;
+  }
+
+  .pharmacy-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .pharmacy-response-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .sent-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .site-footer {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+  }
+
+  .site-footer > span {
+    text-align: start;
+  }
+}
+
+@media (max-width: 390px) {
+  .role-switch button {
+    min-height: 34px;
+    padding-inline: 0.4rem;
+    font-size: 0.62rem;
+  }
+
+  .header-actions {
+    gap: 0.25rem;
+  }
+
+  .hero-signal {
+    transform: scale(0.94);
+  }
+
+  .pharmacy-node strong {
+    font-size: 0.66rem;
+  }
+
+  .mode-tabs button {
+    gap: 0.2rem;
+    padding-inline: 0.25rem;
+    font-size: 0.68rem;
+  }
+
+  .offer-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .offer-actions .primary-cta {
+    grid-column: 1 / -1;
+  }
+
+  .ticket-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
