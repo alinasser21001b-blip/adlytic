@@ -204,9 +204,12 @@ def main() -> int:
 
     init_script = f"""
       localStorage.clear();
+      const qaRecord = {json.dumps(RECORD, ensure_ascii=False)};
+      qaRecord.breakGlass.at = Date.now();
+      qaRecord.breakGlass.expiresAt = Date.now() + 3600000;
       localStorage.setItem("qrb.lang", JSON.stringify("ar"));
       localStorage.setItem("qrb.role", JSON.stringify("patient"));
-      localStorage.setItem("qrb.qareeb.record.v1", JSON.stringify({json.dumps(RECORD, ensure_ascii=False)}));
+      localStorage.setItem("qrb.qareeb.record.v1", JSON.stringify(qaRecord));
       localStorage.setItem("qrb.qareeb.clinician.v1", JSON.stringify({json.dumps(CLINICIAN, ensure_ascii=False)}));
     """
 
@@ -337,6 +340,15 @@ def main() -> int:
                             "DUPLICATE_ID",
                             f"Duplicate IDs on {route}",
                             {"ids": result["duplicates"]},
+                        )
+                    )
+                if result["headingLevels"] and result["headingLevels"][0] != 1:
+                    findings.append(
+                        finding(
+                            "P2",
+                            "HEADING_HIERARCHY",
+                            "Rendered pages start below heading level 1.",
+                            {"route": route, "levels": result["headingLevels"]},
                         )
                     )
 

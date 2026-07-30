@@ -19,7 +19,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BlobsServer, setEnvironmentContext } from "@netlify/blobs";
+import { setEnvironmentContext } from "@netlify/blobs";
+import { BlobsServer } from "@netlify/blobs/server";
 
 process.env.QAREEB_AUTH_SECRET = "e2e-secret-long-enough-to-be-accepted-01";
 
