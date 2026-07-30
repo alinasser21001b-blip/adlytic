@@ -322,11 +322,11 @@
        stop being worth seeing because a different abnormal reading exists. */
     const urgent = [];
     for (const x of brief.unacknowledgedAbnormal || []) urgent.push(
-      `<div><div class="rowb"><span>${esc(x.name)}</span><span class="num">${esc(String(x.value))}</span>${x.unit ? ` ${esc(x.unit)}` : ""}</div>
+      `<div><div class="rowb"><span>${esc(x.name)}</span>${measure(x.value, x.unit)}</div>
         <div class="t3" style="margin-top:2px">${T("نتيجة غير طبيعية ما أقرّها أحد", "abnormal, not yet acknowledged by a clinician")}</div></div>`);
     if (brief.bloodPressure && brief.bloodPressure.abnormal) { const bp = brief.bloodPressure; urgent.push(
       `<div><div class="rowb"><span>${T("ضغط الدم", "Blood pressure")}</span>
-        <span class="num">${n(bp.systolic)} / ${bp.diastolic != null ? n(bp.diastolic) : "—"}</span> ${esc(bp.unit || "")}</div>
+        ${bpPair(bp.systolic, bp.diastolic, bp.unit)}</div>
         <div class="t3" style="margin-top:2px">${T("خارج المعتاد", "outside the usual range")}</div></div>`); }
     for (const t of brief.overdue || []) urgent.push(
       `<div>${T("متابعة متأخّرة", "Overdue follow-up")}${t.about ? " — " + esc(t.about) : ""}</div>`);
@@ -345,7 +345,7 @@
     let line = "";
     if (bp) {
       line = `<span class="t3">${T("آخر ضغط دم", "Latest blood pressure")}</span>
-        <span class="st st-v">${n(bp.systolic)} / ${bp.diastolic != null ? n(bp.diastolic) : "—"} ${esc(bp.unit || "")}</span>`;
+        <span class="st st-v">${bpPair(bp.systolic, bp.diastolic, bp.unit)}</span>`;
     } else if (trendLine && trendLine.direction && trendLine.direction !== "flat") {
       line = `<span class="t3">${esc(trendLine.display || trendLine.code)}</span>
         <span class="st st-t">${esc(dirLabel(trendLine.direction))}</span>`;
@@ -561,11 +561,20 @@
       ${codes.length ? `<div class="stack-2" style="margin-top:12px">${codes.map((code) => {
         const t = E().trend(d.results, code);
         const last = t.points[t.points.length - 1];
+        /* The reading leads. It used to sit in `.st` — a chip class at 11.5px
+           — beside the metric's name in `.d3` at 19px/500, so the NAME
+           outranked the VALUE on the one screen whose entire purpose is the
+           value. And the same number was printed twice: once in that chip and
+           again as the last row of the dated series below. */
         return `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc(t.display || (done.find((x) => x.code === code) || {}).display || code)}</b>
-            <span class="st ${last ? FLAG_CLASS[flagKey(last.flag)] : "st-q"}">${
-              last ? n(last.value) + " " + esc(last.unit || "") : ""}</span></div>
-          ${trendSeries(t)}
+          <div class="lab">${esc(t.display || (done.find((x) => x.code === code) || {}).display || code)}</div>
+          <div class="rowb" style="margin-top:2px;align-items:flex-end">
+            ${last ? bigValue(last.value, last.unit) : ""}
+            <span>${last ? flagChip(last.flag) : ""}</span>
+          </div>
+          ${last ? rangeScale(last) : ""}
+          ${last && rangeLine(last) ? `<div class="t3" style="margin-top:6px">${rangeLine(last)}</div>` : ""}
+          ${trendSeries(t, { headlined: true })}
         </div></div>`;
       }).join("")}</div>` : (pending.length ? "" : empty(
         T("ما عندك تحاليل مسجّلة", "No lab results recorded"),
@@ -600,7 +609,7 @@
 
     const vitalRow = (v) => `<div class="rw"><div style="width:100%">
         <div class="rowb"><b>${esc(E().vitalLabel(v.kind, ar()))}</b>
-          <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+          <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${measure(v.value, v.unit)}</span></div>
         <div class="rowb" style="margin-top:5px">
           <span class="t3">${n(String(v.effectiveAt || "").slice(0, 10))}</span>
           <span>${flagChip(v.flag)}</span></div>
@@ -611,17 +620,26 @@
     return page(T("القياسات", "Measurements"),
       `${lastBp ? `<div class="rw"><div style="width:100%">
           <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
-            <span class="st ${lastBp.abnormal ? "st-e" : "st-v"}">${n(lastBp.systolic.value)} / ${
-              lastBp.diastolic ? n(lastBp.diastolic.value) : "—"} ${esc(lastBp.systolic.unit)}</span></div>
+            <span class="st ${lastBp.abnormal ? "st-e" : "st-v"}">${bpPair(lastBp.systolic.value,
+              lastBp.diastolic ? lastBp.diastolic.value : null, lastBp.systolic.unit)}</span></div>
           <div class="rowb" style="margin-top:5px">
             <span class="t3">${n(String(lastBp.at || "").slice(0, 10))}</span>
             <span>${lastBp.abnormal ? `<span class="st st-e">${T("خارج المعتاد", "outside the usual range")}</span>`
               : `<span class="st st-v">${T("ضمن المعتاد", "within the usual range")}</span>`}</span></div>
-          <div class="t3" style="margin-top:4px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${n(130)} / ${n(85)}</div>
+          <div class="t3" style="margin-top:4px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${
+            bpPair(130, 85, "")}</div>
+          <!-- The provenance marker was on vitalRow and missing from this
+               hand-written block, so of the three readings on this screen the
+               ONE that was not marked "you recorded this yourself" was the
+               abnormal blood pressure — the most consequential number here
+               looked like the most authoritative. An omission, not a wrong
+               call, which is why no source-level guard caught it; the journey
+               suite now asserts it in the browser instead. -->
+          ${selfReported(lastBp.systolic) ? `<div style="margin-top:5px">${selfReported(lastBp.systolic)}</div>` : ""}
           ${bp.length > 1 ? `<div class="t3" style="margin-top:8px">${T("قراءات سابقة", "Earlier readings")}</div>
             ${bp.slice(1, 4).map((x) => `<div class="rowb" style="margin-top:4px">
               <span class="t3">${n(String(x.at).slice(0, 10))}</span>
-              <span class="t3">${n(x.systolic.value)} / ${x.diastolic ? n(x.diastolic.value) : "—"}</span></div>`).join("")}` : ""}
+              <span class="t3">${bpPair(x.systolic.value, x.diastolic ? x.diastolic.value : null, "")}</span></div>`).join("")}` : ""}
         </div></div>` : ""}
       ${others.length ? `<div class="stack-2">${others.map(vitalRow).join("")}</div>` : ""}
       ${!lastBp && !others.length ? empty(T("ما سجّلت أي قياس بعد", "No measurements recorded yet")) : ""}
@@ -1531,7 +1549,7 @@
       ${brief.unacknowledgedAbnormal.length ? `<div class="note note-e" style="margin-top:12px">${icon("alert")}
         <div style="width:100%"><b>${T("نتائج غير طبيعية ما أقرّها أحد", "Abnormal, unacknowledged")}</b>
           <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb">
-            <span>${esc(x.name)}</span><span>${n(x.value)} ${esc(x.unit || "")} · ${n(String(x.at).slice(0, 10))}</span>
+            <span>${esc(x.name)}</span><span>${measure(x.value, x.unit)} · ${n(String(x.at).slice(0, 10))}</span>
           </div>`).join("")}</div></div></div>` : ""}
 
       ${brief.overdue.length ? `<div class="note note-w" style="margin-top:10px">${icon("clock")}
@@ -1566,16 +1584,16 @@
       ${brief.bloodPressure || brief.vitals.length ? section(T("القياسات الأخيرة", "Latest measurements"),
         `${brief.bloodPressure ? `<div class="rw"><div style="width:100%">
           <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
-            <span class="st ${brief.bloodPressure.abnormal ? "st-e" : "st-v"}">${
-              n(brief.bloodPressure.systolic)} / ${brief.bloodPressure.diastolic != null
-                ? n(brief.bloodPressure.diastolic) : "—"} ${esc(brief.bloodPressure.unit || "")}</span></div>
+            <span class="st ${brief.bloodPressure.abnormal ? "st-e" : "st-v"}">${bpPair(
+              brief.bloodPressure.systolic, brief.bloodPressure.diastolic,
+              brief.bloodPressure.unit)}</span></div>
           <div class="rowb" style="margin-top:4px">
             <span class="t3">${n(String(brief.bloodPressure.at || "").slice(0, 10))}</span>
             <span>${patientToldUs(brief.bloodPressure)}</span></div>
         </div></div>` : ""}
         ${brief.vitals.map((v) => `<div class="rw"><div style="width:100%">
           <div class="rowb"><b>${esc(v.name)}</b>
-            <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+            <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${measure(v.value, v.unit)}</span></div>
           <div class="rowb" style="margin-top:4px">
             <span class="t3">${n(String(v.at || "").slice(0, 10))}</span>
             <span>${patientToldUs(v) || flagChip(v.flag)}</span></div>
@@ -1664,22 +1682,89 @@
     return "";
   }
 
+  /* The reading drawn against its own reference range. Returns "" when the
+     domain says there is no range to draw — a weight, a height, a one-sided
+     "under 130" — because a scale is a claim about what normal looks like and
+     those measurements have none here.
+
+     `aria-hidden`: the value, the word ("مرتفع") and the range in prose all
+     sit beside this in the markup already. A screen reader announcing the
+     geometry too would say the same fact three times. */
+  function rangeScale(r) {
+    const g = E().rangePosition(r);
+    if (!g) return "";
+    const cls = g.clamped ? "at far" : g.out ? "at out" : "at";
+    return `<div class="rng" aria-hidden="true" style="--lo:${g.lo}%;--hi:${g.hi}%;--at:${g.at}%">
+      <i class="bnd"></i><i class="${cls}"></i></div>`;
+  }
+
+  /* The reading itself, at the weight the reason-for-the-screen deserves. */
+  const bigValue = (v, unit) => `<span class="nval">${esc(String(v))}${
+    unit ? `<span class="u">${esc(unit)}</span>` : ""}</span>`;
+
+  /* One quantity is one cell. "8.4" sat mid-row with "%" stranded at the far
+     edge of the same row, so the quantity read as two unrelated fields; and
+     the French space before "%" put the sign flush against the following
+     Arabic word. The unit joins the number inside a single run that cannot
+     wrap and cannot be reordered. */
+  const UNIT_TIGHT = /^(%|°C|°F|°)$/;
+  function measure(v, unit) {
+    const u = String(unit || "").trim();
+    return `<span class="num nw">${esc(String(v))}${
+      u ? (UNIT_TIGHT.test(u) ? "" : " ") + esc(u) : ""}</span>`;
+  }
+
+  /* A blood pressure is ONE reading, so it must be ONE bidi run.
+     `${n(148)} / ${n(92)}` leaves " / " as a NEUTRAL between two LTR embeds.
+     Inside an Arabic line bidi resolves that neutral right-to-left and the
+     pair renders "92 / 148" — while the identical pair wrapped in an outer
+     `.num` renders "148 / 92". Both spellings shipped, on different screens,
+     for the same reading: on one the reference line read "130 / 85" directly
+     under a value reading "92 / 148". Systolic and diastolic became
+     indistinguishable.
+
+     This is the trend arrow again in a new costume. The rule it taught holds
+     without exception: never place a neutral character between two rendered
+     numbers. Every blood pressure in the product goes through here. */
+  function bpPair(sys, dia, unit) {
+    const u = String(unit || "").trim();
+    return `<span class="num nw">${esc(String(sys))}/${
+      dia == null ? "—" : esc(String(dia))}${u ? " " + esc(u) : ""}</span>`;
+  }
+
   /* The dated body of a series, shared by the patient's labs screen and the
      clinician's brief so the two can never drift apart on the one thing they
-     must agree about. */
-  function trendSeries(t) {
+     must agree about.
+
+     `headlined`: the labs screen now shows the newest reading above this at
+     display weight, with its own range scale and its reference range in prose.
+     That range line was then printed a SECOND time at the foot of the series,
+     so the option suppresses the repeat.
+
+     What it deliberately does NOT do is drop the newest point from the series.
+     The first attempt did, and it broke the one property this renderer exists
+     to guarantee: every point carries its own date, and reading downward moves
+     forward in time. Skipping the last point left the newest reading with no
+     visible date at all, and left the vertical order running newest → oldest →
+     second-newest. The headline is a summary; the series is the record, and
+     the record stays complete. Repeating the value at 11.5px under its date,
+     beneath the same value at 26px, is an audit trail, not noise. */
+  function trendSeries(t, opts) {
     if (!t || !t.points || !t.points.length) return "";
+    const o = opts || {};
     const last = t.points[t.points.length - 1];
     const rows = t.points.map((p) => `<div class="rowb" style="margin-top:6px">
         <span class="t3">${n(String(p.at || "").slice(0, 10))}</span>
-        <span>${n(p.value)} ${esc(p.unit || "")} ${flagChip(p.flag)}</span>
+        <span>${measure(p.value, p.unit)} ${flagChip(p.flag)}</span>
       </div>`).join("");
     /* Direction is arithmetic on raw numbers. Across two units that arithmetic
        is meaningless, so the word is withheld rather than printed wrong — the
        warning underneath says why. */
     const dir = t.points.length > 1 && !t.mixedUnits ? esc(dirLabel(t.direction)) : "";
-    const rng = rangeLine(last);
-    return `${rows}
+    const rng = o.headlined ? "" : rangeLine(last);
+    const cap = o.headlined && t.points.length > 1
+      ? `<div class="t3" style="margin-top:12px">${T("كل القراءات", "Every reading")}</div>` : "";
+    return `${cap}${rows}
       ${dir || rng ? `<div class="rowb" style="margin-top:8px">
         <span class="st">${dir}</span><span class="t3">${rng}</span></div>` : ""}
       ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(

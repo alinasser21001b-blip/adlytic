@@ -230,7 +230,7 @@
 .dark .rw:hover{background:rgba(240,236,228,.03)}
 .rw-lead{position:absolute;inset-inline-start:calc(var(--u5) * -1);top:var(--u4);bottom:var(--u4);width:2px;
          background:var(--brass);border-radius:var(--rp)}
-.quiet{opacity:.46}
+.quiet{opacity:.62}
 /* a card exists only when the thing genuinely floats or is genuinely singular */
 .plate{background:var(--dial-2);border:1px solid var(--dial-line);border-radius:var(--r);padding:var(--u5)}
 .dark .plate{background:var(--case-2);border-color:var(--case-line)}
@@ -317,11 +317,27 @@ ul, ol { list-style: none; }
 .num, .n {
   font-family: var(--num); font-variant-numeric: tabular-nums;
   direction: ltr; unicode-bidi: embed; font-weight: 400;
+  /* A number is one token. `2026-07-01` was wrapping as `2026-07-` / `01`
+     and `148/92` as `148/` / `92` — a broken date is a wrong date. */
+  white-space: nowrap;
 }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
 
-/* Arabic wraps badly at 375px without help. */
-h1, h2, h3, p, span, div, li { overflow-wrap: anywhere; }
+/* A quantity, a date, a blood pressure: one unbreakable run. */
+.nw { white-space: nowrap; }
+
+/* `overflow-wrap: anywhere` was set on h1,h2,h3,p,span,div,li — everything.
+   Arabic has no hyphenation convention, so `anywhere` breaks words at
+   arbitrary letters with nothing to mark the break: «حساسية» rendered as
+   حساس / ية on the emergency card at 390px, «الهيموغلوبين» as الهيموغلوبي / ن,
+   and a doctor's family name «الجبوري» as الجبور / ي. A reader sees two
+   words that do not exist.
+
+   `break-word` breaks only when a single token genuinely cannot fit, which is
+   the case this was reaching for. `anywhere` is kept for the few classes that
+   really do hold unbreakable machine tokens. */
+h1, h2, h3, p, span, div, li { overflow-wrap: break-word; }
+.mono, .slip-ref, .brk { overflow-wrap: anywhere; }
 
 /* ---------- 2 · type · display tight and heavy, body light and open ---------- */
 h1, .q-h1, .prof-name, .dp-name { font: 600 30px/1.26 var(--disp); letter-spacing: -.02em; }
@@ -338,6 +354,19 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .d1 { font: 600 34px/1.24 var(--disp); letter-spacing: -.02em; }
 .d2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
 .d3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
+
+/* THE READING. On a labs or vitals screen the number is the reason the screen
+   exists, and it was set in `.n` at body weight — so the metric's NAME (`.d3`,
+   19px/500) outranked its VALUE. One class, three screens: labs, vitals, and
+   the clinician's brief. Numeral face, tabular, LTR-embedded like every other
+   number in the product. */
+.nval {
+  font-family: var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed;
+  font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -.01em;
+}
+.nval .u { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-inline-start: 3px; }
+.dark .nval .u { color: var(--case-ink-3); }
 
 /* ---------- 3 · layout primitives ---------- */
 .app { min-height: 100dvh; padding-bottom: 92px; }
@@ -372,6 +401,13 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   background: none; border: 0; border-radius: 0; box-shadow: none;
   transition: background .16s ease;
 }
+/* "This row opens something." Aligned to the first line of the title, not
+   centred on the row, so it reads as belonging to the name rather than
+   floating in the row's whitespace. */
+.rw-go { flex: 0 0 auto; align-self: flex-start; margin-top: 2px; color: var(--ink-3); opacity: .65; }
+.rw-go svg { width: 17px; height: 17px; }
+a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
+
 .card-top { display: flex; gap: var(--u4); align-items: flex-start; width: 100%; }
 .card-foot { display: flex; align-items: center; gap: var(--u2); margin-top: var(--u3); }
 .card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; }
@@ -390,7 +426,12 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 }
 .rail-stock::before { background: var(--jade); }
 .card.is-shut::before, .card.is-soon::before, .lane--sos::before { content: none; }
-.quiet, .card.is-shut { opacity: .46; }
+/* `.46` multiplied against `--case-ink-2` (itself .78 alpha) left dark-mode
+   rows at roughly .36 effective — past legible, on the closed-pharmacy and
+   dimmed-doctor rows. My own contrast audit never caught it because it
+   composites an element's OWN alpha and does not walk ancestor `opacity`;
+   found by eye instead. De-emphasis has to stay readable to mean anything. */
+.quiet, .card.is-shut { opacity: .62; }
 
 /* A plate exists only when the thing is genuinely singular. */
 .plate, .ch, .surf-raise, .surf-key, .banner, .note, .slip, .stub, .adm-kpi, .map-peek,
@@ -439,8 +480,12 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
    extender behind it. 40 -> 44 is imperceptible. */
 .btn--sm, .b-sm, .btn-sm { min-height: 44px; font-size: 12.5px; padding-inline: var(--u4); }
 .btn[disabled], .b[disabled] { opacity: .35; pointer-events: none; }
-.btn-row { display: flex; gap: var(--u2); }
-.btn-row > * { flex: 1; }
+/* Wraps rather than overflows. Three Arabic labels in one 360px row do not
+   fit, and the row used to "fit" only because a global `overflow-wrap:
+   anywhere` was breaking «المستشفيات» in half to make room. With word-breaking
+   gone the row must be allowed a second line instead. */
+.btn-row { display: flex; flex-wrap: wrap; gap: var(--u2); }
+.btn-row > * { flex: 1 1 auto; min-inline-size: 0; }
 
 .icon-btn {
   display: grid; place-items: center; flex: none;
@@ -534,6 +579,57 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .ticks > i { flex: 1; height: 5px; background: var(--dial-line); border-radius: 0; }
 .ticks > i.maj { height: 11px; background: var(--ink-4); }
 .ticks > i.on { height: 16px; background: var(--brass); width: 2px; flex: none; margin-inline: 1px; }
+
+/* ---------- the reference-range scale · the reading against its own range ----
+   The one place the product's infrastructure was most visibly ahead of its
+   interface. Every lab result and every vital already carries `value`,
+   `refLow` and `refHigh`; every screen rendered those as three separate
+   pieces of text — the number, the word "high", and "normal 4 to 5.6" in grey
+   — leaving the reader to do the arithmetic for the only question they asked:
+   how far out is this?
+
+   Deliberately built as a sibling of `.ticks` above, not as a new vocabulary:
+   same 16px height, same engraved baseline, and the reading is the identical
+   2px brass mark as `.ticks > i.on`. The instrument motif and this data want
+   the same shape.
+
+   Geometry comes from `EMR.rangePosition()` — which returns null when there is
+   no reference range, so no scale is ever drawn for a weight or a height. A
+   drawn scale is a claim that we know what normal looks like.
+
+   Positioned with `inset-inline-start`, so it mirrors with the reading
+   direction exactly like the 24-hour axis above: low at the start edge. */
+.rng { position: relative; height: 16px; margin-top: var(--u2); }
+.rng::before {                                  /* the baseline */
+  content: ""; position: absolute; inset-inline: 0; bottom: 0;
+  height: 2px; background: var(--dial-line); border-radius: var(--rp);
+}
+.rng > .bnd {                                   /* the normal zone */
+  position: absolute; bottom: 0; height: 5px;
+  inset-inline-start: var(--lo); width: calc(var(--hi) - var(--lo));
+  background: var(--jade); opacity: .5; border-radius: var(--rp);
+}
+.dark .rng > .bnd { background: var(--jade-lit); opacity: .42; }
+.rng > .at {                                    /* the reading */
+  position: absolute; bottom: 0; height: 16px; width: 2px;
+  inset-inline-start: var(--at); margin-inline-start: -1px;
+  background: var(--brass); border-radius: var(--rp);
+}
+.dark .rng > .at { background: var(--brass-lit); }
+.rng > .at.out { background: var(--alarm); }
+.dark .rng > .at.out { background: var(--alarm-lit); }
+/* Past the end of the drawn scale. HbA1c 8.4 and a mis-keyed 84 would
+   otherwise pin to the same edge and look identical; this says "further than
+   this track reaches". A CSS triangle, not a glyph — an arrow character is
+   Bidi_Class=ON and would be reordered. */
+.rng > .at.far::after {
+  content: ""; position: absolute; bottom: 5px; inset-inline-start: 3px;
+  border-block: 4px solid transparent;
+  border-inline-start: 5px solid currentColor; border-inline-end: 0;
+  color: inherit;
+}
+.rng > .at.far { background: var(--alarm); }
+.dark .rng > .at.far { background: var(--alarm-lit); }
 /* The board sets .axis to direction:ltr while .ticks and .band inherit RTL and
    position with inset-inline-start — so the scale ran 00→24 left-to-right while
    the marks it labelled ran right-to-left. The product's established rule is
@@ -777,12 +873,25 @@ label.row, label.rw { min-height: 44px; cursor: pointer; }
 .slot-btn .m { display: block; font: 400 11.5px/1.5 var(--disp); color: var(--ink-3); }
 .slot-btn .t { font-family: var(--num); font-variant-numeric: tabular-nums; direction: ltr; flex: none; font-size: 13px; }
 
-/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ---------- */
+/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ----------
+   That heading has been the stated intent since this file was written, and the
+   code underneath it drew a full hairline box anyway. The cost was structural,
+   not cosmetic: `.note` is the app's alert primitive, so on the record screen
+   three stacked boxes (storage warning, allergies, abnormal results) appeared
+   BEFORE the patient's own name, and on the clinician brief a red box rendered
+   inside a grey box containing chips — boxes inside boxes, which the UI
+   contract outlaws by name.
+
+   A rule carries the same three states (brass / alarm / jade) with none of the
+   enclosure. The variants below still set `border-color` for all four sides;
+   only the inline-start edge is drawn, so every existing variant keeps working
+   untouched. */
 .note, .banner {
   display: flex; gap: var(--u3); align-items: flex-start;
-  padding: var(--u4); border-radius: var(--r);
+  padding: var(--u3) var(--u4);
+  border: 0; border-inline-start: 2px solid var(--dial-line); border-radius: 0;
   font: 300 13.5px/1.8 var(--disp); color: var(--ink-2);
-  background: none; border: 1px solid var(--dial-line);
+  background: none;
 }
 .note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
 .note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
@@ -932,6 +1041,26 @@ input, textarea { min-height: 44px; }
 .emg-alt { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); min-height: 44px; }
 .prof-head { padding: var(--u5) var(--u5) 0; }
 
+/* Doctor profile header. The name gets whatever the avatar does not, so the
+   avatar shrinks first at the width where an Arabic family name would
+   otherwise have to break. */
+.dp-head { display: flex; gap: var(--u4); align-items: flex-start; margin-top: 26px; }
+.dp-av { width: 56px; height: 56px; font-size: 21px; flex: 0 0 auto; }
+@media (max-width: 359px) {
+  .dp-av { width: 40px; height: 40px; font-size: 16px; }
+  .dp-head { gap: var(--u3); }
+}
+
+/* A meta list: distinct facts, each unbreakable, each visibly separated.
+   `::before` on the sibling rather than a character in the markup, so the
+   separator is never a neutral inside a rendered value. */
+.meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--u2) 0; margin-top: 18px; }
+.meta-row > * { white-space: nowrap; }
+.meta-row > * + *::before {
+  content: "·"; color: var(--ink-3); opacity: .7;
+  margin-inline: var(--u3); display: inline-block;
+}
+
 /* The schematic above a pharmacy list. It is aria-hidden and decorative —
    but it was rendering as an empty bordered box, because the pins inside it
    are inline spans with no size. A blank frame captioned "14 pharmacies" is
@@ -957,7 +1086,11 @@ input, textarea { min-height: 44px; }
    layout, which stacks a label above its value and reads as broken data. */
 .kv { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u3) 0; border-top: 1px solid var(--dial-line-2); }
 .kv:first-child { border-top: 0; }
-.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none; }
+.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none;
+  /* `flex:none` without this let the label column collapse to its minimum and
+     break inside the word — "حساسية" rendered as حساس/ية on the emergency
+     card, which is the one screen where a label must be read at a glance. */
+  white-space: nowrap; }
 .kv .v { font: 400 14px/1.6 var(--disp); text-align: end; }
 .prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u3); margin-top: var(--u5); }
 .prof-fact { display: flex; flex-direction: column; gap: 3px; }
@@ -2380,6 +2513,63 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
   const unjudgeableResults = (list) => (list || []).filter(isUnjudgeable);
 
   /* =========================================================
+     ٧-ج · موضع القيمة في مداها — WHERE A VALUE SITS
+     =========================================================
+     Every result and every vital already carries `value`, `refLow` and
+     `refHigh`, and every screen rendered them as three separate pieces of
+     text: the number, the word "high", and "normal 4 to 5.6" in grey. A
+     reader has to hold three facts and do the arithmetic themselves to answer
+     the only question they actually asked — how far out is this?
+
+     This returns the geometry for drawing that answer: the normal band's
+     start and end as percentages, and the value's own position. Pure
+     arithmetic, no DOM, so it is testable in Node like everything else here.
+
+     Two rules it will not break:
+
+     · NO REFERENCE RANGE, NO SCALE. Returns null. A drawn scale is a claim
+       that we know what normal looks like for this measurement, and for a
+       weight or a height we do not. The screens already say "no reference
+       range" in words; they must not then draw a picture implying otherwise.
+
+     · A CLAMPED MARKER SAYS SO. The domain is padded by half the reference
+       width on each side, so an ordinary out-of-range value still lands
+       inside the track rather than on its edge. But a scale has finite width
+       and some values are far past it — HbA1c 8.4 and a mis-keyed 84 would
+       both pin to the same end, and those two mean completely different
+       things to a diabetic. So when the value falls outside the drawn domain
+       the position is clamped AND `clamped` is set, letting the marker say
+       "further than this track can show" instead of quietly implying the
+       edge is the value. The number itself is always printed beside the
+       scale, so the exact figure is never only in the geometry. */
+  const RANGE_PAD = 0.5;
+
+  function rangePosition(r) {
+    if (!r || typeof r.value !== "number" || !isFinite(r.value)) return null;
+    const lo = r.refLow, hi = r.refHigh;
+    /* Both bounds are required. A one-sided range ("under 130") has no
+       geometry — there is no left edge to draw from — and inventing one
+       would put the marker at a position that means nothing. */
+    if (typeof lo !== "number" || typeof hi !== "number") return null;
+    if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return null;
+
+    const width = hi - lo;
+    const pad = width * RANGE_PAD;
+    const min = lo - pad, max = hi + pad;
+    const span = max - min;
+    const raw = ((r.value - min) / span) * 100;
+    const pct = (v) => +Math.max(0, Math.min(100, ((v - min) / span) * 100)).toFixed(2);
+
+    return {
+      lo: pct(lo),
+      hi: pct(hi),
+      at: +Math.max(0, Math.min(100, raw)).toFixed(2),
+      clamped: raw < 0 || raw > 100,
+      out: r.value < lo ? "low" : r.value > hi ? "high" : null,
+    };
+  }
+
+  /* =========================================================
      ٧-أ · العلامات الحيوية — VITAL SIGNS
      =========================================================
      `CLASS.VITALS` has existed since the access model was written and nothing
@@ -2862,6 +3052,7 @@ body.dark .qa-alt { box-shadow: 0 0 18px -10px color-mix(in srgb, var(--brass) 4
     TASK_STATE, TASK_KIND, closeTask, isOverdue, openTasks, deriveTasks, ms,
     flagResult, isAbnormal, isUnjudgeable, unjudgeableResults, trend,
     VITAL, VITAL_META, recordVital, vitalMeta, vitalLabel, latestVitals, bloodPressure,
+    rangePosition,
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,
@@ -6619,8 +6810,22 @@ const fmtT = (m) => {
   const h = Math.floor((m % 1440) / 60), mm = m % 60;
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 };
-const fmtRangeTxt = (a, b) => `${fmtT(a)} – ${fmtT(b)}`;                       // plain text: messages, stored records
-const fmtRange = (a, b) => `<span dir="ltr" class="num">${fmtRangeTxt(a, b)}</span>`;   // markup: UI
+/* PLAIN TEXT — WhatsApp messages, stored records. This used to be
+   `${fmtT(a)} – ${fmtT(b)}`, which is the trend-arrow bug in plain text: the
+   en dash is a NEUTRAL between two number runs, so an Arabic WhatsApp bubble
+   resolves it right-to-left and "08:00 – 14:00" reaches the clinic reading
+   "14:00 – 08:00". There is no CSS in a message body to isolate it with, so
+   the range is stated in words — the same answer the lab reference range
+   already uses ("من ٤ إلى ٥.٦"), for the same reason. No neutral is left.
+
+   (`fmtT`'s own colon is safe and is left alone: `:` is Bidi_Class=CS, which
+   between two European numbers binds to them and cannot separate them. The
+   danger is only the separators that are Bidi_Class=ON.) */
+const fmtRangeTxt = (a, b) => isAR() ? `من ${fmtT(a)} إلى ${fmtT(b)}` : `${fmtT(a)} to ${fmtT(b)}`;
+/* MARKUP — one LTR run, so the dash is inside the run and has nothing to
+   reorder against. Built here rather than from fmtRangeTxt, which now carries
+   Arabic words that must not be forced LTR. */
+const fmtRange = (a, b) => `<span dir="ltr" class="num">${fmtT(a)} – ${fmtT(b)}</span>`;
 const fmtTi = (m) => `<span dir="ltr" class="num">${fmtT(m)}</span>`;
 
 /* raw segments on a weekday; t may exceed 1440 when it wraps past midnight */
@@ -6937,16 +7142,27 @@ function band(ent, day = null, showNow = true) {
    Rows, not cards. The list is the surface: a hairline separates entries and
    a brass lead in the gutter marks "open right now". Nothing here is a box.
 ------------------------------------------------------------- */
+/* The name and the provenance badge used to share one line. An Arabic name is
+   long and «بيانات نموذجية» is long, and neither yields: at 320px the pair
+   produced a three-line name beside a two-line badge — a five-line ragged
+   header on a row whose job is to say who this is. The badge describes the
+   whole entry, so it drops below the name and the name gets the full width.
+
+   The chevron: these rows were the only tappable surface in the product with
+   no affordance at all, which read as inert at 430px where the row is mostly
+   empty space. */
 function rowEl(o) {
-  return `<a class="rw${o.open ? "" : ""}${o.quiet ? " quiet" : ""}" href="${o.href}">
+  return `<a class="rw${o.quiet ? " quiet" : ""}" href="${o.href}">
     ${o.open ? `<span class="rw-lead"></span>` : ""}
     <span class="av">${esc(o.mono)}</span>
-    <span class="grow">
-      <span class="rowb"><span class="d3">${esc(o.title)}</span>${o.mark || ""}</span>
+    <span class="grow" style="min-inline-size:0">
+      <span class="d3" style="display:block">${esc(o.title)}</span>
       ${o.sub ? `<span class="q-sub" style="display:block">${o.sub}</span>` : ""}
-      ${o.meta ? `<span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">${o.meta}</span>` : ""}
+      ${o.mark ? `<span style="display:block;margin-top:8px">${o.mark}</span>` : ""}
+      ${o.meta ? `<span class="meta-row">${o.meta}</span>` : ""}
       ${o.band ? `<span style="display:block;margin-top:12px">${o.band}</span>` : ""}
     </span>
+    <span class="rw-go" aria-hidden="true">${icon("chev")}</span>
   </a>`;
 }
 
@@ -6966,8 +7182,11 @@ function doctorCard(x, dimIfShut = true) {
     sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
     meta: [
       statusLabel(st, true),
-      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
-      fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : "",
+      /* `fmtKm` returns "٢٠٧ م" / "0.2 كم" — a number AND an Arabic unit. In
+         a `.num` LTR run the unit was forced to the wrong side, which is how
+         "م" ended up abutting a time and reading as مساءً. */
+      `<span class="t3">${fmtKm(km)}</span>`,
+      fee !== null && fee !== undefined ? `<span class="t3">${money(fee)}</span>` : "",
       dist ? `<span class="t3">${esc(L(dist))}</span>` : "",
     ].filter(Boolean).join(""),
     band: band(d),
@@ -6986,7 +7205,10 @@ function pharmacyCard(x, dimIfShut = true) {
     sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
     meta: [
       statusLabel(st, true),
-      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
+      /* `fmtKm` returns "٢٠٧ م" / "0.2 كم" — a number AND an Arabic unit. In
+         a `.num` LTR run the unit was forced to the wrong side, which is how
+         "م" ended up abutting a time and reading as مساءً. */
+      `<span class="t3">${fmtKm(km)}</span>`,
     ].join(""),
     band: band(f),
   });
@@ -8083,19 +8305,30 @@ function screenDoctor(id) {
       <button class="b-g" style="font-size:13px" onclick="shareDoctor('${d.id}')">${t("share")}</button>
     </div>
 
-    <div style="display:flex;gap:16px;align-items:flex-start;margin-top:26px">
-      <span class="av" style="width:56px;height:56px;font-size:21px">${esc(initials(L(d)).charAt(0))}</span>
-      <span class="grow">
-        <h1 class="d2">${esc(L(d))}</h1>
+    <!-- The avatar, the name and the provenance badge used to share one row.
+         At 320px the avatar and the badge both held their width and the name
+         got the crumbs: "د. علي حسين الجبوري" ran to four lines, the last of
+         them a single orphaned letter, and «الجبوري» itself broke in half.
+         The badge is a qualification on the whole person, not a field beside
+         their name, so it belongs on its own line where it costs the name
+         nothing. -->
+    <div class="dp-head">
+      <span class="av dp-av">${esc(initials(L(d)).charAt(0))}</span>
+      <span class="grow" style="min-inline-size:0">
+        <h1 class="d2" style="text-wrap:balance">${esc(L(d))}</h1>
         <div class="q-sub" style="margin-top:4px">${esc(L(sp))}${d.sub_ar && isAR() ? " — " + esc(d.sub_ar) : ""}</div>
       </span>
-      ${sealBadge(d, "doctors")}
     </div>
+    <div style="margin-top:12px">${sealBadge(d, "doctors")}</div>
 
-    <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
+    <!-- Separated by whitespace alone, "08:30" "207 م" "25,000" read as one
+         run of number soup, and the metre glyph landing against the time read
+         as 8:30 مساءً. Each item is one unbreakable unit with a visible
+         separator between them. -->
+    <div class="meta-row">
       ${statusLabel(st, true)}
-      <span class="t3"><span class="num">${fmtKm(km)}</span></span>
-      ${fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : ""}
+      <span class="t3 nw">${fmtKm(km)}</span>
+      ${fee !== null && fee !== undefined ? `<span class="t3 nw">${money(fee)}</span>` : ""}
     </div>
   </section>
 
@@ -13332,11 +13565,11 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
        stop being worth seeing because a different abnormal reading exists. */
     const urgent = [];
     for (const x of brief.unacknowledgedAbnormal || []) urgent.push(
-      `<div><div class="rowb"><span>${esc(x.name)}</span><span class="num">${esc(String(x.value))}</span>${x.unit ? ` ${esc(x.unit)}` : ""}</div>
+      `<div><div class="rowb"><span>${esc(x.name)}</span>${measure(x.value, x.unit)}</div>
         <div class="t3" style="margin-top:2px">${T("نتيجة غير طبيعية ما أقرّها أحد", "abnormal, not yet acknowledged by a clinician")}</div></div>`);
     if (brief.bloodPressure && brief.bloodPressure.abnormal) { const bp = brief.bloodPressure; urgent.push(
       `<div><div class="rowb"><span>${T("ضغط الدم", "Blood pressure")}</span>
-        <span class="num">${n(bp.systolic)} / ${bp.diastolic != null ? n(bp.diastolic) : "—"}</span> ${esc(bp.unit || "")}</div>
+        ${bpPair(bp.systolic, bp.diastolic, bp.unit)}</div>
         <div class="t3" style="margin-top:2px">${T("خارج المعتاد", "outside the usual range")}</div></div>`); }
     for (const t of brief.overdue || []) urgent.push(
       `<div>${T("متابعة متأخّرة", "Overdue follow-up")}${t.about ? " — " + esc(t.about) : ""}</div>`);
@@ -13355,7 +13588,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     let line = "";
     if (bp) {
       line = `<span class="t3">${T("آخر ضغط دم", "Latest blood pressure")}</span>
-        <span class="st st-v">${n(bp.systolic)} / ${bp.diastolic != null ? n(bp.diastolic) : "—"} ${esc(bp.unit || "")}</span>`;
+        <span class="st st-v">${bpPair(bp.systolic, bp.diastolic, bp.unit)}</span>`;
     } else if (trendLine && trendLine.direction && trendLine.direction !== "flat") {
       line = `<span class="t3">${esc(trendLine.display || trendLine.code)}</span>
         <span class="st st-t">${esc(dirLabel(trendLine.direction))}</span>`;
@@ -13571,11 +13804,20 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       ${codes.length ? `<div class="stack-2" style="margin-top:12px">${codes.map((code) => {
         const t = E().trend(d.results, code);
         const last = t.points[t.points.length - 1];
+        /* The reading leads. It used to sit in `.st` — a chip class at 11.5px
+           — beside the metric's name in `.d3` at 19px/500, so the NAME
+           outranked the VALUE on the one screen whose entire purpose is the
+           value. And the same number was printed twice: once in that chip and
+           again as the last row of the dated series below. */
         return `<div class="rw"><div style="width:100%">
-          <div class="rowb"><b>${esc(t.display || (done.find((x) => x.code === code) || {}).display || code)}</b>
-            <span class="st ${last ? FLAG_CLASS[flagKey(last.flag)] : "st-q"}">${
-              last ? n(last.value) + " " + esc(last.unit || "") : ""}</span></div>
-          ${trendSeries(t)}
+          <div class="lab">${esc(t.display || (done.find((x) => x.code === code) || {}).display || code)}</div>
+          <div class="rowb" style="margin-top:2px;align-items:flex-end">
+            ${last ? bigValue(last.value, last.unit) : ""}
+            <span>${last ? flagChip(last.flag) : ""}</span>
+          </div>
+          ${last ? rangeScale(last) : ""}
+          ${last && rangeLine(last) ? `<div class="t3" style="margin-top:6px">${rangeLine(last)}</div>` : ""}
+          ${trendSeries(t, { headlined: true })}
         </div></div>`;
       }).join("")}</div>` : (pending.length ? "" : empty(
         T("ما عندك تحاليل مسجّلة", "No lab results recorded"),
@@ -13610,7 +13852,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
 
     const vitalRow = (v) => `<div class="rw"><div style="width:100%">
         <div class="rowb"><b>${esc(E().vitalLabel(v.kind, ar()))}</b>
-          <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+          <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${measure(v.value, v.unit)}</span></div>
         <div class="rowb" style="margin-top:5px">
           <span class="t3">${n(String(v.effectiveAt || "").slice(0, 10))}</span>
           <span>${flagChip(v.flag)}</span></div>
@@ -13621,17 +13863,26 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     return page(T("القياسات", "Measurements"),
       `${lastBp ? `<div class="rw"><div style="width:100%">
           <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
-            <span class="st ${lastBp.abnormal ? "st-e" : "st-v"}">${n(lastBp.systolic.value)} / ${
-              lastBp.diastolic ? n(lastBp.diastolic.value) : "—"} ${esc(lastBp.systolic.unit)}</span></div>
+            <span class="st ${lastBp.abnormal ? "st-e" : "st-v"}">${bpPair(lastBp.systolic.value,
+              lastBp.diastolic ? lastBp.diastolic.value : null, lastBp.systolic.unit)}</span></div>
           <div class="rowb" style="margin-top:5px">
             <span class="t3">${n(String(lastBp.at || "").slice(0, 10))}</span>
             <span>${lastBp.abnormal ? `<span class="st st-e">${T("خارج المعتاد", "outside the usual range")}</span>`
               : `<span class="st st-v">${T("ضمن المعتاد", "within the usual range")}</span>`}</span></div>
-          <div class="t3" style="margin-top:4px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${n(130)} / ${n(85)}</div>
+          <div class="t3" style="margin-top:4px">${T("المعتاد للبالغ تحت", "usual for an adult, under")} ${
+            bpPair(130, 85, "")}</div>
+          <!-- The provenance marker was on vitalRow and missing from this
+               hand-written block, so of the three readings on this screen the
+               ONE that was not marked "you recorded this yourself" was the
+               abnormal blood pressure — the most consequential number here
+               looked like the most authoritative. An omission, not a wrong
+               call, which is why no source-level guard caught it; the journey
+               suite now asserts it in the browser instead. -->
+          ${selfReported(lastBp.systolic) ? `<div style="margin-top:5px">${selfReported(lastBp.systolic)}</div>` : ""}
           ${bp.length > 1 ? `<div class="t3" style="margin-top:8px">${T("قراءات سابقة", "Earlier readings")}</div>
             ${bp.slice(1, 4).map((x) => `<div class="rowb" style="margin-top:4px">
               <span class="t3">${n(String(x.at).slice(0, 10))}</span>
-              <span class="t3">${n(x.systolic.value)} / ${x.diastolic ? n(x.diastolic.value) : "—"}</span></div>`).join("")}` : ""}
+              <span class="t3">${bpPair(x.systolic.value, x.diastolic ? x.diastolic.value : null, "")}</span></div>`).join("")}` : ""}
         </div></div>` : ""}
       ${others.length ? `<div class="stack-2">${others.map(vitalRow).join("")}</div>` : ""}
       ${!lastBp && !others.length ? empty(T("ما سجّلت أي قياس بعد", "No measurements recorded yet")) : ""}
@@ -14541,7 +14792,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       ${brief.unacknowledgedAbnormal.length ? `<div class="note note-e" style="margin-top:12px">${icon("alert")}
         <div style="width:100%"><b>${T("نتائج غير طبيعية ما أقرّها أحد", "Abnormal, unacknowledged")}</b>
           <div class="stack-2" style="margin-top:6px">${brief.unacknowledgedAbnormal.map((x) => `<div class="rowb">
-            <span>${esc(x.name)}</span><span>${n(x.value)} ${esc(x.unit || "")} · ${n(String(x.at).slice(0, 10))}</span>
+            <span>${esc(x.name)}</span><span>${measure(x.value, x.unit)} · ${n(String(x.at).slice(0, 10))}</span>
           </div>`).join("")}</div></div></div>` : ""}
 
       ${brief.overdue.length ? `<div class="note note-w" style="margin-top:10px">${icon("clock")}
@@ -14576,16 +14827,16 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       ${brief.bloodPressure || brief.vitals.length ? section(T("القياسات الأخيرة", "Latest measurements"),
         `${brief.bloodPressure ? `<div class="rw"><div style="width:100%">
           <div class="rowb"><b>${T("ضغط الدم", "Blood pressure")}</b>
-            <span class="st ${brief.bloodPressure.abnormal ? "st-e" : "st-v"}">${
-              n(brief.bloodPressure.systolic)} / ${brief.bloodPressure.diastolic != null
-                ? n(brief.bloodPressure.diastolic) : "—"} ${esc(brief.bloodPressure.unit || "")}</span></div>
+            <span class="st ${brief.bloodPressure.abnormal ? "st-e" : "st-v"}">${bpPair(
+              brief.bloodPressure.systolic, brief.bloodPressure.diastolic,
+              brief.bloodPressure.unit)}</span></div>
           <div class="rowb" style="margin-top:4px">
             <span class="t3">${n(String(brief.bloodPressure.at || "").slice(0, 10))}</span>
             <span>${patientToldUs(brief.bloodPressure)}</span></div>
         </div></div>` : ""}
         ${brief.vitals.map((v) => `<div class="rw"><div style="width:100%">
           <div class="rowb"><b>${esc(v.name)}</b>
-            <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${n(v.value)} ${esc(v.unit || "")}</span></div>
+            <span class="st ${FLAG_CLASS[flagKey(v.flag)]}">${measure(v.value, v.unit)}</span></div>
           <div class="rowb" style="margin-top:4px">
             <span class="t3">${n(String(v.at || "").slice(0, 10))}</span>
             <span>${patientToldUs(v) || flagChip(v.flag)}</span></div>
@@ -14674,22 +14925,89 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     return "";
   }
 
+  /* The reading drawn against its own reference range. Returns "" when the
+     domain says there is no range to draw — a weight, a height, a one-sided
+     "under 130" — because a scale is a claim about what normal looks like and
+     those measurements have none here.
+
+     `aria-hidden`: the value, the word ("مرتفع") and the range in prose all
+     sit beside this in the markup already. A screen reader announcing the
+     geometry too would say the same fact three times. */
+  function rangeScale(r) {
+    const g = E().rangePosition(r);
+    if (!g) return "";
+    const cls = g.clamped ? "at far" : g.out ? "at out" : "at";
+    return `<div class="rng" aria-hidden="true" style="--lo:${g.lo}%;--hi:${g.hi}%;--at:${g.at}%">
+      <i class="bnd"></i><i class="${cls}"></i></div>`;
+  }
+
+  /* The reading itself, at the weight the reason-for-the-screen deserves. */
+  const bigValue = (v, unit) => `<span class="nval">${esc(String(v))}${
+    unit ? `<span class="u">${esc(unit)}</span>` : ""}</span>`;
+
+  /* One quantity is one cell. "8.4" sat mid-row with "%" stranded at the far
+     edge of the same row, so the quantity read as two unrelated fields; and
+     the French space before "%" put the sign flush against the following
+     Arabic word. The unit joins the number inside a single run that cannot
+     wrap and cannot be reordered. */
+  const UNIT_TIGHT = /^(%|°C|°F|°)$/;
+  function measure(v, unit) {
+    const u = String(unit || "").trim();
+    return `<span class="num nw">${esc(String(v))}${
+      u ? (UNIT_TIGHT.test(u) ? "" : " ") + esc(u) : ""}</span>`;
+  }
+
+  /* A blood pressure is ONE reading, so it must be ONE bidi run.
+     `${n(148)} / ${n(92)}` leaves " / " as a NEUTRAL between two LTR embeds.
+     Inside an Arabic line bidi resolves that neutral right-to-left and the
+     pair renders "92 / 148" — while the identical pair wrapped in an outer
+     `.num` renders "148 / 92". Both spellings shipped, on different screens,
+     for the same reading: on one the reference line read "130 / 85" directly
+     under a value reading "92 / 148". Systolic and diastolic became
+     indistinguishable.
+
+     This is the trend arrow again in a new costume. The rule it taught holds
+     without exception: never place a neutral character between two rendered
+     numbers. Every blood pressure in the product goes through here. */
+  function bpPair(sys, dia, unit) {
+    const u = String(unit || "").trim();
+    return `<span class="num nw">${esc(String(sys))}/${
+      dia == null ? "—" : esc(String(dia))}${u ? " " + esc(u) : ""}</span>`;
+  }
+
   /* The dated body of a series, shared by the patient's labs screen and the
      clinician's brief so the two can never drift apart on the one thing they
-     must agree about. */
-  function trendSeries(t) {
+     must agree about.
+
+     `headlined`: the labs screen now shows the newest reading above this at
+     display weight, with its own range scale and its reference range in prose.
+     That range line was then printed a SECOND time at the foot of the series,
+     so the option suppresses the repeat.
+
+     What it deliberately does NOT do is drop the newest point from the series.
+     The first attempt did, and it broke the one property this renderer exists
+     to guarantee: every point carries its own date, and reading downward moves
+     forward in time. Skipping the last point left the newest reading with no
+     visible date at all, and left the vertical order running newest → oldest →
+     second-newest. The headline is a summary; the series is the record, and
+     the record stays complete. Repeating the value at 11.5px under its date,
+     beneath the same value at 26px, is an audit trail, not noise. */
+  function trendSeries(t, opts) {
     if (!t || !t.points || !t.points.length) return "";
+    const o = opts || {};
     const last = t.points[t.points.length - 1];
     const rows = t.points.map((p) => `<div class="rowb" style="margin-top:6px">
         <span class="t3">${n(String(p.at || "").slice(0, 10))}</span>
-        <span>${n(p.value)} ${esc(p.unit || "")} ${flagChip(p.flag)}</span>
+        <span>${measure(p.value, p.unit)} ${flagChip(p.flag)}</span>
       </div>`).join("");
     /* Direction is arithmetic on raw numbers. Across two units that arithmetic
        is meaningless, so the word is withheld rather than printed wrong — the
        warning underneath says why. */
     const dir = t.points.length > 1 && !t.mixedUnits ? esc(dirLabel(t.direction)) : "";
-    const rng = rangeLine(last);
-    return `${rows}
+    const rng = o.headlined ? "" : rangeLine(last);
+    const cap = o.headlined && t.points.length > 1
+      ? `<div class="t3" style="margin-top:12px">${T("كل القراءات", "Every reading")}</div>` : "";
+    return `${cap}${rows}
       ${dir || rng ? `<div class="rowb" style="margin-top:8px">
         <span class="st">${dir}</span><span class="t3">${rng}</span></div>` : ""}
       ${t.mixedUnits ? `<div class="st st-e" style="margin-top:6px">${T(

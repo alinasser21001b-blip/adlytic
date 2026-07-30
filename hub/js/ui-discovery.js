@@ -758,19 +758,30 @@ function screenDoctor(id) {
       <button class="b-g" style="font-size:13px" onclick="shareDoctor('${d.id}')">${t("share")}</button>
     </div>
 
-    <div style="display:flex;gap:16px;align-items:flex-start;margin-top:26px">
-      <span class="av" style="width:56px;height:56px;font-size:21px">${esc(initials(L(d)).charAt(0))}</span>
-      <span class="grow">
-        <h1 class="d2">${esc(L(d))}</h1>
+    <!-- The avatar, the name and the provenance badge used to share one row.
+         At 320px the avatar and the badge both held their width and the name
+         got the crumbs: "د. علي حسين الجبوري" ran to four lines, the last of
+         them a single orphaned letter, and «الجبوري» itself broke in half.
+         The badge is a qualification on the whole person, not a field beside
+         their name, so it belongs on its own line where it costs the name
+         nothing. -->
+    <div class="dp-head">
+      <span class="av dp-av">${esc(initials(L(d)).charAt(0))}</span>
+      <span class="grow" style="min-inline-size:0">
+        <h1 class="d2" style="text-wrap:balance">${esc(L(d))}</h1>
         <div class="q-sub" style="margin-top:4px">${esc(L(sp))}${d.sub_ar && isAR() ? " — " + esc(d.sub_ar) : ""}</div>
       </span>
-      ${sealBadge(d, "doctors")}
     </div>
+    <div style="margin-top:12px">${sealBadge(d, "doctors")}</div>
 
-    <div class="row" style="margin-top:18px;gap:18px;flex-wrap:wrap">
+    <!-- Separated by whitespace alone, "08:30" "207 م" "25,000" read as one
+         run of number soup, and the metre glyph landing against the time read
+         as 8:30 مساءً. Each item is one unbreakable unit with a visible
+         separator between them. -->
+    <div class="meta-row">
       ${statusLabel(st, true)}
-      <span class="t3"><span class="num">${fmtKm(km)}</span></span>
-      ${fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : ""}
+      <span class="t3 nw">${fmtKm(km)}</span>
+      ${fee !== null && fee !== undefined ? `<span class="t3 nw">${money(fee)}</span>` : ""}
     </div>
   </section>
 

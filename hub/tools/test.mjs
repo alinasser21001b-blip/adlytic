@@ -430,6 +430,47 @@ it("no arrow sits directly against an interpolated value", () => {
   eq(bad.map((x) => x.f), [], "the neutral resolves against its neighbours, not against the author's intent");
 });
 
+/* The arrow was only the first costume. The same defect shipped again as a
+   blood pressure written `${n(148)} / ${n(92)}`: " / " is a NEUTRAL between two
+   LTR embeds, so inside an Arabic line bidi resolved it right-to-left and the
+   pair rendered "92 / 148" — while the identical pair wrapped in an outer
+   `.num` rendered "148 / 92". Both spellings were live at once, on the record
+   screen and the vitals screen, for one reading; the vitals card printed a
+   value reading "92 / 148" directly above its own reference reading "130 / 85".
+   Nothing distinguished systolic from diastolic.
+
+   So the rule is not "no arrows", it is: no neutral separator may sit between
+   two interpolated values. A pair belongs inside ONE run — `bpPair()` — where
+   there is no neutral left for bidi to move. `·` is exempt: it separates items
+   of different kinds in a meta list (a measurement and a date), where order
+   carries no arithmetic and a reader cannot misread one as the other. */
+it("no neutral separator sits between two interpolated numbers", () => {
+  /* An em dash between two WORDS is ordinary prose and reorders harmlessly —
+     a reader can tell a modality from a body site whichever side it lands on.
+     The defect is specific to numbers, where the two sides are
+     indistinguishable once swapped. So both sides must look numeric. */
+  const NUMERIC = /\b(?:n|measure|money|bpPair|fmtT|padStart)\s*\(|\.(?:value|systolic|diastolic|refLow|refHigh|count|replied|requests)\b|^\s*\d[\d.]*\s*$/;
+  /* `:` is deliberately absent: Bidi_Class=CS binds a colon to the European
+     numbers on either side of it, so "08:00" survives an RTL line intact.
+     Only Bidi_Class=ON separators can be pulled away and reordered. */
+  const re = /\$\{([^{}]*)\}[ \t]*([/–—><÷×-])[ \t]*\$\{([^{}]*)/g;
+  const bad = [];
+  for (const { f, src } of uiSources) {
+    /* Comments are prose about this very bug and must be allowed to spell it. */
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    for (const line of code.split("\n")) {
+      /* Not rendered text: inline styles, URLs, CSS functions, storage keys. */
+      if (/style="|url\(|href="|https?:|calc\(|var\(--|\.replace\(/.test(line)) continue;
+      /* Already inside ONE `.num` run — which is the prescribed fix, not the
+         bug. A single LTR run has no neutral left for bidi to move. */
+      if (/class="[^"]*\bnum\b/.test(line)) continue;
+      for (const m of line.matchAll(re))
+        if (NUMERIC.test(m[1]) && NUMERIC.test(m[3])) bad.push(`${f}: ${line.trim().slice(0, 88)}`);
+    }
+  }
+  eq(bad, [], "two numbers with a neutral between them are one reading bidi is free to reverse");
+});
+
 /* The timeline screen rendered "the timeline fills as visits are recorded"
    over a record holding seven events, for as long as it existed.
    `timelineByEpisode` returns `{episodes, unassigned}`; the caller wrote

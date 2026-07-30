@@ -178,8 +178,22 @@ const fmtT = (m) => {
   const h = Math.floor((m % 1440) / 60), mm = m % 60;
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 };
-const fmtRangeTxt = (a, b) => `${fmtT(a)} – ${fmtT(b)}`;                       // plain text: messages, stored records
-const fmtRange = (a, b) => `<span dir="ltr" class="num">${fmtRangeTxt(a, b)}</span>`;   // markup: UI
+/* PLAIN TEXT — WhatsApp messages, stored records. This used to be
+   `${fmtT(a)} – ${fmtT(b)}`, which is the trend-arrow bug in plain text: the
+   en dash is a NEUTRAL between two number runs, so an Arabic WhatsApp bubble
+   resolves it right-to-left and "08:00 – 14:00" reaches the clinic reading
+   "14:00 – 08:00". There is no CSS in a message body to isolate it with, so
+   the range is stated in words — the same answer the lab reference range
+   already uses ("من ٤ إلى ٥.٦"), for the same reason. No neutral is left.
+
+   (`fmtT`'s own colon is safe and is left alone: `:` is Bidi_Class=CS, which
+   between two European numbers binds to them and cannot separate them. The
+   danger is only the separators that are Bidi_Class=ON.) */
+const fmtRangeTxt = (a, b) => isAR() ? `من ${fmtT(a)} إلى ${fmtT(b)}` : `${fmtT(a)} to ${fmtT(b)}`;
+/* MARKUP — one LTR run, so the dash is inside the run and has nothing to
+   reorder against. Built here rather than from fmtRangeTxt, which now carries
+   Arabic words that must not be forced LTR. */
+const fmtRange = (a, b) => `<span dir="ltr" class="num">${fmtT(a)} – ${fmtT(b)}</span>`;
 const fmtTi = (m) => `<span dir="ltr" class="num">${fmtT(m)}</span>`;
 
 /* raw segments on a weekday; t may exceed 1440 when it wraps past midnight */
@@ -496,16 +510,27 @@ function band(ent, day = null, showNow = true) {
    Rows, not cards. The list is the surface: a hairline separates entries and
    a brass lead in the gutter marks "open right now". Nothing here is a box.
 ------------------------------------------------------------- */
+/* The name and the provenance badge used to share one line. An Arabic name is
+   long and «بيانات نموذجية» is long, and neither yields: at 320px the pair
+   produced a three-line name beside a two-line badge — a five-line ragged
+   header on a row whose job is to say who this is. The badge describes the
+   whole entry, so it drops below the name and the name gets the full width.
+
+   The chevron: these rows were the only tappable surface in the product with
+   no affordance at all, which read as inert at 430px where the row is mostly
+   empty space. */
 function rowEl(o) {
-  return `<a class="rw${o.open ? "" : ""}${o.quiet ? " quiet" : ""}" href="${o.href}">
+  return `<a class="rw${o.quiet ? " quiet" : ""}" href="${o.href}">
     ${o.open ? `<span class="rw-lead"></span>` : ""}
     <span class="av">${esc(o.mono)}</span>
-    <span class="grow">
-      <span class="rowb"><span class="d3">${esc(o.title)}</span>${o.mark || ""}</span>
+    <span class="grow" style="min-inline-size:0">
+      <span class="d3" style="display:block">${esc(o.title)}</span>
       ${o.sub ? `<span class="q-sub" style="display:block">${o.sub}</span>` : ""}
-      ${o.meta ? `<span class="row" style="margin-top:9px;gap:14px;flex-wrap:wrap">${o.meta}</span>` : ""}
+      ${o.mark ? `<span style="display:block;margin-top:8px">${o.mark}</span>` : ""}
+      ${o.meta ? `<span class="meta-row">${o.meta}</span>` : ""}
       ${o.band ? `<span style="display:block;margin-top:12px">${o.band}</span>` : ""}
     </span>
+    <span class="rw-go" aria-hidden="true">${icon("chev")}</span>
   </a>`;
 }
 
@@ -525,8 +550,11 @@ function doctorCard(x, dimIfShut = true) {
     sub: `${esc(L(sp))}${f ? " — " + esc(L(f)) : ""}`,
     meta: [
       statusLabel(st, true),
-      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
-      fee !== null && fee !== undefined ? `<span class="t3"><span class="num">${money(fee)}</span></span>` : "",
+      /* `fmtKm` returns "٢٠٧ م" / "0.2 كم" — a number AND an Arabic unit. In
+         a `.num` LTR run the unit was forced to the wrong side, which is how
+         "م" ended up abutting a time and reading as مساءً. */
+      `<span class="t3">${fmtKm(km)}</span>`,
+      fee !== null && fee !== undefined ? `<span class="t3">${money(fee)}</span>` : "",
       dist ? `<span class="t3">${esc(L(dist))}</span>` : "",
     ].filter(Boolean).join(""),
     band: band(d),
@@ -545,7 +573,10 @@ function pharmacyCard(x, dimIfShut = true) {
     sub: `${dist ? esc(L(dist)) : ""}${f.night ? (isAR() ? " · خفارة ليلية" : " · night duty") : ""}`,
     meta: [
       statusLabel(st, true),
-      `<span class="t3"><span class="num">${fmtKm(km)}</span></span>`,
+      /* `fmtKm` returns "٢٠٧ م" / "0.2 كم" — a number AND an Arabic unit. In
+         a `.num` LTR run the unit was forced to the wrong side, which is how
+         "م" ended up abutting a time and reading as مساءً. */
+      `<span class="t3">${fmtKm(km)}</span>`,
     ].join(""),
     band: band(f),
   });

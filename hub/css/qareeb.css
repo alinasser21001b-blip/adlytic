@@ -64,11 +64,27 @@ ul, ol { list-style: none; }
 .num, .n {
   font-family: var(--num); font-variant-numeric: tabular-nums;
   direction: ltr; unicode-bidi: embed; font-weight: 400;
+  /* A number is one token. `2026-07-01` was wrapping as `2026-07-` / `01`
+     and `148/92` as `148/` / `92` — a broken date is a wrong date. */
+  white-space: nowrap;
 }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; font-size: .92em; }
 
-/* Arabic wraps badly at 375px without help. */
-h1, h2, h3, p, span, div, li { overflow-wrap: anywhere; }
+/* A quantity, a date, a blood pressure: one unbreakable run. */
+.nw { white-space: nowrap; }
+
+/* `overflow-wrap: anywhere` was set on h1,h2,h3,p,span,div,li — everything.
+   Arabic has no hyphenation convention, so `anywhere` breaks words at
+   arbitrary letters with nothing to mark the break: «حساسية» rendered as
+   حساس / ية on the emergency card at 390px, «الهيموغلوبين» as الهيموغلوبي / ن,
+   and a doctor's family name «الجبوري» as الجبور / ي. A reader sees two
+   words that do not exist.
+
+   `break-word` breaks only when a single token genuinely cannot fit, which is
+   the case this was reaching for. `anywhere` is kept for the few classes that
+   really do hold unbreakable machine tokens. */
+h1, h2, h3, p, span, div, li { overflow-wrap: break-word; }
+.mono, .slip-ref, .brk { overflow-wrap: anywhere; }
 
 /* ---------- 2 · type · display tight and heavy, body light and open ---------- */
 h1, .q-h1, .prof-name, .dp-name { font: 600 30px/1.26 var(--disp); letter-spacing: -.02em; }
@@ -85,6 +101,19 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .d1 { font: 600 34px/1.24 var(--disp); letter-spacing: -.02em; }
 .d2 { font: 600 25px/1.32 var(--disp); letter-spacing: -.015em; }
 .d3 { font: 500 19px/1.45 var(--disp); letter-spacing: -.01em; }
+
+/* THE READING. On a labs or vitals screen the number is the reason the screen
+   exists, and it was set in `.n` at body weight — so the metric's NAME (`.d3`,
+   19px/500) outranked its VALUE. One class, three screens: labs, vitals, and
+   the clinician's brief. Numeral face, tabular, LTR-embedded like every other
+   number in the product. */
+.nval {
+  font-family: var(--num); font-variant-numeric: tabular-nums;
+  direction: ltr; unicode-bidi: embed;
+  font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -.01em;
+}
+.nval .u { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-inline-start: 3px; }
+.dark .nval .u { color: var(--case-ink-3); }
 
 /* ---------- 3 · layout primitives ---------- */
 .app { min-height: 100dvh; padding-bottom: 92px; }
@@ -119,6 +148,13 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
   background: none; border: 0; border-radius: 0; box-shadow: none;
   transition: background .16s ease;
 }
+/* "This row opens something." Aligned to the first line of the title, not
+   centred on the row, so it reads as belonging to the name rather than
+   floating in the row's whitespace. */
+.rw-go { flex: 0 0 auto; align-self: flex-start; margin-top: 2px; color: var(--ink-3); opacity: .65; }
+.rw-go svg { width: 17px; height: 17px; }
+a.rw:hover .rw-go, a.rw:focus-visible .rw-go { opacity: 1; color: var(--jade); }
+
 .card-top { display: flex; gap: var(--u4); align-items: flex-start; width: 100%; }
 .card-foot { display: flex; align-items: center; gap: var(--u2); margin-top: var(--u3); }
 .card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; }
@@ -137,7 +173,12 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 }
 .rail-stock::before { background: var(--jade); }
 .card.is-shut::before, .card.is-soon::before, .lane--sos::before { content: none; }
-.quiet, .card.is-shut { opacity: .46; }
+/* `.46` multiplied against `--case-ink-2` (itself .78 alpha) left dark-mode
+   rows at roughly .36 effective — past legible, on the closed-pharmacy and
+   dimmed-doctor rows. My own contrast audit never caught it because it
+   composites an element's OWN alpha and does not walk ancestor `opacity`;
+   found by eye instead. De-emphasis has to stay readable to mean anything. */
+.quiet, .card.is-shut { opacity: .62; }
 
 /* A plate exists only when the thing is genuinely singular. */
 .plate, .ch, .surf-raise, .surf-key, .banner, .note, .slip, .stub, .adm-kpi, .map-peek,
@@ -186,8 +227,12 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
    extender behind it. 40 -> 44 is imperceptible. */
 .btn--sm, .b-sm, .btn-sm { min-height: 44px; font-size: 12.5px; padding-inline: var(--u4); }
 .btn[disabled], .b[disabled] { opacity: .35; pointer-events: none; }
-.btn-row { display: flex; gap: var(--u2); }
-.btn-row > * { flex: 1; }
+/* Wraps rather than overflows. Three Arabic labels in one 360px row do not
+   fit, and the row used to "fit" only because a global `overflow-wrap:
+   anywhere` was breaking «المستشفيات» in half to make room. With word-breaking
+   gone the row must be allowed a second line instead. */
+.btn-row { display: flex; flex-wrap: wrap; gap: var(--u2); }
+.btn-row > * { flex: 1 1 auto; min-inline-size: 0; }
 
 .icon-btn {
   display: grid; place-items: center; flex: none;
@@ -281,6 +326,57 @@ p, .q-sub, .card-q, .qc-qual, .intent-s, .empty-b, .small, .t2, .prof-spec, .dp-
 .ticks > i { flex: 1; height: 5px; background: var(--dial-line); border-radius: 0; }
 .ticks > i.maj { height: 11px; background: var(--ink-4); }
 .ticks > i.on { height: 16px; background: var(--brass); width: 2px; flex: none; margin-inline: 1px; }
+
+/* ---------- the reference-range scale · the reading against its own range ----
+   The one place the product's infrastructure was most visibly ahead of its
+   interface. Every lab result and every vital already carries `value`,
+   `refLow` and `refHigh`; every screen rendered those as three separate
+   pieces of text — the number, the word "high", and "normal 4 to 5.6" in grey
+   — leaving the reader to do the arithmetic for the only question they asked:
+   how far out is this?
+
+   Deliberately built as a sibling of `.ticks` above, not as a new vocabulary:
+   same 16px height, same engraved baseline, and the reading is the identical
+   2px brass mark as `.ticks > i.on`. The instrument motif and this data want
+   the same shape.
+
+   Geometry comes from `EMR.rangePosition()` — which returns null when there is
+   no reference range, so no scale is ever drawn for a weight or a height. A
+   drawn scale is a claim that we know what normal looks like.
+
+   Positioned with `inset-inline-start`, so it mirrors with the reading
+   direction exactly like the 24-hour axis above: low at the start edge. */
+.rng { position: relative; height: 16px; margin-top: var(--u2); }
+.rng::before {                                  /* the baseline */
+  content: ""; position: absolute; inset-inline: 0; bottom: 0;
+  height: 2px; background: var(--dial-line); border-radius: var(--rp);
+}
+.rng > .bnd {                                   /* the normal zone */
+  position: absolute; bottom: 0; height: 5px;
+  inset-inline-start: var(--lo); width: calc(var(--hi) - var(--lo));
+  background: var(--jade); opacity: .5; border-radius: var(--rp);
+}
+.dark .rng > .bnd { background: var(--jade-lit); opacity: .42; }
+.rng > .at {                                    /* the reading */
+  position: absolute; bottom: 0; height: 16px; width: 2px;
+  inset-inline-start: var(--at); margin-inline-start: -1px;
+  background: var(--brass); border-radius: var(--rp);
+}
+.dark .rng > .at { background: var(--brass-lit); }
+.rng > .at.out { background: var(--alarm); }
+.dark .rng > .at.out { background: var(--alarm-lit); }
+/* Past the end of the drawn scale. HbA1c 8.4 and a mis-keyed 84 would
+   otherwise pin to the same edge and look identical; this says "further than
+   this track reaches". A CSS triangle, not a glyph — an arrow character is
+   Bidi_Class=ON and would be reordered. */
+.rng > .at.far::after {
+  content: ""; position: absolute; bottom: 5px; inset-inline-start: 3px;
+  border-block: 4px solid transparent;
+  border-inline-start: 5px solid currentColor; border-inline-end: 0;
+  color: inherit;
+}
+.rng > .at.far { background: var(--alarm); }
+.dark .rng > .at.far { background: var(--alarm-lit); }
 /* The board sets .axis to direction:ltr while .ticks and .band inherit RTL and
    position with inset-inline-start — so the scale ran 00→24 left-to-right while
    the marks it labelled ran right-to-left. The product's established rule is
@@ -524,12 +620,25 @@ label.row, label.rw { min-height: 44px; cursor: pointer; }
 .slot-btn .m { display: block; font: 400 11.5px/1.5 var(--disp); color: var(--ink-3); }
 .slot-btn .t { font-family: var(--num); font-variant-numeric: tabular-nums; direction: ltr; flex: none; font-size: 13px; }
 
-/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ---------- */
+/* ---------- 14 · notes and banners · a rule and a colour, not a tinted box ----------
+   That heading has been the stated intent since this file was written, and the
+   code underneath it drew a full hairline box anyway. The cost was structural,
+   not cosmetic: `.note` is the app's alert primitive, so on the record screen
+   three stacked boxes (storage warning, allergies, abnormal results) appeared
+   BEFORE the patient's own name, and on the clinician brief a red box rendered
+   inside a grey box containing chips — boxes inside boxes, which the UI
+   contract outlaws by name.
+
+   A rule carries the same three states (brass / alarm / jade) with none of the
+   enclosure. The variants below still set `border-color` for all four sides;
+   only the inline-start edge is drawn, so every existing variant keeps working
+   untouched. */
 .note, .banner {
   display: flex; gap: var(--u3); align-items: flex-start;
-  padding: var(--u4); border-radius: var(--r);
+  padding: var(--u3) var(--u4);
+  border: 0; border-inline-start: 2px solid var(--dial-line); border-radius: 0;
   font: 300 13.5px/1.8 var(--disp); color: var(--ink-2);
-  background: none; border: 1px solid var(--dial-line);
+  background: none;
 }
 .note svg, .banner svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
 .note-w, .banner--warn { border-color: var(--brass-ink); color: var(--brass-ink); }
@@ -679,6 +788,26 @@ input, textarea { min-height: 44px; }
 .emg-alt { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); min-height: 44px; }
 .prof-head { padding: var(--u5) var(--u5) 0; }
 
+/* Doctor profile header. The name gets whatever the avatar does not, so the
+   avatar shrinks first at the width where an Arabic family name would
+   otherwise have to break. */
+.dp-head { display: flex; gap: var(--u4); align-items: flex-start; margin-top: 26px; }
+.dp-av { width: 56px; height: 56px; font-size: 21px; flex: 0 0 auto; }
+@media (max-width: 359px) {
+  .dp-av { width: 40px; height: 40px; font-size: 16px; }
+  .dp-head { gap: var(--u3); }
+}
+
+/* A meta list: distinct facts, each unbreakable, each visibly separated.
+   `::before` on the sibling rather than a character in the markup, so the
+   separator is never a neutral inside a rendered value. */
+.meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--u2) 0; margin-top: 18px; }
+.meta-row > * { white-space: nowrap; }
+.meta-row > * + *::before {
+  content: "·"; color: var(--ink-3); opacity: .7;
+  margin-inline: var(--u3); display: inline-block;
+}
+
 /* The schematic above a pharmacy list. It is aria-hidden and decorative —
    but it was rendering as an empty bordered box, because the pins inside it
    are inline spans with no size. A blank frame captioned "14 pharmacies" is
@@ -704,7 +833,11 @@ input, textarea { min-height: 44px; }
    layout, which stacks a label above its value and reads as broken data. */
 .kv { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u3); padding: var(--u3) 0; border-top: 1px solid var(--dial-line-2); }
 .kv:first-child { border-top: 0; }
-.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none; }
+.kv .k { font: 400 11.5px/1.6 var(--disp); color: var(--ink-3); flex: none;
+  /* `flex:none` without this let the label column collapse to its minimum and
+     break inside the word — "حساسية" rendered as حساس/ية on the emergency
+     card, which is the one screen where a label must be read at a glance. */
+  white-space: nowrap; }
 .kv .v { font: 400 14px/1.6 var(--disp); text-align: end; }
 .prof-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u3); margin-top: var(--u5); }
 .prof-fact { display: flex; flex-direction: column; gap: 3px; }

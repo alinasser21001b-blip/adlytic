@@ -736,6 +736,63 @@
   const unjudgeableResults = (list) => (list || []).filter(isUnjudgeable);
 
   /* =========================================================
+     ٧-ج · موضع القيمة في مداها — WHERE A VALUE SITS
+     =========================================================
+     Every result and every vital already carries `value`, `refLow` and
+     `refHigh`, and every screen rendered them as three separate pieces of
+     text: the number, the word "high", and "normal 4 to 5.6" in grey. A
+     reader has to hold three facts and do the arithmetic themselves to answer
+     the only question they actually asked — how far out is this?
+
+     This returns the geometry for drawing that answer: the normal band's
+     start and end as percentages, and the value's own position. Pure
+     arithmetic, no DOM, so it is testable in Node like everything else here.
+
+     Two rules it will not break:
+
+     · NO REFERENCE RANGE, NO SCALE. Returns null. A drawn scale is a claim
+       that we know what normal looks like for this measurement, and for a
+       weight or a height we do not. The screens already say "no reference
+       range" in words; they must not then draw a picture implying otherwise.
+
+     · A CLAMPED MARKER SAYS SO. The domain is padded by half the reference
+       width on each side, so an ordinary out-of-range value still lands
+       inside the track rather than on its edge. But a scale has finite width
+       and some values are far past it — HbA1c 8.4 and a mis-keyed 84 would
+       both pin to the same end, and those two mean completely different
+       things to a diabetic. So when the value falls outside the drawn domain
+       the position is clamped AND `clamped` is set, letting the marker say
+       "further than this track can show" instead of quietly implying the
+       edge is the value. The number itself is always printed beside the
+       scale, so the exact figure is never only in the geometry. */
+  const RANGE_PAD = 0.5;
+
+  function rangePosition(r) {
+    if (!r || typeof r.value !== "number" || !isFinite(r.value)) return null;
+    const lo = r.refLow, hi = r.refHigh;
+    /* Both bounds are required. A one-sided range ("under 130") has no
+       geometry — there is no left edge to draw from — and inventing one
+       would put the marker at a position that means nothing. */
+    if (typeof lo !== "number" || typeof hi !== "number") return null;
+    if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return null;
+
+    const width = hi - lo;
+    const pad = width * RANGE_PAD;
+    const min = lo - pad, max = hi + pad;
+    const span = max - min;
+    const raw = ((r.value - min) / span) * 100;
+    const pct = (v) => +Math.max(0, Math.min(100, ((v - min) / span) * 100)).toFixed(2);
+
+    return {
+      lo: pct(lo),
+      hi: pct(hi),
+      at: +Math.max(0, Math.min(100, raw)).toFixed(2),
+      clamped: raw < 0 || raw > 100,
+      out: r.value < lo ? "low" : r.value > hi ? "high" : null,
+    };
+  }
+
+  /* =========================================================
      ٧-أ · العلامات الحيوية — VITAL SIGNS
      =========================================================
      `CLASS.VITALS` has existed since the access model was written and nothing
@@ -1218,6 +1275,7 @@
     TASK_STATE, TASK_KIND, closeTask, isOverdue, openTasks, deriveTasks, ms,
     flagResult, isAbnormal, isUnjudgeable, unjudgeableResults, trend,
     VITAL, VITAL_META, recordVital, vitalMeta, vitalLabel, latestVitals, bloodPressure,
+    rangePosition,
     EXT_STATE, verifyExternal, canPromote,
     ROLE, CLASS, GRANTS, canAccess, breakGlass, breakGlassActive, BREAK_GLASS_MINUTES,
     snapshot, ageOf,
