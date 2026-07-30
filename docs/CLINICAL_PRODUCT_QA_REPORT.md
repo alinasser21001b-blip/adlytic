@@ -106,7 +106,7 @@ Passed checks:
    `EMR.breakGlass` accepts any non-patient/non-reception role, including a self-asserted local doctor. `CONSENT.decideAccess` checks only whether the grant is active; unlike the server, it does not verify `breakGlass.actorId` or `patientId`. The browser gate proved that `DR-OTHER` can use a grant issued to `DR-ER`.
 
 3. **Self-asserted facilities can create locally authoritative clinical output.**  
-   `facilitySave` creates `SELF_ASSERTED` lab/imaging/pharmacy actors. Local result/report/dispense handlers mutate the record before server acknowledgement, while the domain functions require only an actor ID. A later server rejection does not prevent the local UI from treating the result as clinical data.
+   `facilitySave` creates `SELF_ASSERTED` lab/imaging/pharmacy actors. Local result/report/dispense handlers mutate the record before server acknowledgement, while the domain functions require only an actor ID. A later server rejection does not prevent the local UI from treating the result as clinical data. Exact reinspection also found that the server facility branch binds results/studies to orders but does not require `licenseStatus: VERIFIED`; this is a client and server trust-boundary failure.
 
 4. **Emergency notification is claimed but not implemented.**  
    The UI says “the patient has been told” after setting a local flag. The product's own Apple handoff confirms that no push-notification channel exists, and no SMS notification path was found. A boolean named `notifyPatient` is an obligation, not delivery evidence.
@@ -239,16 +239,20 @@ Back/hash navigation and main-content focus work in the audited browser flow. De
 
 ## K. P0 / P1 / P2 Findings
 
+The binding, finding-by-finding remediation and independent-verification
+requirements are in
+[`P0_REMEDIATION_SPECIFICATIONS.md`](./P0_REMEDIATION_SPECIFICATIONS.md).
+
 ### P0 — safety/core failure
 
 | ID | Finding |
 |---|---|
 | P0-01 | Unable-to-assess allergy severity is displayed as low severity. |
 | P0-02 | Self-asserted actors can invoke client break-glass, and an active grant is not bound to its issuing actor/patient in the client access decision. |
-| P0-03 | Self-asserted facilities can write local results/reports/dispenses that the UI treats as clinical data before server authorization. |
+| P0-03 | Self-asserted facilities can create clinical output that the client treats as authoritative; the server facility gate also omits verified-licence enforcement. |
 | P0-04 | UI claims emergency notification succeeded although no delivery channel exists. |
 | P0-05 | Full clinical records are readable from unencrypted localStorage without patient authentication. |
-| P0-06 | Release data includes synthetic “verified” entities and placeholder contacts; release preflight catches this, but no Qareeb CI gate enforces the preflight. |
+| P0-06 | Release data includes synthetic “verified” entities and placeholder contacts; unsupported verification is only a preflight note, and no Qareeb deployment path enforces the release gate. |
 
 ### P1 — functional/clinical regression
 
