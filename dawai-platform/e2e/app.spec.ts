@@ -54,7 +54,9 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
   ).toBeVisible();
   await pharmacyPage.getByLabel("اسم الصيدلية").fill(pharmacyName);
   await pharmacyPage.getByLabel("اسم الصيدلي المسؤول").fill("الصيدلي أحمد");
-  await pharmacyPage.getByLabel("الهاتف").fill("07701112222");
+  await pharmacyPage
+    .getByRole("textbox", { name: "الهاتف", exact: true })
+    .fill("07701112222");
   await pharmacyPage.getByLabel("رقم إجازة الصيدلية").fill(license);
   await pharmacyPage.getByLabel("اسم الفرع").fill("فرع المنصور");
   await pharmacyPage.getByLabel("العنوان").fill("شارع 14 رمضان، المنصور");
