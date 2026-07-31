@@ -7,6 +7,11 @@
   <meta name="theme-color" content="#173c37" />
   <meta name="description" content="معاينة واجهة دوائي — شبكة طلب توفر الدواء في العراق" />
   <title>دوائي — معاينة التصميم</title>
+  <link rel="manifest" href="dawai-manifest.webmanifest" />
+  <link rel="icon" href="dawai-icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="dawai-icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="دوائي" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -148,7 +153,7 @@
     }
     .brand > span:last-child { display: grid; }
     .brand strong { color: var(--forest-900); font-size: 1.25rem; }
-    .brand small { color: var(--ink-500); font-size: 0.66rem; font-weight: 600; }
+    .brand small { color: var(--ink-700); font-size: 0.72rem; font-weight: 600; }
     .brand-mark {
       position: relative;
       display: grid;
@@ -282,10 +287,12 @@
       -webkit-backdrop-filter: blur(6px);
       backdrop-filter: blur(6px);
     }
-    /* Fixed centering: top/inline-start 50% + translate(-50%, -50%) works in both directions */
+    /* Centering must be physical on BOTH axes: translate() is physical, so pairing it
+       with a logical inset drifts by one full width in RTL. left+translate is
+       direction-independent for true centering. */
     .welcome-radar .center {
       top: 50%;
-      inset-inline-start: 50%;
+      left: 50%;
       transform: translate(-50%, -50%);
       background: var(--action);
     }
@@ -759,6 +766,59 @@
     }
     .page-header { margin-bottom: 1rem; }
     .page-header p { margin: 0; }
+
+    .offline-banner {
+      position: fixed;
+      inset-block-end: calc(var(--nav-h) + 0.75rem);
+      inset-inline: 0.75rem;
+      z-index: 90;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      min-height: 44px;
+      padding: 0.55rem 1rem;
+      border-radius: 14px;
+      background: var(--ink-950);
+      color: white;
+      font-weight: 700;
+      font-size: 0.85rem;
+      max-width: 456px;
+      margin-inline: auto;
+    }
+    .offline-banner.visible { display: flex; }
+
+    .countdown.expired {
+      background: var(--action-soft);
+      color: #9a3d2c;
+    }
+    .hold-expired { display: none; }
+    .hold-expired.visible { display: grid; gap: 0.65rem; margin-top: 1rem; }
+
+    .reason-chips {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.45rem;
+      margin-top: 0.85rem;
+    }
+    .reason-chips button {
+      min-height: 44px;
+      border-radius: 12px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      font-weight: 700;
+      font-size: 0.76rem;
+    }
+    .inbox-done {
+      margin-top: 0.85rem;
+      padding: 0.75rem;
+      border-radius: 12px;
+      background: var(--mint-50);
+      color: var(--forest-700);
+      font-weight: 700;
+      font-size: 0.84rem;
+      text-align: center;
+    }
     .title-row {
       display: flex;
       flex-wrap: wrap;
@@ -960,8 +1020,8 @@
           </label>
         </div>
 
-        <div class="offer-list">
-          <article class="offer-card">
+        <div class="offer-list" id="offer-list">
+          <article class="offer-card" data-price="12000" data-distance="0.8" data-best="1">
             <div class="offer-heading">
               <div class="pharmacy-avatar" aria-hidden="true">🏪</div>
               <div style="flex:1">
@@ -971,7 +1031,7 @@
               <span class="status-badge ok">مطابق</span>
             </div>
             <div class="trust-row">
-              <span class="trust-chip"><span aria-hidden="true">✔</span> مرخّصة · <bdi dir="ltr">IQ- thr-1842</bdi></span>
+              <span class="trust-chip"><span aria-hidden="true">✔</span> مرخّصة · <bdi dir="ltr">IQ-THR-1842</bdi></span>
               <span class="trust-chip"><span aria-hidden="true">🕐</span> مفتوحة حتى <bdi dir="ltr">22:00</bdi></span>
               <span class="trust-chip"><span aria-hidden="true">📍</span> خريطة</span>
             </div>
@@ -985,7 +1045,7 @@
             <button class="primary-cta" type="button" data-goto="hold">حجز للاستلام</button>
           </article>
 
-          <article class="offer-card">
+          <article class="offer-card" data-price="11500" data-distance="1.4" data-best="2">
             <div class="offer-heading">
               <div class="pharmacy-avatar" aria-hidden="true">🏪</div>
               <div style="flex:1">
@@ -1033,7 +1093,7 @@
         <div class="page-header">
           <p class="overline">طلب <bdi dir="ltr">DW-4821</bdi></p>
           <h1 id="zero-title"><bdi dir="ltr">Augmentin 625 mg</bdi></h1>
-          <p>النطاق الحالي: 2 كم · أُرسل إلى 3 صيدليات</p>
+          <p id="zero-meta">النطاق الحالي: 2 كم · أُرسل إلى 3 صيدليات</p>
         </div>
         <div class="empty-card">
           <div class="ico-lg" aria-hidden="true">📡</div>
@@ -1045,7 +1105,7 @@
             <li><span class="n">3</span><span>توسيع نادر إلى 10 كم — بموافقة صريحة</span></li>
             <li><span class="n">4</span><span>إنهاء الطلب وإعادة المحاولة لاحقًا</span></li>
           </ol>
-          <button class="primary-cta" type="button" style="width:100%;margin-bottom:.55rem">توسيع إلى 5 كم</button>
+          <button class="primary-cta" type="button" id="expand-radius" style="width:100%;margin-bottom:.55rem">توسيع إلى 5 كم</button>
           <button class="secondary-cta" type="button" style="width:100%" data-goto="offers">البقاء على 2 كم</button>
         </div>
       </main>
@@ -1076,10 +1136,11 @@
           <p>العد التنازلي يبدأ فقط بعد أن تؤكد الصيدلية حفظ الكمية — وقد بدأ الآن.</p>
         </div>
         <section class="reservation-card">
-          <div class="countdown" role="timer" aria-live="off" aria-atomic="true">
-            <span><span aria-hidden="true">⏱</span> الوقت المتبقي للحجز</span>
-            <strong><bdi dir="ltr">14:32</bdi></strong>
+          <div class="countdown" id="hold-countdown" role="timer" aria-atomic="true">
+            <span id="countdown-label"><span aria-hidden="true">⏱</span> الوقت المتبقي للحجز</span>
+            <strong><bdi dir="ltr" id="countdown-value">14:32</bdi></strong>
           </div>
+          <p class="sr-only" aria-live="polite" id="countdown-announce"></p>
           <div class="res-grid">
             <div><span>الدواء</span><strong><bdi dir="ltr">Augmentin 625 mg</bdi></strong></div>
             <div><span>السعر</span><strong><bdi dir="ltr">12,000</bdi> د.ع</strong></div>
@@ -1087,9 +1148,14 @@
             <div><span>الصيدلية</span><strong>صيدلية الروابي</strong></div>
             <div style="grid-column:1/-1"><span>العنوان</span><strong>شارع 14 رمضان، المنصور</strong></div>
           </div>
-          <div class="contact-row">
+          <div class="contact-row" id="hold-contact">
             <a class="primary-cta" href="https://www.google.com/maps" target="_blank" rel="noreferrer">الاتجاهات</a>
             <a class="secondary-cta" href="tel:07701112222">اتصال</a>
+          </div>
+          <div class="hold-expired" id="hold-expired">
+            <p style="margin:0;font-weight:700;color:#9a3d2c">انتهت مهلة الحجز ولم يعد الدواء محفوظًا لك.</p>
+            <button class="primary-cta" type="button" data-goto="zero" style="width:100%">إعادة إرسال الطلب</button>
+            <button class="secondary-cta" type="button" data-goto="patient" style="width:100%">الرئيسية</button>
           </div>
         </section>
       </main>
@@ -1231,6 +1297,11 @@
     </div>
   </section>
 
+  <div class="offline-banner" id="offline-banner" role="status">
+    <span aria-hidden="true">📴</span>
+    <span>لا يوجد اتصال — سنُعيد المحاولة تلقائيًا عند عودة الشبكة.</span>
+  </div>
+
   <script>
     (function () {
       const bar = document.getElementById("preview-bar");
@@ -1286,6 +1357,9 @@
         el.addEventListener("click", (event) => {
           if (el.tagName === "BUTTON" && el.type === "submit") {
             event.preventDefault();
+            const form = el.closest("form");
+            // The demo must behave like the product: no navigation past invalid input.
+            if (form && !form.reportValidity()) return;
           }
           showScreen(el.getAttribute("data-goto"));
         });
@@ -1305,6 +1379,114 @@
 
       const initial = (location.hash || "#welcome").slice(1);
       showScreen(document.getElementById(initial) ? initial : "welcome");
+
+      /* ---- Live hold countdown (server-authoritative pattern: absolute expiry) ---- */
+      const cdValue = document.getElementById("countdown-value");
+      const cdBox = document.getElementById("hold-countdown");
+      const cdAnnounce = document.getElementById("countdown-announce");
+      if (cdValue && cdBox) {
+        const expiresAt = Date.now() + (14 * 60 + 32) * 1000; // demo stand-in for hold.expires_at
+        let lastAnnouncedMin = null;
+        const tick = () => {
+          const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+          const m = Math.floor(left / 60);
+          const s = left % 60;
+          cdValue.textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+          // Throttled announcements: minute marks, then 30s and 10s under a minute.
+          if (m !== lastAnnouncedMin && s === 0 && m > 0) {
+            lastAnnouncedMin = m;
+            cdAnnounce.textContent = "الوقت المتبقي للحجز: " + m + " دقيقة";
+          } else if (m === 0 && (s === 30 || s === 10)) {
+            cdAnnounce.textContent = "الوقت المتبقي للحجز: " + s + " ثانية";
+          }
+          if (left === 0) {
+            clearInterval(timer);
+            cdBox.classList.add("expired");
+            document.getElementById("countdown-label").textContent = "انتهت مهلة الحجز";
+            cdValue.textContent = "00:00";
+            cdAnnounce.textContent = "انتهت مهلة الحجز.";
+            document.getElementById("hold-contact").style.display = "none";
+            document.getElementById("hold-expired").classList.add("visible");
+          }
+        };
+        const timer = setInterval(tick, 1000);
+        tick();
+      }
+
+      /* ---- Functional offer sorting ---- */
+      const sortSelect = document.getElementById("offer-sort");
+      const offerList = document.getElementById("offer-list");
+      if (sortSelect && offerList) {
+        sortSelect.addEventListener("change", () => {
+          const key = { best: "best", distance: "distance", price: "price" }[sortSelect.value] || "best";
+          [...offerList.querySelectorAll(".offer-card")]
+            .sort((a, b) => parseFloat(a.dataset[key]) - parseFloat(b.dataset[key]))
+            .forEach((card) => offerList.appendChild(card));
+        });
+      }
+
+      /* ---- "غير متوفر" captures a reason (routing training data) ---- */
+      const REASONS = [
+        ["OUT_OF_STOCK", "نفد المخزون"],
+        ["NOT_CARRIED", "لا نتعامل به"],
+        ["CLOSED_NOW", "مغلق حاليًا"],
+      ];
+      document.querySelectorAll(".quick-reply .no").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const reply = btn.closest(".quick-reply");
+          if (reply.nextElementSibling && reply.nextElementSibling.classList.contains("reason-chips")) return;
+          const chips = document.createElement("div");
+          chips.className = "reason-chips";
+          chips.setAttribute("role", "group");
+          chips.setAttribute("aria-label", "سبب عدم التوفر");
+          REASONS.forEach(([code, label]) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = label;
+            b.addEventListener("click", () => {
+              const done = document.createElement("p");
+              done.className = "inbox-done";
+              done.setAttribute("role", "status");
+              done.textContent = "شكرًا — سجّلنا السبب وسنحسّن توجيه الطلبات إليك.";
+              const card = chips.closest(".inbox-card");
+              reply.remove();
+              chips.replaceWith(done);
+              const badge = card.querySelector("header .status-badge:not(.rx)");
+              if (badge) badge.textContent = "تم الرد";
+            });
+            chips.appendChild(b);
+          });
+          reply.after(chips);
+          chips.querySelector("button").focus();
+        });
+      });
+
+      /* ---- Zero-offers: radius expansion with explicit consent ---- */
+      const expandBtn = document.getElementById("expand-radius");
+      if (expandBtn) {
+        expandBtn.addEventListener("click", () => {
+          document.getElementById("zero-meta").textContent = "النطاق الحالي: 5 كم · أُرسل إلى 8 صيدليات";
+          const steps = document.querySelectorAll("#zero .ladder li");
+          steps.forEach((li) => li.removeAttribute("aria-current"));
+          steps[2].setAttribute("aria-current", "step");
+          expandBtn.textContent = "توسيع نادر إلى 10 كم";
+          expandBtn.dataset.expanded = "1";
+        });
+      }
+
+      /* ---- Offline awareness ---- */
+      const offlineBanner = document.getElementById("offline-banner");
+      const syncOnline = () => offlineBanner.classList.toggle("visible", !navigator.onLine);
+      window.addEventListener("online", syncOnline);
+      window.addEventListener("offline", syncOnline);
+      syncOnline();
+
+      /* ---- PWA: installable app shell (requires same-origin HTTPS hosting) ---- */
+      if ("serviceWorker" in navigator && location.protocol === "https:") {
+        navigator.serviceWorker.register("dawai-sw.js").catch(() => {
+          /* cross-origin preview hosts (e.g. htmlpreview) can't register a SW — fine */
+        });
+      }
     })();
   </script>
 </body>

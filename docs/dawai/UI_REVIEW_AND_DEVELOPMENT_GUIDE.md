@@ -2168,3 +2168,25 @@ A screen is not done because it matches the design file. It is done when:
 10. logs and analytics preserve health-data boundaries.
 
 The preview fixes live in `dawai-ui-preview.html` and `docs/dawai/UI_PREVIEW.html`; product contracts remain `PRODUCT_BLUEPRINT_AR.md` + `ARCHITECTURE.md`.
+
+---
+
+## Round 2 — Review of the implementation pass, and the installable build
+
+**Reviewer verdict on the implementation pass: strong.** Semantic color tokens (`--action`/`--urgency`), logical properties throughout, `sr-only` + `aria-current` navigation, `Intl.PluralRules`, the zero-offers escalation ladder, and the five-response-type compose form all landed faithfully. Three defects were found and fixed on this branch:
+
+1. **RTL centering regression** — `inset-inline-start: 50%` paired with `translate(-50%)` mixes a logical inset with a physical transform, drifting the radar center by one full width in RTL (caught by an automated browser test measuring the rendered box). True centering must be physical on both axes: `left: 50%` + `translate(-50%, -50%)`.
+2. **License chip typo** — `IQ- thr-1842` → `IQ-THR-1842`. A trust signal with a malformed value undermines the trust it exists to build.
+3. **Submit bypassed validation** — the `data-goto` handler navigated away from the compose form without `form.reportValidity()`, so the required price/quantity/confirmation gate never fired.
+4. **Contrast regression** — `.brand small` had reverted to `--ink-500`/0.66rem.
+
+**New in this build (verified by 15 Playwright assertions, all passing):**
+
+- **Live hold countdown** driven from an absolute expiry timestamp (the server-authoritative pattern), with throttled `aria-live` announcements at minute marks, and a full **hold-expired state** (contact actions hidden, re-broadcast CTA shown) when it reaches zero.
+- **Functional offer sorting** (الأنسب / الأقرب / الأرخص) over `data-price`/`data-distance` attributes.
+- **"غير متوفر" reason capture** — three-reason picker (نفد المخزون / لا نتعامل به / مغلق حاليًا) replacing the quick-reply, with focus management and a recorded-thanks status; the card badge flips to "تم الرد".
+- **Zero-offers radius expansion** wired: consent-first, ladder advances to step 3, scope line updates.
+- **Offline banner** on `online`/`offline` events.
+- **PWA installability**: `dawai-manifest.webmanifest` (ar/RTL, standalone), brand SVG icons (any + maskable), and `dawai-sw.js` — cache-first app shell, stale-while-revalidate fonts — registered only on same-origin HTTPS so preview hosts degrade gracefully.
+
+**Still open before "final product":** self-hosted subset fonts (the single biggest performance item), the pharmacy availability/holds dashboards, real backend wiring (the `dawai-platform/` service), and a screen-reader test session on a real device.
