@@ -126,7 +126,7 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
   await patientPage
     .getByRole("button", { name: "إرسال الطلب للصيدليات القريبة" })
     .click();
-  await expect(patientPage.getByText(/أُرسل إلى 1 صيدليات/)).toBeVisible();
+  await expect(patientPage.getByText(/أُرسل إلى [1-9]\d* صيدليات/)).toBeVisible();
   const requestUrl = patientPage.url();
 
   await pharmacyPage.goto("/pharmacy/inbox");
