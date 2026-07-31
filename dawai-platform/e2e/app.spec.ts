@@ -37,6 +37,7 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
   const pharmacyEmail = `pharmacy-${suffix}@example.test`;
   const patientEmail = `patient-${suffix}@example.test`;
   const pharmacyName = `صيدلية الاختبار ${suffix.slice(-5)}`;
+  const medicineName = `Augmentin ${suffix.slice(-5)}`;
   const license = `IQ-${suffix.slice(-12)}`;
   const consoleErrors: string[] = [];
 
@@ -115,7 +116,7 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
     patientPage.getByRole("heading", { name: "ما الدواء الذي تحتاجه؟" }),
   ).toBeVisible();
   await patientPage.goto("/patient/requests/new");
-  await patientPage.getByLabel("اسم الدواء أو وصف واضح").fill("Augmentin");
+  await patientPage.getByLabel("اسم الدواء أو وصف واضح").fill(medicineName);
   await patientPage.getByLabel("القوة \(إن عُرفت\)").fill("625 mg");
   await patientPage.getByLabel("الشكل").fill("أقراص");
   await patientPage.locator('input[type="file"]').setInputFiles({
@@ -130,7 +131,7 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
   const requestUrl = patientPage.url();
 
   await pharmacyPage.goto("/pharmacy/inbox");
-  const requestCard = pharmacyPage.locator("article").filter({ hasText: "Augmentin" });
+  const requestCard = pharmacyPage.locator("article").filter({ hasText: medicineName });
   await expect(requestCard).toBeVisible();
   await requestCard.getByRole("link", { name: "مراجعة ورد سريع" }).click();
   await pharmacyPage.getByLabel("السعر الكلي IQD").fill("12000");
