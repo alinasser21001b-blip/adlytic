@@ -285,4 +285,177 @@ describe("Dawai production core loop", () => {
     });
     expect(unverifiedInbox.status).toBe(403);
   });
+
+  it("blocks CSRF, cross-patient IDOR, and automatic alternative reservation", async () => {
+    const pharmacy = await createVerifiedPharmacy();
+    const owner = await register(
+      "PATIENT",
+      "security-owner@example.test",
+      "Request Owner",
+    );
+    const stranger = await register(
+      "PATIENT",
+      "security-stranger@example.test",
+      "Other Patient",
+    );
+
+    const csrfAttack = await app.request("/api/v1/patient/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: owner.cookie,
+        Origin: "https://evil.example",
+        "X-CSRF-Token": owner.csrf,
+      },
+      body: JSON.stringify({
+        name: "Changed",
+        phone: null,
+        defaultArea: null,
+        latitude: null,
+        longitude: null,
+        notificationPreferences: { inApp: true, push: false },
+      }),
+    });
+    expect(csrfAttack.status).toBe(403);
+
+    const created = await jsonRequest("/api/v1/patient/requests", {
+      method: "POST",
+      session: owner,
+      idempotencyKey: randomUUID(),
+      body: {
+        medicineName: "Panadol Extra",
+        quantity: 1,
+        urgency: "TODAY",
+        area: "المنصور",
+        latitude: 33.315,
+        longitude: 44.366,
+        pickupPreferred: true,
+        deliveryPreferred: false,
+      },
+    });
+    expect(created.status).toBe(201);
+    const request = (await created.json()).data;
+
+    const idorRead = await jsonRequest(
+      `/api/v1/patient/requests/${request.id}`,
+      { session: stranger },
+    );
+    expect(idorRead.status).toBe(404);
+
+    const alternative = await jsonRequest(
+      `/api/v1/pharmacy/inbox/${request.id}/offers`,
+      {
+        method: "POST",
+        session: pharmacy.session,
+        idempotencyKey: randomUUID(),
+        body: {
+          offerType: "ALTERNATIVE_REVIEW_REQUIRED",
+          offeredBrand: "Different pharmacist-reviewed product",
+          offeredStrength: "500 mg",
+          offeredForm: "أقراص",
+          availableQuantity: 1,
+          priceIqd: 5000,
+          pickupEnabled: true,
+          deliveryEnabled: false,
+          preparationMinutes: 5,
+          note: "يتطلب مراجعة الصيدلي والوصفة.",
+        },
+      },
+    );
+    expect(alternative.status).toBe(201);
+    const offer = (await alternative.json()).data;
+
+    const unsafeSelection = await jsonRequest(
+      `/api/v1/patient/requests/${request.id}/reservations`,
+      {
+        method: "POST",
+        session: owner,
+        idempotencyKey: randomUUID(),
+        body: { offerId: offer.id },
+      },
+    );
+    expect(unsafeSelection.status).toBe(422);
+    expect((await unsafeSelection.json()).error.code).toBe(
+      "ALTERNATIVE_REQUIRES_REVIEW",
+    );
+  });
+
+  it("validates, encrypts, authorizes, and decrypts prescription images", async () => {
+    const patient = await register(
+      "PATIENT",
+      "upload-patient@example.test",
+      "Upload Patient",
+    );
+    const pharmacy = await register(
+      "PHARMACY",
+      "upload-pharmacy@example.test",
+      "Upload Pharmacy",
+    );
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+
+    const validForm = new FormData();
+    validForm.set("purpose", "PRESCRIPTION");
+    validForm.set("file", new File([png], "prescription.png", { type: "image/png" }));
+    const validUpload = await app.request("/api/v1/files", {
+      method: "POST",
+      headers: {
+        Cookie: patient.cookie,
+        Origin: "http://localhost:5173",
+        "X-CSRF-Token": patient.csrf,
+      },
+      body: validForm,
+    });
+    expect(validUpload.status).toBe(201);
+    const file = (await validUpload.json()).data;
+
+    const metadata = await database.query<{
+      nonce: string;
+      auth_tag: string;
+      storage_key: string;
+      media_type: string;
+    }>(
+      `SELECT nonce, auth_tag, storage_key, media_type
+       FROM secure_files WHERE id = $1`,
+      [file.id],
+    );
+    expect(metadata.rows[0].nonce).not.toBe("");
+    expect(metadata.rows[0].auth_tag).not.toBe("");
+    expect(metadata.rows[0].storage_key).not.toContain("prescription");
+    expect(metadata.rows[0].media_type).toBe("image/jpeg");
+
+    const ownerRead = await app.request(`/api/v1/files/${file.id}`, {
+      headers: { Cookie: patient.cookie },
+    });
+    expect(ownerRead.status).toBe(200);
+    expect(ownerRead.headers.get("cache-control")).toContain("no-store");
+    const decrypted = Buffer.from(await ownerRead.arrayBuffer());
+    expect(decrypted.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+
+    const unauthorizedRead = await app.request(`/api/v1/files/${file.id}`, {
+      headers: { Cookie: pharmacy.cookie },
+    });
+    expect(unauthorizedRead.status).toBe(404);
+
+    const invalidForm = new FormData();
+    invalidForm.set("purpose", "PRESCRIPTION");
+    invalidForm.set(
+      "file",
+      new File(["<script>alert(1)</script>"], "fake.jpg", {
+        type: "image/jpeg",
+      }),
+    );
+    const invalidUpload = await app.request("/api/v1/files", {
+      method: "POST",
+      headers: {
+        Cookie: patient.cookie,
+        Origin: "http://localhost:5173",
+        "X-CSRF-Token": patient.csrf,
+      },
+      body: invalidForm,
+    });
+    expect(invalidUpload.status).toBe(415);
+  });
 });
