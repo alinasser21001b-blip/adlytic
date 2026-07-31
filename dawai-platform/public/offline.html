@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>دوائي — بلا اتصال</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: "IBM Plex Sans Arabic", "Noto Naskh Arabic", sans-serif;
+        background: linear-gradient(160deg, #e8f1ef, #f7f4ee 55%, #dfece8);
+        color: #173c37;
+        padding: 24px;
+        text-align: center;
+      }
+      h1 { font-size: 1.6rem; margin: 0 0 12px; }
+      p { max-width: 28rem; line-height: 1.7; }
+      button {
+        margin-top: 16px;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 20px;
+        background: #173c37;
+        color: #fff;
+        font: inherit;
+        min-height: 44px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>انقطع الاتصال</h1>
+      <p>
+        لا نخترع تقدّمًا أثناء الانقطاع. عند عودة الشبكة أعد المحاولة لمتابعة
+        طلبك أو عروضك من الخادم.
+      </p>
+      <button type="button" onclick="location.reload()">إعادة المحاولة</button>
+    </main>
+  </body>
+</html>

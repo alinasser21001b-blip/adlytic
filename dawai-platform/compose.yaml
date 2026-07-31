@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dawai
+      POSTGRES_USER: dawai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - dawai-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dawai -d dawai"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build: .
+    environment: &dawai-environment
+      NODE_ENV: production
+      DATABASE_URL: postgres://dawai:${POSTGRES_PASSWORD}@postgres:5432/dawai
+      SESSION_PEPPER: ${SESSION_PEPPER:?set SESSION_PEPPER}
+      STORAGE_ENCRYPTION_KEY: ${STORAGE_ENCRYPTION_KEY:?set STORAGE_ENCRYPTION_KEY}
+      WEB_ORIGIN: ${WEB_ORIGIN:?set WEB_ORIGIN}
+      STORAGE_PATH: /var/lib/dawai/storage
+    command: ["node", "dist-server/db/migrate.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      <<: *dawai-environment
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - dawai-storage:/var/lib/dawai/storage
+    ports:
+      - "8787:8787"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/health/ready').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: .
+    restart: unless-stopped
+    environment: *dawai-environment
+    command: ["node", "dist-server/worker.js"]
+    volumes:
+      - dawai-storage:/var/lib/dawai/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  dawai-postgres:
+  dawai-storage:

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-server/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.data/
+storage/*
+!storage/.gitkeep
