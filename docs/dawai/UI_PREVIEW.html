@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="دوائي — منصة العثور على الدواء في العراق. معاينة تصميم ثابتة لواجهات المريض والصيدلية." />
+  <meta name="theme-color" content="#102e2b" />
   <title>دوائي — معاينة التصميم</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
+      --bar-h: 64px; /* synced to the real preview-bar height by JS (it wraps on narrow screens) */
       --forest-950: #102e2b;
       --forest-900: #173c37;
       --forest-700: #23665c;
@@ -33,9 +36,19 @@
 
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
+    :focus-visible {
+      outline: 3px solid var(--forest-500);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .live-dot { animation: none; }
+    }
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       font-family: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
       color: var(--ink-950);
       background:
@@ -83,7 +96,7 @@
       color: var(--forest-950);
     }
 
-    .screen { display: none; max-width: 480px; margin: 0 auto; min-height: calc(100vh - 64px); }
+    .screen { display: none; max-width: 480px; margin: 0 auto; min-height: calc(100dvh - var(--bar-h)); }
     .screen.active { display: block; }
     .screen.wide { max-width: 1100px; }
 
@@ -94,7 +107,7 @@
     }
     .brand > span:last-child { display: grid; }
     .brand strong { color: var(--forest-900); font-size: 1.25rem; }
-    .brand small { color: var(--ink-500); font-size: 0.66rem; font-weight: 600; }
+    .brand small { color: var(--ink-700); font-size: 0.72rem; font-weight: 600; }
     .brand-mark {
       position: relative;
       display: grid;
@@ -221,12 +234,13 @@
       background: rgb(255 255 255 / 14%);
       font-size: 0.75rem;
       font-weight: 700;
+      -webkit-backdrop-filter: blur(6px);
       backdrop-filter: blur(6px);
     }
-    .welcome-radar .center { inset: 50% auto auto 50%; transform: translate(50%, -50%); background: var(--coral); }
-    .welcome-radar .p1 { top: 18%; right: 12%; }
-    .welcome-radar .p2 { bottom: 22%; left: 10%; }
-    .welcome-radar .p3 { top: 40%; left: 8%; }
+    .welcome-radar .center { top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--coral); }
+    .welcome-radar .p1 { top: 18%; inset-inline-start: 12%; }
+    .welcome-radar .p2 { bottom: 22%; inset-inline-end: 10%; }
+    .welcome-radar .p3 { top: 40%; inset-inline-end: 8%; }
     .welcome-visual ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
     .welcome-visual li {
       display: flex;
@@ -256,9 +270,10 @@
       padding: 0.85rem 1rem;
       background: rgb(251 250 246 / 92%);
       border-bottom: 1px solid rgb(174 184 180 / 45%);
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
       position: sticky;
-      top: 64px;
+      top: var(--bar-h);
       z-index: 40;
     }
     .account-menu {
@@ -281,6 +296,7 @@
       padding: 0.45rem 0.35rem calc(0.45rem + env(safe-area-inset-bottom));
       background: rgb(255 255 255 / 96%);
       border-top: 1px solid var(--line);
+      -webkit-backdrop-filter: blur(14px);
       backdrop-filter: blur(14px);
       max-width: 480px;
       margin: 0 auto;
@@ -291,9 +307,10 @@
       display: grid;
       justify-items: center;
       gap: 0.15rem;
-      padding: 0.35rem 0.2rem;
-      color: var(--ink-500);
-      font-size: 0.62rem;
+      padding: 0.5rem 0.2rem;
+      min-height: 44px;
+      color: var(--ink-700);
+      font-size: 0.72rem;
       font-weight: 700;
       border-radius: 12px;
     }
@@ -318,7 +335,8 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 0.45rem 0.45rem 0.45rem 0.85rem;
+      padding: 0.45rem;
+      padding-inline-start: 0.85rem;
       border-radius: 18px;
       background: white;
       border: 1px solid var(--line);
@@ -419,7 +437,7 @@
     .explainer-grid article > span {
       position: absolute;
       top: 0.85rem;
-      left: 0.85rem;
+      inset-inline-end: 0.85rem;
       width: 26px;
       height: 26px;
       display: grid;
@@ -594,13 +612,13 @@
 <body>
   <div class="preview-bar">
     <strong>دوائي — معاينة واجهة (HTML ثابت)</strong>
-    <div class="tabs" role="tablist" aria-label="شاشات المعاينة">
+    <nav class="tabs" aria-label="شاشات المعاينة">
       <button type="button" class="active" data-screen="welcome">الترحيب</button>
       <button type="button" data-screen="patient">المريض</button>
       <button type="button" data-screen="offers">العروض</button>
       <button type="button" data-screen="hold">الحجز</button>
       <button type="button" data-screen="pharmacy">الصيدلية</button>
-    </div>
+    </nav>
   </div>
 
   <!-- WELCOME -->
@@ -619,14 +637,14 @@
         <p>طلب واحد يصل إلى الصيدليات الموثقة والقريبة. تحصل على التوفر والسعر والجاهزية، ثم تحجز للاستلام.</p>
         <div class="role-choice">
           <a class="role-card patient" href="#">
-            <span>👤</span>
+            <span aria-hidden="true">👤</span>
             <div><strong>أنا مريض</strong><small>أبحث عن دواء أو أرسل طلبًا</small></div>
-            <span>←</span>
+            <span aria-hidden="true">←</span>
           </a>
           <a class="role-card pharmacy" href="#">
-            <span>🏪</span>
+            <span aria-hidden="true">🏪</span>
             <div><strong>أنا صيدلية</strong><small>أستقبل طلبات قريبة وأرسل عروضًا</small></div>
-            <span>←</span>
+            <span aria-hidden="true">←</span>
           </a>
         </div>
         <div class="safety-line">🛡️ دوائي لا يشخّص ولا يصف أو يستبدل الدواء.</div>
@@ -664,14 +682,14 @@
             <h1>ما الدواء الذي تحتاجه؟</h1>
             <p>ابحث أولًا، أو أرسل طلبًا لتحصل على تأكيد وسعر من صيدلية قريبة.</p>
             <form class="medicine-search" onsubmit="return false">
-              <span>🔍</span>
-              <input dir="ltr" placeholder="مثال: Panadol Extra" value="" />
+              <span aria-hidden="true">🔍</span>
+              <input dir="ltr" aria-label="اسم الدواء" placeholder="مثال: Panadol Extra" value="" />
               <button type="submit">بحث</button>
             </form>
             <div class="quick-actions">
-              <a href="#"><span>📷</span>صوّر الدواء</a>
-              <a href="#"><span>📎</span>ارفع وصفة</a>
-              <a href="#"><span>✏️</span>اكتب طلبك</a>
+              <a href="#"><span aria-hidden="true">📷</span>صوّر الدواء</a>
+              <a href="#"><span aria-hidden="true">📎</span>ارفع وصفة</a>
+              <a href="#"><span aria-hidden="true">✏️</span>اكتب طلبك</a>
             </div>
           </div>
           <div class="patient-promise">
@@ -703,11 +721,11 @@
         </section>
       </main>
       <nav class="mobile-nav" aria-label="التنقل">
-        <a class="active" href="#"><span class="ico">🔍</span><span>الرئيسية</span></a>
-        <a href="#"><span class="ico">＋</span><span>طلب جديد</span></a>
-        <a href="#"><span class="ico">⏱</span><span>طلباتي</span></a>
-        <a href="#"><span class="ico">🏪</span><span>الصيدليات</span></a>
-        <a href="#"><span class="ico">👤</span><span>حسابي</span></a>
+        <a class="active" href="#"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">🏪</span><span>الصيدليات</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
     </div>
   </section>
@@ -727,7 +745,7 @@
         </div>
 
         <div class="request-live-panel">
-          <div class="live-radar">📡</div>
+          <div class="live-radar" aria-hidden="true">📡</div>
           <div>
             <strong>ننتظر ردود الصيدليات</strong>
             <p style="margin:.25rem 0">أُرسل إلى 3 صيدليات · النطاق 2 كم</p>
@@ -738,9 +756,9 @@
         <div class="page-header" style="display:flex;justify-content:space-between;align-items:end;gap:1rem">
           <div>
             <p class="overline">العروض المؤكدة</p>
-            <h2>2 عروض</h2>
+            <h2>عرضان</h2>
           </div>
-          <select style="min-height:40px;border-radius:12px;border:1px solid var(--line);padding:0 .7rem;background:white;font-weight:700">
+          <select aria-label="ترتيب العروض" style="min-height:40px;border-radius:12px;border:1px solid var(--line);padding:0 .7rem;background:white;font-weight:700">
             <option>الأنسب</option>
             <option>الأقرب</option>
             <option>الأرخص</option>
@@ -750,7 +768,7 @@
         <div class="offer-list">
           <article class="offer-card">
             <div class="offer-heading">
-              <div class="pharmacy-avatar">🏪</div>
+              <div class="pharmacy-avatar" aria-hidden="true">🏪</div>
               <div style="flex:1">
                 <h2>صيدلية الروابي</h2>
                 <p class="meta">المنصور · 0.8 كم</p>
@@ -768,7 +786,7 @@
 
           <article class="offer-card">
             <div class="offer-heading">
-              <div class="pharmacy-avatar">🏪</div>
+              <div class="pharmacy-avatar" aria-hidden="true">🏪</div>
               <div style="flex:1">
                 <h2>صيدلية النور</h2>
                 <p class="meta">المنصور · 1.4 كم</p>
@@ -781,16 +799,16 @@
               <div><span>آخر تأكيد</span><strong>قبل 9 د</strong></div>
             </div>
             <p class="fresh-line">أكدت الصيدلية هذا العرض قبل 9 دقائق · صالح حتى 10:50</p>
-            <button class="primary-cta" type="button">حجز للاستلام</button>
+            <button class="primary-cta" type="button" onclick="showScreen('hold')">حجز للاستلام</button>
           </article>
         </div>
       </main>
       <nav class="mobile-nav">
-        <a href="#" onclick="showScreen('patient');return false"><span class="ico">🔍</span><span>الرئيسية</span></a>
-        <a href="#"><span class="ico">＋</span><span>طلب جديد</span></a>
-        <a class="active" href="#"><span class="ico">⏱</span><span>طلباتي</span></a>
-        <a href="#"><span class="ico">🏪</span><span>الصيدليات</span></a>
-        <a href="#"><span class="ico">👤</span><span>حسابي</span></a>
+        <a href="#" onclick="showScreen('patient');return false"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
+        <a class="active" href="#"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">🏪</span><span>الصيدليات</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
     </div>
   </section>
@@ -827,11 +845,11 @@
         </section>
       </main>
       <nav class="mobile-nav">
-        <a href="#" onclick="showScreen('patient');return false"><span class="ico">🔍</span><span>الرئيسية</span></a>
-        <a href="#"><span class="ico">＋</span><span>طلب جديد</span></a>
-        <a class="active" href="#"><span class="ico">⏱</span><span>طلباتي</span></a>
-        <a href="#"><span class="ico">🏪</span><span>الصيدليات</span></a>
-        <a href="#"><span class="ico">👤</span><span>حسابي</span></a>
+        <a href="#" onclick="showScreen('patient');return false"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
+        <a class="active" href="#"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">🏪</span><span>الصيدليات</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
     </div>
   </section>
@@ -880,11 +898,11 @@
         </div>
       </main>
       <nav class="mobile-nav" style="grid-template-columns:repeat(5,1fr)">
-        <a href="#"><span class="ico">✨</span><span>لوحة</span></a>
-        <a class="active" href="#"><span class="ico">🔔</span><span>الطلبات</span></a>
-        <a href="#"><span class="ico">📦</span><span>الحجوزات</span></a>
-        <a href="#"><span class="ico">📋</span><span>التوفر</span></a>
-        <a href="#"><span class="ico">⚙️</span><span>إعدادات</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">✨</span><span>لوحة</span></a>
+        <a class="active" href="#"><span class="ico" aria-hidden="true">🔔</span><span>الطلبات</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
+        <a href="#"><span class="ico" aria-hidden="true">⚙️</span><span>إعدادات</span></a>
       </nav>
     </div>
   </section>
@@ -893,7 +911,9 @@
     function showScreen(id) {
       document.querySelectorAll(".screen").forEach((el) => el.classList.remove("active"));
       document.querySelectorAll(".tabs button").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.screen === id);
+        const active = btn.dataset.screen === id;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-current", active ? "true" : "false");
       });
       const screen = document.getElementById(id);
       if (screen) screen.classList.add("active");
@@ -902,6 +922,15 @@
     document.querySelectorAll(".tabs button").forEach((btn) => {
       btn.addEventListener("click", () => showScreen(btn.dataset.screen));
     });
+
+    // Keep sticky offsets honest: the preview bar wraps to two lines on narrow
+    // screens, so its real height is measured instead of hard-coded.
+    function syncBarHeight() {
+      const bar = document.querySelector(".preview-bar");
+      if (bar) document.documentElement.style.setProperty("--bar-h", bar.offsetHeight + "px");
+    }
+    window.addEventListener("resize", syncBarHeight);
+    syncBarHeight();
   </script>
 </body>
 </html>
