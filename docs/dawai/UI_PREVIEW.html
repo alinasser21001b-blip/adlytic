@@ -766,6 +766,71 @@
       align-items: center;
     }
 
+
+    /* Elevated presentation */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(900px 420px at 85% -5%, rgb(52 139 124 / 12%), transparent 55%),
+        radial-gradient(700px 380px at 0% 100%, rgb(194 79 56 / 7%), transparent 50%);
+      z-index: 0;
+    }
+    .preview-bar, .screen { position: relative; z-index: 1; }
+    .screen.active { animation: screen-in 280ms ease both; }
+    @keyframes screen-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .screen.active { animation: none; }
+    }
+    .phone-frame {
+      margin: 0.75rem auto 1.25rem;
+      max-width: 390px;
+      padding: 12px;
+      border-radius: 36px;
+      background: linear-gradient(160deg, #1a3330, #0d1f1d);
+      box-shadow: 0 30px 70px rgb(16 46 43 / 28%), inset 0 0 0 1px rgb(255 255 255 / 12%);
+    }
+    .phone-frame > .phone-notch {
+      width: 108px;
+      height: 22px;
+      margin: 0 auto 8px;
+      border-radius: 0 0 14px 14px;
+      background: #0a1614;
+    }
+    .phone-frame > .phone-screen {
+      border-radius: 28px;
+      overflow: hidden;
+      background: var(--paper);
+    }
+    .welcome-radar .range-pulse {
+      position: absolute;
+      inset: 18%;
+      border: 1px solid rgb(255 255 255 / 25%);
+      border-radius: 50%;
+      animation: range-pulse 3.2s ease-out infinite;
+      pointer-events: none;
+    }
+    .welcome-radar .range-pulse.delay { inset: 32%; animation-delay: 1.1s; }
+    @keyframes range-pulse {
+      from { transform: scale(0.86); opacity: 0.7; }
+      to { transform: scale(1.2); opacity: 0; }
+    }
+    .offer-card, .inbox-card, .compose-card, .empty-card, .reservation-card, .active-request-card, .role-card {
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+    .offer-card:hover, .inbox-card:hover, .role-card:hover {
+      transform: translateY(-2px);
+      border-color: rgb(52 139 124 / 35%);
+      box-shadow: var(--shadow);
+    }
+    .primary-cta { transition: transform 160ms ease, box-shadow 160ms ease; }
+    .primary-cta:hover { transform: translateY(-1px); }
+
     @media (min-width: 900px) {
       .screen.wide.active {
         display: grid;
@@ -844,7 +909,7 @@
 
   <!-- PATIENT -->
   <section id="patient" class="screen" aria-labelledby="patient-title" hidden>
-    <div class="product-shell">
+    <div class="phone-frame"><div class="phone-notch" aria-hidden="true"></div><div class="phone-screen"><div class="product-shell">
       <header class="product-header">
         <span class="brand">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
@@ -912,12 +977,12 @@
         <a href="#pharmacy"><span class="ico" aria-hidden="true">🏪</span><span>الصيدليات</span></a>
         <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
-    </div>
+    </div></div></div>
   </section>
 
   <!-- OFFERS -->
   <section id="offers" class="screen" aria-labelledby="offers-title" hidden>
-    <div class="product-shell">
+    <div class="phone-frame"><div class="phone-notch" aria-hidden="true"></div><div class="phone-screen"><div class="product-shell">
       <header class="product-header">
         <span class="brand">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
@@ -1016,12 +1081,12 @@
         <a href="#pharmacy"><span class="ico" aria-hidden="true">🏪</span><span>الصيدليات</span></a>
         <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
-    </div>
+    </div></div></div>
   </section>
 
   <!-- ZERO OFFERS -->
   <section id="zero" class="screen" aria-labelledby="zero-title" hidden>
-    <div class="product-shell">
+    <div class="phone-frame"><div class="phone-notch" aria-hidden="true"></div><div class="phone-screen"><div class="product-shell">
       <header class="product-header">
         <span class="brand">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
@@ -1056,12 +1121,12 @@
         <a href="#pharmacy"><span class="ico" aria-hidden="true">🏪</span><span>الصيدليات</span></a>
         <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
-    </div>
+    </div></div></div>
   </section>
 
   <!-- HOLD -->
   <section id="hold" class="screen" aria-labelledby="hold-title" hidden>
-    <div class="product-shell">
+    <div class="phone-frame"><div class="phone-notch" aria-hidden="true"></div><div class="phone-screen"><div class="product-shell">
       <header class="product-header">
         <span class="brand">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
@@ -1100,12 +1165,12 @@
         <a href="#pharmacy"><span class="ico" aria-hidden="true">🏪</span><span>الصيدليات</span></a>
         <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
-    </div>
+    </div></div></div>
   </section>
 
   <!-- PHARMACY INBOX -->
   <section id="pharmacy" class="screen" aria-labelledby="pharmacy-title" hidden>
-    <div class="product-shell">
+    <div class="phone-frame"><div class="phone-notch" aria-hidden="true"></div><div class="phone-screen"><div class="product-shell">
       <header class="product-header">
         <span class="brand">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
@@ -1156,12 +1221,12 @@
         <a href="#compose"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
         <a href="#welcome"><span class="ico" aria-hidden="true">⚙️</span><span>إعدادات</span></a>
       </nav>
-    </div>
+    </div></div></div>
   </section>
 
   <!-- PHARMACY COMPOSE OFFER -->
   <section id="compose" class="screen" aria-labelledby="compose-title" hidden>
-    <div class="product-shell">
+    <div class="phone-frame"><div class="phone-notch" aria-hidden="true"></div><div class="phone-screen"><div class="product-shell">
       <header class="product-header">
         <span class="brand">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
@@ -1228,7 +1293,7 @@
         <a href="#compose" aria-current="page"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
         <a href="#welcome"><span class="ico" aria-hidden="true">⚙️</span><span>إعدادات</span></a>
       </nav>
-    </div>
+    </div></div></div>
   </section>
 
   <script>

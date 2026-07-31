@@ -44,6 +44,8 @@ export function WelcomePage() {
         </section>
         <section className="welcome-visual" aria-label="كيف يعمل دوائي">
           <div className="welcome-radar">
+            <span className="range-pulse" aria-hidden="true" />
+            <span className="range-pulse delay" aria-hidden="true" />
             <span className="center"><Icon name="location" size={25} /> طلبك</span>
             <span className="point p1"><Icon name="store" size={18} /> عرض مؤكد</span>
             <span className="point p2"><Icon name="store" size={18} /> عرض جديد</span>

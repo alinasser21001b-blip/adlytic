@@ -31,6 +31,7 @@ interface MedicineRequest {
   created_at: string;
   offer_count: number;
   dispatched_count?: number;
+  prescription_status?: string;
   reservation?: Reservation | null;
 }
 
@@ -96,7 +97,7 @@ interface Pharmacy {
 }
 
 function formatIqd(value: number) {
-  return `${new Intl.NumberFormat("en-IQ").format(value)} د.ع`;
+  return `${new Intl.NumberFormat("ar-IQ").format(value)} د.ع`;
 }
 
 function formatDate(value: string) {
@@ -111,6 +112,28 @@ function remaining(value: string | null): string {
   const seconds = Math.max(0, Math.floor((new Date(value).getTime() - Date.now()) / 1000));
   const minutes = Math.floor(seconds / 60);
   return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function arabicOffersLabel(count: number): string {
+  const category = new Intl.PluralRules("ar").select(count);
+  if (category === "zero") return "لا عروض";
+  if (category === "one") return "عرض واحد";
+  if (category === "two") return "عرضان";
+  if (category === "few") return `${count} عروض`;
+  if (category === "many") return `${count} عرضًا`;
+  return `${count} عرض`;
+}
+
+function livePanelCopy(status: string, offerCount: number): string {
+  if (status === "NEEDS_CLARIFICATION") return "ثبّت هوية الدواء قبل الإرسال";
+  if (offerCount > 0 && ["ACTIVE", "NO_MATCH"].includes(status)) {
+    return `${arabicOffersLabel(offerCount)} صالحة — قارن واختر واحدًا`;
+  }
+  if (status === "ACTIVE") return "ننتظر ردود الصيدليات";
+  if (status === "NO_MATCH") return "لا توجد استجابة في النطاق الحالي";
+  if (status === "HOLD_PENDING") return "بانتظار تأكيد الحجز من الصيدلية";
+  if (status === "RESERVED" || status === "READY") return "تم تأكيد الحجز";
+  return "اكتملت هذه المرحلة";
 }
 
 export function PatientHomePage() {
@@ -469,10 +492,24 @@ export function RequestDetailPage() {
 
   return (
     <>
-      <PageHeader eyebrow={`طلب ${item.public_reference}`} title={item.medicine_name} description={`${item.strength ?? ""} · الكمية ${item.quantity} · ${item.area}`} actions={<StatusBadge status={item.status} />} />
-      <div className="request-live-panel">
+      <PageHeader
+        eyebrow={`طلب ${item.public_reference}`}
+        title={item.medicine_name}
+        description={`${item.strength ?? ""} · الكمية ${item.quantity} · ${item.area}`}
+        actions={
+          <>
+            {item.prescription_status === "PROVIDED" ? <span className="status-rx">يحتاج وصفة</span> : null}
+            <StatusBadge status={item.status} />
+          </>
+        }
+      />
+      <div className="request-live-panel" aria-live="polite">
         <div className="live-radar"><span><Icon name="search" size={22} /></span></div>
-        <div><strong>{item.status === "NEEDS_CLARIFICATION" ? "ثبّت هوية الدواء قبل الإرسال" : item.status === "ACTIVE" ? "ننتظر ردود الصيدليات" : item.status === "NO_MATCH" ? "لا توجد استجابة في النطاق الحالي" : item.status === "HOLD_PENDING" ? "بانتظار تأكيد الحجز من الصيدلية" : item.status === "RESERVED" || item.status === "READY" ? "تم تأكيد الحجز" : "اكتملت هذه المرحلة"}</strong><p>أُرسل إلى {item.dispatched_count ?? 0} صيدليات · النطاق {item.radius_km} كم</p><small>ينتهي الطلب: {formatDate(item.expires_at)}</small></div>
+        <div>
+          <strong>{livePanelCopy(item.status, offers.data?.length ?? 0)}</strong>
+          <p>أُرسل إلى {item.dispatched_count ?? 0} صيدليات · النطاق {item.radius_km} كم</p>
+          <small>ينتهي الطلب: {formatDate(item.expires_at)}</small>
+        </div>
       </div>
       {item.status === "NEEDS_CLARIFICATION" ? (
         <section className="offers-section">
@@ -489,26 +526,157 @@ export function RequestDetailPage() {
       ) : null}
       {item.reservation ? <Link className="reservation-banner" to={`/patient/reservations/${item.reservation.id}`}><Icon name="reserve" size={22} /><div><strong>لديك حجز مرتبط بهذا الطلب</strong><span>الحالة: {item.reservation.status}</span></div><Icon name="chevron" size={19} /></Link> : null}
       <section className="offers-section">
-        <PageHeader eyebrow="العروض المؤكدة" title={`${offers.data?.length ?? 0} عروض`} description="التوفر والسعر من الصيدلية وفي الوقت الموضح." actions={
-          <label className="form-field compact-sort"><span>ترتيب</span>
-            <select value={offerSort} onChange={(event) => setOfferSort(event.target.value as "best" | "distance" | "price")}>
-              <option value="best">الأنسب</option>
-              <option value="distance">الأقرب</option>
-              <option value="price">الأرخص</option>
-            </select>
-          </label>
-        } />
-        {offers.loading && !offers.data ? <LoadingState label="نراجع العروض…" /> : offers.error && !offers.data ? <ErrorState error={offers.error} retry={offers.reload} /> : !offers.data?.length ? (
-          <EmptyState title="لم يصل عرض صالح بعد" description="يمكنك الانتظار أو توسيع البحث يدويًا. عدم الرد لا يعني عدم وجود الدواء." action={item.radius_km < 10 && ["ACTIVE", "NO_MATCH"].includes(item.status) ? <button className="secondary-cta" type="button" disabled={busy === "expand"} onClick={() => void expand(item.radius_km === 2 ? 5 : 10)}>توسيع إلى {item.radius_km === 2 ? 5 : 10} كم</button> : undefined} />
+        <PageHeader
+          eyebrow="العروض المؤكدة"
+          title={arabicOffersLabel(offers.data?.length ?? 0)}
+          description="التوفر والسعر من الصيدلية وفي الوقت الموضح."
+          actions={
+            <label className="form-field compact-sort">
+              <span>ترتيب العروض</span>
+              <select
+                value={offerSort}
+                onChange={(event) =>
+                  setOfferSort(event.target.value as "best" | "distance" | "price")
+                }
+              >
+                <option value="best">الأنسب</option>
+                <option value="distance">الأقرب</option>
+                <option value="price">الأرخص</option>
+              </select>
+            </label>
+          }
+        />
+        {offers.loading && !offers.data ? (
+          <LoadingState label="نراجع العروض…" />
+        ) : offers.error && !offers.data ? (
+          <ErrorState error={offers.error} retry={offers.reload} />
+        ) : !offers.data?.length ? (
+          <EmptyState
+            title="لم يصل عرض صالح بعد"
+            description="عدم الرد لا يعني أن الدواء غير موجود. اختر الخطوة التالية بموافقتك."
+            action={
+              <div style={{ display: "grid", gap: "0.75rem", width: "min(100%, 28rem)" }}>
+                <ol className="empty-escalation">
+                  <li aria-current={item.radius_km <= 2 ? "step" : undefined}>
+                    <span className="step-n">1</span>
+                    <span>انتظار الردود الأولى ضمن 2 كم</span>
+                  </li>
+                  <li aria-current={item.radius_km === 5 ? "step" : undefined}>
+                    <span className="step-n">2</span>
+                    <span>توسيع إلى 5 كم — صيدليات جديدة فقط</span>
+                  </li>
+                  <li aria-current={item.radius_km >= 10 ? "step" : undefined}>
+                    <span className="step-n">3</span>
+                    <span>توسيع نادر إلى 10 كم — بموافقة صريحة</span>
+                  </li>
+                </ol>
+                {item.radius_km < 10 && ["ACTIVE", "NO_MATCH"].includes(item.status) ? (
+                  <button
+                    className="primary-cta"
+                    type="button"
+                    disabled={busy === "expand"}
+                    onClick={() => void expand(item.radius_km === 2 ? 5 : 10)}
+                  >
+                    توسيع إلى {item.radius_km === 2 ? 5 : 10} كم
+                  </button>
+                ) : undefined}
+              </div>
+            }
+          />
         ) : (
-          <div className="real-offer-list">{offers.data.map((offer) => <article key={offer.id}>
-            <div className="offer-heading"><div className="pharmacy-avatar"><Icon name="store" size={21} /></div><div><h2>{offer.pharmacy_name}</h2><p>{offer.district} · {Number(offer.distance_km).toFixed(1)} كم</p></div><StatusBadge status={offer.offer_type}>{offer.offer_type === "EXACT" ? "مطابق" : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "بديل للمراجعة" : "جزئي"}</StatusBadge></div>
-            <div className="offer-facts"><div><span>السعر</span><strong>{formatIqd(offer.price_iqd)}</strong></div><div><span>التجهيز</span><strong>{offer.preparation_minutes === 0 ? "جاهز الآن" : `${offer.preparation_minutes} دقيقة`}</strong></div><div><span>آخر تأكيد</span><strong>{formatDate(offer.created_at)}</strong></div></div>
-            {offer.note ? <p className="offer-note">{offer.note}</p> : null}
-            <div className="service-tags"><span>استلام من الصيدلية</span></div>
-            <p className="fresh-line">أكدت الصيدلية هذا العرض في {formatDate(offer.created_at)} · صالح حتى {formatDate(offer.expires_at)}</p>
-            <button className={offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" || offer.offer_type === "ORDERABLE" ? "secondary-cta" : "primary-cta"} type="button" disabled={busy === offer.id || item.status === "NEEDS_CLARIFICATION"} onClick={() => offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? setActionError("البديل لا يُحجز تلقائيًا. انتظر حجزًا مطابقًا أو تواصل مع الصيدلي بعد اختيار آمن.") : offer.offer_type === "ORDERABLE" ? setActionError("العرض القابل للطلب لا يُحفظ بحجز 15 دقيقة. اختر عرضًا جاهزًا.") : void selectOffer(offer)}>{busy === offer.id ? "جارٍ إرسال الاختيار…" : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "يتطلب مراجعة صيدلي" : offer.offer_type === "ORDERABLE" ? "غير قابل للحجز الفوري" : "حجز للاستلام"}</button>
-          </article>)}</div>
+          <div className="real-offer-list">
+            {offers.data.map((offer) => (
+              <article key={offer.id}>
+                <div className="offer-heading">
+                  <div className="pharmacy-avatar">
+                    <Icon name="store" size={21} />
+                  </div>
+                  <div>
+                    <h2>{offer.pharmacy_name}</h2>
+                    <p>
+                      {offer.district} ·{" "}
+                      <bdi dir="ltr">{Number(offer.distance_km).toFixed(1)}</bdi> كم
+                    </p>
+                  </div>
+                  <StatusBadge status={offer.offer_type}>
+                    {offer.offer_type === "EXACT"
+                      ? "مطابق"
+                      : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED"
+                        ? "بديل للمراجعة"
+                        : offer.offer_type === "ORDERABLE"
+                          ? "قابل للطلب"
+                          : "جزئي"}
+                  </StatusBadge>
+                </div>
+                <div className="trust-row">
+                  <span className="trust-chip">
+                    <Icon name="shield" size={14} /> صيدلية موثّقة
+                  </span>
+                  <span className="trust-chip">
+                    <Icon name="location" size={14} /> {offer.district}
+                  </span>
+                  {offer.pickup_enabled ? (
+                    <span className="trust-chip">استلام من الصيدلية</span>
+                  ) : null}
+                </div>
+                <div className="offer-facts">
+                  <div>
+                    <span>السعر</span>
+                    <strong>{formatIqd(offer.price_iqd)}</strong>
+                  </div>
+                  <div>
+                    <span>التجهيز</span>
+                    <strong>
+                      {offer.preparation_minutes === 0
+                        ? "جاهز الآن"
+                        : `${offer.preparation_minutes} دقيقة`}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>آخر تأكيد</span>
+                    <strong>{formatDate(offer.created_at)}</strong>
+                  </div>
+                </div>
+                {offer.note ? <p className="offer-note">{offer.note}</p> : null}
+                <p className="fresh-line">
+                  أكدت الصيدلية هذا العرض في {formatDate(offer.created_at)} · صالح حتى{" "}
+                  {formatDate(offer.expires_at)}
+                </p>
+                <p className="price-commitment">
+                  السعر عند الاستلام كما أكّدته الصيدلية — ليس تخمينًا من كتالوج.
+                </p>
+                <button
+                  className={
+                    offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ||
+                    offer.offer_type === "ORDERABLE"
+                      ? "secondary-cta"
+                      : "primary-cta"
+                  }
+                  type="button"
+                  disabled={busy === offer.id || item.status === "NEEDS_CLARIFICATION"}
+                  onClick={() =>
+                    offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED"
+                      ? setActionError(
+                          "البديل لا يُحجز تلقائيًا. انتظر حجزًا مطابقًا أو تواصل مع الصيدلي بعد اختيار آمن.",
+                        )
+                      : offer.offer_type === "ORDERABLE"
+                        ? setActionError(
+                            "العرض القابل للطلب لا يُحفظ بحجز 15 دقيقة. اختر عرضًا جاهزًا.",
+                          )
+                        : void selectOffer(offer)
+                  }
+                >
+                  {busy === offer.id
+                    ? "جارٍ إرسال الاختيار…"
+                    : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED"
+                      ? "يتطلب مراجعة صيدلي"
+                      : offer.offer_type === "ORDERABLE"
+                        ? "غير قابل للحجز الفوري"
+                        : "حجز للاستلام"}
+                </button>
+              </article>
+            ))}
+          </div>
         )}
       </section>
       {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
