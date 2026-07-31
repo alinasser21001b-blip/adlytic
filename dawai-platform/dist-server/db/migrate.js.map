@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../server/db/migrate.ts"],"sourcesContent":["import { createDatabase } from \"./client\";\n\nconst database = await createDatabase({ migrate: true });\nawait database.close();\nconsole.log(\"Dawai database migration complete.\");\n"],"mappings":";;;;;AAEA,IAAM,WAAW,MAAM,eAAe,EAAE,SAAS,KAAK,CAAC;AACvD,MAAM,SAAS,MAAM;AACrB,QAAQ,IAAI,oCAAoC;","names":[]}
