@@ -870,15 +870,15 @@
             <p class="overline">طلب واحد يصل إلى الصيدليات المناسبة</p>
             <h1 id="patient-title">ما الدواء الذي تحتاجه؟</h1>
             <p>ابحث أولًا، أو أرسل طلبًا لتحصل على تأكيد وسعر من صيدلية قريبة.</p>
-            <form class="medicine-search" action="#" method="get">
+            <form class="medicine-search" id="search-form">
               <span aria-hidden="true">🔍</span>
               <label class="sr-only" for="patient-search">اسم الدواء</label>
               <input id="patient-search" name="q" dir="ltr" placeholder="مثال: Panadol Extra" autocomplete="off" />
               <button type="submit">بحث</button>
             </form>
             <div class="quick-actions">
-              <a href="#compose"><span aria-hidden="true">📷</span>صوّر الدواء</a>
-              <a href="#compose"><span aria-hidden="true">📎</span>ارفع وصفة</a>
+              <a href="#offers"><span aria-hidden="true">📷</span>صوّر الدواء</a>
+              <a href="#offers"><span aria-hidden="true">📎</span>ارفع وصفة</a>
               <a href="#offers"><span aria-hidden="true">✏️</span>اكتب طلبك</a>
             </div>
           </div>
@@ -1055,7 +1055,7 @@
             <li><span class="n">4</span><span>إنهاء الطلب وإعادة المحاولة لاحقًا</span></li>
           </ol>
           <button class="primary-cta" type="button" id="expand-radius" style="width:100%;margin-bottom:.55rem">توسيع إلى 5 كم</button>
-          <button class="secondary-cta" type="button" style="width:100%" data-goto="offers">البقاء على 2 كم</button>
+          <button class="secondary-cta" type="button" style="width:100%" data-goto="patient">سأنتظر الردود — عودة للرئيسية</button>
         </div>
       </main>
       <nav class="mobile-nav" aria-label="التنقل للمريض">
@@ -1098,7 +1098,7 @@
             <div style="grid-column:1/-1"><span>العنوان</span><strong>شارع 14 رمضان، المنصور</strong></div>
           </div>
           <div class="contact-row" id="hold-contact">
-            <a class="primary-cta" href="https://www.google.com/maps" target="_blank" rel="noreferrer">الاتجاهات</a>
+            <a class="primary-cta" href="https://www.google.com/maps/search/?api=1&query=%D8%B5%D9%8A%D8%AF%D9%84%D9%8A%D8%A9%20%D8%A7%D9%84%D8%B1%D9%88%D8%A7%D8%A8%D9%8A%20%D8%B4%D8%A7%D8%B1%D8%B9%2014%20%D8%B1%D9%85%D8%B6%D8%A7%D9%86%20%D8%A7%D9%84%D9%85%D9%86%D8%B5%D9%88%D8%B1%20%D8%A8%D8%BA%D8%AF%D8%A7%D8%AF" target="_blank" rel="noreferrer">الاتجاهات</a>
             <a class="secondary-cta" href="tel:07701112222">اتصال</a>
           </div>
           <div class="hold-expired" id="hold-expired">
@@ -1134,8 +1134,9 @@
           <h1 id="pharmacy-title">الطلبات القريبة اليوم</h1>
           <p>قبل اختيار المريض: المنطقة التقريبية والدواء فقط — بلا اسم أو هاتف أو وصفة.</p>
         </div>
+        <p class="inbox-done" id="offer-sent" role="status" hidden>✅ أُرسل عرضك للمريض — سيصلك إشعار فور اختياره.</p>
         <div class="inbox-list">
-          <article class="inbox-card">
+          <article class="inbox-card" id="inbox-augmentin">
             <header>
               <div>
                 <h2><bdi dir="ltr">Augmentin 625 mg</bdi> <span class="status-badge rx">وصفة</span></h2>
@@ -1232,7 +1233,7 @@
             <input type="checkbox" name="confirmExact" required style="width:20px;height:20px;margin-top:.2rem" />
             <span>أؤكّد أن السعر والكمية صحيحة وقت الإرسال، وأفهم أن العرض ليس حجزًا للمخزون.</span>
           </label>
-          <button class="primary-cta" type="submit" style="width:100%" data-goto="offers">إرسال العرض للمريض</button>
+          <button class="primary-cta" type="submit" style="width:100%" id="send-offer">إرسال العرض للمريض</button>
           <button class="secondary-cta" type="button" style="width:100%" data-goto="pharmacy">رجوع للوارد</button>
         </form>
       </main>
@@ -1306,6 +1307,41 @@
 
       const initial = (location.hash || "#welcome").slice(1);
       showScreen(document.getElementById(initial) ? initial : "welcome");
+
+      // Search flows into the request/offers journey and carries the query along.
+      const searchForm = document.getElementById("search-form");
+      if (searchForm) {
+        searchForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const value = document.getElementById("patient-search").value.trim();
+          if (value) {
+            const title = document.getElementById("offers-title");
+            if (title) title.innerHTML = '<bdi dir="ltr"></bdi>';
+            if (title) title.querySelector("bdi").textContent = value;
+          }
+          showScreen("offers");
+        });
+      }
+
+      // Sending an offer keeps the pharmacist in their world with visible feedback.
+      const sendOffer = document.getElementById("send-offer");
+      if (sendOffer) {
+        sendOffer.addEventListener("click", (event) => {
+          event.preventDefault();
+          const form = sendOffer.closest("form");
+          if (form && !form.reportValidity()) return;
+          const banner = document.getElementById("offer-sent");
+          if (banner) banner.hidden = false;
+          const card = document.getElementById("inbox-augmentin");
+          if (card) {
+            const reply = card.querySelector(".quick-reply");
+            const badge = card.querySelector("header .status-badge:not(.rx)");
+            if (badge) badge.textContent = "تم إرسال عرض";
+            if (reply) reply.remove();
+          }
+          showScreen("pharmacy");
+        });
+      }
 
       window.addEventListener("hashchange", () => {
         const id = location.hash.slice(1);
