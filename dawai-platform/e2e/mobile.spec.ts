@@ -72,12 +72,13 @@ test("patient shell and request wizard are mobile-first", async ({ page }) => {
   await page.getByLabel("اسم الدواء أو وصف واضح").fill("Panadol Extra");
   await expect(next).toBeEnabled();
   await next.click();
-  await expect(page.getByLabel("الكمية")).toBeVisible();
+  const quantity = page.getByRole("spinbutton", { name: "الكمية" });
+  await expect(quantity).toBeVisible();
   await page.getByRole("button", { name: "زيادة الكمية" }).click();
-  await expect(page.getByLabel("الكمية")).toHaveValue("2");
+  await expect(quantity).toHaveValue("2");
   await next.click();
   await expect(page.getByRole("button", { name: "إرسال الطلب للصيدليات القريبة" })).toBeVisible();
   await page.getByRole("button", { name: "رجوع" }).click();
-  await expect(page.getByLabel("الكمية")).toHaveValue("2");
+  await expect(quantity).toHaveValue("2");
   await expectNoHorizontalOverflow(page);
 });
