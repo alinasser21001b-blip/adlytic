@@ -946,7 +946,7 @@
             <form class="medicine-search" id="search-form">
               <span aria-hidden="true">🔍</span>
               <label class="sr-only" for="patient-search">اسم الدواء</label>
-              <input id="patient-search" name="q" dir="ltr" placeholder="مثال: Panadol Extra" autocomplete="off" />
+              <input id="patient-search" name="q" dir="ltr" placeholder="Panadol Extra" autocomplete="off" />
               <button type="submit">بحث</button>
             </form>
             <div class="quick-actions">
@@ -1444,6 +1444,7 @@
       const countEl = document.getElementById("offer-count");
       if (countEl) countEl.textContent = arabicOfferCount(2);
 
+      const onFirstShow = {};
       function showScreen(id) {
         screens.forEach((el) => {
           const on = el.id === id;
@@ -1451,6 +1452,11 @@
           if (on) el.removeAttribute("hidden");
           else el.setAttribute("hidden", "");
         });
+        if (onFirstShow[id]) {
+          const init = onFirstShow[id];
+          delete onFirstShow[id];
+          init();
+        }
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
         history.replaceState(null, "", "#" + id);
@@ -1479,8 +1485,6 @@
         });
       });
 
-      const initial = (location.hash || "#welcome").slice(1);
-      showScreen(document.getElementById(initial) ? initial : "welcome");
 
       // Search flows into the request/offers journey and carries the query along.
       const searchForm = document.getElementById("search-form");
@@ -1599,16 +1603,18 @@
           if (state === "ack") { transition("ack"); const t = document.getElementById("resv-timer"); if (t) { startHoldCountdown(); } }
           else transition(state);
         });
-        // Live ACK deadline on first view
-        const ackExpires = Date.now() + 2 * 60 * 1000;
-        const ackTimer = setInterval(() => {
-          const el = document.getElementById("resv-timer");
-          if (!el || !document.getElementById("resv-actions")) { clearInterval(ackTimer); return; }
-          if (badge.textContent !== "بانتظار تأكيدك") { clearInterval(ackTimer); return; }
-          const left = Math.max(0, Math.round((ackExpires - Date.now()) / 1000));
-          el.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
-          if (left === 0) { clearInterval(ackTimer); transition("expired"); }
-        }, 1000);
+        // ACK deadline arms only when the pharmacist actually opens the screen.
+        onFirstShow.reservations = () => {
+          const ackExpires = Date.now() + 2 * 60 * 1000;
+          const ackTimer = setInterval(() => {
+            const el = document.getElementById("resv-timer");
+            if (!el || !document.getElementById("resv-actions")) { clearInterval(ackTimer); return; }
+            if (badge.textContent !== "بانتظار تأكيدك") { clearInterval(ackTimer); return; }
+            const left = Math.max(0, Math.round((ackExpires - Date.now()) / 1000));
+            el.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+            if (left === 0) { clearInterval(ackTimer); transition("expired"); }
+          }, 1000);
+        };
       }
 
       window.addEventListener("hashchange", () => {
@@ -1620,7 +1626,7 @@
       const cdValue = document.getElementById("countdown-value");
       const cdBox = document.getElementById("hold-countdown");
       const cdAnnounce = document.getElementById("countdown-announce");
-      if (cdValue && cdBox) {
+      if (cdValue && cdBox) onFirstShow.hold = () => {
         const expiresAt = Date.now() + (14 * 60 + 32) * 1000; // demo stand-in for hold.expires_at
         let lastAnnouncedMin = null;
         const tick = () => {
@@ -1647,7 +1653,7 @@
         };
         const timer = setInterval(tick, 1000);
         tick();
-      }
+      };
 
       /* ---- Functional offer sorting ---- */
       const sortSelect = document.getElementById("offer-sort");
@@ -1718,6 +1724,9 @@
       syncOnline();
 
       /* ---- PWA: installable app shell (requires same-origin HTTPS hosting) ---- */
+      const initial = (location.hash || "#welcome").slice(1);
+      showScreen(document.getElementById(initial) ? initial : "welcome");
+
       if ("serviceWorker" in navigator && location.protocol === "https:") {
         navigator.serviceWorker.register("sw.js").catch(() => {
           /* cross-origin preview hosts (e.g. htmlpreview) can't register a SW — fine */
