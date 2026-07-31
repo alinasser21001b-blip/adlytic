@@ -78,7 +78,7 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
     adminPage,
     "admin",
     "admin@dawai.test",
-    "AdminPassword!234",
+    "AdminPassword234",
   );
   await expect(
     adminPage.getByRole("heading", { name: "إدارة دوائي" }),
