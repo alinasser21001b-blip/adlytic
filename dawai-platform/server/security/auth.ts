@@ -221,3 +221,20 @@ export async function revokeSession(
     [sessionId],
   );
 }
+
+export async function rotateCsrfToken(
+  database: Database,
+  sessionId: string,
+): Promise<string> {
+  const csrfToken = randomBytes(24).toString("base64url");
+  const result = await database.query(
+    `UPDATE sessions SET csrf_token_hash = $1
+     WHERE id = $2 AND revoked_at IS NULL AND expires_at > now()
+     RETURNING id`,
+    [hashSecret(csrfToken), sessionId],
+  );
+  if (!result.rows[0]) {
+    throw new ApiError(401, "SESSION_INVALID", "انتهت الجلسة أو أُلغيت.");
+  }
+  return csrfToken;
+}

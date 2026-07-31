@@ -10,6 +10,7 @@ import {
   normalizeEmail,
   requireAuth,
   revokeSession,
+  rotateCsrfToken,
   setWebSession,
   verifyPassword,
 } from "../security/auth";
@@ -214,6 +215,14 @@ export function authRoutes(database: Database) {
       pharmacy = result.rows[0] ?? null;
     }
     return context.json({ data: { user, pharmacy } });
+  });
+
+  routes.get("/csrf", requireAuth(database), async (context) => {
+    const csrfToken = await rotateCsrfToken(
+      database,
+      context.get("session").id,
+    );
+    return context.json({ data: { csrfToken } });
   });
 
   routes.post("/logout", requireAuth(database), async (context) => {

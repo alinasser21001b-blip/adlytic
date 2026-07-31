@@ -201,6 +201,56 @@ export function adminRoutes(database: Database) {
     return context.json({ data: result.rows });
   });
 
+  routes.post("/users/:userId/suspend", async (context) => {
+    const body = z
+      .object({ reason: z.string().trim().min(5).max(500) })
+      .strict()
+      .parse(await context.req.json());
+    const admin = context.get("user");
+    if (context.req.param("userId") === admin.id) {
+      throw new ApiError(409, "SELF_SUSPENSION_FORBIDDEN", "لا يمكن تعليق حسابك.");
+    }
+    await database.transaction(async (transaction) => {
+      const result = await transaction.query<{ id: string; role: string }>(
+        `UPDATE users SET status = 'SUSPENDED', updated_at = now()
+         WHERE id = $1 AND status = 'ACTIVE' AND role <> 'ADMIN'
+         RETURNING id, role`,
+        [context.req.param("userId")],
+      );
+      if (!result.rows[0]) {
+        throw new ApiError(409, "USER_NOT_SUSPENDABLE", "تعذر تعليق المستخدم.");
+      }
+      await transaction.query(
+        `UPDATE sessions SET revoked_at = now()
+         WHERE user_id = $1 AND revoked_at IS NULL`,
+        [context.req.param("userId")],
+      );
+      await writeAudit(transaction, {
+        actorUserId: admin.id,
+        actorRole: "ADMIN",
+        action: "USER_SUSPENDED",
+        resourceType: "USER",
+        resourceId: context.req.param("userId"),
+        requestId: context.get("requestId"),
+        metadata: { reasonRecorded: Boolean(body.reason) },
+      });
+    });
+    return context.json({ data: { status: "SUSPENDED" } });
+  });
+
+  routes.post("/users/:userId/restore", async (context) => {
+    const result = await database.query(
+      `UPDATE users SET status = 'ACTIVE', updated_at = now()
+       WHERE id = $1 AND status = 'SUSPENDED' AND role <> 'ADMIN'
+       RETURNING id`,
+      [context.req.param("userId")],
+    );
+    if (!result.rows[0]) {
+      throw new ApiError(409, "USER_NOT_RESTORABLE", "تعذر استعادة المستخدم.");
+    }
+    return context.json({ data: { status: "ACTIVE" } });
+  });
+
   routes.get("/pharmacies", async (context) => {
     const result = await database.query(
       `SELECT p.id, p.name, p.pharmacist_name, p.verification_status,

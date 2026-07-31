@@ -1,69 +1,57 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
-describe("Dawai core journeys", () => {
-  it("opens direct search results without creating a request", () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText("اسم الدواء"), {
-      target: { value: "Panadol Extra" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "ابحث الآن" }));
-
-    expect(
-      screen.getByRole("heading", { name: /نتائج قريبة لـ/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("بحث مباشر · بدون إرسال طلب")).toBeInTheDocument();
+describe("Dawai routed product shell", () => {
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "AUTHENTICATION_REQUIRED",
+              message: "سجّل الدخول للمتابعة.",
+              requestId: "test",
+            },
+          }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
   });
 
-  it("creates a medicine request and enters matching", () => {
+  it("starts with an explicit patient or pharmacy choice", async () => {
     render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /اكتب طلبك/ }));
     expect(
-      screen.getByRole("heading", { name: "أخبرنا ما الدواء الذي تحتاجه" }),
+      await screen.findByRole("heading", { name: "كيف ستستخدم دوائي؟" }),
     ).toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /ابحث في الصيدليات القريبة/ }),
-    );
-
     expect(
-      screen.getByRole("heading", { name: "نبحث عن دوائك الآن…" }),
+      screen.getByRole("link", { name: /أنا مريض/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText("DW-2841")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /أنا صيدلية/ }),
+    ).toBeInTheDocument();
   });
 
-  it("switches to the active pharmacy inbox", () => {
+  it("routes patients to a dedicated registration form", async () => {
     render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /للصيدلية/ }));
-
+    fireEvent.click(await screen.findByRole("link", { name: /أنا مريض/ }));
     expect(
-      screen.getByRole("heading", { name: "مرحبًا، صيدلية الروابي" }),
+      await screen.findByRole("heading", { name: "أنشئ حسابك" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("طلبان جديدان")).toBeInTheDocument();
+    expect(screen.getByLabelText("رقم الهاتف")).toBeInTheDocument();
   });
 
-  it("lets a pharmacy prepare and submit a structured offer", () => {
+  it("keeps pharmacy registration in its own role flow", async () => {
     render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /للصيدلية/ }));
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /متوفر — أرسل عرضًا/ })[0],
-    );
+    fireEvent.click(await screen.findByRole("link", { name: /أنا صيدلية/ }));
     expect(
-      screen.getByRole("heading", { name: "أكّد ما يمكنك توفيره" }),
+      await screen.findByText(/حساب الصيدلية منفصل/),
     ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(
-      screen.getByRole("button", { name: /إرسال العرض للمريض/ }),
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/auth/pharmacy/register"),
     );
-
-    expect(
-      screen.getByRole("heading", { name: "المريض يرى عرضك الآن" }),
-    ).toBeInTheDocument();
   });
 });
