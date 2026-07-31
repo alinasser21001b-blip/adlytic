@@ -1,8 +1,9 @@
 /* Dawai app-shell service worker.
- * Cache-first for the shell so the app opens instantly (and offline) on
- * flaky networks; network-first for everything else so live data stays live.
+ * Navigations are NETWORK-FIRST with cache fallback: users always get the
+ * newest deploy when online, and the last known shell when offline.
+ * Static assets are cache-first. Bump CACHE on every shell change.
  */
-const CACHE = "dawai-shell-v1";
+const CACHE = "dawai-shell-v3";
 const SHELL = [
   "./", "./index.html",
   "./manifest.webmanifest",
@@ -27,8 +28,22 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
 
-  const isShell = url.origin === location.origin && SHELL.some((p) => url.pathname.endsWith(p.slice(1)));
-  if (isShell) {
+  // Page loads: network-first so deploys are visible immediately.
+  if (event.request.mode === "navigate" || url.pathname.endsWith("/index.html")) {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(event.request, copy));
+          return res;
+        })
+        .catch(() => caches.match(event.request).then((hit) => hit || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  const isShellAsset = url.origin === location.origin && SHELL.some((p) => url.pathname.endsWith(p.slice(1)));
+  if (isShellAsset) {
     event.respondWith(
       caches.match(event.request).then((hit) => hit || fetch(event.request).then((res) => {
         const copy = res.clone();
