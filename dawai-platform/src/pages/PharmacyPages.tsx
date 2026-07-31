@@ -131,6 +131,14 @@ export function PharmacyOnboardingPage({
     setError("");
     const form = new FormData(event.currentTarget);
     try {
+      const opensAt = String(form.get("opensAt"));
+      const closesAt = String(form.get("closesAt"));
+      const openingHours = Object.fromEntries(
+        Array.from({ length: 7 }, (_, day) => [
+          String(day),
+          [[opensAt, closesAt]],
+        ]),
+      );
       await apiFetch("/api/v1/pharmacy/onboarding", {
         method: "POST",
         body: JSON.stringify({
@@ -147,7 +155,7 @@ export function PharmacyOnboardingPage({
           landmark: form.get("landmark") || null,
           latitude: coords.lat,
           longitude: coords.lng,
-          openingHours: standardHours(),
+          openingHours,
           pickupEnabled: form.get("pickup") === "on",
           deliveryEnabled: form.get("delivery") === "on",
         }),
@@ -182,6 +190,7 @@ export function PharmacyOnboardingPage({
         <label className="form-field"><span>أقرب معلم</span><input name="landmark" /></label>
         <button className="secondary-cta" type="button" onClick={locate}><Icon name="location" size={18} /> تحديد موقع الفرع الحالي</button>
         {locationMessage ? <p className="inline-notice" role="status">{locationMessage}</p> : null}
+        <div className="form-row"><label className="form-field"><span>يفتح الفرع</span><input name="opensAt" type="time" defaultValue="08:00" required /></label><label className="form-field"><span>يغلق الفرع</span><input name="closesAt" type="time" defaultValue="23:59" required /></label></div>
         <div className="form-row toggle-row"><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked /><span>الاستلام متاح</span></label><label className="toggle-field"><input name="delivery" type="checkbox" /><span>التوصيل متاح</span></label></div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="primary-cta" type="submit" disabled={busy}>{busy ? "جارٍ إرسال الملف الآمن…" : "إرسال طلب التحقق"}</button>

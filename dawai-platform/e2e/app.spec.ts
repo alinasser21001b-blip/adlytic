@@ -61,6 +61,8 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
   await pharmacyPage.getByLabel("اسم الفرع").fill("فرع المنصور");
   await pharmacyPage.getByLabel("العنوان").fill("شارع 14 رمضان، المنصور");
   await pharmacyPage.getByLabel("أقرب معلم").fill("قرب الساحة");
+  await pharmacyPage.getByLabel("يفتح الفرع").fill("00:00");
+  await pharmacyPage.getByLabel("يغلق الفرع").fill("23:59");
   await pharmacyPage.locator('input[type="file"]').setInputFiles({
     name: "license.png",
     mimeType: "image/png",
