@@ -5,7 +5,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: "line",
-  timeout: 120_000,
+  // The full marketplace journey (3 contexts, wizard steps, polling) runs
+  // ~2min in the sandbox; give it headroom.
+  timeout: 180_000,
   expect: { timeout: 20_000 },
   use: {
     baseURL: "http://127.0.0.1:4173",
