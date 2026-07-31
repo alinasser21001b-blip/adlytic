@@ -412,17 +412,28 @@ export function NewRequestPage() {
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <div className="action-bar">
           <div className="action-bar-row">
-            {/* One persistent element that changes role between steps: swapping
-                two buttons in place lets a single tap fall through from
-                "متابعة" onto "إرسال" — an accidental submit. */}
-            <button
-              className="primary-cta"
-              type={step < 2 ? "button" : "submit"}
-              disabled={step < 2 ? !stepValid : busy || !stepValid}
-              onClick={step < 2 ? () => setStep((current) => current + 1) : undefined}
-            >
-              {step < 2 ? "متابعة" : busy ? "جارٍ الإرسال الآمن…" : "إرسال الطلب للصيدليات القريبة"}
-            </button>
+            {/* Distinct keys force separate DOM nodes — React otherwise reuses
+                one <button> and flips its type to "submit" mid-click, so the
+                click's default action submits the form. preventDefault guards
+                the advance click against any residual default behavior. */}
+            {step < 2 ? (
+              <button
+                key="advance"
+                className="primary-cta"
+                type="button"
+                disabled={!stepValid}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setStep((current) => current + 1);
+                }}
+              >
+                متابعة
+              </button>
+            ) : (
+              <button key="submit" className="primary-cta" type="submit" disabled={busy || !stepValid}>
+                {busy ? "جارٍ الإرسال الآمن…" : "إرسال الطلب للصيدليات القريبة"}
+              </button>
+            )}
             {step > 0 ? <button className="secondary-cta" type="button" onClick={() => setStep((current) => current - 1)}>رجوع</button> : null}
           </div>
         </div>
