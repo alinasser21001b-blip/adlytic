@@ -345,7 +345,7 @@
       font-size: 1.05rem;
     }
 
-    .patient-hero { display: grid; gap: 1rem; margin-bottom: 1.25rem; }
+    .patient-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
     .medicine-search {
       display: flex;
       align-items: center;
@@ -358,7 +358,11 @@
       box-shadow: var(--shadow);
     }
     .medicine-search input {
-      flex: 1;
+      /* zero flex-basis + min-width:0 removes the input's intrinsic (size=20)
+         contribution, so the form can shrink to any viewport */
+      flex: 1 1 0%;
+      width: 0;
+      min-width: 0;
       border: 0;
       outline: 0;
       background: transparent;
@@ -376,7 +380,7 @@
     }
     .quick-actions {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.55rem;
       margin-top: 0.85rem;
     }
@@ -676,8 +680,14 @@
     .field textarea { min-height: 88px; resize: vertical; }
     .field-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.65rem;
+    }
+    .field input,
+    .field select,
+    .field textarea {
+      min-width: 0;
+      width: 100%;
     }
     .empty-card {
       text-align: center;
@@ -803,6 +813,12 @@
     }
     .danger-zone h2 { margin: 0; font-size: 1rem; color: #9a3d2c; }
     .danger-zone p { margin: 0; font-size: 0.85rem; }
+    .delete-armed-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+    }
+    .delete-armed-row[hidden] { display: none; }
     .danger-link {
       min-height: 44px;
       border-radius: 12px;
@@ -1350,7 +1366,7 @@
             <div id="delete-idle">
               <button class="danger-link" type="button" id="delete-arm">حذف حسابي</button>
             </div>
-            <div id="delete-armed" hidden style="display:grid;grid-template-columns:1fr auto;gap:.5rem">
+            <div id="delete-armed" class="delete-armed-row" hidden>
               <button class="danger-link" type="button" id="delete-confirm">تأكيد الحذف نهائيًا</button>
               <button class="secondary-cta" type="button" id="delete-cancel">تراجع</button>
             </div>
