@@ -771,6 +771,63 @@
       font-weight: 700;
       font-size: 0.76rem;
     }
+    .account-card {
+      display: grid;
+      gap: 0.75rem;
+      padding: 1.1rem;
+      border-radius: 18px;
+      background: white;
+      border: 1px solid var(--line);
+    }
+    .account-identity {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .account-identity .avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: var(--mint-100);
+      font-size: 1.5rem;
+    }
+    .danger-zone {
+      display: grid;
+      gap: 0.6rem;
+      padding: 1.1rem;
+      border-radius: 18px;
+      border: 1px solid rgb(194 79 56 / 35%);
+      background: var(--action-soft);
+    }
+    .danger-zone h2 { margin: 0; font-size: 1rem; color: #9a3d2c; }
+    .danger-zone p { margin: 0; font-size: 0.85rem; }
+    .danger-link {
+      min-height: 44px;
+      border-radius: 12px;
+      background: transparent;
+      color: #9a3d2c;
+      font-weight: 800;
+      text-decoration: underline;
+    }
+    .resv-state-line {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: 12px;
+      background: var(--urgency-soft);
+      color: #7a4a0f;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    .resv-state-line strong {
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .resv-state-line.ok { background: var(--mint-100); color: var(--forest-700); }
     .inbox-done {
       margin-top: 0.85rem;
       padding: 0.75rem;
@@ -919,7 +976,7 @@
         <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
         <a href="#offers"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
         <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
+        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
     </div>
   </section>
@@ -1023,7 +1080,7 @@
         <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
         <a href="#offers" aria-current="page"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
         <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
+        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
     </div>
   </section>
@@ -1063,7 +1120,7 @@
         <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
         <a href="#zero" aria-current="page"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
         <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
+        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
     </div>
   </section>
@@ -1113,7 +1170,7 @@
         <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
         <a href="#offers"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
         <a href="#hold" aria-current="page"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
+        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
       </nav>
     </div>
   </section>
@@ -1168,9 +1225,9 @@
       <nav class="mobile-nav" aria-label="التنقل للصيدلية">
         <a href="#pharmacy"><span class="ico" aria-hidden="true">✨</span><span>لوحة</span></a>
         <a href="#pharmacy" aria-current="page"><span class="ico" aria-hidden="true">🔔</span><span>الطلبات</span></a>
-        <a href="#compose"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
+        <a href="#reservations"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
         <a href="#compose"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">⚙️</span><span>إعدادات</span></a>
+        <a href="#welcome"><span class="ico" aria-hidden="true">🚪</span><span>خروج</span></a>
       </nav>
     </div>
   </section>
@@ -1240,9 +1297,9 @@
       <nav class="mobile-nav" aria-label="التنقل للصيدلية">
         <a href="#pharmacy"><span class="ico" aria-hidden="true">✨</span><span>لوحة</span></a>
         <a href="#pharmacy"><span class="ico" aria-hidden="true">🔔</span><span>الطلبات</span></a>
-        <a href="#compose"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
+        <a href="#reservations"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
         <a href="#compose" aria-current="page"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">⚙️</span><span>إعدادات</span></a>
+        <a href="#welcome"><span class="ico" aria-hidden="true">🚪</span><span>خروج</span></a>
       </nav>
     </div>
   </section>
@@ -1251,6 +1308,107 @@
     <span aria-hidden="true">📴</span>
     <span>لا يوجد اتصال — سنُعيد المحاولة تلقائيًا عند عودة الشبكة.</span>
   </div>
+
+  <!-- PATIENT ACCOUNT -->
+  <section id="account" class="screen" aria-labelledby="account-title" hidden>
+    <div class="product-shell">
+      <header class="product-header">
+        <span class="brand">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span><strong>دوائي</strong></span>
+        </span>
+        <span class="status-badge ok">حساب موثق</span>
+      </header>
+      <main class="product-main">
+        <div class="page-header">
+          <p class="overline">الحساب</p>
+          <h1 id="account-title">حسابي</h1>
+          <p>نحتفظ بالحد الأدنى اللازم لإدارة طلباتك — لا تُستخدم بياناتك الصحية للإعلانات.</p>
+        </div>
+        <div class="form-stack">
+          <div class="account-card">
+            <div class="account-identity">
+              <span class="avatar" aria-hidden="true">👤</span>
+              <div><strong>مستخدم دوائي</strong><br /><span class="meta">بغداد · المنصور</span></div>
+            </div>
+          </div>
+          <form class="account-card" id="account-form">
+            <label class="field"><span>الاسم</span><input name="name" value="مستخدم دوائي" required /></label>
+            <label class="field"><span>الهاتف</span><input name="phone" dir="ltr" inputmode="tel" value="0770 000 0000" /></label>
+            <label class="field"><span>المنطقة الافتراضية</span><input name="area" value="المنصور، بغداد" /></label>
+            <label class="field" style="grid-template-columns:auto 1fr;align-items:center;gap:.55rem">
+              <input type="checkbox" name="push" checked style="width:20px;height:20px" />
+              <span>إشعارات فورية عند وصول العروض وتحديثات الحجز</span>
+            </label>
+            <button class="primary-cta" type="submit">حفظ التغييرات</button>
+            <p class="inbox-done" id="account-saved" role="status" hidden>✅ تم حفظ الملف الشخصي.</p>
+          </form>
+          <button class="secondary-cta" type="button" data-goto="welcome" style="width:100%">تسجيل الخروج</button>
+          <section class="danger-zone" aria-labelledby="del-title">
+            <h2 id="del-title">حذف الحساب</h2>
+            <p>يعطّل الحساب ويجدول حذف بياناتك وصور الوصفات وفق سياسة الاحتفاظ. لا يمكن التراجع.</p>
+            <div id="delete-idle">
+              <button class="danger-link" type="button" id="delete-arm">حذف حسابي</button>
+            </div>
+            <div id="delete-armed" hidden style="display:grid;grid-template-columns:1fr auto;gap:.5rem">
+              <button class="danger-link" type="button" id="delete-confirm">تأكيد الحذف نهائيًا</button>
+              <button class="secondary-cta" type="button" id="delete-cancel">تراجع</button>
+            </div>
+          </section>
+        </div>
+      </main>
+      <nav class="mobile-nav" aria-label="التنقل للمريض">
+        <a href="#patient"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
+        <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
+        <a href="#offers"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
+        <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
+        <a href="#account" aria-current="page"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
+      </nav>
+    </div>
+  </section>
+
+  <!-- PHARMACY RESERVATIONS -->
+  <section id="reservations" class="screen" aria-labelledby="resv-title" hidden>
+    <div class="product-shell">
+      <header class="product-header">
+        <span class="brand">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span><strong>دوائي</strong></span>
+        </span>
+        <span class="status-badge">حجز بانتظارك</span>
+      </header>
+      <main class="product-main">
+        <div class="page-header">
+          <p class="overline">التنفيذ</p>
+          <h1 id="resv-title">الحجوزات</h1>
+          <p>الحجز لا يبدأ حتى تؤكد حفظ الكمية. الوصفة تُفتح فقط أثناء الحفظ النشط.</p>
+        </div>
+        <div class="inbox-list">
+          <article class="inbox-card" id="resv-card">
+            <header>
+              <div>
+                <h2><bdi dir="ltr">Augmentin 625 mg</bdi></h2>
+                <p class="meta">حجز <bdi dir="ltr">RSV-1190</bdi> · الكمية 1 · <bdi dir="ltr">12,000</bdi> د.ع</p>
+              </div>
+              <span class="status-badge" id="resv-badge">بانتظار تأكيدك</span>
+            </header>
+            <p class="resv-state-line" id="resv-line"><span aria-hidden="true">⏱</span><span>مهلة تأكيد الحفظ:</span><strong id="resv-timer">2:00</strong></p>
+            <div class="quick-reply" id="resv-actions">
+              <button class="ok" type="button" data-resv="ack">تأكيد الحجز — الكمية محفوظة</button>
+              <button class="no" type="button" data-resv="fail">تعذر الحفظ</button>
+            </div>
+          </article>
+        </div>
+      </main>
+      <nav class="mobile-nav" aria-label="التنقل للصيدلية">
+        <a href="#pharmacy"><span class="ico" aria-hidden="true">✨</span><span>لوحة</span></a>
+        <a href="#pharmacy"><span class="ico" aria-hidden="true">🔔</span><span>الطلبات</span></a>
+        <a href="#reservations" aria-current="page"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
+        <a href="#compose"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
+        <a href="#welcome"><span class="ico" aria-hidden="true">🚪</span><span>خروج</span></a>
+      </nav>
+    </div>
+  </section>
 
   <script>
     (function () {
@@ -1341,6 +1499,100 @@
           }
           showScreen("pharmacy");
         });
+      }
+
+      /* ---- Account screen ---- */
+      const accountForm = document.getElementById("account-form");
+      if (accountForm) {
+        accountForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          if (!accountForm.reportValidity()) return;
+          document.getElementById("account-saved").hidden = false;
+        });
+        document.getElementById("delete-arm").addEventListener("click", () => {
+          document.getElementById("delete-idle").hidden = true;
+          document.getElementById("delete-armed").hidden = false;
+        });
+        document.getElementById("delete-cancel").addEventListener("click", () => {
+          document.getElementById("delete-armed").hidden = true;
+          document.getElementById("delete-idle").hidden = false;
+        });
+        document.getElementById("delete-confirm").addEventListener("click", () => {
+          showScreen("welcome");
+          document.getElementById("delete-armed").hidden = true;
+          document.getElementById("delete-idle").hidden = false;
+        });
+      }
+
+      /* ---- Pharmacy reservation lifecycle: PENDING_ACK → ACTIVE → READY → COMPLETED ---- */
+      const resvActions = document.getElementById("resv-actions");
+      if (resvActions) {
+        const badge = document.getElementById("resv-badge");
+        const line = document.getElementById("resv-line");
+        let holdTimer = null;
+        function setActions(buttons) {
+          resvActions.innerHTML = "";
+          buttons.forEach(([cls, label, state]) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = cls;
+            b.textContent = label;
+            b.dataset.resv = state;
+            resvActions.appendChild(b);
+          });
+        }
+        function startHoldCountdown() {
+          const expiresAt = Date.now() + 15 * 60 * 1000;
+          holdTimer = setInterval(() => {
+            // The line's markup is replaced on transitions — resolve the node live.
+            const el = document.getElementById("resv-timer");
+            if (!el) { clearInterval(holdTimer); holdTimer = null; return; }
+            const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+            el.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+            if (left === 0) transition("expired");
+          }, 1000);
+        }
+        function transition(state) {
+          if (holdTimer && state !== "ack") { clearInterval(holdTimer); holdTimer = null; }
+          if (state === "ack") {
+            badge.textContent = "محفوظ";
+            badge.className = "status-badge ok";
+            line.innerHTML = '<span aria-hidden="true">⏱</span><span>الحفظ النشط ينتهي خلال:</span><strong id="resv-timer">15:00</strong>';
+            setActions([["ok", "الدواء جاهز للاستلام", "ready"], ["no", "مشكلة في التنفيذ", "fail"]]);
+          } else if (state === "ready") {
+            badge.textContent = "جاهز";
+            line.className = "resv-state-line ok";
+            line.innerHTML = '<span aria-hidden="true">📦</span><span>بانتظار حضور المريض · أبقِ الكمية جانبًا</span>';
+            setActions([["ok", "تأكيد الاستلام", "complete"], ["no", "لم يحضر المريض", "noshow"]]);
+          } else if (state === "complete") {
+            badge.textContent = "اكتمل";
+            line.className = "resv-state-line ok";
+            line.innerHTML = '<span aria-hidden="true">✅</span><span>اكتمل الاستلام — أحسنت! انعكس ذلك على موثوقية فرعك.</span>';
+            resvActions.remove();
+          } else {
+            badge.textContent = state === "noshow" ? "لم يحضر" : state === "expired" ? "انتهت المهلة" : "تعذر الحفظ";
+            badge.className = "status-badge";
+            line.className = "resv-state-line";
+            line.innerHTML = '<span aria-hidden="true">↩️</span><span>أُعيد الطلب للمريض ليختار عرضًا آخر. لا يؤثر الإبلاغ الصادق سلبًا عليك.</span>';
+            resvActions.remove();
+          }
+        }
+        resvActions.addEventListener("click", (event) => {
+          const state = event.target.closest("[data-resv]")?.dataset.resv;
+          if (!state) return;
+          if (state === "ack") { transition("ack"); const t = document.getElementById("resv-timer"); if (t) { startHoldCountdown(); } }
+          else transition(state);
+        });
+        // Live ACK deadline on first view
+        const ackExpires = Date.now() + 2 * 60 * 1000;
+        const ackTimer = setInterval(() => {
+          const el = document.getElementById("resv-timer");
+          if (!el || !document.getElementById("resv-actions")) { clearInterval(ackTimer); return; }
+          if (badge.textContent !== "بانتظار تأكيدك") { clearInterval(ackTimer); return; }
+          const left = Math.max(0, Math.round((ackExpires - Date.now()) / 1000));
+          el.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+          if (left === 0) { clearInterval(ackTimer); transition("expired"); }
+        }, 1000);
       }
 
       window.addEventListener("hashchange", () => {

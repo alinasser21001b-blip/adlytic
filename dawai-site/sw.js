@@ -3,7 +3,7 @@
  * newest deploy when online, and the last known shell when offline.
  * Static assets are cache-first. Bump CACHE on every shell change.
  */
-const CACHE = "dawai-shell-v5";
+const CACHE = "dawai-shell-v6";
 const SHELL = [
   "./", "./index.html",
   "./manifest.webmanifest",
