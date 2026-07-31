@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "../app/router";
 import { Icon } from "../Icon";
 import { useSession, type Role } from "../app/SessionContext";
 

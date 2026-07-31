@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "./app/router";
 import { SessionProvider, useSession, type Role } from "./app/SessionContext";
 import { AppShell, LoadingState } from "./components/AppShell";
 import {

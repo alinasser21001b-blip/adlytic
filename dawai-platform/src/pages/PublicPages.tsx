@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "../app/router";
 import { apiFetch, setCsrfToken } from "../api/client";
 import { useSession, type Role } from "../app/SessionContext";
 import { Logo } from "../components/AppShell";

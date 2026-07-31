@@ -4,7 +4,7 @@ import {
   useNavigate,
   useParams,
   useSearchParams,
-} from "react-router-dom";
+} from "../app/router";
 import { apiFetch, newIdempotencyKey } from "../api/client";
 import { useApi } from "../app/useApi";
 import {

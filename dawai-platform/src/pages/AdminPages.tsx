@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "../app/router";
 import { apiFetch } from "../api/client";
 import { useApi } from "../app/useApi";
 import {

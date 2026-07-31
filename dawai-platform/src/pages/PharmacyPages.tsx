@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "../app/router";
 import { apiFetch, newIdempotencyKey } from "../api/client";
 import { useSession } from "../app/SessionContext";
 import { useApi } from "../app/useApi";
