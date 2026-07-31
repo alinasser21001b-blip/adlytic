@@ -19,14 +19,42 @@ function asDate(value: string) {
 }
 
 export function AdminDashboardPage() {
-  const dashboard = useApi(async () => (await apiFetch<{ data: Record<string, number> }>("/api/v1/admin/dashboard")).data, []);
+  const dashboard = useApi(async () => (await apiFetch<{
+    data: Record<string, number> & {
+      pilot_metrics?: {
+        reservation_pickup_success_rate: number | null;
+        median_first_offer_seconds: number | null;
+        matchable_with_offer_rate: number | null;
+        reservation_success_rate: number | null;
+        confirmed_not_found_rate: number | null;
+        avg_notifications_per_success: number | null;
+        targets: Record<string, number>;
+      };
+    };
+  }>("/api/v1/admin/dashboard")).data, []);
   if (dashboard.loading) return <LoadingState />;
   if (dashboard.error || !dashboard.data) return <ErrorState error={dashboard.error} retry={dashboard.reload} />;
   const data = dashboard.data;
+  const pilot = data.pilot_metrics;
+  const pct = (value: number | null | undefined) =>
+    value == null ? "—" : `${Math.round(value * 100)}%`;
   return (
     <>
-      <PageHeader eyebrow="مركز العمليات" title="إدارة دوائي" description="التحقق والثقة وسلامة دورة الطلب من مكان واحد." />
-      <div className="metric-grid admin-metrics"><article><span>مستخدمون نشطون</span><strong>{data.active_users}</strong></article><article><span>بانتظار التحقق</span><strong>{data.pending_verifications}</strong></article><article><span>صيدليات معتمدة</span><strong>{data.verified_pharmacies}</strong></article><article><span>طلبات نشطة</span><strong>{data.active_requests}</strong></article><article><span>مكتملة اليوم</span><strong>{data.completed_today}</strong></article><article><span>بلاغات مفتوحة</span><strong>{data.open_reports}</strong></article></div>
+      <PageHeader eyebrow="مركز العمليات" title="إدارة دوائي" description="التحقق والثقة وسلامة دورة الطلب ومؤشرات تجريبية بغداد." />
+      <div className="metric-grid admin-metrics"><article><span>مستخدمون نشطون</span><strong>{data.active_users}</strong></article><article><span>بانتظار التحقق</span><strong>{data.pending_verifications}</strong></article><article><span>صيدليات معتمدة</span><strong>{data.verified_pharmacies}</strong></article><article><span>طلبات نشطة</span><strong>{data.active_requests}</strong></article><article><span>مكتملة اليوم</span><strong>{data.completed_today}</strong></article><article><span>بلاغات مفتوحة</span><strong>{data.open_reports}</strong></article><article><span>حجوزات نشطة</span><strong>{data.active_holds ?? 0}</strong></article><article><span>فشل تنفيذ 24س</span><strong>{data.failed_fulfillment_24h ?? 0}</strong></article></div>
+      {pilot ? (
+        <section className="reliability-panel">
+          <div><p className="overline">مؤشرات الطيار (7 أيام)</p><h2>سيولة · ثقة · سرعة · تنفيذ</h2><p>أهداف تشغيلية للطيار وليست ادعاءات سوق.</p></div>
+          <dl>
+            <div><dt>حجز→استلام ناجح</dt><dd>{pct(pilot.reservation_pickup_success_rate)}</dd></div>
+            <div><dt>وسيط أول عرض</dt><dd>{pilot.median_first_offer_seconds == null ? "—" : `${Math.round(pilot.median_first_offer_seconds / 60)} د`}</dd></div>
+            <div><dt>طلبات حصلت على عرض</dt><dd>{pct(pilot.matchable_with_offer_rate)}</dd></div>
+            <div><dt>نجاح الحجز</dt><dd>{pct(pilot.reservation_success_rate)}</dd></div>
+            <div><dt>أكد ثم لم يوجد</dt><dd>{pct(pilot.confirmed_not_found_rate)}</dd></div>
+            <div><dt>إشعارات / طلب ناجح</dt><dd>{pilot.avg_notifications_per_success == null ? "—" : pilot.avg_notifications_per_success.toFixed(1)}</dd></div>
+          </dl>
+        </section>
+      ) : null}
       <div className="admin-quick-grid"><Link to="/admin/verifications"><Icon name="shield" size={25} /><strong>مراجعة الصيدليات</strong><span>{data.pending_verifications} ملفات تنتظر قرارًا</span></Link><Link to="/admin/requests"><Icon name="prescription" size={25} /><strong>تتبع الطلبات</strong><span>Dispatch → Offer → Reservation</span></Link><Link to="/admin/reports"><Icon name="bell" size={25} /><strong>البلاغات</strong><span>مراجعة السلوك والمشكلات</span></Link></div>
     </>
   );

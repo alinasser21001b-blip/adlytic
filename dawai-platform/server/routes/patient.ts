@@ -25,13 +25,22 @@ const createRequestSchema = z
     quantity: z.number().int().min(1).max(20).default(1),
     urgency: z.enum(["NOW", "TODAY", "TOMORROW"]).default("TODAY"),
     prescriptionFileId: z.string().uuid().optional(),
+    prescriptionConsent: z.boolean().optional(),
+    attachmentKind: z.enum(["PRESCRIPTION", "BOX_IMAGE"]).optional(),
     area: z.string().trim().min(2).max(160),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
     pickupPreferred: z.boolean().default(true),
     deliveryPreferred: z.boolean().default(false),
+    /** Explicit acknowledgement when multiple presentations match and patient chooses one. */
+    clarificationAccepted: z.boolean().optional(),
   })
   .strict();
+
+/** Coarse area token (~1km) — exact coords stay server-side for matching only. */
+function coarseGeohash(lat: number, lng: number): string {
+  return `${lat.toFixed(2)}:${lng.toFixed(2)}`;
+}
 
 const profileSchema = z
   .object({
@@ -129,8 +138,30 @@ export function patientRoutes(database: Database) {
     const body = createRequestSchema.parse(await context.req.json());
     const userId = context.get("user").id;
     await enforceRateLimit(database, "patient-request", userId, 8, 600);
+
+    // MVP: pickup-first. Delivery preference is ignored unless explicitly enabled.
+    const pickupPreferred = true;
+    const deliveryPreferred = config.mvpDeliveryEnabled
+      ? body.deliveryPreferred
+      : false;
+
+    if (body.prescriptionFileId && body.prescriptionConsent !== true) {
+      const kind = body.attachmentKind ?? "PRESCRIPTION";
+      if (kind === "PRESCRIPTION") {
+        throw new ApiError(
+          422,
+          "PRESCRIPTION_CONSENT_REQUIRED",
+          "يجب الموافقة الصريحة على مشاركة الوصفة مع الصيدلية المختارة فقط.",
+        );
+      }
+    }
+
     const key = context.req.header("Idempotency-Key");
-    const fingerprint = requestFingerprint(body);
+    const fingerprint = requestFingerprint({
+      ...body,
+      pickupPreferred,
+      deliveryPreferred,
+    });
     const existingId = await getIdempotentResource(database, {
       principalId: userId,
       operation: "CREATE_REQUEST",
@@ -144,13 +175,22 @@ export function patientRoutes(database: Database) {
     }
 
     let classification: string | null = null;
-    if (body.presentationId) {
-      const presentation = await database.query<{ classification: string }>(
-        `SELECT m.classification
+    let presentationId = body.presentationId ?? null;
+    let strength = body.strength ?? null;
+    let dosageForm = body.dosageForm ?? null;
+    let clarificationCandidates: Array<Record<string, unknown>> = [];
+
+    if (presentationId) {
+      const presentation = await database.query<{
+        classification: string;
+        strength: string;
+        dosage_form: string;
+      }>(
+        `SELECT m.classification, mp.strength, mp.dosage_form
          FROM medicine_presentations mp
          JOIN medicines m ON m.id = mp.medicine_id
          WHERE mp.id = $1 AND m.active = true`,
-        [body.presentationId],
+        [presentationId],
       );
       if (!presentation.rows[0]) {
         throw new ApiError(
@@ -160,6 +200,43 @@ export function patientRoutes(database: Database) {
         );
       }
       classification = presentation.rows[0].classification;
+      strength = strength ?? presentation.rows[0].strength;
+      dosageForm = dosageForm ?? presentation.rows[0].dosage_form;
+    } else {
+      const normalized = body.medicineName.toLocaleLowerCase("en-US");
+      const candidates = await database.query<{
+        id: string;
+        brand_name: string;
+        strength: string;
+        dosage_form: string;
+        pack_size: string | null;
+        generic_name: string;
+        classification: string;
+      }>(
+        `SELECT DISTINCT
+           mp.id, mp.brand_name, mp.strength, mp.dosage_form, mp.pack_size,
+           m.generic_name, m.classification
+         FROM medicine_presentations mp
+         JOIN medicines m ON m.id = mp.medicine_id
+         LEFT JOIN medicine_aliases ma ON ma.presentation_id = mp.id
+         WHERE m.active = true
+           AND (
+             lower(mp.brand_name) LIKE '%' || $1 || '%'
+             OR lower(m.generic_name) LIKE '%' || $1 || '%'
+             OR ma.normalized_alias LIKE '%' || $1 || '%'
+           )
+         ORDER BY mp.brand_name
+         LIMIT 12`,
+        [normalized],
+      );
+      if (candidates.rowCount > 1) {
+        clarificationCandidates = candidates.rows;
+      } else if (candidates.rowCount === 1) {
+        presentationId = candidates.rows[0].id;
+        classification = candidates.rows[0].classification;
+        strength = strength ?? candidates.rows[0].strength;
+        dosageForm = dosageForm ?? candidates.rows[0].dosage_form;
+      }
     }
 
     if (body.prescriptionFileId) {
@@ -175,7 +252,14 @@ export function patientRoutes(database: Database) {
     }
 
     const requestId = randomUUID();
-    const status = classification === "CONTROLLED" ? "BLOCKED" : "ACTIVE";
+    let status: string;
+    if (classification === "CONTROLLED") {
+      status = "BLOCKED";
+    } else if (clarificationCandidates.length > 1) {
+      status = "NEEDS_CLARIFICATION";
+    } else {
+      status = "ACTIVE";
+    }
     const expiresAt = new Date(
       Date.now() + config.requestLifetimeMinutes * 60_000,
     ).toISOString();
@@ -187,19 +271,19 @@ export function patientRoutes(database: Database) {
           (id, public_reference, patient_id, status, medicine_name,
            presentation_id, strength, dosage_form, quantity, urgency,
            prescription_file_id, prescription_status, area, latitude, longitude,
-           pickup_preferred, delivery_preferred, expires_at)
+           coarse_geohash, pickup_preferred, delivery_preferred, expires_at)
          VALUES
           ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-           $12, $13, $14, $15, $16, $17, $18)`,
+           $12, $13, $14, $15, $16, $17, $18, $19)`,
         [
           requestId,
           reference,
           userId,
           status,
           body.medicineName,
-          body.presentationId ?? null,
-          body.strength ?? null,
-          body.dosageForm ?? null,
+          presentationId,
+          strength,
+          dosageForm,
           body.quantity,
           body.urgency,
           body.prescriptionFileId ?? null,
@@ -207,15 +291,23 @@ export function patientRoutes(database: Database) {
           body.area,
           body.latitude,
           body.longitude,
-          body.pickupPreferred,
-          body.deliveryPreferred,
+          coarseGeohash(body.latitude, body.longitude),
+          pickupPreferred,
+          deliveryPreferred,
           expiresAt,
         ],
       );
       if (body.prescriptionFileId) {
         await transaction.query(
-          `UPDATE secure_files SET request_id = $1 WHERE id = $2`,
-          [requestId, body.prescriptionFileId],
+          `UPDATE secure_files
+           SET request_id = $1,
+               attachment_kind = $3
+           WHERE id = $2`,
+          [
+            requestId,
+            body.prescriptionFileId,
+            body.attachmentKind === "BOX_IMAGE" ? "BOX_IMAGE" : "PRESCRIPTION",
+          ],
         );
       }
       await recordIdempotency(transaction, {
@@ -228,7 +320,12 @@ export function patientRoutes(database: Database) {
       await writeAudit(transaction, {
         actorUserId: userId,
         actorRole: "PATIENT",
-        action: status === "BLOCKED" ? "REQUEST_BLOCKED" : "REQUEST_CREATED",
+        action:
+          status === "BLOCKED"
+            ? "REQUEST_BLOCKED"
+            : status === "NEEDS_CLARIFICATION"
+              ? "REQUEST_NEEDS_CLARIFICATION"
+              : "REQUEST_CREATED",
         resourceType: "MEDICINE_REQUEST",
         resourceId: requestId,
         requestId: context.get("requestId"),
@@ -243,8 +340,8 @@ export function patientRoutes(database: Database) {
         latitude: body.latitude,
         longitude: body.longitude,
         radius_km: 2,
-        pickup_preferred: body.pickupPreferred,
-        delivery_preferred: body.deliveryPreferred,
+        pickup_preferred: pickupPreferred,
+        delivery_preferred: deliveryPreferred,
       });
       if (dispatchedCount === 0) {
         await database.query(
@@ -260,10 +357,126 @@ export function patientRoutes(database: Database) {
         data: {
           ...(await patientRequest(database, requestId, userId)),
           dispatchedCount,
+          clarificationCandidates:
+            status === "NEEDS_CLARIFICATION" ? clarificationCandidates : [],
         },
       },
       201,
     );
+  });
+
+  routes.post("/requests/:requestId/clarify", async (context) => {
+    const body = z
+      .object({
+        presentationId: z.string().min(1).max(100),
+        strength: z.string().trim().max(80).optional(),
+        dosageForm: z.string().trim().max(80).optional(),
+      })
+      .strict()
+      .parse(await context.req.json());
+    const userId = context.get("user").id;
+    const presentation = await database.query<{
+      classification: string;
+      brand_name: string;
+      strength: string;
+      dosage_form: string;
+    }>(
+      `SELECT m.classification, mp.brand_name, mp.strength, mp.dosage_form
+       FROM medicine_presentations mp
+       JOIN medicines m ON m.id = mp.medicine_id
+       WHERE mp.id = $1 AND m.active = true`,
+      [body.presentationId],
+    );
+    if (!presentation.rows[0]) {
+      throw new ApiError(
+        422,
+        "PRESENTATION_UNKNOWN",
+        "العرض الدوائي المختار غير معروف.",
+      );
+    }
+    if (presentation.rows[0].classification === "CONTROLLED") {
+      await database.query(
+        `UPDATE medicine_requests
+         SET status = 'BLOCKED', presentation_id = $1, updated_at = now(),
+             version = version + 1
+         WHERE id = $2 AND patient_id = $3 AND status = 'NEEDS_CLARIFICATION'`,
+        [body.presentationId, context.req.param("requestId"), userId],
+      );
+      throw new ApiError(
+        422,
+        "CONTROLLED_MEDICINE",
+        "هذا الصنف لا يُعالَج عبر دوائي في المرحلة التجريبية.",
+      );
+    }
+
+    const updated = await database.query<{
+      id: string;
+      medicine_name: string;
+      latitude: number;
+      longitude: number;
+      pickup_preferred: boolean;
+      delivery_preferred: boolean;
+    }>(
+      `UPDATE medicine_requests
+       SET status = 'ACTIVE',
+           presentation_id = $1,
+           medicine_name = $2,
+           strength = $3,
+           dosage_form = $4,
+           version = version + 1,
+           updated_at = now()
+       WHERE id = $5 AND patient_id = $6 AND status = 'NEEDS_CLARIFICATION'
+       RETURNING id, medicine_name, latitude, longitude,
+                 pickup_preferred, delivery_preferred`,
+      [
+        body.presentationId,
+        presentation.rows[0].brand_name,
+        body.strength ?? presentation.rows[0].strength,
+        body.dosageForm ?? presentation.rows[0].dosage_form,
+        context.req.param("requestId"),
+        userId,
+      ],
+    );
+    if (!updated.rows[0]) {
+      throw new ApiError(
+        409,
+        "REQUEST_NOT_CLARIFIABLE",
+        "لا يمكن تثبيت هوية الدواء لهذا الطلب.",
+      );
+    }
+    const request = updated.rows[0];
+    const dispatchedCount = await dispatchRequest(database, {
+      id: request.id,
+      medicine_name: request.medicine_name,
+      latitude: request.latitude,
+      longitude: request.longitude,
+      radius_km: 2,
+      pickup_preferred: request.pickup_preferred,
+      delivery_preferred: config.mvpDeliveryEnabled
+        ? request.delivery_preferred
+        : false,
+    });
+    if (dispatchedCount === 0) {
+      await database.query(
+        `UPDATE medicine_requests SET status = 'NO_MATCH', updated_at = now()
+         WHERE id = $1 AND status = 'ACTIVE'`,
+        [request.id],
+      );
+    }
+    await writeAudit(database, {
+      actorUserId: userId,
+      actorRole: "PATIENT",
+      action: "REQUEST_CLARIFIED",
+      resourceType: "MEDICINE_REQUEST",
+      resourceId: request.id,
+      requestId: context.get("requestId"),
+    });
+    return context.json({
+      data: {
+        ...(await patientRequest(database, request.id, userId)),
+        dispatchedCount,
+      },
+    });
   });
 
   routes.get("/requests", async (context) => {
@@ -313,6 +526,17 @@ export function patientRoutes(database: Database) {
       context.req.param("requestId"),
       context.get("user").id,
     );
+    const sort = z
+      .enum(["best", "distance", "price"])
+      .catch("best")
+      .parse(context.req.query("sort") ?? "best");
+    const orderBy =
+      sort === "distance"
+        ? "d.distance_km ASC, o.price_iqd ASC"
+        : sort === "price"
+          ? "o.price_iqd ASC, d.distance_km ASC"
+          : `CASE o.offer_type WHEN 'EXACT' THEN 0 WHEN 'PARTIAL' THEN 1 ELSE 2 END,
+             o.price_iqd ASC, d.distance_km ASC`;
     const result = await database.query(
       `SELECT
          o.*, p.name AS pharmacy_name, b.name AS branch_name, b.district,
@@ -328,9 +552,7 @@ export function patientRoutes(database: Database) {
        WHERE o.request_id = $1
          AND o.status IN ('ACTIVE', 'HOLD_PENDING', 'HELD')
          AND (o.expires_at > now() OR o.status = 'HELD')
-       ORDER BY
-         CASE o.offer_type WHEN 'EXACT' THEN 0 WHEN 'PARTIAL' THEN 1 ELSE 2 END,
-         o.price_iqd, d.distance_km`,
+       ORDER BY ${orderBy}`,
       [context.req.param("requestId")],
     );
     return context.json({ data: result.rows });
@@ -398,26 +620,72 @@ export function patientRoutes(database: Database) {
 
   routes.post("/requests/:requestId/cancel", async (context) => {
     const userId = context.get("user").id;
-    const result = await database.query(
-      `UPDATE medicine_requests
-       SET status = 'CANCELLED', version = version + 1, updated_at = now()
-       WHERE id = $1 AND patient_id = $2
-         AND status IN ('ACTIVE', 'NO_MATCH', 'HOLD_PENDING')
-       RETURNING id`,
-      [context.req.param("requestId"), userId],
-    );
-    if (!result.rows[0]) {
-      throw new ApiError(
-        409,
-        "REQUEST_NOT_CANCELLABLE",
-        "لا يمكن إلغاء هذا الطلب.",
+    const requestId = context.req.param("requestId");
+    await database.transaction(async (transaction) => {
+      const result = await transaction.query<{ owner_user_id: string | null }>(
+        `UPDATE medicine_requests
+         SET status = 'CANCELLED', version = version + 1, updated_at = now()
+         WHERE id = $1 AND patient_id = $2
+           AND status IN (
+             'ACTIVE', 'NO_MATCH', 'HOLD_PENDING', 'NEEDS_CLARIFICATION',
+             'RESERVED', 'READY'
+           )
+         RETURNING id`,
+        [requestId, userId],
       );
-    }
-    await database.query(
-      `UPDATE reservations SET status = 'CANCELLED', updated_at = now()
-       WHERE request_id = $1 AND status = 'PENDING_ACK'`,
-      [context.req.param("requestId")],
-    );
+      if (!result.rows[0]) {
+        throw new ApiError(
+          409,
+          "REQUEST_NOT_CANCELLABLE",
+          "لا يمكن إلغاء هذا الطلب.",
+        );
+      }
+      const pharmacyOwners = await transaction.query<{ owner_user_id: string }>(
+        `SELECT DISTINCT p.owner_user_id
+         FROM reservations res
+         JOIN pharmacy_branches b ON b.id = res.branch_id
+         JOIN pharmacies p ON p.id = b.pharmacy_id
+         WHERE res.request_id = $1
+           AND res.status IN ('PENDING_ACK', 'ACTIVE', 'READY')`,
+        [requestId],
+      );
+      await transaction.query(
+        `UPDATE reservations SET status = 'CANCELLED', updated_at = now()
+         WHERE request_id = $1
+           AND status IN ('PENDING_ACK', 'ACTIVE', 'READY')`,
+        [requestId],
+      );
+      await transaction.query(
+        `UPDATE pharmacy_offers
+         SET status = 'WITHDRAWN', updated_at = now()
+         WHERE request_id = $1
+           AND status IN ('ACTIVE', 'HOLD_PENDING', 'HELD')`,
+        [requestId],
+      );
+      await transaction.query(
+        `UPDATE request_dispatches SET status = 'EXPIRED'
+         WHERE request_id = $1 AND status IN ('SENT', 'VIEWED')`,
+        [requestId],
+      );
+      for (const owner of pharmacyOwners.rows) {
+        await createNotification(transaction, {
+          userId: owner.owner_user_id,
+          eventType: "REQUEST_CANCELLED",
+          title: "أُلغي الطلب",
+          body: "ألغى المريض الطلب أو الحجز المرتبط.",
+          resourceType: "REQUEST",
+          resourceId: requestId,
+        });
+      }
+      await writeAudit(transaction, {
+        actorUserId: userId,
+        actorRole: "PATIENT",
+        action: "REQUEST_CANCELLED",
+        resourceType: "MEDICINE_REQUEST",
+        resourceId: requestId,
+        requestId: context.get("requestId"),
+      });
+    });
     return context.json({ data: { cancelled: true } });
   });
 
@@ -429,6 +697,13 @@ export function patientRoutes(database: Database) {
       })
       .strict()
       .parse(await context.req.json());
+    if (body.fulfillmentMethod === "DELIVERY" && !config.mvpDeliveryEnabled) {
+      throw new ApiError(
+        422,
+        "DELIVERY_NOT_IN_MVP",
+        "التوصيل غير متاح في المرحلة التجريبية. اختر الاستلام من الصيدلية.",
+      );
+    }
     const userId = context.get("user").id;
     const key = context.req.header("Idempotency-Key");
     const fingerprint = requestFingerprint(body);
@@ -502,6 +777,13 @@ export function patientRoutes(database: Database) {
           "البديل يحتاج تواصلًا مع الصيدلي ولا يمكن حجزه تلقائيًا.",
         );
       }
+      if (selected.offer_type === "ORDERABLE") {
+        throw new ApiError(
+          422,
+          "ORDERABLE_NOT_RESERVABLE",
+          "العرض القابل للطلب لا يُحفظ بحجز 15 دقيقة. اختر عرضًا مطابقًا جاهزًا أو جزئيًا متاحًا.",
+        );
+      }
       if (
         (body.fulfillmentMethod === "PICKUP" && !selected.pickup_enabled) ||
         (body.fulfillmentMethod === "DELIVERY" && !selected.delivery_enabled)
@@ -539,6 +821,13 @@ export function patientRoutes(database: Database) {
         `UPDATE pharmacy_offers SET status = 'HOLD_PENDING', updated_at = now()
          WHERE id = $1`,
         [selected.offer_id],
+      );
+      await transaction.query(
+        `INSERT INTO conversations
+          (id, reservation_id, patient_id, branch_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (reservation_id) DO NOTHING`,
+        [randomUUID(), reservationId, userId, selected.branch_id],
       );
       await recordIdempotency(transaction, {
         principalId: userId,

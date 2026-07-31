@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Database } from "../db/client";
@@ -111,7 +111,11 @@ export function sharedRoutes(database: Database) {
       context.req.param("conversationId"),
       user.id,
     );
-    if (!["ACTIVE", "READY"].includes(conversation.reservation_status)) {
+    if (
+      !["PENDING_ACK", "ACTIVE", "READY"].includes(
+        conversation.reservation_status,
+      )
+    ) {
       throw new ApiError(
         409,
         "CONVERSATION_CLOSED",
@@ -177,6 +181,52 @@ export function sharedRoutes(database: Database) {
       ],
     );
     return context.json({ data: { id, status: "OPEN" } }, 201);
+  });
+
+  routes.post("/device-tokens", async (context) => {
+    const body = z
+      .object({
+        platform: z.enum(["WEB", "IOS", "ANDROID"]),
+        pushToken: z.string().trim().min(10).max(4096),
+        appVersion: z.string().trim().max(40).optional(),
+      })
+      .strict()
+      .parse(await context.req.json());
+    const userId = context.get("user").id;
+    const tokenHash = createHash("sha256").update(body.pushToken).digest("hex");
+    await database.query(
+      `INSERT INTO device_tokens
+        (id, user_id, platform, token_hash, push_token, app_version)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (user_id, token_hash) DO UPDATE SET
+         push_token = EXCLUDED.push_token,
+         app_version = EXCLUDED.app_version,
+         last_seen_at = now(),
+         revoked_at = NULL`,
+      [
+        randomUUID(),
+        userId,
+        body.platform,
+        tokenHash,
+        body.pushToken,
+        body.appVersion ?? null,
+      ],
+    );
+    return context.json({ data: { registered: true } }, 201);
+  });
+
+  routes.delete("/device-tokens", async (context) => {
+    const body = z
+      .object({ pushToken: z.string().trim().min(10).max(4096) })
+      .strict()
+      .parse(await context.req.json());
+    const tokenHash = createHash("sha256").update(body.pushToken).digest("hex");
+    await database.query(
+      `UPDATE device_tokens SET revoked_at = now()
+       WHERE user_id = $1 AND token_hash = $2 AND revoked_at IS NULL`,
+      [context.get("user").id, tokenHash],
+    );
+    return context.json({ data: { revoked: true } });
   });
 
   return routes;

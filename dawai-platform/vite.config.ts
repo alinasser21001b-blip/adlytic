@@ -10,6 +10,14 @@ export default defineConfig({
       "/health": "http://127.0.0.1:8787",
     },
   },
+  preview: {
+    host: "127.0.0.1",
+    port: 4173,
+    proxy: {
+      "/api": "http://127.0.0.1:8787",
+      "/health": "http://127.0.0.1:8787",
+    },
+  },
   build: {
     target: "es2022",
     sourcemap: true,

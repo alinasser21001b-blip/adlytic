@@ -14,3 +14,19 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 );
+
+if (
+  "serviceWorker" in navigator &&
+  import.meta.env.PROD &&
+  !navigator.webdriver
+) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  });
+} else if ("serviceWorker" in navigator && navigator.webdriver) {
+  void navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      void registration.unregister();
+    }
+  });
+}

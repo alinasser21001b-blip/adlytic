@@ -25,6 +25,9 @@ export function fileRoutes(database: Database) {
   routes.post("/", async (context) => {
     const body = await context.req.parseBody();
     const purpose = String(body.purpose ?? "") as FilePurpose;
+    const attachmentKindRaw = String(body.attachmentKind ?? "PRESCRIPTION");
+    const attachmentKind =
+      attachmentKindRaw === "BOX_IMAGE" ? "BOX_IMAGE" : "PRESCRIPTION";
     const file = body.file;
     const user = context.get("user");
     if (!purposes.includes(purpose)) {
@@ -60,6 +63,7 @@ export function fileRoutes(database: Database) {
     const stored = await storeEncryptedImage(database, {
       ownerUserId: user.id,
       purpose,
+      attachmentKind: user.role === "PATIENT" ? attachmentKind : "PRESCRIPTION",
       bytes: Buffer.from(await file.arrayBuffer()),
       pharmacyId,
     });

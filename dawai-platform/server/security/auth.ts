@@ -208,6 +208,26 @@ export async function revokeSession(
   );
 }
 
+export async function revokeAllUserSessions(
+  database: DbExecutor,
+  userId: string,
+  exceptSessionId?: string,
+): Promise<number> {
+  const result = await database.query(
+    `UPDATE sessions SET revoked_at = now()
+     WHERE user_id = $1
+       AND revoked_at IS NULL
+       AND ($2::text IS NULL OR id <> $2)
+     RETURNING id`,
+    [userId, exceptSessionId ?? null],
+  );
+  return result.rowCount;
+}
+
+export function hashToken(value: string): string {
+  return hashSecret(value);
+}
+
 export async function rotateCsrfToken(
   database: Database,
   sessionId: string,

@@ -15,6 +15,11 @@ async function register(
   await page.getByLabel("رقم الهاتف").fill("07701234567");
   await page.getByLabel("البريد الإلكتروني").fill(input.email);
   await page.getByLabel("كلمة المرور").fill("StrongPassword!234");
+  await page.getByRole("checkbox", { name: /سياسة الخصوصية/ }).check();
+  await page.getByRole("checkbox", { name: /شروط الاستخدام/ }).check();
+  if (role === "pharmacy") {
+    await page.getByRole("checkbox", { name: /شروط الصيدلية/ }).check();
+  }
   await page.getByRole("button", { name: "إنشاء الحساب" }).click();
 }
 
@@ -69,6 +74,7 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
     mimeType: "image/png",
     buffer: png,
   });
+  await pharmacyPage.getByRole("checkbox", { name: /أرفق صورة الإجازة/ }).check();
   await pharmacyPage.getByRole("button", { name: "إرسال طلب التحقق" }).click();
   await expect(
     pharmacyPage.getByRole("heading", { name: "طلب التحقق قيد المراجعة" }),
@@ -102,6 +108,8 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
   await expect(
     pharmacyPage.getByRole("heading", { name: "الطلبات القريبة اليوم" }),
   ).toBeVisible();
+  // Stop pharmacy polling so PGlite is free for the patient mutation path.
+  await pharmacyPage.goto("about:blank");
 
   const patientContext = await browser.newContext({ locale: "ar-IQ" });
   const patientPage = await patientContext.newPage();
@@ -124,10 +132,32 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
     mimeType: "image/png",
     buffer: png,
   });
-  await patientPage
-    .getByRole("button", { name: "إرسال الطلب للصيدليات القريبة" })
-    .click();
-  await expect(patientPage.getByText(/أُرسل إلى [1-9]\d* صيدليات/)).toBeVisible();
+  await patientPage.getByRole("checkbox", { name: /مشاركة صورة الوصفة/ }).check();
+  // Start listening before submit so the first detail GET is not missed.
+  const detailResponsePromise = patientPage.waitForResponse(
+    (response) =>
+      /\/api\/v1\/patient\/requests\/[0-9a-f-]{36}$/i.test(response.url()) &&
+      response.request().method() === "GET",
+    { timeout: 45_000 },
+  );
+  await Promise.all([
+    patientPage.waitForURL(/\/patient\/requests\/[0-9a-f-]{36}/i, { timeout: 30_000 }),
+    patientPage.getByRole("button", { name: "إرسال الطلب للصيدليات القريبة" }).click(),
+  ]);
+  const settled = await detailResponsePromise;
+  const detailJson = (await settled.json()) as {
+    data?: { medicine_name?: string; status?: string };
+    error?: { message?: string };
+  };
+  expect(settled.ok(), JSON.stringify(detailJson)).toBeTruthy();
+  const shownName = detailJson.data?.medicine_name ?? medicineName;
+  await expect(patientPage.getByText("نحمّل حالة الطلب الحقيقية…")).toHaveCount(0, {
+    timeout: 45_000,
+  });
+  await expect(patientPage).toHaveURL(/\/patient\/requests\/[0-9a-f-]{36}/i);
+  await expect(patientPage.getByRole("heading", { name: shownName })).toBeVisible({
+    timeout: 15_000,
+  });
   const requestUrl = patientPage.url();
 
   await pharmacyPage.goto("/pharmacy/inbox");
@@ -147,7 +177,7 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
   await patientPage.goto(requestUrl);
   const offerCard = patientPage.locator("article").filter({ hasText: pharmacyName });
   await expect(offerCard).toBeVisible();
-  await offerCard.getByRole("button", { name: "اختيار وطلب الحجز" }).click();
+  await offerCard.getByRole("button", { name: "حجز للاستلام" }).click();
   await expect(
     patientPage.getByRole("heading", { name: "بانتظار تأكيد الصيدلية" }),
   ).toBeVisible();

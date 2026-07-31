@@ -68,6 +68,9 @@ interface PharmacyReservation {
   price_iqd: number;
   preparation_minutes: number;
   created_at: string;
+  prescription_file_id?: string | null;
+  prescription_status?: string;
+  conversation_id?: string | null;
 }
 
 function iqd(value: number) {
@@ -185,9 +188,11 @@ export function PharmacyOnboardingPage({
         <button className="secondary-cta" type="button" onClick={locate}><Icon name="location" size={18} /> تحديد موقع الفرع الحالي</button>
         {locationMessage ? <p className="inline-notice" role="status">{locationMessage}</p> : null}
         <div className="form-row"><label className="form-field"><span>يفتح الفرع</span><input name="opensAt" type="time" defaultValue="08:00" required /></label><label className="form-field"><span>يغلق الفرع</span><input name="closesAt" type="time" defaultValue="23:59" required /></label></div>
-        <div className="form-row toggle-row"><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked /><span>الاستلام متاح</span></label><label className="toggle-field"><input name="delivery" type="checkbox" /><span>التوصيل متاح</span></label></div>
+        <div className="form-row toggle-row"><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked /><span>الاستلام متاح</span></label></div>
+        <p className="inline-notice">المرحلة التجريبية: الاستلام من الفرع فقط. التوصيل خارج نطاق الـMVP.</p>
+        <label className="confirmation-check"><input type="checkbox" required /><span><Icon name="check" size={14} /></span>أرفق صورة الإجازة وأؤكد صحة البيانات.</label>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button className="primary-cta" type="submit" disabled={busy}>{busy ? "جارٍ إرسال الملف الآمن…" : "إرسال طلب التحقق"}</button>
+        <button className="primary-cta" type="submit" disabled={busy || !file}>{busy ? "جارٍ إرسال الملف الآمن…" : "إرسال طلب التحقق"}</button>
       </form>
     </>
   );
@@ -200,11 +205,14 @@ function VerificationStatus({
   profile: PharmacyProfile;
   reload: () => Promise<unknown>;
 }) {
+  if (profile.verification_status === "REJECTED") {
+    return <PharmacyOnboardingPage onComplete={reload} />;
+  }
   return (
     <section className="verification-state">
       <span className="verification-icon"><Icon name="shield" size={34} /></span>
       <StatusBadge status={profile.verification_status} />
-      <h1>{profile.verification_status === "REJECTED" ? "تحتاج البيانات إلى تعديل" : profile.verification_status === "SUSPENDED" ? "الحساب معلّق" : "طلب التحقق قيد المراجعة"}</h1>
+      <h1>{profile.verification_status === "SUSPENDED" ? "الحساب معلّق" : "طلب التحقق قيد المراجعة"}</h1>
       <p>{profile.verification_reason ?? "يراجع المشرف بيانات الإجازة وموقع الفرع. لن يظهر شارة اعتماد قبل صدور القرار."}</p>
       <dl><div><dt>الصيدلية</dt><dd>{profile.name}</dd></div><div><dt>رقم الإجازة</dt><dd dir="ltr">{profile.license_number}</dd></div><div><dt>الفرع</dt><dd>{profile.district}</dd></div></dl>
       <button className="secondary-cta" type="button" onClick={() => void reload()}>تحديث الحالة</button>
@@ -274,7 +282,7 @@ export function PharmacyRequestPage() {
         <div className="form-row"><label className="form-field"><span>العلامة التجارية المتوفرة</span><input name="brand" defaultValue={offerType === "EXACT" ? item.medicine_name : ""} required /></label><label className="form-field"><span>القوة</span><input name="strength" defaultValue={item.strength ?? ""} required /></label></div>
         <div className="form-row"><label className="form-field"><span>الشكل</span><input name="form" defaultValue={item.dosage_form ?? ""} required /></label><label className="form-field"><span>الكمية المتاحة</span><input name="quantity" type="number" min={1} defaultValue={item.quantity} required /></label></div>
         <div className="form-row"><label className="form-field"><span>السعر الكلي IQD</span><input name="price" dir="ltr" inputMode="numeric" type="number" min={0} required /></label><label className="form-field"><span>التجهيز بالدقائق</span><select name="preparation" defaultValue="10"><option value="0">جاهز الآن</option><option value="10">10 دقائق</option><option value="20">20 دقيقة</option><option value="60">ساعة</option></select></label></div>
-        <div className="form-row toggle-row"><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked /><span>استلام</span></label><label className="toggle-field"><input name="delivery" type="checkbox" /><span>توصيل</span></label></div>
+        <div className="form-row toggle-row"><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked /><span>استلام من الفرع</span></label></div>
         <label className="form-field"><span>ملاحظة اختيارية</span><textarea name="note" maxLength={500} placeholder="مثال: أحضر الوصفة الأصلية." /></label>
         <label className="confirmation-check"><input type="checkbox" required /><span><Icon name="check" size={14} /></span>أؤكد أن البيانات دقيقة وأن الفرع يستطيع حفظ الكمية 15 دقيقة بعد اختيار المريض.</label>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
@@ -289,9 +297,11 @@ export function PharmacyReservationsPage() {
   const reservations = useApi(async () => (await apiFetch<{ data: PharmacyReservation[] }>("/api/v1/pharmacy/reservations")).data, [], 4000);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [messages, setMessages] = useState<Record<string, Array<{ id: string; body: string; sender_name: string }>>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   if (reservations.loading) return <LoadingState />;
   if (reservations.error) return <ErrorState error={reservations.error} retry={reservations.reload} />;
-  async function transition(id: string, action: "acknowledge" | "ready" | "complete" | "fail") {
+  async function transition(id: string, action: "acknowledge" | "ready" | "complete" | "fail" | "no-show") {
     setBusy(`${id}:${action}`);
     setError("");
     try {
@@ -300,11 +310,40 @@ export function PharmacyReservationsPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحديث الحجز."); }
     finally { setBusy(""); }
   }
+  async function loadMessages(conversationId: string) {
+    const response = await apiFetch<{ data: Array<{ id: string; body: string; sender_name: string }> }>(`/api/v1/conversations/${conversationId}/messages`);
+    setMessages((current) => ({ ...current, [conversationId]: response.data }));
+  }
+  async function sendMessage(conversationId: string) {
+    const body = drafts[conversationId]?.trim();
+    if (!body) return;
+    await apiFetch(`/api/v1/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    });
+    setDrafts((current) => ({ ...current, [conversationId]: "" }));
+    await loadMessages(conversationId);
+  }
+  async function openPrescription(fileId: string) {
+    setBusy(`rx:${fileId}`);
+    setError("");
+    try {
+      const response = await fetch(`/api/v1/files/${fileId}`, { credentials: "include" });
+      if (!response.ok) throw new Error("لا يمكن فتح الوصفة الآن. يلزم حجز مؤكد نشط.");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر فتح الوصفة.");
+    } finally {
+      setBusy("");
+    }
+  }
   return (
     <>
-      <PageHeader eyebrow="التنفيذ" title="الحجوزات" description="الحجز لا يبدأ حتى تؤكد حفظ الكمية. كل انتقال محفوظ في الخادم." />
+      <PageHeader eyebrow="التنفيذ" title="الحجوزات" description="الحجز لا يبدأ حتى تؤكد حفظ الكمية. الوصفة تُفتح فقط بعد التأكيد وأثناء الحفظ النشط." />
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      {!reservations.data?.length ? <EmptyState title="لا توجد حجوزات" description="عندما يختار مريض عرضك سيظهر هنا طلب التأكيد." /> : <div className="reservation-management">{reservations.data.map((reservation) => <article key={reservation.id}><div className="reservation-management-head"><div><small>{reservation.public_reference}</small><h2 dir="auto">{reservation.medicine_name} {reservation.strength}</h2><p>{reservation.offered_brand} · {iqd(reservation.price_iqd)}</p></div><StatusBadge status={reservation.status} /></div><div className="reservation-deadline"><Icon name="clock" size={17} /><span>{reservation.status === "PENDING_ACK" ? `أكد قبل ${date(reservation.acknowledgement_deadline)}` : reservation.hold_expires_at ? `الحفظ حتى ${date(reservation.hold_expires_at)}` : "حالة نهائية"}</span></div><div className="management-actions">{reservation.status === "PENDING_ACK" ? <><button className="primary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "acknowledge")}>تأكيد الحجز</button><button className="secondary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "fail")}>تعذر الحفظ</button></> : reservation.status === "ACTIVE" ? <><button className="primary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "ready")}>الدواء جاهز</button><button className="secondary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "fail")}>مشكلة في التنفيذ</button></> : reservation.status === "READY" ? <button className="primary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "complete")}>تأكيد الاستلام</button> : null}</div></article>)}</div>}
+      {!reservations.data?.length ? <EmptyState title="لا توجد حجوزات" description="عندما يختار مريض عرضك سيظهر هنا طلب التأكيد." /> : <div className="reservation-management">{reservations.data.map((reservation) => <article key={reservation.id}><div className="reservation-management-head"><div><small>{reservation.public_reference}</small><h2 dir="auto">{reservation.medicine_name} {reservation.strength}</h2><p>{reservation.offered_brand} · {iqd(reservation.price_iqd)}</p></div><StatusBadge status={reservation.status} /></div><div className="reservation-deadline"><Icon name="clock" size={17} /><span>{reservation.status === "PENDING_ACK" ? `أكد قبل ${date(reservation.acknowledgement_deadline)}` : reservation.hold_expires_at ? `الحفظ حتى ${date(reservation.hold_expires_at)}` : "حالة نهائية"}</span></div><div className="management-actions">{reservation.status === "PENDING_ACK" ? <><button className="primary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "acknowledge")}>تأكيد الحجز</button><button className="secondary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "fail")}>تعذر الحفظ</button></> : reservation.status === "ACTIVE" ? <><button className="primary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "ready")}>الدواء جاهز</button><button className="secondary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "fail")}>مشكلة في التنفيذ</button></> : reservation.status === "READY" ? <><button className="primary-cta" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "complete")}>تأكيد الاستلام</button><button className="danger-link" type="button" disabled={Boolean(busy)} onClick={() => void transition(reservation.id, "no-show")}>لم يحضر المريض</button></> : null}{reservation.prescription_file_id && ["ACTIVE", "READY"].includes(reservation.status) ? <button className="secondary-cta" type="button" disabled={Boolean(busy)} onClick={() => void openPrescription(reservation.prescription_file_id!)}>عرض الوصفة</button> : null}{reservation.conversation_id && ["PENDING_ACK", "ACTIVE", "READY"].includes(reservation.status) ? <button className="secondary-cta" type="button" onClick={() => void loadMessages(reservation.conversation_id!)}>المحادثة</button> : null}</div>{reservation.conversation_id && messages[reservation.conversation_id] ? <section className="conversation-panel"><h2>محادثة الحجز</h2><div className="message-list">{messages[reservation.conversation_id].length ? messages[reservation.conversation_id].map((entry) => <div key={entry.id}><strong>{entry.sender_name}</strong><p>{entry.body}</p></div>) : <p>لا توجد رسائل بعد.</p>}</div><form onSubmit={(event) => { event.preventDefault(); void sendMessage(reservation.conversation_id!); }}><input value={drafts[reservation.conversation_id] ?? ""} onChange={(event) => setDrafts((current) => ({ ...current, [reservation.conversation_id!]: event.target.value }))} placeholder="رسالة قصيرة للتنسيق فقط" maxLength={1000} /><button className="primary-cta" type="submit">إرسال</button></form></section> : null}</article>)}</div>}
     </>
   );
 }
@@ -335,7 +374,7 @@ export function PharmacySettingsPage() {
   return (
     <>
       <PageHeader eyebrow="الفرع" title="إعدادات التشغيل" description="أوقف الطلبات عند الازدحام بدل ترك المرضى بلا رد." />
-      <form className="product-form" onSubmit={submit}><div className="settings-identity"><Icon name="store" size={25} /><div><strong>{data.name}</strong><span>{data.district} · {data.address}</span></div><StatusBadge status={data.verification_status} /></div><label className="toggle-field"><input name="accepting" type="checkbox" defaultChecked={data.accepting_requests} /><span>استقبال طلبات جديدة</span></label><label className="toggle-field"><input name="paused" type="checkbox" defaultChecked={data.operational_status === "PAUSED"} /><span>إيقاف الفرع مؤقتًا</span></label><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked={data.pickup_enabled} /><span>الاستلام متاح</span></label><label className="toggle-field"><input name="delivery" type="checkbox" defaultChecked={data.delivery_enabled} /><span>التوصيل متاح</span></label><div className="form-divider"><span>ساعات العمل</span></div><div className="form-row"><label className="form-field"><span>يفتح</span><input name="opensAt" type="time" defaultValue="08:00" required /></label><label className="form-field"><span>يغلق</span><input name="closesAt" type="time" defaultValue="23:59" required /></label></div><div className="weekday-grid">{["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"].map((day, index) => <label className="toggle-field" key={day}><input name={`day-${index}`} type="checkbox" defaultChecked={(data.opening_hours?.[String(index)] ?? []).length > 0} /><span>{day}</span></label>)}</div>{message ? <p className="inline-notice" role="status">{message}</p> : null}<button className="primary-cta" type="submit">حفظ الإعدادات</button></form>
+      <form className="product-form" onSubmit={submit}><div className="settings-identity"><Icon name="store" size={25} /><div><strong>{data.name}</strong><span>{data.district} · {data.address}</span></div><StatusBadge status={data.verification_status} /></div><label className="toggle-field"><input name="accepting" type="checkbox" defaultChecked={data.accepting_requests} /><span>استقبال طلبات جديدة</span></label><label className="toggle-field"><input name="paused" type="checkbox" defaultChecked={data.operational_status === "PAUSED"} /><span>إيقاف الفرع مؤقتًا</span></label><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked={data.pickup_enabled} /><span>الاستلام متاح</span></label><input type="hidden" name="delivery" value="" /><div className="form-divider"><span>ساعات العمل</span></div><div className="form-row"><label className="form-field"><span>يفتح</span><input name="opensAt" type="time" defaultValue="08:00" required /></label><label className="form-field"><span>يغلق</span><input name="closesAt" type="time" defaultValue="23:59" required /></label></div><div className="weekday-grid">{["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"].map((day, index) => <label className="toggle-field" key={day}><input name={`day-${index}`} type="checkbox" defaultChecked={(data.opening_hours?.[String(index)] ?? []).length > 0} /><span>{day}</span></label>)}</div>{message ? <p className="inline-notice" role="status">{message}</p> : null}<button className="primary-cta" type="submit">حفظ الإعدادات</button></form>
     </>
   );
 }

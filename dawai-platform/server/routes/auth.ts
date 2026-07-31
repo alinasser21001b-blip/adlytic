@@ -1,16 +1,19 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
+import { config } from "../config";
 import type { Database } from "../db/client";
 import { ApiError } from "../errors";
 import {
   clearWebSession,
   createSession,
   hashPassword,
+  hashToken,
   normalizeEmail,
   requireAuth,
   resolveSession,
+  revokeAllUserSessions,
   revokeSession,
   rotateCsrfToken,
   SESSION_COOKIE_NAME,
@@ -21,6 +24,12 @@ import { enforceRateLimit } from "../security/rate-limit";
 import { writeAudit } from "../services/audit";
 import type { AppVariables, UserRole } from "../types";
 
+const LEGAL_VERSIONS = {
+  PRIVACY_POLICY: "2026-07-31",
+  TERMS_OF_SERVICE: "2026-07-31",
+  PHARMACY_TERMS: "2026-07-31",
+} as const;
+
 const registerSchema = z
   .object({
     role: z.enum(["PATIENT", "PHARMACY"]),
@@ -30,8 +39,20 @@ const registerSchema = z
     password: z.string().min(10).max(128),
     clientType: z.enum(["web", "mobile"]).default("web"),
     deviceLabel: z.string().max(120).optional(),
+    acceptPrivacy: z.literal(true),
+    acceptTerms: z.literal(true),
+    acceptPharmacyTerms: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.role === "PHARMACY" && value.acceptPharmacyTerms !== true) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["acceptPharmacyTerms"],
+        message: "موافقة شروط الصيدلية مطلوبة.",
+      });
+    }
+  });
 
 const loginSchema = z
   .object({
@@ -54,7 +75,11 @@ interface LoginUser {
 }
 
 function ipSubject(request: Request): string {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  if (config.trustProxy) {
+    const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+  }
+  return "local";
 }
 
 export function authRoutes(database: Database) {
@@ -103,6 +128,26 @@ export function authRoutes(database: Database) {
         await transaction.query(
           "INSERT INTO patient_profiles (user_id) VALUES ($1)",
           [userId],
+        );
+      }
+      const consents: Array<[keyof typeof LEGAL_VERSIONS, boolean]> = [
+        ["PRIVACY_POLICY", true],
+        ["TERMS_OF_SERVICE", true],
+        ["PHARMACY_TERMS", body.role === "PHARMACY"],
+      ];
+      for (const [consentType, accepted] of consents) {
+        if (!accepted) continue;
+        await transaction.query(
+          `INSERT INTO user_consents
+            (id, user_id, consent_type, document_version, ip_hash)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            randomUUID(),
+            userId,
+            consentType,
+            LEGAL_VERSIONS[consentType],
+            createHash("sha256").update(ipSubject(context.req.raw)).digest("hex"),
+          ],
         );
       }
       await writeAudit(transaction, {
@@ -272,6 +317,166 @@ export function authRoutes(database: Database) {
     await revokeSession(database, context.get("session").id);
     clearWebSession(context);
     return context.json({ data: { loggedOut: true } });
+  });
+
+  routes.post("/logout-all", requireAuth(database), async (context) => {
+    const revoked = await revokeAllUserSessions(
+      database,
+      context.get("user").id,
+    );
+    clearWebSession(context);
+    return context.json({ data: { revoked } });
+  });
+
+  /**
+   * Password reset request — always returns the same message to avoid email enumeration.
+   * In production the opaque token is delivered by the SMS/email provider (external).
+   * Non-production returns resetToken for local verification only.
+   */
+  routes.post("/password-reset/request", async (context) => {
+    const body = z
+      .object({ email: z.string().email().max(254) })
+      .strict()
+      .parse(await context.req.json());
+    const email = normalizeEmail(body.email);
+    await enforceRateLimit(
+      database,
+      "password-reset",
+      `${ipSubject(context.req.raw)}:${email}`,
+      5,
+      3600,
+    );
+    const user = await database.query<{ id: string }>(
+      `SELECT id FROM users
+       WHERE email = $1 AND status = 'ACTIVE' LIMIT 1`,
+      [email],
+    );
+    let resetToken: string | undefined;
+    if (user.rows[0]) {
+      resetToken = randomBytes(32).toString("base64url");
+      const expiresAt = new Date(
+        Date.now() + config.passwordResetTtlMinutes * 60_000,
+      ).toISOString();
+      await database.query(
+        `UPDATE password_reset_tokens SET used_at = now()
+         WHERE user_id = $1 AND used_at IS NULL`,
+        [user.rows[0].id],
+      );
+      await database.query(
+        `INSERT INTO password_reset_tokens
+          (id, user_id, token_hash, expires_at, requested_ip_hash)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          randomUUID(),
+          user.rows[0].id,
+          hashToken(resetToken),
+          expiresAt,
+          createHash("sha256").update(ipSubject(context.req.raw)).digest("hex"),
+        ],
+      );
+      await writeAudit(database, {
+        actorUserId: user.rows[0].id,
+        actorRole: undefined,
+        action: "PASSWORD_RESET_REQUESTED",
+        resourceType: "USER",
+        resourceId: user.rows[0].id,
+        requestId: context.get("requestId"),
+      });
+    }
+    return context.json({
+      data: {
+        accepted: true,
+        message:
+          "إن وُجد حساب بهذا البريد ستصلك تعليمات إعادة التعيين خلال دقائق.",
+        ...(config.isProtected || !resetToken
+          ? {}
+          : { resetToken, expiresInMinutes: config.passwordResetTtlMinutes }),
+      },
+    });
+  });
+
+  routes.post("/password-reset/confirm", async (context) => {
+    const body = z
+      .object({
+        token: z.string().min(20).max(200),
+        password: z.string().min(10).max(128),
+      })
+      .strict()
+      .parse(await context.req.json());
+    await enforceRateLimit(
+      database,
+      "password-reset-confirm",
+      ipSubject(context.req.raw),
+      10,
+      3600,
+    );
+    const token = await database.query<{ id: string; user_id: string }>(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token_hash = $1
+         AND used_at IS NULL
+         AND expires_at > now()
+       LIMIT 1`,
+      [hashToken(body.token)],
+    );
+    if (!token.rows[0]) {
+      throw new ApiError(
+        400,
+        "RESET_TOKEN_INVALID",
+        "رابط إعادة التعيين غير صالح أو منتهٍ.",
+      );
+    }
+    const passwordHash = await hashPassword(body.password);
+    await database.transaction(async (transaction) => {
+      await transaction.query(
+        `UPDATE users SET password_hash = $1, updated_at = now()
+         WHERE id = $2 AND status = 'ACTIVE'`,
+        [passwordHash, token.rows[0].user_id],
+      );
+      await transaction.query(
+        `UPDATE password_reset_tokens SET used_at = now() WHERE id = $1`,
+        [token.rows[0].id],
+      );
+      await revokeAllUserSessions(transaction, token.rows[0].user_id);
+      await writeAudit(transaction, {
+        actorUserId: token.rows[0].user_id,
+        action: "PASSWORD_RESET_COMPLETED",
+        resourceType: "USER",
+        resourceId: token.rows[0].user_id,
+        requestId: context.get("requestId"),
+      });
+    });
+    return context.json({ data: { reset: true } });
+  });
+
+  routes.post("/account/delete", requireAuth(database), async (context) => {
+    const user = context.get("user");
+    if (user.role === "ADMIN") {
+      throw new ApiError(
+        403,
+        "ADMIN_DELETE_FORBIDDEN",
+        "لا يمكن حذف حساب المشرف بهذه الطريقة.",
+      );
+    }
+    await database.transaction(async (transaction) => {
+      await transaction.query(
+        `UPDATE users
+         SET status = 'DELETED', deleted_at = now(),
+             email = $1, updated_at = now()
+         WHERE id = $2`,
+        [`deleted+${user.id}@dawai.invalid`, user.id],
+      );
+      await revokeAllUserSessions(transaction, user.id);
+      await writeAudit(transaction, {
+        actorUserId: user.id,
+        actorRole: user.role,
+        action: "ACCOUNT_SOFT_DELETED",
+        resourceType: "USER",
+        resourceId: user.id,
+        requestId: context.get("requestId"),
+      });
+    });
+    clearWebSession(context);
+    return context.json({ data: { deleted: true } });
   });
 
   return routes;

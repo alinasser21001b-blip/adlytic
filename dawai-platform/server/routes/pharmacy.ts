@@ -11,6 +11,10 @@ import {
   requestFingerprint,
 } from "../security/idempotency";
 import { writeAudit } from "../services/audit";
+import {
+  recordConfirmedNotFound,
+  recordPharmacyResponseMetrics,
+} from "../services/matching";
 import { createNotification } from "../services/notifications";
 import type { AppVariables } from "../types";
 
@@ -115,61 +119,112 @@ export function pharmacyRoutes(database: Database) {
     const body = onboardingSchema.parse(await context.req.json());
     const user = context.get("user");
     const existing = await ownedPharmacy(database, user.id);
-    if (existing) {
+    if (existing && existing.verification_status !== "REJECTED") {
       throw new ApiError(
         409,
         "PHARMACY_ALREADY_EXISTS",
         "تم إرسال بيانات الصيدلية مسبقًا.",
       );
     }
-    const pharmacyId = randomUUID();
-    const branchId = randomUUID();
+    const deliveryEnabled = config.mvpDeliveryEnabled
+      ? body.deliveryEnabled
+      : false;
+    const pharmacyId = existing?.pharmacy_id ?? randomUUID();
+    const branchId = existing?.branch_id ?? randomUUID();
     await database.transaction(async (transaction) => {
-      await transaction.query(
-        `INSERT INTO pharmacies
-          (id, owner_user_id, name, pharmacist_name, phone, email,
-           license_number, license_issuer, license_expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          pharmacyId,
-          user.id,
-          body.pharmacyName,
-          body.pharmacistName,
-          body.phone,
-          user.email,
-          body.licenseNumber,
-          body.licenseIssuer,
-          body.licenseExpiresAt,
-        ],
-      );
-      await transaction.query(
-        `INSERT INTO pharmacy_branches
-          (id, pharmacy_id, name, governorate, district, address, landmark,
-           latitude, longitude, opening_hours, pickup_enabled, delivery_enabled)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)`,
-        [
-          branchId,
-          pharmacyId,
-          body.branchName,
-          body.governorate,
-          body.district,
-          body.address,
-          body.landmark,
-          body.latitude,
-          body.longitude,
-          JSON.stringify(body.openingHours),
-          body.pickupEnabled,
-          body.deliveryEnabled,
-        ],
-      );
-      await transaction.query(
-        "INSERT INTO reliability_metrics (branch_id) VALUES ($1)",
-        [branchId],
-      );
+      if (existing?.verification_status === "REJECTED") {
+        await transaction.query(
+          `UPDATE pharmacies
+           SET name = $1, pharmacist_name = $2, phone = $3, email = $4,
+               license_number = $5, license_issuer = $6,
+               license_expires_at = $7, verification_status = 'PENDING',
+               verification_reason = NULL, resubmitted_at = now(),
+               updated_at = now()
+           WHERE id = $8 AND owner_user_id = $9`,
+          [
+            body.pharmacyName,
+            body.pharmacistName,
+            body.phone,
+            user.email,
+            body.licenseNumber,
+            body.licenseIssuer,
+            body.licenseExpiresAt,
+            pharmacyId,
+            user.id,
+          ],
+        );
+        await transaction.query(
+          `UPDATE pharmacy_branches
+           SET name = $1, governorate = $2, district = $3, address = $4,
+               landmark = $5, latitude = $6, longitude = $7,
+               opening_hours = $8::jsonb, pickup_enabled = $9,
+               delivery_enabled = $10, accepting_requests = false,
+               operational_status = 'ACTIVE', updated_at = now()
+           WHERE id = $11 AND pharmacy_id = $12`,
+          [
+            body.branchName,
+            body.governorate,
+            body.district,
+            body.address,
+            body.landmark,
+            body.latitude,
+            body.longitude,
+            JSON.stringify(body.openingHours),
+            body.pickupEnabled,
+            deliveryEnabled,
+            branchId,
+            pharmacyId,
+          ],
+        );
+      } else {
+        await transaction.query(
+          `INSERT INTO pharmacies
+            (id, owner_user_id, name, pharmacist_name, phone, email,
+             license_number, license_issuer, license_expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            pharmacyId,
+            user.id,
+            body.pharmacyName,
+            body.pharmacistName,
+            body.phone,
+            user.email,
+            body.licenseNumber,
+            body.licenseIssuer,
+            body.licenseExpiresAt,
+          ],
+        );
+        await transaction.query(
+          `INSERT INTO pharmacy_branches
+            (id, pharmacy_id, name, governorate, district, address, landmark,
+             latitude, longitude, opening_hours, pickup_enabled, delivery_enabled)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)`,
+          [
+            branchId,
+            pharmacyId,
+            body.branchName,
+            body.governorate,
+            body.district,
+            body.address,
+            body.landmark,
+            body.latitude,
+            body.longitude,
+            JSON.stringify(body.openingHours),
+            body.pickupEnabled,
+            deliveryEnabled,
+          ],
+        );
+        await transaction.query(
+          "INSERT INTO reliability_metrics (branch_id) VALUES ($1)",
+          [branchId],
+        );
+      }
       await writeAudit(transaction, {
         actorUserId: user.id,
         actorRole: "PHARMACY",
-        action: "PHARMACY_APPLICATION_SUBMITTED",
+        action: existing
+          ? "PHARMACY_APPLICATION_RESUBMITTED"
+          : "PHARMACY_APPLICATION_SUBMITTED",
         resourceType: "PHARMACY",
         resourceId: pharmacyId,
         requestId: context.get("requestId"),
@@ -183,7 +238,7 @@ export function pharmacyRoutes(database: Database) {
           verificationStatus: "PENDING",
         },
       },
-      201,
+      existing ? 200 : 201,
     );
   });
 
@@ -320,17 +375,27 @@ export function pharmacyRoutes(database: Database) {
       database,
       context.get("user").id,
     );
-    const result = await database.query(
+    const result = await database.query<{
+      id: string;
+      sent_at: string;
+    }>(
       `UPDATE request_dispatches
        SET status = 'DECLINED', responded_at = now()
        WHERE request_id = $1 AND branch_id = $2
          AND status IN ('SENT', 'VIEWED')
-       RETURNING id`,
+       RETURNING id, sent_at`,
       [context.req.param("requestId"), pharmacy.branch_id],
     );
     if (!result.rows[0]) {
       throw new ApiError(409, "REQUEST_ALREADY_ANSWERED", "تم الرد على الطلب.");
     }
+    const responseSeconds =
+      (Date.now() - new Date(result.rows[0].sent_at).getTime()) / 1000;
+    await recordPharmacyResponseMetrics(
+      database,
+      pharmacy.branch_id,
+      responseSeconds,
+    );
     return context.json({ data: { declined: true } });
   });
 
@@ -406,18 +471,28 @@ export function pharmacyRoutes(database: Database) {
           body.availableQuantity,
           body.priceIqd,
           body.pickupEnabled,
-          body.deliveryEnabled,
+          config.mvpDeliveryEnabled ? body.deliveryEnabled : false,
           body.preparationMinutes,
           body.note,
           expiresAt,
         ],
       );
-      await transaction.query(
+      const dispatch = await transaction.query<{ sent_at: string }>(
         `UPDATE request_dispatches
          SET status = 'RESPONDED', responded_at = now()
-         WHERE request_id = $1 AND branch_id = $2`,
+         WHERE request_id = $1 AND branch_id = $2
+         RETURNING sent_at`,
         [context.req.param("requestId"), pharmacy.branch_id],
       );
+      if (dispatch.rows[0]) {
+        const responseSeconds =
+          (Date.now() - new Date(dispatch.rows[0].sent_at).getTime()) / 1000;
+        await recordPharmacyResponseMetrics(
+          transaction,
+          pharmacy.branch_id,
+          responseSeconds,
+        );
+      }
       if (body.offerType === "EXACT" || body.offerType === "PARTIAL") {
         await transaction.query(
           `INSERT INTO availability_signals
@@ -474,11 +549,13 @@ export function pharmacyRoutes(database: Database) {
     const result = await database.query(
       `SELECT
          res.*, r.public_reference AS request_reference, r.medicine_name,
-         r.strength, r.quantity, o.price_iqd, o.offered_brand,
-         o.preparation_minutes
+         r.strength, r.quantity, r.prescription_file_id, r.prescription_status,
+         o.price_iqd, o.offered_brand, o.preparation_minutes,
+         c.id AS conversation_id
        FROM reservations res
        JOIN medicine_requests r ON r.id = res.request_id
        JOIN pharmacy_offers o ON o.id = res.offer_id
+       LEFT JOIN conversations c ON c.reservation_id = res.id
        WHERE res.branch_id = $1
        ORDER BY
          CASE res.status
@@ -679,33 +756,134 @@ export function pharmacyRoutes(database: Database) {
       database,
       context.get("user").id,
     );
-    const result = await database.query<{ patient_id: string; request_id: string }>(
-      `UPDATE reservations
-       SET status = 'FAILED', failure_reason = $1, updated_at = now()
-       WHERE id = $2 AND branch_id = $3
-         AND status IN ('PENDING_ACK', 'ACTIVE', 'READY')
-       RETURNING patient_id, request_id`,
-      [body.reason, context.req.param("reservationId"), pharmacy.branch_id],
-    );
-    if (!result.rows[0]) {
-      throw new ApiError(409, "RESERVATION_NOT_FAILABLE", "تعذر تحديث الحجز.");
-    }
-    await database.query(
-      `UPDATE medicine_requests
-       SET status = CASE WHEN expires_at > now() THEN 'ACTIVE' ELSE 'EXPIRED' END,
-           updated_at = now()
-       WHERE id = $1`,
-      [result.rows[0].request_id],
-    );
-    await createNotification(database, {
-      userId: result.rows[0].patient_id,
-      eventType: "RESERVATION_FAILED",
-      title: "تعذر تنفيذ الحجز",
-      body: "أبلغت الصيدلية عن مشكلة. يمكنك مراجعة طلبك للبحث مجددًا.",
-      resourceType: "REQUEST",
-      resourceId: result.rows[0].request_id,
+    const failed = await database.transaction(async (transaction) => {
+      const locked = await transaction.query<{
+        patient_id: string;
+        request_id: string;
+        offer_id: string;
+        status: string;
+      }>(
+        `SELECT patient_id, request_id, offer_id, status
+         FROM reservations
+         WHERE id = $1 AND branch_id = $2
+           AND status IN ('PENDING_ACK', 'ACTIVE', 'READY')
+         FOR UPDATE`,
+        [context.req.param("reservationId"), pharmacy.branch_id],
+      );
+      const row = locked.rows[0];
+      if (!row) {
+        throw new ApiError(409, "RESERVATION_NOT_FAILABLE", "تعذر تحديث الحجز.");
+      }
+      const priorStatus = row.status;
+      await transaction.query(
+        `UPDATE reservations
+         SET status = 'FAILED', failure_reason = $1, updated_at = now()
+         WHERE id = $2`,
+        [body.reason, context.req.param("reservationId")],
+      );
+      await transaction.query(
+        `UPDATE pharmacy_offers
+         SET status = 'FAILED', updated_at = now()
+         WHERE id = $1`,
+        [row.offer_id],
+      );
+      await transaction.query(
+        `UPDATE pharmacy_offers
+         SET status = 'ACTIVE', updated_at = now()
+         WHERE request_id = $1
+           AND status = 'SUPERSEDED'
+           AND expires_at > now()`,
+        [row.request_id],
+      );
+      await transaction.query(
+        `UPDATE medicine_requests
+         SET status = CASE WHEN expires_at > now() THEN 'ACTIVE' ELSE 'EXPIRED' END,
+             version = version + 1, updated_at = now()
+         WHERE id = $1`,
+        [row.request_id],
+      );
+      if (priorStatus === "ACTIVE" || priorStatus === "READY") {
+        await recordConfirmedNotFound(transaction, pharmacy.branch_id);
+      }
+      await createNotification(transaction, {
+        userId: row.patient_id,
+        eventType: "RESERVATION_FAILED",
+        title: "تعذر تنفيذ الحجز",
+        body: "أبلغت الصيدلية عن مشكلة. يمكنك مراجعة طلبك للبحث مجددًا.",
+        resourceType: "REQUEST",
+        resourceId: row.request_id,
+      });
+      await writeAudit(transaction, {
+        actorUserId: context.get("user").id,
+        actorRole: "PHARMACY",
+        action: "RESERVATION_FAILED",
+        resourceType: "RESERVATION",
+        resourceId: context.req.param("reservationId"),
+        requestId: context.get("requestId"),
+        metadata: { reason: body.reason },
+      });
+      return row;
     });
-    return context.json({ data: { status: "FAILED" } });
+    return context.json({ data: { status: "FAILED", requestId: failed.request_id } });
+  });
+
+  routes.post("/reservations/:reservationId/no-show", async (context) => {
+    const pharmacy = await requireVerifiedPharmacy(
+      database,
+      context.get("user").id,
+    );
+    const result = await database.transaction(async (transaction) => {
+      const locked = await transaction.query<{
+        patient_id: string;
+        request_id: string;
+        offer_id: string;
+      }>(
+        `UPDATE reservations
+         SET status = 'NO_SHOW', updated_at = now()
+         WHERE id = $1 AND branch_id = $2
+           AND status IN ('ACTIVE', 'READY')
+         RETURNING patient_id, request_id, offer_id`,
+        [context.req.param("reservationId"), pharmacy.branch_id],
+      );
+      const row = locked.rows[0];
+      if (!row) {
+        throw new ApiError(
+          409,
+          "RESERVATION_NOT_NO_SHOW",
+          "لا يمكن تسجيل عدم الحضور لهذا الحجز.",
+        );
+      }
+      await transaction.query(
+        `UPDATE medicine_requests
+         SET status = 'EXPIRED', version = version + 1, updated_at = now()
+         WHERE id = $1`,
+        [row.request_id],
+      );
+      await transaction.query(
+        `UPDATE pharmacy_offers
+         SET status = 'EXPIRED', updated_at = now()
+         WHERE id = $1`,
+        [row.offer_id],
+      );
+      await createNotification(transaction, {
+        userId: row.patient_id,
+        eventType: "PATIENT_NO_SHOW",
+        title: "لم يتم الاستلام",
+        body: "سجّلت الصيدلية عدم الحضور ضمن مهلة الحجز.",
+        resourceType: "RESERVATION",
+        resourceId: context.req.param("reservationId"),
+      });
+      await writeAudit(transaction, {
+        actorUserId: context.get("user").id,
+        actorRole: "PHARMACY",
+        action: "PATIENT_NO_SHOW",
+        resourceType: "RESERVATION",
+        resourceId: context.req.param("reservationId"),
+        requestId: context.get("requestId"),
+      });
+      return row;
+    });
+    return context.json({ data: { status: "NO_SHOW", requestId: result.request_id } });
   });
 
   routes.get("/inventory", async (context) => {

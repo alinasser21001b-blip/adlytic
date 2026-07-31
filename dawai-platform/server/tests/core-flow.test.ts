@@ -66,6 +66,9 @@ describe("Dawai production core loop", () => {
         phone: "07701234567",
         password: "StrongPassword!234",
         clientType: "web",
+        acceptPrivacy: true,
+        acceptTerms: true,
+        acceptPharmacyTerms: role === "PHARMACY" ? true : undefined,
       },
     });
     expect(response.status).toBe(201);
@@ -127,6 +130,27 @@ describe("Dawai production core loop", () => {
     });
     expect(onboarding.status).toBe(201);
     const onboardingBody = await onboarding.json();
+
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const licenseForm = new FormData();
+    licenseForm.set("purpose", "PHARMACY_LICENSE");
+    licenseForm.set(
+      "file",
+      new File([png], "license.png", { type: "image/png" }),
+    );
+    const licenseUpload = await app.request("/api/v1/files", {
+      method: "POST",
+      headers: {
+        Cookie: pharmacy.cookie,
+        Origin: "http://localhost:5173",
+        "X-CSRF-Token": pharmacy.csrf,
+      },
+      body: licenseForm,
+    });
+    expect(licenseUpload.status).toBe(201);
 
     await bootstrapAdmin(
       database,
@@ -244,13 +268,13 @@ describe("Dawai production core loop", () => {
         method: "POST",
         session: patient,
         idempotencyKey: randomUUID(),
-        body: { offerId: offer.id, fulfillmentMethod: "DELIVERY" },
+        body: { offerId: offer.id, fulfillmentMethod: "PICKUP" },
       },
     );
     expect(selectionResponse.status).toBe(201);
     const reservation = (await selectionResponse.json()).data;
     expect(reservation.status).toBe("PENDING_ACK");
-    expect(reservation.fulfillment_method).toBe("DELIVERY");
+    expect(reservation.fulfillment_method).toBe("PICKUP");
     expect(reservation.hold_expires_at).toBeNull();
 
     const acknowledge = await jsonRequest(

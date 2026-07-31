@@ -75,8 +75,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setCsrfToken("");
         return null;
       }
-      await loadCsrfToken();
+      // Keep prior session visible while rotating CSRF to avoid unmounting the shell.
       setSession(response.data);
+      try {
+        await loadCsrfToken();
+      } catch {
+        // Status succeeded; CSRF can be retried on the next mutation.
+      }
       return response.data;
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 0) setOffline(true);

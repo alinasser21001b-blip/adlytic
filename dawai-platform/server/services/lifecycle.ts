@@ -91,16 +91,20 @@ export async function runLifecycleSweep(database: Database): Promise<{
     await deleteEncryptedImage(database, file.id);
   }
 
-  await database.query(
-    `UPDATE notification_outbox
-     SET status = 'DELIVERED', delivered_at = now()
-     WHERE status = 'PENDING' AND channel = 'IN_APP'`,
-  );
+  const { dispatchFollowUpBatches } = await import("./matching");
+  await dispatchFollowUpBatches(database);
+
+  const { processNotificationOutbox } = await import("./notifications");
+  await processNotificationOutbox(database);
   await database.query(
     `DELETE FROM rate_limits WHERE expires_at < now() - interval '1 hour'`,
   );
   await database.query(
     `DELETE FROM idempotency_keys WHERE expires_at <= now()`,
+  );
+  await database.query(
+    `UPDATE password_reset_tokens SET used_at = now()
+     WHERE used_at IS NULL AND expires_at <= now()`,
   );
 
   return {

@@ -54,13 +54,135 @@ export function adminRoutes(database: Database) {
          (SELECT count(*)::int FROM pharmacies
           WHERE verification_status = 'VERIFIED') AS verified_pharmacies,
          (SELECT count(*)::int FROM medicine_requests
-          WHERE status IN ('ACTIVE', 'HOLD_PENDING', 'RESERVED', 'READY')) AS active_requests,
+          WHERE status IN ('ACTIVE', 'HOLD_PENDING', 'RESERVED', 'READY', 'NEEDS_CLARIFICATION')) AS active_requests,
          (SELECT count(*)::int FROM reservations
           WHERE status = 'COMPLETED'
             AND completed_at >= date_trunc('day', now())) AS completed_today,
-         (SELECT count(*)::int FROM reports WHERE status = 'OPEN') AS open_reports`,
+         (SELECT count(*)::int FROM reports WHERE status = 'OPEN') AS open_reports,
+         (SELECT count(*)::int FROM reservations
+          WHERE status IN ('PENDING_ACK', 'ACTIVE', 'READY')) AS active_holds,
+         (SELECT count(*)::int FROM reservations
+          WHERE status = 'EXPIRED'
+            AND updated_at >= now() - interval '24 hours') AS expired_holds_24h,
+         (SELECT count(*)::int FROM reservations
+          WHERE status = 'FAILED'
+            AND updated_at >= now() - interval '24 hours') AS failed_fulfillment_24h,
+         (SELECT count(*)::int FROM reservations
+          WHERE status = 'NO_SHOW'
+            AND updated_at >= now() - interval '24 hours') AS no_shows_24h,
+         (SELECT count(*)::int FROM medicine_requests
+          WHERE status = 'BLOCKED'
+            AND created_at >= now() - interval '7 days') AS safety_blocks_7d,
+         (SELECT COALESCE(SUM(confirmed_not_found), 0)::int
+          FROM reliability_metrics) AS confirmed_not_found_total`,
     );
-    return context.json({ data: result.rows[0] });
+    const pilot = await database.query<{
+      reservation_pickup_success_rate: number | null;
+      median_first_offer_seconds: number | null;
+      matchable_with_offer_rate: number | null;
+      reservation_success_rate: number | null;
+      confirmed_not_found_rate: number | null;
+      avg_notifications_per_success: number | null;
+    }>(
+      `SELECT
+         (
+           SELECT CASE WHEN count(*) = 0 THEN NULL
+             ELSE count(*) FILTER (WHERE status = 'COMPLETED')::float
+                  / NULLIF(count(*) FILTER (
+                      WHERE status IN ('COMPLETED', 'FAILED', 'EXPIRED', 'NO_SHOW', 'CANCELLED')
+                        AND acknowledged_at IS NOT NULL
+                    ), 0)
+           END
+           FROM reservations
+           WHERE created_at >= now() - interval '7 days'
+         ) AS reservation_pickup_success_rate,
+         (
+           SELECT (
+             SELECT EXTRACT(EPOCH FROM (first_offer - created_at))
+             FROM (
+               SELECT r.created_at, min(o.created_at) AS first_offer
+               FROM medicine_requests r
+               JOIN pharmacy_offers o ON o.request_id = r.id
+               WHERE r.created_at >= now() - interval '7 days'
+                 AND r.status NOT IN ('BLOCKED', 'NEEDS_CLARIFICATION')
+               GROUP BY r.id, r.created_at
+             ) timed
+             ORDER BY EXTRACT(EPOCH FROM (first_offer - created_at))
+             LIMIT 1 OFFSET (
+               SELECT GREATEST(
+                 0,
+                 (count(*) - 1) / 2
+               )
+               FROM (
+                 SELECT r.id
+                 FROM medicine_requests r
+                 JOIN pharmacy_offers o ON o.request_id = r.id
+                 WHERE r.created_at >= now() - interval '7 days'
+                   AND r.status NOT IN ('BLOCKED', 'NEEDS_CLARIFICATION')
+                 GROUP BY r.id
+               ) c
+             )
+           )
+         ) AS median_first_offer_seconds,
+         (
+           SELECT CASE WHEN count(*) = 0 THEN NULL
+             ELSE count(*) FILTER (WHERE offer_count > 0)::float / count(*)
+           END
+           FROM (
+             SELECT r.id,
+                    (SELECT count(*) FROM pharmacy_offers o WHERE o.request_id = r.id) AS offer_count
+             FROM medicine_requests r
+             WHERE r.created_at >= now() - interval '7 days'
+               AND r.status NOT IN ('BLOCKED', 'DRAFT', 'NEEDS_CLARIFICATION')
+           ) matchable
+         ) AS matchable_with_offer_rate,
+         (
+           SELECT CASE WHEN count(*) = 0 THEN NULL
+             ELSE count(*) FILTER (WHERE status IN ('ACTIVE', 'READY', 'COMPLETED'))::float
+                  / NULLIF(count(*), 0)
+           END
+           FROM reservations
+           WHERE created_at >= now() - interval '7 days'
+         ) AS reservation_success_rate,
+         (
+           SELECT CASE
+             WHEN COALESCE(SUM(completed_requests + confirmed_not_found), 0) = 0 THEN NULL
+             ELSE SUM(confirmed_not_found)::float
+                  / NULLIF(SUM(completed_requests + confirmed_not_found), 0)
+           END
+           FROM reliability_metrics
+         ) AS confirmed_not_found_rate,
+         (
+           SELECT CASE WHEN success_count = 0 THEN NULL
+             ELSE notification_count::float / success_count
+           END
+           FROM (
+             SELECT
+               (SELECT count(*)::int FROM reservations
+                WHERE status = 'COMPLETED'
+                  AND completed_at >= now() - interval '7 days') AS success_count,
+               (SELECT count(*)::int FROM notifications
+                WHERE event_type = 'NEARBY_REQUEST'
+                  AND created_at >= now() - interval '7 days') AS notification_count
+           ) counts
+         ) AS avg_notifications_per_success`,
+    );
+    return context.json({
+      data: {
+        ...result.rows[0],
+        pilot_metrics: {
+          window: "7d",
+          targets: {
+            median_first_offer_seconds: 300,
+            matchable_with_offer_rate: 0.6,
+            reservation_success_rate: 0.7,
+            confirmed_not_found_rate: 0.05,
+            avg_notifications_per_success: 8,
+          },
+          ...pilot.rows[0],
+        },
+      },
+    });
   });
 
   routes.get("/verifications", async (context) => {
@@ -120,6 +242,19 @@ export function adminRoutes(database: Database) {
   routes.post("/verifications/:pharmacyId/approve", async (context) => {
     const admin = context.get("user");
     await database.transaction(async (transaction) => {
+      const docs = await transaction.query(
+        `SELECT id FROM verification_documents
+         WHERE pharmacy_id = $1 AND document_type = 'LICENSE'
+         LIMIT 1`,
+        [context.req.param("pharmacyId")],
+      );
+      if (!docs.rows[0]) {
+        throw new ApiError(
+          422,
+          "LICENSE_DOCUMENT_REQUIRED",
+          "لا يمكن الاعتماد بدون صورة إجازة صيدلية مرفقة.",
+        );
+      }
       const result = await transaction.query<{ owner_user_id: string }>(
         `UPDATE pharmacies
          SET verification_status = 'VERIFIED', verification_reason = NULL,
@@ -137,6 +272,12 @@ export function adminRoutes(database: Database) {
           "لا يمكن اعتماد هذه الصيدلية من حالتها الحالية.",
         );
       }
+      await transaction.query(
+        `UPDATE verification_documents
+         SET status = 'ACCEPTED'
+         WHERE pharmacy_id = $1 AND document_type = 'LICENSE'`,
+        [context.req.param("pharmacyId")],
+      );
       await transaction.query(
         `UPDATE pharmacy_branches
          SET accepting_requests = true, operational_status = 'ACTIVE',
@@ -333,7 +474,10 @@ export function adminRoutes(database: Database) {
 
   routes.get("/requests", async (context) => {
     const result = await database.query(
-      `SELECT r.*, u.name AS patient_name,
+      `SELECT r.id, r.public_reference, r.status, r.medicine_name, r.strength,
+              r.dosage_form, r.quantity, r.urgency, r.area, r.radius_km,
+              r.coarse_geohash, r.prescription_status, r.expires_at, r.created_at,
+              u.name AS patient_name,
               (SELECT count(*)::int FROM request_dispatches d
                WHERE d.request_id = r.id) AS dispatch_count,
               (SELECT count(*)::int FROM pharmacy_offers o
@@ -347,7 +491,11 @@ export function adminRoutes(database: Database) {
 
   routes.get("/requests/:requestId", async (context) => {
     const request = await database.query(
-      `SELECT r.*, u.name AS patient_name, u.email AS patient_email
+      `SELECT r.id, r.public_reference, r.status, r.medicine_name, r.strength,
+              r.dosage_form, r.quantity, r.urgency, r.area, r.radius_km,
+              r.coarse_geohash, r.prescription_status, r.expires_at, r.created_at,
+              r.updated_at, r.version,
+              u.name AS patient_name
        FROM medicine_requests r
        JOIN users u ON u.id = r.patient_id
        WHERE r.id = $1`,
@@ -357,7 +505,8 @@ export function adminRoutes(database: Database) {
       throw new ApiError(404, "REQUEST_NOT_FOUND", "الطلب غير موجود.");
     }
     const dispatches = await database.query(
-      `SELECT d.*, p.name AS pharmacy_name, b.name AS branch_name
+      `SELECT d.id, d.distance_km, d.match_score, d.status, d.sent_at,
+              p.name AS pharmacy_name, b.name AS branch_name
        FROM request_dispatches d
        JOIN pharmacy_branches b ON b.id = d.branch_id
        JOIN pharmacies p ON p.id = b.pharmacy_id
@@ -365,7 +514,9 @@ export function adminRoutes(database: Database) {
       [context.req.param("requestId")],
     );
     const offers = await database.query(
-      `SELECT o.*, p.name AS pharmacy_name
+      `SELECT o.id, o.status, o.offer_type, o.offered_brand, o.offered_strength,
+              o.price_iqd, o.available_quantity, o.created_at, o.expires_at,
+              p.name AS pharmacy_name
        FROM pharmacy_offers o
        JOIN pharmacy_branches b ON b.id = o.branch_id
        JOIN pharmacies p ON p.id = b.pharmacy_id
@@ -373,7 +524,9 @@ export function adminRoutes(database: Database) {
       [context.req.param("requestId")],
     );
     const reservations = await database.query(
-      `SELECT * FROM reservations WHERE request_id = $1 ORDER BY created_at`,
+      `SELECT id, public_reference, status, fulfillment_method,
+              acknowledgement_deadline, hold_expires_at, created_at, completed_at
+       FROM reservations WHERE request_id = $1 ORDER BY created_at`,
       [context.req.param("requestId")],
     );
     return context.json({

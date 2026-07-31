@@ -4,12 +4,11 @@ import {
   randomBytes,
   randomUUID,
 } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import sharp from "sharp";
 import { config } from "../config";
 import type { DbExecutor } from "../db/client";
 import { ApiError } from "../errors";
+import { getObjectStore, scanBytesForMalware } from "./object-store";
 
 export type FilePurpose =
   | "PRESCRIPTION"
@@ -99,11 +98,30 @@ export async function storeEncryptedImage(
   input: {
     ownerUserId: string;
     purpose: FilePurpose;
+    attachmentKind?: "PRESCRIPTION" | "BOX_IMAGE";
     bytes: Buffer;
     requestId?: string;
     pharmacyId?: string;
   },
 ): Promise<{ id: string; mediaType: string; sizeBytes: number }> {
+  if (config.malwareScanUrl) {
+    try {
+      await scanBytesForMalware(input.bytes, `${input.purpose}.bin`);
+    } catch (error) {
+      if (error instanceof Error && error.message === "MALWARE_DETECTED") {
+        throw new ApiError(
+          422,
+          "MALWARE_DETECTED",
+          "رُفض الملف بعد فحص الأمان.",
+        );
+      }
+      throw new ApiError(
+        503,
+        "MALWARE_SCAN_UNAVAILABLE",
+        "تعذر فحص الملف. أعد المحاولة لاحقًا.",
+      );
+    }
+  }
   const sanitized = await sanitizeImage(input.bytes);
   const id = randomUUID();
   const nonce = randomBytes(12);
@@ -118,18 +136,18 @@ export async function storeEncryptedImage(
   ]);
   const authTag = cipher.getAuthTag();
   const storageKey = `${id}.enc`;
+  const store = getObjectStore();
+  const attachmentKind =
+    input.attachmentKind === "BOX_IMAGE" ? "BOX_IMAGE" : "PRESCRIPTION";
 
-  await mkdir(config.storagePath, { recursive: true, mode: 0o700 });
-  await writeFile(join(config.storagePath, storageKey), encrypted, {
-    mode: 0o600,
-  });
+  await store.put(storageKey, encrypted);
 
   try {
     await database.query(
       `INSERT INTO secure_files
         (id, owner_user_id, purpose, request_id, pharmacy_id, storage_key,
-         media_type, size_bytes, nonce, auth_tag, delete_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+         media_type, size_bytes, nonce, auth_tag, attachment_kind, delete_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
          CASE WHEN $3 = 'PRESCRIPTION'
            THEN now() + interval '7 days'
            ELSE NULL
@@ -145,10 +163,11 @@ export async function storeEncryptedImage(
         sanitized.data.length,
         nonce.toString("base64"),
         authTag.toString("base64"),
+        attachmentKind,
       ],
     );
   } catch (error) {
-    await unlink(join(config.storagePath, storageKey)).catch(() => undefined);
+    await store.delete(storageKey);
     throw error;
   }
 
@@ -175,7 +194,7 @@ export async function readEncryptedImage(
     throw new ApiError(404, "FILE_NOT_FOUND", "الملف غير موجود.");
   }
 
-  const encrypted = await readFile(join(config.storagePath, row.storage_key));
+  const encrypted = await getObjectStore().get(row.storage_key);
   const decipher = createDecipheriv(
     "aes-256-gcm",
     encryptionKey(),
@@ -210,6 +229,6 @@ export async function deleteEncryptedImage(
   );
   const key = result.rows[0]?.storage_key;
   if (key) {
-    await unlink(join(config.storagePath, key)).catch(() => undefined);
+    await getObjectStore().delete(key);
   }
 }

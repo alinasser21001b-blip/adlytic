@@ -241,9 +241,10 @@ export function MedicineSearchPage() {
             <article key={result.signal_id}>
               <div className="pharmacy-avatar"><Icon name="store" size={22} /></div>
               <div><h2>{result.pharmacy_name}</h2><p>{result.district} · {result.distanceKm.toFixed(1)} كم</p><span className="fresh-line"><span className="live-dot" /> تأكد {formatDate(result.observed_at)}</span></div>
-              <StatusBadge status={result.state}>{result.state === "AVAILABLE" ? "شوهد متوفرًا" : "كمية محدودة"}</StatusBadge>
+              <StatusBadge status={result.state}>{result.source === "PHARMACIST_CONFIRMATION" ? "تأكيد صيدلي" : result.source === "MANUAL_STOCK" ? "إشارة يدوية" : "مزامنة مخزون"}</StatusBadge>
               <strong>{result.latest_price_iqd ? formatIqd(result.latest_price_iqd) : "السعر عند التأكيد"}</strong>
-              <div className="service-tags">{result.pickup_enabled ? <span>استلام</span> : null}{result.delivery_enabled ? <span>توصيل</span> : null}</div>
+              <p className="fresh-line">آخر تحديث: {formatDate(result.observed_at)} · ليس ضمان مخزون حي</p>
+              <div className="service-tags"><span>استلام</span></div>
             </article>
           ))}
         </div>
@@ -256,14 +257,16 @@ export function NewRequestPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [medicineName, setMedicineName] = useState(params.get("medicine") ?? "");
+  const [presentationId, setPresentationId] = useState<string | undefined>();
   const [strength, setStrength] = useState("");
   const [dosageForm, setDosageForm] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [urgency, setUrgency] = useState("NOW");
   const [area, setArea] = useState("المنصور، بغداد");
   const [coords, setCoords] = useState({ lat: 33.3152, lng: 44.3661 });
-  const [deliveryPreferred, setDeliveryPreferred] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [attachmentKind, setAttachmentKind] = useState<"PRESCRIPTION" | "BOX_IMAGE">("PRESCRIPTION");
+  const [prescriptionConsent, setPrescriptionConsent] = useState(false);
   const [permissionState, setPermissionState] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -286,10 +289,14 @@ export function NewRequestPage() {
     setBusy(true);
     setError("");
     try {
+      if (file && attachmentKind === "PRESCRIPTION" && !prescriptionConsent) {
+        throw new Error("وافق على مشاركة الوصفة مع الصيدلية المختارة فقط قبل الإرسال.");
+      }
       let prescriptionFileId: string | undefined;
       if (file) {
         const form = new FormData();
         form.set("purpose", "PRESCRIPTION");
+        form.set("attachmentKind", attachmentKind);
         form.set("file", file);
         const uploaded = await apiFetch<{ data: { id: string } }>("/api/v1/files", {
           method: "POST",
@@ -302,16 +309,20 @@ export function NewRequestPage() {
         idempotencyKey: newIdempotencyKey(),
         body: JSON.stringify({
           medicineName,
+          presentationId,
           strength: strength || undefined,
           dosageForm: dosageForm || undefined,
           quantity,
           urgency,
           prescriptionFileId,
+          prescriptionConsent:
+            prescriptionFileId && attachmentKind === "PRESCRIPTION" ? true : undefined,
+          attachmentKind: prescriptionFileId ? attachmentKind : undefined,
           area,
           latitude: coords.lat,
           longitude: coords.lng,
           pickupPreferred: true,
-          deliveryPreferred,
+          deliveryPreferred: false,
         }),
       });
       navigate(`/patient/requests/${response.data.id}`);
@@ -324,11 +335,11 @@ export function NewRequestPage() {
 
   return (
     <>
-      <PageHeader eyebrow="طلب دواء جديد" title="أخبرنا بما تحتاجه" description="لا نخمّن دواءً من وصف غامض. اكتب ما تعرفه أو أرفق صورة ليراجعها الصيدلي." />
+      <PageHeader eyebrow="طلب دواء جديد" title="أخبرنا بما تحتاجه" description="لا نخمّن دواءً من وصف غامض. اكتب ما تعرفه أو أرفق صورة ليراجعها الصيدلي. المرحلة التجريبية: الاستلام من الصيدلية فقط." />
       <form className="product-form" onSubmit={submit}>
-        <label className="form-field"><span>اسم الدواء أو وصف واضح</span><textarea dir="auto" value={medicineName} onChange={(event) => setMedicineName(event.target.value)} required minLength={2} placeholder="مثال: Augmentin 625 mg" /></label>
+        <label className="form-field"><span>اسم الدواء أو وصف واضح</span><textarea dir="auto" value={medicineName} onChange={(event) => { setMedicineName(event.target.value); setPresentationId(undefined); }} required minLength={2} placeholder="مثال: Augmentin 625 mg" /></label>
         <div className="form-row">
-          <label className="form-field"><span>القوة (إن عُرفت)</span><input dir="auto" value={strength} onChange={(event) => setStrength(event.target.value)} placeholder="625 mg" /></label>
+          <label className="form-field"><span>القوة (إن عُرفت)</span><input dir="ltr" value={strength} onChange={(event) => setStrength(event.target.value)} placeholder="625 mg" /></label>
           <label className="form-field"><span>الشكل</span><input value={dosageForm} onChange={(event) => setDosageForm(event.target.value)} placeholder="أقراص / شراب" /></label>
         </div>
         <div className="form-row">
@@ -339,15 +350,25 @@ export function NewRequestPage() {
           <input type="file" accept="image/png,image/jpeg,image/webp" capture={mode === "scan" ? "environment" : undefined} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           <Icon name={mode === "scan" ? "camera" : "upload"} size={27} />
           <strong>{file?.name ?? "صورة علبة أو وصفة (اختياري)"}</strong>
-          <span>تُفحص الصورة، تزال بيانات الموقع منها، وتُخزّن مشفرة.</span>
+          <span>تُفحص الصورة، تزال بيانات الموقع منها، وتُخزّن مشفرة. لا تُكشف قبل اختيار صيدلية وتأكيد الحجز.</span>
         </label>
+        {file ? (
+          <div className="form-row">
+            <label className="form-field"><span>نوع الصورة</span>
+              <select value={attachmentKind} onChange={(event) => setAttachmentKind(event.target.value as "PRESCRIPTION" | "BOX_IMAGE")}>
+                <option value="PRESCRIPTION">وصفة طبية</option>
+                <option value="BOX_IMAGE">صورة علبة / عبوة</option>
+              </select>
+            </label>
+          </div>
+        ) : null}
+        {file && attachmentKind === "PRESCRIPTION" ? <label className="confirmation-check"><input type="checkbox" checked={prescriptionConsent} onChange={(event) => setPrescriptionConsent(event.target.checked)} required /><span><Icon name="check" size={14} /></span>أوافق على مشاركة صورة الوصفة فقط مع الصيدلية التي أختارها وبعد تأكيد الحجز.</label> : null}
         <div className="location-box">
           <label className="form-field"><span>المنطقة</span><input value={area} onChange={(event) => setArea(event.target.value)} required /></label>
           <button type="button" className="secondary-cta" onClick={locate}><Icon name="location" size={18} /> استخدم موقعي</button>
           {permissionState ? <p role="status">{permissionState}</p> : null}
         </div>
-        <label className="toggle-field"><input type="checkbox" checked={deliveryPreferred} onChange={(event) => setDeliveryPreferred(event.target.checked)} /><span>أفضل التوصيل إن كان متاحًا</span></label>
-        <div className="safety-note"><Icon name="shield" size={20} /><p>الصورة للمراجعة وليست وصفة يصدرها دوائي. لن تُكشف للصيدليات قبل حجز نشط ومؤكد.</p></div>
+        <div className="safety-note"><Icon name="shield" size={20} /><p>الصورة للمراجعة وليست وصفة يصدرها دوائي. لن تُكشف للصيدليات قبل حجز نشط ومؤكد. التوصيل خارج نطاق الـMVP الحالي.</p></div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="primary-cta" type="submit" disabled={busy}>{busy ? "جارٍ الإرسال الآمن…" : "إرسال الطلب للصيدليات القريبة"}</button>
       </form>
@@ -372,14 +393,40 @@ export function RequestHistoryPage() {
 export function RequestDetailPage() {
   const { requestId = "" } = useParams();
   const navigate = useNavigate();
-  const request = useApi(async () => (await apiFetch<{ data: MedicineRequest }>(`/api/v1/patient/requests/${requestId}`)).data, [requestId], 5000);
-  const offers = useApi(async () => (await apiFetch<{ data: Offer[] }>(`/api/v1/patient/requests/${requestId}/offers`)).data, [requestId], 5000);
+  const request = useApi(async () => (await apiFetch<{ data: MedicineRequest }>(`/api/v1/patient/requests/${requestId}`)).data, [requestId], 8000);
+  const [offerSort, setOfferSort] = useState<"best" | "distance" | "price">("best");
+  const offers = useApi(async () => (await apiFetch<{ data: Offer[] }>(`/api/v1/patient/requests/${requestId}/offers?sort=${offerSort}`)).data, [requestId, offerSort], 8000);
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState("");
-  const [fulfillment, setFulfillment] = useState<Record<string, "PICKUP" | "DELIVERY">>({});
-  if (request.loading) return <LoadingState label="نحمّل حالة الطلب الحقيقية…" />;
-  if (request.error || !request.data) return <ErrorState error={request.error} retry={request.reload} />;
+  const [candidates, setCandidates] = useState<Array<{ id: string; brand_name: string; strength: string; dosage_form: string; pack_size: string | null }>>([]);
   const item = request.data;
+
+  // Hooks must run unconditionally — never after early returns.
+  useEffect(() => {
+    if (!item || item.status !== "NEEDS_CLARIFICATION") return;
+    void apiFetch<{ data: Array<{ id: string; brand_name: string; strength: string; dosage_form: string; pack_size: string | null }> }>(
+      `/api/v1/medicines/search?q=${encodeURIComponent(item.medicine_name)}`,
+    ).then((response) => setCandidates(response.data)).catch(() => setCandidates([]));
+  }, [item?.status, item?.medicine_name]);
+
+  if (request.loading && !item) return <LoadingState label="نحمّل حالة الطلب الحقيقية…" />;
+  if (!item) return <ErrorState error={request.error} retry={request.reload} />;
+
+  async function clarify(presentationId: string) {
+    setBusy(presentationId);
+    setActionError("");
+    try {
+      await apiFetch(`/api/v1/patient/requests/${requestId}/clarify`, {
+        method: "POST",
+        body: JSON.stringify({ presentationId }),
+      });
+      await Promise.all([request.reload(), offers.reload()]);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "تعذر تثبيت هوية الدواء.");
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function selectOffer(offer: Offer) {
     setBusy(offer.id);
@@ -390,9 +437,7 @@ export function RequestDetailPage() {
         idempotencyKey: newIdempotencyKey(),
         body: JSON.stringify({
           offerId: offer.id,
-          fulfillmentMethod:
-            fulfillment[offer.id] ??
-            (offer.pickup_enabled ? "PICKUP" : "DELIVERY"),
+          fulfillmentMethod: "PICKUP",
         }),
       });
       navigate(`/patient/reservations/${response.data.id}`);
@@ -427,26 +472,47 @@ export function RequestDetailPage() {
       <PageHeader eyebrow={`طلب ${item.public_reference}`} title={item.medicine_name} description={`${item.strength ?? ""} · الكمية ${item.quantity} · ${item.area}`} actions={<StatusBadge status={item.status} />} />
       <div className="request-live-panel">
         <div className="live-radar"><span><Icon name="search" size={22} /></span></div>
-        <div><strong>{item.status === "ACTIVE" ? "ننتظر ردود الصيدليات" : item.status === "NO_MATCH" ? "لا توجد استجابة في النطاق الحالي" : item.status === "HOLD_PENDING" ? "بانتظار تأكيد الحجز من الصيدلية" : item.status === "RESERVED" || item.status === "READY" ? "تم تأكيد الحجز" : "اكتملت هذه المرحلة"}</strong><p>أُرسل إلى {item.dispatched_count ?? 0} صيدليات · النطاق {item.radius_km} كم</p><small>ينتهي الطلب: {formatDate(item.expires_at)}</small></div>
+        <div><strong>{item.status === "NEEDS_CLARIFICATION" ? "ثبّت هوية الدواء قبل الإرسال" : item.status === "ACTIVE" ? "ننتظر ردود الصيدليات" : item.status === "NO_MATCH" ? "لا توجد استجابة في النطاق الحالي" : item.status === "HOLD_PENDING" ? "بانتظار تأكيد الحجز من الصيدلية" : item.status === "RESERVED" || item.status === "READY" ? "تم تأكيد الحجز" : "اكتملت هذه المرحلة"}</strong><p>أُرسل إلى {item.dispatched_count ?? 0} صيدليات · النطاق {item.radius_km} كم</p><small>ينتهي الطلب: {formatDate(item.expires_at)}</small></div>
       </div>
+      {item.status === "NEEDS_CLARIFICATION" ? (
+        <section className="offers-section">
+          <PageHeader eyebrow="توضيح مطلوب" title="أي عرض دوائي تقصد؟" description="وجدنا أكثر من احتمال. لن نخمن القوة أو الشكل نيابةً عنك." />
+          <div className="real-offer-list">
+            {candidates.map((candidate) => (
+              <article key={candidate.id}>
+                <div className="offer-heading"><div><h2 dir="auto">{candidate.brand_name}</h2><p dir="ltr">{candidate.strength} · {candidate.dosage_form}{candidate.pack_size ? ` · ${candidate.pack_size}` : ""}</p></div></div>
+                <button className="primary-cta" type="button" disabled={Boolean(busy)} onClick={() => void clarify(candidate.id)}>{busy === candidate.id ? "جارٍ التثبيت…" : "هذا هو المطلوب"}</button>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {item.reservation ? <Link className="reservation-banner" to={`/patient/reservations/${item.reservation.id}`}><Icon name="reserve" size={22} /><div><strong>لديك حجز مرتبط بهذا الطلب</strong><span>الحالة: {item.reservation.status}</span></div><Icon name="chevron" size={19} /></Link> : null}
       <section className="offers-section">
-        <PageHeader eyebrow="العروض المؤكدة" title={`${offers.data?.length ?? 0} عروض`} description="التوفر والسعر من الصيدلية وفي الوقت الموضح." />
-        {offers.loading ? <LoadingState label="نراجع العروض…" /> : offers.error ? <ErrorState error={offers.error} retry={offers.reload} /> : !offers.data?.length ? (
+        <PageHeader eyebrow="العروض المؤكدة" title={`${offers.data?.length ?? 0} عروض`} description="التوفر والسعر من الصيدلية وفي الوقت الموضح." actions={
+          <label className="form-field compact-sort"><span>ترتيب</span>
+            <select value={offerSort} onChange={(event) => setOfferSort(event.target.value as "best" | "distance" | "price")}>
+              <option value="best">الأنسب</option>
+              <option value="distance">الأقرب</option>
+              <option value="price">الأرخص</option>
+            </select>
+          </label>
+        } />
+        {offers.loading && !offers.data ? <LoadingState label="نراجع العروض…" /> : offers.error && !offers.data ? <ErrorState error={offers.error} retry={offers.reload} /> : !offers.data?.length ? (
           <EmptyState title="لم يصل عرض صالح بعد" description="يمكنك الانتظار أو توسيع البحث يدويًا. عدم الرد لا يعني عدم وجود الدواء." action={item.radius_km < 10 && ["ACTIVE", "NO_MATCH"].includes(item.status) ? <button className="secondary-cta" type="button" disabled={busy === "expand"} onClick={() => void expand(item.radius_km === 2 ? 5 : 10)}>توسيع إلى {item.radius_km === 2 ? 5 : 10} كم</button> : undefined} />
         ) : (
           <div className="real-offer-list">{offers.data.map((offer) => <article key={offer.id}>
             <div className="offer-heading"><div className="pharmacy-avatar"><Icon name="store" size={21} /></div><div><h2>{offer.pharmacy_name}</h2><p>{offer.district} · {Number(offer.distance_km).toFixed(1)} كم</p></div><StatusBadge status={offer.offer_type}>{offer.offer_type === "EXACT" ? "مطابق" : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "بديل للمراجعة" : "جزئي"}</StatusBadge></div>
             <div className="offer-facts"><div><span>السعر</span><strong>{formatIqd(offer.price_iqd)}</strong></div><div><span>التجهيز</span><strong>{offer.preparation_minutes === 0 ? "جاهز الآن" : `${offer.preparation_minutes} دقيقة`}</strong></div><div><span>آخر تأكيد</span><strong>{formatDate(offer.created_at)}</strong></div></div>
             {offer.note ? <p className="offer-note">{offer.note}</p> : null}
-            <div className="service-tags">{offer.pickup_enabled ? <span>استلام</span> : null}{offer.delivery_enabled ? <span>توصيل</span> : null}</div>
-            {offer.pickup_enabled && offer.delivery_enabled ? <label className="offer-fulfillment"><span>طريقة التنفيذ</span><select value={fulfillment[offer.id] ?? "PICKUP"} onChange={(event) => setFulfillment((current) => ({ ...current, [offer.id]: event.target.value as "PICKUP" | "DELIVERY" }))}><option value="PICKUP">استلام من الصيدلية</option><option value="DELIVERY">توصيل</option></select></label> : null}
-            <button className={offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "secondary-cta" : "primary-cta"} type="button" disabled={busy === offer.id} onClick={() => offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? setActionError("البديل لا يُحجز تلقائيًا. انتظر حجزًا مطابقًا أو تواصل مع الصيدلي بعد اختيار آمن.") : void selectOffer(offer)}>{busy === offer.id ? "جارٍ إرسال الاختيار…" : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "يتطلب مراجعة صيدلي" : "اختيار وطلب الحجز"}</button>
+            <div className="service-tags"><span>استلام من الصيدلية</span></div>
+            <p className="fresh-line">أكدت الصيدلية هذا العرض في {formatDate(offer.created_at)} · صالح حتى {formatDate(offer.expires_at)}</p>
+            <button className={offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" || offer.offer_type === "ORDERABLE" ? "secondary-cta" : "primary-cta"} type="button" disabled={busy === offer.id || item.status === "NEEDS_CLARIFICATION"} onClick={() => offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? setActionError("البديل لا يُحجز تلقائيًا. انتظر حجزًا مطابقًا أو تواصل مع الصيدلي بعد اختيار آمن.") : offer.offer_type === "ORDERABLE" ? setActionError("العرض القابل للطلب لا يُحفظ بحجز 15 دقيقة. اختر عرضًا جاهزًا.") : void selectOffer(offer)}>{busy === offer.id ? "جارٍ إرسال الاختيار…" : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "يتطلب مراجعة صيدلي" : offer.offer_type === "ORDERABLE" ? "غير قابل للحجز الفوري" : "حجز للاستلام"}</button>
           </article>)}</div>
         )}
       </section>
       {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
-      {["ACTIVE", "NO_MATCH", "HOLD_PENDING"].includes(item.status) ? <button className="danger-link" type="button" disabled={busy === "cancel"} onClick={() => void cancel()}>إلغاء الطلب</button> : null}
+      {["ACTIVE", "NO_MATCH", "HOLD_PENDING", "NEEDS_CLARIFICATION", "RESERVED", "READY"].includes(item.status) ? <button className="danger-link" type="button" disabled={busy === "cancel"} onClick={() => void cancel()}>إلغاء الطلب</button> : null}
     </>
   );
 }
@@ -463,8 +529,8 @@ export function ReservationPage() {
     if (!reservation.data?.conversation_id) return;
     void apiFetch<{ data: typeof messages }>(`/api/v1/conversations/${reservation.data.conversation_id}/messages`).then((response) => setMessages(response.data));
   }, [reservation.data?.conversation_id]);
-  if (reservation.loading) return <LoadingState label="نراجع تأكيد الصيدلية…" />;
-  if (reservation.error || !reservation.data) return <ErrorState error={reservation.error} retry={reservation.reload} />;
+  if (reservation.loading && !reservation.data) return <LoadingState label="نراجع تأكيد الصيدلية…" />;
+  if (!reservation.data) return <ErrorState error={reservation.error} retry={reservation.reload} />;
   const item = reservation.data;
   void now;
 

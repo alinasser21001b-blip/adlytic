@@ -32,7 +32,12 @@ import {
   PharmacyReservationsPage,
   PharmacySettingsPage,
 } from "./pages/PharmacyPages";
-import { AuthPage, WelcomePage } from "./pages/PublicPages";
+import {
+  AuthPage,
+  LegalPage,
+  PasswordResetPage,
+  WelcomePage,
+} from "./pages/PublicPages";
 
 function RequireRole({
   role,
@@ -80,6 +85,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<WelcomePage />} />
       <Route path="/auth/:role/:mode" element={<AuthPage />} />
+      <Route path="/auth/reset" element={<PasswordResetPage />} />
+      <Route path="/legal/:doc" element={<LegalPage />} />
 
       <Route path="/patient" element={<PatientRoute><PatientHomePage /></PatientRoute>} />
       <Route path="/patient/search" element={<PatientRoute><MedicineSearchPage /></PatientRoute>} />

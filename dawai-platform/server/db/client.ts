@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import postgres from "postgres";
@@ -22,23 +22,60 @@ export interface Database extends DbExecutor {
 }
 
 function wrapPglite(client: PGlite): Database {
+  // PGlite is single-threaded; concurrent API requests can hang. Serialize
+  // top-level work, but allow nested queries inside an active transaction.
+  let gate: Promise<unknown> = Promise.resolve();
+  let depth = 0;
+
+  function exclusive<T>(work: () => Promise<T>): Promise<T> {
+    if (depth > 0) return work();
+    const run = gate.then(async () => {
+      depth += 1;
+      try {
+        return await work();
+      } finally {
+        depth -= 1;
+      }
+    });
+    gate = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
   const executor = (connection: PGlite): DbExecutor => ({
     async query<T>(text: string, params: unknown[] = []) {
-      const result = await connection.query<T>(text, params);
-      return {
-        rows: result.rows,
-        rowCount: result.affectedRows ?? result.rows.length,
-      };
+      return exclusive(async () => {
+        const result = await connection.query<T>(text, params);
+        return {
+          rows: result.rows,
+          rowCount: result.affectedRows ?? result.rows.length,
+        };
+      });
     },
   });
 
   return {
-    ...executor(client),
+    query: (text, params) => exclusive(() => executor(client).query(text, params)),
     transaction: (run) =>
-      client.transaction(async (transaction) =>
-        run(executor(transaction as unknown as PGlite)),
+      exclusive(() =>
+        client.transaction(async (transaction) => {
+          const txExecutor: DbExecutor = {
+            async query<T>(text: string, params: unknown[] = []) {
+              const result = await (
+                transaction as unknown as PGlite
+              ).query<T>(text, params);
+              return {
+                rows: result.rows,
+                rowCount: result.affectedRows ?? result.rows.length,
+              };
+            },
+          };
+          return run(txExecutor);
+        }),
       ),
-    close: () => client.close(),
+    close: () => exclusive(() => client.close()),
   };
 }
 
@@ -65,6 +102,66 @@ function wrapPostgres(client: ReturnType<typeof postgres>): Database {
   };
 }
 
+async function splitSqlStatements(sql: string): Promise<string[]> {
+  return sql
+    .split(/;\s*(?:\n|$)/)
+    .map((statement) =>
+      statement
+        .split("\n")
+        .filter((line) => !line.trim().startsWith("--"))
+        .join("\n")
+        .trim(),
+    )
+    .filter((statement) => statement.length > 0);
+}
+
+export async function migrateDatabase(database: DbExecutor): Promise<void> {
+  await database.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version text PRIMARY KEY,
+      applied_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  const usersProbe = await database.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.tables
+       WHERE table_name = 'users'
+     ) AS exists`,
+  );
+  if (usersProbe.rows[0]?.exists) {
+    await database.query(
+      `INSERT INTO schema_migrations (version)
+       VALUES ('0001_init')
+       ON CONFLICT (version) DO NOTHING`,
+    );
+  }
+
+  const migrationsDir = resolve(process.cwd(), "migrations");
+  const files = (await readdir(migrationsDir))
+    .filter((name) => /^\d{4}_.+\.sql$/.test(name))
+    .sort();
+
+  for (const file of files) {
+    const version = file.replace(/\.sql$/, "");
+    const applied = await database.query(
+      "SELECT version FROM schema_migrations WHERE version = $1",
+      [version],
+    );
+    if (applied.rowCount > 0) continue;
+
+    const sql = await readFile(resolve(migrationsDir, file), "utf8");
+    const statements = await splitSqlStatements(sql);
+    for (const statement of statements) {
+      await database.query(statement);
+    }
+    await database.query(
+      "INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING",
+      [version],
+    );
+  }
+}
+
 export async function createDatabase(options?: {
   memory?: boolean;
   migrate?: boolean;
@@ -74,9 +171,9 @@ export async function createDatabase(options?: {
   if (config.databaseUrl && !options?.memory) {
     database = wrapPostgres(
       postgres(config.databaseUrl, {
-        max: 10,
-        idle_timeout: 20,
-        connect_timeout: 10,
+        max: config.dbPoolMax,
+        idle_timeout: config.dbIdleTimeout,
+        connect_timeout: config.dbConnectTimeout,
         prepare: true,
       }),
     );
@@ -91,18 +188,4 @@ export async function createDatabase(options?: {
   }
 
   return database;
-}
-
-export async function migrateDatabase(database: DbExecutor): Promise<void> {
-  const migration = await readFile(
-    resolve(process.cwd(), "migrations", "0001_init.sql"),
-    "utf8",
-  );
-  const statements = migration
-    .split(/;\s*(?:\n|$)/)
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-  for (const statement of statements) {
-    await database.query(statement);
-  }
 }
