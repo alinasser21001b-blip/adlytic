@@ -25,7 +25,6 @@ interface MedicineRequest {
   quantity: number;
   urgency: string;
   status: string;
-  fulfillment_method?: "PICKUP" | "DELIVERY";
   area: string;
   radius_km: number;
   expires_at: string;
@@ -62,6 +61,7 @@ interface Reservation {
   id: string;
   public_reference: string;
   status: string;
+  fulfillment_method?: "PICKUP" | "DELIVERY";
   acknowledgement_deadline: string;
   hold_expires_at: string | null;
   medicine_name?: string;
