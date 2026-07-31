@@ -124,15 +124,18 @@ test("complete patient, pharmacy, and admin marketplace journey", async ({
     patientPage.getByRole("heading", { name: "ما الدواء الذي تحتاجه؟" }),
   ).toBeVisible();
   await patientPage.goto("/patient/requests/new");
+  // The request composer is a 3-step wizard: medicine → quantity/prescription → location.
   await patientPage.getByLabel("اسم الدواء أو وصف واضح").fill(medicineName);
   await patientPage.getByLabel("القوة \(إن عُرفت\)").fill("625 mg");
   await patientPage.getByLabel("الشكل").fill("أقراص");
+  await patientPage.getByRole("button", { name: "متابعة" }).click();
   await patientPage.locator('input[type="file"]').setInputFiles({
     name: "prescription.png",
     mimeType: "image/png",
     buffer: png,
   });
   await patientPage.getByRole("checkbox", { name: /مشاركة صورة الوصفة/ }).check();
+  await patientPage.getByRole("button", { name: "متابعة" }).click();
   // Start listening before submit so the first detail GET is not missed.
   const detailResponsePromise = patientPage.waitForResponse(
     (response) =>

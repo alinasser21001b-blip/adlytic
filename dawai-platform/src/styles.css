@@ -4368,3 +4368,373 @@ main {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================
+   Mobile-first application layer
+   The phone is the primary product surface. Everything below reworks the
+   ≤760px experience as designed-for-mobile rather than shrunk-from-desktop,
+   and fixes viewport/safe-area/keyboard behavior globally.
+   ========================================================================== */
+
+:root {
+  --tap-min: 44px;
+  --nav-h: 74px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-start: env(safe-area-inset-right, 0px);
+  --safe-end: env(safe-area-inset-left, 0px);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body,
+.product-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Focused fields must never hide under sticky chrome or the keyboard CTA. */
+input,
+select,
+textarea {
+  scroll-margin-block: 6.5rem;
+}
+
+.product-header {
+  padding-block-start: max(0.55rem, var(--safe-top));
+}
+
+@media (max-width: 1040px) {
+  .product-main {
+    padding-block-end: calc(7.5rem + var(--safe-bottom));
+  }
+
+  .mobile-nav {
+    min-height: calc(var(--nav-h) + var(--safe-bottom));
+    padding: 0.4rem max(0.4rem, env(safe-area-inset-right))
+      max(0.45rem, var(--safe-bottom)) max(0.4rem, env(safe-area-inset-left));
+    box-shadow: 0 -12px 30px rgb(23 60 55 / 6%);
+  }
+
+  .mobile-nav a {
+    align-content: center;
+    gap: 0.2rem;
+    min-height: 52px;
+    padding: 0.3rem 0.2rem;
+    border-radius: 14px;
+    color: var(--ink-700);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+
+  .mobile-nav a.active {
+    color: var(--forest-950);
+    background: var(--mint-100);
+    font-weight: 800;
+  }
+}
+
+@media (max-width: 760px) {
+  /* --- iOS-friendly inputs: 16px floor prevents Safari's focus zoom. --- */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+
+  button,
+  .primary-cta,
+  .secondary-cta {
+    min-height: var(--tap-min);
+  }
+
+  .primary-cta,
+  .secondary-cta {
+    width: 100%;
+    justify-content: center;
+    font-size: 1rem;
+  }
+
+  .page-actions .primary-cta,
+  .page-actions .secondary-cta,
+  .display-switch button {
+    width: auto;
+  }
+
+  /* --- Compact app header --- */
+  .product-header {
+    min-height: 58px;
+    padding-block: max(0.4rem, var(--safe-top)) 0.4rem;
+  }
+
+  .brand strong {
+    font-size: 1.05rem;
+  }
+
+  /* --- Typography: comfortable, not shrunken --- */
+  .product-main h1 {
+    font-size: clamp(1.35rem, 6vw, 1.7rem);
+  }
+
+  .page-header p {
+    font-size: 0.95rem;
+  }
+
+  /* --- Cards breathe: full-bleed feel with generous padding --- */
+  .real-offer-list > article,
+  .pharmacy-inbox-list > article,
+  .reservation-card,
+  .reservation-management > article {
+    padding: 1.1rem;
+    border-radius: 20px;
+  }
+
+  .offer-facts > div {
+    padding: 0.8rem 0.7rem;
+  }
+
+  .offer-facts strong {
+    font-size: 1.02rem;
+  }
+
+  /* --- Offer CTA is a thumb target, always full width --- */
+  .real-offer-list .primary-cta,
+  .real-offer-list .secondary-cta,
+  .pharmacy-inbox-list .primary-cta {
+    width: 100%;
+  }
+
+  /* --- Reservation reads as a pickup ticket --- */
+  .reservation-countdown {
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .reservation-countdown strong {
+    font-size: 1.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reservation-contact {
+    position: sticky;
+    inset-block-end: calc(var(--nav-h) + var(--safe-bottom) + 0.6rem);
+    z-index: 30;
+    padding: 0.5rem;
+    margin-inline: -0.25rem;
+    background: rgb(251 250 246 / 94%);
+    backdrop-filter: blur(12px);
+    border-radius: 18px;
+  }
+
+  /* --- Forms: one column, big targets, no desktop grids --- */
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-field input,
+  .form-field select,
+  .form-field textarea {
+    min-height: 48px;
+    border-radius: 14px;
+  }
+
+  .toggle-field,
+  .confirmation-check {
+    min-height: var(--tap-min);
+    align-items: center;
+  }
+
+  /* --- Response types become horizontal chips (fast pharmacist thumb) --- */
+  .response-types {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .response-types label {
+    min-height: 52px;
+    justify-content: center;
+    text-align: center;
+    border-radius: 14px;
+  }
+}
+
+/* --- Sticky in-form action bar (request wizard, offer form) --- */
+.action-bar {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 40;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem 0 calc(0.65rem + var(--safe-bottom));
+  margin-block-start: 0.5rem;
+  background: linear-gradient(transparent, var(--paper) 28%);
+}
+
+@media (max-width: 1040px) {
+  .action-bar {
+    inset-block-end: calc(var(--nav-h) + var(--safe-bottom));
+  }
+}
+
+.action-bar-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.action-bar-row .secondary-cta {
+  width: auto;
+  min-width: 96px;
+}
+
+/* --- Request wizard --- */
+.wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-block-end: 1.1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.wizard-steps li {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: center;
+  padding: 0.5rem 0.25rem;
+  border-radius: 12px;
+  background: var(--mint-50);
+  color: var(--ink-500);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.wizard-steps li[aria-current="step"] {
+  background: var(--forest-900);
+  color: #fff;
+}
+
+.wizard-steps li.done {
+  background: var(--mint-100);
+  color: var(--forest-700);
+}
+
+.wizard-steps .n {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 85%);
+  color: var(--forest-900);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.wizard-steps li[aria-current="step"] .n {
+  background: var(--lime);
+  color: var(--forest-950);
+}
+
+.wizard-pane[hidden] {
+  display: none;
+}
+
+.wizard-summary {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--white);
+}
+
+.wizard-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.wizard-summary span {
+  color: var(--ink-500);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.wizard-summary strong {
+  font-size: 0.95rem;
+}
+
+/* --- Quantity stepper: one-hand friendly --- */
+.quantity-stepper {
+  display: grid;
+  grid-template-columns: var(--tap-min) minmax(0, 1fr) var(--tap-min);
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.quantity-stepper button {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--forest-900);
+}
+
+.quantity-stepper input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Pharmacy inbox: reply in under 15 seconds --- */
+.quick-reply-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.quick-reply-row .primary-cta,
+.quick-reply-row .secondary-cta {
+  width: 100%;
+  min-height: 48px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-bar,
+  .reservation-contact {
+    backdrop-filter: none;
+  }
+}
+
+/* --- Account danger zone (App Store 5.1.1(v): in-app account deletion) --- */
+.danger-zone {
+  display: grid;
+  gap: 0.6rem;
+  margin-block-start: 2rem;
+  padding: 1.1rem;
+  border: 1px solid rgb(223 102 77 / 35%);
+  border-radius: 18px;
+  background: var(--coral-soft);
+}
+
+.danger-zone h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #9a3d2c;
+}
+
+.danger-zone p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.danger-zone .danger-link {
+  min-height: var(--tap-min);
+}

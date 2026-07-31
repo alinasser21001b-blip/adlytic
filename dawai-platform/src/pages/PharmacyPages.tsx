@@ -236,12 +236,27 @@ export function PharmacyDashboardPage() {
 
 export function PharmacyInboxPage() {
   const inbox = useApi(async () => (await apiFetch<{ data: InboxRequest[] }>("/api/v1/pharmacy/inbox")).data, [], 5000);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
   if (inbox.loading) return <LoadingState label="نحمّل الطلبات المطابقة…" />;
   if (inbox.error) return <ErrorState error={inbox.error} retry={inbox.reload} />;
+  async function decline(requestId: string) {
+    setBusy(requestId);
+    setError("");
+    try {
+      await apiFetch(`/api/v1/pharmacy/inbox/${requestId}/decline`, { method: "POST", body: JSON.stringify({}) });
+      await inbox.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر الاعتذار عن الطلب.");
+    } finally {
+      setBusy("");
+    }
+  }
   return (
     <>
       <PageHeader eyebrow="صندوق الطلبات الحي" title="طلبات قريبة بانتظارك" description="الترتيب يراعي المسافة والملاءمة. لا تظهر هوية المريض أو موقعه الدقيق." />
-      {!inbox.data?.length ? <EmptyState title="لا توجد طلبات نشطة الآن" description="الفرع متصل. ستظهر هنا الطلبات المطابقة ضمن نطاق المرضى." /> : <div className="pharmacy-inbox-list">{inbox.data.map((request) => <article key={request.id}><div className="request-clock-line"><StatusBadge status={request.dispatch_status} /><span><Icon name="clock" size={15} /> ينتهي {date(request.expires_at)}</span></div><div className="request-body"><div><small>{request.public_reference} · {date(request.created_at)}</small><h2 dir="auto">{request.medicine_name} {request.strength}</h2><p>{request.dosage_form ?? "الشكل يراجعه الصيدلي"} · الكمية {request.quantity}</p></div><div className="request-distance"><strong>{Number(request.distance_km).toFixed(1)} كم</strong><span>{request.area}</span></div></div><div className="request-flags"><span><Icon name="prescription" size={16} /> {request.prescription_status === "PROVIDED" ? "الوصفة موجودة — مقيدة الوصول" : "لم ترفق وصفة"}</span><span><Icon name="clock" size={16} /> {request.urgency === "NOW" ? "يحتاجه الآن" : "خلال اليوم"}</span></div>{request.offer_id ? <StatusBadge status="ACTIVE">تم إرسال عرض</StatusBadge> : <Link className="primary-cta" to={`/pharmacy/inbox/${request.id}`}>مراجعة ورد سريع</Link>}</article>)}</div>}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {!inbox.data?.length ? <EmptyState title="لا توجد طلبات نشطة الآن" description="الفرع متصل. ستظهر هنا الطلبات المطابقة ضمن نطاق المرضى." /> : <div className="pharmacy-inbox-list">{inbox.data.map((request) => <article key={request.id}><div className="request-clock-line"><StatusBadge status={request.dispatch_status} /><span><Icon name="clock" size={15} /> ينتهي {date(request.expires_at)}</span></div><div className="request-body"><div><small>{request.public_reference} · {date(request.created_at)}</small><h2 dir="auto">{request.medicine_name} {request.strength}</h2><p>{request.dosage_form ?? "الشكل يراجعه الصيدلي"} · الكمية {request.quantity}</p></div><div className="request-distance"><strong>{Number(request.distance_km).toFixed(1)} كم</strong><span>{request.area}</span></div></div><div className="request-flags"><span><Icon name="prescription" size={16} /> {request.prescription_status === "PROVIDED" ? "الوصفة موجودة — مقيدة الوصول" : "لم ترفق وصفة"}</span><span><Icon name="clock" size={16} /> {request.urgency === "NOW" ? "يحتاجه الآن" : "خلال اليوم"}</span></div>{request.offer_id ? <StatusBadge status="ACTIVE">تم إرسال عرض</StatusBadge> : <div className="quick-reply-row"><Link className="primary-cta" to={`/pharmacy/inbox/${request.id}`}>مراجعة ورد سريع</Link><button className="secondary-cta" type="button" disabled={busy === request.id} onClick={() => void decline(request.id)}>{busy === request.id ? "جارٍ…" : "غير متوفر"}</button></div>}</article>)}</div>}
     </>
   );
 }

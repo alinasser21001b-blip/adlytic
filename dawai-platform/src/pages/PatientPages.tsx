@@ -106,6 +106,17 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+const offerPlural = new Intl.PluralRules("ar");
+function offersLabel(count: number): string {
+  const category = offerPlural.select(count);
+  if (category === "zero") return "لا عروض بعد";
+  if (category === "one") return "عرض واحد";
+  if (category === "two") return "عرضان";
+  if (category === "few") return `${count} عروض`;
+  if (category === "many") return `${count} عرضًا`;
+  return `${count} عرض`;
+}
+
 function remaining(value: string | null): string {
   if (!value) return "بانتظار تأكيد الصيدلية";
   const seconds = Math.max(0, Math.floor((new Date(value).getTime() - Date.now()) / 1000));
@@ -333,44 +344,82 @@ export function NewRequestPage() {
     }
   }
 
+  const [step, setStep] = useState(0);
+  const steps = ["الدواء", "الكمية والوصفة", "الموقع والتأكيد"] as const;
+  const stepValid =
+    step === 0
+      ? medicineName.trim().length >= 2
+      : step === 1
+        ? !(file && attachmentKind === "PRESCRIPTION" && !prescriptionConsent)
+        : area.trim().length > 0;
+
   return (
     <>
       <PageHeader eyebrow="طلب دواء جديد" title="أخبرنا بما تحتاجه" description="لا نخمّن دواءً من وصف غامض. اكتب ما تعرفه أو أرفق صورة ليراجعها الصيدلي. المرحلة التجريبية: الاستلام من الصيدلية فقط." />
+      <ol className="wizard-steps">
+        {steps.map((label, index) => (
+          <li key={label} aria-current={index === step ? "step" : undefined} className={index < step ? "done" : ""}>
+            <span className="n">{index + 1}</span>
+            {label}
+          </li>
+        ))}
+      </ol>
       <form className="product-form" onSubmit={submit}>
-        <label className="form-field"><span>اسم الدواء أو وصف واضح</span><textarea dir="auto" value={medicineName} onChange={(event) => { setMedicineName(event.target.value); setPresentationId(undefined); }} required minLength={2} placeholder="مثال: Augmentin 625 mg" /></label>
-        <div className="form-row">
-          <label className="form-field"><span>القوة (إن عُرفت)</span><input dir="ltr" value={strength} onChange={(event) => setStrength(event.target.value)} placeholder="625 mg" /></label>
+        <div className="wizard-pane" hidden={step !== 0}>
+          <label className="form-field"><span>اسم الدواء أو وصف واضح</span><textarea dir="auto" value={medicineName} onChange={(event) => { setMedicineName(event.target.value); setPresentationId(undefined); }} required minLength={2} placeholder="مثال: Augmentin 625 mg" /></label>
+          <label className="form-field"><span>القوة (إن عُرفت)</span><input dir="ltr" inputMode="text" value={strength} onChange={(event) => setStrength(event.target.value)} placeholder="625 mg" /></label>
           <label className="form-field"><span>الشكل</span><input value={dosageForm} onChange={(event) => setDosageForm(event.target.value)} placeholder="أقراص / شراب" /></label>
         </div>
-        <div className="form-row">
-          <label className="form-field"><span>الكمية</span><input type="number" min={1} max={20} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
+        <div className="wizard-pane" hidden={step !== 1}>
+          <label className="form-field"><span>الكمية</span>
+            <div className="quantity-stepper">
+              <button type="button" aria-label="إنقاص الكمية" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>−</button>
+              <input type="number" min={1} max={20} inputMode="numeric" dir="ltr" value={quantity} onChange={(event) => setQuantity(Math.min(20, Math.max(1, Number(event.target.value) || 1)))} aria-label="الكمية" />
+              <button type="button" aria-label="زيادة الكمية" onClick={() => setQuantity((current) => Math.min(20, current + 1))}>＋</button>
+            </div>
+          </label>
           <label className="form-field"><span>متى تحتاجه؟</span><select value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="NOW">الآن</option><option value="TODAY">اليوم</option><option value="TOMORROW">غدًا</option></select></label>
-        </div>
-        <label className="upload-zone compact-upload">
-          <input type="file" accept="image/png,image/jpeg,image/webp" capture={mode === "scan" ? "environment" : undefined} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-          <Icon name={mode === "scan" ? "camera" : "upload"} size={27} />
-          <strong>{file?.name ?? "صورة علبة أو وصفة (اختياري)"}</strong>
-          <span>تُفحص الصورة، تزال بيانات الموقع منها، وتُخزّن مشفرة. لا تُكشف قبل اختيار صيدلية وتأكيد الحجز.</span>
-        </label>
-        {file ? (
-          <div className="form-row">
+          <label className="upload-zone compact-upload">
+            <input type="file" accept="image/png,image/jpeg,image/webp" capture={mode === "scan" ? "environment" : undefined} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            <Icon name={mode === "scan" ? "camera" : "upload"} size={27} />
+            <strong>{file?.name ?? "صورة علبة أو وصفة (اختياري)"}</strong>
+            <span>تُفحص الصورة، تزال بيانات الموقع منها، وتُخزّن مشفرة. لا تُكشف قبل اختيار صيدلية وتأكيد الحجز.</span>
+          </label>
+          {file ? (
             <label className="form-field"><span>نوع الصورة</span>
               <select value={attachmentKind} onChange={(event) => setAttachmentKind(event.target.value as "PRESCRIPTION" | "BOX_IMAGE")}>
                 <option value="PRESCRIPTION">وصفة طبية</option>
                 <option value="BOX_IMAGE">صورة علبة / عبوة</option>
               </select>
             </label>
-          </div>
-        ) : null}
-        {file && attachmentKind === "PRESCRIPTION" ? <label className="confirmation-check"><input type="checkbox" checked={prescriptionConsent} onChange={(event) => setPrescriptionConsent(event.target.checked)} required /><span><Icon name="check" size={14} /></span>أوافق على مشاركة صورة الوصفة فقط مع الصيدلية التي أختارها وبعد تأكيد الحجز.</label> : null}
-        <div className="location-box">
-          <label className="form-field"><span>المنطقة</span><input value={area} onChange={(event) => setArea(event.target.value)} required /></label>
-          <button type="button" className="secondary-cta" onClick={locate}><Icon name="location" size={18} /> استخدم موقعي</button>
-          {permissionState ? <p role="status">{permissionState}</p> : null}
+          ) : null}
+          {file && attachmentKind === "PRESCRIPTION" ? <label className="confirmation-check"><input type="checkbox" checked={prescriptionConsent} onChange={(event) => setPrescriptionConsent(event.target.checked)} required /><span><Icon name="check" size={14} /></span>أوافق على مشاركة صورة الوصفة فقط مع الصيدلية التي أختارها وبعد تأكيد الحجز.</label> : null}
         </div>
-        <div className="safety-note"><Icon name="shield" size={20} /><p>الصورة للمراجعة وليست وصفة يصدرها دوائي. لن تُكشف للصيدليات قبل حجز نشط ومؤكد. التوصيل خارج نطاق الـMVP الحالي.</p></div>
+        <div className="wizard-pane" hidden={step !== 2}>
+          <div className="location-box">
+            <label className="form-field"><span>المنطقة</span><input value={area} onChange={(event) => setArea(event.target.value)} required /></label>
+            <button type="button" className="secondary-cta" onClick={locate}><Icon name="location" size={18} /> استخدم موقعي</button>
+            {permissionState ? <p role="status">{permissionState}</p> : null}
+          </div>
+          <div className="wizard-summary" aria-label="ملخص الطلب">
+            <div><span>الدواء</span><strong dir="auto">{medicineName || "—"}{strength ? <bdi dir="ltr"> {strength}</bdi> : null}</strong></div>
+            <div><span>الكمية</span><strong>{quantity}</strong></div>
+            <div><span>متى</span><strong>{urgency === "NOW" ? "الآن" : urgency === "TODAY" ? "اليوم" : "غدًا"}</strong></div>
+            <div><span>المرفق</span><strong>{file ? (attachmentKind === "PRESCRIPTION" ? "وصفة" : "صورة علبة") : "بدون"}</strong></div>
+          </div>
+          <div className="safety-note"><Icon name="shield" size={20} /><p>الصورة للمراجعة وليست وصفة يصدرها دوائي. لن تُكشف للصيدليات قبل حجز نشط ومؤكد. التوصيل خارج نطاق الـMVP الحالي.</p></div>
+        </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button className="primary-cta" type="submit" disabled={busy}>{busy ? "جارٍ الإرسال الآمن…" : "إرسال الطلب للصيدليات القريبة"}</button>
+        <div className="action-bar">
+          <div className="action-bar-row">
+            {step < 2 ? (
+              <button className="primary-cta" type="button" disabled={!stepValid} onClick={() => setStep((current) => current + 1)}>متابعة</button>
+            ) : (
+              <button className="primary-cta" type="submit" disabled={busy || !stepValid}>{busy ? "جارٍ الإرسال الآمن…" : "إرسال الطلب للصيدليات القريبة"}</button>
+            )}
+            {step > 0 ? <button className="secondary-cta" type="button" onClick={() => setStep((current) => current - 1)}>رجوع</button> : null}
+          </div>
+        </div>
       </form>
     </>
   );
@@ -489,7 +538,7 @@ export function RequestDetailPage() {
       ) : null}
       {item.reservation ? <Link className="reservation-banner" to={`/patient/reservations/${item.reservation.id}`}><Icon name="reserve" size={22} /><div><strong>لديك حجز مرتبط بهذا الطلب</strong><span>الحالة: {item.reservation.status}</span></div><Icon name="chevron" size={19} /></Link> : null}
       <section className="offers-section">
-        <PageHeader eyebrow="العروض المؤكدة" title={`${offers.data?.length ?? 0} عروض`} description="التوفر والسعر من الصيدلية وفي الوقت الموضح." actions={
+        <PageHeader eyebrow="العروض المؤكدة" title={offersLabel(offers.data?.length ?? 0)} description="التوفر والسعر من الصيدلية وفي الوقت الموضح." actions={
           <label className="form-field compact-sort"><span>ترتيب</span>
             <select value={offerSort} onChange={(event) => setOfferSort(event.target.value as "best" | "distance" | "price")}>
               <option value="best">الأنسب</option>
@@ -585,6 +634,18 @@ export function NearbyPharmaciesPage() {
 export function PatientProfilePage() {
   const profile = useApi(async () => (await apiFetch<{ data: { name: string; email: string; phone: string | null; default_area: string | null; latitude: number | null; longitude: number | null; notification_preferences: { inApp: boolean; push: boolean } } }>("/api/v1/patient/profile")).data, []);
   const [saved, setSaved] = useState("");
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      await apiFetch("/api/v1/auth/account/delete", { method: "POST", body: JSON.stringify({}) });
+      window.location.assign("/");
+    } catch (cause) {
+      setSaved(cause instanceof Error ? cause.message : "تعذر حذف الحساب.");
+      setDeleting(false);
+    }
+  }
   if (profile.loading) return <LoadingState />;
   if (profile.error || !profile.data) return <ErrorState error={profile.error} retry={profile.reload} />;
   const data = profile.data;
@@ -601,6 +662,18 @@ export function PatientProfilePage() {
     <>
       <PageHeader eyebrow="الحساب" title="ملف المريض" description="نحتفظ بالحد الأدنى اللازم لإدارة طلباتك." />
       <form className="product-form" onSubmit={submit}><label className="form-field"><span>الاسم</span><input name="name" defaultValue={data.name} required /></label><label className="form-field"><span>البريد</span><input dir="ltr" value={data.email} disabled /></label><label className="form-field"><span>الهاتف</span><input name="phone" defaultValue={data.phone ?? ""} /></label><label className="form-field"><span>المنطقة الافتراضية</span><input name="area" defaultValue={data.default_area ?? ""} /></label><label className="toggle-field"><input name="push" type="checkbox" defaultChecked={data.notification_preferences.push} /><span>إشعارات الدفع عند تفعيلها على هذا الجهاز</span></label><Link className="secondary-cta" to="/patient/saved-pharmacies"><Icon name="reserve" size={18} /> إدارة الصيدليات المحفوظة</Link>{saved ? <p className="inline-notice" role="status">{saved}</p> : null}<button className="primary-cta" type="submit">حفظ التغييرات</button></form>
+      <section className="danger-zone" aria-labelledby="delete-account-title">
+        <h2 id="delete-account-title">حذف الحساب</h2>
+        <p>يعطّل الحساب ويجدول حذف بياناتك وفق <Link to="/legal/retention">سياسة الاحتفاظ</Link>. لا يمكن التراجع.</p>
+        {deleteArmed ? (
+          <div className="action-bar-row">
+            <button className="danger-link" type="button" disabled={deleting} onClick={() => void deleteAccount()}>{deleting ? "جارٍ الحذف…" : "تأكيد حذف الحساب نهائيًا"}</button>
+            <button className="secondary-cta" type="button" disabled={deleting} onClick={() => setDeleteArmed(false)}>تراجع</button>
+          </div>
+        ) : (
+          <button className="danger-link" type="button" onClick={() => setDeleteArmed(true)}>حذف حسابي</button>
+        )}
+      </section>
     </>
   );
 }

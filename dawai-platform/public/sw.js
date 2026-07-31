@@ -1,5 +1,5 @@
 /* Dawai service worker — offline shell only. Never caches prescriptions or API bodies. */
-const SHELL = "dawai-shell-v1";
+const SHELL = "dawai-shell-v2";
 const SHELL_URLS = ["/", "/offline.html", "/manifest.webmanifest", "/dawai-icon.svg"];
 
 self.addEventListener("install", (event) => {

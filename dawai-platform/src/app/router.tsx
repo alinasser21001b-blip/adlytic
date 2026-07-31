@@ -128,7 +128,14 @@ export function NavLink({
   const resolvedClassName = [className, active ? "active" : ""]
     .filter(Boolean)
     .join(" ");
-  return <Link {...props} to={to} className={resolvedClassName} />;
+  return (
+    <Link
+      {...props}
+      to={to}
+      className={resolvedClassName}
+      aria-current={active ? "page" : undefined}
+    />
+  );
 }
 
 export function Navigate({

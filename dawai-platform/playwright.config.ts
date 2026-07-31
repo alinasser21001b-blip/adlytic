@@ -12,6 +12,10 @@ export default defineConfig({
     locale: "ar-IQ",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
+    // The sandbox ships one pinned chromium; never download per-version browsers.
+    launchOptions: process.env.PLAYWRIGHT_BROWSERS_PATH
+      ? { executablePath: `${process.env.PLAYWRIGHT_BROWSERS_PATH}/chromium` }
+      : {},
   },
   webServer: [
     {
@@ -31,6 +35,7 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chromium",
+      testMatch: /app\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 1000 },
@@ -38,8 +43,34 @@ export default defineConfig({
     },
     {
       name: "mobile-chromium",
+      testMatch: /app\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
+      },
+    },
+    // Mobile viewport matrix (chromium engine + iPhone metrics — WebKit is not
+    // bundled in CI; engine-specific behavior is covered by manual QA).
+    {
+      name: "iphone-se",
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices["iPhone SE"], browserName: "chromium" },
+    },
+    {
+      name: "iphone-14",
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices["iPhone 14"], browserName: "chromium" },
+    },
+    {
+      name: "iphone-15-pro-max",
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices["iPhone 15 Pro Max"], browserName: "chromium" },
+    },
+    {
+      name: "small-android",
+      testMatch: /mobile\.spec\.ts/,
+      use: {
+        ...devices["Pixel 7"],
+        viewport: { width: 360, height: 800 },
       },
     },
   ],
