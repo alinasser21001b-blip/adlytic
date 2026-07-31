@@ -9,14 +9,8 @@ describe("Dawai routed product shell", () => {
       "fetch",
       vi.fn(async () =>
         new Response(
-          JSON.stringify({
-            error: {
-              code: "AUTHENTICATION_REQUIRED",
-              message: "سجّل الدخول للمتابعة.",
-              requestId: "test",
-            },
-          }),
-          { status: 401, headers: { "Content-Type": "application/json" } },
+          JSON.stringify({ data: null }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
         ),
       ),
     );

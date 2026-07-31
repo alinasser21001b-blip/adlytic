@@ -67,7 +67,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function refresh() {
     setLoading(true);
     try {
-      const response = await apiFetch<{ data: SessionData }>("/api/v1/auth/me");
+      const response = await apiFetch<{ data: SessionData | null }>(
+        "/api/v1/auth/status",
+      );
+      if (!response.data) {
+        setSession(null);
+        setCsrfToken("");
+        return null;
+      }
       await loadCsrfToken();
       setSession(response.data);
       return response.data;

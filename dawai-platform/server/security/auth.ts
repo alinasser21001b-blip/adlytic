@@ -12,11 +12,11 @@ import type { Database, DbExecutor } from "../db/client";
 import { ApiError } from "../errors";
 import type { AppVariables, AuthUser, UserRole } from "../types";
 
-const COOKIE_NAME = config.secureCookies
+export const SESSION_COOKIE_NAME = config.secureCookies
   ? "__Host-dawai_session"
   : "dawai_session";
 
-interface SessionRow extends AuthUser {
+export interface SessionRow extends AuthUser {
   session_id: string;
   csrf_token_hash: string;
 }
@@ -88,7 +88,7 @@ export function attachSessionCookie(
   token: string,
   expiresAt: string,
 ): void {
-  set(COOKIE_NAME, token, {
+  set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure: config.secureCookies,
     sameSite: "Lax",
@@ -102,7 +102,7 @@ export function setWebSession(
   token: string,
   expiresAt: string,
 ): void {
-  setCookie(context, COOKIE_NAME, token, {
+  setCookie(context, SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure: config.secureCookies,
     sameSite: "Lax",
@@ -114,13 +114,13 @@ export function setWebSession(
 export function clearWebSession(
   context: Parameters<typeof deleteCookie>[0],
 ): void {
-  deleteCookie(context, COOKIE_NAME, {
+  deleteCookie(context, SESSION_COOKIE_NAME, {
     secure: config.secureCookies,
     path: "/",
   });
 }
 
-async function resolveSession(
+export async function resolveSession(
   database: Database,
   token: string,
 ): Promise<SessionRow | null> {
@@ -145,7 +145,7 @@ export function requireAuth(
   roles?: readonly UserRole[],
 ): MiddlewareHandler<{ Variables: AppVariables }> {
   return async (context, next) => {
-    const cookieToken = getCookie(context, COOKIE_NAME);
+    const cookieToken = getCookie(context, SESSION_COOKIE_NAME);
     const authorization = context.req.header("Authorization");
     const bearerToken = authorization?.startsWith("Bearer ")
       ? authorization.slice(7).trim()

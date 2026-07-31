@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { z } from "zod";
 import type { Database } from "../db/client";
 import { ApiError } from "../errors";
@@ -9,8 +10,10 @@ import {
   hashPassword,
   normalizeEmail,
   requireAuth,
+  resolveSession,
   revokeSession,
   rotateCsrfToken,
+  SESSION_COOKIE_NAME,
   setWebSession,
   verifyPassword,
 } from "../security/auth";
@@ -195,6 +198,46 @@ export function authRoutes(database: Database) {
         csrfToken: session.csrfToken,
         expiresAt: session.expiresAt,
         token: body.clientType === "mobile" ? session.token : undefined,
+      },
+    });
+  });
+
+  routes.get("/status", async (context) => {
+    const cookieToken = getCookie(context, SESSION_COOKIE_NAME);
+    const authorization = context.req.header("Authorization");
+    const bearerToken = authorization?.startsWith("Bearer ")
+      ? authorization.slice(7).trim()
+      : undefined;
+    if (cookieToken && bearerToken && cookieToken !== bearerToken) {
+      return context.json({ data: null });
+    }
+    const token = bearerToken ?? cookieToken;
+    const row = token ? await resolveSession(database, token) : null;
+    if (!row) return context.json({ data: null });
+    let pharmacy = null;
+    if (row.role === "PHARMACY") {
+      const result = await database.query(
+        `SELECT p.id, p.name, p.verification_status, p.verification_reason,
+                b.id AS branch_id, b.district, b.accepting_requests,
+                b.operational_status
+         FROM pharmacies p
+         LEFT JOIN pharmacy_branches b ON b.pharmacy_id = p.id
+         WHERE p.owner_user_id = $1 LIMIT 1`,
+        [row.id],
+      );
+      pharmacy = result.rows[0] ?? null;
+    }
+    return context.json({
+      data: {
+        user: {
+          id: row.id,
+          role: row.role,
+          status: row.status,
+          name: row.name,
+          email: row.email,
+          phone: row.phone,
+        },
+        pharmacy,
       },
     });
   });
