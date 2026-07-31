@@ -81,12 +81,6 @@ function date(value: string) {
   }).format(new Date(value));
 }
 
-function standardHours() {
-  return Object.fromEntries(
-    Array.from({ length: 7 }, (_, day) => [String(day), [["08:00", "23:59"]]]),
-  );
-}
-
 export function PharmacyGate({
   children,
 }: {
@@ -342,6 +336,52 @@ export function PharmacySettingsPage() {
     <>
       <PageHeader eyebrow="الفرع" title="إعدادات التشغيل" description="أوقف الطلبات عند الازدحام بدل ترك المرضى بلا رد." />
       <form className="product-form" onSubmit={submit}><div className="settings-identity"><Icon name="store" size={25} /><div><strong>{data.name}</strong><span>{data.district} · {data.address}</span></div><StatusBadge status={data.verification_status} /></div><label className="toggle-field"><input name="accepting" type="checkbox" defaultChecked={data.accepting_requests} /><span>استقبال طلبات جديدة</span></label><label className="toggle-field"><input name="paused" type="checkbox" defaultChecked={data.operational_status === "PAUSED"} /><span>إيقاف الفرع مؤقتًا</span></label><label className="toggle-field"><input name="pickup" type="checkbox" defaultChecked={data.pickup_enabled} /><span>الاستلام متاح</span></label><label className="toggle-field"><input name="delivery" type="checkbox" defaultChecked={data.delivery_enabled} /><span>التوصيل متاح</span></label><div className="form-divider"><span>ساعات العمل</span></div><div className="form-row"><label className="form-field"><span>يفتح</span><input name="opensAt" type="time" defaultValue="08:00" required /></label><label className="form-field"><span>يغلق</span><input name="closesAt" type="time" defaultValue="23:59" required /></label></div><div className="weekday-grid">{["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"].map((day, index) => <label className="toggle-field" key={day}><input name={`day-${index}`} type="checkbox" defaultChecked={(data.opening_hours?.[String(index)] ?? []).length > 0} /><span>{day}</span></label>)}</div>{message ? <p className="inline-notice" role="status">{message}</p> : null}<button className="primary-cta" type="submit">حفظ الإعدادات</button></form>
+    </>
+  );
+}
+
+interface InventorySignal {
+  id: string;
+  medicine_name: string;
+  source: string;
+  state: string;
+  quantity: number | null;
+  observed_at: string;
+  expires_at: string;
+}
+
+export function PharmacyInventoryPage() {
+  const inventory = useApi(async () => (await apiFetch<{ data: InventorySignal[] }>("/api/v1/pharmacy/inventory")).data, []);
+  const [message, setMessage] = useState("");
+  if (inventory.loading) return <LoadingState />;
+  if (inventory.error) return <ErrorState error={inventory.error} retry={inventory.reload} />;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await apiFetch("/api/v1/pharmacy/inventory", {
+        method: "POST",
+        body: JSON.stringify({
+          medicineName: form.get("medicineName"),
+          presentationId: null,
+          state: form.get("state"),
+          quantity: form.get("quantity") ? Number(form.get("quantity")) : null,
+          freshnessMinutes: Number(form.get("freshnessMinutes")),
+        }),
+      });
+      setMessage("تم تسجيل الإشارة بوقت انتهاء واضح.");
+      event.currentTarget.reset();
+      await inventory.reload();
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "تعذر تحديث التوفر.");
+    }
+  }
+  return (
+    <>
+      <PageHeader eyebrow="المخزون اليدوي" title="إشارات التوفر" description="هذه إشارات مؤقتة وليست مخزونًا دائمًا. عروض الطلبات تسجل تأكيدات أقصر تلقائيًا." />
+      <form className="inventory-form" onSubmit={submit}><label className="form-field"><span>اسم الدواء</span><input name="medicineName" required /></label><label className="form-field"><span>الحالة</span><select name="state" defaultValue="AVAILABLE"><option value="AVAILABLE">متوفر</option><option value="LOW">كمية محدودة</option><option value="ORDERABLE">يمكن توفيره</option><option value="UNAVAILABLE">غير متوفر</option></select></label><label className="form-field"><span>الكمية التقريبية</span><input name="quantity" type="number" min={0} /></label><label className="form-field"><span>صلاحية الإشارة</span><select name="freshnessMinutes" defaultValue="360"><option value="60">ساعة</option><option value="360">6 ساعات</option><option value="720">12 ساعة</option><option value="1440">24 ساعة</option></select></label><button className="primary-cta" type="submit">حفظ إشارة التوفر</button></form>
+      {message ? <p className="inline-notice" role="status">{message}</p> : null}
+      {!inventory.data?.length ? <EmptyState title="لا توجد إشارات مخزون" description="يمكنك الرد على الطلبات مباشرة أو إضافة توفر يدوي مؤقت." /> : <div className="inventory-list">{inventory.data.map((signal) => <article key={signal.id}><div><h2 dir="auto">{signal.medicine_name}</h2><p>{signal.source === "MANUAL_STOCK" ? "تحديث يدوي" : "تأكيد عبر طلب"}</p></div><StatusBadge status={signal.state} /><div><span>الكمية</span><strong>{signal.quantity ?? "غير محددة"}</strong></div><div><span>ينتهي</span><strong>{date(signal.expires_at)}</strong></div></article>)}</div>}
     </>
   );
 }

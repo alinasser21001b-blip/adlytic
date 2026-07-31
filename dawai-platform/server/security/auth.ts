@@ -83,20 +83,6 @@ export async function createSession(
   return { token, csrfToken, expiresAt };
 }
 
-export function attachSessionCookie(
-  set: (name: string, value: string, options?: Parameters<typeof setCookie>[3]) => void,
-  token: string,
-  expiresAt: string,
-): void {
-  set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: config.secureCookies,
-    sameSite: "Lax",
-    path: "/",
-    expires: new Date(expiresAt),
-  });
-}
-
 export function setWebSession(
   context: Parameters<typeof setCookie>[0],
   token: string,

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Database, DbExecutor } from "../db/client";
+import type { Database } from "../db/client";
 import { createNotification } from "./notifications";
 
 interface MatchRequest {
@@ -190,20 +190,4 @@ export async function dispatchRequest(
   });
 
   return ranked.length;
-}
-
-export async function markNoMatchIfEmpty(
-  database: DbExecutor,
-  requestId: string,
-): Promise<void> {
-  await database.query(
-    `UPDATE medicine_requests r
-     SET status = 'NO_MATCH', updated_at = now(), version = version + 1
-     WHERE r.id = $1
-       AND r.status = 'ACTIVE'
-       AND NOT EXISTS (
-         SELECT 1 FROM request_dispatches d WHERE d.request_id = r.id
-       )`,
-    [requestId],
-  );
 }

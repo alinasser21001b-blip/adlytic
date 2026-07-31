@@ -422,9 +422,13 @@ export function patientRoutes(database: Database) {
   });
 
   routes.post("/requests/:requestId/reservations", async (context) => {
-    const body = z.object({ offerId: z.string().uuid() }).strict().parse(
-      await context.req.json(),
-    );
+    const body = z
+      .object({
+        offerId: z.string().uuid(),
+        fulfillmentMethod: z.enum(["PICKUP", "DELIVERY"]).default("PICKUP"),
+      })
+      .strict()
+      .parse(await context.req.json());
     const userId = context.get("user").id;
     const key = context.req.header("Idempotency-Key");
     const fingerprint = requestFingerprint(body);
@@ -460,12 +464,15 @@ export function patientRoutes(database: Database) {
         offer_expires_at: string;
         branch_id: string;
         owner_user_id: string;
+        pickup_enabled: boolean;
+        delivery_enabled: boolean;
       }>(
         `SELECT
            r.id AS request_id, r.status AS request_status,
            r.expires_at AS request_expires_at, r.patient_id,
            o.id AS offer_id, o.status AS offer_status, o.offer_type,
-           o.expires_at AS offer_expires_at, o.branch_id, p.owner_user_id
+           o.expires_at AS offer_expires_at, o.branch_id, p.owner_user_id,
+           o.pickup_enabled, o.delivery_enabled
          FROM medicine_requests r
          JOIN pharmacy_offers o ON o.request_id = r.id
          JOIN pharmacy_branches b ON b.id = o.branch_id
@@ -495,12 +502,22 @@ export function patientRoutes(database: Database) {
           "البديل يحتاج تواصلًا مع الصيدلي ولا يمكن حجزه تلقائيًا.",
         );
       }
+      if (
+        (body.fulfillmentMethod === "PICKUP" && !selected.pickup_enabled) ||
+        (body.fulfillmentMethod === "DELIVERY" && !selected.delivery_enabled)
+      ) {
+        throw new ApiError(
+          422,
+          "FULFILLMENT_UNAVAILABLE",
+          "طريقة الاستلام المختارة غير متاحة لهذا العرض.",
+        );
+      }
 
       await transaction.query(
         `INSERT INTO reservations
           (id, public_reference, request_id, offer_id, patient_id, branch_id,
-           acknowledgement_deadline)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+           fulfillment_method, acknowledgement_deadline)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           reservationId,
           reference,
@@ -508,6 +525,7 @@ export function patientRoutes(database: Database) {
           selected.offer_id,
           userId,
           selected.branch_id,
+          body.fulfillmentMethod,
           acknowledgementDeadline,
         ],
       );

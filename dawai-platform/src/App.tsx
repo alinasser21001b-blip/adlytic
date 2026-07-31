@@ -27,6 +27,7 @@ import {
   PharmacyDashboardPage,
   PharmacyGate,
   PharmacyInboxPage,
+  PharmacyInventoryPage,
   PharmacyRequestPage,
   PharmacyReservationsPage,
   PharmacySettingsPage,
@@ -95,6 +96,7 @@ function AppRoutes() {
       <Route path="/pharmacy/inbox" element={<PharmacyRoute><PharmacyInboxPage /></PharmacyRoute>} />
       <Route path="/pharmacy/inbox/:requestId" element={<PharmacyRoute><PharmacyRequestPage /></PharmacyRoute>} />
       <Route path="/pharmacy/reservations" element={<PharmacyRoute><PharmacyReservationsPage /></PharmacyRoute>} />
+      <Route path="/pharmacy/inventory" element={<PharmacyRoute><PharmacyInventoryPage /></PharmacyRoute>} />
       <Route path="/pharmacy/settings" element={<PharmacyRoute><PharmacySettingsPage /></PharmacyRoute>} />
       <Route path="/pharmacy/notifications" element={<PharmacyRoute><NotificationsPage /></PharmacyRoute>} />
 

@@ -153,6 +153,24 @@ describe("Dawai production core loop", () => {
 
   it("completes patient → pharmacy → reservation → pickup with real state", async () => {
     const pharmacy = await createVerifiedPharmacy();
+    const inventoryUpdate = await jsonRequest("/api/v1/pharmacy/inventory", {
+      method: "POST",
+      session: pharmacy.session,
+      body: {
+        medicineName: "Metformin Test",
+        presentationId: null,
+        state: "AVAILABLE",
+        quantity: 3,
+        freshnessMinutes: 60,
+      },
+    });
+    expect(inventoryUpdate.status).toBe(201);
+    const directAvailability = await jsonRequest(
+      "/api/v1/availability?medicine=Metformin%20Test&lat=33.315&lng=44.366&radiusKm=2",
+    );
+    expect(directAvailability.status).toBe(200);
+    expect((await directAvailability.json()).data).toHaveLength(1);
+
     const patient = await register(
       "PATIENT",
       "patient@example.test",
@@ -204,7 +222,7 @@ describe("Dawai production core loop", () => {
           availableQuantity: 2,
           priceIqd: 12000,
           pickupEnabled: true,
-          deliveryEnabled: false,
+          deliveryEnabled: true,
           preparationMinutes: 10,
           note: "أحضر الوصفة الأصلية.",
         },
@@ -226,12 +244,13 @@ describe("Dawai production core loop", () => {
         method: "POST",
         session: patient,
         idempotencyKey: randomUUID(),
-        body: { offerId: offer.id },
+        body: { offerId: offer.id, fulfillmentMethod: "DELIVERY" },
       },
     );
     expect(selectionResponse.status).toBe(201);
     const reservation = (await selectionResponse.json()).data;
     expect(reservation.status).toBe("PENDING_ACK");
+    expect(reservation.fulfillment_method).toBe("DELIVERY");
     expect(reservation.hold_expires_at).toBeNull();
 
     const acknowledge = await jsonRequest(

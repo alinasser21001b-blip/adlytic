@@ -3821,6 +3821,77 @@ main {
   font-size: 0.65rem;
 }
 
+.inventory-form {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.7fr 0.8fr auto;
+  gap: 0.55rem;
+  align-items: end;
+  margin-block-end: 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+}
+
+.inventory-form .form-field {
+  margin: 0;
+}
+
+.inventory-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.inventory-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 0.5fr 0.8fr;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+}
+
+.inventory-list h2 {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.inventory-list p,
+.inventory-list span {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 0.61rem;
+}
+
+.inventory-list article > div {
+  display: grid;
+}
+
+.inventory-list strong {
+  font-size: 0.68rem;
+}
+
+.offer-fulfillment {
+  display: grid;
+  gap: 0.25rem;
+  margin-block-start: 0.55rem;
+}
+
+.offer-fulfillment span {
+  color: var(--ink-500);
+  font-size: 0.62rem;
+}
+
+.offer-fulfillment select {
+  min-height: 44px;
+  padding-inline: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
 .weekday-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4087,7 +4158,7 @@ main {
   }
 
   .role-pharmacy .mobile-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .role-admin .mobile-nav {
@@ -4180,6 +4251,12 @@ main {
 
   .availability-list > article {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .inventory-form,
+  .inventory-list article {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .availability-list .status-pill,

@@ -25,6 +25,7 @@ interface MedicineRequest {
   quantity: number;
   urgency: string;
   status: string;
+  fulfillment_method?: "PICKUP" | "DELIVERY";
   area: string;
   radius_km: number;
   expires_at: string;
@@ -375,6 +376,7 @@ export function RequestDetailPage() {
   const offers = useApi(async () => (await apiFetch<{ data: Offer[] }>(`/api/v1/patient/requests/${requestId}/offers`)).data, [requestId], 5000);
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState("");
+  const [fulfillment, setFulfillment] = useState<Record<string, "PICKUP" | "DELIVERY">>({});
   if (request.loading) return <LoadingState label="نحمّل حالة الطلب الحقيقية…" />;
   if (request.error || !request.data) return <ErrorState error={request.error} retry={request.reload} />;
   const item = request.data;
@@ -386,7 +388,12 @@ export function RequestDetailPage() {
       const response = await apiFetch<{ data: Reservation }>(`/api/v1/patient/requests/${requestId}/reservations`, {
         method: "POST",
         idempotencyKey: newIdempotencyKey(),
-        body: JSON.stringify({ offerId: offer.id }),
+        body: JSON.stringify({
+          offerId: offer.id,
+          fulfillmentMethod:
+            fulfillment[offer.id] ??
+            (offer.pickup_enabled ? "PICKUP" : "DELIVERY"),
+        }),
       });
       navigate(`/patient/reservations/${response.data.id}`);
     } catch (cause) {
@@ -433,6 +440,7 @@ export function RequestDetailPage() {
             <div className="offer-facts"><div><span>السعر</span><strong>{formatIqd(offer.price_iqd)}</strong></div><div><span>التجهيز</span><strong>{offer.preparation_minutes === 0 ? "جاهز الآن" : `${offer.preparation_minutes} دقيقة`}</strong></div><div><span>آخر تأكيد</span><strong>{formatDate(offer.created_at)}</strong></div></div>
             {offer.note ? <p className="offer-note">{offer.note}</p> : null}
             <div className="service-tags">{offer.pickup_enabled ? <span>استلام</span> : null}{offer.delivery_enabled ? <span>توصيل</span> : null}</div>
+            {offer.pickup_enabled && offer.delivery_enabled ? <label className="offer-fulfillment"><span>طريقة التنفيذ</span><select value={fulfillment[offer.id] ?? "PICKUP"} onChange={(event) => setFulfillment((current) => ({ ...current, [offer.id]: event.target.value as "PICKUP" | "DELIVERY" }))}><option value="PICKUP">استلام من الصيدلية</option><option value="DELIVERY">توصيل</option></select></label> : null}
             <button className={offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "secondary-cta" : "primary-cta"} type="button" disabled={busy === offer.id} onClick={() => offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? setActionError("البديل لا يُحجز تلقائيًا. انتظر حجزًا مطابقًا أو تواصل مع الصيدلي بعد اختيار آمن.") : void selectOffer(offer)}>{busy === offer.id ? "جارٍ إرسال الاختيار…" : offer.offer_type === "ALTERNATIVE_REVIEW_REQUIRED" ? "يتطلب مراجعة صيدلي" : "اختيار وطلب الحجز"}</button>
           </article>)}</div>
         )}
@@ -475,7 +483,7 @@ export function ReservationPage() {
       <PageHeader eyebrow={`حجز ${item.public_reference}`} title={item.status === "PENDING_ACK" ? "بانتظار تأكيد الصيدلية" : item.status === "ACTIVE" ? "دواؤك محفوظ مؤقتًا" : item.status === "READY" ? "دواؤك جاهز للاستلام" : item.status === "COMPLETED" ? "اكتمل الاستلام" : "حالة الحجز"} description="العد التنازلي يبدأ فقط بعد أن تؤكد الصيدلية حفظ الكمية." actions={<StatusBadge status={item.status} />} />
       <section className="reservation-card">
         <div className="reservation-countdown"><Icon name="clock" size={22} /><span>{item.status === "PENDING_ACK" ? "مهلة رد الصيدلية" : "الوقت المتبقي للحجز"}</span><strong dir="ltr">{remaining(item.status === "PENDING_ACK" ? item.acknowledgement_deadline : item.hold_expires_at)}</strong></div>
-        <div className="reservation-grid"><div><span>الدواء</span><strong dir="auto">{item.offered_brand} {item.offered_strength}</strong></div><div><span>السعر</span><strong>{item.price_iqd !== undefined ? formatIqd(item.price_iqd) : "—"}</strong></div><div><span>الصيدلية</span><strong>{item.pharmacy_name ?? "بانتظار التأكيد"}</strong></div><div><span>العنوان</span><strong>{item.address ?? "يظهر بعد التأكيد"}</strong></div></div>
+        <div className="reservation-grid"><div><span>الدواء</span><strong dir="auto">{item.offered_brand} {item.offered_strength}</strong></div><div><span>السعر</span><strong>{item.price_iqd !== undefined ? formatIqd(item.price_iqd) : "—"}</strong></div><div><span>طريقة التنفيذ</span><strong>{item.fulfillment_method === "DELIVERY" ? "توصيل" : "استلام من الصيدلية"}</strong></div><div><span>الصيدلية</span><strong>{item.pharmacy_name ?? "بانتظار التأكيد"}</strong></div><div><span>العنوان</span><strong>{item.address ?? "يظهر بعد التأكيد"}</strong></div></div>
         {["ACTIVE", "READY"].includes(item.status) ? <div className="reservation-contact"><a className="primary-cta" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`}><Icon name="directions" size={18} /> الاتجاهات</a><a className="secondary-cta" href={`tel:${item.pharmacy_phone}`}><Icon name="phone" size={18} /> اتصال</a></div> : null}
       </section>
       {item.conversation_id && ["ACTIVE", "READY"].includes(item.status) ? <section className="conversation-panel"><h2>محادثة الحجز</h2><div className="message-list">{messages.length ? messages.map((entry) => <div key={entry.id}><strong>{entry.sender_name}</strong><p>{entry.body}</p><time>{formatDate(entry.created_at)}</time></div>) : <p>لا توجد رسائل. استخدم المحادثة للتنسيق فقط، وليس للاستشارة الطبية.</p>}</div><form onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="رسالة قصيرة للصيدلية" maxLength={1000} /><button className="primary-cta" type="submit">إرسال</button></form></section> : null}

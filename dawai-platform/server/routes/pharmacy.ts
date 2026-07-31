@@ -107,10 +107,6 @@ async function requireVerifiedPharmacy(
   return pharmacy;
 }
 
-function reservationReference(): string {
-  return `RSV-${randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`;
-}
-
 export function pharmacyRoutes(database: Database) {
   const routes = new Hono<{ Variables: AppVariables }>();
   routes.use("*", requireAuth(database, ["PHARMACY"]));
@@ -710,6 +706,68 @@ export function pharmacyRoutes(database: Database) {
       resourceId: result.rows[0].request_id,
     });
     return context.json({ data: { status: "FAILED" } });
+  });
+
+  routes.get("/inventory", async (context) => {
+    const pharmacy = await requireVerifiedPharmacy(
+      database,
+      context.get("user").id,
+    );
+    const result = await database.query(
+      `SELECT DISTINCT ON (lower(medicine_name))
+         id, presentation_id, medicine_name, source, state, quantity,
+         observed_at, expires_at
+       FROM availability_signals
+       WHERE branch_id = $1
+       ORDER BY lower(medicine_name), observed_at DESC`,
+      [pharmacy.branch_id],
+    );
+    return context.json({ data: result.rows });
+  });
+
+  routes.post("/inventory", async (context) => {
+    const body = z
+      .object({
+        medicineName: z.string().trim().min(2).max(160),
+        presentationId: z.string().max(100).nullable().default(null),
+        state: z.enum(["AVAILABLE", "LOW", "UNAVAILABLE", "ORDERABLE"]),
+        quantity: z.number().int().min(0).max(100_000).nullable(),
+        freshnessMinutes: z.number().int().min(15).max(1440).default(360),
+      })
+      .strict()
+      .parse(await context.req.json());
+    const pharmacy = await requireVerifiedPharmacy(
+      database,
+      context.get("user").id,
+    );
+    const id = randomUUID();
+    await database.query(
+      `INSERT INTO availability_signals
+        (id, branch_id, presentation_id, medicine_name, source, state,
+         quantity, expires_at)
+       VALUES ($1, $2, $3, $4, 'MANUAL_STOCK', $5, $6,
+         now() + ($7 * interval '1 minute'))`,
+      [
+        id,
+        pharmacy.branch_id,
+        body.presentationId,
+        body.medicineName,
+        body.state,
+        body.quantity,
+        body.freshnessMinutes,
+      ],
+    );
+    return context.json(
+      {
+        data: {
+          id,
+          medicineName: body.medicineName,
+          state: body.state,
+          expiresInMinutes: body.freshnessMinutes,
+        },
+      },
+      201,
+    );
   });
 
   routes.get("/notifications", async (context) => {

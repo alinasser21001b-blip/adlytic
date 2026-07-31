@@ -30,6 +30,7 @@ const navByRole: Record<Role, Array<{ to: string; label: string; icon: Parameter
     { to: "/pharmacy", label: "لوحة التحكم", icon: "spark" },
     { to: "/pharmacy/inbox", label: "الطلبات", icon: "bell" },
     { to: "/pharmacy/reservations", label: "الحجوزات", icon: "reserve" },
+    { to: "/pharmacy/inventory", label: "التوفر", icon: "list" },
     { to: "/pharmacy/settings", label: "الإعدادات", icon: "filter" },
   ],
   ADMIN: [

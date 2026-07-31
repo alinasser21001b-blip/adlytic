@@ -224,6 +224,8 @@ CREATE TABLE IF NOT EXISTS reservations (
   branch_id text NOT NULL REFERENCES pharmacy_branches(id) ON DELETE CASCADE,
   status text NOT NULL DEFAULT 'PENDING_ACK'
     CHECK (status IN ('PENDING_ACK', 'ACTIVE', 'READY', 'COMPLETED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'FAILED', 'NO_SHOW')),
+  fulfillment_method text NOT NULL DEFAULT 'PICKUP'
+    CHECK (fulfillment_method IN ('PICKUP', 'DELIVERY')),
   acknowledgement_deadline timestamptz NOT NULL,
   acknowledged_at timestamptz,
   hold_expires_at timestamptz,
