@@ -130,9 +130,18 @@
       height: 7px;
       border-radius: 99px;
       background: var(--lime);
-      transform: rotate(-42deg);
+      --pill-angle: -42deg;
+      transform: rotate(var(--pill-angle));
+      animation: pill-in 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.1) backwards;
     }
-    .brand-mark span:last-child { transform: rotate(48deg); }
+    .brand-mark span:last-child {
+      --pill-angle: 48deg;
+      animation-delay: 0.12s;
+    }
+    @keyframes pill-in {
+      from { transform: rotate(calc(var(--pill-angle) - 70deg)) scale(0.55); opacity: 0; }
+      to { transform: rotate(var(--pill-angle)) scale(1); opacity: 1; }
+    }
 
     .overline {
       color: var(--forest-700);
@@ -229,10 +238,57 @@
       height: 220px;
       margin-bottom: 1rem;
       border-radius: 50%;
+      overflow: hidden;
       background:
         radial-gradient(circle, transparent 28%, rgb(255 255 255 / 8%) 29%, transparent 30%),
         radial-gradient(circle, transparent 48%, rgb(255 255 255 / 8%) 49%, transparent 50%),
         radial-gradient(circle at center, rgb(220 234 184 / 18%), transparent 55%);
+    }
+    /* Rotating sweep beam: the request radiating outward — the product itself */
+    .welcome-radar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: conic-gradient(
+        from 0deg,
+        transparent 0deg 318deg,
+        rgb(220 234 184 / 4%) 330deg,
+        rgb(220 234 184 / 26%) 356deg,
+        rgb(220 234 184 / 38%) 359deg,
+        transparent 360deg
+      );
+      animation: radar-sweep 5.2s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes radar-sweep {
+      to { transform: rotate(360deg); }
+    }
+    /* The request pin breathes a ripple ring */
+    .welcome-radar .center::after {
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border-radius: inherit;
+      border: 2px solid rgb(223 132 108 / 65%);
+      animation: request-ripple 2.6s ease-out infinite;
+      pointer-events: none;
+    }
+    @keyframes request-ripple {
+      0% { transform: scale(1); opacity: 0.9; }
+      70%, 100% { transform: scale(1.75); opacity: 0; }
+    }
+    /* Pharmacies ping as the beam passes — staggered replies, one per pass */
+    .welcome-radar .point {
+      animation: pharmacy-ping 5.2s ease-out infinite;
+    }
+    .welcome-radar .p1 { animation-delay: 1.1s; }
+    .welcome-radar .p2 { animation-delay: 2.9s; }
+    .welcome-radar .p3 { animation-delay: 4.2s; }
+    @keyframes pharmacy-ping {
+      0%, 6% { background: rgb(255 255 255 / 14%); transform: scale(1); }
+      9% { background: rgb(220 234 184 / 45%); transform: scale(1.08); }
+      18%, 100% { background: rgb(255 255 255 / 14%); transform: scale(1); }
     }
     .welcome-radar .center,
     .welcome-radar .point {
