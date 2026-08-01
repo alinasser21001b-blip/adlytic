@@ -11,6 +11,12 @@ import {
   REORDER_THRESHOLD_DAYS,
   requirePatientAuthority,
 } from "../services/clinical";
+import {
+  evaluateInteractions,
+  outcomeMessageAr,
+  validateOverride,
+  type InteractionPair,
+} from "../services/interactions";
 import type { AppVariables } from "../types";
 
 const scheduleSchema = z.object({
@@ -31,6 +37,16 @@ const doseEventSchema = z.object({
   status: z.enum(["TAKEN", "MISSED", "SNOOZED", "UNKNOWN"]),
   clientEventId: z.string().min(8).max(200).optional(),
   recordedOffline: z.boolean().default(false),
+});
+
+const interactionCheckSchema = z.object({
+  patientUserId: z.string().min(1).optional(),
+  // Ingredients being added on top of the patient's active regimen.
+  addingIngredients: z.array(z.string().trim().min(2).max(120)).min(1).max(20),
+});
+
+const overrideSchema = z.object({
+  reason: z.string().trim().min(10).max(500),
 });
 
 const familyInviteSchema = z.object({
@@ -493,6 +509,193 @@ export function clinicalRoutes(database: Database) {
       throw new ApiError(404, "ATTENTION_NOT_FOUND", "التنبيه غير موجود.");
     }
     return context.json({ data: { dismissed: true } });
+  });
+
+  // ── Interaction safety (MM-X2) ────────────────────────────────────────────
+
+  /**
+   * Checks a proposed addition against the patient's active regimen.
+   *
+   * Severity tiering is the whole point: only CONTRAINDICATED/SEVERE interrupt,
+   * because alert fatigue (46–96% override rates in the literature) is what
+   * makes safety alerts worthless. Every check is persisted — including the
+   * ones that could not be answered — so override rate stays measurable.
+   */
+  routes.post("/interaction-check", async (context) => {
+    const caller = context.get("user");
+    const body = interactionCheckSchema.parse(await context.req.json());
+    const target = body.patientUserId ?? caller.id;
+    await requirePatientAuthority(database, caller.id, target, "VIEW");
+
+    const active = await database.query<{ medicine_name: string }>(
+      `SELECT medicine_name FROM dose_schedules
+        WHERE patient_user_id = $1 AND active`,
+      [target],
+    );
+    const ingredients = [
+      ...active.rows.map((row) => row.medicine_name),
+      ...body.addingIngredients,
+    ];
+    const normalized = [...new Set(ingredients.map((v) => v.trim().toLowerCase()))];
+
+    // Coverage, pairs, and dataset freshness are all read from the DB; a
+    // failure to read any of them degrades to UNAVAILABLE rather than CLEAR.
+    let coveredIngredients: string[] = [];
+    let knownPairs: InteractionPair[] = [];
+    let datasetUpdatedAt: Date | null = null;
+    let lookupFailed = false;
+
+    try {
+      const [covered, pairs, meta] = await Promise.all([
+        database.query<{ ingredient: string }>(
+          `SELECT ingredient FROM interaction_ingredients WHERE ingredient = ANY($1::text[])`,
+          [normalized],
+        ),
+        database.query<{
+          ingredient_a: string;
+          ingredient_b: string;
+          severity: InteractionPair["severity"];
+          summary_ar: string;
+          source: string;
+        }>(
+          `SELECT ingredient_a, ingredient_b, severity, summary_ar, source
+             FROM drug_interactions
+            WHERE ingredient_a = ANY($1::text[]) AND ingredient_b = ANY($1::text[])`,
+          [normalized],
+        ),
+        database.query<{ updated_at: string }>(
+          `SELECT MAX(updated_at) AS updated_at FROM interaction_dataset_meta`,
+        ),
+      ]);
+      coveredIngredients = covered.rows.map((row) => row.ingredient);
+      knownPairs = pairs.rows.map((row) => ({
+        a: row.ingredient_a,
+        b: row.ingredient_b,
+        severity: row.severity,
+        summaryAr: row.summary_ar,
+        source: row.source,
+      }));
+      datasetUpdatedAt = meta.rows[0]?.updated_at
+        ? new Date(meta.rows[0].updated_at)
+        : null;
+    } catch {
+      lookupFailed = true;
+    }
+
+    const outcome = evaluateInteractions({
+      ingredients: normalized,
+      coveredIngredients,
+      knownPairs,
+      datasetUpdatedAt,
+      lookupFailed,
+    });
+
+    const checkId = randomUUID();
+    await database.query(
+      `INSERT INTO interaction_checks
+         (id, patient_user_id, checked_by_user_id, ingredients, outcome,
+          unavailable_reason, findings)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7::jsonb)`,
+      [
+        checkId,
+        target,
+        caller.id,
+        JSON.stringify(normalized),
+        outcome.kind,
+        outcome.kind === "UNAVAILABLE" ? outcome.reason : null,
+        JSON.stringify(
+          outcome.kind === "INTERRUPT"
+            ? [...outcome.interrupting, ...outcome.passive]
+            : outcome.kind === "INFO"
+              ? outcome.passive
+              : [],
+        ),
+      ],
+    );
+
+    // A severe interaction is the canonical SEV_ALERT: it blocks, and it is not
+    // dismissible from the client.
+    if (outcome.kind === "INTERRUPT") {
+      await raiseAttention(database, {
+        recipientUserId: caller.id,
+        priority: "SEV_ALERT",
+        kind: "INTERACTION_SEVERE",
+        title: "تعارض دوائي مهم",
+        body: outcome.interrupting[0]?.summaryAr,
+        resourceType: "INTERACTION_CHECK",
+        resourceId: checkId,
+        dedupeKey: `interaction:${checkId}`,
+      });
+    }
+
+    return context.json({
+      data: {
+        checkId,
+        outcome,
+        message: outcomeMessageAr(outcome),
+        // The UI must not render a green state on anything but CLEAR.
+        safeToProceedWithoutReview: outcome.kind === "CLEAR",
+      },
+    });
+  });
+
+  /** Records a clinical override of an interrupting alert, with its reason. */
+  routes.post("/interaction-check/:checkId/override", async (context) => {
+    const caller = context.get("user");
+    if (caller.role !== "PHARMACY") {
+      // Only the dispensing professional may override a safety interrupt.
+      throw new ApiError(
+        403,
+        "OVERRIDE_NOT_PERMITTED",
+        "تجاوز تنبيه السلامة مقصور على الصيدلي.",
+      );
+    }
+    const checkId = context.req.param("checkId");
+    const body = overrideSchema.parse(await context.req.json());
+
+    const existing = await database.query<{ outcome: string; overridden_at: string | null }>(
+      `SELECT outcome, overridden_at FROM interaction_checks WHERE id = $1`,
+      [checkId],
+    );
+    const check = existing.rows[0];
+    if (!check) throw new ApiError(404, "CHECK_NOT_FOUND", "الفحص غير موجود.");
+    if (check.overridden_at) {
+      throw new ApiError(409, "ALREADY_OVERRIDDEN", "سُجّل التجاوز مسبقًا.");
+    }
+
+    const validation = validateOverride({
+      outcome:
+        check.outcome === "INTERRUPT"
+          ? { kind: "INTERRUPT", checked: 0, interrupting: [], passive: [], requiresOverrideReason: true }
+          : { kind: "CLEAR", checked: 0 },
+      reason: body.reason,
+    });
+    if (!validation.ok) {
+      throw new ApiError(422, validation.code, validation.message);
+    }
+
+    await database.query(
+      `UPDATE interaction_checks
+          SET overridden_at = now(), override_reason = $2, override_by_user_id = $3
+        WHERE id = $1`,
+      [checkId, body.reason, caller.id],
+    );
+    await writeAudit(database, {
+      actorUserId: caller.id,
+      actorRole: caller.role,
+      action: "INTERACTION_ALERT_OVERRIDDEN",
+      resourceType: "INTERACTION_CHECK",
+      resourceId: checkId,
+      requestId: context.get("requestId"),
+    });
+    // Resolving the cause is what clears the SEV_ALERT — never a client tap.
+    await database.query(
+      `UPDATE attention_events SET dismissed_at = now()
+        WHERE dedupe_key = $1 AND dismissed_at IS NULL`,
+      [`interaction:${checkId}`],
+    );
+
+    return context.json({ data: { overridden: true } });
   });
 
   return routes;
