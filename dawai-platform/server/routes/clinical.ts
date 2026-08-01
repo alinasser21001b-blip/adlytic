@@ -126,7 +126,11 @@ export function clinicalRoutes(database: Database) {
                       e.dose_schedule_id, e.scheduled_at, e.status, e.confirmed_at
                  FROM dose_events e
                  JOIN dose_schedules ds ON ds.id = e.dose_schedule_id
-                WHERE ds.dispensed_at IS NULL OR e.scheduled_at >= ds.dispensed_at
+                -- Compare against the dispense DAY, not the exact instant:
+                -- a dose taken earlier on the dispensing day is part of this
+                -- cycle, and dropping it inflates remaining cover.
+                WHERE ds.dispensed_at IS NULL
+                   OR e.scheduled_at >= date_trunc('day', ds.dispensed_at)
                 ORDER BY e.dose_schedule_id, e.scheduled_at, e.confirmed_at DESC
              ) latest
             GROUP BY latest.dose_schedule_id
@@ -396,10 +400,20 @@ export function clinicalRoutes(database: Database) {
       `SELECT f.id, f.display_name, f.relation, f.proxy_scope,
               f.consent_granted_at, f.member_user_id,
               CASE WHEN f.owner_user_id = $1 THEN 'PROXY' ELSE 'SUBJECT' END AS side,
-              CASE WHEN f.owner_user_id = $1 THEN member_u.name ELSE owner_u.name END
-                AS counterparty_name,
-              CASE WHEN f.owner_user_id = $1 THEN member_u.email ELSE owner_u.email END
-                AS counterparty_email
+              -- The SUBJECT always learns who is asking: that is the point of
+              -- consent. The PROXY only learns the subject's identity AFTER
+              -- consent is granted, so an invite cannot be used to probe
+              -- whether an email belongs to a real account.
+              CASE
+                WHEN f.owner_user_id <> $1 THEN owner_u.name
+                WHEN f.consent_granted_at IS NOT NULL THEN member_u.name
+                ELSE NULL
+              END AS counterparty_name,
+              CASE
+                WHEN f.owner_user_id <> $1 THEN owner_u.email
+                WHEN f.consent_granted_at IS NOT NULL THEN member_u.email
+                ELSE NULL
+              END AS counterparty_email
          FROM family_members f
          LEFT JOIN users owner_u ON owner_u.id = f.owner_user_id
          LEFT JOIN users member_u ON member_u.id = f.member_user_id
@@ -672,12 +686,21 @@ export function clinicalRoutes(database: Database) {
       lookupFailed,
     });
 
+    // Identifies the clinical condition, independent of which request found it.
+    const conditionKey =
+      outcome.kind === "INTERRUPT"
+        ? `interaction:${target}:${outcome.interrupting
+            .map((p) => [p.a, p.b].sort().join("+"))
+            .sort()
+            .join("|")}`
+        : null;
+
     const checkId = randomUUID();
     await database.query(
       `INSERT INTO interaction_checks
          (id, patient_user_id, checked_by_user_id, ingredients, outcome,
-          unavailable_reason, findings)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7::jsonb)`,
+          unavailable_reason, findings, condition_key)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7::jsonb, $8)`,
       [
         checkId,
         target,
@@ -692,6 +715,7 @@ export function clinicalRoutes(database: Database) {
               ? outcome.passive
               : [],
         ),
+        conditionKey,
       ],
     );
 
@@ -699,21 +723,21 @@ export function clinicalRoutes(database: Database) {
     // dismissible from the client. The dedupe key must therefore describe the
     // CONDITION, not the request — keying it on a fresh checkId would mint an
     // unclearable alert on every check and permanently bury the Pill Bar.
-    if (outcome.kind === "INTERRUPT") {
-      const conditionKey = outcome.interrupting
-        .map((p) => [p.a, p.b].sort().join("+"))
-        .sort()
-        .join("|");
-      await raiseAttention(database, {
-        recipientUserId: caller.id,
-        priority: "SEV_ALERT",
-        kind: "INTERACTION_SEVERE",
-        title: "تعارض دوائي مهم",
-        body: outcome.interrupting[0]?.summaryAr,
-        resourceType: "INTERACTION_CHECK",
-        resourceId: checkId,
-        dedupeKey: `interaction:${target}:${conditionKey}`,
-      });
+    // The alert must reach the PATIENT, not only whoever ran the check — a
+    // pharmacist checking on their behalf would otherwise leave them unwarned.
+    if (outcome.kind === "INTERRUPT" && conditionKey) {
+      for (const recipient of new Set([caller.id, target])) {
+        await raiseAttention(database, {
+          recipientUserId: recipient,
+          priority: "SEV_ALERT",
+          kind: "INTERACTION_SEVERE",
+          title: "تعارض دوائي مهم",
+          body: outcome.interrupting[0]?.summaryAr,
+          resourceType: "INTERACTION_CHECK",
+          resourceId: checkId,
+          dedupeKey: conditionKey,
+        });
+      }
     }
 
     return context.json({
@@ -740,8 +764,9 @@ export function clinicalRoutes(database: Database) {
       overridden_at: string | null;
       patient_user_id: string | null;
       checked_by_user_id: string;
+      condition_key: string | null;
     }>(
-      `SELECT outcome, overridden_at, patient_user_id, checked_by_user_id
+      `SELECT outcome, overridden_at, patient_user_id, checked_by_user_id, condition_key
          FROM interaction_checks WHERE id = $1`,
       [checkId],
     );
@@ -784,13 +809,20 @@ export function clinicalRoutes(database: Database) {
     // Resolving the cause is what clears the SEV_ALERT — never a client tap.
     // Scoped to the event's own recipient so an override cannot silence
     // someone else's alert that happens to share a key.
+    // Dismiss by the CONDITION key, not this check's id. The alert is deduped
+    // on the condition, so it still carries the resource_id of the FIRST check
+    // that raised it — matching on the id being overridden would never hit,
+    // leaving a permanently unclearable severe alert in the Pill Bar.
     await database.query(
       `UPDATE attention_events SET dismissed_at = now()
-        WHERE resource_type = 'INTERACTION_CHECK'
-          AND resource_id = $1
-          AND recipient_user_id = $2
+        WHERE kind = 'INTERACTION_SEVERE'
+          AND dedupe_key = $1
+          AND recipient_user_id = ANY($2::text[])
           AND dismissed_at IS NULL`,
-      [checkId, check.checked_by_user_id],
+      [
+        check.condition_key,
+        [check.checked_by_user_id, check.patient_user_id].filter(Boolean),
+      ],
     );
 
     return context.json({ data: { overridden: true } });

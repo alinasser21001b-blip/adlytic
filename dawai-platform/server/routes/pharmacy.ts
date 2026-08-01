@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
 import { computeSkuTrust, SKU_TRUST_THRESHOLD } from "../services/clinical";
+import { normalizeSkuKey } from "../services/sku-key";
 import { config } from "../config";
 import type { Database, DbExecutor } from "../db/client";
 import { ApiError } from "../errors";
@@ -986,9 +987,9 @@ export function pharmacyRoutes(database: Database) {
     const pharmacy = await requireVerifiedPharmacy(database, context.get("user").id);
     const body = movementSchema.parse(await context.req.json());
 
-    // Case-folded so the ledger, the on-hand rollup and the trust row all key
-    // alike; raw casing would split one SKU across "Panadol" and "panadol".
-    const medicineKey = body.medicineName.toLocaleLowerCase("ar");
+    // Orthography-folded, not merely case-folded: Arabic is caseless, so a
+    // lowercase() call normalizes nothing for this product's main language.
+    const medicineKey = normalizeSkuKey(body.medicineName);
 
     // The ledger append and the trust recompute are one unit. As separate
     // autocommitted statements they interleave, and the later upsert
@@ -1034,8 +1035,12 @@ export function pharmacyRoutes(database: Database) {
       // A failed reconciliation must keep gating this SKU until the NEXT
       // count. Recomputing with variance 0 on the following sale would erase
       // the penalty and quietly re-admit an untrusted SKU to forecasting.
+      // FOR UPDATE serializes concurrent movements for this SKU; without it
+      // two transactions both read the pre-insert count and the later upsert
+      // writes a stale absolute movement_count.
       const prior = await tx.query<{ last_variance: number }>(
-        `SELECT last_variance FROM sku_trust WHERE branch_id = $1 AND medicine_name = $2`,
+        `SELECT last_variance FROM sku_trust
+          WHERE branch_id = $1 AND medicine_name = $2 FOR UPDATE`,
         [pharmacy.branch_id, medicineKey],
       );
       const variance =
@@ -1105,25 +1110,28 @@ export function pharmacyRoutes(database: Database) {
     );
 
     return context.json({
-      // Untrusted SKUs are excluded from the forecast surface entirely rather
-      // than shown with a caveat: a number nobody should act on is still a
-      // number people act on.
-      data: result.rows
-        .filter((row) => Number(row.trust_score ?? 0) >= SKU_TRUST_THRESHOLD)
-        .map((row) => ({
+      // The blueprint excludes low-trust SKUs from FORECASTING, not from the
+      // pharmacist's sight. Dropping the row entirely removed the observed
+      // ledger balance too — hiding stock a pharmacist needs to see. Every SKU
+      // is listed; only the forecast-derived fields are withheld.
+      data: result.rows.map((row) => {
+        const trust = Number(row.trust_score ?? 0);
+        const forecastReady = trust >= SKU_TRUST_THRESHOLD;
+        return {
           medicineName: row.medicine_name,
           onHand: Number(row.on_hand),
           movements: Number(row.movements),
           lastMovementAt: row.last_movement_at,
-          trustScore: Number(row.trust_score ?? 0),
-          forecastReady: true,
-          reorderHint: Number(row.on_hand) <= 5,
-        })),
+          trustScore: trust,
+          forecastReady,
+          // No forecast-derived signal at all below the threshold.
+          reorderHint: forecastReady ? Number(row.on_hand) <= 5 : null,
+        };
+      }),
       meta: {
         trustThreshold: SKU_TRUST_THRESHOLD,
-        // Counting what was withheld keeps the omission honest and visible.
-        excludedUntrustedCount: result.rows.filter(
-          (row) => Number(row.trust_score ?? 0) < SKU_TRUST_THRESHOLD,
+        forecastableCount: result.rows.filter(
+          (row) => Number(row.trust_score ?? 0) >= SKU_TRUST_THRESHOLD,
         ).length,
       },
     });
