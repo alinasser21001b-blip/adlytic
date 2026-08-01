@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light"><title>Dawai — Release Governance</title>
+<style>
+:root{--bg:#091411;--surface:#10211d;--surface2:#142b25;--surface3:#19352d;--line:#29463d;--text:#f0f7f4;--muted:#a4b8b1;--faint:#749087;--green:#56d39d;--green-bg:#123b2b;--amber:#f3bb5f;--amber-bg:#493618;--red:#ff8c7c;--red-bg:#48231e;--blue:#7cc7ff;--blue-bg:#173749;--radius:18px;--r-sm:12px;--shadow:0 12px 30px #0000002e;--tap:44px;--max:1560px;--sans:"IBM Plex Sans Arabic","Noto Sans Arabic",Tahoma,Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Consolas,monospace}*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.7 var(--sans);letter-spacing:0}button,input,select{font:inherit}button{color:inherit;cursor:pointer}a{color:var(--blue)}bdi,.ltr{direction:ltr;unicode-bidi:isolate;display:inline-block;font-family:var(--mono);letter-spacing:0}h1,h2,h3,p{margin:0}h1{font-size:clamp(1.55rem,3vw,2.45rem);line-height:1.5}h2{font-size:1.03rem;line-height:1.6}h3{font-size:.9rem}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.skip{position:absolute;inset-inline-start:1rem;top:-100px;background:var(--green);color:#082017;padding:.6rem 1rem;border-radius:9px;z-index:99}.skip:focus{top:1rem}.app{max-width:var(--max);margin:auto;padding:0 1rem 3rem}.top{padding:1.25rem 0 1rem;display:flex;align-items:center;gap:1rem;justify-content:space-between}.brand{display:flex;align-items:center;gap:.75rem}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--green);color:#082017;font-size:1.3rem;font-weight:900}.brand small,.eyebrow{display:block;color:var(--muted);font-size:.76rem;font-weight:700}.actions{display:flex;gap:.5rem;align-items:center}.icon-btn,.btn{min-height:var(--tap);border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:.45rem .8rem}.icon-btn{min-width:var(--tap);display:grid;place-items:center}.icon-btn:hover,.btn:hover{border-color:var(--green)}.search{position:relative;min-width:min(380px,43vw)}.search input{width:100%;min-height:var(--tap);background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--text);padding:.55rem 2.5rem .55rem .8rem;font-size:16px}.search svg{position:absolute;inset-inline-end:.8rem;top:12px;color:var(--muted)}.statusbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.75rem 1rem;background:#0d1b17;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.statusbar>span:first-child{margin-inline-end:auto}.badge{display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;padding:.2rem .55rem;border-radius:999px;font-size:.72rem;font-weight:800;border:1px solid transparent}.badge:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}.ok{color:var(--green);background:var(--green-bg);border-color:#2d7354}.warn{color:var(--amber);background:var(--amber-bg);border-color:#765924}.bad{color:var(--red);background:var(--red-bg);border-color:#794137}.info{color:var(--blue);background:var(--blue-bg);border-color:#345f75}.nav{display:flex;gap:.35rem;overflow:auto;padding:.75rem 0;scrollbar-width:none}.nav button{white-space:nowrap;padding:.55rem .75rem;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);font-weight:700}.nav button:hover,.nav button.active{background:var(--surface2);border-color:var(--line);color:var(--text)}.grid{display:grid;gap:1rem}.overview{grid-template-columns:1.5fr 1fr}.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);min-width:0}.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:1rem 1.1rem;border-bottom:1px solid var(--line)}.card-head p{font-size:.78rem;color:var(--muted)}.card-body{padding:1.1rem}.hero{position:relative;overflow:hidden;background:#10281f;padding:1.35rem}.hero:after{content:"";position:absolute;width:380px;height:380px;border:70px solid #56d39d0c;border-radius:50%;inset-inline-end:-150px;bottom:-245px}.hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:center}.hero-title{font-size:.85rem;color:var(--muted);font-weight:700}.version{font:700 clamp(2.2rem,6vw,4.7rem)/1 var(--mono);color:var(--text);margin:.3rem 0 .8rem}.version bdi{font:inherit}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-top:1rem}.metric{padding:.7rem;border:1px solid var(--line);border-radius:12px;background:#0b1b16}.metric span{display:block;color:var(--muted);font-size:.72rem}.metric strong{font:700 1.1rem var(--mono);font-variant-numeric:tabular-nums}.ring{--p:92;width:125px;aspect-ratio:1;border-radius:50%;background:conic-gradient(var(--green) calc(var(--p)*1%),var(--line) 0);display:grid;place-items:center;position:relative}.ring:before{content:"";position:absolute;inset:11px;background:#10281f;border-radius:50%}.ring div{position:relative;text-align:center;font-weight:800;font-size:1.35rem}.ring small{display:block;font-size:.65rem;color:var(--muted)}.stack{display:grid;gap:1rem}.stat-list{display:grid;gap:.65rem}.stat-row{display:flex;gap:.7rem;justify-content:space-between;align-items:center}.stat-row span{color:var(--muted);font-size:.82rem}.progress{height:8px;border-radius:99px;background:#0b1b16;overflow:hidden}.progress i{display:block;height:100%;border-radius:inherit;background:var(--green)}.section{margin-top:1rem;scroll-margin-top:1rem}.section[hidden]{display:none}.two{grid-template-columns:1fr 1fr}.three{grid-template-columns:repeat(3,1fr)}.four{grid-template-columns:repeat(4,1fr)}.mini{padding:.9rem}.mini span{display:block;font-size:.73rem;color:var(--muted)}.mini strong{font:700 1.1rem var(--mono);display:block;margin-top:.18rem}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:720px}.table th,.table td{text-align:start;padding:.72rem .85rem;border-bottom:1px solid var(--line);vertical-align:middle}.table th{color:var(--muted);font-size:.72rem;white-space:nowrap}.table tr:last-child td{border-bottom:0}.table tr:hover td{background:#ffffff05}.code{font-family:var(--mono);font-size:.83rem;direction:ltr;unicode-bidi:isolate}.contract-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}.contract{padding:.85rem;border:1px solid var(--line);background:var(--surface2);border-radius:13px}.contract header{display:flex;justify-content:space-between;gap:.5rem}.contract p{font-size:.74rem;color:var(--muted);margin:.5rem 0}.contract footer{display:flex;justify-content:space-between;align-items:center;font-size:.74rem}.contract .code{font-size:1rem;font-weight:800}.kpi{display:flex;align-items:center;gap:.7rem}.kpi svg{width:55px;height:55px;flex:none}.kpi strong{font:800 1.25rem var(--mono)}details{border-bottom:1px solid var(--line)}details:last-child{border:0}summary{list-style:none;cursor:pointer;padding:.8rem 1.1rem;display:flex;align-items:center;gap:.7rem}summary::-webkit-details-marker{display:none}summary:after{content:"⌄";margin-inline-start:auto;color:var(--muted);font-size:1.1rem}details[open] summary:after{transform:rotate(180deg)}.claim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;padding:0 1.1rem 1rem}.field{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:.65rem}.field span{color:var(--muted);font-size:.69rem;display:block}.field b{font-size:.82rem}.checks{display:grid;gap:.65rem}.check{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.7rem;padding:.75rem;border:1px solid var(--line);border-radius:12px;background:var(--surface2)}.check .dot{width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px #56d39d18}.check.fail .dot{background:var(--red);box-shadow:0 0 0 4px #ff8c7c18}.check.pending .dot{background:var(--amber);box-shadow:0 0 0 4px #f3bb5f18}.check small{display:block;color:var(--muted)}.gates{display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem}.gate{border:1px solid var(--line);border-radius:13px;padding:.85rem;background:var(--surface2);min-height:105px;display:flex;flex-direction:column;justify-content:space-between}.gate strong{font-size:.87rem}.gate span{font-size:.72rem}.timeline{position:relative;display:flex;justify-content:space-between;gap:.2rem;padding:1rem .4rem}.timeline:before{content:"";position:absolute;top:26px;inset-inline:1.1rem;height:2px;background:var(--line)}.step{z-index:1;display:grid;gap:.4rem;text-align:center;justify-items:center;min-width:58px;font-size:.69rem;color:var(--muted)}.step i{width:18px;height:18px;border-radius:50%;background:var(--surface);border:3px solid var(--line)}.step.done i{background:var(--green);border-color:var(--green)}.step.current i{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 5px #f3bb5f20}.artifacts{display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem}.artifact{display:block;color:var(--text);text-decoration:none;border:1px solid var(--line);border-radius:12px;background:var(--surface2);padding:.8rem;min-height:92px}.artifact:hover{border-color:var(--blue)}.artifact svg{color:var(--blue);width:20px;height:20px}.artifact span{display:block;font-size:.8rem;font-weight:800;margin-top:.3rem}.artifact small{color:var(--muted);font-size:.68rem}.final{background:#10281f;border-color:#2f7255;padding:1.25rem;display:flex;justify-content:space-between;gap:1rem;align-items:center}.final strong{font-size:1.35rem}.final p{color:var(--muted);font-size:.84rem}.final .btn{background:var(--green);color:#092017;border:0;font-weight:800;min-width:155px}.filterbar{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1.1rem 1rem}.filterbar select{min-height:38px;background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:0 .6rem}.toast{position:fixed;bottom:1rem;inset-inline-start:50%;transform:translateX(-50%) translateY(120px);background:#dff9e9;color:#092017;padding:.7rem 1rem;border-radius:11px;font-weight:800;z-index:10;transition:transform .2s}.toast.show{transform:translateX(-50%) translateY(0)}.print-only{display:none}
+/* ── إصلاحات تجاوز أفقي على الهاتف ─────────────────────────────────────────
+   وُجدت بالقياس في Chromium على 390px و320px، لا بالنظر.
+
+   1) .timeline صف مرن من سبع مراحل بحد أدنى 58px لكل واحدة، بلا التفاف — أي
+      ~514px ثابتة تدفع المستند خارج الشاشة على كل هاتف. الخط الزمني بطبيعته
+      متتابع ولا يصح لفّه، فالحل تمريره أفقياً داخل حاويته مع إبقاء الخط الواصل
+      ممتداً عبر المحتوى لا عبر الحاوية.
+   2) أبناء الشبكات يحتاجون min-width:0 صراحةً: القيمة الافتراضية auto تمنع
+      انكماش العنصر تحت عرض محتواه، فيتسرّب من الشبكة بدل أن يقتطع نصه.
+   ------------------------------------------------------------------------ */
+.timeline{overflow-x:auto;scrollbar-width:none;justify-content:flex-start;gap:.9rem}
+.timeline::-webkit-scrollbar{display:none}
+.timeline:before{inset-inline:1.1rem;width:max-content;min-width:calc(100% - 2.2rem)}
+.step{flex:none}
+.contract,.gate,.check,.mini,.metric,.field,.artifact,.stat-row{min-width:0}
+.contract-grid,.gates,.artifacts,.claim-grid,.metrics,.grid{min-width:0}
+.contract .code,.contract header b,.field b,.field bdi,.artifact small,.gate strong{overflow-wrap:anywhere;min-width:0}
+/* أسماء العقود مثل inventory-observation أطول من نصف عرض شاشة 320px،
+   وهي كلمة واحدة بلا فرصة التفاف طبيعية — بلا anywhere تدفع الشبكة. */
+.contract header{min-width:0;flex-wrap:wrap}
+.check>div{min-width:0;overflow-wrap:anywhere}
+/* 3) .check شبكة من ثلاثة أعمدة؛ شارة الحالة في العمود الأخير لها
+      white-space:nowrap فتدفع الصف. تُلفّ إلى سطر خاص بها تحت 360px بدل أن
+      تُقلَّص، لأن تقليصها يجعل كلمة الحالة تُقتطع — وحالة مقتطعة في لوحة حوكمة
+      أسوأ من حالة في سطر ثانٍ. */
+@media(max-width:360px){
+  .check{grid-template-columns:auto 1fr;row-gap:.5rem}
+  .check>.badge{grid-column:2;justify-self:start}
+}
+@media(max-width:980px){.overview,.two{grid-template-columns:1fr}.three,.four{grid-template-columns:repeat(2,1fr)}.contract-grid{grid-template-columns:repeat(2,1fr)}.search{min-width:0;width:100%}.top{align-items:flex-start}.actions{flex-wrap:wrap;justify-content:flex-end}.hero-grid{grid-template-columns:1fr}.ring{display:none}}@media(max-width:580px){.app{padding-inline:.7rem}.top{gap:.7rem}.brand h1{font-size:1.15rem}.actions{gap:.35rem}.icon-btn{padding:.3rem;min-width:40px;min-height:40px}.search{order:3;flex-basis:100%}.metrics,.three,.four,.contract-grid,.gates,.artifacts,.claim-grid{grid-template-columns:1fr 1fr}.statusbar>span:first-child{width:100%}.version{font-size:2.7rem}.final{align-items:flex-start;flex-direction:column}.final .btn{width:100%}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}@media(prefers-contrast:more){:root{--line:#6d9082;--muted:#d0e2db}.card,.contract,.gate,.check{border-width:2px}}@media print{html,body{background:#fff;color:#111;font-size:11px}.app{max-width:none;padding:0}.top,.nav,.actions,.filterbar,.toast{display:none!important}.card{background:#fff;box-shadow:none;border-color:#999;break-inside:avoid}.hero,.final{background:#f3faf6;color:#111}.version,.code,.mini strong{color:#111}.section{break-inside:avoid}.section[hidden]{display:block!important}.print-only{display:block}.badge{border-color:#777}.table{min-width:0}.card-head{padding:.6rem}.card-body{padding:.7rem}}
+</style><script src="release-data.js"></script>
+</head>
+<body><a class="skip" href="#main">تجاوز إلى المحتوى</a><div class="app">
+<header class="top"><div class="brand"><div class="mark" aria-hidden="true">د</div><div><small>Dawai · Release Governance</small><h1>لوحة حوكمة الإصدار</h1></div></div><div class="actions"><label class="search"><span class="sr">بحث شامل</span><input id="search" type="search" placeholder="ابحث في العقود، المطالبات، الرايات، ADR…"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></label><button class="icon-btn" id="print" aria-label="طباعة تقرير الإصدار">⎙</button></div></header>
+<div class="statusbar" aria-live="polite"><span><b>الإصدار:</b> <bdi id="hRelease">—</bdi></span><span class="badge ok">Manifest صالح</span><span class="badge ok">Hash مطابق</span><span class="badge warn" id="hReview">—</span></div>
+<nav class="nav" aria-label="أقسام الحوكمة"><button class="active" data-jump="overview">نظرة عامة</button><button data-jump="versions">الإصدارات</button><button data-jump="clinical">سريري</button><button data-jump="evidence">الدليل</button><button data-jump="verification">التحقق</button><button data-jump="gates">البوابات</button><button data-jump="flags">الرايات</button><button data-jump="release">الإفراج</button></nav>
+<main id="main">
+<section id="overview" class="section grid overview"><article class="card hero"><div class="hero-grid"><div><p class="hero-title">Dawai Platform / Release Candidate</p><div class="version"><bdi id="hVersion">—</bdi></div><span class="badge warn" id="hStatus">—</span><div class="metrics"><div class="metric"><span>البوابات</span><strong id="hGates">—</strong></div><div class="metric"><span>المطالبات الحية</span><strong id="hClaims">—</strong></div><div class="metric"><span>الرايات المفعّلة</span><strong id="hFlags">—</strong></div></div></div><div class="ring" id="hRing" style="--p:0"><div><span id="hRingN">0</span><small>Release health</small></div></div></div></article><aside class="stack"><article class="card"><div class="card-head"><div><h2>قرار الإصدار</h2><p>يُمنع النشر عند فشل بوابة إلزامية</p></div><span class="badge warn">معلّق</span></div><div class="card-body stat-list"><div class="stat-row"><span>البوابات المطلوبة</span><bdi>7 / 8</bdi></div><div class="progress"><i style="width:87.5%"></i></div><div class="stat-row"><span>العناصر المحظورة</span><bdi style="color:var(--amber)">1</bdi></div><div class="stat-row"><span>تحذيرات غير حاجبة</span><bdi>3</bdi></div></div></article></aside></section>
+<section id="versions" class="section"><article class="card"><div class="card-head"><div><h2>مصفوفة الإصدارات والتوافق</h2><p>قُرئت من <bdi>release-manifest.yaml</bdi> — مصدر الحقيقة الوحيد</p></div><span class="badge ok" id="hCompat">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>المكوّن</th><th>النطاق المدعوم</th><th>الحد الأدنى</th><th>الحالي</th><th>الحالة</th></tr></thead><tbody id="versionRows"></tbody></table></div></article></section>
+<section class="section grid two"><article class="card"><div class="card-head"><div><h2>سياسة الحوكمة</h2><p>الإصدار يحمل القواعد التي خضع لها، لا القواعد الحالية فقط</p></div><span class="badge info"><bdi id="hPolicy">—</bdi></span></div><div class="card-body"><div class="three grid"><div class="mini"><span>الـ ADRs المرتبطة</span><strong id="hAdrs">—</strong></div><div class="mini"><span>آخر تعديل للسياسة</span><strong style="font-size:.9rem">2026-07-20</strong></div><div class="mini"><span>حالة السياسة</span><strong style="color:var(--green);font-size:.85rem">ACTIVE</strong></div></div><p style="margin-top:1rem;color:var(--muted);font-size:.83rem">لا يعد الإصدار متوافقًا ما لم تبقَ الشفرة والعقود والمعنى السريري والدليل والتحقق وإعداد التشغيل متسقة.</p></div></article><article class="card"><div class="card-head"><div><h2>إعداد التشغيل المعتمد</h2><p>لقطة إعداد قابلة للتدقيق</p></div><span class="badge ok">Approved</span></div><div class="card-body stat-list"><div class="stat-row"><span>Runtime environment</span><bdi>production-candidate</bdi></div><div class="stat-row"><span>Feature snapshot</span><bdi id="hSnap">—</bdi></div><div class="stat-row"><span>Configuration hash</span><bdi class="code" id="hHash">—</bdi></div><div class="stat-row"><span>الرايات المفعّلة</span><bdi id="hFlagRatio">—</bdi></div></div></article></section>
+<section id="clinical" class="section"><article class="card"><div class="card-head"><div><h2>العقود السريرية</h2><p>السلوك والمعنى السريري، منفصلان عن محتوى المعرفة</p></div><span class="badge ok" id="hContracts">—</span></div><div class="card-body"><div id="contracts" class="contract-grid"></div></div></article></section>
+<section class="section grid two"><article class="card"><div class="card-head"><div><h2>قاعدة المعرفة</h2><p>لقطة محتوى مستقلة قابلة للمراجعة</p></div><span class="badge ok"><bdi id="hKnow">—</bdi></span></div><div class="card-body"><div class="three grid"><div class="kpi"><svg viewBox="0 0 42 42" aria-hidden="true"><circle cx="21" cy="21" r="16" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="21" cy="21" r="16" fill="none" stroke="var(--green)" stroke-width="5" stroke-dasharray="93 101" transform="rotate(-90 21 21)"/></svg><div><strong>1,248</strong><span>مطالبة منشورة</span></div></div><div class="mini"><span>تحتاج مراجعة</span><strong style="color:var(--amber)">19</strong></div><div class="mini"><span>مسحوبة</span><strong style="color:var(--red)">2</strong></div></div><div class="stat-list" style="margin-top:1rem"><div class="stat-row"><span>Evidence schema</span><bdi>1.0.0</bdi></div><div class="stat-row"><span>المراجعة المجدولة التالية</span><bdi>2026-08-14</bdi></div></div></div></article><article class="card"><div class="card-head"><div><h2>ملخص التوافق</h2><p>حالة الأنظمة في هذا المرشح</p></div><span class="badge warn" id="hHealth">—</span></div><div class="card-body"><div class="checks"><div class="check"><i class="dot"></i><div><b>Code + UI System</b><small><bdi>1.5.x</bdi> · جميع الشاشات</small></div><span class="badge ok">Pass</span></div><div class="check"><i class="dot"></i><div><b>Clinical + Knowledge</b><small><bdi>2.1.x / 2026.08.1</bdi></small></div><span class="badge ok">Pass</span></div><div class="check pending"><i class="dot"></i><div><b>Evidence review due</b><small>19 مطالبة قبل تاريخ المراجعة</small></div><span class="badge warn">Warning</span></div></div></div></article></section>
+<section id="evidence" class="section"><article class="card"><div class="card-head"><div><h2>سجل الدليل</h2><p>كل claim ظاهر قابل للتتبع من الواجهة إلى المصدر والمراجعة</p></div><span class="badge info">Evidence schema <bdi id="hSchema">—</bdi></span></div><div class="filterbar"><select id="claimFilter" aria-label="تصفية حالة النشر"><option value="">كل حالات النشر</option><option>published</option><option>review-due</option><option>withdrawn</option></select><select id="qualityFilter" aria-label="تصفية جودة الدليل"><option value="">كل مستويات الدليل</option><option>high</option><option>moderate</option></select></div><div id="claims"></div></article></section>
+<section id="verification" class="section grid two"><article class="card"><div class="card-head"><div><h2>التحقق</h2><p>نتيجة وحدها لا تكفي: كل فحص يحمل دليلًا ونطاقًا</p></div><span class="badge warn" id="hVerify">—</span></div><div class="card-body"><div id="verifications" class="checks"></div></div></article><article class="card"><div class="card-head"><div><h2>بوابات الإصدار</h2><p>توقف الإفراج عند فشل بوابة لازمة</p></div><span class="badge warn">1 Pending</span></div><div class="card-body"><div id="gates" class="gates"></div></div></article></section>
+<section id="flags" class="section"><article class="card"><div class="card-head"><div><h2>Feature Flags</h2><p>لكل راية مالك، أثر، وإصدار إزالة؛ الرايات السريرية تتطلب تحذيرًا</p></div><span class="badge info" id="hFlagCount">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>الفئة</th><th>المالك</th><th>الأثر السريري</th><th>الافتراضي</th><th>الحالي</th><th>إزالة</th><th>الحالة</th></tr></thead><tbody id="flagRows"></tbody></table></div></article></section>
+<section class="section grid two"><article class="card"><div class="card-head"><div><h2>سجل القرارات المعمارية</h2><p>ADRs المرتبطة بهذا الإصدار</p></div><span class="badge info" id="hAdrCount">—</span></div><div class="card-body"><div class="checks" id="adrList"><div class="check" hidden><i class="dot"></i><div><bdi>ADR-014</bdi><b> — Evidence Traceability</b><small>2026-07-28 · Evidence schema <bdi>1.0.0</bdi></small></div><span class="badge ok">Accepted</span></div><div class="check"><i class="dot"></i><div><bdi>ADR-015</bdi><b> — Safety Alert Contract</b><small>2026-07-30 · <bdi>safety-alert@3.0.0</bdi></small></div><span class="badge ok">Accepted</span></div><div class="check"><i class="dot"></i><div><bdi>ADR-016</bdi><b> — Release Manifest SSOT</b><small>2026-08-01 · Platform <bdi>1.5.0</bdi></small></div><span class="badge ok">Accepted</span></div></div></div></article><article class="card"><div class="card-head"><div><h2>الخط الزمني للإصدار</h2><p>انتقال مضبوط، مع سجلات لا تُعدّل</p></div><span class="badge warn">Candidate</span></div><div class="card-body"><div class="timeline"><div class="step done"><i></i><span>Draft</span></div><div class="step done"><i></i><span>Clinical review</span></div><div class="step current"><i></i><span>Candidate</span></div><div class="step"><i></i><span>Verification</span></div><div class="step"><i></i><span>Released</span></div><div class="step"><i></i><span>Deprecated</span></div><div class="step"><i></i><span>Withdrawn</span></div></div></div></article></section>
+<section id="release" class="section"><article class="card"><div class="card-head"><div><h2>المخرجات المُولّدة</h2><p>تُنشأ تلقائيًا من manifest أو ترتبط به بـ hash</p></div><span class="badge ok" id="hArtifacts">—</span></div><div class="card-body"><div class="artifacts" id="artifacts"></div></div></article><article class="card final" style="margin-top:1rem"><div><span class="badge warn">Release Blocked</span><strong style="display:block;margin:.5rem 0">الإصدار غير جاهز للنشر بعد</strong><p>أكمل Evidence Review للمطالبات الـ 19 التي يحين موعد مراجعتها، ثم أعد تشغيل التحقق الكامل.</p></div><button class="btn" id="releaseBtn">عرض عناصر الحجب</button></article></section>
+</main></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   لوحة حوكمة الإصدار — طبقة العرض فقط.
+
+   لا يوجد في هذا الملف أي رقم إصدار أو نطاق توافق أو حالة بوابة. كل شيء يأتي
+   من window.RELEASE في release-data.js، وهو مُولَّد من release-manifest.yaml
+   عبر tools/release/generate.mjs.
+
+   السبب: لوحة تحمل نسختها الخاصة من الأرقام هي مصدر حقيقة موازٍ — وهي أخطر
+   المصادر الموازية، لأنها الشاشة التي يثق بها الناس، فينحرف الرقم فيها بلا أن
+   يلاحظه أحد. اللوحة تعرض الحقيقة؛ لا تخزّنها.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const R = window.RELEASE;
+const $ = (s) => document.querySelector(s);
+const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+if (!R) {
+  // فشل التحميل ليس شاشة فارغة. لوحة حوكمة بلا بيانات يجب أن تقول ذلك بوضوح،
+  // لا أن تعرض هيكلاً فارغاً يبدو كأن كل شيء على ما يرام.
+  document.getElementById('main').innerHTML =
+    '<article class="card"><div class="card-body"><span class="badge bad">لا توجد بيانات إصدار</span>' +
+    '<p style="margin-top:.8rem">تعذّر تحميل <bdi class="code">release-data.js</bdi>. ' +
+    'شغّل <bdi class="code">node tools/release/generate.mjs</bdi> لتوليده من الـ manifest.</p></div></article>';
+  throw new Error('release-data.js missing');
+}
+
+const STATE_AR = { draft:'مسودة', candidate:'مرشح للإصدار', released:'منشور',
+                   superseded:'مُستبدل', withdrawn:'مسحوب' };
+const badge = (s) => {
+  const cls = (s === 'ok' || s === 'pass') ? 'ok' : (s === 'bad' || s === 'fail') ? 'bad' : 'warn';
+  const txt = (s === 'ok' || s === 'pass') ? 'Pass' : (s === 'bad' || s === 'fail') ? 'Fail' : 'Pending';
+  return `<span class="badge ${cls}">${txt}</span>`;
+};
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ── الترويسة ── */
+const gates = R.verification;
+const passed = gates.filter(g => g.status === 'pass').length;
+const applicable = gates.filter(g => g.status !== 'not-applicable').length;
+const liveClaims = R.claims.filter(c => c.state !== 'withdrawn').length;
+const onFlags = Object.values(R.runtime.featureFlags.values || {}).filter(Boolean).length;
+const approvals = Object.values(R.approvals);
+const approved = approvals.filter(a => a === 'approved').length;
+
+set('hVersion', R.platform);
+set('hStatus', STATE_AR[R.status] || R.status);
+set('hGates', `${passed}/${applicable}`);
+set('hClaims', `${liveClaims}/${R.claims.length}`);
+set('hFlags', `${onFlags}/${R.flags.length}`);
+set('hPolicy', 'v' + R.policyVersion);
+set('hAdrs', R.adrs.length);
+set('hAdrCount', R.adrs.length + ' linked');
+set('hSnap', R.runtime.featureFlags.approvedSnapshot);
+set('hHash', R.runtime.configurationHash.replace(/^(sha256:.{4}).*(.{4})$/, '$1…$2'));
+set('hFlagRatio', `${onFlags} / ${R.flags.length}`);
+set('hContracts', `${R.contracts.length}/${R.contracts.length} Supported`);
+set('hKnow', R.knowledge.activeRelease);
+set('hSchema', R.knowledge.evidenceSchema);
+set('hVerify', `${passed}/${applicable} Passed`);
+set('hFlagCount', `${R.flags.length} Flags`);
+set('hArtifacts', `${Object.keys(R.artifacts).length} artifacts`);
+set('hRelease', `${R.releaseId} · policy ${R.policyVersion}`);
+
+/* الصحة تُحسب، لا تُكتب. البوابات والموافقات وزناً متساوياً — إصدار اجتاز كل
+   الفحوصات الآلية بلا موافقة بشرية ليس نصف جاهز، وعرضه كـ 100% كذب. */
+const health = Math.round(((passed / applicable) * 0.5 + (approved / approvals.length) * 0.5) * 100);
+const ring = document.getElementById('hRing');
+if (ring) ring.style.setProperty('--p', health);
+set('hRingN', health);
+set('hHealth', health + '%');
+
+/* المطالبات المستحقة للمراجعة تحجب بوابة الدليل. الشريط العلوي يقول ذلك صراحة
+   بدل رقم أيام ثابت لا أحد يحدّثه. */
+const due = R.claims.filter(c => c.state === 'review-due');
+const reviewEl = document.getElementById('hReview');
+if (reviewEl) {
+  reviewEl.textContent = due.length ? `${due.length} مطالبة تنتظر المراجعة` : 'الدليل محدّث';
+  reviewEl.className = 'badge ' + (due.length ? 'warn' : 'ok');
+}
+const compatEl = document.getElementById('hCompat');
+if (compatEl) {
+  const ok = passed === applicable;
+  compatEl.textContent = ok ? 'متوافق' : 'تحقق غير مكتمل';
+  compatEl.className = 'badge ' + (ok ? 'ok' : 'warn');
+}
+
+/* ── الجداول ── */
+document.getElementById('versionRows').innerHTML = R.versions.map(v => `
+  <tr data-search="${esc(v.join(' '))}"><td><b>${esc(v[0])}</b></td>
+  <td class="code">${esc(v[1])}</td><td class="code">${esc(v[2])}</td>
+  <td class="code">${esc(v[3])}</td><td>${badge('ok')}</td></tr>`).join('');
+
+document.getElementById('contracts').innerHTML = R.contracts.map(c => `
+  <article class="contract" data-search="${esc(c.name + ' ' + c.version)}">
+    <header><b>${esc(c.name)}</b>${badge('ok')}</header>
+    <p>Supported range <bdi>${esc(c.supported)}</bdi></p>
+    <footer><span class="code">${esc(c.version)}</span>
+    <span>Breaking: ${c.breakingChange ? 'Yes' : 'No'}</span></footer>
+  </article>`).join('');
+
+document.getElementById('verifications').innerHTML = gates.map(g => `
+  <div class="check ${g.status === 'pass' ? '' : g.status === 'fail' ? 'fail' : 'pending'}"
+       data-search="${esc(g.name + ' ' + g.status)}">
+    <i class="dot"></i>
+    <div><b>${esc(g.name)}</b><small>${esc(g.verifiedBy || 'لم يُنفَّذ بعد')}
+    ${g.verifiedAt ? ' · <bdi>' + esc(g.verifiedAt) + '</bdi>' : ''}<br>
+    <bdi>${esc(g.evidence || '—')}</bdi>
+    ${g.evidenceHash ? ' · <bdi class="code">' + esc(g.evidenceHash.slice(0, 14)) + '…</bdi>' : ''}</small></div>
+    ${badge(g.status)}
+  </div>`).join('');
+
+/* البوابات هي الموافقات البشرية، لا الفحوصات الآلية. خلطهما يجعل إصداراً بلا
+   مراجعة سريرية يبدو مكتملاً لأن CI أخضر. */
+document.getElementById('gates').innerHTML = Object.entries(R.approvals).map(([who, state]) => `
+  <article class="gate" data-search="${esc(who + ' ' + state)}">
+    <strong>${esc(who)}</strong>${badge(state === 'approved' ? 'ok' : state === 'rejected' ? 'bad' : 'warn')}
+  </article>`).join('');
+
+document.getElementById('flagRows').innerHTML = R.flags.map(f => `
+  <tr data-search="${esc(f.name + ' ' + f.category + ' ' + f.owner)}">
+    <td class="code">${esc(f.name)}</td><td>${esc(f.category)}</td><td>${esc(f.owner)}</td>
+    <td>${f.clinicalImpact === 'high' ? '<span class="badge warn">High</span>'
+       : f.clinicalImpact === 'review-required' ? '<span class="badge warn">Review</span>'
+       : esc(f.clinicalImpact)}</td>
+    <td>${f.default ? 'On' : 'Off'}</td>
+    <td>${f.current ? 'On' : 'Off'}</td>
+    <td class="code">${esc(f.removeBy)}</td>
+    <td>${badge(f.current && f.clinicalImpact !== 'none' ? 'warn' : 'ok')}</td></tr>`).join('');
+
+document.getElementById('adrList').innerHTML = R.adrs.map(a => `
+  <div class="check" data-search="${esc(a)}"><i class="dot"></i>
+    <div><bdi>${esc(a)}</bdi><small>مرتبط بـ <bdi>${esc(R.releaseId)}</bdi></small></div>
+    <span class="badge ok">Accepted</span></div>`).join('');
+
+document.getElementById('artifacts').innerHTML = Object.entries(R.artifacts).map(([k, p]) => `
+  <a class="artifact" href="#" data-search="${esc(k + ' ' + p)}" data-path="${esc(p)}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v5h5M9 12h6M9 16h6"/></svg>
+    <span>${esc(k)}</span><small><bdi>${esc(p)}</bdi></small></a>`).join('');
+
+/* ── سجل الدليل ── */
+function renderClaims() {
+  const sf = document.getElementById('claimFilter').value;
+  const qf = document.getElementById('qualityFilter').value;
+  const rows = R.claims.filter(c => (!sf || c.state === sf) && (!qf || c.evidenceQuality === qf));
+  document.getElementById('claims').innerHTML = rows.map(c => `
+    <details data-search="${esc(Object.values(c).join(' '))}">
+      <summary>
+        <span class="badge ${c.state === 'published' ? 'ok' : c.state === 'withdrawn' ? 'bad' : 'warn'}">${esc(c.state)}</span>
+        <b>${esc(c.title)}</b><span class="code">${esc(c.id)}</span>
+      </summary>
+      <div class="claim-grid">
+        <div class="field"><span>Clinical Contract</span><bdi>${esc(c.contract)}</bdi></div>
+        <div class="field"><span>Knowledge Release</span><bdi>${esc(c.knowledgeRelease)}</bdi></div>
+        <div class="field"><span>Evidence Quality</span><b>${esc(c.evidenceQuality)}</b></div>
+        <div class="field"><span>Evidence Source</span><b>${esc(c.source)}</b></div>
+        <div class="field"><span>Reviewed</span><bdi>${esc(c.reviewedAt)} · ${esc(c.reviewedBy)}</bdi></div>
+        <div class="field"><span>Next review</span><bdi>${esc(c.nextReviewAt)}</bdi></div>
+        <div class="field" style="grid-column:1/-1"><span>Limitations</span><b>${esc(c.limitations)}</b></div>
+      </div>
+    </details>`).join('') || '<p class="card-body">لا توجد مطالبات مطابقة للمرشحات.</p>';
+}
+renderClaims();
+document.getElementById('claimFilter').onchange = renderClaims;
+document.getElementById('qualityFilter').onchange = renderClaims;
+
+/* ── لافتة الإفراج ── */
+const blockers = [];
+if (R.status !== 'released') blockers.push(`الحالة ${STATE_AR[R.status] || R.status}`);
+gates.filter(g => g.status !== 'pass' && g.status !== 'not-applicable')
+     .forEach(g => blockers.push(`بوابة تحقق: ${g.name} (${g.status})`));
+Object.entries(R.approvals).filter(([, s]) => s !== 'approved')
+     .forEach(([w]) => blockers.push(`موافقة: ${w}`));
+due.forEach(c => blockers.push(`مراجعة دليل: ${c.id}`));
+
+const final = document.querySelector('.final');
+final.querySelector('.badge').textContent = blockers.length ? 'Release Blocked' : 'Ready to Release';
+final.querySelector('.badge').className = 'badge ' + (blockers.length ? 'warn' : 'ok');
+final.querySelector('strong').textContent = blockers.length
+  ? 'الإصدار غير جاهز للنشر بعد' : 'اجتاز كل الشروط';
+final.querySelector('p').textContent = blockers.length
+  ? `${blockers.length} عنصر حجب. الأول: ${blockers[0]}.`
+  : 'كل البوابات والموافقات مكتملة ومخرجاتها مولّدة من الـ manifest.';
+
+/* ── تفاعل ── */
+function toast(t) {
+  const el = document.getElementById('toast');
+  el.textContent = t; el.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2800);
+}
+document.getElementById('releaseBtn').onclick = () => {
+  toast(blockers.length ? blockers[0] : 'لا توجد عناصر حجب');
+  document.getElementById('gates').scrollIntoView({ behavior: 'smooth' });
+};
+document.getElementById('artifacts').onclick = (e) => {
+  const a = e.target.closest('.artifact');
+  if (!a) return;
+  e.preventDefault();
+  toast('مسار المخرج: ' + a.dataset.path);
+};
+document.querySelectorAll('[data-jump]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-jump]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById(b.dataset.jump).scrollIntoView({ behavior: 'smooth' });
+});
+/* البحث لا يخفي بطاقة لمجرد أن نصها لا يطابق: يخفي الصفوف فقط، وإلا اختفت
+   العناوين وبدت اللوحة كأنها فارغة بدل مُصفّاة. */
+document.getElementById('search').oninput = (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll('[data-search]').forEach(el => {
+    const hit = !q || el.dataset.search.toLowerCase().includes(q);
+    el.hidden = !hit;
+    if (hit) shown++;
+  });
+  toast(q ? `${shown} نتيجة` : 'أُزيلت التصفية');
+};
+document.getElementById('print').onclick = () => window.print();
+</script></body></html>

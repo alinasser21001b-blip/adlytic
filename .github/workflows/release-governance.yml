@@ -1,0 +1,78 @@
+# Release gate. Every job reads release-manifest.yaml and nothing else for
+# versions, ranges, and paths.
+name: Release Governance
+
+on:
+  pull_request:
+    paths:
+      - "release-manifest.yaml"
+      - "releases/**"
+      - "docs/governance/**"
+      - "tools/release/**"
+      - "dawai-site/**"
+  push:
+    branches: ["**"]
+    paths:
+      - "release-manifest.yaml"
+      - "releases/**"
+      - "tools/release/**"
+      - "dawai-site/**"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate manifest and gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      # The gate proper. Reports every failure it finds rather than stopping at
+      # the first, so one CI round surfaces the whole problem.
+      - name: Run release validators
+        run: node tools/release/validate.mjs
+
+      # Proves generated documents are still derived from the manifest. A
+      # hand-edited generated file is a second source of truth in disguise, and
+      # this is the only check that catches it.
+      - name: Assert generated outputs are current
+        run: node tools/release/generate.mjs --check
+
+      # A release gate that has never failed is untested. Each mutation below
+      # must be rejected; if any is accepted, the gate has a hole and the build
+      # fails here rather than in production.
+      - name: Negative tests — the gate must reject known-bad manifests
+        run: |
+          set -u
+          cp release-manifest.yaml /tmp/m.bak
+          cp dawai-site/dawai-ui-kit.html /tmp/k.bak
+          restore() { cp /tmp/m.bak release-manifest.yaml; cp /tmp/k.bak dawai-site/dawai-ui-kit.html; }
+          expect_fail() {
+            if node tools/release/validate.mjs > /dev/null 2>&1; then
+              echo "::error::gate ACCEPTED a manifest it must reject: $1"; restore; exit 1
+            fi
+            echo "  rejected as expected: $1"; restore
+          }
+          sed -i 's|    interaction: "2.1.x"|    interaction: "2.2.x"|' release-manifest.yaml
+          expect_fail "release.clinical drifted from the contract registry"
+          sed -i 's|data-clinical-claim="CLM-INT-IBU-WARF-001"|data-clinical-claim="CLM-OTC-ASA-003"|' dawai-site/dawai-ui-kit.html
+          expect_fail "UI renders a withdrawn clinical claim"
+          sed -i 's|      interaction_priority_rules_v3: false|      interaction_priority_rules_v3: true|' release-manifest.yaml
+          expect_fail "high clinical-impact flag enabled in the approved snapshot"
+          sed -i 's|    removeBy: "2.0.0"|    removeBy: "1.4.0"|' release-manifest.yaml
+          expect_fail "feature flag past its removal version"
+          echo "All negative tests passed: the gate rejects what it must."
+
+  release-readiness:
+    name: Assert releasability
+    runs-on: ubuntu-latest
+    # Advisory on every push: it reports what still blocks the release without
+    # failing the build, so the blocker list stays visible instead of being
+    # rediscovered on release day.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: node tools/release/validate.mjs --release

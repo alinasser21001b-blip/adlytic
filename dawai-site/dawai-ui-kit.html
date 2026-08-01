@@ -1237,8 +1237,18 @@ a{color:inherit}
   7. عناصر عائمة — OVERLAYS
 ═══════════════════════════════════════════════════════════════════════════-->
 
-<!-- شريط الانتباه: واحد فقط، والأعلى أولوية يزيح الأدنى -->
-<div class="pill" id="pill" role="status">
+<!-- شريط الانتباه: واحد فقط، والأعلى أولوية يزيح الأدنى.
+
+     ربط المطالبة (claim binding): عندما يعرض هذا الشريط مخرجاً سريرياً، يحمل
+     مرجع المطالبة والعقد وإصدار المعرفة. الواجهة لا تقرر صحة المطالبة — هي
+     تعرض مخرجاً أنتجته طبقة عقد ومعرفة تم التحقق منها، لكنها تحمل المرجع كي
+     يستطيع مدقق أن ينتقل من الشاشة إلى المطالبة ومصدرها ومراجعها وإصدارها بلا
+     تخمين. القيم مُتحقَّق منها آلياً مقابل release-manifest.yaml عبر
+     tools/release/validate.mjs — مطالبة مسحوبة تظهر هنا تُفشل بوابة الإصدار. -->
+<div class="pill" id="pill" role="status"
+     data-clinical-claim="CLM-INT-IBU-WARF-001"
+     data-clinical-contract="interaction-check@2.1.0"
+     data-knowledge-release="2026.08.1">
   <span class="pi" aria-hidden="true" id="pillIcon">✨</span>
   <span class="pc"><strong id="pillTitle">عنوان</strong><span id="pillBody">تفاصيل</span></span>
   <button class="pa" onclick="alert('يفتح المورد المرتبط')">عرض</button>
@@ -1483,7 +1493,11 @@ function holdStep(state){
 /* ── 8.12 شريط الانتباه ──
    قاعدة صارمة: SEV_ALERT ليس له زر إغلاق. يُغلق بمعالجة سببه فقط. */
 const PILL = {
-  SEV_ALERT:      { cls:'sev',  icon:'🛡️', title:'تعارض دوائي مهم',   body:'الوارفارين مع الأسبرين — يزيد خطر النزف. لا يُصرف قبل مراجعة الصيدلي.' },
+  // المخرجات السريرية وحدها تحمل مرجع مطالبة. الشريط التشغيلي لا يحمل شيئاً،
+  // ولا يجوز أن يحمل — الربط يعني "هذا نص سريري خضع لمراجعة"، وإلصاقه بنص
+  // تشغيلي يُفرغ الربط من معناه.
+  SEV_ALERT:      { cls:'sev',  icon:'🛡️', title:'تعارض دوائي مهم',   body:'Ibuprofen مع Warfarin — يزيد خطر النزف. لا يُصرف قبل مراجعة الصيدلي.',
+                    claim:'CLM-INT-IBU-WARF-001', contract:'interaction-check@2.1.0', knowledge:'2026.08.1' },
   ACTION_REQUIRED:{ cls:'act',  icon:'📋', title:'حقل يحتاج تأكيدك',  body:'ما قدرنا نقرأ الجرعة من الوصفة بوضوح.' },
   IN_PROGRESS:    { cls:'prog', icon:'⏱',  title:'طلبك قيد الإرسال',  body:'وصل إلى ٣ صيدليات قريبة.' },
   SUGGESTION:     { cls:'',     icon:'✨', title:'دواؤك قارب على الانتهاء', body:'Amlodipine تكفيك ٤ أيام.' },
@@ -1497,6 +1511,14 @@ function showPill(priority){
   $('#pillIcon').textContent = cfg.icon;
   $('#pillTitle').textContent = cfg.title;
   $('#pillBody').textContent = cfg.body;
+  // مرجع المطالبة يتبع المحتوى: يُضاف مع المخرج السريري، ويُزال معه. مرجع
+  // متروك من حالة سابقة يجعل التدقيق يشير إلى المطالبة الخطأ — وهذا أسوأ من
+  // غياب المرجع، لأنه يبدو صحيحاً.
+  for (const [attr, key] of [['data-clinical-claim','claim'],
+                             ['data-clinical-contract','contract'],
+                             ['data-knowledge-release','knowledge']]) {
+    if (cfg[key]) p.setAttribute(attr, cfg[key]); else p.removeAttribute(attr);
+  }
   // زر الإخفاء يُحذف تماماً في حالة الخطر — لا يُعطّل فقط
   $('#pillX').style.display = priority === 'SEV_ALERT' ? 'none' : 'grid';
 }
