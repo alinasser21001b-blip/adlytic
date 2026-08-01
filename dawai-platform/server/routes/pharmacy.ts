@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
+import { computeSkuTrust, SKU_TRUST_THRESHOLD } from "../services/clinical";
 import { config } from "../config";
 import type { Database, DbExecutor } from "../db/client";
 import { ApiError } from "../errors";
@@ -59,6 +60,20 @@ const offerSchema = z
     deliveryEnabled: z.boolean(),
     preparationMinutes: z.number().int().min(0).max(1440),
     note: z.string().trim().max(500).nullable(),
+  })
+  .strict();
+
+const movementSchema = z
+  .object({
+    medicineName: z.string().trim().min(2).max(200),
+    // Additive delta, never an absolute quantity — this is what makes
+    // concurrent offline edits safe to merge.
+    deltaQty: z.number().int().refine((value) => value !== 0, "delta must be non-zero"),
+    reason: z.enum(["SALE", "PURCHASE", "ADJUST", "RETURN", "COUNT"]),
+    refType: z.string().trim().max(40).nullish(),
+    refId: z.string().trim().max(80).nullish(),
+    clientEventId: z.string().trim().min(8).max(200).optional(),
+    occurredAt: z.string().datetime().optional(),
   })
   .strict();
 
@@ -955,6 +970,132 @@ export function pharmacyRoutes(database: Database) {
       [context.get("user").id],
     );
     return context.json({ data: result.rows });
+  });
+
+  /**
+   * Passive inventory ledger — the blueprint's "stock list that just appeared".
+   *
+   * Deliberately NOT an ERP: there is no editable quantity field anywhere.
+   * on-hand is derived as sum(delta_qty), so two devices selling the same SKU
+   * offline both apply correctly on sync instead of overwriting each other.
+   * Every row carries an optional client_event_id, making replay idempotent.
+   */
+  routes.post("/inventory/movements", async (context) => {
+    const pharmacy = await requireVerifiedPharmacy(database, context.get("user").id);
+    const body = movementSchema.parse(await context.req.json());
+
+    const id = randomUUID();
+    const inserted = await database.query<{ id: string }>(
+      `INSERT INTO stock_movements
+         (id, branch_id, medicine_name, delta_qty, reason, ref_type, ref_id,
+          client_event_id, occurred_at, recorded_by_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, now()), $10)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [
+        id,
+        pharmacy.branch_id,
+        body.medicineName,
+        body.deltaQty,
+        body.reason,
+        body.refType ?? null,
+        body.refId ?? null,
+        body.clientEventId ?? null,
+        body.occurredAt ?? null,
+        context.get("user").id,
+      ],
+    );
+    const duplicate = inserted.rows.length === 0;
+
+    if (!duplicate) {
+      // Recompute trust from the ledger itself rather than trusting a counter.
+      const stats = await database.query<{
+        movement_count: string;
+        last_counted_at: string | null;
+      }>(
+        `SELECT COUNT(*) AS movement_count,
+                MAX(CASE WHEN reason = 'COUNT' THEN occurred_at END) AS last_counted_at
+           FROM stock_movements
+          WHERE branch_id = $1 AND medicine_name = $2`,
+        [pharmacy.branch_id, body.medicineName],
+      );
+      const row = stats.rows[0];
+      const variance = body.reason === "COUNT" ? body.deltaQty : 0;
+      const score = computeSkuTrust({
+        movementCount: Number(row?.movement_count ?? 0),
+        lastCountedAt: row?.last_counted_at ? new Date(row.last_counted_at) : null,
+        lastVariance: variance,
+      });
+      await database.query(
+        `INSERT INTO sku_trust
+           (branch_id, medicine_name, movement_count, last_counted_at, last_variance, trust_score, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now())
+         ON CONFLICT (branch_id, medicine_name) DO UPDATE
+           SET movement_count = EXCLUDED.movement_count,
+               last_counted_at = COALESCE(EXCLUDED.last_counted_at, sku_trust.last_counted_at),
+               last_variance = EXCLUDED.last_variance,
+               trust_score = EXCLUDED.trust_score,
+               updated_at = now()`,
+        [
+          pharmacy.branch_id,
+          body.medicineName,
+          Number(row?.movement_count ?? 0),
+          row?.last_counted_at ?? null,
+          variance,
+          score,
+        ],
+      );
+    }
+
+    return context.json({ data: { id: inserted.rows[0]?.id ?? null, duplicate } }, duplicate ? 200 : 201);
+  });
+
+  /**
+   * Derived stock view. SKUs below the trust threshold are returned with
+   * forecastReady=false and no days-of-cover: an untrustworthy number is worse
+   * than an absent one.
+   */
+  routes.get("/inventory/on-hand", async (context) => {
+    const pharmacy = await requireVerifiedPharmacy(database, context.get("user").id);
+    const result = await database.query<{
+      medicine_name: string;
+      on_hand: string;
+      movements: string;
+      last_movement_at: string;
+      trust_score: string | null;
+    }>(
+      `SELECT m.medicine_name,
+              SUM(m.delta_qty) AS on_hand,
+              COUNT(*) AS movements,
+              MAX(m.occurred_at) AS last_movement_at,
+              t.trust_score
+         FROM stock_movements m
+         LEFT JOIN sku_trust t
+           ON t.branch_id = m.branch_id AND t.medicine_name = m.medicine_name
+        WHERE m.branch_id = $1
+        GROUP BY m.medicine_name, t.trust_score
+        ORDER BY MAX(m.occurred_at) DESC
+        LIMIT 200`,
+      [pharmacy.branch_id],
+    );
+
+    return context.json({
+      data: result.rows.map((row) => {
+        const trust = Number(row.trust_score ?? 0);
+        const forecastReady = trust >= SKU_TRUST_THRESHOLD;
+        return {
+          medicineName: row.medicine_name,
+          onHand: Number(row.on_hand),
+          movements: Number(row.movements),
+          lastMovementAt: row.last_movement_at,
+          trustScore: trust,
+          forecastReady,
+          // Only trusted SKUs get a reorder hint at all.
+          reorderHint: forecastReady && Number(row.on_hand) <= 5,
+        };
+      }),
+      meta: { trustThreshold: SKU_TRUST_THRESHOLD },
+    });
   });
 
   return routes;

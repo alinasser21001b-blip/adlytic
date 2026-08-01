@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "../app/router";
 import { Icon } from "../Icon";
 import { useSession, type Role } from "../app/SessionContext";
+import { apiFetch } from "../api/client";
+import { useApi } from "../app/useApi";
+import { PillBar, type AttentionEvent } from "./PillBar";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -54,9 +57,39 @@ export function AppShell({
   const navigate = useNavigate();
   const nav = navByRole[role];
 
+  // Attention feed drives the Pill Bar. Polled rather than pushed for now; the
+  // outbox already carries the same events to push channels when configured.
+  const attention = useApi(
+    async () =>
+      (await apiFetch<{ data: AttentionEvent[] }>("/api/v1/clinical/attention")).data,
+    [role],
+    30_000,
+  );
+
   async function handleLogout() {
     await logout();
     navigate("/");
+  }
+
+  async function dismissAttention(event: AttentionEvent) {
+    // Optimistic: the bar must feel instant on a slow Baghdad connection.
+    attention.setData((current) =>
+      (current ?? []).filter((item) => item.id !== event.id),
+    );
+    try {
+      await apiFetch(`/api/v1/clinical/attention/${event.id}/dismiss`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch {
+      await attention.reload({ soft: true });
+    }
+  }
+
+  function openAttention(event: AttentionEvent) {
+    if (event.resource_type === "DOSE_SCHEDULE") navigate("/patient/timeline");
+    else if (event.resource_type === "FAMILY_MEMBER") navigate("/patient/family");
+    else navigate(`/${role.toLowerCase()}/notifications`);
   }
 
   return (
@@ -97,6 +130,11 @@ export function AppShell({
       <main id="main-content" className="product-main">
         {children}
       </main>
+      <PillBar
+        events={attention.data ?? []}
+        onAction={openAttention}
+        onDismiss={(event) => void dismissAttention(event)}
+      />
       <nav className="mobile-nav" aria-label="التنقل على الهاتف">
         {nav.map((item) => (
           <NavLink

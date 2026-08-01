@@ -21,13 +21,14 @@
   --coral-soft: #fbe9e4;
   --blue: #436a91;
   --blue-soft: #e8eff6;
-  --amber: #a76614;
+  --amber: #7a4a0f;  /* darkened: AA on --amber-soft at body sizes */
   --amber-soft: #fbf0dc;
   --lime: #dceab8;
   --shadow: 0 18px 55px rgb(23 60 55 / 8%);
   background: var(--paper);
   color: var(--ink-950);
-  line-height: 1.6;
+  /* Arabic body copy sits at the upper end of the blueprint's 1.6–1.8 band. */
+  line-height: 1.7;
 }
 
 * {
@@ -101,11 +102,15 @@ h2,
 h3,
 .brand strong {
   font-family: "Noto Kufi Arabic", Tahoma, Arial, sans-serif;
-  line-height: 1.42;
+  /* Arabic ascenders/descenders need more vertical room than Latin. */
+  line-height: 1.5;
+  letter-spacing: 0;
 }
 
 h1 {
-  letter-spacing: -0.035em;
+  /* Blueprint AXIS 6: Arabic is a connected script — letter-spacing always 0.
+     Negative tracking (a Latin display habit) breaks joined letterforms. */
+  letter-spacing: 0;
 }
 
 .sr-only {
@@ -322,7 +327,9 @@ main {
   color: var(--forest-700);
   font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  /* Arabic eyebrow: no tracking (see AXIS 6). Latin/monospace reference codes
+     keep their tracking — that rule is about connected script, not digits. */
+  letter-spacing: 0;
 }
 
 .hero h1 {
@@ -4737,4 +4744,172 @@ textarea {
 
 .danger-zone .danger-link {
   min-height: var(--tap-min);
+}
+
+
+/* ============================================================================
+   Pill Bar — one persistent bar, morphing to the highest-priority context.
+   Blister-strip motif. Never stacks; SEV_ALERT has no dismiss affordance.
+   ========================================================================== */
+
+.pill-bar {
+  position: fixed;
+  z-index: 60;
+  inset-inline: 0;
+  inset-block-end: calc(var(--nav-h, 74px) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.7rem;
+  align-items: center;
+  width: min(calc(100% - 1.5rem), 464px);
+  margin-inline: auto;
+  padding: 0.7rem 0.85rem;
+  /* Blister-strip: rounded pockets along a foil strip. */
+  border-radius: 999px;
+  background: var(--forest-900);
+  color: #f2f8f5;
+  box-shadow: 0 14px 38px rgb(16 46 43 / 26%);
+  /* 380ms morph between states, per spec. */
+  transition:
+    background-color 380ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    color 380ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    box-shadow 380ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.pill-bar.morphing {
+  animation: pill-morph 380ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes pill-morph {
+  0% { transform: translateY(6px) scaleX(0.97); opacity: 0.4; }
+  100% { transform: translateY(0) scaleX(1); opacity: 1; }
+}
+
+.pill-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 14%);
+}
+
+.pill-copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.pill-copy strong {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.pill-copy span {
+  font-size: 0.78rem;
+  color: rgb(242 248 245 / 82%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill-action,
+.pill-dismiss {
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.82rem;
+}
+
+.pill-action {
+  padding-inline: 0.9rem;
+  background: var(--lime);
+  color: var(--forest-950);
+}
+
+.pill-dismiss {
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 14%);
+  color: inherit;
+}
+
+/* Severe: the red stamp. Never color alone — icon + text carry it too. */
+.pill-sev-alert {
+  background: #7f2418;
+  box-shadow: 0 14px 38px rgb(127 36 24 / 34%);
+}
+
+.pill-sev-alert .pill-action {
+  background: #fff;
+  color: #7f2418;
+}
+
+.pill-action-required {
+  background: var(--amber-soft);
+  color: #5f390b;
+}
+
+.pill-action-required .pill-icon {
+  background: rgb(122 74 15 / 14%);
+}
+
+.pill-action-required .pill-copy span {
+  color: rgb(95 57 11 / 82%);
+}
+
+.pill-action-required .pill-action {
+  background: #5f390b;
+  color: #fff;
+}
+
+.pill-action-required .pill-dismiss {
+  background: rgb(122 74 15 / 14%);
+  color: #5f390b;
+}
+
+.pill-in-progress {
+  background: var(--forest-700);
+}
+
+.pill-suggestion {
+  background: var(--forest-900);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Cross-fade instead of morph, per spec. */
+  .pill-bar,
+  .pill-bar.morphing {
+    transition: opacity 120ms linear;
+    animation: none;
+  }
+}
+
+/* ============================================================================
+   High-contrast mode — Baghdad daylight legibility (blueprint AXIS 6).
+   The patient theme is used outdoors in direct sun; users who ask the OS for
+   more contrast get denser ink and hard borders rather than soft greys.
+   ========================================================================== */
+
+@media (prefers-contrast: more) {
+  :root {
+    --ink-700: #2a3634;
+    --ink-500: #3d4a48;
+    --line: #7d8a86;
+    --line-dark: #55625f;
+  }
+
+  .status-pill,
+  .offer-facts > div,
+  .metric-grid article,
+  .inbox-card,
+  .offer-card {
+    border: 1px solid var(--line-dark);
+  }
+
+  .primary-cta {
+    box-shadow: none;
+    outline: 1px solid rgb(0 0 0 / 35%);
+  }
 }

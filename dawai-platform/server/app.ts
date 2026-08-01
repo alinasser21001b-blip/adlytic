@@ -9,6 +9,7 @@ import type { Database } from "./db/client";
 import { ApiError } from "./errors";
 import { adminRoutes } from "./routes/admin";
 import { authRoutes } from "./routes/auth";
+import { clinicalRoutes } from "./routes/clinical";
 import { fileRoutes } from "./routes/files";
 import { patientRoutes } from "./routes/patient";
 import { pharmacyRoutes } from "./routes/pharmacy";
@@ -94,6 +95,7 @@ export function createApp(database: Database) {
   app.route("/api/v1/pharmacy", pharmacyRoutes(database));
   app.route("/api/v1/admin", adminRoutes(database));
   app.route("/api/v1/files", fileRoutes(database));
+  app.route("/api/v1/clinical", clinicalRoutes(database));
   app.route("/api/v1", sharedRoutes(database));
 
   app.notFound((context) =>
