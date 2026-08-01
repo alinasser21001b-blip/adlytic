@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS dose_schedules (
   medicine_name text NOT NULL,
   strength text,
   sig_text_ar text NOT NULL,
-  sig_source text NOT NULL DEFAULT 'PHARMACIST'
+  -- Lowest-trust default: forgetting the column must never assert that a
+  -- pharmacist authored the instruction.
+  sig_source text NOT NULL DEFAULT 'PATIENT_SELF_REPORT'
     CHECK (sig_source IN ('PHARMACIST', 'MONOGRAPH_TEMPLATE', 'PATIENT_SELF_REPORT')),
   confirmed_by_user_id text REFERENCES users(id) ON DELETE SET NULL,
   times_of_day jsonb NOT NULL DEFAULT '[]'::jsonb,

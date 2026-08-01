@@ -10,6 +10,7 @@ import {
   raiseAttention,
   REORDER_THRESHOLD_DAYS,
   requirePatientAuthority,
+  requireVerifiedPharmacyUser,
 } from "../services/clinical";
 import {
   evaluateInteractions,
@@ -106,13 +107,25 @@ export function clinicalRoutes(database: Database) {
               COALESCE(taken.count, 0) AS taken_count,
               taken.last_confirmed_at
          FROM dose_schedules s
+         -- Append-only means a correction is a NEW row, so the read model must
+         -- collapse each dose slot to its latest event before counting; a flat
+         -- COUNT(*) would let a corrected MISSED still count as TAKEN.
+         -- Scoped to the current dispense cycle so a lifetime total cannot
+         -- exceed one pack's quantity and permanently suppress days-of-cover.
          LEFT JOIN (
-           SELECT dose_schedule_id,
-                  COUNT(*) AS count,
-                  MAX(confirmed_at) AS last_confirmed_at
-             FROM dose_events
-            WHERE status = 'TAKEN'
-            GROUP BY dose_schedule_id
+           SELECT latest.dose_schedule_id,
+                  COUNT(*) FILTER (WHERE latest.status = 'TAKEN') AS count,
+                  MAX(latest.confirmed_at) FILTER (WHERE latest.status = 'TAKEN')
+                    AS last_confirmed_at
+             FROM (
+               SELECT DISTINCT ON (e.dose_schedule_id, e.scheduled_at)
+                      e.dose_schedule_id, e.scheduled_at, e.status, e.confirmed_at
+                 FROM dose_events e
+                 JOIN dose_schedules ds ON ds.id = e.dose_schedule_id
+                WHERE ds.dispensed_at IS NULL OR e.scheduled_at >= ds.dispensed_at
+                ORDER BY e.dose_schedule_id, e.scheduled_at, e.confirmed_at DESC
+             ) latest
+            GROUP BY latest.dose_schedule_id
          ) taken ON taken.dose_schedule_id = s.id
         WHERE s.patient_user_id = $1 AND s.active
         ORDER BY s.created_at DESC`,
@@ -162,14 +175,11 @@ export function clinicalRoutes(database: Database) {
     const target = body.patientUserId ?? caller.id;
     await requirePatientAuthority(database, caller.id, target, "ORDER");
 
-    // A pharmacist-sourced sig may only be recorded by a pharmacy account:
-    // patients cannot self-assert that a pharmacist approved an instruction.
-    if (body.sigSource === "PHARMACIST" && caller.role !== "PHARMACY") {
-      throw new ApiError(
-        403,
-        "SIG_SOURCE_NOT_ALLOWED",
-        "توثيق تعليمات الصيدلي متاح لحساب الصيدلية فقط.",
-      );
+    // Pharmacist provenance requires a VERIFIED pharmacy, not merely the
+    // PHARMACY role — the role is self-selected at registration, so gating on
+    // it lets anyone stamp an instruction as pharmacist-authored.
+    if (body.sigSource === "PHARMACIST") {
+      await requireVerifiedPharmacyUser(database, caller.id, caller.role);
     }
 
     const id = randomUUID();
@@ -263,6 +273,25 @@ export function clinicalRoutes(database: Database) {
     // Replay of an already-recorded event: report success without a new row.
     const duplicate = inserted.rows.length === 0;
 
+    // A proxy writing to someone else's clinical record must leave a trail —
+    // this is the highest-privilege proxy action in the module.
+    if (link) {
+      await writeAudit(database, {
+        actorUserId: caller.id,
+        actorRole: caller.role,
+        action: "PROXY_DOSE_CONFIRMED",
+        resourceType: "DOSE_SCHEDULE",
+        resourceId: scheduleId,
+        requestId: context.get("requestId"),
+        metadata: {
+          patientUserId: schedule.patient_user_id,
+          familyMemberId: link.id,
+          status: body.status,
+          duplicate,
+        },
+      });
+    }
+
     // Caregiver reassurance (MM-P7): only ever with a live consented link, and
     // only to the proxy who holds it — never broadcast to the family.
     if (!duplicate && body.status === "TAKEN" && !link) {
@@ -284,7 +313,9 @@ export function clinicalRoutes(database: Database) {
           body: `${proxy.display_name} أكّد تناول الجرعة.`,
           resourceType: "DOSE_SCHEDULE",
           resourceId: scheduleId,
-          dedupeKey: `dose-confirm:${scheduleId}:${body.scheduledAt}`,
+          // Day-granular so a multi-dose regimen yields one reassurance a day,
+          // not one card per administration.
+          dedupeKey: `dose-confirm:${scheduleId}:${body.scheduledAt.slice(0, 10)}`,
         });
       }
     }
@@ -308,7 +339,23 @@ export function clinicalRoutes(database: Database) {
     if (!schedule) {
       throw new ApiError(404, "SCHEDULE_NOT_FOUND", "الجدول غير موجود.");
     }
-    await requirePatientAuthority(database, caller.id, schedule.patient_user_id, "ORDER");
+    const snoozeLink = await requirePatientAuthority(
+      database,
+      caller.id,
+      schedule.patient_user_id,
+      "ORDER",
+    );
+    if (snoozeLink) {
+      await writeAudit(database, {
+        actorUserId: caller.id,
+        actorRole: caller.role,
+        action: "PROXY_REORDER_SNOOZED",
+        resourceType: "DOSE_SCHEDULE",
+        resourceId: scheduleId,
+        requestId: context.get("requestId"),
+        metadata: { patientUserId: schedule.patient_user_id, familyMemberId: snoozeLink.id },
+      });
+    }
 
     await database.query(
       `UPDATE dose_schedules
@@ -318,10 +365,15 @@ export function clinicalRoutes(database: Database) {
       [scheduleId, String(days)],
     );
     // Clear any pending reorder nudge so the snooze is honoured immediately.
+    // Matched on the resource rather than a key literal, so it stays correct
+    // whichever producer raised it.
     await database.query(
       `UPDATE attention_events SET dismissed_at = now()
-        WHERE dedupe_key = $1 AND dismissed_at IS NULL`,
-      [`reorder:${scheduleId}`],
+        WHERE kind = 'REORDER_DUE'
+          AND resource_type = 'DOSE_SCHEDULE'
+          AND resource_id = $1
+          AND dismissed_at IS NULL`,
+      [scheduleId],
     );
     return context.json({ data: { snoozedDays: days } });
   });
@@ -331,10 +383,19 @@ export function clinicalRoutes(database: Database) {
   routes.get("/family", async (context) => {
     const caller = context.get("user");
     const result = await database.query(
+      // The subject must be able to see WHO holds access, not just the label
+      // the requester typed about them. Without the counterparty identity the
+      // consent screen cannot answer "who can read my medicines?".
       `SELECT f.id, f.display_name, f.relation, f.proxy_scope,
               f.consent_granted_at, f.member_user_id,
-              CASE WHEN f.owner_user_id = $1 THEN 'PROXY' ELSE 'SUBJECT' END AS side
+              CASE WHEN f.owner_user_id = $1 THEN 'PROXY' ELSE 'SUBJECT' END AS side,
+              CASE WHEN f.owner_user_id = $1 THEN member_u.name ELSE owner_u.name END
+                AS counterparty_name,
+              CASE WHEN f.owner_user_id = $1 THEN member_u.email ELSE owner_u.email END
+                AS counterparty_email
          FROM family_members f
+         LEFT JOIN users owner_u ON owner_u.id = f.owner_user_id
+         LEFT JOIN users member_u ON member_u.id = f.member_user_id
         WHERE (f.owner_user_id = $1 OR f.member_user_id = $1)
           AND f.revoked_at IS NULL
         ORDER BY f.created_at DESC`,
@@ -614,8 +675,14 @@ export function clinicalRoutes(database: Database) {
     );
 
     // A severe interaction is the canonical SEV_ALERT: it blocks, and it is not
-    // dismissible from the client.
+    // dismissible from the client. The dedupe key must therefore describe the
+    // CONDITION, not the request — keying it on a fresh checkId would mint an
+    // unclearable alert on every check and permanently bury the Pill Bar.
     if (outcome.kind === "INTERRUPT") {
+      const conditionKey = outcome.interrupting
+        .map((p) => [p.a, p.b].sort().join("+"))
+        .sort()
+        .join("|");
       await raiseAttention(database, {
         recipientUserId: caller.id,
         priority: "SEV_ALERT",
@@ -624,7 +691,7 @@ export function clinicalRoutes(database: Database) {
         body: outcome.interrupting[0]?.summaryAr,
         resourceType: "INTERACTION_CHECK",
         resourceId: checkId,
-        dedupeKey: `interaction:${checkId}`,
+        dedupeKey: `interaction:${target}:${conditionKey}`,
       });
     }
 
@@ -642,23 +709,28 @@ export function clinicalRoutes(database: Database) {
   /** Records a clinical override of an interrupting alert, with its reason. */
   routes.post("/interaction-check/:checkId/override", async (context) => {
     const caller = context.get("user");
-    if (caller.role !== "PHARMACY") {
-      // Only the dispensing professional may override a safety interrupt.
-      throw new ApiError(
-        403,
-        "OVERRIDE_NOT_PERMITTED",
-        "تجاوز تنبيه السلامة مقصور على الصيدلي.",
-      );
-    }
+    // Only a VERIFIED dispensing professional may override a safety interrupt.
+    await requireVerifiedPharmacyUser(database, caller.id, caller.role);
     const checkId = context.req.param("checkId");
     const body = overrideSchema.parse(await context.req.json());
 
-    const existing = await database.query<{ outcome: string; overridden_at: string | null }>(
-      `SELECT outcome, overridden_at FROM interaction_checks WHERE id = $1`,
+    const existing = await database.query<{
+      outcome: string;
+      overridden_at: string | null;
+      patient_user_id: string | null;
+      checked_by_user_id: string;
+    }>(
+      `SELECT outcome, overridden_at, patient_user_id, checked_by_user_id
+         FROM interaction_checks WHERE id = $1`,
       [checkId],
     );
     const check = existing.rows[0];
     if (!check) throw new ApiError(404, "CHECK_NOT_FOUND", "الفحص غير موجود.");
+    // Being a pharmacy is not a relationship to THIS patient. Without this the
+    // endpoint lets any pharmacy account clear an unrelated patient's alert.
+    if (check.patient_user_id) {
+      await requirePatientAuthority(database, caller.id, check.patient_user_id, "VIEW");
+    }
     if (check.overridden_at) {
       throw new ApiError(409, "ALREADY_OVERRIDDEN", "سُجّل التجاوز مسبقًا.");
     }
@@ -689,10 +761,15 @@ export function clinicalRoutes(database: Database) {
       requestId: context.get("requestId"),
     });
     // Resolving the cause is what clears the SEV_ALERT — never a client tap.
+    // Scoped to the event's own recipient so an override cannot silence
+    // someone else's alert that happens to share a key.
     await database.query(
       `UPDATE attention_events SET dismissed_at = now()
-        WHERE dedupe_key = $1 AND dismissed_at IS NULL`,
-      [`interaction:${checkId}`],
+        WHERE resource_type = 'INTERACTION_CHECK'
+          AND resource_id = $1
+          AND recipient_user_id = $2
+          AND dismissed_at IS NULL`,
+      [checkId, check.checked_by_user_id],
     );
 
     return context.json({ data: { overridden: true } });

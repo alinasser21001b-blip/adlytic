@@ -134,3 +134,106 @@ describe("SKU trust gates passive-inventory forecasting", () => {
     ).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("regressions found by adversarial review", () => {
+  const now = new Date("2026-08-01T09:00:00.000Z");
+
+  it("does not assume one unit per dose (multi-tablet regimens)", () => {
+    // 30 tablets, 2 tablets twice daily = 4 units/day => ~7 days, not 15.
+    const cover = computeDaysOfCover({
+      scheduleId: "s-mt",
+      medicineName: "Augmentin 625mg",
+      quantityDispensed: 30,
+      dosesPerDay: 2,
+      unitsPerDose: 2,
+      dispensedAt: new Date(now.getTime() - 1 * DAY),
+      takenCount: 2,
+      snoozedUntil: null,
+      now,
+    });
+    expect(cover.suppressed).toBe(false);
+    expect(cover.daysRemaining).toBe(6);
+  });
+
+  it("stays backward compatible when unitsPerDose is omitted", () => {
+    const cover = computeDaysOfCover({
+      scheduleId: "s-compat",
+      medicineName: "Amlodipine 5mg",
+      quantityDispensed: 30,
+      dosesPerDay: 1,
+      dispensedAt: new Date(now.getTime() - 26 * DAY),
+      takenCount: 26,
+      snoozedUntil: null,
+      now,
+    });
+    expect(cover.daysRemaining).toBe(4);
+  });
+
+  it("treats a future dispense timestamp as corrupt, not as zero elapsed", () => {
+    const cover = computeDaysOfCover({
+      scheduleId: "s-future",
+      medicineName: "X",
+      quantityDispensed: 30,
+      dosesPerDay: 1,
+      dispensedAt: new Date(now.getTime() + 5 * DAY),
+      takenCount: 0,
+      snoozedUntil: null,
+      now,
+    });
+    expect(cover.suppressed).toBe(true);
+    expect(cover.suppressionReason).toBe("CONFLICTING_DATA");
+  });
+
+  it("rejects a zero or negative unitsPerDose rather than dividing by it", () => {
+    for (const unitsPerDose of [0, -1]) {
+      const cover = computeDaysOfCover({
+        scheduleId: "s-bad",
+        medicineName: "X",
+        quantityDispensed: 30,
+        dosesPerDay: 1,
+        unitsPerDose,
+        dispensedAt: new Date(now.getTime() - DAY),
+        takenCount: 0,
+        snoozedUntil: null,
+        now,
+      });
+      expect(cover.suppressed).toBe(true);
+      expect(cover.suppressionReason).toBe("INVALID_FREQUENCY");
+    }
+  });
+
+  it("detects conflict in unit terms, not dose terms", () => {
+    // 10 confirmed doses x 2 units = 20 units vs a 15-unit pack: conflicting,
+    // even though takenCount (10) is below quantityDispensed (15).
+    const cover = computeDaysOfCover({
+      scheduleId: "s-units",
+      medicineName: "X",
+      quantityDispensed: 15,
+      dosesPerDay: 2,
+      unitsPerDose: 2,
+      dispensedAt: new Date(now.getTime() - 5 * DAY),
+      takenCount: 10,
+      snoozedUntil: null,
+      now,
+    });
+    expect(cover.suppressionReason).toBe("CONFLICTING_DATA");
+  });
+
+  it("keeps a matching reconciliation as the strongest trust signal", () => {
+    // variance 0 from a real COUNT must outrank never-counted.
+    const counted = computeSkuTrust({
+      movementCount: 45,
+      lastCountedAt: new Date(now.getTime() - DAY),
+      lastVariance: 0,
+      now,
+    });
+    const neverCounted = computeSkuTrust({
+      movementCount: 45,
+      lastCountedAt: null,
+      lastVariance: 0,
+      now,
+    });
+    expect(counted).toBeGreaterThan(neverCounted);
+    expect(neverCounted).toBeLessThan(SKU_TRUST_THRESHOLD);
+  });
+});

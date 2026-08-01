@@ -177,7 +177,9 @@ h1 {
 .brand strong {
   color: var(--forest-900);
   font-size: 1.32rem;
-  line-height: 1.2;
+  /* Arabic floor is 1.5 (AXIS 6). This selector shares specificity with the
+     h1/h2/h3 group above and comes later, so a lower value silently wins. */
+  line-height: 1.5;
 }
 
 .brand small {
@@ -4878,11 +4880,13 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Cross-fade instead of morph, per spec. */
+  /* Cross-fade instead of morph, per spec. The global reset earlier in this
+     sheet uses !important on animation/transition duration, so these must too
+     or the rule is dead CSS. */
   .pill-bar,
   .pill-bar.morphing {
-    transition: opacity 120ms linear;
-    animation: none;
+    transition: opacity 120ms linear !important;
+    animation: none !important;
   }
 }
 

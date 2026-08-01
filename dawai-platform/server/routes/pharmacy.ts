@@ -65,6 +65,8 @@ const offerSchema = z
 
 const movementSchema = z
   .object({
+    // Normalized below before it becomes a ledger grouping key; raw casing
+    // would split one SKU's on-hand across "Panadol" and "panadol".
     medicineName: z.string().trim().min(2).max(200),
     // Additive delta, never an absolute quantity — this is what makes
     // concurrent offline edits safe to merge.
@@ -985,6 +987,8 @@ export function pharmacyRoutes(database: Database) {
     const body = movementSchema.parse(await context.req.json());
 
     const id = randomUUID();
+    // Case-folded so the ledger, on-hand rollup and trust row all key alike.
+    const medicineKey = body.medicineName.toLocaleLowerCase("ar");
     const inserted = await database.query<{ id: string }>(
       `INSERT INTO stock_movements
          (id, branch_id, medicine_name, delta_qty, reason, ref_type, ref_id,
@@ -995,7 +999,7 @@ export function pharmacyRoutes(database: Database) {
       [
         id,
         pharmacy.branch_id,
-        body.medicineName,
+        medicineKey,
         body.deltaQty,
         body.reason,
         body.refType ?? null,
@@ -1017,10 +1021,20 @@ export function pharmacyRoutes(database: Database) {
                 MAX(CASE WHEN reason = 'COUNT' THEN occurred_at END) AS last_counted_at
            FROM stock_movements
           WHERE branch_id = $1 AND medicine_name = $2`,
-        [pharmacy.branch_id, body.medicineName],
+        [pharmacy.branch_id, medicineKey],
       );
       const row = stats.rows[0];
-      const variance = body.reason === "COUNT" ? body.deltaQty : 0;
+      // A failed reconciliation must keep gating this SKU until the NEXT
+      // count. Recomputing with variance 0 on the following sale would erase
+      // the penalty and quietly re-admit an untrusted SKU to forecasting.
+      const priorVariance = await database.query<{ last_variance: number }>(
+        `SELECT last_variance FROM sku_trust WHERE branch_id = $1 AND medicine_name = $2`,
+        [pharmacy.branch_id, medicineKey],
+      );
+      const variance =
+        body.reason === "COUNT"
+          ? body.deltaQty
+          : Number(priorVariance.rows[0]?.last_variance ?? 0);
       const score = computeSkuTrust({
         movementCount: Number(row?.movement_count ?? 0),
         lastCountedAt: row?.last_counted_at ? new Date(row.last_counted_at) : null,
@@ -1038,7 +1052,7 @@ export function pharmacyRoutes(database: Database) {
                updated_at = now()`,
         [
           pharmacy.branch_id,
-          body.medicineName,
+          medicineKey,
           Number(row?.movement_count ?? 0),
           row?.last_counted_at ?? null,
           variance,
@@ -1080,21 +1094,27 @@ export function pharmacyRoutes(database: Database) {
     );
 
     return context.json({
-      data: result.rows.map((row) => {
-        const trust = Number(row.trust_score ?? 0);
-        const forecastReady = trust >= SKU_TRUST_THRESHOLD;
-        return {
+      // Untrusted SKUs are excluded from the forecast surface entirely rather
+      // than shown with a caveat: a number nobody should act on is still a
+      // number people act on.
+      data: result.rows
+        .filter((row) => Number(row.trust_score ?? 0) >= SKU_TRUST_THRESHOLD)
+        .map((row) => ({
           medicineName: row.medicine_name,
           onHand: Number(row.on_hand),
           movements: Number(row.movements),
           lastMovementAt: row.last_movement_at,
-          trustScore: trust,
-          forecastReady,
-          // Only trusted SKUs get a reorder hint at all.
-          reorderHint: forecastReady && Number(row.on_hand) <= 5,
-        };
-      }),
-      meta: { trustThreshold: SKU_TRUST_THRESHOLD },
+          trustScore: Number(row.trust_score ?? 0),
+          forecastReady: true,
+          reorderHint: Number(row.on_hand) <= 5,
+        })),
+      meta: {
+        trustThreshold: SKU_TRUST_THRESHOLD,
+        // Counting what was withheld keeps the omission honest and visible.
+        excludedUntrustedCount: result.rows.filter(
+          (row) => Number(row.trust_score ?? 0) < SKU_TRUST_THRESHOLD,
+        ).length,
+      },
     });
   });
 

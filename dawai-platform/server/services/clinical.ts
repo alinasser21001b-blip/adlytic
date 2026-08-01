@@ -16,6 +16,50 @@ import { ApiError } from "../errors";
 
 export type ProxyScope = "VIEW" | "ORDER" | "CONFIRM";
 
+/**
+ * Asserts the caller is a VERIFIED pharmacy.
+ *
+ * The PHARMACY role is self-selected at registration, so `role === "PHARMACY"`
+ * proves nothing: an attacker registers as a pharmacy, never onboards, and can
+ * otherwise stamp instructions as pharmacist-authored or override safety
+ * alerts. Verification lives on pharmacies.verification_status and must be the
+ * gate for any clinically-authoritative action.
+ */
+export async function requireVerifiedPharmacyUser(
+  database: DbExecutor,
+  userId: string,
+  role: string,
+): Promise<{ pharmacyId: string; branchId: string }> {
+  if (role !== "PHARMACY") {
+    throw new ApiError(
+      403,
+      "PHARMACY_ACCOUNT_REQUIRED",
+      "هذا الإجراء متاح لحساب صيدلية موثّق فقط.",
+    );
+  }
+  const result = await database.query<{
+    pharmacy_id: string;
+    branch_id: string;
+    verification_status: string;
+  }>(
+    `SELECT p.id AS pharmacy_id, b.id AS branch_id, p.verification_status
+       FROM pharmacies p
+       JOIN pharmacy_branches b ON b.pharmacy_id = p.id
+      WHERE p.owner_user_id = $1
+      LIMIT 1`,
+    [userId],
+  );
+  const pharmacy = result.rows[0];
+  if (!pharmacy || pharmacy.verification_status !== "VERIFIED") {
+    throw new ApiError(
+      403,
+      "PHARMACY_NOT_VERIFIED",
+      "يلزم اعتماد ترخيص الصيدلية قبل هذا الإجراء.",
+    );
+  }
+  return { pharmacyId: pharmacy.pharmacy_id, branchId: pharmacy.branch_id };
+}
+
 const SCOPE_RANK: Record<ProxyScope, number> = {
   VIEW: 1,
   ORDER: 2,
@@ -97,6 +141,8 @@ export function computeDaysOfCover(input: {
   medicineName: string;
   quantityDispensed: number | null;
   dosesPerDay: number;
+  /** Units consumed per administration (2 tablets twice daily = 2). */
+  unitsPerDose?: number;
   dispensedAt: Date | null;
   takenCount: number;
   snoozedUntil: Date | null;
@@ -118,27 +164,39 @@ export function computeDaysOfCover(input: {
     // No completed dispense cycle yet — the minimum dataset is not met.
     return { ...base, suppressionReason: "NO_DISPENSE_CYCLE" };
   }
-  if (input.dosesPerDay <= 0) {
+  const unitsPerDose = input.unitsPerDose ?? 1;
+  if (input.dosesPerDay <= 0 || unitsPerDose <= 0) {
     return { ...base, suppressionReason: "INVALID_FREQUENCY" };
   }
+  // Units consumed per day, not administrations: a 2-tablet dose taken twice
+  // daily exhausts a 30-tablet pack in 7 days, not 15.
+  const unitsPerDay = input.dosesPerDay * unitsPerDose;
 
+  // A dispense timestamp in the future is corrupt input, not zero elapsed time.
+  if (input.dispensedAt.getTime() > now.getTime()) {
+    return { ...base, suppressionReason: "CONFLICTING_DATA" };
+  }
   const elapsedDays = Math.max(
     0,
     Math.floor((now.getTime() - input.dispensedAt.getTime()) / 86_400_000),
   );
-  const expectedConsumed = elapsedDays * input.dosesPerDay;
+  const expectedConsumed = elapsedDays * unitsPerDay;
 
   // Confirmed doses exceeding what the dispensed pack could contain means the
   // patient has stock we don't know about, or the schedule is wrong. Either
   // way, we must not predict a run-out date from it.
-  if (input.takenCount > input.quantityDispensed) {
+  const unitsConfirmed = input.takenCount * unitsPerDose;
+  if (unitsConfirmed > input.quantityDispensed) {
     return { ...base, suppressionReason: "CONFLICTING_DATA" };
   }
 
   // Trust confirmed intake when we have it; fall back to elapsed-time decay.
-  const consumed = Math.max(input.takenCount, Math.min(expectedConsumed, input.quantityDispensed));
+  const consumed = Math.max(
+    unitsConfirmed,
+    Math.min(expectedConsumed, input.quantityDispensed),
+  );
   const unitsLeft = Math.max(0, input.quantityDispensed - consumed);
-  const daysRemaining = Math.floor(unitsLeft / input.dosesPerDay);
+  const daysRemaining = Math.floor(unitsLeft / unitsPerDay);
 
   const runsOut = new Date(now.getTime() + daysRemaining * 86_400_000);
   return {
@@ -223,6 +281,9 @@ export function computeSkuTrust(input: {
     : 0;
 
   // Variance: a large unexplained delta at the last count lowers trust sharply.
+  // A reconciliation that matched the ledger has variance 0 and is the
+  // strongest possible trust signal — it must not be indistinguishable from
+  // "never counted", which `recency` already handles via lastCountedAt.
   const variancePenalty = Math.min(1, Math.abs(input.lastVariance) / 20);
 
   const score = density * 0.5 + recency * 0.5 - variancePenalty * 0.5;
