@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#173c37" />
+  <meta name="description" content="دوائي — HTML مطوّر: طلب توفّر دواء، مقارنة عروض موثوقة، حجز استلام." />
+  <title>دوائي — واجهة مطوّرة (HTML)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      /* Brand */
+      --forest-950: #102e2b;
+      --forest-900: #173c37;
+      --forest-700: #23665c;
+      --forest-500: #348b7c;
+      --mint-100: #dff1eb;
+      --mint-50: #eff8f4;
+      --ink-950: #17201f;
+      --ink-700: #43514f;
+      --ink-500: #6d7876;
+      --paper: #fbfaf6;
+      --white: #fff;
+      --line: #d8dcd8;
+      --line-dark: #aeb8b4;
+      --lime: #dceab8;
+      --shadow: 0 18px 55px rgb(23 60 55 / 10%);
+
+      /* Semantic — action / urgency / status */
+      --action: #c24f38;
+      --action-soft: #fbe9e4;
+      --urgency: #a76614;
+      --urgency-soft: #fbf0dc;
+      --info: #436a91;
+      --info-soft: #e8eff6;
+      --ok: #176044;
+      --ok-soft: #e6f4ee;
+      --ok-line: #acd3c2;
+      --warn: #74460e;
+      --warn-soft: var(--urgency-soft);
+      --warn-line: #e2c48d;
+      --danger: #9a3d2c;
+      --danger-soft: #f8e6e2;
+      --danger-line: #e2b4ab;
+      --rx: #5b4578;
+      --rx-soft: #f0eaf6;
+
+      --nav-h: 72px;
+      --radius: 14px;
+      --radius-sm: 9px;
+      --focus: 3px solid var(--action);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      font-family: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+      color: var(--ink-950);
+      background:
+        radial-gradient(ellipse 80% 50% at 100% 0%, rgb(52 139 124 / 12%), transparent 55%),
+        linear-gradient(90deg, rgb(23 60 55 / 2.5%) 1px, transparent 1px) 0 0 / 72px 72px,
+        var(--paper);
+      line-height: 1.6;
+    }
+
+    h1, h2, h3, .brand strong {
+      font-family: "Noto Kufi Arabic", Tahoma, Arial, sans-serif;
+      line-height: 1.35;
+      margin: 0 0 0.35rem;
+    }
+    h1 { font-size: clamp(1.55rem, 4vw, 2.15rem); letter-spacing: -0.03em; color: var(--forest-950); }
+    h2 { font-size: 1.05rem; color: var(--forest-950); }
+    p { margin: 0 0 0.7rem; color: var(--ink-700); }
+    a { color: inherit; text-decoration: none; }
+    button, select, input, textarea { font: inherit; }
+    button { cursor: pointer; border: 0; background: none; color: inherit; }
+    :focus-visible { outline: var(--focus); outline-offset: 3px; }
+    :focus:not(:focus-visible) { outline: none; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+
+    .skip-link {
+      position: fixed; z-index: 200; inset-block-start: 0.75rem; inset-inline-start: 0.75rem;
+      padding: 0.65rem 1rem; border-radius: 8px; background: var(--forest-950); color: #fff;
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: none; }
+
+    /* —— Studio chrome —— */
+    .studio {
+      display: grid;
+      grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+      gap: 1.25rem;
+      width: min(1180px, calc(100% - 1.5rem));
+      margin: 1rem auto 2rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .studio { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      position: sticky;
+      inset-block-start: 1rem;
+      padding: 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgb(255 255 255 / 88%);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+    }
+    @media (max-width: 900px) {
+      .panel { position: static; }
+    }
+
+    .panel .brand {
+      display: flex; align-items: center; gap: 0.65rem; margin-block-end: 0.85rem;
+    }
+    .brand-mark {
+      position: relative; display: grid; place-items: center;
+      width: 40px; height: 40px;
+      border-radius: 12px 12px 12px 4px;
+      background: var(--forest-900);
+      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
+    }
+    .brand-mark span {
+      position: absolute; width: 20px; height: 6px; border-radius: 99px;
+      background: var(--lime); transform: rotate(-42deg);
+    }
+    .brand-mark span:last-child { transform: rotate(48deg); }
+    .brand strong { font-size: 1.2rem; color: var(--forest-900); display: block; }
+    .brand small { color: var(--ink-500); font-size: 0.68rem; font-weight: 600; }
+
+    .panel h2 { font-size: 0.95rem; margin-block-end: 0.35rem; }
+    .panel > p { font-size: 0.78rem; margin-block-end: 1rem; }
+
+    .demo-nav {
+      display: grid; gap: 0.35rem; margin-block-end: 1rem;
+    }
+    .demo-nav button {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem; min-height: 42px; padding: 0.45rem 0.7rem;
+      border: 1px solid var(--line); border-radius: var(--radius-sm);
+      background: var(--white); font-size: 0.78rem; font-weight: 700; text-align: start;
+      transition: border-color 140ms ease, background 140ms ease;
+    }
+    .demo-nav button:hover { border-color: var(--forest-500); }
+    .demo-nav button[aria-current="true"] {
+      border-color: var(--forest-700);
+      background: var(--mint-50);
+      color: var(--forest-900);
+    }
+    .demo-nav button span { color: var(--ink-500); font-size: 0.65rem; font-weight: 600; }
+
+    .toggles { display: grid; gap: 0.45rem; }
+    .toggles label {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.75rem; font-weight: 700; color: var(--ink-700); cursor: pointer;
+    }
+    .toggles input { width: 1rem; height: 1rem; accent-color: var(--forest-700); }
+
+    .legend {
+      margin-block-start: 1rem; padding-block-start: 0.85rem;
+      border-block-start: 1px solid var(--line);
+      display: flex; flex-wrap: wrap; gap: 0.4rem;
+    }
+
+    /* —— Phone —— */
+    .stage { display: grid; justify-items: center; gap: 0.75rem; }
+    .stage-note {
+      margin: 0; font-size: 0.72rem; color: var(--ink-500); text-align: center; max-width: 28rem;
+    }
+
+    .phone {
+      width: min(100%, 390px);
+      border: 1px solid #c5cdc8;
+      border-radius: 36px;
+      background: #1a2a27;
+      padding: 12px;
+      box-shadow: 0 30px 70px rgb(16 46 43 / 22%);
+    }
+    .phone-inner {
+      position: relative;
+      overflow: hidden;
+      border-radius: 26px;
+      background: var(--paper);
+      min-height: 720px;
+      max-height: min(86vh, 820px);
+      display: flex;
+      flex-direction: column;
+    }
+    .notch {
+      position: absolute; z-index: 5; inset-block-start: 8px; inset-inline-start: 50%;
+      width: 96px; height: 22px; border-radius: 99px;
+      background: #122624; transform: translateX(-50%);
+    }
+
+    .offline-banner {
+      display: none;
+      align-items: flex-start; gap: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      background: var(--warn-soft);
+      border-block-end: 1px solid var(--warn-line);
+      color: var(--warn);
+      font-size: 0.72rem; font-weight: 700;
+    }
+    .offline-banner.visible { display: flex; }
+    .offline-banner strong { display: block; }
+    .offline-banner span { font-weight: 500; color: var(--ink-700); }
+
+    .screen { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .screen.active { display: flex; animation: rise 280ms ease both; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .app-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem; min-height: 56px; padding: 0.65rem 0.9rem;
+      border-block-end: 1px solid rgb(174 184 180 / 45%);
+      background: rgb(251 250 246 / 94%);
+      backdrop-filter: blur(10px);
+    }
+    .app-header .brand { display: flex; align-items: center; gap: 0.45rem; }
+    .app-header .brand-mark { width: 32px; height: 32px; border-radius: 10px 10px 10px 3px; }
+    .app-header .brand-mark span { width: 16px; height: 5px; }
+    .app-header .brand strong { font-size: 1rem; }
+
+    .scroll {
+      flex: 1; overflow: auto; padding: 1rem 0.9rem calc(var(--nav-h) + 1rem);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .overline {
+      margin: 0 0 0.25rem; color: var(--forest-700);
+      font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em;
+    }
+
+    .status {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      min-height: 26px; padding: 0.15rem 0.55rem;
+      border: 1px solid transparent; border-radius: 999px;
+      font-size: 0.62rem; font-weight: 800; white-space: nowrap;
+    }
+    .status.ok { border-color: var(--ok-line); background: var(--ok-soft); color: var(--ok); }
+    .status.warn { border-color: var(--warn-line); background: var(--warn-soft); color: var(--warn); }
+    .status.info { border-color: #b6c9da; background: var(--info-soft); color: #305878; }
+    .status.danger { border-color: var(--danger-line); background: var(--danger-soft); color: var(--danger); }
+    .status.rx { border-color: #cbb8de; background: var(--rx-soft); color: var(--rx); }
+    .status.neutral { border-color: var(--line); background: var(--white); color: var(--ink-500); }
+
+    .trust-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.55rem 0; }
+    .trust-chip {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.28rem 0.5rem; border-radius: 999px;
+      background: var(--mint-50); border: 1px solid #c5d6cf;
+      color: var(--forest-700); font-size: 0.62rem; font-weight: 700;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      min-height: 46px; padding: 0.6rem 1rem;
+      border-radius: 10px 10px 10px 3px; font-weight: 800; cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary {
+      border: 1px solid var(--forest-900); background: var(--forest-900); color: #fff;
+    }
+    .btn-primary:hover { background: var(--forest-700); border-color: var(--forest-700); }
+    .btn-secondary {
+      border: 1px solid var(--forest-700); background: #fff; color: var(--forest-700);
+    }
+    .btn-ghost {
+      border: 0; background: transparent; color: var(--ink-500); min-height: 40px;
+    }
+    .btn-action {
+      border: 1px solid var(--action); background: var(--action); color: #fff;
+    }
+    .btn-block { width: 100%; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .btn:disabled { opacity: 0.5; cursor: wait; }
+
+    .search {
+      display: grid; grid-template-columns: auto minmax(0,1fr) auto;
+      align-items: center; gap: 0.45rem;
+      padding: 0.4rem 0.4rem 0.4rem 0.55rem;
+      border: 1px solid var(--line-dark); border-radius: 14px 14px 14px 4px;
+      background: #fff; box-shadow: 0 12px 30px rgb(23 60 55 / 8%);
+    }
+    .search input {
+      min-width: 0; min-height: 44px; border: 0; outline: 0; background: transparent;
+    }
+    .search button {
+      min-height: 42px; padding: 0.45rem 0.9rem;
+      border-radius: 9px 9px 9px 3px;
+      background: var(--forest-900); color: #fff; font-weight: 800;
+    }
+
+    .quick { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.85rem 0 1rem; }
+    .quick a, .quick button {
+      min-height: 36px; padding: 0.35rem 0.7rem;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: #fff; font-size: 0.72rem; font-weight: 700; color: var(--forest-700);
+    }
+
+    .card {
+      padding: 0.95rem; border: 1px solid var(--line);
+      border-radius: var(--radius) var(--radius) var(--radius) 4px;
+      background: #fff;
+    }
+    .card.featured {
+      border-color: var(--forest-500);
+      box-shadow: var(--shadow);
+    }
+
+    .live-panel {
+      display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; align-items: center;
+      margin-block-end: 1rem; padding: 0.85rem;
+      border: 1px solid #bed2cb; border-radius: var(--radius);
+      background: var(--mint-50);
+    }
+    .live-panel.warn {
+      border-color: var(--warn-line); background: var(--warn-soft);
+    }
+    .live-panel strong { display: block; font-size: 0.82rem; color: var(--forest-950); }
+    .live-panel p, .live-panel small { margin: 0.15rem 0 0; font-size: 0.68rem; color: var(--ink-500); }
+    .pulse {
+      width: 42px; height: 42px; border-radius: 50%;
+      display: grid; place-items: center;
+      background: var(--forest-900); color: #fff; font-size: 1rem;
+      box-shadow: 0 0 0 0 rgb(52 139 124 / 45%);
+      animation: pulse 2s ease infinite;
+    }
+    @keyframes pulse {
+      70% { box-shadow: 0 0 0 12px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+
+    .facts {
+      display: grid; grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 1px; margin: 0.7rem 0; overflow: hidden;
+      border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--line);
+    }
+    .facts > div { padding: 0.55rem; background: var(--paper); min-width: 0; }
+    .facts small { display: block; color: var(--ink-500); font-size: 0.6rem; margin-block-end: 0.15rem; }
+    .facts strong { display: block; font-size: 0.74rem; color: var(--ink-950); }
+
+    .fresh {
+      margin: 0.45rem 0 0.7rem; color: var(--forest-700);
+      font-size: 0.66rem; font-weight: 700;
+    }
+    .price-note { margin: 0 0 0.7rem; font-size: 0.65rem; color: var(--ink-500); }
+
+    .sort-row {
+      display: flex; align-items: end; justify-content: space-between;
+      gap: 0.75rem; margin-block-end: 0.85rem;
+    }
+    .sort-row label {
+      display: grid; gap: 0.2rem; font-size: 0.65rem; font-weight: 700; color: var(--ink-500);
+    }
+    .sort-row select {
+      min-height: 40px; padding: 0.3rem 0.55rem;
+      border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    }
+
+    .ladder { list-style: none; margin: 0.8rem 0 1rem; padding: 0; display: grid; gap: 0.45rem; }
+    .ladder li {
+      display: grid; grid-template-columns: 28px 1fr; gap: 0.55rem; align-items: center;
+      padding: 0.55rem; border: 1px solid var(--line); border-radius: 10px;
+      font-size: 0.72rem; color: var(--ink-700); background: #fff;
+    }
+    .ladder li[aria-current="step"] {
+      border-color: var(--forest-500); background: var(--mint-50); font-weight: 700;
+    }
+    .ladder li.done { opacity: 0.65; }
+    .ladder .n {
+      display: grid; place-items: center; width: 28px; height: 28px;
+      border-radius: 50%; background: var(--forest-900); color: #fff;
+      font-size: 0.7rem; font-weight: 800;
+    }
+    .ladder li.done .n { background: var(--forest-500); }
+    .ladder li:not([aria-current="step"]):not(.done) .n {
+      background: #fff; color: var(--ink-500); border: 1px solid var(--line-dark);
+    }
+
+    .countdown {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.75rem; padding: 0.85rem 1rem; margin-block-end: 0.85rem;
+      border-radius: 12px; background: var(--urgency-soft); color: var(--warn);
+    }
+    .countdown.pending { background: var(--info-soft); color: #305878; }
+    .countdown.expired { background: var(--danger-soft); color: var(--danger); }
+    .countdown strong {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 1.35rem; letter-spacing: 0.04em;
+    }
+
+    .res-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem;
+      margin-block-end: 0.9rem;
+    }
+    .res-grid > div {
+      padding: 0.55rem 0.65rem; border: 1px solid var(--line);
+      border-radius: 8px; background: var(--paper);
+    }
+    .res-grid span { display: block; font-size: 0.62rem; color: var(--ink-500); }
+    .res-grid strong { font-size: 0.78rem; }
+
+    .empty {
+      text-align: center; padding: 1.4rem 1rem;
+    }
+    .empty .ico {
+      width: 64px; height: 64px; margin: 0 auto 0.75rem;
+      display: grid; place-items: center; border-radius: 50%;
+      background: var(--mint-100); font-size: 1.6rem;
+    }
+
+    .inbox-card { margin-block-end: 0.7rem; }
+    .inbox-card header {
+      display: flex; justify-content: space-between; gap: 0.5rem; align-items: start;
+      margin-block-end: 0.45rem;
+    }
+    .meta { margin: 0; font-size: 0.68rem; color: var(--ink-500); }
+    .quick-reply { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin-block-start: 0.7rem; }
+    .quick-reply .ok {
+      min-height: 42px; border-radius: 8px; background: var(--forest-900); color: #fff; font-weight: 800;
+    }
+    .quick-reply .no {
+      min-height: 42px; border-radius: 8px; border: 1px solid var(--line-dark);
+      background: #fff; font-weight: 700; color: var(--ink-700);
+    }
+    .reason-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-block-start: 0.55rem; }
+    .reason-chips button {
+      min-height: 34px; padding: 0.3rem 0.65rem; border-radius: 999px;
+      border: 1px solid var(--line); background: var(--paper); font-size: 0.7rem; font-weight: 700;
+    }
+
+    .field { display: grid; gap: 0.35rem; margin-block-end: 0.85rem; }
+    .field > span { font-size: 0.72rem; font-weight: 800; color: var(--ink-700); }
+    .field input, .field select, .field textarea {
+      min-height: 46px; padding: 0.55rem 0.7rem;
+      border: 1px solid var(--line-dark); border-radius: var(--radius-sm);
+      background: var(--paper);
+    }
+    .field textarea { min-height: 90px; resize: vertical; }
+
+    .mobile-nav {
+      position: absolute; inset-inline: 0; inset-block-end: 0;
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      min-height: var(--nav-h);
+      padding: 0.35rem 0.25rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+      border-block-start: 1px solid var(--line);
+      background: rgb(255 255 255 / 96%);
+      backdrop-filter: blur(10px);
+    }
+    .mobile-nav a {
+      display: grid; justify-items: center; gap: 0.15rem;
+      padding: 0.35rem 0.15rem; font-size: 0.62rem; font-weight: 700; color: var(--ink-500);
+    }
+    .mobile-nav a[aria-current="page"] { color: var(--forest-900); }
+    .mobile-nav .ico { font-size: 1.05rem; line-height: 1; }
+
+    .welcome-hero { padding-block-start: 0.5rem; }
+    .welcome-hero h1 { font-size: 1.85rem; margin-block-end: 0.55rem; }
+    .role-choice { display: grid; gap: 0.55rem; margin: 1rem 0; }
+    .role-card {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.65rem; align-items: center;
+      padding: 0.85rem; border: 1px solid var(--line); border-radius: 12px;
+      background: #fff; text-align: start;
+    }
+    .role-card:hover { border-color: var(--forest-500); box-shadow: var(--shadow); }
+    .role-card .ico {
+      width: 42px; height: 42px; display: grid; place-items: center;
+      border-radius: 12px; background: var(--mint-100); font-size: 1.2rem;
+    }
+    .role-card.pharmacy .ico { background: var(--info-soft); }
+    .role-card strong { display: block; font-size: 0.9rem; }
+    .role-card small { color: var(--ink-500); font-size: 0.68rem; }
+
+    .radar-mini {
+      position: relative; width: 100%; aspect-ratio: 1.4; margin: 0.5rem 0 1rem;
+      border-radius: 16px; overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 55%, var(--mint-100), transparent 55%),
+        var(--mint-50);
+      border: 1px solid #bed2cb;
+    }
+    .radar-mini::before {
+      content: ""; position: absolute; inset: 12%;
+      border: 1px dashed rgb(35 102 92 / 35%); border-radius: 50%;
+    }
+    .radar-mini .center {
+      position: absolute; inset: 50% auto auto 50%; transform: translate(-50%,-50%);
+      width: 54px; height: 54px; border-radius: 50%;
+      display: grid; place-items: center; background: var(--forest-900); color: #fff;
+      font-size: 0.65rem; font-weight: 800; text-align: center; line-height: 1.2;
+    }
+    .radar-mini .dot {
+      position: absolute; width: 10px; height: 10px; border-radius: 50%;
+      background: var(--action); box-shadow: 0 0 0 3px rgb(194 79 56 / 18%);
+    }
+    .radar-mini .d1 { inset-block-start: 28%; inset-inline-start: 30%; }
+    .radar-mini .d2 { inset-block-start: 42%; inset-inline-start: 68%; }
+    .radar-mini .d3 { inset-block-start: 62%; inset-inline-start: 40%; }
+
+    .safety {
+      display: flex; gap: 0.5rem; align-items: flex-start;
+      padding: 0.7rem; border-radius: 10px; border: 1px solid #c5d6e4;
+      background: var(--info-soft); color: #274866; font-size: 0.72rem;
+    }
+
+    .offer-heading {
+      display: flex; align-items: center; gap: 0.6rem; margin-block-end: 0.25rem;
+    }
+    .avatar {
+      width: 42px; height: 42px; border-radius: 12px 12px 12px 4px;
+      display: grid; place-items: center; background: var(--mint-100); font-size: 1.1rem;
+    }
+    .best-tag {
+      display: inline-flex; align-items: center; gap: 0.2rem;
+      margin-block-end: 0.45rem; padding: 0.2rem 0.5rem;
+      border-radius: 999px; background: var(--lime);
+      color: var(--forest-950); font-size: 0.62rem; font-weight: 800;
+    }
+
+    .toast {
+      position: absolute; z-index: 20; inset-inline: 0.75rem; inset-block-end: calc(var(--nav-h) + 0.6rem);
+      padding: 0.7rem 0.85rem; border-radius: 10px;
+      background: var(--forest-950); color: #e8f2ef; font-size: 0.75rem; font-weight: 700;
+      box-shadow: var(--shadow); display: none;
+    }
+    .toast.show { display: block; animation: rise 220ms ease both; }
+
+    .compare-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem; margin-block-end: 0.75rem; padding: 0.55rem 0.7rem;
+      border-radius: 10px; background: var(--paper); border: 1px solid var(--line);
+      font-size: 0.7rem; font-weight: 700; color: var(--ink-700);
+    }
+
+    .stale-hint {
+      margin: 0.4rem 0 0; font-size: 0.65rem; color: var(--urgency); font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#phone-app">تخطّ إلى التطبيق</a>
+
+  <div class="studio">
+    <aside class="panel" aria-label="لوحة التحكم بالعرض">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+        <span>
+          <strong>دوائي</strong>
+          <small>HTML مطوّر · تجربة تفاعلية</small>
+        </span>
+      </div>
+      <h2>شاشات المنتج</h2>
+      <p>طلب توفّر → عروض موثوقة → حجز بعد تأكيد الصيدلية. ليس متجرًا ولا توصيلًا.</p>
+
+      <nav class="demo-nav" aria-label="انتقال سريع">
+        <button type="button" data-goto="welcome" aria-current="true">الترحيب <span>عام</span></button>
+        <button type="button" data-goto="patient">رئيسية المريض <span>بحث</span></button>
+        <button type="button" data-goto="matching">جاري المطابقة <span>انتظار</span></button>
+        <button type="button" data-goto="offers">مقارنة العروض <span>ثقة</span></button>
+        <button type="button" data-goto="zero">صفر عروض <span>2→5→10</span></button>
+        <button type="button" data-goto="hold-pending">حجز بانتظار ACK <span>مهلة</span></button>
+        <button type="button" data-goto="hold">حجز نشط <span>15 د</span></button>
+        <button type="button" data-goto="pharmacy">وارد الصيدلية <span>خصوصية</span></button>
+        <button type="button" data-goto="compose">تركيب عرض <span>منظم</span></button>
+        <button type="button" data-goto="reservations">حجوزات الصيدلية <span>دورة حياة</span></button>
+      </nav>
+
+      <div class="toggles">
+        <label><input type="checkbox" id="toggle-offline" /> محاكاة عدم الاتصال</label>
+        <label><input type="checkbox" id="toggle-stale" /> بيانات قديمة (stale)</label>
+      </div>
+
+      <div class="legend" aria-label="ألوان الحالة">
+        <span class="status ok">نجاح / متاح</span>
+        <span class="status warn">إلحاح / مهلة</span>
+        <span class="status info">انتظار / معلومات</span>
+        <span class="status danger">فشل / انتهاء</span>
+        <span class="status rx">وصفة</span>
+      </div>
+    </aside>
+
+    <div class="stage">
+      <p class="stage-note">واجهة مطوّرة مستقلة عن React — نفس عقود المنتج: تطابق، مقارنة، حجز استلام فقط.</p>
+      <div class="phone">
+        <div class="phone-inner" id="phone-app">
+          <div class="notch" aria-hidden="true"></div>
+
+          <div class="offline-banner" id="offline-banner" role="status">
+            <span aria-hidden="true">📡</span>
+            <div>
+              <strong>أنت غير متصل</strong>
+              <span id="offline-detail">هذه آخر حالة مؤكدة الساعة <bdi dir="ltr">10:24</bdi>. يمكنك التصفح؛ الإجراءات تنتظر الاتصال.</span>
+            </div>
+          </div>
+
+          <!-- WELCOME -->
+          <section class="screen active" id="welcome" aria-labelledby="welcome-title">
+            <header class="app-header">
+              <span class="brand">
+                <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+                <strong>دوائي</strong>
+              </span>
+              <span class="status info">تجربة HTML</span>
+            </header>
+            <div class="scroll welcome-hero">
+              <p class="overline">منصة العثور على الدواء في العراق</p>
+              <h1 id="welcome-title">دواؤك أقرب مما تتوقع.</h1>
+              <p>طلب واحد يصل إلى صيدليات موثّقة وقريبة. تحصل على التوفّر والسعر والجاهزية، ثم تحجز للاستلام.</p>
+              <div class="radar-mini" aria-hidden="true">
+                <span class="center">طلبك</span>
+                <span class="dot d1"></span>
+                <span class="dot d2"></span>
+                <span class="dot d3"></span>
+              </div>
+              <div class="role-choice">
+                <button class="role-card" type="button" data-goto="patient">
+                  <span class="ico" aria-hidden="true">👤</span>
+                  <span><strong>أنا مريض</strong><small>أبحث أو أرسل طلب توفّر</small></span>
+                  <span aria-hidden="true">←</span>
+                </button>
+                <button class="role-card pharmacy" type="button" data-goto="pharmacy">
+                  <span class="ico" aria-hidden="true">🏪</span>
+                  <span><strong>أنا صيدلية</strong><small>أردّ على الطلبات القريبة</small></span>
+                  <span aria-hidden="true">←</span>
+                </button>
+              </div>
+              <div class="safety">
+                <span aria-hidden="true">🛡</span>
+                <span>دوائي لا يشخّص ولا يصف أو يستبدل الدواء. القرار للصيدلي عند الاستلام.</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- PATIENT HOME -->
+          <section class="screen" id="patient" aria-labelledby="patient-title" hidden>
+            <header class="app-header">
+              <span class="brand">
+                <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+                <strong>دوائي</strong>
+              </span>
+              <span class="status ok">● متصل</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">المنصور، بغداد</p>
+              <h1 id="patient-title">ما الدواء الذي تحتاجه؟</h1>
+              <p>ابحث أولًا، أو أرسل طلبًا لتأكيد التوفّر والسعر من صيدلية قريبة.</p>
+              <form class="search" id="search-form">
+                <span aria-hidden="true">🔍</span>
+                <label class="sr-only" for="q">اسم الدواء</label>
+                <input id="q" name="q" dir="ltr" placeholder="Augmentin 625 mg" autocomplete="off" />
+                <button type="submit">بحث</button>
+              </form>
+              <div class="quick">
+                <button type="button" data-goto="matching">📷 صوّر الدواء</button>
+                <button type="button" data-goto="matching">📎 ارفع وصفة</button>
+                <button type="button" data-goto="matching">✏️ اكتب طلبك</button>
+              </div>
+              <article class="card live-panel" style="margin:0 0 1rem;display:grid">
+                <div class="pulse" aria-hidden="true">⏱</div>
+                <div>
+                  <strong>طلب نشط: <bdi dir="ltr">Augmentin 625 mg</bdi></strong>
+                  <p>أُرسل إلى 3 صيدليات · النطاق 2 كم</p>
+                  <button class="btn btn-primary" type="button" data-goto="offers" style="margin-top:.55rem;min-height:40px;font-size:.78rem">متابعة الطلب</button>
+                </div>
+              </article>
+              <div class="safety">
+                <span aria-hidden="true">🛡</span>
+                <span>نستخدم التقنية للمطابقة فقط — لا نقترح جرعة أو بديلًا تلقائيًا.</span>
+              </div>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل المريض">
+              <a href="#patient" aria-current="page"><span class="ico" aria-hidden="true">🔍</span>الرئيسية</a>
+              <a href="#matching"><span class="ico" aria-hidden="true">＋</span>طلب</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">⏱</span>طلباتي</a>
+              <a href="#hold"><span class="ico" aria-hidden="true">📦</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">👤</span>حسابي</a>
+            </nav>
+          </section>
+
+          <!-- MATCHING -->
+          <section class="screen" id="matching" aria-labelledby="matching-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status info">جاري البحث</span>
+            </header>
+            <div class="scroll" style="text-align:center">
+              <div class="radar-mini" style="aspect-ratio:1;max-width:220px;margin-inline:auto" aria-hidden="true">
+                <span class="center">بحث</span>
+                <span class="dot d1"></span>
+                <span class="dot d2"></span>
+                <span class="dot d3"></span>
+              </div>
+              <h1 id="matching-title">نبحث عن تأكيد قريب</h1>
+              <p><bdi dir="ltr" id="matching-med">Augmentin 625 mg</bdi></p>
+              <p style="font-size:.78rem">أُرسل إلى صيدليات مفتوحة ضمن 2 كم. الردود تصل تدريجيًا.</p>
+              <div class="btn-row" style="margin-top:1rem">
+                <button class="btn btn-primary" type="button" data-goto="offers">محاكاة وصول عروض</button>
+                <button class="btn btn-secondary" type="button" data-goto="zero">محاكاة صفر عروض</button>
+              </div>
+              <button class="btn btn-ghost btn-block" type="button" data-goto="patient">إلغاء الطلب</button>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل المريض">
+              <a href="#patient"><span class="ico" aria-hidden="true">🔍</span>الرئيسية</a>
+              <a href="#matching" aria-current="page"><span class="ico" aria-hidden="true">＋</span>طلب</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">⏱</span>طلباتي</a>
+              <a href="#hold"><span class="ico" aria-hidden="true">📦</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">👤</span>حسابي</a>
+            </nav>
+          </section>
+
+          <!-- OFFERS -->
+          <section class="screen" id="offers" aria-labelledby="offers-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status ok">عروض جاهزة</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">طلب <bdi dir="ltr">DW-4821</bdi></p>
+              <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-block-end:.25rem">
+                <h1 id="offers-title" style="margin:0"><bdi dir="ltr">Augmentin 625 mg</bdi></h1>
+                <span class="status rx">يحتاج وصفة</span>
+              </div>
+              <p>أقراص · الكمية 1 · المنصور</p>
+
+              <div class="live-panel" aria-live="polite">
+                <div class="pulse" aria-hidden="true">✅</div>
+                <div>
+                  <strong id="offers-live-title">وصل عرضان صالحان — قارن واختر</strong>
+                  <p>أُرسل إلى 3 صيدليات · النطاق 2 كم</p>
+                  <small>ينتهي الطلب اليوم <bdi dir="ltr">11:40</bdi></small>
+                  <p class="stale-hint" id="stale-hint" hidden>⚠ آخر مزامنة قبل 12 دقيقة — حدّث قبل الحجز.</p>
+                </div>
+              </div>
+
+              <div class="compare-bar">
+                <span id="offer-count">عرضان</span>
+                <span>السعر عند الاستلام كما أكّدته الصيدلية</span>
+              </div>
+
+              <div class="sort-row">
+                <div>
+                  <p class="overline">العروض المؤكدة</p>
+                  <h2 style="margin:0">قارن الثقة والسعر</h2>
+                </div>
+                <label>
+                  الترتيب
+                  <select id="offer-sort">
+                    <option value="best">الأنسب</option>
+                    <option value="distance">الأقرب</option>
+                    <option value="price">الأرخص</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="offer-list"></div>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل المريض">
+              <a href="#patient"><span class="ico" aria-hidden="true">🔍</span>الرئيسية</a>
+              <a href="#matching"><span class="ico" aria-hidden="true">＋</span>طلب</a>
+              <a href="#offers" aria-current="page"><span class="ico" aria-hidden="true">⏱</span>طلباتي</a>
+              <a href="#hold"><span class="ico" aria-hidden="true">📦</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">👤</span>حسابي</a>
+            </nav>
+          </section>
+
+          <!-- ZERO OFFERS -->
+          <section class="screen" id="zero" aria-labelledby="zero-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status warn">لا عروض بعد</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">طلب <bdi dir="ltr">DW-4821</bdi></p>
+              <h1 id="zero-title"><bdi dir="ltr">Augmentin 625 mg</bdi></h1>
+              <p id="zero-meta">النطاق الحالي: 2 كم · أُرسل إلى 3 صيدليات</p>
+              <div class="card empty">
+                <div class="ico" aria-hidden="true">📡</div>
+                <h2>لم يصل عرض صالح بعد</h2>
+                <p>عدم الرد لا يعني أن الدواء غير موجود. التوسيع بموافقتك الصريحة فقط.</p>
+                <ol class="ladder" id="radius-ladder">
+                  <li class="done"><span class="n">1</span><span>انتظار الردود الأولى (حتى 5 د)</span></li>
+                  <li aria-current="step"><span class="n">2</span><span>توسيع إلى 5 كم — صيدليات جديدة فقط</span></li>
+                  <li><span class="n">3</span><span>توسيع نادر إلى 10 كم — موافقة صريحة</span></li>
+                  <li><span class="n">4</span><span>إنهاء الطلب والمحاولة لاحقًا</span></li>
+                </ol>
+                <button class="btn btn-primary btn-block" type="button" id="expand-radius">توسيع إلى 5 كم</button>
+                <button class="btn btn-secondary btn-block" type="button" data-goto="patient" style="margin-top:.45rem">سأنتظر — عودة</button>
+                <button class="btn btn-ghost btn-block" type="button" id="end-request">إنهاء الطلب</button>
+              </div>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل المريض">
+              <a href="#patient"><span class="ico" aria-hidden="true">🔍</span>الرئيسية</a>
+              <a href="#matching"><span class="ico" aria-hidden="true">＋</span>طلب</a>
+              <a href="#zero" aria-current="page"><span class="ico" aria-hidden="true">⏱</span>طلباتي</a>
+              <a href="#hold"><span class="ico" aria-hidden="true">📦</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">👤</span>حسابي</a>
+            </nav>
+          </section>
+
+          <!-- HOLD PENDING ACK -->
+          <section class="screen" id="hold-pending" aria-labelledby="hold-pending-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status warn">بانتظار تأكيد الصيدلية</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">حجز <bdi dir="ltr">RSV-1190</bdi></p>
+              <h1 id="hold-pending-title">طلب الحفظ أُرسل</h1>
+              <p>العد التنازلي للحجز <strong>لا يبدأ</strong> إلا بعد أن تؤكد الصيدلية حفظ الكمية (ACK).</p>
+              <div class="card">
+                <div class="countdown pending" role="status">
+                  <span>مهلة تأكيد الصيدلية</span>
+                  <strong><bdi dir="ltr" id="ack-timer">01:48</bdi></strong>
+                </div>
+                <div class="res-grid">
+                  <div><span>الدواء</span><strong><bdi dir="ltr">Augmentin 625 mg</bdi></strong></div>
+                  <div><span>السعر</span><strong id="pending-price">—</strong></div>
+                  <div><span>الصيدلية</span><strong>صيدلية الروابي</strong></div>
+                  <div><span>التنفيذ</span><strong>استلام فقط</strong></div>
+                </div>
+                <p class="fresh">الهاتف والعنوان يظهران بعد تأكيد الحفظ فقط.</p>
+                <button class="btn btn-primary btn-block" type="button" data-goto="hold">محاكاة: الصيدلية أكّدت الحفظ</button>
+                <button class="btn btn-ghost btn-block" type="button" data-goto="offers">إلغاء والعودة للعروض</button>
+              </div>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل المريض">
+              <a href="#patient"><span class="ico" aria-hidden="true">🔍</span>الرئيسية</a>
+              <a href="#matching"><span class="ico" aria-hidden="true">＋</span>طلب</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">⏱</span>طلباتي</a>
+              <a href="#hold-pending" aria-current="page"><span class="ico" aria-hidden="true">📦</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">👤</span>حسابي</a>
+            </nav>
+          </section>
+
+          <!-- HOLD ACTIVE -->
+          <section class="screen" id="hold" aria-labelledby="hold-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status ok">محفوظ بعد ACK</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">حجز <bdi dir="ltr">RSV-1190</bdi></p>
+              <h1 id="hold-title">دواؤك محفوظ مؤقتًا</h1>
+              <p>بدأ العد التنازلي بعد تأكيد الصيدلية. استلم قبل انتهاء المهلة.</p>
+              <div class="card">
+                <div class="countdown" id="hold-countdown" role="timer" aria-atomic="true">
+                  <span id="countdown-label">الوقت المتبقي للحجز</span>
+                  <strong><bdi dir="ltr" id="countdown-value">14:32</bdi></strong>
+                </div>
+                <p class="sr-only" aria-live="polite" id="countdown-announce"></p>
+                <div class="res-grid">
+                  <div><span>الدواء</span><strong><bdi dir="ltr">Augmentin 625 mg</bdi></strong></div>
+                  <div><span>السعر</span><strong id="hold-price">—</strong></div>
+                  <div><span>التنفيذ</span><strong>استلام من الصيدلية</strong></div>
+                  <div><span>الصيدلية</span><strong>صيدلية الروابي</strong></div>
+                  <div style="grid-column:1/-1"><span>العنوان</span><strong>شارع 14 رمضان، المنصور</strong></div>
+                </div>
+                <div class="trust-row">
+                  <span class="trust-chip">✔ مرخّصة · <bdi dir="ltr">IQ-THR-1842</bdi></span>
+                  <span class="trust-chip">🕐 حتى <bdi dir="ltr">22:00</bdi></span>
+                </div>
+                <div class="btn-row" id="hold-contact">
+                  <a class="btn btn-primary" href="https://maps.google.com/?q=المنصور+بغداد" target="_blank" rel="noreferrer">الاتجاهات</a>
+                  <a class="btn btn-secondary" href="tel:07701112222">اتصال</a>
+                </div>
+                <div id="hold-expired" hidden style="margin-top:.85rem">
+                  <p style="color:var(--danger);font-weight:800">انتهت مهلة الحجز ولم يعد الدواء محفوظًا لك.</p>
+                  <button class="btn btn-primary btn-block" type="button" data-goto="zero">إعادة إرسال الطلب</button>
+                </div>
+              </div>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل المريض">
+              <a href="#patient"><span class="ico" aria-hidden="true">🔍</span>الرئيسية</a>
+              <a href="#matching"><span class="ico" aria-hidden="true">＋</span>طلب</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">⏱</span>طلباتي</a>
+              <a href="#hold" aria-current="page"><span class="ico" aria-hidden="true">📦</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">👤</span>حسابي</a>
+            </nav>
+          </section>
+
+          <!-- PHARMACY INBOX -->
+          <section class="screen" id="pharmacy" aria-labelledby="pharmacy-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status ok">● تستقبل الطلبات</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">صندوق الوارد</p>
+              <h1 id="pharmacy-title">الطلبات القريبة اليوم</h1>
+              <p>قبل الحجز: المنطقة التقريبية والدواء فقط — بلا اسم أو هاتف أو وصفة.</p>
+              <p class="status ok" id="offer-sent" role="status" hidden style="margin-block-end:.7rem;display:none">✅ أُرسل عرضك — سيصلك إشعار عند الاختيار.</p>
+              <article class="card inbox-card" id="inbox-augmentin">
+                <header>
+                  <div>
+                    <h2><bdi dir="ltr">Augmentin 625 mg</bdi> <span class="status rx">وصفة</span></h2>
+                    <p class="meta">المنصور · <bdi dir="ltr">0.8</bdi> كم · كمية ≈ 1 · عاجل</p>
+                  </div>
+                  <span class="status warn">جديد</span>
+                </header>
+                <p class="fresh" style="margin:0">لا يظهر اسم المريض ولا الهاتف قبل تأكيد الحجز.</p>
+                <div class="quick-reply">
+                  <button class="ok" type="button" data-goto="compose">متوفر — عرض</button>
+                  <button class="no" type="button">غير متوفر</button>
+                </div>
+              </article>
+              <article class="card inbox-card">
+                <header>
+                  <div>
+                    <h2><bdi dir="ltr">Metformin 500 mg</bdi></h2>
+                    <p class="meta">اليرموك · <bdi dir="ltr">1.9</bdi> كم · كمية ≈ 2</p>
+                  </div>
+                  <span class="status neutral">شُوهد</span>
+                </header>
+                <div class="quick-reply">
+                  <button class="ok" type="button" data-goto="compose">متوفر — عرض</button>
+                  <button class="no" type="button">غير متوفر</button>
+                </div>
+              </article>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل الصيدلية">
+              <a href="#pharmacy" aria-current="page"><span class="ico" aria-hidden="true">🔔</span>الطلبات</a>
+              <a href="#compose"><span class="ico" aria-hidden="true">📋</span>عرض</a>
+              <a href="#reservations"><span class="ico" aria-hidden="true">📦</span>حجوزات</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">🏠</span>خروج</a>
+              <a href="#patient"><span class="ico" aria-hidden="true">👤</span>مريض</a>
+            </nav>
+          </section>
+
+          <!-- COMPOSE -->
+          <section class="screen" id="compose" aria-labelledby="compose-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status info">رد سريع</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">المنصور · <bdi dir="ltr">0.8</bdi> كم</p>
+              <h1 id="compose-title">ركّب عرضًا منظمًا</h1>
+              <p>إرسال العرض لا يحجز المخزون. الحجز يبدأ فقط بعد اختيار المريض وACK منك.</p>
+              <form class="card" id="compose-form">
+                <label class="field">
+                  <span>نوع الرد</span>
+                  <select name="type" required>
+                    <option value="EXACT">مطابق / متوفر</option>
+                    <option value="PARTIAL">جزئي</option>
+                    <option value="ORDERABLE">قابل للطلب (بدون حجز فوري)</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>السعر عند الاستلام (د.ع)</span>
+                  <input name="price" type="number" inputmode="numeric" min="0" step="250" value="12000" required dir="ltr" />
+                </label>
+                <label class="field">
+                  <span>وقت التجهيز</span>
+                  <select name="ready">
+                    <option value="0">جاهز الآن</option>
+                    <option value="15">15 دقيقة</option>
+                    <option value="30">30 دقيقة</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>ملاحظة قصيرة (اختياري)</span>
+                  <textarea name="note" maxlength="120" placeholder="مثال: عبوة أوريجينال متوفرة"></textarea>
+                </label>
+                <div class="safety" style="margin-block-end:.85rem">
+                  <span aria-hidden="true">ℹ</span>
+                  <span>السعر عدد صحيح IQD كما عند الاستلام — ليس تخمين كتالوج.</span>
+                </div>
+                <button class="btn btn-primary btn-block" type="submit" id="send-offer">إرسال العرض للمريض</button>
+                <button class="btn btn-ghost btn-block" type="button" data-goto="pharmacy">رجوع للوارد</button>
+              </form>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل الصيدلية">
+              <a href="#pharmacy"><span class="ico" aria-hidden="true">🔔</span>الطلبات</a>
+              <a href="#compose" aria-current="page"><span class="ico" aria-hidden="true">📋</span>عرض</a>
+              <a href="#reservations"><span class="ico" aria-hidden="true">📦</span>حجوزات</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">🏠</span>خروج</a>
+              <a href="#patient"><span class="ico" aria-hidden="true">👤</span>مريض</a>
+            </nav>
+          </section>
+
+          <!-- PHARMACY RESERVATIONS -->
+          <section class="screen" id="reservations" aria-labelledby="resv-title" hidden>
+            <header class="app-header">
+              <span class="brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><strong>دوائي</strong></span>
+              <span class="status warn">ACK مطلوب</span>
+            </header>
+            <div class="scroll">
+              <p class="overline">حجوزات الفرع</p>
+              <h1 id="resv-title">بانتظار تأكيدك</h1>
+              <p>بعد ACK يظهر للمريض الهاتف والعنوان ويبدأ عدّ 15 دقيقة.</p>
+              <article class="card" id="resv-card">
+                <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:start">
+                  <div>
+                    <h2><bdi dir="ltr">Augmentin 625 mg</bdi></h2>
+                    <p class="meta">مريض محجوز · المنصور · <span id="resv-price-label">—</span></p>
+                  </div>
+                  <span class="status warn" id="resv-badge">بانتظار تأكيدك</span>
+                </div>
+                <p class="fresh" id="resv-line"><span aria-hidden="true">⏱</span> مهلة تأكيد الحفظ: <strong id="resv-timer">2:00</strong></p>
+                <div class="quick-reply" id="resv-actions">
+                  <button class="ok" type="button" data-resv="ack">تأكيد الحفظ (ACK)</button>
+                  <button class="no" type="button" data-resv="fail">تعذّر الحفظ</button>
+                </div>
+              </article>
+            </div>
+            <nav class="mobile-nav" aria-label="تنقل الصيدلية">
+              <a href="#pharmacy"><span class="ico" aria-hidden="true">🔔</span>الطلبات</a>
+              <a href="#compose"><span class="ico" aria-hidden="true">📋</span>عرض</a>
+              <a href="#reservations" aria-current="page"><span class="ico" aria-hidden="true">📦</span>حجوزات</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">🏠</span>خروج</a>
+              <a href="#patient"><span class="ico" aria-hidden="true">👤</span>مريض</a>
+            </nav>
+          </section>
+
+          <div class="toast" id="toast" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const OFFERS = [
+        {
+          id: "r",
+          name: "صيدلية الروابي",
+          area: "المنصور",
+          price: 12000,
+          distance: 0.8,
+          best: 1,
+          match: "مطابق",
+          matchTone: "ok",
+          ready: "جاهز الآن",
+          freshMin: 4,
+          until: "10:42",
+          license: "IQ-THR-1842",
+          openUntil: "22:00",
+          featured: true,
+        },
+        {
+          id: "n",
+          name: "صيدلية النور",
+          area: "المنصور",
+          price: 11500,
+          distance: 1.4,
+          best: 2,
+          match: "جزئي",
+          matchTone: "warn",
+          ready: "15 دقيقة",
+          freshMin: 9,
+          until: "10:50",
+          license: "IQ-THR-2201",
+          openUntil: "21:00",
+          featured: false,
+        },
+      ];
+
+      const screens = [...document.querySelectorAll(".screen")];
+      const toastEl = document.getElementById("toast");
+      let toastTimer = null;
+      let holdTimer = null;
+      let ackTimer = null;
+      let resvTimer = null;
+      let radiusStep = 5; // next expansion target
+
+      function formatIQD(n) {
+        if (!Number.isSafeInteger(n) || n < 0) throw new TypeError("IQD must be non-negative safe integer");
+        return new Intl.NumberFormat("ar-IQ", {
+          style: "currency",
+          currency: "IQD",
+          maximumFractionDigits: 0,
+        }).format(n);
+      }
+
+      function arabicOfferCount(n) {
+        const cat = new Intl.PluralRules("ar").select(n);
+        if (cat === "zero") return "لا عروض";
+        if (cat === "one") return "عرض واحد";
+        if (cat === "two") return "عرضان";
+        if (cat === "few") return n + " عروض";
+        if (cat === "many") return n + " عرضًا";
+        return n + " عرض";
+      }
+
+      function toast(msg) {
+        toastEl.textContent = msg;
+        toastEl.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2800);
+      }
+
+      function showScreen(id) {
+        screens.forEach((el) => {
+          const on = el.id === id;
+          el.classList.toggle("active", on);
+          if (on) el.removeAttribute("hidden");
+          else el.setAttribute("hidden", "");
+        });
+        document.querySelectorAll(".demo-nav button").forEach((b) => {
+          if (b.dataset.goto === id) b.setAttribute("aria-current", "true");
+          else b.removeAttribute("aria-current");
+        });
+        const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const scroller = document.querySelector("#" + id + " .scroll");
+        if (scroller) scroller.scrollTop = 0;
+        history.replaceState(null, "", "#" + id);
+        if (id === "hold") startHoldCountdown();
+        if (id === "hold-pending") startAckCountdown();
+        if (id === "reservations") startResvAck();
+        if (id === "offers") renderOffers(document.getElementById("offer-sort").value);
+      }
+
+      function renderOffers(sortKey) {
+        const list = document.getElementById("offer-list");
+        const sorted = [...OFFERS].sort((a, b) => a[sortKey] - b[sortKey]);
+        document.getElementById("offer-count").textContent = arabicOfferCount(sorted.length);
+        document.getElementById("offers-live-title").textContent =
+          sorted.length === 2
+            ? "وصل عرضان صالحان — قارن واختر"
+            : "وصلت " + arabicOfferCount(sorted.length) + " — قارن واختر";
+
+        list.innerHTML = sorted
+          .map((o) => {
+            const price = formatIQD(o.price);
+            return `
+          <article class="card${o.featured ? " featured" : ""}" style="margin-bottom:.7rem" data-price="${o.price}" data-distance="${o.distance}" data-best="${o.best}">
+            ${o.featured ? '<div class="best-tag">الأنسب لك الآن</div>' : ""}
+            <div class="offer-heading">
+              <div class="avatar" aria-hidden="true">🏪</div>
+              <div style="flex:1">
+                <h2 style="margin:0">${o.name}</h2>
+                <p class="meta">${o.area} · <bdi dir="ltr">${o.distance}</bdi> كم</p>
+              </div>
+              <span class="status ${o.matchTone}">${o.match}</span>
+            </div>
+            <div class="trust-row">
+              <span class="trust-chip">✔ مرخّصة · <bdi dir="ltr">${o.license}</bdi></span>
+              <span class="trust-chip">🕐 حتى <bdi dir="ltr">${o.openUntil}</bdi></span>
+              <span class="trust-chip">📍 خريطة</span>
+            </div>
+            <div class="facts">
+              <div><small>السعر</small><strong>${price}</strong></div>
+              <div><small>التجهيز</small><strong>${o.ready}</strong></div>
+              <div><small>آخر تأكيد</small><strong>قبل ${o.freshMin} د</strong></div>
+            </div>
+            <p class="fresh">أكّدت الصيدلية قبل ${o.freshMin} د · صالح حتى <bdi dir="ltr">${o.until}</bdi></p>
+            <p class="price-note">السعر عند الاستلام كما أكّدته الصيدلية — ليس تخمين كتالوج.</p>
+            <button class="btn btn-primary btn-block" type="button" data-hold="${o.price}">حجز للاستلام</button>
+          </article>`;
+          })
+          .join("");
+
+        list.querySelectorAll("[data-hold]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const price = Number(btn.dataset.hold);
+            const label = formatIQD(price);
+            document.getElementById("pending-price").textContent = label;
+            document.getElementById("hold-price").textContent = label;
+            document.getElementById("resv-price-label").textContent = label;
+            showScreen("hold-pending");
+          });
+        });
+      }
+
+      /* Navigation */
+      document.querySelectorAll("[data-goto]").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          if (el.tagName === "BUTTON" && el.type === "submit") return;
+          e.preventDefault();
+          showScreen(el.dataset.goto);
+        });
+      });
+      document.querySelectorAll('a[href^="#"]').forEach((a) => {
+        a.addEventListener("click", (e) => {
+          const id = a.getAttribute("href").slice(1);
+          if (document.getElementById(id)?.classList.contains("screen")) {
+            e.preventDefault();
+            showScreen(id);
+          }
+        });
+      });
+
+      document.getElementById("search-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const v = document.getElementById("q").value.trim() || "Augmentin 625 mg";
+        document.getElementById("matching-med").textContent = v;
+        document.getElementById("offers-title").innerHTML = '<bdi dir="ltr"></bdi>';
+        document.getElementById("offers-title").querySelector("bdi").textContent = v;
+        document.getElementById("zero-title").innerHTML = '<bdi dir="ltr"></bdi>';
+        document.getElementById("zero-title").querySelector("bdi").textContent = v;
+        showScreen("matching");
+      });
+
+      document.getElementById("offer-sort").addEventListener("change", () => {
+        renderOffers(document.getElementById("offer-sort").value);
+      });
+
+      /* Radius escalation 2 → 5 → 10 */
+      const expandBtn = document.getElementById("expand-radius");
+      expandBtn.addEventListener("click", () => {
+        const steps = [...document.querySelectorAll("#radius-ladder li")];
+        if (radiusStep === 5) {
+          document.getElementById("zero-meta").textContent = "النطاق الحالي: 5 كم · أُرسل إلى 8 صيدليات";
+          steps.forEach((li) => { li.removeAttribute("aria-current"); li.classList.remove("done"); });
+          steps[0].classList.add("done");
+          steps[1].classList.add("done");
+          steps[2].setAttribute("aria-current", "step");
+          expandBtn.textContent = "توسيع نادر إلى 10 كم";
+          radiusStep = 10;
+          toast("وُسّع النطاق إلى 5 كم — صيدليات جديدة فقط");
+        } else if (radiusStep === 10) {
+          if (!confirm("توسيع نادر إلى 10 كم؟ قد يزيد وقت الانتظار والمسافة.")) return;
+          document.getElementById("zero-meta").textContent = "النطاق الحالي: 10 كم · أُرسل إلى 14 صيدلية";
+          steps.forEach((li) => { li.removeAttribute("aria-current"); li.classList.add("done"); });
+          steps[2].classList.add("done");
+          steps[3].setAttribute("aria-current", "step");
+          expandBtn.hidden = true;
+          radiusStep = 0;
+          toast("وُسّع النطاق إلى 10 كم بموافقتك");
+        }
+      });
+      document.getElementById("end-request").addEventListener("click", () => {
+        toast("أُنهي الطلب. يمكنك المحاولة لاحقًا.");
+        showScreen("patient");
+        radiusStep = 5;
+        expandBtn.hidden = false;
+        expandBtn.textContent = "توسيع إلى 5 كم";
+      });
+
+      /* Offline + stale */
+      const offlineBanner = document.getElementById("offline-banner");
+      document.getElementById("toggle-offline").addEventListener("change", (e) => {
+        offlineBanner.classList.toggle("visible", e.target.checked);
+        if (e.target.checked) toast("وضع عدم الاتصال — الإجراءات معلّقة");
+      });
+      document.getElementById("toggle-stale").addEventListener("change", (e) => {
+        document.getElementById("stale-hint").hidden = !e.target.checked;
+      });
+      window.addEventListener("offline", () => {
+        offlineBanner.classList.add("visible");
+        document.getElementById("toggle-offline").checked = true;
+      });
+      window.addEventListener("online", () => {
+        if (!document.getElementById("toggle-offline").checked) return;
+      });
+
+      /* Pharmacy unavailable reasons */
+      document.querySelectorAll(".quick-reply .no").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const reply = btn.closest(".quick-reply");
+          if (reply.nextElementSibling?.classList.contains("reason-chips")) return;
+          const chips = document.createElement("div");
+          chips.className = "reason-chips";
+          chips.setAttribute("role", "group");
+          chips.setAttribute("aria-label", "سبب عدم التوفر");
+          [
+            ["OUT_OF_STOCK", "نفد المخزون"],
+            ["NOT_CARRIED", "لا نتعامل به"],
+            ["CLOSED_NOW", "مغلق حاليًا"],
+          ].forEach(([code, label]) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = label;
+            b.addEventListener("click", () => {
+              const done = document.createElement("p");
+              done.className = "fresh";
+              done.setAttribute("role", "status");
+              done.textContent = "شكرًا — سجّلنا السبب (" + code + ").";
+              reply.replaceWith(done);
+              chips.remove();
+            });
+            chips.appendChild(b);
+          });
+          reply.after(chips);
+          chips.querySelector("button").focus();
+        });
+      });
+
+      /* Compose offer */
+      document.getElementById("compose-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (!e.target.reportValidity()) return;
+        const price = Number(new FormData(e.target).get("price"));
+        try {
+          const label = formatIQD(price);
+          document.getElementById("pending-price").textContent = label;
+          document.getElementById("hold-price").textContent = label;
+          document.getElementById("resv-price-label").textContent = label;
+        } catch {
+          toast("السعر يجب أن يكون عددًا صحيحًا");
+          return;
+        }
+        const sent = document.getElementById("offer-sent");
+        sent.hidden = false;
+        sent.style.display = "inline-flex";
+        const card = document.getElementById("inbox-augmentin");
+        const reply = card.querySelector(".quick-reply");
+        const badge = card.querySelector("header .status:not(.rx)");
+        if (badge) { badge.textContent = "تم إرسال عرض"; badge.className = "status ok"; }
+        if (reply) reply.remove();
+        toast("أُرسل العرض للمريض");
+        showScreen("pharmacy");
+      });
+
+      /* Hold timers */
+      function startHoldCountdown() {
+        clearInterval(holdTimer);
+        const box = document.getElementById("hold-countdown");
+        const value = document.getElementById("countdown-value");
+        const announce = document.getElementById("countdown-announce");
+        const expired = document.getElementById("hold-expired");
+        const contact = document.getElementById("hold-contact");
+        box.classList.remove("expired");
+        expired.hidden = true;
+        contact.style.display = "grid";
+        document.getElementById("countdown-label").textContent = "الوقت المتبقي للحجز";
+        const expiresAt = Date.now() + (14 * 60 + 32) * 1000;
+        let lastMin = null;
+        const tick = () => {
+          const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+          const m = Math.floor(left / 60);
+          const s = left % 60;
+          value.textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+          if (m !== lastMin && s === 0 && m > 0) {
+            lastMin = m;
+            announce.textContent = "الوقت المتبقي للحجز: " + m + " دقيقة";
+          }
+          if (left === 0) {
+            clearInterval(holdTimer);
+            box.classList.add("expired");
+            document.getElementById("countdown-label").textContent = "انتهت مهلة الحجز";
+            contact.style.display = "none";
+            expired.hidden = false;
+            announce.textContent = "انتهت مهلة الحجز.";
+          }
+        };
+        holdTimer = setInterval(tick, 1000);
+        tick();
+      }
+
+      function startAckCountdown() {
+        clearInterval(ackTimer);
+        const el = document.getElementById("ack-timer");
+        const expiresAt = Date.now() + (1 * 60 + 48) * 1000;
+        const tick = () => {
+          const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+          el.textContent = String(Math.floor(left / 60)).padStart(2, "0") + ":" + String(left % 60).padStart(2, "0");
+          if (left === 0) clearInterval(ackTimer);
+        };
+        ackTimer = setInterval(tick, 1000);
+        tick();
+      }
+
+      function startResvAck() {
+        clearInterval(resvTimer);
+        const badge = document.getElementById("resv-badge");
+        const line = document.getElementById("resv-line");
+        const actions = document.getElementById("resv-actions");
+        if (!actions) return;
+        badge.textContent = "بانتظار تأكيدك";
+        badge.className = "status warn";
+        line.innerHTML = '<span aria-hidden="true">⏱</span> مهلة تأكيد الحفظ: <strong id="resv-timer">2:00</strong>';
+        actions.innerHTML =
+          '<button class="ok" type="button" data-resv="ack">تأكيد الحفظ (ACK)</button>' +
+          '<button class="no" type="button" data-resv="fail">تعذّر الحفظ</button>';
+
+        const ackExpires = Date.now() + 2 * 60 * 1000;
+        resvTimer = setInterval(() => {
+          const t = document.getElementById("resv-timer");
+          if (!t || badge.textContent !== "بانتظار تأكيدك") {
+            clearInterval(resvTimer);
+            return;
+          }
+          const left = Math.max(0, Math.round((ackExpires - Date.now()) / 1000));
+          t.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+          if (left === 0) {
+            clearInterval(resvTimer);
+            badge.textContent = "انتهت المهلة";
+            badge.className = "status danger";
+            line.textContent = "انتهت مهلة ACK — أُعيد الطلب للمريض.";
+            actions.remove();
+          }
+        }, 1000);
+
+        actions.onclick = (ev) => {
+          const state = ev.target.closest("[data-resv]")?.dataset.resv;
+          if (!state) return;
+          clearInterval(resvTimer);
+          if (state === "ack") {
+            badge.textContent = "محفوظ";
+            badge.className = "status ok";
+            const holdEnd = Date.now() + 15 * 60 * 1000;
+            line.innerHTML =
+              '<span aria-hidden="true">⏱</span> الحفظ النشط ينتهي خلال: <strong id="resv-timer">15:00</strong>';
+            actions.innerHTML =
+              '<button class="ok" type="button" data-resv="ready">الدواء جاهز للاستلام</button>' +
+              '<button class="no" type="button" data-resv="fail">مشكلة في التنفيذ</button>';
+            resvTimer = setInterval(() => {
+              const t = document.getElementById("resv-timer");
+              if (!t) { clearInterval(resvTimer); return; }
+              const left = Math.max(0, Math.round((holdEnd - Date.now()) / 1000));
+              t.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+              if (left === 0) {
+                clearInterval(resvTimer);
+                badge.textContent = "انتهت المهلة";
+                badge.className = "status danger";
+                line.textContent = "انتهت مهلة الحفظ — أُعيد الطلب للمريض.";
+                actions.remove();
+              }
+            }, 1000);
+            toast("ACK تم — بدأ حفظ 15 دقيقة للمريض");
+          } else if (state === "ready") {
+            badge.textContent = "جاهز";
+            badge.className = "status ok";
+            line.innerHTML = '<span aria-hidden="true">📦</span> بانتظار حضور المريض · أبقِ الكمية جانبًا';
+            actions.innerHTML =
+              '<button class="ok" type="button" data-resv="complete">تأكيد الاستلام</button>' +
+              '<button class="no" type="button" data-resv="noshow">لم يحضر المريض</button>';
+          } else if (state === "complete") {
+            badge.textContent = "اكتمل";
+            badge.className = "status ok";
+            line.innerHTML = '<span aria-hidden="true">✅</span> اكتمل الاستلام — انعكس على موثوقية الفرع.';
+            actions.remove();
+            toast("اكتمل الاستلام");
+          } else {
+            badge.textContent = state === "noshow" ? "لم يحضر" : "تعذّر الحفظ";
+            badge.className = "status danger";
+            line.innerHTML = '<span aria-hidden="true">↩️</span> أُعيد الطلب للمريض ليختار عرضًا آخر.';
+            actions.remove();
+          }
+        };
+      }
+
+      window.addEventListener("hashchange", () => {
+        const id = location.hash.slice(1);
+        if (document.getElementById(id)?.classList.contains("screen")) showScreen(id);
+      });
+
+      // Seed prices with IQD formatter
+      try {
+        const seed = formatIQD(12000);
+        document.getElementById("pending-price").textContent = seed;
+        document.getElementById("hold-price").textContent = seed;
+        document.getElementById("resv-price-label").textContent = seed;
+      } catch (_) { /* ignore */ }
+
+      renderOffers("best");
+      const initial = (location.hash || "#welcome").slice(1);
+      showScreen(document.getElementById(initial)?.classList.contains("screen") ? initial : "welcome");
+    })();
+  </script>
+</body>
+</html>
