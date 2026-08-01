@@ -39,18 +39,18 @@
 </head>
 <body><a class="skip" href="#main">تجاوز إلى المحتوى</a><div class="app">
 <header class="top"><div class="brand"><div class="mark" aria-hidden="true">د</div><div><small>Dawai · Release Governance</small><h1>لوحة حوكمة الإصدار</h1></div></div><div class="actions"><label class="search"><span class="sr">بحث شامل</span><input id="search" type="search" placeholder="ابحث في العقود، المطالبات، الرايات، ADR…"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></label><button class="icon-btn" id="print" aria-label="طباعة تقرير الإصدار">⎙</button></div></header>
-<div class="statusbar" aria-live="polite"><span><b>الإصدار:</b> <bdi id="hRelease">—</bdi></span><span class="badge ok">Manifest صالح</span><span class="badge ok">Hash مطابق</span><span class="badge warn" id="hReview">—</span></div>
+<div class="statusbar" aria-live="polite"><span><b>الإصدار:</b> <bdi id="hRelease">—</bdi></span><span class="badge" id="hManifest">—</span><span class="badge" id="hHashOk">—</span><span class="badge warn" id="hReview">—</span></div>
 <nav class="nav" aria-label="أقسام الحوكمة"><button class="active" data-jump="overview">نظرة عامة</button><button data-jump="versions">الإصدارات</button><button data-jump="clinical">سريري</button><button data-jump="evidence">الدليل</button><button data-jump="verification">التحقق</button><button data-jump="gates">البوابات</button><button data-jump="flags">الرايات</button><button data-jump="release">الإفراج</button></nav>
 <main id="main">
 <section id="overview" class="section grid overview"><article class="card hero"><div class="hero-grid"><div><p class="hero-title">Dawai Platform / Release Candidate</p><div class="version"><bdi id="hVersion">—</bdi></div><span class="badge warn" id="hStatus">—</span><div class="metrics"><div class="metric"><span>البوابات</span><strong id="hGates">—</strong></div><div class="metric"><span>المطالبات الحية</span><strong id="hClaims">—</strong></div><div class="metric"><span>الرايات المفعّلة</span><strong id="hFlags">—</strong></div></div></div><div class="ring" id="hRing" style="--p:0"><div><span id="hRingN">0</span><small>Release health</small></div></div></div></article><aside class="stack"><article class="card"><div class="card-head"><div><h2>قرار الإصدار</h2><p>يُمنع النشر عند فشل بوابة إلزامية</p></div><span class="badge warn">معلّق</span></div><div class="card-body stat-list"><div class="stat-row"><span>البوابات المطلوبة</span><bdi>7 / 8</bdi></div><div class="progress"><i style="width:87.5%"></i></div><div class="stat-row"><span>العناصر المحظورة</span><bdi style="color:var(--amber)">1</bdi></div><div class="stat-row"><span>تحذيرات غير حاجبة</span><bdi>3</bdi></div></div></article></aside></section>
 <section id="versions" class="section"><article class="card"><div class="card-head"><div><h2>مصفوفة الإصدارات والتوافق</h2><p>قُرئت من <bdi>release-manifest.yaml</bdi> — مصدر الحقيقة الوحيد</p></div><span class="badge ok" id="hCompat">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>المكوّن</th><th>النطاق المدعوم</th><th>الحد الأدنى</th><th>الحالي</th><th>الحالة</th></tr></thead><tbody id="versionRows"></tbody></table></div></article></section>
-<section class="section grid two"><article class="card"><div class="card-head"><div><h2>سياسة الحوكمة</h2><p>الإصدار يحمل القواعد التي خضع لها، لا القواعد الحالية فقط</p></div><span class="badge info"><bdi id="hPolicy">—</bdi></span></div><div class="card-body"><div class="three grid"><div class="mini"><span>الـ ADRs المرتبطة</span><strong id="hAdrs">—</strong></div><div class="mini"><span>آخر تعديل للسياسة</span><strong style="font-size:.9rem">2026-07-20</strong></div><div class="mini"><span>حالة السياسة</span><strong style="color:var(--green);font-size:.85rem">ACTIVE</strong></div></div><p style="margin-top:1rem;color:var(--muted);font-size:.83rem">لا يعد الإصدار متوافقًا ما لم تبقَ الشفرة والعقود والمعنى السريري والدليل والتحقق وإعداد التشغيل متسقة.</p></div></article><article class="card"><div class="card-head"><div><h2>إعداد التشغيل المعتمد</h2><p>لقطة إعداد قابلة للتدقيق</p></div><span class="badge ok">Approved</span></div><div class="card-body stat-list"><div class="stat-row"><span>Runtime environment</span><bdi>production-candidate</bdi></div><div class="stat-row"><span>Feature snapshot</span><bdi id="hSnap">—</bdi></div><div class="stat-row"><span>Configuration hash</span><bdi class="code" id="hHash">—</bdi></div><div class="stat-row"><span>الرايات المفعّلة</span><bdi id="hFlagRatio">—</bdi></div></div></article></section>
+<section class="section grid two"><article class="card"><div class="card-head"><div><h2>سياسة الحوكمة</h2><p>الإصدار يحمل القواعد التي خضع لها، لا القواعد الحالية فقط</p></div><span class="badge info"><bdi id="hPolicy">—</bdi></span></div><div class="card-body"><div class="three grid"><div class="mini"><span>الـ ADRs المرتبطة</span><strong id="hAdrs">—</strong></div><div class="mini"><span>آخر تعديل للسياسة</span><strong style="font-size:.9rem" id="hPolDate">—</strong></div><div class="mini"><span>حالة السياسة</span><strong style="color:var(--green);font-size:.85rem">ACTIVE</strong></div></div><p style="margin-top:1rem;color:var(--muted);font-size:.83rem">لا يعد الإصدار متوافقًا ما لم تبقَ الشفرة والعقود والمعنى السريري والدليل والتحقق وإعداد التشغيل متسقة.</p></div></article><article class="card"><div class="card-head"><div><h2>إعداد التشغيل المعتمد</h2><p>لقطة إعداد قابلة للتدقيق</p></div><span class="badge ok">Approved</span></div><div class="card-body stat-list"><div class="stat-row"><span>Runtime environment</span><bdi id="hEnv">—</bdi></div><div class="stat-row"><span>Feature snapshot</span><bdi id="hSnap">—</bdi></div><div class="stat-row"><span>Configuration hash</span><bdi class="code" id="hHash">—</bdi></div><div class="stat-row"><span>الرايات المفعّلة</span><bdi id="hFlagRatio">—</bdi></div></div></article></section>
 <section id="clinical" class="section"><article class="card"><div class="card-head"><div><h2>العقود السريرية</h2><p>السلوك والمعنى السريري، منفصلان عن محتوى المعرفة</p></div><span class="badge ok" id="hContracts">—</span></div><div class="card-body"><div id="contracts" class="contract-grid"></div></div></article></section>
-<section class="section grid two"><article class="card"><div class="card-head"><div><h2>قاعدة المعرفة</h2><p>لقطة محتوى مستقلة قابلة للمراجعة</p></div><span class="badge ok"><bdi id="hKnow">—</bdi></span></div><div class="card-body"><div class="three grid"><div class="kpi"><svg viewBox="0 0 42 42" aria-hidden="true"><circle cx="21" cy="21" r="16" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="21" cy="21" r="16" fill="none" stroke="var(--green)" stroke-width="5" stroke-dasharray="93 101" transform="rotate(-90 21 21)"/></svg><div><strong>1,248</strong><span>مطالبة منشورة</span></div></div><div class="mini"><span>تحتاج مراجعة</span><strong style="color:var(--amber)">19</strong></div><div class="mini"><span>مسحوبة</span><strong style="color:var(--red)">2</strong></div></div><div class="stat-list" style="margin-top:1rem"><div class="stat-row"><span>Evidence schema</span><bdi>1.0.0</bdi></div><div class="stat-row"><span>المراجعة المجدولة التالية</span><bdi>2026-08-14</bdi></div></div></div></article><article class="card"><div class="card-head"><div><h2>ملخص التوافق</h2><p>حالة الأنظمة في هذا المرشح</p></div><span class="badge warn" id="hHealth">—</span></div><div class="card-body"><div class="checks"><div class="check"><i class="dot"></i><div><b>Code + UI System</b><small><bdi>1.5.x</bdi> · جميع الشاشات</small></div><span class="badge ok">Pass</span></div><div class="check"><i class="dot"></i><div><b>Clinical + Knowledge</b><small><bdi>2.1.x / 2026.08.1</bdi></small></div><span class="badge ok">Pass</span></div><div class="check pending"><i class="dot"></i><div><b>Evidence review due</b><small>19 مطالبة قبل تاريخ المراجعة</small></div><span class="badge warn">Warning</span></div></div></div></article></section>
+<section class="section grid two"><article class="card"><div class="card-head"><div><h2>قاعدة المعرفة</h2><p>لقطة محتوى مستقلة قابلة للمراجعة</p></div><span class="badge ok"><bdi id="hKnow">—</bdi></span></div><div class="card-body"><div class="three grid"><div class="kpi"><svg viewBox="0 0 42 42" aria-hidden="true"><circle cx="21" cy="21" r="16" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="21" cy="21" r="16" fill="none" stroke="var(--green)" stroke-width="5" id="hKRing" stroke-dasharray="0 101" transform="rotate(-90 21 21)"/></svg><div><strong id="hKPub">—</strong><span>مطالبة منشورة</span></div></div><div class="mini"><span>تحتاج مراجعة</span><strong style="color:var(--amber)" id="hKDue">—</strong></div><div class="mini"><span>مسحوبة</span><strong style="color:var(--red)" id="hKWdn">—</strong></div></div><div class="stat-list" style="margin-top:1rem"><div class="stat-row"><span>Evidence schema</span><bdi id="hKSchema">—</bdi></div><div class="stat-row"><span>المراجعة المجدولة التالية</span><bdi id="hKNext">—</bdi></div></div></div></article><article class="card"><div class="card-head"><div><h2>ملخص التوافق</h2><p>حالة الأنظمة في هذا المرشح</p></div><span class="badge warn" id="hHealth">—</span></div><div class="card-body"><div class="checks" id="compatSummary"></div></div></article></section>
 <section id="evidence" class="section"><article class="card"><div class="card-head"><div><h2>سجل الدليل</h2><p>كل claim ظاهر قابل للتتبع من الواجهة إلى المصدر والمراجعة</p></div><span class="badge info">Evidence schema <bdi id="hSchema">—</bdi></span></div><div class="filterbar"><select id="claimFilter" aria-label="تصفية حالة النشر"><option value="">كل حالات النشر</option><option>published</option><option>review-due</option><option>withdrawn</option></select><select id="qualityFilter" aria-label="تصفية جودة الدليل"><option value="">كل مستويات الدليل</option><option>high</option><option>moderate</option></select></div><div id="claims"></div></article></section>
 <section id="verification" class="section grid two"><article class="card"><div class="card-head"><div><h2>التحقق</h2><p>نتيجة وحدها لا تكفي: كل فحص يحمل دليلًا ونطاقًا</p></div><span class="badge warn" id="hVerify">—</span></div><div class="card-body"><div id="verifications" class="checks"></div></div></article><article class="card"><div class="card-head"><div><h2>بوابات الإصدار</h2><p>توقف الإفراج عند فشل بوابة لازمة</p></div><span class="badge warn">1 Pending</span></div><div class="card-body"><div id="gates" class="gates"></div></div></article></section>
 <section id="flags" class="section"><article class="card"><div class="card-head"><div><h2>Feature Flags</h2><p>لكل راية مالك، أثر، وإصدار إزالة؛ الرايات السريرية تتطلب تحذيرًا</p></div><span class="badge info" id="hFlagCount">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>الفئة</th><th>المالك</th><th>الأثر السريري</th><th>الافتراضي</th><th>الحالي</th><th>إزالة</th><th>الحالة</th></tr></thead><tbody id="flagRows"></tbody></table></div></article></section>
-<section class="section grid two"><article class="card"><div class="card-head"><div><h2>سجل القرارات المعمارية</h2><p>ADRs المرتبطة بهذا الإصدار</p></div><span class="badge info" id="hAdrCount">—</span></div><div class="card-body"><div class="checks" id="adrList"><div class="check" hidden><i class="dot"></i><div><bdi>ADR-014</bdi><b> — Evidence Traceability</b><small>2026-07-28 · Evidence schema <bdi>1.0.0</bdi></small></div><span class="badge ok">Accepted</span></div><div class="check"><i class="dot"></i><div><bdi>ADR-015</bdi><b> — Safety Alert Contract</b><small>2026-07-30 · <bdi>safety-alert@3.0.0</bdi></small></div><span class="badge ok">Accepted</span></div><div class="check"><i class="dot"></i><div><bdi>ADR-016</bdi><b> — Release Manifest SSOT</b><small>2026-08-01 · Platform <bdi>1.5.0</bdi></small></div><span class="badge ok">Accepted</span></div></div></div></article><article class="card"><div class="card-head"><div><h2>الخط الزمني للإصدار</h2><p>انتقال مضبوط، مع سجلات لا تُعدّل</p></div><span class="badge warn">Candidate</span></div><div class="card-body"><div class="timeline"><div class="step done"><i></i><span>Draft</span></div><div class="step done"><i></i><span>Clinical review</span></div><div class="step current"><i></i><span>Candidate</span></div><div class="step"><i></i><span>Verification</span></div><div class="step"><i></i><span>Released</span></div><div class="step"><i></i><span>Deprecated</span></div><div class="step"><i></i><span>Withdrawn</span></div></div></div></article></section>
+<section class="section grid two"><article class="card"><div class="card-head"><div><h2>سجل القرارات المعمارية</h2><p>ADRs المرتبطة بهذا الإصدار</p></div><span class="badge info" id="hAdrCount">—</span></div><div class="card-body"><div class="checks" id="adrList"></div></div></article><article class="card"><div class="card-head"><div><h2>الخط الزمني للإصدار</h2><p>انتقال مضبوط، مع سجلات لا تُعدّل</p></div><span class="badge warn">Candidate</span></div><div class="card-body"><div class="timeline" id="timeline"></div></div></article></section>
 <section id="release" class="section"><article class="card"><div class="card-head"><div><h2>المخرجات المُولّدة</h2><p>تُنشأ تلقائيًا من manifest أو ترتبط به بـ hash</p></div><span class="badge ok" id="hArtifacts">—</span></div><div class="card-body"><div class="artifacts" id="artifacts"></div></div></article><article class="card final" style="margin-top:1rem"><div><span class="badge warn">Release Blocked</span><strong style="display:block;margin:.5rem 0">الإصدار غير جاهز للنشر بعد</strong><p>أكمل Evidence Review للمطالبات الـ 19 التي يحين موعد مراجعتها، ثم أعد تشغيل التحقق الكامل.</p></div><button class="btn" id="releaseBtn">عرض عناصر الحجب</button></article></section>
 </main></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
@@ -182,10 +182,13 @@ document.getElementById('flagRows').innerHTML = R.flags.map(f => `
     <td class="code">${esc(f.removeBy)}</td>
     <td>${badge(f.current && f.clinicalImpact !== 'none' ? 'warn' : 'ok')}</td></tr>`).join('');
 
+/* سجل القرارات يعرض العنوان والتاريخ لا المعرّف وحده: قرار معماري يُشار إليه
+   برقمه فقط يجبر القارئ على البحث، ويجعل السجل زينة بدل مرجع. */
 document.getElementById('adrList').innerHTML = R.adrs.map(a => `
-  <div class="check" data-search="${esc(a)}"><i class="dot"></i>
-    <div><bdi>${esc(a)}</bdi><small>مرتبط بـ <bdi>${esc(R.releaseId)}</bdi></small></div>
-    <span class="badge ok">Accepted</span></div>`).join('');
+  <div class="check" data-search="${esc(a.id + ' ' + a.title)}"><i class="dot"></i>
+    <div><bdi>${esc(a.id)}</bdi><b> — ${esc(a.title)}</b>
+    <small><bdi>${esc(a.decidedAt)}</bdi> · مرتبط بـ <bdi>${esc(R.releaseId)}</bdi></small></div>
+    <span class="badge ok">${esc(a.status)}</span></div>`).join('');
 
 document.getElementById('artifacts').innerHTML = Object.entries(R.artifacts).map(([k, p]) => `
   <a class="artifact" href="#" data-search="${esc(k + ' ' + p)}" data-path="${esc(p)}">
@@ -217,6 +220,84 @@ function renderClaims() {
 renderClaims();
 document.getElementById('claimFilter').onchange = renderClaims;
 document.getElementById('qualityFilter').onchange = renderClaims;
+
+
+/* ── قاعدة المعرفة ──
+   كانت هذه البطاقة تحمل 1,248 و19 و2 مكتوبة في الترميز. بعد ربط بقية اللوحة
+   بالـ manifest صارت أرقاماً كاذبة عن سجل فيه ثلاث مطالبات — وهذا أسوأ من
+   إزالتها، لأن رقماً خاطئاً في لوحة حوكمة يُقتبس. */
+const published = R.claims.filter(c => c.state === 'published').length;
+const withdrawn = R.claims.filter(c => c.state === 'withdrawn').length;
+/* أرقام غربية في كل اللوحة. toLocaleString('ar-EG') كان يعطي "١" بينما الحقلان
+   المجاوران يعطيان "1" — نظاما أرقام مختلفان في صف واحد. المستخدم العراقي يقرأ
+   الاثنين بطلاقة، لكن خلطهما داخل مقارنة واحدة عيب لا أسلوب. */
+set('hKPub', published);
+set('hKDue', due.length);
+set('hKWdn', withdrawn);
+set('hKSchema', R.knowledge.evidenceSchema);
+set('hKNext', R.knowledge.nextScheduledReview);
+const kring = document.getElementById('hKRing');
+if (kring) {
+  const C = 2 * Math.PI * 16;                       // محيط الدائرة r=16
+  const frac = R.claims.length ? published / R.claims.length : 0;
+  kring.setAttribute('stroke-dasharray', `${(C * frac).toFixed(1)} ${C.toFixed(1)}`);
+}
+
+set('hEnv', `${R.runtime.environment} / ${R.runtime.region}`);
+set('hPolDate', R.policyUpdatedAt);
+
+/* ── الشريط العلوي ──
+   كانت شارتا "Manifest صالح" و"Hash مطابق" ثابتتين: تؤكدان الصحة بلا فحص. ما
+   تستطيع اللوحة إثباته فعلاً هو أن البيانات وصلت وأن بصمة الإعداد ليست قيمة
+   بناء مؤقتة. أي ادعاء أوسع من ذلك مكانه المدقق، لا الواجهة. */
+const manifestEl = document.getElementById('hManifest');
+if (manifestEl) {
+  manifestEl.textContent = `Manifest · schema ${R.status ? 'محمّل' : '—'}`;
+  manifestEl.className = 'badge ok';
+}
+const hashEl = document.getElementById('hHashOk');
+if (hashEl) {
+  const stamped = R.runtime.configurationHash !== 'sha256:REPLACE_AT_BUILD';
+  hashEl.textContent = stamped ? 'بصمة الإعداد مختومة' : 'بصمة الإعداد غير مختومة';
+  hashEl.className = 'badge ' + (stamped ? 'ok' : 'warn');
+}
+
+/* ── الخط الزمني ──
+   المراحل ثابتة، لكن موضع الإصدار فيها ليس كذلك. مرحلة "حالية" مكتوبة في
+   الترميز تبقى على candidate إلى الأبد. */
+const STAGES = [
+  { key:'draft',        ar:'مسودة' },
+  { key:'candidate',    ar:'مرشح' },
+  { key:'released',     ar:'منشور' },
+  { key:'superseded',   ar:'مُستبدل' },
+  { key:'withdrawn',    ar:'مسحوب' },
+];
+const at = STAGES.findIndex(x => x.key === R.status);
+document.getElementById('timeline').innerHTML = STAGES.map((st, i) => `
+  <div class="step ${i < at ? 'done' : i === at ? 'current' : ''}"
+       data-search="${esc(st.key + ' ' + st.ar)}">
+    <i></i><span>${esc(st.ar)}</span></div>`).join('');
+
+/* ── ملخص التوافق ──
+   ثلاثة صفوف كانت تقول Pass دائماً. الآن مشتقة، ولا يظهر صف أخضر فوق نطاق لم
+   يُتحقق منه. */
+const clinicalGate = gates.find(g => g.name === 'clinical');
+const summary = [
+  { label:'Code + UI System', detail:`${R.versions[1][1]} · جميع الشاشات`,
+    state: gates.find(g => g.name === 'accessibility')?.status },
+  { label:'Clinical + Knowledge',
+    detail:`${R.contracts.map(c => c.name + '@' + c.version).slice(0,2).join(' · ')} / ${R.knowledge.activeRelease}`,
+    state: clinicalGate?.status },
+  { label:'Evidence review', detail: due.length ? `${due.length} مطالبة قبل تاريخ المراجعة` : 'لا مطالبات مستحقة',
+    state: due.length ? 'pending' : 'pass' },
+  { label:'Runtime configuration', detail: R.runtime.featureFlags.approvedSnapshot,
+    state: R.runtime.configurationHash === 'sha256:REPLACE_AT_BUILD' ? 'pending' : 'pass' },
+];
+document.getElementById('compatSummary').innerHTML = summary.map(x => `
+  <div class="check ${x.state === 'pass' ? '' : x.state === 'fail' ? 'fail' : 'pending'}"
+       data-search="${esc(x.label + ' ' + x.detail)}">
+    <i class="dot"></i><div><b>${esc(x.label)}</b><small><bdi>${esc(x.detail)}</bdi></small></div>
+    ${badge(x.state)}</div>`).join('');
 
 /* ── لافتة الإفراج ── */
 const blockers = [];

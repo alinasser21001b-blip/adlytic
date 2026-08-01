@@ -93,6 +93,7 @@ window.RELEASE = ${JSON.stringify({
   status: m.status,
   platform: r.platform,
   policyVersion: m.governance.policyVersion,
+  policyUpdatedAt: m.governance.policyUpdatedAt,
   adrs: m.governance.adrs,
   approvals: m.governance.approvals,
   knowledge: r.knowledge,

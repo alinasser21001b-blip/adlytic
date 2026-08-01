@@ -4,10 +4,26 @@ window.RELEASE = {
  "status": "candidate",
  "platform": "1.5.0",
  "policyVersion": "1.0.0",
+ "policyUpdatedAt": "2026-07-20",
  "adrs": [
-  "ADR-014",
-  "ADR-015",
-  "ADR-016"
+  {
+   "id": "ADR-014",
+   "title": "Evidence Traceability",
+   "decidedAt": "2026-07-28",
+   "status": "accepted"
+  },
+  {
+   "id": "ADR-015",
+   "title": "Safety Alert Contract",
+   "decidedAt": "2026-07-30",
+   "status": "accepted"
+  },
+  {
+   "id": "ADR-016",
+   "title": "Release Manifest as SSOT",
+   "decidedAt": "2026-08-01",
+   "status": "accepted"
+  }
  ],
  "approvals": {
   "ux": "pending",
@@ -19,9 +35,12 @@ window.RELEASE = {
  },
  "knowledge": {
   "activeRelease": "2026.08.1",
-  "evidenceSchema": "1.0.0"
+  "evidenceSchema": "1.0.0",
+  "nextScheduledReview": "2026-08-14"
  },
  "runtime": {
+  "environment": "production-candidate",
+  "region": "baghdad-1",
   "featureFlags": {
    "registryVersion": "1.0.0",
    "approvedSnapshot": "flags-2026-08-02-01",

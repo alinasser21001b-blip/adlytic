@@ -86,6 +86,13 @@ try {
   if (!semver(pv)) fail(v, `governance.policyVersion "${pv}" is not semver`);
   else if (!SUPPORTED_POLICY.includes(pv)) fail(v, `policyVersion ${pv} is not supported by this validator`);
   if (!Array.isArray(m.governance?.adrs) || !m.governance.adrs.length) fail(v, "at least one ADR must be linked");
+  else for (const a of m.governance.adrs) {
+    if (!a?.id || !/^ADR-\d+$/.test(a.id)) fail(v, `ADR entry has no valid id: ${JSON.stringify(a)}`);
+    if (!a?.title) fail(v, `${a?.id}: an ADR referenced by a release must carry its title`);
+    if (!iso(a?.decidedAt)) fail(v, `${a?.id}: decidedAt is not a date`);
+    if (a?.status !== "accepted") fail(v, `${a?.id}: status is "${a?.status}" — a release may only cite accepted decisions`);
+  }
+  if (!iso(m.governance?.policyUpdatedAt)) fail(v, "governance.policyUpdatedAt is not a date");
 }
 
 /* ── 3. validate-contracts ─────────────────────────────────────────────── */
@@ -131,6 +138,7 @@ try {
   const schema = m.release?.knowledge?.evidenceSchema;
   if (!/^\d{4}\.\d{2}\.\d+$/.test(String(active))) fail(v, `knowledge.activeRelease "${active}" must look like 2026.08.1`);
   if (!semver(schema)) fail(v, `knowledge.evidenceSchema "${schema}" is not semver`);
+  if (!iso(m.release?.knowledge?.nextScheduledReview)) fail(v, "knowledge.nextScheduledReview is not a date");
   for (const c of m.claims ?? []) {
     if (c.state === "published" && c.knowledgeRelease !== active)
       fail(v, `${c.id}: published against knowledge ${c.knowledgeRelease}, active release is ${active}`);
@@ -166,6 +174,7 @@ try {
 {
   const v = "validate-runtime";
   const rc = m.runtimeConfiguration ?? {};
+  if (!rc.environment) fail(v, "runtimeConfiguration.environment is not declared");
   if (!rc.featureFlags?.approvedSnapshot) fail(v, "no approved feature-flag snapshot");
   if (!String(rc.configurationHash ?? "").startsWith("sha256:")) fail(v, "configurationHash must be a sha256");
   if (RELEASE_MODE && rc.configurationHash === "sha256:REPLACE_AT_BUILD")
