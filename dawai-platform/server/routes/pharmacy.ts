@@ -986,34 +986,40 @@ export function pharmacyRoutes(database: Database) {
     const pharmacy = await requireVerifiedPharmacy(database, context.get("user").id);
     const body = movementSchema.parse(await context.req.json());
 
-    const id = randomUUID();
-    // Case-folded so the ledger, on-hand rollup and trust row all key alike.
+    // Case-folded so the ledger, the on-hand rollup and the trust row all key
+    // alike; raw casing would split one SKU across "Panadol" and "panadol".
     const medicineKey = body.medicineName.toLocaleLowerCase("ar");
-    const inserted = await database.query<{ id: string }>(
-      `INSERT INTO stock_movements
-         (id, branch_id, medicine_name, delta_qty, reason, ref_type, ref_id,
-          client_event_id, occurred_at, recorded_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, now()), $10)
-       ON CONFLICT DO NOTHING
-       RETURNING id`,
-      [
-        id,
-        pharmacy.branch_id,
-        medicineKey,
-        body.deltaQty,
-        body.reason,
-        body.refType ?? null,
-        body.refId ?? null,
-        body.clientEventId ?? null,
-        body.occurredAt ?? null,
-        context.get("user").id,
-      ],
-    );
-    const duplicate = inserted.rows.length === 0;
 
-    if (!duplicate) {
-      // Recompute trust from the ledger itself rather than trusting a counter.
-      const stats = await database.query<{
+    // The ledger append and the trust recompute are one unit. As separate
+    // autocommitted statements they interleave, and the later upsert
+    // overwrites the earlier one's count from a stale read.
+    const result = await database.transaction(async (tx) => {
+      const id = randomUUID();
+      const inserted = await tx.query<{ id: string }>(
+        `INSERT INTO stock_movements
+           (id, branch_id, medicine_name, delta_qty, reason, ref_type, ref_id,
+            client_event_id, occurred_at, recorded_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, now()), $10)
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [
+          id,
+          pharmacy.branch_id,
+          medicineKey,
+          body.deltaQty,
+          body.reason,
+          body.refType ?? null,
+          body.refId ?? null,
+          body.clientEventId ?? null,
+          body.occurredAt ?? null,
+          context.get("user").id,
+        ],
+      );
+      const duplicate = inserted.rows.length === 0;
+      if (duplicate) return { id: null, duplicate };
+
+      // Trust is recomputed from the ledger itself rather than a counter.
+      const stats = await tx.query<{
         movement_count: string;
         last_counted_at: string | null;
       }>(
@@ -1024,23 +1030,26 @@ export function pharmacyRoutes(database: Database) {
         [pharmacy.branch_id, medicineKey],
       );
       const row = stats.rows[0];
+
       // A failed reconciliation must keep gating this SKU until the NEXT
       // count. Recomputing with variance 0 on the following sale would erase
       // the penalty and quietly re-admit an untrusted SKU to forecasting.
-      const priorVariance = await database.query<{ last_variance: number }>(
+      const prior = await tx.query<{ last_variance: number }>(
         `SELECT last_variance FROM sku_trust WHERE branch_id = $1 AND medicine_name = $2`,
         [pharmacy.branch_id, medicineKey],
       );
       const variance =
         body.reason === "COUNT"
           ? body.deltaQty
-          : Number(priorVariance.rows[0]?.last_variance ?? 0);
+          : Number(prior.rows[0]?.last_variance ?? 0);
+
       const score = computeSkuTrust({
         movementCount: Number(row?.movement_count ?? 0),
         lastCountedAt: row?.last_counted_at ? new Date(row.last_counted_at) : null,
         lastVariance: variance,
       });
-      await database.query(
+
+      await tx.query(
         `INSERT INTO sku_trust
            (branch_id, medicine_name, movement_count, last_counted_at, last_variance, trust_score, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, now())
@@ -1059,9 +1068,11 @@ export function pharmacyRoutes(database: Database) {
           score,
         ],
       );
-    }
 
-    return context.json({ data: { id: inserted.rows[0]?.id ?? null, duplicate } }, duplicate ? 200 : 201);
+      return { id: inserted.rows[0]?.id ?? null, duplicate };
+    });
+
+    return context.json({ data: result }, result.duplicate ? 200 : 201);
   });
 
   /**

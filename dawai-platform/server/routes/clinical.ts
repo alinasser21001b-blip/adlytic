@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { ApiError } from "../errors";
 import { requireAuth } from "../security/auth";
+import { enforceRateLimit } from "../security/rate-limit";
 import { writeAudit } from "../services/audit";
 import {
   computeDaysOfCover,
@@ -30,6 +31,8 @@ const scheduleSchema = z.object({
     .default("PATIENT_SELF_REPORT"),
   timesOfDay: z.array(z.string().regex(/^\d{2}:\d{2}$/)).max(12).default([]),
   dosesPerDay: z.number().int().min(1).max(12).default(1),
+  // Units consumed per administration; 2 tablets twice daily = 2.
+  unitsPerDose: z.number().int().min(1).max(20).default(1),
   quantityDispensed: z.number().int().positive().max(1000).nullish(),
 });
 
@@ -65,6 +68,7 @@ interface ScheduleRow {
   sig_text_ar: string;
   sig_source: string;
   doses_per_day: number;
+  units_per_dose: number;
   quantity_dispensed: number | null;
   dispensed_at: string | null;
   reorder_snoozed_until: string | null;
@@ -101,7 +105,7 @@ export function clinicalRoutes(database: Database) {
 
     const result = await database.query<ScheduleRow>(
       `SELECT s.id, s.patient_user_id, s.medicine_name, s.strength,
-              s.sig_text_ar, s.sig_source, s.doses_per_day,
+              s.sig_text_ar, s.sig_source, s.doses_per_day, s.units_per_dose,
               s.quantity_dispensed, s.dispensed_at, s.reorder_snoozed_until,
               s.active,
               COALESCE(taken.count, 0) AS taken_count,
@@ -139,6 +143,7 @@ export function clinicalRoutes(database: Database) {
         medicineName: row.medicine_name,
         quantityDispensed: row.quantity_dispensed,
         dosesPerDay: row.doses_per_day,
+        unitsPerDose: row.units_per_dose,
         dispensedAt: row.dispensed_at ? new Date(row.dispensed_at) : null,
         takenCount: Number(row.taken_count),
         snoozedUntil: row.reorder_snoozed_until
@@ -171,6 +176,7 @@ export function clinicalRoutes(database: Database) {
 
   routes.post("/schedules", async (context) => {
     const caller = context.get("user");
+    await enforceRateLimit(database, "clinical-schedule", caller.id, 30, 600);
     const body = scheduleSchema.parse(await context.req.json());
     const target = body.patientUserId ?? caller.id;
     await requirePatientAuthority(database, caller.id, target, "ORDER");
@@ -187,9 +193,9 @@ export function clinicalRoutes(database: Database) {
       `INSERT INTO dose_schedules
          (id, patient_user_id, medicine_name, strength, sig_text_ar, sig_source,
           confirmed_by_user_id, times_of_day, doses_per_day, quantity_dispensed,
-          dispensed_at)
+          dispensed_at, units_per_dose)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10,
-               CASE WHEN $10::int IS NULL THEN NULL ELSE now() END)`,
+               CASE WHEN $10::int IS NULL THEN NULL ELSE now() END, $11)`,
       [
         id,
         target,
@@ -201,6 +207,7 @@ export function clinicalRoutes(database: Database) {
         JSON.stringify(body.timesOfDay),
         body.dosesPerDay,
         body.quantityDispensed ?? null,
+        body.unitsPerDose,
       ],
     );
 
@@ -407,13 +414,18 @@ export function clinicalRoutes(database: Database) {
   /** Invite: creates a PENDING link. No access exists until the subject grants. */
   routes.post("/family", async (context) => {
     const caller = context.get("user");
+    // An unrate-limited invite is a way to fill a stranger's Pill Bar with
+    // ACTION_REQUIRED cards and bury real alerts.
+    await enforceRateLimit(database, "clinical-family-invite", caller.id, 5, 3600);
     const body = familyInviteSchema.parse(await context.req.json());
 
     let memberUserId: string | null = null;
     if (body.memberEmail) {
+      // Emails are stored normalized at registration; matching the raw value
+      // would silently produce a dangling link that never resolves.
       const member = await database.query<{ id: string }>(
         `SELECT id FROM users WHERE email = $1 AND role = 'PATIENT' AND status = 'ACTIVE'`,
-        [body.memberEmail],
+        [body.memberEmail.trim().toLowerCase()],
       );
       // Do not reveal whether the account exists; the link simply stays pending.
       memberUserId = member.rows[0]?.id ?? null;
@@ -504,6 +516,14 @@ export function clinicalRoutes(database: Database) {
     if (!result.rows[0]) {
       throw new ApiError(404, "FAMILY_LINK_NOT_FOUND", "الرابط غير موجود.");
     }
+    // Revocation is immediate and total: cards this link produced must not
+    // linger in the ex-proxy's feed.
+    await database.query(
+      `UPDATE attention_events SET dismissed_at = now()
+        WHERE resource_type = 'FAMILY_MEMBER' AND resource_id = $1
+          AND dismissed_at IS NULL`,
+      [linkId],
+    );
     await writeAudit(database, {
       actorUserId: caller.id,
       actorRole: caller.role,
@@ -584,6 +604,7 @@ export function clinicalRoutes(database: Database) {
    */
   routes.post("/interaction-check", async (context) => {
     const caller = context.get("user");
+    await enforceRateLimit(database, "clinical-interaction", caller.id, 60, 600);
     const body = interactionCheckSchema.parse(await context.req.json());
     const target = body.patientUserId ?? caller.id;
     await requirePatientAuthority(database, caller.id, target, "VIEW");

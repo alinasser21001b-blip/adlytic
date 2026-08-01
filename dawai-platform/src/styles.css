@@ -4809,10 +4809,24 @@ textarea {
 
 .pill-copy span {
   font-size: 0.78rem;
+  line-height: 1.6;
   color: rgb(242 248 245 / 82%);
+  /* Two lines, not an ellipsised one: a truncated severe-interaction summary
+     is worse than a slightly taller bar. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+/* A severe alert says everything it needs to; it is the one state allowed to
+   grow. */
+.pill-sev-alert .pill-copy span {
+  -webkit-line-clamp: 4;
+}
+
+.pill-sev-alert {
+  border-radius: 22px;
 }
 
 .pill-action,

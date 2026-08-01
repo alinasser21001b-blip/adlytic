@@ -96,6 +96,12 @@ export async function requirePatientAuthority(
         AND member_user_id = $2
         AND consent_granted_at IS NOT NULL
         AND revoked_at IS NULL
+      -- Deterministic even if historical data holds duplicate live links:
+      -- always resolve to the LEAST privilege, never the luckiest row.
+      ORDER BY CASE proxy_scope
+                 WHEN 'VIEW' THEN 1 WHEN 'ORDER' THEN 2 ELSE 3
+               END,
+               created_at
       LIMIT 1`,
     [callerUserId, patientUserId],
   );
@@ -229,6 +235,9 @@ export async function raiseAttention(
     expiresAt?: Date;
   },
 ): Promise<string | null> {
+  // A severe alert that expires on a timer would route around the rule that it
+  // clears only at its cause. Refuse the combination outright.
+  const expiresAt = input.priority === "SEV_ALERT" ? null : (input.expiresAt ?? null);
   const id = randomUUID();
   const result = await database.query<{ id: string }>(
     `INSERT INTO attention_events
@@ -247,7 +256,7 @@ export async function raiseAttention(
       input.resourceType ?? null,
       input.resourceId ?? null,
       input.dedupeKey ?? null,
-      input.expiresAt ?? null,
+      expiresAt,
     ],
   );
   return result.rows[0]?.id ?? null;
