@@ -1,1794 +1,680 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="color-scheme" content="light" />
-  <meta name="theme-color" content="#173c37" />
-  <meta name="description" content="دوائي — اطلب تأكيد توفر الدواء من صيدليات موثقة وقريبة في العراق، ثم احجز للاستلام." />
-  <title>دوائي — نجد دواءك بالقرب منك</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="دوائي" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --forest-950: #102e2b;
-      --forest-900: #173c37;
-      --forest-700: #23665c;
-      --forest-500: #348b7c;
-      --mint-100: #dff1eb;
-      --mint-50: #eff8f4;
-      --ink-950: #17201f;
-      --ink-700: #43514f;
-      --ink-500: #6d7876;
-      --paper: #fbfaf6;
-      --white: #fff;
-      --line: #d8dcd8;
-      --action: #c24f38;
-      --action-soft: #fbe9e4;
-      --urgency: #a76614;
-      --urgency-soft: #fbf0dc;
-      --coral: var(--action);
-      --coral-soft: var(--action-soft);
-      --blue: #436a91;
-      --blue-soft: #e8eff6;
-      --amber: var(--urgency);
-      --amber-soft: var(--urgency-soft);
-      --lime: #dceab8;
-      --shadow: 0 18px 55px rgb(23 60 55 / 8%);
-      --bar-h: 0px;
-      --nav-h: 72px;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f2e2a" />
+<title>دوائي — دواؤك، متكفّلين بيه</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#12211f; --ink-2:#465451; --ink-3:#6b7976;
+    --paper:#f7f6f1; --card:#fff; --line:#e3e6e1;
+    --forest:#14453d; --forest-2:#1d6153; --forest-ink:#0f2e2a;
+    --mint:#e8f4ef; --mint-2:#d3ebe1;
+    --lime:#c9e6a4;
+    --warn:#8a5a10; --warn-bg:#fdf4e3;
+    --alert:#8f3423; --alert-bg:#fbeae6;
+    --nav-h:76px;
+    --r:20px;
+    --shadow:0 1px 2px rgb(18 33 31/.04), 0 8px 28px rgb(18 33 31/.06);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; min-height:100dvh; background:var(--paper); color:var(--ink);
+    font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;
+    line-height:1.7; letter-spacing:0;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:"Noto Kufi Arabic",sans-serif;line-height:1.5;letter-spacing:0;margin:0}
+  p{margin:0;color:var(--ink-2)}
+  button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+  :focus-visible{outline:3px solid var(--forest-2);outline-offset:3px;border-radius:8px}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      *, *::before, *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-      }
-    }
+  /* ---------- shell ---------- */
+  .app{max-width:460px;margin:0 auto;min-height:100dvh;padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));position:relative;overflow:hidden}
+  .screen{display:none;animation:in .28s cubic-bezier(.2,.8,.3,1)}
+  .screen.on{display:block}
+  @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      min-height: 100dvh;
-      font-family: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
-      color: var(--ink-950);
-      background:
-        linear-gradient(90deg, rgb(23 60 55 / 2%) 1px, transparent 1px) 0 0 / 84px 84px,
-        var(--paper);
-      line-height: 1.6;
-    }
-    h1, h2, h3, .brand strong {
-      font-family: "Noto Kufi Arabic", Tahoma, Arial, sans-serif;
-      line-height: 1.35;
-      margin: 0 0 0.4rem;
-    }
-    h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); letter-spacing: -0.03em; }
-    h2 { font-size: 1.15rem; }
-    p { margin: 0 0 0.75rem; color: var(--ink-700); }
-    a { color: inherit; text-decoration: none; }
-    button, select, input { font: inherit; }
-    button { cursor: pointer; border: 0; background: none; color: inherit; }
+  .top{
+    position:sticky;top:0;z-index:20;
+    padding:calc(env(safe-area-inset-top) + 1rem) 1.15rem .85rem;
+    background:linear-gradient(var(--paper) 72%,transparent);
+  }
+  .top-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+  .greet{font-size:.82rem;color:var(--ink-3);font-weight:600}
+  .h-title{font-size:1.45rem;margin-top:.1rem}
 
-    :focus-visible {
-      outline: 3px solid var(--action);
-      outline-offset: 3px;
-    }
-    :focus:not(:focus-visible) { outline: none; }
+  /* ---------- profile switcher (family mode) ---------- */
+  .who{display:flex;gap:.4rem;margin-top:.9rem;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .who::-webkit-scrollbar{display:none}
+  .who button{
+    flex:0 0 auto;display:flex;align-items:center;gap:.45rem;
+    min-height:44px;padding:.3rem .8rem .3rem .35rem;border-radius:999px;
+    background:var(--card);border:1px solid var(--line);
+    font-size:.85rem;font-weight:600;color:var(--ink-2);
+    transition:all .22s cubic-bezier(.2,.8,.3,1);
+  }
+  .who button .av{
+    width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+    background:var(--mint-2);font-size:.9rem
+  }
+  .who button[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:#fff}
+  .who button[aria-pressed="true"] .av{background:rgb(255 255 255/.18)}
 
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
+  /* ---------- next dose ---------- */
+  .dose{
+    margin:0 1.15rem 1rem;padding:1rem 1.1rem;border-radius:var(--r);
+    background:var(--forest);color:#eaf5f0;
+    display:grid;grid-template-columns:1fr auto;gap:.9rem;align-items:center;
+    box-shadow:0 10px 30px rgb(20 69 61/.22);
+  }
+  .dose small{display:block;font-size:.75rem;opacity:.72;font-weight:600}
+  .dose strong{font-size:1.02rem;font-family:"Noto Kufi Arabic",sans-serif}
+  .dose .take{
+    min-height:44px;padding:0 1.05rem;border-radius:999px;
+    background:var(--lime);color:var(--forest-ink);font-weight:700;font-size:.88rem;
+    transition:transform .18s
+  }
+  .dose .take:active{transform:scale(.96)}
+  .dose.done{background:var(--mint);color:var(--forest);box-shadow:none}
 
-    .screen {
-      display: none;
-      max-width: 480px;
-      margin: 0 auto;
-      min-height: calc(100vh - var(--bar-h));
-      min-height: calc(100dvh - var(--bar-h));
-    }
-    .screen.active { display: block; }
-    .screen.wide { max-width: 1100px; }
+  /* ---------- medicine cards ---------- */
+  .cards{display:grid;gap:.8rem;padding:0 1.15rem}
+  .med{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:1.05rem;box-shadow:var(--shadow);
+    display:grid;gap:.85rem;
+    transition:border-color .22s;
+  }
+  .med.low{border-color:#e6cfa2}
+  .med-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}
+  .med-name{font-size:1.02rem}
+  .med-sig{font-size:.82rem;color:var(--ink-3);margin-top:.1rem}
+  .med-for{
+    font-size:.7rem;font-weight:700;color:var(--forest-2);
+    background:var(--mint);padding:.15rem .55rem;border-radius:999px;white-space:nowrap
+  }
 
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .brand > span:last-child { display: grid; }
-    .brand strong { color: var(--forest-900); font-size: 1.25rem; }
-    .brand small { color: var(--ink-700); font-size: 0.72rem; font-weight: 600; }
-    .brand-mark {
-      position: relative;
-      display: grid;
-      place-items: center;
-      width: 41px;
-      height: 41px;
-      border-radius: 13px 13px 13px 5px;
-      background: var(--forest-900);
-    }
-    .brand-mark span {
-      position: absolute;
-      width: 22px;
-      height: 7px;
-      border-radius: 99px;
-      background: var(--lime);
-      --pill-angle: -42deg;
-      transform: rotate(var(--pill-angle));
-      animation: pill-in 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.1) backwards;
-    }
-    .brand-mark span:last-child {
-      --pill-angle: 48deg;
-      animation-delay: 0.12s;
-    }
-    @keyframes pill-in {
-      from { transform: rotate(calc(var(--pill-angle) - 70deg)) scale(0.55); opacity: 0; }
-      to { transform: rotate(var(--pill-angle)) scale(1); opacity: 1; }
-    }
+  /* the signature: a blister strip that empties */
+  .strip{display:flex;gap:3px}
+  .strip i{
+    flex:1;height:22px;border-radius:5px;background:var(--mint-2);
+    transition:background .5s cubic-bezier(.2,.8,.3,1)
+  }
+  .strip i.gone{background:#eceee9}
+  .med.low .strip i:not(.gone){background:#e8c98d}
+  .cover{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+  .cover b{font-size:.92rem;font-family:"Noto Kufi Arabic",sans-serif}
+  .cover span{font-size:.76rem;color:var(--ink-3)}
+  .med.low .cover b{color:var(--warn)}
+  .med-act{display:grid;grid-template-columns:1fr auto;gap:.5rem}
+  .btn{
+    min-height:46px;border-radius:14px;font-weight:700;font-size:.9rem;
+    display:flex;align-items:center;justify-content:center;gap:.4rem;
+    transition:transform .16s
+  }
+  .btn:active{transform:scale(.97)}
+  .btn-p{background:var(--forest);color:#fff}
+  .btn-s{background:var(--card);border:1px solid var(--line);color:var(--forest)}
+  .btn-ghost{background:transparent;color:var(--ink-3);font-weight:600}
+  .btn-full{width:100%}
 
-    .overline {
-      color: var(--forest-700);
-      font-size: 0.72rem;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      margin-bottom: 0.35rem;
-    }
+  /* ---------- the ask bar ---------- */
+  .ask{
+    position:fixed;inset-inline:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));
+    z-index:30;max-width:460px;margin-inline:auto;padding:.6rem 1.15rem;
+    background:linear-gradient(transparent,var(--paper) 40%);
+  }
+  .ask button{
+    width:100%;min-height:54px;border-radius:18px;background:var(--card);
+    border:1px solid var(--line);box-shadow:var(--shadow);
+    display:grid;grid-template-columns:auto 1fr auto auto;gap:.7rem;align-items:center;
+    padding:0 .7rem 0 1rem;text-align:start
+  }
+  .ask .lbl{font-size:.92rem;color:var(--ink-3);font-weight:600}
+  .ask .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--mint);font-size:1.05rem}
+  .ask .mini{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--mint);font-size:1rem}
 
-    .primary-cta, .secondary-cta {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.45rem;
-      min-height: 48px;
-      padding: 0.65rem 1.1rem;
-      border-radius: 14px;
-      font-weight: 800;
-      font-size: 0.95rem;
-    }
-    .primary-cta {
-      background: var(--action);
-      color: white;
-      box-shadow: 0 10px 24px rgb(194 79 56 / 28%);
-    }
-    .secondary-cta {
-      background: white;
-      color: var(--forest-900);
-      border: 1px solid var(--line);
-    }
+  /* ---------- bottom nav ---------- */
+  .nav{
+    position:fixed;inset-inline:0;bottom:0;z-index:40;max-width:460px;margin-inline:auto;
+    display:grid;grid-template-columns:repeat(3,1fr);
+    padding:.4rem .5rem calc(.4rem + env(safe-area-inset-bottom));
+    background:rgb(255 255 255/.94);backdrop-filter:blur(18px);
+    border-top:1px solid var(--line);
+  }
+  .nav a{
+    display:grid;justify-items:center;gap:.15rem;min-height:52px;align-content:center;
+    border-radius:14px;text-decoration:none;color:var(--ink-3);font-size:.72rem;font-weight:700
+  }
+  .nav a .g{font-size:1.15rem;line-height:1}
+  .nav a[aria-current]{color:var(--forest);background:var(--mint)}
 
-    .welcome-page { padding: 1rem 1.1rem 2rem; }
-    .public-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
-    .public-header a {
-      font-weight: 700;
-      color: var(--forest-700);
-      font-size: 0.9rem;
-      min-height: 44px;
-      display: inline-flex;
-      align-items: center;
-    }
-    .welcome-copy { margin-bottom: 1.5rem; }
-    .role-choice { display: grid; gap: 0.75rem; margin: 1.25rem 0; }
-    .role-card {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 0.85rem;
-      align-items: center;
-      padding: 1rem;
-      border-radius: 18px;
-      background: white;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-      min-height: 44px;
-    }
-    .role-card > .ico {
-      display: grid;
-      place-items: center;
-      width: 52px;
-      height: 52px;
-      border-radius: 16px;
-      background: var(--mint-100);
-      color: var(--forest-900);
-      font-size: 1.4rem;
-    }
-    .role-card.pharmacy > .ico { background: var(--blue-soft); color: var(--blue); }
-    .role-card strong { display: block; font-family: "Noto Kufi Arabic", sans-serif; }
-    .role-card small { color: var(--ink-500); font-size: 0.82rem; }
-    .safety-line {
-      display: flex;
-      gap: 0.5rem;
-      align-items: flex-start;
-      padding: 0.85rem 1rem;
-      border-radius: 14px;
-      background: var(--mint-50);
-      color: var(--forest-900);
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-    .welcome-visual {
-      margin-top: 1.5rem;
-      padding: 1.25rem;
-      border-radius: 24px;
-      background: linear-gradient(160deg, var(--forest-900), var(--forest-700));
-      color: white;
-    }
-    .welcome-radar {
-      position: relative;
-      height: 220px;
-      margin-bottom: 1rem;
-      border-radius: 50%;
-      overflow: hidden;
-      background:
-        radial-gradient(circle, transparent 28%, rgb(255 255 255 / 8%) 29%, transparent 30%),
-        radial-gradient(circle, transparent 48%, rgb(255 255 255 / 8%) 49%, transparent 50%),
-        radial-gradient(circle at center, rgb(220 234 184 / 18%), transparent 55%);
-    }
-    /* Rotating sweep beam: the request radiating outward — the product itself */
-    .welcome-radar::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: 50%;
-      background: conic-gradient(
-        from 0deg,
-        transparent 0deg 318deg,
-        rgb(220 234 184 / 4%) 330deg,
-        rgb(220 234 184 / 26%) 356deg,
-        rgb(220 234 184 / 38%) 359deg,
-        transparent 360deg
-      );
-      animation: radar-sweep 5.2s linear infinite;
-      pointer-events: none;
-    }
-    @keyframes radar-sweep {
-      to { transform: rotate(360deg); }
-    }
-    /* The request pin breathes a ripple ring */
-    .welcome-radar .center::after {
-      content: "";
-      position: absolute;
-      inset: -6px;
-      border-radius: inherit;
-      border: 2px solid rgb(223 132 108 / 65%);
-      animation: request-ripple 2.6s ease-out infinite;
-      pointer-events: none;
-    }
-    @keyframes request-ripple {
-      0% { transform: scale(1); opacity: 0.9; }
-      70%, 100% { transform: scale(1.75); opacity: 0; }
-    }
-    /* Pharmacies ping as the beam passes — staggered replies, one per pass */
-    .welcome-radar .point {
-      animation: pharmacy-ping 5.2s ease-out infinite;
-    }
-    .welcome-radar .p1 { animation-delay: 1.1s; }
-    .welcome-radar .p2 { animation-delay: 2.9s; }
-    .welcome-radar .p3 { animation-delay: 4.2s; }
-    @keyframes pharmacy-ping {
-      0%, 6% { background: rgb(255 255 255 / 14%); transform: scale(1); }
-      9% { background: rgb(220 234 184 / 45%); transform: scale(1.08); }
-      18%, 100% { background: rgb(255 255 255 / 14%); transform: scale(1); }
-    }
-    .welcome-radar .center,
-    .welcome-radar .point {
-      position: absolute;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      padding: 0.35rem 0.65rem;
-      border-radius: 999px;
-      background: rgb(255 255 255 / 14%);
-      font-size: 0.75rem;
-      font-weight: 700;
-      -webkit-backdrop-filter: blur(6px);
-      backdrop-filter: blur(6px);
-    }
-    /* Centering must be physical on BOTH axes: translate() is physical, so pairing it
-       with a logical inset drifts by one full width in RTL. left+translate is
-       direction-independent for true centering. */
-    .welcome-radar .center {
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: var(--action);
-    }
-    .welcome-radar .p1 { top: 18%; inset-inline-end: 12%; }
-    .welcome-radar .p2 { bottom: 22%; inset-inline-start: 10%; }
-    .welcome-radar .p3 { top: 40%; inset-inline-start: 8%; }
-    .welcome-visual ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
-    .welcome-visual li {
-      display: flex;
-      gap: 0.65rem;
-      align-items: center;
-      font-weight: 600;
-      font-size: 0.92rem;
-    }
-    .welcome-visual li > span:first-child {
-      width: 28px;
-      height: 28px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      background: var(--lime);
-      color: var(--forest-950);
-      font-weight: 800;
-    }
+  /* ---------- sheet ---------- */
+  .sheet{position:fixed;inset:0;z-index:60;display:none}
+  .sheet.on{display:block}
+  .sheet .scrim{position:absolute;inset:0;background:rgb(12 26 24/.42);animation:fade .25s}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .sheet .panel{
+    position:absolute;inset-inline:0;bottom:0;max-width:460px;margin-inline:auto;
+    background:var(--card);border-radius:26px 26px 0 0;
+    padding:.7rem 1.15rem calc(1.4rem + env(safe-area-inset-bottom));
+    animation:up .32s cubic-bezier(.2,.85,.3,1);max-height:88dvh;overflow-y:auto
+  }
+  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
+  .grip{width:38px;height:4px;border-radius:99px;background:var(--line);margin:0 auto 1rem}
 
-    .product-shell { padding-bottom: calc(var(--nav-h) + 0.5rem); }
-    .product-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      padding: 0.85rem 1rem;
-      background: rgb(251 250 246 / 92%);
-      border-block-end: 1px solid rgb(174 184 180 / 45%);
-      -webkit-backdrop-filter: blur(12px);
-      backdrop-filter: blur(12px);
-      position: sticky;
-      inset-block-start: 0;
-      padding-block-start: max(0.85rem, env(safe-area-inset-top));
-      z-index: 40;
-    }
-    .account-menu {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      color: var(--ink-500);
-      font-size: 0.8rem;
-      font-weight: 700;
-    }
-    .product-main { padding: 1rem 1rem 1.5rem; }
-    .mobile-nav {
-      position: fixed;
-      inset-block-end: 0;
-      inset-inline: 0;
-      z-index: 50;
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 0.15rem;
-      padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
-      background: rgb(255 255 255 / 96%);
-      border-block-start: 1px solid var(--line);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
-      max-width: 480px;
-      margin-inline: auto;
-    }
-    .mobile-nav a {
-      display: grid;
-      justify-items: center;
-      align-content: center;
-      gap: 0.15rem;
-      min-height: 54px;
-      padding: 0.35rem 0.2rem;
-      color: var(--ink-700);
-      font-size: 0.68rem;
-      font-weight: 800;
-      border-radius: 12px;
-    }
-    .mobile-nav a[aria-current="page"],
-    .mobile-nav a.active {
-      color: var(--forest-950);
-      background: var(--mint-100);
-    }
-    .mobile-nav .ico {
-      width: 24px;
-      height: 24px;
-      display: grid;
-      place-items: center;
-      font-size: 1.05rem;
-    }
+  /* ---------- live request theater ---------- */
+  .live-head{padding:0 1.15rem 1rem}
+  .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--forest-2);margin-inline-end:.4rem;
+    box-shadow:0 0 0 0 rgb(29 97 83/.5);animation:pl 1.8s infinite}
+  @keyframes pl{70%{box-shadow:0 0 0 9px rgb(29 97 83/0)}100%{box-shadow:0 0 0 0 rgb(29 97 83/0)}}
+  .askers{display:grid;gap:.55rem;padding:0 1.15rem}
+  .asker{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:.85rem 1rem;
+    display:grid;grid-template-columns:auto 1fr auto;gap:.75rem;align-items:center;
+    transition:all .4s cubic-bezier(.2,.8,.3,1)
+  }
+  .asker .dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+  .asker.sent .dot{background:#b9c4c0}
+  .asker.open .dot{background:#d8a53c}
+  .asker.replied{border-color:var(--mint-2);background:linear-gradient(var(--mint),var(--card))}
+  .asker.replied .dot{background:var(--forest-2)}
+  .asker b{font-size:.92rem;display:block}
+  .asker span{font-size:.76rem;color:var(--ink-3)}
+  .asker .st{font-size:.76rem;font-weight:700;color:var(--ink-3)}
+  .asker.replied .st{color:var(--forest-2)}
+  .mine{font-size:.68rem;font-weight:700;color:var(--forest-2);background:var(--mint-2);padding:.1rem .45rem;border-radius:99px}
 
-    .patient-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
-    .medicine-search {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.45rem;
-      padding-inline-start: 0.85rem;
-      border-radius: 18px;
-      background: white;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-    .medicine-search input {
-      /* zero flex-basis + min-width:0 removes the input's intrinsic (size=20)
-         contribution, so the form can shrink to any viewport */
-      flex: 1 1 0%;
-      width: 0;
-      min-width: 0;
-      border: 0;
-      outline: 0;
-      background: transparent;
-      min-height: 44px;
-      font-size: 1rem;
-    }
-    .medicine-search button {
-      min-height: 44px;
-      min-width: 44px;
-      padding: 0 1rem;
-      border-radius: 14px;
-      background: var(--forest-900);
-      color: white;
-      font-weight: 800;
-    }
-    .quick-actions {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.55rem;
-      margin-top: 0.85rem;
-    }
-    .quick-actions a {
-      display: grid;
-      gap: 0.35rem;
-      justify-items: center;
-      min-height: 44px;
-      padding: 0.85rem 0.4rem;
-      border-radius: 16px;
-      background: white;
-      border: 1px solid var(--line);
-      font-size: 0.78rem;
-      font-weight: 800;
-      text-align: center;
-    }
-    .patient-promise {
-      padding: 1.1rem;
-      border-radius: 20px;
-      background: linear-gradient(145deg, var(--mint-100), white);
-      border: 1px solid rgb(52 139 124 / 18%);
-    }
-    .patient-promise strong {
-      display: block;
-      font-family: "Noto Kufi Arabic", sans-serif;
-      margin: 0.4rem 0;
-      color: var(--forest-900);
-    }
-    .active-request-card {
-      display: grid;
-      gap: 0.75rem;
-      padding: 1rem;
-      margin-bottom: 1.25rem;
-      border-radius: 18px;
-      background: white;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-    .live-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: var(--urgency);
-      display: inline-block;
-      box-shadow: 0 0 0 4px rgb(167 102 20 / 18%);
-      animation: pulse 1.6s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      50% { transform: scale(0.85); opacity: 0.7; }
-    }
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      min-height: 28px;
-      padding: 0.2rem 0.65rem;
-      border-radius: 999px;
-      background: var(--urgency-soft);
-      color: #7a4a0f;
-      font-size: 0.72rem;
-      font-weight: 800;
-      width: fit-content;
-    }
-    .status-badge.ok { background: var(--mint-100); color: var(--forest-700); }
-    .status-badge.rx { background: var(--blue-soft); color: var(--blue); }
-    .explainer-grid { display: grid; gap: 0.75rem; }
-    .explainer-grid article {
-      position: relative;
-      padding: 1rem;
-      padding-inline-end: 2.5rem;
-      border-radius: 18px;
-      background: white;
-      border: 1px solid var(--line);
-    }
-    .explainer-grid article > .step {
-      position: absolute;
-      top: 0.85rem;
-      inset-inline-end: 0.85rem;
-      width: 26px;
-      height: 26px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      background: var(--lime);
-      font-weight: 800;
-      font-size: 0.8rem;
-    }
+  /* ---------- offer comparison ---------- */
+  .best{
+    margin:0 1.15rem 1rem;border:1.5px solid var(--forest-2);border-radius:var(--r);overflow:hidden;
+    box-shadow:0 12px 34px rgb(20 69 61/.14)
+  }
+  .best .tag{background:var(--forest);color:#eaf5f0;padding:.5rem 1rem;font-size:.78rem;font-weight:700}
+  .best .body{background:var(--card);padding:1.05rem;display:grid;gap:.85rem}
+  .offer{
+    margin:0 1.15rem .7rem;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r);padding:1.05rem;display:grid;gap:.85rem
+  }
+  .o-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem}
+  .o-name{font-size:1rem}
+  .o-meta{font-size:.78rem;color:var(--ink-3);margin-top:.1rem}
+  .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+  .fact{background:var(--paper);border-radius:12px;padding:.6rem .5rem;text-align:center}
+  .fact span{display:block;font-size:.68rem;color:var(--ink-3);font-weight:600}
+  .fact b{font-size:.95rem;font-family:"Noto Kufi Arabic",sans-serif}
+  .receipt{display:flex;flex-wrap:wrap;gap:.35rem}
+  .rc{font-size:.7rem;font-weight:600;color:var(--forest-2);background:var(--mint);padding:.2rem .55rem;border-radius:99px}
+  .rc.n{color:var(--ink-3);background:var(--paper)}
 
-    .request-live-panel {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 0.9rem;
-      align-items: center;
-      padding: 1rem;
-      margin: 1rem 0;
-      border-radius: 20px;
-      background: linear-gradient(135deg, var(--forest-900), var(--forest-700));
-      color: white;
-    }
-    .request-live-panel p,
-    .request-live-panel small { color: rgb(255 255 255 / 78%); }
-    .live-radar {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      background: rgb(255 255 255 / 12%);
-      font-size: 1.4rem;
-    }
-    .offer-list { display: grid; gap: 0.85rem; }
-    .offer-card {
-      padding: 1rem;
-      border-radius: 20px;
-      background: white;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-    .offer-heading {
-      display: flex;
-      gap: 0.75rem;
-      align-items: flex-start;
-      margin-bottom: 0.85rem;
-    }
-    .pharmacy-avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      display: grid;
-      place-items: center;
-      background: var(--blue-soft);
-      color: var(--blue);
-      font-size: 1.2rem;
-      flex-shrink: 0;
-    }
-    .trust-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      margin: 0 0 0.75rem;
-    }
-    .trust-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      min-height: 28px;
-      padding: 0.15rem 0.55rem;
-      border-radius: 999px;
-      background: var(--mint-50);
-      color: var(--forest-700);
-      font-size: 0.7rem;
-      font-weight: 800;
-      border: 1px solid rgb(52 139 124 / 18%);
-    }
-    .offer-facts {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.5rem;
-      margin-bottom: 0.75rem;
-    }
-    .offer-facts > div {
-      padding: 0.65rem;
-      border-radius: 12px;
-      background: var(--mint-50);
-    }
-    .offer-facts span {
-      display: block;
-      font-size: 0.68rem;
-      color: var(--ink-700);
-      font-weight: 700;
-    }
-    .offer-facts strong {
-      font-size: 0.92rem;
-      color: var(--ink-950);
-    }
-    .fresh-line {
-      font-size: 0.78rem;
-      color: var(--forest-700);
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-    }
-    .price-note {
-      font-size: 0.74rem;
-      color: var(--ink-500);
-      margin-bottom: 0.85rem;
-    }
-    .offer-card .primary-cta { width: 100%; }
+  /* ---------- the pass ---------- */
+  .pass{
+    margin:0 1.15rem;border-radius:24px;overflow:hidden;
+    background:var(--forest);color:#eaf5f0;box-shadow:0 18px 44px rgb(20 69 61/.28)
+  }
+  .pass .ph{padding:1.2rem 1.2rem .9rem;display:flex;justify-content:space-between;align-items:flex-start}
+  .pass .ph small{opacity:.7;font-size:.74rem;font-weight:600;display:block}
+  .pass .ph strong{font-size:1.12rem;font-family:"Noto Kufi Arabic",sans-serif}
+  .pass .code{
+    font-family:ui-monospace,monospace;font-size:1.02rem;letter-spacing:.1em;
+    background:rgb(255 255 255/.14);padding:.35rem .7rem;border-radius:10px;direction:ltr
+  }
+  .perf{height:22px;background:
+    radial-gradient(circle at 11px 11px, var(--paper) 10px, transparent 11px) 0 0/22px 22px repeat-x;
+    margin-inline:-1px}
+  .pass .pb{background:#fff;color:var(--ink);padding:1.1rem 1.2rem 1.2rem;display:grid;gap:.9rem}
+  .cd{display:flex;align-items:baseline;gap:.5rem}
+  .cd b{font-size:2.1rem;font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;direction:ltr;color:var(--forest)}
+  .cd span{font-size:.8rem;color:var(--ink-3)}
+  .rows{display:grid;gap:.5rem}
+  .row{display:flex;justify-content:space-between;gap:.75rem;font-size:.88rem}
+  .row span{color:var(--ink-3)}
+  .row b{font-weight:600}
+  .pass-act{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
 
-    .sort-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: end;
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-    .sort-row label {
-      display: grid;
-      gap: 0.25rem;
-      font-size: 0.72rem;
-      font-weight: 800;
-      color: var(--ink-700);
-    }
-    .sort-row select {
-      min-height: 44px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      padding: 0 0.7rem;
-      background: white;
-      font-weight: 700;
-      color: var(--ink-950);
-    }
+  /* ---------- capture ---------- */
+  .cap{padding:0 1.15rem;display:grid;gap:.7rem}
+  .cap button{
+    background:var(--card);border:1px solid var(--line);border-radius:18px;padding:1.1rem;
+    display:grid;grid-template-columns:auto 1fr auto;gap:.9rem;align-items:center;text-align:start;
+    box-shadow:var(--shadow)
+  }
+  .cap .ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:var(--mint);font-size:1.3rem}
+  .cap b{display:block;font-size:.98rem;font-family:"Noto Kufi Arabic",sans-serif}
+  .cap span{font-size:.8rem;color:var(--ink-3)}
+  .cap .primary{background:var(--forest);border-color:var(--forest);color:#eaf5f0}
+  .cap .primary .ic{background:rgb(255 255 255/.16)}
+  .cap .primary span{color:rgb(234 245 240/.78)}
 
-    .reservation-card {
-      padding: 1.1rem;
-      border-radius: 22px;
-      background: white;
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-    .countdown {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.9rem 1rem;
-      margin-bottom: 1rem;
-      border-radius: 16px;
-      background: var(--urgency-soft);
-      color: #7a4a0f;
-      font-weight: 800;
-    }
-    .countdown strong {
-      font-size: 1.5rem;
-      font-variant-numeric: tabular-nums;
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
-    .res-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .res-grid > div {
-      padding: 0.7rem;
-      border-radius: 12px;
-      background: var(--paper);
-      border: 1px solid var(--line);
-    }
-    .res-grid span { display: block; font-size: 0.7rem; color: var(--ink-700); font-weight: 700; }
-    .res-grid strong { font-size: 0.92rem; }
-    .contact-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+  .note{margin:1rem 1.15rem 0;padding:.85rem 1rem;border-radius:14px;background:var(--mint);
+    color:var(--forest);font-size:.82rem;font-weight:600;display:flex;gap:.5rem}
+  .sec{padding:1.4rem 1.15rem .5rem;font-size:.76rem;font-weight:700;color:var(--ink-3)}
+  .empty{margin:0 1.15rem;padding:2rem 1.2rem;text-align:center;background:var(--card);
+    border:1px dashed var(--line);border-radius:var(--r)}
+  .empty .g{font-size:2rem}
+  .empty b{display:block;margin:.6rem 0 .3rem;font-family:"Noto Kufi Arabic",sans-serif}
+  .empty p{font-size:.86rem}
 
-    .inbox-list, .form-stack { display: grid; gap: 0.75rem; }
-    .inbox-card, .compose-card, .empty-card {
-      padding: 1rem;
-      border-radius: 18px;
-      background: white;
-      border: 1px solid var(--line);
-    }
-    .inbox-card header {
-      display: flex;
-      justify-content: space-between;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
-    .meta { font-size: 0.8rem; color: var(--ink-500); font-weight: 600; }
-    .quick-reply {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      margin-top: 0.85rem;
-    }
-    .quick-reply button {
-      min-height: 44px;
-      border-radius: 12px;
-      font-weight: 800;
-      font-size: 0.82rem;
-    }
-    .quick-reply .ok { background: var(--mint-100); color: var(--forest-900); }
-    .quick-reply .no { background: var(--action-soft); color: #9a3d2c; }
-
-    .field {
-      display: grid;
-      gap: 0.35rem;
-    }
-    .field > span {
-      font-size: 0.78rem;
-      font-weight: 800;
-      color: var(--ink-700);
-    }
-    .field input, .field select, .field textarea {
-      min-height: 44px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      padding: 0.55rem 0.75rem;
-      background: white;
-    }
-    .field textarea { min-height: 88px; resize: vertical; }
-    .field-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.65rem;
-    }
-    .field input,
-    .field select,
-    .field textarea {
-      min-width: 0;
-      width: 100%;
-    }
-    .empty-card {
-      text-align: center;
-      padding: 1.5rem 1.1rem;
-      box-shadow: var(--shadow);
-    }
-    .empty-card .ico-lg {
-      width: 64px;
-      height: 64px;
-      margin: 0 auto 0.85rem;
-      border-radius: 20px;
-      display: grid;
-      place-items: center;
-      background: var(--urgency-soft);
-      font-size: 1.6rem;
-    }
-    .ladder {
-      display: grid;
-      gap: 0.55rem;
-      text-align: start;
-      margin: 1rem 0;
-    }
-    .ladder li {
-      list-style: none;
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 0.65rem;
-      padding: 0.75rem;
-      border-radius: 14px;
-      background: var(--mint-50);
-      border: 1px solid rgb(52 139 124 / 15%);
-      font-size: 0.86rem;
-      font-weight: 600;
-    }
-    .ladder li[aria-current="step"] {
-      background: var(--urgency-soft);
-      border-color: rgb(167 102 20 / 25%);
-    }
-    .ladder .n {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      background: white;
-      font-weight: 800;
-      font-size: 0.75rem;
-    }
-    .page-header { margin-bottom: 1rem; }
-    .page-header p { margin: 0; }
-
-    .offline-banner {
-      position: fixed;
-      inset-block-end: calc(var(--nav-h) + 0.75rem);
-      inset-inline: 0.75rem;
-      z-index: 90;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      min-height: 44px;
-      padding: 0.55rem 1rem;
-      border-radius: 14px;
-      background: var(--ink-950);
-      color: white;
-      font-weight: 700;
-      font-size: 0.85rem;
-      max-width: 456px;
-      margin-inline: auto;
-    }
-    .offline-banner.visible { display: flex; }
-
-    .countdown.expired {
-      background: var(--action-soft);
-      color: #9a3d2c;
-    }
-    .hold-expired { display: none; }
-    .hold-expired.visible { display: grid; gap: 0.65rem; margin-top: 1rem; }
-
-    .reason-chips {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 0.45rem;
-      margin-top: 0.85rem;
-    }
-    .reason-chips button {
-      min-height: 44px;
-      border-radius: 12px;
-      background: var(--paper);
-      border: 1px solid var(--line);
-      font-weight: 700;
-      font-size: 0.76rem;
-    }
-    .account-card {
-      display: grid;
-      gap: 0.75rem;
-      padding: 1.1rem;
-      border-radius: 18px;
-      background: white;
-      border: 1px solid var(--line);
-    }
-    .account-identity {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-    }
-    .account-identity .avatar {
-      width: 52px;
-      height: 52px;
-      border-radius: 16px;
-      display: grid;
-      place-items: center;
-      background: var(--mint-100);
-      font-size: 1.5rem;
-    }
-    .danger-zone {
-      display: grid;
-      gap: 0.6rem;
-      padding: 1.1rem;
-      border-radius: 18px;
-      border: 1px solid rgb(194 79 56 / 35%);
-      background: var(--action-soft);
-    }
-    .danger-zone h2 { margin: 0; font-size: 1rem; color: #9a3d2c; }
-    .danger-zone p { margin: 0; font-size: 0.85rem; }
-    .delete-armed-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 0.5rem;
-    }
-    .delete-armed-row[hidden] { display: none; }
-    .danger-link {
-      min-height: 44px;
-      border-radius: 12px;
-      background: transparent;
-      color: #9a3d2c;
-      font-weight: 800;
-      text-decoration: underline;
-    }
-    .resv-state-line {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.7rem 0.9rem;
-      border-radius: 12px;
-      background: var(--urgency-soft);
-      color: #7a4a0f;
-      font-weight: 700;
-      font-size: 0.85rem;
-    }
-    .resv-state-line strong {
-      font-variant-numeric: tabular-nums;
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
-    .resv-state-line.ok { background: var(--mint-100); color: var(--forest-700); }
-    .inbox-done {
-      margin-top: 0.85rem;
-      padding: 0.75rem;
-      border-radius: 12px;
-      background: var(--mint-50);
-      color: var(--forest-700);
-      font-weight: 700;
-      font-size: 0.84rem;
-      text-align: center;
-    }
-    .title-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
-      align-items: center;
-    }
-
-    @media (min-width: 900px) {
-      .screen.wide.active {
-        display: grid;
-        grid-template-columns: 1.1fr 0.9fr;
-        gap: 2rem;
-        align-items: start;
-        padding: 1.5rem;
-      }
-      .welcome-page { display: contents; }
-      .welcome-copy, .welcome-visual { padding: 1rem; }
-      .mobile-nav { display: none; }
-      .product-shell { padding-bottom: 1rem; max-width: 480px; }
-    }
-  </style>
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+</style>
 </head>
 <body>
-  <!-- WELCOME -->
-  <section id="welcome" class="screen wide active" aria-labelledby="welcome-title">
-    <div class="welcome-page">
-      <header class="public-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong><small>نجد دواءك بالقرب منك</small></span>
-        </span>
-        <a href="#patient">تسجيل الدخول</a>
-      </header>
-      <div class="welcome-copy">
-        <p class="overline">منصة العثور على الدواء في العراق</p>
-        <h1 id="welcome-title">دواؤك أقرب مما تتوقع.</h1>
-        <p>طلب واحد يصل إلى الصيدليات الموثقة والقريبة. تحصل على التوفر والسعر والجاهزية، ثم تحجز للاستلام.</p>
-        <div class="role-choice">
-          <a class="role-card patient" href="#patient">
-            <span class="ico" aria-hidden="true">👤</span>
-            <div><strong>أنا مريض</strong><small>أبحث عن دواء أو أرسل طلبًا</small></div>
-            <span aria-hidden="true">←</span>
-          </a>
-          <a class="role-card pharmacy" href="#pharmacy">
-            <span class="ico" aria-hidden="true">🏪</span>
-            <div><strong>أنا صيدلية</strong><small>أستقبل طلبات قريبة وأرسل عروضًا</small></div>
-            <span aria-hidden="true">←</span>
-          </a>
-        </div>
-        <div class="safety-line">
-          <span aria-hidden="true">🛡️</span>
-          <span>دوائي لا يشخّص ولا يصف أو يستبدل الدواء.</span>
-        </div>
+<div class="app">
+
+<!-- ═══════════ HOME ═══════════ -->
+<section class="screen on" id="home">
+  <header class="top">
+    <div class="top-row">
+      <div>
+        <div class="greet" id="greet">مساء الخير</div>
+        <h1 class="h-title" id="homeTitle">أدويتك</h1>
       </div>
-      <div class="welcome-visual" aria-label="كيف يعمل دوائي">
-        <div class="welcome-radar">
-          <span class="center"><span aria-hidden="true">📍</span> طلبك</span>
-          <span class="point p1"><span aria-hidden="true">🏪</span> عرض مؤكد</span>
-          <span class="point p2"><span aria-hidden="true">🏪</span> عرض جديد</span>
-          <span class="point p3"><span aria-hidden="true">🏪</span> يراجع</span>
-        </div>
-        <ol>
-          <li><span>1</span> أخبرنا ما تحتاجه</li>
-          <li><span>2</span> الصيدليات القريبة ترد</li>
-          <li><span>3</span> اختر واحجز للاستلام</li>
-        </ol>
-      </div>
+      <button class="mini" style="width:42px;height:42px;border-radius:13px;background:var(--card);border:1px solid var(--line)" aria-label="حسابي" onclick="go('me')">👤</button>
     </div>
-  </section>
-
-  <!-- PATIENT -->
-  <section id="patient" class="screen" aria-labelledby="patient-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <div class="account-menu">
-          <span aria-hidden="true">🔔</span>
-          <span>مرحبًا بك</span>
-        </div>
-      </header>
-      <main class="product-main">
-        <section class="patient-hero">
-          <div>
-            <p class="overline">طلب واحد يصل إلى الصيدليات المناسبة</p>
-            <h1 id="patient-title">ما الدواء الذي تحتاجه؟</h1>
-            <p>ابحث أولًا، أو أرسل طلبًا لتحصل على تأكيد وسعر من صيدلية قريبة.</p>
-            <form class="medicine-search" id="search-form">
-              <span aria-hidden="true">🔍</span>
-              <label class="sr-only" for="patient-search">اسم الدواء</label>
-              <input id="patient-search" name="q" dir="ltr" placeholder="Panadol Extra" autocomplete="off" />
-              <button type="submit">بحث</button>
-            </form>
-            <div class="quick-actions">
-              <a href="#offers"><span aria-hidden="true">📷</span>صوّر الدواء</a>
-              <a href="#offers"><span aria-hidden="true">📎</span>ارفع وصفة</a>
-              <a href="#offers"><span aria-hidden="true">✏️</span>اكتب طلبك</a>
-            </div>
-          </div>
-          <div class="patient-promise">
-            <span aria-hidden="true">🛡️</span>
-            <strong>قرار الدواء للصيدلي، لا للخوارزمية.</strong>
-            <p>نستخدم التقنية لتنظيم طلبك ومطابقته فقط. لا نشخّص ولا نقترح جرعة أو بديلًا تلقائيًا.</p>
-          </div>
-        </section>
-
-        <section class="active-request-card" aria-live="polite">
-          <div style="display:flex;gap:.55rem;align-items:center">
-            <span class="live-dot" aria-hidden="true"></span>
-            <p style="margin:0">
-              <strong>لديك طلب نشط</strong><br />
-              <bdi dir="ltr">Augmentin 625 mg</bdi>
-              <span class="status-badge rx" style="margin-inline-start:.35rem">يحتاج وصفة</span>
-            </p>
-          </div>
-          <span class="status-badge">ننتظر الردود</span>
-          <a class="primary-cta" href="#offers">متابعة الطلب</a>
-        </section>
-
-        <section>
-          <div class="page-header">
-            <p class="overline">كيف يعمل</p>
-            <h2>من الحاجة إلى الحجز بثلاث خطوات</h2>
-          </div>
-          <div class="explainer-grid">
-            <article><span class="step">1</span><h2>صف الدواء</h2><p>بالاسم أو الصورة أو الوصفة.</p></article>
-            <article><span class="step">2</span><h2>نطلب التأكيد</h2><p>من الصيدليات المفتوحة والقريبة فقط.</p></article>
-            <article><span class="step">3</span><h2>قارن واحجز</h2><p>السعر والجاهزية ووقت آخر تأكيد.</p></article>
-          </div>
-        </section>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للمريض">
-        <a href="#patient" aria-current="page"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
-        <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
-        <a href="#offers"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
-        <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
-      </nav>
+    <!-- family mode: the caregiver is a first-class user, not a setting -->
+    <div class="who" role="group" aria-label="لمن تتابع">
+      <button aria-pressed="true" onclick="who(this,'أنا','أدويتك')"><span class="av">🙂</span>أنا</button>
+      <button aria-pressed="false" onclick="who(this,'والدتي','أدوية والدتك')"><span class="av">👩</span>والدتي</button>
+      <button aria-pressed="false" onclick="who(this,'والدي','أدوية والدك')"><span class="av">👨</span>والدي</button>
     </div>
-  </section>
+  </header>
 
-  <!-- OFFERS -->
-  <section id="offers" class="screen" aria-labelledby="offers-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <span class="status-badge ok">عروض جاهزة للمقارنة</span>
-      </header>
-      <main class="product-main">
-        <div class="page-header">
-          <p class="overline">طلب <bdi dir="ltr">DW-4821</bdi></p>
-          <div class="title-row">
-            <h1 id="offers-title"><bdi dir="ltr">Augmentin 625 mg</bdi></h1>
-            <span class="status-badge rx">يحتاج وصفة</span>
-          </div>
-          <p>أقراص · الكمية 1 · المنصور، بغداد</p>
-        </div>
-
-        <!-- Honest state: offers arrived — do NOT say "waiting" -->
-        <div class="request-live-panel" aria-live="polite">
-          <div class="live-radar" aria-hidden="true">✅</div>
-          <div>
-            <strong>وصل عرضان صالحان — قارن واختر واحدًا</strong>
-            <p style="margin:.25rem 0">أُرسل إلى 3 صيدليات · النطاق 2 كم</p>
-            <small>ينتهي الطلب: اليوم <bdi dir="ltr">11:40</bdi></small>
-          </div>
-        </div>
-
-        <div class="sort-row">
-          <div>
-            <p class="overline">العروض المؤكدة</p>
-            <h2 id="offer-count">عرضان</h2>
-          </div>
-          <label>
-            ترتيب العروض
-            <select id="offer-sort" name="sort">
-              <option value="best">الأنسب</option>
-              <option value="distance">الأقرب</option>
-              <option value="price">الأرخص</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="offer-list" id="offer-list">
-          <article class="offer-card" data-price="12000" data-distance="0.8" data-best="1">
-            <div class="offer-heading">
-              <div class="pharmacy-avatar" aria-hidden="true">🏪</div>
-              <div style="flex:1">
-                <h2>صيدلية الروابي</h2>
-                <p class="meta">المنصور · <bdi dir="ltr">0.8</bdi> كم</p>
-              </div>
-              <span class="status-badge ok">مطابق</span>
-            </div>
-            <div class="trust-row">
-              <span class="trust-chip"><span aria-hidden="true">✔</span> مرخّصة · <bdi dir="ltr">IQ-THR-1842</bdi></span>
-              <span class="trust-chip"><span aria-hidden="true">🕐</span> مفتوحة حتى <bdi dir="ltr">22:00</bdi></span>
-              <span class="trust-chip"><span aria-hidden="true">📍</span> خريطة</span>
-            </div>
-            <div class="offer-facts">
-              <div><span>السعر</span><strong><bdi dir="ltr">12,000</bdi> د.ع</strong></div>
-              <div><span>التجهيز</span><strong>جاهز الآن</strong></div>
-              <div><span>آخر تأكيد</span><strong>قبل 4 د</strong></div>
-            </div>
-            <p class="fresh-line">أكدت الصيدلية هذا العرض قبل 4 دقائق · صالح حتى <bdi dir="ltr">10:42</bdi></p>
-            <p class="price-note">السعر عند الاستلام كما أكّدته الصيدلية — ليس تخمينًا من كتالوج.</p>
-            <button class="primary-cta" type="button" data-goto="hold">حجز للاستلام</button>
-          </article>
-
-          <article class="offer-card" data-price="11500" data-distance="1.4" data-best="2">
-            <div class="offer-heading">
-              <div class="pharmacy-avatar" aria-hidden="true">🏪</div>
-              <div style="flex:1">
-                <h2>صيدلية النور</h2>
-                <p class="meta">المنصور · <bdi dir="ltr">1.4</bdi> كم</p>
-              </div>
-              <span class="status-badge">جزئي</span>
-            </div>
-            <div class="trust-row">
-              <span class="trust-chip"><span aria-hidden="true">✔</span> مرخّصة · <bdi dir="ltr">IQ-THR-2201</bdi></span>
-              <span class="trust-chip"><span aria-hidden="true">🕐</span> مفتوحة حتى <bdi dir="ltr">21:00</bdi></span>
-            </div>
-            <div class="offer-facts">
-              <div><span>السعر</span><strong><bdi dir="ltr">11,500</bdi> د.ع</strong></div>
-              <div><span>التجهيز</span><strong>15 دقيقة</strong></div>
-              <div><span>آخر تأكيد</span><strong>قبل 9 د</strong></div>
-            </div>
-            <p class="fresh-line">أكدت الصيدلية هذا العرض قبل 9 دقائق · صالح حتى <bdi dir="ltr">10:50</bdi></p>
-            <p class="price-note">السعر عند الاستلام كما أكّدته الصيدلية — ليس تخمينًا من كتالوج.</p>
-            <button class="primary-cta" type="button" data-goto="hold">حجز للاستلام</button>
-          </article>
-        </div>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للمريض">
-        <a href="#patient"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
-        <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
-        <a href="#offers" aria-current="page"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
-        <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
-      </nav>
+  <!-- the daily loop: one tap, calm, never a streak or a score -->
+  <div class="dose" id="doseCard">
+    <div>
+      <small>جرعة المساء · ٨:٠٠</small>
+      <strong id="doseName">Amlodipine 5mg</strong>
     </div>
-  </section>
-
-  <!-- ZERO OFFERS -->
-  <section id="zero" class="screen" aria-labelledby="zero-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <span class="status-badge">لا عروض بعد</span>
-      </header>
-      <main class="product-main">
-        <div class="page-header">
-          <p class="overline">طلب <bdi dir="ltr">DW-4821</bdi></p>
-          <h1 id="zero-title"><bdi dir="ltr">Augmentin 625 mg</bdi></h1>
-          <p id="zero-meta">النطاق الحالي: 2 كم · أُرسل إلى 3 صيدليات</p>
-        </div>
-        <div class="empty-card">
-          <div class="ico-lg" aria-hidden="true">📡</div>
-          <h2>لم يصل عرض صالح بعد</h2>
-          <p>عدم الرد لا يعني أن الدواء غير موجود. يمكنك الانتظار أو توسيع النطاق بموافقتك الصريحة.</p>
-          <ol class="ladder">
-            <li><span class="n">1</span><span>انتظار الردود الأولى (حتى 5 دقائق)</span></li>
-            <li aria-current="step"><span class="n">2</span><span>توسيع إلى 5 كم — صيدليات جديدة فقط</span></li>
-            <li><span class="n">3</span><span>توسيع نادر إلى 10 كم — بموافقة صريحة</span></li>
-            <li><span class="n">4</span><span>إنهاء الطلب وإعادة المحاولة لاحقًا</span></li>
-          </ol>
-          <button class="primary-cta" type="button" id="expand-radius" style="width:100%;margin-bottom:.55rem">توسيع إلى 5 كم</button>
-          <button class="secondary-cta" type="button" style="width:100%" data-goto="patient">سأنتظر الردود — عودة للرئيسية</button>
-        </div>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للمريض">
-        <a href="#patient"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
-        <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
-        <a href="#zero" aria-current="page"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
-        <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
-      </nav>
-    </div>
-  </section>
-
-  <!-- HOLD -->
-  <section id="hold" class="screen" aria-labelledby="hold-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <span class="status-badge ok">محفوظ بعد تأكيد الصيدلية</span>
-      </header>
-      <main class="product-main">
-        <div class="page-header">
-          <p class="overline">حجز <bdi dir="ltr">RSV-1190</bdi></p>
-          <h1 id="hold-title">دواؤك محفوظ مؤقتًا</h1>
-          <p>العد التنازلي يبدأ فقط بعد أن تؤكد الصيدلية حفظ الكمية — وقد بدأ الآن.</p>
-        </div>
-        <section class="reservation-card">
-          <div class="countdown" id="hold-countdown" role="timer" aria-atomic="true">
-            <span id="countdown-label"><span aria-hidden="true">⏱</span> الوقت المتبقي للحجز</span>
-            <strong><bdi dir="ltr" id="countdown-value">14:32</bdi></strong>
-          </div>
-          <p class="sr-only" aria-live="polite" id="countdown-announce"></p>
-          <div class="res-grid">
-            <div><span>الدواء</span><strong><bdi dir="ltr">Augmentin 625 mg</bdi></strong></div>
-            <div><span>السعر</span><strong><bdi dir="ltr">12,000</bdi> د.ع</strong></div>
-            <div><span>طريقة التنفيذ</span><strong>استلام من الصيدلية</strong></div>
-            <div><span>الصيدلية</span><strong>صيدلية الروابي</strong></div>
-            <div style="grid-column:1/-1"><span>العنوان</span><strong>شارع 14 رمضان، المنصور</strong></div>
-          </div>
-          <div class="contact-row" id="hold-contact">
-            <a class="primary-cta" href="https://www.google.com/maps/search/?api=1&query=%D8%B5%D9%8A%D8%AF%D9%84%D9%8A%D8%A9%20%D8%A7%D9%84%D8%B1%D9%88%D8%A7%D8%A8%D9%8A%20%D8%B4%D8%A7%D8%B1%D8%B9%2014%20%D8%B1%D9%85%D8%B6%D8%A7%D9%86%20%D8%A7%D9%84%D9%85%D9%86%D8%B5%D9%88%D8%B1%20%D8%A8%D8%BA%D8%AF%D8%A7%D8%AF" target="_blank" rel="noreferrer">الاتجاهات</a>
-            <a class="secondary-cta" href="tel:07701112222">اتصال</a>
-          </div>
-          <div class="hold-expired" id="hold-expired">
-            <p style="margin:0;font-weight:700;color:#9a3d2c">انتهت مهلة الحجز ولم يعد الدواء محفوظًا لك.</p>
-            <button class="primary-cta" type="button" data-goto="zero" style="width:100%">إعادة إرسال الطلب</button>
-            <button class="secondary-cta" type="button" data-goto="patient" style="width:100%">الرئيسية</button>
-          </div>
-        </section>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للمريض">
-        <a href="#patient"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
-        <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
-        <a href="#offers"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
-        <a href="#hold" aria-current="page"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#account"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
-      </nav>
-    </div>
-  </section>
-
-  <!-- PHARMACY INBOX -->
-  <section id="pharmacy" class="screen" aria-labelledby="pharmacy-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <div class="account-menu"><span style="color:var(--forest-700)">● تستقبل الطلبات</span></div>
-      </header>
-      <main class="product-main">
-        <div class="page-header">
-          <p class="overline">صندوق الوارد</p>
-          <h1 id="pharmacy-title">الطلبات القريبة اليوم</h1>
-          <p>قبل اختيار المريض: المنطقة التقريبية والدواء فقط — بلا اسم أو هاتف أو وصفة.</p>
-        </div>
-        <p class="inbox-done" id="offer-sent" role="status" hidden>✅ أُرسل عرضك للمريض — سيصلك إشعار فور اختياره.</p>
-        <div class="inbox-list">
-          <article class="inbox-card" id="inbox-augmentin">
-            <header>
-              <div>
-                <h2><bdi dir="ltr">Augmentin 625 mg</bdi> <span class="status-badge rx">وصفة</span></h2>
-                <p class="meta">المنصور · <bdi dir="ltr">0.8</bdi> كم · كمية ≈ 1 · عاجل الآن</p>
-              </div>
-              <span class="status-badge">جديد</span>
-            </header>
-            <p class="fresh-line" style="margin:0">لا يظهر اسم المريض ولا الهاتف ولا الوصفة قبل الحجز المؤكد.</p>
-            <div class="quick-reply">
-              <button class="ok" type="button" data-goto="compose">متوفر — أرسل عرضًا</button>
-              <button class="no" type="button">غير متوفر</button>
-            </div>
-          </article>
-          <article class="inbox-card">
-            <header>
-              <div>
-                <h2><bdi dir="ltr">Metformin 500 mg</bdi></h2>
-                <p class="meta">اليرموك · <bdi dir="ltr">1.9</bdi> كم · كمية ≈ 2 · اليوم</p>
-              </div>
-              <span class="status-badge">شُوهد</span>
-            </header>
-            <div class="quick-reply">
-              <button class="ok" type="button" data-goto="compose">متوفر — أرسل عرضًا</button>
-              <button class="no" type="button">غير متوفر</button>
-            </div>
-          </article>
-        </div>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للصيدلية">
-        <a href="#pharmacy"><span class="ico" aria-hidden="true">✨</span><span>لوحة</span></a>
-        <a href="#pharmacy" aria-current="page"><span class="ico" aria-hidden="true">🔔</span><span>الطلبات</span></a>
-        <a href="#reservations"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
-        <a href="#compose"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">🚪</span><span>خروج</span></a>
-      </nav>
-    </div>
-  </section>
-
-  <!-- PHARMACY COMPOSE OFFER -->
-  <section id="compose" class="screen" aria-labelledby="compose-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <span class="status-badge">رد سريع</span>
-      </header>
-      <main class="product-main">
-        <div class="page-header">
-          <p class="overline">طلب قريب · المنصور · <bdi dir="ltr">0.8</bdi> كم</p>
-          <h1 id="compose-title">ركّب عرضًا منظمًا</h1>
-          <p>إرسال العرض لا يحجز المخزون. الحجز يبدأ فقط إذا اختار المريض عرضك وأكّدتَ الحفظ.</p>
-        </div>
-        <form class="compose-card form-stack" action="#" method="post">
-          <label class="field">
-            <span>نوع الرد</span>
-            <select name="offerType" required>
-              <option value="EXACT">مطابق / متوفر</option>
-              <option value="PARTIAL">جزئي</option>
-              <option value="ORDERABLE">قابل للطلب (بدون حجز فوري)</option>
-              <option value="ALTERNATIVE_REVIEW_REQUIRED">بديل يحتاج مراجعة</option>
-              <option value="UNAVAILABLE">غير متوفر</option>
-            </select>
-          </label>
-          <div class="field-row">
-            <label class="field">
-              <span>السعر الكلي (د.ع)</span>
-              <input name="priceIqd" inputmode="numeric" dir="ltr" required placeholder="12000" />
-            </label>
-            <label class="field">
-              <span>الكمية المتاحة</span>
-              <input name="qty" inputmode="numeric" dir="ltr" required placeholder="1" />
-            </label>
-          </div>
-          <div class="field-row">
-            <label class="field">
-              <span>وقت التجهيز (دقيقة)</span>
-              <input name="prep" inputmode="numeric" dir="ltr" value="0" />
-            </label>
-            <label class="field">
-              <span>الاستلام</span>
-              <select name="pickup">
-                <option value="yes">متاح</option>
-                <option value="no">غير متاح</option>
-              </select>
-            </label>
-          </div>
-          <label class="field">
-            <span>ملاحظة قصيرة (اختياري)</span>
-            <textarea name="note" maxlength="200" placeholder="مثال: العبوة الأصلية متوفرة"></textarea>
-          </label>
-          <label class="field" style="grid-template-columns:auto 1fr;align-items:start;gap:.55rem">
-            <input type="checkbox" name="confirmExact" required style="width:20px;height:20px;margin-top:.2rem" />
-            <span>أؤكّد أن السعر والكمية صحيحة وقت الإرسال، وأفهم أن العرض ليس حجزًا للمخزون.</span>
-          </label>
-          <button class="primary-cta" type="submit" style="width:100%" id="send-offer">إرسال العرض للمريض</button>
-          <button class="secondary-cta" type="button" style="width:100%" data-goto="pharmacy">رجوع للوارد</button>
-        </form>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للصيدلية">
-        <a href="#pharmacy"><span class="ico" aria-hidden="true">✨</span><span>لوحة</span></a>
-        <a href="#pharmacy"><span class="ico" aria-hidden="true">🔔</span><span>الطلبات</span></a>
-        <a href="#reservations"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
-        <a href="#compose" aria-current="page"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">🚪</span><span>خروج</span></a>
-      </nav>
-    </div>
-  </section>
-
-  <div class="offline-banner" id="offline-banner" role="status">
-    <span aria-hidden="true">📴</span>
-    <span>لا يوجد اتصال — سنُعيد المحاولة تلقائيًا عند عودة الشبكة.</span>
+    <button class="take" onclick="takeDose()">أخذتها</button>
   </div>
 
-  <!-- PATIENT ACCOUNT -->
-  <section id="account" class="screen" aria-labelledby="account-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <span class="status-badge ok">حساب موثق</span>
-      </header>
-      <main class="product-main">
-        <div class="page-header">
-          <p class="overline">الحساب</p>
-          <h1 id="account-title">حسابي</h1>
-          <p>نحتفظ بالحد الأدنى اللازم لإدارة طلباتك — لا تُستخدم بياناتك الصحية للإعلانات.</p>
+  <div class="cards" id="cards">
+    <!-- LOW: the reorder affordance lives on the card itself -->
+    <article class="med low">
+      <div class="med-head">
+        <div>
+          <h2 class="med-name"><bdi dir="ltr">Amlodipine 5mg</bdi></h2>
+          <div class="med-sig">حبة واحدة بعد العشاء</div>
         </div>
-        <div class="form-stack">
-          <div class="account-card">
-            <div class="account-identity">
-              <span class="avatar" aria-hidden="true">👤</span>
-              <div><strong>مستخدم دوائي</strong><br /><span class="meta">بغداد · المنصور</span></div>
-            </div>
-          </div>
-          <form class="account-card" id="account-form">
-            <label class="field"><span>الاسم</span><input name="name" value="مستخدم دوائي" required /></label>
-            <label class="field"><span>الهاتف</span><input name="phone" dir="ltr" inputmode="tel" value="0770 000 0000" /></label>
-            <label class="field"><span>المنطقة الافتراضية</span><input name="area" value="المنصور، بغداد" /></label>
-            <label class="field" style="grid-template-columns:auto 1fr;align-items:center;gap:.55rem">
-              <input type="checkbox" name="push" checked style="width:20px;height:20px" />
-              <span>إشعارات فورية عند وصول العروض وتحديثات الحجز</span>
-            </label>
-            <button class="primary-cta" type="submit">حفظ التغييرات</button>
-            <p class="inbox-done" id="account-saved" role="status" hidden>✅ تم حفظ الملف الشخصي.</p>
-          </form>
-          <button class="secondary-cta" type="button" data-goto="welcome" style="width:100%">تسجيل الخروج</button>
-          <section class="danger-zone" aria-labelledby="del-title">
-            <h2 id="del-title">حذف الحساب</h2>
-            <p>يعطّل الحساب ويجدول حذف بياناتك وصور الوصفات وفق سياسة الاحتفاظ. لا يمكن التراجع.</p>
-            <div id="delete-idle">
-              <button class="danger-link" type="button" id="delete-arm">حذف حسابي</button>
-            </div>
-            <div id="delete-armed" class="delete-armed-row" hidden>
-              <button class="danger-link" type="button" id="delete-confirm">تأكيد الحذف نهائيًا</button>
-              <button class="secondary-cta" type="button" id="delete-cancel">تراجع</button>
-            </div>
-          </section>
+        <span class="med-for">مزمن</span>
+      </div>
+      <div class="strip" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i>
+      </div>
+      <div class="cover">
+        <b>تكفيك ٤ أيام</b>
+        <span>تخلص الخميس ١٤ آب</span>
+      </div>
+      <div class="med-act">
+        <button class="btn btn-p" onclick="reorder('Amlodipine 5mg')">اطلبها من صيدلية الروابي</button>
+        <button class="btn btn-s" style="padding-inline:.9rem" onclick="snooze(this)">عندي</button>
+      </div>
+    </article>
+
+    <article class="med">
+      <div class="med-head">
+        <div>
+          <h2 class="med-name"><bdi dir="ltr">Metformin 500mg</bdi></h2>
+          <div class="med-sig">حبة بعد الفطور وحبة بعد العشاء</div>
         </div>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للمريض">
-        <a href="#patient"><span class="ico" aria-hidden="true">🔍</span><span>الرئيسية</span></a>
-        <a href="#patient"><span class="ico" aria-hidden="true">＋</span><span>طلب جديد</span></a>
-        <a href="#offers"><span class="ico" aria-hidden="true">⏱</span><span>طلباتي</span></a>
-        <a href="#hold"><span class="ico" aria-hidden="true">📦</span><span>الحجز</span></a>
-        <a href="#account" aria-current="page"><span class="ico" aria-hidden="true">👤</span><span>حسابي</span></a>
-      </nav>
+        <span class="med-for">مزمن</span>
+      </div>
+      <div class="strip" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="gone"></i><i class="gone"></i><i class="gone"></i>
+      </div>
+      <div class="cover">
+        <b>تكفيك ١٨ يوم</b>
+        <span>صُرفت من صيدلية الروابي · ٢٠ تموز</span>
+      </div>
+    </article>
+
+    <article class="med">
+      <div class="med-head">
+        <div>
+          <h2 class="med-name"><bdi dir="ltr">Atorvastatin 20mg</bdi></h2>
+          <div class="med-sig">حبة قبل النوم</div>
+        </div>
+      </div>
+      <div class="strip" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="gone"></i>
+      </div>
+      <div class="cover">
+        <b>تكفيك ٢٦ يوم</b>
+        <span>لا حاجة لشيء الآن</span>
+      </div>
+    </article>
+  </div>
+
+  <div style="height:5.5rem"></div>
+
+  <!-- one entry point for anything new — camera and voice BEFORE typing -->
+  <div class="ask">
+    <button onclick="go('capture')">
+      <span class="ic" aria-hidden="true">🔍</span>
+      <span class="lbl">أحتاج دواء جديد</span>
+      <span class="mini" aria-hidden="true">📷</span>
+      <span class="mini" aria-hidden="true">🎙️</span>
+    </button>
+  </div>
+</section>
+
+<!-- ═══════════ CAPTURE ═══════════ -->
+<section class="screen" id="capture">
+  <header class="top">
+    <button class="btn-ghost" style="min-height:44px" onclick="go('home')">‹ رجوع</button>
+    <h1 class="h-title" style="margin-top:.5rem">شنو تحتاج؟</h1>
+    <p style="font-size:.88rem;margin-top:.3rem">صوّر العلبة أو الوصفة — أسهل من الكتابة.</p>
+  </header>
+  <div class="cap">
+    <button class="primary" onclick="go('live')">
+      <span class="ic" aria-hidden="true">📷</span>
+      <span><b>صوّر العلبة</b><span>نتعرّف على الدواء من الصورة</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('live')">
+      <span class="ic" aria-hidden="true">🎙️</span>
+      <span><b>قول اسم الدواء</b><span>بالعربي أو باللهجة العراقية</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('live')">
+      <span class="ic" aria-hidden="true">📋</span>
+      <span><b>صوّر الوصفة</b><span>نرتّب أدويتها ويراجعها الصيدلي</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('live')">
+      <span class="ic" aria-hidden="true">⌨️</span>
+      <span><b>اكتب الاسم</b><span>إذا تعرفه</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+  </div>
+  <div class="note"><span aria-hidden="true">🛡️</span><span>دوائي ما يشخّص ولا يوصف — الصيدلي هو اللي يقرر.</span></div>
+</section>
+
+<!-- ═══════════ LIVE REQUEST THEATER ═══════════ -->
+<section class="screen" id="live">
+  <header class="top">
+    <button class="btn-ghost" style="min-height:44px" onclick="go('home')">‹ رجوع</button>
+    <h1 class="h-title" style="margin-top:.5rem"><bdi dir="ltr">Amlodipine 5mg</bdi></h1>
+  </header>
+  <div class="live-head">
+    <p style="font-size:.92rem;color:var(--ink)"><span class="pulse" aria-hidden="true"></span><b id="liveMsg">صيدليتك المعتادة عندها أولوية ٣٠ ثانية</b></p>
+    <p style="font-size:.8rem;margin-top:.25rem" id="liveSub">إذا ما ردّت، نسأل الصيدليات القريبة تلقائيًا.</p>
+  </div>
+  <!-- Uber's truthful status, applied to pharmacy: who was asked, who opened it -->
+  <div class="askers" id="askers">
+    <div class="asker open" id="a1">
+      <span class="dot" aria-hidden="true"></span>
+      <span><b>صيدلية الروابي <span class="mine">صيدليتك</span></b><span>٠.٨ كم · ترد عادةً خلال ٣ دقائق</span></span>
+      <span class="st">فتحت الطلب</span>
     </div>
-  </section>
-
-  <!-- PHARMACY RESERVATIONS -->
-  <section id="reservations" class="screen" aria-labelledby="resv-title" hidden>
-    <div class="product-shell">
-      <header class="product-header">
-        <span class="brand">
-          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
-          <span><strong>دوائي</strong></span>
-        </span>
-        <span class="status-badge">حجز بانتظارك</span>
-      </header>
-      <main class="product-main">
-        <div class="page-header">
-          <p class="overline">التنفيذ</p>
-          <h1 id="resv-title">الحجوزات</h1>
-          <p>الحجز لا يبدأ حتى تؤكد حفظ الكمية. الوصفة تُفتح فقط أثناء الحفظ النشط.</p>
-        </div>
-        <div class="inbox-list">
-          <article class="inbox-card" id="resv-card">
-            <header>
-              <div>
-                <h2><bdi dir="ltr">Augmentin 625 mg</bdi></h2>
-                <p class="meta">حجز <bdi dir="ltr">RSV-1190</bdi> · الكمية 1 · <bdi dir="ltr">12,000</bdi> د.ع</p>
-              </div>
-              <span class="status-badge" id="resv-badge">بانتظار تأكيدك</span>
-            </header>
-            <p class="resv-state-line" id="resv-line"><span aria-hidden="true">⏱</span><span>مهلة تأكيد الحفظ:</span><strong id="resv-timer">2:00</strong></p>
-            <div class="quick-reply" id="resv-actions">
-              <button class="ok" type="button" data-resv="ack">تأكيد الحجز — الكمية محفوظة</button>
-              <button class="no" type="button" data-resv="fail">تعذر الحفظ</button>
-            </div>
-          </article>
-        </div>
-      </main>
-      <nav class="mobile-nav" aria-label="التنقل للصيدلية">
-        <a href="#pharmacy"><span class="ico" aria-hidden="true">✨</span><span>لوحة</span></a>
-        <a href="#pharmacy"><span class="ico" aria-hidden="true">🔔</span><span>الطلبات</span></a>
-        <a href="#reservations" aria-current="page"><span class="ico" aria-hidden="true">📦</span><span>الحجوزات</span></a>
-        <a href="#compose"><span class="ico" aria-hidden="true">📋</span><span>التوفر</span></a>
-        <a href="#welcome"><span class="ico" aria-hidden="true">🚪</span><span>خروج</span></a>
-      </nav>
+    <div class="asker sent" id="a2">
+      <span class="dot" aria-hidden="true"></span>
+      <span><b>صيدلية النور</b><span>١.٤ كم · ترد عادةً خلال ٦ دقائق</span></span>
+      <span class="st">أُرسل</span>
     </div>
-  </section>
+    <div class="asker sent" id="a3">
+      <span class="dot" aria-hidden="true"></span>
+      <span><b>صيدلية الرحمة</b><span>١.٩ كم · ترد عادةً خلال ٥ دقائق</span></span>
+      <span class="st">أُرسل</span>
+    </div>
+  </div>
+  <div style="padding:1.2rem 1.15rem">
+    <button class="btn btn-ghost btn-full" onclick="go('home')">أكمل لاحقًا — نعلمك أول ما يوصل رد</button>
+  </div>
+</section>
 
-  <script>
-    (function () {
-      const screens = [...document.querySelectorAll(".screen")];
+<!-- ═══════════ OFFERS ═══════════ -->
+<section class="screen" id="offers">
+  <header class="top">
+    <button class="btn-ghost" style="min-height:44px" onclick="go('home')">‹ رجوع</button>
+    <h1 class="h-title" style="margin-top:.5rem">وصلك ردّان</h1>
+    <p style="font-size:.86rem;margin-top:.25rem">كلها من صيدليات مرخّصة أكّدت التوفر الآن.</p>
+  </header>
 
-      function arabicOfferCount(n) {
-        const pr = new Intl.PluralRules("ar");
-        const cat = pr.select(n);
-        if (cat === "zero") return "لا عروض";
-        if (cat === "one") return "عرض واحد";
-        if (cat === "two") return "عرضان";
-        if (cat === "few") return n + " عروض";
-        if (cat === "many") return n + " عرضًا";
-        return n + " عرض";
-      }
+  <!-- one clear recommendation WITH ITS REASON — not a ranked list to decode -->
+  <div class="best">
+    <div class="tag">الأنسب لك — أقرب، وجاهز الآن، وصيدليتك المعتادة</div>
+    <div class="body">
+      <div class="o-head">
+        <div>
+          <h2 class="o-name">صيدلية الروابي</h2>
+          <div class="o-meta">المنصور · ٠.٨ كم · د. أحمد الجبوري</div>
+        </div>
+        <span class="med-for">صيدليتك</span>
+      </div>
+      <div class="facts">
+        <div class="fact"><span>السعر</span><b><bdi dir="ltr">12,000</bdi></b></div>
+        <div class="fact"><span>الجاهزية</span><b>الآن</b></div>
+        <div class="fact"><span>أكّدت</span><b>قبل ٤ د</b></div>
+      </div>
+      <div class="receipt">
+        <span class="rc">✔ مرخّصة <bdi dir="ltr">IQ-THR-1842</bdi></span>
+        <span class="rc">أكملت ٥٧ حجز</span>
+        <span class="rc">مفتوحة حتى ٢٢:٠٠</span>
+      </div>
+      <p style="font-size:.8rem">نفس سعرك السابق — <bdi dir="ltr">12,000</bdi> د.ع في تموز.</p>
+      <button class="btn btn-p btn-full" onclick="go('pass')">احجزها للاستلام</button>
+    </div>
+  </div>
 
-      const countEl = document.getElementById("offer-count");
-      if (countEl) countEl.textContent = arabicOfferCount(2);
+  <div class="offer">
+    <div class="o-head">
+      <div>
+        <h2 class="o-name">صيدلية النور</h2>
+        <div class="o-meta">المنصور · ١.٤ كم</div>
+      </div>
+    </div>
+    <div class="facts">
+      <div class="fact"><span>السعر</span><b><bdi dir="ltr">11,500</bdi></b></div>
+      <div class="fact"><span>الجاهزية</span><b>١٥ د</b></div>
+      <div class="fact"><span>أكّدت</span><b>قبل ٩ د</b></div>
+    </div>
+    <div class="receipt">
+      <span class="rc">✔ مرخّصة <bdi dir="ltr">IQ-THR-2201</bdi></span>
+      <span class="rc n">أول تعامل معها</span>
+    </div>
+    <p style="font-size:.8rem;color:var(--ink-3)">أرخص بـ<bdi dir="ltr">500</bdi> د.ع، لكن أبعد وتحتاج ١٥ دقيقة تجهيز.</p>
+    <button class="btn btn-s btn-full" onclick="go('pass')">احجزها بدلًا منها</button>
+  </div>
+  <div style="height:2rem"></div>
+</section>
 
-      const onFirstShow = {};
-      function showScreen(id) {
-        screens.forEach((el) => {
-          const on = el.id === id;
-          el.classList.toggle("active", on);
-          if (on) el.removeAttribute("hidden");
-          else el.setAttribute("hidden", "");
-        });
-        if (onFirstShow[id]) {
-          const init = onFirstShow[id];
-          delete onFirstShow[id];
-          init();
-        }
-        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-        history.replaceState(null, "", "#" + id);
-      }
+<!-- ═══════════ THE PASS ═══════════ -->
+<section class="screen" id="pass">
+  <header class="top">
+    <button class="btn-ghost" style="min-height:44px" onclick="go('home')">‹ أدويتك</button>
+    <h1 class="h-title" style="margin-top:.5rem">محجوز لك</h1>
+    <p style="font-size:.86rem;margin-top:.25rem">وريهم هذا الرمز عند الاستلام.</p>
+  </header>
 
-      document.querySelectorAll("[data-goto]").forEach((el) => {
-        el.addEventListener("click", (event) => {
-          if (el.tagName === "BUTTON" && el.type === "submit") {
-            event.preventDefault();
-            const form = el.closest("form");
-            // The demo must behave like the product: no navigation past invalid input.
-            if (form && !form.reportValidity()) return;
-          }
-          showScreen(el.getAttribute("data-goto"));
-        });
-      });
+  <!-- Apple Wallet's insight: the object comes to you, and it is physical -->
+  <div class="pass">
+    <div class="ph">
+      <div>
+        <small>صيدلية</small>
+        <strong>الروابي — المنصور</strong>
+      </div>
+      <span class="code">RSV-1190</span>
+    </div>
+    <div class="perf" aria-hidden="true"></div>
+    <div class="pb">
+      <div class="cd"><b id="passCd">14:32</b><span>باقية على انتهاء الحجز</span></div>
+      <div class="rows">
+        <div class="row"><span>الدواء</span><b><bdi dir="ltr">Amlodipine 5mg</bdi> × ١</b></div>
+        <div class="row"><span>السعر عند الاستلام</span><b><bdi dir="ltr">12,000</bdi> د.ع</b></div>
+        <div class="row"><span>العنوان</span><b>شارع ١٤ رمضان</b></div>
+      </div>
+      <div class="pass-act">
+        <button class="btn btn-p" onclick="alert('يفتح الخرائط')">الاتجاهات</button>
+        <button class="btn btn-s" onclick="alert('يتصل بالصيدلية')">اتصال</button>
+      </div>
+      <button class="btn btn-ghost btn-full" style="min-height:40px">أضفها إلى Apple Wallet</button>
+    </div>
+  </div>
+  <div class="note"><span aria-hidden="true">🕐</span><span>الوقت بدأ لأن الصيدلية أكّدت إنها حجزت الكمية فعلًا.</span></div>
+  <div style="height:2rem"></div>
+</section>
 
-      document.querySelectorAll('a[href^="#"]').forEach((a) => {
-        const id = a.getAttribute("href").slice(1);
-        if (!id || !document.getElementById(id)) return;
-        a.addEventListener("click", (event) => {
-          if (screens.some((s) => s.id === id)) {
-            event.preventDefault();
-            showScreen(id);
-          }
-        });
-      });
+<!-- ═══════════ ME ═══════════ -->
+<section class="screen" id="me">
+  <header class="top">
+    <button class="btn-ghost" style="min-height:44px" onclick="go('home')">‹ رجوع</button>
+    <h1 class="h-title" style="margin-top:.5rem">حسابك</h1>
+  </header>
+  <div class="sec">صيدليتك</div>
+  <div class="cards">
+    <article class="med">
+      <div class="med-head">
+        <div><h2 class="med-name">صيدلية الروابي</h2><div class="med-sig">المنصور · ٠.٨ كم · ٥٧ حجز مكتمل</div></div>
+        <span class="med-for">المعتادة</span>
+      </div>
+      <p style="font-size:.82rem">تاخذ أولوية ٣٠ ثانية على كل طلب قبل ما نسأل غيرها.</p>
+      <button class="btn btn-s btn-full">غيّر صيدليتك</button>
+    </article>
+  </div>
+  <div class="sec">من يشوف أدويتك</div>
+  <div class="cards">
+    <article class="med">
+      <div class="med-head">
+        <div><h2 class="med-name">أحمد (ابنك)</h2><div class="med-sig">يشوف أدويتك ويطلب نيابةً عنك</div></div>
+      </div>
+      <button class="btn btn-ghost btn-full" style="color:var(--alert)">اسحب الوصول</button>
+    </article>
+  </div>
+  <div class="sec">سنتك بالأرقام</div>
+  <div class="cards">
+    <article class="med">
+      <p style="font-size:.95rem;color:var(--ink)">حافظت على دواء الضغط <b>٣١٣ يوم</b> من ٣٦٥ هذه السنة.</p>
+      <p style="font-size:.8rem">بدون تقييم وبدون مقارنة — مجرد ملخّص لك وحدك.</p>
+    </article>
+  </div>
+  <div style="height:3rem"></div>
+</section>
 
+<!-- ═══════════ EMPTY / FIRST RUN ═══════════ -->
+<section class="screen" id="first">
+  <header class="top">
+    <div class="greet">أهلًا بك</div>
+    <h1 class="h-title">خلّينا نبدأ بدواء واحد</h1>
+    <p style="font-size:.9rem;margin-top:.4rem">إذا صرفت دواء من صيدلية مشتركة معنا، امسح الرمز من الوصل ونجيب أدويتك جاهزة.</p>
+  </header>
+  <div class="cap">
+    <button class="primary" onclick="go('home')">
+      <span class="ic" aria-hidden="true">▣</span>
+      <span><b>امسح رمز الوصل</b><span>أدويتك تظهر جاهزة — بدون كتابة</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('capture')">
+      <span class="ic" aria-hidden="true">📷</span>
+      <span><b>صوّر علبة دواء تاخذه</b><span>نبني بطاقتك الأولى منها</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+  </div>
+  <div class="empty" style="margin-top:1.2rem">
+    <div class="g" aria-hidden="true">💊</div>
+    <b>ما عندك أدوية بعد</b>
+    <p>أول ما تضيف دواء، نحسب لك متى يخلص ونذكّرك قبلها.</p>
+  </div>
+</section>
 
-      // Search flows into the request/offers journey and carries the query along.
-      const searchForm = document.getElementById("search-form");
-      if (searchForm) {
-        searchForm.addEventListener("submit", (event) => {
-          event.preventDefault();
-          const value = document.getElementById("patient-search").value.trim();
-          if (value) {
-            const title = document.getElementById("offers-title");
-            if (title) title.innerHTML = '<bdi dir="ltr"></bdi>';
-            if (title) title.querySelector("bdi").textContent = value;
-          }
-          showScreen("offers");
-        });
-      }
+<!-- ═══════════ NAV ═══════════ -->
+<nav class="nav" aria-label="التنقل">
+  <a href="#home" id="n-home" aria-current="page" onclick="go('home');return false"><span class="g" aria-hidden="true">💊</span>أدويتك</a>
+  <a href="#live" id="n-live" onclick="go('live');return false"><span class="g" aria-hidden="true">📡</span>الطلبات</a>
+  <a href="#me" id="n-me" onclick="go('me');return false"><span class="g" aria-hidden="true">👤</span>حسابك</a>
+</nav>
+</div>
 
-      // Sending an offer keeps the pharmacist in their world with visible feedback.
-      const sendOffer = document.getElementById("send-offer");
-      if (sendOffer) {
-        sendOffer.addEventListener("click", (event) => {
-          event.preventDefault();
-          const form = sendOffer.closest("form");
-          if (form && !form.reportValidity()) return;
-          const banner = document.getElementById("offer-sent");
-          if (banner) banner.hidden = false;
-          const card = document.getElementById("inbox-augmentin");
-          if (card) {
-            const reply = card.querySelector(".quick-reply");
-            const badge = card.querySelector("header .status-badge:not(.rx)");
-            if (badge) badge.textContent = "تم إرسال عرض";
-            if (reply) reply.remove();
-          }
-          showScreen("pharmacy");
-        });
-      }
+<!-- reorder sheet: two taps, because the app already knows everything -->
+<div class="sheet" id="sheet">
+  <div class="scrim" onclick="closeSheet()"></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="shT">
+    <div class="grip" aria-hidden="true"></div>
+    <h2 id="shT" style="font-size:1.15rem">تطلبها من صيدلية الروابي؟</h2>
+    <p style="font-size:.88rem;margin-top:.4rem">صيدليتك المعتادة · ٠.٨ كم · آخر مرة كلّفتك <bdi dir="ltr">12,000</bdi> د.ع</p>
+    <div class="facts" style="margin:1rem 0">
+      <div class="fact"><span>الدواء</span><b id="shMed" style="font-size:.8rem">—</b></div>
+      <div class="fact"><span>الكمية</span><b>علبة</b></div>
+      <div class="fact"><span>الاستلام</span><b>أنت</b></div>
+    </div>
+    <button class="btn btn-p btn-full" onclick="closeSheet();go('live')">أرسل الطلب</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:.4rem" onclick="closeSheet()">مو هسه</button>
+  </div>
+</div>
 
-      /* ---- Account screen ---- */
-      const accountForm = document.getElementById("account-form");
-      if (accountForm) {
-        accountForm.addEventListener("submit", (event) => {
-          event.preventDefault();
-          if (!accountForm.reportValidity()) return;
-          document.getElementById("account-saved").hidden = false;
-        });
-        document.getElementById("delete-arm").addEventListener("click", () => {
-          document.getElementById("delete-idle").hidden = true;
-          document.getElementById("delete-armed").hidden = false;
-        });
-        document.getElementById("delete-cancel").addEventListener("click", () => {
-          document.getElementById("delete-armed").hidden = true;
-          document.getElementById("delete-idle").hidden = false;
-        });
-        document.getElementById("delete-confirm").addEventListener("click", () => {
-          showScreen("welcome");
-          document.getElementById("delete-armed").hidden = true;
-          document.getElementById("delete-idle").hidden = false;
-        });
-      }
+<script>
+const $ = (s)=>document.querySelector(s);
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id===id));
+  const map={home:'n-home',live:'n-live',offers:'n-live',pass:'n-live',me:'n-me',capture:'n-home',first:'n-home'};
+  document.querySelectorAll('.nav a').forEach(a=>a.removeAttribute('aria-current'));
+  const n=document.getElementById(map[id]); if(n) n.setAttribute('aria-current','page');
+  window.scrollTo({top:0,behavior:'instant'});
+  if(id==='live') runTheater();
+  if(id==='pass') runCountdown();
+}
+function who(btn,name,title){
+  document.querySelectorAll('.who button').forEach(b=>b.setAttribute('aria-pressed','false'));
+  btn.setAttribute('aria-pressed','true');
+  $('#homeTitle').textContent = title;
+  $('#doseName').textContent = name==='أنا' ? 'Amlodipine 5mg' : 'Glucophage 850mg';
+}
+function takeDose(){
+  const c=$('#doseCard');
+  c.classList.add('done');
+  c.innerHTML='<div><small>جرعة المساء</small><strong>سُجّلت ✓</strong></div><span style="font-size:.8rem;opacity:.8">شكرًا</span>';
+}
+function snooze(b){
+  const card=b.closest('.med');
+  card.classList.remove('low');
+  card.querySelector('.cover b').textContent='أجّلنا التذكير أسبوعين';
+  card.querySelector('.med-act').remove();
+}
+function reorder(name){ $('#shMed').textContent=name; $('#sheet').classList.add('on'); }
+function closeSheet(){ $('#sheet').classList.remove('on'); }
 
-      /* ---- Pharmacy reservation lifecycle: PENDING_ACK → ACTIVE → READY → COMPLETED ---- */
-      const resvActions = document.getElementById("resv-actions");
-      if (resvActions) {
-        const badge = document.getElementById("resv-badge");
-        const line = document.getElementById("resv-line");
-        let holdTimer = null;
-        function setActions(buttons) {
-          resvActions.innerHTML = "";
-          buttons.forEach(([cls, label, state]) => {
-            const b = document.createElement("button");
-            b.type = "button";
-            b.className = cls;
-            b.textContent = label;
-            b.dataset.resv = state;
-            resvActions.appendChild(b);
-          });
-        }
-        function startHoldCountdown() {
-          const expiresAt = Date.now() + 15 * 60 * 1000;
-          holdTimer = setInterval(() => {
-            // The line's markup is replaced on transitions — resolve the node live.
-            const el = document.getElementById("resv-timer");
-            if (!el) { clearInterval(holdTimer); holdTimer = null; return; }
-            const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
-            el.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
-            if (left === 0) transition("expired");
-          }, 1000);
-        }
-        function transition(state) {
-          if (holdTimer && state !== "ack") { clearInterval(holdTimer); holdTimer = null; }
-          if (state === "ack") {
-            badge.textContent = "محفوظ";
-            badge.className = "status-badge ok";
-            line.innerHTML = '<span aria-hidden="true">⏱</span><span>الحفظ النشط ينتهي خلال:</span><strong id="resv-timer">15:00</strong>';
-            setActions([["ok", "الدواء جاهز للاستلام", "ready"], ["no", "مشكلة في التنفيذ", "fail"]]);
-          } else if (state === "ready") {
-            badge.textContent = "جاهز";
-            line.className = "resv-state-line ok";
-            line.innerHTML = '<span aria-hidden="true">📦</span><span>بانتظار حضور المريض · أبقِ الكمية جانبًا</span>';
-            setActions([["ok", "تأكيد الاستلام", "complete"], ["no", "لم يحضر المريض", "noshow"]]);
-          } else if (state === "complete") {
-            badge.textContent = "اكتمل";
-            line.className = "resv-state-line ok";
-            line.innerHTML = '<span aria-hidden="true">✅</span><span>اكتمل الاستلام — أحسنت! انعكس ذلك على موثوقية فرعك.</span>';
-            resvActions.remove();
-          } else {
-            badge.textContent = state === "noshow" ? "لم يحضر" : state === "expired" ? "انتهت المهلة" : "تعذر الحفظ";
-            badge.className = "status-badge";
-            line.className = "resv-state-line";
-            line.innerHTML = '<span aria-hidden="true">↩️</span><span>أُعيد الطلب للمريض ليختار عرضًا آخر. لا يؤثر الإبلاغ الصادق سلبًا عليك.</span>';
-            resvActions.remove();
-          }
-        }
-        resvActions.addEventListener("click", (event) => {
-          const state = event.target.closest("[data-resv]")?.dataset.resv;
-          if (!state) return;
-          if (state === "ack") { transition("ack"); const t = document.getElementById("resv-timer"); if (t) { startHoldCountdown(); } }
-          else transition(state);
-        });
-        // ACK deadline arms only when the pharmacist actually opens the screen.
-        onFirstShow.reservations = () => {
-          const ackExpires = Date.now() + 2 * 60 * 1000;
-          const ackTimer = setInterval(() => {
-            const el = document.getElementById("resv-timer");
-            if (!el || !document.getElementById("resv-actions")) { clearInterval(ackTimer); return; }
-            if (badge.textContent !== "بانتظار تأكيدك") { clearInterval(ackTimer); return; }
-            const left = Math.max(0, Math.round((ackExpires - Date.now()) / 1000));
-            el.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
-            if (left === 0) { clearInterval(ackTimer); transition("expired"); }
-          }, 1000);
-        };
-      }
-
-      window.addEventListener("hashchange", () => {
-        const id = location.hash.slice(1);
-        if (document.getElementById(id)) showScreen(id);
-      });
-
-      /* ---- Live hold countdown (server-authoritative pattern: absolute expiry) ---- */
-      const cdValue = document.getElementById("countdown-value");
-      const cdBox = document.getElementById("hold-countdown");
-      const cdAnnounce = document.getElementById("countdown-announce");
-      if (cdValue && cdBox) onFirstShow.hold = () => {
-        const expiresAt = Date.now() + (14 * 60 + 32) * 1000; // demo stand-in for hold.expires_at
-        let lastAnnouncedMin = null;
-        const tick = () => {
-          const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
-          const m = Math.floor(left / 60);
-          const s = left % 60;
-          cdValue.textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-          // Throttled announcements: minute marks, then 30s and 10s under a minute.
-          if (m !== lastAnnouncedMin && s === 0 && m > 0) {
-            lastAnnouncedMin = m;
-            cdAnnounce.textContent = "الوقت المتبقي للحجز: " + m + " دقيقة";
-          } else if (m === 0 && (s === 30 || s === 10)) {
-            cdAnnounce.textContent = "الوقت المتبقي للحجز: " + s + " ثانية";
-          }
-          if (left === 0) {
-            clearInterval(timer);
-            cdBox.classList.add("expired");
-            document.getElementById("countdown-label").textContent = "انتهت مهلة الحجز";
-            cdValue.textContent = "00:00";
-            cdAnnounce.textContent = "انتهت مهلة الحجز.";
-            document.getElementById("hold-contact").style.display = "none";
-            document.getElementById("hold-expired").classList.add("visible");
-          }
-        };
-        const timer = setInterval(tick, 1000);
-        tick();
-      };
-
-      /* ---- Functional offer sorting ---- */
-      const sortSelect = document.getElementById("offer-sort");
-      const offerList = document.getElementById("offer-list");
-      if (sortSelect && offerList) {
-        sortSelect.addEventListener("change", () => {
-          const key = { best: "best", distance: "distance", price: "price" }[sortSelect.value] || "best";
-          [...offerList.querySelectorAll(".offer-card")]
-            .sort((a, b) => parseFloat(a.dataset[key]) - parseFloat(b.dataset[key]))
-            .forEach((card) => offerList.appendChild(card));
-        });
-      }
-
-      /* ---- "غير متوفر" captures a reason (routing training data) ---- */
-      const REASONS = [
-        ["OUT_OF_STOCK", "نفد المخزون"],
-        ["NOT_CARRIED", "لا نتعامل به"],
-        ["CLOSED_NOW", "مغلق حاليًا"],
-      ];
-      document.querySelectorAll(".quick-reply .no").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const reply = btn.closest(".quick-reply");
-          if (reply.nextElementSibling && reply.nextElementSibling.classList.contains("reason-chips")) return;
-          const chips = document.createElement("div");
-          chips.className = "reason-chips";
-          chips.setAttribute("role", "group");
-          chips.setAttribute("aria-label", "سبب عدم التوفر");
-          REASONS.forEach(([code, label]) => {
-            const b = document.createElement("button");
-            b.type = "button";
-            b.textContent = label;
-            b.addEventListener("click", () => {
-              const done = document.createElement("p");
-              done.className = "inbox-done";
-              done.setAttribute("role", "status");
-              done.textContent = "شكرًا — سجّلنا السبب وسنحسّن توجيه الطلبات إليك.";
-              const card = chips.closest(".inbox-card");
-              reply.remove();
-              chips.replaceWith(done);
-              const badge = card.querySelector("header .status-badge:not(.rx)");
-              if (badge) badge.textContent = "تم الرد";
-            });
-            chips.appendChild(b);
-          });
-          reply.after(chips);
-          chips.querySelector("button").focus();
-        });
-      });
-
-      /* ---- Zero-offers: radius expansion with explicit consent ---- */
-      const expandBtn = document.getElementById("expand-radius");
-      if (expandBtn) {
-        expandBtn.addEventListener("click", () => {
-          document.getElementById("zero-meta").textContent = "النطاق الحالي: 5 كم · أُرسل إلى 8 صيدليات";
-          const steps = document.querySelectorAll("#zero .ladder li");
-          steps.forEach((li) => li.removeAttribute("aria-current"));
-          steps[2].setAttribute("aria-current", "step");
-          expandBtn.textContent = "توسيع نادر إلى 10 كم";
-          expandBtn.dataset.expanded = "1";
-        });
-      }
-
-      /* ---- Offline awareness ---- */
-      const offlineBanner = document.getElementById("offline-banner");
-      const syncOnline = () => offlineBanner.classList.toggle("visible", !navigator.onLine);
-      window.addEventListener("online", syncOnline);
-      window.addEventListener("offline", syncOnline);
-      syncOnline();
-
-      /* ---- PWA: installable app shell (requires same-origin HTTPS hosting) ---- */
-      const initial = (location.hash || "#welcome").slice(1);
-      showScreen(document.getElementById(initial) ? initial : "welcome");
-
-      if ("serviceWorker" in navigator && location.protocol === "https:") {
-        navigator.serviceWorker.register("sw.js").catch(() => {
-          /* cross-origin preview hosts (e.g. htmlpreview) can't register a SW — fine */
-        });
-      }
-    })();
-  </script>
+// The wait becomes theater: real state, one pharmacy at a time.
+let theaterRan=false;
+function runTheater(){
+  if(theaterRan) return; theaterRan=true;
+  setTimeout(()=>{
+    $('#a1').className='asker replied';
+    $('#a1').querySelector('.st').textContent='ردّت ✓';
+    $('#liveMsg').textContent='صيدلية الروابي عندها الدواء';
+    $('#liveSub').textContent='ننتظر ثانية حتى تقدر تقارن.';
+  },2200);
+  setTimeout(()=>{
+    $('#a2').className='asker open';
+    $('#a2').querySelector('.st').textContent='فتحت الطلب';
+  },3400);
+  setTimeout(()=>{
+    $('#a2').className='asker replied';
+    $('#a2').querySelector('.st').textContent='ردّت ✓';
+    $('#liveMsg').textContent='وصلك ردّان — تقدر تقارن';
+    $('#liveSub').textContent='';
+    setTimeout(()=>go('offers'),900);
+  },5200);
+}
+let cdRan=false;
+function runCountdown(){
+  if(cdRan) return; cdRan=true;
+  let left=14*60+32;
+  setInterval(()=>{
+    left=Math.max(0,left-1);
+    $('#passCd').textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
+  },1000);
+}
+const h=new Date().getHours();
+$('#greet').textContent = h<12?'صباح الخير':h<17?'ظهر طيب':'مساء الخير';
+</script>
 </body>
 </html>
