@@ -157,6 +157,11 @@
   .nav a[aria-current]{color:var(--forest);background:var(--mint)}
 
   /* ---------- sheet ---------- */
+
+/* الحالات المطوية للأزرار التي كانت بلا سلوك. الإخفاء بـ [hidden] وحده لأن
+   أي style مضمّن يتغلّب عليه — وهذا سبق أن جعل تأكيد حذف يظهر دائماً. */
+.chooser,.confirm{display:grid;gap:.4rem;margin-top:.5rem}
+.chooser[hidden],.confirm[hidden]{display:none}
   .sheet{position:fixed;inset:0;z-index:60;display:none}
   .sheet.on{display:block}
   .sheet .scrim{position:absolute;inset:0;background:rgb(12 26 24/.42);animation:fade .25s}
@@ -514,10 +519,10 @@
         <div class="row"><span>العنوان</span><b>شارع ١٤ رمضان</b></div>
       </div>
       <div class="pass-act">
-        <button class="btn btn-p" onclick="alert('يفتح الخرائط')">الاتجاهات</button>
-        <button class="btn btn-s" onclick="alert('يتصل بالصيدلية')">اتصال</button>
+        <a class="btn btn-p" href="https://www.google.com/maps/search/?api=1&amp;query=%D8%B5%D9%8A%D8%AF%D9%84%D9%8A%D8%A9+%D8%A7%D9%84%D8%B1%D9%88%D8%A7%D8%A8%D9%8A+%D8%A7%D9%84%D9%85%D9%86%D8%B5%D9%88%D8%B1" target="_blank" rel="noreferrer">الاتجاهات</a>
+        <a class="btn btn-s" href="tel:+9647700000000">اتصال</a>
       </div>
-      <button class="btn btn-ghost btn-full" style="min-height:40px">أضفها إلى Apple Wallet</button>
+      <button class="btn btn-ghost btn-full" style="min-height:40px" onclick="addToWallet(this)">أضفها إلى Apple Wallet</button>
     </div>
   </div>
   <div class="note"><span aria-hidden="true">🕐</span><span>الوقت بدأ لأن الصيدلية أكّدت إنها حجزت الكمية فعلًا.</span></div>
@@ -538,7 +543,11 @@
         <span class="med-for">المعتادة</span>
       </div>
       <p style="font-size:.82rem">تاخذ أولوية ٣٠ ثانية على كل طلب قبل ما نسأل غيرها.</p>
-      <button class="btn btn-s btn-full">غيّر صيدليتك</button>
+      <button class="btn btn-s btn-full" onclick="choosePharmacy(this)">غيّر صيدليتك</button>
+      <div class="chooser" hidden>
+        <button class="btn btn-ghost btn-full" onclick="setPharmacy(this,'صيدلية النور — اليرموك')">صيدلية النور — اليرموك · ١.٩ كم</button>
+        <button class="btn btn-ghost btn-full" onclick="setPharmacy(this,'صيدلية الرشيد — الكرادة')">صيدلية الرشيد — الكرادة · ٣.٢ كم</button>
+      </div>
     </article>
   </div>
   <div class="sec">من يشوف أدويتك</div>
@@ -547,7 +556,14 @@
       <div class="med-head">
         <div><h2 class="med-name">أحمد (ابنك)</h2><div class="med-sig">يشوف أدويتك ويطلب نيابةً عنك</div></div>
       </div>
-      <button class="btn btn-ghost btn-full" style="color:var(--alert)">اسحب الوصول</button>
+      <button class="btn btn-ghost btn-full" style="color:var(--alert)" onclick="armRevoke(this)">اسحب الوصول</button>
+      <div class="confirm" hidden>
+        <p style="font-size:.82rem">يتوقف وصوله فوراً. تقدر ترجّعه بأي وقت.</p>
+        <div class="med-act">
+          <button class="btn btn-p btn-full" style="background:var(--alert);color:#fff" onclick="doRevoke(this)">أكّد السحب</button>
+          <button class="btn btn-ghost btn-full" onclick="cancelRevoke(this)">تراجع</button>
+        </div>
+      </div>
     </article>
   </div>
   <div class="sec">سنتك بالأرقام</div>
@@ -641,6 +657,57 @@ function snooze(b){
 }
 function reorder(name){ $('#shMed').textContent=name; $('#sheet').classList.add('on'); }
 function closeSheet(){ $('#sheet').classList.remove('on'); }
+
+/* ── الأزرار التي كانت بلا معالج ──
+   زر بلا سلوك أسوأ من زر غائب: المستخدم يضغطه ويستنتج أن التطبيق معطّل، لا أن
+   الميزة غير جاهزة. كل واحد هنا يغيّر حالة حقيقية في الشاشة. */
+function addToWallet(b){
+  b.disabled = true;
+  b.textContent = 'أُضيفت إلى Apple Wallet ✓';
+  b.style.color = 'var(--ok, #2f7255)';
+  // TODO(api): GET /api/v1/reservations/:id/pass.pkpass ثم فتحه بـ location.href
+}
+function choosePharmacy(b){
+  const c = b.parentElement.querySelector('.chooser');
+  const open = !c.hidden;
+  c.hidden = open;
+  b.textContent = open ? 'غيّر صيدليتك' : 'إلغاء';
+}
+function setPharmacy(b, name){
+  const card = b.closest('.med');
+  card.querySelector('.med-name').textContent = name.split(' — ')[0];
+  card.querySelector('.med-sig').textContent = name.split(' — ')[1] + ' · صيدليتك المعتادة الآن';
+  b.closest('.chooser').hidden = true;
+  card.querySelector('.btn-s').textContent = 'غيّر صيدليتك';
+  // TODO(api): PUT /api/v1/me/preferred-pharmacy
+}
+/* السحب خطوتان: الوصول العائلي بيانات صحية، وسحبه بنقرة واحدة خطأ بالاتجاه
+   الآخر — لكن زر سحب لا يسحب شيئاً كذب على المستخدم بشأن خصوصيته. */
+function armRevoke(b){
+  b.hidden = true;
+  b.parentElement.querySelector('.confirm').hidden = false;
+}
+function cancelRevoke(b){
+  const card = b.closest('.med');
+  card.querySelector('.confirm').hidden = true;
+  card.querySelector('.btn-ghost').hidden = false;
+}
+function doRevoke(b){
+  const card = b.closest('.med');
+  card.querySelector('.med-sig').textContent = 'سُحب الوصول — ما عاد يشوف أدويتك';
+  card.querySelector('.confirm').remove();
+  const restore = document.createElement('button');
+  restore.className = 'btn btn-ghost btn-full';
+  restore.textContent = 'أعِد الوصول';
+  restore.onclick = () => {
+    card.querySelector('.med-sig').textContent = 'يشوف أدويتك ويطلب نيابةً عنك';
+    restore.remove();
+    // TODO(api): POST /api/v1/clinical/family مع Idempotency-Key
+  };
+  card.appendChild(restore);
+  // TODO(api): DELETE /api/v1/clinical/family/:id (سحب، لا حذف — السجل يبقى)
+}
+
 
 // The wait becomes theater: real state, one pharmacy at a time.
 let theaterRan=false;

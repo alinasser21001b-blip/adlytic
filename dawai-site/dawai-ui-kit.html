@@ -175,6 +175,12 @@ a{color:inherit}
 .chip-n{color:var(--ink-3);background:var(--paper)}
 
 /* ── 4.3 مبدّل الملفات (وضع العائلة) ── */
+
+/* كتل مطوية للأزرار التي كانت بلا سلوك. الإخفاء بـ [hidden] وحده — أي
+   style مضمّن يتغلّب عليه، وهذا سبق أن جعل تأكيد حذف يظهر دائماً. */
+.fold{display:grid;gap:.45rem;margin-top:.5rem}
+.fold[hidden]{display:none}
+
 /* زر الحساب في الترويسة. المقاس مربوط بـ --tap (٤٤px) لأنه هدف لمس
    حقيقي — لا تُصغّره لأسباب جمالية. */
 .avatar{width:var(--tap);height:var(--tap);border-radius:14px;
@@ -815,7 +821,7 @@ a{color:inherit}
       <li><span class="n">٤</span><span>إنهاء الطلب وإعادة المحاولة لاحقاً</span></li>
     </ol>
     <!-- TODO(api): POST /api/v1/patient/requests/:id/expand {radiusKm:5} -->
-    <button class="btn btn-p btn-full" onclick="alert('وسّعنا النطاق إلى ٥ كم')">وسّع إلى ٥ كم</button>
+    <button class="btn btn-p btn-full" onclick="widenRadius(this)">وسّع إلى ٥ كم</button>
     <button class="btn btn-ghost btn-full" style="margin-top:.4rem" onclick="go('s-home')">سأنتظر</button>
   </div>
 </section>
@@ -847,7 +853,7 @@ a{color:inherit}
         <a class="btn btn-p" href="https://www.google.com/maps/search/?api=1&query=%D8%A7%D9%84%D9%85%D9%86%D8%B5%D9%88%D8%B1" target="_blank" rel="noreferrer">الاتجاهات</a>
         <a class="btn btn-s" href="tel:+9647700000000">اتصال</a>
       </div>
-      <button class="btn btn-ghost btn-full" style="min-height:40px">أضفها إلى Apple Wallet</button>
+      <button class="btn btn-ghost btn-full" style="min-height:40px" onclick="addToWallet(this)">أضفها إلى Apple Wallet</button>
     </div>
   </div>
   <div class="banner banner-info" style="margin-top:1rem">
@@ -907,7 +913,7 @@ a{color:inherit}
     </div>
     <div style="margin-top:1.2rem" class="btn-row">
       <button class="btn btn-p" onclick="openSheet('Metformin 500mg')">اطلبها</button>
-      <button class="btn btn-s" onclick="alert('يوقف تتبع هذا الدواء')">أوقف التتبع</button>
+      <button class="btn btn-s" onclick="stopTracking(this)">أوقف التتبع</button>
     </div>
     <div class="gap"></div>
   </div>
@@ -931,8 +937,8 @@ a{color:inherit}
       </div>
       <div class="btn-row">
         <!-- TODO(api): POST /api/v1/clinical/family/:id/grant -->
-        <button class="btn btn-p" onclick="alert('مُنح الوصول')">أوافق</button>
-        <button class="btn btn-s" onclick="alert('رُفض الطلب')">أرفض</button>
+        <button class="btn btn-p" onclick="grantAccess(this)">أوافق</button>
+        <button class="btn btn-s" onclick="denyAccess(this)">أرفض</button>
       </div>
     </article>
   </div>
@@ -945,7 +951,14 @@ a{color:inherit}
         <div class="med-sig">بنتك · الاطلاع فقط · منذ ١٢ حزيران</div></div>
       </div>
       <!-- TODO(api): POST /api/v1/clinical/family/:id/revoke -->
-      <button class="btn btn-danger btn-full" onclick="alert('سُحب الوصول فوراً')">اسحب الوصول</button>
+      <button class="btn btn-danger btn-full" onclick="armRevoke(this)">اسحب الوصول</button>
+      <div class="fold" hidden>
+        <p style="font-size:.82rem">يتوقف وصولها فوراً. السجل يبقى، والصلاحية وحدها تُسحب.</p>
+        <div class="btn-row">
+          <button class="btn btn-danger" onclick="doRevoke(this)">أكّد السحب</button>
+          <button class="btn btn-s" onclick="cancelRevoke(this)">تراجع</button>
+        </div>
+      </div>
     </article>
   </div>
 
@@ -1003,7 +1016,11 @@ a{color:inherit}
         <span class="chip chip-ok">المعتادة</span>
       </div>
       <p style="font-size:.82rem">تاخذ أولوية ٣٠ ثانية على كل طلب قبل ما نسأل غيرها.</p>
-      <button class="btn btn-s btn-full">غيّر صيدليتك</button>
+      <button class="btn btn-s btn-full" onclick="choosePharmacy(this)">غيّر صيدليتك</button>
+      <div class="fold" hidden>
+        <button class="btn btn-ghost btn-full" onclick="setPharmacy(this,'صيدلية النور','اليرموك · ١.٩ كم')">صيدلية النور — اليرموك · ١.٩ كم</button>
+        <button class="btn btn-ghost btn-full" onclick="setPharmacy(this,'صيدلية الرشيد','الكرادة · ٣.٢ كم')">صيدلية الرشيد — الكرادة · ٣.٢ كم</button>
+      </div>
     </article>
   </div>
 
@@ -1014,7 +1031,7 @@ a{color:inherit}
     <label class="field"><span>المنطقة الافتراضية</span><input value="المنصور، بغداد" /></label>
     <label class="check"><input type="checkbox" checked />
       <span>إشعارات عند وصول العروض وتحديثات الحجز</span></label>
-    <button class="btn btn-p btn-full">احفظ التغييرات</button>
+    <button class="btn btn-p btn-full" onclick="saveSettings(this)">احفظ التغييرات</button>
     <button class="btn btn-s btn-full" style="margin-top:.5rem" onclick="go('s-family')">من يشوف أدويتك</button>
   </div>
 
@@ -1033,7 +1050,13 @@ a{color:inherit}
       <h2 style="font-size:1rem;color:var(--alert)">حذف الحساب</h2>
       <p style="font-size:.85rem;margin:.4rem 0 .9rem">يعطّل حسابك ويجدول حذف بياناتك وصور وصفاتك. لا يمكن التراجع.</p>
       <!-- TODO(api): POST /api/v1/auth/account/delete -->
-      <button class="btn btn-danger btn-full" onclick="confirm('متأكد؟ لا يمكن التراجع.')">احذف حسابي</button>
+      <button class="btn btn-danger btn-full" onclick="armDelete(this)">احذف حسابي</button>
+      <div class="fold" hidden>
+        <label class="field"><span>اكتب <bdi>حذف</bdi> للتأكيد</span>
+          <input id="delWord" autocomplete="off" oninput="checkDelete()" /></label>
+        <button class="btn btn-danger btn-full" id="delGo" disabled onclick="doDelete(this)">احذف الحساب نهائياً</button>
+        <button class="btn btn-ghost btn-full" onclick="cancelDelete(this)">تراجع</button>
+      </div>
     </div>
     <button class="btn btn-ghost btn-full" style="margin-top:1rem" onclick="go('s-onboard')">تسجيل الخروج</button>
   </div>
@@ -1196,7 +1219,12 @@ a{color:inherit}
           <div class="rx-meta">٣ علب · يحتاج جرد للتأكيد</div></div>
           <span class="chip chip-n">غير كافٍ للتنبؤ</span>
         </div>
-        <button class="btn btn-s btn-full" style="background:#1c302c;border-color:#24403b;color:#dfe9e6">سجّل جرد</button>
+        <button class="btn btn-s btn-full" style="background:#1c302c;border-color:#24403b;color:#dfe9e6" onclick="countStock(this)">سجّل جرد</button>
+        <div class="fold" hidden>
+          <label class="field"><span>العدد الفعلي على الرف</span>
+            <input type="number" inputmode="numeric" min="0" value="3" /></label>
+          <button class="btn btn-p btn-full" onclick="submitCount(this)">سجّل العدّة</button>
+        </div>
       </article>
       <div style="height:6rem"></div>
     </div>
@@ -1523,6 +1551,152 @@ function showPill(priority){
   $('#pillX').style.display = priority === 'SEV_ALERT' ? 'none' : 'grid';
 }
 function hidePill(){ $('#pill').classList.remove('on'); }
+
+
+/* ── 8.14 أزرار كانت بلا معالج ──
+   زر بلا سلوك أسوأ من زر غائب: المستخدم يضغطه فيستنتج أن التطبيق معطّل، لا أن
+   الميزة غير جاهزة. كل واحد هنا يغيّر حالة حقيقية، ونقطة التكامل معلّمة. */
+function addToWallet(b){
+  b.disabled = true;
+  b.textContent = 'أُضيفت إلى Apple Wallet ✓';
+  b.style.color = 'var(--mint-3)';
+  // TODO(api): GET /api/v1/reservations/:id/pass.pkpass ثم location.href = url
+}
+function choosePharmacy(b){
+  const f = b.parentElement.querySelector('.fold');
+  f.hidden = !f.hidden;
+  b.textContent = f.hidden ? 'غيّر صيدليتك' : 'إلغاء';
+}
+function setPharmacy(b, name, meta){
+  const card = b.closest('.med') || b.closest('article');
+  card.querySelector('.med-name, h2').textContent = name;
+  card.querySelector('.med-sig, .sub').textContent = meta + ' · صيدليتك المعتادة الآن';
+  b.closest('.fold').hidden = true;
+  card.querySelector('.btn-s').textContent = 'غيّر صيدليتك';
+  // TODO(api): PUT /api/v1/me/preferred-pharmacy
+}
+function saveSettings(b){
+  b.disabled = true;
+  const was = b.textContent;
+  b.textContent = 'حُفظت ✓';
+  // الزر يعود قابلاً للضغط: حفظ يعطّل نفسه للأبد يمنع تعديلاً لاحقاً.
+  setTimeout(() => { b.disabled = false; b.textContent = was; }, 2200);
+  // TODO(api): PATCH /api/v1/me مع Idempotency-Key
+}
+function countStock(b){
+  const f = b.parentElement.querySelector('.fold');
+  f.hidden = !f.hidden;
+  if (!f.hidden) f.querySelector('input').focus();
+}
+/* الجرد حركة في السجل، لا تعديل لحقل كمية. عدّة تطابق السجل صالحة تماماً
+   وترفع الثقة — ولهذا لا يُشترط أن يختلف الرقم. */
+function submitCount(b){
+  const fold = b.closest('.fold');
+  const card = b.closest('article');
+  const n = fold.querySelector('input').value;
+  card.querySelector('.rx-meta').textContent = n + ' علب · جُردت الآن';
+  const chip = card.querySelector('.chip');
+  if (chip){ chip.textContent = 'ثقة كافية للتنبؤ'; chip.className = 'chip chip-ok'; }
+  fold.hidden = true;
+  card.querySelector('.btn-s').textContent = 'سجّل جرد';
+  // TODO(api): POST /api/v1/pharmacy/stock-movements {reason:'COUNT', countedQty}
+}
+
+
+/* ── 8.15 قرارات الخصوصية والحساب ──
+   كانت هذه alert() و confirm(). في الموافقة العائلية تحديداً، زر "أوافق"
+   يعرض رسالة ثم لا يمنح شيئاً هو كذب على المستخدم بشأن من يرى بياناته
+   الصحية — وهو أخطر من زر لا يعمل إطلاقاً، لأنه يبدو ناجحاً. */
+function grantAccess(b){
+  const card = b.closest('.med');
+  card.querySelector('.med-sig').textContent = 'ابنك · الاطلاع والطلب · مُنح الآن';
+  card.querySelector('.btn-row').remove();
+  const undo = document.createElement('button');
+  undo.className = 'btn btn-ghost btn-full';
+  undo.textContent = 'اسحب الوصول';
+  undo.onclick = () => armRevoke(undo);
+  const fold = document.createElement('div');
+  fold.className = 'fold'; fold.hidden = true;
+  fold.innerHTML = '<div class="btn-row">' +
+    '<button class="btn btn-danger" onclick="doRevoke(this)">أكّد السحب</button>' +
+    '<button class="btn btn-s" onclick="cancelRevoke(this)">تراجع</button></div>';
+  card.append(undo, fold);
+  // TODO(api): POST /api/v1/clinical/family/:id/grant {scope} مع Idempotency-Key
+}
+function denyAccess(b){
+  const card = b.closest('.med');
+  card.querySelector('.med-sig').textContent = 'رُفض الطلب · ما عنده أي وصول';
+  card.querySelector('.btn-row').remove();
+  card.style.opacity = '.6';
+  // TODO(api): POST /api/v1/clinical/family/:id/deny
+}
+/* السحب خطوتان: وصول عائلي بيانات صحية، وسحبه بنقرة واحدة خطأ بالاتجاه الآخر. */
+function armRevoke(b){
+  b.hidden = true;
+  b.closest('.med').querySelector('.fold').hidden = false;
+}
+function cancelRevoke(b){
+  const card = b.closest('.med');
+  card.querySelector('.fold').hidden = true;
+  card.querySelector('.btn-danger, .btn-ghost').hidden = false;
+}
+function doRevoke(b){
+  const card = b.closest('.med');
+  card.querySelector('.med-sig').textContent = 'سُحب الوصول — ما عادت تشوف أدويتك';
+  card.querySelector('.fold').remove();
+  const back = document.createElement('button');
+  back.className = 'btn btn-s btn-full';
+  back.textContent = 'أعِد الوصول';
+  back.onclick = () => {
+    card.querySelector('.med-sig').textContent = 'الاطلاع فقط · أُعيد الوصول الآن';
+    back.remove();
+    // TODO(api): POST /api/v1/clinical/family — رابط جديد، لا إحياء للقديم
+  };
+  card.appendChild(back);
+  // السحب لا يحذف السجل. الصلاحية تُبطَل والحدث يُدوَّن.
+  // TODO(api): POST /api/v1/clinical/family/:id/revoke
+}
+
+/* حذف الحساب مطلب متجر التطبيقات (5.1.1(v)). كان confirm() يرجع true ثم لا
+   يتبعه شيء — أسوأ حالة ممكنة: المستخدم يظن أنه حذف حسابه وهو لم يُحذف. */
+function armDelete(b){
+  b.hidden = true;
+  b.parentElement.querySelector('.fold').hidden = false;
+  $('#delWord').focus();
+}
+function cancelDelete(b){
+  const box = b.closest('.fold');
+  box.hidden = true;
+  $('#delWord').value = ''; $('#delGo').disabled = true;
+  box.parentElement.querySelector('.btn-danger').hidden = false;
+}
+// حاجز مقصود: الحذف لا رجعة فيه، فيُكتب لا يُنقر.
+function checkDelete(){ $('#delGo').disabled = $('#delWord').value.trim() !== 'حذف'; }
+function doDelete(b){
+  const box = b.closest('.fold').parentElement;
+  box.innerHTML = '<h2 style="font-size:1rem;color:var(--alert)">جُدول حذف حسابك</h2>' +
+    '<p style="font-size:.85rem;margin-top:.4rem">ينتهي خلال ٣٠ يوماً. تسجيل دخولك قبلها يلغي الحذف.</p>';
+  // TODO(api): POST /api/v1/auth/account/delete مع Idempotency-Key
+}
+
+function widenRadius(b){
+  b.disabled = true;
+  b.textContent = 'نبحث ضمن ٥ كم…';
+  // النتيجة تصل من الخادم؛ العرض هنا يمثّل الانتقال إلى حالة البحث الحية.
+  setTimeout(() => go('s-live'), 700);
+  // TODO(api): PATCH /api/v1/requests/:id {radiusKm: 5}
+}
+function stopTracking(b){
+  const row = b.parentElement;
+  row.innerHTML = '<span style="font-size:.85rem;color:var(--ink-3)">أوقفنا التتبع — ' +
+    'ما راح نذكّرك بهذا الدواء.</span>';
+  const undo = document.createElement('button');
+  undo.className = 'btn btn-s'; undo.textContent = 'تراجع';
+  undo.onclick = () => location.reload();
+  row.appendChild(undo);
+  // TODO(api): PATCH /api/v1/clinical/schedules/:id {active:false}
+  // ملاحظة سريرية: هذا إيقاف تذكير، لا إيقاف دواء. لا نقول "أوقفت الدواء".
+}
 
 /* ── 8.13 التحية حسب الوقت ── */
 const h = new Date().getHours();
