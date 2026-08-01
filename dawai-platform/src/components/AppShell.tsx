@@ -24,9 +24,9 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 const navByRole: Record<Role, Array<{ to: string; label: string; icon: Parameters<typeof Icon>[0]["name"] }>> = {
   PATIENT: [
     { to: "/patient", label: "الرئيسية", icon: "search" },
+    { to: "/patient/timeline", label: "أدويتي", icon: "prescription" },
     { to: "/patient/requests/new", label: "طلب جديد", icon: "plus" },
     { to: "/patient/history", label: "طلباتي", icon: "clock" },
-    { to: "/patient/pharmacies", label: "الصيدليات", icon: "store" },
     { to: "/patient/profile", label: "حسابي", icon: "user" },
   ],
   PHARMACY: [

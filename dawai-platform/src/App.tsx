@@ -24,6 +24,10 @@ import {
   SavedPharmaciesPage,
 } from "./pages/PatientPages";
 import {
+  FamilyAccessPage,
+  MedicationTimelinePage,
+} from "./pages/TimelinePages";
+import {
   PharmacyDashboardPage,
   PharmacyGate,
   PharmacyInboxPage,
@@ -97,6 +101,8 @@ function AppRoutes() {
       <Route path="/patient/pharmacies" element={<PatientRoute><NearbyPharmaciesPage /></PatientRoute>} />
       <Route path="/patient/saved-pharmacies" element={<PatientRoute><SavedPharmaciesPage /></PatientRoute>} />
       <Route path="/patient/profile" element={<PatientRoute><PatientProfilePage /></PatientRoute>} />
+      <Route path="/patient/timeline" element={<PatientRoute><MedicationTimelinePage /></PatientRoute>} />
+      <Route path="/patient/family" element={<PatientRoute><FamilyAccessPage /></PatientRoute>} />
       <Route path="/patient/notifications" element={<PatientRoute><NotificationsPage /></PatientRoute>} />
 
       <Route path="/pharmacy" element={<PharmacyRoute><PharmacyDashboardPage /></PharmacyRoute>} />

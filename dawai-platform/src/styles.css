@@ -4913,3 +4913,89 @@ textarea {
     outline: 1px solid rgb(0 0 0 / 35%);
   }
 }
+
+/* ============================================================================
+   Medication timeline — calm, one card per medicine. The blister-strip motif
+   carries days-of-cover; no gauges, no scores, no red unless safety.
+   ========================================================================== */
+
+.timeline-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.timeline-list > article {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.timeline-list > article.needs-reorder {
+  border-color: rgb(122 74 15 / 32%);
+}
+
+.timeline-list header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.timeline-list h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* The instruction card: plain Arabic, generous leading, never shouty. */
+.sig-card {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: var(--mint-50);
+  color: var(--ink-950);
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.cover-line {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.timeline-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.55rem;
+}
+
+.consent-requests {
+  display: grid;
+  gap: 0.7rem;
+  margin-block-end: 1.4rem;
+}
+
+.consent-requests h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.consent-requests > article {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid rgb(122 74 15 / 30%);
+  border-radius: 18px;
+  background: var(--amber-soft);
+}
+
+@media (max-width: 760px) {
+  .timeline-actions {
+    grid-template-columns: 1fr;
+  }
+}
