@@ -54,15 +54,19 @@ export function DraftScreen(p: DraftProps) {
     <Screen
       t={t} view={view} onBack={p.onBack} onAction={p.onAction}
       footer={lines.length > 0 ? (
-        <Primary
-          t={t}
-          label={view.primary?.label ?? "كمّل"}
-          // A disabled control here is a courtesy; the guard at send is the
-          // control (§5 rule 1). It is disabled with the reason visible above,
-          // never disabled silently.
-          disabled={blocked !== null}
-          onPress={p.onContinue}
-        />
+        <>
+          {/* A disabled control is a courtesy; the guard at send is the control
+              (§5 rule 1). But a dead button with its reason scrolled off above
+              it is just a dead button — the reason belongs here, beside the
+              thing it disables. */}
+          {blocked ? <Label t={t} role="caption" color="warning">{word(blocked).says}</Label> : null}
+          <Primary
+            t={t}
+            label={view.primary?.label ?? "كمّل"}
+            disabled={blocked !== null}
+            onPress={p.onContinue}
+          />
+        </>
       ) : null}
     >
       <RedirectNote t={t} because={p.redirectBecause} />
@@ -89,9 +93,14 @@ export function DraftScreen(p: DraftProps) {
       ) : null}
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
-        {R1.secondary.filter((s) => isBuilt(s.leadsTo)).map((s) => (
-          <Secondary key={s.label} t={t} label={s.label} onPress={() => p.onAction(s.leadsTo)} />
-        ))}
+        {R1.secondary
+          .filter((s) => isBuilt(s.leadsTo))
+          // A label already offered above is not offered again. Two controls
+          // with the same words on one screen make a user wonder which is real.
+          .filter((s) => !(missing.length > 0 && s.leadsTo === "R2"))
+          .map((s) => (
+            <Secondary key={s.label} t={t} label={s.label} onPress={() => p.onAction(s.leadsTo)} />
+          ))}
       </View>
     </Screen>
   );
@@ -120,7 +129,8 @@ function LineRow({ t, line, onSetPacks, onRemove }: { t: Theme; line: DraftModel
       onPress={() => onSetPacks(line.itemId, line.packs + n)}
       style={{
         width: t.tap.min, height: t.tap.min, alignItems: "center", justifyContent: "center",
-        borderRadius: t.radius.md, backgroundColor: t.color.surfaceSunken,
+        borderRadius: t.radius.md, backgroundColor: t.color.surface,
+        borderWidth: 1, borderColor: t.color.line,
       }}
     >
       <Label t={t} role="title" color="accent">{n > 0 ? "+" : "−"}</Label>
@@ -140,7 +150,7 @@ function LineRow({ t, line, onSetPacks, onRemove }: { t: Theme; line: DraftModel
         </View>
         {step(-1)}
         <View style={{ flex: 1 }} />
-        <Secondary t={t} label="شيله" onPress={() => onRemove(line.itemId)} />
+        <Secondary t={t} label="شيله" spoken={`شيل ${line.name}`} onPress={() => onRemove(line.itemId)} />
       </View>
 
       {line.requiresPrescription ? (

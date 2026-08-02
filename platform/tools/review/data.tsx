@@ -10,7 +10,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 
 import { CORE_LOOP } from "../../apps/patient/src/screens/core-loop.contract.js";
 import { GRAPH, NOT_YET_BUILT, isBuilt } from "../../apps/patient/src/app/store.js";
@@ -21,6 +21,38 @@ import { REFUSAL } from "@dawai/domain";
 import { SHOTS } from "./screens.js";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const PLATFORM = resolve(REPO, "platform");
+
+/** Every module in a directory, so the architecture diagram is derived. */
+function modulesIn(dir: string, filter: (p: string) => boolean): readonly string[] {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    let names: string[];
+    try { names = readdirSync(d); } catch { return; }
+    for (const n of names) {
+      if (n === "node_modules" || n === "dist") continue;
+      const p = `${d}/${n}`;
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(n) && !/\.test\./.test(n)) {
+        const rel = p.slice(PLATFORM.length + 1);
+        if (filter(rel)) out.push(rel);
+      }
+    }
+  };
+  walk(resolve(PLATFORM, dir));
+  return out.sort();
+}
+
+const LAYERS = [
+  { layer: "UI", dir: "apps/patient/src", note: "renders a resolved view; decides nothing",
+    filter: (p: string) => /\.tsx$/.test(p) && !p.includes("/model/") },
+  { layer: "STATE", dir: "apps/patient/src", note: "pure reducer and view models; asks the domain, never computes a rule",
+    filter: (p: string) => (p.includes("/model/") || p.includes("/app/")) && !/\.tsx$/.test(p) },
+  { layer: "DOMAIN", dir: "packages", note: "pure: no clock, no randomness, no I/O — enforced by layer-check",
+    filter: (p: string) => p.startsWith("packages/") && !p.includes("/config/") && !p.includes("/observability/") },
+  { layer: "PORTS", dir: "apps/patient/src", note: "types only; no transport",
+    filter: (p: string) => p.endsWith("ports.ts") },
+] as const;
 
 /** Blueprint v3's own screen inventory — the denominator for every percentage
  *  on the page, so completion cannot be quietly redefined. */
@@ -45,7 +77,7 @@ const contrast = CONTRACT_PAIRS.map(([fg, bg]) => {
 });
 
 const data = {
-  generatedFor: "patient-app · vertical slice 1 · Search → Request → Send",
+  generatedFor: "patient-app · the patient core loop, end to end",
 
   progress: {
     blueprintScreens: PHASE0.length,
@@ -115,6 +147,14 @@ const data = {
   },
 
   shots: SHOTS.map((s) => ({ id: s.id, screen: s.screen, state: s.state, note: s.note })),
+
+  /** The architecture, read off the filesystem. A hand-drawn diagram goes stale
+   *  the first time a module is added — this one cannot. */
+  architecture: LAYERS.map((l) => ({
+    layer: l.layer,
+    note: l.note,
+    modules: modulesIn(l.dir, l.filter),
+  })),
 };
 
 mkdirSync(resolve(REPO, "review"), { recursive: true });

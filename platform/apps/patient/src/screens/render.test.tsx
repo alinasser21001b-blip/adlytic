@@ -255,6 +255,9 @@ describe("visual hierarchy holds across every screen", () => {
   const screens: readonly [string, React.ReactElement][] = [
     ["F2 results", <FindScreen t={t} history={["F1"]} now={0} search={{ kind: "results", query: "x", hits: [hit(), hit({ itemId: "i2", name: "أموكسيسيلين" })], at: 0 }} onType={noop} onAdd={noop} onBack={noop} onAction={noop} />],
     ["R1 draft", <DraftScreen t={t} history={["S1"]} draft={draft} refusal={null} redirectBecause={null} onSetPacks={noop} onRemove={noop} onContinue={noop} onBack={noop} onAction={noop} onDismissRefusal={noop} />],
+    // The state the duplication defect actually lived in. Without it the rule
+    // below passes on a fixture that could never have shown the bug.
+    ["R1 draft · prescription missing", <DraftScreen t={t} history={["S1"]} draft={DraftModel.add(draft, hit({ itemId: "rx", name: "أموكسيسيلين", requiresPrescription: true })).draft} refusal={null} redirectBecause={null} onSetPacks={noop} onRemove={noop} onContinue={noop} onBack={noop} onAction={noop} onDismissRefusal={noop} />],
     ["R6 confirm", <ConfirmScreen t={t} history={["R1"]} draft={draft} online refusal={null} redirectBecause={null} sending={false} onSetUrgency={noop} onSend={noop} onBack={noop} onAction={noop} />],
   ];
 
@@ -270,6 +273,20 @@ describe("visual hierarchy holds across every screen", () => {
 
     it(`${name} keeps every control within thumb reach and above the floor`, () => {
       assertTapTargets(render(el));
+    });
+
+    it(`${name} offers no action twice`, () => {
+      // R1 showed "صوّر الوصفة" as a filled prompt and again as a link
+      // directly beneath it. Two controls with the same words make a user
+      // wonder which one is the real one — and no test could see it until
+      // this one. Row-level actions are excluded: they repeat by design and
+      // their labels name the medicine, so they are already distinct.
+      const labels = pressables(render(el))
+        .map((p) => String(p.props["accessibilityLabel"]))
+        .filter((l) => l !== "رجوع" && !l.startsWith("أضف") && !l.startsWith("شيل") && !l.startsWith("زيادة") && !l.startsWith("تقليل"));
+      const seen = new Set<string>();
+      const twice = labels.filter((l) => (seen.has(l) ? true : (seen.add(l), false)));
+      expect(twice, `${name} repeats: ${twice.join(", ")}`).toEqual([]);
     });
   }
 });

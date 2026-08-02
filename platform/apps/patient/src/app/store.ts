@@ -15,13 +15,15 @@
  *      logic of its own — it asks `runGuards`. D26: an interruption stores the
  *      intent, so being asked to sign in never costs the user their work.
  */
-import { type Instant, instant, type Refusal } from "@dawai/domain";
+import { type Instant, instant, type Refusal, MarketplaceMachines } from "@dawai/domain";
 import { empty as emptyOutbox, type Outbox } from "@dawai/offline";
 import { runGuards, ROUTE_GUARDS, guardDestinations, buildGraph, resolveBack, type NavGraph } from "@dawai/navigation";
 import { guest, interrupt, takePending, authenticate, type Session } from "@dawai/session";
 import type { ScreenContract } from "@dawai/design";
 import { BUSINESS_EVENT } from "@dawai/observability";
 import * as Search from "../model/search.js";
+import * as Offers from "../model/offers.js";
+import * as Reservation from "../model/reservation.js";
 import * as DraftModel from "../model/draft.js";
 import { send, type Sent } from "../model/send.js";
 import { CORE_LOOP } from "../screens/core-loop.contract.js";
@@ -36,6 +38,15 @@ export type AppState = {
   readonly draft: DraftModel.Draft | null;
   readonly outbox: Outbox;
   readonly sent: Sent | null;
+  /** Offers as they arrive. Summarised for display only — the order they are
+   *  READ in is computed at render, never stored, so nothing reshuffles
+   *  underneath a patient who is mid-comparison. */
+  readonly offers: readonly Offers.Offer[];
+  /** Set when the offer a patient tapped had already left the list. R8's error
+   *  state exists for exactly this, and it names the pharmacy. */
+  readonly staleOffer: string | null;
+  readonly reservation: Reservation.ReservationView | null;
+  readonly reservationState: MarketplaceMachines.ReservationState | null;
   /** The last domain refusal, held so the screen can show it inline and clear
    *  it deliberately. Never rendered as a code — the screen words it. */
   readonly refusal: Refusal | null;
@@ -64,6 +75,10 @@ export type Intent =
   | { readonly kind: "attachPrescription"; readonly imageId: string }
   | { readonly kind: "send"; readonly at: Instant }
   | { readonly kind: "authenticated"; readonly accountId: string; readonly subjectId: string }
+  | { readonly kind: "offerArrived"; readonly offer: Offers.Offer }
+  | { readonly kind: "chooseOffer"; readonly offerId: string }
+  | { readonly kind: "holdConfirmed"; readonly hold: Reservation.Hold }
+  | { readonly kind: "holdRefused"; readonly branchName: string; readonly reopened: boolean }
   | { readonly kind: "dismissRefusal" };
 
 export type Step = { readonly state: AppState; readonly effects: readonly Effect[] };
@@ -104,6 +119,10 @@ export function initial(): AppState {
     draft: null,
     outbox: emptyOutbox(),
     sent: null,
+    offers: [],
+    staleOffer: null,
+    reservation: null,
+    reservationState: null,
     refusal: null,
     redirectBecause: null,
   };
@@ -216,8 +235,67 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       return { state: navigate(resumed, pending.screen), effects: [] };
     }
 
+    case "offerArrived": {
+      // The first offer is the one worth announcing: it is the moment the wait
+      // stops being open-ended. Later ones update the list silently.
+      const first = state.offers.length === 0;
+      const offers = state.offers.some((o) => o.offerId === intent.offer.offerId)
+        ? state.offers.map((o) => (o.offerId === intent.offer.offerId ? intent.offer : o))
+        : [...state.offers, intent.offer];
+      return {
+        state: { ...state, offers },
+        effects: first
+          ? [{ kind: "emit", event: BUSINESS_EVENT.REQUEST_ANSWERED, attributes: { offers: offers.length } }]
+          : [],
+      };
+    }
+
+    case "chooseOffer": {
+      const offer = state.offers.find((o) => o.offerId === intent.offerId);
+      if (!offer) return { state, effects: [] };
+
+      const requested = state.sent?.submission.lines.map((_, i) => `line-${i}`) ?? [];
+      const chosen = Offers.accept(offer, offer.lines.map((l) => l.requestLineId));
+      if (!chosen.ok)
+        // An offer that left the list between render and tap is told plainly,
+        // and the list stays — never a silent failure on the most consequential
+        // tap in the product.
+        return { state: { ...state, staleOffer: offer.branchName, refusal: chosen.refusal }, effects: [] };
+      void requested;
+
+      return {
+        state: navigate({
+          ...state,
+          staleOffer: null, refusal: null,
+          reservation: Reservation.requesting(offer.branchName),
+          reservationState: "requested",
+        }, "V1"),
+        effects: [{ kind: "flushOutbox" }],
+      };
+    }
+
+    case "holdConfirmed": {
+      const moved = Reservation.confirmed(state.reservationState ?? "requested", intent.hold);
+      if (!moved) return { state, effects: [] };
+      return {
+        state: navigate({ ...state, reservation: moved.view, reservationState: moved.state }, "V2"),
+        effects: [{ kind: "emit", event: BUSINESS_EVENT.RESERVATION_CONFIRMED, attributes: { branch: intent.hold.branchName } }],
+      };
+    }
+
+    case "holdRefused": {
+      // D39 — the request re-opens automatically, so this is not the end of
+      // the journey and the screen it lands on says so.
+      const moved = Reservation.cannotHold(state.reservationState ?? "requested", intent.branchName, intent.reopened);
+      if (!moved) return { state, effects: [] };
+      return {
+        state: navigate({ ...state, reservation: moved.view, reservationState: moved.state }, "V4"),
+        effects: [{ kind: "emit", event: BUSINESS_EVENT.RESERVATION_REFUSED, attributes: { reopened: intent.reopened } }],
+      };
+    }
+
     case "dismissRefusal":
-      return { state: { ...state, refusal: null }, effects: [] };
+      return { state: { ...state, refusal: null, staleOffer: null }, effects: [] };
   }
 }
 

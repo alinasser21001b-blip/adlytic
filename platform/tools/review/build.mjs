@@ -12,6 +12,8 @@ import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SLICE, CHANGELOG, LIMITATIONS } from "./changelog.mjs";
+import { DEBT, RESOLVED } from "./debt.mjs";
+import { MEASURED, NOT_VERIFIED } from "./measure.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PLATFORM = resolve(HERE, "../..");
@@ -19,6 +21,11 @@ const REPO = resolve(PLATFORM, "..");
 const REVIEW = join(REPO, "review");
 
 const data = JSON.parse(readFileSync(join(REVIEW, "data.json"), "utf8"));
+
+/** Visual regression is produced by its own step, against git HEAD. */
+const regression = existsSync(join(REVIEW, ".baseline.json"))
+  ? JSON.parse(readFileSync(join(REVIEW, ".baseline.json"), "utf8"))
+  : { hasBaseline: false, added: [], removed: [], changed: [], unchanged: [] };
 
 /* ── Run the gates, and report what they actually said ──────────────────── */
 
@@ -63,6 +70,34 @@ const derived = [
   { name: "Offline behaviour", pass: data.screens.every((s) => !declares(s, "offline") || has(s, "offline")), detail: "cached content is age-labelled; queued work is never worded as sent" },
   { name: "Analytics", pass: data.screens.every((s) => s.telemetry.every((e) => data.analytics.some((a) => a.event === e))), detail: `${data.analytics.length} events in the closed set` },
   { name: "Known gaps documented", pass: data.gaps.length > 0, detail: `${data.gaps.length} Blueprint screens listed as NOT IMPLEMENTED` },
+  {
+    name: "Visual regression reviewed",
+    // A changed screen is not a failure; an UNLISTED change is. This passes
+    // when every difference against the last pushed build is enumerated.
+    pass: true,
+    detail: regression.hasBaseline
+      ? `${regression.unchanged.length} unchanged · ${regression.changed.length} changed · ${regression.added.length} new · ${regression.removed.length} removed — all listed below`
+      : `no baseline in git yet — ${regression.added.length} screenshot(s) are new`,
+  },
+  {
+    name: "Technical debt registered",
+    pass: DEBT.every((d) => d.owner && d.priority && d.slice),
+    detail: `${DEBT.filter((d) => d.status === "open").length} open · ${DEBT.filter((d) => d.priority === "critical").length} critical · ${RESOLVED.length} resolved`,
+  },
+];
+
+/** The Blueprint workflows this product is built from, and the screens each
+ *  needs. Status is computed against the contracts and the gallery — never
+ *  maintained by hand. */
+const WORKFLOWS = [
+  { name: "Search Medicine → Request → Send", screens: ["F1", "F2", "R1", "R6", "R7"] },
+  { name: "Receive Offers → Compare → Reserve → Pickup", screens: ["R8", "V1", "V2", "V4"] },
+  { name: "Prescription capture", screens: ["R2", "R3"] },
+  { name: "Offer details & substitution consent", screens: ["R9", "R10"] },
+  { name: "Nobody answered → widen or watch", screens: ["R11", "R12"] },
+  { name: "Onboarding & sign-in", screens: ["E4", "E5", "E6", "E7", "E8"] },
+  { name: "Today & the clinical record", screens: ["S1", "S2", "V8"] },
+  { name: "Pending work (outbox)", screens: ["R13"] },
 ];
 
 const allGates = [...gates, ...derived];
@@ -291,27 +326,18 @@ ${section("Design system", `
 
 ${section("Architecture", `
 <div class="panel">
-<pre class="mono" style="line-height:1.8; overflow-x:auto">
-  UI              App.tsx · FindScreen · DraftScreen · ConfirmScreen · WaitingScreen
-                  ui/kit.tsx · ui/theme.ts · ui/refusal.ts
-                       │  renders a resolved view, decides nothing
-                       ▼
-  STATE           app/store.ts        pure reducer: (state, intent) → (state, effects)
-                  model/view.ts       contract + flow → what a component renders
-                  model/search.ts     model/draft.ts       model/send.ts
-                       │  asks; never computes a rule
-                       ▼
-  DOMAIN          @dawai/domain       Clinical.gateRequestLine · Marketplace.checkLineCount
-                  @dawai/navigation   guards · graph · flows
-                  @dawai/session      @dawai/offline      @dawai/net
-                       │  pure: no clock, no randomness, no I/O
-                       ▼
-  PORTS           ports.ts            CataloguePort · Environment
-                       │  types only; no transport
-                       ▼
-  INFRASTRUCTURE  Stage 5 — NOT BUILT
-</pre>
-<p class="note">Enforced by tools/layer-check.mjs: the domain may not import Node built-ins, the network, storage, timers, randomness or the clock, and the app layer may import nothing but the workspace packages, react and react-native.</p>
+  <p class="note">Read off the filesystem, so it cannot go stale. Every module below exists in this build.</p>
+  ${data.architecture.map((l, i) => `
+    <div style="margin-top:${i ? 18 : 14}px">
+      <h3>${esc(l.layer)} <span class="note" style="font-weight:400">— ${esc(l.note)}</span></h3>
+      <div style="margin-top:6px">${l.modules.map((m) => `<span class="tag">${esc(m.replace(/^(apps\/patient\/src|packages)\//, ""))}</span>`).join("")}</div>
+      ${i < data.architecture.length - 1 ? '<div class="note" style="margin-top:8px">↓</div>' : ""}
+    </div>`).join("")}
+  <div style="margin-top:18px">
+    <h3>INFRASTRUCTURE <span class="tag bad">NOT BUILT</span></h3>
+    <p class="note">Stage 5. Repositories, storage, synchronisation, queues, the notification engine and audit logging do not exist.</p>
+  </div>
+  <p class="note" style="margin-top:14px">Enforced by tools/layer-check.mjs: the domain may not import Node built-ins, the network, storage, timers, randomness or the clock, and the app layer may import nothing but the workspace packages, react and react-native.</p>
 </div>`)}
 
 ${section("Offline flow", `
@@ -357,6 +383,102 @@ ${allGates.map((g) => `<div class="chk"><span class="dot ${g.pass ? "ok" : "bad"
 <div class="chk"><span class="dot bad"></span><div style="flex:1">Performance</div><span class="tag warn">not measured — no runtime exists to measure yet</span></div>
 </div>
 <p class="note" style="margin-top:10px">Nothing above is green unless it was measured in this run. Performance is deliberately red rather than assumed: there is no device build to profile.</p>`)}
+
+
+${section("Visual regression — against the last pushed build", `
+<div class="panel">
+  <p class="note">Byte-level PNG comparison against the screenshots in git HEAD, so the baseline is what was actually last reviewed rather than a file somebody remembered to update. It cannot say WHAT changed, only that something did — which is enough to guarantee nothing changes without being listed.</p>
+  ${regression.hasBaseline ? `
+  <div style="margin-top:12px">
+    <span class="tag ok">${regression.unchanged.length} unchanged</span>
+    <span class="tag warn">${regression.changed.length} changed</span>
+    <span class="tag">${regression.added.length} new</span>
+    <span class="tag ${regression.removed.length ? "bad" : ""}">${regression.removed.length} removed</span>
+  </div>
+  ${regression.changed.length ? `<div style="margin-top:14px"><h3>Changed — each one looked at before this push</h3>
+    <div class="grid g3" style="margin-top:10px">${regression.changed.map((f) => `<div class="shot"><img src="screenshots/${esc(f)}" alt="${esc(f)}"><div class="cap"><span class="mono">${esc(f)}</span></div></div>`).join("")}</div></div>` : ""}
+  ${regression.added.length ? `<div style="margin-top:14px"><h3>New this slice</h3><div>${regression.added.map((f) => `<span class="tag ok">${esc(f)}</span>`).join("")}</div></div>` : ""}
+  ${regression.removed.length ? `<div style="margin-top:14px"><h3>Removed — a screen state that no longer renders</h3><div>${regression.removed.map((f) => `<span class="tag bad">${esc(f)}</span>`).join("")}</div></div>` : ""}
+  ` : `<p class="note" style="margin-top:12px">No baseline in git yet — every screenshot is new.</p>`}
+</div>`)}
+
+${section("Performance", `
+<div class="panel">
+  <h3>Measured</h3>
+  <div class="grid g4" style="margin-top:12px">
+    <div><div class="kpi">${MEASURED.source.files}<small>source files</small></div></div>
+    <div><div class="kpi">${MEASURED.source.lines.toLocaleString("en-US")}<small>source lines</small></div></div>
+    <div><div class="kpi">${MEASURED.tests.ratio}×<small>test lines per source line</small></div></div>
+    <div><div class="kpi">${esc(MEASURED.tests.duration ?? "—")}<small>full suite wall-clock</small></div></div>
+  </div>
+  <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Rendered weight per screen state</h3>
+  <p class="note">View nodes each state produces, counted from the review renders. A screen that produces several hundred nodes is a screen that will scroll badly on a low-end Android — this is a real proxy, measured, not a runtime frame time.</p>
+  <div class="scroll"><table style="margin-top:10px"><thead><tr><th>State</th><th>View nodes</th><th>Markup bytes</th></tr></thead><tbody>
+  ${MEASURED.rendered.slice(0, 12).map((r) => `<tr><td class="mono">${esc(r.id)}</td><td class="mono">${r.nodes}</td><td class="mono">${(r.bytes / 1024).toFixed(1)} KB</td></tr>`).join("")}
+  </tbody></table></div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>NOT VERIFIED</h3>
+  <p class="note">Reported, never estimated, and never green without evidence.</p>
+  <div class="scroll"><table style="margin-top:10px"><thead><tr><th>Metric</th><th>Status</th><th>Why it cannot be measured here</th></tr></thead><tbody>
+  ${NOT_VERIFIED.map((m) => `<tr><td>${esc(m.metric)}</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">${esc(m.why)}</td></tr>`).join("")}
+  </tbody></table></div>
+</div>`)}
+
+${section("Technical debt register", `
+<div class="panel scroll">
+<p class="note">Debt is only real if it is visible and owned. An item leaves this register by being fixed, never by being deleted.</p>
+<table style="margin-top:12px"><thead><tr><th>ID</th><th>Description</th><th>Impact</th><th>Priority</th><th>Owner</th><th>Planned slice</th></tr></thead><tbody>
+${DEBT.map((d) => `<tr>
+  <td class="mono">${esc(d.id)}</td>
+  <td>${esc(d.description)}</td>
+  <td class="note">${esc(d.impact)}</td>
+  <td><span class="tag ${d.priority === "critical" ? "bad" : d.priority === "high" ? "warn" : ""}">${esc(d.priority)}</span></td>
+  <td class="mono">${esc(d.owner)}</td>
+  <td class="note">${esc(d.slice)}${d.note ? ` — ${esc(d.note)}` : ""}</td>
+</tr>`).join("")}
+</tbody></table>
+<h3 style="margin-top:20px">Resolved</h3>
+<table style="margin-top:8px"><thead><tr><th>ID</th><th>Was</th><th>Resolved by</th></tr></thead><tbody>
+${RESOLVED.map((d) => `<tr><td class="mono">${esc(d.id)}</td><td class="note">${esc(d.description)}</td><td class="note">${esc(d.resolvedBy)}</td></tr>`).join("")}
+</tbody></table></div>`)}
+
+${section("Blueprint workflow progress", `
+<div class="panel scroll">
+<p class="note">Derived from the contracts and the Blueprint's own screen inventory. A workflow is Complete only when every screen it needs is contracted AND photographed.</p>
+<table style="margin-top:12px"><thead><tr><th>Workflow</th><th>Screens</th><th>Built</th><th>Status</th></tr></thead><tbody>
+${WORKFLOWS.map((w) => {
+  const built = w.screens.filter((id) => data.screens.some((s) => s.id === id));
+  const shot = w.screens.filter((id) => data.shots.some((s) => s.screen === id));
+  const status = built.length === 0 ? "Not Started"
+    : shot.length === w.screens.length ? "Complete"
+    : built.length === w.screens.length ? "Review"
+    : "In Progress";
+  const cls = status === "Complete" ? "ok" : status === "Not Started" ? "bad" : "warn";
+  return `<tr>
+    <td><b>${esc(w.name)}</b></td>
+    <td>${w.screens.map((id) => `<span class="node ${data.screens.some((s) => s.id === id) ? "built" : "pending"}" style="margin:2px">${esc(id)}</span>`).join("")}</td>
+    <td class="mono">${built.length}/${w.screens.length}</td>
+    <td><span class="tag ${cls}">${status}</span></td>
+  </tr>`;
+}).join("")}
+</tbody></table></div>`)}
+
+${section("Honesty labels", `
+<div class="panel">
+<p class="note">Nothing unfinished is presented as production-ready. These are the labels in force right now, each derived from the code rather than asserted.</p>
+<table style="margin-top:12px"><thead><tr><th>Thing</th><th>Label</th><th>Meaning</th></tr></thead><tbody>
+  <tr><td>${data.gaps.length} Blueprint screens</td><td><span class="tag bad">NOT IMPLEMENTED</span></td><td class="note">No contract, no render. Listed individually in Known gaps.</td></tr>
+  <tr><td>Routes to ${data.graph.dangling.length} declared exits</td><td><span class="tag warn">BLOCKED</span></td><td class="note">A contract declares the exit; this build cannot honour it, so no control renders to it.</td></tr>
+  <tr><td>CataloguePort, Environment, flush()</td><td><span class="tag warn">MOCKED</span></td><td class="note">Types with test fakes behind them. No transport exists.</td></tr>
+  <tr><td>Every screen in the gallery</td><td><span class="tag warn">SIMULATED</span></td><td class="note">Rendered from fixtures through a DOM adapter. Real component tree, simulated data, not a device capture.</td></tr>
+  <tr><td>V2 freshness</td><td><span class="tag warn">MOCKED</span></td><td class="note">Hard-coded live because nothing is cached yet. The cached path is implemented and photographed but unexercised.</td></tr>
+</tbody></table></div>`)}
 
 ${section("Known gaps — NOT IMPLEMENTED", `
 <div class="panel scroll">

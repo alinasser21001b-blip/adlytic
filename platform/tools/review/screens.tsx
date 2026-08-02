@@ -16,6 +16,10 @@ import * as DraftModel from "../../apps/patient/src/model/draft.js";
 import { send } from "../../apps/patient/src/model/send.js";
 import { empty } from "@dawai/offline";
 import { instant } from "@dawai/domain";
+import { OffersScreen } from "../../apps/patient/src/screens/OffersScreen.jsx";
+import { ReservationScreen } from "../../apps/patient/src/screens/ReservationScreen.jsx";
+import * as Offers from "../../apps/patient/src/model/offers.js";
+import * as Reservation from "../../apps/patient/src/model/reservation.js";
 import type { CatalogueHit, Environment } from "../../apps/patient/src/ports.js";
 
 const t = themeFor("light");
@@ -60,6 +64,66 @@ const sentWith = (online: boolean, urgency: "now" | "today" | "soon") => {
   if (!r.ok) throw new Error("review fixture failed to send");
   return r.sent;
 };
+
+/* ── The second half of the loop ──────────────────────────────────────── */
+
+const oLine = (id: string, name: string, answer: Offers.OfferLine["answer"]): Offers.OfferLine =>
+  ({ requestLineId: id, itemName: name, answer } as Offers.OfferLine);
+
+const anOffer = (over: Partial<Offers.Offer> = {}): Offers.Offer => ({
+  offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
+  distanceM: 800, honoured: "trusted", state: "sent", openNow: true,
+  lines: [oLine("l1", "بانادول", { kind: "available", priceMinor: 3_000 })],
+  ...over,
+});
+
+const THREE_OFFERS: readonly Offers.Offer[] = [
+  anOffer({
+    offerId: "o1", branchName: "صيدلية الرشيد", distanceM: 800, honoured: "trusted",
+    lines: [
+      oLine("l1", "بانادول", { kind: "available", priceMinor: 4_000 }),
+      oLine("l2", "أموكسيسيلين", { kind: "available", priceMinor: 5_000 }),
+    ],
+  }),
+  anOffer({
+    offerId: "o2", branchName: "صيدلية النور", distanceM: 200, honoured: null,
+    lines: [
+      oLine("l1", "بانادول", { kind: "available", priceMinor: 1_000 }),
+      oLine("l2", "أموكسيسيلين", { kind: "unavailable", reason: "out_of_stock" }),
+    ],
+  }),
+  anOffer({
+    offerId: "o3", branchName: "صيدلية بغداد", distanceM: 3_400, honoured: "needs_attention", openNow: false,
+    lines: [
+      oLine("l1", "بانادول", { kind: "substitute", priceMinor: 2_500, itemId: "x", note: "نفس المادة الفعالة" }),
+      oLine("l2", "أموكسيسيلين", { kind: "available", priceMinor: 6_000 }),
+    ],
+  }),
+];
+
+const offersProps = (offers: readonly Offers.Offer[]) => ({
+  t, offers: offers.map((o) => Offers.summarise(o, ["l1", "l2"])), requestedLines: 2,
+  history: ["R7"], loading: false, staleOfferName: null,
+  onChoose: noop, onDetails: noop, onBack: noop, onAction: noop,
+});
+
+const HOLD_AT = 1_000_000;
+const aHold = (over: Partial<Reservation.Hold> = {}): Reservation.Hold => ({
+  reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد",
+  branchPhone: "07701234567", address: "الكرادة، شارع ٦٢، مقابل المستشفى",
+  confirmedAt: instant(HOLD_AT), expiresAt: instant(HOLD_AT + 2 * 60 * 60_000),
+  totalMinor: 9_000,
+  lines: [
+    { itemName: "بانادول", packs: 2, priceMinor: 4_000 },
+    { itemName: "أموكسيسيلين", packs: 1, priceMinor: 5_000 },
+  ],
+  ...over,
+});
+
+const resProps = (view: Reservation.ReservationView, now = HOLD_AT, freshness: Reservation.Freshness = { kind: "live" }) => ({
+  t, view, freshness, history: ["R8"], now,
+  onCancel: noop, onCall: noop, onDirections: noop, onBack: noop, onAction: noop,
+});
 
 export type Shot = {
   readonly id: string;
@@ -130,6 +194,46 @@ export const SHOTS: readonly Shot[] = [
     id: "R7-waiting", screen: "R7", state: "empty · waiting",
     note: "A bar with a value rather than a spinner: the patient learns how much longer, not merely that something is happening.",
     element: <WaitingScreen t={t} sent={sentWith(true, "now")} history={["R6"]} now={1_000 + 6 * 60_000} urgency="now" offerCount={0} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "R8-offers", screen: "R8", state: "ready · three answers",
+    note: "Coverage before price, order stated as not-a-ranking (D12), reliability as a band (D11), a substitution flagged as needing consent, and the missing medicine named rather than counted.",
+    element: <OffersScreen {...offersProps(THREE_OFFERS)} />,
+  },
+  {
+    id: "R8-empty", screen: "R8", state: "empty",
+    note: "No offer has arrived yet. The way back to waiting is the action, in thumb reach.",
+    element: <OffersScreen {...offersProps([])} loading={false} />,
+  },
+  {
+    id: "R8-withdrawn", screen: "R8", state: "ready · one withdrawn",
+    note: "An offer withdrawn between render and tap is shown as unavailable rather than as a control that will fail.",
+    element: <OffersScreen {...offersProps([THREE_OFFERS[0]!, { ...THREE_OFFERS[1]!, state: "withdrawn" }])} />,
+  },
+  {
+    id: "V1-requesting", screen: "V1", state: "loading",
+    note: "The clock starts at held and nowhere earlier — no countdown here, because nothing has been set aside yet.",
+    element: <ReservationScreen {...resProps(Reservation.requesting("صيدلية الرشيد"))} />,
+  },
+  {
+    id: "V2-held", screen: "V2", state: "ready",
+    note: "The screen that must never fail. The code is the largest thing on it, grouped so it can be read aloud at a counter.",
+    element: <ReservationScreen {...resProps({ kind: "held", hold: aHold() })} />,
+  },
+  {
+    id: "V2-last", screen: "V2", state: "ready · nearly expired",
+    note: "The countdown turns urgent near the end rather than staying calm to the last minute.",
+    element: <ReservationScreen {...resProps({ kind: "held", hold: aHold() }, HOLD_AT + 115 * 60_000)} />,
+  },
+  {
+    id: "V2-cached", screen: "V2", state: "offline",
+    note: "The code still renders from cache; the countdown says it is the last thing we heard. Presenting it as live would send someone to a lapsed hold.",
+    element: <ReservationScreen {...resProps({ kind: "held", hold: aHold() }, HOLD_AT + 3 * 60_000, { kind: "cached", asOf: instant(HOLD_AT) })} />,
+  },
+  {
+    id: "V4-refused", screen: "V4", state: "ready",
+    note: "D39 — they confirmed and then could not. It names the situation rather than the pharmacist, and the request has already re-opened.",
+    element: <ReservationScreen {...resProps({ kind: "refused", branchName: "صيدلية الرشيد", reopened: true })} />,
   },
   {
     id: "R7-queued", screen: "R7", state: "offline · queued",

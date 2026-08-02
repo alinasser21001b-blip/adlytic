@@ -1,9 +1,9 @@
 {
-  "generatedFor": "patient-app · vertical slice 1 · Search → Request → Send",
+  "generatedFor": "patient-app · the patient core loop, end to end",
   "progress": {
     "blueprintScreens": 133,
     "contracted": 18,
-    "rendered": 5,
+    "rendered": 9,
     "remaining": 115,
     "percentContracted": 13.5
   },
@@ -625,7 +625,23 @@
           "bp": "D26 · §3.2"
         }
       ],
-      "shots": []
+      "shots": [
+        {
+          "id": "R8-offers",
+          "state": "ready · three answers",
+          "note": "Coverage before price, order stated as not-a-ranking (D12), reliability as a band (D11), a substitution flagged as needing consent, and the missing medicine named rather than counted."
+        },
+        {
+          "id": "R8-empty",
+          "state": "empty",
+          "note": "No offer has arrived yet. The way back to waiting is the action, in thumb reach."
+        },
+        {
+          "id": "R8-withdrawn",
+          "state": "ready · one withdrawn",
+          "note": "An offer withdrawn between render and tap is shown as unavailable rather than as a control that will fail."
+        }
+      ]
     },
     {
       "id": "R2",
@@ -976,7 +992,13 @@
           "bp": "D26 · §3.2"
         }
       ],
-      "shots": []
+      "shots": [
+        {
+          "id": "V1-requesting",
+          "state": "loading",
+          "note": "The clock starts at held and nowhere earlier — no countdown here, because nothing has been set aside yet."
+        }
+      ]
     },
     {
       "id": "V2",
@@ -1049,7 +1071,23 @@
           "bp": "D26 · §3.2"
         }
       ],
-      "shots": []
+      "shots": [
+        {
+          "id": "V2-held",
+          "state": "ready",
+          "note": "The screen that must never fail. The code is the largest thing on it, grouped so it can be read aloud at a counter."
+        },
+        {
+          "id": "V2-last",
+          "state": "ready · nearly expired",
+          "note": "The countdown turns urgent near the end rather than staying calm to the last minute."
+        },
+        {
+          "id": "V2-cached",
+          "state": "offline",
+          "note": "The code still renders from cache; the countdown says it is the last thing we heard. Presenting it as live would send someone to a lapsed hold."
+        }
+      ]
     },
     {
       "id": "V4",
@@ -1095,7 +1133,13 @@
           "bp": "D26 · §3.2"
         }
       ],
-      "shots": []
+      "shots": [
+        {
+          "id": "V4-refused",
+          "state": "ready",
+          "note": "D39 — they confirmed and then could not. It names the situation rather than the pharmacist, and the request has already re-opened."
+        }
+      ]
     }
   ],
   "gaps": [
@@ -2738,10 +2782,130 @@
       "note": "A bar with a value rather than a spinner: the patient learns how much longer, not merely that something is happening."
     },
     {
+      "id": "R8-offers",
+      "screen": "R8",
+      "state": "ready · three answers",
+      "note": "Coverage before price, order stated as not-a-ranking (D12), reliability as a band (D11), a substitution flagged as needing consent, and the missing medicine named rather than counted."
+    },
+    {
+      "id": "R8-empty",
+      "screen": "R8",
+      "state": "empty",
+      "note": "No offer has arrived yet. The way back to waiting is the action, in thumb reach."
+    },
+    {
+      "id": "R8-withdrawn",
+      "screen": "R8",
+      "state": "ready · one withdrawn",
+      "note": "An offer withdrawn between render and tap is shown as unavailable rather than as a control that will fail."
+    },
+    {
+      "id": "V1-requesting",
+      "screen": "V1",
+      "state": "loading",
+      "note": "The clock starts at held and nowhere earlier — no countdown here, because nothing has been set aside yet."
+    },
+    {
+      "id": "V2-held",
+      "screen": "V2",
+      "state": "ready",
+      "note": "The screen that must never fail. The code is the largest thing on it, grouped so it can be read aloud at a counter."
+    },
+    {
+      "id": "V2-last",
+      "screen": "V2",
+      "state": "ready · nearly expired",
+      "note": "The countdown turns urgent near the end rather than staying calm to the last minute."
+    },
+    {
+      "id": "V2-cached",
+      "screen": "V2",
+      "state": "offline",
+      "note": "The code still renders from cache; the countdown says it is the last thing we heard. Presenting it as live would send someone to a lapsed hold."
+    },
+    {
+      "id": "V4-refused",
+      "screen": "V4",
+      "state": "ready",
+      "note": "D39 — they confirmed and then could not. It names the situation rather than the pharmacist, and the request has already re-opened."
+    },
+    {
       "id": "R7-queued",
       "screen": "R7",
       "state": "offline · queued",
       "note": "D27 at its most important: no countdown, no progress bar, and the words come from the outbox."
+    }
+  ],
+  "architecture": [
+    {
+      "layer": "UI",
+      "note": "renders a resolved view; decides nothing",
+      "modules": [
+        "apps/patient/src/App.tsx",
+        "apps/patient/src/screens/ConfirmScreen.tsx",
+        "apps/patient/src/screens/DraftScreen.tsx",
+        "apps/patient/src/screens/FindScreen.tsx",
+        "apps/patient/src/screens/OffersScreen.tsx",
+        "apps/patient/src/screens/ReservationScreen.tsx",
+        "apps/patient/src/screens/WaitingScreen.tsx",
+        "apps/patient/src/ui/kit.tsx"
+      ]
+    },
+    {
+      "layer": "STATE",
+      "note": "pure reducer and view models; asks the domain, never computes a rule",
+      "modules": [
+        "apps/patient/src/app/store.ts",
+        "apps/patient/src/model/draft.ts",
+        "apps/patient/src/model/offers.ts",
+        "apps/patient/src/model/reservation.ts",
+        "apps/patient/src/model/search.ts",
+        "apps/patient/src/model/send.ts",
+        "apps/patient/src/model/view.ts"
+      ]
+    },
+    {
+      "layer": "DOMAIN",
+      "note": "pure: no clock, no randomness, no I/O — enforced by layer-check",
+      "modules": [
+        "packages/contracts/src/index.ts",
+        "packages/design/src/a11y.ts",
+        "packages/design/src/index.ts",
+        "packages/design/src/rtl.ts",
+        "packages/design/src/tokens/color.ts",
+        "packages/design/src/tokens/motion.ts",
+        "packages/design/src/tokens/space.ts",
+        "packages/design/src/tokens/type.ts",
+        "packages/design/src/ux/contract.ts",
+        "packages/domain/src/clinical/gates.ts",
+        "packages/domain/src/identity/authority.ts",
+        "packages/domain/src/identity/family.ts",
+        "packages/domain/src/identity/machines.ts",
+        "packages/domain/src/index.ts",
+        "packages/domain/src/marketplace/machines.ts",
+        "packages/domain/src/marketplace/rules.ts",
+        "packages/domain/src/pharmacy/machines.ts",
+        "packages/domain/src/shared/ids.ts",
+        "packages/domain/src/shared/index.ts",
+        "packages/domain/src/shared/instant.ts",
+        "packages/domain/src/shared/machine.ts",
+        "packages/domain/src/shared/refusal.ts",
+        "packages/domain/src/shared/result.ts",
+        "packages/navigation/src/flow.ts",
+        "packages/navigation/src/graph.ts",
+        "packages/navigation/src/guards.ts",
+        "packages/navigation/src/index.ts",
+        "packages/net/src/index.ts",
+        "packages/offline/src/index.ts",
+        "packages/session/src/index.ts"
+      ]
+    },
+    {
+      "layer": "PORTS",
+      "note": "types only; no transport",
+      "modules": [
+        "apps/patient/src/ports.ts"
+      ]
     }
   ]
 }

@@ -142,12 +142,19 @@ export const InfoCard = ({ t, children, muted = false }: { t: Theme; children: R
   </View>
 );
 
-/** Never competes with the primary: no fill, no accent background. */
-export function Secondary({ t, label, onPress }: { t: Theme; label: string; onPress: Press }) {
+/**
+ * Never competes with the primary: no fill, no accent background.
+ *
+ * `spoken` exists because a repeated row action needs a label a screen reader
+ * can tell apart while the visible text stays short. Putting the medicine name
+ * in the visible label wrapped it onto two lines and crowded the stepper —
+ * visible text and spoken label are allowed to differ, and this is why.
+ */
+export function Secondary({ t, label, spoken, onPress }: { t: Theme; label: string; spoken?: string; onPress: Press }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={spoken ?? label}
       onPress={onPress}
       style={{ minHeight: t.tap.min, justifyContent: "center", paddingHorizontal: t.space[3] }}
     >

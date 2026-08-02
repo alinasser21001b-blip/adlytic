@@ -18,6 +18,9 @@ import { FindScreen } from "./screens/FindScreen.jsx";
 import { DraftScreen } from "./screens/DraftScreen.jsx";
 import { ConfirmScreen } from "./screens/ConfirmScreen.jsx";
 import { WaitingScreen } from "./screens/WaitingScreen.jsx";
+import { OffersScreen } from "./screens/OffersScreen.jsx";
+import { ReservationScreen } from "./screens/ReservationScreen.jsx";
+import * as Offers from "./model/offers.js";
 import { Label } from "./ui/kit.jsx";
 import { instant } from "@dawai/domain";
 import type { CataloguePort, Environment } from "./ports.js";
@@ -83,6 +86,10 @@ function perform(effect: Effect, rt: Runtime, send: (i: Intent) => void): void {
   }
 }
 
+/** Platform intents this slice does not own. Wired when their slice lands;
+ *  nothing pretends they work in the meantime. */
+const noop = () => {};
+
 export function App({ rt }: { rt: Runtime }) {
   const scheme = useColorScheme();
   const t = themeFor(scheme === "dark" ? "dark" : "light");
@@ -135,6 +142,41 @@ export function App({ rt }: { rt: Runtime }) {
         <WaitingScreen
           t={t} sent={state.sent} history={state.history} now={rt.env.now()}
           urgency={state.sent.submission.urgency} offerCount={0}
+          onBack={onBack} onAction={onAction}
+        />
+      ) : <Placeholder t={t} />;
+
+    case "R8":
+      return (
+        <OffersScreen
+          t={t}
+          offers={state.offers.map((o) => Offers.summarise(o, o.lines.map((l) => l.requestLineId)))}
+          requestedLines={state.sent?.submission.lines.length ?? 0}
+          history={state.history}
+          loading={state.offers.length === 0}
+          staleOfferName={state.staleOffer}
+          onChoose={(offerId) => send({ kind: "chooseOffer", offerId })}
+          onDetails={() => onAction("R9")}
+          onBack={onBack} onAction={onAction}
+        />
+      );
+
+    case "V1":
+    case "V2":
+    case "V4":
+      return state.reservation ? (
+        <ReservationScreen
+          t={t}
+          view={state.reservation}
+          // Freshness comes from the transport once Stage 5 exists. Until then
+          // it is live, because nothing is cached — claiming "cached" would be
+          // as dishonest as claiming "live" when it is not.
+          freshness={{ kind: "live" }}
+          history={state.history}
+          now={rt.env.now()}
+          onCancel={() => onAction("V5")}
+          onCall={noop}
+          onDirections={noop}
           onBack={onBack} onAction={onAction}
         />
       ) : <Placeholder t={t} />;

@@ -183,3 +183,107 @@ describe("the graph the app actually navigates", () => {
     expect(flowGaps(GRAPH, PATIENT_FLOWS)).toEqual([]);
   });
 });
+
+describe("the second half of the loop", () => {
+  const line = (id: string, name: string, answer: unknown) =>
+    ({ requestLineId: id, itemName: name, answer }) as never;
+
+  const offer = (over: Record<string, unknown> = {}) => ({
+    offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
+    distanceM: 800, honoured: "trusted", state: "sent", openNow: true,
+    lines: [line("l1", "بانادول", { kind: "available", priceMinor: 3_000 })],
+    ...over,
+  }) as never;
+
+  const sentRequest = () => run(signedIn(), [
+    { kind: "addItem", hit: hit() },
+    { kind: "send", at: instant(1_000) },
+  ]).state;
+
+  it("the FIRST offer is the moment worth announcing; later ones are silent", () => {
+    const one = run(sentRequest(), [{ kind: "offerArrived", offer: offer() }]);
+    expect(one.effects.filter((e) => e.kind === "emit" && e.event === "request.answered")).toHaveLength(1);
+
+    const two = run(one.state, [{ kind: "offerArrived", offer: offer({ offerId: "o2" }) }]);
+    expect(two.effects.some((e) => e.kind === "emit" && e.event === "request.answered")).toBe(false);
+    expect(two.state.offers).toHaveLength(2);
+  });
+
+  it("an offer that arrives again replaces itself rather than appearing twice", () => {
+    let s = run(sentRequest(), [{ kind: "offerArrived", offer: offer() }]).state;
+    s = run(s, [{ kind: "offerArrived", offer: offer({ branchName: "الرشيد (محدّث)" }) }]).state;
+    expect(s.offers).toHaveLength(1);
+    expect(s.offers[0]!.branchName).toBe("الرشيد (محدّث)");
+  });
+
+  it("choosing an offer asks for the hold and shows the waiting screen with no timer", () => {
+    const s = run(sentRequest(), [
+      { kind: "offerArrived", offer: offer() },
+      { kind: "chooseOffer", offerId: "o1" },
+    ]).state;
+    expect(s.screen).toBe("V1");
+    expect(s.reservationState).toBe("requested");
+    expect(s.reservation).toEqual({ kind: "requesting", branchName: "صيدلية الرشيد" });
+  });
+
+  it("an offer withdrawn between render and tap keeps the list and names the pharmacy", () => {
+    const s = run(sentRequest(), [
+      { kind: "offerArrived", offer: offer({ state: "withdrawn" }) },
+      { kind: "chooseOffer", offerId: "o1" },
+    ]).state;
+    expect(s.screen).not.toBe("V1");
+    expect(s.staleOffer).toBe("صيدلية الرشيد");
+    expect(s.refusal?.code).toBe("OFFER_WITHDRAWN");
+    expect(s.offers).toHaveLength(1);
+  });
+
+  it("a confirmed hold reports it and lands on the reservation", () => {
+    const chosen = run(sentRequest(), [
+      { kind: "offerArrived", offer: offer() },
+      { kind: "chooseOffer", offerId: "o1" },
+    ]).state;
+
+    const { state, effects } = run(chosen, [{
+      kind: "holdConfirmed",
+      hold: {
+        reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد",
+        branchPhone: "0770", address: "الكرادة",
+        confirmedAt: instant(2_000), expiresAt: instant(2_000 + 3_600_000),
+        totalMinor: 3_000, lines: [{ itemName: "بانادول", packs: 1, priceMinor: 3_000 }],
+      },
+    }]);
+
+    expect(state.screen).toBe("V2");
+    expect(state.reservationState).toBe("held");
+    expect(effects.some((e) => e.kind === "emit" && e.event === "reservation.confirmed")).toBe(true);
+  });
+
+  it("D39 — a refusal reports it and lands somewhere that moves the patient forward", () => {
+    const chosen = run(sentRequest(), [
+      { kind: "offerArrived", offer: offer() },
+      { kind: "chooseOffer", offerId: "o1" },
+    ]).state;
+
+    const { state, effects } = run(chosen, [{ kind: "holdRefused", branchName: "صيدلية الرشيد", reopened: true }]);
+    expect(state.screen).toBe("V4");
+    expect(state.reservationState).toBe("refused");
+    expect(state.reservation).toMatchObject({ kind: "refused", reopened: true });
+    expect(effects.some((e) => e.kind === "emit" && e.event === "reservation.refused")).toBe(true);
+  });
+
+  it("a hold cannot be confirmed twice — the published machine forbids it (Rule 5)", () => {
+    let s = run(sentRequest(), [
+      { kind: "offerArrived", offer: offer() },
+      { kind: "chooseOffer", offerId: "o1" },
+    ]).state;
+    const held = {
+      reservationId: "r1", code: "4KD2P9", branchName: "ص", branchPhone: "0770", address: "a",
+      confirmedAt: instant(2_000), expiresAt: instant(2_000 + 3_600_000),
+      totalMinor: 1, lines: [],
+    };
+    s = run(s, [{ kind: "holdConfirmed", hold: held }]).state;
+    const again = run(s, [{ kind: "holdConfirmed", hold: held }]);
+    expect(again.state.reservationState).toBe("held");
+    expect(again.effects).toEqual([]);
+  });
+});
