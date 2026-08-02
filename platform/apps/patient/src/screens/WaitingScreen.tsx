@@ -56,7 +56,7 @@ export function WaitingScreen(p: WaitingProps) {
         ? <QueuedNote t={t} item={sent.outbox.items[0]} />
         : <Countdown t={t} left={left} offers={p.offerCount} />}
 
-      <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: t.space[2] }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
         {R7.secondary.filter((s) => isBuilt(s.leadsTo)).map((s) => (
           <Secondary key={s.label} t={t} label={s.label} onPress={() => p.onAction(s.leadsTo)} />
         ))}
@@ -84,7 +84,7 @@ function Countdown({ t, left, offers }: { t: Theme; left: { ms: number; fraction
     <View style={{ padding: t.space[6], gap: t.space[4], borderRadius: t.radius.lg, backgroundColor: t.color.surfaceRaised, borderWidth: 1, borderColor: t.color.line }}>
       <Label t={t} role="body" color="inkMuted">سألنا الصيدليات القريبة</Label>
 
-      <View style={{ flexDirection: "row-reverse", alignItems: "baseline", gap: t.space[2] }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
         <Digits t={t} value={minutes} role="display" />
         <Label t={t} role="body" color="inkMuted">دقيقة باقية</Label>
       </View>

@@ -71,6 +71,12 @@ const LAYERS = [
     banned: [
       { re: /\bDate\.now\s*\(/, why: "the system clock inside a contract — presentation state comes from the domain" },
       { re: /\bMath\.random\s*\(/, why: "nondeterminism in a contract" },
+      // §25 names this hazard by name: a physical direction paired with an RTL
+      // container double-reverses, and the back button ends up on the wrong
+      // edge. `row` already means right-to-left under RTL — it broke the
+      // header the first time it was rendered.
+      { re: /row-reverse/, why: "a physical row direction — under RTL `row` already runs right-to-left, and reversing it flips the layout back (§25)" },
+      { re: /(left|right):\s*\d/, why: "a physical edge — use start/end via resolveEdge (§25)" },
     ],
   },
   {

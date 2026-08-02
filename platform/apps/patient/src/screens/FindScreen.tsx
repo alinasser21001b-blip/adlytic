@@ -15,7 +15,7 @@ import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
 import { PATIENT_FLOWS } from "@dawai/navigation";
-import { Screen, Label, Bidi, Primary, Secondary } from "../ui/kit.js";
+import { Screen, Label, Bidi, Secondary, ActionCard, InfoCard } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 import type { CatalogueHit } from "../ports.js";
 
@@ -51,23 +51,31 @@ export function FindScreen({ t, search, history, now, onType, onAdd, onBack, onA
   const hits = search.kind === "results" || search.kind === "offline" ? search.hits : [];
 
   return (
-    <Screen t={t} view={view} onBack={onBack} onAction={onAction}>
-      <TextInput
-        accessibilityLabel="اسم الدواء"
-        placeholder="اكتب اسم الدواء"
-        placeholderTextColor={t.color.inkSubtle}
-        defaultValue={search.kind === "idle" ? "" : search.query}
-        onChangeText={onType}
-        style={{
-          minHeight: t.tap.patientPrimary,
+    <Screen
+      t={t} view={view} onBack={onBack} onAction={onAction}
+      sticky={
+        <View style={{
+          flexDirection: "row", alignItems: "center", gap: t.space[3],
+          paddingHorizontal: t.space[4],
           borderRadius: t.radius.lg, borderWidth: 1, borderColor: t.color.line,
           backgroundColor: t.color.surfaceRaised,
-          paddingHorizontal: t.space[4],
-          fontFamily: t.fontFamily, fontSize: t.type.body.size, color: t.color.ink,
-          textAlign: "right", writingDirection: t.direction,
-        }}
-      />
-
+        }}>
+          <Label t={t} role="body" color="inkSubtle">⌕</Label>
+          <TextInput
+          accessibilityLabel="اسم الدواء"
+          placeholder="اكتب اسم الدواء"
+          placeholderTextColor={t.color.inkSubtle}
+          defaultValue={search.kind === "idle" ? "" : search.query}
+          onChangeText={onType}
+          style={{
+            flex: 1, minHeight: t.tap.patientPrimary,
+            fontFamily: t.fontFamily, fontSize: t.type.body.size, color: t.color.ink,
+            textAlign: "right", writingDirection: t.direction,
+          }}
+          />
+        </View>
+      }
+    >
       {hits.map((hit) => <HitRow key={hit.itemId} t={t} hit={hit} onAdd={onAdd} />)}
     </Screen>
   );
@@ -80,38 +88,42 @@ export function FindScreen({ t, search, history, now, onType, onAdd, onBack, onA
  */
 function HitRow({ t, hit, onAdd }: { t: Theme; hit: CatalogueHit; onAdd: (h: CatalogueHit) => void }) {
   const a = Search.availability(hit);
-  return (
-    <View style={{
-      padding: t.space[4], gap: t.space[2],
-      borderRadius: t.radius.lg, backgroundColor: t.color.surfaceRaised,
-      borderWidth: 1, borderColor: t.color.line,
-    }}>
-      <Label t={t} role="headline">{hit.name}</Label>
-      <Bidi t={t} text={`${hit.latinName} · ${hit.strength} · ${hit.form}`} role="caption" color="inkMuted" />
+  const detail = `${hit.latinName} · ${hit.strength} · ${hit.form}`;
 
-      {a.requestable ? (
-        <>
-          {a.needsPrescription
-            // D18 stated up front, so the photo is expected rather than sprung.
-            ? <Label t={t} role="caption" color="warning">يحتاج وصفة — راح نطلب صورتها</Label>
-            : null}
-          <Primary t={t} label="أضفه للطلب" onPress={() => onAdd(hit)} />
-        </>
-      ) : (
+  // A refused item is information, not a control. Offering a tap that will be
+  // rejected teaches the patient that the app's buttons cannot be trusted.
+  if (!a.requestable) {
+    return (
+      <InfoCard t={t} muted>
+        <Label t={t} role="headline" color="inkMuted">{hit.name}</Label>
+        <Bidi t={t} text={detail} role="caption" color="inkSubtle" />
         <Label t={t} role="caption" color="inkMuted">
           {a.refusal === "CONTROLLED_NOT_SUPPORTED"
             ? "ما ينطلب من التطبيق — لازم تروح للصيدلية"
             : "ما ينطلب من التطبيق"}
         </Label>
-      )}
-    </View>
+      </InfoCard>
+    );
+  }
+
+  return (
+    // The label names the medicine: a screen reader moving down a list of
+    // "أضفه للطلب" cannot tell the patient which one they are on.
+    <ActionCard t={t} label={`أضف ${hit.name} للطلب`} onPress={() => onAdd(hit)}>
+      <Label t={t} role="headline">{hit.name}</Label>
+      <Bidi t={t} text={detail} role="caption" color="inkMuted" />
+      {a.needsPrescription
+        // D18 stated up front, so the photo is expected rather than sprung.
+        ? <Label t={t} role="caption" color="warning">يحتاج وصفة — راح نطلب صورتها</Label>
+        : null}
+    </ActionCard>
   );
 }
 
 /** The secondary actions the contract declares, rendered only where this build
  *  can honour them. A control that does nothing is the defect being avoided. */
 export const SecondaryRow = ({ t, labels, onAction }: { t: Theme; labels: readonly { label: string; leadsTo: string }[]; onAction: (to: string) => void }) => (
-  <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: t.space[2] }}>
+  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
     {labels.map((s) => <Secondary key={s.leadsTo + s.label} t={t} label={s.label} onPress={() => onAction(s.leadsTo)} />)}
   </View>
 );

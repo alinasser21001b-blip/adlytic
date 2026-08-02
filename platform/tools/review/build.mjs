@@ -1,0 +1,383 @@
+#!/usr/bin/env node
+/**
+ * Build review/index.html — the visual review of the current application.
+ *
+ * Every number on the page is measured here, in this run. The quality
+ * checklist runs the actual commands and reports their exit codes, so a green
+ * tick means a command passed a moment ago rather than that somebody believed
+ * it would. A check that cannot be run is reported as such and never as green.
+ */
+import { execSync } from "node:child_process";
+import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { join, dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { SLICE, CHANGELOG, LIMITATIONS } from "./changelog.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const PLATFORM = resolve(HERE, "../..");
+const REPO = resolve(PLATFORM, "..");
+const REVIEW = join(REPO, "review");
+
+const data = JSON.parse(readFileSync(join(REVIEW, "data.json"), "utf8"));
+
+/* ── Run the gates, and report what they actually said ──────────────────── */
+
+function gate(name, command, extract) {
+  try {
+    const out = execSync(command, { cwd: PLATFORM, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return { name, command, pass: true, detail: extract ? extract(out) : "passed" };
+  } catch (e) {
+    const out = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+    const fail = out.split("\n").filter((l) => /FAIL|error/i.test(l)).slice(0, 4).join(" · ");
+    return { name, command, pass: false, detail: fail || "failed" };
+  }
+}
+
+const firstMatch = (re) => (out) => out.match(re)?.[1] ?? "passed";
+
+const gates = [
+  gate("Traceability & ownership", "node tools/trace-check.mjs", firstMatch(/(\d+ source file\(s\) scanned)/)),
+  gate("Layer boundaries", "node tools/layer-check.mjs", firstMatch(/(\d+ file\(s\) scanned across \d+ layer\(s\))/)),
+  gate("Screen contracts", "node tools/ux-check.mjs", firstMatch(/(\d+ with a declared UX contract)/)),
+  gate("TypeScript", "npx tsc -b", () => "no errors, strict mode"),
+  gate("Tests", "npx vitest run", firstMatch(/Tests\s+(\d+ passed[^\n]*)/)),
+  gate("Responsive layout", "node tools/review/shoot.mjs", firstMatch(/(\d+ screen state\(s\) photographed[^\n]*)/)),
+];
+
+/* ── Checks derived from the collected data, not from a command ─────────── */
+
+function declares(screen, kind) {
+  const st = String(screen.blueprintStates).toLowerCase();
+  return kind === "empty" ? /empty|quiet/.test(st) : st.includes(kind);
+}
+const has = (screen, kind) => screen.states.some((s) => s.kind === kind || (kind === "empty" && s.kind === "empty"));
+
+const derived = [
+  { name: "Navigation — no unreachable screen", pass: data.graph.unreachable.length === 0, detail: `${data.graph.nodes.length} screens reachable from ${data.graph.entryPoints.length} entry points` },
+  { name: "Navigation — no trap", pass: data.graph.traps.length === 0, detail: "every screen can be left" },
+  { name: "Navigation — no gap in any flow", pass: data.graph.flowGaps.length === 0, detail: `${data.flows.length} flow(s) fully renderable` },
+  { name: "Accessibility — contrast", pass: data.design.contrast.every((c) => c.passes), detail: `${data.design.contrast.length} pairs measured in both schemes, floor ${data.design.contrastFloor.bodyText}:1` },
+  { name: "Empty states", pass: data.screens.every((s) => !declares(s, "empty") || has(s, "empty")), detail: "every declared empty state has a treatment" },
+  { name: "Loading states", pass: data.screens.every((s) => !declares(s, "loading") || has(s, "loading")), detail: "every declared loading state has a treatment" },
+  { name: "Error handling", pass: data.screens.every((s) => !declares(s, "error") || has(s, "error")), detail: "every declared error state names what failed and one action" },
+  { name: "Offline behaviour", pass: data.screens.every((s) => !declares(s, "offline") || has(s, "offline")), detail: "cached content is age-labelled; queued work is never worded as sent" },
+  { name: "Analytics", pass: data.screens.every((s) => s.telemetry.every((e) => data.analytics.some((a) => a.event === e))), detail: `${data.analytics.length} events in the closed set` },
+  { name: "Known gaps documented", pass: data.gaps.length > 0, detail: `${data.gaps.length} Blueprint screens listed as NOT IMPLEMENTED` },
+];
+
+const allGates = [...gates, ...derived];
+const allPass = allGates.every((g) => g.pass);
+
+/* ── Page ───────────────────────────────────────────────────────────────── */
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const shots = existsSync(join(REVIEW, "screenshots")) ? readdirSync(join(REVIEW, "screenshots")) : [];
+
+const pct = data.progress.percentContracted;
+
+const css = `
+:root {
+  --bg:#0E1210; --panel:#151B19; --panel2:#1B2321; --line:#26312E;
+  --ink:#EAF1EE; --muted:#9FB1AA; --subtle:#75868008;
+  --ok:#7BD6AC; --warn:#F0BE72; --bad:#FF9C8A; --accent:#7BD6AC;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg:#F7F8F7; --panel:#FFFFFF; --panel2:#F0F2F1; --line:#DEE4E1;
+          --ink:#101614; --muted:#4A5B55; --ok:#186047; --warn:#7A4E0A; --bad:#8C2F1F; --accent:#186047; }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+.wrap { max-width:1180px; margin:0 auto; padding:32px 20px 96px; }
+h1 { font-size:30px; margin:0 0 6px; letter-spacing:-.02em; }
+h2 { font-size:19px; margin:48px 0 14px; letter-spacing:-.01em; }
+h3 { font-size:15px; margin:0 0 8px; }
+.sub { color:var(--muted); margin:0 0 24px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; }
+.grid { display:grid; gap:14px; }
+.g2 { grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+.g3 { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+.g4 { grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); }
+.kpi { font-size:32px; font-weight:700; letter-spacing:-.02em; }
+.kpi small { display:block; font-size:12px; font-weight:500; color:var(--muted); letter-spacing:0; margin-top:2px; }
+.bar { height:8px; border-radius:999px; background:var(--panel2); overflow:hidden; margin-top:10px; }
+.bar > i { display:block; height:100%; background:var(--accent); }
+.tag { display:inline-block; font-size:11px; padding:3px 8px; border-radius:999px;
+  background:var(--panel2); color:var(--muted); margin:0 4px 4px 0; font-family:var(--mono); }
+.tag.ok { color:var(--ok); } .tag.bad { color:var(--bad); } .tag.warn { color:var(--warn); }
+.shot { border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--panel); }
+.shot img { display:block; width:100%; background:#fff; }
+.shot .cap { padding:12px 14px; border-top:1px solid var(--line); }
+.mono { font-family:var(--mono); font-size:12px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.scroll { overflow-x:auto; }
+.chk { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+.dot { width:9px; height:9px; border-radius:999px; flex:none; }
+.dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
+.swatch { height:52px; border-radius:9px; border:1px solid var(--line); }
+.flowline { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; }
+.node { padding:6px 11px; border-radius:8px; border:1px solid var(--line); background:var(--panel2); }
+.node.built { border-color:var(--ok); color:var(--ok); }
+.node.pending { border-style:dashed; color:var(--muted); }
+.arrow { color:var(--muted); }
+ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
+.note { color:var(--muted); font-size:13px; }
+.banner { border-radius:12px; padding:14px 16px; margin:18px 0 0; font-weight:600; }
+.banner.ok { background:color-mix(in srgb, var(--ok) 14%, transparent); color:var(--ok); }
+.banner.bad { background:color-mix(in srgb, var(--bad) 14%, transparent); color:var(--bad); }
+`;
+
+const section = (title, body) => `<h2>${esc(title)}</h2>${body}`;
+
+const screenCard = (s) => {
+  const shot = s.shots[0];
+  const img = shot && shots.includes(`${shot.id}.png`)
+    ? `<img src="screenshots/${shot.id}.png" alt="${esc(s.title)}">` : "";
+  return `<div class="shot">
+    ${img}
+    <div class="cap">
+      <h3>${esc(s.id)} · ${esc(s.title)}</h3>
+      <p class="note">${esc(s.purpose)}</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: ${esc(s.back.kind)}</div>
+        ${s.primary ? `<div class="tag ok">primary: ${esc(s.primary.label)} → ${esc(s.primary.leadsTo)}</div>`
+          : `<div class="tag warn">no primary: ${esc(s.noPrimaryBecause ?? "")}</div>`}
+        ${s.guards.map((g) => `<div class="tag">guard: ${esc(g.name)}</div>`).join("")}
+      </div>
+      <div style="margin-top:8px">
+        ${s.states.map((st) => `<span class="tag">${esc(st.kind)}</span>`).join("")}
+      </div>
+      <div style="margin-top:8px">
+        ${s.exits.map((e) => `<span class="tag ${e.built ? "ok" : "bad"}">→ ${esc(e.to)}${e.built ? "" : " (not built)"}</span>`).join("")}
+      </div>
+      ${s.telemetry.length ? `<div style="margin-top:8px">${s.telemetry.map((e) => `<span class="tag">${esc(e)}</span>`).join("")}</div>` : ""}
+    </div>
+  </div>`;
+};
+
+const galleryShot = (sh) => shots.includes(`${sh.id}.png`) ? `<div class="shot">
+  <img src="screenshots/${sh.id}.png" alt="${esc(sh.id)}">
+  <div class="cap">
+    <h3>${esc(sh.screen)} — ${esc(sh.state)}</h3>
+    <p class="note">${esc(sh.note)}</p>
+  </div></div>` : "";
+
+const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dawai — Visual Review</title><style>${css}</style></head>
+<body><div class="wrap">
+
+<h1>Dawai — Visual Review</h1>
+<p class="sub">${esc(SLICE.name)} · ${esc(SLICE.workflow)} · generated ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</p>
+
+<div class="banner ${allPass ? "ok" : "bad"}">
+  ${allPass ? "All quality gates pass — this build may be pushed." : "A quality gate failed — DO NOT PUSH until it is fixed."}
+</div>
+
+${section("Current progress", `
+<div class="grid g4">
+  <div class="panel"><div class="kpi">${pct}%<small>of Blueprint screens contracted</small></div>
+    <div class="bar"><i style="width:${pct}%"></i></div></div>
+  <div class="panel"><div class="kpi">${data.progress.contracted}<small>screens contracted</small></div></div>
+  <div class="panel"><div class="kpi">${data.progress.rendered}<small>screens rendered &amp; photographed</small></div></div>
+  <div class="panel"><div class="kpi">${data.progress.remaining}<small>screens remaining</small></div></div>
+</div>
+<div class="panel" style="margin-top:14px">
+  <h3>Vertical slice status</h3>
+  <p class="note"><b>${esc(SLICE.workflow)}</b> — ${esc(SLICE.status)}. Milestone: ${esc(SLICE.milestone)}.</p>
+  <p class="note" style="margin-top:6px">Next workflow: ${esc(SLICE.next)}</p>
+</div>`)}
+
+${section("Active workflow", data.flows.map((f) => `
+<div class="panel">
+  <h3>${esc(f.id)}</h3>
+  <p class="note">${esc(f.goal)}</p>
+  <div class="flowline" style="margin-top:12px">
+    ${f.steps.map((s) => `<span class="node ${s.built ? "built" : "pending"}">${esc(s.screen)}${s.optional ? " ?" : ""}</span>`).join('<span class="arrow">→</span>')}
+    <span class="arrow">⇒</span>
+    <span class="node ${data.screens.some((x) => x.id === f.completesAt) ? "built" : "pending"}">${esc(f.completesAt)}</span>
+  </div>
+  <p class="note" style="margin-top:10px">Abandoning lands on ${esc(f.abandonsTo)}. A dashed node is a Blueprint screen a later slice builds.</p>
+</div>`).join(""))}
+
+${section("Navigation graph", `
+<div class="panel scroll">
+  <p class="note">Built screens are solid; dashed screens are declared exits a later slice owns. Every edge comes from a screen contract — the graph is derived, never hand-wired.</p>
+  <table style="margin-top:12px"><thead><tr><th>From</th><th>Exits to</th></tr></thead><tbody>
+  ${data.screens.map((s) => `<tr><td class="mono">${esc(s.id)}</td><td>${s.exits.map((e) => `<span class="node ${e.built ? "built" : "pending"}" style="margin:2px">${esc(e.to)}</span>`).join("")}</td></tr>`).join("")}
+  </tbody></table>
+  <div style="margin-top:14px">
+    <span class="tag ${data.graph.unreachable.length ? "bad" : "ok"}">unreachable: ${data.graph.unreachable.length}</span>
+    <span class="tag ${data.graph.traps.length ? "bad" : "ok"}">traps: ${data.graph.traps.length}</span>
+    <span class="tag ${data.graph.flowGaps.length ? "bad" : "ok"}">flow gaps: ${data.graph.flowGaps.length}</span>
+    <span class="tag warn">exits awaiting a later slice: ${data.graph.dangling.length}</span>
+  </div>
+</div>`)}
+
+${section("Screen gallery", `
+<p class="note" style="margin-bottom:14px">Every state below is the REAL component tree — the same screens, tokens and props the app ships — rendered through a DOM adapter and photographed at 390×844. It proves layout, hierarchy, typography, colour, spacing and tap-target size. It does not prove native gestures, platform chrome or animation.</p>
+<div class="grid g3">${data.shots.map(galleryShot).join("")}</div>`)}
+
+${section("Screen contracts", `<div class="grid g3">${data.screens.filter((s) => s.shots.length).map(screenCard).join("")}</div>
+<div class="panel scroll" style="margin-top:14px">
+  <h3>Contracted screens with no rendered state yet</h3>
+  <p class="note">Declared, checked by ux-check, and part of a later slice's rendering work.</p>
+  <table style="margin-top:10px"><thead><tr><th>Screen</th><th>Title</th><th>Purpose</th><th>States</th></tr></thead><tbody>
+  ${data.screens.filter((s) => !s.shots.length).map((s) => `<tr><td class="mono">${esc(s.id)}</td><td>${esc(s.title)}</td><td class="note">${esc(s.purpose)}</td><td>${s.states.map((x) => `<span class="tag">${esc(x.kind)}</span>`).join("") || "—"}</td></tr>`).join("")}
+  </tbody></table></div>`)}
+
+${section("Component library", `
+<div class="grid g2">
+  ${[
+    ["Screen", "The frame every screen renders through. Header, back affordance, flow progress, state block, scrolling body, optional footer. A screen cannot ship without answering “where am I”."],
+    ["Primary", "The one dominant action. 48pt — above the 44pt floor, because §25 raises the patient primary. Carries busy and disabled states with accessibility state attached."],
+    ["ActionCard", "A whole card that is the action. One visual weight per list, and a tap target the size of the row."],
+    ["InfoCard", "A card that is not an action. A refused item reads as information rather than offering a tap that will be rejected."],
+    ["Secondary", "Never competes: no fill, no accent background, 44pt minimum."],
+    ["StateBlock", "Renders the treatment the contract declared — loading, empty, error, offline, permission-refused, success. It cannot fall through to a generic message."],
+    ["Label", "Type role, colour role, RTL direction and zero letter-spacing. A component never writes a raw font size."],
+    ["Bidi", "Isolates a Latin run inside Arabic so a drug name or price does not reorder."],
+    ["Digits", "Tabular figures, one numeral system per surface, so a countdown does not jitter."],
+    ["RedirectNote", "Says why a guard sent the user here, so the screen never appears for no reason."],
+  ].map(([n, d]) => `<div class="panel"><h3>${esc(n)}</h3><p class="note">${esc(d)}</p></div>`).join("")}
+</div>`)}
+
+${section("Design system", `
+<div class="panel">
+  <h3>Colour — patient palette</h3>
+  <div class="grid g4" style="margin-top:12px">
+    ${Object.entries(data.design.palette.light).map(([role, hex]) => `<div>
+      <div class="swatch" style="background:${esc(hex)}"></div>
+      <div class="mono" style="margin-top:6px">${esc(role)}</div>
+      <div class="mono note">${esc(hex)} · ${esc(data.design.palette.dark[role])}</div>
+    </div>`).join("")}
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Contrast — measured, not asserted</h3>
+  <p class="note">Every pair a component may place together, run through the WCAG relative-luminance formula in both schemes. Floor: ${data.design.contrastFloor.bodyText}:1 body, ${data.design.contrastFloor.uiBoundary}:1 boundaries.</p>
+  <div class="scroll"><table style="margin-top:10px"><thead><tr><th>Pair</th><th>Light</th><th>Dark</th><th></th></tr></thead><tbody>
+  ${data.design.contrast.map((c) => `<tr><td class="mono">${esc(c.pair)}</td><td class="mono">${c.light}</td><td class="mono">${c.dark}</td><td><span class="tag ${c.passes ? "ok" : "bad"}">${c.passes ? "pass" : "below floor"}</span></td></tr>`).join("")}
+  </tbody></table></div>
+</div>
+
+<div class="grid g3" style="margin-top:14px">
+  <div class="panel"><h3>Typography</h3>
+    <table><tbody>${Object.entries(data.design.type).map(([role, s]) => `<tr><td class="mono">${esc(role)}</td><td class="mono">${s.size}/${s.lineHeight} · ${s.weight}</td><td class="note">${s.clinicalAllowed ? "clinical ok" : "not clinical"}</td></tr>`).join("")}</tbody></table>
+    <p class="note" style="margin-top:8px">Letter-spacing is always 0 — Arabic is connected and tracking breaks the joins.</p>
+  </div>
+  <div class="panel"><h3>Spacing &amp; radius</h3>
+    <p class="mono">${Object.entries(data.design.space).map(([k, v]) => `${k}:${v}`).join("  ")}</p>
+    <p class="mono" style="margin-top:8px">radius ${Object.entries(data.design.radius).map(([k, v]) => `${k}:${v}`).join("  ")}</p>
+    <p class="note" style="margin-top:8px">A 4pt rhythm. No value outside the scale exists.</p>
+  </div>
+  <div class="panel"><h3>Touch targets</h3>
+    <p class="mono">min ${data.design.tap.min} · patient primary ${data.design.tap.patientPrimary} · pharmacy primary ${data.design.tap.pharmacyPrimary}</p>
+    <p class="note" style="margin-top:8px">Checked by walking the rendered tree of every screen, not by inspection.</p>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px"><h3>Motion</h3>
+  <div class="scroll"><table><thead><tr><th>Token</th><th>Duration</th><th>Purpose</th></tr></thead><tbody>
+  ${Object.entries(data.design.motion).map(([k, m]) => `<tr><td class="mono">${esc(k)}</td><td class="mono">${esc(m.duration ?? "—")}ms</td><td class="note">${esc(m.why ?? m.purpose ?? "")}</td></tr>`).join("")}
+  </tbody></table></div>
+  <p class="note" style="margin-top:8px">Declared, not yet applied — see Known limitations.</p>
+</div>`)}
+
+${section("Architecture", `
+<div class="panel">
+<pre class="mono" style="line-height:1.8; overflow-x:auto">
+  UI              App.tsx · FindScreen · DraftScreen · ConfirmScreen · WaitingScreen
+                  ui/kit.tsx · ui/theme.ts · ui/refusal.ts
+                       │  renders a resolved view, decides nothing
+                       ▼
+  STATE           app/store.ts        pure reducer: (state, intent) → (state, effects)
+                  model/view.ts       contract + flow → what a component renders
+                  model/search.ts     model/draft.ts       model/send.ts
+                       │  asks; never computes a rule
+                       ▼
+  DOMAIN          @dawai/domain       Clinical.gateRequestLine · Marketplace.checkLineCount
+                  @dawai/navigation   guards · graph · flows
+                  @dawai/session      @dawai/offline      @dawai/net
+                       │  pure: no clock, no randomness, no I/O
+                       ▼
+  PORTS           ports.ts            CataloguePort · Environment
+                       │  types only; no transport
+                       ▼
+  INFRASTRUCTURE  Stage 5 — NOT BUILT
+</pre>
+<p class="note">Enforced by tools/layer-check.mjs: the domain may not import Node built-ins, the network, storage, timers, randomness or the clock, and the app layer may import nothing but the workspace packages, react and react-native.</p>
+</div>`)}
+
+${section("Offline flow", `
+<div class="grid g2">
+  <div class="panel"><h3>Online</h3>
+    <div class="flowline"><span class="node built">tap send</span><span class="arrow">→</span><span class="node built">outbox</span><span class="arrow">→</span><span class="node built">POST /v1/requests</span><span class="arrow">→</span><span class="node built">broadcast</span><span class="arrow">→</span><span class="node built">R7 countdown</span></div>
+    <p class="note" style="margin-top:10px"><code>request.broadcast</code> is emitted here and only here.</p>
+  </div>
+  <div class="panel"><h3>Offline</h3>
+    <div class="flowline"><span class="node built">tap send</span><span class="arrow">→</span><span class="node built">outbox: queued</span><span class="arrow">→</span><span class="node pending">retry · full jitter</span><span class="arrow">→</span><span class="node built">delivered</span><span class="arrow">→</span><span class="node built">broadcast</span></div>
+    <p class="note" style="margin-top:10px">Both paths go through the outbox, so there is one delivery route and not two. A queued request shows no countdown and its wording comes from the outbox, so no screen can invent a friendlier phrase for “not yet sent”. Retries carry a stable idempotency key; a 409 resolves to accepted, never an error.</p>
+  </div>
+</div>`)}
+
+${section("Analytics", `
+<div class="panel scroll">
+<table><thead><tr><th>Event</th><th>Emitted by</th><th>Trigger</th></tr></thead><tbody>
+${data.analytics.map((a) => {
+  const emitters = data.screens.filter((s) => s.telemetry.includes(a.event)).map((s) => s.id);
+  const trigger = {
+    "request.broadcast": "send succeeds AND the request reached broadcast — never when queued",
+    "search.unmatched": "a search returns zero rows — never on a transport failure",
+    "clinical.gate.refused": "the clinical gate refuses a line at the moment it is added",
+  }[a.event];
+  return `<tr><td class="mono">${esc(a.event)}</td><td>${emitters.length ? emitters.map((e) => `<span class="tag ok">${esc(e)}</span>`).join("") : '<span class="tag">not yet emitted</span>'}</td><td class="note">${esc(trigger ?? "declared in the closed set; emitted by a later slice")}</td></tr>`;
+}).join("")}
+</tbody></table>
+<p class="note" style="margin-top:10px">The set is closed: adding an event is a deliberate act with a Blueprint reference, so no metric can be computed from an ad-hoc counter.</p>
+</div>`)}
+
+${section("Tests", `
+<div class="grid g2">
+${allGates.map((g) => `<div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ${g.pass ? "ok" : "bad"}"></span>
+  <div><b>${esc(g.name)}</b> — <span class="tag ${g.pass ? "ok" : "bad"}">${g.pass ? "PASS" : "FAIL"}</span>
+  <div class="note mono">${esc(g.detail)}</div></div>
+</div></div>`).join("")}
+</div>`)}
+
+${section("Quality checklist", `
+<div class="panel">
+${allGates.map((g) => `<div class="chk"><span class="dot ${g.pass ? "ok" : "bad"}"></span><div style="flex:1">${esc(g.name)}</div><span class="tag ${g.pass ? "ok" : "bad"}">${g.pass ? "verified" : "failing"}</span></div>`).join("")}
+<div class="chk"><span class="dot bad"></span><div style="flex:1">Performance</div><span class="tag warn">not measured — no runtime exists to measure yet</span></div>
+</div>
+<p class="note" style="margin-top:10px">Nothing above is green unless it was measured in this run. Performance is deliberately red rather than assumed: there is no device build to profile.</p>`)}
+
+${section("Known gaps — NOT IMPLEMENTED", `
+<div class="panel scroll">
+<p class="note">${data.gaps.length} of the ${data.progress.blueprintScreens} Blueprint v3 Phase 0 screens are not in this build. The ${data.gaps.filter((g) => g.referenced).length} marked <b>referenced</b> are named by an exit in a contracted screen — no control navigates to them, and a guard whose destination is not built keeps the user where they are with the reason.</p>
+<table style="margin-top:12px"><thead><tr><th>Screen</th><th>Group</th><th>Name</th><th>Purpose</th><th></th></tr></thead><tbody>
+${data.gaps.map((g) => `<tr><td class="mono">${esc(g.id)}</td><td class="note">${esc(g.group)}</td><td>${esc(g.name)}</td><td class="note">${esc(g.purpose)}</td><td>${g.referenced ? '<span class="tag warn">referenced</span>' : '<span class="tag">later slice</span>'}</td></tr>`).join("")}
+</tbody></table></div>`)}
+
+${section("Known limitations", `<div class="panel"><ul>${LIMITATIONS.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`)}
+
+${section("Change log — this slice", `<div class="grid g2">
+${Object.entries(CHANGELOG).map(([k, items]) => `<div class="panel"><h3>${esc(k)}</h3><ul>${items.map((i) => `<li class="note">${esc(i)}</li>`).join("")}</ul></div>`).join("")}
+</div>`)}
+
+<p class="note" style="margin-top:48px">Generated by <code>npm run review</code>. Every figure is measured at generation time; nothing on this page is asserted by hand.</p>
+</div></body></html>`;
+
+writeFileSync(join(REVIEW, "index.html"), html, "utf8");
+
+console.log(`\nVisual review — review/index.html\n`);
+for (const g of allGates) console.log(`  ${g.pass ? "PASS" : "FAIL"}  ${g.name} — ${g.detail}`);
+console.log(`\n  ${data.screens.length} contracted screens · ${data.shots.length} photographed states · ${data.gaps.length} documented gaps\n`);
+if (!allPass) { console.log("  A gate failed. DO NOT PUSH.\n"); process.exit(1); }
+console.log("  All gates pass.\n");

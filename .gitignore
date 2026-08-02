@@ -29,3 +29,7 @@ playwright-report/
 
 # netlify CLI link state (contains a site id, not a secret — still local-only)
 hub/.netlify/
+
+# Visual review — index.html and screenshots are the deliverable; the
+# intermediate render output is not.
+review/screens/

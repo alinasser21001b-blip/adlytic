@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dawai — Visual Review</title><style>
+:root {
+  --bg:#0E1210; --panel:#151B19; --panel2:#1B2321; --line:#26312E;
+  --ink:#EAF1EE; --muted:#9FB1AA; --subtle:#75868008;
+  --ok:#7BD6AC; --warn:#F0BE72; --bad:#FF9C8A; --accent:#7BD6AC;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg:#F7F8F7; --panel:#FFFFFF; --panel2:#F0F2F1; --line:#DEE4E1;
+          --ink:#101614; --muted:#4A5B55; --ok:#186047; --warn:#7A4E0A; --bad:#8C2F1F; --accent:#186047; }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+.wrap { max-width:1180px; margin:0 auto; padding:32px 20px 96px; }
+h1 { font-size:30px; margin:0 0 6px; letter-spacing:-.02em; }
+h2 { font-size:19px; margin:48px 0 14px; letter-spacing:-.01em; }
+h3 { font-size:15px; margin:0 0 8px; }
+.sub { color:var(--muted); margin:0 0 24px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; }
+.grid { display:grid; gap:14px; }
+.g2 { grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+.g3 { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+.g4 { grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); }
+.kpi { font-size:32px; font-weight:700; letter-spacing:-.02em; }
+.kpi small { display:block; font-size:12px; font-weight:500; color:var(--muted); letter-spacing:0; margin-top:2px; }
+.bar { height:8px; border-radius:999px; background:var(--panel2); overflow:hidden; margin-top:10px; }
+.bar > i { display:block; height:100%; background:var(--accent); }
+.tag { display:inline-block; font-size:11px; padding:3px 8px; border-radius:999px;
+  background:var(--panel2); color:var(--muted); margin:0 4px 4px 0; font-family:var(--mono); }
+.tag.ok { color:var(--ok); } .tag.bad { color:var(--bad); } .tag.warn { color:var(--warn); }
+.shot { border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--panel); }
+.shot img { display:block; width:100%; background:#fff; }
+.shot .cap { padding:12px 14px; border-top:1px solid var(--line); }
+.mono { font-family:var(--mono); font-size:12px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.scroll { overflow-x:auto; }
+.chk { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+.dot { width:9px; height:9px; border-radius:999px; flex:none; }
+.dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
+.swatch { height:52px; border-radius:9px; border:1px solid var(--line); }
+.flowline { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; }
+.node { padding:6px 11px; border-radius:8px; border:1px solid var(--line); background:var(--panel2); }
+.node.built { border-color:var(--ok); color:var(--ok); }
+.node.pending { border-style:dashed; color:var(--muted); }
+.arrow { color:var(--muted); }
+ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
+.note { color:var(--muted); font-size:13px; }
+.banner { border-radius:12px; padding:14px 16px; margin:18px 0 0; font-weight:600; }
+.banner.ok { background:color-mix(in srgb, var(--ok) 14%, transparent); color:var(--ok); }
+.banner.bad { background:color-mix(in srgb, var(--bad) 14%, transparent); color:var(--bad); }
+</style></head>
+<body><div class="wrap">
+
+<h1>Dawai — Visual Review</h1>
+<p class="sub">Patient · Vertical slice 1 · Search Medicine → Request Medicine → Send · generated 2026-08-02 15:00 UTC</p>
+
+<div class="banner ok">
+  All quality gates pass — this build may be pushed.
+</div>
+
+<h2>Current progress</h2>
+<div class="grid g4">
+  <div class="panel"><div class="kpi">13.5%<small>of Blueprint screens contracted</small></div>
+    <div class="bar"><i style="width:13.5%"></i></div></div>
+  <div class="panel"><div class="kpi">18<small>screens contracted</small></div></div>
+  <div class="panel"><div class="kpi">5<small>screens rendered &amp; photographed</small></div></div>
+  <div class="panel"><div class="kpi">115<small>screens remaining</small></div></div>
+</div>
+<div class="panel" style="margin-top:14px">
+  <h3>Vertical slice status</h3>
+  <p class="note"><b>Search Medicine → Request Medicine → Send</b> — complete. Milestone: The patient core loop, first half.</p>
+  <p class="note" style="margin-top:6px">Next workflow: Receive Offers → Compare Offers → Reserve → Pickup Confirmation (R7 live, R8, R9, V1, V2)</p>
+</div>
+
+<h2>Active workflow</h2>
+<div class="panel">
+  <h3>request-medicine</h3>
+  <p class="note">تطلب دواء وتحجزه من صيدلية قريبة</p>
+  <div class="flowline" style="margin-top:12px">
+    <span class="node built">R1</span><span class="arrow">→</span><span class="node built">R2 ?</span><span class="arrow">→</span><span class="node built">R6</span><span class="arrow">→</span><span class="node built">R7</span><span class="arrow">→</span><span class="node built">R8</span><span class="arrow">→</span><span class="node built">V1</span>
+    <span class="arrow">⇒</span>
+    <span class="node built">V2</span>
+  </div>
+  <p class="note" style="margin-top:10px">Abandoning lands on S1. A dashed node is a Blueprint screen a later slice builds.</p>
+</div>
+
+<h2>Navigation graph</h2>
+<div class="panel scroll">
+  <p class="note">Built screens are solid; dashed screens are declared exits a later slice owns. Every edge comes from a screen contract — the graph is derived, never hand-wired.</p>
+  <table style="margin-top:12px"><thead><tr><th>From</th><th>Exits to</th></tr></thead><tbody>
+  <tr><td class="mono">S1</td><td><span class="node built" style="margin:2px">R1</span><span class="node pending" style="margin:2px">S2</span><span class="node built" style="margin:2px">V2</span><span class="node pending" style="margin:2px">V8</span></td></tr><tr><td class="mono">E4</td><td><span class="node pending" style="margin:2px">E5</span></td></tr><tr><td class="mono">F1</td><td><span class="node built" style="margin:2px">F2</span><span class="node pending" style="margin:2px">F5</span><span class="node built" style="margin:2px">R2</span></td></tr><tr><td class="mono">F2</td><td><span class="node pending" style="margin:2px">F3</span><span class="node built" style="margin:2px">R1</span></td></tr><tr><td class="mono">R1</td><td><span class="node built" style="margin:2px">F2</span><span class="node built" style="margin:2px">R2</span><span class="node built" style="margin:2px">R4</span><span class="node built" style="margin:2px">R6</span></td></tr><tr><td class="mono">R6</td><td><span class="node built" style="margin:2px">R5</span><span class="node built" style="margin:2px">R7</span><span class="node built" style="margin:2px">R13</span></td></tr><tr><td class="mono">R7</td><td><span class="node built" style="margin:2px">R8</span><span class="node built" style="margin:2px">R11</span><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">R8</td><td><span class="node built" style="margin:2px">R9</span><span class="node built" style="margin:2px">V1</span><span class="node built" style="margin:2px">R7</span></td></tr><tr><td class="mono">R2</td><td><span class="node built" style="margin:2px">R3</span><span class="node built" style="margin:2px">R1</span></td></tr><tr><td class="mono">R3</td><td><span class="node built" style="margin:2px">R1</span><span class="node built" style="margin:2px">R2</span></td></tr><tr><td class="mono">R4</td><td><span class="node built" style="margin:2px">R1</span><span class="node pending" style="margin:2px">S3</span></td></tr><tr><td class="mono">R5</td><td><span class="node built" style="margin:2px">R1</span></td></tr><tr><td class="mono">R9</td><td><span class="node built" style="margin:2px">V1</span><span class="node built" style="margin:2px">R8</span><span class="node pending" style="margin:2px">R10</span></td></tr><tr><td class="mono">R11</td><td><span class="node built" style="margin:2px">R7</span><span class="node pending" style="margin:2px">R12</span><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">R13</td><td><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">V1</td><td><span class="node built" style="margin:2px">V2</span><span class="node built" style="margin:2px">V4</span><span class="node built" style="margin:2px">R8</span></td></tr><tr><td class="mono">V2</td><td><span class="node pending" style="margin:2px">V5</span><span class="node pending" style="margin:2px">V7</span><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">V4</td><td><span class="node built" style="margin:2px">R8</span><span class="node built" style="margin:2px">S1</span></td></tr>
+  </tbody></table>
+  <div style="margin-top:14px">
+    <span class="tag ok">unreachable: 0</span>
+    <span class="tag ok">traps: 0</span>
+    <span class="tag ok">flow gaps: 0</span>
+    <span class="tag warn">exits awaiting a later slice: 10</span>
+  </div>
+</div>
+
+<h2>Screen gallery</h2>
+<p class="note" style="margin-bottom:14px">Every state below is the REAL component tree — the same screens, tokens and props the app ships — rendered through a DOM adapter and photographed at 390×844. It proves layout, hierarchy, typography, colour, spacing and tap-target size. It does not prove native gestures, platform chrome or animation.</p>
+<div class="grid g3"><div class="shot">
+  <img src="screenshots/F1-empty.png" alt="F1-empty">
+  <div class="cap">
+    <h3>F1 — empty · teaching</h3>
+    <p class="note">The first thing a new patient sees. It teaches what to do rather than reporting that there is no data.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-loading.png" alt="F2-loading">
+  <div class="cap">
+    <h3>F2 — loading</h3>
+    <p class="note">A skeleton shaped like the rows that are coming, so the page does not jump when they arrive.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-results.png" alt="F2-results">
+  <div class="cap">
+    <h3>F2 — results</h3>
+    <p class="note">Three rows covering all three clinical answers: ordinary, prescription-required (D18), and controlled (D42) — refused on the row, before the tap.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-empty.png" alt="F2-empty">
+  <div class="cap">
+    <h3>F2 — empty · miss</h3>
+    <p class="note">§13.1 — the catalogue is incomplete, not the patient wrong. The miss feeds catalogue growth.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-offline.png" alt="F2-offline">
+  <div class="cap">
+    <h3>F2 — offline</h3>
+    <p class="note">Cached rows, labelled with their age. Never presented as live.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-error.png" alt="F2-error">
+  <div class="cap">
+    <h3>F2 — error</h3>
+    <p class="note">§23 — what failed, that the work survived, and one thing to press.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R1-empty.png" alt="R1-empty">
+  <div class="cap">
+    <h3>R1 — empty · teaching</h3>
+    <p class="note">An empty draft states the line limit as a fact rather than waiting to enforce it as a wall.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R1-lines.png" alt="R1-lines">
+  <div class="cap">
+    <h3>R1 — ready</h3>
+    <p class="note">The pack stepper (D07), the remaining-line count, and a prescription line naming what it still needs.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R1-refused.png" alt="R1-refused">
+  <div class="cap">
+    <h3>R1 — error · refusal</h3>
+    <p class="note">D42 refused in place. The draft the patient already built stays on screen behind it.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R6-online.png" alt="R6-online">
+  <div class="cap">
+    <h3>R6 — ready</h3>
+    <p class="note">D09's three windows, each stating its real duration so the choice is informed.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R6-offline.png" alt="R6-offline">
+  <div class="cap">
+    <h3>R6 — offline</h3>
+    <p class="note">D27 — the button promises only what the app can do without a connection.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R7-waiting.png" alt="R7-waiting">
+  <div class="cap">
+    <h3>R7 — empty · waiting</h3>
+    <p class="note">A bar with a value rather than a spinner: the patient learns how much longer, not merely that something is happening.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R7-queued.png" alt="R7-queued">
+  <div class="cap">
+    <h3>R7 — offline · queued</h3>
+    <p class="note">D27 at its most important: no countdown, no progress bar, and the words come from the outbox.</p>
+  </div></div></div>
+
+<h2>Screen contracts</h2><div class="grid g3"><div class="shot">
+    <img src="screenshots/F1-empty.png" alt="ابحث">
+    <div class="cap">
+      <h3>F1 · ابحث</h3>
+      <p class="note">Start anything new</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: none</div>
+        <div class="tag ok">primary: دوّر على دواء → F2</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">empty</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ F2</span><span class="tag bad">→ F5 (not built)</span><span class="tag ok">→ R2</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/F2-loading.png" alt="نتائج البحث">
+    <div class="cap">
+      <h3>F2 · نتائج البحث</h3>
+      <p class="note">Find a catalogue item the way people actually type</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: أطلب هذا الدواء → R1</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag bad">→ F3 (not built)</span><span class="tag ok">→ R1</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">search.unmatched</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R1-empty.png" alt="طلب جديد">
+    <div class="cap">
+      <h3>R1 · طلب جديد</h3>
+      <p class="note">Assemble the lines to ask for</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: dismiss</div>
+        <div class="tag ok">primary: كمّل → R6</div>
+        <div class="tag">guard: requireSession</div><div class="tag">guard: requireOrderScope</div><div class="tag">guard: blockMemorialised</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">empty</span><span class="tag">error</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ F2</span><span class="tag ok">→ R2</span><span class="tag ok">→ R4</span><span class="tag ok">→ R6</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">clinical.gate.refused</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R6-online.png" alt="تأكيد الطلب">
+    <div class="cap">
+      <h3>R6 · تأكيد الطلب</h3>
+      <p class="note">Final check before it goes</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: أرسل الطلب → R7</div>
+        <div class="tag">guard: requireSession</div><div class="tag">guard: requireOrderScope</div><div class="tag">guard: blockMemorialised</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R5</span><span class="tag ok">→ R7</span><span class="tag ok">→ R13</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">request.broadcast</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R7-waiting.png" alt="ننتظر الردود">
+    <div class="cap">
+      <h3>R7 · ننتظر الردود</h3>
+      <p class="note">Make the wait legible</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: dismiss</div>
+        <div class="tag ok">primary: شوف العروض → R8</div>
+        <div class="tag">guard: requireSession</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R8</span><span class="tag ok">→ R11</span><span class="tag ok">→ S1</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">request.answered</span><span class="tag">request.unanswered</span></div>
+    </div>
+  </div></div>
+<div class="panel scroll" style="margin-top:14px">
+  <h3>Contracted screens with no rendered state yet</h3>
+  <p class="note">Declared, checked by ux-check, and part of a later slice's rendering work.</p>
+  <table style="margin-top:10px"><thead><tr><th>Screen</th><th>Title</th><th>Purpose</th><th>States</th></tr></thead><tbody>
+  <tr><td class="mono">S1</td><td>اليوم</td><td class="note">What is happening right now</td><td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">empty</span><span class="tag">offline</span><span class="tag">error</span></td></tr><tr><td class="mono">E4</td><td>ليش نحتاج رقمك</td><td class="note">Explain before the one hard ask</td><td>—</td></tr><tr><td class="mono">R8</td><td>قارن العروض</td><td class="note">Choose, with the reasons visible</td><td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span></td></tr><tr><td class="mono">R2</td><td>صوّر الوصفة</td><td class="note">Photograph the paper</td><td><span class="tag">permissionRefused</span><span class="tag">error</span></td></tr><tr><td class="mono">R3</td><td>شوف الصورة</td><td class="note">Confirm the image is readable before it travels</td><td>—</td></tr><tr><td class="mono">R4</td><td>لمن الدواء؟</td><td class="note">Choose the subject</td><td>—</td></tr><tr><td class="mono">R5</td><td>شكد مستعجل؟</td><td class="note">Set the window honestly</td><td>—</td></tr><tr><td class="mono">R9</td><td>تفاصيل العرض</td><td class="note">One offer in full, line by line</td><td><span class="tag">error</span></td></tr><tr><td class="mono">R11</td><td>ما رد أحد</td><td class="note">The honest empty case</td><td>—</td></tr><tr><td class="mono">R13</td><td>بانتظار الإرسال</td><td class="note">Everything waiting to send</td><td><span class="tag">empty</span><span class="tag">error</span></td></tr><tr><td class="mono">V1</td><td>نحجز لك</td><td class="note">The moment between choosing and confirmation</td><td><span class="tag">loading</span></td></tr><tr><td class="mono">V2</td><td>محجوز لك</td><td class="note">The code, the clock, the address</td><td><span class="tag">loading</span><span class="tag">error</span><span class="tag">offline</span></td></tr><tr><td class="mono">V4</td><td>ما كدرت الصيدلية تحجز</td><td class="note">They confirmed and then could not</td><td>—</td></tr>
+  </tbody></table></div>
+
+<h2>Component library</h2>
+<div class="grid g2">
+  <div class="panel"><h3>Screen</h3><p class="note">The frame every screen renders through. Header, back affordance, flow progress, state block, scrolling body, optional footer. A screen cannot ship without answering “where am I”.</p></div><div class="panel"><h3>Primary</h3><p class="note">The one dominant action. 48pt — above the 44pt floor, because §25 raises the patient primary. Carries busy and disabled states with accessibility state attached.</p></div><div class="panel"><h3>ActionCard</h3><p class="note">A whole card that is the action. One visual weight per list, and a tap target the size of the row.</p></div><div class="panel"><h3>InfoCard</h3><p class="note">A card that is not an action. A refused item reads as information rather than offering a tap that will be rejected.</p></div><div class="panel"><h3>Secondary</h3><p class="note">Never competes: no fill, no accent background, 44pt minimum.</p></div><div class="panel"><h3>StateBlock</h3><p class="note">Renders the treatment the contract declared — loading, empty, error, offline, permission-refused, success. It cannot fall through to a generic message.</p></div><div class="panel"><h3>Label</h3><p class="note">Type role, colour role, RTL direction and zero letter-spacing. A component never writes a raw font size.</p></div><div class="panel"><h3>Bidi</h3><p class="note">Isolates a Latin run inside Arabic so a drug name or price does not reorder.</p></div><div class="panel"><h3>Digits</h3><p class="note">Tabular figures, one numeral system per surface, so a countdown does not jitter.</p></div><div class="panel"><h3>RedirectNote</h3><p class="note">Says why a guard sent the user here, so the screen never appears for no reason.</p></div>
+</div>
+
+<h2>Design system</h2>
+<div class="panel">
+  <h3>Colour — patient palette</h3>
+  <div class="grid g4" style="margin-top:12px">
+    <div>
+      <div class="swatch" style="background:#FBFAF7"></div>
+      <div class="mono" style="margin-top:6px">surface</div>
+      <div class="mono note">#FBFAF7 · #0F1513</div>
+    </div><div>
+      <div class="swatch" style="background:#FFFFFF"></div>
+      <div class="mono" style="margin-top:6px">surfaceRaised</div>
+      <div class="mono note">#FFFFFF · #182220</div>
+    </div><div>
+      <div class="swatch" style="background:#F2F1EC"></div>
+      <div class="mono" style="margin-top:6px">surfaceSunken</div>
+      <div class="mono note">#F2F1EC · #0A100E</div>
+    </div><div>
+      <div class="swatch" style="background:#DFDDD3"></div>
+      <div class="mono" style="margin-top:6px">line</div>
+      <div class="mono note">#DFDDD3 · #2C3A35</div>
+    </div><div>
+      <div class="swatch" style="background:#16211D"></div>
+      <div class="mono" style="margin-top:6px">ink</div>
+      <div class="mono note">#16211D · #F1F6F4</div>
+    </div><div>
+      <div class="swatch" style="background:#42524C"></div>
+      <div class="mono" style="margin-top:6px">inkMuted</div>
+      <div class="mono note">#42524C · #B6C5BF</div>
+    </div><div>
+      <div class="swatch" style="background:#5C6B64"></div>
+      <div class="mono" style="margin-top:6px">inkSubtle</div>
+      <div class="mono note">#5C6B64 · #93A49E</div>
+    </div><div>
+      <div class="swatch" style="background:#186047"></div>
+      <div class="mono" style="margin-top:6px">accent</div>
+      <div class="mono note">#186047 · #7BD6AC</div>
+    </div><div>
+      <div class="swatch" style="background:#FFFFFF"></div>
+      <div class="mono" style="margin-top:6px">onAccent</div>
+      <div class="mono note">#FFFFFF · #07130E</div>
+    </div><div>
+      <div class="swatch" style="background:#186047"></div>
+      <div class="mono" style="margin-top:6px">success</div>
+      <div class="mono note">#186047 · #7BD6AC</div>
+    </div><div>
+      <div class="swatch" style="background:#FFFFFF"></div>
+      <div class="mono" style="margin-top:6px">onSuccess</div>
+      <div class="mono note">#FFFFFF · #07130E</div>
+    </div><div>
+      <div class="swatch" style="background:#7A4E0A"></div>
+      <div class="mono" style="margin-top:6px">warning</div>
+      <div class="mono note">#7A4E0A · #F0BE72</div>
+    </div><div>
+      <div class="swatch" style="background:#FFFFFF"></div>
+      <div class="mono" style="margin-top:6px">onWarning</div>
+      <div class="mono note">#FFFFFF · #1E1503</div>
+    </div><div>
+      <div class="swatch" style="background:#8C2F1F"></div>
+      <div class="mono" style="margin-top:6px">alert</div>
+      <div class="mono note">#8C2F1F · #FF9C8A</div>
+    </div><div>
+      <div class="swatch" style="background:#FFFFFF"></div>
+      <div class="mono" style="margin-top:6px">onAlert</div>
+      <div class="mono note">#FFFFFF · #260B06</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Contrast — measured, not asserted</h3>
+  <p class="note">Every pair a component may place together, run through the WCAG relative-luminance formula in both schemes. Floor: 4.5:1 body, 3:1 boundaries.</p>
+  <div class="scroll"><table style="margin-top:10px"><thead><tr><th>Pair</th><th>Light</th><th>Dark</th><th></th></tr></thead><tbody>
+  <tr><td class="mono">ink on surface</td><td class="mono">15.85</td><td class="mono">16.91</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceRaised</td><td class="mono">16.54</td><td class="mono">14.92</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceSunken</td><td class="mono">14.63</td><td class="mono">17.59</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surface</td><td class="mono">7.91</td><td class="mono">10.31</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surfaceRaised</td><td class="mono">8.26</td><td class="mono">9.1</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surface</td><td class="mono">5.38</td><td class="mono">7.08</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surfaceRaised</td><td class="mono">5.61</td><td class="mono">6.24</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAccent on accent</td><td class="mono">7.49</td><td class="mono">10.88</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onSuccess on success</td><td class="mono">7.49</td><td class="mono">10.88</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onWarning on warning</td><td class="mono">7.19</td><td class="mono">10.58</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAlert on alert</td><td class="mono">8.26</td><td class="mono">9.16</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">accent on surface</td><td class="mono">7.18</td><td class="mono">10.6</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">alert on surface</td><td class="mono">7.92</td><td class="mono">9.12</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on surface</td><td class="mono">6.89</td><td class="mono">10.83</td><td><span class="tag ok">pass</span></td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="grid g3" style="margin-top:14px">
+  <div class="panel"><h3>Typography</h3>
+    <table><tbody><tr><td class="mono">display</td><td class="mono">34/1.25 · 700</td><td class="note">not clinical</td></tr><tr><td class="mono">title</td><td class="mono">22/1.4 · 700</td><td class="note">clinical ok</td></tr><tr><td class="mono">headline</td><td class="mono">17/1.5 · 600</td><td class="note">clinical ok</td></tr><tr><td class="mono">body</td><td class="mono">16/1.65 · 400</td><td class="note">clinical ok</td></tr><tr><td class="mono">caption</td><td class="mono">13/1.6 · 500</td><td class="note">not clinical</td></tr></tbody></table>
+    <p class="note" style="margin-top:8px">Letter-spacing is always 0 — Arabic is connected and tracking breaks the joins.</p>
+  </div>
+  <div class="panel"><h3>Spacing &amp; radius</h3>
+    <p class="mono">0:0  1:4  2:8  3:12  4:16  5:20  6:24  7:32  8:40  9:48  10:64</p>
+    <p class="mono" style="margin-top:8px">radius sm:8  md:12  lg:16  xl:22  pill:999</p>
+    <p class="note" style="margin-top:8px">A 4pt rhythm. No value outside the scale exists.</p>
+  </div>
+  <div class="panel"><h3>Touch targets</h3>
+    <p class="mono">min 44 · patient primary 48 · pharmacy primary 56</p>
+    <p class="note" style="margin-top:8px">Checked by walking the rendered tree of every screen, not by inspection.</p>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px"><h3>Motion</h3>
+  <div class="scroll"><table><thead><tr><th>Token</th><th>Duration</th><th>Purpose</th></tr></thead><tbody>
+  <tr><td class="mono">screenPush</td><td class="mono">350ms</td><td class="note"></td></tr><tr><td class="mono">sheetPresent</td><td class="mono">300ms</td><td class="note"></td></tr><tr><td class="mono">sheetDrag</td><td class="mono">0ms</td><td class="note"></td></tr><tr><td class="mono">doseConfirmed</td><td class="mono">250ms</td><td class="note"></td></tr><tr><td class="mono">skeletonToReal</td><td class="mono">150ms</td><td class="note"></td></tr><tr><td class="mono">responderArrive</td><td class="mono">200ms</td><td class="note"></td></tr><tr><td class="mono">undoDwell</td><td class="mono">4000ms</td><td class="note"></td></tr><tr><td class="mono">errorShake</td><td class="mono">200ms</td><td class="note"></td></tr>
+  </tbody></table></div>
+  <p class="note" style="margin-top:8px">Declared, not yet applied — see Known limitations.</p>
+</div>
+
+<h2>Architecture</h2>
+<div class="panel">
+<pre class="mono" style="line-height:1.8; overflow-x:auto">
+  UI              App.tsx · FindScreen · DraftScreen · ConfirmScreen · WaitingScreen
+                  ui/kit.tsx · ui/theme.ts · ui/refusal.ts
+                       │  renders a resolved view, decides nothing
+                       ▼
+  STATE           app/store.ts        pure reducer: (state, intent) → (state, effects)
+                  model/view.ts       contract + flow → what a component renders
+                  model/search.ts     model/draft.ts       model/send.ts
+                       │  asks; never computes a rule
+                       ▼
+  DOMAIN          @dawai/domain       Clinical.gateRequestLine · Marketplace.checkLineCount
+                  @dawai/navigation   guards · graph · flows
+                  @dawai/session      @dawai/offline      @dawai/net
+                       │  pure: no clock, no randomness, no I/O
+                       ▼
+  PORTS           ports.ts            CataloguePort · Environment
+                       │  types only; no transport
+                       ▼
+  INFRASTRUCTURE  Stage 5 — NOT BUILT
+</pre>
+<p class="note">Enforced by tools/layer-check.mjs: the domain may not import Node built-ins, the network, storage, timers, randomness or the clock, and the app layer may import nothing but the workspace packages, react and react-native.</p>
+</div>
+
+<h2>Offline flow</h2>
+<div class="grid g2">
+  <div class="panel"><h3>Online</h3>
+    <div class="flowline"><span class="node built">tap send</span><span class="arrow">→</span><span class="node built">outbox</span><span class="arrow">→</span><span class="node built">POST /v1/requests</span><span class="arrow">→</span><span class="node built">broadcast</span><span class="arrow">→</span><span class="node built">R7 countdown</span></div>
+    <p class="note" style="margin-top:10px"><code>request.broadcast</code> is emitted here and only here.</p>
+  </div>
+  <div class="panel"><h3>Offline</h3>
+    <div class="flowline"><span class="node built">tap send</span><span class="arrow">→</span><span class="node built">outbox: queued</span><span class="arrow">→</span><span class="node pending">retry · full jitter</span><span class="arrow">→</span><span class="node built">delivered</span><span class="arrow">→</span><span class="node built">broadcast</span></div>
+    <p class="note" style="margin-top:10px">Both paths go through the outbox, so there is one delivery route and not two. A queued request shows no countdown and its wording comes from the outbox, so no screen can invent a friendlier phrase for “not yet sent”. Retries carry a stable idempotency key; a 409 resolves to accepted, never an error.</p>
+  </div>
+</div>
+
+<h2>Analytics</h2>
+<div class="panel scroll">
+<table><thead><tr><th>Event</th><th>Emitted by</th><th>Trigger</th></tr></thead><tbody>
+<tr><td class="mono">request.broadcast</td><td><span class="tag ok">R6</span></td><td class="note">send succeeds AND the request reached broadcast — never when queued</td></tr><tr><td class="mono">offer.sent</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">request.answered</td><td><span class="tag ok">R7</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">request.unanswered</td><td><span class="tag ok">R7</span><span class="tag ok">R11</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.confirmed</td><td><span class="tag ok">V1</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.refused</td><td><span class="tag ok">V1</span><span class="tag ok">V4</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.collected</td><td><span class="tag ok">V2</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.expired</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">dispense.recorded</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">branch.excluded</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">clinical.gate.refused</td><td><span class="tag ok">R1</span></td><td class="note">the clinical gate refuses a line at the moment it is added</td></tr><tr><td class="mono">search.unmatched</td><td><span class="tag ok">F2</span></td><td class="note">a search returns zero rows — never on a transport failure</td></tr>
+</tbody></table>
+<p class="note" style="margin-top:10px">The set is closed: adding an event is a deliberate act with a Blueprint reference, so no metric can be computed from an ad-hoc counter.</p>
+</div>
+
+<h2>Tests</h2>
+<div class="grid g2">
+<div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Traceability &amp; ownership</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">38 source file(s) scanned</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">72 file(s) scanned across 9 layer(s)</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">18 with a declared UX contract</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>TypeScript</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">no errors, strict mode</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Tests</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">367 passed (367)</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Responsive layout</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">13 screen state(s) photographed at 390×844</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Navigation — no unreachable screen</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">18 screens reachable from 7 entry points</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Navigation — no trap</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every screen can be left</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Navigation — no gap in any flow</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">1 flow(s) fully renderable</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Accessibility — contrast</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">14 pairs measured in both schemes, floor 4.5:1</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Empty states</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every declared empty state has a treatment</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Loading states</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every declared loading state has a treatment</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Error handling</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every declared error state names what failed and one action</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Offline behaviour</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">cached content is age-labelled; queued work is never worded as sent</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Analytics</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">12 events in the closed set</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Known gaps documented</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">115 Blueprint screens listed as NOT IMPLEMENTED</div></div>
+</div></div>
+</div>
+
+<h2>Quality checklist</h2>
+<div class="panel">
+<div class="chk"><span class="dot ok"></span><div style="flex:1">Traceability &amp; ownership</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Layer boundaries</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Screen contracts</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">TypeScript</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Tests</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Responsive layout</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no unreachable screen</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no trap</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no gap in any flow</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Accessibility — contrast</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Empty states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Loading states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Error handling</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Offline behaviour</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Analytics</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Known gaps documented</div><span class="tag ok">verified</span></div>
+<div class="chk"><span class="dot bad"></span><div style="flex:1">Performance</div><span class="tag warn">not measured — no runtime exists to measure yet</span></div>
+</div>
+<p class="note" style="margin-top:10px">Nothing above is green unless it was measured in this run. Performance is deliberately red rather than assumed: there is no device build to profile.</p>
+
+<h2>Known gaps — NOT IMPLEMENTED</h2>
+<div class="panel scroll">
+<p class="note">115 of the 133 Blueprint v3 Phase 0 screens are not in this build. The 10 marked <b>referenced</b> are named by an exit in a contracted screen — no control navigates to them, and a guard whose destination is not built keeps the user where they are with the reason.</p>
+<table style="margin-top:12px"><thead><tr><th>Screen</th><th>Group</th><th>Name</th><th>Purpose</th><th></th></tr></thead><tbody>
+<tr><td class="mono">E1</td><td class="note">Entry</td><td>Launch</td><td class="note">Resolve session before anything renders</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E2</td><td class="note">Entry</td><td>Welcome</td><td class="note">Show worth before asking for anything</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E3</td><td class="note">Entry</td><td>Guest home</td><td class="note">Let a stranger search and browse with no account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E5</td><td class="note">Entry</td><td>Phone entry</td><td class="note">Take a number</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">E6</td><td class="note">Entry</td><td>Code verification</td><td class="note">Verify the number</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E7</td><td class="note">Entry</td><td>Your name</td><td class="note">Minimum identity for a pickup counter</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E8</td><td class="note">Entry</td><td>Your district</td><td class="note">Where to search from</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E9</td><td class="note">Entry</td><td>Location primer</td><td class="note">Explain before the OS dialog — one chance only</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E10</td><td class="note">Entry</td><td>Notification primer</td><td class="note">Ask when the value is obvious, after the first reservation</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E11</td><td class="note">Entry</td><td>Welcome back</td><td class="note">Returning device</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E12</td><td class="note">Entry</td><td>Out of coverage</td><td class="note">Say honestly that we have not arrived</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E13</td><td class="note">Entry</td><td>Blocked</td><td class="note">Suspended, or an unsupported version</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S2</td><td class="note">Subjects</td><td>Subject switcher</td><td class="note">Change whose medicine this is</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">S3</td><td class="note">Subjects</td><td>Add a person</td><td class="note">Create a managed subject for someone who cannot use a phone</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">S4</td><td class="note">Subjects</td><td>Family &amp; access</td><td class="note">Who I manage, who sees me, whose record I can see</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S5</td><td class="note">Subjects</td><td>Invite a family member</td><td class="note">Send a peer grant, to a number with or without an account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S6</td><td class="note">Subjects</td><td>Choose scope</td><td class="note">How much access, in plain words</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S7</td><td class="note">Subjects</td><td>Incoming request</td><td class="note">Someone wants access to my record</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S8</td><td class="note">Subjects</td><td>Revoke access</td><td class="note">Withdraw a grant</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S9</td><td class="note">Subjects</td><td>Claim invite</td><td class="note">Hand a managed subject their own account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S10</td><td class="note">Subjects</td><td>Transfer guardianship</td><td class="note">Move a managed subject to another account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S11</td><td class="note">Subjects</td><td>Memorialise subject</td><td class="note">Record that a person has died</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S12</td><td class="note">Subjects</td><td>Who viewed this record</td><td class="note">Make the privacy promise checkable</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F3</td><td class="note">Find</td><td>Medicine page</td><td class="note">What this item is and whether it is near</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">F4</td><td class="note">Find</td><td>Cannot be requested</td><td class="note">Refuse a controlled substance, with the reason</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F5</td><td class="note">Find</td><td>Nearby pharmacies</td><td class="note">Who is around, open, and close</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">F6</td><td class="note">Find</td><td>Map</td><td class="note">The same, spatially</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F7</td><td class="note">Find</td><td>Pharmacy page</td><td class="note">Should I go here</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F8</td><td class="note">Find</td><td>Opening hours</td><td class="note">The full week, exceptions and Ramadan</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">R10</td><td class="note">Request</td><td>Accept substitution</td><td class="note">Acknowledge a different brand, explicitly</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">R12</td><td class="note">Request</td><td>My watches</td><td class="note">Notify-me, with a lifecycle</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">V3</td><td class="note">Reservation</td><td>Reservation expired</td><td class="note">The window passed</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">V5</td><td class="note">Reservation</td><td>Cancel reservation</td><td class="note">Withdraw</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">V6</td><td class="note">Reservation</td><td>Collected</td><td class="note">Done, and it enters the record</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">V7</td><td class="note">Reservation</td><td>Report a price difference</td><td class="note">The single post-pickup signal</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">V8</td><td class="note">Reservation</td><td>Dispense history</td><td class="note">What this subject has actually collected</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">M1</td><td class="note">Account</td><td>Me</td><td class="note">Account root</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M2</td><td class="note">Account</td><td>Profile</td><td class="note">Name, number, district</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M3</td><td class="note">Account</td><td>Change my number</td><td class="note">Identity recovery and number churn</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M4</td><td class="note">Account</td><td>Saved pharmacies</td><td class="note">My usual places</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M5</td><td class="note">Account</td><td>My prescriptions</td><td class="note">Images I uploaded</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M6</td><td class="note">Account</td><td>Notification settings</td><td class="note">Per category, with quiet hours</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M7</td><td class="note">Account</td><td>Display</td><td class="note">Numerals and text size</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M8</td><td class="note">Account</td><td>Export my record</td><td class="note">Take it with me</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M9</td><td class="note">Account</td><td>Sign out</td><td class="note">Leave this device</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M10</td><td class="note">Account</td><td>Delete account</td><td class="note">State exactly what goes and what stays</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M11</td><td class="note">Account</td><td>Managed subject disposition</td><td class="note">Transfer or delete each managed subject</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M12</td><td class="note">Account</td><td>Confirm deletion</td><td class="note">Deliberate friction</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M13</td><td class="note">Account</td><td>Deletion scheduled</td><td class="note">It is happening, and how to stop it</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M14</td><td class="note">Account</td><td>Help</td><td class="note">Answer the common questions without a human</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M15</td><td class="note">Account</td><td>Contact support</td><td class="note">Reach a human with context attached</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA1</td><td class="note">Pharmacy apply</td><td>I am a pharmacy</td><td class="note">Entry for the supply side</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA2</td><td class="note">Pharmacy apply</td><td>Business details</td><td class="note">Name, owner, trade registration</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA3</td><td class="note">Pharmacy apply</td><td>Address and map point</td><td class="note">Where the branch physically is</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA4</td><td class="note">Pharmacy apply</td><td>Storefront photo</td><td class="note">Evidence the branch exists</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA5</td><td class="note">Pharmacy apply</td><td>Licence upload</td><td class="note">The pharmacy licence and its expiry</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA6</td><td class="note">Pharmacy apply</td><td>Named pharmacist</td><td class="note">Who holds the clinical credential</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA7</td><td class="note">Pharmacy apply</td><td>Submit</td><td class="note">Send the application</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA8</td><td class="note">Pharmacy apply</td><td>Application status</td><td class="note">Queue position and what happens next</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA9</td><td class="note">Pharmacy apply</td><td>Information requested</td><td class="note">Exactly what the operator needs</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P1</td><td class="note">Pharmacy</td><td>Staff sign-in</td><td class="note">Who is at the counter now</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P2</td><td class="note">Pharmacy</td><td>Branch picker</td><td class="note">Which branch am I working</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P3</td><td class="note">Pharmacy</td><td>Requests</td><td class="note">Is anything waiting for me</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P4</td><td class="note">Pharmacy</td><td>Eligibility panel</td><td class="note">Why I am or am not receiving requests</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P5</td><td class="note">Pharmacy</td><td>Request detail</td><td class="note">Decide in seconds</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P6</td><td class="note">Pharmacy</td><td>Compose offer</td><td class="note">Answer per line in under fifteen seconds</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P7</td><td class="note">Pharmacy</td><td>Unavailable, and why</td><td class="note">One tap, and the best signal we collect</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P8</td><td class="note">Pharmacy</td><td>Offer sent</td><td class="note">Confirm, and be explicit that it is not a reservation</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P9</td><td class="note">Pharmacy</td><td>Withdraw offer</td><td class="note">The correction path for a mistyped price</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P10</td><td class="note">Pharmacy</td><td>Reservations</td><td class="note">What I have physically committed</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P11</td><td class="note">Pharmacy</td><td>Reservation detail</td><td class="note">Confirm, decline, or hand over</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P12</td><td class="note">Pharmacy</td><td>Confirm reservation</td><td class="note">The moment of commitment</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P13</td><td class="note">Pharmacy</td><td>Cannot hold, and why</td><td class="note">Reason capture; this is a trust event</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P14</td><td class="note">Pharmacy</td><td>Handover</td><td class="note">Verify the code and complete</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P15</td><td class="note">Pharmacy</td><td>Prescription viewer</td><td class="note">Read the prescription while the reservation is live</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P16</td><td class="note">Pharmacy</td><td>Completed</td><td class="note">Done</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P17</td><td class="note">Pharmacy</td><td>Branch settings</td><td class="note">Settings root</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P18</td><td class="note">Pharmacy</td><td>Opening hours</td><td class="note">The week</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P19</td><td class="note">Pharmacy</td><td>Exceptions</td><td class="note">Holidays and one-off closures</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P20</td><td class="note">Pharmacy</td><td>Ramadan schedule</td><td class="note">A complete alternative week, activated by date</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P21</td><td class="note">Pharmacy</td><td>Coverage and capacity</td><td class="note">How far, how many at once, and pause</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P22</td><td class="note">Pharmacy</td><td>Staff</td><td class="note">Who works here and what they may do</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P23</td><td class="note">Pharmacy</td><td>Invite staff</td><td class="note">Add a person</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P24</td><td class="note">Pharmacy</td><td>Licence</td><td class="note">Status, expiry, renewal</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P25</td><td class="note">Pharmacy</td><td>Performance</td><td class="note">Fill rate, answer time, honoured rate, and what I should stock</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P26</td><td class="note">Pharmacy</td><td>Branch access log</td><td class="note">Every platform-side read of my record</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P27</td><td class="note">Pharmacy</td><td>Branch export</td><td class="note">Take my own data</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P28</td><td class="note">Pharmacy</td><td>Close branch</td><td class="note">Leave the platform</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P29</td><td class="note">Pharmacy</td><td>Branch help</td><td class="note">Answers, and the on-call number</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P30</td><td class="note">Pharmacy</td><td>Contact support</td><td class="note">Reach a human with the branch and context attached</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P31</td><td class="note">Pharmacy</td><td>Queued actions</td><td class="note">Everything waiting to send</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O1</td><td class="note">Operator</td><td>Overview</td><td class="note">What needs a human today</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O2</td><td class="note">Operator</td><td>Verification queue</td><td class="note">Applications awaiting a decision</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O3</td><td class="note">Operator</td><td>Application review</td><td class="note">Documents, address, storefront, named pharmacist</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O4</td><td class="note">Operator</td><td>Decision</td><td class="note">Approve, request more, or reject with a reason</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O5</td><td class="note">Operator</td><td>Branch record</td><td class="note">Everything about one branch</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O6</td><td class="note">Operator</td><td>Suspend branch</td><td class="note">Stop a branch, reversibly</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O7</td><td class="note">Operator</td><td>Expiring licences</td><td class="note">Who must renew, and when</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O8</td><td class="note">Operator</td><td>Catalogue</td><td class="note">Curate items</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O9</td><td class="note">Operator</td><td>Item editor</td><td class="note">One item: names, pack size, prescription and controlled flags</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O10</td><td class="note">Operator</td><td>Unmatched searches</td><td class="note">What people asked for and we did not have</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O11</td><td class="note">Operator</td><td>Districts</td><td class="note">The curated area list</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O12</td><td class="note">Operator</td><td>Fill rate</td><td class="note">Phase 0's first exit metric</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O13</td><td class="note">Operator</td><td>Honoured rate</td><td class="note">Phase 0's second exit metric</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O14</td><td class="note">Operator</td><td>Answer time</td><td class="note">How fast branches answer</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O15</td><td class="note">Operator</td><td>Repeat rate</td><td class="note">The gate that tests the strategy's riskiest belief</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O16</td><td class="note">Operator</td><td>Coverage</td><td class="note">Districts by branch count and fill rate</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O17</td><td class="note">Operator</td><td>People</td><td class="note">Find an account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O18</td><td class="note">Operator</td><td>Account record</td><td class="note">What we may see without consent</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O19</td><td class="note">Operator</td><td>Support session</td><td class="note">Consented, time-boxed, banner-visible</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O20</td><td class="note">Operator</td><td>Support queue</td><td class="note">Tickets from both sides</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O21</td><td class="note">Operator</td><td>Ticket</td><td class="note">One conversation with its context</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O22</td><td class="note">Operator</td><td>Price disputes</td><td class="note">Where the offer price was not honoured</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O23</td><td class="note">Operator</td><td>Audit log</td><td class="note">Every action, immutable and searchable</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O24</td><td class="note">Operator</td><td>Audit entry</td><td class="note">One action in full</td><td><span class="tag">later slice</span></td></tr>
+</tbody></table></div>
+
+<h2>Known limitations</h2><div class="panel"><ul><li>The screenshots are the real component tree rendered through a DOM adapter, not device captures. They prove layout, hierarchy, typography, colour, spacing and tap-target size. They do not prove native gestures, platform chrome or animation.</li><li>No infrastructure exists yet (Stage 5). The catalogue and request ports are types with test fakes behind them; nothing talks to a server.</li><li>115 of the 133 Blueprint screens are not built. Nine are referenced by an exit in this slice and are listed as known gaps; no control navigates to any of them.</li><li>The sign-in chain (E5 → E8) is not built, so a guest who touches an action needing an account reaches E4 and stops there.</li><li>Animation timing tokens exist but no transition is implemented yet — state changes are instant.</li></ul></div>
+
+<h2>Change log — this slice</h2><div class="grid g2">
+<div class="panel"><h3>Added</h3><ul><li class="note">Search with Arabic input folding — tatweel, أ/إ/آ, ى, ة and both numeral systems collapse onto one query, so a present medicine stops reading as 'not in our list'.</li><li class="note">A draft request with a pack stepper, a visible remaining-line count, and both clinical gates asked of the domain at the moment of the tap.</li><li class="note">Confirmation stating what each urgency window actually means as a duration, rather than three words the patient has to guess between.</li><li class="note">A waiting screen with two honest forms: a countdown when pharmacies have been asked, and no countdown at all when the request is still queued.</li><li class="note">A visual review harness: the real component tree rendered to DOM, photographed at 390×844, with a layout check that fails on any horizontal overflow.</li></ul></div><div class="panel"><h3>Improved</h3><ul><li class="note">Results rows became the action themselves. The first render put a filled primary button on every row — three dominant controls competing on one screen — and the card-as-target also gives a tap area the size of the row rather than the size of a button.</li><li class="note">A refused item is now information rather than a disabled control. Offering a tap that will be rejected teaches a patient that the app's buttons cannot be trusted.</li><li class="note">Row labels name the medicine, so a screen reader moving down a list no longer says 'add to request' five times.</li><li class="note">The search field gained a visible affordance and a proper label instead of a bare bordered box.</li><li class="note">The back affordance became a platform chevron instead of a text arrow.</li><li class="note">Empty, loading and permission-refused states now fill the screen and centre. They previously sat at the top of a tall blank page, which reads as broken rather than as considered — the second thing the screenshots caught.</li><li class="note">A state's one recovery action moved to the footer, where a thumb rests on a phone held one-handed. A screen's own footer still wins, so two primaries can never stack.</li><li class="note">The search field is pinned beneath the header instead of scrolling with the body, so a state that fills the screen cannot push the input the screen is ABOUT out of sight.</li></ul></div><div class="panel"><h3>Fixed</h3><ul><li class="note">The header laid out right-to-left twice. `row-reverse` inside an RTL container double-reverses, so the back control rendered on the wrong edge — §25 names this hazard by name and the first screenshot caught it.</li><li class="note">layer-check scanned only .ts, so the moment the app became .tsx most of it silently stopped being checked.</li><li class="note">apps/patient had no TypeScript project references for domain, session, offline, net or observability, so a full build emitted .d.ts files beside the sources — the stale-build failure mode again.</li></ul></div><div class="panel"><h3>Refactored</h3><ul><li class="note">Guard destinations now seed graph reachability, derived by asking each guard rather than by a hand-written list that would go stale.</li><li class="note">ScrollView content padding is modelled as two boxes in the review adapter, matching React Native, so the review cannot show breathing room the app does not have.</li></ul></div><div class="panel"><h3>Technical debt removed</h3><ul><li class="note">Two machine-enforced rules added rather than two review conventions: no physical row direction and no physical edge offsets in the app layer, each proven by a rejecting case.</li><li class="note">A render-tree assertion that no screen may show more than one filled accent control — the hierarchy rule as a count instead of an opinion.</li></ul></div>
+</div>
+
+<p class="note" style="margin-top:48px">Generated by <code>npm run review</code>. Every figure is measured at generation time; nothing on this page is asserted by hand.</p>
+</div></body></html>

@@ -88,7 +88,7 @@ export function DraftScreen(p: DraftProps) {
         </View>
       ) : null}
 
-      <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: t.space[2] }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
         {R1.secondary.filter((s) => isBuilt(s.leadsTo)).map((s) => (
           <Secondary key={s.label} t={t} label={s.label} onPress={() => p.onAction(s.leadsTo)} />
         ))}
@@ -102,7 +102,7 @@ function RefusalNote({ t, refusal, onDismiss, onAction }: { t: Theme; refusal: R
   return (
     <View style={{ padding: t.space[4], gap: t.space[3], borderRadius: t.radius.md, backgroundColor: t.color.surfaceSunken, borderWidth: 1, borderColor: t.color.alert }}>
       <Label t={t} role="body" color="alert">{said.says}</Label>
-      <View style={{ flexDirection: "row-reverse", gap: t.space[3] }}>
+      <View style={{ flexDirection: "row", gap: t.space[3] }}>
         {said.action ? <Secondary t={t} label={said.action} onPress={() => onAction("R2")} /> : null}
         <Secondary t={t} label="تمام" onPress={onDismiss} />
       </View>
@@ -132,9 +132,9 @@ function LineRow({ t, line, onSetPacks, onRemove }: { t: Theme; line: DraftModel
       <Label t={t} role="headline">{line.name}</Label>
       <Bidi t={t} text={`${line.latinName} · ${line.strength} · ${line.form}`} role="caption" color="inkMuted" />
 
-      <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: t.space[3] }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: t.space[3] }}>
         {step(1)}
-        <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: t.space[1] }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: t.space[1] }}>
           <Digits t={t} value={line.packs} role="headline" />
           <Label t={t} role="body" color="inkMuted">علبة</Label>
         </View>

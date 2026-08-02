@@ -89,6 +89,59 @@ export function Primary({ t, label, onPress, disabled = false, busy = false }: {
   );
 }
 
+/**
+ * A whole card that is itself the action.
+ *
+ * The first render of the results list put a filled primary button on every
+ * row, so three dominant controls competed on one screen and the eye had
+ * nowhere to land. Making the card the target fixes both problems at once: one
+ * visual weight for the list, and a tap target the size of the row rather than
+ * the size of a button — which is what one-handed use on a small Android phone
+ * actually needs.
+ */
+export function ActionCard(
+  { t, label, onPress, children, muted = false }:
+  { t: Theme; label: string; onPress: Press; children: React.ReactNode; muted?: boolean },
+) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={{
+        minHeight: t.tap.patientPrimary,
+        padding: t.space[4], gap: t.space[2],
+        borderRadius: t.radius.lg,
+        backgroundColor: muted ? t.color.surfaceSunken : t.color.surfaceRaised,
+        borderWidth: 1, borderColor: t.color.line,
+        flexDirection: "row", alignItems: "center",
+      }}
+    >
+      <View style={{ flex: 1, gap: t.space[1] }}>{children}</View>
+      {/* The affordance, not the action: it says the row is pressable without
+          claiming the visual weight a primary button would. */}
+      <View style={{
+        width: t.space[7], height: t.space[7], borderRadius: t.radius.pill,
+        alignItems: "center", justifyContent: "center", backgroundColor: t.color.accent,
+      }}>
+        <Label t={t} role="headline" color="onAccent">+</Label>
+      </View>
+    </Pressable>
+  );
+}
+
+/** A card that is not an action — a refused item, a summary line. It reads as
+ *  information rather than offering a tap that would be rejected. */
+export const InfoCard = ({ t, children, muted = false }: { t: Theme; children: React.ReactNode; muted?: boolean }) => (
+  <View style={{
+    padding: t.space[4], gap: t.space[2], borderRadius: t.radius.lg,
+    backgroundColor: muted ? t.color.surfaceSunken : t.color.surfaceRaised,
+    borderWidth: 1, borderColor: t.color.line,
+  }}>
+    {children}
+  </View>
+);
+
 /** Never competes with the primary: no fill, no accent background. */
 export function Secondary({ t, label, onPress }: { t: Theme; label: string; onPress: Press }) {
   return (
@@ -111,14 +164,22 @@ export function Secondary({ t, label, onPress }: { t: Theme; label: string; onPr
  * declares a state with no treatment, so this switch cannot fall through to a
  * generic message.
  */
-export function StateBlock({ t, treatment, onAction, ageMs }: { t: Theme; treatment: StateTreatment; onAction: (to: string) => void; ageMs?: number | null }) {
+export function StateBlock(
+  { t, treatment, onAction, ageMs, actionInFooter = false }:
+  { t: Theme; treatment: StateTreatment; onAction: (to: string) => void; ageMs?: number | null; actionInFooter?: boolean },
+) {
+  // An empty or loading state that sits at the top of a tall blank screen
+  // reads as broken. These states ARE the screen while they last, so they fill
+  // it and centre — which is also what makes the message legible at arm's
+  // length in bright sunlight.
+  const fill = { flex: 1, justifyContent: "center" as const, alignItems: "stretch" as const };
   const pad = { padding: t.space[6], gap: t.space[4] };
   switch (treatment.kind) {
     case "loading":
       // A spinner that matches the shape of what is coming, so the page does
       // not jump when it arrives.
       return (
-        <View accessibilityRole="progressbar" style={{ ...pad, gap: t.space[3] }}>
+        <View accessibilityRole="progressbar" style={{ ...pad, ...fill, gap: t.space[3] }}>
           {[0, 1, 2].map((i) => (
             <View key={i} style={{ height: t.space[9], borderRadius: t.radius.md, backgroundColor: t.color.surfaceSunken }} />
           ))}
@@ -127,9 +188,14 @@ export function StateBlock({ t, treatment, onAction, ageMs }: { t: Theme; treatm
 
     case "empty":
       return (
-        <View style={pad}>
-          <Label t={t} role="headline" color={treatment.isSuccess ? "inkMuted" : "ink"}>{treatment.explains}</Label>
-          {treatment.action ? <Primary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action!.leadsTo)} /> : null}
+        <View style={{ ...pad, ...fill }}>
+          <Label t={t} role="title" color={treatment.isSuccess ? "inkMuted" : "ink"}>{treatment.explains}</Label>
+          {/* The action lives in the footer when there is one: the bottom of
+              the screen is where a thumb rests, and the top is where it does
+              not reach on a phone held one-handed. */}
+          {treatment.action && !actionInFooter
+            ? <Primary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action!.leadsTo)} />
+            : null}
         </View>
       );
 
@@ -139,7 +205,7 @@ export function StateBlock({ t, treatment, onAction, ageMs }: { t: Theme; treatm
           {/* §23 — what failed, whether the work survived, one thing to press. */}
           <Label t={t} role="headline" color="alert">{treatment.whatFailed}</Label>
           {treatment.workPreserved ? <Label t={t} role="caption" color="inkMuted">ما ضاع اللي كتبته</Label> : null}
-          <Primary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action.leadsTo)} />
+          {actionInFooter ? null : <Primary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action.leadsTo)} />}
         </View>
       );
 
@@ -158,7 +224,7 @@ export function StateBlock({ t, treatment, onAction, ageMs }: { t: Theme; treatm
     case "permissionRefused":
       // Never a wall: the refusal names the other way through.
       return (
-        <View style={pad}>
+        <View style={{ ...pad, ...fill }}>
           <Label t={t} role="headline">{treatment.alternative}</Label>
         </View>
       );
@@ -179,16 +245,30 @@ export function StateBlock({ t, treatment, onAction, ageMs }: { t: Theme; treatm
  * because a screen renders through this.
  */
 export function Screen(
-  { t, view, onBack, onAction, children, footer }:
-  { t: Theme; view: ScreenView; onBack: Press; onAction: (to: string) => void; children?: React.ReactNode; footer?: React.ReactNode },
+  { t, view, onBack, onAction, children, footer, sticky }:
+  { t: Theme; view: ScreenView; onBack: Press; onAction: (to: string) => void; children?: React.ReactNode; footer?: React.ReactNode; sticky?: React.ReactNode },
 ) {
   const canGoBack = view.back.kind === "pop" || view.back.kind === "replace";
+
+  // A state's one action belongs where the thumb is. When the screen supplies
+  // its own footer that footer wins — the screen's primary action is more
+  // important than a state's recovery action, and two stacked primaries would
+  // be exactly the competing hierarchy this kit exists to prevent.
+  const stateAction =
+    view.treatment && (view.treatment.kind === "empty" || view.treatment.kind === "error")
+      ? view.treatment.action
+      : null;
+  const footerContent = footer !== undefined
+    ? footer
+    : stateAction
+      ? <Primary t={t} label={stateAction.label} onPress={() => onAction(stateAction.leadsTo)} />
+      : null;
   return (
     <View style={{ flex: 1, backgroundColor: t.color.surface, direction: t.direction }}>
       <View style={{
         paddingHorizontal: t.space[4], paddingTop: t.space[6], paddingBottom: t.space[3],
         borderBottomWidth: 1, borderBottomColor: t.color.line,
-        flexDirection: "row-reverse", alignItems: "center", gap: t.space[3],
+        flexDirection: "row", alignItems: "center", gap: t.space[3],
       }}>
         {canGoBack ? (
           <Pressable
@@ -197,8 +277,11 @@ export function Screen(
             onPress={onBack}
             style={{ width: t.tap.min, height: t.tap.min, alignItems: "center", justifyContent: "center" }}
           >
-            {/* Points the way the user reads — RTL, so the arrow faces right. */}
-            <Label t={t} role="title" color="accent">→</Label>
+            {/* A chevron, not an arrow: the platform's own back affordance.
+                It is not mirrored here because `direction` already runs the
+                header right-to-left — mirroring it again would point it back
+                into the content, which is how the first render got it wrong. */}
+            <Label t={t} role="title" color="accent">‹</Label>
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }}>
@@ -211,14 +294,33 @@ export function Screen(
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: t.space[4], gap: t.space[4], paddingBottom: t.space[10] }}>
-        {view.treatment ? <StateBlock t={t} treatment={view.treatment} onAction={onAction} ageMs={view.phase.kind === "offline" ? view.phase.ageMs : null} /> : null}
+      {/* Pinned beneath the header: an input the screen is ABOUT belongs where
+          the user looks first and must not be pushed down by a state that
+          fills the rest of the screen. */}
+      {sticky ? (
+        <View style={{ paddingHorizontal: t.space[4], paddingTop: t.space[4], backgroundColor: t.color.surface }}>
+          {sticky}
+        </View>
+      ) : null}
+
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: t.space[4], gap: t.space[4], paddingBottom: t.space[6] }}>
+        {view.treatment
+          ? <StateBlock
+              t={t} treatment={view.treatment} onAction={onAction}
+              ageMs={view.phase.kind === "offline" ? view.phase.ageMs : null}
+              actionInFooter={stateAction !== null && footer === undefined}
+            />
+          : null}
         {children}
       </ScrollView>
 
-      {footer ? (
-        <View style={{ padding: t.space[4], borderTopWidth: 1, borderTopColor: t.color.line, gap: t.space[2], backgroundColor: t.color.surfaceRaised }}>
-          {footer}
+      {footerContent ? (
+        <View style={{
+          padding: t.space[4], paddingBottom: t.space[6],
+          borderTopWidth: 1, borderTopColor: t.color.line,
+          gap: t.space[2], backgroundColor: t.color.surfaceRaised,
+        }}>
+          {footerContent}
         </View>
       ) : null}
     </View>

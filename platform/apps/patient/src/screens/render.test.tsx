@@ -80,14 +80,18 @@ describe("F2 — the results a patient reads", () => {
   it("shows the medicine and offers to add it", () => {
     const root = render(<FindScreen {...base} search={{ kind: "results", query: "بانادول", hits: [hit()], at: 9_000 }} />);
     expect(texts(root)).toContain("بانادول");
-    expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "أضفه للطلب")).toBe(true);
+    // The whole card is the action, and its label names the medicine so a
+    // screen reader moving down the list says which one.
+    expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "أضف بانادول للطلب")).toBe(true);
     assertTapTargets(root);
   });
 
   it("refuses a controlled item on the row, so the tap never happens (D42)", () => {
     const root = render(<FindScreen {...base} search={{ kind: "results", query: "x", hits: [hit({ isControlled: true })], at: 9_000 }} />);
     expect(texts(root)).toContain("لازم تروح للصيدلية");
-    expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "أضفه للطلب")).toBe(false);
+    // Not merely disabled — there is no control at all, so the tap that would
+    // be rejected cannot happen.
+    expect(pressables(root).some((p) => String(p.props["accessibilityLabel"]).startsWith("أضف"))).toBe(false);
   });
 
   it("warns that a prescription item will need its photo, before it is added (D18)", () => {
@@ -244,4 +248,28 @@ describe("every screen answers 'where am I' and 'how do I go back'", () => {
     const root = render(<FindScreen t={t} history={[]} now={0} search={{ kind: "idle" }} onType={noop} onAdd={noop} onBack={noop} onAction={noop} />);
     expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "رجوع")).toBe(false);
   });
+});
+
+describe("visual hierarchy holds across every screen", () => {
+  const draft = DraftModel.add(DraftModel.newDraft("s", "d"), hit()).draft;
+  const screens: readonly [string, React.ReactElement][] = [
+    ["F2 results", <FindScreen t={t} history={["F1"]} now={0} search={{ kind: "results", query: "x", hits: [hit(), hit({ itemId: "i2", name: "أموكسيسيلين" })], at: 0 }} onType={noop} onAdd={noop} onBack={noop} onAction={noop} />],
+    ["R1 draft", <DraftScreen t={t} history={["S1"]} draft={draft} refusal={null} redirectBecause={null} onSetPacks={noop} onRemove={noop} onContinue={noop} onBack={noop} onAction={noop} onDismissRefusal={noop} />],
+    ["R6 confirm", <ConfirmScreen t={t} history={["R1"]} draft={draft} online refusal={null} redirectBecause={null} sending={false} onSetUrgency={noop} onSend={noop} onBack={noop} onAction={noop} />],
+  ];
+
+  for (const [name, el] of screens) {
+    it(`${name} has at most one filled accent control`, () => {
+      // The first render of the results list put a filled primary on every
+      // row, so three dominant controls competed and the eye had nowhere to
+      // land. A count is the only version of that rule that survives.
+      const root = render(el);
+      const filled = pressables(root).filter((p) => flatten(p.props["style"])["backgroundColor"] === t.color.accent);
+      expect(filled.length, `${name} has ${filled.length} filled accent controls`).toBeLessThanOrEqual(1);
+    });
+
+    it(`${name} keeps every control within thumb reach and above the floor`, () => {
+      assertTapTargets(render(el));
+    });
+  }
 });

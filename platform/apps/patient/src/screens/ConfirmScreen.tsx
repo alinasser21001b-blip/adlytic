@@ -82,7 +82,7 @@ export function ConfirmScreen(p: ConfirmProps) {
       <View style={{ gap: t.space[2] }}>
         {draft.lines.map((l) => (
           <View key={l.itemId} style={{
-            flexDirection: "row-reverse", alignItems: "center", gap: t.space[3],
+            flexDirection: "row", alignItems: "center", gap: t.space[3],
             padding: t.space[4], borderRadius: t.radius.lg,
             backgroundColor: t.color.surfaceRaised, borderWidth: 1, borderColor: t.color.line,
           }}>
@@ -90,7 +90,7 @@ export function ConfirmScreen(p: ConfirmProps) {
               <Label t={t} role="headline">{l.name}</Label>
               <Label t={t} role="caption" color="inkMuted">{`${l.strength} · ${l.form}`}</Label>
             </View>
-            <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: t.space[1] }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: t.space[1] }}>
               <Digits t={t} value={l.packs} role="headline" />
               <Label t={t} role="caption" color="inkMuted">علبة</Label>
             </View>

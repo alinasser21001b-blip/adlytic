@@ -1,0 +1,2747 @@
+{
+  "generatedFor": "patient-app · vertical slice 1 · Search → Request → Send",
+  "progress": {
+    "blueprintScreens": 133,
+    "contracted": 18,
+    "rendered": 5,
+    "remaining": 115,
+    "percentContracted": 13.5
+  },
+  "screens": [
+    {
+      "id": "S1",
+      "title": "اليوم",
+      "destination": "today",
+      "purpose": "What is happening right now",
+      "blueprintName": "Today",
+      "blueprintStates": "empty · quiet · loading · offline · stale",
+      "back": {
+        "kind": "none",
+        "why": "root of the Today tab — the OS gesture exits the app"
+      },
+      "primary": {
+        "label": "أطلب دواء",
+        "leadsTo": "R1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "لمن؟",
+          "leadsTo": "S2"
+        },
+        {
+          "label": "سجل الاستلام",
+          "leadsTo": "V8"
+        }
+      ],
+      "states": [
+        {
+          "kind": "loading",
+          "skeletonMatchesContent": true
+        },
+        {
+          "kind": "empty",
+          "explains": "هنا راح تشوف حجوزاتك وأدويتك اللي استلمتها",
+          "action": {
+            "label": "أطلب أول دواء",
+            "leadsTo": "R1"
+          },
+          "isSuccess": false
+        },
+        {
+          "kind": "empty",
+          "explains": "كل شي تمام — ما عندك شي يحتاج انتباهك هسه",
+          "action": null,
+          "isSuccess": true
+        },
+        {
+          "kind": "offline",
+          "readOnly": true,
+          "showsAge": true
+        },
+        {
+          "kind": "error",
+          "whatFailed": "ما كدرنا نحدّث الصفحة",
+          "workPreserved": true,
+          "action": {
+            "label": "أعد المحاولة",
+            "leadsTo": "S1"
+          }
+        }
+      ],
+      "exits": [
+        {
+          "to": "R1",
+          "built": true
+        },
+        {
+          "to": "S2",
+          "built": false
+        },
+        {
+          "to": "V2",
+          "built": true
+        },
+        {
+          "to": "V8",
+          "built": false
+        }
+      ],
+      "telemetry": [],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": []
+    },
+    {
+      "id": "E4",
+      "title": "ليش نحتاج رقمك",
+      "destination": "entry",
+      "purpose": "Explain before the one hard ask",
+      "blueprintName": "Why we need your number",
+      "blueprintStates": "—",
+      "back": {
+        "kind": "dismiss",
+        "returnsTo": "S1"
+      },
+      "primary": {
+        "label": "أدخل رقمي",
+        "leadsTo": "E5",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [],
+      "states": [],
+      "exits": [
+        {
+          "to": "E5",
+          "built": false
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": []
+    },
+    {
+      "id": "F1",
+      "title": "ابحث",
+      "destination": "find",
+      "purpose": "Start anything new",
+      "blueprintName": "Find",
+      "blueprintStates": "empty · offline",
+      "back": {
+        "kind": "none",
+        "why": "root of the Find tab"
+      },
+      "primary": {
+        "label": "دوّر على دواء",
+        "leadsTo": "F2",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "صيدليات قريبة",
+          "leadsTo": "F5"
+        },
+        {
+          "label": "صوّر وصفة",
+          "leadsTo": "R2"
+        }
+      ],
+      "states": [
+        {
+          "kind": "empty",
+          "explains": "دوّر باسم الدواء، أو صوّر الوصفة",
+          "action": {
+            "label": "صوّر وصفة",
+            "leadsTo": "R2"
+          },
+          "isSuccess": false
+        },
+        {
+          "kind": "offline",
+          "readOnly": true,
+          "showsAge": true
+        }
+      ],
+      "exits": [
+        {
+          "to": "F2",
+          "built": true
+        },
+        {
+          "to": "F5",
+          "built": false
+        },
+        {
+          "to": "R2",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": [
+        {
+          "id": "F1-empty",
+          "state": "empty · teaching",
+          "note": "The first thing a new patient sees. It teaches what to do rather than reporting that there is no data."
+        }
+      ]
+    },
+    {
+      "id": "F2",
+      "title": "نتائج البحث",
+      "destination": "find",
+      "purpose": "Find a catalogue item the way people actually type",
+      "blueprintName": "Search",
+      "blueprintStates": "empty · loading · error · offline · no-match",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "أطلب هذا الدواء",
+        "leadsTo": "R1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "شوف التفاصيل",
+          "leadsTo": "F3"
+        }
+      ],
+      "states": [
+        {
+          "kind": "loading",
+          "skeletonMatchesContent": true
+        },
+        {
+          "kind": "empty",
+          "explains": "ما لكيناه بقائمتنا — ممكن يكون موجود بالصيدليات",
+          "action": {
+            "label": "أطلبه بالاسم مع صورة",
+            "leadsTo": "R1"
+          },
+          "isSuccess": false
+        },
+        {
+          "kind": "error",
+          "whatFailed": "ما كدرنا نوصل للبحث",
+          "workPreserved": true,
+          "action": {
+            "label": "أعد المحاولة",
+            "leadsTo": "F2"
+          }
+        },
+        {
+          "kind": "offline",
+          "readOnly": true,
+          "showsAge": true
+        }
+      ],
+      "exits": [
+        {
+          "to": "F3",
+          "built": false
+        },
+        {
+          "to": "R1",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "search.unmatched"
+      ],
+      "guards": [],
+      "shots": [
+        {
+          "id": "F2-loading",
+          "state": "loading",
+          "note": "A skeleton shaped like the rows that are coming, so the page does not jump when they arrive."
+        },
+        {
+          "id": "F2-results",
+          "state": "results",
+          "note": "Three rows covering all three clinical answers: ordinary, prescription-required (D18), and controlled (D42) — refused on the row, before the tap."
+        },
+        {
+          "id": "F2-empty",
+          "state": "empty · miss",
+          "note": "§13.1 — the catalogue is incomplete, not the patient wrong. The miss feeds catalogue growth."
+        },
+        {
+          "id": "F2-offline",
+          "state": "offline",
+          "note": "Cached rows, labelled with their age. Never presented as live."
+        },
+        {
+          "id": "F2-error",
+          "state": "error",
+          "note": "§23 — what failed, that the work survived, and one thing to press."
+        }
+      ]
+    },
+    {
+      "id": "R1",
+      "title": "طلب جديد",
+      "destination": "modal",
+      "purpose": "Assemble the lines to ask for",
+      "blueprintName": "Build request",
+      "blueprintStates": "empty · error",
+      "back": {
+        "kind": "dismiss",
+        "returnsTo": "S1"
+      },
+      "primary": {
+        "label": "كمّل",
+        "leadsTo": "R6",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "ضيف دواء ثاني",
+          "leadsTo": "F2"
+        },
+        {
+          "label": "صوّر الوصفة",
+          "leadsTo": "R2"
+        },
+        {
+          "label": "لمن؟",
+          "leadsTo": "R4"
+        }
+      ],
+      "states": [
+        {
+          "kind": "empty",
+          "explains": "ضيف الدواء اللي تحتاجه — تكدر تضيف لحد ٨",
+          "action": {
+            "label": "دوّر على دواء",
+            "leadsTo": "F2"
+          },
+          "isSuccess": false
+        },
+        {
+          "kind": "error",
+          "whatFailed": "هذا الدواء ما ينطلب من التطبيق",
+          "workPreserved": true,
+          "action": {
+            "label": "شوف السبب",
+            "leadsTo": "F4"
+          }
+        }
+      ],
+      "exits": [
+        {
+          "to": "F2",
+          "built": true
+        },
+        {
+          "to": "R2",
+          "built": true
+        },
+        {
+          "to": "R4",
+          "built": true
+        },
+        {
+          "to": "R6",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "clinical.gate.refused"
+      ],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        },
+        {
+          "name": "requireOrderScope",
+          "bp": "§5 clinical matrix"
+        },
+        {
+          "name": "blockMemorialised",
+          "bp": "D04"
+        }
+      ],
+      "shots": [
+        {
+          "id": "R1-empty",
+          "state": "empty · teaching",
+          "note": "An empty draft states the line limit as a fact rather than waiting to enforce it as a wall."
+        },
+        {
+          "id": "R1-lines",
+          "state": "ready",
+          "note": "The pack stepper (D07), the remaining-line count, and a prescription line naming what it still needs."
+        },
+        {
+          "id": "R1-refused",
+          "state": "error · refusal",
+          "note": "D42 refused in place. The draft the patient already built stays on screen behind it."
+        }
+      ]
+    },
+    {
+      "id": "R6",
+      "title": "تأكيد الطلب",
+      "destination": "modal",
+      "purpose": "Final check before it goes",
+      "blueprintName": "Confirm request",
+      "blueprintStates": "error · offline",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "أرسل الطلب",
+        "leadsTo": "R7",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "غيّر الاستعجال",
+          "leadsTo": "R5"
+        }
+      ],
+      "states": [
+        {
+          "kind": "error",
+          "whatFailed": "ما وصل الطلب",
+          "workPreserved": true,
+          "action": {
+            "label": "أعد الإرسال",
+            "leadsTo": "R6"
+          }
+        },
+        {
+          "kind": "offline",
+          "readOnly": false,
+          "showsAge": true
+        }
+      ],
+      "exits": [
+        {
+          "to": "R5",
+          "built": true
+        },
+        {
+          "to": "R7",
+          "built": true
+        },
+        {
+          "to": "R13",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "request.broadcast"
+      ],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        },
+        {
+          "name": "requireOrderScope",
+          "bp": "§5 clinical matrix"
+        },
+        {
+          "name": "blockMemorialised",
+          "bp": "D04"
+        }
+      ],
+      "shots": [
+        {
+          "id": "R6-online",
+          "state": "ready",
+          "note": "D09's three windows, each stating its real duration so the choice is informed."
+        },
+        {
+          "id": "R6-offline",
+          "state": "offline",
+          "note": "D27 — the button promises only what the app can do without a connection."
+        }
+      ]
+    },
+    {
+      "id": "R7",
+      "title": "ننتظر الردود",
+      "destination": "modal",
+      "purpose": "Make the wait legible",
+      "blueprintName": "Live responses",
+      "blueprintStates": "empty · loading · error · offline",
+      "back": {
+        "kind": "dismiss",
+        "returnsTo": "S1"
+      },
+      "primary": {
+        "label": "شوف العروض",
+        "leadsTo": "R8",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "ألغِ الطلب",
+          "leadsTo": "S1"
+        }
+      ],
+      "states": [
+        {
+          "kind": "loading",
+          "skeletonMatchesContent": true
+        },
+        {
+          "kind": "empty",
+          "explains": "سألنا الصيدليات القريبة — ننتظر أول رد",
+          "action": null,
+          "isSuccess": true
+        },
+        {
+          "kind": "error",
+          "whatFailed": "انقطع الاتصال",
+          "workPreserved": true,
+          "action": {
+            "label": "أعد الاتصال",
+            "leadsTo": "R7"
+          }
+        },
+        {
+          "kind": "offline",
+          "readOnly": true,
+          "showsAge": true
+        }
+      ],
+      "exits": [
+        {
+          "to": "R8",
+          "built": true
+        },
+        {
+          "to": "R11",
+          "built": true
+        },
+        {
+          "to": "S1",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "request.answered",
+        "request.unanswered"
+      ],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": [
+        {
+          "id": "R7-waiting",
+          "state": "empty · waiting",
+          "note": "A bar with a value rather than a spinner: the patient learns how much longer, not merely that something is happening."
+        },
+        {
+          "id": "R7-queued",
+          "state": "offline · queued",
+          "note": "D27 at its most important: no countdown, no progress bar, and the words come from the outbox."
+        }
+      ]
+    },
+    {
+      "id": "R8",
+      "title": "قارن العروض",
+      "destination": "modal",
+      "purpose": "Choose, with the reasons visible",
+      "blueprintName": "Compare offers",
+      "blueprintStates": "empty · loading · error",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "احجز من هنا",
+        "leadsTo": "V1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "شوف تفاصيل العرض",
+          "leadsTo": "R9"
+        }
+      ],
+      "states": [
+        {
+          "kind": "loading",
+          "skeletonMatchesContent": true
+        },
+        {
+          "kind": "empty",
+          "explains": "ما وصل عرض بعد",
+          "action": {
+            "label": "ارجع للانتظار",
+            "leadsTo": "R7"
+          },
+          "isSuccess": false
+        },
+        {
+          "kind": "error",
+          "whatFailed": "هذا العرض انسحب قبل ثواني",
+          "workPreserved": true,
+          "action": {
+            "label": "شوف العروض الباقية",
+            "leadsTo": "R8"
+          }
+        }
+      ],
+      "exits": [
+        {
+          "to": "R9",
+          "built": true
+        },
+        {
+          "to": "V1",
+          "built": true
+        },
+        {
+          "to": "R7",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": []
+    },
+    {
+      "id": "R2",
+      "title": "صوّر الوصفة",
+      "destination": "modal",
+      "purpose": "Photograph the paper",
+      "blueprintName": "Prescription capture",
+      "blueprintStates": "permission-refused · error",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "صوّر",
+        "leadsTo": "R3",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "اكتب الاسم بدال الصورة",
+          "leadsTo": "R1"
+        }
+      ],
+      "states": [
+        {
+          "kind": "permissionRefused",
+          "stillUsable": true,
+          "alternative": "تكدر تكتب اسم الدواء بدل الصورة"
+        },
+        {
+          "kind": "error",
+          "whatFailed": "ما نكدر نقرأ الوصفة من هذي الصورة",
+          "workPreserved": true,
+          "action": {
+            "label": "صوّر مرة ثانية بضوء أكثر",
+            "leadsTo": "R2"
+          }
+        }
+      ],
+      "exits": [
+        {
+          "to": "R3",
+          "built": true
+        },
+        {
+          "to": "R1",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": []
+    },
+    {
+      "id": "R3",
+      "title": "شوف الصورة",
+      "destination": "modal",
+      "purpose": "Confirm the image is readable before it travels",
+      "blueprintName": "Review photo",
+      "blueprintStates": "—",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "واضحة — كمّل",
+        "leadsTo": "R1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "صوّر مرة ثانية",
+          "leadsTo": "R2"
+        }
+      ],
+      "states": [],
+      "exits": [
+        {
+          "to": "R1",
+          "built": true
+        },
+        {
+          "to": "R2",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": []
+    },
+    {
+      "id": "R4",
+      "title": "لمن الدواء؟",
+      "destination": "modal",
+      "purpose": "Choose the subject",
+      "blueprintName": "Who is it for",
+      "blueprintStates": "—",
+      "back": {
+        "kind": "dismiss",
+        "returnsTo": "R1"
+      },
+      "primary": {
+        "label": "اختر",
+        "leadsTo": "R1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "ضيف شخص",
+          "leadsTo": "S3"
+        }
+      ],
+      "states": [],
+      "exits": [
+        {
+          "to": "R1",
+          "built": true
+        },
+        {
+          "to": "S3",
+          "built": false
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": []
+    },
+    {
+      "id": "R5",
+      "title": "شكد مستعجل؟",
+      "destination": "modal",
+      "purpose": "Set the window honestly",
+      "blueprintName": "How urgent",
+      "blueprintStates": "—",
+      "back": {
+        "kind": "dismiss",
+        "returnsTo": "R1"
+      },
+      "primary": {
+        "label": "اختر",
+        "leadsTo": "R1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [],
+      "states": [],
+      "exits": [
+        {
+          "to": "R1",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": []
+    },
+    {
+      "id": "R9",
+      "title": "تفاصيل العرض",
+      "destination": "modal",
+      "purpose": "One offer in full, line by line",
+      "blueprintName": "Offer detail",
+      "blueprintStates": "error",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "احجز من هنا",
+        "leadsTo": "V1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [],
+      "states": [
+        {
+          "kind": "error",
+          "whatFailed": "هذا العرض انسحب",
+          "workPreserved": true,
+          "action": {
+            "label": "ارجع للعروض",
+            "leadsTo": "R8"
+          }
+        }
+      ],
+      "exits": [
+        {
+          "to": "V1",
+          "built": true
+        },
+        {
+          "to": "R8",
+          "built": true
+        },
+        {
+          "to": "R10",
+          "built": false
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": []
+    },
+    {
+      "id": "R11",
+      "title": "ما رد أحد",
+      "destination": "modal",
+      "purpose": "The honest empty case",
+      "blueprintName": "Nobody replied",
+      "blueprintStates": "—",
+      "back": {
+        "kind": "dismiss",
+        "returnsTo": "S1"
+      },
+      "primary": {
+        "label": "وسّع البحث",
+        "leadsTo": "R7",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "خبّرني إذا توفّر",
+          "leadsTo": "R12"
+        },
+        {
+          "label": "جرّب بعدين",
+          "leadsTo": "S1"
+        }
+      ],
+      "states": [],
+      "exits": [
+        {
+          "to": "R7",
+          "built": true
+        },
+        {
+          "to": "R12",
+          "built": false
+        },
+        {
+          "to": "S1",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "request.unanswered"
+      ],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": []
+    },
+    {
+      "id": "R13",
+      "title": "بانتظار الإرسال",
+      "destination": "me",
+      "purpose": "Everything waiting to send",
+      "blueprintName": "Queued actions",
+      "blueprintStates": "empty",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": null,
+      "noPrimaryBecause": "a list of pending work — the only action is per-item cancellation",
+      "secondary": [
+        {
+          "label": "ألغِ",
+          "leadsTo": "R13"
+        }
+      ],
+      "states": [
+        {
+          "kind": "empty",
+          "explains": "ما في شي بانتظار الإرسال",
+          "action": null,
+          "isSuccess": true
+        },
+        {
+          "kind": "error",
+          "whatFailed": "ما كدرنا نرسل هذا الطلب",
+          "workPreserved": true,
+          "action": {
+            "label": "أعد المحاولة",
+            "leadsTo": "R13"
+          }
+        }
+      ],
+      "exits": [
+        {
+          "to": "S1",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": []
+    },
+    {
+      "id": "V1",
+      "title": "نحجز لك",
+      "destination": "modal",
+      "purpose": "The moment between choosing and confirmation",
+      "blueprintName": "Reserving",
+      "blueprintStates": "loading",
+      "back": {
+        "kind": "none",
+        "why": "a hold request is in flight; the screen resolves to V2 or V4 on its own"
+      },
+      "primary": null,
+      "noPrimaryBecause": "the pharmacy is being asked to set stock aside; the patient waits",
+      "secondary": [],
+      "states": [
+        {
+          "kind": "loading",
+          "skeletonMatchesContent": true
+        }
+      ],
+      "exits": [
+        {
+          "to": "V2",
+          "built": true
+        },
+        {
+          "to": "V4",
+          "built": true
+        },
+        {
+          "to": "R8",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "reservation.confirmed",
+        "reservation.refused"
+      ],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": []
+    },
+    {
+      "id": "V2",
+      "title": "محجوز لك",
+      "destination": "today",
+      "purpose": "The code, the clock, the address",
+      "blueprintName": "Reservation",
+      "blueprintStates": "loading · error · offline · expiring · expired",
+      "back": {
+        "kind": "replace",
+        "with": "S1",
+        "why": "the reservation lives on Today; there is no stack behind a notification"
+      },
+      "primary": {
+        "label": "خذني للصيدلية",
+        "leadsTo": "V2",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "اتصل بالصيدلية",
+          "leadsTo": "V2"
+        },
+        {
+          "label": "ألغِ الحجز",
+          "leadsTo": "V5"
+        }
+      ],
+      "states": [
+        {
+          "kind": "loading",
+          "skeletonMatchesContent": true
+        },
+        {
+          "kind": "error",
+          "whatFailed": "ما كدرنا نحدّث الوقت المتبقي",
+          "workPreserved": true,
+          "action": {
+            "label": "أعد المحاولة",
+            "leadsTo": "V2"
+          }
+        },
+        {
+          "kind": "offline",
+          "readOnly": true,
+          "showsAge": true
+        }
+      ],
+      "exits": [
+        {
+          "to": "V5",
+          "built": false
+        },
+        {
+          "to": "V7",
+          "built": false
+        },
+        {
+          "to": "S1",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "reservation.collected"
+      ],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": []
+    },
+    {
+      "id": "V4",
+      "title": "ما كدرت الصيدلية تحجز",
+      "destination": "today",
+      "purpose": "They confirmed and then could not",
+      "blueprintName": "Could not hold",
+      "blueprintStates": "—",
+      "back": {
+        "kind": "replace",
+        "with": "S1",
+        "why": "arrives by notification; there is no stack behind it"
+      },
+      "primary": {
+        "label": "شوف العروض الجديدة",
+        "leadsTo": "R8",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "أوقف الطلب",
+          "leadsTo": "S1"
+        }
+      ],
+      "states": [],
+      "exits": [
+        {
+          "to": "R8",
+          "built": true
+        },
+        {
+          "to": "S1",
+          "built": true
+        }
+      ],
+      "telemetry": [
+        "reservation.refused"
+      ],
+      "guards": [
+        {
+          "name": "requireSession",
+          "bp": "D26 · §3.2"
+        }
+      ],
+      "shots": []
+    }
+  ],
+  "gaps": [
+    {
+      "id": "E1",
+      "group": "Entry",
+      "name": "Launch",
+      "purpose": "Resolve session before anything renders",
+      "referenced": false
+    },
+    {
+      "id": "E2",
+      "group": "Entry",
+      "name": "Welcome",
+      "purpose": "Show worth before asking for anything",
+      "referenced": false
+    },
+    {
+      "id": "E3",
+      "group": "Entry",
+      "name": "Guest home",
+      "purpose": "Let a stranger search and browse with no account",
+      "referenced": false
+    },
+    {
+      "id": "E5",
+      "group": "Entry",
+      "name": "Phone entry",
+      "purpose": "Take a number",
+      "referenced": true
+    },
+    {
+      "id": "E6",
+      "group": "Entry",
+      "name": "Code verification",
+      "purpose": "Verify the number",
+      "referenced": false
+    },
+    {
+      "id": "E7",
+      "group": "Entry",
+      "name": "Your name",
+      "purpose": "Minimum identity for a pickup counter",
+      "referenced": false
+    },
+    {
+      "id": "E8",
+      "group": "Entry",
+      "name": "Your district",
+      "purpose": "Where to search from",
+      "referenced": false
+    },
+    {
+      "id": "E9",
+      "group": "Entry",
+      "name": "Location primer",
+      "purpose": "Explain before the OS dialog — one chance only",
+      "referenced": false
+    },
+    {
+      "id": "E10",
+      "group": "Entry",
+      "name": "Notification primer",
+      "purpose": "Ask when the value is obvious, after the first reservation",
+      "referenced": false
+    },
+    {
+      "id": "E11",
+      "group": "Entry",
+      "name": "Welcome back",
+      "purpose": "Returning device",
+      "referenced": false
+    },
+    {
+      "id": "E12",
+      "group": "Entry",
+      "name": "Out of coverage",
+      "purpose": "Say honestly that we have not arrived",
+      "referenced": false
+    },
+    {
+      "id": "E13",
+      "group": "Entry",
+      "name": "Blocked",
+      "purpose": "Suspended, or an unsupported version",
+      "referenced": false
+    },
+    {
+      "id": "S2",
+      "group": "Subjects",
+      "name": "Subject switcher",
+      "purpose": "Change whose medicine this is",
+      "referenced": true
+    },
+    {
+      "id": "S3",
+      "group": "Subjects",
+      "name": "Add a person",
+      "purpose": "Create a managed subject for someone who cannot use a phone",
+      "referenced": true
+    },
+    {
+      "id": "S4",
+      "group": "Subjects",
+      "name": "Family & access",
+      "purpose": "Who I manage, who sees me, whose record I can see",
+      "referenced": false
+    },
+    {
+      "id": "S5",
+      "group": "Subjects",
+      "name": "Invite a family member",
+      "purpose": "Send a peer grant, to a number with or without an account",
+      "referenced": false
+    },
+    {
+      "id": "S6",
+      "group": "Subjects",
+      "name": "Choose scope",
+      "purpose": "How much access, in plain words",
+      "referenced": false
+    },
+    {
+      "id": "S7",
+      "group": "Subjects",
+      "name": "Incoming request",
+      "purpose": "Someone wants access to my record",
+      "referenced": false
+    },
+    {
+      "id": "S8",
+      "group": "Subjects",
+      "name": "Revoke access",
+      "purpose": "Withdraw a grant",
+      "referenced": false
+    },
+    {
+      "id": "S9",
+      "group": "Subjects",
+      "name": "Claim invite",
+      "purpose": "Hand a managed subject their own account",
+      "referenced": false
+    },
+    {
+      "id": "S10",
+      "group": "Subjects",
+      "name": "Transfer guardianship",
+      "purpose": "Move a managed subject to another account",
+      "referenced": false
+    },
+    {
+      "id": "S11",
+      "group": "Subjects",
+      "name": "Memorialise subject",
+      "purpose": "Record that a person has died",
+      "referenced": false
+    },
+    {
+      "id": "S12",
+      "group": "Subjects",
+      "name": "Who viewed this record",
+      "purpose": "Make the privacy promise checkable",
+      "referenced": false
+    },
+    {
+      "id": "F3",
+      "group": "Find",
+      "name": "Medicine page",
+      "purpose": "What this item is and whether it is near",
+      "referenced": true
+    },
+    {
+      "id": "F4",
+      "group": "Find",
+      "name": "Cannot be requested",
+      "purpose": "Refuse a controlled substance, with the reason",
+      "referenced": false
+    },
+    {
+      "id": "F5",
+      "group": "Find",
+      "name": "Nearby pharmacies",
+      "purpose": "Who is around, open, and close",
+      "referenced": true
+    },
+    {
+      "id": "F6",
+      "group": "Find",
+      "name": "Map",
+      "purpose": "The same, spatially",
+      "referenced": false
+    },
+    {
+      "id": "F7",
+      "group": "Find",
+      "name": "Pharmacy page",
+      "purpose": "Should I go here",
+      "referenced": false
+    },
+    {
+      "id": "F8",
+      "group": "Find",
+      "name": "Opening hours",
+      "purpose": "The full week, exceptions and Ramadan",
+      "referenced": false
+    },
+    {
+      "id": "R10",
+      "group": "Request",
+      "name": "Accept substitution",
+      "purpose": "Acknowledge a different brand, explicitly",
+      "referenced": true
+    },
+    {
+      "id": "R12",
+      "group": "Request",
+      "name": "My watches",
+      "purpose": "Notify-me, with a lifecycle",
+      "referenced": true
+    },
+    {
+      "id": "V3",
+      "group": "Reservation",
+      "name": "Reservation expired",
+      "purpose": "The window passed",
+      "referenced": false
+    },
+    {
+      "id": "V5",
+      "group": "Reservation",
+      "name": "Cancel reservation",
+      "purpose": "Withdraw",
+      "referenced": true
+    },
+    {
+      "id": "V6",
+      "group": "Reservation",
+      "name": "Collected",
+      "purpose": "Done, and it enters the record",
+      "referenced": false
+    },
+    {
+      "id": "V7",
+      "group": "Reservation",
+      "name": "Report a price difference",
+      "purpose": "The single post-pickup signal",
+      "referenced": true
+    },
+    {
+      "id": "V8",
+      "group": "Reservation",
+      "name": "Dispense history",
+      "purpose": "What this subject has actually collected",
+      "referenced": true
+    },
+    {
+      "id": "M1",
+      "group": "Account",
+      "name": "Me",
+      "purpose": "Account root",
+      "referenced": false
+    },
+    {
+      "id": "M2",
+      "group": "Account",
+      "name": "Profile",
+      "purpose": "Name, number, district",
+      "referenced": false
+    },
+    {
+      "id": "M3",
+      "group": "Account",
+      "name": "Change my number",
+      "purpose": "Identity recovery and number churn",
+      "referenced": false
+    },
+    {
+      "id": "M4",
+      "group": "Account",
+      "name": "Saved pharmacies",
+      "purpose": "My usual places",
+      "referenced": false
+    },
+    {
+      "id": "M5",
+      "group": "Account",
+      "name": "My prescriptions",
+      "purpose": "Images I uploaded",
+      "referenced": false
+    },
+    {
+      "id": "M6",
+      "group": "Account",
+      "name": "Notification settings",
+      "purpose": "Per category, with quiet hours",
+      "referenced": false
+    },
+    {
+      "id": "M7",
+      "group": "Account",
+      "name": "Display",
+      "purpose": "Numerals and text size",
+      "referenced": false
+    },
+    {
+      "id": "M8",
+      "group": "Account",
+      "name": "Export my record",
+      "purpose": "Take it with me",
+      "referenced": false
+    },
+    {
+      "id": "M9",
+      "group": "Account",
+      "name": "Sign out",
+      "purpose": "Leave this device",
+      "referenced": false
+    },
+    {
+      "id": "M10",
+      "group": "Account",
+      "name": "Delete account",
+      "purpose": "State exactly what goes and what stays",
+      "referenced": false
+    },
+    {
+      "id": "M11",
+      "group": "Account",
+      "name": "Managed subject disposition",
+      "purpose": "Transfer or delete each managed subject",
+      "referenced": false
+    },
+    {
+      "id": "M12",
+      "group": "Account",
+      "name": "Confirm deletion",
+      "purpose": "Deliberate friction",
+      "referenced": false
+    },
+    {
+      "id": "M13",
+      "group": "Account",
+      "name": "Deletion scheduled",
+      "purpose": "It is happening, and how to stop it",
+      "referenced": false
+    },
+    {
+      "id": "M14",
+      "group": "Account",
+      "name": "Help",
+      "purpose": "Answer the common questions without a human",
+      "referenced": false
+    },
+    {
+      "id": "M15",
+      "group": "Account",
+      "name": "Contact support",
+      "purpose": "Reach a human with context attached",
+      "referenced": false
+    },
+    {
+      "id": "PA1",
+      "group": "Pharmacy apply",
+      "name": "I am a pharmacy",
+      "purpose": "Entry for the supply side",
+      "referenced": false
+    },
+    {
+      "id": "PA2",
+      "group": "Pharmacy apply",
+      "name": "Business details",
+      "purpose": "Name, owner, trade registration",
+      "referenced": false
+    },
+    {
+      "id": "PA3",
+      "group": "Pharmacy apply",
+      "name": "Address and map point",
+      "purpose": "Where the branch physically is",
+      "referenced": false
+    },
+    {
+      "id": "PA4",
+      "group": "Pharmacy apply",
+      "name": "Storefront photo",
+      "purpose": "Evidence the branch exists",
+      "referenced": false
+    },
+    {
+      "id": "PA5",
+      "group": "Pharmacy apply",
+      "name": "Licence upload",
+      "purpose": "The pharmacy licence and its expiry",
+      "referenced": false
+    },
+    {
+      "id": "PA6",
+      "group": "Pharmacy apply",
+      "name": "Named pharmacist",
+      "purpose": "Who holds the clinical credential",
+      "referenced": false
+    },
+    {
+      "id": "PA7",
+      "group": "Pharmacy apply",
+      "name": "Submit",
+      "purpose": "Send the application",
+      "referenced": false
+    },
+    {
+      "id": "PA8",
+      "group": "Pharmacy apply",
+      "name": "Application status",
+      "purpose": "Queue position and what happens next",
+      "referenced": false
+    },
+    {
+      "id": "PA9",
+      "group": "Pharmacy apply",
+      "name": "Information requested",
+      "purpose": "Exactly what the operator needs",
+      "referenced": false
+    },
+    {
+      "id": "P1",
+      "group": "Pharmacy",
+      "name": "Staff sign-in",
+      "purpose": "Who is at the counter now",
+      "referenced": false
+    },
+    {
+      "id": "P2",
+      "group": "Pharmacy",
+      "name": "Branch picker",
+      "purpose": "Which branch am I working",
+      "referenced": false
+    },
+    {
+      "id": "P3",
+      "group": "Pharmacy",
+      "name": "Requests",
+      "purpose": "Is anything waiting for me",
+      "referenced": false
+    },
+    {
+      "id": "P4",
+      "group": "Pharmacy",
+      "name": "Eligibility panel",
+      "purpose": "Why I am or am not receiving requests",
+      "referenced": false
+    },
+    {
+      "id": "P5",
+      "group": "Pharmacy",
+      "name": "Request detail",
+      "purpose": "Decide in seconds",
+      "referenced": false
+    },
+    {
+      "id": "P6",
+      "group": "Pharmacy",
+      "name": "Compose offer",
+      "purpose": "Answer per line in under fifteen seconds",
+      "referenced": false
+    },
+    {
+      "id": "P7",
+      "group": "Pharmacy",
+      "name": "Unavailable, and why",
+      "purpose": "One tap, and the best signal we collect",
+      "referenced": false
+    },
+    {
+      "id": "P8",
+      "group": "Pharmacy",
+      "name": "Offer sent",
+      "purpose": "Confirm, and be explicit that it is not a reservation",
+      "referenced": false
+    },
+    {
+      "id": "P9",
+      "group": "Pharmacy",
+      "name": "Withdraw offer",
+      "purpose": "The correction path for a mistyped price",
+      "referenced": false
+    },
+    {
+      "id": "P10",
+      "group": "Pharmacy",
+      "name": "Reservations",
+      "purpose": "What I have physically committed",
+      "referenced": false
+    },
+    {
+      "id": "P11",
+      "group": "Pharmacy",
+      "name": "Reservation detail",
+      "purpose": "Confirm, decline, or hand over",
+      "referenced": false
+    },
+    {
+      "id": "P12",
+      "group": "Pharmacy",
+      "name": "Confirm reservation",
+      "purpose": "The moment of commitment",
+      "referenced": false
+    },
+    {
+      "id": "P13",
+      "group": "Pharmacy",
+      "name": "Cannot hold, and why",
+      "purpose": "Reason capture; this is a trust event",
+      "referenced": false
+    },
+    {
+      "id": "P14",
+      "group": "Pharmacy",
+      "name": "Handover",
+      "purpose": "Verify the code and complete",
+      "referenced": false
+    },
+    {
+      "id": "P15",
+      "group": "Pharmacy",
+      "name": "Prescription viewer",
+      "purpose": "Read the prescription while the reservation is live",
+      "referenced": false
+    },
+    {
+      "id": "P16",
+      "group": "Pharmacy",
+      "name": "Completed",
+      "purpose": "Done",
+      "referenced": false
+    },
+    {
+      "id": "P17",
+      "group": "Pharmacy",
+      "name": "Branch settings",
+      "purpose": "Settings root",
+      "referenced": false
+    },
+    {
+      "id": "P18",
+      "group": "Pharmacy",
+      "name": "Opening hours",
+      "purpose": "The week",
+      "referenced": false
+    },
+    {
+      "id": "P19",
+      "group": "Pharmacy",
+      "name": "Exceptions",
+      "purpose": "Holidays and one-off closures",
+      "referenced": false
+    },
+    {
+      "id": "P20",
+      "group": "Pharmacy",
+      "name": "Ramadan schedule",
+      "purpose": "A complete alternative week, activated by date",
+      "referenced": false
+    },
+    {
+      "id": "P21",
+      "group": "Pharmacy",
+      "name": "Coverage and capacity",
+      "purpose": "How far, how many at once, and pause",
+      "referenced": false
+    },
+    {
+      "id": "P22",
+      "group": "Pharmacy",
+      "name": "Staff",
+      "purpose": "Who works here and what they may do",
+      "referenced": false
+    },
+    {
+      "id": "P23",
+      "group": "Pharmacy",
+      "name": "Invite staff",
+      "purpose": "Add a person",
+      "referenced": false
+    },
+    {
+      "id": "P24",
+      "group": "Pharmacy",
+      "name": "Licence",
+      "purpose": "Status, expiry, renewal",
+      "referenced": false
+    },
+    {
+      "id": "P25",
+      "group": "Pharmacy",
+      "name": "Performance",
+      "purpose": "Fill rate, answer time, honoured rate, and what I should stock",
+      "referenced": false
+    },
+    {
+      "id": "P26",
+      "group": "Pharmacy",
+      "name": "Branch access log",
+      "purpose": "Every platform-side read of my record",
+      "referenced": false
+    },
+    {
+      "id": "P27",
+      "group": "Pharmacy",
+      "name": "Branch export",
+      "purpose": "Take my own data",
+      "referenced": false
+    },
+    {
+      "id": "P28",
+      "group": "Pharmacy",
+      "name": "Close branch",
+      "purpose": "Leave the platform",
+      "referenced": false
+    },
+    {
+      "id": "P29",
+      "group": "Pharmacy",
+      "name": "Branch help",
+      "purpose": "Answers, and the on-call number",
+      "referenced": false
+    },
+    {
+      "id": "P30",
+      "group": "Pharmacy",
+      "name": "Contact support",
+      "purpose": "Reach a human with the branch and context attached",
+      "referenced": false
+    },
+    {
+      "id": "P31",
+      "group": "Pharmacy",
+      "name": "Queued actions",
+      "purpose": "Everything waiting to send",
+      "referenced": false
+    },
+    {
+      "id": "O1",
+      "group": "Operator",
+      "name": "Overview",
+      "purpose": "What needs a human today",
+      "referenced": false
+    },
+    {
+      "id": "O2",
+      "group": "Operator",
+      "name": "Verification queue",
+      "purpose": "Applications awaiting a decision",
+      "referenced": false
+    },
+    {
+      "id": "O3",
+      "group": "Operator",
+      "name": "Application review",
+      "purpose": "Documents, address, storefront, named pharmacist",
+      "referenced": false
+    },
+    {
+      "id": "O4",
+      "group": "Operator",
+      "name": "Decision",
+      "purpose": "Approve, request more, or reject with a reason",
+      "referenced": false
+    },
+    {
+      "id": "O5",
+      "group": "Operator",
+      "name": "Branch record",
+      "purpose": "Everything about one branch",
+      "referenced": false
+    },
+    {
+      "id": "O6",
+      "group": "Operator",
+      "name": "Suspend branch",
+      "purpose": "Stop a branch, reversibly",
+      "referenced": false
+    },
+    {
+      "id": "O7",
+      "group": "Operator",
+      "name": "Expiring licences",
+      "purpose": "Who must renew, and when",
+      "referenced": false
+    },
+    {
+      "id": "O8",
+      "group": "Operator",
+      "name": "Catalogue",
+      "purpose": "Curate items",
+      "referenced": false
+    },
+    {
+      "id": "O9",
+      "group": "Operator",
+      "name": "Item editor",
+      "purpose": "One item: names, pack size, prescription and controlled flags",
+      "referenced": false
+    },
+    {
+      "id": "O10",
+      "group": "Operator",
+      "name": "Unmatched searches",
+      "purpose": "What people asked for and we did not have",
+      "referenced": false
+    },
+    {
+      "id": "O11",
+      "group": "Operator",
+      "name": "Districts",
+      "purpose": "The curated area list",
+      "referenced": false
+    },
+    {
+      "id": "O12",
+      "group": "Operator",
+      "name": "Fill rate",
+      "purpose": "Phase 0's first exit metric",
+      "referenced": false
+    },
+    {
+      "id": "O13",
+      "group": "Operator",
+      "name": "Honoured rate",
+      "purpose": "Phase 0's second exit metric",
+      "referenced": false
+    },
+    {
+      "id": "O14",
+      "group": "Operator",
+      "name": "Answer time",
+      "purpose": "How fast branches answer",
+      "referenced": false
+    },
+    {
+      "id": "O15",
+      "group": "Operator",
+      "name": "Repeat rate",
+      "purpose": "The gate that tests the strategy's riskiest belief",
+      "referenced": false
+    },
+    {
+      "id": "O16",
+      "group": "Operator",
+      "name": "Coverage",
+      "purpose": "Districts by branch count and fill rate",
+      "referenced": false
+    },
+    {
+      "id": "O17",
+      "group": "Operator",
+      "name": "People",
+      "purpose": "Find an account",
+      "referenced": false
+    },
+    {
+      "id": "O18",
+      "group": "Operator",
+      "name": "Account record",
+      "purpose": "What we may see without consent",
+      "referenced": false
+    },
+    {
+      "id": "O19",
+      "group": "Operator",
+      "name": "Support session",
+      "purpose": "Consented, time-boxed, banner-visible",
+      "referenced": false
+    },
+    {
+      "id": "O20",
+      "group": "Operator",
+      "name": "Support queue",
+      "purpose": "Tickets from both sides",
+      "referenced": false
+    },
+    {
+      "id": "O21",
+      "group": "Operator",
+      "name": "Ticket",
+      "purpose": "One conversation with its context",
+      "referenced": false
+    },
+    {
+      "id": "O22",
+      "group": "Operator",
+      "name": "Price disputes",
+      "purpose": "Where the offer price was not honoured",
+      "referenced": false
+    },
+    {
+      "id": "O23",
+      "group": "Operator",
+      "name": "Audit log",
+      "purpose": "Every action, immutable and searchable",
+      "referenced": false
+    },
+    {
+      "id": "O24",
+      "group": "Operator",
+      "name": "Audit entry",
+      "purpose": "One action in full",
+      "referenced": false
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "S1",
+        "destination": "today",
+        "built": true
+      },
+      {
+        "id": "E4",
+        "destination": "entry",
+        "built": true
+      },
+      {
+        "id": "F1",
+        "destination": "find",
+        "built": true
+      },
+      {
+        "id": "F2",
+        "destination": "find",
+        "built": true
+      },
+      {
+        "id": "R1",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R6",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R7",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R8",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R2",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R3",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R4",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R5",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R9",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R11",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "R13",
+        "destination": "me",
+        "built": true
+      },
+      {
+        "id": "V1",
+        "destination": "modal",
+        "built": true
+      },
+      {
+        "id": "V2",
+        "destination": "today",
+        "built": true
+      },
+      {
+        "id": "V4",
+        "destination": "today",
+        "built": true
+      }
+    ],
+    "pending": [
+      {
+        "id": "E5",
+        "destination": "Entry",
+        "built": false
+      },
+      {
+        "id": "F3",
+        "destination": "Find",
+        "built": false
+      },
+      {
+        "id": "F5",
+        "destination": "Find",
+        "built": false
+      },
+      {
+        "id": "R10",
+        "destination": "Request",
+        "built": false
+      },
+      {
+        "id": "R12",
+        "destination": "Request",
+        "built": false
+      },
+      {
+        "id": "S2",
+        "destination": "Subjects",
+        "built": false
+      },
+      {
+        "id": "S3",
+        "destination": "Subjects",
+        "built": false
+      },
+      {
+        "id": "V5",
+        "destination": "Reservation",
+        "built": false
+      },
+      {
+        "id": "V7",
+        "destination": "Reservation",
+        "built": false
+      },
+      {
+        "id": "V8",
+        "destination": "Reservation",
+        "built": false
+      }
+    ],
+    "edges": [
+      {
+        "from": "S1",
+        "to": "R1",
+        "built": true
+      },
+      {
+        "from": "S1",
+        "to": "S2",
+        "built": false
+      },
+      {
+        "from": "S1",
+        "to": "V2",
+        "built": true
+      },
+      {
+        "from": "S1",
+        "to": "V8",
+        "built": false
+      },
+      {
+        "from": "E4",
+        "to": "E5",
+        "built": false
+      },
+      {
+        "from": "F1",
+        "to": "F2",
+        "built": true
+      },
+      {
+        "from": "F1",
+        "to": "F5",
+        "built": false
+      },
+      {
+        "from": "F1",
+        "to": "R2",
+        "built": true
+      },
+      {
+        "from": "F2",
+        "to": "F3",
+        "built": false
+      },
+      {
+        "from": "F2",
+        "to": "R1",
+        "built": true
+      },
+      {
+        "from": "R1",
+        "to": "F2",
+        "built": true
+      },
+      {
+        "from": "R1",
+        "to": "R2",
+        "built": true
+      },
+      {
+        "from": "R1",
+        "to": "R4",
+        "built": true
+      },
+      {
+        "from": "R1",
+        "to": "R6",
+        "built": true
+      },
+      {
+        "from": "R6",
+        "to": "R5",
+        "built": true
+      },
+      {
+        "from": "R6",
+        "to": "R7",
+        "built": true
+      },
+      {
+        "from": "R6",
+        "to": "R13",
+        "built": true
+      },
+      {
+        "from": "R7",
+        "to": "R8",
+        "built": true
+      },
+      {
+        "from": "R7",
+        "to": "R11",
+        "built": true
+      },
+      {
+        "from": "R7",
+        "to": "S1",
+        "built": true
+      },
+      {
+        "from": "R8",
+        "to": "R9",
+        "built": true
+      },
+      {
+        "from": "R8",
+        "to": "V1",
+        "built": true
+      },
+      {
+        "from": "R8",
+        "to": "R7",
+        "built": true
+      },
+      {
+        "from": "R2",
+        "to": "R3",
+        "built": true
+      },
+      {
+        "from": "R2",
+        "to": "R1",
+        "built": true
+      },
+      {
+        "from": "R3",
+        "to": "R1",
+        "built": true
+      },
+      {
+        "from": "R3",
+        "to": "R2",
+        "built": true
+      },
+      {
+        "from": "R4",
+        "to": "R1",
+        "built": true
+      },
+      {
+        "from": "R4",
+        "to": "S3",
+        "built": false
+      },
+      {
+        "from": "R5",
+        "to": "R1",
+        "built": true
+      },
+      {
+        "from": "R9",
+        "to": "V1",
+        "built": true
+      },
+      {
+        "from": "R9",
+        "to": "R8",
+        "built": true
+      },
+      {
+        "from": "R9",
+        "to": "R10",
+        "built": false
+      },
+      {
+        "from": "R11",
+        "to": "R7",
+        "built": true
+      },
+      {
+        "from": "R11",
+        "to": "R12",
+        "built": false
+      },
+      {
+        "from": "R11",
+        "to": "S1",
+        "built": true
+      },
+      {
+        "from": "R13",
+        "to": "S1",
+        "built": true
+      },
+      {
+        "from": "V1",
+        "to": "V2",
+        "built": true
+      },
+      {
+        "from": "V1",
+        "to": "V4",
+        "built": true
+      },
+      {
+        "from": "V1",
+        "to": "R8",
+        "built": true
+      },
+      {
+        "from": "V2",
+        "to": "V5",
+        "built": false
+      },
+      {
+        "from": "V2",
+        "to": "V7",
+        "built": false
+      },
+      {
+        "from": "V2",
+        "to": "S1",
+        "built": true
+      },
+      {
+        "from": "V4",
+        "to": "R8",
+        "built": true
+      },
+      {
+        "from": "V4",
+        "to": "S1",
+        "built": true
+      }
+    ],
+    "entryPoints": [
+      "S1",
+      "F1",
+      "V1",
+      "V2",
+      "V4",
+      "E4",
+      "S1"
+    ],
+    "unreachable": [],
+    "traps": [],
+    "dangling": [
+      "S1 → S2",
+      "S1 → V8",
+      "E4 → E5",
+      "F1 → F5",
+      "F2 → F3",
+      "R4 → S3",
+      "R9 → R10",
+      "R11 → R12",
+      "V2 → V5",
+      "V2 → V7"
+    ],
+    "flowGaps": []
+  },
+  "flows": [
+    {
+      "id": "request-medicine",
+      "goal": "تطلب دواء وتحجزه من صيدلية قريبة",
+      "completesAt": "V2",
+      "abandonsTo": "S1",
+      "steps": [
+        {
+          "screen": "R1",
+          "label": "تختار الدواء",
+          "optional": false,
+          "built": true
+        },
+        {
+          "screen": "R2",
+          "label": "تصوّر الوصفة",
+          "optional": true,
+          "built": true
+        },
+        {
+          "screen": "R6",
+          "label": "تأكيد وإرسال",
+          "optional": false,
+          "built": true
+        },
+        {
+          "screen": "R7",
+          "label": "تنتظر الردود",
+          "optional": false,
+          "built": true
+        },
+        {
+          "screen": "R8",
+          "label": "تختار العرض",
+          "optional": false,
+          "built": true
+        },
+        {
+          "screen": "V1",
+          "label": "نحجز لك",
+          "optional": false,
+          "built": true
+        }
+      ]
+    }
+  ],
+  "analytics": [
+    {
+      "key": "REQUEST_BROADCAST",
+      "event": "request.broadcast"
+    },
+    {
+      "key": "OFFER_SENT",
+      "event": "offer.sent"
+    },
+    {
+      "key": "REQUEST_ANSWERED",
+      "event": "request.answered"
+    },
+    {
+      "key": "REQUEST_UNANSWERED",
+      "event": "request.unanswered"
+    },
+    {
+      "key": "RESERVATION_CONFIRMED",
+      "event": "reservation.confirmed"
+    },
+    {
+      "key": "RESERVATION_REFUSED",
+      "event": "reservation.refused"
+    },
+    {
+      "key": "RESERVATION_COLLECTED",
+      "event": "reservation.collected"
+    },
+    {
+      "key": "RESERVATION_EXPIRED",
+      "event": "reservation.expired"
+    },
+    {
+      "key": "DISPENSE_RECORDED",
+      "event": "dispense.recorded"
+    },
+    {
+      "key": "BRANCH_EXCLUDED_FROM_ROUTING",
+      "event": "branch.excluded"
+    },
+    {
+      "key": "CLINICAL_GATE_REFUSED",
+      "event": "clinical.gate.refused"
+    },
+    {
+      "key": "SEARCH_UNMATCHED",
+      "event": "search.unmatched"
+    }
+  ],
+  "refusals": [
+    "NOT_FOUND_OR_NOT_YOURS",
+    "PRESCRIPTION_REQUIRED",
+    "CONTROLLED_NOT_SUPPORTED",
+    "SUBSTITUTION_REQUIRES_PHARMACIST",
+    "SUBSTITUTION_NOT_ACKNOWLEDGED",
+    "ITEM_NOT_REQUESTABLE",
+    "TOO_MANY_LINES",
+    "NO_LINES",
+    "OUTSIDE_COVERAGE",
+    "OFFER_WITHDRAWN",
+    "OFFER_EXPIRED",
+    "ALREADY_ANSWERED",
+    "PRICE_REQUIRED",
+    "UNAVAILABLE_REASON_REQUIRED",
+    "ALREADY_ACCEPTED",
+    "NOTHING_ACCEPTED",
+    "MANAGED_SUBJECT_LIMIT",
+    "NUMBER_ALREADY_REGISTERED",
+    "ALREADY_SELF",
+    "INVITE_EXPIRED",
+    "SUBJECT_MEMORIALISED",
+    "REVERSAL_WINDOW_PASSED",
+    "DEPENDENT_DISPOSITION_MISSING",
+    "OWN_NUMBER",
+    "GRANT_EXISTS",
+    "WATCH_LIMIT",
+    "LAST_MANAGER_CANNOT_BE_REMOVED",
+    "BRANCH_NOT_ELIGIBLE",
+    "REQUIRES_MANAGER",
+    "REQUIRES_PHARMACIST",
+    "ILLEGAL_TRANSITION"
+  ],
+  "design": {
+    "palette": {
+      "light": {
+        "surface": "#FBFAF7",
+        "surfaceRaised": "#FFFFFF",
+        "surfaceSunken": "#F2F1EC",
+        "line": "#DFDDD3",
+        "ink": "#16211D",
+        "inkMuted": "#42524C",
+        "inkSubtle": "#5C6B64",
+        "accent": "#186047",
+        "onAccent": "#FFFFFF",
+        "success": "#186047",
+        "onSuccess": "#FFFFFF",
+        "warning": "#7A4E0A",
+        "onWarning": "#FFFFFF",
+        "alert": "#8C2F1F",
+        "onAlert": "#FFFFFF"
+      },
+      "dark": {
+        "surface": "#0F1513",
+        "surfaceRaised": "#182220",
+        "surfaceSunken": "#0A100E",
+        "line": "#2C3A35",
+        "ink": "#F1F6F4",
+        "inkMuted": "#B6C5BF",
+        "inkSubtle": "#93A49E",
+        "accent": "#7BD6AC",
+        "onAccent": "#07130E",
+        "success": "#7BD6AC",
+        "onSuccess": "#07130E",
+        "warning": "#F0BE72",
+        "onWarning": "#1E1503",
+        "alert": "#FF9C8A",
+        "onAlert": "#260B06"
+      }
+    },
+    "space": {
+      "0": 0,
+      "1": 4,
+      "2": 8,
+      "3": 12,
+      "4": 16,
+      "5": 20,
+      "6": 24,
+      "7": 32,
+      "8": 40,
+      "9": 48,
+      "10": 64
+    },
+    "radius": {
+      "sm": 8,
+      "md": 12,
+      "lg": 16,
+      "xl": 22,
+      "pill": 999
+    },
+    "tap": {
+      "min": 44,
+      "patientPrimary": 48,
+      "pharmacyPrimary": 56
+    },
+    "type": {
+      "display": {
+        "size": 34,
+        "lineHeight": 1.25,
+        "letterSpacing": 0,
+        "weight": 700,
+        "clinicalAllowed": false
+      },
+      "title": {
+        "size": 22,
+        "lineHeight": 1.4,
+        "letterSpacing": 0,
+        "weight": 700,
+        "clinicalAllowed": true
+      },
+      "headline": {
+        "size": 17,
+        "lineHeight": 1.5,
+        "letterSpacing": 0,
+        "weight": 600,
+        "clinicalAllowed": true
+      },
+      "body": {
+        "size": 16,
+        "lineHeight": 1.65,
+        "letterSpacing": 0,
+        "weight": 400,
+        "clinicalAllowed": true
+      },
+      "caption": {
+        "size": 13,
+        "lineHeight": 1.6,
+        "letterSpacing": 0,
+        "weight": 500,
+        "clinicalAllowed": false
+      }
+    },
+    "motion": {
+      "screenPush": {
+        "duration": 350,
+        "easing": "standard",
+        "teaches": "where you are in the hierarchy"
+      },
+      "sheetPresent": {
+        "duration": 300,
+        "easing": "spring",
+        "teaches": "this is temporary and layered above"
+      },
+      "sheetDrag": {
+        "duration": 0,
+        "easing": "standard",
+        "teaches": "you are in control of it — follows the finger 1:1"
+      },
+      "doseConfirmed": {
+        "duration": 250,
+        "easing": "decelerate",
+        "teaches": "it was recorded"
+      },
+      "skeletonToReal": {
+        "duration": 150,
+        "easing": "standard",
+        "teaches": "the wait is over"
+      },
+      "responderArrive": {
+        "duration": 200,
+        "easing": "decelerate",
+        "teaches": "someone answered, just now"
+      },
+      "undoDwell": {
+        "duration": 4000,
+        "easing": "standard",
+        "teaches": "you still have time"
+      },
+      "errorShake": {
+        "duration": 200,
+        "easing": "standard",
+        "teaches": "that input, not another"
+      }
+    },
+    "contrast": [
+      {
+        "pair": "ink on surface",
+        "light": 15.85,
+        "dark": 16.91,
+        "passes": true
+      },
+      {
+        "pair": "ink on surfaceRaised",
+        "light": 16.54,
+        "dark": 14.92,
+        "passes": true
+      },
+      {
+        "pair": "ink on surfaceSunken",
+        "light": 14.63,
+        "dark": 17.59,
+        "passes": true
+      },
+      {
+        "pair": "inkMuted on surface",
+        "light": 7.91,
+        "dark": 10.31,
+        "passes": true
+      },
+      {
+        "pair": "inkMuted on surfaceRaised",
+        "light": 8.26,
+        "dark": 9.1,
+        "passes": true
+      },
+      {
+        "pair": "inkSubtle on surface",
+        "light": 5.38,
+        "dark": 7.08,
+        "passes": true
+      },
+      {
+        "pair": "inkSubtle on surfaceRaised",
+        "light": 5.61,
+        "dark": 6.24,
+        "passes": true
+      },
+      {
+        "pair": "onAccent on accent",
+        "light": 7.49,
+        "dark": 10.88,
+        "passes": true
+      },
+      {
+        "pair": "onSuccess on success",
+        "light": 7.49,
+        "dark": 10.88,
+        "passes": true
+      },
+      {
+        "pair": "onWarning on warning",
+        "light": 7.19,
+        "dark": 10.58,
+        "passes": true
+      },
+      {
+        "pair": "onAlert on alert",
+        "light": 8.26,
+        "dark": 9.16,
+        "passes": true
+      },
+      {
+        "pair": "accent on surface",
+        "light": 7.18,
+        "dark": 10.6,
+        "passes": true
+      },
+      {
+        "pair": "alert on surface",
+        "light": 7.92,
+        "dark": 9.12,
+        "passes": true
+      },
+      {
+        "pair": "warning on surface",
+        "light": 6.89,
+        "dark": 10.83,
+        "passes": true
+      }
+    ],
+    "contrastFloor": {
+      "bodyText": 4.5,
+      "largeText": 3,
+      "uiBoundary": 3
+    }
+  },
+  "shots": [
+    {
+      "id": "F1-empty",
+      "screen": "F1",
+      "state": "empty · teaching",
+      "note": "The first thing a new patient sees. It teaches what to do rather than reporting that there is no data."
+    },
+    {
+      "id": "F2-loading",
+      "screen": "F2",
+      "state": "loading",
+      "note": "A skeleton shaped like the rows that are coming, so the page does not jump when they arrive."
+    },
+    {
+      "id": "F2-results",
+      "screen": "F2",
+      "state": "results",
+      "note": "Three rows covering all three clinical answers: ordinary, prescription-required (D18), and controlled (D42) — refused on the row, before the tap."
+    },
+    {
+      "id": "F2-empty",
+      "screen": "F2",
+      "state": "empty · miss",
+      "note": "§13.1 — the catalogue is incomplete, not the patient wrong. The miss feeds catalogue growth."
+    },
+    {
+      "id": "F2-offline",
+      "screen": "F2",
+      "state": "offline",
+      "note": "Cached rows, labelled with their age. Never presented as live."
+    },
+    {
+      "id": "F2-error",
+      "screen": "F2",
+      "state": "error",
+      "note": "§23 — what failed, that the work survived, and one thing to press."
+    },
+    {
+      "id": "R1-empty",
+      "screen": "R1",
+      "state": "empty · teaching",
+      "note": "An empty draft states the line limit as a fact rather than waiting to enforce it as a wall."
+    },
+    {
+      "id": "R1-lines",
+      "screen": "R1",
+      "state": "ready",
+      "note": "The pack stepper (D07), the remaining-line count, and a prescription line naming what it still needs."
+    },
+    {
+      "id": "R1-refused",
+      "screen": "R1",
+      "state": "error · refusal",
+      "note": "D42 refused in place. The draft the patient already built stays on screen behind it."
+    },
+    {
+      "id": "R6-online",
+      "screen": "R6",
+      "state": "ready",
+      "note": "D09's three windows, each stating its real duration so the choice is informed."
+    },
+    {
+      "id": "R6-offline",
+      "screen": "R6",
+      "state": "offline",
+      "note": "D27 — the button promises only what the app can do without a connection."
+    },
+    {
+      "id": "R7-waiting",
+      "screen": "R7",
+      "state": "empty · waiting",
+      "note": "A bar with a value rather than a spinner: the patient learns how much longer, not merely that something is happening."
+    },
+    {
+      "id": "R7-queued",
+      "screen": "R7",
+      "state": "offline · queued",
+      "note": "D27 at its most important: no countdown, no progress bar, and the words come from the outbox."
+    }
+  ]
+}

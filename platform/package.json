@@ -16,12 +16,18 @@
     "ux": "node tools/ux-check.mjs",
     "types": "tsc -b",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "review": "npm run review:render && npm run review:data && node tools/review/shoot.mjs && node tools/review/build.mjs",
+    "review:render": "vite-node -c tools/review/vite.config.ts tools/review/render.tsx",
+    "review:data": "vite-node -c tools/review/vite.config.ts tools/review/data.tsx"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@types/react-test-renderer": "^18.3.0",
+    "playwright": "^1.49.1",
     "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-native": "^0.76.5",
     "react-test-renderer": "^18.3.1",
     "typescript": "^5.6.0",
