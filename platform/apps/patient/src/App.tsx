@@ -20,6 +20,8 @@ import { ConfirmScreen } from "./screens/ConfirmScreen.jsx";
 import { WaitingScreen } from "./screens/WaitingScreen.jsx";
 import { OffersScreen } from "./screens/OffersScreen.jsx";
 import { ReservationScreen } from "./screens/ReservationScreen.jsx";
+import { PrescriptionScreen } from "./screens/PrescriptionScreen.jsx";
+import { OfferDetailScreen } from "./screens/OfferDetailScreen.jsx";
 import * as Offers from "./model/offers.js";
 import { Label } from "./ui/kit.jsx";
 import { instant } from "@dawai/domain";
@@ -80,8 +82,9 @@ function perform(effect: Effect, rt: Runtime, send: (i: Intent) => void): void {
       rt.flush();
       return;
     case "capturePrescription":
-      // R2 is not in this slice. Nothing is faked here: the reducer never
-      // emits it yet, and when R2 lands this is where the camera is asked.
+      // The camera itself is a native module and arrives with the device
+      // build. Nothing is faked here: the reducer has already moved the screen
+      // to a capturing state, and this is the one place that will ask the OS.
       return;
   }
 }
@@ -156,10 +159,40 @@ export function App({ rt }: { rt: Runtime }) {
           loading={state.offers.length === 0}
           staleOfferName={state.staleOffer}
           onChoose={(offerId) => send({ kind: "chooseOffer", offerId })}
-          onDetails={() => onAction("R9")}
+          onDetails={(offerId) => send({ kind: "openOffer", offerId })}
           onBack={onBack} onAction={onAction}
         />
       );
+
+    case "R2":
+    case "R3":
+      return (
+        <PrescriptionScreen
+          t={t} capture={state.capture} history={state.history}
+          onCapture={() => send({ kind: "capture" })}
+          onConfirm={() => send({ kind: "confirmPhoto" })}
+          onRetake={() => send({ kind: "retakePhoto" })}
+          onTypeInstead={() => onAction("R1")}
+          onBack={onBack} onAction={onAction}
+        />
+      );
+
+    case "R9": {
+      const offer = state.offers.find((o) => o.offerId === state.consent?.offerId);
+      return offer && state.consent ? (
+        <OfferDetailScreen
+          t={t}
+          summary={Offers.summarise(offer, offer.lines.map((l) => l.requestLineId))}
+          consent={state.consent}
+          requestedLines={state.sent?.submission.lines.length ?? 0}
+          history={state.history}
+          withdrawn={!Offers.choosable(offer)}
+          onDecide={(requestLineId, decision) => send({ kind: "decideSubstitution", requestLineId, decision })}
+          onReserve={() => send({ kind: "chooseOffer", offerId: offer.offerId })}
+          onBack={onBack} onAction={onAction}
+        />
+      ) : <Placeholder t={t} />;
+    }
 
     case "V1":
     case "V2":

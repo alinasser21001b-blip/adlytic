@@ -17,7 +17,15 @@ import { Marketplace, isErr, type Instant, type Refusal } from "@dawai/domain";
 export type OfferLine =
   | { readonly requestLineId: string; readonly itemName: string; readonly answer: Extract<Marketplace.OfferAnswer, { kind: "available" }> }
   | { readonly requestLineId: string; readonly itemName: string; readonly answer: Extract<Marketplace.OfferAnswer, { kind: "unavailable" }> }
-  | { readonly requestLineId: string; readonly itemName: string; readonly answer: Extract<Marketplace.OfferAnswer, { kind: "substitute" }> };
+  | {
+      readonly requestLineId: string;
+      readonly itemName: string;
+      readonly answer: Extract<Marketplace.OfferAnswer, { kind: "substitute" }>;
+      /** What the substitute is CALLED. The domain carries an itemId and the
+       *  pharmacist's note; a patient consenting to a different brand must read
+       *  its name, and showing an id would be showing them nothing. */
+      readonly substituteName: string;
+    };
 
 export type Offer = {
   readonly offerId: string;
@@ -34,6 +42,36 @@ export type Offer = {
   readonly state: "sent" | "withdrawn" | "expired" | "not_chosen" | "accepted";
   readonly openNow: boolean;
 };
+
+export type SubstituteLine = Extract<OfferLine, { readonly substituteName: string }>;
+
+/** A discriminated-union guard, because the discriminant is nested one level
+ *  and narrowing it inline stopped working the moment a second variant gained
+ *  a field. */
+export const isSubstitute = (l: OfferLine): l is SubstituteLine => l.answer.kind === "substitute";
+
+/**
+ * The substitution proposals inside an offer, in the shape the consent model
+ * needs. Derived here rather than in the reducer, which had begun to build the
+ * same list in two places — the second copy is where the two drift.
+ */
+export function substitutionsOf(offer: Offer): readonly {
+  readonly requestLineId: string;
+  readonly requestedName: string;
+  readonly offeredName: string;
+  readonly offeredItemId: string;
+  readonly priceMinor: number;
+  readonly pharmacistNote: string;
+}[] {
+  return offer.lines.filter(isSubstitute).map((l) => ({
+    requestLineId: l.requestLineId,
+    requestedName: l.itemName,
+    offeredName: l.substituteName,
+    offeredItemId: l.answer.itemId,
+    priceMinor: l.answer.priceMinor,
+    pharmacistNote: l.answer.note,
+  }));
+}
 
 /** What the patient reads on a row: what it covers and what it costs. */
 export type OfferSummary = {

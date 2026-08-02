@@ -27,6 +27,15 @@ export const DEBT = [
     status: "open",
   },
   {
+    id: "TD-9",
+    description: "The camera itself is not implemented. R2 dispatches a capture effect that the app root receives and does nothing with.",
+    impact: "The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.",
+    priority: "high",
+    owner: "media-service",
+    slice: "Device build",
+    status: "open",
+  },
+  {
     id: "TD-3",
     description: "Motion tokens are declared but no transition is implemented. State changes are instant.",
     impact: "The app reads as a series of jumps rather than a continuous surface — the single largest remaining gap against 'feels native'.",
@@ -44,15 +53,7 @@ export const DEBT = [
     slice: "Onboarding slice",
     status: "open",
   },
-  {
-    id: "TD-5",
-    description: "R9 (offer details) and R10 (accept substitution) are not built, so R8 cannot offer a per-row details action and a substitution can be seen but not explicitly consented to.",
-    impact: "A patient can choose an offer containing a substitution without the explicit acknowledgement §4 R10 requires. R8 flags it; nothing yet collects consent.",
-    priority: "critical",
-    owner: "clinical-engine",
-    slice: "Substitution slice — must land before any real patient uses this",
-    status: "open",
-  },
+
   {
     id: "TD-6",
     description: "V2's freshness is hard-coded live because nothing is cached yet.",
@@ -86,6 +87,11 @@ export const DEBT = [
 /** Debt that has been paid. Kept, with how it was resolved, so the register
  *  records a history rather than only a backlog. */
 export const RESOLVED = [
+  {
+    id: "TD-5",
+    description: "A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.",
+    resolvedBy: "R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.",
+  },
   {
     id: "TD-0a",
     description: "layer-check scanned only .ts, so the app layer stopped being checked when it became .tsx.",

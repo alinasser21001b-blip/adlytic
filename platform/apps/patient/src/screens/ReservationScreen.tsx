@@ -96,8 +96,8 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
       {p.kind === "held" ? (
         <InfoCard t={t}>
           <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
-            <Digits t={t} value={left.minutes} role="title" />
-            <Label t={t} role="body" color={tone}>{left.expired ? "انتهى وقت الحجز" : "دقيقة باقية على الحجز"}</Label>
+            <Label t={t} role="title" color={tone}>{Reservation.describeRemaining(left.minutes)}</Label>
+            <Label t={t} role="body" color="inkMuted">{left.expired ? "انتهى وقت الحجز" : "باقية على الحجز"}</Label>
           </View>
           <View style={{ height: t.space[2], borderRadius: t.radius.pill, backgroundColor: t.color.surfaceSunken, overflow: "hidden" }}>
             <View style={{ width: `${Math.round(left.fraction * 100)}%`, height: "100%", backgroundColor: t.color[tone] }} />

@@ -3,7 +3,7 @@
   "progress": {
     "blueprintScreens": 133,
     "contracted": 18,
-    "rendered": 9,
+    "rendered": 12,
     "remaining": 115,
     "percentContracted": 13.5
   },
@@ -693,7 +693,18 @@
       ],
       "telemetry": [],
       "guards": [],
-      "shots": []
+      "shots": [
+        {
+          "id": "R2-camera",
+          "state": "ready",
+          "note": "Says what a PHARMACIST will need to read, because Phase 0 reads nothing itself (D18). The alternative to the camera is offered before it is needed."
+        },
+        {
+          "id": "R2-refused",
+          "state": "permission refused",
+          "note": "Never a wall: the alternative IS the primary action. Offering a disabled camera button would be offering a bolted door."
+        }
+      ]
     },
     {
       "id": "R3",
@@ -730,7 +741,18 @@
       ],
       "telemetry": [],
       "guards": [],
-      "shots": []
+      "shots": [
+        {
+          "id": "R3-review",
+          "state": "ready",
+          "note": "The patient judges legibility because nothing else does — so the screen states what 'clear' means instead of asking them to guess."
+        },
+        {
+          "id": "R3-failed",
+          "state": "error",
+          "note": "The upload failed; the photo survived. D37 — the failure names the fixable condition, never the person."
+        }
+      ]
     },
     {
       "id": "R4",
@@ -843,7 +865,23 @@
       ],
       "telemetry": [],
       "guards": [],
-      "shots": []
+      "shots": [
+        {
+          "id": "R9-undecided",
+          "state": "ready · consent outstanding",
+          "note": "§4 R10 — neither answer is pre-selected and both carry identical visual weight. The offer cannot be reserved until the question is answered."
+        },
+        {
+          "id": "R9-agreed",
+          "state": "ready · consent given",
+          "note": "Once answered, the offer can proceed. The decision can still be changed until the offer is accepted."
+        },
+        {
+          "id": "R9-refused",
+          "state": "ready · substitution refused",
+          "note": "Refusing costs nothing: D06 sends the refused line to a child request, and the screen says so — a patient who thinks 'no' loses the order will say yes to a brand they did not want."
+        }
+      ]
     },
     {
       "id": "R11",
@@ -2782,6 +2820,48 @@
       "note": "A bar with a value rather than a spinner: the patient learns how much longer, not merely that something is happening."
     },
     {
+      "id": "R2-camera",
+      "screen": "R2",
+      "state": "ready",
+      "note": "Says what a PHARMACIST will need to read, because Phase 0 reads nothing itself (D18). The alternative to the camera is offered before it is needed."
+    },
+    {
+      "id": "R2-refused",
+      "screen": "R2",
+      "state": "permission refused",
+      "note": "Never a wall: the alternative IS the primary action. Offering a disabled camera button would be offering a bolted door."
+    },
+    {
+      "id": "R3-review",
+      "screen": "R3",
+      "state": "ready",
+      "note": "The patient judges legibility because nothing else does — so the screen states what 'clear' means instead of asking them to guess."
+    },
+    {
+      "id": "R3-failed",
+      "screen": "R3",
+      "state": "error",
+      "note": "The upload failed; the photo survived. D37 — the failure names the fixable condition, never the person."
+    },
+    {
+      "id": "R9-undecided",
+      "screen": "R9",
+      "state": "ready · consent outstanding",
+      "note": "§4 R10 — neither answer is pre-selected and both carry identical visual weight. The offer cannot be reserved until the question is answered."
+    },
+    {
+      "id": "R9-agreed",
+      "screen": "R9",
+      "state": "ready · consent given",
+      "note": "Once answered, the offer can proceed. The decision can still be changed until the offer is accepted."
+    },
+    {
+      "id": "R9-refused",
+      "screen": "R9",
+      "state": "ready · substitution refused",
+      "note": "Refusing costs nothing: D06 sends the refused line to a child request, and the screen says so — a patient who thinks 'no' loses the order will say yes to a brand they did not want."
+    },
+    {
       "id": "R8-offers",
       "screen": "R8",
       "state": "ready · three answers",
@@ -2845,9 +2925,12 @@
         "apps/patient/src/screens/ConfirmScreen.tsx",
         "apps/patient/src/screens/DraftScreen.tsx",
         "apps/patient/src/screens/FindScreen.tsx",
+        "apps/patient/src/screens/OfferDetailScreen.tsx",
         "apps/patient/src/screens/OffersScreen.tsx",
+        "apps/patient/src/screens/PrescriptionScreen.tsx",
         "apps/patient/src/screens/ReservationScreen.tsx",
         "apps/patient/src/screens/WaitingScreen.tsx",
+        "apps/patient/src/screens/gallery.tsx",
         "apps/patient/src/ui/kit.tsx"
       ]
     },
@@ -2856,8 +2939,10 @@
       "note": "pure reducer and view models; asks the domain, never computes a rule",
       "modules": [
         "apps/patient/src/app/store.ts",
+        "apps/patient/src/model/consent.ts",
         "apps/patient/src/model/draft.ts",
         "apps/patient/src/model/offers.ts",
+        "apps/patient/src/model/prescription.ts",
         "apps/patient/src/model/reservation.ts",
         "apps/patient/src/model/search.ts",
         "apps/patient/src/model/send.ts",

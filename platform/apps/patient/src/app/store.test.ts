@@ -287,3 +287,105 @@ describe("the second half of the loop", () => {
     expect(again.effects).toEqual([]);
   });
 });
+
+describe("substitution consent — the gate TD-5 was open on (§4 R10)", () => {
+  const subLine = (id: string, name: string) => ({
+    requestLineId: id, itemName: name,
+    answer: { kind: "substitute", priceMinor: 2_500, itemId: "سيتامول", note: "نفس المادة الفعالة" },
+  }) as never;
+
+  const plainLine = (id: string, name: string) => ({
+    requestLineId: id, itemName: name,
+    answer: { kind: "available", priceMinor: 3_000 },
+  }) as never;
+
+  const offerWithSub = (lines: readonly unknown[] = [subLine("l1", "بانادول")]) => ({
+    offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
+    distanceM: 800, honoured: "trusted", state: "sent", openNow: true, lines,
+  }) as never;
+
+  const withOffer = (offer: unknown) => run(
+    run(signedIn(), [{ kind: "addItem", hit: hit() }, { kind: "send", at: instant(1_000) }]).state,
+    [{ kind: "offerArrived", offer: offer as never }],
+  ).state;
+
+  it("an offer containing a substitution cannot be reserved — it sends the patient to decide", () => {
+    const s = run(withOffer(offerWithSub()), [{ kind: "chooseOffer", offerId: "o1" }]).state;
+    // Not a reservation, and not a dead refusal either: the decision has a
+    // screen, so the patient is taken to it.
+    expect(s.reservation).toBeNull();
+    expect(s.screen).toBe("R9");
+    expect(s.consent?.offerId).toBe("o1");
+  });
+
+  it("every proposal starts undecided — nothing is pre-ticked", () => {
+    const s = run(withOffer(offerWithSub()), [{ kind: "openOffer", offerId: "o1" }]).state;
+    expect(s.consent?.decisions.get("l1")).toBe("undecided");
+  });
+
+  it("still refuses while a decision is outstanding", () => {
+    let s = run(withOffer(offerWithSub([subLine("l1", "بانادول"), subLine("l2", "أموكسيسيلين")])),
+      [{ kind: "openOffer", offerId: "o1" }]).state;
+    s = run(s, [{ kind: "decideSubstitution", requestLineId: "l1", decision: "agreed" }]).state;
+    s = run(s, [{ kind: "chooseOffer", offerId: "o1" }]).state;
+    expect(s.reservation).toBeNull();
+    expect(s.screen).toBe("R9");
+  });
+
+  it("proceeds once every proposal has an explicit answer", () => {
+    let s = run(withOffer(offerWithSub()), [{ kind: "openOffer", offerId: "o1" }]).state;
+    s = run(s, [{ kind: "decideSubstitution", requestLineId: "l1", decision: "agreed" }]).state;
+    s = run(s, [{ kind: "chooseOffer", offerId: "o1" }]).state;
+    expect(s.screen).toBe("V1");
+    expect(s.reservation).toEqual({ kind: "requesting", branchName: "صيدلية الرشيد" });
+  });
+
+  it("refusing keeps the rest of the order (D06) rather than losing it", () => {
+    const offer = offerWithSub([subLine("l1", "بانادول"), plainLine("l2", "أموكسيسيلين")]);
+    let s = run(withOffer(offer), [{ kind: "openOffer", offerId: "o1" }]).state;
+    s = run(s, [{ kind: "decideSubstitution", requestLineId: "l1", decision: "refused" }]).state;
+    s = run(s, [{ kind: "chooseOffer", offerId: "o1" }]).state;
+    // The refused line drops; the reservation still happens for the rest.
+    expect(s.screen).toBe("V1");
+  });
+
+  it("an offer with no substitution needs no consent and reserves directly", () => {
+    const s = run(withOffer(offerWithSub([plainLine("l1", "بانادول")])), [{ kind: "chooseOffer", offerId: "o1" }]).state;
+    expect(s.screen).toBe("V1");
+  });
+});
+
+describe("R2 and R3 — the prescription photo", () => {
+  const withRxDraft = () => run(signedIn(), [
+    { kind: "addItem", hit: hit({ itemId: "rx", name: "أموكسيسيلين", requiresPrescription: true }) },
+  ]).state;
+
+  it("a captured photo is NOT attached until the patient confirms it (D18)", () => {
+    let s = run(withRxDraft(), [{ kind: "captured", imageId: "img-1", localUri: "file://a.jpg" }]).state;
+    expect(s.screen).toBe("R3");
+    // Still blocked: nothing has been attached.
+    expect(s.draft!.lines[0]!.prescriptionImageId).toBeNull();
+
+    s = run(s, [{ kind: "confirmPhoto" }]).state;
+    expect(s.draft!.lines[0]!.prescriptionImageId).toBe("img-1");
+    expect(s.screen).toBe("R1");
+  });
+
+  it("retaking returns to the camera with nothing attached", () => {
+    let s = run(withRxDraft(), [{ kind: "captured", imageId: "img-1", localUri: "file://a.jpg" }]).state;
+    s = run(s, [{ kind: "retakePhoto" }]).state;
+    expect(s.screen).toBe("R2");
+    expect(s.capture.kind).toBe("ready");
+    expect(s.draft!.lines[0]!.prescriptionImageId).toBeNull();
+  });
+
+  it("a refused camera is a state the screen can offer an alternative for, not a wall", () => {
+    const s = run(withRxDraft(), [{ kind: "cameraPermission", permission: "denied" }]).state;
+    expect(s.capture).toEqual({ kind: "refused", permission: "denied" });
+  });
+
+  it("asks the platform for the photo rather than pretending to take one", () => {
+    const { effects } = run(withRxDraft(), [{ kind: "capture" }]);
+    expect(effects).toEqual([{ kind: "capturePrescription" }]);
+  });
+});

@@ -24,6 +24,8 @@ import { BUSINESS_EVENT } from "@dawai/observability";
 import * as Search from "../model/search.js";
 import * as Offers from "../model/offers.js";
 import * as Reservation from "../model/reservation.js";
+import * as Consent from "../model/consent.js";
+import * as Prescription from "../model/prescription.js";
 import * as DraftModel from "../model/draft.js";
 import { send, type Sent } from "../model/send.js";
 import { CORE_LOOP } from "../screens/core-loop.contract.js";
@@ -47,6 +49,12 @@ export type AppState = {
   readonly staleOffer: string | null;
   readonly reservation: Reservation.ReservationView | null;
   readonly reservationState: MarketplaceMachines.ReservationState | null;
+  /** R2/R3 — the photograph, which is not attached until the patient says it
+   *  is readable. Phase 0 reads nothing (D18). */
+  readonly capture: Prescription.Capture;
+  /** R9/R10 — the substitution decisions for the offer being examined. Never
+   *  pre-ticked; an offer cannot be accepted while any are undecided. */
+  readonly consent: Consent.ConsentState | null;
   /** The last domain refusal, held so the screen can show it inline and clear
    *  it deliberately. Never rendered as a code — the screen words it. */
   readonly refusal: Refusal | null;
@@ -79,6 +87,13 @@ export type Intent =
   | { readonly kind: "chooseOffer"; readonly offerId: string }
   | { readonly kind: "holdConfirmed"; readonly hold: Reservation.Hold }
   | { readonly kind: "holdRefused"; readonly branchName: string; readonly reopened: boolean }
+  | { readonly kind: "cameraPermission"; readonly permission: Prescription.CameraPermission }
+  | { readonly kind: "capture" }
+  | { readonly kind: "captured"; readonly imageId: string; readonly localUri: string }
+  | { readonly kind: "confirmPhoto" }
+  | { readonly kind: "retakePhoto" }
+  | { readonly kind: "openOffer"; readonly offerId: string }
+  | { readonly kind: "decideSubstitution"; readonly requestLineId: string; readonly decision: "agreed" | "refused" }
   | { readonly kind: "dismissRefusal" };
 
 export type Step = { readonly state: AppState; readonly effects: readonly Effect[] };
@@ -123,6 +138,8 @@ export function initial(): AppState {
     staleOffer: null,
     reservation: null,
     reservationState: null,
+    capture: Prescription.ready(),
+    consent: null,
     refusal: null,
     redirectBecause: null,
   };
@@ -254,14 +271,28 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       const offer = state.offers.find((o) => o.offerId === intent.offerId);
       if (!offer) return { state, effects: [] };
 
-      const requested = state.sent?.submission.lines.map((_, i) => `line-${i}`) ?? [];
-      const chosen = Offers.accept(offer, offer.lines.map((l) => l.requestLineId));
+      // §4 R10 — an offer containing a substitution cannot be accepted until
+      // every proposal has an explicit answer. This is the gate TD-5 was open
+      // on: R8 could show the flag and the offer could be taken regardless.
+      const hasSubstitution = offer.lines.some((l) => l.answer.kind === "substitute");
+      if (hasSubstitution) {
+        const consent = state.consent?.offerId === offer.offerId ? state.consent : null;
+        const blocked = consent ? Consent.gate(consent) : { code: "SUBSTITUTION_NOT_ACKNOWLEDGED" as const };
+        if (blocked)
+          // Not a refusal the patient must dismiss — the decision lives on R9,
+          // so send them to make it rather than telling them they cannot.
+          return { state: openOfferDetail(state, offer), effects: [] };
+      }
+
+      const consentState = state.consent?.offerId === offer.offerId ? state.consent : null;
+      const filled = offer.lines.filter((l) => l.answer.kind !== "unavailable").map((l) => l.requestLineId);
+      const permitted = consentState ? Consent.linesToReserve(consentState, filled) : filled;
+      const chosen = Offers.accept({ ...offer, lines: offer.lines.filter((l) => permitted.includes(l.requestLineId)) }, permitted);
       if (!chosen.ok)
         // An offer that left the list between render and tap is told plainly,
         // and the list stays — never a silent failure on the most consequential
         // tap in the product.
         return { state: { ...state, staleOffer: offer.branchName, refusal: chosen.refusal }, effects: [] };
-      void requested;
 
       return {
         state: navigate({
@@ -294,9 +325,58 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       };
     }
 
+    case "cameraPermission":
+      return { state: { ...state, capture: Prescription.fromPermission(intent.permission) }, effects: [] };
+
+    case "capture":
+      return { state: { ...state, capture: Prescription.capturing(state.capture) }, effects: [{ kind: "capturePrescription" }] };
+
+    case "captured":
+      // R3 — captured is NOT attached. The patient confirms legibility first,
+      // because nothing in Phase 0 reads the prescription (D18).
+      return { state: navigate({ ...state, capture: Prescription.captured(intent.imageId, intent.localUri) }, "R3"), effects: [] };
+
+    case "confirmPhoto": {
+      const done = Prescription.confirmed(state.capture);
+      if (!done || !state.draft) return { state, effects: [] };
+      return {
+        state: navigate({
+          ...state,
+          draft: DraftModel.attachPrescription(state.draft, done.imageId),
+          capture: { kind: "attached", imageId: done.imageId },
+        }, "R1"),
+        effects: [],
+      };
+    }
+
+    case "retakePhoto":
+      return { state: navigate({ ...state, capture: Prescription.retake() }, "R2"), effects: [] };
+
+    case "openOffer": {
+      const offer = state.offers.find((o) => o.offerId === intent.offerId);
+      if (!offer) return { state, effects: [] };
+      // §4 R10 — every substitution in this offer becomes an undecided
+      // question. There is no path that produces an agreed decision here.
+      const substitutions = Offers.substitutionsOf(offer);
+      return { state: navigate({ ...state, consent: Consent.begin(offer.offerId, substitutions) }, "R9"), effects: [] };
+    }
+
+    case "decideSubstitution":
+      return state.consent
+        ? { state: { ...state, consent: Consent.decide(state.consent, intent.requestLineId, intent.decision) }, effects: [] }
+        : { state, effects: [] };
+
     case "dismissRefusal":
       return { state: { ...state, refusal: null, staleOffer: null }, effects: [] };
   }
+}
+
+/** R9 with the substitution questions opened. Shared by the R8 tap and by the
+ *  consent gate, so both land on the same screen in the same state. */
+function openOfferDetail(state: AppState, offer: Offers.Offer): AppState {
+  const substitutions = Offers.substitutionsOf(offer);
+  const consent = state.consent?.offerId === offer.offerId ? state.consent : Consent.begin(offer.offerId, substitutions);
+  return navigate({ ...state, consent }, "R9");
 }
 
 function subjectOf(state: AppState): string {

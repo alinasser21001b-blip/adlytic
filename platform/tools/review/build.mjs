@@ -100,6 +100,10 @@ const WORKFLOWS = [
   { name: "Pending work (outbox)", screens: ["R13"] },
 ];
 
+/** Release blockers are derived from the debt register rather than listed
+ *  again — two lists is how one of them goes stale. */
+const BLOCKERS = DEBT.filter((d) => d.priority === "critical" || d.id === "TD-4" || d.id === "TD-9");
+
 const allGates = [...gates, ...derived];
 const allPass = allGates.every((g) => g.pass);
 
@@ -384,6 +388,62 @@ ${allGates.map((g) => `<div class="chk"><span class="dot ${g.pass ? "ok" : "bad"
 </div>
 <p class="note" style="margin-top:10px">Nothing above is green unless it was measured in this run. Performance is deliberately red rather than assumed: there is no device build to profile.</p>`)}
 
+
+${section("Release readiness", `
+<div class="panel">
+  <h3>Can this build ship today?</h3>
+  <p style="margin-top:6px"><span class="tag bad" style="font-size:14px;padding:6px 12px">NO</span></p>
+  <p class="note" style="margin-top:12px">Every quality gate is green and the patient consent journey is complete, but the build cannot be submitted. The blockers below are derived from the debt register — an item leaves this list by being fixed.</p>
+
+  <h3 style="margin-top:20px">What blocks release</h3>
+  <table style="margin-top:8px"><thead><tr><th>Blocker</th><th>Why it blocks</th><th>Owner</th></tr></thead><tbody>
+  ${BLOCKERS.map((d) => `<tr><td class="mono">${esc(d.id)}</td><td>${esc(d.impact)}</td><td class="mono">${esc(d.owner)}</td></tr>`).join("")}
+  </tbody></table>
+
+  <h3 style="margin-top:20px">What is ready</h3>
+  <ul>
+    <li class="note">The patient core loop, end to end: search → request → wait → compare → consent → reserve → collect.</li>
+    <li class="note">${data.screens.length} screens contracted, ${data.progress.rendered} rendered, ${data.shots.length} states photographed and audited.</li>
+    <li class="note">Every product rule enforced on every registered state — one primary, 44pt floor, readable labels, no repeated action, one numeral system, explained disabled states.</li>
+    <li class="note">Contrast measured in both schemes; navigation proven free of traps and unreachable screens.</li>
+  </ul>
+
+  <h3 style="margin-top:20px">What remains before a submission is even possible</h3>
+  <ul>
+    <li class="note">A device build. Nothing here has run on a phone, so no App Store artefact exists.</li>
+    <li class="note">Infrastructure (Stage 5) — the app has never exchanged a byte with a server.</li>
+    <li class="note">The onboarding chain E5–E8: a guest cannot complete any journey today.</li>
+    <li class="note">${data.gaps.length} Blueprint screens, listed individually under Known gaps.</li>
+  </ul>
+</div>`)}
+
+${section("Screen health", `
+<div class="panel scroll">
+<p class="note">Derived per screen: which states the Blueprint declares, which have a treatment, whether the screen is photographed, and what changed since the last push.</p>
+<table style="margin-top:12px"><thead><tr>
+  <th>Screen</th><th>Purpose</th><th>States implemented</th><th>Offline</th><th>Loading</th><th>Error</th><th>Analytics</th><th>Shots</th><th>Regression</th>
+</tr></thead><tbody>
+${data.screens.map((sc) => {
+  const kinds = new Set(sc.states.map((x) => x.kind));
+  const shotIds = sc.shots.map((x) => `${x.id}.png`);
+  const status = shotIds.length === 0 ? '<span class="tag">not rendered</span>'
+    : shotIds.some((f) => regression.added.includes(f)) ? '<span class="tag ok">new</span>'
+    : shotIds.some((f) => regression.changed.includes(f)) ? '<span class="tag warn">changed</span>'
+    : '<span class="tag">unchanged</span>';
+  const mark = (ok) => ok ? '<span class="tag ok">yes</span>' : '<span class="tag">—</span>';
+  return `<tr>
+    <td class="mono">${esc(sc.id)}</td>
+    <td class="note">${esc(sc.purpose)}</td>
+    <td>${[...kinds].map((k) => `<span class="tag">${esc(k)}</span>`).join("") || "—"}</td>
+    <td>${mark(kinds.has("offline"))}</td>
+    <td>${mark(kinds.has("loading"))}</td>
+    <td>${mark(kinds.has("error"))}</td>
+    <td>${sc.telemetry.length ? sc.telemetry.map((e) => `<span class="tag ok">${esc(e)}</span>`).join("") : '<span class="tag">—</span>'}</td>
+    <td class="mono">${sc.shots.length}</td>
+    <td>${status}</td>
+  </tr>`;
+}).join("")}
+</tbody></table></div>`)}
 
 ${section("Visual regression — against the last pushed build", `
 <div class="panel">

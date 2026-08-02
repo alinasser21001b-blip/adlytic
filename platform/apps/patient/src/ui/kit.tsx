@@ -37,10 +37,29 @@ export function Label(
         color: t.color[color], writingDirection: t.direction, textAlign: "right",
       }}
     >
-      {children}
+      {normaliseNumerals(children)}
     </Text>
   );
 }
+
+/**
+ * One numeral system per surface, applied where text is rendered rather than
+ * where it is produced.
+ *
+ * A reservation address arrived as «شارع ٦٢» while every price and countdown
+ * beside it used Western digits — two systems in one glance, which §25 calls a
+ * defect rather than a style. Server-supplied strings can carry either, so
+ * asking every call site to remember is exactly the discipline this replaces.
+ */
+function normaliseNumerals(node: React.ReactNode): React.ReactNode {
+  if (typeof node === "string") return formatDigits(toWestern(node), "western");
+  if (Array.isArray(node)) return node.map((n, i) => <React.Fragment key={i}>{normaliseNumerals(n)}</React.Fragment>);
+  return node;
+}
+
+const toWestern = (s: string): string =>
+  s.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+   .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
 
 /**
  * A Latin run inside Arabic text — a drug name, a price, a code. Unisolated,
@@ -163,6 +182,40 @@ export function Secondary({ t, label, spoken, onPress }: { t: Theme; label: stri
   );
 }
 
+/**
+ * One answer among two or more, where the choice itself is the point.
+ *
+ * Outlined rather than filled, and both options carry identical visual weight:
+ * a filled "agree" beside an outlined "refuse" is a nudge, and a nudged
+ * consent is not consent (§4 R10). The radio role is what makes the selection
+ * audible to a screen reader — without it a patient using TalkBack cannot tell
+ * which answer they gave.
+ */
+export function Choice(
+  { t, label, selected, onPress }:
+  { t: Theme; label: string; selected: boolean; onPress: Press },
+) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={{
+        flex: 1, minHeight: t.tap.patientPrimary,
+        alignItems: "center", justifyContent: "center",
+        paddingHorizontal: t.space[3],
+        borderRadius: t.radius.lg,
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? t.color.accent : t.color.line,
+        backgroundColor: selected ? t.color.surfaceSunken : t.color.surface,
+      }}
+    >
+      <Label t={t} role="body" color={selected ? "accent" : "ink"}>{label}</Label>
+    </Pressable>
+  );
+}
+
 /* ── States ───────────────────────────────────────────────────────────── */
 
 /**
@@ -265,7 +318,10 @@ export function Screen(
     view.treatment && (view.treatment.kind === "empty" || view.treatment.kind === "error")
       ? view.treatment.action
       : null;
-  const footerContent = footer !== undefined
+  // A screen that supplies `undefined` is saying "I have no footer"; one that
+  // supplies a node is claiming the slot. `null` used to read as a claim and
+  // silently suppressed the state's own action, stranding it mid-screen.
+  const footerContent = footer !== undefined && footer !== null
     ? footer
     : stateAction
       ? <Primary t={t} label={stateAction.label} onPress={() => onAction(stateAction.leadsTo)} />

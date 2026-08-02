@@ -160,9 +160,11 @@ describe("V2 — the screen that must never fail", () => {
     expect(texts(render(<ReservationScreen {...resBase} view={held} />))).toContain("4K D2 P9");
   });
 
-  it("shows the time left, the branch and the total", () => {
+  it("shows the time left in hours, the branch and the total", () => {
     const shown = texts(render(<ReservationScreen {...resBase} view={held} />));
-    expect(shown).toContain("120");
+    // "120 دقيقة" made a patient do arithmetic before they knew whether to
+    // walk or hurry. Hours are how people hold time.
+    expect(shown).toContain("ساعتين");
     expect(shown).toContain("صيدلية الرشيد");
     expect(shown).toContain("3,000 دينار");
   });
@@ -209,38 +211,4 @@ describe("V4 — they confirmed and then could not (D39)", () => {
     pressables(root).find((p) => p.props["accessibilityLabel"] === "شوف العروض الجديدة")!.props["onPress"]();
     expect(onAction).toHaveBeenCalledWith("R8");
   });
-});
-
-describe("the second half of the loop holds the same rules as the first", () => {
-  const screens: readonly [string, React.ReactElement][] = [
-    ["R8", <OffersScreen {...offersBase} offers={summarise([offer(), offer({ offerId: "o2", branchName: "صيدلية النور" })], ["l1"])} requestedLines={1} />],
-    ["V1", <ReservationScreen {...resBase} view={Reservation.requesting("ص")} />],
-    ["V2", <ReservationScreen {...resBase} view={{ kind: "held", hold: hold() }} />],
-    ["V4", <ReservationScreen {...resBase} view={{ kind: "refused", branchName: "ص", reopened: true }} />],
-  ];
-
-  for (const [name, el] of screens) {
-    it(`${name} keeps every control above the 44pt floor with a readable label`, () => {
-      for (const p of pressables(render(el))) {
-        const s = flatten(p.props["style"]);
-        const h = (s["minHeight"] ?? s["height"]) as number | undefined;
-        expect(h, `${name}: "${p.props["accessibilityLabel"]}" has no height`).toBeTypeOf("number");
-        expect(h!, `${name}: "${p.props["accessibilityLabel"]}" is ${h}pt`).toBeGreaterThanOrEqual(44);
-        expect(p.props["accessibilityLabel"]).toBeTruthy();
-      }
-    });
-
-    it(`${name} has at most one filled accent control`, () => {
-      const filled = pressables(render(el)).filter((p) => flatten(p.props["style"])["backgroundColor"] === t.color.accent);
-      expect(filled.length, `${name} has ${filled.length}`).toBeLessThanOrEqual(1);
-    });
-
-    it(`${name} offers no action twice`, () => {
-      const labels = pressables(render(el))
-        .map((p) => String(p.props["accessibilityLabel"]))
-        .filter((l) => l !== "رجوع" && !l.startsWith("احجز من"));
-      const seen = new Set<string>();
-      expect(labels.filter((l) => (seen.has(l) ? true : (seen.add(l), false)))).toEqual([]);
-    });
-  }
 });

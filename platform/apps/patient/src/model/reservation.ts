@@ -116,6 +116,22 @@ export function timeLeft(hold: Hold, now: Instant): {
 }
 
 /**
+ * How long is left, worded the way a person says it.
+ *
+ * The first version rendered "120 دقيقة", which is a hesitation moment: a
+ * patient has to convert it before they know whether they can walk or must
+ * hurry. Hours are how people hold time.
+ */
+export function describeRemaining(minutes: number): string {
+  if (minutes <= 0) return "انتهى الوقت";
+  if (minutes < 60) return `${minutes} دقيقة`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const hours = h === 1 ? "ساعة" : h === 2 ? "ساعتين" : `${h} ساعات`;
+  return m === 0 ? hours : `${hours} و${m} دقيقة`;
+}
+
+/**
  * The code, grouped so it can be read aloud to a pharmacist over the phone.
  * A six-character run read as one word is misheard; in pairs it is not.
  */

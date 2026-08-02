@@ -26,8 +26,8 @@ const R6 = CORE_LOOP.find((c) => c.id === "R6")!;
 /** D09's three windows, worded with their duration. "خلال يومين" rather than
  *  "هذا الأسبوع" is the Blueprint's own wording and is deliberately concrete. */
 const WINDOWS: readonly { readonly urgency: Marketplace.Urgency; readonly label: string; readonly says: string }[] = [
-  { urgency: "now", label: "الآن", says: "نسأل الصيدليات ونستنى ٢٠ دقيقة" },
-  { urgency: "today", label: "اليوم", says: "نستنى ٤ ساعات" },
+  { urgency: "now", label: "الآن", says: "نسأل الصيدليات ونستنى 20 دقيقة" },
+  { urgency: "today", label: "اليوم", says: "نستنى 4 ساعات" },
   { urgency: "soon", label: "خلال يومين", says: "نستنى يومين" },
 ];
 

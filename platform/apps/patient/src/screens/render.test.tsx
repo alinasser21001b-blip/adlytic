@@ -60,17 +60,9 @@ function texts(root: ReactTestInstance): string {
 const flatten = (style: unknown): Record<string, unknown> =>
   Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : (style as Record<string, unknown>) ?? {};
 
-/** §25/§26 — 44pt is a floor, not a target, and it applies to every control on
- *  every screen rather than to the ones somebody remembered to check. */
-function assertTapTargets(root: ReactTestInstance) {
-  for (const p of pressables(root)) {
-    const s = flatten(p.props["style"]);
-    const h = (s["minHeight"] ?? s["height"]) as number | undefined;
-    expect(h, `"${p.props["accessibilityLabel"]}" has no height`).toBeTypeOf("number");
-    expect(h!, `"${p.props["accessibilityLabel"]}" is ${h}pt, below the 44pt floor`).toBeGreaterThanOrEqual(44);
-    expect(p.props["accessibilityLabel"], "a control with no label a screen reader can read").toBeTruthy();
-  }
-}
+/* The universal rules — one primary, 44pt floor, readable labels, no repeated
+ * action, one numeral system — now run over every registered screen state in
+ * product-rules.test.tsx. What remains here is what only THESE screens owe. */
 
 describe("F2 — the results a patient reads", () => {
   const base = {
@@ -83,7 +75,6 @@ describe("F2 — the results a patient reads", () => {
     // The whole card is the action, and its label names the medicine so a
     // screen reader moving down the list says which one.
     expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "أضف بانادول للطلب")).toBe(true);
-    assertTapTargets(root);
   });
 
   it("refuses a controlled item on the row, so the tap never happens (D42)", () => {
@@ -127,7 +118,6 @@ describe("R1 — the draft", () => {
     const shown = texts(root);
     expect(shown).toContain("علبة");
     expect(shown).toContain("7"); // 8 lines allowed, one used
-    assertTapTargets(root);
   });
 
   it("the stepper changes the quantity of the line it belongs to", () => {
@@ -175,8 +165,9 @@ describe("R6 — the last look", () => {
   it("states what each urgency window actually means (D09)", () => {
     const root = render(<ConfirmScreen {...base} draft={draft()} online />);
     const shown = texts(root);
-    expect(shown).toContain("٢٠ دقيقة");
-    expect(shown).toContain("٤ ساعات");
+    // One numeral system per surface — the copy reads the way it renders.
+    expect(shown).toContain("20 دقيقة");
+    expect(shown).toContain("4 ساعات");
     expect(shown).toContain("يومين");
   });
 
@@ -197,7 +188,6 @@ describe("R6 — the last look", () => {
     const root = render(<ConfirmScreen {...base} draft={draft()} online />);
     const accent = pressables(root).filter((p) => flatten(p.props["style"])["backgroundColor"] === t.color.accent);
     expect(accent).toHaveLength(1);
-    assertTapTargets(root);
   });
 });
 
@@ -248,45 +238,4 @@ describe("every screen answers 'where am I' and 'how do I go back'", () => {
     const root = render(<FindScreen t={t} history={[]} now={0} search={{ kind: "idle" }} onType={noop} onAdd={noop} onBack={noop} onAction={noop} />);
     expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "رجوع")).toBe(false);
   });
-});
-
-describe("visual hierarchy holds across every screen", () => {
-  const draft = DraftModel.add(DraftModel.newDraft("s", "d"), hit()).draft;
-  const screens: readonly [string, React.ReactElement][] = [
-    ["F2 results", <FindScreen t={t} history={["F1"]} now={0} search={{ kind: "results", query: "x", hits: [hit(), hit({ itemId: "i2", name: "أموكسيسيلين" })], at: 0 }} onType={noop} onAdd={noop} onBack={noop} onAction={noop} />],
-    ["R1 draft", <DraftScreen t={t} history={["S1"]} draft={draft} refusal={null} redirectBecause={null} onSetPacks={noop} onRemove={noop} onContinue={noop} onBack={noop} onAction={noop} onDismissRefusal={noop} />],
-    // The state the duplication defect actually lived in. Without it the rule
-    // below passes on a fixture that could never have shown the bug.
-    ["R1 draft · prescription missing", <DraftScreen t={t} history={["S1"]} draft={DraftModel.add(draft, hit({ itemId: "rx", name: "أموكسيسيلين", requiresPrescription: true })).draft} refusal={null} redirectBecause={null} onSetPacks={noop} onRemove={noop} onContinue={noop} onBack={noop} onAction={noop} onDismissRefusal={noop} />],
-    ["R6 confirm", <ConfirmScreen t={t} history={["R1"]} draft={draft} online refusal={null} redirectBecause={null} sending={false} onSetUrgency={noop} onSend={noop} onBack={noop} onAction={noop} />],
-  ];
-
-  for (const [name, el] of screens) {
-    it(`${name} has at most one filled accent control`, () => {
-      // The first render of the results list put a filled primary on every
-      // row, so three dominant controls competed and the eye had nowhere to
-      // land. A count is the only version of that rule that survives.
-      const root = render(el);
-      const filled = pressables(root).filter((p) => flatten(p.props["style"])["backgroundColor"] === t.color.accent);
-      expect(filled.length, `${name} has ${filled.length} filled accent controls`).toBeLessThanOrEqual(1);
-    });
-
-    it(`${name} keeps every control within thumb reach and above the floor`, () => {
-      assertTapTargets(render(el));
-    });
-
-    it(`${name} offers no action twice`, () => {
-      // R1 showed "صوّر الوصفة" as a filled prompt and again as a link
-      // directly beneath it. Two controls with the same words make a user
-      // wonder which one is the real one — and no test could see it until
-      // this one. Row-level actions are excluded: they repeat by design and
-      // their labels name the medicine, so they are already distinct.
-      const labels = pressables(render(el))
-        .map((p) => String(p.props["accessibilityLabel"]))
-        .filter((l) => l !== "رجوع" && !l.startsWith("أضف") && !l.startsWith("شيل") && !l.startsWith("زيادة") && !l.startsWith("تقليل"));
-      const seen = new Set<string>();
-      const twice = labels.filter((l) => (seen.has(l) ? true : (seen.add(l), false)));
-      expect(twice, `${name} repeats: ${twice.join(", ")}`).toEqual([]);
-    });
-  }
 });

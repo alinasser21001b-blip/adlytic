@@ -53,7 +53,10 @@ export function DraftScreen(p: DraftProps) {
   return (
     <Screen
       t={t} view={view} onBack={p.onBack} onAction={p.onAction}
-      footer={lines.length > 0 ? (
+      // `undefined`, not `null`: null is a footer the screen is supplying, and
+      // it would suppress the state's own action instead of letting it move to
+      // the footer — which put the empty state's button mid-screen.
+      footer={lines.length === 0 ? undefined : (
         <>
           {/* A disabled control is a courtesy; the guard at send is the control
               (§5 rule 1). But a dead button with its reason scrolled off above
@@ -67,7 +70,7 @@ export function DraftScreen(p: DraftProps) {
             onPress={p.onContinue}
           />
         </>
-      ) : null}
+      )}
     >
       <RedirectNote t={t} because={p.redirectBecause} />
 
