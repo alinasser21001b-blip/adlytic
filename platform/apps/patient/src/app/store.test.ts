@@ -429,18 +429,18 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     expect(w.state.session.state).toBe("authenticating");
   });
 
-  it("spends an attempt on a wrong code, and says how many are left", () => {
+  it("mirrors the server's attempt count on a wrong code", () => {
     const w = walk();
     w.go({ kind: "typePhone", raw: "07701234567" });
     w.go({ kind: "submitPhone" });
     w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
     w.go({ kind: "typeCode", raw: "111111" });
     w.go({ kind: "submitCode", at: at(2_000) });
-    w.go({ kind: "codeJudged", correct: false, at: at(2_000) });
+    w.go({ kind: "codeJudged", verdict: "wrong", attemptsLeft: 4 });
 
     expect(w.state.onboarding.codeRefusal).toBe("WRONG_CODE");
-    // The attempt MOVED. Returning a refusal without spending one would give a
-    // patient unlimited guesses.
+    // The server said 4 attempts remain; the mirrored count must agree, so the
+    // domain's attemptsLeft and E6's sentence cannot diverge from the server.
     expect(w.state.onboarding.challenge?.used).toBe(1);
     expect(w.state.screen, "advanced on a wrong code").toBe("E6");
   });
@@ -451,8 +451,8 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     w.go({ kind: "submitPhone" });
     w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(0) });
     w.go({ kind: "typeCode", raw: "111111" });
-    // Past the code's lifetime.
-    w.go({ kind: "codeJudged", correct: true, at: at(11 * 60_000) });
+    // The SERVER said the clock ran out — the client does not re-derive it.
+    w.go({ kind: "codeJudged", verdict: "expired" });
 
     expect(w.state.onboarding.codeRefusal).toBe("CODE_EXPIRED");
     expect(w.state.onboarding.challenge?.used, "the clock cost the patient an attempt").toBe(0);
@@ -478,7 +478,7 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     w.go({ kind: "submitPhone" });
     w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(0) });
     w.go({ kind: "typeCode", raw: "123456" });
-    w.go({ kind: "codeJudged", correct: true, at: at(1_000) });
+    w.go({ kind: "codeJudged", verdict: "correct" });
     expect(w.state.screen).toBe("E7");
 
     w.go({ kind: "submitName" });
@@ -516,7 +516,7 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     go({ kind: "submitPhone" });
     go({ kind: "codeIssued", challengeId: "ch-1", at: instant(0) });
     go({ kind: "typeCode", raw: "123456" });
-    go({ kind: "codeJudged", correct: true, at: instant(1_000) });
+    go({ kind: "codeJudged", verdict: "correct" });
     go({ kind: "typeName", raw: "أم علي" });
     go({ kind: "submitName" });
 

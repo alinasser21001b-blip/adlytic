@@ -62,6 +62,36 @@ export type RequestSubmission = {
   }[];
 };
 
+/* ── Identity — the declared auth contract, as a port ─────────────────── */
+
+/** What POST /v1/auth/phone answers with. `resendAfter` is the server's word
+ *  on when another SMS may be requested; the client renders it, never decides
+ *  it. */
+export type ChallengeIssued = {
+  readonly challengeId: string;
+  readonly resendAfter: number;
+};
+
+/**
+ * What POST /v1/auth/verify can say. Each variant is one of the DECLARED
+ * responses — 200, 400 wrong_code { attemptsLeft }, 410 challenge_expired,
+ * 429 too_many_attempts, 403 account_suspended — and nothing else, so a screen
+ * cannot receive an answer the API contract does not contain.
+ */
+export type VerifyResult =
+  | { readonly kind: "verified"; readonly accountId: string; readonly subjectId: string }
+  | { readonly kind: "wrongCode"; readonly attemptsLeft: number }
+  | { readonly kind: "expired" }
+  | { readonly kind: "tooManyAttempts" }
+  | { readonly kind: "suspended" };
+
+export interface IdentityPort {
+  /** POST /v1/auth/phone */
+  requestCode(e164: string, signal?: AbortSignal): Promise<Fetched<ChallengeIssued>>;
+  /** POST /v1/auth/verify */
+  verify(challengeId: string, code: string, deviceId: string, signal?: AbortSignal): Promise<Fetched<VerifyResult>>;
+}
+
 /**
  * Ids and time are injected for the same reason the domain refuses them: a
  * screen that mints an idempotency key from a clock cannot be tested, and an

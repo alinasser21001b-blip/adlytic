@@ -1,0 +1,67 @@
+/**
+ * IdentityPort over the declared auth contract.
+ *
+ * @blueprint §4 E5 · §4 E6 · POST /v1/auth/phone · POST /v1/auth/verify
+ * @owner identity-service
+ * @why This file is a translation, not a policy. The API contract declares
+ *      exactly what each endpoint can say — 202 with a challenge, 400
+ *      wrong_code with attemptsLeft, 410 expired, 429 rate-limited, 403
+ *      suspended — and the port's job is to map each declared response onto the
+ *      typed result the store already handles, so an undeclared response
+ *      surfaces as a failure rather than being guessed into meaning.
+ *
+ *      Nothing here retries. A verification is a conversation, not a queued
+ *      write: retrying a code submission behind the patient's back could spend
+ *      their attempts on their behalf, which is the one thing the attempt
+ *      budget exists to prevent.
+ */
+import type { Http } from "./http.js";
+import type { ChallengeIssued, Fetched, IdentityPort, VerifyResult } from "../ports.js";
+
+const num = (v: unknown, fallback: number): number => (typeof v === "number" ? v : fallback);
+const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
+
+export function makeIdentity(http: Http): IdentityPort {
+  return {
+    async requestCode(e164, signal) {
+      const res = await http.post("/v1/auth/phone", { phone: e164 }, { ...(signal ? { signal } : {}) });
+      if (res.outcome.kind === "accepted") {
+        const body = (res.body ?? {}) as Record<string, unknown>;
+        const challengeId = str(body["challengeId"]);
+        // A 202 without a challengeId is a server defect, and pretending it
+        // was a network blip would make the patient retry into the same wall.
+        if (!challengeId) return { kind: "failed", outcome: { kind: "permanent", reason: "202 without challengeId" } };
+        return { kind: "fresh", value: { challengeId, resendAfter: num(body["resendAfter"], 45) } };
+      }
+      return { kind: "failed", outcome: res.outcome };
+    },
+
+    async verify(challengeId, code, deviceId, signal) {
+      const res = await http.post("/v1/auth/verify", { challengeId, code, deviceId }, { ...(signal ? { signal } : {}) });
+      const body = (res.body ?? {}) as Record<string, unknown>;
+
+      // Each declared response, by its declared status. The out-of-contract
+      // default at the bottom is the honest answer for anything else.
+      if (res.status === 200) {
+        const account = (body["account"] ?? {}) as Record<string, unknown>;
+        const subjects = Array.isArray(body["subjects"]) ? (body["subjects"] as Record<string, unknown>[]) : [];
+        const accountId = str(account["accountId"]);
+        // §2 — the self subject is created atomically with the account, so a
+        // 200 always carries at least one subject. Its absence is a defect.
+        const subjectId = str(subjects[0]?.["subjectId"]);
+        if (!accountId || !subjectId)
+          return { kind: "failed", outcome: { kind: "permanent", reason: "200 without account/subject" } };
+        return { kind: "fresh", value: { kind: "verified", accountId, subjectId } };
+      }
+      if (res.status === 400) return { kind: "fresh", value: { kind: "wrongCode", attemptsLeft: num(body["attemptsLeft"], 0) } };
+      if (res.status === 410) return { kind: "fresh", value: { kind: "expired" } };
+      if (res.status === 429) return { kind: "fresh", value: { kind: "tooManyAttempts" } };
+      if (res.status === 403) return { kind: "fresh", value: { kind: "suspended" } };
+      return { kind: "failed", outcome: res.outcome };
+    },
+  } satisfies IdentityPort & Record<string, unknown> as IdentityPort;
+}
+
+/** Narrow re-export so the store's effect runner can name the port's answer
+ *  without knowing HTTP existed. */
+export type { ChallengeIssued, VerifyResult, Fetched };

@@ -15,7 +15,7 @@
  *      logic of its own — it asks `runGuards`. D26: an interruption stores the
  *      intent, so being asked to sign in never costs the user their work.
  */
-import { type Instant, instant, type Refusal, type RefusalCode, REFUSAL, MarketplaceMachines, Verification } from "@dawai/domain";
+import { type Instant, instant, type Refusal, type RefusalCode, REFUSAL, MarketplaceMachines, Verification, transition, isErr } from "@dawai/domain";
 import { empty as emptyOutbox, type Outbox } from "@dawai/offline";
 import { runGuards, ROUTE_GUARDS, guardDestinations, buildGraph, resolveBack, type NavGraph } from "@dawai/navigation";
 import { guest, interrupt, beginVerification, takePending, authenticate, type Session } from "@dawai/session";
@@ -137,8 +137,13 @@ export type Intent =
   | { readonly kind: "codeIssued"; readonly challengeId: string; readonly at: Instant }
   | { readonly kind: "typeCode"; readonly raw: string }
   | { readonly kind: "submitCode"; readonly at: Instant }
-  /** The server judged the code. Attempts and expiry are its answer. */
-  | { readonly kind: "codeJudged"; readonly correct: boolean; readonly at: Instant }
+  /** The server judged the code, and its judgement travels AS a judgement.
+   *  The client never re-derives it: re-running the expiry or attempt rules
+   *  here would be a second judge, and the first version of this intent did
+   *  exactly that — it carried a boolean and a timestamp and faked the clock
+   *  to make the domain agree, which is a lie in transit. `attemptsLeft` is
+   *  the server's count, mirrored into the challenge so E6 states it. */
+  | { readonly kind: "codeJudged"; readonly verdict: "correct" | "wrong" | "expired" | "exhausted"; readonly attemptsLeft?: number }
   | { readonly kind: "resendCode" }
   | { readonly kind: "typeName"; readonly raw: string }
   | { readonly kind: "submitName" }
@@ -477,23 +482,40 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
     case "codeJudged": {
       const { challenge } = state.onboarding;
       if (!challenge) return { state, effects: [] };
-      const judged = Verification.submit(challenge, intent.correct, intent.at);
-      if (judged.ok) {
-        return { state: navigate({ ...state, onboarding: { ...state.onboarding, challenge: judged.value, checking: false } }, "E7"), effects: [] };
+      const done = (c: Verification.Challenge, refusal: RefusalCode | null) => ({
+        state: { ...state, onboarding: { ...state.onboarding, challenge: c, checking: false, codeRefusal: refusal } },
+        effects: [] as Effect[],
+      });
+      // Every move still goes through the published machine (Rule 5) — the
+      // server picked the EDGE, but only edges the machine contains exist.
+      const move = (on: Verification.ChallengeEvent) => transition(Verification.ChallengeMachine, challenge.state, on);
+      switch (intent.verdict) {
+        case "correct": {
+          const moved = move("correctCode");
+          if (isErr(moved)) return done(challenge, moved.error.code);
+          const verified = done({ ...challenge, state: moved.value }, null);
+          return { state: navigate(verified.state, "E7"), effects: verified.effects };
+        }
+        case "wrong": {
+          const left = intent.attemptsLeft ?? 0;
+          if (left <= 0) {
+            const moved = move("attemptsExhausted");
+            return done(isErr(moved) ? challenge : { ...challenge, state: moved.value, used: Verification.MAX_ATTEMPTS }, REFUSAL.ATTEMPTS_EXHAUSTED);
+          }
+          const moved = move("wrongCode");
+          // The server's count is authoritative; `used` mirrors it so the
+          // domain's attemptsLeft and the screen's sentence cannot disagree.
+          return done(isErr(moved) ? challenge : { ...challenge, state: moved.value, used: Verification.MAX_ATTEMPTS - left }, REFUSAL.WRONG_CODE);
+        }
+        case "expired": {
+          const moved = move("timePassed");
+          return done(isErr(moved) ? challenge : { ...challenge, state: moved.value }, REFUSAL.CODE_EXPIRED);
+        }
+        case "exhausted": {
+          const moved = move("attemptsExhausted");
+          return done(isErr(moved) ? challenge : { ...challenge, state: moved.value, used: Verification.MAX_ATTEMPTS }, REFUSAL.ATTEMPTS_EXHAUSTED);
+        }
       }
-      // A wrong code SPENDS an attempt even though it returns a refusal —
-      // dropping that would give a patient unlimited guesses.
-      const after = judged.error.code === REFUSAL.WRONG_CODE
-        ? Verification.consumeAttempt(challenge)
-        : judged.error.code === REFUSAL.ATTEMPTS_EXHAUSTED
-          ? { ...challenge, state: "spent" as const, used: Verification.MAX_ATTEMPTS }
-          : judged.error.code === REFUSAL.CODE_EXPIRED
-            ? { ...challenge, state: "expired" as const }
-            : challenge;
-      return {
-        state: { ...state, onboarding: { ...state.onboarding, challenge: after, checking: false, codeRefusal: judged.error.code } },
-        effects: [],
-      };
     }
 
     case "resendCode": {

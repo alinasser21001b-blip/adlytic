@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 20:03 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 20:11 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1195,7 +1195,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">111 file(s) scanned across 10 layer(s)</div></div>
+  <div class="note mono">117 file(s) scanned across 10 layer(s)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
@@ -1207,11 +1207,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">816 passed (816)</div></div>
+  <div class="note mono">827 passed (827)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Test reach</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">27 test file(s) on disk · 27 reported by the runner</div></div>
+  <div class="note mono">28 test file(s) on disk · 28 reported by the runner</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Responsive layout</b> — <span class="tag ok">PASS</span>
@@ -1287,7 +1287,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 
   <h3 style="margin-top:20px">What blocks release</h3>
   <table style="margin-top:8px"><thead><tr><th>Blocker</th><th>Why it blocks</th><th>Owner</th></tr></thead><tbody>
-  <tr><td class="mono">TD-1</td><td>The whole product is unproven end to end. Every screen is driven by fixtures, so latency, pagination, auth refresh and partial failures are all unexercised.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td><td class="mono">media-service</td></tr><tr><td class="mono">TD-4</td><td>A guest cannot complete any journey. The core loop is only reachable by an already-authenticated account.</td><td class="mono">identity-service</td></tr>
+  <tr><td class="mono">TD-1</td><td>The product is proven against the API CONTRACT but not against an implementation of it. Real latency, pagination, token refresh, TLS and server-side authorization remain unexercised until a backend exists.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td><td class="mono">media-service</td></tr><tr><td class="mono">TD-4</td><td>A guest cannot complete any journey. The core loop is only reachable by an already-authenticated account.</td><td class="mono">identity-service</td></tr>
   </tbody></table>
 
   <h3 style="margin-top:20px">What is ready</h3>
@@ -1556,10 +1556,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <div class="panel">
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
-    <div><div class="kpi">68<small>source files</small></div></div>
-    <div><div class="kpi">9,349<small>source lines</small></div></div>
-    <div><div class="kpi">0.36×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">3.55s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">73<small>source files</small></div></div>
+    <div><div class="kpi">9,782<small>source lines</small></div></div>
+    <div><div class="kpi">0.37×<small>test lines per source line</small></div></div>
+    <div><div class="kpi">3.61s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1586,8 +1586,8 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <table style="margin-top:12px"><thead><tr><th>ID</th><th>Description</th><th>Impact</th><th>Priority</th><th>Owner</th><th>Planned slice</th></tr></thead><tbody>
 <tr>
   <td class="mono">TD-1</td>
-  <td>No infrastructure layer. CataloguePort and Environment are types; nothing talks to a server, and the app has never exchanged a byte with a backend.</td>
-  <td class="note">The whole product is unproven end to end. Every screen is driven by fixtures, so latency, pagination, auth refresh and partial failures are all unexercised.</td>
+  <td>The CLIENT half of the infrastructure now exists: one HTTP transport classifying through @dawai/net, IdentityPort and CataloguePort over the declared contracts, the outbox flusher driving retry/backoff/idempotency, and an effect runner closing the store → server → store loop — all proved against a scripted fake server. What does not exist is a server: no backend has ever answered a real request, no session token is stored or refreshed, and deviceId/baseUrl have no production source.</td>
+  <td class="note">The product is proven against the API CONTRACT but not against an implementation of it. Real latency, pagination, token refresh, TLS and server-side authorization remain unexercised until a backend exists.</td>
   <td><span class="tag bad">critical</span></td>
   <td class="mono">platform-foundation</td>
   <td class="note">Stage 5 — Infrastructure</td>

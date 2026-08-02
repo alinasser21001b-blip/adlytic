@@ -10,8 +10,8 @@
 export const DEBT = [
   {
     id: "TD-1",
-    description: "No infrastructure layer. CataloguePort and Environment are types; nothing talks to a server, and the app has never exchanged a byte with a backend.",
-    impact: "The whole product is unproven end to end. Every screen is driven by fixtures, so latency, pagination, auth refresh and partial failures are all unexercised.",
+    description: "The CLIENT half of the infrastructure now exists: one HTTP transport classifying through @dawai/net, IdentityPort and CataloguePort over the declared contracts, the outbox flusher driving retry/backoff/idempotency, and an effect runner closing the store → server → store loop — all proved against a scripted fake server. What does not exist is a server: no backend has ever answered a real request, no session token is stored or refreshed, and deviceId/baseUrl have no production source.",
+    impact: "The product is proven against the API CONTRACT but not against an implementation of it. Real latency, pagination, token refresh, TLS and server-side authorization remain unexercised until a backend exists.",
     priority: "critical",
     owner: "platform-foundation",
     slice: "Stage 5 — Infrastructure",
