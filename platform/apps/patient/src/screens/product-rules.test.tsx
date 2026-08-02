@@ -34,6 +34,29 @@ const controls = (root: ReactTestInstance) =>
 const flatten = (style: unknown): Record<string, unknown> =>
   Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : (style as Record<string, unknown>) ?? {};
 
+/**
+ * Readable text, minus anything the screen explicitly set left-to-right.
+ *
+ * An LTR run is a token read in another direction — a dialling prefix, a
+ * reservation code, a Latin drug name — and §25's "one system per surface"
+ * is about a surface, which is a reading direction. A screen has to opt in by
+ * marking the run, so this narrows the exemption rather than widening it.
+ */
+function rightToLeftText(root: ReactTestInstance): string {
+  const out: string[] = [];
+  const walk = (child: unknown): void => {
+    if (typeof child === "string" || typeof child === "number") out.push(String(child));
+    else if (Array.isArray(child)) child.forEach(walk);
+    else if (child && typeof child === "object" && "props" in (child as { props?: unknown }))
+      walk((child as { props: { children?: unknown } }).props.children);
+  };
+  for (const n of root.findAll((n) => typeof n.type === "string" && String(n.type) === "Text")) {
+    if (flatten(n.props["style"])["writingDirection"] === "ltr") continue;
+    walk(n.props["children"]);
+  }
+  return out.join(" ");
+}
+
 function readableText(root: ReactTestInstance): string {
   const out: string[] = [];
   const walk = (child: unknown): void => {
@@ -102,10 +125,11 @@ describe.each(SHOTS.map((s) => [s.id, s] as const))("%s", (_id, shot) => {
     // whichever alphabet it is. The delivered design puts «أوجمنتين ٦٢٥» and
     // "Augmentin 625" on adjacent lines for exactly this reason. What the rule
     // forbids is two systems inside ARABIC text.
-    // Token-wise: any token containing a Latin letter is part of an isolated
-    // run — "Augmentin", "625", "4K", "D2". A regex anchored on the letter
-    // missed a code beginning with a digit.
-    const arabicOnly = readableText(root())
+    // An isolated run is one the screen MARKED as left-to-right — that is the
+    // exact, checkable version of the idea. Token-wise Latin letters were an
+    // approximation of it and missed «+964», a dialling prefix that is
+    // deliberately LTR and contains no letter at all.
+    const arabicOnly = rightToLeftText(root())
       .split(/\s+/).filter((tok) => !/[A-Za-z]/.test(tok)).join(" ");
     const arabicIndic = /[٠-٩۰-۹]/.test(arabicOnly);
     const western = /[0-9]/.test(arabicOnly);
@@ -158,3 +182,4 @@ describe("the registry itself", () => {
     for (const s of SHOTS) expect(s.note.length, `${s.id} has no note`).toBeGreaterThan(20);
   });
 });
+

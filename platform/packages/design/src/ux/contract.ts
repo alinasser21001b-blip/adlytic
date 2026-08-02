@@ -70,7 +70,20 @@ export type StateTreatment =
   | { readonly kind: "loading"; readonly skeletonMatchesContent: true }
   | { readonly kind: "empty"; readonly explains: string; readonly action: SecondaryAction | null; readonly isSuccess: boolean }
   | { readonly kind: "error"; readonly whatFailed: string; readonly workPreserved: boolean; readonly action: SecondaryAction }
-  | { readonly kind: "offline"; readonly readOnly: boolean; readonly showsAge: boolean }
+  /**
+   * Offline has two shapes, and treating them as one produced a rule that
+   * demanded an age from screens with nothing to age.
+   *
+   * A DEGRADED screen still shows something — cached offers, a held
+   * reservation — and must label how old it is (§21). A BLOCKED screen shows
+   * nothing, because the thing it does cannot happen without a connection: a
+   * verification SMS leaves now or not at all, and queueing one would strand a
+   * patient waiting for a message nobody sent. Blueprint v3 names both, calling
+   * them "Shows the last known responder state, age-labelled" and "Blocked with
+   * a clear reason".
+   */
+  | { readonly kind: "offline"; readonly blocked: true; readonly because: string }
+  | { readonly kind: "offline"; readonly blocked?: false; readonly readOnly: boolean; readonly showsAge: boolean }
   | { readonly kind: "permissionRefused"; readonly stillUsable: true; readonly alternative: string }
   | { readonly kind: "success"; readonly nextStep: SecondaryAction | null };
 
@@ -164,7 +177,11 @@ export function auditContract(c: ScreenContract): readonly string[] {
         p.push(`${c.id}: error state does not name what failed (§23)`);
       if (!s.action.label.trim()) p.push(`${c.id}: error state offers no action (§23)`);
     }
-    if (s.kind === "offline" && !s.showsAge)
+    // A blocked offline state displays nothing, so there is nothing to age.
+    // It owes a REASON instead, and the audit holds it to that.
+    if (s.kind === "offline" && s.blocked === true && !s.because.trim())
+      p.push(`${c.id}: offline state blocks the screen without saying why (§21)`);
+    if (s.kind === "offline" && s.blocked !== true && !s.showsAge)
       p.push(`${c.id}: offline state does not show the age of what it displays (§21)`);
   }
 

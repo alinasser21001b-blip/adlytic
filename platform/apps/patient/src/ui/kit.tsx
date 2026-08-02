@@ -526,11 +526,80 @@ export function PhotoFrame({ t, label }: { t: Theme; label: string }) {
 }
 
 /**
+ * A labelled field the patient types into.
+ *
+ * The general input the product has been missing: E5 takes a phone number, E6
+ * a code, E7 a name, and 28 further form screens are declared behind them. It
+ * carries its own label rather than relying on a placeholder, because a
+ * placeholder disappears the moment someone starts typing and a field whose
+ * name vanishes on first keystroke is a field people re-read from scratch.
+ *
+ * `tone="code"` sets the run in tabular figures, left to right and spaced: a
+ * phone number and a one-time code are strings of digits read back against
+ * another screen or a paper, and Arabic-Indic digits in a proportional face
+ * make that comparison harder than it needs to be.
+ */
+export function InputField(
+  { t, label, hint, value, onType, placeholder, prefix, invalid = false, tone = "text" }:
+  {
+    t: Theme; label: string; hint?: string; value: string; onType: (s: string) => void;
+    placeholder?: string; prefix?: string; invalid?: boolean; tone?: "text" | "code";
+  },
+) {
+  const code = tone === "code";
+  return (
+    <View style={{ gap: t.space[2] }}>
+      <Label t={t} role="caption" color="inkSubtle">{label}</Label>
+      <View style={{
+        flexDirection: "row", alignItems: "center", gap: t.space[3],
+        paddingHorizontal: t.frame.gutter,
+        borderRadius: t.radius.lg,
+        // The only signal a field needs when it is wrong: the boundary it
+        // already had, in the colour that already means "look here".
+        borderWidth: invalid ? 2 : 1,
+        borderColor: invalid ? t.color.alert : t.color.line,
+        backgroundColor: t.color.surfaceRaised,
+      }}>
+        {prefix ? (
+          <>
+            <Text style={{
+              fontFamily: t.tabularFamily, fontSize: t.type.headline.size,
+              color: t.color.inkSubtle, writingDirection: "ltr",
+            }}>{prefix}</Text>
+            <View style={{ width: 1, height: t.space[6], backgroundColor: t.color.line }} />
+          </>
+        ) : null}
+        <TextInput
+          accessibilityLabel={hint ? `${label} — ${hint}` : label}
+          {...(placeholder === undefined ? {} : { placeholder })}
+          placeholderTextColor={t.color.inkSubtle}
+          value={value}
+          onChangeText={onType}
+          style={{
+            flex: 1, minHeight: t.tap.patientPrimary,
+            fontFamily: code ? t.tabularFamily : t.fontFamily,
+            fontSize: code ? t.type.title.size : t.type.body.size,
+            color: t.color.ink,
+            ...(code
+              ? { writingDirection: "ltr" as const, textAlign: "left" as const, letterSpacing: 2 }
+              : { writingDirection: t.direction, textAlign: "right" as const }),
+          }}
+        />
+      </View>
+      {hint ? <Label t={t} role="caption" color={invalid ? "alert" : "inkSubtle"}>{hint}</Label> : null}
+    </View>
+  );
+}
+
+/**
  * The one text input in the patient app.
  *
  * A control, not a layout — which is why it lives here and not inside the
  * screen that happens to use it first. The 48pt minimum is the patient primary
  * height: this is the control a frightened person types a drug name into.
+ *
+ * Distinct from `InputField`: this one is a search affordance with its own
+ * glyph and no label, because the screen it lives on is titled «ابحث».
  */
 export function SearchField(
   { t, label, placeholder, value, onType }:
@@ -601,8 +670,22 @@ export function InfoStrip(
  * generic message.
  */
 export function StateBlock(
-  { t, treatment, onAction, ageMs, actionInFooter = false }:
-  { t: Theme; treatment: StateTreatment; onAction: (to: string) => void; ageMs?: number | null; actionInFooter?: boolean },
+  { t, treatment, onAction, ageMs, placement = "inline" }:
+  {
+    t: Theme; treatment: StateTreatment; onAction: (to: string) => void; ageMs?: number | null;
+    /**
+     * Where a state's own action is drawn.
+     *
+     * "footer" — the frame is rendering it as the primary, so nothing is drawn
+     * here. "inline" — this block owns it and draws it as the primary.
+     * "secondary" — the SCREEN supplied its own footer, so the recovery is
+     * still offered but must not compete: two filled controls appeared on E6
+     * the moment a screen with a footer also declared an error state, and that
+     * combination is common enough that leaving it to each screen would mean
+     * discovering it once per screen.
+     */
+    placement?: "footer" | "inline" | "secondary";
+  },
 ) {
   // An empty or loading state that sits at the top of a tall blank screen
   // reads as broken. These states ARE the screen while they last, so they fill
@@ -636,8 +719,11 @@ export function StateBlock(
           {/* The action lives in the footer when there is one: the bottom of
               the screen is where a thumb rests, and the top is where it does
               not reach on a phone held one-handed. */}
-          {treatment.action && !actionInFooter
+          {treatment.action && placement === "inline"
             ? <Primary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action!.leadsTo)} />
+            : null}
+          {treatment.action && placement === "secondary"
+            ? <Secondary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action!.leadsTo)} />
             : null}
         </View>
       );
@@ -648,7 +734,11 @@ export function StateBlock(
           {/* §23 — what failed, whether the work survived, one thing to press. */}
           <Label t={t} role="headline" color="alert">{treatment.whatFailed}</Label>
           {treatment.workPreserved ? <Label t={t} role="caption" color="inkMuted">ما ضاع اللي كتبته</Label> : null}
-          {actionInFooter ? null : <Primary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action.leadsTo)} />}
+          {placement === "inline"
+            ? <Primary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action.leadsTo)} />
+            : placement === "secondary"
+              ? <Secondary t={t} label={treatment.action.label} onPress={() => onAction(treatment.action.leadsTo)} />
+              : null}
         </View>
       );
 
@@ -689,10 +779,15 @@ function OfflineBanner(
   return (
     <Banner
       t={t}
-      // Read-only cached content and queued work are different promises, and
-      // §26 forbids wording the second as if it had been sent.
-      says={treatment.readOnly ? "من الذاكرة — ما في اتصال" : "ما في اتصال — راح نرسله أول ما يرجع"}
-      {...(treatment.showsAge && typeof ageMs === "number"
+      // Three different promises, and §26 forbids wording any of them as
+      // another: cached content is old, queued work will go, and blocked work
+      // cannot happen at all until the connection returns.
+      says={treatment.blocked === true
+        ? treatment.because
+        : treatment.readOnly
+          ? "من الذاكرة — ما في اتصال"
+          : "ما في اتصال — راح نرسله أول ما يرجع"}
+      {...(treatment.blocked !== true && treatment.showsAge && typeof ageMs === "number"
         ? { aside: `آخر تحديث قبل ${Math.max(1, Math.round(ageMs / 60_000))} دقائق` }
         : {})}
     />
@@ -782,7 +877,9 @@ export function Screen(
           ? <StateBlock
               t={t} treatment={view.treatment} onAction={onAction}
               ageMs={view.phase.kind === "offline" ? view.phase.ageMs : null}
-              actionInFooter={stateAction !== null && footer === undefined}
+              placement={stateAction === null ? "inline"
+                : footer !== undefined && footer !== null ? "secondary"
+                : "footer"}
             />
           : null}
         {children}

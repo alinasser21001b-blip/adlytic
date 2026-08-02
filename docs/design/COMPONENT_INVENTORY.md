@@ -10,13 +10,13 @@
 | `Banner` | 1 | — |
 | `CodePanel` | 1 | ReservationScreen |
 | `FactRow` | 3 | ReservationScreen |
-| `Row` | 22 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `Spacer` | 7 | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
+| `Row` | 26 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Spacer` | 9 | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
 | `Grow` | 5 | ConfirmScreen, OfferDetailScreen, WaitingScreen |
 | `Actions` | 4 | DraftScreen, FindScreen, PrescriptionScreen |
-| `Card` | 10 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
-| `Note` | 4 | ConfirmScreen, DraftScreen |
-| `Section` | 7 | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen |
+| `Card` | 12 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
+| `Note` | 8 | ConfirmScreen, DraftScreen |
+| `Section` | 11 | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen |
 | `Field` | 0 | — |
 | `Chip` | 1 | ConfirmScreen |
 | `StepButton` | 1 | DraftScreen |
@@ -24,14 +24,14 @@
 | `ProgressBar` | 0 | — |
 | `PhotoFrame` | 1 | PrescriptionScreen |
 | `SearchField` | 1 | FindScreen |
-| `Screen` | 12 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `Primary` | 15 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `Secondary` | 10 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `ActionCard` | 2 | FindScreen, OffersScreen |
+| `Screen` | 16 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Primary` | 19 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Secondary` | 14 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `ActionCard` | 3 | FindScreen, OffersScreen |
 | `InfoCard` | 12 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 100 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Label` | 126 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
 | `Digits` | 4 | ConfirmScreen, DraftScreen, ReservationScreen |
 | `Bidi` | 3 | DraftScreen, FindScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
@@ -94,7 +94,7 @@ Things side by side. The single place `flexDirection` is written in the patient 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (22 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (26 usages) |
 | **Required variants** | `align baseline / center / stretch`, `justify center / space-between`, `any gap token` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -110,7 +110,7 @@ Pushes what follows to the far edge of a Row.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen (7 usages) |
+| **Used by** | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen (9 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -158,7 +158,7 @@ A rectangle of content raised off the ground. The one card primitive.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (10 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (12 usages) |
 | **Required variants** | `raised / sunken`, `border line / accent / alert / warning / none`, `1pt or 2pt border`, `any pad and gap token` |
 | **Required interactions** | none — a card that is an action is ActionCard |
 | **Accessibility** | Transparent; grouping is conveyed by the content, not by the container. |
@@ -174,7 +174,7 @@ A short statement about the content beside it — a missing prescription, a guar
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen (4 usages) |
+| **Used by** | ConfirmScreen, DraftScreen (8 usages) |
 | **Required variants** | `neutral`, `caution`, `alert` |
 | **Required interactions** | may contain secondaries |
 | **Accessibility** | Read in place. It is not a live region — nothing announces it when it appears. |
@@ -190,7 +190,7 @@ A heading and the things it governs, as one unit.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen (7 usages) |
+| **Used by** | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen (11 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Provides no heading semantics — nothing in the product exposes a heading level yet. A real gap. |
@@ -318,7 +318,7 @@ The frame every screen renders through. It is the reason no screen can ship with
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (12 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (16 usages) |
 | **Required variants** | `header with back (pop/replace)`, `header without back (tab root)`, `with flow progress`, `with sticky slot`, `with screen footer`, `with state footer`, `no footer` |
 | **Required interactions** | back press; scroll; sticky slot behaviour on scroll |
 | **Accessibility** | The title is the screen's accessible name. The back control has a 44pt hit area and an explicit label. |
@@ -334,7 +334,7 @@ The one dominant action. At most one per screen, counted from the rendered tree 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (15 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (19 usages) |
 | **Required variants** | `default`, `disabled`, `busy` |
 | **Required interactions** | press; long-press (undefined); disabled press (no-op, but the reason must be visible) |
 | **Accessibility** | accessibilityState carries disabled and busy. A disabled primary MUST have a visible explanation near it — the build checks that something readable is on screen. |
@@ -350,7 +350,7 @@ Never competes with the primary: no fill, no accent background.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (10 usages) |
+| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (14 usages) |
 | **Required variants** | `default`, `with a distinct spoken label` |
 | **Required interactions** | press |
 | **Accessibility** | Supports a spoken label different from the visible text, so repeated row actions are distinguishable to a screen reader while the visible text stays short. |
@@ -366,7 +366,7 @@ A whole card that is itself the action. Replaced a filled button per row, which 
 
 | | |
 | --- | --- |
-| **Used by** | FindScreen, OffersScreen (2 usages) |
+| **Used by** | FindScreen, OffersScreen (3 usages) |
 | **Required variants** | `default`, `muted (unavailable)` |
 | **Required interactions** | press anywhere on the card |
 | **Accessibility** | The label names the subject — 'أضف بانادول للطلب', not 'أضف' — so a screen reader moving down a list says which row it is on. |
@@ -430,7 +430,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (100 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (126 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |

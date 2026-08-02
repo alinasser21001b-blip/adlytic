@@ -2,10 +2,10 @@
   "generatedFor": "patient-app · the patient core loop, end to end",
   "progress": {
     "blueprintScreens": 133,
-    "contracted": 18,
-    "rendered": 13,
-    "remaining": 115,
-    "percentContracted": 13.5
+    "contracted": 22,
+    "rendered": 17,
+    "remaining": 111,
+    "percentContracted": 16.5
   },
   "screens": [
     {
@@ -119,7 +119,7 @@
       "exits": [
         {
           "to": "E5",
-          "built": false
+          "built": true
         }
       ],
       "telemetry": [],
@@ -134,6 +134,260 @@
           "id": "E4-direct",
           "state": "ready · no preserved action",
           "note": "Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing."
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "رقم موبايلك",
+      "destination": "entry",
+      "purpose": "Take a number",
+      "blueprintName": "Phone entry",
+      "blueprintStates": "error",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "أرسل الرمز",
+        "leadsTo": "E6",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [],
+      "states": [
+        {
+          "kind": "error",
+          "whatFailed": "الرقم مو مكتمل",
+          "workPreserved": true,
+          "action": {
+            "label": "صحّح الرقم",
+            "leadsTo": "E5"
+          }
+        },
+        {
+          "kind": "offline",
+          "blocked": true,
+          "because": "ما نكدر نرسل الرمز بدون نت — الرسالة تنرسل هسه أو ما تنرسل"
+        }
+      ],
+      "exits": [
+        {
+          "to": "E6",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": [
+        {
+          "id": "E5-empty",
+          "state": "ready",
+          "note": "The one hard ask, made. Nothing is marked wrong until enough has been typed for it to be wrong — a field that turns red on the first keystroke is the app arguing mid-sentence."
+        },
+        {
+          "id": "E5-malformed",
+          "state": "error · malformed",
+          "note": "E5's declared failure, worded as a typo rather than an accusation, and stating the rule the number has to satisfy instead of only that it does not."
+        },
+        {
+          "id": "E5-country",
+          "state": "error · unsupported country",
+          "note": "The other declared failure, and deliberately a different sentence: a number we cannot serve is our limit, not the patient's mistake."
+        },
+        {
+          "id": "E5-offline",
+          "state": "offline",
+          "note": "A verification cannot be queued — the SMS leaves now or not at all — so this says so plainly rather than accepting a tap that would go nowhere."
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "الرمز",
+      "destination": "entry",
+      "purpose": "Verify the number",
+      "blueprintName": "Code verification",
+      "blueprintStates": "loading · error · rate-limited",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "تأكيد",
+        "leadsTo": "E7",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [
+        {
+          "label": "غيّر الرقم",
+          "leadsTo": "E5"
+        }
+      ],
+      "states": [
+        {
+          "kind": "loading",
+          "skeletonMatchesContent": true
+        },
+        {
+          "kind": "error",
+          "whatFailed": "الرمز مو صحيح",
+          "workPreserved": true,
+          "action": {
+            "label": "جرّب مرة ثانية",
+            "leadsTo": "E6"
+          }
+        },
+        {
+          "kind": "offline",
+          "blocked": true,
+          "because": "التحقق يحتاج اتصال — ما نكدر نتأكد من الرمز بدون نت"
+        }
+      ],
+      "exits": [
+        {
+          "to": "E5",
+          "built": true
+        },
+        {
+          "to": "E7",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": [
+        {
+          "id": "E6-waiting",
+          "state": "ready",
+          "note": "The number is shown back, so a patient who mistyped one digit can see it here rather than discovering it by failing five times."
+        },
+        {
+          "id": "E6-wrong",
+          "state": "error · wrong code",
+          "note": "Attempts remaining are stated. A patient who does not know how many tries are left will guess, and guessing is how the attempts get spent."
+        },
+        {
+          "id": "E6-exhausted",
+          "state": "error · attempts exhausted",
+          "note": "Exhausted attempts, told without blame and with the way out attached: «ما صار شي — نرسللك رمز جديد»."
+        },
+        {
+          "id": "E6-expired",
+          "state": "error · expired",
+          "note": "An expired code is not a wrong answer, and does not cost an attempt — the app does not charge a patient for its own clock."
+        },
+        {
+          "id": "E6-checking",
+          "state": "loading",
+          "note": "The one moment in onboarding that talks to a server, shown as busy on the control itself rather than as a screen-wide spinner."
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "اسمك",
+      "destination": "entry",
+      "purpose": "Minimum identity for a pickup counter",
+      "blueprintName": "Your name",
+      "blueprintStates": "error",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "كمّل",
+        "leadsTo": "E8",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [],
+      "states": [
+        {
+          "kind": "error",
+          "whatFailed": "محتاجين اسمك",
+          "workPreserved": true,
+          "action": {
+            "label": "اكتب اسمك",
+            "leadsTo": "E7"
+          }
+        }
+      ],
+      "exits": [
+        {
+          "to": "E8",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": [
+        {
+          "id": "E7-empty",
+          "state": "ready",
+          "note": "Why before what: the name exists so a pharmacist can hand a bag to the right person, and the screen says so before asking."
+        },
+        {
+          "id": "E7-typed",
+          "state": "ready · with a name",
+          "note": "E4 promised a pharmacy sees only the first name. Here that promise is SHOWN, before submission, rather than kept somewhere the patient cannot check."
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "منطقتك",
+      "destination": "entry",
+      "purpose": "Where to search from",
+      "blueprintName": "Your district",
+      "blueprintStates": "error · permission-refused",
+      "back": {
+        "kind": "pop"
+      },
+      "primary": {
+        "label": "خلص",
+        "leadsTo": "S1",
+        "tapsToOutcome": 1
+      },
+      "noPrimaryBecause": null,
+      "secondary": [],
+      "states": [
+        {
+          "kind": "error",
+          "whatFailed": "ما اخترت منطقة",
+          "workPreserved": true,
+          "action": {
+            "label": "اختر منطقتك",
+            "leadsTo": "E8"
+          }
+        },
+        {
+          "kind": "permissionRefused",
+          "stillUsable": true,
+          "alternative": "اختر منطقتك من القائمة — ما نحتاج موقعك"
+        }
+      ],
+      "exits": [
+        {
+          "to": "S1",
+          "built": true
+        }
+      ],
+      "telemetry": [],
+      "guards": [],
+      "shots": [
+        {
+          "id": "E8-list",
+          "state": "ready",
+          "note": "Location refused is not a failure path here because location is never asked for: the bundled list IS the route, and the screen says «ما نحتاج موقعك»."
+        },
+        {
+          "id": "E8-chosen",
+          "state": "ready · chosen",
+          "note": "A choice made, and an uncovered district still visible and still honest about why it cannot be picked (E12)."
+        },
+        {
+          "id": "E8-nomatch",
+          "state": "empty · no match",
+          "note": "A search with no result, which says what happened and nothing more — there is no action to offer that the patient is not already taking."
         }
       ]
     },
@@ -1210,34 +1464,6 @@
       "referenced": false
     },
     {
-      "id": "E5",
-      "group": "Entry",
-      "name": "Phone entry",
-      "purpose": "Take a number",
-      "referenced": true
-    },
-    {
-      "id": "E6",
-      "group": "Entry",
-      "name": "Code verification",
-      "purpose": "Verify the number",
-      "referenced": false
-    },
-    {
-      "id": "E7",
-      "group": "Entry",
-      "name": "Your name",
-      "purpose": "Minimum identity for a pickup counter",
-      "referenced": false
-    },
-    {
-      "id": "E8",
-      "group": "Entry",
-      "name": "Your district",
-      "purpose": "Where to search from",
-      "referenced": false
-    },
-    {
       "id": "E9",
       "group": "Entry",
       "name": "Location primer",
@@ -2007,6 +2233,26 @@
         "built": true
       },
       {
+        "id": "E5",
+        "destination": "entry",
+        "built": true
+      },
+      {
+        "id": "E6",
+        "destination": "entry",
+        "built": true
+      },
+      {
+        "id": "E7",
+        "destination": "entry",
+        "built": true
+      },
+      {
+        "id": "E8",
+        "destination": "entry",
+        "built": true
+      },
+      {
         "id": "F1",
         "destination": "find",
         "built": true
@@ -2089,11 +2335,6 @@
     ],
     "pending": [
       {
-        "id": "E5",
-        "destination": "Entry",
-        "built": false
-      },
-      {
         "id": "F3",
         "destination": "Find",
         "built": false
@@ -2163,7 +2404,32 @@
       {
         "from": "E4",
         "to": "E5",
-        "built": false
+        "built": true
+      },
+      {
+        "from": "E5",
+        "to": "E6",
+        "built": true
+      },
+      {
+        "from": "E6",
+        "to": "E5",
+        "built": true
+      },
+      {
+        "from": "E6",
+        "to": "E7",
+        "built": true
+      },
+      {
+        "from": "E7",
+        "to": "E8",
+        "built": true
+      },
+      {
+        "from": "E8",
+        "to": "S1",
+        "built": true
       },
       {
         "from": "F1",
@@ -2380,7 +2646,6 @@
     "dangling": [
       "S1 → S2",
       "S1 → V8",
-      "E4 → E5",
       "F1 → F5",
       "F2 → F3",
       "R4 → S3",
@@ -2513,6 +2778,14 @@
     "DEPENDENT_DISPOSITION_MISSING",
     "OWN_NUMBER",
     "GRANT_EXISTS",
+    "MALFORMED_NUMBER",
+    "UNSUPPORTED_COUNTRY",
+    "WRONG_CODE",
+    "ATTEMPTS_EXHAUSTED",
+    "CODE_EXPIRED",
+    "RATE_LIMITED",
+    "NAME_REQUIRED",
+    "DISTRICT_REQUIRED",
     "WATCH_LIMIT",
     "LAST_MANAGER_CANNOT_BE_REMOVED",
     "BRANCH_NOT_ELIGIBLE",
@@ -2961,6 +3234,90 @@
       "note": "Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing."
     },
     {
+      "id": "E5-empty",
+      "screen": "E5",
+      "state": "ready",
+      "note": "The one hard ask, made. Nothing is marked wrong until enough has been typed for it to be wrong — a field that turns red on the first keystroke is the app arguing mid-sentence."
+    },
+    {
+      "id": "E5-malformed",
+      "screen": "E5",
+      "state": "error · malformed",
+      "note": "E5's declared failure, worded as a typo rather than an accusation, and stating the rule the number has to satisfy instead of only that it does not."
+    },
+    {
+      "id": "E5-country",
+      "screen": "E5",
+      "state": "error · unsupported country",
+      "note": "The other declared failure, and deliberately a different sentence: a number we cannot serve is our limit, not the patient's mistake."
+    },
+    {
+      "id": "E5-offline",
+      "screen": "E5",
+      "state": "offline",
+      "note": "A verification cannot be queued — the SMS leaves now or not at all — so this says so plainly rather than accepting a tap that would go nowhere."
+    },
+    {
+      "id": "E6-waiting",
+      "screen": "E6",
+      "state": "ready",
+      "note": "The number is shown back, so a patient who mistyped one digit can see it here rather than discovering it by failing five times."
+    },
+    {
+      "id": "E6-wrong",
+      "screen": "E6",
+      "state": "error · wrong code",
+      "note": "Attempts remaining are stated. A patient who does not know how many tries are left will guess, and guessing is how the attempts get spent."
+    },
+    {
+      "id": "E6-exhausted",
+      "screen": "E6",
+      "state": "error · attempts exhausted",
+      "note": "Exhausted attempts, told without blame and with the way out attached: «ما صار شي — نرسللك رمز جديد»."
+    },
+    {
+      "id": "E6-expired",
+      "screen": "E6",
+      "state": "error · expired",
+      "note": "An expired code is not a wrong answer, and does not cost an attempt — the app does not charge a patient for its own clock."
+    },
+    {
+      "id": "E6-checking",
+      "screen": "E6",
+      "state": "loading",
+      "note": "The one moment in onboarding that talks to a server, shown as busy on the control itself rather than as a screen-wide spinner."
+    },
+    {
+      "id": "E7-empty",
+      "screen": "E7",
+      "state": "ready",
+      "note": "Why before what: the name exists so a pharmacist can hand a bag to the right person, and the screen says so before asking."
+    },
+    {
+      "id": "E7-typed",
+      "screen": "E7",
+      "state": "ready · with a name",
+      "note": "E4 promised a pharmacy sees only the first name. Here that promise is SHOWN, before submission, rather than kept somewhere the patient cannot check."
+    },
+    {
+      "id": "E8-list",
+      "screen": "E8",
+      "state": "ready",
+      "note": "Location refused is not a failure path here because location is never asked for: the bundled list IS the route, and the screen says «ما نحتاج موقعك»."
+    },
+    {
+      "id": "E8-chosen",
+      "screen": "E8",
+      "state": "ready · chosen",
+      "note": "A choice made, and an uncovered district still visible and still honest about why it cannot be picked (E12)."
+    },
+    {
+      "id": "E8-nomatch",
+      "screen": "E8",
+      "state": "empty · no match",
+      "note": "A search with no result, which says what happened and nothing more — there is no action to offer that the patient is not already taking."
+    },
+    {
       "id": "R7-queued",
       "screen": "R7",
       "state": "offline · queued",
@@ -2978,6 +3335,7 @@
         "apps/patient/src/screens/FindScreen.tsx",
         "apps/patient/src/screens/OfferDetailScreen.tsx",
         "apps/patient/src/screens/OffersScreen.tsx",
+        "apps/patient/src/screens/OnboardingScreens.tsx",
         "apps/patient/src/screens/PrescriptionScreen.tsx",
         "apps/patient/src/screens/ReservationScreen.tsx",
         "apps/patient/src/screens/WaitingScreen.tsx",
@@ -2995,6 +3353,7 @@
         "apps/patient/src/model/consent.ts",
         "apps/patient/src/model/draft.ts",
         "apps/patient/src/model/offers.ts",
+        "apps/patient/src/model/onboarding.ts",
         "apps/patient/src/model/prescription.ts",
         "apps/patient/src/model/reservation.ts",
         "apps/patient/src/model/search.ts",
@@ -3019,6 +3378,7 @@
         "packages/domain/src/identity/authority.ts",
         "packages/domain/src/identity/family.ts",
         "packages/domain/src/identity/machines.ts",
+        "packages/domain/src/identity/verification.ts",
         "packages/domain/src/index.ts",
         "packages/domain/src/marketplace/machines.ts",
         "packages/domain/src/marketplace/rules.ts",

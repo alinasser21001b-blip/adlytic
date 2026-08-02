@@ -152,8 +152,14 @@ const MEASURE = ({ floor, accent }) => {
   }
 
   /* 6 — RTL. The document runs right-to-left; anything that opted out must be
-        a Latin run (a drug name, a reservation code), because that is the only
-        reason the product ever sets a direction. */
+        a token rather than prose — a drug name, a reservation code, a dialling
+        prefix — because that is the only reason the product ever sets a
+        direction.
+        
+        The test is whether the run carries ARABIC LETTERS. "Contains a Latin
+        letter" was the first approximation and it flagged «+964», which is a
+        perfectly good left-to-right token containing no letter at all. Arabic
+        prose set left-to-right is the actual defect. */
   const rtl = { root: cs(document.documentElement).direction, strays: [] };
   for (const e of all) {
     if (cs(e).direction !== "ltr") continue;
@@ -161,7 +167,9 @@ const MEASURE = ({ floor, accent }) => {
     if (!own) continue;
     // A parent that is already ltr does not count twice.
     if (e.parentElement && cs(e.parentElement).direction === "ltr") continue;
-    if (!/[A-Za-z]/.test(own)) rtl.strays.push({ label: own.slice(0, 40) });
+    // Arabic letters, not Arabic-Indic digits: «٠-٩» inside an LTR token is a
+    // number, and numbers are exactly what a token like this carries.
+    if (/[\u0620-\u064A\u0671-\u06D3]/.test(own)) rtl.strays.push({ label: own.slice(0, 40) });
   }
   // The affordance that actually shipped wrong once: back must be on the
   // leading edge, which under RTL is the right one.

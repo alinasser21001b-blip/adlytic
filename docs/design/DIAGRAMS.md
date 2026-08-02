@@ -51,6 +51,10 @@ reach a dead end, but the design must eventually fill them.
 flowchart TD
   S1["S1<br/>اليوم"]
   E4["E4<br/>ليش نحتاج رقمك"]
+  E5["E5<br/>رقم موبايلك"]
+  E6["E6<br/>الرمز"]
+  E7["E7<br/>اسمك"]
+  E8["E8<br/>منطقتك"]
   F1["F1<br/>ابحث"]
   F2["F2<br/>نتائج البحث"]
   R1["R1<br/>طلب جديد"]
@@ -69,6 +73,12 @@ flowchart TD
   V4["V4<br/>ما كدرت الصيدلية تحجز"]
   S1 --> R1
   S1 --> V2
+  E4 --> E5
+  E5 --> E6
+  E6 --> E5
+  E6 --> E7
+  E7 --> E8
+  E8 --> S1
   F1 --> F2
   F1 --> R2
   F2 --> R1
@@ -104,7 +114,6 @@ flowchart TD
   V4 --> S1
   S1 -.blocked.-> S2["S2<br/>NOT BUILT"]
   S1 -.blocked.-> V8["V8<br/>NOT BUILT"]
-  E4 -.blocked.-> E5["E5<br/>NOT BUILT"]
   F1 -.blocked.-> F5["F5<br/>NOT BUILT"]
   F2 -.blocked.-> F3["F3<br/>NOT BUILT"]
   R4 -.blocked.-> S3["S3<br/>NOT BUILT"]
@@ -118,7 +127,7 @@ flowchart TD
 - Entry points (reached without a parent — a tab bar, a notification, or a guard redirect): `S1`, `F1`, `V1`, `V2`, `V4`, `E4`, `S1`
 - Unreachable screens: **0**
 - Navigation traps: **0**
-- Blocked exits: **10**
+- Blocked exits: **9**
 
 ---
 
@@ -216,7 +225,6 @@ control that cannot be rendered today.
 ```mermaid
 flowchart TD
   S1 -.needs.-> S2 & V8
-  E4 -.needs.-> E5
   F1 -.needs.-> F5
   F2 -.needs.-> F3
   R4 -.needs.-> S3
@@ -224,5 +232,5 @@ flowchart TD
   R11 -.needs.-> R12
   V2 -.needs.-> V5 & V7
   classDef gap stroke-dasharray: 4 4,fill:#fee;
-  class S2,V8,E5,F5,F3,S3,R10,R12,V5,V7 gap;
+  class S2,V8,F5,F3,S3,R10,R12,V5,V7 gap;
 ```

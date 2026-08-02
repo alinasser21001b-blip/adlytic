@@ -27,6 +27,8 @@ import { empty } from "@dawai/offline";
 import { instant } from "@dawai/domain";
 import { OffersScreen } from "./OffersScreen.jsx";
 import { WhyNumberScreen } from "./WhyNumberScreen.jsx";
+import { PhoneEntryScreen, CodeEntryScreen, NameScreen, DistrictScreen } from "./OnboardingScreens.jsx";
+import * as Onboarding from "../model/onboarding.js";
 import { ReservationScreen } from "./ReservationScreen.jsx";
 import * as Offers from "../model/offers.js";
 import * as Reservation from "../model/reservation.js";
@@ -78,6 +80,21 @@ const sentWith = (online: boolean, urgency: "now" | "today" | "soon") => {
   if (!r.ok) throw new Error("review fixture failed to send");
   return r.sent;
 };
+
+/* ── Onboarding fixtures ──────────────────────────────────────────────── */
+
+const codeStatus = (used: number, age: number): Onboarding.CodeStatus =>
+  Onboarding.codeStatus(
+    { challengeId: "c1", state: used >= 5 ? "spent" : "sent", used, issuedAt: instant(0) },
+    instant(age),
+  );
+
+const DISTRICTS: readonly Onboarding.District[] = [
+  { districtId: "d1", name: "الكرادة", city: "بغداد", covered: true },
+  { districtId: "d2", name: "المنصور", city: "بغداد", covered: true },
+  { districtId: "d3", name: "زيونة", city: "بغداد", covered: true },
+  { districtId: "d4", name: "المشتل", city: "بغداد", covered: false },
+];
 
 /* ── The second half of the loop ──────────────────────────────────────── */
 
@@ -354,6 +371,76 @@ export const SHOTS: readonly Shot[] = [
         onAction={noop}
       />
     ),
+  },
+  {
+    id: "E5-empty", screen: "E5", state: "ready",
+    note: "The one hard ask, made. Nothing is marked wrong until enough has been typed for it to be wrong — a field that turns red on the first keystroke is the app arguing mid-sentence.",
+    element: <PhoneEntryScreen t={t} typed="" history={["E4"]} online onType={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E5-malformed", screen: "E5", state: "error · malformed",
+    note: "E5's declared failure, worded as a typo rather than an accusation, and stating the rule the number has to satisfy instead of only that it does not.",
+    element: <PhoneEntryScreen t={t} typed="0770123" history={["E4"]} online onType={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E5-country", screen: "E5", state: "error · unsupported country",
+    note: "The other declared failure, and deliberately a different sentence: a number we cannot serve is our limit, not the patient's mistake.",
+    element: <PhoneEntryScreen t={t} typed="+9715012345678" history={["E4"]} online onType={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E5-offline", screen: "E5", state: "offline",
+    note: "A verification cannot be queued — the SMS leaves now or not at all — so this says so plainly rather than accepting a tap that would go nowhere.",
+    element: <PhoneEntryScreen t={t} typed="07701234567" history={["E4"]} online={false} onType={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E6-waiting", screen: "E6", state: "ready",
+    note: "The number is shown back, so a patient who mistyped one digit can see it here rather than discovering it by failing five times.",
+    element: <CodeEntryScreen t={t} phone="٧٧٠ ١٢٣ ٤٥٦٧" typed="" status={codeStatus(0, 20_000)} checking={false} refusalCode={null} history={["E5"]} online onType={noop} onSubmit={noop} onResend={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E6-wrong", screen: "E6", state: "error · wrong code",
+    note: "Attempts remaining are stated. A patient who does not know how many tries are left will guess, and guessing is how the attempts get spent.",
+    element: <CodeEntryScreen t={t} phone="٧٧٠ ١٢٣ ٤٥٦٧" typed="123456" status={codeStatus(3, 60_000)} checking={false} refusalCode="WRONG_CODE" history={["E5"]} online onType={noop} onSubmit={noop} onResend={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E6-exhausted", screen: "E6", state: "error · attempts exhausted",
+    note: "Exhausted attempts, told without blame and with the way out attached: «ما صار شي — نرسللك رمز جديد».",
+    element: <CodeEntryScreen t={t} phone="٧٧٠ ١٢٣ ٤٥٦٧" typed="123456" status={codeStatus(5, 60_000)} checking={false} refusalCode="ATTEMPTS_EXHAUSTED" history={["E5"]} online onType={noop} onSubmit={noop} onResend={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E6-expired", screen: "E6", state: "error · expired",
+    note: "An expired code is not a wrong answer, and does not cost an attempt — the app does not charge a patient for its own clock.",
+    element: <CodeEntryScreen t={t} phone="٧٧٠ ١٢٣ ٤٥٦٧" typed="" status={codeStatus(1, 11 * 60_000)} checking={false} refusalCode={null} history={["E5"]} online onType={noop} onSubmit={noop} onResend={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E6-checking", screen: "E6", state: "loading",
+    note: "The one moment in onboarding that talks to a server, shown as busy on the control itself rather than as a screen-wide spinner.",
+    element: <CodeEntryScreen t={t} phone="٧٧٠ ١٢٣ ٤٥٦٧" typed="123456" status={codeStatus(0, 20_000)} checking refusalCode={null} history={["E5"]} online onType={noop} onSubmit={noop} onResend={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E7-empty", screen: "E7", state: "ready",
+    note: "Why before what: the name exists so a pharmacist can hand a bag to the right person, and the screen says so before asking.",
+    element: <NameScreen t={t} typed="" history={["E6"]} onType={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E7-typed", screen: "E7", state: "ready · with a name",
+    note: "E4 promised a pharmacy sees only the first name. Here that promise is SHOWN, before submission, rather than kept somewhere the patient cannot check.",
+    element: <NameScreen t={t} typed="أم علي حسن" history={["E6"]} onType={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E8-list", screen: "E8", state: "ready",
+    note: "Location refused is not a failure path here because location is never asked for: the bundled list IS the route, and the screen says «ما نحتاج موقعك».",
+    element: <DistrictScreen t={t} districts={DISTRICTS} query="" chosen={null} history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E8-chosen", screen: "E8", state: "ready · chosen",
+    note: "A choice made, and an uncovered district still visible and still honest about why it cannot be picked (E12).",
+    element: <DistrictScreen t={t} districts={DISTRICTS} query="" chosen="d1" history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+  },
+  {
+    id: "E8-nomatch", screen: "E8", state: "empty · no match",
+    note: "A search with no result, which says what happened and nothing more — there is no action to offer that the patient is not already taking.",
+    element: <DistrictScreen t={t} districts={DISTRICTS} query="زززز" chosen={null} history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
   },
   {
     id: "R7-queued", screen: "R7", state: "offline · queued",

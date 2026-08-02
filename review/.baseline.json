@@ -1,12 +1,26 @@
 {
   "hasBaseline": true,
   "added": [
-    "E4-direct.png",
-    "E4-guarded.png"
+    "E5-country.png",
+    "E5-empty.png",
+    "E5-malformed.png",
+    "E5-offline.png",
+    "E6-checking.png",
+    "E6-exhausted.png",
+    "E6-expired.png",
+    "E6-waiting.png",
+    "E6-wrong.png",
+    "E7-empty.png",
+    "E7-typed.png",
+    "E8-chosen.png",
+    "E8-list.png",
+    "E8-nomatch.png"
   ],
   "removed": [],
   "changed": [],
   "unchanged": [
+    "E4-direct.png",
+    "E4-guarded.png",
     "F1-empty.png",
     "F2-empty.png",
     "F2-error.png",

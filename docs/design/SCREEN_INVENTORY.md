@@ -8,15 +8,15 @@
 | | Count |
 | --- | --- |
 | Blueprint v3 Phase 0 screens | 133 |
-| With an engineering contract | 18 |
-| Rendered and photographed | 13 |
-| Distinct states rendered | 30 |
-| NOT IMPLEMENTED | 115 |
-| Exits declared but BLOCKED | 10 |
+| With an engineering contract | 22 |
+| Rendered and photographed | 17 |
+| Distinct states rendered | 44 |
+| NOT IMPLEMENTED | 111 |
+| Exits declared but BLOCKED | 9 |
 
-**How to read this.** Part 1 is the 18 screens that exist,
+**How to read this.** Part 1 is the 22 screens that exist,
 each with everything a designer needs and nothing they have to ask for. Part 2
-is the 115 screens that do not exist yet — design is needed
+is the 111 screens that do not exist yet — design is needed
 before Engineering can even write a contract for them.
 
 Two words appear throughout and mean exactly one thing each:
@@ -149,7 +149,7 @@ Blueprint declares: `—`. 2 state(s) rendered and photographed.
 | Primary action | **أدخل رقمي** → `E5` (1 tap to outcome) |
 | Secondary actions | none |
 | Back | `dismiss` → `S1` |
-| Exits | `E5` **(BLOCKED — target not built)** |
+| Exits | `E5` |
 | Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
 
 #### Accessibility support required
@@ -198,6 +198,344 @@ Reached only by a guard refusal — no screen exits to it. It is the one screen 
 #### OPEN to the designer
 
 - The entire visual treatment. This is the product's first impression for most users.
+
+
+---
+
+### `E5` — رقم موبايلك
+
+> **Phone entry** · Blueprint group: Entry · destination: `entry`
+
+**Purpose (fixed by Blueprint v3).** Take a number
+
+**User goal.** _Not yet articulated — ask Product._
+
+**Emotional target.** _Not yet articulated._
+
+#### Required states
+
+| State | What it owes the user | As implemented today |
+| --- | --- | --- |
+| `error` | what failed, whether the user's work survived, and one thing to press | “الرقم مو مكتمل” · work preserved: yes · action: **صحّح الرقم** → E5 |
+| `offline` | whether the content is read-only, and how old it is | read-only: no · shows age: no |
+
+Blueprint declares: `error`. 4 state(s) rendered and photographed.
+
+**Rendered states** (see `review/index.html` for the screenshots):
+
+- `E5-empty` — **ready**. The one hard ask, made. Nothing is marked wrong until enough has been typed for it to be wrong — a field that turns red on the first keystroke is the app arguing mid-sentence.
+- `E5-malformed` — **error · malformed**. E5's declared failure, worded as a typo rather than an accusation, and stating the rule the number has to satisfy instead of only that it does not.
+- `E5-country` — **error · unsupported country**. The other declared failure, and deliberately a different sentence: a number we cannot serve is our limit, not the patient's mistake.
+- `E5-offline` — **offline**. A verification cannot be queued — the SMS leaves now or not at all — so this says so plainly rather than accepting a tap that would go nowhere.
+
+#### Required interactions
+
+| Interaction | Detail |
+| --- | --- |
+| Primary action | **أرسل الرمز** → `E6` (1 tap to outcome) |
+| Secondary actions | none |
+| Back | `pop` |
+| Exits | `E6` |
+| Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
+
+#### Accessibility support required
+
+- Every control ≥ 44pt (primaries ≥ 48pt) — **enforced on this screen every build**.
+- Every control carries an accessible label — **enforced**.
+- One numeral system — **enforced**.
+- Contrast ≥ 4.5:1 body, 3.0:1 boundaries, in **both** schemes — **enforced**.
+- **Needs design:** visible focus indicator; layout at 200% text; a non-colour signal for any state currently distinguished by hue alone.
+
+#### Offline behaviour
+
+Declared. Content is still editable.
+
+#### Loading behaviour
+
+No loading state declared — this screen renders from state already in memory.
+
+#### Error behaviour
+
+“الرقم مو مكتمل” — the user's work **survives**, and there is exactly one recovery action: **صحّح الرقم**.
+
+#### Analytics-visible behaviour
+
+- None emitted from this screen.
+
+#### Blueprint references
+
+- Screen row: `E5` — Phone entry (Entry)
+- Entry: E4
+- Exit: Code verification
+- Permission: guest
+- Offline rule: Blocked with a clear reason
+- Clinical note: none
+- Route guards in code: none
+
+#### Existing implementation notes
+
+_No notes._
+
+#### FIXED by the Blueprint — design may not change these
+
+- _None recorded — treat the contract above as fixed._
+
+#### OPEN to the designer
+
+- _Everything not listed as fixed._
+
+
+---
+
+### `E6` — الرمز
+
+> **Code verification** · Blueprint group: Entry · destination: `entry`
+
+**Purpose (fixed by Blueprint v3).** Verify the number
+
+**User goal.** _Not yet articulated — ask Product._
+
+**Emotional target.** _Not yet articulated._
+
+#### Required states
+
+| State | What it owes the user | As implemented today |
+| --- | --- | --- |
+| `loading` | a skeleton whose shape matches the content that is coming | skeleton must match the real content |
+| `error` | what failed, whether the user's work survived, and one thing to press | “الرمز مو صحيح” · work preserved: yes · action: **جرّب مرة ثانية** → E6 |
+| `offline` | whether the content is read-only, and how old it is | read-only: no · shows age: no |
+
+Blueprint declares: `loading · error · rate-limited`. 5 state(s) rendered and photographed.
+
+**Rendered states** (see `review/index.html` for the screenshots):
+
+- `E6-waiting` — **ready**. The number is shown back, so a patient who mistyped one digit can see it here rather than discovering it by failing five times.
+- `E6-wrong` — **error · wrong code**. Attempts remaining are stated. A patient who does not know how many tries are left will guess, and guessing is how the attempts get spent.
+- `E6-exhausted` — **error · attempts exhausted**. Exhausted attempts, told without blame and with the way out attached: «ما صار شي — نرسللك رمز جديد».
+- `E6-expired` — **error · expired**. An expired code is not a wrong answer, and does not cost an attempt — the app does not charge a patient for its own clock.
+- `E6-checking` — **loading**. The one moment in onboarding that talks to a server, shown as busy on the control itself rather than as a screen-wide spinner.
+
+#### Required interactions
+
+| Interaction | Detail |
+| --- | --- |
+| Primary action | **تأكيد** → `E7` (1 tap to outcome) |
+| Secondary actions | غيّر الرقم → `E5` |
+| Back | `pop` |
+| Exits | `E5`, `E7` |
+| Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
+
+#### Accessibility support required
+
+- Every control ≥ 44pt (primaries ≥ 48pt) — **enforced on this screen every build**.
+- Every control carries an accessible label — **enforced**.
+- One numeral system — **enforced**.
+- Contrast ≥ 4.5:1 body, 3.0:1 boundaries, in **both** schemes — **enforced**.
+- **Needs design:** visible focus indicator; layout at 200% text; a non-colour signal for any state currently distinguished by hue alone.
+
+#### Offline behaviour
+
+Declared. Content is still editable.
+
+#### Loading behaviour
+
+Declared. The skeleton must match the shape of the content that follows — the `skeletonToReal` motion token (150ms) exists to animate that swap and is unimplemented.
+
+#### Error behaviour
+
+“الرمز مو صحيح” — the user's work **survives**, and there is exactly one recovery action: **جرّب مرة ثانية**.
+
+#### Analytics-visible behaviour
+
+- None emitted from this screen.
+
+#### Blueprint references
+
+- Screen row: `E6` — Code verification (Entry)
+- Entry: E5
+- Exit: Name · Restore
+- Permission: guest
+- Offline rule: Blocked with a clear reason
+- Clinical note: none
+- Route guards in code: none
+
+#### Existing implementation notes
+
+_No notes._
+
+#### FIXED by the Blueprint — design may not change these
+
+- _None recorded — treat the contract above as fixed._
+
+#### OPEN to the designer
+
+- _Everything not listed as fixed._
+
+
+---
+
+### `E7` — اسمك
+
+> **Your name** · Blueprint group: Entry · destination: `entry`
+
+**Purpose (fixed by Blueprint v3).** Minimum identity for a pickup counter
+
+**User goal.** _Not yet articulated — ask Product._
+
+**Emotional target.** _Not yet articulated._
+
+#### Required states
+
+| State | What it owes the user | As implemented today |
+| --- | --- | --- |
+| `error` | what failed, whether the user's work survived, and one thing to press | “محتاجين اسمك” · work preserved: yes · action: **اكتب اسمك** → E7 |
+
+Blueprint declares: `error`. 2 state(s) rendered and photographed.
+
+**Rendered states** (see `review/index.html` for the screenshots):
+
+- `E7-empty` — **ready**. Why before what: the name exists so a pharmacist can hand a bag to the right person, and the screen says so before asking.
+- `E7-typed` — **ready · with a name**. E4 promised a pharmacy sees only the first name. Here that promise is SHOWN, before submission, rather than kept somewhere the patient cannot check.
+
+#### Required interactions
+
+| Interaction | Detail |
+| --- | --- |
+| Primary action | **كمّل** → `E8` (1 tap to outcome) |
+| Secondary actions | none |
+| Back | `pop` |
+| Exits | `E8` |
+| Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
+
+#### Accessibility support required
+
+- Every control ≥ 44pt (primaries ≥ 48pt) — **enforced on this screen every build**.
+- Every control carries an accessible label — **enforced**.
+- One numeral system — **enforced**.
+- Contrast ≥ 4.5:1 body, 3.0:1 boundaries, in **both** schemes — **enforced**.
+- **Needs design:** visible focus indicator; layout at 200% text; a non-colour signal for any state currently distinguished by hue alone.
+
+#### Offline behaviour
+
+No offline state declared. The screen is either always available from local state, or is unreachable without a connection.
+
+#### Loading behaviour
+
+No loading state declared — this screen renders from state already in memory.
+
+#### Error behaviour
+
+“محتاجين اسمك” — the user's work **survives**, and there is exactly one recovery action: **اكتب اسمك**.
+
+#### Analytics-visible behaviour
+
+- None emitted from this screen.
+
+#### Blueprint references
+
+- Screen row: `E7` — Your name (Entry)
+- Entry: E6
+- Exit: E8
+- Permission: authenticated
+- Offline rule: Queued
+- Clinical note: none
+- Route guards in code: none
+
+#### Existing implementation notes
+
+_No notes._
+
+#### FIXED by the Blueprint — design may not change these
+
+- _None recorded — treat the contract above as fixed._
+
+#### OPEN to the designer
+
+- _Everything not listed as fixed._
+
+
+---
+
+### `E8` — منطقتك
+
+> **Your district** · Blueprint group: Entry · destination: `entry`
+
+**Purpose (fixed by Blueprint v3).** Where to search from
+
+**User goal.** _Not yet articulated — ask Product._
+
+**Emotional target.** _Not yet articulated._
+
+#### Required states
+
+| State | What it owes the user | As implemented today |
+| --- | --- | --- |
+| `error` | what failed, whether the user's work survived, and one thing to press | “ما اخترت منطقة” · work preserved: yes · action: **اختر منطقتك** → E8 |
+| `permissionRefused` | still usable, and naming the alternative | alternative: “اختر منطقتك من القائمة — ما نحتاج موقعك” |
+
+Blueprint declares: `error · permission-refused`. 3 state(s) rendered and photographed.
+
+**Rendered states** (see `review/index.html` for the screenshots):
+
+- `E8-list` — **ready**. Location refused is not a failure path here because location is never asked for: the bundled list IS the route, and the screen says «ما نحتاج موقعك».
+- `E8-chosen` — **ready · chosen**. A choice made, and an uncovered district still visible and still honest about why it cannot be picked (E12).
+- `E8-nomatch` — **empty · no match**. A search with no result, which says what happened and nothing more — there is no action to offer that the patient is not already taking.
+
+#### Required interactions
+
+| Interaction | Detail |
+| --- | --- |
+| Primary action | **خلص** → `S1` (1 tap to outcome) |
+| Secondary actions | none |
+| Back | `pop` |
+| Exits | `S1` |
+| Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
+
+#### Accessibility support required
+
+- Every control ≥ 44pt (primaries ≥ 48pt) — **enforced on this screen every build**.
+- Every control carries an accessible label — **enforced**.
+- One numeral system — **enforced**.
+- Contrast ≥ 4.5:1 body, 3.0:1 boundaries, in **both** schemes — **enforced**.
+- **Needs design:** visible focus indicator; layout at 200% text; a non-colour signal for any state currently distinguished by hue alone.
+
+#### Offline behaviour
+
+No offline state declared. The screen is either always available from local state, or is unreachable without a connection.
+
+#### Loading behaviour
+
+No loading state declared — this screen renders from state already in memory.
+
+#### Error behaviour
+
+“ما اخترت منطقة” — the user's work **survives**, and there is exactly one recovery action: **اختر منطقتك**.
+
+#### Analytics-visible behaviour
+
+- None emitted from this screen.
+
+#### Blueprint references
+
+- Screen row: `E8` — Your district (Entry)
+- Entry: E7 · Settings
+- Exit: Today
+- Permission: authenticated
+- Offline rule: District list is bundled
+- Clinical note: none
+- Route guards in code: none
+
+#### Existing implementation notes
+
+_No notes._
+
+#### FIXED by the Blueprint — design may not change these
+
+- _None recorded — treat the contract above as fixed._
+
+#### OPEN to the designer
+
+- _Everything not listed as fixed._
 
 
 ---
@@ -1556,24 +1894,20 @@ Arrives by notification. There is no stack behind it.
 
 ---
 
-## Part 2 — NOT IMPLEMENTED (115 screens)
+## Part 2 — NOT IMPLEMENTED (111 screens)
 
 These have a Blueprint row and nothing else. Priority is by user impact:
 the **Entry** group blocks every journey (a guest cannot sign in today), and
 **Request/Reservation** completes the loop that already exists.
 
 
-### Entry — 12 screens
+### Entry — 8 screens
 
 | Screen | Name | Purpose | States to design | Offline rule |
 | --- | --- | --- | --- | --- |
 | `E1` | Launch | Resolve session before anything renders | loading | Proceeds offline to the last known state |
 | `E2` | Welcome | Show worth before asking for anything | default only | Fully available |
 | `E3` | Guest home | Let a stranger search and browse with no account | empty · loading · offline | Browse only, labelled with its age |
-| `E5` | Phone entry | Take a number | error | Blocked with a clear reason |
-| `E6` | Code verification | Verify the number | loading · error · rate-limited | Blocked with a clear reason |
-| `E7` | Your name | Minimum identity for a pickup counter | error | Queued |
-| `E8` | Your district | Where to search from | error · permission-refused | District list is bundled |
 | `E9` | Location primer | Explain before the OS dialog — one chance only | default only | Available |
 | `E10` | Notification primer | Ask when the value is obvious, after the first reservation | default only | Deferred |
 | `E11` | Welcome back | Returning device | loading · error | Cached identity only |

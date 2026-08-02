@@ -64,6 +64,90 @@ export const CORE_LOOP: readonly ScreenContract[] = [
     persona: "entry",
   },
   {
+    // E5 — the number itself. Its own screen because E4 explains and this
+    // takes: merging them would put the ask above the reason.
+    id: "E5",
+    location: { title: "رقم موبايلك", destination: "entry" },
+    purpose: "Take a number",
+    back: { kind: "pop" },
+    primary: { label: "أرسل الرمز", leadsTo: "E6", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      // "Malformed number · unsupported country → inline, no blame". Two
+      // different sentences, because a number we cannot serve is our limit and
+      // a number typed wrong is a typo, and telling someone their correct
+      // number is invalid is the app blaming them for our coverage.
+      { kind: "error", whatFailed: "الرقم مو مكتمل", workPreserved: true,
+        action: { label: "صحّح الرقم", leadsTo: "E5" } },
+      // "Blocked with a clear reason" — a verification cannot be queued, and
+      // pretending otherwise would strand the patient waiting for an SMS that
+      // was never requested.
+      { kind: "offline", blocked: true,
+        because: "ما نكدر نرسل الرمز بدون نت — الرسالة تنرسل هسه أو ما تنرسل" },
+    ],
+    exits: ["E6"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    // E6 — four declared failures, four different recoveries.
+    id: "E6",
+    location: { title: "الرمز", destination: "entry" },
+    purpose: "Verify the number",
+    back: { kind: "pop" },
+    primary: { label: "تأكيد", leadsTo: "E7", tapsToOutcome: 1 },
+    secondary: [{ label: "غيّر الرقم", leadsTo: "E5" }],
+    states: [
+      { kind: "loading", skeletonMatchesContent: true },
+      { kind: "error", whatFailed: "الرمز مو صحيح", workPreserved: true,
+        action: { label: "جرّب مرة ثانية", leadsTo: "E6" } },
+      { kind: "offline", blocked: true,
+        because: "التحقق يحتاج اتصال — ما نكدر نتأكد من الرمز بدون نت" },
+    ],
+    exits: ["E5", "E7"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    // E7 — "Minimum identity for a pickup counter". The word minimum is the
+    // whole specification: nothing beyond what a pharmacist needs to hand a
+    // bag to the right person.
+    id: "E7",
+    location: { title: "اسمك", destination: "entry" },
+    purpose: "Minimum identity for a pickup counter",
+    back: { kind: "pop" },
+    primary: { label: "كمّل", leadsTo: "E8", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      { kind: "error", whatFailed: "محتاجين اسمك", workPreserved: true,
+        action: { label: "اكتب اسمك", leadsTo: "E7" } },
+    ],
+    exits: ["E8"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    // E8 — "Location refused → district list, never a wall". The list is the
+    // primary route rather than the consolation prize.
+    id: "E8",
+    location: { title: "منطقتك", destination: "entry" },
+    purpose: "Where to search from",
+    back: { kind: "pop" },
+    primary: { label: "خلص", leadsTo: "S1", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      { kind: "error", whatFailed: "ما اخترت منطقة", workPreserved: true,
+        action: { label: "اختر منطقتك", leadsTo: "E8" } },
+      // Never a wall: refusing location leaves the list, which was always the
+      // way through anyway.
+      { kind: "permissionRefused", stillUsable: true,
+        alternative: "اختر منطقتك من القائمة — ما نحتاج موقعك" },
+    ],
+    exits: ["S1"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
     id: "F1",
     location: { title: "ابحث", destination: "find" },
     purpose: "Start anything new",

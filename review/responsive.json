@@ -44,6 +44,244 @@
       }
     },
     {
+      "name": "E5-country",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E5-country@320.png",
+        "360": "responsive/E5-country@360.png",
+        "390": "responsive/E5-country@390.png",
+        "430": "responsive/E5-country@430.png"
+      }
+    },
+    {
+      "name": "E5-empty",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E5-empty@320.png",
+        "360": "responsive/E5-empty@360.png",
+        "390": "responsive/E5-empty@390.png",
+        "430": "responsive/E5-empty@430.png"
+      }
+    },
+    {
+      "name": "E5-malformed",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E5-malformed@320.png",
+        "360": "responsive/E5-malformed@360.png",
+        "390": "responsive/E5-malformed@390.png",
+        "430": "responsive/E5-malformed@430.png"
+      }
+    },
+    {
+      "name": "E5-offline",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E5-offline@320.png",
+        "360": "responsive/E5-offline@360.png",
+        "390": "responsive/E5-offline@390.png",
+        "430": "responsive/E5-offline@430.png"
+      }
+    },
+    {
+      "name": "E6-checking",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E6-checking@320.png",
+        "360": "responsive/E6-checking@360.png",
+        "390": "responsive/E6-checking@390.png",
+        "430": "responsive/E6-checking@430.png"
+      }
+    },
+    {
+      "name": "E6-exhausted",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E6-exhausted@320.png",
+        "360": "responsive/E6-exhausted@360.png",
+        "390": "responsive/E6-exhausted@390.png",
+        "430": "responsive/E6-exhausted@430.png"
+      }
+    },
+    {
+      "name": "E6-expired",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E6-expired@320.png",
+        "360": "responsive/E6-expired@360.png",
+        "390": "responsive/E6-expired@390.png",
+        "430": "responsive/E6-expired@430.png"
+      }
+    },
+    {
+      "name": "E6-waiting",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E6-waiting@320.png",
+        "360": "responsive/E6-waiting@360.png",
+        "390": "responsive/E6-waiting@390.png",
+        "430": "responsive/E6-waiting@430.png"
+      }
+    },
+    {
+      "name": "E6-wrong",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E6-wrong@320.png",
+        "360": "responsive/E6-wrong@360.png",
+        "390": "responsive/E6-wrong@390.png",
+        "430": "responsive/E6-wrong@430.png"
+      }
+    },
+    {
+      "name": "E7-empty",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E7-empty@320.png",
+        "360": "responsive/E7-empty@360.png",
+        "390": "responsive/E7-empty@390.png",
+        "430": "responsive/E7-empty@430.png"
+      }
+    },
+    {
+      "name": "E7-typed",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E7-typed@320.png",
+        "360": "responsive/E7-typed@360.png",
+        "390": "responsive/E7-typed@390.png",
+        "430": "responsive/E7-typed@430.png"
+      }
+    },
+    {
+      "name": "E8-chosen",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E8-chosen@320.png",
+        "360": "responsive/E8-chosen@360.png",
+        "390": "responsive/E8-chosen@390.png",
+        "430": "responsive/E8-chosen@430.png"
+      }
+    },
+    {
+      "name": "E8-list",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E8-list@320.png",
+        "360": "responsive/E8-list@360.png",
+        "390": "responsive/E8-list@390.png",
+        "430": "responsive/E8-list@430.png"
+      }
+    },
+    {
+      "name": "E8-nomatch",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E8-nomatch@320.png",
+        "360": "responsive/E8-nomatch@360.png",
+        "390": "responsive/E8-nomatch@390.png",
+        "430": "responsive/E8-nomatch@430.png"
+      }
+    },
+    {
       "name": "F1-empty",
       "verdict": "pass",
       "issues": [],
@@ -542,7 +780,7 @@
       "Sticky slots are photographed at scroll position 0 only."
     ]
   ],
-  "pass": 30,
+  "pass": 44,
   "minor": 0,
   "fail": 0
 }

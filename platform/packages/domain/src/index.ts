@@ -16,4 +16,5 @@ export * as Clinical from "./clinical/gates.js";
 export * as Authority from "./identity/authority.js";
 export * as Family from "./identity/family.js";
 export * as IdentityMachines from "./identity/machines.js";
+export * as Verification from "./identity/verification.js";
 export * as PharmacyMachines from "./pharmacy/machines.js";

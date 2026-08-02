@@ -45,6 +45,18 @@ export const REFUSAL = {
   OWN_NUMBER: "OWN_NUMBER",
   GRANT_EXISTS: "GRANT_EXISTS",
 
+  /* Identity — onboarding. Every one of these is a failure Blueprint v3
+     declares by name for E5, E6, E7 or E8, so the code exists because the
+     Blueprint names the case, not because a screen wanted a message. */
+  MALFORMED_NUMBER: "MALFORMED_NUMBER",             // E5 f: malformed number
+  UNSUPPORTED_COUNTRY: "UNSUPPORTED_COUNTRY",       // E5 f: unsupported country
+  WRONG_CODE: "WRONG_CODE",                         // E6 f: wrong code, attempts left
+  ATTEMPTS_EXHAUSTED: "ATTEMPTS_EXHAUSTED",         // E6 f: exhausted attempts
+  CODE_EXPIRED: "CODE_EXPIRED",                     // E6 f: expired code
+  RATE_LIMITED: "RATE_LIMITED",                     // E6 st: rate-limited
+  NAME_REQUIRED: "NAME_REQUIRED",                   // E7 f: empty name
+  DISTRICT_REQUIRED: "DISTRICT_REQUIRED",           // E8 st: error
+
   /* Watches — D30 */
   WATCH_LIMIT: "WATCH_LIMIT",
 
