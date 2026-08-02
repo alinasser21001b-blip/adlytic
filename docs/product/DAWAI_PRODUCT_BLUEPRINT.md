@@ -1,7 +1,15 @@
 # Dawai — Product Blueprint v1.0
 
-**Status: draft for approval.**
+**Status: draft — NOT ready to build from.**
 **This document contains no code and no technical decisions.**
+
+> An independent review by 25 agents that had not seen the author's reasoning
+> found **20 confirmed defects** and **23 further gaps** the reviewers
+> themselves missed. Its verdict: *"an outstanding decision document and an
+> incomplete specification."* Read
+> [`review/INDEPENDENT_REVIEW.md`](review/INDEPENDENT_REVIEW.md) before acting
+> on anything here — in particular §3, §6, §11, §17 and §28, which change
+> materially once the ten decisions in that review's Part 7 are answered.
 
 It is the single reference that answers every question about what the product
 does and how it behaves. Architecture is written *after* this is approved, and
