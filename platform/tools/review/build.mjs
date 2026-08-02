@@ -23,6 +23,11 @@ const REVIEW = join(REPO, "review");
 
 const data = JSON.parse(readFileSync(join(REVIEW, "data.json"), "utf8"));
 
+/** Responsive evidence, produced by the harness in this same run. */
+const responsive = existsSync(join(REVIEW, "responsive.json"))
+  ? JSON.parse(readFileSync(join(REVIEW, "responsive.json"), "utf8"))
+  : null;
+
 /** Visual regression is produced by its own step, against git HEAD. */
 const regression = existsSync(join(REVIEW, ".baseline.json"))
   ? JSON.parse(readFileSync(join(REVIEW, ".baseline.json"), "utf8"))
@@ -88,6 +93,17 @@ const gates = [
   gate("Responsive layout", "node tools/review/shoot.mjs", firstMatch(/(\d+ screen state\(s\) photographed[^\n]*)/)),
 ];
 
+/* The responsive harness reports; it does not block. The layouts have not been
+ * built for these widths yet, so failing the build on them would only mean
+ * nobody could push until the work this evidence is meant to SCOPE was done.
+ * A fail here is loud on the dashboard and in RESPONSIVE_REPORT.md instead. */
+const responsiveCheck = responsive ? [{
+  name: "Responsive validation",
+  pass: responsive.fail === 0,
+  detail: `${responsive.pass} pass · ${responsive.minor} minor · ${responsive.fail} fail across ${responsive.widths.join("/")}pt`
+    + ` — ${responsive.screens.length * responsive.widths.length} renders, ${responsive.selfTestDetectors} detectors proved`,
+}] : [];
+
 /* ── Checks derived from the collected data, not from a command ─────────── */
 
 function declares(screen, kind) {
@@ -97,6 +113,7 @@ function declares(screen, kind) {
 const has = (screen, kind) => screen.states.some((s) => s.kind === kind || (kind === "empty" && s.kind === "empty"));
 
 const derived = [
+  ...responsiveCheck,
   { name: "Navigation — no unreachable screen", pass: data.graph.unreachable.length === 0, detail: `${data.graph.nodes.length} screens reachable from ${data.graph.entryPoints.length} entry points` },
   { name: "Navigation — no trap", pass: data.graph.traps.length === 0, detail: "every screen can be left" },
   { name: "Navigation — no gap in any flow", pass: data.graph.flowGaps.length === 0, detail: `${data.flows.length} flow(s) fully renderable` },
@@ -322,6 +339,47 @@ ${section("Component library", `
   <h3>Raw layout in screens</h3>
   <p class="note">A screen composes; it does not draw. The <span class="mono">screens</span> layer may not import from <span class="mono">react-native</span> at all, which is checked every build — so a screen cannot type a flex direction, invent a gap outside the 4pt scale, or hand-roll a card. Measured now: <strong>${rawLayoutImports}</strong> screen file(s) importing the rendering platform directly.</p>
 </div>`)}
+
+${section("Responsive health", responsive ? `
+<p class="note" style="margin-bottom:14px">Every screen state rendered at ${responsive.widths.join("pt · ")}pt and measured — ${responsive.screens.length * responsive.widths.length} renders. No layout was changed to produce this; it is a measurement, taken before implementation begins. <strong>${responsive.selfTestDetectors} detectors</strong> are proved to fire against injected defects before any real page is measured, so a green row means "checked and clean", not "not checked".</p>
+
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="panel"><h3>${responsive.pass}</h3><p class="note">✓ pass</p></div>
+  <div class="panel"><h3>${responsive.minor}</h3><p class="note">⚠ minor</p></div>
+  <div class="panel"><h3>${responsive.fail}</h3><p class="note">✗ fail</p></div>
+  <div class="panel"><h3>${responsive.widths.length}</h3><p class="note">widths measured</p></div>
+</div>
+
+<table class="tbl"><thead><tr><th>Screen state</th><th>Verdict</th><th>Findings</th><th>${responsive.widths.join("pt</th><th>")}pt</th></tr></thead><tbody>
+  ${responsive.screens.map((sc) => {
+    const mark = sc.verdict === "pass" ? '<span class="tag ok">✓ Pass</span>'
+      : sc.verdict === "minor" ? '<span class="tag warn">⚠ Minor</span>'
+      : '<span class="tag bad">✗ Fail</span>';
+    const kinds = [...new Set(sc.issues.map((i) => i.kind))];
+    return `<tr>
+      <td class="mono">${esc(sc.name)}</td>
+      <td>${mark}</td>
+      <td class="note">${esc(kinds.join(", ") || "—")}</td>
+      ${responsive.widths.map((w) => `<td><a href="${esc(sc.shots[w])}">${w}</a></td>`).join("")}
+    </tr>`;
+  }).join("")}
+</tbody></table>
+
+${responsive.screens.filter((sc) => sc.verdict !== "pass").map((sc) => `
+<div class="panel" style="margin-top:14px">
+  <h3>${esc(sc.name)}</h3>
+  <ul class="note">${[...new Map(sc.issues.map((i) => [i.kind + i.says.replace(/^\d+pt: /, ""), i])).values()]
+    .map((i) => `<li><strong>${esc(i.kind)}</strong> — ${esc(i.says)}</li>`).join("")}</ul>
+  <div class="grid g4" style="margin-top:10px">
+    ${responsive.widths.map((w) => `<div><img src="${esc(sc.shots[w])}" alt="${esc(sc.name)} at ${w}pt" style="width:100%;border-radius:8px"><div class="mono note">${w}pt</div></div>`).join("")}
+  </div>
+</div>`).join("")}
+
+<div class="panel" style="margin-top:14px">
+  <h3>Declared unmeasured</h3>
+  <p class="note">A tick above covers what was checked. These were not, and none of them is implied by a green row.</p>
+  <ul class="note">${responsive.unmeasured.map(([k, why]) => `<li><strong>${esc(k)}</strong> — ${esc(why)}</li>`).join("")}</ul>
+</div>` : `<p class="note">Not measured in this run — <span class="mono">review/responsive.json</span> is absent.</p>`)}
 
 ${section("Design system", `
 <div class="panel">

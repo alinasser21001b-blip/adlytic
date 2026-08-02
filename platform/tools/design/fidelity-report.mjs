@@ -11,10 +11,13 @@
  *
  * Run: npm run design
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DELIVERED, TURN4, CATEGORIES, SCREENS, DEVIATIONS, CLARIFICATIONS } from "./fidelity.mjs";
+
+/** Measured responsive evidence, produced by tools/review/responsive.mjs. */
+const RESPONSIVE_DATA = resolve(dirname(fileURLToPath(import.meta.url)), "../../../review/responsive.json");
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../..");
@@ -47,7 +50,43 @@ const LABEL = {
  *  faithful — it is a decision, not a defect. */
 const WEIGHT = { exact: 1, minor: 0.75, intended: 1, missing: 0, blocked: 0 };
 
+/**
+ * Responsive fidelity is MEASURED, not asserted.
+ *
+ * Every other category on this report is a judgement recorded against the
+ * delivery. Responsive is the one the harness can answer on its own, so the
+ * hand-written verdict is overwritten here from review/responsive.json — a
+ * screen cannot claim a width it has not been photographed at, and cannot be
+ * marked missing once it has passed at all four.
+ */
+const RESPONSIVE = existsSync(RESPONSIVE_DATA)
+  ? JSON.parse(readFileSync(RESPONSIVE_DATA, "utf8"))
+  : null;
+
+/** Screen ids on this report are prefixes of the harness's state names —
+ *  "R7-queued" covers R7-queued, "V2" covers V2-held / V2-cached / V2-last —
+ *  unless the screen names its states explicitly, which is how a state whose
+ *  gallery name differs from its delivery name stays measured. */
+const responsiveVerdict = (id, declared) => {
+  if (!RESPONSIVE) return null;
+  const states = declared
+    ? RESPONSIVE.screens.filter((x) => declared.includes(x.name))
+    : RESPONSIVE.screens.filter((x) => x.name === id || x.name.startsWith(`${id}-`));
+  if (!states.length) return null;
+  const widths = RESPONSIVE.widths.join("/");
+  const failing = states.filter((x) => x.verdict === "fail");
+  const minor = states.filter((x) => x.verdict === "minor");
+  const where = (xs) => xs.flatMap((x) => x.issues).map((i) => i.kind);
+  if (failing.length)
+    return ["missing", `Measured at ${widths}pt. ${failing.length} of ${states.length} state(s) FAIL: ${[...new Set(where(failing))].join(", ")}.`];
+  if (minor.length)
+    return ["minor", `Measured at ${widths}pt, no failures. ${minor.length} of ${states.length} state(s) carry a minor finding: ${[...new Set(where(minor))].join(", ")}.`];
+  return ["exact", `Measured at ${widths}pt. All ${states.length} state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression.`];
+};
+
 const scored = Object.entries(SCREENS).map(([id, s]) => {
+  const rv = responsiveVerdict(id, s.states);
+  if (rv) s = { ...s, verdicts: { ...s.verdicts, Responsive: rv } };
   const vs = CATEGORIES.map((c) => s.verdicts[c]?.[0] ?? "missing");
   return { id, ...s, score: vs.reduce((n, v) => n + WEIGHT[v], 0) / vs.length };
 });

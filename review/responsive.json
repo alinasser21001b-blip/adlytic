@@ -1,0 +1,565 @@
+{
+  "selfTestDetectors": 10,
+  "widths": [
+    320,
+    360,
+    390,
+    430
+  ],
+  "reference": 390,
+  "tapFloor": 44,
+  "screens": [
+    {
+      "name": "F1-empty",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/F1-empty@320.png",
+        "360": "responsive/F1-empty@360.png",
+        "390": "responsive/F1-empty@390.png",
+        "430": "responsive/F1-empty@430.png"
+      }
+    },
+    {
+      "name": "F2-empty",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/F2-empty@320.png",
+        "360": "responsive/F2-empty@360.png",
+        "390": "responsive/F2-empty@390.png",
+        "430": "responsive/F2-empty@430.png"
+      }
+    },
+    {
+      "name": "F2-error",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/F2-error@320.png",
+        "360": "responsive/F2-error@360.png",
+        "390": "responsive/F2-error@390.png",
+        "430": "responsive/F2-error@430.png"
+      }
+    },
+    {
+      "name": "F2-loading",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/F2-loading@320.png",
+        "360": "responsive/F2-loading@360.png",
+        "390": "responsive/F2-loading@390.png",
+        "430": "responsive/F2-loading@430.png"
+      }
+    },
+    {
+      "name": "F2-offline",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/F2-offline@320.png",
+        "360": "responsive/F2-offline@360.png",
+        "390": "responsive/F2-offline@390.png",
+        "430": "responsive/F2-offline@430.png"
+      }
+    },
+    {
+      "name": "F2-results",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/F2-results@320.png",
+        "360": "responsive/F2-results@360.png",
+        "390": "responsive/F2-results@390.png",
+        "430": "responsive/F2-results@430.png"
+      }
+    },
+    {
+      "name": "R1-empty",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R1-empty@320.png",
+        "360": "responsive/R1-empty@360.png",
+        "390": "responsive/R1-empty@390.png",
+        "430": "responsive/R1-empty@430.png"
+      }
+    },
+    {
+      "name": "R1-lines",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R1-lines@320.png",
+        "360": "responsive/R1-lines@360.png",
+        "390": "responsive/R1-lines@390.png",
+        "430": "responsive/R1-lines@430.png"
+      }
+    },
+    {
+      "name": "R1-refused",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R1-refused@320.png",
+        "360": "responsive/R1-refused@360.png",
+        "390": "responsive/R1-refused@390.png",
+        "430": "responsive/R1-refused@430.png"
+      }
+    },
+    {
+      "name": "R2-camera",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R2-camera@320.png",
+        "360": "responsive/R2-camera@360.png",
+        "390": "responsive/R2-camera@390.png",
+        "430": "responsive/R2-camera@430.png"
+      }
+    },
+    {
+      "name": "R2-refused",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R2-refused@320.png",
+        "360": "responsive/R2-refused@360.png",
+        "390": "responsive/R2-refused@390.png",
+        "430": "responsive/R2-refused@430.png"
+      }
+    },
+    {
+      "name": "R3-failed",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R3-failed@320.png",
+        "360": "responsive/R3-failed@360.png",
+        "390": "responsive/R3-failed@390.png",
+        "430": "responsive/R3-failed@430.png"
+      }
+    },
+    {
+      "name": "R3-review",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R3-review@320.png",
+        "360": "responsive/R3-review@360.png",
+        "390": "responsive/R3-review@390.png",
+        "430": "responsive/R3-review@430.png"
+      }
+    },
+    {
+      "name": "R6-offline",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R6-offline@320.png",
+        "360": "responsive/R6-offline@360.png",
+        "390": "responsive/R6-offline@390.png",
+        "430": "responsive/R6-offline@430.png"
+      }
+    },
+    {
+      "name": "R6-online",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R6-online@320.png",
+        "360": "responsive/R6-online@360.png",
+        "390": "responsive/R6-online@390.png",
+        "430": "responsive/R6-online@430.png"
+      }
+    },
+    {
+      "name": "R7-queued",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R7-queued@320.png",
+        "360": "responsive/R7-queued@360.png",
+        "390": "responsive/R7-queued@390.png",
+        "430": "responsive/R7-queued@430.png"
+      }
+    },
+    {
+      "name": "R7-waiting",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R7-waiting@320.png",
+        "360": "responsive/R7-waiting@360.png",
+        "390": "responsive/R7-waiting@390.png",
+        "430": "responsive/R7-waiting@430.png"
+      }
+    },
+    {
+      "name": "R8-empty",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R8-empty@320.png",
+        "360": "responsive/R8-empty@360.png",
+        "390": "responsive/R8-empty@390.png",
+        "430": "responsive/R8-empty@430.png"
+      }
+    },
+    {
+      "name": "R8-offers",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R8-offers@320.png",
+        "360": "responsive/R8-offers@360.png",
+        "390": "responsive/R8-offers@390.png",
+        "430": "responsive/R8-offers@430.png"
+      }
+    },
+    {
+      "name": "R8-withdrawn",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R8-withdrawn@320.png",
+        "360": "responsive/R8-withdrawn@360.png",
+        "390": "responsive/R8-withdrawn@390.png",
+        "430": "responsive/R8-withdrawn@430.png"
+      }
+    },
+    {
+      "name": "R9-agreed",
+      "verdict": "minor",
+      "issues": [
+        {
+          "severity": "minor",
+          "width": 320,
+          "kind": "wrapped button",
+          "says": "320pt: «أوافق على البديل» wraps onto 2 lines"
+        },
+        {
+          "severity": "minor",
+          "width": 320,
+          "kind": "wrapped button",
+          "says": "320pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
+        },
+        {
+          "severity": "minor",
+          "width": 360,
+          "kind": "wrapped button",
+          "says": "360pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
+        }
+      ],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R9-agreed@320.png",
+        "360": "responsive/R9-agreed@360.png",
+        "390": "responsive/R9-agreed@390.png",
+        "430": "responsive/R9-agreed@430.png"
+      }
+    },
+    {
+      "name": "R9-refused",
+      "verdict": "minor",
+      "issues": [
+        {
+          "severity": "minor",
+          "width": 320,
+          "kind": "wrapped button",
+          "says": "320pt: «أوافق على البديل» wraps onto 2 lines"
+        },
+        {
+          "severity": "minor",
+          "width": 320,
+          "kind": "wrapped button",
+          "says": "320pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
+        },
+        {
+          "severity": "minor",
+          "width": 360,
+          "kind": "wrapped button",
+          "says": "360pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
+        }
+      ],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R9-refused@320.png",
+        "360": "responsive/R9-refused@360.png",
+        "390": "responsive/R9-refused@390.png",
+        "430": "responsive/R9-refused@430.png"
+      }
+    },
+    {
+      "name": "R9-undecided",
+      "verdict": "minor",
+      "issues": [
+        {
+          "severity": "minor",
+          "width": 320,
+          "kind": "wrapped button",
+          "says": "320pt: «أوافق على البديل» wraps onto 2 lines"
+        },
+        {
+          "severity": "minor",
+          "width": 320,
+          "kind": "wrapped button",
+          "says": "320pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
+        }
+      ],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/R9-undecided@320.png",
+        "360": "responsive/R9-undecided@360.png",
+        "390": "responsive/R9-undecided@390.png",
+        "430": "responsive/R9-undecided@430.png"
+      }
+    },
+    {
+      "name": "V1-requesting",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/V1-requesting@320.png",
+        "360": "responsive/V1-requesting@360.png",
+        "390": "responsive/V1-requesting@390.png",
+        "430": "responsive/V1-requesting@430.png"
+      }
+    },
+    {
+      "name": "V2-cached",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/V2-cached@320.png",
+        "360": "responsive/V2-cached@360.png",
+        "390": "responsive/V2-cached@390.png",
+        "430": "responsive/V2-cached@430.png"
+      }
+    },
+    {
+      "name": "V2-held",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/V2-held@320.png",
+        "360": "responsive/V2-held@360.png",
+        "390": "responsive/V2-held@390.png",
+        "430": "responsive/V2-held@430.png"
+      }
+    },
+    {
+      "name": "V2-last",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/V2-last@320.png",
+        "360": "responsive/V2-last@360.png",
+        "390": "responsive/V2-last@390.png",
+        "430": "responsive/V2-last@430.png"
+      }
+    },
+    {
+      "name": "V4-refused",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/V4-refused@320.png",
+        "360": "responsive/V4-refused@360.png",
+        "390": "responsive/V4-refused@390.png",
+        "430": "responsive/V4-refused@430.png"
+      }
+    }
+  ],
+  "unmeasured": [
+    [
+      "Dynamic type / 200% text",
+      "No text-scaling pass runs. The brief requires legibility at 200%; nothing here resizes the root font, so a layout that breaks under it would report green."
+    ],
+    [
+      "Real device fonts",
+      "Screenshots use the CI's fallback family, not the delivered Arabic face, which is not bundled. Line-breaking and therefore wrapping WILL differ on a device."
+    ],
+    [
+      "Landscape",
+      "Every width is measured at 844pt tall. No rotated layout has ever been rendered."
+    ],
+    [
+      "Safe-area insets",
+      "frame.safeTop/safeBottom are fixed values, not real device insets. A notch or a home indicator is approximated, not measured."
+    ],
+    [
+      "Scroll-dependent behaviour",
+      "Sticky slots are photographed at scroll position 0 only."
+    ]
+  ],
+  "pass": 25,
+  "minor": 3,
+  "fail": 0
+}

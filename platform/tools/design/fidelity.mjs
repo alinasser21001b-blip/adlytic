@@ -85,6 +85,12 @@ export const TURN4 = [
   ["E4", "Why we need your number"],
 ];
 
+/**
+ * `Responsive` carries no hand-written verdict for a built screen: it is
+ * measured by tools/review/responsive.mjs at every supported width and written
+ * into the report from review/responsive.json. A screen that is not built has
+ * nothing to measure and keeps its note here.
+ */
 export const CATEGORIES = [
   "Layout", "Typography", "Spacing", "Colour", "Component",
   "Motion", "Icon", "Accessibility", "RTL", "Responsive",
@@ -111,7 +117,6 @@ export const SCREENS = {
       Icon: ["blocked", "No icon set exists. The back affordance is still the character ‹."],
       Accessibility: ["exact", "44pt floor, accessible labels and measured contrast all enforced on this screen every build."],
       RTL: ["exact", "Direction-driven layout; no physical row reversal, banned at build time."],
-      Responsive: ["missing", "Rendered and checked at 390pt only. The delivery is 360pt and the brief requires 320/360/430."],
     },
   },
   "R7-queued": {
@@ -126,11 +131,14 @@ export const SCREENS = {
       Icon: ["blocked", "No icon set."],
       Accessibility: ["exact", "Enforced."],
       RTL: ["exact", "Enforced."],
-      Responsive: ["missing", "390pt only."],
     },
   },
   "R7-sent": {
     built: true,
+    // The gallery registers this state as R7-waiting; the fidelity report calls
+    // it R7-sent, after the delivery's own name for it. Stated rather than
+    // inferred, because a prefix match silently reported it as unmeasured.
+    states: ["R7-waiting"],
     verdicts: {
       Layout: ["missing", "The delivery replaces the bar with a conic-gradient ring plus a per-pharmacy responder list (replied / thinking / declined). The build renders a linear progress bar and an offer count."],
       Typography: ["minor", "Ring time is delivered as 15px mono tabular; the build uses the `display` role."],
@@ -141,7 +149,6 @@ export const SCREENS = {
       Icon: ["blocked", "No icon set."],
       Accessibility: ["minor", "The ring needs a text equivalent; a conic gradient conveys progress by shape alone."],
       RTL: ["exact", "Enforced."],
-      Responsive: ["missing", "390pt only."],
     },
   },
   R8: {
@@ -156,7 +163,6 @@ export const SCREENS = {
       Icon: ["blocked", "No icon set."],
       Accessibility: ["exact", "Enforced. Row labels name the pharmacy."],
       RTL: ["exact", "Enforced."],
-      Responsive: ["missing", "The densest screen in the product, checked at 390pt only. The brief singles it out for 320pt."],
     },
   },
   R9: {
@@ -171,7 +177,6 @@ export const SCREENS = {
       Icon: ["blocked", "No icon set."],
       Accessibility: ["exact", "Radio role and selected state; both answers equal in weight, enforced by test."],
       RTL: ["exact", "Enforced."],
-      Responsive: ["missing", "390pt only."],
     },
   },
   E4: {

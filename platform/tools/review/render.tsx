@@ -16,16 +16,21 @@ mkdirSync(OUT, { recursive: true });
 
 const t = themeFor("light");
 
-/** A device-sized frame. 390×844 is the iPhone 14 viewport and the smallest
+/** A device-sized frame that takes its size from the VIEWPORT rather than from
+ *  a number baked into the page — so the same artefact can be photographed at
+ *  320, 360, 390 and 430 without re-rendering, and so a width can never be
+ *  asserted by the harness and contradicted by the document.
+ *
+ *  390×844 is the iPhone 14 viewport and the smallest
  *  common Android is narrower still, so the review shoots the tighter of the
  *  two dimensions the app must survive. */
 const page = (body: string) => `<!doctype html>
 <html dir="rtl" lang="ar"><head><meta charset="utf-8">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 390px; height: 844px; overflow: hidden; }
+  html, body { width: 100%; height: 100vh; overflow: hidden; }
   body { font-family: system-ui, sans-serif; background: ${t.color.surface}; }
-  #root { width: 390px; height: 844px; display: flex; flex-direction: column; }
+  #root { width: 100%; height: 100vh; display: flex; flex-direction: column; }
   #root > div { flex: 1; min-height: 0; }
   input { border: none; outline: none; background: transparent; font: inherit; }
 </style></head><body><div id="root">${body}</div></body></html>`;

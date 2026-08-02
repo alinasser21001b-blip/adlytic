@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 17:35 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 17:53 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -619,6 +619,189 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <p class="note">A screen composes; it does not draw. The <span class="mono">screens</span> layer may not import from <span class="mono">react-native</span> at all, which is checked every build — so a screen cannot type a flex direction, invent a gap outside the 4pt scale, or hand-roll a card. Measured now: <strong>0</strong> screen file(s) importing the rendering platform directly.</p>
 </div>
 
+<h2>Responsive health</h2>
+<p class="note" style="margin-bottom:14px">Every screen state rendered at 320pt · 360pt · 390pt · 430pt and measured — 112 renders. No layout was changed to produce this; it is a measurement, taken before implementation begins. <strong>10 detectors</strong> are proved to fire against injected defects before any real page is measured, so a green row means "checked and clean", not "not checked".</p>
+
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="panel"><h3>25</h3><p class="note">✓ pass</p></div>
+  <div class="panel"><h3>3</h3><p class="note">⚠ minor</p></div>
+  <div class="panel"><h3>0</h3><p class="note">✗ fail</p></div>
+  <div class="panel"><h3>4</h3><p class="note">widths measured</p></div>
+</div>
+
+<table class="tbl"><thead><tr><th>Screen state</th><th>Verdict</th><th>Findings</th><th>320pt</th><th>360pt</th><th>390pt</th><th>430pt</th></tr></thead><tbody>
+  <tr>
+      <td class="mono">F1-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F1-empty@320.png">320</a></td><td><a href="responsive/F1-empty@360.png">360</a></td><td><a href="responsive/F1-empty@390.png">390</a></td><td><a href="responsive/F1-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-empty@320.png">320</a></td><td><a href="responsive/F2-empty@360.png">360</a></td><td><a href="responsive/F2-empty@390.png">390</a></td><td><a href="responsive/F2-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-error</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-error@320.png">320</a></td><td><a href="responsive/F2-error@360.png">360</a></td><td><a href="responsive/F2-error@390.png">390</a></td><td><a href="responsive/F2-error@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-loading</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-loading@320.png">320</a></td><td><a href="responsive/F2-loading@360.png">360</a></td><td><a href="responsive/F2-loading@390.png">390</a></td><td><a href="responsive/F2-loading@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-offline</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-offline@320.png">320</a></td><td><a href="responsive/F2-offline@360.png">360</a></td><td><a href="responsive/F2-offline@390.png">390</a></td><td><a href="responsive/F2-offline@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-results</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-results@320.png">320</a></td><td><a href="responsive/F2-results@360.png">360</a></td><td><a href="responsive/F2-results@390.png">390</a></td><td><a href="responsive/F2-results@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R1-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R1-empty@320.png">320</a></td><td><a href="responsive/R1-empty@360.png">360</a></td><td><a href="responsive/R1-empty@390.png">390</a></td><td><a href="responsive/R1-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R1-lines</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R1-lines@320.png">320</a></td><td><a href="responsive/R1-lines@360.png">360</a></td><td><a href="responsive/R1-lines@390.png">390</a></td><td><a href="responsive/R1-lines@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R1-refused</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R1-refused@320.png">320</a></td><td><a href="responsive/R1-refused@360.png">360</a></td><td><a href="responsive/R1-refused@390.png">390</a></td><td><a href="responsive/R1-refused@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R2-camera</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R2-camera@320.png">320</a></td><td><a href="responsive/R2-camera@360.png">360</a></td><td><a href="responsive/R2-camera@390.png">390</a></td><td><a href="responsive/R2-camera@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R2-refused</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R2-refused@320.png">320</a></td><td><a href="responsive/R2-refused@360.png">360</a></td><td><a href="responsive/R2-refused@390.png">390</a></td><td><a href="responsive/R2-refused@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R3-failed</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R3-failed@320.png">320</a></td><td><a href="responsive/R3-failed@360.png">360</a></td><td><a href="responsive/R3-failed@390.png">390</a></td><td><a href="responsive/R3-failed@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R3-review</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R3-review@320.png">320</a></td><td><a href="responsive/R3-review@360.png">360</a></td><td><a href="responsive/R3-review@390.png">390</a></td><td><a href="responsive/R3-review@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R6-offline</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R6-offline@320.png">320</a></td><td><a href="responsive/R6-offline@360.png">360</a></td><td><a href="responsive/R6-offline@390.png">390</a></td><td><a href="responsive/R6-offline@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R6-online</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R6-online@320.png">320</a></td><td><a href="responsive/R6-online@360.png">360</a></td><td><a href="responsive/R6-online@390.png">390</a></td><td><a href="responsive/R6-online@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R7-queued</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R7-queued@320.png">320</a></td><td><a href="responsive/R7-queued@360.png">360</a></td><td><a href="responsive/R7-queued@390.png">390</a></td><td><a href="responsive/R7-queued@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R7-waiting</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R7-waiting@320.png">320</a></td><td><a href="responsive/R7-waiting@360.png">360</a></td><td><a href="responsive/R7-waiting@390.png">390</a></td><td><a href="responsive/R7-waiting@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R8-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R8-empty@320.png">320</a></td><td><a href="responsive/R8-empty@360.png">360</a></td><td><a href="responsive/R8-empty@390.png">390</a></td><td><a href="responsive/R8-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R8-offers</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R8-offers@320.png">320</a></td><td><a href="responsive/R8-offers@360.png">360</a></td><td><a href="responsive/R8-offers@390.png">390</a></td><td><a href="responsive/R8-offers@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R8-withdrawn</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R8-withdrawn@320.png">320</a></td><td><a href="responsive/R8-withdrawn@360.png">360</a></td><td><a href="responsive/R8-withdrawn@390.png">390</a></td><td><a href="responsive/R8-withdrawn@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R9-agreed</td>
+      <td><span class="tag warn">⚠ Minor</span></td>
+      <td class="note">wrapped button</td>
+      <td><a href="responsive/R9-agreed@320.png">320</a></td><td><a href="responsive/R9-agreed@360.png">360</a></td><td><a href="responsive/R9-agreed@390.png">390</a></td><td><a href="responsive/R9-agreed@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R9-refused</td>
+      <td><span class="tag warn">⚠ Minor</span></td>
+      <td class="note">wrapped button</td>
+      <td><a href="responsive/R9-refused@320.png">320</a></td><td><a href="responsive/R9-refused@360.png">360</a></td><td><a href="responsive/R9-refused@390.png">390</a></td><td><a href="responsive/R9-refused@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R9-undecided</td>
+      <td><span class="tag warn">⚠ Minor</span></td>
+      <td class="note">wrapped button</td>
+      <td><a href="responsive/R9-undecided@320.png">320</a></td><td><a href="responsive/R9-undecided@360.png">360</a></td><td><a href="responsive/R9-undecided@390.png">390</a></td><td><a href="responsive/R9-undecided@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V1-requesting</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V1-requesting@320.png">320</a></td><td><a href="responsive/V1-requesting@360.png">360</a></td><td><a href="responsive/V1-requesting@390.png">390</a></td><td><a href="responsive/V1-requesting@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V2-cached</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V2-cached@320.png">320</a></td><td><a href="responsive/V2-cached@360.png">360</a></td><td><a href="responsive/V2-cached@390.png">390</a></td><td><a href="responsive/V2-cached@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V2-held</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V2-held@320.png">320</a></td><td><a href="responsive/V2-held@360.png">360</a></td><td><a href="responsive/V2-held@390.png">390</a></td><td><a href="responsive/V2-held@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V2-last</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V2-last@320.png">320</a></td><td><a href="responsive/V2-last@360.png">360</a></td><td><a href="responsive/V2-last@390.png">390</a></td><td><a href="responsive/V2-last@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V4-refused</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V4-refused@320.png">320</a></td><td><a href="responsive/V4-refused@360.png">360</a></td><td><a href="responsive/V4-refused@390.png">390</a></td><td><a href="responsive/V4-refused@430.png">430</a></td>
+    </tr>
+</tbody></table>
+
+
+<div class="panel" style="margin-top:14px">
+  <h3>R9-agreed</h3>
+  <ul class="note"><li><strong>wrapped button</strong> — 320pt: «أوافق على البديل» wraps onto 2 lines</li><li><strong>wrapped button</strong> — 360pt: «لا، أريد اللي طلبته» wraps onto 2 lines</li></ul>
+  <div class="grid g4" style="margin-top:10px">
+    <div><img src="responsive/R9-agreed@320.png" alt="R9-agreed at 320pt" style="width:100%;border-radius:8px"><div class="mono note">320pt</div></div><div><img src="responsive/R9-agreed@360.png" alt="R9-agreed at 360pt" style="width:100%;border-radius:8px"><div class="mono note">360pt</div></div><div><img src="responsive/R9-agreed@390.png" alt="R9-agreed at 390pt" style="width:100%;border-radius:8px"><div class="mono note">390pt</div></div><div><img src="responsive/R9-agreed@430.png" alt="R9-agreed at 430pt" style="width:100%;border-radius:8px"><div class="mono note">430pt</div></div>
+  </div>
+</div>
+<div class="panel" style="margin-top:14px">
+  <h3>R9-refused</h3>
+  <ul class="note"><li><strong>wrapped button</strong> — 320pt: «أوافق على البديل» wraps onto 2 lines</li><li><strong>wrapped button</strong> — 360pt: «لا، أريد اللي طلبته» wraps onto 2 lines</li></ul>
+  <div class="grid g4" style="margin-top:10px">
+    <div><img src="responsive/R9-refused@320.png" alt="R9-refused at 320pt" style="width:100%;border-radius:8px"><div class="mono note">320pt</div></div><div><img src="responsive/R9-refused@360.png" alt="R9-refused at 360pt" style="width:100%;border-radius:8px"><div class="mono note">360pt</div></div><div><img src="responsive/R9-refused@390.png" alt="R9-refused at 390pt" style="width:100%;border-radius:8px"><div class="mono note">390pt</div></div><div><img src="responsive/R9-refused@430.png" alt="R9-refused at 430pt" style="width:100%;border-radius:8px"><div class="mono note">430pt</div></div>
+  </div>
+</div>
+<div class="panel" style="margin-top:14px">
+  <h3>R9-undecided</h3>
+  <ul class="note"><li><strong>wrapped button</strong> — 320pt: «أوافق على البديل» wraps onto 2 lines</li><li><strong>wrapped button</strong> — 320pt: «لا، أريد اللي طلبته» wraps onto 2 lines</li></ul>
+  <div class="grid g4" style="margin-top:10px">
+    <div><img src="responsive/R9-undecided@320.png" alt="R9-undecided at 320pt" style="width:100%;border-radius:8px"><div class="mono note">320pt</div></div><div><img src="responsive/R9-undecided@360.png" alt="R9-undecided at 360pt" style="width:100%;border-radius:8px"><div class="mono note">360pt</div></div><div><img src="responsive/R9-undecided@390.png" alt="R9-undecided at 390pt" style="width:100%;border-radius:8px"><div class="mono note">390pt</div></div><div><img src="responsive/R9-undecided@430.png" alt="R9-undecided at 430pt" style="width:100%;border-radius:8px"><div class="mono note">430pt</div></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Declared unmeasured</h3>
+  <p class="note">A tick above covers what was checked. These were not, and none of them is implied by a green row.</p>
+  <ul class="note"><li><strong>Dynamic type / 200% text</strong> — No text-scaling pass runs. The brief requires legibility at 200%; nothing here resizes the root font, so a layout that breaks under it would report green.</li><li><strong>Real device fonts</strong> — Screenshots use the CI's fallback family, not the delivered Arabic face, which is not bundled. Line-breaking and therefore wrapping WILL differ on a device.</li><li><strong>Landscape</strong> — Every width is measured at 844pt tall. No rotated layout has ever been rendered.</li><li><strong>Safe-area insets</strong> — frame.safeTop/safeBottom are fixed values, not real device insets. A notch or a home indicator is approximated, not measured.</li><li><strong>Scroll-dependent behaviour</strong> — Sticky slots are photographed at scroll position 0 only.</li></ul>
+</div>
+
 <h2>Design system</h2>
 <div class="panel">
   <h3>Colour — patient palette</h3>
@@ -797,6 +980,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <div class="note mono">28 screen state(s) photographed at 390×844</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
+  <div><b>Responsive validation</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">25 pass · 3 minor · 0 fail across 320/360/390/430pt — 112 renders, 10 detectors proved</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
   <div><b>Navigation — no unreachable screen</b> — <span class="tag ok">PASS</span>
   <div class="note mono">18 screens reachable from 7 entry points</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
@@ -848,7 +1035,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 
 <h2>Quality checklist</h2>
 <div class="panel">
-<div class="chk"><span class="dot ok"></span><div style="flex:1">Traceability &amp; ownership</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Layer boundaries</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Screen contracts</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">TypeScript</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Tests</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Responsive layout</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no unreachable screen</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no trap</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no gap in any flow</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Accessibility — contrast</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Empty states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Loading states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Error handling</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Offline behaviour</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Analytics</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Known gaps documented</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Visual regression reviewed</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Technical debt registered</div><span class="tag ok">verified</span></div>
+<div class="chk"><span class="dot ok"></span><div style="flex:1">Traceability &amp; ownership</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Layer boundaries</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Screen contracts</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">TypeScript</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Tests</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Responsive layout</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Responsive validation</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no unreachable screen</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no trap</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no gap in any flow</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Accessibility — contrast</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Empty states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Loading states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Error handling</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Offline behaviour</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Analytics</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Known gaps documented</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Visual regression reviewed</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Technical debt registered</div><span class="tag ok">verified</span></div>
 <div class="chk"><span class="dot bad"></span><div style="flex:1">Performance</div><span class="tag warn">not measured — no runtime exists to measure yet</span></div>
 </div>
 <p class="note" style="margin-top:10px">Nothing above is green unless it was measured in this run. Performance is deliberately red rather than assumed: there is no device build to profile.</p>
@@ -1094,7 +1281,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <div><div class="kpi">63<small>source files</small></div></div>
     <div><div class="kpi">7,425<small>source lines</small></div></div>
     <div><div class="kpi">0.41×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">3.16s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">3.19s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1103,7 +1290,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Rendered weight per screen state</h3>
   <p class="note">View nodes each state produces, counted from the review renders. A screen that produces several hundred nodes is a screen that will scroll badly on a low-end Android — this is a real proxy, measured, not a runtime frame time.</p>
   <div class="scroll"><table style="margin-top:10px"><thead><tr><th>State</th><th>View nodes</th><th>Markup bytes</th></tr></thead><tbody>
-  <tr><td class="mono">R8-offers</td><td class="mono">57</td><td class="mono">11.0 KB</td></tr><tr><td class="mono">R1-lines</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-undecided</td><td class="mono">49</td><td class="mono">10.0 KB</td></tr><tr><td class="mono">R9-agreed</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R9-refused</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R1-refused</td><td class="mono">41</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">V2-cached</td><td class="mono">41</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">R8-withdrawn</td><td class="mono">40</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">V2-held</td><td class="mono">39</td><td class="mono">7.3 KB</td></tr><tr><td class="mono">V2-last</td><td class="mono">39</td><td class="mono">7.3 KB</td></tr><tr><td class="mono">R6-offline</td><td class="mono">36</td><td class="mono">7.6 KB</td></tr><tr><td class="mono">F2-results</td><td class="mono">34</td><td class="mono">7.2 KB</td></tr>
+  <tr><td class="mono">R8-offers</td><td class="mono">57</td><td class="mono">11.0 KB</td></tr><tr><td class="mono">R1-lines</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-undecided</td><td class="mono">49</td><td class="mono">10.0 KB</td></tr><tr><td class="mono">R9-agreed</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R9-refused</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R1-refused</td><td class="mono">41</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">V2-cached</td><td class="mono">41</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">R8-withdrawn</td><td class="mono">40</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">V2-held</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">V2-last</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">R6-offline</td><td class="mono">36</td><td class="mono">7.6 KB</td></tr><tr><td class="mono">F2-results</td><td class="mono">34</td><td class="mono">7.2 KB</td></tr>
   </tbody></table></div>
 </div>
 

@@ -12,16 +12,16 @@
 
 ## Overall fidelity
 
-# 51%
+# 59%
 
 6 screens × 10 categories = 60 assessments.
 
 | Verdict | Count | Share |
 | --- | --- | --- |
-| Exact Match | 23 | 38% |
-| Minor Deviation | 9 | 15% |
+| Exact Match | 27 | 45% |
+| Minor Deviation | 10 | 17% |
 | Intentional Deviation | 1 | 2% |
-| Missing | 21 | 35% |
+| Missing | 16 | 27% |
 | Blocked | 6 | 10% |
 
 Exact and Intentional both count 1.0 — an approved, recorded deviation is
@@ -30,11 +30,11 @@ Missing and Blocked count 0.
 
 | Screen | | Fidelity |
 | --- | --- | --- |
-| `V2` | Reservation (cached-first) | 68% |
-| `R7-queued` | Waiting · queued | 57% |
-| `R7-sent` | Waiting · sent | 45% |
-| `R8` | Offers | 63% |
-| `R9` | Substitution consent | 65% |
+| `V2` | Reservation (cached-first) | 78% |
+| `R7-queued` | Waiting · queued | 68% |
+| `R7-sent` | Waiting · sent | 55% |
+| `R8` | Offers | 73% |
+| `R9` | Substitution consent | 73% |
 | `E4` | Why we need your number | 10% |
 
 - **Completed:** 5 of 6 built
@@ -89,7 +89,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 
 ## Fidelity by screen
 
-### `V2` — Reservation (cached-first) · 68%
+### `V2` — Reservation (cached-first) · 78%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
@@ -102,9 +102,9 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | Icon | Blocked | No icon set exists. The back affordance is still the character ‹. |
 | Accessibility | Exact Match | 44pt floor, accessible labels and measured contrast all enforced on this screen every build. |
 | RTL | Exact Match | Direction-driven layout; no physical row reversal, banned at build time. |
-| Responsive | Missing | Rendered and checked at 390pt only. The delivery is 360pt and the brief requires 320/360/430. |
+| Responsive | Exact Match | Measured at 320/360/390/430pt. All 3 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R7-queued` — Waiting · queued · 57%
+### `R7-queued` — Waiting · queued · 68%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
@@ -117,9 +117,9 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | Icon | Blocked | No icon set. |
 | Accessibility | Exact Match | Enforced. |
 | RTL | Exact Match | Enforced. |
-| Responsive | Missing | 390pt only. |
+| Responsive | Exact Match | Measured at 320/360/390/430pt. All 1 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R7-sent` — Waiting · sent · 45%
+### `R7-sent` — Waiting · sent · 55%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
@@ -132,9 +132,9 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | Icon | Blocked | No icon set. |
 | Accessibility | Minor Deviation | The ring needs a text equivalent; a conic gradient conveys progress by shape alone. |
 | RTL | Exact Match | Enforced. |
-| Responsive | Missing | 390pt only. |
+| Responsive | Exact Match | Measured at 320/360/390/430pt. All 1 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R8` — Offers · 63%
+### `R8` — Offers · 73%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
@@ -147,9 +147,9 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | Icon | Blocked | No icon set. |
 | Accessibility | Exact Match | Enforced. Row labels name the pharmacy. |
 | RTL | Exact Match | Enforced. |
-| Responsive | Missing | The densest screen in the product, checked at 390pt only. The brief singles it out for 320pt. |
+| Responsive | Exact Match | Measured at 320/360/390/430pt. All 3 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R9` — Substitution consent · 65%
+### `R9` — Substitution consent · 73%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
@@ -162,7 +162,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | Icon | Blocked | No icon set. |
 | Accessibility | Exact Match | Radio role and selected state; both answers equal in weight, enforced by test. |
 | RTL | Exact Match | Enforced. |
-| Responsive | Missing | 390pt only. |
+| Responsive | Minor Deviation | Measured at 320/360/390/430pt, no failures. 3 of 3 state(s) carry a minor finding: wrapped button. |
 
 ### `E4` — Why we need your number · 10%
 
