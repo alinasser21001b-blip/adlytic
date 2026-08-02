@@ -1,6 +1,11 @@
 # Dawai — Product Blueprint v1.0
 
-**Status: draft — NOT ready to build from.**
+**Status: SUPERSEDED by [Blueprint v3](v3/blueprint-v3.html).**
+
+> v1 is kept for its reasoning and its vision, which v3 does not repeat. Where
+> the two disagree, **v3 wins** — it closes the 54 issues the independent review
+> raised against this document, and v1'''s §3, §6, §11, §17 and §28 changed
+> materially in the process.
 **This document contains no code and no technical decisions.**
 
 > An independent review by 25 agents that had not seen the author's reasoning

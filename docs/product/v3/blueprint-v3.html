@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai — Blueprint v3 · Architecture Resolution</title>
+<style>
+:root{
+  --bg:#fbfaf7; --panel:#fff; --line:#e2e0d8; --line2:#cfccc0;
+  --ink:#16211d; --ink2:#4b5b55; --ink3:#6d7d76;
+  --accent:#1f6f52; --accent-soft:#e8f2ed;
+  --ok:#1f6f52; --ok-bg:#e8f2ed;
+  --redesign:#8a5a12; --redesign-bg:#fbf1de;
+  --removed:#8c3a2c; --removed-bg:#fbe9e5;
+  --deferred:#3a5878; --deferred-bg:#e7eef6;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --side:264px; --r:10px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#101614; --panel:#161e1b; --line:#26332e; --line2:#35453f;
+  --ink:#eef3f1; --ink2:#a9bab3; --ink3:#8497900;
+  --ink3:#849790; --accent:#5ec89a; --accent-soft:#16302a;
+  --ok:#5ec89a; --ok-bg:#16302a;
+  --redesign:#e2b46b; --redesign-bg:#33280f;
+  --removed:#f0917f; --removed-bg:#3a1f19;
+  --deferred:#8fb6dd; --deferred-bg:#182636;
+}}
+:root[data-theme="dark"]{
+  --bg:#101614; --panel:#161e1b; --line:#26332e; --line2:#35453f;
+  --ink:#eef3f1; --ink2:#a9bab3; --ink3:#849790; --accent:#5ec89a; --accent-soft:#16302a;
+  --ok:#5ec89a; --ok-bg:#16302a; --redesign:#e2b46b; --redesign-bg:#33280f;
+  --removed:#f0917f; --removed-bg:#3a1f19; --deferred:#8fb6dd; --deferred-bg:#182636;
+}
+:root[data-theme="light"]{
+  --bg:#fbfaf7; --panel:#fff; --line:#e2e0d8; --line2:#cfccc0;
+  --ink:#16211d; --ink2:#4b5b55; --ink3:#6d7d76; --accent:#1f6f52; --accent-soft:#e8f2ed;
+  --ok:#1f6f52; --ok-bg:#e8f2ed; --redesign:#8a5a12; --redesign-bg:#fbf1de;
+  --removed:#8c3a2c; --removed-bg:#fbe9e5; --deferred:#3a5878; --deferred-bg:#e7eef6;
+}
+*{box-sizing:border-box}
+html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--sans);
+  -webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1,h2,h3,h4{line-height:1.3;margin:0}
+h2{font-size:1.5rem;margin:2.6rem 0 .5rem;padding-top:.4rem}
+h3{font-size:1.08rem;margin:1.8rem 0 .4rem}
+h4{font-size:.95rem;margin:1.2rem 0 .3rem;color:var(--ink2)}
+p{margin:.7rem 0}
+code,.mono{font-family:var(--mono);font-size:.88em;background:var(--accent-soft);
+  padding:.08em .35em;border-radius:5px}
+a{color:var(--accent)}
+b,strong{font-weight:650}
+
+/* layout */
+.wrap{display:grid;grid-template-columns:var(--side) minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);
+  background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3.2rem) 6rem;max-width:1180px}
+.brand{display:flex;gap:.6rem;align-items:center;margin-bottom:.2rem}
+.mark{width:34px;height:34px;border-radius:10px;background:var(--accent);color:var(--bg);
+  display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.7rem;font-weight:700;letter-spacing:.03em}
+.brand b{font-size:.95rem}
+nav{margin-top:1rem}
+nav a{display:block;padding:.42rem .6rem;border-radius:8px;color:var(--ink2);
+  text-decoration:none;font-size:.86rem;line-height:1.35}
+nav a:hover{background:var(--accent-soft);color:var(--ink)}
+nav a.on{background:var(--accent-soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);
+  margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1.2rem;width:100%;min-height:38px;border:1px solid var(--line2);
+  background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.82rem}
+.themebtn:hover{border-color:var(--accent);color:var(--ink)}
+
+/* blocks */
+.lede{font-size:1.06rem;color:var(--ink2);max-width:70ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:1rem 1.1rem;margin:1rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--accent-soft);
+  padding:.8rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--accent);margin-bottom:.25rem}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.7rem;margin:1.1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.8rem}
+.kpi span{display:block;font-size:.74rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.5rem/1.2 var(--mono);margin-top:.15rem}
+
+table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.9rem}
+th,td{text-align:start;padding:.55rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--accent-soft)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+.pill{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.68rem;
+  font-weight:800;letter-spacing:.03em;white-space:nowrap}
+.p-RESOLVED{background:var(--ok-bg);color:var(--ok)}
+.p-REDESIGNED{background:var(--redesign-bg);color:var(--redesign)}
+.p-REMOVED{background:var(--removed-bg);color:var(--removed)}
+.p-DEFERRED{background:var(--deferred-bg);color:var(--deferred)}
+.tag{display:inline-block;font:700 .68rem var(--mono);background:var(--accent-soft);
+  color:var(--ink2);padding:.08rem .38rem;border-radius:5px;margin-inline-end:.25rem}
+
+/* register */
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:1rem 0;
+  position:sticky;top:0;background:var(--bg);padding:.6rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.25rem .7rem;border:1px solid var(--line2);background:transparent;
+  color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.8rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 160px;min-width:0;border:1px solid var(--line2);
+  background:var(--panel);color:var(--ink);border-radius:8px;padding:.25rem .6rem;font:inherit;font-size:16px}
+.dec{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:.9rem 1rem;margin:.7rem 0}
+.dec header{display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.4rem}
+.dec header .id{font:800 .82rem var(--mono);color:var(--ink3)}
+.dec header h3{margin:0;font-size:1rem;flex:1 1 260px;min-width:0}
+.dec dl{display:grid;grid-template-columns:118px minmax(0,1fr);gap:.15rem .8rem;margin:.5rem 0 0;
+  font-size:.9rem}
+.dec dt{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);
+  font-weight:700;padding-top:.28rem}
+.dec dd{margin:0;padding:.1rem 0}
+.dec .meta{color:var(--ink2);font-size:.84rem}
+@media (max-width:640px){.dec dl{grid-template-columns:1fr}.dec dt{padding-top:.5rem}}
+
+/* screens */
+.scr{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:.85rem .95rem;margin:.6rem 0}
+.scr header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap}
+.scr header .id{font:800 .8rem var(--mono);color:var(--accent)}
+.scr header b{flex:1 1 200px;min-width:0}
+.scr dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:.1rem .8rem;
+  margin:.45rem 0 0;font-size:.85rem}
+.scr dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.25rem}
+.scr dd{margin:0}
+@media (max-width:640px){.scr dl{grid-template-columns:1fr}.scr dt{padding-top:.45rem}}
+
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.8rem;line-height:1.45;
+  color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.diagcap{font-size:.78rem;color:var(--ink3);margin:-.6rem 0 1.2rem}
+
+ul,ol{padding-inline-start:1.3rem}
+li{margin:.3rem 0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem}
+hr{border:0;border-top:1px solid var(--line);margin:2.4rem 0}
+.foot{color:var(--ink3);font-size:.82rem;margin-top:3rem}
+
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line);
+    padding-bottom:1rem}
+  nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}
+  nav .grp{grid-column:1/-1}
+  main{padding-top:1.2rem}
+}
+@media print{
+  aside,.filters,.themebtn{display:none!important}
+  .wrap{display:block}main{max-width:none;padding:0}
+  .dec,.scr,.panel{break-inside:avoid;border-color:#999}
+  body{font-size:11px;background:#fff;color:#111}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div>
+    <div><small>DAWAI</small><b>Blueprint v3</b></div></div>
+  <div style="font-size:.75rem;color:var(--ink3);padding:0 .6rem">Architecture Resolution · closed</div>
+  <nav id="nav">
+    <div class="grp">Frame</div>
+    <a href="#status">Status &amp; how to read</a>
+    <a href="#register">1 · Decision Register</a>
+    <div class="grp">The system</div>
+    <a href="#domain">2 · Domain Model v3</a>
+    <a href="#phase0">3 · Phase 0 Closed System</a>
+    <a href="#screens">4 · Screen Inventory</a>
+    <a href="#permissions">5 · Permission Architecture</a>
+    <a href="#machines">6 · State Machines</a>
+    <div class="grp">Subsystems</div>
+    <a href="#clinical">7 · Clinical Safety</a>
+    <a href="#marketplace">8 · Marketplace Logic</a>
+    <a href="#family">9 · Family Architecture</a>
+    <div class="grp">Closure</div>
+    <a href="#consistency">10 · Consistency Pass</a>
+    <a href="#build">What to build first</a>
+  </nav>
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+
+<main>
+
+<h1 style="font-size:2rem;margin-bottom:.3rem">Dawai Blueprint v3</h1>
+<p class="lede">Architecture resolution. Every accepted issue from the independent
+review ends in a permanent decision. Nothing is open, nothing is a TODO, and no
+question is left for a build team to answer by accident.</p>
+
+<section id="status">
+<h2>Status &amp; how to read this</h2>
+
+<div class="kpi">
+  <div><span>Accepted issues</span><strong id="k1">—</strong></div>
+  <div><span>Decisions</span><strong id="k2">—</strong></div>
+  <div><span>Open items</span><strong>0</strong></div>
+  <div><span>Phase 0 screens</span><strong id="k3">—</strong></div>
+</div>
+
+<div class="rule"><b>The rule this document is built on</b>
+If a developer building Phase 0 needs to ask “what should happen here?”, this
+document is incomplete. Every decision below is permanent until deliberately
+revised — not a default, not a placeholder, not a preference.</div>
+
+<h3>What changed from v1</h3>
+<p>v1 was, in the reviewers' words, <em>“an outstanding decision document and an
+incomplete specification.”</em> It settled principles precisely and left every
+load-bearing quantity undefined. Three things are structurally different here:</p>
+<ul>
+<li><b>Every quantity is a number.</b> The request window, the area unit, the
+dispense unit, the capacity unit, the reliability formula — each has a value, not
+a description.</li>
+<li><b>Every promise has a mechanism.</b> v1 granted access to allergy data no
+screen collected, gave a safety alert an exit with no surface, and described a
+pharmacy application flow with zero screens. Each of those is now either built or
+removed — never asserted.</li>
+<li><b>Phase 0 is closed.</b> It contains everything it needs and refers to
+nothing scheduled later. Where something could not be closed inside Phase 0, it
+was removed from Phase 0 rather than left dangling.</li>
+</ul>
+
+<h3>The single biggest change</h3>
+<div class="rule"><b>The riskiest assumption is now tested first, not last</b>
+v1 forbade every mechanism that could populate the medication record — no
+questionnaire, no pharmacist entry, no typed quantity, no dose amount, no pack
+size, no free text, no edits — each for a good reason, in a different section,
+and never summed. The record was expected to fill itself.
+<br><br>
+v3 gives it exactly one automatic source: <b>completed pickups</b>. Phase 0
+therefore ships no prediction, no reminders and no supply indicator, and its exit
+gate measures whether the record actually accretes (<span class="tag">D22</span>
+<span class="tag">D23</span>). If it does not, we learn that in 90 days instead
+of after four phases built on the belief.</div>
+
+<h3>Scope of this document</h3>
+<p>Architecture only. No implementation, no UI design, no database, no API, no
+code. Wording, formatting and documentation style are out of scope by
+instruction; where copy appears it is because the <em>meaning</em> of the string
+is an architectural decision (what the product is permitted to claim).</p>
+</section>
+
+<hr>
+
+<section id="register">
+<h2>1 · Decision Register</h2>
+<p class="lede">Every accepted issue — 20 confirmed review findings, 23 gaps the
+completeness critic found, and 10 questions v1 left open — resolved here. Filter
+by outcome or domain, or search.</p>
+
+<div class="filters" id="filters">
+  <button data-f="all" class="on">All</button>
+  <button data-f="RESOLVED">Resolved</button>
+  <button data-f="REDESIGNED">Redesigned</button>
+  <button data-f="REMOVED">Removed</button>
+  <button data-f="DEFERRED">Deferred</button>
+  <input id="q" type="search" placeholder="Search decisions, issues, domains…" aria-label="Search the decision register">
+  <span id="count" style="font-size:.8rem;color:var(--ink3);white-space:nowrap"></span>
+</div>
+<div id="regout"></div>
+
+<h3>Issue coverage</h3>
+<p>Every accepted issue appears in exactly one decision. None disappeared
+silently — this map is generated from the register itself.</p>
+<div class="tw"><table><thead><tr><th>Issue</th><th>Owned by</th><th>Outcome</th><th>Also discussed in</th></tr></thead>
+<tbody id="covout"></tbody></table></div>
+</section>
+
+<hr>
+
+<section id="domain">
+<h2>2 · Domain Model v3</h2>
+
+<p class="lede">Rebuilt. The two changes that propagate everywhere are the
+separation of <b>Account</b> from <b>Subject</b>, and the introduction of
+<b>lines</b> on requests and offers.</p>
+
+<pre class="mermaid">erDiagram
+  ACCOUNT ||--|| SUBJECT : "owns self"
+  ACCOUNT ||--o{ SUBJECT : "guards managed"
+  ACCOUNT ||--o{ PEER_GRANT : "holds"
+  SUBJECT ||--o{ PEER_GRANT : "granted over"
+  SUBJECT ||--o{ REQUEST : "for"
+  SUBJECT ||--o{ DISPENSE_RECORD : "has"
+  SUBJECT ||--o{ WATCH : "has"
+  SUBJECT ||--o{ PRESCRIPTION_IMAGE : "has"
+
+  REQUEST ||--|{ REQUEST_LINE : "has 1..8"
+  REQUEST ||--o{ OFFER : "receives"
+  REQUEST ||--o| REQUEST : "child for unfilled lines"
+  REQUEST_LINE }o--|| CATALOGUE_ITEM : "asks for"
+  REQUEST_LINE }o--o| PRESCRIPTION_IMAGE : "requires if POM"
+
+  OFFER ||--|{ OFFER_LINE : "answers each"
+  OFFER }o--|| BRANCH : "made by"
+  OFFER ||--o| RESERVATION : "accepted becomes"
+  OFFER_LINE }o--|| REQUEST_LINE : "answers"
+  OFFER_LINE }o--o| CATALOGUE_ITEM : "substitute"
+
+  RESERVATION ||--|{ RESERVATION_LINE : "covers"
+  RESERVATION ||--o| DISPENSE_RECORD : "collected writes"
+  RESERVATION }o--|| BRANCH : "at"
+
+  PHARMACY ||--|{ BRANCH : "operates"
+  PHARMACY ||--|{ LICENCE : "holds"
+  BRANCH ||--o{ STAFF : "employs"
+  BRANCH ||--|| DISTRICT : "sits in"
+  BRANCH ||--o{ BRANCH_HOURS : "opens by"
+  STAFF }o--|| ACCOUNT : "is"
+
+  CATALOGUE_ITEM ||--|| DISTRICT : "availability observed in"
+  AUDIT_ENTRY }o--|| ACCOUNT : "actor"</pre>
+<p class="diagcap">Phase 0 entities only. Schedule, DoseEvent, StockMovement,
+SkuTrust, InteractionRule, Claim, KnowledgeRelease, Promotion and Rating do not
+exist in Phase 0.</p>
+
+<h3>Entity definitions and ownership</h3>
+<div class="tw"><table>
+<thead><tr><th>Entity</th><th>Is</th><th>Owned by</th><th>Lifecycle</th></tr></thead>
+<tbody>
+<tr><td><b>Account</b></td><td>An authenticated phone number</td><td>The person</td><td>guest → pending → active → suspended → deletion_scheduled → deleted</td></tr>
+<tr><td><b>Subject</b></td><td>A person whose medication is tracked. <code>self</code> or <code>managed</code>.</td><td>The subject if self; the guardian if managed</td><td>active → claimed (managed→self) → memorialised → deleted</td></tr>
+<tr><td><b>Peer Grant</b></td><td>Account → Subject permission, two-sided</td><td>The subject</td><td>pending → active → revoked · expired</td></tr>
+<tr><td><b>Guardianship</b></td><td>Account → managed Subject authority, one-sided</td><td>The guardian</td><td>active → transferred → ended on claim</td></tr>
+<tr><td><b>Request</b></td><td>A need, carrying 1–8 lines</td><td>The subject</td><td>See §6</td></tr>
+<tr><td><b>Request line</b></td><td>One catalogue item + pack count</td><td>The request</td><td>open → answered → reserved → collected · unfilled</td></tr>
+<tr><td><b>Offer</b></td><td>One branch's answer, line by line</td><td>The branch</td><td>sent → withdrawn · not chosen · accepted</td></tr>
+<tr><td><b>Reservation</b></td><td>Physically committed stock at one branch</td><td>Shared: subject and branch</td><td>See §6</td></tr>
+<tr><td><b>Dispense record</b></td><td>A completed pickup. <b>The only writer of the medication record in Phase 0.</b></td><td>The subject</td><td>Append-only, never edited</td></tr>
+<tr><td><b>Prescription image</b></td><td>A photograph, never machine-read in Phase 0</td><td>The subject</td><td>uploaded → visible to a branch while a reservation is live → revoked → deleted by the patient</td></tr>
+<tr><td><b>Watch</b></td><td>Notify me when this item appears here</td><td>The subject</td><td>active → fired · cancelled · expired at 14 days</td></tr>
+<tr><td><b>Catalogue item</b></td><td>What exists in the world, with pack size and flags</td><td>The platform</td><td>draft → requestable → withdrawn</td></tr>
+<tr><td><b>District</b></td><td>The unit of area. Curated, not computed.</td><td>The platform</td><td>Curated per city before launch</td></tr>
+<tr><td><b>Branch</b></td><td>One physical pharmacy with a verified point</td><td>The pharmacy</td><td>applying → verified → suspended → closed</td></tr>
+<tr><td><b>Staff</b></td><td>An account working at a branch, with a role</td><td>The branch</td><td>invited → active → removed</td></tr>
+<tr><td><b>Licence</b></td><td>A document with an expiry that is tracked</td><td>The pharmacy</td><td>submitted → valid → expiring → expired</td></tr>
+<tr><td><b>Audit entry</b></td><td>An action, immutably recorded</td><td>The platform, modifiable by nobody</td><td>Append-only</td></tr>
+</tbody></table></div>
+
+<div class="rule"><b>Two invariants that hold across the whole model</b>
+<b>1.</b> Every clinical read and write names a <b>subject</b> and an
+<b>acting account</b> separately. They are frequently different people, and
+collapsing them is how one person's record acquires another person's facts.<br>
+<b>2.</b> Nothing clinical is ever edited or deleted. Corrections are new
+records. There is no role with the permission and no operation that performs it.</div>
+</section>
+
+<hr>
+
+<section id="phase0">
+<h2>3 · Phase 0 Closed System</h2>
+
+<p class="lede">Rebuilt from zero. Everything Phase 0 needs is inside Phase 0.
+There are no references forward and no hidden dependencies.</p>
+
+<h3>What Phase 0 is</h3>
+<div class="rule"><b>Phase 0 in one sentence</b>
+Dawai tells a patient which nearby verified pharmacy has the item they need, and
+asks that pharmacy to physically set it aside — and records what they collected.
+<br><br>
+It does not dispense, take payment, deliver, give clinical advice, machine-read a
+prescription, or check interactions. It is deliberately scoped so that the
+regulatory answer, when it arrives, cannot invalidate the work
+(<span class="tag">D41</span>).</div>
+
+<h3>In Phase 0</h3>
+<div class="two">
+<div class="panel"><h4>Capabilities</h4><ul>
+<li>Guest browsing and search, no account required</li>
+<li>Account by phone + code; managed subjects for people who cannot authenticate</li>
+<li>Family: peer grants (View, View+Order) and guardianship</li>
+<li>Nearby pharmacies with open/closed, distance, and hours</li>
+<li>Multi-line requests, with a prescription image where required</li>
+<li>Per-line offers, with substitution by a licensed pharmacist</li>
+<li>Reservations with a code, a clock, and a defined failure path</li>
+<li>Handover with a recorded checklist</li>
+<li>Dispense history — the record, built automatically</li>
+<li>Full pharmacy application, verification and branch operation</li>
+<li>Notifications, offline queueing, and an outbox</li>
+<li>Operator console: verification, catalogue, support, audit, and the four exit metrics</li>
+</ul></div>
+<div class="panel"><h4>Explicitly not in Phase 0</h4><ul>
+<li>Interaction checking, safety alerts, allergy data <span class="tag">D16</span><span class="tag">D17</span></li>
+<li>Dose schedules, reminders, adherence, supply prediction, the blister strip <span class="tag">D22</span></li>
+<li>Stock movements, spot counts, SKU trust</li>
+<li>Payments, delivery, chat, ratings, promotions <span class="tag">D31</span></li>
+<li>Machine-read prescriptions</li>
+<li>Controlled substances <span class="tag">D42</span></li>
+<li>Kurdish and English <span class="tag">D34</span></li>
+<li>Wallet passes, live activities, biometrics, widgets, voice <span class="tag">D35</span></li>
+<li>Broadcasts, bulk export, role granting, two-person controls <span class="tag">D20</span></li>
+<li>Price visible anywhere outside an offer <span class="tag">D08</span></li>
+</ul></div>
+</div>
+
+<h3>Prerequisites — must exist before the first request</h3>
+<ol>
+<li><b>One launch district named in configuration</b> <span class="tag">D40</span></li>
+<li><b>The district list curated</b> for that city <span class="tag">D10</span></li>
+<li><b>A catalogue</b> where every requestable item has a pack size, a
+prescription flag and a controlled flag <span class="tag">D07</span>
+<span class="tag">D18</span> <span class="tag">D42</span></li>
+<li><b>An operator account</b> able to verify pharmacies <span class="tag">D20</span></li>
+<li><b>An on-call number</b> printed in the pharmacy app <span class="tag">D21</span></li>
+</ol>
+
+<h3>Exit criteria — all four measured inside Phase 0</h3>
+<div class="tw"><table>
+<thead><tr><th>Gate</th><th>Threshold</th><th>Screen</th><th>Why this one</th></tr></thead>
+<tbody>
+<tr><td>Fill rate</td><td>≥80% of requests receive an offer within 5 minutes</td><td>O12</td><td>Proves the supply side answers</td></tr>
+<tr><td>Honoured rate</td><td>≥95% of confirmed reservations collected</td><td>O13</td><td>The trust metric; one failure costs more than ten unanswered requests</td></tr>
+<tr><td>Answer time</td><td>Median &lt;15 seconds from open to answer</td><td>O14</td><td>Proves the pharmacy workflow is not a burden</td></tr>
+<tr><td><b>Repeat rate</b></td><td><b>≥40% of subjects with 2+ collections of the same item in 90 days</b></td><td>O15</td><td><b>Tests the strategy's riskiest belief before Phase 2 is built on it</b> <span class="tag">D23</span></td></tr>
+</tbody></table></div>
+</section>
+
+<hr>
+
+<section id="screens">
+<h2>4 · Screen Inventory</h2>
+<p class="lede">Every Phase 0 screen, with purpose, entry, exit, permissions,
+states, failure states, offline behaviour, clinical behaviour and owner. Filter
+by group or search.</p>
+
+<div class="filters" id="sfilters">
+  <button data-s="all" class="on">All</button>
+  <input id="sq" type="search" placeholder="Search screens…" aria-label="Search the screen inventory">
+  <span id="scount" style="font-size:.8rem;color:var(--ink3);white-space:nowrap"></span>
+</div>
+<div id="scrout"></div>
+</section>
+
+<hr>
+
+<section id="permissions">
+<h2>5 · Permission Architecture</h2>
+<p class="lede">One model. No duplicated rules, no contradictions, no implied
+permissions. Every row is evaluable at runtime from facts the system holds.</p>
+
+<h3>Principals</h3>
+<div class="tw"><table>
+<thead><tr><th>Principal</th><th>Established by</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td><code>guest</code></td><td>No session</td><td>Public catalogue and pharmacy data</td></tr>
+<tr><td><code>self</code></td><td>Authenticated account, acting on its own subject</td><td>That subject</td></tr>
+<tr><td><code>guardian</code></td><td>Created the managed subject, or received a transfer</td><td>That managed subject, full authority</td></tr>
+<tr><td><code>grant:view</code></td><td>Peer grant approved by the subject</td><td>Read that subject</td></tr>
+<tr><td><code>grant:order</code></td><td>Peer grant approved by the subject</td><td>Read and request for that subject</td></tr>
+<tr><td><code>staff:assistant</code></td><td>Invited to a verified branch</td><td>That branch's operations</td></tr>
+<tr><td><code>staff:pharmacist</code></td><td>Assistant + a <b>verified licence</b></td><td>Assistant, plus clinical acts</td></tr>
+<tr><td><code>staff:manager</code></td><td>Invited as manager</td><td>Pharmacist scope, plus branch configuration</td></tr>
+<tr><td><code>operator</code></td><td>Platform account</td><td>The platform; never inside a clinical record</td></tr>
+</tbody></table></div>
+<p><b>Peer grants are ordered and additive:</b> <code>view &lt; order</code>.
+A <code>confirm</code> scope does not exist in Phase 0 because there is nothing
+to confirm — no dose events exist <span class="tag">D22</span>.</p>
+
+<h3>Clinical data</h3>
+<div class="tw"><table>
+<thead><tr><th>Action</th><th>self</th><th>guardian</th><th>view</th><th>order</th><th>assistant</th><th>pharmacist</th><th>operator</th></tr></thead>
+<tbody>
+<tr><td>Read dispense history</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td></tr>
+<tr><td>Create a request</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td></tr>
+<tr><td>Upload a prescription</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td></tr>
+<tr><td>View a prescription image</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>⚠ live reservation only</td><td>✗</td></tr>
+<tr><td>Export the record</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td></tr>
+<tr><td>Read the access log</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓ all</td></tr>
+<tr><td>Read identified clinical data</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>⚠ consented session only</td></tr>
+<tr><td><b>Edit or delete anything clinical</b></td><td colspan="7"><b>Nobody. No role, no exception, no operation exists.</b></td></tr>
+</tbody></table></div>
+
+<h3>Marketplace</h3>
+<div class="tw"><table>
+<thead><tr><th>Action</th><th>self / guardian</th><th>order</th><th>assistant</th><th>pharmacist</th><th>manager</th></tr></thead>
+<tbody>
+<tr><td>See requester identity before acceptance</td><td>—</td><td>—</td><td><b>✗</b></td><td><b>✗</b></td><td><b>✗</b></td></tr>
+<tr><td>Send an offer</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>Withdraw an unaccepted offer</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td><b>Propose a substitution</b></td><td>✗</td><td>✗</td><td><b>✗</b></td><td><b>✓</b></td><td>✗ unless also pharmacist</td></tr>
+<tr><td>Accept an offer</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td></tr>
+<tr><td><b>Confirm a reservation</b></td><td>✗</td><td>✗</td><td><b>✓</b></td><td>✓</td><td>✓</td></tr>
+<tr><td>Declare it cannot be held</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>Complete a handover</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>Open a prescription at handover</td><td>—</td><td>—</td><td>✗</td><td>✓</td><td>✗ unless also pharmacist</td></tr>
+<tr><td>Cancel a reservation</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td></tr>
+</tbody></table></div>
+<div class="rule"><b>The one row that carries the clinical liability</b>
+Substitution. Confirming a reservation is a commercial promise about a box and
+any signed-in staff member may make it <span class="tag">D19</span>. Proposing a
+different medicine is a clinical judgement and requires a verified licence. When
+no licensed pharmacist is signed in, the substitution control is <b>absent</b>,
+not disabled, and the branch answers unavailable instead.</div>
+
+<h3>Branch configuration</h3>
+<div class="tw"><table>
+<thead><tr><th>Action</th><th>assistant</th><th>pharmacist</th><th>manager</th></tr></thead>
+<tbody>
+<tr><td>Read performance</td><td>✗</td><td>✗</td><td>✓</td></tr>
+<tr><td>Hours, exceptions, Ramadan schedule</td><td>✗</td><td>✗</td><td>✓</td></tr>
+<tr><td>Coverage, capacity, pause</td><td>✗</td><td>✗</td><td>✓</td></tr>
+<tr><td>Pause receiving (temporary, today only)</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>Staff and roles</td><td>✗</td><td>✗</td><td>✓</td></tr>
+<tr><td>Licence upload</td><td>✗</td><td>✗</td><td>✓</td></tr>
+<tr><td>Export, access log, close branch</td><td>✗</td><td>✗</td><td>✓</td></tr>
+</tbody></table></div>
+<p>The last manager of a branch cannot be removed. A one-person pharmacy holds
+all three roles, which is correct — it is one person <span class="tag">D32</span>.</p>
+
+<h3>Platform</h3>
+<div class="tw"><table>
+<thead><tr><th>Action</th><th>operator</th><th>Constraint</th></tr></thead>
+<tbody>
+<tr><td>Verify, suspend or reinstate a branch</td><td>✓</td><td>Reason recorded, notified, reversible</td></tr>
+<tr><td>Curate the catalogue</td><td>✓</td><td>Pack size and flags mandatory before an item is requestable</td></tr>
+<tr><td>Open a support session</td><td>✓</td><td><b>Only with the user's in-app consent</b>, time-boxed, banner-visible, and written to that user's own access log</td></tr>
+<tr><td>Read the audit log</td><td>✓</td><td>Cannot modify it</td></tr>
+<tr><td>Broadcast, bulk export, grant roles</td><td><b>Does not exist in Phase 0</b></td><td>They would need a second approver who does not exist <span class="tag">D20</span></td></tr>
+<tr><td>Write anything into a clinical record</td><td><b>✗</b></td><td>No mechanism exists</td></tr>
+</tbody></table></div>
+
+<h3>Four enforcement rules</h3>
+<ol>
+<li><b>Hidden UI is not a permission.</b> The client enforces nothing.</li>
+<li><b>Authority is checked where the work happens</b>, not at the entry point —
+entry-point checks get bypassed the first time an internal caller is added.</li>
+<li><b>A missing relationship is indistinguishable from a forbidden one.</b>
+Confirming that a record exists but is forbidden turns any lookup into an
+identity oracle.</li>
+<li><b>Least privilege wins on ambiguity.</b> Where several grants could apply,
+the narrowest is used — never the first found and never the widest.</li>
+</ol>
+</section>
+
+<hr>
+
+<section id="machines">
+<h2>6 · State Machines</h2>
+<p class="lede">Every affected machine, rewritten. No impossible transition, and
+every state has at least one exit.</p>
+
+<h3>Request</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Draft
+  Draft --> Queued: sent while offline
+  Draft --> Broadcast: sent
+  Queued --> Broadcast: connection returns
+  Queued --> Draft: user cancels from the outbox
+  Broadcast --> Answered: first offer arrives
+  Broadcast --> Unanswered: window elapses with none
+  Answered --> Accepted: patient accepts an offer
+  Answered --> Unanswered: all offers expire or are withdrawn
+  Unanswered --> Broadcast: widened or retried
+  Unanswered --> Closed: patient abandons or sets a Watch
+  Accepted --> PartiallyFilled: some lines unfilled
+  Accepted --> Closed: all lines reserved
+  PartiallyFilled --> Broadcast: child request auto-created for unfilled lines
+  Closed --> [*]</pre>
+<p class="diagcap">The child-request transition is what makes multi-line requests
+survivable — the patient never re-enters a line a pharmacy could not fill
+<span class="tag">D06</span>.</p>
+
+<h3>Offer</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Composing
+  Composing --> Sent: branch sends
+  Composing --> Abandoned: branch leaves
+  Sent --> Withdrawn: branch withdraws before acceptance
+  Sent --> Expired: request window elapses
+  Sent --> NotChosen: patient chose another branch
+  Sent --> Accepted: patient accepts
+  Accepted --> [*]
+  Withdrawn --> [*]
+  Expired --> [*]
+  NotChosen --> [*]
+  Abandoned --> [*]</pre>
+<p class="diagcap">Withdrawal is the correction path for a mistyped binding price.
+It exists only before acceptance <span class="tag">D08</span>.</p>
+
+<h3>Reservation</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Requested: offer accepted
+  Requested --> Held: branch confirms — CLOCK STARTS HERE
+  Requested --> Refused: branch cannot hold
+  Refused --> [*]: parent request re-opens automatically
+  Held --> Collected: code verified at the counter
+  Held --> Expired: window elapses
+  Held --> Cancelled: patient cancels
+  Collected --> [*]: writes the dispense record
+  Expired --> [*]: stock released
+  Cancelled --> [*]: stock released</pre>
+<p class="diagcap">Four invariants: the clock starts at <code>Held</code> and never
+earlier; <code>Refused</code> re-opens the parent request automatically; a refusal
+reported within 5 minutes does not count against the branch; the countdown runs on
+server time, never the device's.</p>
+
+<h3>Subject lifecycle</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Self: account created
+  [*] --> Managed: guardian creates a person
+  Managed --> ClaimPending: guardian sends a claim invite
+  ClaimPending --> Managed: invite expires or is refused
+  ClaimPending --> Self: number verified — guardianship ENDS
+  Managed --> Managed: guardianship transferred
+  Self --> Memorialised
+  Managed --> Memorialised
+  Memorialised --> Self: reversed within 30 days
+  Memorialised --> Managed: reversed within 30 days
+  Self --> Deleted
+  Managed --> Deleted: guardian chose delete
+  Deleted --> [*]</pre>
+<p class="diagcap">On claim, guardianship does not weaken — it <b>ends</b>, and the
+former guardian holds only a peer grant the new account holder may revoke
+<span class="tag">D01</span>.</p>
+
+<h3>Grant lifecycle</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Invited: sent to a phone number
+  Invited --> Expired: 7 days
+  Invited --> Pending: invitee signs in
+  Pending --> Active: subject approves
+  Pending --> Refused: subject refuses
+  Active --> Active: scope narrowed by the subject
+  Active --> Revoked: subject or guardian revokes
+  Revoked --> [*]
+  Refused --> [*]
+  Expired --> [*]</pre>
+<p class="diagcap">An invitation to a number with no account is the normal case,
+not an error <span class="tag">D02</span>. Revocation withdraws the permission and
+never deletes the record that the grant existed.</p>
+
+<h3>Verification</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Drafting
+  Drafting --> Submitted
+  Submitted --> InfoRequested: operator needs more
+  InfoRequested --> Submitted: applicant resubmits
+  Submitted --> Rejected: with reason and appeal path
+  Submitted --> Verified: operator approves and sets the map point
+  Rejected --> Submitted: appeal
+  Verified --> Expiring: 60 days before licence expiry
+  Expiring --> Verified: renewal accepted
+  Expiring --> Lapsed: expiry reached
+  Lapsed --> Verified: renewal accepted
+  Verified --> Suspended: operator suspends
+  Suspended --> Verified: reinstated
+  Verified --> Closed: branch closes
+  Lapsed --> Closed
+  Closed --> [*]</pre>
+<p class="diagcap"><code>Lapsed</code> stops routing but does not cancel live
+reservations — those are honoured. The branch is told exactly why it stopped
+receiving requests <span class="tag">D13</span>.</p>
+
+<h3>Branch eligibility</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Receiving
+  Receiving --> Closed: outside opening hours
+  Closed --> Receiving: opening time reached
+  Receiving --> Paused: staff pauses
+  Paused --> Receiving: resumed, or the pause window ends
+  Receiving --> AtCapacity: open reservations reach the declared limit
+  AtCapacity --> Receiving: a reservation resolves
+  Receiving --> Ineligible: licence lapsed or suspended
+  Ineligible --> Receiving: resolved</pre>
+<p class="diagcap">Every non-receiving state names itself on the branch home. A
+branch is never silently filtered out and then judged inactive for not answering
+<span class="tag">D13</span>.</p>
+
+<h3>Session &amp; outbox</h3>
+<pre class="mermaid">stateDiagram-v2
+  state "Patient session" as PS {
+    [*] --> Guest
+    Guest --> Authenticating: action needing an account
+    Authenticating --> Guest: abandoned, action preserved
+    Authenticating --> Authenticated: verified, PENDING ACTION RESUMES
+    Authenticated --> Guest: sign out — encrypted cache destroyed
+  }
+  state "Outbox item" as OB {
+    [*] --> Queued
+    Queued --> Sending: connection returns
+    Queued --> Cancelled: user cancels
+    Sending --> Accepted
+    Sending --> Duplicate: same key already accepted
+    Sending --> Rejected: explained, retryable
+    Rejected --> Queued: retry
+    Duplicate --> Accepted
+  }</pre>
+<p class="diagcap">The pending action surviving authentication is a hard rule —
+losing a user's request because they had to sign in is the most common version of
+that mistake <span class="tag">D26</span>. <code>Duplicate</code> resolves to
+<code>Accepted</code>, never to an error <span class="tag">D27</span>.</p>
+
+<h3>Clinical review — Phase 3, defined now so Phase 3 cannot start without an exit</h3>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> NoCheck: PHASE 0 — no interaction checking exists
+  NoCheck --> Evaluated: PHASE 3 entry, requires a NAMED clinical authority
+  Evaluated --> Clear
+  Evaluated --> Informational
+  Evaluated --> Interrupting
+  Evaluated --> Unavailable: check could not run
+  Unavailable --> Evaluated: retried
+  Interrupting --> Acknowledged: PHARMACIST records a reason
+  Interrupting --> Resolved: the cause is removed
+  Acknowledged --> [*]
+  Resolved --> [*]
+  Clear --> [*]
+  Informational --> [*]
+  Unavailable --> [*]: routed to a pharmacist, NEVER rendered as Clear</pre>
+<p class="diagcap">Recorded here so Phase 3 inherits the constraint: no alert ships
+without a designed exit, and <code>Unavailable</code> can never render as
+<code>Clear</code> <span class="tag">D16</span> <span class="tag">D21</span>.</p>
+</section>
+
+<hr>
+
+<section id="clinical">
+<h2>7 · Clinical Safety</h2>
+<p class="lede">The minimum safe Phase 0. No fake safety, no fake clear, no
+implied clinical certainty, and every rule has a named owner.</p>
+
+<div class="rule"><b>Phase 0's clinical position, stated exactly</b>
+Dawai performs <b>no automated clinical checking of any kind</b> in Phase 0. It
+says so in the product, on the request confirmation screen and on every medicine
+page: <span dir="rtl" lang="ar">«دوائي ما يفحص تعارض الأدوية. اسأل الصيدلي.»</span>
+<br><br>
+This is deliberate. A partial check the user believes is complete is more
+dangerous than a stated absence — and v1's check existed only on the reorder path,
+so every newly added medicine bypassed it while the interface implied coverage.</div>
+
+<h3>The three controls that do exist</h3>
+<div class="tw"><table>
+<thead><tr><th>#</th><th>Control</th><th>Mechanism</th><th>Owner</th><th>Failure mode it addresses</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><b>Prescription gate</b></td><td>A line for a prescription-required item cannot be created without an attached image; the pharmacist must open it before completing handover</td><td>Product + the dispensing pharmacist</td><td>Prescription medicine obtained with no prescription</td></tr>
+<tr><td>2</td><td><b>Handover checklist</b></td><td>Three fixed, recorded items: prescription seen (if required) · ask about allergy · confirm pack count</td><td>The dispensing staff member</td><td>The questions a pharmacist asks at the counter, not asked</td></tr>
+<tr><td>3</td><td><b>Licensed substitution</b></td><td>Only a verified pharmacist may propose a different item; the patient must acknowledge it explicitly and it is never pre-selected</td><td>The proposing pharmacist</td><td>A brand silently swapped for another</td></tr>
+</tbody></table></div>
+
+<h3>Refusals — what Phase 0 will not do at all</h3>
+<div class="tw"><table>
+<thead><tr><th>Refused</th><th>Reason</th><th>Owner of the rule</th></tr></thead>
+<tbody>
+<tr><td>Diagnose, or suggest a medicine for a symptom</td><td>We do not practise medicine</td><td>Product</td></tr>
+<tr><td>Calculate or suggest a dose</td><td>Same</td><td>Product</td></tr>
+<tr><td>Propose a substitution automatically</td><td>A clinical judgement belongs to a licensed person</td><td>Product</td></tr>
+<tr><td>Machine-read a prescription</td><td>A confidently wrong drug name is the worst output this product could produce</td><td>Product</td></tr>
+<tr><td>Hold allergy data <span class="tag">D17</span></td><td>No screen could collect it and no governed source could check it</td><td>Product</td></tr>
+<tr><td>Serve controlled substances <span class="tag">D42</span></td><td>Refused with a reason, not silently absent</td><td>Product</td></tr>
+<tr><td>Claim government endorsement</td><td><span dir="rtl" lang="ar">«موثّقة في دوائي»</span> — never a state seal. A legal boundary.</td><td>Product + counsel</td></tr>
+<tr><td>Show a price outside an offer <span class="tag">D08</span></td><td>Price comparison commoditises pharmacies and they stop answering</td><td>Product</td></tr>
+</tbody></table></div>
+
+<h3>Entry gates for later clinical capability</h3>
+<div class="tw"><table>
+<thead><tr><th>Capability</th><th>Phase</th><th>Cannot start until</th></tr></thead>
+<tbody>
+<tr><td>Allergy capture</td><td>2</td><td>An append-only, patient-declared model exists that is not a questionnaire</td></tr>
+<tr><td>Dose schedules and reminders</td><td>2</td><td>The Phase 0 repeat-rate gate passes <span class="tag">D23</span>, and a fasting model is in the design <span class="tag">D33</span></td></tr>
+<tr><td>Interaction checking</td><td>3</td><td>A <b>named</b> clinical governance authority exists <span class="tag">D21</span>, and the alert's exit path is designed before the alert</td></tr>
+<tr><td>Automated allergy checking</td><td>Unscheduled</td><td>A governed clinical knowledge source exists. Never before.</td></tr>
+</tbody></table></div>
+</section>
+
+<hr>
+
+<section id="marketplace">
+<h2>8 · Marketplace Logic</h2>
+<p class="lede">Availability, reservation, holds, partial requests, price
+disputes, reliability and cold start — redesigned, with the core vision
+unchanged.</p>
+
+<h3>Availability</h3>
+<p>Dawai holds <b>no stock data</b> in Phase 0. Availability is not a stored fact;
+it is a question asked of real pharmacies in real time. This removes the entire
+class of "our data says they have it and they do not".</p>
+<ul>
+<li>A medicine page shows <b>observed availability</b>: how many nearby branches
+answered available for this item in the last 7 days. Never a stock figure.</li>
+<li>A branch may mark an item <b>not carried</b>, which stops it receiving those
+requests and is the only inventory-shaped data Phase 0 keeps.</li>
+<li>Decline reasons are the highest-quality signal collected, which is why
+declining costs one tap.</li>
+</ul>
+
+<h3>Routing — who receives a request</h3>
+<p>A branch receives a request if <b>all five</b> hold. There is no ranking, no
+weighting, and no paid placement — every eligible branch is asked simultaneously
+<span class="tag">D12</span>.</p>
+<ol>
+<li>Verified, with a licence that has not lapsed</li>
+<li>The subject's district is inside the branch's declared coverage</li>
+<li>Open now, <b>or opening within the request's window</b> — in which case the
+notification is deferred to opening time <span class="tag">D09</span></li>
+<li>Not paused, and below its declared capacity</li>
+<li>Has not marked any requested item "not carried"</li>
+</ol>
+<div class="rule"><b>Request windows</b>
+<code>now</code> = 20 minutes · <code>today</code> = 4 hours ·
+<span dir="rtl" lang="ar">خلال يومين</span> = 48 hours. One rule, replacing v1's
+three contradictory statements about closed pharmacies.</div>
+
+<h3>Partial requests</h3>
+<pre class="mermaid">flowchart TB
+  A["Request: 3 lines"] --> B{"Branch answers"}
+  B --> C["Offer: 2 available, 1 unavailable"]
+  B --> D["Offer: 3 available"]
+  B --> E["Offer: 1 available, 1 substitute, 1 unavailable"]
+  C --> F["Patient sees coverage: 2 of 3"]
+  D --> F
+  E --> F
+  F --> G["Patient accepts one offer"]
+  G --> H["Reservation covers the accepted lines only"]
+  G --> I["Unfilled lines form a CHILD REQUEST automatically"]
+  I --> J["Broadcast again — the patient re-enters nothing"]</pre>
+<p class="diagcap">One reservation = one branch = one code = one clock. A patient
+may hold two reservations from one prescription; Today groups them
+<span class="tag">D06</span>.</p>
+
+<h3>Offer, hold, and the distinction the product rests on</h3>
+<div class="two">
+<div class="panel"><h4>An offer</h4><ul>
+<li>Commits <b>nothing</b></li>
+<li>Can be withdrawn until accepted</li>
+<li>No clock</li>
+<li>Any staff member may send one</li>
+<li>Says so on screen: <span dir="rtl" lang="ar">«إرسال العرض ما يحجز شي»</span></li>
+</ul></div>
+<div class="panel"><h4>A reservation</h4><ul>
+<li>Commits <b>physical stock</b></li>
+<li>Cannot be withdrawn — only failed, with a reason</li>
+<li><b>The clock starts here</b>, never earlier</li>
+<li>Any staff member may confirm — it is a commercial act <span class="tag">D19</span></li>
+<li>Failing it counts, unless reported within 5 minutes</li>
+</ul></div>
+</div>
+
+<h3>Price</h3>
+<ul>
+<li>The offer price is <b>binding</b> from acceptance until the reservation ends,
+and the compose screen says so before sending.</li>
+<li>The correction path is <b>withdrawal before acceptance</b>, not a later
+adjustment <span class="tag">D08</span>.</li>
+<li>A difference at the counter is reported by the patient, recorded against the
+branch, and visible to the operator. There is no refund because there is no
+payment.</li>
+<li><b>No price appears anywhere outside an offer made to a specific patient.</b>
+Not on the medicine page, not in search, not in any comparison view.</li>
+</ul>
+
+<h3>Reliability</h3>
+<div class="rule"><b>One number, one formula, no decimals shown</b>
+<code>honoured = collected ÷ (collected + failed-after-confirmation)</code> over
+60 days, hidden below 10 reservations. A failure reported within 5 minutes of
+confirming does not count — that is the honest "sold since" case. Patients see a
+band only: <span dir="rtl" lang="ar">موثوقة · جديدة · تحتاج انتباه</span>. A
+decimal invites an argument about a number instead of about the behaviour
+<span class="tag">D11</span>.</div>
+
+<h3>Cold start</h3>
+<p>Density before geography, enforced architecturally rather than as an intention:</p>
+<ul>
+<li><b>One launch district, named in configuration before the first pharmacy is
+verified</b> <span class="tag">D40</span></li>
+<li>Requests outside it are refused with an honest message and a waitlist —
+never zero results</li>
+<li>The operator's coverage screen is a launch instrument, present in Phase 0
+rather than two phases later</li>
+<li><b>Unmatched searches</b> are the recruitment list: what people asked for and
+did not get, by district</li>
+</ul>
+
+<h3>Abuse and fraud</h3>
+<div class="tw"><table>
+<thead><tr><th>Vector</th><th>Control in Phase 0</th></tr></thead>
+<tbody>
+<tr><td>Fake pharmacy</td><td>Licence document, storefront photo, and an operator-set map point <span class="tag">D25</span></td></tr>
+<tr><td>Request spam</td><td>Rate limit per account and per subject; 8 lines per request; 5 watches per subject</td></tr>
+<tr><td>A branch scraping demand data</td><td>It sees only requests it is eligible for, and only district-level location</td></tr>
+<tr><td>Confirm-then-cancel to dodge the reliability penalty</td><td>The 5-minute window is itself a detectable pattern, surfaced to the operator</td></tr>
+<tr><td>Code sharing</td><td>Accepted by design — the code <em>is</em> the collection right <span class="tag">D14</span>. Bounded by the reservation window, no payment, and the prescription gate on the items that matter.</td></tr>
+<tr><td>Price manipulation</td><td>No public price exists to manipulate <span class="tag">D08</span></td></tr>
+</tbody></table></div>
+</section>
+
+<hr>
+
+<section id="family">
+<h2>9 · Family Architecture</h2>
+<p class="lede">The definitive model. This is the change that reaches furthest,
+because v1 could not represent its own primary persona.</p>
+
+<div class="rule"><b>The problem this solves</b>
+v1 required a subject to own a smartphone, hold an OTP-capable number and approve
+on her own device — while its own primary persona uses WhatsApp and nothing else
+and had the app installed for her by her daughter. That is not an edge case about
+minors. It is the median chronic patient this product exists for.</div>
+
+<h3>The five concepts</h3>
+<div class="tw"><table>
+<thead><tr><th>Concept</th><th>Definition</th><th>Authenticates?</th><th>Who holds authority</th></tr></thead>
+<tbody>
+<tr><td><b>Account</b></td><td>An authenticated phone number. The thing that signs in.</td><td>Yes</td><td>Itself</td></tr>
+<tr><td><b>Subject</b></td><td>A person whose medication is tracked. The thing a record belongs to.</td><td>Only if self-type</td><td>Itself, or its guardian</td></tr>
+<tr><td><b>Guardian</b></td><td>The single account with authority over a managed subject</td><td>Yes</td><td>Full, unilateral</td></tr>
+<tr><td><b>Dependent</b></td><td>A managed subject: no phone, no account, no OTP</td><td>No</td><td>Its guardian</td></tr>
+<tr><td><b>Peer grant</b></td><td>Account → self-subject permission, requested by one side and approved by the other</td><td>Both</td><td>The subject; revocable at any time</td></tr>
+</tbody></table></div>
+
+<h3>The shared phone — modelled, not merely tolerated</h3>
+<pre class="mermaid">flowchart LR
+  P["One household phone"] --> A["One Account<br/>(Hussein)"]
+  A --> S1["Subject: Hussein<br/>self"]
+  A --> S2["Subject: Um Ali<br/>managed"]
+  A --> S3["Subject: child<br/>managed"]
+  A -.->|"peer grant, approved by her"| S4["Subject: sister<br/>self, own phone"]</pre>
+<p class="diagcap">One phone number can never back two accounts. A family sharing
+a device is one account with several subjects — the Iraqi norm, made
+first-class <span class="tag">D03</span>.</p>
+
+<h3>Claiming — a dependent becomes an adult</h3>
+<pre class="mermaid">sequenceDiagram
+  participant G as Guardian
+  participant P as Platform
+  participant D as Dependent
+  G->>P: Send claim invite to a phone number
+  P->>D: SMS
+  D->>P: Verify the number
+  P->>P: Subject becomes self-type
+  P->>G: Guardianship ENDS
+  P->>G: Former guardian holds a peer grant only
+  D->>P: May revoke that grant at any moment
+  Note over D,P: Every guardian action taken while managed<br/>is visible to the new account holder</pre>
+
+<h3>Authority, precisely</h3>
+<div class="tw"><table>
+<thead><tr><th>Action</th><th>Self subject</th><th>Guardian over a dependent</th><th>Peer: view</th><th>Peer: order</th></tr></thead>
+<tbody>
+<tr><td>Read the record</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>Create a request</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td></tr>
+<tr><td>Accept an offer</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td></tr>
+<tr><td>Upload a prescription</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td></tr>
+<tr><td>Grant access to a third party</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+<tr><td>Revoke a grant</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+<tr><td>Transfer guardianship</td><td>—</td><td>✓ (receiver must accept)</td><td>✗</td><td>✗</td></tr>
+<tr><td>Send a claim invite</td><td>—</td><td>✓</td><td>✗</td><td>✗</td></tr>
+<tr><td>Memorialise</td><td>✗</td><td>✓ (reversible 30 days)</td><td>✗</td><td>✗</td></tr>
+<tr><td>Delete the record</td><td>✓</td><td>✓ (explicit choice on account deletion)</td><td>✗</td><td>✗</td></tr>
+<tr><td>See who read the record</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+</tbody></table></div>
+
+<div class="rule"><b>The trade-off, stated openly</b>
+A guardian holds unilateral authority over another person's health record with no
+consent step — because there is nobody able to consent. That is a real coercion
+risk and we accept it, because the alternative is a product that cannot serve the
+person it was built for. Four controls bound it: exactly <b>one</b> guardian (so
+there is never a conflict to resolve), every guardian action attributed and
+visible to the subject on claim, notification to all grant holders on
+memorialisation, and platform-side reversal on dispute.</div>
+
+<h3>Identity recovery and number churn</h3>
+<div class="tw"><table>
+<thead><tr><th>Situation</th><th>Resolution</th></tr></thead>
+<tbody>
+<tr><td>User changes number, still holds the old one</td><td>In-app change with verification of both. Grants survive; sessions do not.</td></tr>
+<tr><td>User lost the number entirely</td><td>Support path. Proof is the reservation history — items, branches, dates — which only the account holder knows.</td></tr>
+<tr><td>Number reassigned to a stranger</td><td>A new sign-in on a number with an existing account triggers re-verification and a security hold. The prior record is never exposed.</td></tr>
+<tr><td>Guardian loses their phone</td><td>Recovering the account recovers every dependent with it, since they have no separate credential.</td></tr>
+<tr><td>Guardian becomes unreachable</td><td>Platform-mediated guardianship transfer on request, logged, with notice to the current guardian.</td></tr>
+</tbody></table></div>
+
+<h3>Deletion and its blast radius</h3>
+<ul>
+<li>Deleting an account forces an <b>explicit per-dependent choice</b>: transfer
+to another account, or delete. <b>There is no default</b>
+<span class="tag">D05</span>.</li>
+<li>Deleted: account, self-subject, chosen dependents, dispense history,
+prescription images, saved pharmacies, unmatched-search records.</li>
+<li>Retained: the branch's own reservation records, <b>pseudonymised</b> — code,
+item, date, price, with no name and no link back — for 3 years; and audit entries
+with the actor replaced by a tombstone.</li>
+<li>The deletion screen states exactly this, because stating it is that screen's
+entire purpose.</li>
+</ul>
+</section>
+
+<hr>
+
+<section id="consistency">
+<h2>10 · Final Consistency Pass</h2>
+<p class="lede">Every journey, state, permission, entity and screen walked until
+the system closed. Below is what the pass checked and what it changed.</p>
+
+<h3>Journeys walked end to end</h3>
+<div class="tw"><table>
+<thead><tr><th>Journey</th><th>Screens</th><th>Closes?</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Guest → search → request → collect</td><td>E1–E10, F1–F3, R1–R9, V1–V6</td><td>✓</td><td>Pending action survives authentication</td></tr>
+<tr><td>Guardian creates a dependent and orders for her</td><td>S2, S3, R4, R1–R9, V1–V6</td><td>✓</td><td>No OTP, no smartphone, no approval loop required of the dependent</td></tr>
+<tr><td>Prescription, 3 lines, one branch has 2</td><td>R1–R3, R6–R9, V1–V6 ×2</td><td>✓</td><td>Child request auto-created; two reservations grouped on Today</td></tr>
+<tr><td>Nobody answers</td><td>R7, R11, R12</td><td>✓</td><td>Watch has an expiry and a cancellation surface</td></tr>
+<tr><td>Branch confirms then cannot hold</td><td>P11–P13, V4</td><td>✓</td><td>Request re-opens automatically; 5-minute grace applied</td></tr>
+<tr><td>Offline the whole way</td><td>R13/P31 outbox, V2 cached</td><td>✓</td><td>Queued is never shown as sent; the reservation code always readable</td></tr>
+<tr><td>Pharmacy applies and goes live</td><td>PA1–PA9, O2–O4, P1–P8</td><td>✓</td><td>The gap that had zero screens in v1</td></tr>
+<tr><td>Licence lapses mid-operation</td><td>P24, O7, P4</td><td>✓</td><td>Routing stops, live reservations honoured, branch told why</td></tr>
+<tr><td>Dependent grows up and claims her record</td><td>S9, grant machine</td><td>✓</td><td>Guardianship ends rather than weakening</td></tr>
+<tr><td>Account deleted with two dependents</td><td>M10–M13, S10</td><td>✓</td><td>Explicit choice per dependent; no default</td></tr>
+<tr><td>Operator verifies, then suspends</td><td>O2–O6, audit</td><td>✓</td><td>Single-operator, logged, reversible</td></tr>
+<tr><td>Support needs to see an account</td><td>O17–O19, S12</td><td>✓</td><td>Consent required; appears in the user's own access log</td></tr>
+</tbody></table></div>
+
+<h3>What the pass changed</h3>
+<ol>
+<li><b>Confirm scope removed from peer grants.</b> v1 had View &lt; Order &lt;
+Confirm. With no dose events in Phase 0, Confirm governs nothing — an implied
+permission over a capability that does not exist.</li>
+<li><b>Branch pause split by role.</b> A temporary same-day pause is an operational
+act any staff member needs at the counter; changing declared capacity is
+configuration and is manager-only.</li>
+<li><b>A queued-actions screen added on both sides.</b> The offline rule required a
+surface that did not exist, and a pharmacy answering offline needs it as much as a
+patient.</li>
+<li><b>Eligibility panel added.</b> Routing filters were invisible to the branch
+they filtered.</li>
+<li><b>The last manager cannot be removed.</b> Otherwise a branch reaches a state
+with no one able to configure it.</li>
+<li><b>Observed availability replaced stock display.</b> With no stock data in
+Phase 0, any availability figure had no source.</li>
+</ol>
+
+<h3>Closure checks</h3>
+<div class="tw"><table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Every accepted issue lands in exactly one decision</td><td id="c1">—</td></tr>
+<tr><td>Every decision has all eight required fields</td><td id="c2">—</td></tr>
+<tr><td>Every screen declares all nine required attributes</td><td id="c3">—</td></tr>
+<tr><td>Every Phase 0 screen is reachable from an entry point</td><td>✓ verified by group: every group has an entry from Today, a tab, a notification, or the operator overview</td></tr>
+<tr><td>Every state machine state has an exit</td><td>✓ verified per diagram</td></tr>
+<tr><td>No Phase 0 screen depends on a later phase</td><td>✓ the removed set is listed in §3 and referenced nowhere in §4</td></tr>
+<tr><td>No permission is implied rather than stated</td><td>✓ §5 covers clinical, marketplace, branch configuration and platform</td></tr>
+<tr><td>Open items remaining</td><td><b>0</b></td></tr>
+</tbody></table></div>
+</section>
+
+<hr>
+
+<section id="build">
+<h2>What to build first</h2>
+<p class="lede">Phase 0 in the order that keeps the system closed at every step.
+Each stage is usable by someone before the next begins.</p>
+
+<div class="tw"><table>
+<thead><tr><th>#</th><th>Stage</th><th>Contains</th><th>Usable by</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Foundations</td><td>Districts, catalogue with pack size and flags, operator account, audit</td><td>The operator</td></tr>
+<tr><td>2</td><td>Supply side</td><td>PA1–PA9, O2–O7, P1–P2, P17–P24</td><td>A pharmacy can join and be verified</td></tr>
+<tr><td>3</td><td>Identity</td><td>E1–E13, S1–S12, M1–M9</td><td>A patient can hold an account and a family</td></tr>
+<tr><td>4</td><td>Discovery</td><td>F1–F8, O10, O11</td><td>A patient can find a pharmacy</td></tr>
+<tr><td>5</td><td>The loop</td><td>R1–R13, P3–P9, V1–V8, P10–P16</td><td><b>The product works end to end</b></td></tr>
+<tr><td>6</td><td>Resilience</td><td>Outbox, notifications, every failure screen</td><td>It works on a bad connection</td></tr>
+<tr><td>7</td><td>Closure</td><td>M10–M15, P25–P31, O12–O24</td><td>It can be operated and left</td></tr>
+</tbody></table></div>
+
+<div class="rule"><b>The test that matters</b>
+If, while building any stage above, a developer must ask “what should happen
+here?”, that is a defect in this document and it is fixed here — not decided in
+the code. Every such question is a decision that would otherwise be made by
+accident.</div>
+
+<p class="foot">Dawai Blueprint v3 · Architecture Resolution · 53 accepted issues,
+43 decisions, 0 open. Supersedes Product Blueprint v1 and the deferred
+architecture notes.</p>
+</section>
+
+</main>
+</div>
+
+<script src="register.js"></script>
+<script src="phase0.js"></script>
+<script>
+/* ── theme ─────────────────────────────────────────────────────────────── */
+const root=document.documentElement;
+document.getElementById('theme').onclick=()=>{
+  const cur=root.getAttribute('data-theme')
+    || (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  root.setAttribute('data-theme', cur==='dark'?'light':'dark');
+};
+
+/* ── register ──────────────────────────────────────────────────────────── */
+const R=window.REGISTER||[], S=window.PHASE0||[];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// register text carries deliberate inline markup; screens do not.
+const decHTML=d=>`<article class="dec" data-out="${d.out}"
+  data-search="${esc([d.id,d.title,d.domain,d.out,d.issues.join(' '),d.decision,d.reason,d.domains,d.screens].join(' ').replace(/<[^>]+>/g,'')).toLowerCase()}">
+  <header><span class="id">${esc(d.id)}</span>
+    <h3>${esc(d.title)}</h3>
+    <span class="pill p-${d.out}">${d.out}</span></header>
+  <div style="margin:.1rem 0 .5rem">${d.issues.map(i=>`<span class="tag">${esc(i)}</span>`).join('')}${
+    (d.also||[]).length?`<span class="meta" style="font-size:.76rem">also touches ${d.also.map(esc).join(', ')}</span> `:''}
+    <span class="meta">· ${esc(d.domain)}</span></div>
+  <dl>
+    <dt>Decision</dt><dd>${d.decision}</dd>
+    <dt>Reason</dt><dd class="meta">${esc(d.reason)}</dd>
+    <dt>Trade-offs</dt><dd class="meta">${esc(d.tradeoffs)}</dd>
+    <dt>Domains</dt><dd class="meta">${esc(d.domains)}</dd>
+    <dt>Screens</dt><dd class="meta">${esc(d.screens)}</dd>
+    <dt>State machines</dt><dd class="meta">${esc(d.machines)}</dd>
+    <dt>Migration</dt><dd class="meta">${esc(d.migration)}</dd>
+  </dl></article>`;
+document.getElementById('regout').innerHTML=R.map(decHTML).join('');
+
+let fOut='all', fQ='';
+function applyReg(){
+  let n=0;
+  document.querySelectorAll('#regout .dec').forEach(el=>{
+    const ok=(fOut==='all'||el.dataset.out===fOut)
+      && (!fQ||el.dataset.search.includes(fQ));
+    el.hidden=!ok; if(ok)n++;
+  });
+  document.getElementById('count').textContent=`${n} of ${R.length}`;
+}
+document.getElementById('filters').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-f]'); if(!b)return;
+  document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));
+  fOut=b.dataset.f; applyReg();
+});
+document.getElementById('q').addEventListener('input',e=>{fQ=e.target.value.trim().toLowerCase();applyReg();});
+applyReg();
+
+/* coverage map — generated, so nothing can disappear silently */
+const cov=[];
+R.forEach(d=>d.issues.forEach(i=>cov.push({i,d:d.id,o:d.out})));
+const rank=x=>({R:0,N:1,Q:2}[x[0]]*1000)+parseInt(x.slice(1),10);
+cov.sort((a,b)=>rank(a.i)-rank(b.i));
+const alsoMap={};
+R.forEach(d=>(d.also||[]).forEach(i=>{(alsoMap[i]=alsoMap[i]||[]).push(d.id)}));
+document.getElementById('covout').innerHTML=cov.map(c=>
+  `<tr><td><span class="tag">${esc(c.i)}</span></td><td class="mono">${esc(c.d)}</td>
+   <td><span class="pill p-${c.o}">${c.o}</span></td>
+   <td class="mono" style="color:var(--ink3)">${(alsoMap[c.i]||[]).join(', ')||'—'}</td></tr>`).join('');
+
+/* ── screens ───────────────────────────────────────────────────────────── */
+const groups=[...new Set(S.map(s=>s.g))];
+const sf=document.getElementById('sfilters');
+groups.forEach(g=>{
+  const b=document.createElement('button'); b.dataset.s=g; b.textContent=g;
+  sf.insertBefore(b, document.getElementById('sq'));
+});
+const scrHTML=s=>`<article class="scr" data-g="${esc(s.g)}"
+  data-search="${esc([s.id,s.n,s.g,s.p,s.perm,s.st,s.f,s.off,s.cl,s.own].join(' ')).toLowerCase()}">
+  <header><span class="id">${esc(s.id)}</span><b>${esc(s.n)}</b>
+    <span class="meta" style="font-size:.78rem;color:var(--ink3)">${esc(s.g)} · ${esc(s.own)}</span></header>
+  <dl>
+    <dt>Purpose</dt><dd>${esc(s.p)}</dd>
+    <dt>Entry</dt><dd>${esc(s.in)}</dd>
+    <dt>Exit</dt><dd>${esc(s.out)}</dd>
+    <dt>Permissions</dt><dd>${esc(s.perm)}</dd>
+    <dt>States</dt><dd>${esc(s.st)}</dd>
+    <dt>Failure</dt><dd>${esc(s.f)}</dd>
+    <dt>Offline</dt><dd>${esc(s.off)}</dd>
+    <dt>Clinical</dt><dd>${esc(s.cl)}</dd>
+  </dl></article>`;
+document.getElementById('scrout').innerHTML=S.map(scrHTML).join('');
+
+let sG='all', sQ='';
+function applyScr(){
+  let n=0;
+  document.querySelectorAll('#scrout .scr').forEach(el=>{
+    const ok=(sG==='all'||el.dataset.g===sG)&&(!sQ||el.dataset.search.includes(sQ));
+    el.hidden=!ok; if(ok)n++;
+  });
+  document.getElementById('scount').textContent=`${n} of ${S.length}`;
+}
+sf.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-s]'); if(!b)return;
+  sf.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  sG=b.dataset.s; applyScr();
+});
+document.getElementById('sq').addEventListener('input',e=>{sQ=e.target.value.trim().toLowerCase();applyScr();});
+applyScr();
+
+/* ── counters and closure checks, computed rather than written ─────────── */
+const issues=new Set(); R.forEach(d=>d.issues.forEach(i=>issues.add(i)));
+document.getElementById('k1').textContent=issues.size;
+document.getElementById('k2').textContent=R.length;
+document.getElementById('k3').textContent=S.length;
+
+const dupes=[]; const seen=new Set();
+R.forEach(d=>d.issues.forEach(i=>{if(seen.has(i))dupes.push(i);seen.add(i);}));
+const orphan=R.filter(d=>!d.issues.length&&!(d.also||[]).length).map(d=>d.id);
+document.getElementById('c1').textContent = dupes.length
+  ? `✗ ${dupes.join(', ')} owned by more than one decision`
+  : orphan.length ? `✗ ${orphan.join(', ')} address no accepted issue`
+  : `✓ ${issues.size} issues, ${R.length} decisions, each issue owned exactly once`;
+
+const fields=['decision','reason','tradeoffs','domains','screens','machines','migration'];
+const badD=R.filter(d=>fields.some(f=>!d[f])||!d.out||(!d.issues.length&&!(d.also||[]).length));
+document.getElementById('c2').textContent = badD.length
+  ? `✗ incomplete: ${badD.map(d=>d.id).join(', ')}` : `✓ all ${R.length} complete`;
+
+const sfields=['p','in','out','perm','st','f','off','cl','own'];
+const badS=S.filter(s=>sfields.some(f=>s[f]===undefined||s[f]===''));
+document.getElementById('c3').textContent = badS.length
+  ? `✗ incomplete: ${badS.map(s=>s.id).join(', ')}` : `✓ all ${S.length} complete`;
+
+/* ── nav highlight ─────────────────────────────────────────────────────── */
+const links=[...document.querySelectorAll('#nav a')];
+const obs=new IntersectionObserver(es=>{
+  es.forEach(e=>{
+    if(!e.isIntersecting)return;
+    links.forEach(a=>a.classList.toggle('on', a.getAttribute('href')==='#'+e.target.id));
+  });
+},{rootMargin:'-10% 0px -80% 0px'});
+document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));
+
+/* ── mermaid, with an honest fallback ──────────────────────────────────── */
+(function(){
+  const s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+  s.onload=()=>{
+    const dark=root.getAttribute('data-theme')==='dark'
+      || (!root.getAttribute('data-theme') && matchMedia('(prefers-color-scheme:dark)').matches);
+    mermaid.initialize({startOnLoad:true, theme:dark?'dark':'neutral',
+      themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});
+  };
+  // If the CDN is unreachable the diagram source stays visible as readable text,
+  // which is the whole reason the source lives in the page rather than an image.
+  s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>{
+    p.style.opacity='.9';
+    p.insertAdjacentHTML('beforebegin',
+      '<p class="diagcap">Diagram renderer unavailable — the source below is the diagram.</p>');
+  });
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
