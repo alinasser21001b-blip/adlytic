@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { instant } from "@dawai/domain";
 import { describe as describeItem } from "@dawai/offline";
-import { authenticate, guest } from "@dawai/session";
+import { authenticate, guest, interrupt } from "@dawai/session";
 import { dispatch, initial, GRAPH, NOT_YET_BUILT, type AppState, type Authority, type Intent, type Effect } from "./store.js";
 import type { CatalogueHit, Environment } from "../ports.js";
 import { unreachable, traps, danglingExits, flowGaps } from "@dawai/navigation";
@@ -387,5 +387,144 @@ describe("R2 and R3 — the prescription photo", () => {
   it("asks the platform for the photo rather than pretending to take one", () => {
     const { effects } = run(withRxDraft(), [{ kind: "capture" }]);
     expect(effects).toEqual([{ kind: "capturePrescription" }]);
+  });
+});
+
+describe("E4–E8 — a guest completes the one hard ask", () => {
+  const at = (ms: number) => instant(ms);
+
+  /** Walks the whole chain and returns every state along the way, so a test can
+   *  assert about the journey rather than about one hop. */
+  const walk = () => {
+    const e = env();
+    let s = initial();
+    const go = (i: Intent) => { const r = dispatch(s, i, e, permitted); s = r.state; return r; };
+    return { go, at, get state() { return s; } };
+  };
+
+  it("cannot leave the device with a number the domain refuses", () => {
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "0770" });
+    const r = w.go({ kind: "submitPhone" });
+    expect(r.effects, "a malformed number was sent to the server").toEqual([]);
+    expect(w.state.refusal?.code).toBe("MALFORMED_NUMBER");
+    expect(w.state.screen, "advanced past E5 on a bad number").not.toBe("E6");
+  });
+
+  it("asks the identity service for a code, and only then moves to E6", () => {
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    const r = w.go({ kind: "submitPhone" });
+    expect(r.effects).toEqual([{ kind: "requestCode", e164: "+9647701234567" }]);
+    expect(w.state.screen).toBe("E6");
+  });
+
+  it("never mints its own challenge — the server's id is the one held", () => {
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    expect(w.state.onboarding.challenge, "a challenge existed before the server issued one").toBeNull();
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
+    expect(w.state.onboarding.challenge?.challengeId).toBe("ch-1");
+    expect(w.state.session.state).toBe("authenticating");
+  });
+
+  it("spends an attempt on a wrong code, and says how many are left", () => {
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
+    w.go({ kind: "typeCode", raw: "111111" });
+    w.go({ kind: "submitCode", at: at(2_000) });
+    w.go({ kind: "codeJudged", correct: false, at: at(2_000) });
+
+    expect(w.state.onboarding.codeRefusal).toBe("WRONG_CODE");
+    // The attempt MOVED. Returning a refusal without spending one would give a
+    // patient unlimited guesses.
+    expect(w.state.onboarding.challenge?.used).toBe(1);
+    expect(w.state.screen, "advanced on a wrong code").toBe("E6");
+  });
+
+  it("does not spend an attempt when the code merely expired", () => {
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(0) });
+    w.go({ kind: "typeCode", raw: "111111" });
+    // Past the code's lifetime.
+    w.go({ kind: "codeJudged", correct: true, at: at(11 * 60_000) });
+
+    expect(w.state.onboarding.codeRefusal).toBe("CODE_EXPIRED");
+    expect(w.state.onboarding.challenge?.used, "the clock cost the patient an attempt").toBe(0);
+  });
+
+  it("a resend starts a NEW challenge rather than reviving a dead one", () => {
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(0) });
+    const r = w.go({ kind: "resendCode" });
+    expect(r.effects).toEqual([{ kind: "requestCode", e164: "+9647701234567" }]);
+    expect(w.state.onboarding.challenge, "the dead challenge survived a resend").toBeNull();
+  });
+
+  it("walks the whole chain and refuses an empty name and an unchosen district", () => {
+    const districts = [
+      { districtId: "d1", name: "الكرادة", city: "بغداد", covered: true },
+      { districtId: "d9", name: "المشتل", city: "بغداد", covered: false },
+    ];
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(0) });
+    w.go({ kind: "typeCode", raw: "123456" });
+    w.go({ kind: "codeJudged", correct: true, at: at(1_000) });
+    expect(w.state.screen).toBe("E7");
+
+    w.go({ kind: "submitName" });
+    expect(w.state.refusal?.code, "an empty name walked through").toBe("NAME_REQUIRED");
+    expect(w.state.screen).toBe("E7");
+
+    w.go({ kind: "typeName", raw: "  أم   علي  " });
+    w.go({ kind: "submitName" });
+    expect(w.state.screen).toBe("E8");
+
+    w.go({ kind: "submitDistrict", districts });
+    expect(w.state.refusal?.code).toBe("DISTRICT_REQUIRED");
+
+    // E12 — an uncovered district is our limit, not their mistake, and it is
+    // still refused rather than quietly accepted.
+    w.go({ kind: "chooseDistrict", districtId: "d9" });
+    w.go({ kind: "submitDistrict", districts });
+    expect(w.state.refusal?.code).toBe("OUTSIDE_COVERAGE");
+
+    w.go({ kind: "chooseDistrict", districtId: "d1" });
+    w.go({ kind: "submitDistrict", districts });
+    expect(w.state.refusal).toBeNull();
+  });
+
+  it("D26 — the request survives the whole chain and is returned to", () => {
+    const e = env();
+    let s = initial();
+    const go = (i: Intent) => { s = dispatch(s, i, e, permitted).state; };
+
+    // A guest starts a request and is stopped by the guard.
+    go({ kind: "open", screen: "R1" });
+    s = { ...s, session: interrupt(s.session, { screen: "R1", draft: {}, startedAt: 0 }) };
+
+    go({ kind: "typePhone", raw: "07701234567" });
+    go({ kind: "submitPhone" });
+    go({ kind: "codeIssued", challengeId: "ch-1", at: instant(0) });
+    go({ kind: "typeCode", raw: "123456" });
+    go({ kind: "codeJudged", correct: true, at: instant(1_000) });
+    go({ kind: "typeName", raw: "أم علي" });
+    go({ kind: "submitName" });
+
+    // The interrupted work is still there, all the way through.
+    expect(s.session.pending?.screen, "the request was lost during sign-in").toBe("R1");
+
+    go({ kind: "authenticated", accountId: "a1", subjectId: "s1" });
+    expect(s.screen, "did not return the patient to what they were doing").toBe("R1");
+    expect(s.session.pending, "the intent replayed more than once").toBeNull();
   });
 });

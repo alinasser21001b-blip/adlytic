@@ -15,16 +15,17 @@
  *      logic of its own — it asks `runGuards`. D26: an interruption stores the
  *      intent, so being asked to sign in never costs the user their work.
  */
-import { type Instant, instant, type Refusal, MarketplaceMachines } from "@dawai/domain";
+import { type Instant, instant, type Refusal, type RefusalCode, REFUSAL, MarketplaceMachines, Verification } from "@dawai/domain";
 import { empty as emptyOutbox, type Outbox } from "@dawai/offline";
 import { runGuards, ROUTE_GUARDS, guardDestinations, buildGraph, resolveBack, type NavGraph } from "@dawai/navigation";
-import { guest, interrupt, takePending, authenticate, type Session } from "@dawai/session";
+import { guest, interrupt, beginVerification, takePending, authenticate, type Session } from "@dawai/session";
 import type { ScreenContract } from "@dawai/design";
 import { BUSINESS_EVENT } from "@dawai/observability";
 import * as Search from "../model/search.js";
 import * as Offers from "../model/offers.js";
 import * as Reservation from "../model/reservation.js";
 import * as Consent from "../model/consent.js";
+import * as Onboarding from "../model/onboarding.js";
 import * as Prescription from "../model/prescription.js";
 import * as DraftModel from "../model/draft.js";
 import { send, type Sent } from "../model/send.js";
@@ -61,6 +62,33 @@ export type AppState = {
   /** Set when a guard sent the user somewhere they did not ask to go, so the
    *  destination can say why rather than appearing for no reason. */
   readonly redirectBecause: string | null;
+  /** E5–E8. One object because it is one conversation: the number typed on E5
+   *  is the number E6 shows back, and the district chosen on E8 is the one the
+   *  replayed request searches from. */
+  readonly onboarding: OnboardingState;
+};
+
+export type OnboardingState = {
+  /** Exactly what the patient typed, not what we parsed. A field that rewrites
+   *  keystrokes is a field people fight. */
+  readonly phoneTyped: string;
+  /** The challenge the SERVER issued. Null until it has. */
+  readonly challenge: Verification.Challenge | null;
+  readonly codeTyped: string;
+  /** In flight to the server. The screen shows it on the control, not as a
+   *  screen-wide spinner. */
+  readonly checking: boolean;
+  /** The last refusal the server gave, held so E6 can word it. Never computed
+   *  here: attempts and expiry are the server's answer, not the client's. */
+  readonly codeRefusal: RefusalCode | null;
+  readonly nameTyped: string;
+  readonly districtQuery: string;
+  readonly districtChosen: string | null;
+};
+
+const NO_ONBOARDING: OnboardingState = {
+  phoneTyped: "", challenge: null, codeTyped: "", checking: false,
+  codeRefusal: null, nameTyped: "", districtQuery: "", districtChosen: null,
 };
 
 export type Effect =
@@ -68,7 +96,11 @@ export type Effect =
   | { readonly kind: "emit"; readonly event: string; readonly attributes: Readonly<Record<string, string | number | boolean>> }
   /** The outbox has work. Delivery is infrastructure's job, not the store's. */
   | { readonly kind: "flushOutbox" }
-  | { readonly kind: "capturePrescription" };
+  | { readonly kind: "capturePrescription" }
+  /** Ask the identity service to send an SMS. Delivery is infrastructure's
+   *  job; the store only says that it should happen. */
+  | { readonly kind: "requestCode"; readonly e164: string }
+  | { readonly kind: "verifyCode"; readonly challengeId: string; readonly code: string };
 
 export type Intent =
   | { readonly kind: "open"; readonly screen: string }
@@ -94,7 +126,25 @@ export type Intent =
   | { readonly kind: "retakePhoto" }
   | { readonly kind: "openOffer"; readonly offerId: string }
   | { readonly kind: "decideSubstitution"; readonly requestLineId: string; readonly decision: "agreed" | "refused" }
-  | { readonly kind: "dismissRefusal" };
+  | { readonly kind: "dismissRefusal" }
+
+  /* E5–E8. Typing and submitting are separate intents because they are
+     separate events: one is the patient composing, the other is them
+     committing, and collapsing them would send a code request per keystroke. */
+  | { readonly kind: "typePhone"; readonly raw: string }
+  | { readonly kind: "submitPhone" }
+  /** The server issued a challenge. The client never mints one. */
+  | { readonly kind: "codeIssued"; readonly challengeId: string; readonly at: Instant }
+  | { readonly kind: "typeCode"; readonly raw: string }
+  | { readonly kind: "submitCode"; readonly at: Instant }
+  /** The server judged the code. Attempts and expiry are its answer. */
+  | { readonly kind: "codeJudged"; readonly correct: boolean; readonly at: Instant }
+  | { readonly kind: "resendCode" }
+  | { readonly kind: "typeName"; readonly raw: string }
+  | { readonly kind: "submitName" }
+  | { readonly kind: "searchDistrict"; readonly raw: string }
+  | { readonly kind: "chooseDistrict"; readonly districtId: string }
+  | { readonly kind: "submitDistrict"; readonly districts: readonly Onboarding.District[] };
 
 export type Step = { readonly state: AppState; readonly effects: readonly Effect[] };
 
@@ -128,6 +178,7 @@ export const NOT_YET_BUILT: readonly string[] = [...new Set(
 export function initial(): AppState {
   return {
     session: guest(),
+    onboarding: NO_ONBOARDING,
     screen: "S1",
     history: [],
     search: Search.idle(),
@@ -365,6 +416,118 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       return state.consent
         ? { state: { ...state, consent: Consent.decide(state.consent, intent.requestLineId, intent.decision) }, effects: [] }
         : { state, effects: [] };
+
+    /* ── E5–E8 ────────────────────────────────────────────────────────── */
+
+    case "typePhone":
+      // Held verbatim. The parse happens at render so the screen can decide
+      // when a partial number is "wrong yet", which is not the store's call.
+      return { state: { ...state, onboarding: { ...state.onboarding, phoneTyped: intent.raw } }, effects: [] };
+
+    case "submitPhone": {
+      const parsed = Onboarding.parsePhone(state.onboarding.phoneTyped);
+      // The refusal is the domain's, and the screen words it. A malformed
+      // number never leaves the device.
+      if (!parsed.value) return { state: { ...state, refusal: parsed.refusal }, effects: [] };
+      return {
+        state: navigate({ ...state, refusal: null }, "E6"),
+        effects: [{ kind: "requestCode", e164: parsed.value.e164 }],
+      };
+    }
+
+    case "codeIssued": {
+      // §6 Session — the session moves to authenticating with the server's
+      // challenge id. The client does not invent one.
+      const challenge: Verification.Challenge = {
+        challengeId: intent.challengeId, state: "sent", used: 0, issuedAt: intent.at,
+      };
+      return {
+        state: {
+          ...state,
+          session: beginVerification(state.session, intent.challengeId),
+          onboarding: { ...state.onboarding, challenge, codeTyped: "", codeRefusal: null, checking: false },
+        },
+        effects: [],
+      };
+    }
+
+    case "typeCode":
+      return {
+        state: {
+          ...state,
+          onboarding: {
+            ...state.onboarding,
+            codeTyped: Onboarding.cleanCode(intent.raw),
+            // Typing clears the last refusal: the patient is answering it.
+            codeRefusal: null,
+          },
+        },
+        effects: [],
+      };
+
+    case "submitCode": {
+      const { challenge, codeTyped } = state.onboarding;
+      if (!challenge || !Onboarding.codeComplete(codeTyped)) return { state, effects: [] };
+      return {
+        state: { ...state, onboarding: { ...state.onboarding, checking: true } },
+        effects: [{ kind: "verifyCode", challengeId: challenge.challengeId, code: codeTyped }],
+      };
+    }
+
+    case "codeJudged": {
+      const { challenge } = state.onboarding;
+      if (!challenge) return { state, effects: [] };
+      const judged = Verification.submit(challenge, intent.correct, intent.at);
+      if (judged.ok) {
+        return { state: navigate({ ...state, onboarding: { ...state.onboarding, challenge: judged.value, checking: false } }, "E7"), effects: [] };
+      }
+      // A wrong code SPENDS an attempt even though it returns a refusal —
+      // dropping that would give a patient unlimited guesses.
+      const after = judged.error.code === REFUSAL.WRONG_CODE
+        ? Verification.consumeAttempt(challenge)
+        : judged.error.code === REFUSAL.ATTEMPTS_EXHAUSTED
+          ? { ...challenge, state: "spent" as const, used: Verification.MAX_ATTEMPTS }
+          : judged.error.code === REFUSAL.CODE_EXPIRED
+            ? { ...challenge, state: "expired" as const }
+            : challenge;
+      return {
+        state: { ...state, onboarding: { ...state.onboarding, challenge: after, checking: false, codeRefusal: judged.error.code } },
+        effects: [],
+      };
+    }
+
+    case "resendCode": {
+      const parsed = Onboarding.parsePhone(state.onboarding.phoneTyped);
+      if (!parsed.value) return { state, effects: [] };
+      // A resend is a NEW challenge, never a revived one.
+      return {
+        state: { ...state, onboarding: { ...state.onboarding, challenge: null, codeTyped: "", codeRefusal: null } },
+        effects: [{ kind: "requestCode", e164: parsed.value.e164 }],
+      };
+    }
+
+    case "typeName":
+      return { state: { ...state, onboarding: { ...state.onboarding, nameTyped: intent.raw } }, effects: [] };
+
+    case "submitName": {
+      const checked = Onboarding.checkName(state.onboarding.nameTyped);
+      if (!checked.value) return { state: { ...state, refusal: checked.refusal }, effects: [] };
+      return { state: navigate({ ...state, refusal: null }, "E8"), effects: [] };
+    }
+
+    case "searchDistrict":
+      return { state: { ...state, onboarding: { ...state.onboarding, districtQuery: intent.raw } }, effects: [] };
+
+    case "chooseDistrict":
+      return { state: { ...state, onboarding: { ...state.onboarding, districtChosen: intent.districtId }, refusal: null }, effects: [] };
+
+    case "submitDistrict": {
+      const checked = Onboarding.checkDistrict(state.onboarding.districtChosen, intent.districts);
+      // OUTSIDE_COVERAGE is E12's case and is not the patient's mistake; the
+      // screen says so. Either way nothing is authenticated on a bad district.
+      if (!checked.value) return { state: { ...state, refusal: checked.refusal }, effects: [] };
+      return { state: { ...state, refusal: null }, effects: [] };
+    }
 
     case "dismissRefusal":
       return { state: { ...state, refusal: null, staleOffer: null }, effects: [] };
