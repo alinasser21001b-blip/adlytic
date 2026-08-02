@@ -71,6 +71,23 @@ export function runGuards(guards: readonly Guard[], s: SessionShape): GuardVerdi
   return { allow: true };
 }
 
+/**
+ * Every screen a guard can send a user to, derived by asking each guard rather
+ * than by listing them by hand — a list would go stale the first time a guard's
+ * destination changed, and the staleness would show up as an "unreachable
+ * screen" nobody could explain.
+ */
+export function guardDestinations(routes: Readonly<Record<string, readonly Guard[]>>): readonly string[] {
+  const denied: SessionShape = { authenticated: false, activeSubjectMemorialised: true, hasOrderScope: false };
+  const out = new Set<string>();
+  for (const guards of Object.values(routes))
+    for (const g of guards) {
+      const v = g.evaluate(denied);
+      if (!v.allow) out.add(v.redirectTo);
+    }
+  return [...out];
+}
+
 /** Which guards protect which routes. Declared once, so a new screen cannot
  *  be added without deciding what protects it. */
 export const ROUTE_GUARDS: Readonly<Record<string, readonly Guard[]>> = {

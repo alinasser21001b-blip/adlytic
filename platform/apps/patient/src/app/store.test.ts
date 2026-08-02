@@ -1,0 +1,185 @@
+import { describe, expect, it } from "vitest";
+import { instant } from "@dawai/domain";
+import { describe as describeItem } from "@dawai/offline";
+import { authenticate, guest } from "@dawai/session";
+import { dispatch, initial, GRAPH, NOT_YET_BUILT, type AppState, type Authority, type Intent, type Effect } from "./store.js";
+import type { CatalogueHit, Environment } from "../ports.js";
+import { unreachable, traps, danglingExits, flowGaps } from "@dawai/navigation";
+import { PATIENT_FLOWS } from "@dawai/navigation";
+
+const env = (online = true): Environment => {
+  let n = 0;
+  return { now: () => 1_000, newId: () => `id-${(n += 1)}`, online: () => online };
+};
+
+const permitted: Authority = { hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" };
+
+const hit = (over: Partial<CatalogueHit> = {}): CatalogueHit => ({
+  itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500 ملغم",
+  requestable: true, requiresPrescription: false, isControlled: false, ...over,
+});
+
+const signedIn = (): AppState => ({ ...initial(), session: authenticate(guest(), "acc-1", "subj-1") });
+
+/** Run a sequence and keep every effect, so a test can assert what was emitted. */
+function run(state: AppState, intents: readonly Intent[], e = env(), authority = permitted) {
+  const effects: Effect[] = [];
+  let s = state;
+  for (const intent of intents) {
+    const step = dispatch(s, intent, e, authority);
+    s = step.state;
+    effects.push(...step.effects);
+  }
+  return { state: s, effects };
+}
+
+describe("the journey a patient actually takes", () => {
+  it("search → add → send lands on the waiting screen with the request broadcast", () => {
+    const { state, effects } = run(signedIn(), [
+      { kind: "open", screen: "F1" },
+      { kind: "typed", raw: "بانــادول" },
+      { kind: "searchResolved", query: "بانادول", result: { kind: "fresh", value: { hits: [hit()], at: 900 } } },
+      { kind: "addItem", hit: hit() },
+      { kind: "open", screen: "R6" },
+      { kind: "send", at: instant(1_000) },
+    ]);
+
+    expect(state.screen).toBe("R7");
+    expect(state.sent?.state).toBe("broadcast");
+    // The draft is cleared only because it became a real request.
+    expect(state.draft).toBeNull();
+    expect(effects.some((e) => e.kind === "emit" && e.event === "request.broadcast")).toBe(true);
+  });
+
+  it("the same journey offline queues instead, and nothing claims it was sent (D27)", () => {
+    const { state, effects } = run(signedIn(), [
+      { kind: "addItem", hit: hit() },
+      { kind: "send", at: instant(1_000) },
+    ], env(false));
+
+    expect(state.sent?.state).toBe("queued");
+    expect(describeItem(state.outbox.items[0]!)).toBe("بانتظار الاتصال");
+    // O12 fill rate must not count a request no pharmacy has seen.
+    expect(effects.some((e) => e.kind === "emit" && e.event === "request.broadcast")).toBe(false);
+    expect(effects.some((e) => e.kind === "flushOutbox")).toBe(true);
+  });
+});
+
+describe("guards decide what is shown, never what is allowed", () => {
+  it("a guest asking to request a medicine is sent to sign in with the reason", () => {
+    const { state } = run(initial(), [{ kind: "open", screen: "R1" }]);
+    expect(state.screen).toBe("E4");
+    expect(state.redirectBecause).toContain("رقمك");
+  });
+
+  it("and what they were doing survives it (D26)", () => {
+    const interrupted = run(initial(), [{ kind: "open", screen: "R1" }]).state;
+    expect(interrupted.session.pending?.screen).toBe("R1");
+
+    const resumed = run(interrupted, [{ kind: "authenticated", accountId: "a", subjectId: "s" }]).state;
+    expect(resumed.screen).toBe("R1");
+    // Taken exactly once, so a later sign-in does not replay it again.
+    expect(resumed.session.pending).toBeNull();
+  });
+
+  it("a revoked grant is caught at the action, not only at the door (§5 rule 1)", () => {
+    const ready = run(signedIn(), [{ kind: "addItem", hit: hit() }]).state;
+    const revoked: Authority = { ...permitted, hasOrderScope: false };
+    const { state } = run(ready, [{ kind: "send", at: instant(1_000) }], env(), revoked);
+
+    expect(state.sent).toBeNull();
+    expect(state.outbox.items).toHaveLength(0);
+    // S4 belongs to a later slice, so the patient stays where they are and
+    // reads the reason rather than being sent to a screen that does not exist.
+    expect(state.screen).toBe("R1");
+    expect(state.redirectBecause).toContain("صلاحية");
+  });
+
+  it("a memorialised subject is read-only, and the redirect says so (D04)", () => {
+    const { state } = run(signedIn(), [{ kind: "open", screen: "R1" }], env(), {
+      ...permitted, activeSubjectMemorialised: true,
+    });
+    expect(state.screen).toBe("S1");
+    expect(state.redirectBecause).toContain("للقراءة فقط");
+  });
+});
+
+describe("refusals reach the screen as domain codes, worded by the screen", () => {
+  it("a controlled item refuses inline and reports the gate (D42)", () => {
+    const { state, effects } = run(signedIn(), [{ kind: "addItem", hit: hit({ isControlled: true }) }]);
+    expect(state.refusal?.code).toBe("CONTROLLED_NOT_SUPPORTED");
+    expect(state.draft).toBeNull();
+    expect(effects.some((e) => e.kind === "emit" && e.event === "clinical.gate.refused")).toBe(true);
+  });
+
+  it("and the patient can dismiss it without losing the draft", () => {
+    let s = run(signedIn(), [{ kind: "addItem", hit: hit() }]).state;
+    s = run(s, [{ kind: "addItem", hit: hit({ itemId: "x", isControlled: true }) }]).state;
+    expect(s.refusal).not.toBeNull();
+    s = run(s, [{ kind: "dismissRefusal" }]).state;
+    expect(s.refusal).toBeNull();
+    expect(s.draft?.lines).toHaveLength(1);
+  });
+});
+
+describe("search effects", () => {
+  it("typing asks the catalogue for the normalised query, not the raw keystrokes", () => {
+    const { effects } = run(signedIn(), [{ kind: "typed", raw: "بانــادول " }]);
+    expect(effects).toEqual([{ kind: "search", query: "بانادول" }]);
+  });
+
+  it("a miss is reported once, and a dropped connection is not reported at all", () => {
+    const miss = run(signedIn(), [
+      { kind: "typed", raw: "زيبرا" },
+      { kind: "searchResolved", query: "زيبرا", result: { kind: "fresh", value: { hits: [], at: 1 } } },
+    ]).effects;
+    expect(miss.filter((e) => e.kind === "emit" && e.event === "search.unmatched")).toHaveLength(1);
+
+    const failed = run(signedIn(), [
+      { kind: "typed", raw: "زيبرا" },
+      { kind: "searchResolved", query: "زيبرا", result: { kind: "failed", outcome: { kind: "transient", reason: "x" } } },
+    ]).effects;
+    expect(failed.some((e) => e.kind === "emit")).toBe(false);
+  });
+});
+
+describe("back is never a surprise", () => {
+  it("pops to where the patient came from", () => {
+    const s = run(signedIn(), [{ kind: "addItem", hit: hit() }, { kind: "open", screen: "R6" }]).state;
+    expect(s.history).toEqual(["S1", "R1"]);
+    expect(run(s, [{ kind: "back" }]).state.screen).toBe("R1");
+  });
+
+  it("at a tab root it stays rather than doing nothing visible or crashing", () => {
+    const s = signedIn();
+    expect(s.screen).toBe("S1");
+    expect(run(s, [{ kind: "back" }]).state.screen).toBe("S1");
+  });
+});
+
+describe("the graph the app actually navigates", () => {
+  it("has no unreachable screen and no trap", () => {
+    expect(unreachable(GRAPH)).toEqual([]);
+    expect(traps(GRAPH)).toEqual([]);
+  });
+
+  it("every exit this slice cannot yet honour is a declared, countable gap", () => {
+    // Not an assertion that nothing dangles — it does, because 116 of the 133
+    // Blueprint screens belong to later slices. The assertion is that the set
+    // is exactly the declared one, so it shrinks visibly rather than growing
+    // unnoticed.
+    const dangling = danglingExits(GRAPH).map((d) => d.split(" → ")[1]!);
+    expect([...new Set(dangling)].sort()).toEqual([...NOT_YET_BUILT].sort());
+  });
+
+  it("and no control can navigate to one of them", () => {
+    for (const screen of NOT_YET_BUILT) {
+      const before = signedIn();
+      expect(run(before, [{ kind: "open", screen }]).state.screen).toBe(before.screen);
+    }
+  });
+
+  it("contains every step of every flow a patient can begin", () => {
+    expect(flowGaps(GRAPH, PATIENT_FLOWS)).toEqual([]);
+  });
+});

@@ -57,7 +57,10 @@ const LAYERS = [
     // declares WHAT a screen presents; it may not compute a rule.
     name: "apps",
     dir: "apps",
-    allowedImports: [/^\.{1,2}\//, /^@dawai\/(design|domain|navigation|session|offline|net|contracts)$/],
+    // observability is on the list because an app EMITS telemetry; it may name
+    // an event from the closed set and may not invent one, which is the same
+    // reason the set is closed in the first place.
+    allowedImports: [/^\.{1,2}\//, /^@dawai\/(design|domain|navigation|session|offline|net|contracts|observability)$/],
     banned: [
       { re: /\bDate\.now\s*\(/, why: "the system clock inside a contract — presentation state comes from the domain" },
       { re: /\bMath\.random\s*\(/, why: "nondeterminism in a contract" },

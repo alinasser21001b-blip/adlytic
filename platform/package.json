@@ -2,8 +2,13 @@
   "name": "@dawai/platform",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
-  "engines": { "node": ">=22" },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "check": "npm run trace && npm run layers && npm run ux && npm run types && npm run test",
     "trace": "node tools/trace-check.mjs",
@@ -14,6 +19,10 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "react": "^18.3.1",
+    "react-native": "^0.76.5",
+    "react-test-renderer": "^18.3.1",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

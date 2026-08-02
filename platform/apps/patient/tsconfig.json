@@ -6,15 +6,14 @@
     "composite": true,
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": [
-    "src/**/*"
-  ],
+  "include": ["src/**/*"],
   "references": [
-    {
-      "path": "../../packages/design"
-    },
-    {
-      "path": "../../packages/navigation"
-    }
+    { "path": "../../packages/design" },
+    { "path": "../../packages/navigation" },
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/session" },
+    { "path": "../../packages/offline" },
+    { "path": "../../packages/net" },
+    { "path": "../../packages/observability" }
   ]
 }

@@ -30,13 +30,20 @@ export type NavGraph = {
   readonly entryPoints: readonly string[];
 };
 
-export function buildGraph(screens: readonly NavScreen[]): NavGraph {
+/**
+ * `alsoEntry` names screens a user arrives at without any screen exiting to
+ * them — a guard redirect is the third such arrival, alongside a tab bar and a
+ * notification. Omitting them reports a perfectly reachable screen as an
+ * orphan, which is a bug in the check and not in the app.
+ */
+export function buildGraph(screens: readonly NavScreen[], alsoEntry: readonly string[] = []): NavGraph {
+  const ids = new Set(screens.map((s) => s.id));
   return {
     screens: new Map(screens.map((s) => [s.id, s])),
-    // A screen reached by a tab bar or a notification has no parent in the
-    // stack. Seeding reachability from Today alone reports a correct tab root
-    // as unreachable, which is a bug in the check and not in the app.
-    entryPoints: screens.filter((s) => s.back.kind === "none" || s.back.kind === "replace").map((s) => s.id),
+    entryPoints: [
+      ...screens.filter((s) => s.back.kind === "none" || s.back.kind === "replace").map((s) => s.id),
+      ...alsoEntry.filter((id) => ids.has(id)),
+    ],
   };
 }
 

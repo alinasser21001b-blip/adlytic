@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { auditContract } from "@dawai/design";
+import { guardDestinations, ROUTE_GUARDS } from "@dawai/navigation";
 import { CORE_LOOP } from "./core-loop.contract.js";
 
 describe("every core-loop screen satisfies the UX contract", () => {
@@ -31,9 +32,12 @@ describe("no dead ends anywhere in the loop", () => {
     // root is reached by the tab bar and a notification screen by a push, and
     // neither is linked from another screen. Seeding only from Today would
     // report a correct screen as unreachable.
-    const entryPoints = CORE_LOOP
-      .filter((c) => c.back.kind === "none" || c.back.kind === "replace")
-      .map((c) => c.id);
+    // A guard destination is the third such arrival: E4 is reached when a
+    // guest touches an action that needs an account, and no screen exits to it.
+    const entryPoints = [
+      ...CORE_LOOP.filter((c) => c.back.kind === "none" || c.back.kind === "replace").map((c) => c.id),
+      ...guardDestinations(ROUTE_GUARDS),
+    ];
     const reach = new Set<string>(entryPoints);
     let grew = true;
     while (grew) {

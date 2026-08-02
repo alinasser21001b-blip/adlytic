@@ -47,6 +47,23 @@ export const CORE_LOOP: readonly ScreenContract[] = [
     persona: "patient",
   },
   {
+    // The one hard ask in the whole product, and the only screen a guard can
+    // send a guest to. §3.1: the account is requested at the first action that
+    // needs one, with the reason stated — never as a wall on launch.
+    id: "E4",
+    location: { title: "ليش نحتاج رقمك", destination: "entry" },
+    purpose: "Explain before the one hard ask",
+    // Dismiss, not pop: the action the patient was taking is preserved (D26),
+    // so leaving returns them to it rather than unwinding a stack.
+    back: { kind: "dismiss", returnsTo: "S1" },
+    primary: { label: "أدخل رقمي", leadsTo: "E5", tapsToOutcome: 1 },
+    secondary: [],
+    states: [],
+    exits: ["E5"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
     id: "F1",
     location: { title: "ابحث", destination: "find" },
     purpose: "Start anything new",

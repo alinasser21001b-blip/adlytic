@@ -8,12 +8,12 @@
  *      prescription-required line.
  */
 import { describe, it, expect } from "vitest";
-import { buildGraph, unreachable, traps, flowGaps, stackFor, resolveBack, PATIENT_FLOWS, type NavScreen } from "@dawai/navigation";
+import { buildGraph, unreachable, traps, flowGaps, stackFor, resolveBack, guardDestinations, ROUTE_GUARDS, PATIENT_FLOWS, type NavScreen } from "@dawai/navigation";
 import { CORE_LOOP } from "./core-loop.contract.js";
 
 const g = buildGraph(CORE_LOOP.map((c): NavScreen => ({
   id: c.id, exits: c.exits, back: c.back, destination: c.location.destination,
-})));
+})), guardDestinations(ROUTE_GUARDS));
 
 describe("the patient app's real graph", () => {
   it("has no unreachable screen", () => expect(unreachable(g)).toEqual([]));
