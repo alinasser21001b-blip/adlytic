@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Validation Report</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Validation Report</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html" class="on">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  <nav id="toc"><div class="grp">On this page</div><a href="#checks">Checks</a><a href="#gaps">Blueprint gaps</a><a href="#ready">Ready to build?</a></nav>
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Architecture Validation Report</h1>
+<p class="lede">Computed from <code>model.js</code> by
+<code>validate.mjs</code>. Every check reads data; none asserts a conclusion in
+prose, because a validation report that cannot fail is a certificate rather than
+a check.</p>
+
+<div class="kpi">
+<div><span>Checks passing</span><strong>11/11</strong></div>
+<div><span>Services</span><strong>12</strong></div>
+<div><span>Entities</span><strong>21</strong></div>
+<div><span>Events</span><strong>54</strong></div>
+<div><span>Endpoints</span><strong>67</strong></div>
+<div><span>Tables</span><strong>22</strong></div>
+<div><span>Tests</span><strong>47</strong></div>
+<div><span>Blueprint gaps</span><strong>11</strong></div>
+</div>
+
+<section id="checks"><h2>The ten required checks, plus one</h2>
+<div class="tw"><table><thead><tr><th style="width:60px">#</th><th>Check</th><th style="width:90px">Result</th><th>Findings</th></tr></thead><tbody>
+<tr><td><code>V1</code></td><td>Every entity has exactly one owning service</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V2</code></td><td>Every entity state declares its implementation path</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V3</code></td><td>Every event has a producer and at least one consumer</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V4</code></td><td>Each permission is enforced in exactly one layer</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V5</code></td><td>No orphan APIs</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V6</code></td><td>No orphan tables</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V7</code></td><td>No unreachable entity states</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V8</code></td><td>No duplicated responsibilities</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V9</code></td><td>No circular service dependencies</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V10</code></td><td>Nothing is invented: every element traces to Blueprint v3</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr><tr><td><code>V11</code></td><td>Every gap names what it blocks</td>
+<td><span class="pill ok">PASS</span></td>
+<td>—</td></tr>
+</tbody></table></div>
+<div class="rule"><b>Result</b>All checks pass. Three of them failed on the
+first run and were fixed rather than weakened: a genuine circular dependency
+between the identity and notification services, an entity whose answer enum was
+modelled as a lifecycle, and every entity state matched by string search rather
+than by a declared implementation path. The last of those is why each state now
+names the endpoint, event or scheduler that produces it.</div>
+</section>
+
+<section id="gaps"><h2>Blueprint gaps — 11</h2>
+<p class="lede">The instruction was: if implementation requires a product
+decision Blueprint v3 does not contain, <b>stop and document the gap instead of
+inventing a solution</b>. These are those gaps. Nothing below was invented.</p>
+
+<div class="rule"><b>These are not validation failures</b>
+They are decisions the Blueprint does not contain. The technical architecture is
+internally consistent without them; several screens simply cannot be built until
+they are answered. Each gap names what it blocks.</div>
+
+<div class="filters" data-target="gaps">
+  <button data-f="all" class="on">All</button>
+  <button data-f="blocker">Blocker</button>
+  <button data-f="major">Major</button>
+  <button data-f="minor">Minor</button>
+  <input type="search" placeholder="Search gaps…" aria-label="Search gaps">
+  <span class="cnt" style="font-size:.79rem;color:var(--ink3)"></span>
+</div>
+<div id="gaps">
+<div class="card" data-k="blocker" data-s="bd-1 domain model saved pharmacies (screen m4) have no entity in the §2 erd. is a saved pharmacy per account or per subject? is it capped? does it survive branch closure? no entity modelled. m4 cannot be built until this is answered.">
+<header><b>BD-1 · Domain model</b> <span class="pill ba">blocker</span> <span class="bp" title="Blueprint v3 reference">§2 ERD vs §4 M4</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Saved pharmacies (screen M4) have no entity in the §2 ERD.</dd>
+<dt>What is needed</dt><dd>Is a saved pharmacy per Account or per Subject? Is it capped? Does it survive branch closure?</dd>
+<dt>What we are doing</dt><dd>No entity modelled. M4 cannot be built until this is answered.</dd>
+</dl></div><div class="card" data-k="blocker" data-s="bd-2 domain model price disputes are a screen (v7), an operator queue (o22) and a decision (d31), with no entity in the erd. what is a dispute's lifecycle? can a branch respond? does it resolve, or only accumulate? does it affect the honoured rate, which d11 defines without it? an event (price.dispute.raised) is modelled because d31 names the routing, but no persisted entity or state machine. o22 cannot be built.">
+<header><b>BD-2 · Domain model</b> <span class="pill ba">blocker</span> <span class="bp" title="Blueprint v3 reference">§2 ERD vs §4 V7/O22 · D31</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Price disputes are a screen (V7), an operator queue (O22) and a decision (D31), with no entity in the ERD.</dd>
+<dt>What is needed</dt><dd>What is a dispute's lifecycle? Can a branch respond? Does it resolve, or only accumulate? Does it affect the honoured rate, which D11 defines without it?</dd>
+<dt>What we are doing</dt><dd>An event (price.dispute.raised) is modelled because D31 names the routing, but no persisted entity or state machine. O22 cannot be built.</dd>
+</dl></div><div class="card" data-k="blocker" data-s="bd-3 domain model support tickets appear on four screens with no entity, no states and no ownership. ticket lifecycle, who may read one, whether a patient ticket may reference a subject, and retention. not modelled. m15, p30, o20 and o21 cannot be built.">
+<header><b>BD-3 · Domain model</b> <span class="pill ba">blocker</span> <span class="bp" title="Blueprint v3 reference">§2 ERD vs §4 M15/P30/O20/O21</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Support tickets appear on four screens with no entity, no states and no ownership.</dd>
+<dt>What is needed</dt><dd>Ticket lifecycle, who may read one, whether a patient ticket may reference a subject, and retention.</dd>
+<dt>What we are doing</dt><dd>Not modelled. M15, P30, O20 and O21 cannot be built.</dd>
+</dl></div><div class="card" data-k="major" data-s="bd-4 domain model unmatched searches are a retention promise (d29) and an operator screen (o10) with no entity. retention period, whether a term is linked to an account, and how it is aggregated. modelled as an event only (search.unmatched) with no persisted table, because d29 says the term is stored but not for how long or against what. o10 cannot be built and d29's retention promise is unverifiable until answered.">
+<header><b>BD-4 · Domain model</b> <span class="pill wa">major</span> <span class="bp" title="Blueprint v3 reference">§2 ERD vs §4 O10 · D29</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Unmatched searches are a retention promise (D29) and an operator screen (O10) with no entity.</dd>
+<dt>What is needed</dt><dd>Retention period, whether a term is linked to an account, and how it is aggregated.</dd>
+<dt>What we are doing</dt><dd>Modelled as an event only (search.unmatched) with no persisted table, because D29 says the term is stored but not for how long or against what. O10 cannot be built and D29's retention promise is unverifiable until answered.</dd>
+</dl></div><div class="card" data-k="blocker" data-s="bd-5 identity the consented support session has a screen and rules but no entity, no state machine and no consent-capture surface on the patient side. which patient screen shows the consent prompt? how long is time-boxed? what does the banner appear on? what happens if the user is offline? an endpoint stub returns awaitingconsent; no consent flow is modelled. o19 cannot be built.">
+<header><b>BD-5 · Identity</b> <span class="pill ba">blocker</span> <span class="bp" title="Blueprint v3 reference">§4 O19</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>The consented support session has a screen and rules but no entity, no state machine and no consent-capture surface on the patient side.</dd>
+<dt>What is needed</dt><dd>Which patient screen shows the consent prompt? How long is time-boxed? What does the banner appear on? What happens if the user is offline?</dd>
+<dt>What we are doing</dt><dd>An endpoint stub returns awaitingConsent; no consent flow is modelled. O19 cannot be built.</dd>
+</dl></div><div class="card" data-k="major" data-s="bd-6 identity claim invites and staff invites are states inside other machines with no entity of their own, so an invite cannot be listed, resent or cancelled. can an invite be resent? cancelled? how many are allowed? does resending extend the 7-day expiry? modelled inside peer_grants and staff rows. resend and cancel are unimplementable until answered.">
+<header><b>BD-6 · Identity</b> <span class="pill wa">major</span> <span class="bp" title="Blueprint v3 reference">§6 Grant machine vs §4 S9/P23</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Claim invites and staff invites are states inside other machines with no entity of their own, so an invite cannot be listed, resent or cancelled.</dd>
+<dt>What is needed</dt><dd>Can an invite be resent? Cancelled? How many are allowed? Does resending extend the 7-day expiry?</dd>
+<dt>What we are doing</dt><dd>Modelled inside peer_grants and staff rows. Resend and cancel are unimplementable until answered.</dd>
+</dl></div><div class="card" data-k="major" data-s="bd-7 privacy export is an action with an artifact — a link with an expiry — and no entity anywhere. format, link expiry, whether the artifact is retained, and whether an export appears in the access log. endpoints return an exportid; the artifact lifecycle is unmodelled.">
+<header><b>BD-7 · Privacy</b> <span class="pill wa">major</span> <span class="bp" title="Blueprint v3 reference">§4 M8/L02/P27</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Export is an action with an artifact — a link with an expiry — and no entity anywhere.</dd>
+<dt>What is needed</dt><dd>Format, link expiry, whether the artifact is retained, and whether an export appears in the access log.</dd>
+<dt>What we are doing</dt><dd>Endpoints return an exportId; the artifact lifecycle is unmodelled.</dd>
+</dl></div><div class="card" data-k="major" data-s="bd-8 notifications push requires a device registration entity that the erd does not contain, and d35 removed the premium capabilities without stating the delivery fallback. one device or many per account? what happens when a token is invalidated? is there a fallback when push is refused — the app is usable without it, but nothing says what replaces the alert. notification-service is modelled with a device registration interface but no entity or table. push delivery is unimplementable until answered; every notification-dependent flow degrades to in-app only.">
+<header><b>BD-8 · Notifications</b> <span class="pill wa">major</span> <span class="bp" title="Blueprint v3 reference">§4 E10/M6</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Push requires a device registration entity that the ERD does not contain, and D35 removed the premium capabilities without stating the delivery fallback.</dd>
+<dt>What is needed</dt><dd>One device or many per account? What happens when a token is invalidated? Is there a fallback when push is refused — the app is usable without it, but nothing says what replaces the alert.</dd>
+<dt>What we are doing</dt><dd>notification-service is modelled with a device registration interface but no entity or table. Push delivery is unimplementable until answered; every notification-dependent flow degrades to in-app only.</dd>
+</dl></div><div class="card" data-k="minor" data-s="bd-9 offline the outbox is a machine and two screens with no entity — correctly, since it is client-side only. none. recorded so a reader does not mistake its absence from the erd for an omission. modelled as client-local state in both apps. no server table. this gap is closed by explanation, not by a decision.">
+<header><b>BD-9 · Offline</b> <span class="pill ok">minor</span> <span class="bp" title="Blueprint v3 reference">§6 Session &amp; outbox vs §2 ERD</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>The outbox is a machine and two screens with no entity — correctly, since it is client-side only.</dd>
+<dt>What is needed</dt><dd>None. Recorded so a reader does not mistake its absence from the ERD for an omission.</dd>
+<dt>What we are doing</dt><dd>Modelled as client-local state in both apps. No server table. This gap is closed by explanation, not by a decision.</dd>
+</dl></div><div class="card" data-k="major" data-s="bd-10 marketplace routing rule 5 excludes a branch that marked an item 'not carried', and p7 offers it as a decline reason — but the stock module was removed from phase 0, so nothing persists the mark. is 'not carried' a persistent branch-level fact, or only a one-off decline reason? if persistent, where does a branch un-mark it, given k9 was removed? routing rule 5 is documented and unimplementable. the decline reason is recorded on offer_lines only.">
+<header><b>BD-10 · Marketplace</b> <span class="pill wa">major</span> <span class="bp" title="Blueprint v3 reference">§8 routing rule 5 vs §3</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Routing rule 5 excludes a branch that marked an item 'not carried', and P7 offers it as a decline reason — but the stock module was removed from Phase 0, so nothing persists the mark.</dd>
+<dt>What is needed</dt><dd>Is 'not carried' a persistent branch-level fact, or only a one-off decline reason? If persistent, where does a branch un-mark it, given K9 was removed?</dd>
+<dt>What we are doing</dt><dd>Routing rule 5 is documented and unimplementable. The decline reason is recorded on offer_lines only.</dd>
+</dl></div><div class="card" data-k="minor" data-s="bd-11 marketplace observed availability is defined as branches answering available 'in the last 7 days', with no rule for what a patient sees when the count is zero versus unknown. does zero mean 'nobody has it' or 'nobody has been asked'? §13 of v1 insisted these are different; v3's §8 does not carry the distinction forward. modelled as a computed value; the display rule is left to the product decision.">
+<header><b>BD-11 · Marketplace</b> <span class="pill ok">minor</span> <span class="bp" title="Blueprint v3 reference">§8 observed availability</span></header>
+<dl class="kv">
+<dt>The gap</dt><dd>Observed availability is defined as branches answering available 'in the last 7 days', with no rule for what a patient sees when the count is zero versus unknown.</dd>
+<dt>What is needed</dt><dd>Does zero mean 'nobody has it' or 'nobody has been asked'? §13 of v1 insisted these are different; v3's §8 does not carry the distinction forward.</dd>
+<dt>What we are doing</dt><dd>Modelled as a computed value; the display rule is left to the product decision.</dd>
+</dl></div>
+</div></section>
+
+<section id="ready"><h2>Is the team ready to build?</h2>
+<p><b>Yes for the core loop; no for 4 screens.</b>
+Everything in Blueprint v3's request → offer → reservation → collection path is
+fully specified here: entities, states with their producing paths, events with
+producers and consumers, endpoints with authorisation, tables with constraints,
+and tests that trace back to the Blueprint.</p>
+<p>The blocked screens are
+<b>BD-1</b>, <b>BD-2</b>, <b>BD-3</b>, <b>BD-5</b> —
+saved pharmacies, price disputes, support tickets and the consented support
+session. Each needs a product decision, and each is a decision an engineer would
+otherwise make by accident, which is exactly what this exercise exists to
+prevent.</p>
+</section>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

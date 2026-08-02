@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Event Architecture</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Event Architecture</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html" class="on">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Event Architecture</h1>
+<p class="lede">54 events. Every one has a producer and at least
+one consumer — an event with no consumer is a log line pretending to be an
+event, and the validator fails it.</p>
+
+<div class="rule"><b>Retry and idempotency</b>
+Every event is <b>at-least-once</b> unless marked otherwise, so every consumer
+must be idempotent on the stated key. Iraqi mobile networks make redelivery the
+normal case, not the edge case — a duplicate dispense record or a duplicate
+reservation would be a clinical defect, not an inconvenience.</div>
+
+<div class="filters" data-target="evs">
+  <button data-f="all" class="on">All</button>
+  <button data-f="identity-service">identity</button><button data-f="catalogue-service">catalogue</button><button data-f="marketplace-engine">marketplace</button><button data-f="clinical-engine">clinical</button><button data-f="media-service">media</button><button data-f="pharmacy-service">pharmacy</button><button data-f="notification-service">notification</button><button data-f="api-gateway">api-gateway</button><button data-f="audit-service">audit</button>
+  <input type="search" placeholder="Search events…" aria-label="Search events">
+  <span class="cnt" style="font-size:.79rem;color:var(--ink3)"></span>
+</div>
+<div id="evs">
+<div class="card" data-k="identity-service" data-s="account.created identity-service audit-service phone verification succeeds self subject created atomically accountid, phonehash, createdat">
+<header><b><code>account.created</code></b> <span class="bp" title="Blueprint v3 reference">§6 Session</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Phone verification succeeds</dd>
+<dt>Payload</dt><dd><code>accountId, phoneHash, createdAt</code></dd>
+<dt>Side effects</dt><dd>Self Subject created atomically</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>accountId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="account.deletion.scheduled identity-service notification-service audit-service deletion confirmed with typed word 30-day timer armed; sign-in cancels it accountid, effectiveat, dependentdisposition[]">
+<header><b><code>account.deletion.scheduled</code></b> <span class="bp" title="Blueprint v3 reference">D05 · §4 M13</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Deletion confirmed with typed word</dd>
+<dt>Payload</dt><dd><code>accountId, effectiveAt, dependentDisposition[]</code></dd>
+<dt>Side effects</dt><dd>30-day timer armed; sign-in cancels it</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>accountId+effectiveAt</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="account.deleted identity-service media-service marketplace-engine audit-service 30-day window elapses images deleted; reservations pseudonymised; audit actor tombstoned accountid, tombstoneid">
+<header><b><code>account.deleted</code></b> <span class="bp" title="Blueprint v3 reference">D05</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>media-service</code> <code>marketplace-engine</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>30-day window elapses</dd>
+<dt>Payload</dt><dd><code>accountId, tombstoneId</code></dd>
+<dt>Side effects</dt><dd>Images deleted; reservations pseudonymised; audit actor tombstoned</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once, must be idempotent</dd>
+<dt>Idempotency key</dt><dd><code>accountId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="subject.created identity-service audit-service account created, or a guardian adds a person none subjectid, type(self|managed), guardianaccountid?">
+<header><b><code>subject.created</code></b> <span class="bp" title="Blueprint v3 reference">§9 · §4 S3</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Account created, or a guardian adds a person</dd>
+<dt>Payload</dt><dd><code>subjectId, type(self|managed), guardianAccountId?</code></dd>
+<dt>Side effects</dt><dd>none</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>subjectId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="subject.claimed identity-service notification-service audit-service claim invite verified guardianship ends; a revocable peergrant is created for the former guardian subjectid, newaccountid, formerguardianaccountid">
+<header><b><code>subject.claimed</code></b> <span class="bp" title="Blueprint v3 reference">§9 claiming</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Claim invite verified</dd>
+<dt>Payload</dt><dd><code>subjectId, newAccountId, formerGuardianAccountId</code></dd>
+<dt>Side effects</dt><dd>Guardianship ends; a revocable PeerGrant is created for the former guardian</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>subjectId+newAccountId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="subject.memorialised identity-service notification-service marketplace-engine audit-service guardian or platform records a death watches stopped, new requests blocked, all grant holders notified subjectid, actoraccountid, reversibleuntil">
+<header><b><code>subject.memorialised</code></b> <span class="bp" title="Blueprint v3 reference">D04</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>marketplace-engine</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Guardian or platform records a death</dd>
+<dt>Payload</dt><dd><code>subjectId, actorAccountId, reversibleUntil</code></dd>
+<dt>Side effects</dt><dd>Watches stopped, new requests blocked, all grant holders notified</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>subjectId+actorAccountId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="subject.memorialisation.reversed identity-service notification-service audit-service reversal within 30 days prior state restored subjectid, actoraccountid">
+<header><b><code>subject.memorialisation.reversed</code></b> <span class="bp" title="Blueprint v3 reference">D04</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Reversal within 30 days</dd>
+<dt>Payload</dt><dd><code>subjectId, actorAccountId</code></dd>
+<dt>Side effects</dt><dd>Prior state restored</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>subjectId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="guardianship.transferred identity-service notification-service audit-service receiver accepts authority moves in full subjectid, fromaccountid, toaccountid">
+<header><b><code>guardianship.transferred</code></b> <span class="bp" title="Blueprint v3 reference">§9 · §4 S10</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Receiver accepts</dd>
+<dt>Payload</dt><dd><code>subjectId, fromAccountId, toAccountId</code></dd>
+<dt>Side effects</dt><dd>Authority moves in full</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>subjectId+toAccountId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="grant.invited identity-service notification-service audit-service invite sent sms dispatched; nothing granted grantid, subjectid, inviteephonehash, scope, expiresat">
+<header><b><code>grant.invited</code></b> <span class="bp" title="Blueprint v3 reference">D02 · §6 Grant</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Invite sent</dd>
+<dt>Payload</dt><dd><code>grantId, subjectId, inviteePhoneHash, scope, expiresAt</code></dd>
+<dt>Side effects</dt><dd>SMS dispatched; nothing granted</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>grantId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="grant.requested identity-service notification-service audit-service invitee signs in, or a peer requests access subject asked to approve grantid, subjectid, requesteraccountid, scope">
+<header><b><code>grant.requested</code></b> <span class="bp" title="Blueprint v3 reference">§6 Grant</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Invitee signs in, or a peer requests access</dd>
+<dt>Payload</dt><dd><code>grantId, subjectId, requesterAccountId, scope</code></dd>
+<dt>Side effects</dt><dd>Subject asked to approve</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>grantId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="grant.activated identity-service notification-service audit-service subject approves access begins grantid, scope">
+<header><b><code>grant.activated</code></b> <span class="bp" title="Blueprint v3 reference">§6 Grant</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Subject approves</dd>
+<dt>Payload</dt><dd><code>grantId, scope</code></dd>
+<dt>Side effects</dt><dd>Access begins</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>grantId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="grant.revoked identity-service notification-service audit-service subject or guardian revokes access ends immediately; the record of the grant remains grantid, actoraccountid">
+<header><b><code>grant.revoked</code></b> <span class="bp" title="Blueprint v3 reference">§9 · §4 S8</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Subject or guardian revokes</dd>
+<dt>Payload</dt><dd><code>grantId, actorAccountId</code></dd>
+<dt>Side effects</dt><dd>Access ends immediately; the record of the grant remains</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>grantId</code></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="grant.expired identity-service audit-service 7 days without approval none grantid">
+<header><b><code>grant.expired</code></b> <span class="bp" title="Blueprint v3 reference">D02</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>identity-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>7 days without approval</dd>
+<dt>Payload</dt><dd><code>grantId</code></dd>
+<dt>Side effects</dt><dd>none</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>grantId</code></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="catalogue.item.published catalogue-service notification-service audit-service operator publishes matching watches evaluated itemid, packsize, requiresprescription, iscontrolled">
+<header><b><code>catalogue.item.published</code></b> <span class="bp" title="Blueprint v3 reference">§4 O9</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>catalogue-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Operator publishes</dd>
+<dt>Payload</dt><dd><code>itemId, packSize, requiresPrescription, isControlled</code></dd>
+<dt>Side effects</dt><dd>Matching Watches evaluated</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>itemId+version</code></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="catalogue.item.withdrawn catalogue-service marketplace-engine audit-service operator withdraws open request lines for it are closed and the patient told itemid, reason">
+<header><b><code>catalogue.item.withdrawn</code></b> <span class="bp" title="Blueprint v3 reference">§2 CatalogueItem</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>catalogue-service</code></dd>
+<dt>Consumers</dt><dd><code>marketplace-engine</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Operator withdraws</dd>
+<dt>Payload</dt><dd><code>itemId, reason</code></dd>
+<dt>Side effects</dt><dd>Open request lines for it are closed and the patient told</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>itemId+version</code></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="search.unmatched catalogue-service audit-service a search returns nothing recorded — the only search data retained termnormalised, districtid, at">
+<header><b><code>search.unmatched</code></b> <span class="bp" title="Blueprint v3 reference">D29 · §4 O10</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>catalogue-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>A search returns nothing</dd>
+<dt>Payload</dt><dd><code>termNormalised, districtId, at</code></dd>
+<dt>Side effects</dt><dd>Recorded — the only search data retained</dd>
+<dt>Audit</dt><dd>not-required</dd>
+<dt>Retry</dt><dd>best-effort</dd>
+<dt>Idempotency key</dt><dd><code>term+district+day</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="request.created marketplace-engine catalogue-service audit-service patient confirms a request clinical gate already passed, or creation refused requestid, subjectid, actoraccountid, lines[], urgency, districtid">
+<header><b><code>request.created</code></b> <span class="bp" title="Blueprint v3 reference">§6 Request</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>catalogue-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Patient confirms a request</dd>
+<dt>Payload</dt><dd><code>requestId, subjectId, actorAccountId, lines[], urgency, districtId</code></dd>
+<dt>Side effects</dt><dd>Clinical gate already passed, or creation refused</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>client Idempotency-Key</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="request.broadcast marketplace-engine pharmacy-app notification-service audit-service eligibility evaluated branches notified now, or deferred to opening time (d09) requestid, eligiblebranchids[], windowendsat">
+<header><b><code>request.broadcast</code></b> <span class="bp" title="Blueprint v3 reference">§8 routing</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-app</code> <code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Eligibility evaluated</dd>
+<dt>Payload</dt><dd><code>requestId, eligibleBranchIds[], windowEndsAt</code></dd>
+<dt>Side effects</dt><dd>Branches notified now, or deferred to opening time (D09)</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>requestId+broadcastRound</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="request.unanswered marketplace-engine patient-app notification-service audit-service window elapses with no offer patient offered widen / watch / retry requestid, branchesasked, repliesreceived">
+<header><b><code>request.unanswered</code></b> <span class="bp" title="Blueprint v3 reference">§6 Request · §4 R11</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Window elapses with no offer</dd>
+<dt>Payload</dt><dd><code>requestId, branchesAsked, repliesReceived</code></dd>
+<dt>Side effects</dt><dd>Patient offered widen / watch / retry</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>requestId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="request.child.created marketplace-engine patient-app audit-service an offer covering a subset is accepted child request broadcast; the patient re-enters nothing parentrequestid, childrequestid, unfilledlines[]">
+<header><b><code>request.child.created</code></b> <span class="bp" title="Blueprint v3 reference">D06</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>An offer covering a subset is accepted</dd>
+<dt>Payload</dt><dd><code>parentRequestId, childRequestId, unfilledLines[]</code></dd>
+<dt>Side effects</dt><dd>Child request broadcast; the patient re-enters nothing</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>parentRequestId+lineSet</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="offer.sent marketplace-engine patient-app notification-service catalogue-service audit-service branch sends an answer coverage recomputed; observed availability updated offerid, requestid, branchid, lines[], staffaccountid">
+<header><b><code>offer.sent</code></b> <span class="bp" title="Blueprint v3 reference">§6 Offer</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>notification-service</code> <code>catalogue-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Branch sends an answer</dd>
+<dt>Payload</dt><dd><code>offerId, requestId, branchId, lines[], staffAccountId</code></dd>
+<dt>Side effects</dt><dd>Coverage recomputed; observed availability updated</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>client Idempotency-Key</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="offer.withdrawn marketplace-engine patient-app audit-service branch withdraws before acceptance removed from comparison; a patient mid-tap is told offerid, staffaccountid, reason?">
+<header><b><code>offer.withdrawn</code></b> <span class="bp" title="Blueprint v3 reference">D08</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Branch withdraws before acceptance</dd>
+<dt>Payload</dt><dd><code>offerId, staffAccountId, reason?</code></dd>
+<dt>Side effects</dt><dd>Removed from comparison; a patient mid-tap is told</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>offerId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="offer.accepted marketplace-engine pharmacy-app notification-service audit-service patient accepts reservation requested; price binds; child request created for the rest offerid, acceptedlineids[], actoraccountid">
+<header><b><code>offer.accepted</code></b> <span class="bp" title="Blueprint v3 reference">§6 Offer</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-app</code> <code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Patient accepts</dd>
+<dt>Payload</dt><dd><code>offerId, acceptedLineIds[], actorAccountId</code></dd>
+<dt>Side effects</dt><dd>Reservation requested; price binds; child request created for the rest</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>client Idempotency-Key</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation.requested marketplace-engine pharmacy-app notification-service audit-service offer accepted branch asked to confirm. no clock yet reservationid, offerid, branchid">
+<header><b><code>reservation.requested</code></b> <span class="bp" title="Blueprint v3 reference">§6 Reservation</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-app</code> <code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Offer accepted</dd>
+<dt>Payload</dt><dd><code>reservationId, offerId, branchId</code></dd>
+<dt>Side effects</dt><dd>Branch asked to confirm. No clock yet</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>offerId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation.confirmed marketplace-engine patient-app notification-service media-service pharmacy-service audit-service any signed-in staff member confirms clock starts; prescription access granted for the window reservationid, staffaccountid, code, expiresat">
+<header><b><code>reservation.confirmed</code></b> <span class="bp" title="Blueprint v3 reference">§6 Reservation · D19</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>notification-service</code> <code>media-service</code> <code>pharmacy-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Any signed-in staff member confirms</dd>
+<dt>Payload</dt><dd><code>reservationId, staffAccountId, code, expiresAt</code></dd>
+<dt>Side effects</dt><dd>CLOCK STARTS; prescription access granted for the window</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation.refused marketplace-engine patient-app notification-service pharmacy-service media-service audit-service branch cannot hold parent request re-opens automatically; counts against honoured rate unless within 5 minutes reservationid, reason, staffaccountid, secondssinceconfirm">
+<header><b><code>reservation.refused</code></b> <span class="bp" title="Blueprint v3 reference">D39 · D11</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>notification-service</code> <code>pharmacy-service</code> <code>media-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Branch cannot hold</dd>
+<dt>Payload</dt><dd><code>reservationId, reason, staffAccountId, secondsSinceConfirm</code></dd>
+<dt>Side effects</dt><dd>Parent request re-opens automatically; counts against honoured rate unless within 5 minutes</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation.expiring marketplace-engine patient-app notification-service 30 and 5 minutes before expiry patient notified reservationid, minutesleft">
+<header><b><code>reservation.expiring</code></b> <span class="bp" title="Blueprint v3 reference">§4 V2 states</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>notification-service</code></dd>
+<dt>Trigger</dt><dd>30 and 5 minutes before expiry</dd>
+<dt>Payload</dt><dd><code>reservationId, minutesLeft</code></dd>
+<dt>Side effects</dt><dd>Patient notified</dd>
+<dt>Audit</dt><dd>not-required</dd>
+<dt>Retry</dt><dd>best-effort</dd>
+<dt>Idempotency key</dt><dd><code>reservationId+threshold</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation.expired marketplace-engine patient-app pharmacy-app media-service pharmacy-service audit-service window elapses stock released; prescription access revoked reservationid">
+<header><b><code>reservation.expired</code></b> <span class="bp" title="Blueprint v3 reference">§6 Reservation</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>pharmacy-app</code> <code>media-service</code> <code>pharmacy-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Window elapses</dd>
+<dt>Payload</dt><dd><code>reservationId</code></dd>
+<dt>Side effects</dt><dd>Stock released; prescription access revoked</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation.cancelled marketplace-engine pharmacy-app notification-service media-service audit-service patient cancels branch told immediately; stock released; access revoked reservationid, actoraccountid">
+<header><b><code>reservation.cancelled</code></b> <span class="bp" title="Blueprint v3 reference">§4 V5</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-app</code> <code>notification-service</code> <code>media-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Patient cancels</dd>
+<dt>Payload</dt><dd><code>reservationId, actorAccountId</code></dd>
+<dt>Side effects</dt><dd>Branch told immediately; stock released; access revoked</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation.collected marketplace-engine clinical-engine pharmacy-service media-service audit-service code verified and handover completed clinical-engine writes the dispenserecord; honoured rate updated; access revoked reservationid, staffaccountid, checklist{}">
+<header><b><code>reservation.collected</code></b> <span class="bp" title="Blueprint v3 reference">D22 · §4 P14</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>clinical-engine</code> <code>pharmacy-service</code> <code>media-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Code verified and handover completed</dd>
+<dt>Payload</dt><dd><code>reservationId, staffAccountId, checklist{}</code></dd>
+<dt>Side effects</dt><dd>clinical-engine writes the DispenseRecord; honoured rate updated; access revoked</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="price.dispute.raised marketplace-engine pharmacy-service audit-service patient reports a difference recorded against the branch and surfaced to the operator reservationid, offeredprice, chargedprice, actoraccountid">
+<header><b><code>price.dispute.raised</code></b> <span class="bp" title="Blueprint v3 reference">D31 · §4 V7/O22</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>marketplace-engine</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Patient reports a difference</dd>
+<dt>Payload</dt><dd><code>reservationId, offeredPrice, chargedPrice, actorAccountId</code></dd>
+<dt>Side effects</dt><dd>Recorded against the branch and surfaced to the operator</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="clinical.gate.refused clinical-engine patient-app audit-service a request line violates a gate line creation refused with the reason shown itemid, reason(prescription_required|controlled)">
+<header><b><code>clinical.gate.refused</code></b> <span class="bp" title="Blueprint v3 reference">D18 · D42</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>clinical-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>A request line violates a gate</dd>
+<dt>Payload</dt><dd><code>itemId, reason(prescription_required|controlled)</code></dd>
+<dt>Side effects</dt><dd>Line creation refused with the reason shown</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>n/a — synchronous</dd>
+<dt>Idempotency key</dt><dd><code>n/a</code></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="substitution.authorised clinical-engine marketplace-engine audit-service a licensed pharmacist proposes a substitute offerline may carry substitute staffaccountid, licenceid, originalitemid, substituteitemid">
+<header><b><code>substitution.authorised</code></b> <span class="bp" title="Blueprint v3 reference">D19</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>clinical-engine</code></dd>
+<dt>Consumers</dt><dd><code>marketplace-engine</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>A licensed pharmacist proposes a substitute</dd>
+<dt>Payload</dt><dd><code>staffAccountId, licenceId, originalItemId, substituteItemId</code></dd>
+<dt>Side effects</dt><dd>OfferLine may carry substitute</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>n/a — synchronous</dd>
+<dt>Idempotency key</dt><dd><code>n/a</code></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="substitution.refused clinical-engine pharmacy-app audit-service no licensed pharmacist is signed in the substitution control is absent, not disabled staffaccountid, reason(no_verified_licence)">
+<header><b><code>substitution.refused</code></b> <span class="bp" title="Blueprint v3 reference">D19</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>clinical-engine</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>No licensed pharmacist is signed in</dd>
+<dt>Payload</dt><dd><code>staffAccountId, reason(no_verified_licence)</code></dd>
+<dt>Side effects</dt><dd>The substitution control is absent, not disabled</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>n/a — synchronous</dd>
+<dt>Idempotency key</dt><dd><code>n/a</code></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="handover.checklist.recorded clinical-engine audit-service handover completes none reservationid, staffaccountid, prescriptionseen, allergyasked, packsconfirmed">
+<header><b><code>handover.checklist.recorded</code></b> <span class="bp" title="Blueprint v3 reference">§7 control 2</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>clinical-engine</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Handover completes</dd>
+<dt>Payload</dt><dd><code>reservationId, staffAccountId, prescriptionSeen, allergyAsked, packsConfirmed</code></dd>
+<dt>Side effects</dt><dd>none</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="dispense.recorded clinical-engine patient-app audit-service reservation.collected the medication record grows. this is its only writer dispenseid, subjectid, itemid, packs, branchid, price, at">
+<header><b><code>dispense.recorded</code></b> <span class="bp" title="Blueprint v3 reference">D22</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>clinical-engine</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>reservation.collected</dd>
+<dt>Payload</dt><dd><code>dispenseId, subjectId, itemId, packs, branchId, price, at</code></dd>
+<dt>Side effects</dt><dd>The medication record grows. This is its only writer</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>reservationId</code></dd>
+</dl></div><div class="card" data-k="media-service" data-s="prescription.uploaded media-service audit-service patient uploads encrypted at rest imageid, subjectid">
+<header><b><code>prescription.uploaded</code></b> <span class="bp" title="Blueprint v3 reference">§4 R2</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>media-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Patient uploads</dd>
+<dt>Payload</dt><dd><code>imageId, subjectId</code></dd>
+<dt>Side effects</dt><dd>Encrypted at rest</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>imageId</code></dd>
+</dl></div><div class="card" data-k="media-service" data-s="prescription.access.granted media-service pharmacy-app audit-service reservation.confirmed branch may read it while the reservation is live imageid, branchid, reservationid, expiresat">
+<header><b><code>prescription.access.granted</code></b> <span class="bp" title="Blueprint v3 reference">D18</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>media-service</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>reservation.confirmed</dd>
+<dt>Payload</dt><dd><code>imageId, branchId, reservationId, expiresAt</code></dd>
+<dt>Side effects</dt><dd>Branch may read it while the reservation is live</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>imageId+reservationId</code></dd>
+</dl></div><div class="card" data-k="media-service" data-s="prescription.access.revoked media-service pharmacy-app audit-service reservation collected, expired or cancelled branch access ends imageid, reservationid">
+<header><b><code>prescription.access.revoked</code></b> <span class="bp" title="Blueprint v3 reference">D18</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>media-service</code></dd>
+<dt>Consumers</dt><dd><code>pharmacy-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Reservation collected, expired or cancelled</dd>
+<dt>Payload</dt><dd><code>imageId, reservationId</code></dd>
+<dt>Side effects</dt><dd>Branch access ends</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>imageId+reservationId</code></dd>
+</dl></div><div class="card" data-k="media-service" data-s="prescription.deleted media-service audit-service patient deletes, or account deleted bytes destroyed imageid">
+<header><b><code>prescription.deleted</code></b> <span class="bp" title="Blueprint v3 reference">§4 M5 · D05</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>media-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Patient deletes, or account deleted</dd>
+<dt>Payload</dt><dd><code>imageId</code></dd>
+<dt>Side effects</dt><dd>Bytes destroyed</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>imageId</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branch.verified pharmacy-service marketplace-engine notification-service audit-service operator approves branch becomes routable branchid, districtid, verifiedpoint, operatorid">
+<header><b><code>branch.verified</code></b> <span class="bp" title="Blueprint v3 reference">§6 Verification</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>marketplace-engine</code> <code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Operator approves</dd>
+<dt>Payload</dt><dd><code>branchId, districtId, verifiedPoint, operatorId</code></dd>
+<dt>Side effects</dt><dd>Branch becomes routable</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>branchId+decisionId</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branch.suspended pharmacy-service marketplace-engine notification-service audit-service operator suspends routing stops; live reservations must be resolved first branchid, reason, operatorid">
+<header><b><code>branch.suspended</code></b> <span class="bp" title="Blueprint v3 reference">§4 O6</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>marketplace-engine</code> <code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Operator suspends</dd>
+<dt>Payload</dt><dd><code>branchId, reason, operatorId</code></dd>
+<dt>Side effects</dt><dd>Routing stops; live reservations must be resolved first</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>branchId+decisionId</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branch.closed pharmacy-service marketplace-engine audit-service manager closes the branch routing stops; export offered before closure completes branchid">
+<header><b><code>branch.closed</code></b> <span class="bp" title="Blueprint v3 reference">D15 · §4 P28</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>marketplace-engine</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Manager closes the branch</dd>
+<dt>Payload</dt><dd><code>branchId</code></dd>
+<dt>Side effects</dt><dd>Routing stops; export offered before closure completes</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>branchId</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branch.eligibility.changed pharmacy-service marketplace-engine pharmacy-app hours, pause, capacity or licence change routing set updated; the branch is told why branchid, state, reason">
+<header><b><code>branch.eligibility.changed</code></b> <span class="bp" title="Blueprint v3 reference">D13 · §6 Branch eligibility</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>marketplace-engine</code> <code>pharmacy-app</code></dd>
+<dt>Trigger</dt><dd>Hours, pause, capacity or licence change</dd>
+<dt>Payload</dt><dd><code>branchId, state, reason</code></dd>
+<dt>Side effects</dt><dd>Routing set updated; the branch is told why</dd>
+<dt>Audit</dt><dd>not-required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>branchId+state+at</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="licence.expiring pharmacy-service notification-service audit-service scheduled check branch warned branchid, licenceid, daysleft(60|30|7)">
+<header><b><code>licence.expiring</code></b> <span class="bp" title="Blueprint v3 reference">§6 Verification</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Scheduled check</dd>
+<dt>Payload</dt><dd><code>branchId, licenceId, daysLeft(60|30|7)</code></dd>
+<dt>Side effects</dt><dd>Branch warned</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>licenceId+daysLeft</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="licence.lapsed pharmacy-service marketplace-engine notification-service audit-service expiry reached routing stops; live reservations are honoured branchid, licenceid">
+<header><b><code>licence.lapsed</code></b> <span class="bp" title="Blueprint v3 reference">§6 Verification</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>marketplace-engine</code> <code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Expiry reached</dd>
+<dt>Payload</dt><dd><code>branchId, licenceId</code></dd>
+<dt>Side effects</dt><dd>Routing stops; live reservations are honoured</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>licenceId</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="staff.invited pharmacy-service notification-service audit-service manager invites sms dispatched branchid, phonehash, role">
+<header><b><code>staff.invited</code></b> <span class="bp" title="Blueprint v3 reference">§4 P23</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>notification-service</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Manager invites</dd>
+<dt>Payload</dt><dd><code>branchId, phoneHash, role</code></dd>
+<dt>Side effects</dt><dd>SMS dispatched</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>branchId+phoneHash</code></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="staff.role.changed pharmacy-service audit-service manager changes a role pharmacist role takes effect only with a verified licence branchid, staffaccountid, fromrole, torole">
+<header><b><code>staff.role.changed</code></b> <span class="bp" title="Blueprint v3 reference">§5 branch configuration</span>
+<span class="pill ok">audited</span></header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>pharmacy-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Manager changes a role</dd>
+<dt>Payload</dt><dd><code>branchId, staffAccountId, fromRole, toRole</code></dd>
+<dt>Side effects</dt><dd>Pharmacist role takes effect only with a verified licence</dd>
+<dt>Audit</dt><dd>required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>branchId+staffAccountId+at</code></dd>
+</dl></div><div class="card" data-k="notification-service" data-s="notification.sent notification-service audit-service a consumed event matches preferences none accountid, category, eventref">
+<header><b><code>notification.sent</code></b> <span class="bp" title="Blueprint v3 reference">§4 M6</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>notification-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>A consumed event matches preferences</dd>
+<dt>Payload</dt><dd><code>accountId, category, eventRef</code></dd>
+<dt>Side effects</dt><dd>none</dd>
+<dt>Audit</dt><dd>not-required</dd>
+<dt>Retry</dt><dd>best-effort</dd>
+<dt>Idempotency key</dt><dd><code>eventRef+accountId</code></dd>
+</dl></div><div class="card" data-k="notification-service" data-s="notification.suppressed notification-service audit-service delivery blocked by a rule none accountid, category, reason(quiet_hours|disabled|branch_closed)">
+<header><b><code>notification.suppressed</code></b> <span class="bp" title="Blueprint v3 reference">§4 M6 quiet hours</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>notification-service</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Delivery blocked by a rule</dd>
+<dt>Payload</dt><dd><code>accountId, category, reason(quiet_hours|disabled|branch_closed)</code></dd>
+<dt>Side effects</dt><dd>none</dd>
+<dt>Audit</dt><dd>not-required</dd>
+<dt>Retry</dt><dd>none</dd>
+<dt>Idempotency key</dt><dd><code>eventRef+accountId</code></dd>
+</dl></div><div class="card" data-k="notification-service" data-s="watch.matched notification-service patient-app audit-service an offer or publication matches an active watch watch fires and closes watchid, itemid, branchid">
+<header><b><code>watch.matched</code></b> <span class="bp" title="Blueprint v3 reference">D30</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>notification-service</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code> <code>audit-service</code></dd>
+<dt>Trigger</dt><dd>An offer or publication matches an active watch</dd>
+<dt>Payload</dt><dd><code>watchId, itemId, branchId</code></dd>
+<dt>Side effects</dt><dd>Watch fires and closes</dd>
+<dt>Audit</dt><dd>not-required</dd>
+<dt>Retry</dt><dd>at-least-once</dd>
+<dt>Idempotency key</dt><dd><code>watchId</code></dd>
+</dl></div><div class="card" data-k="notification-service" data-s="watch.expired notification-service patient-app 14 days elapse none watchid">
+<header><b><code>watch.expired</code></b> <span class="bp" title="Blueprint v3 reference">D30</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>notification-service</code></dd>
+<dt>Consumers</dt><dd><code>patient-app</code></dd>
+<dt>Trigger</dt><dd>14 days elapse</dd>
+<dt>Payload</dt><dd><code>watchId</code></dd>
+<dt>Side effects</dt><dd>none</dd>
+<dt>Audit</dt><dd>not-required</dd>
+<dt>Retry</dt><dd>best-effort</dd>
+<dt>Idempotency key</dt><dd><code>watchId</code></dd>
+</dl></div><div class="card" data-k="api-gateway" data-s="api.request.received api-gateway audit-service every authenticated request none principal, route, idempotencykey, at">
+<header><b><code>api.request.received</code></b> <span class="bp" title="Blueprint v3 reference">§5 enforcement</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>api-gateway</code></dd>
+<dt>Consumers</dt><dd><code>audit-service</code></dd>
+<dt>Trigger</dt><dd>Every authenticated request</dd>
+<dt>Payload</dt><dd><code>principal, route, idempotencyKey, at</code></dd>
+<dt>Side effects</dt><dd>none</dd>
+<dt>Audit</dt><dd>required for identified reads</dd>
+<dt>Retry</dt><dd>none</dd>
+<dt>Idempotency key</dt><dd><code>idempotencyKey</code></dd>
+</dl></div><div class="card" data-k="audit-service" data-s="audit.appended audit-service owner-console any append projected into the patient and branch access logs entryid, actor, subject?, branch?, action, at">
+<header><b><code>audit.appended</code></b> <span class="bp" title="Blueprint v3 reference">§4 O23</span>
+</header>
+<dl class="kv">
+<dt>Producer</dt><dd><code>audit-service</code></dd>
+<dt>Consumers</dt><dd><code>owner-console</code></dd>
+<dt>Trigger</dt><dd>Any append</dd>
+<dt>Payload</dt><dd><code>entryId, actor, subject?, branch?, action, at</code></dd>
+<dt>Side effects</dt><dd>Projected into the patient and branch access logs</dd>
+<dt>Audit</dt><dd>n/a — it is the audit</dd>
+<dt>Retry</dt><dd>none</dd>
+<dt>Idempotency key</dt><dd><code>entryId</code></dd>
+</dl></div>
+</div>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

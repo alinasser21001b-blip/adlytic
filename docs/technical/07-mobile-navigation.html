@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Mobile Navigation</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Mobile Navigation</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html" class="on">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  <nav id="toc"><div class="grp">On this page</div><a href="#patient">Patient</a><a href="#pharmacy">Pharmacy</a><a href="#owner">Owner</a><a href="#rules">Rules</a></nav>
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Mobile Navigation</h1>
+<p class="lede">React Native navigation architecture. No UI design. Every route
+derives from a Blueprint v3 screen id.</p>
+
+<div class="rule"><b>Role isolation is structural</b>
+Role isolation is achieved by shipping different navigators, not by branching inside one. A patient build contains no pharmacy route, so the class of leak that v1 hit twice is unrepresentable.</div>
+
+<section id="patient"><h2>Patient</h2>
+<p><b>Root:</b> <code>RootNavigator (switch, not stack)</code> · <b>Navigator states:</b> <code>GuestNavigator</code> <code>AuthNavigator</code> <code>AppNavigator</code></p>
+<pre class="mermaid">graph TB
+  R["RootNavigator (switch, not stack)"] --> S0["GuestNavigator"] & S1["AuthNavigator"] & S2["AppNavigator"]
+  S2 --> T0["Today<br/>TodayStack"]
+  S2 --> T1["Find<br/>FindStack"]
+  S2 --> T2["Me<br/>MeStack"]
+  S2 -.modal.-> M0["R1 Build request"]
+  S2 -.modal.-> M1["S2 Subject switcher"]
+  S2 -.modal.-> M2["R13 Queued actions"]</pre>
+<h3>Tabs</h3>
+<div class="tw"><table><thead><tr><th>Tab</th><th>Stack</th><th>Screens</th><th>Ref</th></tr></thead><tbody>
+<tr><td>Today</td><td><code>TodayStack</code></td><td>E-resolved → S1 → S2(modal) → V2 → V8 → S12</td><td><span class="bp" title="Blueprint v3 reference">§4 S1</span></td></tr><tr><td>Find</td><td><code>FindStack</code></td><td>F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8</td><td><span class="bp" title="Blueprint v3 reference">§4 F group</span></td></tr><tr><td>Me</td><td><code>MeStack</code></td><td>M1 → M2…M15, S4 → S5…S11, R12, R13</td><td><span class="bp" title="Blueprint v3 reference">§4 Account/Subjects</span></td></tr>
+</tbody></table></div>
+<h3>Modals</h3><ul><li>R1 Build request (full-screen modal, owns R2–R11 and V1)</li><li>S2 Subject switcher (sheet)</li><li>R13 Queued actions (sheet)</li></ul>
+<h3>Route guards</h3>
+<div class="tw"><table><thead><tr><th>Guard</th><th>Applies to</th><th>Behaviour</th><th>Ref</th></tr></thead><tbody>
+<tr><td><code>requireSession</code></td><td>AppNavigator</td><td>Guest hitting a session route is sent to E4 with the intent stored; on success the intent is replayed, not discarded</td><td><span class="bp" title="Blueprint v3 reference">§3.5 · D26</span></td></tr><tr><td><code>requireSubjectScope</code></td><td>R1, V5, S5–S11, M8</td><td>Client hides what the server would refuse. The server still refuses — the guard is convenience, never enforcement (§5 rule 1)</td><td><span class="bp" title="Blueprint v3 reference">§5 clinical matrix</span></td></tr><tr><td><code>blockMemorialised</code></td><td>R1, R12</td><td>A memorialised subject cannot start a request or a watch</td><td><span class="bp" title="Blueprint v3 reference">D04</span></td></tr>
+</tbody></table></div>
+<h3>Deep links</h3><div class="tw"><table><thead><tr><th>URL</th><th>Target</th><th>Stack</th><th>Ref</th></tr></thead><tbody>
+<tr><td><code>dawai://reservation/{id}</code></td><td>TodayStack → V2</td><td>Pushes S1 beneath so back is never a dead end</td><td><span class="bp" title="Blueprint v3 reference">§4 V2</span></td></tr><tr><td><code>dawai://request/{id}</code></td><td>TodayStack → R7 or R8</td><td>—</td><td><span class="bp" title="Blueprint v3 reference">§4 R7</span></td></tr><tr><td><code>dawai://grant/{id}</code></td><td>MeStack → S7</td><td>—</td><td><span class="bp" title="Blueprint v3 reference">§4 S7</span></td></tr><tr><td><code>dawai://watch/{id}</code></td><td>MeStack → R12</td><td>—</td><td><span class="bp" title="Blueprint v3 reference">§4 R12</span></td></tr>
+</tbody></table></div>
+</section><section id="pharmacy"><h2>Pharmacy</h2>
+<p><b>Root:</b> <code>RootNavigator (switch)</code> · <b>Navigator states:</b> <code>ApplyNavigator (PA1–PA9)</code> <code>StaffAuthNavigator (P1, P2)</code> <code>BranchNavigator</code></p>
+<pre class="mermaid">graph TB
+  R["RootNavigator (switch)"] --> S0["ApplyNavigator (PA1–PA9)"] & S1["StaffAuthNavigator (P1, P2)"] & S2["BranchNavigator"]
+  S2 --> T0["Requests<br/>InboxStack"]
+  S2 --> T1["Reservations<br/>HoldStack"]
+  S2 --> T2["Branch<br/>BranchStack"]
+  S2 -.modal.-> M0["P6 Compose offer"]
+  S2 -.modal.-> M1["P31 Queued actions"]</pre>
+<h3>Tabs</h3>
+<div class="tw"><table><thead><tr><th>Tab</th><th>Stack</th><th>Screens</th><th>Ref</th></tr></thead><tbody>
+<tr><td>Requests</td><td><code>InboxStack</code></td><td>P3 → P4 → P5 → P6/P7 → P8 → P9</td><td><span class="bp" title="Blueprint v3 reference">§4 P3</span></td></tr><tr><td>Reservations</td><td><code>HoldStack</code></td><td>P10 → P11 → P12/P13 → P14 → P15 → P16</td><td><span class="bp" title="Blueprint v3 reference">§4 P10</span></td></tr><tr><td>Branch</td><td><code>BranchStack</code></td><td>P17 → P18…P31</td><td><span class="bp" title="Blueprint v3 reference">§4 P17</span></td></tr>
+</tbody></table></div>
+<h3>Modals</h3><ul><li>P6 Compose offer (sheet, thumb-reachable)</li><li>P31 Queued actions (sheet)</li></ul>
+<h3>Route guards</h3>
+<div class="tw"><table><thead><tr><th>Guard</th><th>Applies to</th><th>Behaviour</th><th>Ref</th></tr></thead><tbody>
+<tr><td><code>requireStaffSession</code></td><td>BranchNavigator</td><td>Per-person PIN; 30-minute idle timeout because the device sits on a counter</td><td><span class="bp" title="Blueprint v3 reference">§4 P1 · D19</span></td></tr><tr><td><code>requireManager</code></td><td>P18–P28</td><td>Assistant and pharmacist see branch settings read-only</td><td><span class="bp" title="Blueprint v3 reference">§5 branch configuration</span></td></tr><tr><td><code>requirePharmacist</code></td><td>P15, substitution control inside P6</td><td>The control is ABSENT, not disabled — a disabled control invites a workaround</td><td><span class="bp" title="Blueprint v3 reference">D19</span></td></tr><tr><td><code>requireVerified</code></td><td>BranchNavigator</td><td>An unverified applicant reaches only ApplyNavigator</td><td><span class="bp" title="Blueprint v3 reference">§6 Verification</span></td></tr>
+</tbody></table></div>
+<h3>Deep links</h3><div class="tw"><table><thead><tr><th>URL</th><th>Target</th><th>Stack</th><th>Ref</th></tr></thead><tbody>
+<tr><td><code>dawai-rx://request/{id}</code></td><td>InboxStack → P5</td><td>P3 pushed beneath</td><td><span class="bp" title="Blueprint v3 reference">§4 P5</span></td></tr><tr><td><code>dawai-rx://reservation/{id}</code></td><td>HoldStack → P11</td><td>—</td><td><span class="bp" title="Blueprint v3 reference">§4 P11</span></td></tr>
+</tbody></table></div>
+</section><section id="owner"><h2>Owner</h2>
+<p><b>Root:</b> <code>Web — not a React Native app</code> · <b>Navigator states:</b> <code>Signed out</code> <code>Operator</code></p>
+
+<h3>Tabs</h3>
+<div class="tw"><table><thead><tr><th>Tab</th><th>Stack</th><th>Screens</th><th>Ref</th></tr></thead><tbody>
+<tr><td>—</td><td><code>Web routing</code></td><td>O1–O24</td><td><span class="bp" title="Blueprint v3 reference">§4 O group</span></td></tr>
+</tbody></table></div>
+
+<h3>Route guards</h3>
+<div class="tw"><table><thead><tr><th>Guard</th><th>Applies to</th><th>Behaviour</th><th>Ref</th></tr></thead><tbody>
+<tr><td><code>requireOperator</code></td><td>all</td><td>No other principal has a route here</td><td><span class="bp" title="Blueprint v3 reference">§5 platform matrix</span></td></tr>
+</tbody></table></div>
+
+</section>
+
+<section id="rules"><h2>Rules that apply to every navigator</h2>
+<ol><li>Three separate builds. A patient bundle contains no pharmacy screen and no operator screen — role isolation is structural (§5).</li><li>A notification always resolves to a full stack, never a bare screen with no parent (§5 nav rule 6 carried from v1).</li><li>Every tab keeps its own stack and restores position on return.</li><li>A modal returns to its opener and never leads into a tab.</li><li>The clinical safety layer does not exist in Phase 0, so no route sits above the navigator (D16).</li><li>Deep links are verified against the session before resolving; an unauthorised link lands on the guest home, never on an error.</li></ol></section>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Database Architecture</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Database Architecture</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html" class="on">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Database Architecture</h1>
+<p class="lede">Logical only. 22 tables, no SQL, no engine
+choice. Every table maps to exactly one entity and one owning service; a table
+with neither fails the validator as an orphan.</p>
+
+<div class="rule"><b>Immutability is the load-bearing property</b>
+<code>dispense_records</code> and <code>audit_entries</code> are append-only.
+No principal in the system — including the operator — holds an update or delete
+permission on them. A clinical record that can be edited is not a record, and an
+audit log that can be modified is a formality.</div>
+
+<h2>Tables</h2>
+<div class="filters" data-target="tbs">
+  <button data-f="all" class="on">All</button>
+  <button data-f="identity-service">identity</button><button data-f="catalogue-service">catalogue</button><button data-f="pharmacy-service">pharmacy</button><button data-f="marketplace-engine">marketplace</button><button data-f="clinical-engine">clinical</button><button data-f="media-service">media</button><button data-f="notification-service">notification</button><button data-f="audit-service">audit</button>
+  <input type="search" placeholder="Search tables…" aria-label="Search tables">
+  <span class="cnt" style="font-size:.79rem;color:var(--ink3)"></span>
+</div>
+<div id="tbs">
+<div class="card" data-k="identity-service" data-s="accounts identity-service id, phone_hash, phone_enc, state, name, district_id, created_at, deletion_effective_at, tombstone_id unique(phone_hash) — one account per number (d03) state ∈ the account state set phone_hash state where state='deletion_scheduled'">
+<header><b><code>accounts</code></b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">Account</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, phone_hash, phone_enc, state, name, district_id, created_at, deletion_effective_at, tombstone_id</code></dd>
+<dt>Relationships</dt><dd>1–1 subjects(self), 1–n subjects(managed via guardianships)</dd>
+<dt>Constraints</dt><dd><ul><li>UNIQUE(phone_hash) — one account per number (D03)</li><li>state ∈ the Account state set</li></ul></dd>
+<dt>Indexes</dt><dd><code>phone_hash</code> · <code>state WHERE state='deletion_scheduled'</code></dd>
+<dt>Deletion</dt><dd>soft then tombstone (D05)</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="identity-service" data-s="subjects identity-service id, type, owner_account_id, state, name, birth_year, memorialised_at, reversible_until type ∈ {self,managed} a managed subject has exactly one active guardianship unique(owner_account_id) where type='self' owner_account_id state">
+<header><b><code>subjects</code></b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">Subject</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, type, owner_account_id, state, name, birth_year, memorialised_at, reversible_until</code></dd>
+<dt>Relationships</dt><dd>n–1 accounts</dd>
+<dt>Constraints</dt><dd><ul><li>type ∈ {self,managed}</li><li>A managed subject has exactly one active guardianship</li><li>UNIQUE(owner_account_id) WHERE type='self'</li></ul></dd>
+<dt>Indexes</dt><dd><code>owner_account_id</code> · <code>state</code></dd>
+<dt>Deletion</dt><dd>soft</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="identity-service" data-s="guardianships identity-service id, guardian_account_id, subject_id, state, created_at, ended_at, ended_reason unique(subject_id) where state='active' — exactly one guardian (d01) subject_id guardian_account_id">
+<header><b><code>guardianships</code></b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">Guardianship</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, guardian_account_id, subject_id, state, created_at, ended_at, ended_reason</code></dd>
+<dt>Relationships</dt><dd>n–1 accounts, n–1 subjects</dd>
+<dt>Constraints</dt><dd><ul><li>UNIQUE(subject_id) WHERE state='active' — exactly one guardian (D01)</li></ul></dd>
+<dt>Indexes</dt><dd><code>subject_id</code> · <code>guardian_account_id</code></dd>
+<dt>Deletion</dt><dd>never — ended, not deleted</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="identity-service" data-s="peer_grants identity-service id, subject_id, grantee_account_id, grantee_phone_hash, scope, state, invited_at, expires_at, activated_at, revoked_at scope ∈ {view,order} — no confirm scope exists (§10 change 1) unique(subject_id, grantee_account_id) where state='active' subject_id grantee_account_id state where state='invited'">
+<header><b><code>peer_grants</code></b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">PeerGrant</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, subject_id, grantee_account_id, grantee_phone_hash, scope, state, invited_at, expires_at, activated_at, revoked_at</code></dd>
+<dt>Relationships</dt><dd>n–1 subjects, n–0..1 accounts</dd>
+<dt>Constraints</dt><dd><ul><li>scope ∈ {view,order} — no confirm scope exists (§10 change 1)</li><li>UNIQUE(subject_id, grantee_account_id) WHERE state='active'</li></ul></dd>
+<dt>Indexes</dt><dd><code>subject_id</code> · <code>grantee_account_id</code> · <code>state WHERE state='invited'</code></dd>
+<dt>Deletion</dt><dd>never — revoked, so the record that it existed survives (§9)</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="catalogue_items catalogue-service id, name_ar, name_latin, name_ku_reserved, form, strength, pack_size, requires_prescription, is_controlled, state, version state='requestable' requires pack_size not null and requires_prescription not null and is_controlled not null (§3 prereq 3) normalised search index on name_ar, name_latin state">
+<header><b><code>catalogue_items</code></b> <code>catalogue-service</code> <span class="bp" title="Blueprint v3 reference">CatalogueItem</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, name_ar, name_latin, name_ku_reserved, form, strength, pack_size, requires_prescription, is_controlled, state, version</code></dd>
+<dt>Relationships</dt><dd>referenced by request_lines, offer_lines, dispense_records</dd>
+<dt>Constraints</dt><dd><ul><li>state='requestable' requires pack_size NOT NULL AND requires_prescription NOT NULL AND is_controlled NOT NULL (§3 prereq 3)</li></ul></dd>
+<dt>Indexes</dt><dd><code>normalised search index on name_ar, name_latin</code> · <code>state</code></dd>
+<dt>Deletion</dt><dd>withdrawn, never removed</dd>
+<dt>Audit</dt><dd>operator writes</dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="districts catalogue-service id, city, name_ar, name_latin unique(city, name_ar) city">
+<header><b><code>districts</code></b> <code>catalogue-service</code> <span class="bp" title="Blueprint v3 reference">District</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, city, name_ar, name_latin</code></dd>
+<dt>Relationships</dt><dd>referenced by branches, accounts, requests, watches</dd>
+<dt>Constraints</dt><dd><ul><li>UNIQUE(city, name_ar)</li></ul></dd>
+<dt>Indexes</dt><dd><code>city</code></dd>
+<dt>Deletion</dt><dd>no</dd>
+<dt>Audit</dt><dd>operator writes</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="pharmacies pharmacy-service id, business_name, owner_account_id, named_pharmacist_account_id, state owner and named pharmacist recorded separately (§3.3) state">
+<header><b><code>pharmacies</code></b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">Pharmacy</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, business_name, owner_account_id, named_pharmacist_account_id, state</code></dd>
+<dt>Relationships</dt><dd>1–n branches, 1–n licences</dd>
+<dt>Constraints</dt><dd><ul><li>owner and named pharmacist recorded separately (§3.3)</li></ul></dd>
+<dt>Indexes</dt><dd><code>state</code></dd>
+<dt>Deletion</dt><dd>closed, never removed</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branches pharmacy-service id, pharmacy_id, district_id, verified_point, address_text, storefront_image_id, radius_km, capacity_open_reservations, paused_until, state, eligibility_reason verified_point not null before state='verified' (d10) state ∈ the branch state set district_id state pharmacy_id">
+<header><b><code>branches</code></b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">Branch</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, pharmacy_id, district_id, verified_point, address_text, storefront_image_id, radius_km, capacity_open_reservations, paused_until, state, eligibility_reason</code></dd>
+<dt>Relationships</dt><dd>n–1 pharmacies, n–1 districts, 1–n staff</dd>
+<dt>Constraints</dt><dd><ul><li>verified_point NOT NULL before state='verified' (D10)</li><li>state ∈ the Branch state set</li></ul></dd>
+<dt>Indexes</dt><dd><code>district_id</code> · <code>state</code> · <code>pharmacy_id</code></dd>
+<dt>Deletion</dt><dd>closed</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branch_hours pharmacy-service id, branch_id, kind, weekday, opens, closes, date, hijri_range kind ∈ {standard,exception,ramadan} ramadan rows carry hijri_range, not a gregorian date (d33) branch_id, kind">
+<header><b><code>branch_hours</code></b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">BranchHours</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, branch_id, kind, weekday, opens, closes, date, hijri_range</code></dd>
+<dt>Relationships</dt><dd>n–1 branches</dd>
+<dt>Constraints</dt><dd><ul><li>kind ∈ {standard,exception,ramadan}</li><li>ramadan rows carry hijri_range, not a Gregorian date (D33)</li></ul></dd>
+<dt>Indexes</dt><dd><code>branch_id, kind</code></dd>
+<dt>Deletion</dt><dd>hard for exceptions</dd>
+<dt>Audit</dt><dd>manager writes</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="staff pharmacy-service id, branch_id, account_id, role, pin_hash, licence_id, state, invited_at role ∈ {assistant,pharmacist,manager} role='pharmacist' requires a verified licence_id at least one active manager per branch (§10 change 5) branch_id, state account_id">
+<header><b><code>staff</code></b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">Staff</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, branch_id, account_id, role, pin_hash, licence_id, state, invited_at</code></dd>
+<dt>Relationships</dt><dd>n–1 branches, n–1 accounts</dd>
+<dt>Constraints</dt><dd><ul><li>role ∈ {assistant,pharmacist,manager}</li><li>role='pharmacist' requires a verified licence_id</li><li>at least one active manager per branch (§10 change 5)</li></ul></dd>
+<dt>Indexes</dt><dd><code>branch_id, state</code> · <code>account_id</code></dd>
+<dt>Deletion</dt><dd>soft (removed)</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="licences pharmacy-service id, pharmacy_id, holder_account_id, document_image_id, expires_at, state, verified_by, verified_at state ∈ {submitted,valid,expiring,lapsed} expires_at where state in ('valid','expiring')">
+<header><b><code>licences</code></b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">Licence</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, pharmacy_id, holder_account_id, document_image_id, expires_at, state, verified_by, verified_at</code></dd>
+<dt>Relationships</dt><dd>n–1 pharmacies</dd>
+<dt>Constraints</dt><dd><ul><li>state ∈ {submitted,valid,expiring,lapsed}</li></ul></dd>
+<dt>Indexes</dt><dd><code>expires_at WHERE state IN ('valid','expiring')</code></dd>
+<dt>Deletion</dt><dd>never</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="requests marketplace-engine id, subject_id, actor_account_id, parent_request_id, district_id, urgency, window_ends_at, state, idempotency_key, created_at urgency ∈ {now,today,soon} mapping to 20m/4h/48h exactly (d09) 1..8 lines unique(idempotency_key) subject_id state, window_ends_at district_id">
+<header><b><code>requests</code></b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">Request</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, subject_id, actor_account_id, parent_request_id, district_id, urgency, window_ends_at, state, idempotency_key, created_at</code></dd>
+<dt>Relationships</dt><dd>1–n request_lines, 1–n offers, 0..1 child request</dd>
+<dt>Constraints</dt><dd><ul><li>urgency ∈ {now,today,soon} mapping to 20m/4h/48h exactly (D09)</li><li>1..8 lines</li><li>UNIQUE(idempotency_key)</li></ul></dd>
+<dt>Indexes</dt><dd><code>subject_id</code> · <code>state, window_ends_at</code> · <code>district_id</code></dd>
+<dt>Deletion</dt><dd>no</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="request_lines marketplace-engine id, request_id, item_id, packs, prescription_image_id, state packs &gt;= 1 prescription_image_id not null when the item requires_prescription (d18) item must not be is_controlled (d42) request_id item_id">
+<header><b><code>request_lines</code></b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">RequestLine</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, request_id, item_id, packs, prescription_image_id, state</code></dd>
+<dt>Relationships</dt><dd>n–1 requests, n–1 catalogue_items</dd>
+<dt>Constraints</dt><dd><ul><li>packs &gt;= 1</li><li>prescription_image_id NOT NULL when the item requires_prescription (D18)</li><li>item must not be is_controlled (D42)</li></ul></dd>
+<dt>Indexes</dt><dd><code>request_id</code> · <code>item_id</code></dd>
+<dt>Deletion</dt><dd>no</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="offers marketplace-engine id, request_id, branch_id, staff_account_id, readiness, state, sent_at, withdrawn_at, idempotency_key unique(request_id, branch_id) — one answer per branch per request withdrawal only while state='sent' (d08) unique(idempotency_key) request_id branch_id, state">
+<header><b><code>offers</code></b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">Offer</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, request_id, branch_id, staff_account_id, readiness, state, sent_at, withdrawn_at, idempotency_key</code></dd>
+<dt>Relationships</dt><dd>n–1 requests, n–1 branches, 1–n offer_lines</dd>
+<dt>Constraints</dt><dd><ul><li>UNIQUE(request_id, branch_id) — one answer per branch per request</li><li>withdrawal only while state='sent' (D08)</li><li>UNIQUE(idempotency_key)</li></ul></dd>
+<dt>Indexes</dt><dd><code>request_id</code> · <code>branch_id, state</code></dd>
+<dt>Deletion</dt><dd>no</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="offer_lines marketplace-engine id, offer_id, request_line_id, answer, price, substitute_item_id, note, unavailable_reason, authorised_by_staff_id answer ∈ {available,unavailable,substitute} price not null when answer&lt;&gt;'unavailable' substitute requires authorised_by_staff_id with a verified pharmacist licence (d19) unavailable_reason not null when answer='unavailable' offer_id">
+<header><b><code>offer_lines</code></b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">OfferLine</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, offer_id, request_line_id, answer, price, substitute_item_id, note, unavailable_reason, authorised_by_staff_id</code></dd>
+<dt>Relationships</dt><dd>n–1 offers, n–1 request_lines</dd>
+<dt>Constraints</dt><dd><ul><li>answer ∈ {available,unavailable,substitute}</li><li>price NOT NULL when answer&lt;&gt;'unavailable'</li><li>substitute requires authorised_by_staff_id with a verified pharmacist licence (D19)</li><li>unavailable_reason NOT NULL when answer='unavailable'</li></ul></dd>
+<dt>Indexes</dt><dd><code>offer_id</code></dd>
+<dt>Deletion</dt><dd>no</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservations marketplace-engine id, offer_id, branch_id, subject_id, code, state, requested_at, held_at, expires_at, resolved_at, refusal_reason, confirmed_by_staff_id, seconds_since_confirm_on_refusal held_at not null before expires_at is set — the clock starts at held (§6) unique(code) where state='held' expires_at computed from server time only branch_id, state subject_id code where state='held' expires_at where state='held'">
+<header><b><code>reservations</code></b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">Reservation</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, offer_id, branch_id, subject_id, code, state, requested_at, held_at, expires_at, resolved_at, refusal_reason, confirmed_by_staff_id, seconds_since_confirm_on_refusal</code></dd>
+<dt>Relationships</dt><dd>n–1 offers, n–1 branches, 1–n reservation_lines</dd>
+<dt>Constraints</dt><dd><ul><li>held_at NOT NULL before expires_at is set — the clock starts at held (§6)</li><li>UNIQUE(code) WHERE state='held'</li><li>expires_at computed from server time only</li></ul></dd>
+<dt>Indexes</dt><dd><code>branch_id, state</code> · <code>subject_id</code> · <code>code WHERE state='held'</code> · <code>expires_at WHERE state='held'</code></dd>
+<dt>Deletion</dt><dd>pseudonymised on account deletion, never removed (D05)</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation_lines marketplace-engine id, reservation_id, offer_line_id, packs, state only lines the patient accepted (d06) reservation_id">
+<header><b><code>reservation_lines</code></b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">ReservationLine</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, reservation_id, offer_line_id, packs, state</code></dd>
+<dt>Relationships</dt><dd>n–1 reservations</dd>
+<dt>Constraints</dt><dd><ul><li>only lines the patient accepted (D06)</li></ul></dd>
+<dt>Indexes</dt><dd><code>reservation_id</code></dd>
+<dt>Deletion</dt><dd>no</dd>
+<dt>Audit</dt><dd>all writes</dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="dispense_records clinical-engine id, subject_id, reservation_id, item_id, packs, branch_id, price, dispensed_at append only — no update and no delete permission is granted to any role (§2 invariant 2) unique(reservation_id) subject_id, dispensed_at item_id">
+<header><b><code>dispense_records</code></b> <code>clinical-engine</code> <span class="bp" title="Blueprint v3 reference">DispenseRecord</span>
+<span class="pill ba">append-only</span></header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, subject_id, reservation_id, item_id, packs, branch_id, price, dispensed_at</code></dd>
+<dt>Relationships</dt><dd>n–1 subjects, 1–1 reservations</dd>
+<dt>Constraints</dt><dd><ul><li>APPEND ONLY — no UPDATE and no DELETE permission is granted to any role (§2 invariant 2)</li><li>UNIQUE(reservation_id)</li></ul></dd>
+<dt>Indexes</dt><dd><code>subject_id, dispensed_at</code> · <code>item_id</code></dd>
+<dt>Deletion</dt><dd>only via account deletion cascade</dd>
+<dt>Audit</dt><dd>insert only</dd>
+</dl></div><div class="card" data-k="media-service" data-s="prescription_images media-service id, subject_id, storage_ref, encrypted_key_ref, uploaded_at, deleted_at encrypted at rest; the key is never stored beside the object subject_id">
+<header><b><code>prescription_images</code></b> <code>media-service</code> <span class="bp" title="Blueprint v3 reference">PrescriptionImage</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, subject_id, storage_ref, encrypted_key_ref, uploaded_at, deleted_at</code></dd>
+<dt>Relationships</dt><dd>n–1 subjects</dd>
+<dt>Constraints</dt><dd><ul><li>encrypted at rest; the key is never stored beside the object</li></ul></dd>
+<dt>Indexes</dt><dd><code>subject_id</code></dd>
+<dt>Deletion</dt><dd>hard on patient request (§4 M5)</dd>
+<dt>Audit</dt><dd>all writes and all reads</dd>
+</dl></div><div class="card" data-k="media-service" data-s="prescription_access media-service id, image_id, branch_id, reservation_id, granted_at, revoked_at revoked_at set when the reservation resolves (d18) image_id reservation_id">
+<header><b><code>prescription_access</code></b> <code>media-service</code> <span class="bp" title="Blueprint v3 reference">D18</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, image_id, branch_id, reservation_id, granted_at, revoked_at</code></dd>
+<dt>Relationships</dt><dd>n–1 prescription_images</dd>
+<dt>Constraints</dt><dd><ul><li>revoked_at set when the reservation resolves (D18)</li></ul></dd>
+<dt>Indexes</dt><dd><code>image_id</code> · <code>reservation_id</code></dd>
+<dt>Deletion</dt><dd>never</dd>
+<dt>Audit</dt><dd>all writes and all reads</dd>
+</dl></div><div class="card" data-k="notification-service" data-s="watches notification-service id, subject_id, item_id, district_id, state, created_at, expires_at max 5 active per subject (d30) expires_at = created_at + 14 days subject_id, state item_id, district_id where state='active'">
+<header><b><code>watches</code></b> <code>notification-service</code> <span class="bp" title="Blueprint v3 reference">Watch</span>
+</header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, subject_id, item_id, district_id, state, created_at, expires_at</code></dd>
+<dt>Relationships</dt><dd>n–1 subjects</dd>
+<dt>Constraints</dt><dd><ul><li>max 5 active per subject (D30)</li><li>expires_at = created_at + 14 days</li></ul></dd>
+<dt>Indexes</dt><dd><code>subject_id, state</code> · <code>item_id, district_id WHERE state='active'</code></dd>
+<dt>Deletion</dt><dd>soft</dd>
+<dt>Audit</dt><dd>no</dd>
+</dl></div><div class="card" data-k="audit-service" data-s="audit_entries audit-service id, actor_account_id, actor_tombstone_id, subject_id, branch_id, action, target_ref, reason, occurred_at, payload_digest append only — no principal, including the operator, holds update or delete (§5) actor replaced by tombstone on account deletion, entry preserved (d05) subject_id, occurred_at actor_account_id, occurred_at branch_id, occurred_at">
+<header><b><code>audit_entries</code></b> <code>audit-service</code> <span class="bp" title="Blueprint v3 reference">AuditEntry</span>
+<span class="pill ba">append-only</span></header>
+<dl class="kv">
+<dt>Columns</dt><dd><code>id, actor_account_id, actor_tombstone_id, subject_id, branch_id, action, target_ref, reason, occurred_at, payload_digest</code></dd>
+<dt>Relationships</dt><dd>references accounts, subjects, branches</dd>
+<dt>Constraints</dt><dd><ul><li>APPEND ONLY — no principal, including the operator, holds UPDATE or DELETE (§5)</li><li>actor replaced by tombstone on account deletion, entry preserved (D05)</li></ul></dd>
+<dt>Indexes</dt><dd><code>subject_id, occurred_at</code> · <code>actor_account_id, occurred_at</code> · <code>branch_id, occurred_at</code></dd>
+<dt>Deletion</dt><dd>never</dd>
+<dt>Audit</dt><dd>n/a — it is the audit</dd>
+</dl></div>
+</div>
+
+<h2>Audit strategy</h2>
+<ul>
+<li><b>Every write</b> to a table marked <em>all writes</em> appends an audit entry with actor, target, action and time.</li>
+<li><b>Every read of identified clinical data</b> appends an entry too — permitted reads included, because the point is that a patient can see who looked.</li>
+<li><b>The audit stores a digest</b>, never the content. It records that a read happened, not what was read.</li>
+<li><b>Under load the audit applies backpressure</b> rather than dropping entries. A dropped entry is a silent failure of the entire control.</li>
+<li><b>On account deletion</b> the actor becomes a tombstone identifier and the entry survives, because accountability outlives the account.</li>
+</ul>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>
