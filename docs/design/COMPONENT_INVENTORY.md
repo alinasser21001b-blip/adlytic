@@ -9,12 +9,12 @@
 | --- | --- | --- |
 | `Screen` | 11 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `Primary` | 13 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen |
-| `Secondary` | 10 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Secondary` | 9 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `ActionCard` | 2 | FindScreen, OffersScreen |
-| `InfoCard` | 14 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
+| `InfoCard` | 13 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 98 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Label` | 93 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `Digits` | 7 | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen, WaitingScreen |
 | `Bidi` | 3 | DraftScreen, FindScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
@@ -61,7 +61,7 @@ Never competes with the primary: no fill, no accent background.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (10 usages) |
+| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (9 usages) |
 | **Required variants** | `default`, `with a distinct spoken label` |
 | **Required interactions** | press |
 | **Accessibility** | Supports a spoken label different from the visible text, so repeated row actions are distinguishable to a screen reader while the visible text stays short. |
@@ -93,7 +93,7 @@ Information, not an action. A refused item renders as information rather than a 
 
 | | |
 | --- | --- |
-| **Used by** | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen (14 usages) |
+| **Used by** | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen (13 usages) |
 | **Required variants** | `default`, `muted` |
 | **Required interactions** | none — deliberately not pressable |
 | **Accessibility** | No role; content carries its own semantics. |
@@ -141,7 +141,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (98 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (93 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |

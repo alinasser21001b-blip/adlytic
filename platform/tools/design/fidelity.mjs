@@ -102,11 +102,11 @@ export const SCREENS = {
   V2: {
     built: true,
     verdicts: {
-      Layout: ["missing", "The delivery leads with a cached banner, then a LIGHT code panel on the dark ground, then a facts card (pharmacy / expiry / price) as labelled rows. The build still renders the pre-design layout: dark code panel, separate branch card, separate line-item card. Structure differs throughout."],
-      Typography: ["missing", "Code is delivered at 76px mono; the build renders it at the `display` role, 34px. The «آخر وقت معروف» expiry qualifier and the panel caption are not present."],
-      Spacing: ["minor", "Card padding and stack gaps come from the 4pt scale and land inside the delivered 14–16 / 10–14 ranges, but the delivered 28px code-panel padding has no 4pt token (24 or 32)."],
-      Colour: ["exact", "Ground, card, line, ink, muted and accent all match. Code panel present in tokens; not yet applied to the screen."],
-      Component: ["missing", "Needs a light-panel component and a labelled facts row. Neither exists; the screen composes InfoCard instead."],
+      Layout: ["exact", "Built to the delivery in order: full-bleed cached banner, «حجزك باسم …», light code panel, facts card (pharmacy / expiry / price) as labelled rows with dividers, the cached-counter caption, a centred call link, and «الاتجاهات» as the one footer primary. Both the live and the cached states were compared against turn 4a."],
+      Typography: ["exact", "Code renders at the delivered 76px mono; the panel caption at 13px; the «آخر وقت معروف» qualifier is present and set at caption scale beside the expiry, as delivered."],
+      Spacing: ["minor", "Gutters and card padding land inside the delivered ranges, but the code panel's vertical padding is 32 (space 7) against a delivered 28 — the 4pt scale has no 28, and adding an off-scale value for one panel would cost more than the 4pt it buys."],
+      Colour: ["intended", "Ground, card, sunken banner, line, ink, muted and accent all match, and the light code panel is applied. The panel caption ships at #63726B rather than the delivered #6B7A74 — see DEV-1."],
+      Component: ["exact", "`CodePanel`, `FactRow` and `Banner` are built and are what the screen composes. The banner is drawn by the frame from the declared offline treatment, so no screen can state «ما في اتصال» twice."],
       Motion: ["missing", "No transition is implemented anywhere in the product."],
       Icon: ["blocked", "No icon set exists. The back affordance is still the character ‹."],
       Accessibility: ["exact", "44pt floor, accessible labels and measured contrast all enforced on this screen every build."],
@@ -118,7 +118,7 @@ export const SCREENS = {
     built: true,
     verdicts: {
       Layout: ["minor", "The build has the right shape — title, explanation, no countdown — but lacks the delivered outbox card listing the queued lines and the dashed card that explains why there is no timer."],
-      Typography: ["minor", "Title renders at `title` 22px against a delivered 24px/800. The 800 weight is not in the type scale."],
+      Typography: ["exact", "The `title` role now carries the delivered 24px/800, raised while building V2; this screen's heading picked it up with no screen-level change."],
       Spacing: ["exact", "20px gutter, matching the delivered range."],
       Colour: ["exact", "Palette applied."],
       Component: ["missing", "The dashed explain card is a new component; the outbox line list is not built."],

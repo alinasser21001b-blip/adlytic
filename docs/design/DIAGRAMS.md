@@ -155,7 +155,7 @@ flowchart TD
 flowchart TD
   subgraph Tokens
     color["colour<br/>15 semantic roles<br/>light + dark"]
-    type["type<br/>5 roles<br/>letter-spacing always 0"]
+    type["type<br/>7 roles<br/>letter-spacing always 0"]
     space["space<br/>4pt scale, 11 steps"]
     radius["radius<br/>5 values"]
     tap["tap targets<br/>44 / 48 / 56pt"]

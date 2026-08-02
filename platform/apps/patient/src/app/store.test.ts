@@ -246,7 +246,7 @@ describe("the second half of the loop", () => {
     const { state, effects } = run(chosen, [{
       kind: "holdConfirmed",
       hold: {
-        reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد",
+        reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد", holderName: "أم علي",
         branchPhone: "0770", address: "الكرادة",
         confirmedAt: instant(2_000), expiresAt: instant(2_000 + 3_600_000),
         totalMinor: 3_000, lines: [{ itemName: "بانادول", packs: 1, priceMinor: 3_000 }],
@@ -277,7 +277,7 @@ describe("the second half of the loop", () => {
       { kind: "chooseOffer", offerId: "o1" },
     ]).state;
     const held = {
-      reservationId: "r1", code: "4KD2P9", branchName: "ص", branchPhone: "0770", address: "a",
+      reservationId: "r1", code: "4KD2P9", branchName: "ص", holderName: "أم علي", branchPhone: "0770", address: "a",
       confirmedAt: instant(2_000), expiresAt: instant(2_000 + 3_600_000),
       totalMinor: 1, lines: [],
     };

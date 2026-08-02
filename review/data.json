@@ -1051,14 +1051,14 @@
         "why": "the reservation lives on Today; there is no stack behind a notification"
       },
       "primary": {
-        "label": "خذني للصيدلية",
+        "label": "الاتجاهات",
         "leadsTo": "V2",
         "tapsToOutcome": 1
       },
       "noPrimaryBecause": null,
       "secondary": [
         {
-          "label": "اتصل بالصيدلية",
+          "label": "اتصال بالصيدلية",
           "leadsTo": "V2"
         },
         {
@@ -2576,6 +2576,13 @@
       "pharmacyPrimary": 56
     },
     "type": {
+      "code": {
+        "size": 76,
+        "lineHeight": 1.15,
+        "letterSpacing": 0,
+        "weight": 600,
+        "clinicalAllowed": true
+      },
       "display": {
         "size": 34,
         "lineHeight": 1.25,
@@ -2583,11 +2590,18 @@
         "weight": 700,
         "clinicalAllowed": false
       },
+      "poster": {
+        "size": 28,
+        "lineHeight": 1.45,
+        "letterSpacing": 0,
+        "weight": 800,
+        "clinicalAllowed": false
+      },
       "title": {
-        "size": 22,
+        "size": 24,
         "lineHeight": 1.4,
         "letterSpacing": 0,
-        "weight": 700,
+        "weight": 800,
         "clinicalAllowed": true
       },
       "headline": {

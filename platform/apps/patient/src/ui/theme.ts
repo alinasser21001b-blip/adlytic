@@ -8,7 +8,7 @@
  *      meaningful: it measures the pairs this file can produce, and a raw hex
  *      in a stylesheet would be a pair nobody measured.
  */
-import { palettes, space, radius, tap, type as typeScale, fontStack, APP_DIRECTION, type Palette, type Scheme } from "@dawai/design";
+import { palettes, patientCodePanel, space, radius, tap, type as typeScale, fontStack, APP_DIRECTION, type Palette, type Scheme } from "@dawai/design";
 
 export type Theme = {
   readonly scheme: Scheme;
@@ -24,6 +24,9 @@ export type Theme = {
   /** Digits that do not change width. §27: a countdown attached to a patient's
    *  anxiety must not visibly jitter. */
   readonly tabularFamily: string;
+  /** The light panel that carries the reservation code — the one surface in the
+   *  patient app that inverts. Its pairs are measured separately by the gate. */
+  readonly codePanel: typeof patientCodePanel;
 };
 
 export const themeFor = (scheme: Scheme): Theme => ({
@@ -33,6 +36,7 @@ export const themeFor = (scheme: Scheme): Theme => ({
   direction: APP_DIRECTION,
   fontFamily: fontStack.arabic[0]!,
   tabularFamily: fontStack.tabular[0]!,
+  codePanel: patientCodePanel,
 });
 
 /** A text style from a role. Line height is a multiplier in the token and an

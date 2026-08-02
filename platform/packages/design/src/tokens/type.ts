@@ -11,7 +11,7 @@
  * @implements design/type
  */
 
-export const TYPE_ROLES = ["display", "title", "headline", "body", "caption"] as const;
+export const TYPE_ROLES = ["code", "display", "poster", "title", "headline", "body", "caption"] as const;
 export type TypeRole = (typeof TYPE_ROLES)[number];
 
 export type TypeStyle = {
@@ -19,15 +19,22 @@ export type TypeStyle = {
   readonly lineHeight: number;
   /** Always 0. Arabic is connected; tracking it damages the letterforms. */
   readonly letterSpacing: 0;
-  readonly weight: 400 | 500 | 600 | 700;
+  readonly weight: 400 | 500 | 600 | 700 | 800;
   /** Whether this role may carry clinical content. §25: nothing clinical
    *  below 16pt, so `caption` is barred from it by type. */
   readonly clinicalAllowed: boolean;
 };
 
 export const type: Readonly<Record<TypeRole, TypeStyle>> = {
+  /** The reservation code on V2, at the size the Night Mint delivery draws it.
+   *  It is the largest thing in the product because it is what a patient holds
+   *  up at a counter. Clinical: it identifies a specific dispense. */
+  code:     { size: 76, lineHeight: 1.15, letterSpacing: 0, weight: 600, clinicalAllowed: true },
   display:  { size: 34, lineHeight: 1.25, letterSpacing: 0, weight: 700, clinicalAllowed: false },
-  title:    { size: 22, lineHeight: 1.40, letterSpacing: 0, weight: 700, clinicalAllowed: true },
+  /** Poster lines — E4's promise copy. Delivered at 28/800. */
+  poster:   { size: 28, lineHeight: 1.45, letterSpacing: 0, weight: 800, clinicalAllowed: false },
+  // Delivered at 24/800 across R7, R8 and R9 — raised from 22/700 to match.
+  title:    { size: 24, lineHeight: 1.40, letterSpacing: 0, weight: 800, clinicalAllowed: true },
   headline: { size: 17, lineHeight: 1.50, letterSpacing: 0, weight: 600, clinicalAllowed: true },
   body:     { size: 16, lineHeight: 1.65, letterSpacing: 0, weight: 400, clinicalAllowed: true },
   caption:  { size: 13, lineHeight: 1.60, letterSpacing: 0, weight: 500, clinicalAllowed: false },

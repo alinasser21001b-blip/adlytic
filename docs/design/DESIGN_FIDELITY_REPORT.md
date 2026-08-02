@@ -12,16 +12,16 @@
 
 ## Overall fidelity
 
-# 46%
+# 51%
 
 6 screens × 10 categories = 60 assessments.
 
 | Verdict | Count | Share |
 | --- | --- | --- |
-| Exact Match | 20 | 33% |
-| Minor Deviation | 10 | 17% |
-| Intentional Deviation | 0 | 0% |
-| Missing | 24 | 40% |
+| Exact Match | 23 | 38% |
+| Minor Deviation | 9 | 15% |
+| Intentional Deviation | 1 | 2% |
+| Missing | 21 | 35% |
 | Blocked | 6 | 10% |
 
 Exact and Intentional both count 1.0 — an approved, recorded deviation is
@@ -30,8 +30,8 @@ Missing and Blocked count 0.
 
 | Screen | | Fidelity |
 | --- | --- | --- |
-| `V2` | Reservation (cached-first) | 38% |
-| `R7-queued` | Waiting · queued | 55% |
+| `V2` | Reservation (cached-first) | 68% |
+| `R7-queued` | Waiting · queued | 57% |
 | `R7-sent` | Waiting · sent | 45% |
 | `R8` | Offers | 63% |
 | `R9` | Substitution consent | 65% |
@@ -79,8 +79,8 @@ Values the delivery names that no semantic role covers — see CLR-5:
 | --- | --- | --- |
 | Arabic family | IBM Plex Sans Arabic, weights 400/500/600/700/800 | named, **not bundled** |
 | Mono family | IBM Plex Mono, weights 500/600 | named, **not bundled** |
-| Largest size | 76px (the V2 code) | 34px (`display`) |
-| Weights | includes 800 for poster type | 400, 500, 600, 700 |
+| Largest size | 76px (the V2 code) | 76px (`display`) |
+| Weights | includes 800 for poster type | 400, 500, 600, 700, 800 |
 | Letter-spacing | 0 | 0 — enforced every build |
 
 The 76px code and the 800 weight have no token. See CLR-4.
@@ -89,27 +89,27 @@ The 76px code and the 800 weight have no token. See CLR-4.
 
 ## Fidelity by screen
 
-### `V2` — Reservation (cached-first) · 38%
+### `V2` — Reservation (cached-first) · 68%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
-| Layout | Missing | The delivery leads with a cached banner, then a LIGHT code panel on the dark ground, then a facts card (pharmacy / expiry / price) as labelled rows. The build still renders the pre-design layout: dark code panel, separate branch card, separate line-item card. Structure differs throughout. |
-| Typography | Missing | Code is delivered at 76px mono; the build renders it at the `display` role, 34px. The «آخر وقت معروف» expiry qualifier and the panel caption are not present. |
-| Spacing | Minor Deviation | Card padding and stack gaps come from the 4pt scale and land inside the delivered 14–16 / 10–14 ranges, but the delivered 28px code-panel padding has no 4pt token (24 or 32). |
-| Colour | Exact Match | Ground, card, line, ink, muted and accent all match. Code panel present in tokens; not yet applied to the screen. |
-| Component | Missing | Needs a light-panel component and a labelled facts row. Neither exists; the screen composes InfoCard instead. |
+| Layout | Exact Match | Built to the delivery in order: full-bleed cached banner, «حجزك باسم …», light code panel, facts card (pharmacy / expiry / price) as labelled rows with dividers, the cached-counter caption, a centred call link, and «الاتجاهات» as the one footer primary. Both the live and the cached states were compared against turn 4a. |
+| Typography | Exact Match | Code renders at the delivered 76px mono; the panel caption at 13px; the «آخر وقت معروف» qualifier is present and set at caption scale beside the expiry, as delivered. |
+| Spacing | Minor Deviation | Gutters and card padding land inside the delivered ranges, but the code panel's vertical padding is 32 (space 7) against a delivered 28 — the 4pt scale has no 28, and adding an off-scale value for one panel would cost more than the 4pt it buys. |
+| Colour | Intentional Deviation | Ground, card, sunken banner, line, ink, muted and accent all match, and the light code panel is applied. The panel caption ships at #63726B rather than the delivered #6B7A74 — see DEV-1. |
+| Component | Exact Match | `CodePanel`, `FactRow` and `Banner` are built and are what the screen composes. The banner is drawn by the frame from the declared offline treatment, so no screen can state «ما في اتصال» twice. |
 | Motion | Missing | No transition is implemented anywhere in the product. |
 | Icon | Blocked | No icon set exists. The back affordance is still the character ‹. |
 | Accessibility | Exact Match | 44pt floor, accessible labels and measured contrast all enforced on this screen every build. |
 | RTL | Exact Match | Direction-driven layout; no physical row reversal, banned at build time. |
 | Responsive | Missing | Rendered and checked at 390pt only. The delivery is 360pt and the brief requires 320/360/430. |
 
-### `R7-queued` — Waiting · queued · 55%
+### `R7-queued` — Waiting · queued · 57%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
 | Layout | Minor Deviation | The build has the right shape — title, explanation, no countdown — but lacks the delivered outbox card listing the queued lines and the dashed card that explains why there is no timer. |
-| Typography | Minor Deviation | Title renders at `title` 22px against a delivered 24px/800. The 800 weight is not in the type scale. |
+| Typography | Exact Match | The `title` role now carries the delivered 24px/800, raised while building V2; this screen's heading picked it up with no screen-level change. |
 | Spacing | Exact Match | 20px gutter, matching the delivered range. |
 | Colour | Exact Match | Palette applied. |
 | Component | Missing | The dashed explain card is a new component; the outbox line list is not built. |

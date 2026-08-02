@@ -4,7 +4,7 @@ import * as Reservation from "./reservation.js";
 
 const AT = instant(1_000_000);
 const hold = (over: Partial<Reservation.Hold> = {}): Reservation.Hold => ({
-  reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد",
+  reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد", holderName: "أم علي",
   branchPhone: "07701234567", address: "الكرادة، شارع ٦٢",
   confirmedAt: AT, expiresAt: instant(AT + 2 * 60 * 60_000),
   totalMinor: 3_000,

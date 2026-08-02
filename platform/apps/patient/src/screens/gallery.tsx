@@ -130,7 +130,7 @@ const offersProps = (offers: readonly Offers.Offer[]) => ({
 
 const HOLD_AT = 1_000_000;
 const aHold = (over: Partial<Reservation.Hold> = {}): Reservation.Hold => ({
-  reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد",
+  reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد", holderName: "أم علي",
   branchPhone: "07701234567", address: "الكرادة، شارع ٦٢، مقابل المستشفى",
   confirmedAt: instant(HOLD_AT), expiresAt: instant(HOLD_AT + 2 * 60 * 60_000),
   totalMinor: 9_000,

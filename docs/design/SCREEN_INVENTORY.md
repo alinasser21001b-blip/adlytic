@@ -1410,8 +1410,8 @@ Blueprint declares: `loading · error · offline · expiring · expired`. 3 stat
 
 | Interaction | Detail |
 | --- | --- |
-| Primary action | **خذني للصيدلية** → `V2` (1 tap to outcome) |
-| Secondary actions | اتصل بالصيدلية → `V2`<br>ألغِ الحجز → `V5` |
+| Primary action | **الاتجاهات** → `V2` (1 tap to outcome) |
+| Secondary actions | اتصال بالصيدلية → `V2`<br>ألغِ الحجز → `V5` |
 | Back | `replace` → `S1` — the reservation lives on Today; there is no stack behind a notification |
 | Exits | `V5` **(BLOCKED — target not built)**, `V7` **(BLOCKED — target not built)**, `S1` |
 | Press feedback | **Not designed.** No pressed state exists anywhere in the product. |

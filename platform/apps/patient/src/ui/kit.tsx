@@ -25,7 +25,7 @@ export type Press = () => void;
 
 export function Label(
   { t, role = "body", color = "ink", children, numberOfLines }:
-  { t: Theme; role?: "display" | "title" | "headline" | "body" | "caption"; color?: "ink" | "inkMuted" | "inkSubtle" | "accent" | "alert" | "onAccent" | "warning"; children: React.ReactNode; numberOfLines?: number },
+  { t: Theme; role?: "code" | "display" | "poster" | "title" | "headline" | "body" | "caption"; color?: "ink" | "inkMuted" | "inkSubtle" | "accent" | "alert" | "onAccent" | "warning"; children: React.ReactNode; numberOfLines?: number },
 ) {
   const s = t.type[role];
   return (
@@ -89,7 +89,7 @@ export function Bidi({ t, text, role = "body", color = "ink" }: { t: Theme; text
  * worse than either. A code is read aloud to a pharmacist and typed into their
  * system; it must be one alphabet whichever alphabet that turns out to be.
  */
-export const Digits = ({ t, value, role = "body" }: { t: Theme; value: number | string; role?: "body" | "headline" | "title" | "display" }) => {
+export const Digits = ({ t, value, role = "body" }: { t: Theme; value: number | string; role?: "body" | "headline" | "title" | "display" | "code" }) => {
   const raw = String(value);
   const alphanumeric = /[A-Za-z]/.test(raw);
   return (
@@ -97,7 +97,7 @@ export const Digits = ({ t, value, role = "body" }: { t: Theme; value: number | 
       fontFamily: t.tabularFamily, fontSize: t.type[role].size, color: t.color.ink,
       ...(alphanumeric ? { writingDirection: "ltr" as const } : {}),
     }}>
-      {alphanumeric ? raw : formatDigits(toWestern(raw), "arabic-indic")}
+      {alphanumeric ? raw : formatDigits(toWestern(raw), "arabic-indic").replace(/,/g, "٬")}
     </Text>
   );
 };
@@ -239,6 +239,97 @@ export function Choice(
   );
 }
 
+/**
+ * A full-bleed strip beneath the header — the delivery's cached/offline banner.
+ *
+ * Full-bleed rather than a card because it is a statement about the WHOLE
+ * screen, not about one piece of content on it: everything below is from the
+ * device, not from a pharmacy.
+ */
+export function Banner(
+  { t, says, aside }: { t: Theme; says: string; aside?: string },
+) {
+  return (
+    <View style={{
+      backgroundColor: t.color.surfaceSunken,
+      paddingVertical: t.space[2], paddingHorizontal: t.space[4],
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: t.space[3],
+    }}>
+      <Label t={t} role="caption" color="inkMuted">{says}</Label>
+      {aside ? <Label t={t} role="caption" color="inkMuted">{aside}</Label> : null}
+    </View>
+  );
+}
+
+/**
+ * The reservation code, on a light panel.
+ *
+ * The one surface in the patient app that inverts. It reads as something
+ * printed and handed over rather than as another dark card, which is the whole
+ * point: at a counter the patient is showing a ticket, not operating an app.
+ */
+export function CodePanel(
+  { t, code, caption, hint }: { t: Theme; code: string; caption: string; hint?: string },
+) {
+  return (
+    <View
+      accessibilityLabel={`${caption}: ${code}`}
+      style={{
+        backgroundColor: t.codePanel.surface,
+        borderRadius: t.radius.xl,
+        paddingVertical: t.space[7], paddingHorizontal: t.space[5],
+        alignItems: "center", gap: t.space[3],
+      }}
+    >
+      <Text style={{
+        fontFamily: t.fontFamily, fontSize: t.type.caption.size,
+        lineHeight: Math.round(t.type.caption.size * t.type.caption.lineHeight),
+        color: t.codePanel.inkMuted, textAlign: "center", writingDirection: t.direction,
+      }}>{caption}</Text>
+
+      <Text style={{
+        fontFamily: t.tabularFamily,
+        fontSize: t.type.code.size,
+        lineHeight: Math.round(t.type.code.size * t.type.code.lineHeight),
+        fontWeight: String(t.type.code.weight) as "600",
+        color: t.codePanel.ink,
+        letterSpacing: 0,
+        // The code is read left-to-right whichever script it is in, because it
+        // is a token rather than prose.
+        writingDirection: "ltr",
+      }}>{code}</Text>
+
+      {hint ? (
+        <Text style={{
+          fontFamily: t.fontFamily, fontSize: t.type.caption.size,
+          lineHeight: Math.round(t.type.caption.size * t.type.caption.lineHeight),
+          color: t.codePanel.inkMuted, textAlign: "center", writingDirection: t.direction,
+        }}>{hint}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * A labelled fact — muted label on one edge, the value on the other, with a
+ * divider between rows. The delivery uses it for everything V2 states about the
+ * hold, so the eye scans one column of labels rather than parsing sentences.
+ */
+export function FactRow(
+  { t, label, value, first = false }: { t: Theme; label: string; value: React.ReactNode; first?: boolean },
+) {
+  return (
+    <>
+      {first ? null : <View style={{ height: 1, backgroundColor: t.color.line, marginVertical: t.space[3] }} />}
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[3] }}>
+        <Label t={t} role="body" color="inkSubtle">{label}</Label>
+        <View style={{ flex: 1 }} />
+        {typeof value === "string" ? <Label t={t} role="body">{value}</Label> : value}
+      </View>
+    </>
+  );
+}
+
 /* ── States ───────────────────────────────────────────────────────────── */
 
 /**
@@ -293,16 +384,9 @@ export function StateBlock(
       );
 
     case "offline":
-      return (
-        <View style={{ ...pad, backgroundColor: t.color.surfaceSunken, borderRadius: t.radius.md }}>
-          <Label t={t} role="body" color="inkMuted">
-            {treatment.readOnly ? "ما في اتصال — هذا آخر شي وصلنا" : "ما في اتصال — راح نرسله أول ما يرجع"}
-          </Label>
-          {treatment.showsAge && typeof ageMs === "number"
-            ? <Label t={t} role="caption" color="inkSubtle">{`آخر تحديث قبل ${Math.max(1, Math.round(ageMs / 60_000))} دقيقة`}</Label>
-            : null}
-        </View>
-      );
+      // Rendered by `Screen` as a full-bleed banner, never inline. See
+      // `OfflineBanner` — this branch exists so the switch stays total.
+      return <OfflineBanner t={t} treatment={treatment} ageMs={ageMs} />;
 
     case "permissionRefused":
       // Never a wall: the refusal names the other way through.
@@ -321,6 +405,31 @@ export function StateBlock(
   }
 }
 
+/**
+ * "ما في اتصال" is a statement about the whole screen, so it is said once, at
+ * the top edge, and never as a card inside the content.
+ *
+ * The first V2 render said it twice — a flush banner under the header and an
+ * inline card repeating the same sentence and the same age two lines below.
+ * Moving the treatment into the frame means no screen can reintroduce the
+ * duplicate by supplying its own banner beside the declared one.
+ */
+function OfflineBanner(
+  { t, treatment, ageMs }: { t: Theme; treatment: Extract<StateTreatment, { kind: "offline" }>; ageMs: number | null | undefined },
+) {
+  return (
+    <Banner
+      t={t}
+      // Read-only cached content and queued work are different promises, and
+      // §26 forbids wording the second as if it had been sent.
+      says={treatment.readOnly ? "من الذاكرة — ما في اتصال" : "ما في اتصال — راح نرسله أول ما يرجع"}
+      {...(treatment.showsAge && typeof ageMs === "number"
+        ? { aside: `آخر تحديث قبل ${Math.max(1, Math.round(ageMs / 60_000))} دقائق` }
+        : {})}
+    />
+  );
+}
+
 /* ── The frame every screen sits in ───────────────────────────────────── */
 
 /**
@@ -328,8 +437,8 @@ export function StateBlock(
  * because a screen renders through this.
  */
 export function Screen(
-  { t, view, onBack, onAction, children, footer, sticky }:
-  { t: Theme; view: ScreenView; onBack: Press; onAction: (to: string) => void; children?: React.ReactNode; footer?: React.ReactNode; sticky?: React.ReactNode },
+  { t, view, onBack, onAction, children, footer, sticky, flush }:
+  { t: Theme; view: ScreenView; onBack: Press; onAction: (to: string) => void; children?: React.ReactNode; footer?: React.ReactNode; sticky?: React.ReactNode; flush?: React.ReactNode },
 ) {
   const canGoBack = view.back.kind === "pop" || view.back.kind === "replace";
 
@@ -383,6 +492,12 @@ export function Screen(
       {/* Pinned beneath the header: an input the screen is ABOUT belongs where
           the user looks first and must not be pushed down by a state that
           fills the rest of the screen. */}
+      {/* `flush` sits hard against the header with no gutter. The offline
+          treatment claims this slot itself, so a screen never draws it. */}
+      {view.treatment?.kind === "offline"
+        ? <OfflineBanner t={t} treatment={view.treatment} ageMs={view.phase.kind === "offline" ? view.phase.ageMs : null} />
+        : flush ?? null}
+
       {sticky ? (
         <View style={{ paddingHorizontal: t.space[4], paddingTop: t.space[4], backgroundColor: t.color.surface }}>
           {sticky}
@@ -390,7 +505,7 @@ export function Screen(
       ) : null}
 
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: t.space[4], gap: t.space[4], paddingBottom: t.space[6] }}>
-        {view.treatment
+        {view.treatment && view.treatment.kind !== "offline"
           ? <StateBlock
               t={t} treatment={view.treatment} onAction={onAction}
               ageMs={view.phase.kind === "offline" ? view.phase.ageMs : null}

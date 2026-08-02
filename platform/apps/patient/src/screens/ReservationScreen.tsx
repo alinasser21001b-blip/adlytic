@@ -18,8 +18,8 @@ import * as Reservation from "../model/reservation.js";
 import { formatPrice } from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH, isBuilt } from "../app/store.js";
-import { Screen, Label, Digits, Primary, Secondary, InfoCard } from "../ui/kit.js";
+import { GRAPH } from "../app/store.js";
+import { Screen, Label, Digits, Primary, Secondary, InfoCard, CodePanel, FactRow } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
@@ -65,7 +65,7 @@ function Requesting({ t, branchName, history, onBack, onAction }: ReservationPro
   );
 }
 
-/** V2 — the code, the clock, the address. */
+/** V2 — the code, the clock, the address. Night Mint layout, turn 4. */
 function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "collected" | "expired" }) {
   const { t, hold } = p;
   const left = Reservation.timeLeft(hold, instant(p.now));
@@ -73,41 +73,59 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
   const phase: Phase = cached ? { kind: "offline", ageMs: p.now - p.freshness.asOf } : { kind: "ready" };
   const view = resolveView(contract("V2"), phase, GRAPH, p.history, PATIENT_FLOWS);
 
-  const tone = left.urgency === "last" ? "alert" : left.urgency === "soon" ? "warning" : "accent";
-
   return (
     <Screen
       t={t} view={view} onBack={p.onBack} onAction={p.onAction}
-      footer={p.kind === "held" ? <Primary t={t} label="خذني للصيدلية" onPress={p.onDirections} /> : undefined}
+      // The cached banner is the declared offline treatment; `Screen` draws it
+      // flush under the header, so V2 does not supply one of its own.
+      footer={p.kind === "held" ? <Primary t={t} label="الاتجاهات" onPress={p.onDirections} /> : undefined}
     >
-      {/* The code is the largest thing on the screen. It is what the patient
-          holds up at a counter, sometimes in bright sun, sometimes with a
-          child on one arm. */}
-      <View style={{
-        padding: t.space[7], gap: t.space[3], alignItems: "center",
-        borderRadius: t.radius.xl, backgroundColor: t.color.surfaceRaised,
-        borderWidth: 1, borderColor: t.color.line,
-      }}>
-        <Label t={t} role="caption" color="inkMuted">رقم الحجز</Label>
-        <Digits t={t} value={Reservation.readableCode(hold.code)} role="display" />
-        <Label t={t} role="caption" color="inkSubtle">اعطيه للصيدلي</Label>
-      </View>
+      <Label t={t} role="body" color="inkMuted">{`حجزك باسم ${hold.holderName}`}</Label>
+
+      {/* The code is what the patient holds up at a counter — a light panel on
+          the dark ground, so it reads as something printed rather than as
+          another card in an app. */}
+      <CodePanel
+        t={t}
+        code={Reservation.readableCode(hold.code)}
+        caption="رمز الاستلام — اقراه للصيدلي زوج زوج"
+      />
+
+      <InfoCard t={t}>
+        <FactRow t={t} first label="الصيدلية" value={hold.branchName} />
+        <FactRow
+          t={t}
+          label="صالح لحد"
+          value={
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+              <Digits t={t} value={Reservation.clockTime(hold.expiresAt)} role="body" />
+              {/* The delivery qualifies the expiry on a cached screen: it is the
+                  last time we were told, not the time we know. */}
+              {cached ? <Label t={t} role="caption" color="inkSubtle">آخر وقت معروف</Label> : null}
+            </View>
+          }
+        />
+        <FactRow
+          t={t}
+          label="تدفع بالكاونتر"
+          value={<Digits t={t} value={formatPrice(hold.totalMinor)} role="body" />}
+        />
+      </InfoCard>
 
       {p.kind === "held" ? (
-        <InfoCard t={t}>
-          <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
-            <Label t={t} role="title" color={tone}>{Reservation.describeRemaining(left.minutes)}</Label>
-            <Label t={t} role="body" color="inkMuted">{left.expired ? "انتهى وقت الحجز" : "باقية على الحجز"}</Label>
-          </View>
-          <View style={{ height: t.space[2], borderRadius: t.radius.pill, backgroundColor: t.color.surfaceSunken, overflow: "hidden" }}>
-            <View style={{ width: `${Math.round(left.fraction * 100)}%`, height: "100%", backgroundColor: t.color[tone] }} />
-          </View>
-          {cached
-            // Never presented as live. A cached countdown shown as current
-            // sends someone to a pharmacy for a hold that already lapsed.
-            ? <Label t={t} role="caption" color="inkSubtle">آخر تحديث وصلنا — ممكن يكون تغيّر</Label>
-            : null}
-        </InfoCard>
+        cached
+          // D27's sibling: a cached countdown is never presented as live.
+          ? <Label t={t} role="caption" color="inkSubtle">
+              هذي الشاشة تشتغل بدون نت. العدّاد مو حي — نحدّثه أول ما يرجع الاتصال.
+            </Label>
+          : <InfoCard t={t}>
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+                <Label t={t} role="title" color={left.urgency === "last" ? "alert" : left.urgency === "soon" ? "warning" : "accent"}>
+                  {Reservation.describeRemaining(left.minutes)}
+                </Label>
+                <Label t={t} role="body" color="inkMuted">{left.expired ? "انتهى وقت الحجز" : "باقية على الحجز"}</Label>
+              </View>
+            </InfoCard>
       ) : (
         <InfoCard t={t} muted>
           <Label t={t} role="headline" color="inkMuted">
@@ -116,32 +134,9 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
         </InfoCard>
       )}
 
-      <InfoCard t={t}>
-        <Label t={t} role="headline">{hold.branchName}</Label>
-        <Label t={t} role="body" color="inkMuted">{hold.address}</Label>
-      </InfoCard>
-
-      <InfoCard t={t}>
-        {hold.lines.map((l) => (
-          <View key={l.itemName} style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
-            <Label t={t} role="body">{l.itemName}</Label>
-            <Digits t={t} value={l.packs} role="body" />
-            <Label t={t} role="caption" color="inkMuted">علبة</Label>
-            <View style={{ flex: 1 }} />
-            <Label t={t} role="body" color="inkMuted">{formatPrice(l.priceMinor)}</Label>
-          </View>
-        ))}
-        <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
-          <Label t={t} role="headline">المجموع</Label>
-          <View style={{ flex: 1 }} />
-          <Label t={t} role="headline">{formatPrice(hold.totalMinor)}</Label>
-        </View>
-      </InfoCard>
-
       {p.kind === "held" ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
-          <Secondary t={t} label="اتصل بالصيدلية" onPress={p.onCall} />
-          {isBuilt("V5") ? <Secondary t={t} label="ألغِ الحجز" onPress={p.onCancel} /> : null}
+        <View style={{ alignItems: "center" }}>
+          <Secondary t={t} label="اتصال بالصيدلية" onPress={p.onCall} />
         </View>
       ) : null}
     </Screen>

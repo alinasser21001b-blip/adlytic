@@ -126,7 +126,7 @@ describe("R8 — choosing where to walk", () => {
 });
 
 const hold = (over: Partial<Reservation.Hold> = {}): Reservation.Hold => ({
-  reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد",
+  reservationId: "r1", code: "4KD2P9", branchName: "صيدلية الرشيد", holderName: "أم علي",
   branchPhone: "07701234567", address: "الكرادة، شارع ٦٢",
   confirmedAt: instant(1_000_000), expiresAt: instant(1_000_000 + 2 * 60 * 60_000),
   totalMinor: 3_000, lines: [{ itemName: "بانادول", packs: 1, priceMinor: 3_000 }],
@@ -173,14 +173,16 @@ describe("V2 — the screen that must never fail", () => {
 
   it("turns urgent near the end rather than staying calm to the last minute", () => {
     const late = render(<ReservationScreen {...resBase} view={held} now={1_000_000 + 115 * 60_000} />);
-    const bars = late.findAll((n) => typeof n.type === "string" && flatten(n.props["style"])["backgroundColor"] === t.color.alert);
-    expect(bars.length).toBeGreaterThan(0);
+    // The delivery states the remaining time as text, not as a bar, so urgency
+    // is carried by the colour of that text.
+    const urgent = late.findAll((n) => typeof n.type === "string" && flatten(n.props["style"])["color"] === t.color.alert);
+    expect(urgent.length).toBeGreaterThan(0);
   });
 
   it("a cached countdown says it is cached — sending someone to a lapsed hold is the failure this prevents", () => {
     const root = render(<ReservationScreen {...resBase} view={held} freshness={{ kind: "cached", asOf: instant(1_000_000 - 4 * 60_000) }} />);
     const shown = texts(root);
-    expect(shown).toContain("ممكن يكون تغيّر");
+    expect(shown).toContain("العدّاد مو حي");
     // The code still renders from cache: it is what the patient holds up.
     expect(shown).toContain("4K D2 P9");
   });
@@ -188,14 +190,14 @@ describe("V2 — the screen that must never fail", () => {
   it("keeps the directions action in the footer, within thumb reach", () => {
     const onDirections = vi.fn();
     const root = render(<ReservationScreen {...resBase} view={held} onDirections={onDirections} />);
-    pressables(root).find((p) => p.props["accessibilityLabel"] === "خذني للصيدلية")!.props["onPress"]();
+    pressables(root).find((p) => p.props["accessibilityLabel"] === "الاتجاهات")!.props["onPress"]();
     expect(onDirections).toHaveBeenCalled();
   });
 
   it("a collected reservation stops offering to navigate to it", () => {
     const root = render(<ReservationScreen {...resBase} view={{ kind: "collected", hold: hold() }} />);
     expect(texts(root)).toContain("استلمت هذا الطلب");
-    expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "خذني للصيدلية")).toBe(false);
+    expect(pressables(root).some((p) => p.props["accessibilityLabel"] === "الاتجاهات")).toBe(false);
   });
 });
 

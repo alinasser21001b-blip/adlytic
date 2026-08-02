@@ -308,9 +308,9 @@ export const CORE_LOOP: readonly ScreenContract[] = [
     location: { title: "محجوز لك", destination: "today" },
     purpose: "The code, the clock, the address",
     back: { kind: "replace", with: "S1", why: "the reservation lives on Today; there is no stack behind a notification" },
-    primary: { label: "خذني للصيدلية", leadsTo: "V2", tapsToOutcome: 1 },
+    primary: { label: "الاتجاهات", leadsTo: "V2", tapsToOutcome: 1 },
     secondary: [
-      { label: "اتصل بالصيدلية", leadsTo: "V2" },
+      { label: "اتصال بالصيدلية", leadsTo: "V2" },
       { label: "ألغِ الحجز", leadsTo: "V5" },
     ],
     states: [

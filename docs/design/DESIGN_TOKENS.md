@@ -65,8 +65,10 @@ back to you with its measured ratio, not an opinion.
 
 | Role | Size | Line height | Weight | May carry clinical content |
 | --- | --- | --- | --- | --- |
+| `code` | 76pt | 1.15 (= 87pt) | 600 | yes |
 | `display` | 34pt | 1.25 (= 43pt) | 700 | **no — barred by type** |
-| `title` | 22pt | 1.4 (= 31pt) | 700 | yes |
+| `poster` | 28pt | 1.45 (= 41pt) | 800 | **no — barred by type** |
+| `title` | 24pt | 1.4 (= 34pt) | 800 | yes |
 | `headline` | 17pt | 1.5 (= 26pt) | 600 | yes |
 | `body` | 16pt | 1.65 (= 26pt) | 400 | yes |
 | `caption` | 13pt | 1.6 (= 21pt) | 500 | **no — barred by type** |

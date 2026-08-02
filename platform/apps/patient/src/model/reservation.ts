@@ -19,6 +19,9 @@ export type Hold = {
   readonly reservationId: string;
   readonly code: string;
   readonly branchName: string;
+  /** Whose hold this is. The delivery leads with «حجزك باسم أم علي», because a
+   *  patient often holds medicine for someone else and the counter asks. */
+  readonly holderName: string;
   readonly branchPhone: string;
   readonly address: string;
   readonly confirmedAt: Instant;
@@ -129,6 +132,21 @@ export function describeRemaining(minutes: number): string {
   const m = minutes % 60;
   const hours = h === 1 ? "ساعة" : h === 2 ? "ساعتين" : `${h} ساعات`;
   return m === 0 ? hours : `${hours} و${m} دقيقة`;
+}
+
+/**
+ * The expiry as a wall-clock time.
+ *
+ * The delivery states «صالح لحد ٧:٠٠ م» rather than a duration, because a
+ * patient walking to a pharmacy thinks in clock time — a duration has to be
+ * added to the current time before it means anything.
+ */
+export function clockTime(at: Instant): string {
+  const d = new Date(at);
+  const h24 = d.getUTCHours();
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  const m = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${h}:${m} ${h24 < 12 ? "ص" : "م"}`;
 }
 
 /**
