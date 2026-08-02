@@ -2,12 +2,13 @@
   "name": "@dawai/platform",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": ["packages/*", "apps/*"],
   "engines": { "node": ">=22" },
   "scripts": {
-    "check": "npm run trace && npm run layers && npm run types && npm run test",
+    "check": "npm run trace && npm run layers && npm run ux && npm run types && npm run test",
     "trace": "node tools/trace-check.mjs",
     "layers": "node tools/layer-check.mjs",
+    "ux": "node tools/ux-check.mjs",
     "types": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest"

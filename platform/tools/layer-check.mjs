@@ -41,6 +41,29 @@ const LAYERS = [
     ],
   },
   {
+    // The design system may not import the domain. A token that knows a
+    // business rule is a rule in the UI, which is Rule 3 inverted.
+    name: "design",
+    dir: "packages/design",
+    allowedImports: [/^\.{1,2}\//, /^@dawai\/contracts$/],
+    banned: [
+      { re: /@dawai\/domain/, why: "the domain — a design token may not know a business rule (Rule 3)" },
+      { re: /\bfrom\s+["']node:/, why: "a Node built-in — the design system runs on a device" },
+      { re: /\bDate\.now\s*\(/, why: "the system clock — tokens are constants" },
+    ],
+  },
+  {
+    // Rule 4 — the UI never makes a business decision. A screen contract
+    // declares WHAT a screen presents; it may not compute a rule.
+    name: "apps",
+    dir: "apps",
+    allowedImports: [/^\.{1,2}\//, /^@dawai\/(design|domain|contracts)$/],
+    banned: [
+      { re: /\bDate\.now\s*\(/, why: "the system clock inside a contract — presentation state comes from the domain" },
+      { re: /\bMath\.random\s*\(/, why: "nondeterminism in a contract" },
+    ],
+  },
+  {
     name: "config",
     dir: "packages/config",
     allowedImports: [/^\.{1,2}\//, /^node:/, /^@dawai\/contracts$/],

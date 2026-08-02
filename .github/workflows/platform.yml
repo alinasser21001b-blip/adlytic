@@ -34,6 +34,12 @@ jobs:
       - name: Layer boundaries
         run: npm run layers
 
+      # UX is a first-class engineering responsibility: a contract must name a
+      # real Blueprint screen, cover every state the Blueprint declares for it,
+      # and leave no dead end.
+      - name: UX contracts
+        run: npm run ux
+
       - name: Types
         run: npm run types
 
@@ -65,4 +71,18 @@ jobs:
           expect_fail "the domain reading the system clock (Rule 3, determinism)" layers
           printf '/**\n * @blueprint §6\n * @owner marketplace-engine\n * @why probe\n */\nimport { readFileSync } from "node:fs";\nexport const t = readFileSync;\n' > packages/domain/src/_probe/p.ts
           expect_fail "the domain importing a Node built-in (Rule 3)" layers
+          rm -rf packages/domain/src/_probe
+
+          cp apps/patient/src/screens/core-loop.contract.ts /tmp/c.bak
+          restore_ux() { cp /tmp/c.bak apps/patient/src/screens/core-loop.contract.ts; }
+          expect_ux_fail() {
+            if npm run ux --silent > /dev/null 2>&1; then
+              echo "::error::UX check ACCEPTED a violation it must reject: $1"; restore_ux; exit 1
+            fi
+            echo "  rejected as expected: $1"; restore_ux
+          }
+          python3 -c "p='apps/patient/src/screens/core-loop.contract.ts';s=open(p).read();open(p,'w').write(s.replace('id: \"S1\",','id: \"S999\",',1))"
+          expect_ux_fail "a contract for a screen the Blueprint does not contain"
+          python3 -c "p='apps/patient/src/screens/core-loop.contract.ts';s=open(p).read();open(p,'w').write(s.replace('exits: [\"V2\", \"V4\", \"R8\"]','exits: [\"NOWHERE\"]',1))"
+          expect_ux_fail "an exit to a screen that does not exist"
           echo "All negative tests passed: the guards reject what they must."

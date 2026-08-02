@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "dist", "paths": { "@dawai/design": ["../../packages/design/src/index.ts"] } },
+  "include": ["src/**/*"],
+  "references": [{ "path": "../../packages/design" }]
+}

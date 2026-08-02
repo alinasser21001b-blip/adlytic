@@ -21,10 +21,12 @@ wrong until an approved Blueprint revision says otherwise.
 | 3 · No business logic outside the domain | `tools/layer-check.mjs` — nothing above the domain may import a rule, and the domain may import no I/O |
 | 5 · No undocumented state transitions | Every machine is a declared transition table; a transition absent from it is unrepresentable |
 | 7 · Every feature independently testable | The domain is pure, so every rule is testable with no infrastructure |
+| UX · A screen answers where am I, what next, how back | `tools/ux-check.mjs` + `auditContract` — a contract must name a real Blueprint screen, cover every state the Blueprint declares for it, and leave no dead end |
+| UX · Contrast is measured, never eyeballed | `a11y.test.ts` measures all 84 renderable pairs across 3 personas × 2 schemes |
 
 ```bash
 npm install
-npm run check      # trace + layer + types + lint + test
+npm run check      # trace + layers + ux + types + test
 ```
 
 ## Build order
@@ -32,11 +34,11 @@ npm run check      # trace + layer + types + lint + test
 | Stage | Contains | Status |
 |---|---|---|
 | 1 | Repository foundation, config, secrets, logging, telemetry, feature flags | **built** |
-| 2 | Shared design system | not started |
+| 2 | Shared design system | **built** |
 | 3 | Navigation, auth, session, offline, networking | not started |
 | 4 | Domain layer — entities, state machines, rules, events | **built** |
 | 5 | Infrastructure — repositories, storage, sync, queues, notifications, audit | not started |
-| 6 | Patient app | blocked on 2, 3, 5 |
+| 6 | Patient app | UX contracts declared for the core loop; screens blocked on 3, 5 |
 | 7 | Pharmacy app | blocked on 2, 3, 5 |
 | 8 | Owner console | blocked on 2, 3, 5 |
 
