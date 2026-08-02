@@ -10,7 +10,6 @@
  *      a progress bar over a request nobody has received is a lie told to the
  *      most anxious user in the product (D27).
  */
-import { View } from "react-native";
 import { instant } from "@dawai/domain";
 import { PATIENT_FLOWS } from "@dawai/navigation";
 import { describe as describeItem, type OutboxItem } from "@dawai/offline";
@@ -18,7 +17,7 @@ import { remaining, type Sent } from "../model/send.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH, isBuilt } from "../app/store.js";
-import { Screen, Label, Digits, Secondary } from "../ui/kit.js";
+import { Actions, Card, Digits, Label, ProgressBar, Row, Screen, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const R7 = CORE_LOOP.find((c) => c.id === "R7")!;
@@ -56,11 +55,11 @@ export function WaitingScreen(p: WaitingProps) {
         ? <QueuedNote t={t} item={sent.outbox.items[0]} />
         : <Countdown t={t} left={left} offers={p.offerCount} />}
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
+      <Actions t={t}>
         {R7.secondary.filter((s) => isBuilt(s.leadsTo)).map((s) => (
           <Secondary key={s.label} t={t} label={s.label} onPress={() => p.onAction(s.leadsTo)} />
         ))}
-      </View>
+      </Actions>
     </Screen>
   );
 }
@@ -69,39 +68,33 @@ export function WaitingScreen(p: WaitingProps) {
  *  phrase for "not yet sent". */
 function QueuedNote({ t, item }: { t: Theme; item: OutboxItem | undefined }) {
   return (
-    <View style={{ padding: t.space[6], gap: t.space[3], borderRadius: t.radius.lg, backgroundColor: t.color.surfaceSunken }}>
+    <Card t={t} pad={6} gap={3} surface="sunken" border="none">
       <Label t={t} role="headline">{item ? describeItem(item) : "بانتظار الاتصال"}</Label>
       <Label t={t} role="body" color="inkMuted">
         ما وصل للصيدليات بعد. أول ما يرجع الاتصال نرسله، وتوصلك الردود هنا.
       </Label>
-    </View>
+    </Card>
   );
 }
 
 function Countdown({ t, left, offers }: { t: Theme; left: { ms: number; fraction: number } | null; offers: number }) {
   const minutes = left ? Math.ceil(left.ms / 60_000) : 0;
   return (
-    <View style={{ padding: t.space[6], gap: t.space[4], borderRadius: t.radius.lg, backgroundColor: t.color.surfaceRaised, borderWidth: 1, borderColor: t.color.line }}>
+    <Card t={t} pad={6} gap={4}>
       <Label t={t} role="body" color="inkMuted">سألنا الصيدليات القريبة</Label>
 
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+      <Row t={t} align="baseline">
         <Digits t={t} value={minutes} role="display" />
         <Label t={t} role="body" color="inkMuted">دقيقة باقية</Label>
-      </View>
+      </Row>
 
       {/* A bar, not a spinner: a spinner says "working" and tells the patient
           nothing about how much longer. */}
-      <View
-        accessibilityRole="progressbar"
-        accessibilityValue={{ now: Math.round((left?.fraction ?? 0) * 100), min: 0, max: 100 }}
-        style={{ height: t.space[2], borderRadius: t.radius.pill, backgroundColor: t.color.surfaceSunken, overflow: "hidden" }}
-      >
-        <View style={{ width: `${Math.round((left?.fraction ?? 0) * 100)}%`, height: "100%", backgroundColor: t.color.accent }} />
-      </View>
+      <ProgressBar t={t} fraction={left?.fraction ?? 0} label="نسبة الوقت الباقي" />
 
       <Label t={t} role="headline">
         {offers === 0 ? "ننتظر أول رد" : `وصلنا ${offers} ${offers === 1 ? "عرض" : "عروض"}`}
       </Label>
-    </View>
+    </Card>
   );
 }

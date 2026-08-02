@@ -10,14 +10,13 @@
  *      sent without a connection will WAIT, said before the tap rather than
  *      discovered after it (D27).
  */
-import { View, Pressable } from "react-native";
 import { Marketplace, type Refusal } from "@dawai/domain";
 import { PATIENT_FLOWS } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Digits, Primary, RedirectNote } from "../ui/kit.js";
+import { Card, Chip, Digits, Grow, Label, Note, Primary, RedirectNote, Row, Screen, Section } from "../ui/kit.js";
 import { word } from "../ui/refusal.js";
 import type { Theme } from "../ui/theme.js";
 
@@ -74,55 +73,46 @@ export function ConfirmScreen(p: ConfirmProps) {
       <RedirectNote t={t} because={p.redirectBecause} />
 
       {blocked ? (
-        <View style={{ padding: t.space[4], borderRadius: t.radius.md, backgroundColor: t.color.surfaceSunken }}>
+        <Note t={t} tone="caution">
           <Label t={t} role="body" color="warning">{word(blocked).says}</Label>
-        </View>
+        </Note>
       ) : null}
 
-      <View style={{ gap: t.space[2] }}>
+      <Section t={t}>
         {draft.lines.map((l) => (
-          <View key={l.itemId} style={{
-            flexDirection: "row", alignItems: "center", gap: t.space[3],
-            padding: t.space[4], borderRadius: t.radius.lg,
-            backgroundColor: t.color.surfaceRaised, borderWidth: 1, borderColor: t.color.line,
-          }}>
-            <View style={{ flex: 1 }}>
-              <Label t={t} role="headline">{l.name}</Label>
-              <Label t={t} role="caption" color="inkMuted">{`${l.strength} · ${l.form}`}</Label>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: t.space[1] }}>
-              <Digits t={t} value={l.packs} role="headline" />
-              <Label t={t} role="caption" color="inkMuted">علبة</Label>
-            </View>
-          </View>
+          <Card key={l.itemId} t={t}>
+            <Row t={t} gap={3}>
+              <Grow>
+                <Label t={t} role="headline">{l.name}</Label>
+                <Label t={t} role="caption" color="inkMuted">{`${l.strength} · ${l.form}`}</Label>
+              </Grow>
+              <Row t={t} gap={1}>
+                <Digits t={t} value={l.packs} role="headline" />
+                <Label t={t} role="caption" color="inkMuted">علبة</Label>
+              </Row>
+            </Row>
+          </Card>
         ))}
-      </View>
+      </Section>
 
-      <View style={{ gap: t.space[2] }}>
+      <Section t={t}>
         <Label t={t} role="headline">شكد مستعجل؟</Label>
         {WINDOWS.map((w) => {
           const chosen = draft.urgency === w.urgency;
           return (
-            <Pressable
+            <Chip
               key={w.urgency}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: chosen }}
-              accessibilityLabel={`${w.label} — ${w.says}`}
+              label={w.label}
+              spoken={`${w.label} — ${w.says}`}
+              selected={chosen}
               onPress={() => p.onSetUrgency(w.urgency)}
-              style={{
-                minHeight: t.tap.patientPrimary, justifyContent: "center",
-                paddingHorizontal: t.space[4], borderRadius: t.radius.lg,
-                borderWidth: chosen ? 2 : 1,
-                borderColor: chosen ? t.color.accent : t.color.line,
-                backgroundColor: chosen ? t.color.surfaceRaised : t.color.surface,
-              }}
+              t={t}
             >
-              <Label t={t} role="headline" color={chosen ? "accent" : "ink"}>{w.label}</Label>
               <Label t={t} role="caption" color="inkMuted">{w.says}</Label>
-            </Pressable>
+            </Chip>
           );
         })}
-      </View>
+      </Section>
     </Screen>
   );
 }

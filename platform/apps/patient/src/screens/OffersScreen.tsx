@@ -13,13 +13,12 @@
  *      reliability as a band (D11), because a decimal invites an argument about
  *      a number instead of about the behaviour.
  */
-import { View } from "react-native";
 import { PATIENT_FLOWS } from "@dawai/navigation";
 import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Digits, ActionCard, InfoCard } from "../ui/kit.js";
+import { Screen, Label, Digits, ActionCard, InfoCard, Row } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const R8 = CORE_LOOP.find((c) => c.id === "R8")!;
@@ -75,14 +74,14 @@ function OfferRow({ t, s, requested, onChoose }: { t: Theme; s: Offers.OfferSumm
   const honoured = Offers.describeHonoured(s.offer.honoured);
   const body = (
     <>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+      <Row t={t} align="baseline">
         <Label t={t} role="headline">{s.offer.branchName}</Label>
         <Label t={t} role="caption" color="inkSubtle">{Offers.describeDistance(s.offer.distanceM)}</Label>
-      </View>
+      </Row>
 
       {/* Coverage first. The patient's question is "does it have my medicine",
           and answering with a price first answers a question they did not ask. */}
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+      <Row t={t} align="baseline">
         {s.complete
           ? <Label t={t} role="body" color="accent">عندها كل اللي طلبته</Label>
           : (
@@ -93,7 +92,7 @@ function OfferRow({ t, s, requested, onChoose }: { t: Theme; s: Offers.OfferSumm
               <Digits t={t} value={requested} role="body" />
             </>
           )}
-      </View>
+      </Row>
 
       {s.missing.length > 0
         // Which one is missing, not merely how many — that is always the
@@ -101,19 +100,19 @@ function OfferRow({ t, s, requested, onChoose }: { t: Theme; s: Offers.OfferSumm
         ? <Label t={t} role="caption" color="inkMuted">{`ناقص: ${s.missing.join("، ")}`}</Label>
         : null}
 
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+      <Row t={t} align="baseline">
         <Label t={t} role="title">{Offers.formatPrice(s.totalMinor)}</Label>
         {!s.complete ? <Label t={t} role="caption" color="inkSubtle">للأدوية المتوفرة</Label> : null}
-      </View>
+      </Row>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[3] }}>
+      <Row t={t} gap={3} align="baseline" wrap>
         <Label t={t} role="caption" color={honoured.tone === "caution" ? "warning" : "inkMuted"}>{honoured.says}</Label>
         {s.hasSubstitution
           // §4 R10 — a substitution is never automatic and never pre-ticked.
           ? <Label t={t} role="caption" color="warning">فيها بديل — تحتاج موافقتك</Label>
           : null}
         {!s.offer.openNow ? <Label t={t} role="caption" color="inkMuted">مسدودة هسه</Label> : null}
-      </View>
+      </Row>
     </>
   );
 

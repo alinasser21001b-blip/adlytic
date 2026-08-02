@@ -8,13 +8,15 @@
  *      meaningful: it measures the pairs this file can produce, and a raw hex
  *      in a stylesheet would be a pair nobody measured.
  */
-import { palettes, patientCodePanel, space, radius, tap, type as typeScale, fontStack, APP_DIRECTION, type Palette, type Scheme } from "@dawai/design";
+import { palettes, patientCodePanel, space, frame, radius, tap, type as typeScale, fontStack, APP_DIRECTION, type Palette, type Scheme } from "@dawai/design";
 
 export type Theme = {
   readonly scheme: Scheme;
   readonly color: Palette;
   readonly space: typeof space;
   readonly radius: typeof radius;
+  /** Gutter and safe-area allowances, named so a screen never measures them. */
+  readonly frame: typeof frame;
   readonly tap: typeof tap;
   readonly type: typeof typeScale;
   readonly direction: typeof APP_DIRECTION;
@@ -32,7 +34,7 @@ export type Theme = {
 export const themeFor = (scheme: Scheme): Theme => ({
   scheme,
   color: palettes.patient[scheme],
-  space, radius, tap, type: typeScale,
+  space, frame, radius, tap, type: typeScale,
   direction: APP_DIRECTION,
   fontFamily: fontStack.arabic[0]!,
   tabularFamily: fontStack.tabular[0]!,

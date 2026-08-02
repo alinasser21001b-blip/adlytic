@@ -2945,7 +2945,8 @@
         "apps/patient/src/screens/ReservationScreen.tsx",
         "apps/patient/src/screens/WaitingScreen.tsx",
         "apps/patient/src/screens/gallery.tsx",
-        "apps/patient/src/ui/kit.tsx"
+        "apps/patient/src/ui/kit.tsx",
+        "apps/patient/src/ui/layout.tsx"
       ]
     },
     {

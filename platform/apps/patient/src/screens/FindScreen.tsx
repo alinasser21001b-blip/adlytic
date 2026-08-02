@@ -9,13 +9,12 @@
  *      of a search screen makes the back gesture clear the query, which is the
  *      most annoying possible way to lose someone mid-search.
  */
-import { View, TextInput } from "react-native";
 import * as Search from "../model/search.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
 import { PATIENT_FLOWS } from "@dawai/navigation";
-import { Screen, Label, Bidi, Secondary, ActionCard, InfoCard } from "../ui/kit.js";
+import { ActionCard, Actions, Bidi, InfoCard, Label, Screen, SearchField, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 import type { CatalogueHit } from "../ports.js";
 
@@ -54,26 +53,13 @@ export function FindScreen({ t, search, history, now, onType, onAdd, onBack, onA
     <Screen
       t={t} view={view} onBack={onBack} onAction={onAction}
       sticky={
-        <View style={{
-          flexDirection: "row", alignItems: "center", gap: t.space[3],
-          paddingHorizontal: t.space[4],
-          borderRadius: t.radius.lg, borderWidth: 1, borderColor: t.color.line,
-          backgroundColor: t.color.surfaceRaised,
-        }}>
-          <Label t={t} role="body" color="inkSubtle">⌕</Label>
-          <TextInput
-          accessibilityLabel="اسم الدواء"
+        <SearchField
+          t={t}
+          label="اسم الدواء"
           placeholder="اكتب اسم الدواء"
-          placeholderTextColor={t.color.inkSubtle}
-          defaultValue={search.kind === "idle" ? "" : search.query}
-          onChangeText={onType}
-          style={{
-            flex: 1, minHeight: t.tap.patientPrimary,
-            fontFamily: t.fontFamily, fontSize: t.type.body.size, color: t.color.ink,
-            textAlign: "right", writingDirection: t.direction,
-          }}
-          />
-        </View>
+          value={search.kind === "idle" ? "" : search.query}
+          onType={onType}
+        />
       }
     >
       {hits.map((hit) => <HitRow key={hit.itemId} t={t} hit={hit} onAdd={onAdd} />)}
@@ -125,7 +111,7 @@ function HitRow({ t, hit, onAdd }: { t: Theme; hit: CatalogueHit; onAdd: (h: Cat
 /** The secondary actions the contract declares, rendered only where this build
  *  can honour them. A control that does nothing is the defect being avoided. */
 export const SecondaryRow = ({ t, labels, onAction }: { t: Theme; labels: readonly { label: string; leadsTo: string }[]; onAction: (to: string) => void }) => (
-  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
+  <Actions t={t}>
     {labels.map((s) => <Secondary key={s.leadsTo + s.label} t={t} label={s.label} onPress={() => onAction(s.leadsTo)} />)}
-  </View>
+  </Actions>
 );

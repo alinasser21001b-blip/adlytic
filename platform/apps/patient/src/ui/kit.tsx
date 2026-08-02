@@ -13,11 +13,16 @@
  *      "something went wrong".
  */
 import * as React from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import type { StateTreatment } from "@dawai/design";
 import { formatDigits, isolate, needsIsolation } from "@dawai/design";
 import type { ScreenView } from "../model/view.js";
 import type { Theme } from "./theme.js";
+import { Card, Note, Row, Spacer } from "./layout.js";
+
+// Re-exported so a screen has one import for the whole system rather than
+// having to know which file a primitive happens to live in.
+export { Row, Spacer, Grow, Actions, Card, Note, Section, Field } from "./layout.js";
 
 export type Press = () => void;
 
@@ -173,15 +178,13 @@ export function ActionCard(
 }
 
 /** A card that is not an action — a refused item, a summary line. It reads as
- *  information rather than offering a tap that would be rejected. */
+ *  information rather than offering a tap that would be rejected.
+ *
+ *  The default `Card`: it exists as its own name because "this is information,
+ *  not a control" is the distinction a screen is making when it reaches for it,
+ *  and that intent would be lost if every call site spelled out the surface. */
 export const InfoCard = ({ t, children, muted = false }: { t: Theme; children: React.ReactNode; muted?: boolean }) => (
-  <View style={{
-    padding: t.space[4], gap: t.space[2], borderRadius: t.radius.lg,
-    backgroundColor: muted ? t.color.surfaceSunken : t.color.surfaceRaised,
-    borderWidth: 1, borderColor: t.color.line,
-  }}>
-    {children}
-  </View>
+  <Card t={t} surface={muted ? "sunken" : "raised"}>{children}</Card>
 );
 
 /**
@@ -252,11 +255,12 @@ export function Banner(
   return (
     <View style={{
       backgroundColor: t.color.surfaceSunken,
-      paddingVertical: t.space[2], paddingHorizontal: t.space[4],
-      flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: t.space[3],
+      paddingVertical: t.space[2], paddingHorizontal: t.frame.gutter,
     }}>
-      <Label t={t} role="caption" color="inkMuted">{says}</Label>
-      {aside ? <Label t={t} role="caption" color="inkMuted">{aside}</Label> : null}
+      <Row t={t} gap={3} justify="space-between">
+        <Label t={t} role="caption" color="inkMuted">{says}</Label>
+        {aside ? <Label t={t} role="caption" color="inkMuted">{aside}</Label> : null}
+      </Row>
     </View>
   );
 }
@@ -321,12 +325,153 @@ export function FactRow(
   return (
     <>
       {first ? null : <View style={{ height: 1, backgroundColor: t.color.line, marginVertical: t.space[3] }} />}
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[3] }}>
+      <Row t={t} gap={3} align="baseline">
         <Label t={t} role="body" color="inkSubtle">{label}</Label>
-        <View style={{ flex: 1 }} />
+        <Spacer />
         {typeof value === "string" ? <Label t={t} role="body">{value}</Label> : value}
-      </View>
+      </Row>
     </>
+  );
+}
+
+/**
+ * One option in a set where the options are worded, not numbered — D09's three
+ * urgency windows.
+ *
+ * A wider `Choice`: same radio semantics and the same refusal to make one
+ * option heavier than another, but full-width and headline-sized because these
+ * options are sentences rather than two-word answers.
+ */
+export function Chip(
+  { t, label, spoken, selected, onPress, children }:
+  { t: Theme; label: string; spoken: string; selected: boolean; onPress: Press; children?: React.ReactNode },
+) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={spoken}
+      onPress={onPress}
+      style={{
+        minHeight: t.tap.patientPrimary, justifyContent: "center",
+        paddingHorizontal: t.space[4], borderRadius: t.radius.lg,
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? t.color.accent : t.color.line,
+        backgroundColor: selected ? t.color.surfaceRaised : t.color.surface,
+      }}
+    >
+      <Label t={t} role="headline" color={selected ? "accent" : "ink"}>{label}</Label>
+      {children}
+    </Pressable>
+  );
+}
+
+/**
+ * One step of a quantity, up or down.
+ *
+ * 44pt square — the floor, not a decoration: this is pressed repeatedly, often
+ * with a thumb, often by someone in a hurry. The spoken label names the
+ * medicine, because "زيادة" alone is meaningless when three rows offer it.
+ */
+export function StepButton(
+  { t, direction, spoken, onPress }:
+  { t: Theme; direction: "up" | "down"; spoken: string; onPress: Press },
+) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={spoken}
+      onPress={onPress}
+      style={{
+        width: t.tap.min, height: t.tap.min, alignItems: "center", justifyContent: "center",
+        borderRadius: t.radius.md, backgroundColor: t.color.surface,
+        borderWidth: 1, borderColor: t.color.line,
+      }}
+    >
+      <Label t={t} role="title" color="accent">{direction === "up" ? "+" : "\u2212"}</Label>
+    </Pressable>
+  );
+}
+
+/**
+ * How far along something is, as a bar rather than a spinner.
+ *
+ * A spinner says "working" and tells a patient nothing about how much longer.
+ * The accessible value travels with the bar, so the shape is never the only
+ * thing carrying the information — a screen reader reads a percentage.
+ */
+export function ProgressBar({ t, fraction, label }: { t: Theme; fraction: number; label: string }) {
+  const pct = Math.round(Math.min(1, Math.max(0, fraction)) * 100);
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      accessibilityValue={{ now: pct, min: 0, max: 100 }}
+      style={{ height: t.space[2], borderRadius: t.radius.pill, backgroundColor: t.color.surfaceSunken, overflow: "hidden" }}
+    >
+      <View style={{ width: `${pct}%`, height: "100%", backgroundColor: t.color.accent }} />
+    </View>
+  );
+}
+
+/**
+ * Where a captured photograph goes.
+ *
+ * Renders a labelled frame rather than a stand-in image, because the review
+ * gallery must never show a picture the app has not actually taken. When the
+ * camera lands (TD-9) the image replaces the frame and nothing else moves.
+ */
+export function PhotoFrame({ t, label }: { t: Theme; label: string }) {
+  return (
+    <View
+      accessibilityRole="image"
+      accessibilityLabel={label}
+      style={{
+        height: t.space[10] * 3, borderRadius: t.radius.lg,
+        backgroundColor: t.color.surfaceSunken,
+        borderWidth: 1, borderColor: t.color.line,
+        alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <Label t={t} role="caption" color="inkSubtle">{label}</Label>
+    </View>
+  );
+}
+
+/**
+ * The one text input in the patient app.
+ *
+ * A control, not a layout — which is why it lives here and not inside the
+ * screen that happens to use it first. The 48pt minimum is the patient primary
+ * height: this is the control a frightened person types a drug name into.
+ */
+export function SearchField(
+  { t, label, placeholder, value, onType }:
+  { t: Theme; label: string; placeholder: string; value: string; onType: (s: string) => void },
+) {
+  return (
+    <Row t={t} gap={3}>
+      <View style={{
+        flexDirection: "row", alignItems: "center", gap: t.space[3],
+        paddingHorizontal: t.frame.gutter, flex: 1,
+        borderRadius: t.radius.lg, borderWidth: 1, borderColor: t.color.line,
+        backgroundColor: t.color.surfaceRaised,
+      }}>
+        <Label t={t} role="body" color="inkSubtle">⌕</Label>
+        <TextInput
+          accessibilityLabel={label}
+          placeholder={placeholder}
+          placeholderTextColor={t.color.inkSubtle}
+          defaultValue={value}
+          onChangeText={onType}
+          style={{
+            flex: 1, minHeight: t.tap.patientPrimary,
+            fontFamily: t.fontFamily, fontSize: t.type.body.size, color: t.color.ink,
+            textAlign: "right", writingDirection: t.direction,
+          }}
+        />
+      </View>
+    </Row>
   );
 }
 
@@ -461,7 +606,7 @@ export function Screen(
   return (
     <View style={{ flex: 1, backgroundColor: t.color.surface, direction: t.direction }}>
       <View style={{
-        paddingHorizontal: t.space[4], paddingTop: t.space[6], paddingBottom: t.space[3],
+        paddingHorizontal: t.frame.gutter, paddingTop: t.frame.safeTop, paddingBottom: t.space[3],
         borderBottomWidth: 1, borderBottomColor: t.color.line,
         flexDirection: "row", alignItems: "center", gap: t.space[3],
       }}>
@@ -499,12 +644,12 @@ export function Screen(
         : flush ?? null}
 
       {sticky ? (
-        <View style={{ paddingHorizontal: t.space[4], paddingTop: t.space[4], backgroundColor: t.color.surface }}>
+        <View style={{ paddingHorizontal: t.frame.gutter, paddingTop: t.space[4], backgroundColor: t.color.surface }}>
           {sticky}
         </View>
       ) : null}
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: t.space[4], gap: t.space[4], paddingBottom: t.space[6] }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: t.frame.gutter, gap: t.space[4], paddingBottom: t.frame.safeBottom }}>
         {view.treatment && view.treatment.kind !== "offline"
           ? <StateBlock
               t={t} treatment={view.treatment} onAction={onAction}
@@ -517,7 +662,7 @@ export function Screen(
 
       {footerContent ? (
         <View style={{
-          padding: t.space[4], paddingBottom: t.space[6],
+          padding: t.frame.gutter, paddingBottom: t.frame.safeBottom,
           borderTopWidth: 1, borderTopColor: t.color.line,
           gap: t.space[2], backgroundColor: t.color.surfaceRaised,
         }}>
@@ -533,7 +678,5 @@ export function Screen(
  *  people think the app is broken. */
 export const RedirectNote = ({ t, because }: { t: Theme; because: string | null }) =>
   because ? (
-    <View style={{ padding: t.space[4], borderRadius: t.radius.md, backgroundColor: t.color.surfaceSunken }}>
-      <Label t={t} role="body" color="inkMuted">{because}</Label>
-    </View>
+    <Note t={t}><Label t={t} role="body" color="inkMuted">{because}</Label></Note>
   ) : null;

@@ -10,13 +10,12 @@
  *      alternative is offered in the same breath, because a patient holding a
  *      prescription for a sick child should not have to go hunting in Settings.
  */
-import { View } from "react-native";
 import { PATIENT_FLOWS } from "@dawai/navigation";
 import * as Prescription from "../model/prescription.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Primary, Secondary, InfoCard } from "../ui/kit.js";
+import { Actions, InfoCard, Label, PhotoFrame, Primary, Screen, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
@@ -70,9 +69,9 @@ function Camera(p: PrescriptionProps) {
       )}
 
       {refused ? null : (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
+        <Actions t={t}>
           <Secondary t={t} label="اكتب الاسم بدال الصورة" onPress={p.onTypeInstead} />
-        </View>
+        </Actions>
       )}
     </Screen>
   );
@@ -96,18 +95,7 @@ function ReviewShot(p: PrescriptionProps) {
       {/* The photograph itself. A placeholder frame is rendered here rather
           than a fake image: the review must never show an image the app has
           not actually captured. */}
-      <View
-        accessibilityRole="image"
-        accessibilityLabel="صورة الوصفة"
-        style={{
-          height: t.space[10] * 3, borderRadius: t.radius.lg,
-          backgroundColor: t.color.surfaceSunken,
-          borderWidth: 1, borderColor: t.color.line,
-          alignItems: "center", justifyContent: "center",
-        }}
-      >
-        <Label t={t} role="caption" color="inkSubtle">صورة الوصفة</Label>
-      </View>
+      <PhotoFrame t={t} label="صورة الوصفة" />
 
       {failed && p.capture.kind === "failed" ? (
         <InfoCard t={t}>
@@ -125,9 +113,9 @@ function ReviewShot(p: PrescriptionProps) {
         ))}
       </InfoCard>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: t.space[2] }}>
+      <Actions t={t}>
         <Secondary t={t} label="صوّر مرة ثانية" onPress={p.onRetake} />
-      </View>
+      </Actions>
     </Screen>
   );
 }

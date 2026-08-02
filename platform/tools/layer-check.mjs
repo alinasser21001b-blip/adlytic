@@ -80,6 +80,34 @@ const LAYERS = [
     ],
   },
   {
+    /**
+     * A screen composes; it does not draw.
+     *
+     * The design implementation framework is only worth having if a screen
+     * CANNOT go around it, and the sharpest available line is the rendering
+     * platform itself: a screen that cannot import `View` cannot type a
+     * `flexDirection`, cannot invent a gap outside the 4pt scale, cannot
+     * hand-roll a fifth copy of a card, and cannot build a control without a
+     * name. Everything visual arrives from ../ui — which is measured by the
+     * contrast gate, photographed by the gallery, and counted by the component
+     * inventory.
+     *
+     * Before this rule the eight screens between them held nine copies of one
+     * baseline row, five wrapped action clusters, four sunken notes, four
+     * spacers and four hand-rolled cards. None of those was a decision anybody
+     * made; each was a call site that had nowhere else to go.
+     */
+    name: "screens",
+    dir: "apps/patient/src/screens",
+    allowedImports: [
+      /^\.{1,2}\//,
+      /^@dawai\/(design|domain|navigation|session|offline|net|contracts|observability)$/,
+      /^react$/,
+      /^(vitest|react-test-renderer)$/,
+    ],
+    banned: [],
+  },
+  {
     // Navigation presents; it never decides. It may ask the domain for an
     // answer but may not compute a rule — Rule 4.
     name: "navigation",

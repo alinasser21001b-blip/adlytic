@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { SLICE, CHANGELOG, LIMITATIONS } from "./changelog.mjs";
 import { DEBT, RESOLVED } from "./debt.mjs";
 import { MEASURED, NOT_VERIFIED } from "./measure.mjs";
+import { COMPONENT_NOTES, MISSING_COMPONENTS } from "../design/notes.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PLATFORM = resolve(HERE, "../..");
@@ -26,6 +27,42 @@ const data = JSON.parse(readFileSync(join(REVIEW, "data.json"), "utf8"));
 const regression = existsSync(join(REVIEW, ".baseline.json"))
   ? JSON.parse(readFileSync(join(REVIEW, ".baseline.json"), "utf8"))
   : { hasBaseline: false, added: [], removed: [], changed: [], unchanged: [] };
+
+/* ── Component reuse, counted from the source in this run ───────────────── */
+
+const SCREEN_DIR = join(PLATFORM, "apps/patient/src/screens");
+const SCREEN_FILES = readdirSync(SCREEN_DIR).filter((f) => /Screen\.tsx$/.test(f));
+const SCREEN_SRC = SCREEN_FILES.map((f) => [f.replace(".tsx", ""), readFileSync(join(SCREEN_DIR, f), "utf8")]);
+
+/** Rendered by Screen, not by any screen file. */
+const FRAME_RENDERED = {
+  Screen: "(every screen, via the frame)",
+  StateBlock: "(every screen, via the frame)",
+  Banner: "(every screen, via the frame, when offline)",
+};
+
+const componentReuse = Object.entries(COMPONENT_NOTES).map(([name, note]) => {
+  let uses = 0;
+  const screens = [];
+  for (const [screen, src] of SCREEN_SRC) {
+    const m = src.match(new RegExp(`<${name}[\\s/>]`, "g"));
+    if (m) { uses += m.length; screens.push(screen); }
+  }
+  // Some components are rendered BY the frame rather than by a screen. Counting
+  // only screen files would report them as dead, which is a lie the reader
+  // would act on.
+  if (FRAME_RENDERED[name]) {
+    uses = SCREEN_FILES.length;
+    screens.length = 0;
+    screens.push(FRAME_RENDERED[name]);
+  }
+  return { name, uses, screens, purpose: note.purpose };
+}).sort((a, b) => b.uses - a.uses);
+
+const totalRenders = componentReuse.reduce((n, c) => n + c.uses, 0);
+
+/** The framework is only worth having if a screen cannot go around it. */
+const rawLayoutImports = SCREEN_SRC.filter(([, src]) => /from\s+["']react-native["']/.test(src)).length;
 
 /* ── Run the gates, and report what they actually said ──────────────────── */
 
@@ -270,19 +307,20 @@ ${section("Screen contracts", `<div class="grid g3">${data.screens.filter((s) =>
   </tbody></table></div>`)}
 
 ${section("Component library", `
-<div class="grid g2">
-  ${[
-    ["Screen", "The frame every screen renders through. Header, back affordance, flow progress, state block, scrolling body, optional footer. A screen cannot ship without answering “where am I”."],
-    ["Primary", "The one dominant action. 48pt — above the 44pt floor, because §25 raises the patient primary. Carries busy and disabled states with accessibility state attached."],
-    ["ActionCard", "A whole card that is the action. One visual weight per list, and a tap target the size of the row."],
-    ["InfoCard", "A card that is not an action. A refused item reads as information rather than offering a tap that will be rejected."],
-    ["Secondary", "Never competes: no fill, no accent background, 44pt minimum."],
-    ["StateBlock", "Renders the treatment the contract declared — loading, empty, error, offline, permission-refused, success. It cannot fall through to a generic message."],
-    ["Label", "Type role, colour role, RTL direction and zero letter-spacing. A component never writes a raw font size."],
-    ["Bidi", "Isolates a Latin run inside Arabic so a drug name or price does not reorder."],
-    ["Digits", "Tabular figures, one numeral system per surface, so a countdown does not jitter."],
-    ["RedirectNote", "Says why a guard sent the user here, so the screen never appears for no reason."],
-  ].map(([n, d]) => `<div class="panel"><h3>${esc(n)}</h3><p class="note">${esc(d)}</p></div>`).join("")}
+<p class="note" style="margin-bottom:14px">Derived, not listed: every component the kit exports, with the number of places in the app that render it, counted from the source in this run. The purpose line is the one hand-authored sentence per component — everything else on this page about it is measured. A component with a usage count of 0 is either brand new or dead, and both are worth seeing.</p>
+<table class="tbl"><thead><tr><th>Component</th><th>Uses</th><th>Screens</th><th>Purpose</th></tr></thead><tbody>
+  ${componentReuse.map((c) => `<tr>
+    <td class="mono">${esc(c.name)}</td>
+    <td class="mono">${c.uses}</td>
+    <td class="note">${esc(c.screens.join(", ") || "—")}</td>
+    <td class="note">${esc(c.purpose)}</td>
+  </tr>`).join("")}
+</tbody></table>
+<p class="note" style="margin-top:12px">${componentReuse.length} components · ${totalRenders} render sites across ${SCREEN_FILES.length} screens · ${MISSING_COMPONENTS.length} specified components not built.</p>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Raw layout in screens</h3>
+  <p class="note">A screen composes; it does not draw. The <span class="mono">screens</span> layer may not import from <span class="mono">react-native</span> at all, which is checked every build — so a screen cannot type a flex direction, invent a gap outside the 4pt scale, or hand-roll a card. Measured now: <strong>${rawLayoutImports}</strong> screen file(s) importing the rendering platform directly.</p>
 </div>`)}
 
 ${section("Design system", `

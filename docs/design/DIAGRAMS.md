@@ -163,7 +163,7 @@ flowchart TD
     elevation["elevation<br/>5 levels<br/>ALL UNSPECIFIED"]
   end
   theme["themeFor(scheme)<br/>resolves one persona"]
-  kit["ui/kit.tsx<br/>11 components"]
+  kit["ui/kit.tsx<br/>27 components"]
   screens["8 screen files"]
   color --> theme
   type --> theme

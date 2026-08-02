@@ -31,6 +31,25 @@ export const tap = {
   pharmacyPrimary: 56,
 } as const;
 
+/**
+ * The frame every screen sits in, named rather than measured.
+ *
+ * `gutter` is the standard content width — the distance from the screen edge to
+ * anything readable, and the reason a full-bleed banner has to opt out of it
+ * explicitly. `safeTop` and `safeBottom` are the status-bar and home-indicator
+ * allowances; they were two identical magic values in the header and the
+ * footer, which meant a device with a taller indicator would have needed the
+ * same edit made in two places by someone who remembered both.
+ *
+ * These are values from the 4pt scale, referenced by name so the intent
+ * survives: `space[6]` says twenty-four, `safeBottom` says why.
+ */
+export const frame = {
+  gutter: space[4],
+  safeTop: space[6],
+  safeBottom: space[6],
+} as const;
+
 /** Elevation is expressed as a role, never a shadow string, so a component
  *  cannot invent a depth that does not exist in the system. */
 export const elevation = { flat: 0, raised: 1, overlay: 2, sheet: 3, alert: 4 } as const;

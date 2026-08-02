@@ -7,6 +7,22 @@
 
 | Component | Usages | Rendered by |
 | --- | --- | --- |
+| `Banner` | 1 | — |
+| `CodePanel` | 1 | ReservationScreen |
+| `FactRow` | 3 | ReservationScreen |
+| `Row` | 20 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen |
+| `Spacer` | 5 | DraftScreen, OfferDetailScreen |
+| `Grow` | 2 | ConfirmScreen |
+| `Actions` | 5 | DraftScreen, FindScreen, PrescriptionScreen, WaitingScreen |
+| `Card` | 6 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
+| `Note` | 4 | ConfirmScreen, DraftScreen |
+| `Section` | 2 | ConfirmScreen |
+| `Field` | 2 | OfferDetailScreen |
+| `Chip` | 1 | ConfirmScreen |
+| `StepButton` | 1 | DraftScreen |
+| `ProgressBar` | 1 | WaitingScreen |
+| `PhotoFrame` | 1 | PrescriptionScreen |
+| `SearchField` | 1 | FindScreen |
 | `Screen` | 11 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `Primary` | 13 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen |
 | `Secondary` | 9 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
@@ -22,6 +38,262 @@
 ---
 
 ## Specifications
+
+### `Banner`
+
+A full-bleed strip under the header carrying a statement about the WHOLE screen — today, that the content came from the device rather than from a pharmacy.
+
+| | |
+| --- | --- |
+| **Used by** | — (1 usages) |
+| **Required variants** | `statement only`, `statement with a trailing age` |
+| **Required interactions** | none — it is not a control |
+| **Accessibility** | Read as text in reading order, immediately after the screen title, so the caveat arrives before the content it qualifies. |
+| **Motion** | None specified. The delivery does not say whether it slides in when connectivity drops. |
+| **RTL** | Statement on the leading edge, age on the trailing edge, by justification rather than by a physical direction. |
+| **Responsive** | The two runs must not collide at 320pt; no wrapping behaviour is specified. |
+| **Implementation constraints** | Full-bleed by definition — it deliberately opts out of the screen gutter, which is why it is drawn by the frame and not by a screen. |
+
+
+### `CodePanel`
+
+The reservation code, on the one light surface in the patient app. It reads as something printed and handed over rather than as another card in an app.
+
+| | |
+| --- | --- |
+| **Used by** | ReservationScreen (1 usages) |
+| **Required variants** | `caption + code`, `caption + code + hint` |
+| **Required interactions** | none — deliberately not tappable; the code is read aloud, not copied |
+| **Accessibility** | The panel carries one accessible label combining caption and code, so a screen reader announces what the number IS before reading it. |
+| **Motion** | None specified. |
+| **RTL** | The code itself is forced left-to-right: it is a token, not prose, and must be one direction whichever alphabet it uses. |
+| **Responsive** | 76px digits at 390pt. The delivery does not say what happens at 320pt or at 200% text. |
+| **Implementation constraints** | Its two text colours are measured separately by the contrast gate because it inverts. The caption ships darker than delivered — DEV-1. |
+
+
+### `FactRow`
+
+A labelled fact — muted label on one edge, value on the other — so the eye scans one column of labels instead of parsing sentences.
+
+| | |
+| --- | --- |
+| **Used by** | ReservationScreen (3 usages) |
+| **Required variants** | `first (no divider)`, `subsequent (divider above)`, `string value`, `composed value` |
+| **Required interactions** | none |
+| **Accessibility** | Label and value are adjacent in reading order, so the pair is announced as one fact. |
+| **Motion** | None. |
+| **RTL** | Label leading, value trailing, via a spacer rather than a physical edge. |
+| **Responsive** | A long value wraps under itself; the behaviour at 320pt with a long pharmacy name is unspecified. |
+| **Implementation constraints** | The divider is the 1pt line role. Rows are meant to sit inside one card, not to be scattered. |
+
+
+### `Row`
+
+Things side by side. The single place `flexDirection` is written in the patient app.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen (20 usages) |
+| **Required variants** | `align baseline / center / stretch`, `justify center / space-between`, `any gap token` |
+| **Required interactions** | none |
+| **Accessibility** | Transparent. |
+| **Motion** | None. |
+| **RTL** | Always `row` — never `row-reverse`. Under an RTL container `row` already runs right-to-left; reversing again flips it back, which put the back chevron on the wrong edge once. A screen can no longer type the property at all. |
+| **Responsive** | Does not wrap. Use Actions when the content can exceed one line. |
+| **Implementation constraints** | Baseline is the common alignment by count — a number beside its unit is one sentence and their feet must line up. |
+
+
+### `Spacer`
+
+Pushes what follows to the far edge of a Row.
+
+| | |
+| --- | --- |
+| **Used by** | DraftScreen, OfferDetailScreen (5 usages) |
+| **Required variants** | `none` |
+| **Required interactions** | none |
+| **Accessibility** | Transparent. |
+| **Motion** | None. |
+| **RTL** | In RTL the far edge is the left one, which no call site has to know. |
+| **Responsive** | Absorbs all slack; content on either side must still fit at 320pt. |
+| **Implementation constraints** | Grow with no children — one implementation, so a change to how leftover space is distributed happens once. |
+
+
+### `Grow`
+
+Takes whatever width is left in a Row, and carries content while doing it.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen (2 usages) |
+| **Required variants** | `with children` |
+| **Required interactions** | none |
+| **Accessibility** | Transparent. |
+| **Motion** | None. |
+| **RTL** | Direction-neutral. |
+| **Responsive** | The shrinking element in every row; long Arabic names wrap inside it rather than pushing the row wider. |
+| **Implementation constraints** | The only expression of flex in a screen. |
+
+
+### `Actions`
+
+A cluster of secondary actions under the content.
+
+| | |
+| --- | --- |
+| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, WaitingScreen (5 usages) |
+| **Required variants** | `one to three secondaries` |
+| **Required interactions** | press, per child |
+| **Accessibility** | Children carry their own labels; the cluster adds none. |
+| **Motion** | None. |
+| **RTL** | Leading-edge first, wrapping onto new lines in reading order. |
+| **Responsive** | Wraps, because Arabic labels are long and a fixed row truncates them at 320pt. |
+| **Implementation constraints** | Never contains a Primary — the one dominant action belongs in the footer, and a filled button inside a wrapped cluster is exactly the competing hierarchy the kit exists to prevent. |
+
+
+### `Card`
+
+A rectangle of content raised off the ground. The one card primitive.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (6 usages) |
+| **Required variants** | `raised / sunken`, `border line / accent / alert / warning / none`, `1pt or 2pt border`, `any pad and gap token` |
+| **Required interactions** | none — a card that is an action is ActionCard |
+| **Accessibility** | Transparent; grouping is conveyed by the content, not by the container. |
+| **Motion** | None. |
+| **RTL** | Direction-neutral. |
+| **Responsive** | Full-width inside the gutter at every size checked. |
+| **Implementation constraints** | Replaced four hand-rolled copies that differed only in padding or border colour, so a change to 'what a card is' is now one edit. |
+
+
+### `Note`
+
+A short statement about the content beside it — a missing prescription, a guard's reason for sending you here, work waiting for a signal.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen (4 usages) |
+| **Required variants** | `neutral`, `caution`, `alert` |
+| **Required interactions** | may contain secondaries |
+| **Accessibility** | Read in place. It is not a live region — nothing announces it when it appears. |
+| **Motion** | None specified, and the delivery does not say whether one that appears mid-screen should animate in. |
+| **RTL** | Direction-neutral. |
+| **Responsive** | Wraps freely. |
+| **Implementation constraints** | Always sunken — a remark ABOUT the screen sits below the content plane rather than competing as another card. Only the alert tone is outlined: a caution that is also outlined reads as an error. |
+
+
+### `Section`
+
+A heading and the things it governs, as one unit.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen (2 usages) |
+| **Required variants** | `none` |
+| **Required interactions** | none |
+| **Accessibility** | Provides no heading semantics — nothing in the product exposes a heading level yet. A real gap. |
+| **Motion** | None. |
+| **RTL** | Direction-neutral. |
+| **Responsive** | No behaviour change. |
+| **Implementation constraints** | Its gap is deliberately tighter than Stack's, and that difference is the whole reason a screen reads as groups rather than a list of equal parts. |
+
+
+### `Field`
+
+A quiet label above the value it names — the vertical sibling of FactRow.
+
+| | |
+| --- | --- |
+| **Used by** | OfferDetailScreen (2 usages) |
+| **Required variants** | `none` |
+| **Required interactions** | none |
+| **Accessibility** | Label and value adjacent in reading order. |
+| **Motion** | None. |
+| **RTL** | Direction-neutral. |
+| **Responsive** | Used where the value is prose, so it wraps rather than truncating. |
+| **Implementation constraints** | Chosen over FactRow when the value is a medicine name rather than a figure: a long Arabic name set beside its label wraps under it and stops looking like an answer. |
+
+
+### `Chip`
+
+One option in a set where the options are worded rather than numbered — D09's three urgency windows.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen (1 usages) |
+| **Required variants** | `selected`, `unselected`, `with an explanatory line` |
+| **Required interactions** | press |
+| **Accessibility** | radio role with selected state; the spoken label carries the window AND its explanation, so the choice is audible in full. |
+| **Motion** | None. No selection transition is specified. |
+| **RTL** | Text leading-aligned. |
+| **Responsive** | Full-width; a long window label must not truncate at 320pt. |
+| **Implementation constraints** | Selection is carried by a 2pt border and an accent label — never by fill weight, so no option is nudged. |
+
+
+### `StepButton`
+
+One step of a quantity, up or down.
+
+| | |
+| --- | --- |
+| **Used by** | DraftScreen (1 usages) |
+| **Required variants** | `up`, `down` |
+| **Required interactions** | press; repeat-press (no acceleration specified) |
+| **Accessibility** | The spoken label names the MEDICINE, because 'زيادة' alone is meaningless when three rows offer it. |
+| **Motion** | None. No feedback distinguishes a registered press from an ignored one. |
+| **RTL** | Direction-neutral glyphs. |
+| **Responsive** | Fixed 44pt square at every size. |
+| **Implementation constraints** | 44pt is the floor, not a decoration: this is pressed repeatedly, with a thumb, by someone in a hurry. |
+
+
+### `ProgressBar`
+
+How far along something is, as a bar rather than a spinner.
+
+| | |
+| --- | --- |
+| **Used by** | WaitingScreen (1 usages) |
+| **Required variants** | `any fraction, clamped to 0..1` |
+| **Required interactions** | none |
+| **Accessibility** | progressbar role carrying a percentage, so the shape is never the only thing conveying the information. |
+| **Motion** | The fill does not animate; it jumps on each re-render. |
+| **RTL** | The fill grows from the leading edge. |
+| **Responsive** | Full-width. |
+| **Implementation constraints** | A spinner says 'working' and tells a patient nothing about how much longer. The delivery replaces this with a conic ring on R7 — see the fidelity report. |
+
+
+### `PhotoFrame`
+
+Where a captured photograph goes.
+
+| | |
+| --- | --- |
+| **Used by** | PrescriptionScreen (1 usages) |
+| **Required variants** | `empty frame (the only state that exists)` |
+| **Required interactions** | none — tap-to-enlarge is not built |
+| **Accessibility** | image role with a label; there is no alternative text for a real photograph because there are no real photographs. |
+| **Motion** | None. |
+| **RTL** | Direction-neutral. |
+| **Responsive** | Fixed height at every size. |
+| **Implementation constraints** | Renders a labelled frame rather than a stand-in image, because the review gallery must never show a picture the app has not taken. Blocked on TD-9. |
+
+
+### `SearchField`
+
+The one text input in the patient app.
+
+| | |
+| --- | --- |
+| **Used by** | FindScreen (1 usages) |
+| **Required variants** | `empty`, `with a query` |
+| **Required interactions** | type; clear (not implemented) |
+| **Accessibility** | Explicit label; placeholder is not relied on as the name. |
+| **Motion** | None. |
+| **RTL** | Text and placeholder run right-to-left; a Latin drug name typed into it is not isolated, which is an open defect. |
+| **Responsive** | Fills the sticky slot at every size. |
+| **Implementation constraints** | 48pt minimum — the patient primary height, because this is the control a frightened person types a drug name into. No focus, error or disabled state is designed. |
+
 
 ### `Screen`
 
@@ -207,8 +479,8 @@ Says why a guard sent the user here, so a screen never appears for no reason.
 | --- | --- | --- |
 | **TabBar** | S1, F1 and all eight declared destinations | No top-level navigation exists. S1 and F1 declare 'root of a tab' and there are no tabs. |
 | **Sheet / modal chrome** | R1, R4, R5, R7 (destination: modal) | Modals render as full screens; the 'temporary and layered above' signal is absent. |
-| **TextField** | F1/F2 search, and 28 form screens in Entry and Account | One inline search field was improvised. No focus, error or disabled state exists. |
-| **PhotoViewer** | R3 | A grey placeholder box renders instead of the prescription. |
+| **TextField (states)** | F1/F2 search, and 28 form screens in Entry and Account | SearchField exists as a real component, but no focus, error or disabled state is designed — so 28 form screens still have nothing to build against. |
+| **PhotoViewer** | R3 | PhotoFrame renders a labelled frame, deliberately, because no photograph is ever captured (TD-9). Nothing displays, zooms or retakes a real image. |
 | **DestructiveConfirm** | V5, and the 'two-step' Blueprint state kind | The first destructive action will invent its own pattern. |
 | **Toast / transient confirmation** | the undoDwell motion token (4000ms) | The token has nothing to animate. |
 | **Badge** | the inbox destination | Nothing can show pending work. |

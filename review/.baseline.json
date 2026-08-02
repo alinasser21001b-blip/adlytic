@@ -2,7 +2,8 @@
   "hasBaseline": true,
   "added": [],
   "removed": [],
-  "changed": [
+  "changed": [],
+  "unchanged": [
     "F1-empty.png",
     "F2-empty.png",
     "F2-error.png",
@@ -31,6 +32,5 @@
     "V2-held.png",
     "V2-last.png",
     "V4-refused.png"
-  ],
-  "unchanged": []
+  ]
 }

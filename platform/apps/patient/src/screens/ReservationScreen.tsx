@@ -11,7 +11,6 @@
  *      failure this labelling exists to prevent. V1 shows no timer at all,
  *      because nothing has been set aside yet.
  */
-import { View } from "react-native";
 import { instant } from "@dawai/domain";
 import { PATIENT_FLOWS } from "@dawai/navigation";
 import * as Reservation from "../model/reservation.js";
@@ -19,7 +18,7 @@ import { formatPrice } from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Digits, Primary, Secondary, InfoCard, CodePanel, FactRow } from "../ui/kit.js";
+import { Screen, Label, Digits, Primary, Secondary, InfoCard, CodePanel, FactRow, Row } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
@@ -97,12 +96,12 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
           t={t}
           label="صالح لحد"
           value={
-            <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+            <Row t={t} align="baseline">
               <Digits t={t} value={Reservation.clockTime(hold.expiresAt)} role="body" />
               {/* The delivery qualifies the expiry on a cached screen: it is the
                   last time we were told, not the time we know. */}
               {cached ? <Label t={t} role="caption" color="inkSubtle">آخر وقت معروف</Label> : null}
-            </View>
+            </Row>
           }
         />
         <FactRow
@@ -119,12 +118,12 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
               هذي الشاشة تشتغل بدون نت. العدّاد مو حي — نحدّثه أول ما يرجع الاتصال.
             </Label>
           : <InfoCard t={t}>
-              <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+              <Row t={t} align="baseline">
                 <Label t={t} role="title" color={left.urgency === "last" ? "alert" : left.urgency === "soon" ? "warning" : "accent"}>
                   {Reservation.describeRemaining(left.minutes)}
                 </Label>
                 <Label t={t} role="body" color="inkMuted">{left.expired ? "انتهى وقت الحجز" : "باقية على الحجز"}</Label>
-              </View>
+              </Row>
             </InfoCard>
       ) : (
         <InfoCard t={t} muted>
@@ -135,9 +134,9 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
       )}
 
       {p.kind === "held" ? (
-        <View style={{ alignItems: "center" }}>
+        <Row t={t} justify="center">
           <Secondary t={t} label="اتصال بالصيدلية" onPress={p.onCall} />
-        </View>
+        </Row>
       ) : null}
     </Screen>
   );

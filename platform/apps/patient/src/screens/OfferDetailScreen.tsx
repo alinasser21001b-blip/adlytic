@@ -16,14 +16,13 @@
  *      as an out-of-stock line goes, and a patient who believes refusing loses
  *      the order will agree to a brand they did not want.
  */
-import { View } from "react-native";
 import { PATIENT_FLOWS } from "@dawai/navigation";
 import * as Consent from "../model/consent.js";
 import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Primary, Choice, InfoCard } from "../ui/kit.js";
+import { Screen, Label, Primary, Choice, InfoCard, Row, Spacer, Field, Card } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const R9 = CORE_LOOP.find((c) => c.id === "R9")!;
@@ -93,19 +92,19 @@ export function OfferDetailScreen(p: OfferDetailProps) {
           it line by line before committing. */}
       <InfoCard t={t}>
         {summary.offer.lines.map((l) => (
-          <View key={l.requestLineId} style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+          <Row key={l.requestLineId} t={t} align="baseline">
             <Label t={t} role="body">{l.itemName}</Label>
-            <View style={{ flex: 1 }} />
+            <Spacer />
             <Label t={t} role="body" color={l.answer.kind === "unavailable" ? "inkSubtle" : "inkMuted"}>
               {l.answer.kind === "unavailable" ? "ما متوفر" : Offers.formatPrice(l.answer.priceMinor)}
             </Label>
-          </View>
+          </Row>
         ))}
-        <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+        <Row t={t} align="baseline">
           <Label t={t} role="headline">المجموع</Label>
-          <View style={{ flex: 1 }} />
+          <Spacer />
           <Label t={t} role="headline">{Offers.formatPrice(summary.totalMinor)}</Label>
-        </View>
+        </Row>
       </InfoCard>
     </Screen>
   );
@@ -117,30 +116,27 @@ function SubstitutionChoice(
   { t: Theme; comparison: Consent.Comparison; onDecide: (d: "agreed" | "refused") => void },
 ) {
   const chosen = comparison.decision;
-  const border = chosen === "agreed" ? t.color.accent : chosen === "refused" ? t.color.line : t.color.warning;
+  // A role, not a hex: the card draws the colour, the screen names the state.
+  const border = chosen === "agreed" ? "accent" as const : chosen === "refused" ? "line" as const : "warning" as const;
 
   return (
-    <View style={{
-      padding: t.space[4], gap: t.space[3],
-      borderRadius: t.radius.lg, backgroundColor: t.color.surfaceRaised,
-      borderWidth: 2, borderColor: border,
-    }}>
+    <Card t={t} gap={3} border={border} borderWidth={2}>
       <Label t={t} role="headline" color="warning">الصيدلية تعرض بديل</Label>
 
       {/* Asked beside offered. A patient cannot consent to a swap they have to
           reconstruct from two screens. */}
-      <View style={{ gap: t.space[1] }}>
+      <Field t={t}>
         <Label t={t} role="caption" color="inkMuted">إنت طلبت</Label>
         <Label t={t} role="body">{comparison.asked}</Label>
-      </View>
-      <View style={{ gap: t.space[1] }}>
+      </Field>
+      <Field t={t}>
         <Label t={t} role="caption" color="inkMuted">هم عندهم</Label>
-        <View style={{ flexDirection: "row", alignItems: "baseline", gap: t.space[2] }}>
+        <Row t={t} align="baseline">
           <Label t={t} role="body">{comparison.offered}</Label>
-          <View style={{ flex: 1 }} />
+          <Spacer />
           <Label t={t} role="body" color="inkMuted">{Offers.formatPrice(comparison.priceMinor)}</Label>
-        </View>
-      </View>
+        </Row>
+      </Field>
 
       {/* D19 — the pharmacist's own words, verbatim. The app never paraphrases
           a clinical statement. */}
@@ -156,10 +152,10 @@ function SubstitutionChoice(
         إذا ما توافق، هذا الدواء يروح لطلب جديد تلقائياً — الباقي يبقى محجوز.
       </Label>
 
-      <View style={{ flexDirection: "row", gap: t.space[2] }}>
+      <Row t={t}>
         <Choice t={t} label="أوافق على البديل" selected={chosen === "agreed"} onPress={() => onDecide("agreed")} />
         <Choice t={t} label="لا، أريد اللي طلبته" selected={chosen === "refused"} onPress={() => onDecide("refused")} />
-      </View>
-    </View>
+      </Row>
+    </Card>
   );
 }
