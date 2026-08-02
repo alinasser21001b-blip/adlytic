@@ -3,2092 +3,1276 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="color-scheme" content="light" />
-<meta name="theme-color" content="#1a4a42" />
-<title>دوائي — معاينة واجهة Blueprint v1.0</title>
+<meta name="theme-color" content="#163f38" />
+<title>دوائي — واجهة المنتج</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap" rel="stylesheet" />
 <style>
-  /* §25 Design System — Patient: warm light + calm mint · Pharmacy: deep green-black + lime */
-  :root {
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 20px;
-    --space-6: 24px;
-    --space-7: 28px;
-    --space-8: 32px;
-    --space-10: 40px;
-    --space-12: 48px;
+/* Creative direction: Baghdad pharmacy paper — calm mint patient, foil-ticket reservation, lime counter pharmacy.
+   Signature: blister strip + reservation pass with tear-perforation. */
+:root {
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px; --s12:48px;
+  --td:34px; --tt:22px; --th:17px; --tb:16px; --tc:13px;
+  --lhd:1.25; --lht:1.4; --lhh:1.5; --lhb:1.65; --lhc:1.6;
+  --t44:44px; --t48:48px; --t56:56px; --nav:74px;
+  --r10:10px; --r16:16px; --r22:22px; --r28:28px;
 
-    --type-display: 34px;
-    --type-title: 22px;
-    --type-headline: 17px;
-    --type-body: 16px;
-    --type-caption: 13px;
-    --lh-display: 1.25;
-    --lh-title: 1.40;
-    --lh-headline: 1.50;
-    --lh-body: 1.65;
-    --lh-caption: 1.60;
+  --paper:#e9f0ec;
+  --fog:#f4f8f6;
+  --raised:#fff;
+  --line:#cfdcd6;
+  --ink:#122421;
+  --muted:#5b6d68;
+  --mint:#2f7d6a;
+  --mint-soft:#d7efe7;
+  --forest:#163f38;
+  --forest-deep:#0f2c27;
+  --warn:#87580f; --warn-bg:#fbf1dc;
+  --alert:#8c3324; --alert-bg:#fbe9e5;
+  --ok:#1c6848; --ok-bg:#e2f3ea;
+  --hold:#1c4d7a; --hold-bg:#e7f0f8; --hold-ink:#0f2f4d;
+  --offer:#2f7d6a; --offer-bg:#e6f4ee;
 
-    --touch-min: 44px;
-    --touch-patient: 48px;
-    --touch-pharmacy: 56px;
+  --rx-bg:#081412; --rx-surf:#101c19; --rx-card:#182824; --rx-line:#2a3d37;
+  --rx-ink:#eef7f2; --rx-mute:#8aa399; --rx-lime:#c9ea6c; --rx-lime-ink:#13210a;
+  --rx-warn:#efc36b; --rx-hot:#f18b72;
 
-    --nav-h: 72px;
-    --r-sm: 10px;
-    --r-md: 16px;
-    --r-lg: 22px;
+  --font:"IBM Plex Sans Arabic", system-ui, sans-serif;
+  --display:"Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif;
+  --ease:cubic-bezier(.22,.82,.28,1);
+}
 
-    /* Patient palette */
-    --p-ground: #eef3f0;
-    --p-surface: #f7faf8;
-    --p-raised: #ffffff;
-    --p-line: #d5e0db;
-    --p-ink: #142422;
-    --p-muted: #5a6b66;
-    --p-accent: #2a7a68;
-    --p-accent-soft: #d8efe7;
-    --p-accent-deep: #1a4a42;
-    --p-warning: #8a5a10;
-    --p-warning-bg: #fdf4e3;
-    --p-alert: #8f3423;
-    --p-alert-bg: #fbeae6;
-    --p-success: #1f6b4a;
-    --p-success-bg: #e3f4eb;
-    --p-reserve: #1e4d7a;
-    --p-reserve-bg: #e8f1f8;
-    --p-offer: #2a7a68;
-    --p-offer-bg: #e8f4ef;
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; min-height:100dvh; color:var(--ink); font:var(--tb)/var(--lhb) var(--font);
+  letter-spacing:0; -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(900px 420px at 12% -8%, #b9d8cc 0%, transparent 58%),
+    radial-gradient(700px 380px at 92% 8%, #9ec4b6 0%, transparent 52%),
+    linear-gradient(168deg, #d3e5dd 0%, #e7efe9 42%, #c7d9d0 100%);
+  background-attachment:fixed;
+}
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; opacity:.045; z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+h1,h2,h3{font-family:var(--display); margin:0; letter-spacing:0; font-weight:700}
+p{margin:0}
+button,input{font:inherit; letter-spacing:0; color:inherit}
+button{border:0; background:none; cursor:pointer; padding:0}
+:focus-visible{outline:3px solid var(--mint); outline-offset:3px; border-radius:8px}
+bdi{unicode-bidi:isolate}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
-    /* Pharmacy palette */
-    --rx-ground: #0b1614;
-    --rx-surface: #12201d;
-    --rx-raised: #1a2c28;
-    --rx-line: #2a3f39;
-    --rx-ink: #eef6f2;
-    --rx-muted: #8aa39a;
-    --rx-accent: #c8e86a;
-    --rx-accent-ink: #14200a;
-    --rx-warning: #f0c36a;
-    --rx-alert: #f08a72;
-    --rx-success: #7ed9a8;
+/* Studio */
+.studio{position:relative; z-index:1; min-height:100dvh; display:grid; grid-template-columns:minmax(250px,310px) 1fr; gap:var(--s6); padding:var(--s6); align-items:start}
+@media (max-width:900px){.studio{grid-template-columns:1fr; padding:var(--s3)}.panel{order:2}.stage{order:1}}
 
-    --font-body: "IBM Plex Sans Arabic", system-ui, sans-serif;
-    --font-display: "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif;
-  }
+.panel{
+  background:rgb(255 255 255 / .78); backdrop-filter:blur(16px);
+  border:1px solid rgb(18 36 33 / .08); border-radius:var(--r22); padding:var(--s5);
+  position:sticky; top:var(--s4); box-shadow:0 10px 40px rgb(15 44 39 / .06);
+}
+.brand-mark{
+  display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3);
+}
+.brand-mark .seal{
+  width:42px; height:42px; border-radius:14px; background:var(--forest);
+  color:#e8f6f0; display:grid; place-items:center; font-family:var(--display); font-weight:800; font-size:18px;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / .15), 0 8px 18px rgb(22 63 56 / .25);
+}
+.panel h1{font-size:var(--tt); line-height:var(--lht); color:var(--forest-deep)}
+.panel .lede{margin-top:6px; color:var(--muted); font-size:var(--tc); line-height:var(--lhc)}
+.thesis{
+  margin-top:var(--s4); padding:var(--s4); border-radius:var(--r16);
+  background:linear-gradient(135deg, var(--forest) 0%, #1f5a50 100%); color:#eef8f4;
+  position:relative; overflow:hidden;
+}
+.thesis::after{
+  content:""; position:absolute; inset-inline-end:-20px; top:-20px; width:90px; height:90px; border-radius:50%;
+  border:14px solid rgb(201 234 108 / .18);
+}
+.thesis strong{display:block; font-family:var(--display); font-size:var(--th); line-height:var(--lhh); margin-bottom:6px}
+.thesis p{font-size:var(--tc); line-height:var(--lhc); opacity:.9}
+.sec{margin-top:var(--s5)}
+.sec h2{font-size:11px; line-height:1.4; color:var(--muted); font-weight:700; margin-bottom:var(--s2)}
+.jumps{display:flex; flex-direction:column; gap:2px}
+.jumps[hidden]{display:none!important}
+.jumps button{text-align:start; min-height:var(--t44); padding:8px 12px; border-radius:10px; font-size:var(--tc); color:var(--ink)}
+.jumps button:hover,.jumps button[aria-current="true"]{background:var(--mint-soft); color:var(--forest)}
+.row{display:flex; flex-wrap:wrap; gap:8px}
+.chip{min-height:var(--t44); padding:0 14px; border-radius:999px; border:1px solid var(--line); background:var(--raised); font-size:var(--tc); font-weight:600}
+.chip[aria-pressed="true"]{background:var(--forest); color:#fff; border-color:var(--forest)}
 
-  *, *::before, *::after { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body {
-    margin: 0;
-    min-height: 100dvh;
-    background:
-      radial-gradient(ellipse 80% 50% at 20% 0%, #d4e8e0 0%, transparent 55%),
-      radial-gradient(ellipse 60% 40% at 90% 10%, #c5ddd4 0%, transparent 50%),
-      linear-gradient(165deg, #dfece7 0%, #e8efe9 40%, #d2e0d8 100%);
-    color: var(--p-ink);
-    font-family: var(--font-body);
-    font-size: var(--type-body);
-    line-height: var(--lh-body);
-    letter-spacing: 0;
-    -webkit-font-smoothing: antialiased;
-  }
+.stage{display:flex; justify-content:center; align-items:flex-start; padding:8px 0 24px; position:relative}
+.stage::before{
+  content:""; position:absolute; width:min(520px,90%); height:220px; top:40%;
+  background:radial-gradient(ellipse at center, rgb(22 63 56 / .18), transparent 70%);
+  filter:blur(8px); pointer-events:none;
+}
 
-  h1, h2, h3, h4 {
-    font-family: var(--font-display);
-    letter-spacing: 0;
-    margin: 0;
-    font-weight: 700;
-  }
-  p { margin: 0; }
-  button, input, select, textarea {
-    font: inherit;
-    letter-spacing: 0;
-    color: inherit;
-  }
-  button {
-    cursor: pointer;
-    border: 0;
-    background: none;
-    padding: 0;
-  }
-  :focus-visible {
-    outline: 3px solid var(--p-accent);
-    outline-offset: 3px;
-    border-radius: 8px;
-  }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  bdi { unicode-bidi: isolate; }
+/* Phone */
+.phone{
+  width:min(100%,392px); border-radius:40px; padding:11px; position:relative; z-index:1;
+  background:linear-gradient(160deg,#142421 0%, #0b1513 55%, #1a2e29 100%);
+  box-shadow:0 0 0 1px rgb(255 255 255 / .06), 0 30px 70px rgb(10 30 26 / .4);
+}
+.phone-bezel{
+  position:absolute; top:18px; left:50%; transform:translateX(-50%); width:108px; height:22px;
+  background:#0a1210; border-radius:0 0 14px 14px; z-index:8;
+}
+.phone-inner{
+  position:relative; border-radius:30px; overflow:hidden; background:var(--paper);
+  height:min(840px, calc(100dvh - 40px)); min-height:660px;
+  display:flex; flex-direction:column;
+  /* paper grain */
+  background-image:
+    radial-gradient(circle at 12% 8%, rgb(255 255 255 / .55), transparent 40%),
+    linear-gradient(180deg, var(--fog), var(--paper));
+}
+.phone-inner[data-mode="pharmacy"]{
+  background:var(--rx-bg); color:var(--rx-ink);
+  background-image:radial-gradient(circle at 80% 0%, #16332c 0%, transparent 45%);
+}
+.status{display:flex; justify-content:space-between; padding:12px 18px 4px; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--muted); flex-shrink:0}
+.phone-inner[data-mode="pharmacy"] .status{color:var(--rx-mute)}
+.offline{display:none; background:var(--warn-bg); color:var(--warn); padding:8px 16px; font-size:var(--tc); font-weight:600; border-bottom:1px solid #ead7a8; flex-shrink:0}
+.phone-inner.is-offline .offline{display:block}
+.safety{display:none; background:var(--alert); color:#fff; padding:12px 16px; flex-shrink:0; transition:padding .38s var(--ease)}
+.safety.is-on{display:block}
+.safety b{display:block; font-family:var(--display); font-size:var(--th)}
+.safety span{display:block; margin-top:4px; font-size:var(--tb); opacity:.95}
 
-  /* ---- Studio chrome ---- */
-  .studio {
-    min-height: 100dvh;
-    display: grid;
-    grid-template-columns: minmax(240px, 300px) 1fr;
-    gap: var(--space-6);
-    padding: var(--space-6);
-    align-items: start;
-  }
-  @media (max-width: 860px) {
-    .studio {
-      grid-template-columns: 1fr;
-      padding: var(--space-3);
-    }
-    .panel { order: 2; }
-    .stage { order: 1; }
-  }
+.screens{flex:1 1 auto; min-height:0; height:100%; position:relative; overflow:hidden}
+.screen{display:none; position:absolute; inset:0; width:100%; height:100%; flex-direction:column; overflow:hidden}
+.screen.is-on{display:flex; animation:rise .28s var(--ease)}
+@keyframes rise{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
 
-  .panel {
-    background: rgb(255 255 255 / 0.72);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgb(20 36 34 / 0.08);
-    border-radius: var(--r-lg);
-    padding: var(--space-5);
-    position: sticky;
-    top: var(--space-4);
-  }
-  .panel h1 {
-    font-size: var(--type-title);
-    line-height: var(--lh-title);
-    color: var(--p-accent-deep);
-  }
-  .panel .lede {
-    margin-top: var(--space-2);
-    color: var(--p-muted);
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-  }
-  .panel-section {
-    margin-top: var(--space-5);
-  }
-  .panel-section h2 {
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    color: var(--p-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-block-end: var(--space-2);
-  }
-  .jump-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-  .jump-list[hidden] { display: none !important; }
-  .jump-list button {
-    text-align: start;
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--r-sm);
-    min-height: var(--touch-min);
-    color: var(--p-ink);
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-  }
-  .jump-list button:hover,
-  .jump-list button[aria-current="true"] {
-    background: var(--p-accent-soft);
-    color: var(--p-accent-deep);
-  }
-  .toggle-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-  .chip {
-    min-height: var(--touch-min);
-    padding: 0 var(--space-3);
-    border-radius: 999px;
-    border: 1px solid var(--p-line);
-    background: var(--p-raised);
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    font-weight: 600;
-  }
-  .chip[aria-pressed="true"] {
-    background: var(--p-accent-deep);
-    color: #fff;
-    border-color: var(--p-accent-deep);
-  }
+.scroll{flex:1; overflow-y:auto; overscroll-behavior:contain; padding:10px 16px calc(var(--nav) + 36px); -webkit-overflow-scrolling:touch}
+.scroll.bare{padding-bottom:28px}
+.scroll.answer-pad{padding-bottom:190px}
+.head{padding:6px 16px 10px; background:rgb(244 248 246 / .9); backdrop-filter:blur(12px); flex-shrink:0}
+.phone-inner[data-mode="pharmacy"] .head{background:rgb(8 20 18 / .9)}
+.title{font-size:var(--tt); line-height:var(--lht)}
+.sub{margin-top:2px; color:var(--muted); font-size:var(--tc); line-height:var(--lhc)}
+.phone-inner[data-mode="pharmacy"] .sub{color:var(--rx-mute)}
+.back{display:flex; align-items:center; gap:8px; margin-bottom:4px}
+.back-btn{width:var(--t44); height:var(--t44); border-radius:50%; display:grid; place-items:center; font-size:20px; background:rgb(0 0 0 / .04)}
+.phone-inner[data-mode="pharmacy"] .back-btn{background:rgb(255 255 255 / .06); color:var(--rx-ink)}
 
-  .stage {
-    display: flex;
-    justify-content: center;
-    padding-block: var(--space-2);
-  }
+/* Subject switcher */
+.subjects{display:flex; gap:8px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none}
+.subjects::-webkit-scrollbar{display:none}
+.who{
+  flex:0 0 auto; min-height:var(--t48); padding:0 16px; border-radius:999px; border:1.5px solid var(--line);
+  background:var(--raised); font-weight:600; display:inline-flex; align-items:center; gap:8px;
+  transition:background .2s var(--ease), color .2s, border-color .2s, transform .2s var(--ease);
+}
+.who[aria-pressed="true"]{background:var(--forest); color:#fff; border-color:var(--forest); transform:scale(1.02)}
+.who .scope{font-size:var(--tc); font-weight:500; opacity:.85}
 
-  /* ---- Phone shell ---- */
-  .phone {
-    width: min(100%, 390px);
-    background: #0e1a18;
-    border-radius: 36px;
-    padding: 10px;
-    box-shadow:
-      0 0 0 1px rgb(0 0 0 / 0.35),
-      0 28px 60px rgb(20 36 34 / 0.28);
-  }
-  .phone-inner {
-    position: relative;
-    background: var(--p-ground);
-    border-radius: 28px;
-    overflow: hidden;
-    /* Explicit height: flex:1 + absolute screens collapse to 0 when only min-height is set (Safari). */
-    height: min(820px, calc(100vh - 48px));
-    height: min(820px, calc(100dvh - 48px));
-    min-height: 640px;
-    display: flex;
-    flex-direction: column;
-  }
-  .phone-inner[data-mode="pharmacy"] {
-    background: var(--rx-ground);
-    color: var(--rx-ink);
-  }
-  .status-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 18px 6px;
-    font-size: 12px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--p-muted);
-    flex-shrink: 0;
-  }
-  .phone-inner[data-mode="pharmacy"] .status-bar { color: var(--rx-muted); }
+.band{margin-bottom:var(--s5)}
+.band-l{font-size:var(--tc); font-weight:700; color:var(--muted); margin-bottom:8px}
+.phone-inner[data-mode="pharmacy"] .band-l{color:var(--rx-mute)}
 
-  .offline-banner {
-    display: none;
-    background: var(--p-warning-bg);
-    color: var(--p-warning);
-    padding: var(--space-2) var(--space-4);
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    font-weight: 600;
-    border-block-end: 1px solid rgb(138 90 16 / 0.2);
-    flex-shrink: 0;
-  }
-  .phone-inner.is-offline .offline-banner { display: block; }
-  .phone-inner[data-mode="pharmacy"] .offline-banner {
-    background: rgb(240 195 106 / 0.15);
-    color: var(--rx-warning);
-    border-color: rgb(240 195 106 / 0.25);
-  }
+.card{
+  background:var(--raised); border:1px solid var(--line); border-radius:var(--r16); padding:var(--s4);
+  box-shadow:0 1px 0 rgb(18 36 33 / .03);
+  transition:transform .2s var(--ease), box-shadow .2s;
+}
+.card:active{transform:scale(.985)}
+.phone-inner[data-mode="pharmacy"] .card{background:var(--rx-card); border-color:var(--rx-line); box-shadow:none}
+.card + .card{margin-top:10px}
+.kicker{font-size:var(--tc); font-weight:700; color:var(--muted)}
+.phone-inner[data-mode="pharmacy"] .kicker{color:var(--rx-mute)}
+.ctitle{font-size:var(--th); line-height:var(--lhh); margin-top:2px}
+.cbody{margin-top:6px; color:var(--muted); font-size:var(--tb)}
+.phone-inner[data-mode="pharmacy"] .cbody{color:var(--rx-mute)}
 
-  .safety-layer {
-    display: none;
-    background: var(--p-alert);
-    color: #fff;
-    padding: var(--space-3) var(--space-4);
-    font-size: var(--type-body);
-    line-height: var(--lh-body);
-    font-weight: 600;
-    flex-shrink: 0;
-    transition: background 380ms ease, padding 380ms ease;
-  }
-  .safety-layer.is-visible { display: block; }
-  .safety-layer .safety-title { font-family: var(--font-display); font-size: var(--type-headline); }
-  .safety-layer .safety-body { margin-top: 4px; font-weight: 500; opacity: 0.95; }
-  /* Severe: no dismiss control at all */
+.badge{
+  display:inline-flex; align-items:center; min-height:26px; padding:0 10px; border-radius:999px;
+  font-size:12px; font-weight:800;
+}
+.badge-offer{background:var(--offer-bg); color:var(--offer)}
+.badge-hold{background:var(--hold-bg); color:var(--hold)}
 
-  .screens {
-    flex: 1 1 auto;
-    position: relative;
-    overflow: hidden;
-    min-height: 0;
-    height: 100%;
-  }
-  .screen {
-    display: none;
-    flex-direction: column;
-    overflow: hidden;
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-  .screen.is-active {
-    display: flex;
-    animation: screen-in 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
-  }
-  @keyframes screen-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: none; }
-  }
+/* Live reservation — foil ticket */
+.ticket{
+  position:relative; border:0; width:100%; text-align:start; cursor:pointer;
+  background:linear-gradient(145deg, #eaf2f9 0%, #fff 48%, #f3f7fb 100%);
+  border-radius:var(--r16); padding:18px 16px 16px;
+  box-shadow:0 10px 28px rgb(28 77 122 / .12);
+  overflow:hidden;
+}
+.ticket::before{
+  content:""; position:absolute; inset-inline:12px; top:0; height:4px; border-radius:0 0 3px 3px;
+  background:repeating-linear-gradient(90deg, var(--hold) 0 10px, transparent 10px 16px);
+}
+.ticket::after{
+  content:""; position:absolute; inset-inline-end:-18px; bottom:-18px; width:72px; height:72px; border-radius:50%;
+  border:10px solid rgb(28 77 122 / .08);
+}
+.ticket .countdown{
+  margin-top:8px; font:700 var(--td)/var(--lhd) var(--display); color:var(--hold);
+  font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+}
+.ticket .code-row{display:flex; justify-content:space-between; align-items:baseline; margin-top:10px}
+.ticket .code{font:800 28px/1.1 var(--display); font-variant-numeric:tabular-nums; color:var(--hold-ink)}
 
-  .scroll {
-    flex: 1;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: var(--space-3) var(--space-4) calc(var(--nav-h) + var(--space-8) + env(safe-area-inset-bottom, 0px));
-    -webkit-overflow-scrolling: touch;
-  }
-  .scroll.no-nav-pad {
-    padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
-  }
-  .scroll.answer-pad {
-    padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px));
-  }
+.dose{display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center}
+.btn-dose{min-width:var(--t48); min-height:var(--t48); padding:0 16px; border-radius:12px; background:var(--mint); color:#fff; font-weight:700}
+.btn-dose.done{background:var(--ok-bg); color:var(--ok)}
 
-  .sticky-head {
-    padding: var(--space-2) var(--space-4) var(--space-3);
-    background: rgb(238 243 240 / 0.92);
-    backdrop-filter: blur(10px);
-    border-block-end: 1px solid transparent;
-    flex-shrink: 0;
-  }
-  .phone-inner[data-mode="pharmacy"] .sticky-head {
-    background: rgb(11 22 20 / 0.92);
-  }
-  .screen-title {
-    font-size: var(--type-title);
-    line-height: var(--lh-title);
-  }
-  .screen-sub {
-    margin-top: 2px;
-    color: var(--p-muted);
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-  }
-  .phone-inner[data-mode="pharmacy"] .screen-sub { color: var(--rx-muted); }
+/* Blister — signature */
+.blister-wrap{margin-top:12px}
+.blister{display:flex; gap:5px; align-items:flex-end; padding:10px 8px; border-radius:14px; background:linear-gradient(180deg,#f2f7f4,#e7efea); border:1px solid var(--line); position:relative}
+.blister::before{
+  content:""; position:absolute; inset-inline-start:8px; top:4px; bottom:4px; width:3px; border-radius:2px;
+  background:linear-gradient(#b7c8c0,#8fa89e);
+}
+.pill{
+  width:17px; height:26px; border-radius:7px; background:linear-gradient(180deg,#c8ebe0,#8ec9b4);
+  border:1.5px solid #6eaa95; box-shadow:inset 0 1px 0 rgb(255 255 255 / .5);
+  transition:background .5s var(--ease), opacity .5s, transform .5s var(--ease), border-color .5s;
+}
+.pill.empty{background:transparent; border-style:dashed; border-color:#9bb0a8; opacity:.5; transform:scale(.9); box-shadow:none}
+.pill.low{background:linear-gradient(180deg,#ffe7b0,#e0b45a); border-color:#b8882e}
+.pill.pop{animation:pop .5s var(--ease)}
+@keyframes pop{0%{transform:scale(1)} 40%{transform:scale(1.18)} 100%{transform:scale(.9); opacity:.5}}
+.conf{margin-top:8px; font-size:var(--tc); color:var(--muted); font-weight:600; display:flex; align-items:center; gap:6px}
+.conf i{width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block}
 
-  /* Subject switcher — primary control */
-  .subject-switcher {
-    display: flex;
-    gap: var(--space-2);
-    overflow-x: auto;
-    padding-block: var(--space-1);
-    margin-block-end: var(--space-2);
-    scrollbar-width: none;
-  }
-  .subject-switcher::-webkit-scrollbar { display: none; }
-  .subject-chip {
-    flex: 0 0 auto;
-    min-height: var(--touch-patient);
-    padding: 0 var(--space-4);
-    border-radius: 999px;
-    border: 1.5px solid var(--p-line);
-    background: var(--p-raised);
-    font-weight: 600;
-    font-size: var(--type-body);
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .subject-chip[aria-pressed="true"] {
-    background: var(--p-accent-deep);
-    color: #fff;
-    border-color: var(--p-accent-deep);
-  }
-  .subject-chip .scope {
-    font-size: var(--type-caption);
-    font-weight: 500;
-    opacity: 0.85;
-  }
+.quiet{text-align:center; padding:56px 16px}
+.quiet-orb{
+  width:72px; height:72px; margin:0 auto 16px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #fff, var(--ok-bg));
+  border:2px solid #b7dfc8; display:grid; place-items:center; color:var(--ok);
+  box-shadow:0 10px 24px rgb(28 104 72 / .12);
+}
+.quiet h2{font-size:var(--tt); line-height:var(--lht)}
+.quiet p{margin-top:8px; color:var(--muted)}
 
-  /* Bands */
-  .band { margin-block-end: var(--space-5); }
-  .band-label {
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    font-weight: 600;
-    color: var(--p-muted);
-    margin-block-end: var(--space-2);
-  }
-  .phone-inner[data-mode="pharmacy"] .band-label { color: var(--rx-muted); }
+.btn{display:inline-flex; align-items:center; justify-content:center; width:100%; min-height:var(--t48); padding:0 18px; border-radius:var(--r16); font-weight:700}
+.btn-p{background:var(--forest); color:#fff; box-shadow:0 8px 20px rgb(22 63 56 / .22)}
+.btn-p:disabled{opacity:.4; box-shadow:none}
+.btn-s{background:var(--raised); border:1.5px solid var(--line)}
+.btn-d{background:var(--alert-bg); color:var(--alert)}
+.btn-t{min-height:var(--t44); color:var(--mint); font-weight:700}
+.stack{display:grid; gap:10px; margin-top:14px}
+.stack.two{grid-template-columns:1fr 1fr}
 
-  .card {
-    background: var(--p-raised);
-    border: 1px solid var(--p-line);
-    border-radius: var(--r-md);
-    padding: var(--space-4);
-  }
-  .phone-inner[data-mode="pharmacy"] .card {
-    background: var(--rx-raised);
-    border-color: var(--rx-line);
-  }
-  .card + .card { margin-block-start: var(--space-3); }
+.fab{
+  position:absolute; inset-inline-end:16px; bottom:calc(var(--nav) + 14px);
+  width:58px; height:58px; border-radius:50%; background:var(--forest); color:#fff; font-size:30px;
+  display:grid; place-items:center; z-index:6;
+  box-shadow:0 12px 28px rgb(22 63 56 / .35);
+  transition:transform .2s var(--ease);
+}
+.fab:active{transform:scale(.94)}
+.phone-inner[data-mode="pharmacy"] .fab{display:none}
 
-  .card-kicker {
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    font-weight: 600;
-    color: var(--p-muted);
-  }
-  .card-title {
-    font-size: var(--type-headline);
-    line-height: var(--lh-headline);
-    margin-top: 2px;
-  }
-  .card-body {
-    margin-top: var(--space-2);
-    color: var(--p-muted);
-    font-size: var(--type-body);
-  }
-  .phone-inner[data-mode="pharmacy"] .card-body,
-  .phone-inner[data-mode="pharmacy"] .card-kicker { color: var(--rx-muted); }
+.tabbar{
+  position:absolute; inset-inline:0; bottom:0; z-index:5;
+  height:calc(var(--nav) + env(safe-area-inset-bottom,0px));
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  display:grid; grid-template-columns:repeat(4,1fr);
+  background:rgb(244 248 246 / .94); backdrop-filter:blur(16px); border-top:1px solid var(--line);
+}
+.phone-inner[data-mode="pharmacy"] .tabbar{background:rgb(16 28 25 / .96); border-color:var(--rx-line)}
+.tab{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:var(--t44); color:var(--muted); font-size:11px; font-weight:700}
+.phone-inner[data-mode="pharmacy"] .tab{color:var(--rx-mute)}
+.tab[aria-current="page"]{color:var(--forest)}
+.phone-inner[data-mode="pharmacy"] .tab[aria-current="page"]{color:var(--rx-lime)}
+.tab svg{width:22px; height:22px}
 
-  /* Live reservation band */
-  .live-card {
-    background: linear-gradient(145deg, var(--p-reserve-bg), #fff);
-    border: 1.5px solid #9bb8d4;
-  }
-  .live-card .countdown {
-    font-size: var(--type-display);
-    line-height: var(--lh-display);
-    font-family: var(--font-display);
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
-    color: var(--p-reserve);
-    letter-spacing: 0;
-    margin-top: var(--space-2);
-  }
-  .live-card .code-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    margin-top: var(--space-3);
-  }
-  .live-card .code {
-    font-size: 28px;
-    font-family: var(--font-display);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0;
-    font-weight: 700;
-  }
+/* Welcome */
+.welcome{
+  flex:1; display:flex; flex-direction:column; justify-content:flex-end;
+  padding:24px 20px 28px; position:relative; overflow:hidden;
+  background:
+    radial-gradient(circle at 70% 18%, #7eb9a6 0%, transparent 42%),
+    linear-gradient(180deg, #1a4a42 0%, #0f2c27 55%, #0a1f1b 100%);
+  color:#eef8f4;
+}
+.welcome .rings{position:absolute; inset:0; pointer-events:none}
+.welcome .rings span{
+  position:absolute; left:50%; top:28%; translate:-50% -50%; border-radius:50%;
+  border:1.5px solid rgb(201 234 108 / .22); animation:ring 4.8s var(--ease) infinite;
+}
+.welcome .rings span:nth-child(1){width:120px; height:120px}
+.welcome .rings span:nth-child(2){width:200px; height:200px; animation-delay:.4s}
+.welcome .rings span:nth-child(3){width:290px; height:290px; animation-delay:.8s}
+@keyframes ring{0%,100%{opacity:.15; transform:scale(.92)} 50%{opacity:.55; transform:scale(1)}}
+.welcome .mark{font-family:var(--display); font-size:42px; font-weight:800; position:relative; z-index:1}
+.welcome h1{font-size:26px; line-height:1.35; margin-top:10px; position:relative; z-index:1; max-width:14ch}
+.welcome p{margin-top:10px; opacity:.88; position:relative; z-index:1; max-width:28ch}
+.welcome .actions{margin-top:28px; display:grid; gap:10px; position:relative; z-index:1}
+.welcome .btn-p{background:var(--rx-lime); color:var(--rx-lime-ink); box-shadow:0 10px 24px rgb(201 234 108 / .25)}
+.welcome .btn-s{background:rgb(255 255 255 / .08); border-color:rgb(255 255 255 / .18); color:#fff}
 
-  /* Dose card */
-  .dose-card {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-3);
-    align-items: center;
-  }
-  .btn-dose {
-    min-width: var(--touch-patient);
-    min-height: var(--touch-patient);
-    padding: 0 var(--space-4);
-    border-radius: var(--r-sm);
-    background: var(--p-accent);
-    color: #fff;
-    font-weight: 600;
-  }
-  .btn-dose.is-done {
-    background: var(--p-success-bg);
-    color: var(--p-success);
-  }
+/* Capture / find */
+.capture{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px}
+.cap{
+  min-height:100px; border-radius:var(--r16); border:1.5px solid var(--line); background:var(--raised);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; font-weight:700;
+  position:relative; overflow:hidden;
+}
+.cap::after{content:""; position:absolute; inset:0; background:linear-gradient(180deg, transparent, rgb(47 125 106 / .04))}
+.cap .ico{width:40px; height:40px; border-radius:50%; background:var(--mint-soft); color:var(--forest); display:grid; place-items:center}
+.cap .ico svg{width:18px; height:18px}
+.search{display:flex; align-items:center; gap:8px; min-height:var(--t48); padding:0 12px; background:var(--raised); border:1.5px solid var(--line); border-radius:var(--r16); margin-bottom:14px}
+.search input{flex:1; border:0; background:transparent; outline:none; min-height:var(--t48)}
+.meds button{width:100%; text-align:start; padding:12px 14px; background:var(--raised); border:1px solid var(--line); border-radius:var(--r16); min-height:var(--t48)}
+.meds button + button{margin-top:8px}
+.meds .lat{display:block; color:var(--muted); font-size:var(--tc); margin-top:2px}
 
-  /* Blister strip — signature */
-  .blister {
-    display: flex;
-    gap: 5px;
-    margin-top: var(--space-3);
-    align-items: center;
-  }
-  .blister-pill {
-    width: 18px;
-    height: 26px;
-    border-radius: 6px;
-    background: var(--p-accent-soft);
-    border: 1.5px solid #8ab9a8;
-    transition: background 500ms ease, border-color 500ms ease, opacity 500ms ease, transform 500ms ease;
-  }
-  .blister-pill.is-empty {
-    background: transparent;
-    border-style: dashed;
-    opacity: 0.55;
-    transform: scale(0.92);
-  }
-  .blister-pill.is-low {
-    background: var(--p-warning-bg);
-    border-color: #c4a06a;
-  }
-  .confidence {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: var(--space-2);
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    color: var(--p-muted);
-    font-weight: 500;
-  }
-  .confidence::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--p-warning);
-    flex-shrink: 0;
-  }
+.field{margin-bottom:14px}
+.field label{display:block; font-weight:700; margin-bottom:8px}
+.seg{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.seg button{min-height:var(--t48); border-radius:12px; border:1.5px solid var(--line); background:var(--raised); font-weight:700; font-size:var(--tc)}
+.seg button[aria-pressed="true"]{background:var(--mint-soft); border-color:var(--mint); color:var(--forest)}
+.area{min-height:var(--t48); width:100%; padding:0 14px; border-radius:var(--r16); border:1.5px solid var(--line); background:var(--raised); text-align:start; font-weight:700; display:flex; justify-content:space-between; align-items:center}
 
-  /* Quiet state */
-  .quiet {
-    text-align: center;
-    padding: var(--space-10) var(--space-4);
-  }
-  .quiet-mark {
-    width: 56px;
-    height: 56px;
-    margin-inline: auto;
-    border-radius: 50%;
-    background: var(--p-success-bg);
-    color: var(--p-success);
-    display: grid;
-    place-items: center;
-    font-size: 24px;
-    margin-block-end: var(--space-4);
-  }
-  .quiet h2 {
-    font-size: var(--type-title);
-    line-height: var(--lh-title);
-  }
-  .quiet p {
-    margin-top: var(--space-2);
-    color: var(--p-muted);
-  }
+/* Live radar */
+.radar-wrap{position:relative; height:180px; margin-bottom:14px; border-radius:var(--r22); overflow:hidden; background:radial-gradient(circle at 50% 55%, #d9ebe4, #eef5f1 60%, #e3ece7)}
+.radar-wrap canvas{position:absolute; inset:0; width:100%; height:100%}
+.radar-center{
+  position:absolute; left:50%; top:55%; translate:-50% -50%; z-index:2; text-align:center;
+  background:var(--raised); border:1px solid var(--line); border-radius:16px; padding:8px 12px;
+  box-shadow:0 8px 20px rgb(18 36 33 / .08); min-width:110px;
+}
+.radar-center strong{display:block; font-family:var(--display); font-size:20px; font-variant-numeric:tabular-nums}
+.radar-center span{font-size:11px; color:var(--muted); font-weight:700}
+.stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px}
+.stat{background:var(--raised); border:1px solid var(--line); border-radius:12px; padding:10px; text-align:center}
+.stat strong{display:block; font:700 var(--tt)/1.2 var(--display); font-variant-numeric:tabular-nums}
+.stat span{font-size:var(--tc); color:var(--muted)}
+.responders{display:flex; flex-direction:column; gap:8px}
+.resp{
+  display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+  padding:12px 14px; background:var(--raised); border:1px solid var(--line); border-radius:14px;
+  opacity:0; transform:translateY(8px);
+}
+.resp.in{opacity:1; transform:none; transition:opacity .2s, transform .2s var(--ease)}
+.dot{width:10px; height:10px; border-radius:50%; background:var(--line)}
+.resp[data-st="thinking"] .dot{background:var(--warn); animation:blink 1.1s ease infinite}
+.resp[data-st="replied"] .dot{background:var(--ok)}
+.resp[data-st="asked"] .dot{background:var(--muted)}
+@keyframes blink{50%{opacity:.3}}
+.st{font-size:var(--tc); color:var(--muted); font-weight:600}
 
-  /* Buttons */
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--touch-patient);
-    padding: 0 var(--space-5);
-    border-radius: var(--r-md);
-    background: var(--p-accent-deep);
-    color: #fff;
-    font-weight: 600;
-    font-size: var(--type-body);
-    width: 100%;
-  }
-  .btn-primary:disabled { opacity: 0.45; }
-  .btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--touch-patient);
-    padding: 0 var(--space-5);
-    border-radius: var(--r-md);
-    background: var(--p-raised);
-    border: 1.5px solid var(--p-line);
-    font-weight: 600;
-    width: 100%;
-  }
-  .btn-text {
-    min-height: var(--touch-min);
-    padding: var(--space-2) var(--space-3);
-    color: var(--p-accent);
-    font-weight: 600;
-  }
-  .btn-destructive {
-    min-height: var(--touch-patient);
-    padding: 0 var(--space-5);
-    border-radius: var(--r-md);
-    background: var(--p-alert-bg);
-    color: var(--p-alert);
-    font-weight: 600;
-    width: 100%;
-  }
-  .btn-row {
-    display: grid;
-    gap: var(--space-3);
-    margin-top: var(--space-4);
-  }
-  .btn-row.two {
-    grid-template-columns: 1fr 1fr;
-  }
+/* Offers */
+.sort{display:flex; gap:8px; overflow-x:auto; margin-bottom:12px}
+.offer{border-inline-start:4px solid var(--offer); position:relative}
+.offer.closed{opacity:.55; border-inline-start-color:var(--muted)}
+.facts{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px}
+.fact dt{font-size:var(--tc); color:var(--muted); font-weight:700}
+.fact dd{margin:0; font-weight:800}
+.open{display:inline-flex; align-items:center; gap:6px; font-weight:800; color:var(--ok)}
+.open::before{content:""; width:8px; height:8px; border-radius:50%; background:currentColor; box-shadow:0 0 0 4px rgb(28 104 72 / .12)}
+.open.closed{color:var(--muted)}
+.open.closed::before{box-shadow:none}
+.verified{font-size:var(--tc); color:var(--mint); font-weight:700; margin-top:4px}
 
-  /* FAB */
-  .fab {
-    position: absolute;
-    inset-inline-end: var(--space-4);
-    bottom: calc(var(--nav-h) + var(--space-3) + env(safe-area-inset-bottom, 0px));
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--p-accent-deep);
-    color: #fff;
-    font-size: 28px;
-    font-weight: 400;
-    display: grid;
-    place-items: center;
-    box-shadow: 0 8px 24px rgb(26 74 66 / 0.35);
-    z-index: 5;
-  }
-  .phone-inner[data-mode="pharmacy"] .fab { display: none; }
+/* Asking */
+.ask{text-align:center; padding-top:20px}
+.ask-pulse{
+  width:84px; height:84px; margin:0 auto 18px; border-radius:50%; position:relative;
+  background:var(--hold-bg); display:grid; place-items:center;
+}
+.ask-pulse::before,.ask-pulse::after{
+  content:""; position:absolute; inset:0; border-radius:50%; border:2px solid var(--hold); opacity:.35;
+  animation:askring 1.6s var(--ease) infinite;
+}
+.ask-pulse::after{animation-delay:.5s}
+@keyframes askring{from{transform:scale(.85); opacity:.5} to{transform:scale(1.35); opacity:0}}
+.ask-pulse .core{width:18px; height:18px; border-radius:50%; background:var(--hold)}
 
-  /* Bottom nav */
-  .tabbar {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: rgb(247 250 248 / 0.94);
-    backdrop-filter: blur(14px);
-    border-block-start: 1px solid var(--p-line);
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    z-index: 4;
-  }
-  .phone-inner[data-mode="pharmacy"] .tabbar {
-    background: rgb(18 32 29 / 0.96);
-    border-color: var(--rx-line);
-  }
-  .tab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    min-height: var(--touch-min);
-    color: var(--p-muted);
-    font-size: 11px;
-    font-weight: 600;
-  }
-  .phone-inner[data-mode="pharmacy"] .tab { color: var(--rx-muted); }
-  .tab[aria-current="page"] {
-    color: var(--p-accent-deep);
-  }
-  .phone-inner[data-mode="pharmacy"] .tab[aria-current="page"] {
-    color: var(--rx-accent);
-  }
-  .tab-icon {
-    width: 24px;
-    height: 24px;
-    display: grid;
-    place-items: center;
-  }
-  .tab-icon svg { width: 22px; height: 22px; }
+/* Pass — foil ticket */
+.pass{
+  background:linear-gradient(155deg, #1c4d7a 0%, #123753 48%, #0d2a42 100%);
+  color:#fff; border-radius:22px; padding:22px 18px; text-align:center; position:relative; overflow:hidden;
+  box-shadow:0 18px 40px rgb(18 55 90 / .28);
+}
+.pass .foil{
+  position:absolute; inset:0; background:linear-gradient(115deg, transparent 35%, rgb(255 255 255 / .12) 48%, transparent 60%);
+  animation:foil 4s linear infinite; pointer-events:none;
+}
+@keyframes foil{from{transform:translateX(-30%)} to{transform:translateX(30%)}}
+.pass .perf{
+  position:absolute; inset-inline:0; top:58%; height:0;
+  border-top:2px dashed rgb(255 255 255 / .28);
+}
+.pass .perf::before,.pass .perf::after{
+  content:""; position:absolute; top:-9px; width:18px; height:18px; border-radius:50%; background:var(--paper);
+}
+.pass .perf::before{inset-inline-start:-9px}
+.pass .perf::after{inset-inline-end:-9px}
+.pass-label{font-size:var(--tc); opacity:.85; font-weight:700; position:relative}
+.pass-code{font:800 44px/1.15 var(--display); font-variant-numeric:tabular-nums; margin-top:6px; position:relative}
+.pass-timer{font:700 var(--td)/var(--lhd) var(--display); font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1; margin-top:28px; position:relative}
+.pass-addr{margin-top:14px; font-size:var(--tb); opacity:.92; position:relative}
 
-  /* Find */
-  .capture-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-    margin-block-end: var(--space-4);
-  }
-  .capture-btn {
-    min-height: 88px;
-    border-radius: var(--r-md);
-    border: 1.5px solid var(--p-line);
-    background: var(--p-raised);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    font-weight: 600;
-  }
-  .capture-btn .ico {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--p-accent-soft);
-    color: var(--p-accent-deep);
-    display: grid;
-    place-items: center;
-  }
-  .capture-btn .ico svg { width: 18px; height: 18px; }
-  .asking-pulse .ico-wait {
-    width: 28px;
-    height: 28px;
-    border: 3px solid var(--p-reserve);
-    border-block-start-color: transparent;
-    border-radius: 50%;
-  }
-  .search-field {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: var(--touch-patient);
-    padding: 0 var(--space-3);
-    background: var(--p-raised);
-    border: 1.5px solid var(--p-line);
-    border-radius: var(--r-md);
-    margin-block-end: var(--space-4);
-  }
-  .search-field input {
-    flex: 1;
-    border: 0;
-    background: transparent;
-    min-height: var(--touch-patient);
-    outline: none;
-  }
-  .search-field input::placeholder { color: var(--p-muted); }
-  .med-list button {
-    width: 100%;
-    text-align: start;
-    padding: var(--space-3) var(--space-4);
-    background: var(--p-raised);
-    border: 1px solid var(--p-line);
-    border-radius: var(--r-md);
-    min-height: var(--touch-patient);
-  }
-  .med-list button + button { margin-top: var(--space-2); }
-  .med-list .lat {
-    display: block;
-    color: var(--p-muted);
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    margin-top: 2px;
-  }
+.empty{text-align:center; padding:40px 12px}
+.empty h2{font-size:var(--tt); line-height:var(--lht)}
+.empty p{margin-top:8px; color:var(--muted)}
+.err{background:var(--alert-bg); border:1px solid #e0b0a6; border-radius:var(--r16); padding:16px}
+.err h2{font-size:var(--th); color:var(--alert)}
+.err p{margin-top:6px}
+.err .safe{margin-top:8px; font-size:var(--tc); color:var(--muted); font-weight:700}
+.stub{margin-top:20px; padding:14px; border-radius:14px; background:var(--mint-soft); color:var(--forest); text-align:center; font-size:var(--tb)}
+.picked{width:78px; height:78px; margin:40px auto 16px; border-radius:50%; background:var(--ok-bg); color:var(--ok); display:grid; place-items:center}
+.picked svg{width:34px; height:34px}
 
-  /* Confirm */
-  .field {
-    margin-block-end: var(--space-4);
-  }
-  .field label {
-    display: block;
-    font-weight: 600;
-    margin-block-end: var(--space-2);
-  }
-  .seg {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-2);
-  }
-  .seg button {
-    min-height: var(--touch-patient);
-    border-radius: var(--r-sm);
-    border: 1.5px solid var(--p-line);
-    background: var(--p-raised);
-    font-weight: 600;
-    font-size: var(--type-caption);
-  }
-  .seg button[aria-pressed="true"] {
-    background: var(--p-accent-soft);
-    border-color: var(--p-accent);
-    color: var(--p-accent-deep);
-  }
-  .area-pick {
-    min-height: var(--touch-patient);
-    width: 100%;
-    padding: 0 var(--space-4);
-    border-radius: var(--r-md);
-    border: 1.5px solid var(--p-line);
-    background: var(--p-raised);
-    text-align: start;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
+/* Pharmacy */
+.rx-hot{border-inline-start:4px solid var(--rx-hot); position:relative}
+.rx-hot::after{
+  content:""; position:absolute; inset-inline-end:12px; top:12px; width:8px; height:8px; border-radius:50%;
+  background:var(--rx-hot); box-shadow:0 0 0 0 rgb(241 139 114 / .6); animation:urgent 1.4s ease infinite;
+}
+@keyframes urgent{70%{box-shadow:0 0 0 12px transparent} 100%{box-shadow:0 0 0 0 transparent}}
+.rx-meta{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:8px; color:var(--rx-mute); font-size:var(--tb)}
+.rx-meta strong{color:var(--rx-ink)}
+.rx-timer{font-variant-numeric:tabular-nums; font-weight:800; color:var(--rx-warn)}
 
-  /* Live responders */
-  .responders {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-  .responder {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: var(--space-3);
-    align-items: center;
-    padding: var(--space-3) var(--space-4);
-    background: var(--p-raised);
-    border: 1px solid var(--p-line);
-    border-radius: var(--r-md);
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  .responder.is-in {
-    opacity: 1;
-    transform: none;
-    transition: opacity 200ms ease, transform 200ms ease;
-  }
-  .responder-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--p-line);
-  }
-  .responder[data-state="thinking"] .responder-dot {
-    background: var(--p-warning);
-    animation: pulse-dot 1.2s ease infinite;
-  }
-  .responder[data-state="replied"] .responder-dot { background: var(--p-success); }
-  .responder[data-state="asked"] .responder-dot { background: var(--p-muted); }
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
-  }
-  .responder-state {
-    font-size: var(--type-caption);
-    line-height: var(--lh-caption);
-    font-weight: 600;
-    color: var(--p-muted);
-  }
-  .live-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-2);
-    margin-block-end: var(--space-4);
-  }
-  .live-stat {
-    background: var(--p-raised);
-    border: 1px solid var(--p-line);
-    border-radius: var(--r-sm);
-    padding: var(--space-3);
-    text-align: center;
-  }
-  .live-stat strong {
-    display: block;
-    font-size: var(--type-title);
-    font-variant-numeric: tabular-nums;
-    font-family: var(--font-display);
-  }
-  .live-stat span {
-    font-size: var(--type-caption);
-    color: var(--p-muted);
-  }
+.answer{
+  position:absolute; inset-inline:0; bottom:0; z-index:7; display:none;
+  padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(to top, var(--rx-bg) 65%, transparent);
+}
+.answer.on{display:block; animation:rise .25s var(--ease)}
+.answer-in{background:var(--rx-card); border:1px solid var(--rx-line); border-radius:20px; padding:12px; box-shadow:0 -10px 30px rgb(0 0 0 / .35)}
+.ready,.prices{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px}
+.ready button,.prices button{
+  min-height:44px; border-radius:12px; border:1.5px solid var(--rx-line); background:var(--rx-surf);
+  color:var(--rx-ink); font-weight:700; font-size:var(--tc); font-variant-numeric:tabular-nums;
+}
+.prices button{min-height:var(--t56)}
+.ready button[aria-pressed="true"],.prices button[aria-pressed="true"]{
+  background:var(--rx-lime); color:var(--rx-lime-ink); border-color:var(--rx-lime);
+}
+.ans-actions{display:grid; grid-template-columns:1fr 1.45fr; gap:8px}
+.btn-rx{min-height:var(--t56); border-radius:14px; background:var(--rx-lime); color:var(--rx-lime-ink); font-weight:800}
+.btn-rx-s{min-height:var(--t56); border-radius:14px; border:1.5px solid var(--rx-line); color:var(--rx-mute); font-weight:800}
+.hold{border-inline-start:4px solid var(--rx-lime)}
+.hold-code{font:800 var(--td)/var(--lhd) var(--display); color:var(--rx-lime); font-variant-numeric:tabular-nums; margin-top:8px}
 
-  /* Offers — Offer ≠ Reservation */
-  .offer-badge {
-    display: inline-flex;
-    align-items: center;
-    min-height: 28px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: var(--p-offer-bg);
-    color: var(--p-offer);
-    font-size: var(--type-caption);
-    font-weight: 700;
-  }
-  .reserve-badge {
-    display: inline-flex;
-    align-items: center;
-    min-height: 28px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: var(--p-reserve-bg);
-    color: var(--p-reserve);
-    font-size: var(--type-caption);
-    font-weight: 700;
-  }
-  .offer-card {
-    border-inline-start: 4px solid var(--p-offer);
-  }
-  .offer-card.is-closed {
-    opacity: 0.55;
-    border-inline-start-color: var(--p-muted);
-  }
-  .offer-facts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-    margin-top: var(--space-3);
-  }
-  .fact dt {
-    font-size: var(--type-caption);
-    color: var(--p-muted);
-    font-weight: 600;
-  }
-  .fact dd {
-    margin: 0;
-    font-weight: 700;
-    font-size: var(--type-body);
-  }
-  .open-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 700;
-    color: var(--p-success);
-    font-size: var(--type-body);
-  }
-  .open-tag::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-  }
-  .open-tag.closed { color: var(--p-muted); }
-  .verified {
-    font-size: var(--type-caption);
-    color: var(--p-accent);
-    font-weight: 600;
-    margin-top: var(--space-2);
-  }
-  .sort-row {
-    display: flex;
-    gap: var(--space-2);
-    margin-block-end: var(--space-4);
-    overflow-x: auto;
-  }
-  .sort-row .chip { white-space: nowrap; }
+/* Sheet */
+.sheet{
+  position:absolute; inset:0; z-index:20; display:none; background:rgb(10 20 18 / .45);
+}
+.sheet.on{display:flex; align-items:flex-end; animation:fade .2s ease}
+@keyframes fade{from{opacity:0} to{opacity:1}}
+.sheet-in{
+  width:100%; background:var(--raised); border-radius:22px 22px 0 0; padding:10px 16px 24px;
+  animation:sheetup .3s var(--ease);
+}
+@keyframes sheetup{from{transform:translateY(24px)} to{transform:none}}
+.grab{width:42px; height:4px; border-radius:4px; background:var(--line); margin:6px auto 14px}
+.cam{
+  aspect-ratio:4/3; border-radius:18px; background:
+    radial-gradient(circle at 50% 45%, #2a4a42, #122421 70%);
+  position:relative; overflow:hidden; margin-bottom:14px;
+}
+.cam .guide{
+  position:absolute; inset:18% 14%; border:2px solid rgb(201 234 108 / .75); border-radius:12px;
+  box-shadow:0 0 0 999px rgb(0 0 0 / .28);
+}
+.cam .hint{position:absolute; bottom:12px; inset-inline:0; text-align:center; color:#e8f6f0; font-size:var(--tc); font-weight:700}
 
-  /* Reservation pass */
-  .pass {
-    background: linear-gradient(160deg, var(--p-reserve) 0%, #163a5c 100%);
-    color: #fff;
-    border-radius: var(--r-lg);
-    padding: var(--space-6) var(--space-5);
-    text-align: center;
-    margin-block-end: var(--space-4);
-  }
-  .pass .pass-label {
-    font-size: var(--type-caption);
-    opacity: 0.85;
-    font-weight: 600;
-  }
-  .pass .pass-code {
-    font-size: 42px;
-    line-height: 1.2;
-    font-family: var(--font-display);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0;
-    margin-top: var(--space-2);
-    font-weight: 700;
-  }
-  .pass .pass-timer {
-    font-size: var(--type-display);
-    line-height: var(--lh-display);
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
-    font-family: var(--font-display);
-    margin-top: var(--space-4);
-  }
-  .pass .pass-addr {
-    margin-top: var(--space-4);
-    font-size: var(--type-body);
-    opacity: 0.92;
-  }
-
-  /* Empty / error */
-  .empty-state {
-    text-align: center;
-    padding: var(--space-8) var(--space-4);
-  }
-  .empty-state h2 {
-    font-size: var(--type-title);
-    line-height: var(--lh-title);
-  }
-  .empty-state p {
-    margin-top: var(--space-2);
-    color: var(--p-muted);
-  }
-  .error-box {
-    background: var(--p-alert-bg);
-    border: 1px solid #e0b0a6;
-    border-radius: var(--r-md);
-    padding: var(--space-4);
-  }
-  .error-box h2 {
-    font-size: var(--type-headline);
-    line-height: var(--lh-headline);
-    color: var(--p-alert);
-  }
-  .error-box p {
-    margin-top: var(--space-2);
-    color: var(--p-ink);
-  }
-  .error-safe {
-    margin-top: var(--space-2);
-    font-size: var(--type-caption);
-    color: var(--p-muted);
-    font-weight: 600;
-  }
-
-  /* Pharmacy */
-  .rx-urgent {
-    border-inline-start: 4px solid var(--rx-alert);
-  }
-  .rx-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    margin-top: var(--space-2);
-    font-size: var(--type-body);
-    color: var(--rx-muted);
-  }
-  .rx-meta strong { color: var(--rx-ink); font-weight: 700; }
-  .rx-timer {
-    font-variant-numeric: tabular-nums;
-    font-weight: 700;
-    color: var(--rx-warning);
-  }
-
-  .answer-bar {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(to top, var(--rx-ground) 70%, transparent);
-    z-index: 6;
-    display: none;
-  }
-  .answer-bar.is-visible { display: block; }
-  .answer-inner {
-    background: var(--rx-raised);
-    border: 1px solid var(--rx-line);
-    border-radius: var(--r-lg);
-    padding: var(--space-3);
-  }
-  .answer-price {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-2);
-    margin-block-end: var(--space-3);
-  }
-  .answer-price button {
-    min-height: var(--touch-pharmacy);
-    border-radius: var(--r-sm);
-    background: var(--rx-surface);
-    border: 1.5px solid var(--rx-line);
-    color: var(--rx-ink);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  .answer-price button[aria-pressed="true"] {
-    background: var(--rx-accent);
-    color: var(--rx-accent-ink);
-    border-color: var(--rx-accent);
-  }
-  .answer-actions {
-    display: grid;
-    grid-template-columns: 1fr 1.4fr;
-    gap: var(--space-2);
-  }
-  .btn-rx-primary {
-    min-height: var(--touch-pharmacy);
-    border-radius: var(--r-md);
-    background: var(--rx-accent);
-    color: var(--rx-accent-ink);
-    font-weight: 700;
-    font-size: var(--type-body);
-  }
-  .btn-rx-decline {
-    min-height: var(--touch-pharmacy);
-    border-radius: var(--r-md);
-    background: transparent;
-    border: 1.5px solid var(--rx-line);
-    color: var(--rx-muted);
-    font-weight: 700;
-  }
-  .ready-seg {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-2);
-    margin-block-end: var(--space-3);
-  }
-  .ready-seg button {
-    min-height: 44px;
-    border-radius: var(--r-sm);
-    border: 1.5px solid var(--rx-line);
-    background: var(--rx-surface);
-    color: var(--rx-ink);
-    font-weight: 600;
-    font-size: var(--type-caption);
-  }
-  .ready-seg button[aria-pressed="true"] {
-    border-color: var(--rx-accent);
-    color: var(--rx-accent);
-  }
-
-  .hold-card {
-    border-inline-start: 4px solid var(--rx-accent);
-  }
-  .hold-code {
-    font-size: var(--type-display);
-    line-height: var(--lh-display);
-    font-family: var(--font-display);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0;
-    color: var(--rx-accent);
-    margin-top: var(--space-2);
-  }
-
-  .back-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-block-end: var(--space-2);
-  }
-  .back-btn {
-    min-width: var(--touch-min);
-    min-height: var(--touch-min);
-    display: grid;
-    place-items: center;
-    font-size: 20px;
-    border-radius: 50%;
-  }
-
-  .stub-note {
-    margin-top: var(--space-6);
-    padding: var(--space-4);
-    border-radius: var(--r-md);
-    background: var(--p-accent-soft);
-    color: var(--p-accent-deep);
-    font-size: var(--type-body);
-    text-align: center;
-  }
-
-  .asking-pulse {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    margin-inline: auto;
-    margin-block: var(--space-6);
-    background: var(--p-reserve-bg);
-    border: 3px solid var(--p-reserve);
-    display: grid;
-    place-items: center;
-    animation: ask-pulse 1.4s ease infinite;
-  }
-  @keyframes ask-pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.06); opacity: 0.85; }
-  }
-
-  .picked-mark {
-    width: 72px;
-    height: 72px;
-    margin-inline: auto;
-    border-radius: 50%;
-    background: var(--p-success-bg);
-    color: var(--p-success);
-    display: grid;
-    place-items: center;
-    font-size: 32px;
-    margin-block: var(--space-6);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .screen.is-active,
-    .responder.is-in,
-    .blister-pill,
-    .safety-layer,
-    .asking-pulse,
-    .responder[data-state="thinking"] .responder-dot {
-      animation: none !important;
-      transition: opacity 150ms ease !important;
-    }
-    .asking-pulse { transform: none; }
-  }
-
-  @media (prefers-contrast: more) {
-    :root {
-      --p-ink: #000;
-      --p-muted: #333;
-      --p-line: #666;
-      --p-accent: #0d5c4a;
-      --p-accent-deep: #063d32;
-    }
-    .card, .btn-secondary, .capture-btn, .search-field, .area-pick {
-      border-width: 2px;
-    }
-  }
+@media (prefers-reduced-motion:reduce){
+  .screen.is-on,.resp.in,.pill,.ask-pulse::before,.ask-pulse::after,.welcome .rings span,.pass .foil,.rx-hot::after,.answer.on,.sheet.on,.sheet-in{animation:none!important; transition:opacity .15s ease!important}
+  .resp[data-st="thinking"] .dot{animation:none}
+}
+@media (prefers-contrast:more){
+  :root{--ink:#000; --muted:#333; --line:#555; --forest:#062e28}
+  .card,.btn-s,.cap,.search,.area{border-width:2px}
+}
 </style>
 </head>
 <body>
-  <div class="studio">
-    <aside class="panel" aria-label="لوحة المعاينة">
-      <h1>دوائي · Blueprint UI</h1>
-      <p class="lede">معاينة تفاعلية لمرحلة ٠ — حلقة الطلب والحجز وفق وثيقة المنتج v1.0. العرض ≠ الحجز.</p>
-
-      <div class="panel-section">
-        <h2>التجربة</h2>
-        <div class="toggle-row" role="group" aria-label="تبديل التجربة">
-          <button type="button" class="chip" id="mode-patient" aria-pressed="true">المريض</button>
-          <button type="button" class="chip" id="mode-pharmacy" aria-pressed="false">الصيدلية</button>
-        </div>
+<div class="studio">
+  <aside class="panel" aria-label="لوحة المعاينة">
+    <div class="brand-mark">
+      <div class="seal" aria-hidden="true">د</div>
+      <div>
+        <h1>دوائي</h1>
+        <p class="lede">معاينة تفاعلية · Blueprint v1.0</p>
       </div>
+    </div>
+    <div class="thesis">
+      <strong>أي صيدلية قريبة عندها دوائك — وتحجزه إلك.</strong>
+      <p>حتى تبطل تلف أحد عشر رقم. العرض ما يحجز شي. الحجز يحجز المخزون ويشغّل الساعة.</p>
+    </div>
 
-      <div class="panel-section">
-        <h2>حالات العرض</h2>
-        <div class="toggle-row">
-          <button type="button" class="chip" id="tog-offline" aria-pressed="false">بدون نت</button>
-          <button type="button" class="chip" id="tog-safety" aria-pressed="false">تنبيه سلامة</button>
-          <button type="button" class="chip" id="tog-quiet" aria-pressed="false">اليوم هادئ</button>
-        </div>
+    <div class="sec">
+      <h2>التجربة</h2>
+      <div class="row" role="group" aria-label="التجربة">
+        <button type="button" class="chip" id="mode-patient" aria-pressed="true">المريض</button>
+        <button type="button" class="chip" id="mode-pharmacy" aria-pressed="false">الصيدلية</button>
       </div>
-
-      <div class="panel-section">
-        <h2>انتقال سريع</h2>
-        <div class="jump-list" id="jump-patient">
-          <button type="button" data-jump="today" aria-current="true">اليوم</button>
-          <button type="button" data-jump="find">ابحث</button>
-          <button type="button" data-jump="confirm">تأكيد الطلب</button>
-          <button type="button" data-jump="live">الردود الحية</button>
-          <button type="button" data-jump="compare">مقارنة العروض</button>
-          <button type="button" data-jump="asking">طلب الحجز</button>
-          <button type="button" data-jump="pass">بطاقة الحجز</button>
-          <button type="button" data-jump="nobody">ما رد أحد</button>
-          <button type="button" data-jump="picked">تم الاستلام</button>
-          <button type="button" data-jump="meds">أدويتي (مرحلة ٢)</button>
-          <button type="button" data-jump="me">حسابي (مرحلة ٢)</button>
-        </div>
-        <div class="jump-list" id="jump-pharmacy" hidden>
-          <button type="button" data-jump="rx-inbox" aria-current="true">الوارد</button>
-          <button type="button" data-jump="rx-answer">شريط الرد</button>
-          <button type="button" data-jump="rx-holds">الحجوزات</button>
-          <button type="button" data-jump="rx-stock">المخزون (مرحلة ١)</button>
-          <button type="button" data-jump="rx-branch">الفرع (مرحلة ١)</button>
-        </div>
+    </div>
+    <div class="sec">
+      <h2>حالات</h2>
+      <div class="row">
+        <button type="button" class="chip" id="tog-offline" aria-pressed="false">بدون نت</button>
+        <button type="button" class="chip" id="tog-safety" aria-pressed="false">تنبيه سلامة</button>
+        <button type="button" class="chip" id="tog-quiet" aria-pressed="false">يوم هادئ</button>
       </div>
-    </aside>
+    </div>
+    <div class="sec">
+      <h2>انتقال</h2>
+      <div class="jumps" id="jump-patient">
+        <button type="button" data-jump="welcome">الترحيب</button>
+        <button type="button" data-jump="today" aria-current="true">اليوم</button>
+        <button type="button" data-jump="find">ابحث</button>
+        <button type="button" data-jump="confirm">تأكيد الطلب</button>
+        <button type="button" data-jump="live">الردود الحية</button>
+        <button type="button" data-jump="compare">مقارنة العروض</button>
+        <button type="button" data-jump="asking">طلب الحجز</button>
+        <button type="button" data-jump="pass">بطاقة الحجز</button>
+        <button type="button" data-jump="nobody">ما رد أحد</button>
+        <button type="button" data-jump="picked">تم الاستلام</button>
+        <button type="button" data-jump="meds">أدويتي (٢)</button>
+        <button type="button" data-jump="me">حسابي (٢)</button>
+      </div>
+      <div class="jumps" id="jump-pharmacy" hidden>
+        <button type="button" data-jump="rx-inbox" aria-current="true">الوارد</button>
+        <button type="button" data-jump="rx-answer">شريط الرد</button>
+        <button type="button" data-jump="rx-holds">الحجوزات</button>
+        <button type="button" data-jump="rx-stock">المخزون (١)</button>
+        <button type="button" data-jump="rx-branch">الفرع (١)</button>
+      </div>
+    </div>
+  </aside>
 
-    <main class="stage">
-      <div class="phone" aria-label="معاينة الهاتف">
-        <div class="phone-inner" id="phone" data-mode="patient">
-          <div class="status-bar" aria-hidden="true">
-            <span id="clock">٩:٤١</span>
-            <span>LTE · ٨٧٪</span>
-          </div>
+  <main class="stage">
+    <div class="phone" aria-label="معاينة الهاتف">
+      <div class="phone-bezel" aria-hidden="true"></div>
+      <div class="phone-inner" id="phone" data-mode="patient">
+        <div class="status" aria-hidden="true"><span>٩:٤١</span><span>LTE · ٨٧٪</span></div>
+        <div class="offline" role="status">ما في اتصال. شغلك محفوظ وراح ينرسل أول ما يرجع النت.</div>
+        <div class="safety" id="safety" role="alert" aria-live="assertive">
+          <b>تنبيه تفاعل دوائي</b>
+          <span>راجع الصيدلي قبل استعمال <bdi dir="ltr">Amlodipine</bdi> مع دوائك الحالي. ما يمكّنك تتجاهل هذا التنبيه.</span>
+        </div>
 
-          <div class="offline-banner" role="status">
-            ما في اتصال. شغلك محفوظ وراح ينرسل أول ما يرجع النت.
-          </div>
+        <div class="screens" id="screens">
+          <!-- WELCOME -->
+          <section class="screen" id="screen-welcome" aria-label="ترحيب">
+            <div class="welcome">
+              <div class="rings" aria-hidden="true"><span></span><span></span><span></span></div>
+              <div class="mark">دوائي</div>
+              <h1>أي صيدلية قريبة عندها دوائك — وتحجزه إلك</h1>
+              <p>اطلب · قارن العروض · استلم من الكاونتر. بدون توصيل وبدون دفع داخل التطبيق.</p>
+              <div class="actions">
+                <button type="button" class="btn btn-p" data-goto="today">ابدأ</button>
+                <button type="button" class="btn btn-s" data-goto="find">عندي وصفة — صوّرها</button>
+              </div>
+            </div>
+          </section>
 
-          <div class="safety-layer" id="safety" role="alert" aria-live="assertive">
-            <div class="safety-title">تنبيه تفاعل دوائي</div>
-            <div class="safety-body">راجع الصيدلي قبل استعمال <bdi dir="ltr">Amlodipine</bdi> مع دوائك الحالي. ما يمكّنك تتجاهل هذا التنبيه.</div>
-          </div>
-
-          <div class="screens" id="screens">
-            <!-- ========== PATIENT: TODAY ========== -->
-            <section class="screen is-active" id="screen-today" aria-labelledby="today-title">
-              <div class="sticky-head">
-                <div class="subject-switcher" role="group" aria-label="تبديل الشخص">
-                  <button type="button" class="subject-chip" data-subject="self" aria-pressed="false">أنا</button>
-                  <button type="button" class="subject-chip" data-subject="mom" aria-pressed="true">
-                    والدتك
-                    <span class="scope">طلب · عرض</span>
-                  </button>
-                </div>
-                <h1 class="screen-title" id="today-title">اليوم</h1>
-                <p class="screen-sub" id="today-sub">أدوية والدتك · المنصور</p>
+          <!-- TODAY -->
+          <section class="screen is-on" id="screen-today" aria-labelledby="today-title">
+            <div class="head">
+              <div class="subjects" role="group" aria-label="تبديل الشخص">
+                <button type="button" class="who" data-subject="self" aria-pressed="false">أنا</button>
+                <button type="button" class="who" data-subject="mom" aria-pressed="true">والدتك <span class="scope">طلب · عرض</span></button>
               </div>
-              <div class="scroll" id="today-scroll">
-                <div id="today-busy">
-                  <div class="band">
-                    <div class="band-label">حجز حي</div>
-                    <button type="button" class="card live-card" data-goto="pass" style="width:100%;text-align:start">
-                      <span class="reserve-badge">حجز · مخزون محجوز</span>
-                      <h2 class="card-title" style="margin-top:8px">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
-                      <p class="card-body">صيدلية النور · شارع ١٤ رمضان</p>
-                      <div class="countdown" id="today-countdown" aria-label="الوقت المتبقي">١:٤٧:٢٢</div>
-                      <div class="code-row">
-                        <span class="code" aria-label="رمز الاستلام"><bdi dir="ltr">4821</bdi></span>
-                        <span class="btn-text" style="color:var(--p-reserve)">افتح البطاقة</span>
-                      </div>
-                    </button>
-                  </div>
-
-                  <div class="band">
-                    <div class="band-label">الآن</div>
-                    <div class="card dose-card">
-                      <div>
-                        <div class="card-kicker">جرعة مستحقة</div>
-                        <h2 class="card-title">ميتفورمين <bdi dir="ltr">500mg</bdi></h2>
-                        <p class="card-body">وقت دواء والدتك · خلال ٢٠ دقيقة</p>
-                      </div>
-                      <button type="button" class="btn-dose" id="btn-dose" aria-label="سجّل جرعة ميتفورمين">تمّت</button>
-                    </div>
-                  </div>
-
-                  <div class="band">
-                    <div class="band-label">قريب يخلص</div>
-                    <div class="card" id="blister-card">
-                      <div class="card-kicker">نافذة إعادة الطلب</div>
-                      <h2 class="card-title">ستاتين · أتورفاستاتين</h2>
-                      <p class="card-body">تقدير التوفر المتبقي</p>
-                      <div class="blister" id="blister" aria-label="شريط الحبوب: ٤ من ١٤ متبقية" role="img">
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-empty"></span>
-                        <span class="blister-pill is-low"></span>
-                        <span class="blister-pill is-low"></span>
-                        <span class="blister-pill is-low"></span>
-                        <span class="blister-pill is-low"></span>
-                      </div>
-                      <p class="confidence">تقدير متوسط الثقة · آخر صرف قبل ٢١ يوم</p>
-                      <div class="btn-row" style="margin-top:12px">
-                        <button type="button" class="btn-secondary" data-goto="confirm">اطلب إعادة تعبئة</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="band">
-                    <div class="band-label">بانتظارك</div>
-                    <button type="button" class="card" data-goto="compare" style="width:100%;text-align:start">
-                      <span class="offer-badge">عروض · ما تحجز شي</span>
-                      <h2 class="card-title" style="margin-top:8px">٣ صيدليات ردّت على طلبك</h2>
-                      <p class="card-body">قارن السعر والجاهزية — الحجز يصير بعد ما تختار</p>
-                    </button>
-                  </div>
-                </div>
-
-                <div id="today-quiet" class="quiet" hidden>
-                  <div class="quiet-mark" aria-hidden="true">✓</div>
-                  <h2>كل شي تمام</h2>
-                  <p>الجرعة الجاية لوالدتك ٨ مساءً · ميتفورمين</p>
-                </div>
-              </div>
-              <button type="button" class="fab" data-goto="find" aria-label="طلب دواء جديد">＋</button>
-              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
-                <button type="button" class="tab" data-goto="today" aria-current="page">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>
-                  اليوم
-                </button>
-                <button type="button" class="tab" data-goto="meds">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>
-                  أدويتي
-                </button>
-                <button type="button" class="tab" data-goto="find">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
-                  ابحث
-                </button>
-                <button type="button" class="tab" data-goto="me">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>
-                  حسابي
-                </button>
-              </nav>
-            </section>
-
-            <!-- ========== FIND ========== -->
-            <section class="screen" id="screen-find" aria-labelledby="find-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="find-title">ابحث</h1>
-                <p class="screen-sub">صورة أو صوت قبل الكتابة</p>
-              </div>
-              <div class="scroll">
-                <div class="capture-row">
-                  <button type="button" class="capture-btn" data-goto="confirm" aria-label="صوّر علبة أو وصفة">
-                    <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h4l2-2h4l2 2h4v11H4V8z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
-                    صوّر العلبة
-                  </button>
-                  <button type="button" class="capture-btn" data-goto="confirm" aria-label="اطلب بالصوت">
-                    <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></span>
-                    بالصوت
-                  </button>
-                </div>
-                <div class="search-field">
-                  <span aria-hidden="true">⌕</span>
-                  <input type="search" placeholder="أو اكتب اسم الدواء" aria-label="بحث عن دواء" />
-                </div>
-                <div class="band-label">أدوية شائعة</div>
-                <div class="med-list">
-                  <button type="button" data-goto="confirm">
-                    أملوديبين
-                    <span class="lat"><bdi dir="ltr">Amlodipine 5mg</bdi></span>
-                  </button>
-                  <button type="button" data-goto="confirm">
-                    ميتفورمين
-                    <span class="lat"><bdi dir="ltr">Metformin 500mg</bdi></span>
-                  </button>
-                  <button type="button" data-goto="confirm">
-                    أموكسيسيلين
-                    <span class="lat"><bdi dir="ltr">Amoxicillin</bdi></span>
-                  </button>
-                </div>
-              </div>
-              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
-                <button type="button" class="tab" data-goto="today">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>
-                  اليوم
-                </button>
-                <button type="button" class="tab" data-goto="meds">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>
-                  أدويتي
-                </button>
-                <button type="button" class="tab" data-goto="find" aria-current="page">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
-                  ابحث
-                </button>
-                <button type="button" class="tab" data-goto="me">
-                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>
-                  حسابي
-                </button>
-              </nav>
-            </section>
-
-            <!-- ========== CONFIRM REQUEST ========== -->
-            <section class="screen" id="screen-confirm" aria-labelledby="confirm-title">
-              <div class="sticky-head">
-                <div class="back-row">
-                  <button type="button" class="back-btn" data-goto="find" aria-label="رجوع">→</button>
-                  <div>
-                    <h1 class="screen-title" id="confirm-title">تأكيد الطلب</h1>
-                    <p class="screen-sub">قرار واحد — بعدين نرسل للصيدليات</p>
-                  </div>
-                </div>
-              </div>
-              <div class="scroll no-nav-pad">
-                <div class="card" style="margin-bottom:16px">
-                  <div class="card-kicker">الدواء</div>
-                  <h2 class="card-title">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
-                  <p class="card-body">لـ والدتك · علبة واحدة</p>
-                </div>
-                <div class="field">
-                  <label id="urgency-label">متى تحتاجه؟</label>
-                  <div class="seg" role="group" aria-labelledby="urgency-label">
-                    <button type="button" aria-pressed="true">عاجل الآن</button>
-                    <button type="button" aria-pressed="false">اليوم</button>
-                    <button type="button" aria-pressed="false">خلال يومين</button>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="area-btn">المنطقة</label>
-                  <button type="button" class="area-pick" id="area-btn">
-                    المنصور
-                    <span style="color:var(--p-muted);font-weight:500">غيّر</span>
-                  </button>
-                </div>
-                <p style="color:var(--p-muted);font-size:var(--type-caption);margin-bottom:16px">
-                  راح نسأل صيدليات موثّقة ومفتوحة ضمن ٢ كم. التوسيع يحتاج موافقتك.
-                </p>
-                <button type="button" class="btn-primary" data-goto="live">أرسل الطلب</button>
-              </div>
-            </section>
-
-            <!-- ========== LIVE RESPONDERS ========== -->
-            <section class="screen" id="screen-live" aria-labelledby="live-title">
-              <div class="sticky-head">
-                <div class="back-row">
-                  <button type="button" class="back-btn" data-goto="confirm" aria-label="رجوع">→</button>
-                  <div>
-                    <h1 class="screen-title" id="live-title">الردود الحية</h1>
-                    <p class="screen-sub">سألنا ٦ صيدليات · نطاق ٢ كم</p>
-                  </div>
-                </div>
-              </div>
-              <div class="scroll no-nav-pad">
-                <div class="live-stats" aria-live="polite">
-                  <div class="live-stat"><strong id="stat-asked">٦</strong><span>سُئلوا</span></div>
-                  <div class="live-stat"><strong id="stat-replied">٠</strong><span>ردّوا</span></div>
-                  <div class="live-stat"><strong id="stat-thinking">٦</strong><span>يفكرون</span></div>
-                </div>
-                <div class="responders" id="responders">
-                  <div class="responder" data-state="asked" data-name="النور"><span class="responder-dot"></span><div><strong>صيدلية النور</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">0.8</bdi> كم</span></div>
-                  <div class="responder" data-state="asked" data-name="الشفاء"><span class="responder-dot"></span><div><strong>صيدلية الشفاء</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">1.2</bdi> كم</span></div>
-                  <div class="responder" data-state="asked" data-name="المنصور"><span class="responder-dot"></span><div><strong>صيدلية المنصور</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">1.4</bdi> كم</span></div>
-                  <div class="responder" data-state="asked" data-name="اليرموك"><span class="responder-dot"></span><div><strong>صيدلية اليرموك</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">1.9</bdi> كم</span></div>
-                  <div class="responder" data-state="asked" data-name="الرافدين"><span class="responder-dot"></span><div><strong>صيدلية الرافدين</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">2.0</bdi> كم</span></div>
-                  <div class="responder" data-state="asked" data-name="الأقصى"><span class="responder-dot"></span><div><strong>صيدلية الأقصى</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">2.0</bdi> كم</span></div>
-                </div>
-                <div class="btn-row" style="margin-top:20px">
-                  <button type="button" class="btn-primary" id="btn-to-compare" data-goto="compare" disabled>قارن العروض</button>
-                  <button type="button" class="btn-secondary" data-goto="nobody">ما رد أحد؟</button>
-                </div>
-              </div>
-            </section>
-
-            <!-- ========== COMPARE OFFERS ========== -->
-            <section class="screen" id="screen-compare" aria-labelledby="compare-title">
-              <div class="sticky-head">
-                <div class="back-row">
-                  <button type="button" class="back-btn" data-goto="live" aria-label="رجوع">→</button>
-                  <div>
-                    <h1 class="screen-title" id="compare-title">العروض</h1>
-                    <p class="screen-sub">عرض · ما يحجز مخزون بعد</p>
-                  </div>
-                </div>
-              </div>
-              <div class="scroll no-nav-pad">
-                <div class="sort-row" role="group" aria-label="ترتيب">
-                  <button type="button" class="chip" aria-pressed="true">الأفضل</button>
-                  <button type="button" class="chip" aria-pressed="false">الأقرب</button>
-                  <button type="button" class="chip" aria-pressed="false">السعر</button>
-                </div>
-
-                <article class="card offer-card">
-                  <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
-                    <div>
-                      <span class="open-tag">مفتوحة الآن</span>
-                      <h2 class="card-title">صيدلية النور</h2>
-                      <p class="verified">موثّقة في دوائي · المنصور</p>
-                    </div>
-                    <span class="offer-badge">عرض</span>
-                  </div>
-                  <dl class="offer-facts">
-                    <div class="fact"><dt>السعر</dt><dd><bdi dir="ltr">4,500</bdi> د.ع</dd></div>
-                    <div class="fact"><dt>الجاهزية</dt><dd>جاهز الآن</dd></div>
-                    <div class="fact"><dt>المسافة</dt><dd><bdi dir="ltr">0.8</bdi> كم · مشي</dd></div>
-                    <div class="fact"><dt>آخر تأكيد</dt><dd>قبل ٤ دقائق</dd></div>
-                  </dl>
-                  <p class="card-body" style="margin-top:8px">يغلق بعد ٢ ساعات · رد عادة خلال دقيقة</p>
-                  <button type="button" class="btn-primary" style="margin-top:12px" data-goto="asking">اختر هذا العرض</button>
-                </article>
-
-                <article class="card offer-card" style="margin-top:12px">
-                  <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
-                    <div>
-                      <span class="open-tag">مفتوحة الآن</span>
-                      <h2 class="card-title">صيدلية الشفاء</h2>
-                      <p class="verified">موثّقة في دوائي · اليرموك</p>
-                    </div>
-                    <span class="offer-badge">عرض</span>
-                  </div>
-                  <dl class="offer-facts">
-                    <div class="fact"><dt>السعر</dt><dd><bdi dir="ltr">4,250</bdi> د.ع</dd></div>
-                    <div class="fact"><dt>الجاهزية</dt><dd>خلال ١٥ دقيقة</dd></div>
-                    <div class="fact"><dt>المسافة</dt><dd><bdi dir="ltr">1.2</bdi> كم · مشي</dd></div>
-                    <div class="fact"><dt>آخر تأكيد</dt><dd>قبل دقيقة</dd></div>
-                  </dl>
-                  <button type="button" class="btn-secondary" style="margin-top:12px" data-goto="asking">اختر هذا العرض</button>
-                </article>
-
-                <article class="card offer-card is-closed" style="margin-top:12px">
-                  <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
-                    <div>
-                      <span class="open-tag closed">مغلقة · تفتح ٨ صباحاً</span>
-                      <h2 class="card-title">صيدلية الأقصى</h2>
-                      <p class="verified">موثّقة في دوائي</p>
-                    </div>
-                    <span class="offer-badge">عرض</span>
-                  </div>
-                  <p class="card-body" style="margin-top:8px">ما نعرضه كخيار للاستلام الآن — الصيدلية مغلقة.</p>
-                </article>
-              </div>
-            </section>
-
-            <!-- ========== ASKING TO SET ASIDE ========== -->
-            <section class="screen" id="screen-asking" aria-labelledby="asking-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="asking-title">نطلب الحجز</h1>
-                <p class="screen-sub">الساعة ما تبدأ إلا بعد تأكيد الصيدلي</p>
-              </div>
-              <div class="scroll no-nav-pad" style="text-align:center">
-                <div class="asking-pulse" aria-hidden="true"><span class="ico-wait"></span></div>
-                <h2 style="font-size:var(--type-title);line-height:var(--lh-title)">عم نسأل صيدلية النور تحجزه</h2>
-                <p style="color:var(--p-muted);margin-top:8px;max-width:280px;margin-inline:auto">
-                  اخترت عرض — هذا ما يحجز مخزون بعد. الصيدلي المرخّص لازم يأكد الحجز.
-                </p>
-                <div class="card" style="text-align:start;margin-top:24px">
-                  <span class="offer-badge">بانتظار حجز</span>
-                  <h3 class="card-title" style="margin-top:8px">أملوديبين · النور</h3>
-                  <p class="card-body"><bdi dir="ltr">4,500</bdi> د.ع · جاهز الآن</p>
-                </div>
-                <div class="btn-row">
-                  <button type="button" class="btn-primary" id="btn-simulate-ack">محاكاة تأكيد الصيدلي</button>
-                  <button type="button" class="btn-destructive" data-goto="compare">إلغاء</button>
-                </div>
-              </div>
-            </section>
-
-            <!-- ========== RESERVATION PASS ========== -->
-            <section class="screen" id="screen-pass" aria-labelledby="pass-title">
-              <div class="sticky-head">
-                <div class="back-row">
-                  <button type="button" class="back-btn" data-goto="today" aria-label="رجوع">→</button>
-                  <div>
-                    <h1 class="screen-title" id="pass-title">بطاقة الحجز</h1>
-                    <p class="screen-sub">أرِها على الكاونتر</p>
-                  </div>
-                </div>
-              </div>
-              <div class="scroll no-nav-pad">
-                <div class="pass" role="group" aria-label="بطاقة استلام الحجز">
-                  <div class="pass-label">رمز الاستلام</div>
-                  <div class="pass-code" aria-label="الرمز"><bdi dir="ltr">4821</bdi></div>
-                  <div class="pass-timer" id="pass-countdown">١:٤٧:٢٢</div>
-                  <div class="pass-label" style="margin-top:4px">متبقي للاستلام</div>
-                  <div class="pass-addr">
-                    صيدلية النور<br />
-                    شارع ١٤ رمضان · المنصور<br />
-                    أملوديبين <bdi dir="ltr">5mg</bdi> · لـ والدتك
-                  </div>
-                </div>
-                <div class="btn-row two">
-                  <button type="button" class="btn-secondary">الاتجاهات</button>
-                  <button type="button" class="btn-secondary">اتصال</button>
-                </div>
-                <div class="btn-row">
-                  <button type="button" class="btn-primary" data-goto="picked">تم الاستلام</button>
-                  <button type="button" class="btn-destructive">إلغاء الحجز</button>
-                </div>
-                <p style="margin-top:16px;color:var(--p-muted);font-size:var(--type-caption);text-align:center">
-                  <span class="reserve-badge">حجز</span>
-                  &nbsp;المخزون محجوز · الساعة من وقت الخادم
-                </p>
-              </div>
-            </section>
-
-            <!-- ========== NOBODY REPLIED ========== -->
-            <section class="screen" id="screen-nobody" aria-labelledby="nobody-title">
-              <div class="sticky-head">
-                <div class="back-row">
-                  <button type="button" class="back-btn" data-goto="live" aria-label="رجوع">→</button>
-                  <div>
-                    <h1 class="screen-title" id="nobody-title">ما رد أحد</h1>
-                    <p class="screen-sub">مو معناها الدواء غير موجود</p>
-                  </div>
-                </div>
-              </div>
-              <div class="scroll no-nav-pad">
-                <div class="error-box" role="status">
-                  <h2>ما رد أحد — ممكن يكونون مشغولين</h2>
-                  <p>أرسلنا لـ ٦ صيدليات ضمن ٢ كم لمدة ٥ دقائق. السكوت ≠ نفاد.</p>
-                  <p class="error-safe">طلبك محفوظ · ما اندفن</p>
-                </div>
-                <div class="btn-row" style="margin-top:20px">
-                  <button type="button" class="btn-primary" data-goto="live">أعد الإرسال</button>
-                  <button type="button" class="btn-secondary">وسّع النطاق لـ ٥ كم</button>
-                  <button type="button" class="btn-secondary">أخبرني لما يتوفر</button>
-                  <button type="button" class="btn-text">اتصل بصيدليتي المعتادة</button>
-                </div>
-              </div>
-            </section>
-
-            <!-- ========== PICKED UP ========== -->
-            <section class="screen" id="screen-picked" aria-labelledby="picked-title">
-              <div class="scroll no-nav-pad" style="text-align:center;padding-top:48px">
-                <div class="picked-mark" aria-hidden="true">✓</div>
-                <h1 class="screen-title" id="picked-title">تم الاستلام</h1>
-                <p style="color:var(--p-muted);margin-top:8px">أملوديبين لـ والدتك · صيدلية النور</p>
-                <div class="btn-row" style="max-width:280px;margin-inline:auto;margin-top:32px">
-                  <button type="button" class="btn-primary" data-goto="today">ارجع لليوم</button>
-                </div>
-              </div>
-            </section>
-
-            <!-- ========== MEDS STUB ========== -->
-            <section class="screen" id="screen-meds" aria-labelledby="meds-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="meds-title">أدويتي</h1>
-                <p class="screen-sub">السجل الدائم</p>
-              </div>
-              <div class="scroll">
-                <div class="empty-state">
-                  <h2>هنا راح تشوف أدويتك ومواعيدها</h2>
-                  <p>مرحلة ٢ من الخطة — السجل يصير سبب البقاء بعد المشوار.</p>
-                </div>
-                <div class="stub-note">Phase 2 · My medicines, schedules, timeline</div>
-              </div>
-              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
-                <button type="button" class="tab" data-goto="today"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>اليوم</button>
-                <button type="button" class="tab" data-goto="meds" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>أدويتي</button>
-                <button type="button" class="tab" data-goto="find"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>ابحث</button>
-                <button type="button" class="tab" data-goto="me"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>حسابي</button>
-              </nav>
-            </section>
-
-            <!-- ========== ME STUB ========== -->
-            <section class="screen" id="screen-me" aria-labelledby="me-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="me-title">حسابي</h1>
-                <p class="screen-sub">الهوية · العائلة · الخصوصية</p>
-              </div>
-              <div class="scroll">
-                <div class="empty-state">
-                  <h2>تكدر تخلي أحد من أهلك يشوف أدويتك أو يطلب عنك</h2>
-                  <p>مرحلة ٢ — العائلة وسجل من شاف سجلك.</p>
-                </div>
-                <div class="stub-note">Phase 2 · Family, access log, export</div>
-              </div>
-              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
-                <button type="button" class="tab" data-goto="today"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>اليوم</button>
-                <button type="button" class="tab" data-goto="meds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>أدويتي</button>
-                <button type="button" class="tab" data-goto="find"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>ابحث</button>
-                <button type="button" class="tab" data-goto="me" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>حسابي</button>
-              </nav>
-            </section>
-
-            <!-- ========== PHARMACY: INBOX ========== -->
-            <section class="screen" id="screen-rx-inbox" aria-labelledby="rx-inbox-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="rx-inbox-title">الوارد</h1>
-                <p class="screen-sub">فرع المنصور · متصل</p>
-              </div>
-              <div class="scroll">
+              <h1 class="title" id="today-title">اليوم</h1>
+              <p class="sub" id="today-sub">أدوية والدتك · المنصور</p>
+            </div>
+            <div class="scroll" id="today-scroll">
+              <div id="today-busy">
                 <div class="band">
-                  <div class="band-label">عاجل · أقل وقت أولاً</div>
-                  <button type="button" class="card rx-urgent" data-goto="rx-answer" style="width:100%;text-align:start">
-                    <h2 class="card-title">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
-                    <div class="rx-meta">
-                      <span>كمية ≈ <strong>١</strong></span>
-                      <span>المنصور</span>
-                      <span>عاجل الآن</span>
-                      <span class="rx-timer">باقي ١:٤٠</span>
+                  <div class="band-l">حجز حي</div>
+                  <button type="button" class="ticket" data-goto="pass">
+                    <span class="badge badge-hold">حجز · مخزون محجوز</span>
+                    <h2 class="ctitle" style="margin-top:8px">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                    <p class="cbody">صيدلية النور · شارع ١٤ رمضان</p>
+                    <div class="countdown" id="today-countdown">١:٤٧:٢٢</div>
+                    <div class="code-row">
+                      <span class="code" aria-label="رمز الاستلام"><bdi dir="ltr">4821</bdi></span>
+                      <span class="btn-t" style="color:var(--hold)">افتح البطاقة</span>
                     </div>
                   </button>
                 </div>
                 <div class="band">
-                  <div class="band-label">قريب</div>
-                  <button type="button" class="card" data-goto="rx-answer" style="width:100%;text-align:start">
-                    <h2 class="card-title">أموكسيسيلين شراب</h2>
-                    <div class="rx-meta">
-                      <span>كمية ≈ <strong>١</strong></span>
-                      <span>اليرموك</span>
-                      <span>اليوم</span>
-                      <span class="rx-timer">باقي ٨:١٢</span>
+                  <div class="band-l">الآن</div>
+                  <div class="card dose">
+                    <div>
+                      <div class="kicker">جرعة مستحقة</div>
+                      <h2 class="ctitle">ميتفورمين <bdi dir="ltr">500mg</bdi></h2>
+                      <p class="cbody">وقت دواء والدتك · خلال ٢٠ دقيقة</p>
                     </div>
-                  </button>
-                  <button type="button" class="card" data-goto="rx-answer" style="width:100%;text-align:start;margin-top:12px">
-                    <h2 class="card-title">ميتفورمين <bdi dir="ltr">500mg</bdi></h2>
-                    <div class="rx-meta">
-                      <span>كمية ≈ <strong>٢</strong></span>
-                      <span>المنصور</span>
-                      <span>خلال يومين</span>
-                      <span class="rx-timer">باقي ١٢:٠٠</span>
-                    </div>
-                  </button>
-                </div>
-                <p style="color:var(--rx-muted);font-size:var(--type-caption);text-align:center;margin-top:8px">
-                  ما في أسماء مرضى قبل الاختيار · ما في أسعار منافسين
-                </p>
-              </div>
-              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
-                <button type="button" class="tab" data-goto="rx-inbox" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
-                <button type="button" class="tab" data-goto="rx-holds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
-                <button type="button" class="tab" data-goto="rx-stock"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
-                <button type="button" class="tab" data-goto="rx-branch"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
-              </nav>
-            </section>
-
-            <!-- ========== PHARMACY: ANSWER ========== -->
-            <section class="screen" id="screen-rx-answer" aria-labelledby="rx-answer-title">
-              <div class="sticky-head">
-                <div class="back-row">
-                  <button type="button" class="back-btn" data-goto="rx-inbox" aria-label="رجوع" style="color:var(--rx-ink)">→</button>
-                  <div>
-                    <h1 class="screen-title" id="rx-answer-title">الطلب</h1>
-                    <p class="screen-sub">ردّ خلال ثوانٍ · بدون حقل كمية</p>
+                    <button type="button" class="btn-dose" id="btn-dose">تمّت</button>
                   </div>
                 </div>
+                <div class="band">
+                  <div class="band-l">قريب يخلص</div>
+                  <div class="card">
+                    <div class="kicker">نافذة إعادة الطلب</div>
+                    <h2 class="ctitle">أتورفاستاتين</h2>
+                    <p class="cbody">تقدير التوفر المتبقي لوالدتك</p>
+                    <div class="blister-wrap">
+                      <div class="blister" id="blister" role="img" aria-label="شريط الحبوب: ٤ من ١٤ متبقية">
+                        <span class="pill empty"></span><span class="pill empty"></span><span class="pill empty"></span>
+                        <span class="pill empty"></span><span class="pill empty"></span><span class="pill empty"></span>
+                        <span class="pill empty"></span><span class="pill empty"></span><span class="pill empty"></span>
+                        <span class="pill empty"></span>
+                        <span class="pill low" id="pill-next"></span>
+                        <span class="pill low"></span><span class="pill low"></span><span class="pill low"></span>
+                      </div>
+                    </div>
+                    <p class="conf"><i></i> تقدير متوسط الثقة · آخر صرف قبل ٢١ يوم</p>
+                    <div class="stack"><button type="button" class="btn btn-s" data-goto="confirm">اطلب إعادة تعبئة</button></div>
+                  </div>
+                </div>
+                <div class="band">
+                  <div class="band-l">بانتظارك</div>
+                  <button type="button" class="card" data-goto="compare" style="width:100%;text-align:start">
+                    <span class="badge badge-offer">عروض · ما تحجز شي</span>
+                    <h2 class="ctitle" style="margin-top:8px">٣ صيدليات ردّت</h2>
+                    <p class="cbody">قارن السعر والجاهزية — الحجز بعد ما تختار ويأكد الصيدلي</p>
+                  </button>
+                </div>
               </div>
-              <div class="scroll answer-pad">
-                <div class="card">
-                  <div class="card-kicker" style="color:var(--rx-muted)">طلب عاجل</div>
-                  <h2 class="card-title">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+              <div id="today-quiet" class="quiet" hidden>
+                <div class="quiet-orb" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg>
+                </div>
+                <h2>كل شي تمام</h2>
+                <p>الجرعة الجاية لوالدتك ٨ مساءً · ميتفورمين</p>
+              </div>
+            </div>
+            <button type="button" class="fab" id="fab" aria-label="طلب دواء جديد">＋</button>
+            <nav class="tabbar" aria-label="التنقل" data-tabs="patient"></nav>
+          </section>
+
+          <!-- FIND -->
+          <section class="screen" id="screen-find" aria-labelledby="find-title">
+            <div class="head">
+              <h1 class="title" id="find-title">ابحث</h1>
+              <p class="sub">صورة أو صوت قبل الكتابة — أم علي ما تكتب Amlodipine</p>
+            </div>
+            <div class="scroll">
+              <div class="capture">
+                <button type="button" class="cap" id="btn-capture" aria-label="صوّر علبة أو وصفة">
+                  <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h4l2-2h4l2 2h4v11H4V8z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+                  صوّر العلبة
+                </button>
+                <button type="button" class="cap" data-goto="confirm" aria-label="اطلب بالصوت">
+                  <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></span>
+                  بالصوت
+                </button>
+              </div>
+              <div class="search"><span aria-hidden="true">⌕</span><input type="search" placeholder="أو اكتب اسم الدواء" aria-label="بحث عن دواء" /></div>
+              <div class="band-l">شائع قريب منك</div>
+              <div class="meds">
+                <button type="button" data-goto="confirm">أملوديبين<span class="lat"><bdi dir="ltr">Amlodipine 5mg</bdi></span></button>
+                <button type="button" data-goto="confirm">ميتفورمين<span class="lat"><bdi dir="ltr">Metformin 500mg</bdi></span></button>
+                <button type="button" data-goto="confirm">أموكسيسيلين<span class="lat"><bdi dir="ltr">Amoxicillin</bdi></span></button>
+              </div>
+            </div>
+            <nav class="tabbar" aria-label="التنقل" data-tabs="patient"></nav>
+          </section>
+
+          <!-- CONFIRM -->
+          <section class="screen" id="screen-confirm" aria-labelledby="confirm-title">
+            <div class="head">
+              <div class="back">
+                <button type="button" class="back-btn" data-goto="find" aria-label="رجوع">→</button>
+                <div><h1 class="title" id="confirm-title">تأكيد الطلب</h1><p class="sub">قرار واحد — بعدين نرسل</p></div>
+              </div>
+            </div>
+            <div class="scroll bare">
+              <div class="card" style="margin-bottom:14px">
+                <div class="kicker">الدواء · لـ والدتك</div>
+                <h2 class="ctitle">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                <p class="cbody">علبة واحدة · من قائمة الأدوية</p>
+              </div>
+              <div class="field">
+                <label id="u-l">متى تحتاجه؟</label>
+                <div class="seg" role="group" aria-labelledby="u-l">
+                  <button type="button" aria-pressed="true">عاجل الآن</button>
+                  <button type="button" aria-pressed="false">اليوم</button>
+                  <button type="button" aria-pressed="false">خلال يومين</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>المنطقة</label>
+                <button type="button" class="area">المنصور <span style="color:var(--muted);font-weight:500">غيّر</span></button>
+              </div>
+              <p style="color:var(--muted);font-size:var(--tc);margin-bottom:14px">نسأل صيدليات موثّقة ومفتوحة ضمن ٢ كم. التوسيع يحتاج موافقتك.</p>
+              <button type="button" class="btn btn-p" data-goto="live">أرسل الطلب</button>
+            </div>
+          </section>
+
+          <!-- LIVE -->
+          <section class="screen" id="screen-live" aria-labelledby="live-title">
+            <div class="head">
+              <div class="back">
+                <button type="button" class="back-btn" data-goto="confirm" aria-label="رجوع">→</button>
+                <div><h1 class="title" id="live-title">الردود الحية</h1><p class="sub">٦ صيدليات · نطاق ٢ كم</p></div>
+              </div>
+            </div>
+            <div class="scroll bare">
+              <div class="radar-wrap" aria-hidden="true">
+                <canvas id="radar" width="360" height="180"></canvas>
+                <div class="radar-center"><strong id="radar-n">٠</strong><span>ردّوا الآن</span></div>
+              </div>
+              <div class="stats" aria-live="polite">
+                <div class="stat"><strong id="stat-asked">٦</strong><span>سُئلوا</span></div>
+                <div class="stat"><strong id="stat-replied">٠</strong><span>ردّوا</span></div>
+                <div class="stat"><strong id="stat-thinking">٦</strong><span>يفكرون</span></div>
+              </div>
+              <div class="responders" id="responders">
+                <div class="resp" data-st="asked"><span class="dot"></span><div><strong>صيدلية النور</strong><div class="st">بانتظار الرد</div></div><span class="st"><bdi dir="ltr">0.8</bdi> كم</span></div>
+                <div class="resp" data-st="asked"><span class="dot"></span><div><strong>صيدلية الشفاء</strong><div class="st">بانتظار الرد</div></div><span class="st"><bdi dir="ltr">1.2</bdi> كم</span></div>
+                <div class="resp" data-st="asked"><span class="dot"></span><div><strong>صيدلية المنصور</strong><div class="st">بانتظار الرد</div></div><span class="st"><bdi dir="ltr">1.4</bdi> كم</span></div>
+                <div class="resp" data-st="asked"><span class="dot"></span><div><strong>صيدلية اليرموك</strong><div class="st">بانتظار الرد</div></div><span class="st"><bdi dir="ltr">1.9</bdi> كم</span></div>
+                <div class="resp" data-st="asked"><span class="dot"></span><div><strong>صيدلية الرافدين</strong><div class="st">بانتظار الرد</div></div><span class="st"><bdi dir="ltr">2.0</bdi> كم</span></div>
+                <div class="resp" data-st="asked"><span class="dot"></span><div><strong>صيدلية الأقصى</strong><div class="st">بانتظار الرد</div></div><span class="st"><bdi dir="ltr">2.0</bdi> كم</span></div>
+              </div>
+              <div class="stack" style="margin-top:16px">
+                <button type="button" class="btn btn-p" id="btn-to-compare" data-goto="compare" disabled>قارن العروض</button>
+                <button type="button" class="btn btn-s" data-goto="nobody">ما رد أحد؟</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- COMPARE -->
+          <section class="screen" id="screen-compare" aria-labelledby="compare-title">
+            <div class="head">
+              <div class="back">
+                <button type="button" class="back-btn" data-goto="live" aria-label="رجوع">→</button>
+                <div><h1 class="title" id="compare-title">العروض</h1><p class="sub">عرض · ما يحجز مخزون بعد</p></div>
+              </div>
+            </div>
+            <div class="scroll bare">
+              <div class="sort" role="group" aria-label="ترتيب">
+                <button type="button" class="chip" aria-pressed="true">الأفضل</button>
+                <button type="button" class="chip" aria-pressed="false">الأقرب</button>
+                <button type="button" class="chip" aria-pressed="false">السعر</button>
+              </div>
+              <article class="card offer">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:start">
+                  <div>
+                    <span class="open">مفتوحة الآن</span>
+                    <h2 class="ctitle">صيدلية النور</h2>
+                    <p class="verified">موثّقة في دوائي · المنصور</p>
+                  </div>
+                  <span class="badge badge-offer">عرض</span>
+                </div>
+                <dl class="facts">
+                  <div class="fact"><dt>السعر</dt><dd><bdi dir="ltr">4,500</bdi> د.ع</dd></div>
+                  <div class="fact"><dt>الجاهزية</dt><dd>جاهز الآن</dd></div>
+                  <div class="fact"><dt>المسافة</dt><dd><bdi dir="ltr">0.8</bdi> كم · مشي</dd></div>
+                  <div class="fact"><dt>آخر تأكيد</dt><dd>قبل ٤ دقائق</dd></div>
+                </dl>
+                <p class="cbody" style="margin-top:8px">يغلق بعد ٢ ساعات · رد عادة خلال دقيقة</p>
+                <button type="button" class="btn btn-p" style="margin-top:12px" data-goto="asking">اختر هذا العرض</button>
+              </article>
+              <article class="card offer" style="margin-top:10px">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:start">
+                  <div>
+                    <span class="open">مفتوحة الآن</span>
+                    <h2 class="ctitle">صيدلية الشفاء</h2>
+                    <p class="verified">موثّقة في دوائي · اليرموك</p>
+                  </div>
+                  <span class="badge badge-offer">عرض</span>
+                </div>
+                <dl class="facts">
+                  <div class="fact"><dt>السعر</dt><dd><bdi dir="ltr">4,250</bdi> د.ع</dd></div>
+                  <div class="fact"><dt>الجاهزية</dt><dd>خلال ١٥ دقيقة</dd></div>
+                  <div class="fact"><dt>المسافة</dt><dd><bdi dir="ltr">1.2</bdi> كم · مشي</dd></div>
+                  <div class="fact"><dt>آخر تأكيد</dt><dd>قبل دقيقة</dd></div>
+                </dl>
+                <button type="button" class="btn btn-s" style="margin-top:12px" data-goto="asking">اختر هذا العرض</button>
+              </article>
+              <article class="card offer closed" style="margin-top:10px">
+                <div style="display:flex;justify-content:space-between;gap:8px">
+                  <div>
+                    <span class="open closed">مغلقة · تفتح ٨ صباحاً</span>
+                    <h2 class="ctitle">صيدلية الأقصى</h2>
+                    <p class="verified">موثّقة في دوائي</p>
+                  </div>
+                  <span class="badge badge-offer">عرض</span>
+                </div>
+                <p class="cbody" style="margin-top:8px">ما نعرضه للاستلام الآن — مغلقة.</p>
+              </article>
+            </div>
+          </section>
+
+          <!-- ASKING -->
+          <section class="screen" id="screen-asking" aria-labelledby="asking-title">
+            <div class="head">
+              <h1 class="title" id="asking-title">نطلب الحجز</h1>
+              <p class="sub">الساعة ما تبدأ إلا بعد تأكيد الصيدلي المرخّص</p>
+            </div>
+            <div class="scroll bare">
+              <div class="ask">
+                <div class="ask-pulse" aria-hidden="true"><span class="core"></span></div>
+                <h2 style="font-size:var(--tt);line-height:var(--lht)">عم نسأل النور تحجزه</h2>
+                <p style="color:var(--muted);margin-top:8px;max-width:280px;margin-inline:auto">اخترت عرض — هذا ما يحجز مخزون بعد. الصيدلي لازم يأكد.</p>
+                <div class="card" style="text-align:start;margin-top:22px">
+                  <span class="badge badge-offer">بانتظار حجز</span>
+                  <h3 class="ctitle" style="margin-top:8px">أملوديبين · النور</h3>
+                  <p class="cbody"><bdi dir="ltr">4,500</bdi> د.ع · جاهز الآن</p>
+                </div>
+                <div class="stack">
+                  <button type="button" class="btn btn-p" id="btn-simulate-ack">محاكاة تأكيد الصيدلي</button>
+                  <button type="button" class="btn btn-d" data-goto="compare">إلغاء</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- PASS -->
+          <section class="screen" id="screen-pass" aria-labelledby="pass-title">
+            <div class="head">
+              <div class="back">
+                <button type="button" class="back-btn" data-goto="today" aria-label="رجوع">→</button>
+                <div><h1 class="title" id="pass-title">بطاقة الحجز</h1><p class="sub">أرِها على الكاونتر من بعيد</p></div>
+              </div>
+            </div>
+            <div class="scroll bare">
+              <div class="pass" role="group" aria-label="بطاقة استلام">
+                <div class="foil" aria-hidden="true"></div>
+                <div class="pass-label">رمز الاستلام</div>
+                <div class="pass-code"><bdi dir="ltr">4821</bdi></div>
+                <div class="perf" aria-hidden="true"></div>
+                <div class="pass-timer" id="pass-countdown">١:٤٧:٢٢</div>
+                <div class="pass-label" style="margin-top:4px">متبقي للاستلام</div>
+                <div class="pass-addr">صيدلية النور<br>شارع ١٤ رمضان · المنصور<br>أملوديبين <bdi dir="ltr">5mg</bdi> · لـ والدتك</div>
+              </div>
+              <div class="stack two" style="margin-top:14px">
+                <button type="button" class="btn btn-s">الاتجاهات</button>
+                <button type="button" class="btn btn-s">اتصال</button>
+              </div>
+              <div class="stack">
+                <button type="button" class="btn btn-p" data-goto="picked">تم الاستلام</button>
+                <button type="button" class="btn btn-d">إلغاء الحجز</button>
+              </div>
+              <p style="margin-top:14px;text-align:center;font-size:var(--tc);color:var(--muted)">
+                <span class="badge badge-hold">حجز</span>
+                &nbsp;المخزون محجوز · الساعة من وقت الخادم
+              </p>
+            </div>
+          </section>
+
+          <!-- NOBODY -->
+          <section class="screen" id="screen-nobody" aria-labelledby="nobody-title">
+            <div class="head">
+              <div class="back">
+                <button type="button" class="back-btn" data-goto="live" aria-label="رجوع">→</button>
+                <div><h1 class="title" id="nobody-title">ما رد أحد</h1><p class="sub">مو معناها الدواء غير موجود</p></div>
+              </div>
+            </div>
+            <div class="scroll bare">
+              <div class="err" role="status">
+                <h2>ما رد أحد — ممكن يكونون مشغولين</h2>
+                <p>أرسلنا لـ ٦ صيدليات ضمن ٢ كم لمدة ٥ دقائق. السكوت ≠ نفاد.</p>
+                <p class="safe">طلبك محفوظ · ما اندفن</p>
+              </div>
+              <div class="stack" style="margin-top:18px">
+                <button type="button" class="btn btn-p" data-goto="live">أعد الإرسال</button>
+                <button type="button" class="btn btn-s">وسّع النطاق لـ ٥ كم</button>
+                <button type="button" class="btn btn-s">أخبرني لما يتوفر</button>
+                <button type="button" class="btn btn-t">اتصل بصيدليتي المعتادة</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- PICKED -->
+          <section class="screen" id="screen-picked" aria-labelledby="picked-title">
+            <div class="scroll bare" style="text-align:center;padding-top:24px">
+              <div class="picked" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg></div>
+              <h1 class="title" id="picked-title">تم الاستلام</h1>
+              <p style="color:var(--muted);margin-top:8px">أملوديبين لـ والدتك · صيدلية النور</p>
+              <div class="stack" style="max-width:280px;margin-inline:auto;margin-top:28px">
+                <button type="button" class="btn btn-p" data-goto="today">ارجع لليوم</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- STUBS -->
+          <section class="screen" id="screen-meds" aria-labelledby="meds-title">
+            <div class="head"><h1 class="title" id="meds-title">أدويتي</h1><p class="sub">السجل الدائم</p></div>
+            <div class="scroll">
+              <div class="empty"><h2>هنا راح تشوف أدويتك ومواعيدها</h2><p>مرحلة ٢ — السجل يصير سبب البقاء بعد المشوار.</p></div>
+              <div class="stub">Phase 2 · schedules · timeline · blister history</div>
+            </div>
+            <nav class="tabbar" aria-label="التنقل" data-tabs="patient"></nav>
+          </section>
+          <section class="screen" id="screen-me" aria-labelledby="me-title">
+            <div class="head"><h1 class="title" id="me-title">حسابي</h1><p class="sub">الهوية · العائلة · الخصوصية</p></div>
+            <div class="scroll">
+              <div class="empty"><h2>تكدر تخلي أحد من أهلك يشوف أدويتك أو يطلب عنك</h2><p>مرحلة ٢ — العائلة وسجل من شاف سجلك.</p></div>
+              <div class="stub">Phase 2 · family · access log · export</div>
+            </div>
+            <nav class="tabbar" aria-label="التنقل" data-tabs="patient"></nav>
+          </section>
+
+          <!-- PHARMACY INBOX -->
+          <section class="screen" id="screen-rx-inbox" aria-labelledby="rx-inbox-title">
+            <div class="head">
+              <h1 class="title" id="rx-inbox-title">الوارد</h1>
+              <p class="sub">فرع المنصور · متصل · إبهامك تحت</p>
+            </div>
+            <div class="scroll">
+              <div class="band">
+                <div class="band-l">عاجل · أقل وقت أولاً</div>
+                <button type="button" class="card rx-hot" data-goto="rx-answer" style="width:100%;text-align:start">
+                  <h2 class="ctitle">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
                   <div class="rx-meta">
-                    <span>كمية ≈ <strong>١</strong></span>
-                    <span>المنصور · قريب</span>
+                    <span>كمية ≈ <strong>١</strong></span><span>المنصور</span><span>عاجل الآن</span>
                     <span class="rx-timer">باقي ١:٤٠</span>
                   </div>
-                  <p class="card-body" style="margin-top:12px;color:var(--rx-muted)">
-                    العرض يعد بالسعر والجاهزية فقط. الحجز يحتاج صيدلي مرخّص بعد ما يختار المريض.
-                  </p>
-                </div>
+                </button>
               </div>
-              <div class="answer-bar is-visible" id="answer-bar" role="region" aria-label="شريط الرد">
-                <div class="answer-inner">
-                  <div class="ready-seg" role="group" aria-label="الجاهزية">
-                    <button type="button" aria-pressed="true">جاهز الآن</button>
-                    <button type="button" aria-pressed="false">١٥ د</button>
-                    <button type="button" aria-pressed="false">٣٠ د</button>
-                  </div>
-                  <div class="answer-price" role="group" aria-label="السعر">
-                    <button type="button" aria-pressed="false"><bdi dir="ltr">4,000</bdi></button>
-                    <button type="button" aria-pressed="true"><bdi dir="ltr">4,500</bdi></button>
-                    <button type="button" aria-pressed="false"><bdi dir="ltr">5,000</bdi></button>
-                  </div>
-                  <div class="answer-actions">
-                    <button type="button" class="btn-rx-decline" id="btn-decline">اعتذر</button>
-                    <button type="button" class="btn-rx-primary" id="btn-send-offer">أرسل العرض</button>
-                  </div>
-                </div>
+              <div class="band">
+                <div class="band-l">قريب</div>
+                <button type="button" class="card" data-goto="rx-answer" style="width:100%;text-align:start">
+                  <h2 class="ctitle">أموكسيسيلين شراب</h2>
+                  <div class="rx-meta"><span>كمية ≈ <strong>١</strong></span><span>اليرموك</span><span>اليوم</span><span class="rx-timer">باقي ٨:١٢</span></div>
+                </button>
+                <button type="button" class="card" data-goto="rx-answer" style="width:100%;text-align:start;margin-top:10px">
+                  <h2 class="ctitle">ميتفورمين <bdi dir="ltr">500mg</bdi></h2>
+                  <div class="rx-meta"><span>كمية ≈ <strong>٢</strong></span><span>المنصور</span><span>خلال يومين</span><span class="rx-timer">باقي ١٢:٠٠</span></div>
+                </button>
               </div>
-            </section>
+              <p style="color:var(--rx-mute);font-size:var(--tc);text-align:center">ما في أسماء مرضى قبل الاختيار · ما في أسعار منافسين</p>
+            </div>
+            <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy"></nav>
+          </section>
 
-            <!-- ========== PHARMACY: HOLDS ========== -->
-            <section class="screen" id="screen-rx-holds" aria-labelledby="rx-holds-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="rx-holds-title">الحجوزات</h1>
-                <p class="screen-sub">مخزون محجوز · ساعة شغّالة</p>
+          <!-- ANSWER -->
+          <section class="screen" id="screen-rx-answer" aria-labelledby="rx-answer-title">
+            <div class="head">
+              <div class="back">
+                <button type="button" class="back-btn" data-goto="rx-inbox" aria-label="رجوع">→</button>
+                <div><h1 class="title" id="rx-answer-title">الطلب</h1><p class="sub">ردّ بضغطتين · بدون حقل كمية</p></div>
               </div>
-              <div class="scroll">
-                <div class="card hold-card">
-                  <span style="display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;background:rgb(200 232 106 / 0.18);color:var(--rx-accent);font-size:var(--type-caption);font-weight:700">حجز مؤكد</span>
-                  <h2 class="card-title" style="margin-top:8px">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
-                  <div class="hold-code" aria-label="رمز الاستلام"><bdi dir="ltr">4821</bdi></div>
-                  <div class="rx-meta">
-                    <span>موعد نهائي <strong class="rx-timer" id="hold-deadline">١:٤٧:٢٢</strong></span>
-                    <span>جاهز على الرف</span>
-                  </div>
-                  <div class="btn-row" style="margin-top:16px">
-                    <button type="button" class="btn-rx-primary">تحقق من الرمز · تسليم</button>
-                    <button type="button" class="btn-rx-decline">تعذّر الحجز</button>
-                  </div>
+            </div>
+            <div class="scroll answer-pad">
+              <div class="card">
+                <div class="kicker">طلب عاجل</div>
+                <h2 class="ctitle">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                <div class="rx-meta"><span>كمية ≈ <strong>١</strong></span><span>المنصور · قريب</span><span class="rx-timer">باقي ١:٤٠</span></div>
+                <p class="cbody" style="margin-top:12px">العرض = سعر + جاهزية. الحجز يحتاج صيدلي مرخّص بعد اختيار المريض.</p>
+              </div>
+            </div>
+            <div class="answer on" id="answer-bar" role="region" aria-label="شريط الرد">
+              <div class="answer-in">
+                <div class="ready" role="group" aria-label="الجاهزية">
+                  <button type="button" aria-pressed="true">جاهز الآن</button>
+                  <button type="button" aria-pressed="false">١٥ د</button>
+                  <button type="button" aria-pressed="false">٣٠ د</button>
                 </div>
-                <p style="color:var(--rx-muted);font-size:var(--type-caption);text-align:center;margin-top:20px">
-                  العرض أخضر خفيف للمريض · الحجز لون مختلف هنا — التزام فعلي
-                </p>
+                <div class="prices" role="group" aria-label="السعر">
+                  <button type="button" aria-pressed="false"><bdi dir="ltr">4,000</bdi></button>
+                  <button type="button" aria-pressed="true"><bdi dir="ltr">4,500</bdi></button>
+                  <button type="button" aria-pressed="false"><bdi dir="ltr">5,000</bdi></button>
+                </div>
+                <div class="ans-actions">
+                  <button type="button" class="btn-rx-s" id="btn-decline">اعتذر</button>
+                  <button type="button" class="btn-rx" id="btn-send-offer">أرسل العرض</button>
+                </div>
               </div>
-              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
-                <button type="button" class="tab" data-goto="rx-inbox"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
-                <button type="button" class="tab" data-goto="rx-holds" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
-                <button type="button" class="tab" data-goto="rx-stock"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
-                <button type="button" class="tab" data-goto="rx-branch"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
-              </nav>
-            </section>
+            </div>
+          </section>
 
-            <!-- ========== PHARMACY STUBS ========== -->
-            <section class="screen" id="screen-rx-stock" aria-labelledby="rx-stock-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="rx-stock-title">المخزون</h1>
-                <p class="screen-sub">حركات · مو ERP</p>
-              </div>
-              <div class="scroll">
-                <div class="empty-state">
-                  <h2 style="color:var(--rx-ink)">سجّل أول حركة مخزون وراح نبني الصورة تدريجياً</h2>
-                  <p style="color:var(--rx-muted)">مرحلة ١ — بدون حقل كمية مطلق للتعديل اليدوي.</p>
+          <!-- HOLDS -->
+          <section class="screen" id="screen-rx-holds" aria-labelledby="rx-holds-title">
+            <div class="head">
+              <h1 class="title" id="rx-holds-title">الحجوزات</h1>
+              <p class="sub">مخزون على الرف · ساعة شغّالة</p>
+            </div>
+            <div class="scroll">
+              <div class="card hold">
+                <span class="badge" style="background:rgb(201 234 108 / .18);color:var(--rx-lime)">حجز مؤكد</span>
+                <h2 class="ctitle" style="margin-top:8px">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                <div class="hold-code"><bdi dir="ltr">4821</bdi></div>
+                <div class="rx-meta">
+                  <span>موعد نهائي <strong class="rx-timer" id="hold-deadline">١:٤٧:٢٢</strong></span>
+                  <span>جاهز على الرف</span>
+                </div>
+                <div class="stack" style="margin-top:14px">
+                  <button type="button" class="btn-rx">تحقق من الرمز · تسليم</button>
+                  <button type="button" class="btn-rx-s">تعذّر الحجز</button>
                 </div>
               </div>
-              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
-                <button type="button" class="tab" data-goto="rx-inbox"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
-                <button type="button" class="tab" data-goto="rx-holds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
-                <button type="button" class="tab" data-goto="rx-stock" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
-                <button type="button" class="tab" data-goto="rx-branch"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
-              </nav>
-            </section>
+              <p style="color:var(--rx-mute);font-size:var(--tc);text-align:center;margin-top:16px">العرض للمريض بلون مختلف عن الحجز هنا — التزام فعلي</p>
+            </div>
+            <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy"></nav>
+          </section>
 
-            <section class="screen" id="screen-rx-branch" aria-labelledby="rx-branch-title">
-              <div class="sticky-head">
-                <h1 class="screen-title" id="rx-branch-title">الفرع</h1>
-                <p class="screen-sub">ساعات · تغطية · أداء</p>
-              </div>
-              <div class="scroll">
-                <div class="empty-state">
-                  <h2 style="color:var(--rx-ink)">إعداد الفرع والأداء</h2>
-                  <p style="color:var(--rx-muted)">مرحلة ١ — بما فيها «الأكثر طلباً وغير متوفر عندك».</p>
-                </div>
-              </div>
-              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
-                <button type="button" class="tab" data-goto="rx-inbox"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
-                <button type="button" class="tab" data-goto="rx-holds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
-                <button type="button" class="tab" data-goto="rx-stock"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
-                <button type="button" class="tab" data-goto="rx-branch" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
-              </nav>
-            </section>
+          <section class="screen" id="screen-rx-stock">
+            <div class="head"><h1 class="title">المخزون</h1><p class="sub">حركات · مو ERP</p></div>
+            <div class="scroll"><div class="empty"><h2 style="color:var(--rx-ink)">سجّل أول حركة مخزون</h2><p style="color:var(--rx-mute)">مرحلة ١ — بدون حقل كمية مطلق.</p></div></div>
+            <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy"></nav>
+          </section>
+          <section class="screen" id="screen-rx-branch">
+            <div class="head"><h1 class="title">الفرع</h1><p class="sub">ساعات · تغطية · أداء</p></div>
+            <div class="scroll"><div class="empty"><h2 style="color:var(--rx-ink)">إعداد الفرع والأداء</h2><p style="color:var(--rx-mute)">مرحلة ١ — الأكثر طلباً وغير متوفر عندك.</p></div></div>
+            <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy"></nav>
+          </section>
+        </div>
+
+        <!-- Capture sheet -->
+        <div class="sheet" id="sheet" aria-hidden="true">
+          <div class="sheet-in" role="dialog" aria-label="تصوير الوصفة">
+            <div class="grab" aria-hidden="true"></div>
+            <h2 class="title" style="margin-bottom:10px">صوّر الوصفة أو العلبة</h2>
+            <p class="sub" style="margin-bottom:12px">فشل القراءة حالة طبيعية — مو غلطتك</p>
+            <div class="cam"><div class="guide"></div><div class="hint">حرّك حتى تنحصر الورقة داخل الإطار</div></div>
+            <div class="stack">
+              <button type="button" class="btn btn-p" id="sheet-ok">تم الالتقاط — راجع</button>
+              <button type="button" class="btn btn-s" id="sheet-close">إلغاء</button>
+            </div>
           </div>
         </div>
       </div>
-    </main>
-  </div>
+    </div>
+  </main>
+</div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", () => {
   const phone = document.getElementById("phone");
   const safety = document.getElementById("safety");
   const patientJumps = document.getElementById("jump-patient");
   const pharmacyJumps = document.getElementById("jump-pharmacy");
   const modePatient = document.getElementById("mode-patient");
   const modePharmacy = document.getElementById("mode-pharmacy");
-  const togOffline = document.getElementById("tog-offline");
-  const togSafety = document.getElementById("tog-safety");
-  const togQuiet = document.getElementById("tog-quiet");
-  if (!phone || !modePatient || !modePharmacy) {
-    console.error("Dawai blueprint UI: required elements missing");
-    return;
+  const sheet = document.getElementById("sheet");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let remaining = 1 * 3600 + 47 * 60 + 22;
+  let liveTimer = 0;
+  const liveTimeouts = [];
+
+  const icons = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>',
+    meds: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg>',
+    find: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+    me: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>',
+    inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+    hold: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>',
+    stock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg>',
+    branch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg>'
+  };
+
+  function fillTabs() {
+    document.querySelectorAll('nav.tabbar[data-tabs="patient"]').forEach((nav) => {
+      const cur = nav.closest(".screen")?.id?.replace("screen-", "") || "today";
+      const items = [
+        ["today", "اليوم", icons.home],
+        ["meds", "أدويتي", icons.meds],
+        ["find", "ابحث", icons.find],
+        ["me", "حسابي", icons.me]
+      ];
+      nav.innerHTML = items.map(([id, label, ico]) =>
+        `<button type="button" class="tab" data-goto="${id}" ${cur === id ? 'aria-current="page"' : ""}>${ico}${label}</button>`
+      ).join("");
+    });
+    document.querySelectorAll('nav.tabbar[data-tabs="pharmacy"]').forEach((nav) => {
+      const cur = nav.closest(".screen")?.id?.replace("screen-", "") || "rx-inbox";
+      const items = [
+        ["rx-inbox", "الوارد", icons.inbox],
+        ["rx-holds", "الحجوزات", icons.hold],
+        ["rx-stock", "المخزون", icons.stock],
+        ["rx-branch", "الفرع", icons.branch]
+      ];
+      nav.innerHTML = items.map(([id, label, ico]) =>
+        `<button type="button" class="tab" data-goto="${id}" ${cur === id ? 'aria-current="page"' : ""}>${ico}${label}</button>`
+      ).join("");
+    });
   }
 
-  const PATIENT_SCREENS = new Set([
-    "today", "find", "confirm", "live", "compare", "asking", "pass",
-    "nobody", "picked", "meds", "me"
-  ]);
-  const PHARMACY_SCREENS = new Set([
-    "rx-inbox", "rx-answer", "rx-holds", "rx-stock", "rx-branch"
-  ]);
-
-  let remainingSec = 1 * 3600 + 47 * 60 + 22;
-  let liveTimer = null;
-  let reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  function easternDigits(n) {
-    return String(n).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]);
-  }
-
-  function formatCountdown(total) {
+  const east = (n) => String(n).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]);
+  function fmt(total) {
     const h = Math.floor(total / 3600);
     const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
-    const pad = (x) => easternDigits(String(x).padStart(2, "0"));
-    return pad(h) + ":" + pad(m) + ":" + pad(s);
+    const p = (x) => east(String(x).padStart(2, "0"));
+    return `${p(h)}:${p(m)}:${p(s)}`;
   }
-
-  function tickCountdown() {
-    if (remainingSec > 0) remainingSec -= 1;
-    const text = formatCountdown(remainingSec);
-    document.querySelectorAll("#today-countdown, #pass-countdown, #hold-deadline").forEach((el) => {
-      el.textContent = text;
-    });
+  function tick() {
+    if (remaining > 0) remaining -= 1;
+    const t = fmt(remaining);
+    document.querySelectorAll("#today-countdown, #pass-countdown, #hold-deadline").forEach((el) => { el.textContent = t; });
   }
-  setInterval(tickCountdown, 1000);
-  tickCountdown();
+  setInterval(tick, 1000);
+  tick();
 
   function setMode(mode) {
     phone.dataset.mode = mode;
-    const isPatient = mode === "patient";
-    modePatient.setAttribute("aria-pressed", String(isPatient));
-    modePharmacy.setAttribute("aria-pressed", String(!isPatient));
-    patientJumps.hidden = !isPatient;
-    pharmacyJumps.hidden = isPatient;
-    showScreen(isPatient ? "today" : "rx-inbox");
+    const patient = mode === "patient";
+    modePatient.setAttribute("aria-pressed", String(patient));
+    modePharmacy.setAttribute("aria-pressed", String(!patient));
+    patientJumps.hidden = !patient;
+    pharmacyJumps.hidden = patient;
+    showScreen(patient ? "today" : "rx-inbox");
   }
 
-  function updateJumpCurrent(id) {
-    document.querySelectorAll(".jump-list button").forEach((btn) => {
-      btn.setAttribute("aria-current", btn.dataset.jump === id ? "true" : "false");
+  function updateJumps(id) {
+    document.querySelectorAll(".jumps button").forEach((b) => {
+      b.setAttribute("aria-current", b.dataset.jump === id ? "true" : "false");
     });
   }
 
   function showScreen(id) {
-    const isRx = id.startsWith("rx-");
-    if (isRx && phone.dataset.mode !== "pharmacy") setMode("pharmacy");
-    if (!isRx && phone.dataset.mode !== "patient") {
+    const rx = id.startsWith("rx-");
+    if (rx && phone.dataset.mode !== "pharmacy") {
+      phone.dataset.mode = "pharmacy";
+      modePatient.setAttribute("aria-pressed", "false");
+      modePharmacy.setAttribute("aria-pressed", "true");
+      patientJumps.hidden = true;
+      pharmacyJumps.hidden = false;
+    }
+    if (!rx && phone.dataset.mode !== "patient") {
       phone.dataset.mode = "patient";
       modePatient.setAttribute("aria-pressed", "true");
       modePharmacy.setAttribute("aria-pressed", "false");
       patientJumps.hidden = false;
       pharmacyJumps.hidden = true;
     }
-
-    document.querySelectorAll(".screen").forEach((s) => s.classList.remove("is-active"));
+    document.querySelectorAll(".screen").forEach((s) => s.classList.remove("is-on"));
     const el = document.getElementById("screen-" + id);
     if (!el) return;
-    el.classList.add("is-active");
-    updateJumpCurrent(id);
-
-    // Hide answer bar except on answer screen
+    el.classList.add("is-on");
+    updateJumps(id);
+    fillTabs();
     const bar = document.getElementById("answer-bar");
-    if (bar) bar.classList.toggle("is-visible", id === "rx-answer");
-
-    if (id === "live") startLiveDemo();
+    if (bar) bar.classList.toggle("on", id === "rx-answer");
+    if (id === "live") startLive();
     if (id === "today") animateBlister();
   }
 
-  function startLiveDemo() {
-    if (liveTimer) {
-      clearTimeout(liveTimer);
-      liveTimer = null;
+  function drawRadar(replied) {
+    const c = document.getElementById("radar");
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    const w = c.width, h = c.height;
+    ctx.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h * 0.55;
+    for (let i = 1; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 28 * i, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(22,63,56,${0.08 + i * 0.05})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
-    const rows = Array.from(document.querySelectorAll("#responders .responder"));
+    const dots = [
+      [0.8, -0.6], [1.1, 0.4], [0.5, 1.0], [-0.9, 0.7], [-1.1, -0.3], [0.2, -1.15]
+    ];
+    dots.forEach((d, i) => {
+      const x = cx + d[0] * 48;
+      const y = cy + d[1] * 36;
+      ctx.beginPath();
+      ctx.arc(x, y, i < replied ? 5 : 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = i < replied ? "#1c6848" : "#8aa399";
+      ctx.fill();
+      if (i < replied) {
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(28,104,72,.25)";
+        ctx.stroke();
+      }
+    });
+  }
+
+  function startLive() {
+    while (liveTimeouts.length) clearTimeout(liveTimeouts.pop());
+    clearTimeout(liveTimer);
+    const rows = [...document.querySelectorAll("#responders .resp")];
     const compareBtn = document.getElementById("btn-to-compare");
     compareBtn.disabled = true;
-    document.getElementById("stat-replied").textContent = easternDigits(0);
-    document.getElementById("stat-thinking").textContent = easternDigits(6);
-    document.getElementById("stat-asked").textContent = easternDigits(6);
-
+    document.getElementById("stat-replied").textContent = east(0);
+    document.getElementById("stat-thinking").textContent = east(6);
+    document.getElementById("stat-asked").textContent = east(6);
+    document.getElementById("radar-n").textContent = east(0);
+    drawRadar(0);
     rows.forEach((row) => {
-      row.classList.remove("is-in");
-      row.dataset.state = "thinking";
-      row.querySelector(".responder-state").textContent = "يفكر…";
+      row.classList.remove("in");
+      row.dataset.st = "thinking";
+      row.querySelector(".st").textContent = "يفكر…";
     });
-
-    // Stagger appear
-    rows.forEach((row, i) => {
-      const delay = reduceMotion ? 0 : i * 200;
-      setTimeout(() => row.classList.add("is-in"), delay);
-    });
-
-    // Replies arrive staggered
-    const replyOrder = [0, 1, 2];
-    replyOrder.forEach((idx, n) => {
-      const delay = reduceMotion ? 100 : 900 + n * 700;
-      setTimeout(() => {
-        const row = rows[idx];
-        row.dataset.state = "replied";
-        row.querySelector(".responder-state").textContent = "ردّ · عرض جاهز";
+    const later = (fn, ms) => liveTimeouts.push(setTimeout(fn, ms));
+    rows.forEach((row, i) => later(() => row.classList.add("in"), reduce ? 0 : i * 160));
+    [0, 1, 2].forEach((idx, n) => {
+      later(() => {
+        rows[idx].dataset.st = "replied";
+        rows[idx].querySelector(".st").textContent = "ردّ · عرض جاهز";
         const replied = n + 1;
-        document.getElementById("stat-replied").textContent = easternDigits(replied);
-        document.getElementById("stat-thinking").textContent = easternDigits(6 - replied);
+        document.getElementById("stat-replied").textContent = east(replied);
+        document.getElementById("stat-thinking").textContent = east(6 - replied);
+        document.getElementById("radar-n").textContent = east(replied);
+        drawRadar(replied);
         if (replied >= 1) compareBtn.disabled = false;
-      }, delay);
+      }, reduce ? 120 : 800 + n * 650);
     });
-
-    // Remaining stay thinking then asked/timeout feel
     [3, 4, 5].forEach((idx, n) => {
-      const delay = reduceMotion ? 200 : 3200 + n * 400;
-      setTimeout(() => {
-        rows[idx].dataset.state = "asked";
-        rows[idx].querySelector(".responder-state").textContent = "ما رد بعد";
-      }, delay);
+      later(() => {
+        rows[idx].dataset.st = "asked";
+        rows[idx].querySelector(".st").textContent = "ما رد بعد";
+      }, reduce ? 200 : 3000 + n * 350);
     });
   }
 
   function animateBlister() {
-    const pills = document.querySelectorAll("#blister .blister-pill");
-    // Signature: briefly show one more empty after paint
-    pills.forEach((p) => p.classList.remove("just-used"));
-    if (reduceMotion) return;
-    const remaining = Array.from(pills).filter((p) => !p.classList.contains("is-empty"));
-    if (remaining.length > 1) {
-      // pulse the lowest remaining
-      remaining[0].style.transform = "scale(1.08)";
-      setTimeout(() => { remaining[0].style.transform = ""; }, 500);
-    }
+    const next = document.getElementById("pill-next");
+    if (!next || reduce) return;
+    next.classList.remove("pop");
+    void next.offsetWidth;
+    next.classList.add("pop");
+    setTimeout(() => {
+      next.classList.add("empty");
+      next.classList.remove("low", "pop");
+    }, 480);
   }
 
-  // Navigation
   document.addEventListener("click", (e) => {
     const goto = e.target.closest("[data-goto]");
-    if (goto) {
-      e.preventDefault();
-      showScreen(goto.dataset.goto);
-      return;
-    }
+    if (goto) { e.preventDefault(); showScreen(goto.dataset.goto); return; }
     const jump = e.target.closest("[data-jump]");
-    if (jump) {
-      showScreen(jump.dataset.jump);
-    }
+    if (jump) showScreen(jump.dataset.jump);
   });
 
   modePatient.addEventListener("click", () => setMode("patient"));
   modePharmacy.addEventListener("click", () => setMode("pharmacy"));
 
-  togOffline.addEventListener("click", () => {
-    const on = togOffline.getAttribute("aria-pressed") !== "true";
-    togOffline.setAttribute("aria-pressed", String(on));
+  document.getElementById("tog-offline").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
     phone.classList.toggle("is-offline", on);
   });
-
-  togSafety.addEventListener("click", () => {
-    const on = togSafety.getAttribute("aria-pressed") !== "true";
-    togSafety.setAttribute("aria-pressed", String(on));
-    safety.classList.toggle("is-visible", on);
+  document.getElementById("tog-safety").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    safety.classList.toggle("is-on", on);
   });
-
-  togQuiet.addEventListener("click", () => {
-    const on = togQuiet.getAttribute("aria-pressed") !== "true";
-    togQuiet.setAttribute("aria-pressed", String(on));
+  document.getElementById("tog-quiet").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
     document.getElementById("today-busy").hidden = on;
     document.getElementById("today-quiet").hidden = !on;
-    if (!on) showScreen("today");
-    else showScreen("today");
+    showScreen("today");
   });
 
-  // Subject switcher
-  document.querySelectorAll(".subject-chip").forEach((chip) => {
+  document.querySelectorAll(".who").forEach((chip) => {
     chip.addEventListener("click", () => {
-      document.querySelectorAll(".subject-chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
+      document.querySelectorAll(".who").forEach((c) => c.setAttribute("aria-pressed", "false"));
       chip.setAttribute("aria-pressed", "true");
-      const sub = document.getElementById("today-sub");
-      if (chip.dataset.subject === "self") {
-        sub.textContent = "أدويتك · المنصور";
-      } else {
-        sub.textContent = "أدوية والدتك · المنصور";
-      }
+      document.getElementById("today-sub").textContent =
+        chip.dataset.subject === "self" ? "أدويتك · المنصور" : "أدوية والدتك · المنصور";
     });
   });
 
-  // Segmented controls (urgency, sort, ready, price)
-  document.querySelectorAll(".seg, .sort-row, .ready-seg, .answer-price").forEach((group) => {
+  document.querySelectorAll(".seg, .sort, .ready, .prices").forEach((group) => {
     group.addEventListener("click", (e) => {
       const btn = e.target.closest("button");
       if (!btn || !group.contains(btn)) return;
@@ -2097,39 +1281,47 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
-  // Dose confirm
   const doseBtn = document.getElementById("btn-dose");
   if (doseBtn) {
     doseBtn.addEventListener("click", () => {
-      doseBtn.classList.add("is-done");
+      doseBtn.classList.add("done");
       doseBtn.textContent = "سُجّلت";
       doseBtn.disabled = true;
     });
   }
 
-  // Simulate pharmacist ACK → pass (clock starts here)
-  const ackBtn = document.getElementById("btn-simulate-ack");
-  if (ackBtn) {
-    ackBtn.addEventListener("click", () => {
-      remainingSec = 2 * 3600;
-      tickCountdown();
-      showScreen("pass");
-    });
-  }
+  document.getElementById("btn-simulate-ack")?.addEventListener("click", () => {
+    remaining = 2 * 3600;
+    tick();
+    showScreen("pass");
+  });
+  document.getElementById("btn-send-offer")?.addEventListener("click", () => showScreen("rx-holds"));
+  document.getElementById("btn-decline")?.addEventListener("click", () => showScreen("rx-inbox"));
 
-  // Pharmacy send offer
-  const sendOfferBtn = document.getElementById("btn-send-offer");
-  if (sendOfferBtn) {
-    sendOfferBtn.addEventListener("click", () => showScreen("rx-holds"));
-  }
-  const declineBtn = document.getElementById("btn-decline");
-  if (declineBtn) {
-    declineBtn.addEventListener("click", () => showScreen("rx-inbox"));
-  }
+  document.getElementById("fab")?.addEventListener("click", () => showScreen("find"));
+  document.getElementById("btn-capture")?.addEventListener("click", () => {
+    sheet.classList.add("on");
+    sheet.setAttribute("aria-hidden", "false");
+  });
+  document.getElementById("sheet-close")?.addEventListener("click", () => {
+    sheet.classList.remove("on");
+    sheet.setAttribute("aria-hidden", "true");
+  });
+  document.getElementById("sheet-ok")?.addEventListener("click", () => {
+    sheet.classList.remove("on");
+    sheet.setAttribute("aria-hidden", "true");
+    showScreen("confirm");
+  });
+  sheet?.addEventListener("click", (e) => {
+    if (e.target === sheet) {
+      sheet.classList.remove("on");
+      sheet.setAttribute("aria-hidden", "true");
+    }
+  });
 
-  // Initial blister animation
+  fillTabs();
+  drawRadar(0);
   animateBlister();
-  showScreen("today");
 });
 </script>
 </body>
