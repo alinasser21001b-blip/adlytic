@@ -1,0 +1,2121 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<meta name="theme-color" content="#1a4a42" />
+<title>دوائي — معاينة واجهة Blueprint v1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  /* §25 Design System — Patient: warm light + calm mint · Pharmacy: deep green-black + lime */
+  :root {
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 28px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+
+    --type-display: 34px;
+    --type-title: 22px;
+    --type-headline: 17px;
+    --type-body: 16px;
+    --type-caption: 13px;
+    --lh-display: 1.25;
+    --lh-title: 1.40;
+    --lh-headline: 1.50;
+    --lh-body: 1.65;
+    --lh-caption: 1.60;
+
+    --touch-min: 44px;
+    --touch-patient: 48px;
+    --touch-pharmacy: 56px;
+
+    --nav-h: 72px;
+    --r-sm: 10px;
+    --r-md: 16px;
+    --r-lg: 22px;
+
+    /* Patient palette */
+    --p-ground: #eef3f0;
+    --p-surface: #f7faf8;
+    --p-raised: #ffffff;
+    --p-line: #d5e0db;
+    --p-ink: #142422;
+    --p-muted: #5a6b66;
+    --p-accent: #2a7a68;
+    --p-accent-soft: #d8efe7;
+    --p-accent-deep: #1a4a42;
+    --p-warning: #8a5a10;
+    --p-warning-bg: #fdf4e3;
+    --p-alert: #8f3423;
+    --p-alert-bg: #fbeae6;
+    --p-success: #1f6b4a;
+    --p-success-bg: #e3f4eb;
+    --p-reserve: #1e4d7a;
+    --p-reserve-bg: #e8f1f8;
+    --p-offer: #2a7a68;
+    --p-offer-bg: #e8f4ef;
+
+    /* Pharmacy palette */
+    --rx-ground: #0b1614;
+    --rx-surface: #12201d;
+    --rx-raised: #1a2c28;
+    --rx-line: #2a3f39;
+    --rx-ink: #eef6f2;
+    --rx-muted: #8aa39a;
+    --rx-accent: #c8e86a;
+    --rx-accent-ink: #14200a;
+    --rx-warning: #f0c36a;
+    --rx-alert: #f08a72;
+    --rx-success: #7ed9a8;
+
+    --font-body: "IBM Plex Sans Arabic", system-ui, sans-serif;
+    --font-display: "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 0%, #d4e8e0 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 90% 10%, #c5ddd4 0%, transparent 50%),
+      linear-gradient(165deg, #dfece7 0%, #e8efe9 40%, #d2e0d8 100%);
+    color: var(--p-ink);
+    font-family: var(--font-body);
+    font-size: var(--type-body);
+    line-height: var(--lh-body);
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: 0;
+    margin: 0;
+    font-weight: 700;
+  }
+  p { margin: 0; }
+  button, input, select, textarea {
+    font: inherit;
+    letter-spacing: 0;
+    color: inherit;
+  }
+  button {
+    cursor: pointer;
+    border: 0;
+    background: none;
+    padding: 0;
+  }
+  :focus-visible {
+    outline: 3px solid var(--p-accent);
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  bdi { unicode-bidi: isolate; }
+
+  /* ---- Studio chrome ---- */
+  .studio {
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(240px, 300px) 1fr;
+    gap: var(--space-6);
+    padding: var(--space-6);
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .studio {
+      grid-template-columns: 1fr;
+      padding: var(--space-3);
+    }
+    .panel { order: 2; }
+    .stage { order: 1; }
+  }
+
+  .panel {
+    background: rgb(255 255 255 / 0.72);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgb(20 36 34 / 0.08);
+    border-radius: var(--r-lg);
+    padding: var(--space-5);
+    position: sticky;
+    top: var(--space-4);
+  }
+  .panel h1 {
+    font-size: var(--type-title);
+    line-height: var(--lh-title);
+    color: var(--p-accent-deep);
+  }
+  .panel .lede {
+    margin-top: var(--space-2);
+    color: var(--p-muted);
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+  }
+  .panel-section {
+    margin-top: var(--space-5);
+  }
+  .panel-section h2 {
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    color: var(--p-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-block-end: var(--space-2);
+  }
+  .jump-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .jump-list button {
+    text-align: start;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--r-sm);
+    min-height: var(--touch-min);
+    color: var(--p-ink);
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+  }
+  .jump-list button:hover,
+  .jump-list button[aria-current="true"] {
+    background: var(--p-accent-soft);
+    color: var(--p-accent-deep);
+  }
+  .toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .chip {
+    min-height: var(--touch-min);
+    padding: 0 var(--space-3);
+    border-radius: 999px;
+    border: 1px solid var(--p-line);
+    background: var(--p-raised);
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    font-weight: 600;
+  }
+  .chip[aria-pressed="true"] {
+    background: var(--p-accent-deep);
+    color: #fff;
+    border-color: var(--p-accent-deep);
+  }
+
+  .stage {
+    display: flex;
+    justify-content: center;
+    padding-block: var(--space-2);
+  }
+
+  /* ---- Phone shell ---- */
+  .phone {
+    width: min(100%, 390px);
+    background: #0e1a18;
+    border-radius: 36px;
+    padding: 10px;
+    box-shadow:
+      0 0 0 1px rgb(0 0 0 / 0.35),
+      0 28px 60px rgb(20 36 34 / 0.28);
+  }
+  .phone-inner {
+    position: relative;
+    background: var(--p-ground);
+    border-radius: 28px;
+    overflow: hidden;
+    min-height: 780px;
+    max-height: 860px;
+    display: flex;
+    flex-direction: column;
+  }
+  .phone-inner[data-mode="pharmacy"] {
+    background: var(--rx-ground);
+    color: var(--rx-ink);
+  }
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 18px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--p-muted);
+    flex-shrink: 0;
+  }
+  .phone-inner[data-mode="pharmacy"] .status-bar { color: var(--rx-muted); }
+
+  .offline-banner {
+    display: none;
+    background: var(--p-warning-bg);
+    color: var(--p-warning);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    font-weight: 600;
+    border-block-end: 1px solid rgb(138 90 16 / 0.2);
+    flex-shrink: 0;
+  }
+  .phone-inner.is-offline .offline-banner { display: block; }
+  .phone-inner[data-mode="pharmacy"] .offline-banner {
+    background: rgb(240 195 106 / 0.15);
+    color: var(--rx-warning);
+    border-color: rgb(240 195 106 / 0.25);
+  }
+
+  .safety-layer {
+    display: none;
+    background: var(--p-alert);
+    color: #fff;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--type-body);
+    line-height: var(--lh-body);
+    font-weight: 600;
+    flex-shrink: 0;
+    transition: background 380ms ease, padding 380ms ease;
+  }
+  .safety-layer.is-visible { display: block; }
+  .safety-layer .safety-title { font-family: var(--font-display); font-size: var(--type-headline); }
+  .safety-layer .safety-body { margin-top: 4px; font-weight: 500; opacity: 0.95; }
+  /* Severe: no dismiss control at all */
+
+  .screens {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .screen {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    position: absolute;
+    inset: 0;
+  }
+  .screen.is-active {
+    display: flex;
+    animation: screen-in 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  @keyframes screen-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .scroll {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-3) var(--space-4) calc(var(--nav-h) + var(--space-8) + env(safe-area-inset-bottom, 0px));
+    -webkit-overflow-scrolling: touch;
+  }
+  .scroll.no-nav-pad {
+    padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
+  }
+  .scroll.answer-pad {
+    padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .sticky-head {
+    padding: var(--space-2) var(--space-4) var(--space-3);
+    background: color-mix(in srgb, var(--p-ground) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-block-end: 1px solid transparent;
+    flex-shrink: 0;
+  }
+  .phone-inner[data-mode="pharmacy"] .sticky-head {
+    background: color-mix(in srgb, var(--rx-ground) 88%, transparent);
+  }
+  .screen-title {
+    font-size: var(--type-title);
+    line-height: var(--lh-title);
+  }
+  .screen-sub {
+    margin-top: 2px;
+    color: var(--p-muted);
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+  }
+  .phone-inner[data-mode="pharmacy"] .screen-sub { color: var(--rx-muted); }
+
+  /* Subject switcher — primary control */
+  .subject-switcher {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    padding-block: var(--space-1);
+    margin-block-end: var(--space-2);
+    scrollbar-width: none;
+  }
+  .subject-switcher::-webkit-scrollbar { display: none; }
+  .subject-chip {
+    flex: 0 0 auto;
+    min-height: var(--touch-patient);
+    padding: 0 var(--space-4);
+    border-radius: 999px;
+    border: 1.5px solid var(--p-line);
+    background: var(--p-raised);
+    font-weight: 600;
+    font-size: var(--type-body);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .subject-chip[aria-pressed="true"] {
+    background: var(--p-accent-deep);
+    color: #fff;
+    border-color: var(--p-accent-deep);
+  }
+  .subject-chip .scope {
+    font-size: var(--type-caption);
+    font-weight: 500;
+    opacity: 0.85;
+  }
+
+  /* Bands */
+  .band { margin-block-end: var(--space-5); }
+  .band-label {
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    font-weight: 600;
+    color: var(--p-muted);
+    margin-block-end: var(--space-2);
+  }
+  .phone-inner[data-mode="pharmacy"] .band-label { color: var(--rx-muted); }
+
+  .card {
+    background: var(--p-raised);
+    border: 1px solid var(--p-line);
+    border-radius: var(--r-md);
+    padding: var(--space-4);
+  }
+  .phone-inner[data-mode="pharmacy"] .card {
+    background: var(--rx-raised);
+    border-color: var(--rx-line);
+  }
+  .card + .card { margin-block-start: var(--space-3); }
+
+  .card-kicker {
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    font-weight: 600;
+    color: var(--p-muted);
+  }
+  .card-title {
+    font-size: var(--type-headline);
+    line-height: var(--lh-headline);
+    margin-top: 2px;
+  }
+  .card-body {
+    margin-top: var(--space-2);
+    color: var(--p-muted);
+    font-size: var(--type-body);
+  }
+  .phone-inner[data-mode="pharmacy"] .card-body,
+  .phone-inner[data-mode="pharmacy"] .card-kicker { color: var(--rx-muted); }
+
+  /* Live reservation band */
+  .live-card {
+    background: linear-gradient(145deg, var(--p-reserve-bg), #fff);
+    border: 1.5px solid color-mix(in srgb, var(--p-reserve) 35%, var(--p-line));
+  }
+  .live-card .countdown {
+    font-size: var(--type-display);
+    line-height: var(--lh-display);
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    color: var(--p-reserve);
+    letter-spacing: 0;
+    margin-top: var(--space-2);
+  }
+  .live-card .code-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  .live-card .code {
+    font-size: 28px;
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    font-weight: 700;
+  }
+
+  /* Dose card */
+  .dose-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+    align-items: center;
+  }
+  .btn-dose {
+    min-width: var(--touch-patient);
+    min-height: var(--touch-patient);
+    padding: 0 var(--space-4);
+    border-radius: var(--r-sm);
+    background: var(--p-accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn-dose.is-done {
+    background: var(--p-success-bg);
+    color: var(--p-success);
+  }
+
+  /* Blister strip — signature */
+  .blister {
+    display: flex;
+    gap: 5px;
+    margin-top: var(--space-3);
+    align-items: center;
+  }
+  .blister-pill {
+    width: 18px;
+    height: 26px;
+    border-radius: 6px;
+    background: var(--p-accent-soft);
+    border: 1.5px solid color-mix(in srgb, var(--p-accent) 40%, var(--p-line));
+    transition: background 500ms ease, border-color 500ms ease, opacity 500ms ease, transform 500ms ease;
+  }
+  .blister-pill.is-empty {
+    background: transparent;
+    border-style: dashed;
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  .blister-pill.is-low {
+    background: var(--p-warning-bg);
+    border-color: color-mix(in srgb, var(--p-warning) 50%, var(--p-line));
+  }
+  .confidence {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: var(--space-2);
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    color: var(--p-muted);
+    font-weight: 500;
+  }
+  .confidence::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--p-warning);
+    flex-shrink: 0;
+  }
+
+  /* Quiet state */
+  .quiet {
+    text-align: center;
+    padding: var(--space-10) var(--space-4);
+  }
+  .quiet-mark {
+    width: 56px;
+    height: 56px;
+    margin-inline: auto;
+    border-radius: 50%;
+    background: var(--p-success-bg);
+    color: var(--p-success);
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    margin-block-end: var(--space-4);
+  }
+  .quiet h2 {
+    font-size: var(--type-title);
+    line-height: var(--lh-title);
+  }
+  .quiet p {
+    margin-top: var(--space-2);
+    color: var(--p-muted);
+  }
+
+  /* Buttons */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--touch-patient);
+    padding: 0 var(--space-5);
+    border-radius: var(--r-md);
+    background: var(--p-accent-deep);
+    color: #fff;
+    font-weight: 600;
+    font-size: var(--type-body);
+    width: 100%;
+  }
+  .btn-primary:disabled { opacity: 0.45; }
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--touch-patient);
+    padding: 0 var(--space-5);
+    border-radius: var(--r-md);
+    background: var(--p-raised);
+    border: 1.5px solid var(--p-line);
+    font-weight: 600;
+    width: 100%;
+  }
+  .btn-text {
+    min-height: var(--touch-min);
+    padding: var(--space-2) var(--space-3);
+    color: var(--p-accent);
+    font-weight: 600;
+  }
+  .btn-destructive {
+    min-height: var(--touch-patient);
+    padding: 0 var(--space-5);
+    border-radius: var(--r-md);
+    background: var(--p-alert-bg);
+    color: var(--p-alert);
+    font-weight: 600;
+    width: 100%;
+  }
+  .btn-row {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+  .btn-row.two {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* FAB */
+  .fab {
+    position: absolute;
+    inset-inline-end: var(--space-4);
+    bottom: calc(var(--nav-h) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--p-accent-deep);
+    color: #fff;
+    font-size: 28px;
+    font-weight: 400;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 8px 24px rgb(26 74 66 / 0.35);
+    z-index: 5;
+  }
+  .phone-inner[data-mode="pharmacy"] .fab { display: none; }
+
+  /* Bottom nav */
+  .tabbar {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: color-mix(in srgb, var(--p-surface) 92%, transparent);
+    backdrop-filter: blur(14px);
+    border-block-start: 1px solid var(--p-line);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    z-index: 4;
+  }
+  .phone-inner[data-mode="pharmacy"] .tabbar {
+    background: color-mix(in srgb, var(--rx-surface) 94%, transparent);
+    border-color: var(--rx-line);
+  }
+  .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: var(--touch-min);
+    color: var(--p-muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .phone-inner[data-mode="pharmacy"] .tab { color: var(--rx-muted); }
+  .tab[aria-current="page"] {
+    color: var(--p-accent-deep);
+  }
+  .phone-inner[data-mode="pharmacy"] .tab[aria-current="page"] {
+    color: var(--rx-accent);
+  }
+  .tab-icon {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+  }
+  .tab-icon svg { width: 22px; height: 22px; }
+
+  /* Find */
+  .capture-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    margin-block-end: var(--space-4);
+  }
+  .capture-btn {
+    min-height: 88px;
+    border-radius: var(--r-md);
+    border: 1.5px solid var(--p-line);
+    background: var(--p-raised);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-weight: 600;
+  }
+  .capture-btn .ico {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--p-accent-soft);
+    color: var(--p-accent-deep);
+    display: grid;
+    place-items: center;
+  }
+  .capture-btn .ico svg { width: 18px; height: 18px; }
+  .asking-pulse .ico-wait {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--p-reserve);
+    border-block-start-color: transparent;
+    border-radius: 50%;
+  }
+  .search-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--touch-patient);
+    padding: 0 var(--space-3);
+    background: var(--p-raised);
+    border: 1.5px solid var(--p-line);
+    border-radius: var(--r-md);
+    margin-block-end: var(--space-4);
+  }
+  .search-field input {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    min-height: var(--touch-patient);
+    outline: none;
+  }
+  .search-field input::placeholder { color: var(--p-muted); }
+  .med-list button {
+    width: 100%;
+    text-align: start;
+    padding: var(--space-3) var(--space-4);
+    background: var(--p-raised);
+    border: 1px solid var(--p-line);
+    border-radius: var(--r-md);
+    min-height: var(--touch-patient);
+  }
+  .med-list button + button { margin-top: var(--space-2); }
+  .med-list .lat {
+    display: block;
+    color: var(--p-muted);
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    margin-top: 2px;
+  }
+
+  /* Confirm */
+  .field {
+    margin-block-end: var(--space-4);
+  }
+  .field label {
+    display: block;
+    font-weight: 600;
+    margin-block-end: var(--space-2);
+  }
+  .seg {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+  }
+  .seg button {
+    min-height: var(--touch-patient);
+    border-radius: var(--r-sm);
+    border: 1.5px solid var(--p-line);
+    background: var(--p-raised);
+    font-weight: 600;
+    font-size: var(--type-caption);
+  }
+  .seg button[aria-pressed="true"] {
+    background: var(--p-accent-soft);
+    border-color: var(--p-accent);
+    color: var(--p-accent-deep);
+  }
+  .area-pick {
+    min-height: var(--touch-patient);
+    width: 100%;
+    padding: 0 var(--space-4);
+    border-radius: var(--r-md);
+    border: 1.5px solid var(--p-line);
+    background: var(--p-raised);
+    text-align: start;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Live responders */
+  .responders {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .responder {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    background: var(--p-raised);
+    border: 1px solid var(--p-line);
+    border-radius: var(--r-md);
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  .responder.is-in {
+    opacity: 1;
+    transform: none;
+    transition: opacity 200ms ease, transform 200ms ease;
+  }
+  .responder-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--p-line);
+  }
+  .responder[data-state="thinking"] .responder-dot {
+    background: var(--p-warning);
+    animation: pulse-dot 1.2s ease infinite;
+  }
+  .responder[data-state="replied"] .responder-dot { background: var(--p-success); }
+  .responder[data-state="asked"] .responder-dot { background: var(--p-muted); }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  .responder-state {
+    font-size: var(--type-caption);
+    line-height: var(--lh-caption);
+    font-weight: 600;
+    color: var(--p-muted);
+  }
+  .live-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+    margin-block-end: var(--space-4);
+  }
+  .live-stat {
+    background: var(--p-raised);
+    border: 1px solid var(--p-line);
+    border-radius: var(--r-sm);
+    padding: var(--space-3);
+    text-align: center;
+  }
+  .live-stat strong {
+    display: block;
+    font-size: var(--type-title);
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-display);
+  }
+  .live-stat span {
+    font-size: var(--type-caption);
+    color: var(--p-muted);
+  }
+
+  /* Offers — Offer ≠ Reservation */
+  .offer-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--p-offer-bg);
+    color: var(--p-offer);
+    font-size: var(--type-caption);
+    font-weight: 700;
+  }
+  .reserve-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--p-reserve-bg);
+    color: var(--p-reserve);
+    font-size: var(--type-caption);
+    font-weight: 700;
+  }
+  .offer-card {
+    border-inline-start: 4px solid var(--p-offer);
+  }
+  .offer-card.is-closed {
+    opacity: 0.55;
+    border-inline-start-color: var(--p-muted);
+  }
+  .offer-facts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  .fact dt {
+    font-size: var(--type-caption);
+    color: var(--p-muted);
+    font-weight: 600;
+  }
+  .fact dd {
+    margin: 0;
+    font-weight: 700;
+    font-size: var(--type-body);
+  }
+  .open-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--p-success);
+    font-size: var(--type-body);
+  }
+  .open-tag::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .open-tag.closed { color: var(--p-muted); }
+  .verified {
+    font-size: var(--type-caption);
+    color: var(--p-accent);
+    font-weight: 600;
+    margin-top: var(--space-2);
+  }
+  .sort-row {
+    display: flex;
+    gap: var(--space-2);
+    margin-block-end: var(--space-4);
+    overflow-x: auto;
+  }
+  .sort-row .chip { white-space: nowrap; }
+
+  /* Reservation pass */
+  .pass {
+    background: linear-gradient(160deg, var(--p-reserve) 0%, #163a5c 100%);
+    color: #fff;
+    border-radius: var(--r-lg);
+    padding: var(--space-6) var(--space-5);
+    text-align: center;
+    margin-block-end: var(--space-4);
+  }
+  .pass .pass-label {
+    font-size: var(--type-caption);
+    opacity: 0.85;
+    font-weight: 600;
+  }
+  .pass .pass-code {
+    font-size: 42px;
+    line-height: 1.2;
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    margin-top: var(--space-2);
+    font-weight: 700;
+  }
+  .pass .pass-timer {
+    font-size: var(--type-display);
+    line-height: var(--lh-display);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-family: var(--font-display);
+    margin-top: var(--space-4);
+  }
+  .pass .pass-addr {
+    margin-top: var(--space-4);
+    font-size: var(--type-body);
+    opacity: 0.92;
+  }
+
+  /* Empty / error */
+  .empty-state {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+  }
+  .empty-state h2 {
+    font-size: var(--type-title);
+    line-height: var(--lh-title);
+  }
+  .empty-state p {
+    margin-top: var(--space-2);
+    color: var(--p-muted);
+  }
+  .error-box {
+    background: var(--p-alert-bg);
+    border: 1px solid color-mix(in srgb, var(--p-alert) 30%, var(--p-line));
+    border-radius: var(--r-md);
+    padding: var(--space-4);
+  }
+  .error-box h2 {
+    font-size: var(--type-headline);
+    line-height: var(--lh-headline);
+    color: var(--p-alert);
+  }
+  .error-box p {
+    margin-top: var(--space-2);
+    color: var(--p-ink);
+  }
+  .error-safe {
+    margin-top: var(--space-2);
+    font-size: var(--type-caption);
+    color: var(--p-muted);
+    font-weight: 600;
+  }
+
+  /* Pharmacy */
+  .rx-urgent {
+    border-inline-start: 4px solid var(--rx-alert);
+  }
+  .rx-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-2);
+    font-size: var(--type-body);
+    color: var(--rx-muted);
+  }
+  .rx-meta strong { color: var(--rx-ink); font-weight: 700; }
+  .rx-timer {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--rx-warning);
+  }
+
+  .answer-bar {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, var(--rx-ground) 70%, transparent);
+    z-index: 6;
+    display: none;
+  }
+  .answer-bar.is-visible { display: block; }
+  .answer-inner {
+    background: var(--rx-raised);
+    border: 1px solid var(--rx-line);
+    border-radius: var(--r-lg);
+    padding: var(--space-3);
+  }
+  .answer-price {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+    margin-block-end: var(--space-3);
+  }
+  .answer-price button {
+    min-height: var(--touch-pharmacy);
+    border-radius: var(--r-sm);
+    background: var(--rx-surface);
+    border: 1.5px solid var(--rx-line);
+    color: var(--rx-ink);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .answer-price button[aria-pressed="true"] {
+    background: var(--rx-accent);
+    color: var(--rx-accent-ink);
+    border-color: var(--rx-accent);
+  }
+  .answer-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: var(--space-2);
+  }
+  .btn-rx-primary {
+    min-height: var(--touch-pharmacy);
+    border-radius: var(--r-md);
+    background: var(--rx-accent);
+    color: var(--rx-accent-ink);
+    font-weight: 700;
+    font-size: var(--type-body);
+  }
+  .btn-rx-decline {
+    min-height: var(--touch-pharmacy);
+    border-radius: var(--r-md);
+    background: transparent;
+    border: 1.5px solid var(--rx-line);
+    color: var(--rx-muted);
+    font-weight: 700;
+  }
+  .ready-seg {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+    margin-block-end: var(--space-3);
+  }
+  .ready-seg button {
+    min-height: 44px;
+    border-radius: var(--r-sm);
+    border: 1.5px solid var(--rx-line);
+    background: var(--rx-surface);
+    color: var(--rx-ink);
+    font-weight: 600;
+    font-size: var(--type-caption);
+  }
+  .ready-seg button[aria-pressed="true"] {
+    border-color: var(--rx-accent);
+    color: var(--rx-accent);
+  }
+
+  .hold-card {
+    border-inline-start: 4px solid var(--rx-accent);
+  }
+  .hold-code {
+    font-size: var(--type-display);
+    line-height: var(--lh-display);
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    color: var(--rx-accent);
+    margin-top: var(--space-2);
+  }
+
+  .back-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-block-end: var(--space-2);
+  }
+  .back-btn {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    border-radius: 50%;
+  }
+
+  .stub-note {
+    margin-top: var(--space-6);
+    padding: var(--space-4);
+    border-radius: var(--r-md);
+    background: var(--p-accent-soft);
+    color: var(--p-accent-deep);
+    font-size: var(--type-body);
+    text-align: center;
+  }
+
+  .asking-pulse {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin-inline: auto;
+    margin-block: var(--space-6);
+    background: var(--p-reserve-bg);
+    border: 3px solid var(--p-reserve);
+    display: grid;
+    place-items: center;
+    animation: ask-pulse 1.4s ease infinite;
+  }
+  @keyframes ask-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.06); opacity: 0.85; }
+  }
+
+  .picked-mark {
+    width: 72px;
+    height: 72px;
+    margin-inline: auto;
+    border-radius: 50%;
+    background: var(--p-success-bg);
+    color: var(--p-success);
+    display: grid;
+    place-items: center;
+    font-size: 32px;
+    margin-block: var(--space-6);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .screen.is-active,
+    .responder.is-in,
+    .blister-pill,
+    .safety-layer,
+    .asking-pulse,
+    .responder[data-state="thinking"] .responder-dot {
+      animation: none !important;
+      transition: opacity 150ms ease !important;
+    }
+    .asking-pulse { transform: none; }
+  }
+
+  @media (prefers-contrast: more) {
+    :root {
+      --p-ink: #000;
+      --p-muted: #333;
+      --p-line: #666;
+      --p-accent: #0d5c4a;
+      --p-accent-deep: #063d32;
+    }
+    .card, .btn-secondary, .capture-btn, .search-field, .area-pick {
+      border-width: 2px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="studio">
+    <aside class="panel" aria-label="لوحة المعاينة">
+      <h1>دوائي · Blueprint UI</h1>
+      <p class="lede">معاينة تفاعلية لمرحلة ٠ — حلقة الطلب والحجز وفق وثيقة المنتج v1.0. العرض ≠ الحجز.</p>
+
+      <div class="panel-section">
+        <h2>التجربة</h2>
+        <div class="toggle-row" role="group" aria-label="تبديل التجربة">
+          <button type="button" class="chip" id="mode-patient" aria-pressed="true">المريض</button>
+          <button type="button" class="chip" id="mode-pharmacy" aria-pressed="false">الصيدلية</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2>حالات العرض</h2>
+        <div class="toggle-row">
+          <button type="button" class="chip" id="tog-offline" aria-pressed="false">بدون نت</button>
+          <button type="button" class="chip" id="tog-safety" aria-pressed="false">تنبيه سلامة</button>
+          <button type="button" class="chip" id="tog-quiet" aria-pressed="false">اليوم هادئ</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2>انتقال سريع</h2>
+        <div class="jump-list" id="jump-patient">
+          <button type="button" data-jump="today" aria-current="true">اليوم</button>
+          <button type="button" data-jump="find">ابحث</button>
+          <button type="button" data-jump="confirm">تأكيد الطلب</button>
+          <button type="button" data-jump="live">الردود الحية</button>
+          <button type="button" data-jump="compare">مقارنة العروض</button>
+          <button type="button" data-jump="asking">طلب الحجز</button>
+          <button type="button" data-jump="pass">بطاقة الحجز</button>
+          <button type="button" data-jump="nobody">ما رد أحد</button>
+          <button type="button" data-jump="picked">تم الاستلام</button>
+          <button type="button" data-jump="meds">أدويتي (مرحلة ٢)</button>
+          <button type="button" data-jump="me">حسابي (مرحلة ٢)</button>
+        </div>
+        <div class="jump-list" id="jump-pharmacy" hidden>
+          <button type="button" data-jump="rx-inbox" aria-current="true">الوارد</button>
+          <button type="button" data-jump="rx-answer">شريط الرد</button>
+          <button type="button" data-jump="rx-holds">الحجوزات</button>
+          <button type="button" data-jump="rx-stock">المخزون (مرحلة ١)</button>
+          <button type="button" data-jump="rx-branch">الفرع (مرحلة ١)</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="stage">
+      <div class="phone" aria-label="معاينة الهاتف">
+        <div class="phone-inner" id="phone" data-mode="patient">
+          <div class="status-bar" aria-hidden="true">
+            <span id="clock">٩:٤١</span>
+            <span>LTE · ٨٧٪</span>
+          </div>
+
+          <div class="offline-banner" role="status">
+            ما في اتصال. شغلك محفوظ وراح ينرسل أول ما يرجع النت.
+          </div>
+
+          <div class="safety-layer" id="safety" role="alert" aria-live="assertive">
+            <div class="safety-title">تنبيه تفاعل دوائي</div>
+            <div class="safety-body">راجع الصيدلي قبل استعمال <bdi dir="ltr">Amlodipine</bdi> مع دوائك الحالي. ما يمكّنك تتجاهل هذا التنبيه.</div>
+          </div>
+
+          <div class="screens" id="screens">
+            <!-- ========== PATIENT: TODAY ========== -->
+            <section class="screen is-active" id="screen-today" aria-labelledby="today-title">
+              <div class="sticky-head">
+                <div class="subject-switcher" role="group" aria-label="تبديل الشخص">
+                  <button type="button" class="subject-chip" data-subject="self" aria-pressed="false">أنا</button>
+                  <button type="button" class="subject-chip" data-subject="mom" aria-pressed="true">
+                    والدتك
+                    <span class="scope">طلب · عرض</span>
+                  </button>
+                </div>
+                <h1 class="screen-title" id="today-title">اليوم</h1>
+                <p class="screen-sub" id="today-sub">أدوية والدتك · المنصور</p>
+              </div>
+              <div class="scroll" id="today-scroll">
+                <div id="today-busy">
+                  <div class="band">
+                    <div class="band-label">حجز حي</div>
+                    <button type="button" class="card live-card" data-goto="pass" style="width:100%;text-align:start">
+                      <span class="reserve-badge">حجز · مخزون محجوز</span>
+                      <h2 class="card-title" style="margin-top:8px">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                      <p class="card-body">صيدلية النور · شارع ١٤ رمضان</p>
+                      <div class="countdown" id="today-countdown" aria-label="الوقت المتبقي">١:٤٧:٢٢</div>
+                      <div class="code-row">
+                        <span class="code" aria-label="رمز الاستلام"><bdi dir="ltr">4821</bdi></span>
+                        <span class="btn-text" style="color:var(--p-reserve)">افتح البطاقة</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div class="band">
+                    <div class="band-label">الآن</div>
+                    <div class="card dose-card">
+                      <div>
+                        <div class="card-kicker">جرعة مستحقة</div>
+                        <h2 class="card-title">ميتفورمين <bdi dir="ltr">500mg</bdi></h2>
+                        <p class="card-body">وقت دواء والدتك · خلال ٢٠ دقيقة</p>
+                      </div>
+                      <button type="button" class="btn-dose" id="btn-dose" aria-label="سجّل جرعة ميتفورمين">تمّت</button>
+                    </div>
+                  </div>
+
+                  <div class="band">
+                    <div class="band-label">قريب يخلص</div>
+                    <div class="card" id="blister-card">
+                      <div class="card-kicker">نافذة إعادة الطلب</div>
+                      <h2 class="card-title">ستاتين · أتورفاستاتين</h2>
+                      <p class="card-body">تقدير التوفر المتبقي</p>
+                      <div class="blister" id="blister" aria-label="شريط الحبوب: ٤ من ١٤ متبقية" role="img">
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-empty"></span>
+                        <span class="blister-pill is-low"></span>
+                        <span class="blister-pill is-low"></span>
+                        <span class="blister-pill is-low"></span>
+                        <span class="blister-pill is-low"></span>
+                      </div>
+                      <p class="confidence">تقدير متوسط الثقة · آخر صرف قبل ٢١ يوم</p>
+                      <div class="btn-row" style="margin-top:12px">
+                        <button type="button" class="btn-secondary" data-goto="confirm">اطلب إعادة تعبئة</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="band">
+                    <div class="band-label">بانتظارك</div>
+                    <button type="button" class="card" data-goto="compare" style="width:100%;text-align:start">
+                      <span class="offer-badge">عروض · ما تحجز شي</span>
+                      <h2 class="card-title" style="margin-top:8px">٣ صيدليات ردّت على طلبك</h2>
+                      <p class="card-body">قارن السعر والجاهزية — الحجز يصير بعد ما تختار</p>
+                    </button>
+                  </div>
+                </div>
+
+                <div id="today-quiet" class="quiet" hidden>
+                  <div class="quiet-mark" aria-hidden="true">✓</div>
+                  <h2>كل شي تمام</h2>
+                  <p>الجرعة الجاية لوالدتك ٨ مساءً · ميتفورمين</p>
+                </div>
+              </div>
+              <button type="button" class="fab" data-goto="find" aria-label="طلب دواء جديد">＋</button>
+              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
+                <button type="button" class="tab" data-goto="today" aria-current="page">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>
+                  اليوم
+                </button>
+                <button type="button" class="tab" data-goto="meds">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>
+                  أدويتي
+                </button>
+                <button type="button" class="tab" data-goto="find">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+                  ابحث
+                </button>
+                <button type="button" class="tab" data-goto="me">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>
+                  حسابي
+                </button>
+              </nav>
+            </section>
+
+            <!-- ========== FIND ========== -->
+            <section class="screen" id="screen-find" aria-labelledby="find-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="find-title">ابحث</h1>
+                <p class="screen-sub">صورة أو صوت قبل الكتابة</p>
+              </div>
+              <div class="scroll">
+                <div class="capture-row">
+                  <button type="button" class="capture-btn" data-goto="confirm" aria-label="صوّر علبة أو وصفة">
+                    <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h4l2-2h4l2 2h4v11H4V8z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+                    صوّر العلبة
+                  </button>
+                  <button type="button" class="capture-btn" data-goto="confirm" aria-label="اطلب بالصوت">
+                    <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></span>
+                    بالصوت
+                  </button>
+                </div>
+                <div class="search-field">
+                  <span aria-hidden="true">⌕</span>
+                  <input type="search" placeholder="أو اكتب اسم الدواء" aria-label="بحث عن دواء" />
+                </div>
+                <div class="band-label">أدوية شائعة</div>
+                <div class="med-list">
+                  <button type="button" data-goto="confirm">
+                    أملوديبين
+                    <span class="lat"><bdi dir="ltr">Amlodipine 5mg</bdi></span>
+                  </button>
+                  <button type="button" data-goto="confirm">
+                    ميتفورمين
+                    <span class="lat"><bdi dir="ltr">Metformin 500mg</bdi></span>
+                  </button>
+                  <button type="button" data-goto="confirm">
+                    أموكسيسيلين
+                    <span class="lat"><bdi dir="ltr">Amoxicillin</bdi></span>
+                  </button>
+                </div>
+              </div>
+              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
+                <button type="button" class="tab" data-goto="today">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>
+                  اليوم
+                </button>
+                <button type="button" class="tab" data-goto="meds">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>
+                  أدويتي
+                </button>
+                <button type="button" class="tab" data-goto="find" aria-current="page">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+                  ابحث
+                </button>
+                <button type="button" class="tab" data-goto="me">
+                  <span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>
+                  حسابي
+                </button>
+              </nav>
+            </section>
+
+            <!-- ========== CONFIRM REQUEST ========== -->
+            <section class="screen" id="screen-confirm" aria-labelledby="confirm-title">
+              <div class="sticky-head">
+                <div class="back-row">
+                  <button type="button" class="back-btn" data-goto="find" aria-label="رجوع">→</button>
+                  <div>
+                    <h1 class="screen-title" id="confirm-title">تأكيد الطلب</h1>
+                    <p class="screen-sub">قرار واحد — بعدين نرسل للصيدليات</p>
+                  </div>
+                </div>
+              </div>
+              <div class="scroll no-nav-pad">
+                <div class="card" style="margin-bottom:16px">
+                  <div class="card-kicker">الدواء</div>
+                  <h2 class="card-title">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                  <p class="card-body">لـ والدتك · علبة واحدة</p>
+                </div>
+                <div class="field">
+                  <label id="urgency-label">متى تحتاجه؟</label>
+                  <div class="seg" role="group" aria-labelledby="urgency-label">
+                    <button type="button" aria-pressed="true">عاجل الآن</button>
+                    <button type="button" aria-pressed="false">اليوم</button>
+                    <button type="button" aria-pressed="false">خلال يومين</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="area-btn">المنطقة</label>
+                  <button type="button" class="area-pick" id="area-btn">
+                    المنصور
+                    <span style="color:var(--p-muted);font-weight:500">غيّر</span>
+                  </button>
+                </div>
+                <p style="color:var(--p-muted);font-size:var(--type-caption);margin-bottom:16px">
+                  راح نسأل صيدليات موثّقة ومفتوحة ضمن ٢ كم. التوسيع يحتاج موافقتك.
+                </p>
+                <button type="button" class="btn-primary" data-goto="live">أرسل الطلب</button>
+              </div>
+            </section>
+
+            <!-- ========== LIVE RESPONDERS ========== -->
+            <section class="screen" id="screen-live" aria-labelledby="live-title">
+              <div class="sticky-head">
+                <div class="back-row">
+                  <button type="button" class="back-btn" data-goto="confirm" aria-label="رجوع">→</button>
+                  <div>
+                    <h1 class="screen-title" id="live-title">الردود الحية</h1>
+                    <p class="screen-sub">سألنا ٦ صيدليات · نطاق ٢ كم</p>
+                  </div>
+                </div>
+              </div>
+              <div class="scroll no-nav-pad">
+                <div class="live-stats" aria-live="polite">
+                  <div class="live-stat"><strong id="stat-asked">٦</strong><span>سُئلوا</span></div>
+                  <div class="live-stat"><strong id="stat-replied">٠</strong><span>ردّوا</span></div>
+                  <div class="live-stat"><strong id="stat-thinking">٦</strong><span>يفكرون</span></div>
+                </div>
+                <div class="responders" id="responders">
+                  <div class="responder" data-state="asked" data-name="النور"><span class="responder-dot"></span><div><strong>صيدلية النور</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">0.8</bdi> كم</span></div>
+                  <div class="responder" data-state="asked" data-name="الشفاء"><span class="responder-dot"></span><div><strong>صيدلية الشفاء</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">1.2</bdi> كم</span></div>
+                  <div class="responder" data-state="asked" data-name="المنصور"><span class="responder-dot"></span><div><strong>صيدلية المنصور</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">1.4</bdi> كم</span></div>
+                  <div class="responder" data-state="asked" data-name="اليرموك"><span class="responder-dot"></span><div><strong>صيدلية اليرموك</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">1.9</bdi> كم</span></div>
+                  <div class="responder" data-state="asked" data-name="الرافدين"><span class="responder-dot"></span><div><strong>صيدلية الرافدين</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">2.0</bdi> كم</span></div>
+                  <div class="responder" data-state="asked" data-name="الأقصى"><span class="responder-dot"></span><div><strong>صيدلية الأقصى</strong><div class="responder-state">بانتظار الرد</div></div><span class="responder-state"><bdi dir="ltr">2.0</bdi> كم</span></div>
+                </div>
+                <div class="btn-row" style="margin-top:20px">
+                  <button type="button" class="btn-primary" id="btn-to-compare" data-goto="compare" disabled>قارن العروض</button>
+                  <button type="button" class="btn-secondary" data-goto="nobody">ما رد أحد؟</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ========== COMPARE OFFERS ========== -->
+            <section class="screen" id="screen-compare" aria-labelledby="compare-title">
+              <div class="sticky-head">
+                <div class="back-row">
+                  <button type="button" class="back-btn" data-goto="live" aria-label="رجوع">→</button>
+                  <div>
+                    <h1 class="screen-title" id="compare-title">العروض</h1>
+                    <p class="screen-sub">عرض · ما يحجز مخزون بعد</p>
+                  </div>
+                </div>
+              </div>
+              <div class="scroll no-nav-pad">
+                <div class="sort-row" role="group" aria-label="ترتيب">
+                  <button type="button" class="chip" aria-pressed="true">الأفضل</button>
+                  <button type="button" class="chip" aria-pressed="false">الأقرب</button>
+                  <button type="button" class="chip" aria-pressed="false">السعر</button>
+                </div>
+
+                <article class="card offer-card">
+                  <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+                    <div>
+                      <span class="open-tag">مفتوحة الآن</span>
+                      <h2 class="card-title">صيدلية النور</h2>
+                      <p class="verified">موثّقة في دوائي · المنصور</p>
+                    </div>
+                    <span class="offer-badge">عرض</span>
+                  </div>
+                  <dl class="offer-facts">
+                    <div class="fact"><dt>السعر</dt><dd><bdi dir="ltr">4,500</bdi> د.ع</dd></div>
+                    <div class="fact"><dt>الجاهزية</dt><dd>جاهز الآن</dd></div>
+                    <div class="fact"><dt>المسافة</dt><dd><bdi dir="ltr">0.8</bdi> كم · مشي</dd></div>
+                    <div class="fact"><dt>آخر تأكيد</dt><dd>قبل ٤ دقائق</dd></div>
+                  </dl>
+                  <p class="card-body" style="margin-top:8px">يغلق بعد ٢ ساعات · رد عادة خلال دقيقة</p>
+                  <button type="button" class="btn-primary" style="margin-top:12px" data-goto="asking">اختر هذا العرض</button>
+                </article>
+
+                <article class="card offer-card" style="margin-top:12px">
+                  <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+                    <div>
+                      <span class="open-tag">مفتوحة الآن</span>
+                      <h2 class="card-title">صيدلية الشفاء</h2>
+                      <p class="verified">موثّقة في دوائي · اليرموك</p>
+                    </div>
+                    <span class="offer-badge">عرض</span>
+                  </div>
+                  <dl class="offer-facts">
+                    <div class="fact"><dt>السعر</dt><dd><bdi dir="ltr">4,250</bdi> د.ع</dd></div>
+                    <div class="fact"><dt>الجاهزية</dt><dd>خلال ١٥ دقيقة</dd></div>
+                    <div class="fact"><dt>المسافة</dt><dd><bdi dir="ltr">1.2</bdi> كم · مشي</dd></div>
+                    <div class="fact"><dt>آخر تأكيد</dt><dd>قبل دقيقة</dd></div>
+                  </dl>
+                  <button type="button" class="btn-secondary" style="margin-top:12px" data-goto="asking">اختر هذا العرض</button>
+                </article>
+
+                <article class="card offer-card is-closed" style="margin-top:12px">
+                  <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+                    <div>
+                      <span class="open-tag closed">مغلقة · تفتح ٨ صباحاً</span>
+                      <h2 class="card-title">صيدلية الأقصى</h2>
+                      <p class="verified">موثّقة في دوائي</p>
+                    </div>
+                    <span class="offer-badge">عرض</span>
+                  </div>
+                  <p class="card-body" style="margin-top:8px">ما نعرضه كخيار للاستلام الآن — الصيدلية مغلقة.</p>
+                </article>
+              </div>
+            </section>
+
+            <!-- ========== ASKING TO SET ASIDE ========== -->
+            <section class="screen" id="screen-asking" aria-labelledby="asking-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="asking-title">نطلب الحجز</h1>
+                <p class="screen-sub">الساعة ما تبدأ إلا بعد تأكيد الصيدلي</p>
+              </div>
+              <div class="scroll no-nav-pad" style="text-align:center">
+                <div class="asking-pulse" aria-hidden="true"><span class="ico-wait"></span></div>
+                <h2 style="font-size:var(--type-title);line-height:var(--lh-title)">عم نسأل صيدلية النور تحجزه</h2>
+                <p style="color:var(--p-muted);margin-top:8px;max-width:280px;margin-inline:auto">
+                  اخترت عرض — هذا ما يحجز مخزون بعد. الصيدلي المرخّص لازم يأكد الحجز.
+                </p>
+                <div class="card" style="text-align:start;margin-top:24px">
+                  <span class="offer-badge">بانتظار حجز</span>
+                  <h3 class="card-title" style="margin-top:8px">أملوديبين · النور</h3>
+                  <p class="card-body"><bdi dir="ltr">4,500</bdi> د.ع · جاهز الآن</p>
+                </div>
+                <div class="btn-row">
+                  <button type="button" class="btn-primary" id="btn-simulate-ack">محاكاة تأكيد الصيدلي</button>
+                  <button type="button" class="btn-destructive" data-goto="compare">إلغاء</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ========== RESERVATION PASS ========== -->
+            <section class="screen" id="screen-pass" aria-labelledby="pass-title">
+              <div class="sticky-head">
+                <div class="back-row">
+                  <button type="button" class="back-btn" data-goto="today" aria-label="رجوع">→</button>
+                  <div>
+                    <h1 class="screen-title" id="pass-title">بطاقة الحجز</h1>
+                    <p class="screen-sub">أرِها على الكاونتر</p>
+                  </div>
+                </div>
+              </div>
+              <div class="scroll no-nav-pad">
+                <div class="pass" role="group" aria-label="بطاقة استلام الحجز">
+                  <div class="pass-label">رمز الاستلام</div>
+                  <div class="pass-code" aria-label="الرمز"><bdi dir="ltr">4821</bdi></div>
+                  <div class="pass-timer" id="pass-countdown">١:٤٧:٢٢</div>
+                  <div class="pass-label" style="margin-top:4px">متبقي للاستلام</div>
+                  <div class="pass-addr">
+                    صيدلية النور<br />
+                    شارع ١٤ رمضان · المنصور<br />
+                    أملوديبين <bdi dir="ltr">5mg</bdi> · لـ والدتك
+                  </div>
+                </div>
+                <div class="btn-row two">
+                  <button type="button" class="btn-secondary">الاتجاهات</button>
+                  <button type="button" class="btn-secondary">اتصال</button>
+                </div>
+                <div class="btn-row">
+                  <button type="button" class="btn-primary" data-goto="picked">تم الاستلام</button>
+                  <button type="button" class="btn-destructive">إلغاء الحجز</button>
+                </div>
+                <p style="margin-top:16px;color:var(--p-muted);font-size:var(--type-caption);text-align:center">
+                  <span class="reserve-badge">حجز</span>
+                  &nbsp;المخزون محجوز · الساعة من وقت الخادم
+                </p>
+              </div>
+            </section>
+
+            <!-- ========== NOBODY REPLIED ========== -->
+            <section class="screen" id="screen-nobody" aria-labelledby="nobody-title">
+              <div class="sticky-head">
+                <div class="back-row">
+                  <button type="button" class="back-btn" data-goto="live" aria-label="رجوع">→</button>
+                  <div>
+                    <h1 class="screen-title" id="nobody-title">ما رد أحد</h1>
+                    <p class="screen-sub">مو معناها الدواء غير موجود</p>
+                  </div>
+                </div>
+              </div>
+              <div class="scroll no-nav-pad">
+                <div class="error-box" role="status">
+                  <h2>ما رد أحد — ممكن يكونون مشغولين</h2>
+                  <p>أرسلنا لـ ٦ صيدليات ضمن ٢ كم لمدة ٥ دقائق. السكوت ≠ نفاد.</p>
+                  <p class="error-safe">طلبك محفوظ · ما اندفن</p>
+                </div>
+                <div class="btn-row" style="margin-top:20px">
+                  <button type="button" class="btn-primary" data-goto="live">أعد الإرسال</button>
+                  <button type="button" class="btn-secondary">وسّع النطاق لـ ٥ كم</button>
+                  <button type="button" class="btn-secondary">أخبرني لما يتوفر</button>
+                  <button type="button" class="btn-text">اتصل بصيدليتي المعتادة</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ========== PICKED UP ========== -->
+            <section class="screen" id="screen-picked" aria-labelledby="picked-title">
+              <div class="scroll no-nav-pad" style="text-align:center;padding-top:48px">
+                <div class="picked-mark" aria-hidden="true">✓</div>
+                <h1 class="screen-title" id="picked-title">تم الاستلام</h1>
+                <p style="color:var(--p-muted);margin-top:8px">أملوديبين لـ والدتك · صيدلية النور</p>
+                <div class="btn-row" style="max-width:280px;margin-inline:auto;margin-top:32px">
+                  <button type="button" class="btn-primary" data-goto="today">ارجع لليوم</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ========== MEDS STUB ========== -->
+            <section class="screen" id="screen-meds" aria-labelledby="meds-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="meds-title">أدويتي</h1>
+                <p class="screen-sub">السجل الدائم</p>
+              </div>
+              <div class="scroll">
+                <div class="empty-state">
+                  <h2>هنا راح تشوف أدويتك ومواعيدها</h2>
+                  <p>مرحلة ٢ من الخطة — السجل يصير سبب البقاء بعد المشوار.</p>
+                </div>
+                <div class="stub-note">Phase 2 · My medicines, schedules, timeline</div>
+              </div>
+              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
+                <button type="button" class="tab" data-goto="today"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>اليوم</button>
+                <button type="button" class="tab" data-goto="meds" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>أدويتي</button>
+                <button type="button" class="tab" data-goto="find"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>ابحث</button>
+                <button type="button" class="tab" data-goto="me"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>حسابي</button>
+              </nav>
+            </section>
+
+            <!-- ========== ME STUB ========== -->
+            <section class="screen" id="screen-me" aria-labelledby="me-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="me-title">حسابي</h1>
+                <p class="screen-sub">الهوية · العائلة · الخصوصية</p>
+              </div>
+              <div class="scroll">
+                <div class="empty-state">
+                  <h2>تكدر تخلي أحد من أهلك يشوف أدويتك أو يطلب عنك</h2>
+                  <p>مرحلة ٢ — العائلة وسجل من شاف سجلك.</p>
+                </div>
+                <div class="stub-note">Phase 2 · Family, access log, export</div>
+              </div>
+              <nav class="tabbar" aria-label="التنقل الرئيسي" data-tabs="patient">
+                <button type="button" class="tab" data-goto="today"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></span>اليوم</button>
+                <button type="button" class="tab" data-goto="meds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="5"/><path d="M12 7v10"/></svg></span>أدويتي</button>
+                <button type="button" class="tab" data-goto="find"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>ابحث</button>
+                <button type="button" class="tab" data-goto="me" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg></span>حسابي</button>
+              </nav>
+            </section>
+
+            <!-- ========== PHARMACY: INBOX ========== -->
+            <section class="screen" id="screen-rx-inbox" aria-labelledby="rx-inbox-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="rx-inbox-title">الوارد</h1>
+                <p class="screen-sub">فرع المنصور · متصل</p>
+              </div>
+              <div class="scroll">
+                <div class="band">
+                  <div class="band-label">عاجل · أقل وقت أولاً</div>
+                  <button type="button" class="card rx-urgent" data-goto="rx-answer" style="width:100%;text-align:start">
+                    <h2 class="card-title">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                    <div class="rx-meta">
+                      <span>كمية ≈ <strong>١</strong></span>
+                      <span>المنصور</span>
+                      <span>عاجل الآن</span>
+                      <span class="rx-timer">باقي ١:٤٠</span>
+                    </div>
+                  </button>
+                </div>
+                <div class="band">
+                  <div class="band-label">قريب</div>
+                  <button type="button" class="card" data-goto="rx-answer" style="width:100%;text-align:start">
+                    <h2 class="card-title">أموكسيسيلين شراب</h2>
+                    <div class="rx-meta">
+                      <span>كمية ≈ <strong>١</strong></span>
+                      <span>اليرموك</span>
+                      <span>اليوم</span>
+                      <span class="rx-timer">باقي ٨:١٢</span>
+                    </div>
+                  </button>
+                  <button type="button" class="card" data-goto="rx-answer" style="width:100%;text-align:start;margin-top:12px">
+                    <h2 class="card-title">ميتفورمين <bdi dir="ltr">500mg</bdi></h2>
+                    <div class="rx-meta">
+                      <span>كمية ≈ <strong>٢</strong></span>
+                      <span>المنصور</span>
+                      <span>خلال يومين</span>
+                      <span class="rx-timer">باقي ١٢:٠٠</span>
+                    </div>
+                  </button>
+                </div>
+                <p style="color:var(--rx-muted);font-size:var(--type-caption);text-align:center;margin-top:8px">
+                  ما في أسماء مرضى قبل الاختيار · ما في أسعار منافسين
+                </p>
+              </div>
+              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
+                <button type="button" class="tab" data-goto="rx-inbox" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
+                <button type="button" class="tab" data-goto="rx-holds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
+                <button type="button" class="tab" data-goto="rx-stock"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
+                <button type="button" class="tab" data-goto="rx-branch"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
+              </nav>
+            </section>
+
+            <!-- ========== PHARMACY: ANSWER ========== -->
+            <section class="screen" id="screen-rx-answer" aria-labelledby="rx-answer-title">
+              <div class="sticky-head">
+                <div class="back-row">
+                  <button type="button" class="back-btn" data-goto="rx-inbox" aria-label="رجوع" style="color:var(--rx-ink)">→</button>
+                  <div>
+                    <h1 class="screen-title" id="rx-answer-title">الطلب</h1>
+                    <p class="screen-sub">ردّ خلال ثوانٍ · بدون حقل كمية</p>
+                  </div>
+                </div>
+              </div>
+              <div class="scroll answer-pad">
+                <div class="card">
+                  <div class="card-kicker" style="color:var(--rx-muted)">طلب عاجل</div>
+                  <h2 class="card-title">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                  <div class="rx-meta">
+                    <span>كمية ≈ <strong>١</strong></span>
+                    <span>المنصور · قريب</span>
+                    <span class="rx-timer">باقي ١:٤٠</span>
+                  </div>
+                  <p class="card-body" style="margin-top:12px;color:var(--rx-muted)">
+                    العرض يعد بالسعر والجاهزية فقط. الحجز يحتاج صيدلي مرخّص بعد ما يختار المريض.
+                  </p>
+                </div>
+              </div>
+              <div class="answer-bar is-visible" id="answer-bar" role="region" aria-label="شريط الرد">
+                <div class="answer-inner">
+                  <div class="ready-seg" role="group" aria-label="الجاهزية">
+                    <button type="button" aria-pressed="true">جاهز الآن</button>
+                    <button type="button" aria-pressed="false">١٥ د</button>
+                    <button type="button" aria-pressed="false">٣٠ د</button>
+                  </div>
+                  <div class="answer-price" role="group" aria-label="السعر">
+                    <button type="button" aria-pressed="false"><bdi dir="ltr">4,000</bdi></button>
+                    <button type="button" aria-pressed="true"><bdi dir="ltr">4,500</bdi></button>
+                    <button type="button" aria-pressed="false"><bdi dir="ltr">5,000</bdi></button>
+                  </div>
+                  <div class="answer-actions">
+                    <button type="button" class="btn-rx-decline" id="btn-decline">اعتذر</button>
+                    <button type="button" class="btn-rx-primary" id="btn-send-offer">أرسل العرض</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ========== PHARMACY: HOLDS ========== -->
+            <section class="screen" id="screen-rx-holds" aria-labelledby="rx-holds-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="rx-holds-title">الحجوزات</h1>
+                <p class="screen-sub">مخزون محجوز · ساعة شغّالة</p>
+              </div>
+              <div class="scroll">
+                <div class="card hold-card">
+                  <span style="display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;background:rgb(200 232 106 / 0.18);color:var(--rx-accent);font-size:var(--type-caption);font-weight:700">حجز مؤكد</span>
+                  <h2 class="card-title" style="margin-top:8px">أملوديبين <bdi dir="ltr">5mg</bdi></h2>
+                  <div class="hold-code" aria-label="رمز الاستلام"><bdi dir="ltr">4821</bdi></div>
+                  <div class="rx-meta">
+                    <span>موعد نهائي <strong class="rx-timer" id="hold-deadline">١:٤٧:٢٢</strong></span>
+                    <span>جاهز على الرف</span>
+                  </div>
+                  <div class="btn-row" style="margin-top:16px">
+                    <button type="button" class="btn-rx-primary">تحقق من الرمز · تسليم</button>
+                    <button type="button" class="btn-rx-decline">تعذّر الحجز</button>
+                  </div>
+                </div>
+                <p style="color:var(--rx-muted);font-size:var(--type-caption);text-align:center;margin-top:20px">
+                  العرض أخضر خفيف للمريض · الحجز لون مختلف هنا — التزام فعلي
+                </p>
+              </div>
+              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
+                <button type="button" class="tab" data-goto="rx-inbox"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
+                <button type="button" class="tab" data-goto="rx-holds" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
+                <button type="button" class="tab" data-goto="rx-stock"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
+                <button type="button" class="tab" data-goto="rx-branch"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
+              </nav>
+            </section>
+
+            <!-- ========== PHARMACY STUBS ========== -->
+            <section class="screen" id="screen-rx-stock" aria-labelledby="rx-stock-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="rx-stock-title">المخزون</h1>
+                <p class="screen-sub">حركات · مو ERP</p>
+              </div>
+              <div class="scroll">
+                <div class="empty-state">
+                  <h2 style="color:var(--rx-ink)">سجّل أول حركة مخزون وراح نبني الصورة تدريجياً</h2>
+                  <p style="color:var(--rx-muted)">مرحلة ١ — بدون حقل كمية مطلق للتعديل اليدوي.</p>
+                </div>
+              </div>
+              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
+                <button type="button" class="tab" data-goto="rx-inbox"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
+                <button type="button" class="tab" data-goto="rx-holds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
+                <button type="button" class="tab" data-goto="rx-stock" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
+                <button type="button" class="tab" data-goto="rx-branch"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
+              </nav>
+            </section>
+
+            <section class="screen" id="screen-rx-branch" aria-labelledby="rx-branch-title">
+              <div class="sticky-head">
+                <h1 class="screen-title" id="rx-branch-title">الفرع</h1>
+                <p class="screen-sub">ساعات · تغطية · أداء</p>
+              </div>
+              <div class="scroll">
+                <div class="empty-state">
+                  <h2 style="color:var(--rx-ink)">إعداد الفرع والأداء</h2>
+                  <p style="color:var(--rx-muted)">مرحلة ١ — بما فيها «الأكثر طلباً وغير متوفر عندك».</p>
+                </div>
+              </div>
+              <nav class="tabbar" aria-label="تنقل الصيدلية" data-tabs="pharmacy">
+                <button type="button" class="tab" data-goto="rx-inbox"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>الوارد</button>
+                <button type="button" class="tab" data-goto="rx-holds"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>الحجوزات</button>
+                <button type="button" class="tab" data-goto="rx-stock"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg></span>المخزون</button>
+                <button type="button" class="tab" data-goto="rx-branch" aria-current="page"><span class="tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18"/><path d="M6 20V9l6-4 6 4v11"/></svg></span>الفرع</button>
+              </nav>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+(function () {
+  const phone = document.getElementById("phone");
+  const safety = document.getElementById("safety");
+  const patientJumps = document.getElementById("jump-patient");
+  const pharmacyJumps = document.getElementById("jump-pharmacy");
+  const modePatient = document.getElementById("mode-patient");
+  const modePharmacy = document.getElementById("mode-pharmacy");
+  const togOffline = document.getElementById("tog-offline");
+  const togSafety = document.getElementById("tog-safety");
+  const togQuiet = document.getElementById("tog-quiet");
+
+  const PATIENT_SCREENS = new Set([
+    "today", "find", "confirm", "live", "compare", "asking", "pass",
+    "nobody", "picked", "meds", "me"
+  ]);
+  const PHARMACY_SCREENS = new Set([
+    "rx-inbox", "rx-answer", "rx-holds", "rx-stock", "rx-branch"
+  ]);
+
+  let remainingSec = 1 * 3600 + 47 * 60 + 22;
+  let liveTimer = null;
+  let reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function easternDigits(n) {
+    return String(n).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]);
+  }
+
+  function formatCountdown(total) {
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const pad = (x) => easternDigits(String(x).padStart(2, "0"));
+    return pad(h) + ":" + pad(m) + ":" + pad(s);
+  }
+
+  function tickCountdown() {
+    if (remainingSec > 0) remainingSec -= 1;
+    const text = formatCountdown(remainingSec);
+    document.querySelectorAll("#today-countdown, #pass-countdown, #hold-deadline").forEach((el) => {
+      el.textContent = text;
+    });
+  }
+  setInterval(tickCountdown, 1000);
+  tickCountdown();
+
+  function setMode(mode) {
+    phone.dataset.mode = mode;
+    const isPatient = mode === "patient";
+    modePatient.setAttribute("aria-pressed", String(isPatient));
+    modePharmacy.setAttribute("aria-pressed", String(!isPatient));
+    patientJumps.hidden = !isPatient;
+    pharmacyJumps.hidden = isPatient;
+    showScreen(isPatient ? "today" : "rx-inbox");
+  }
+
+  function updateJumpCurrent(id) {
+    document.querySelectorAll(".jump-list button").forEach((btn) => {
+      btn.setAttribute("aria-current", btn.dataset.jump === id ? "true" : "false");
+    });
+  }
+
+  function showScreen(id) {
+    const isRx = id.startsWith("rx-");
+    if (isRx && phone.dataset.mode !== "pharmacy") setMode("pharmacy");
+    if (!isRx && phone.dataset.mode !== "patient") {
+      phone.dataset.mode = "patient";
+      modePatient.setAttribute("aria-pressed", "true");
+      modePharmacy.setAttribute("aria-pressed", "false");
+      patientJumps.hidden = false;
+      pharmacyJumps.hidden = true;
+    }
+
+    document.querySelectorAll(".screen").forEach((s) => s.classList.remove("is-active"));
+    const el = document.getElementById("screen-" + id);
+    if (!el) return;
+    el.classList.add("is-active");
+    updateJumpCurrent(id);
+
+    // Hide answer bar except on answer screen
+    const bar = document.getElementById("answer-bar");
+    if (bar) bar.classList.toggle("is-visible", id === "rx-answer");
+
+    if (id === "live") startLiveDemo();
+    if (id === "today") animateBlister();
+  }
+
+  function startLiveDemo() {
+    if (liveTimer) {
+      clearTimeout(liveTimer);
+      liveTimer = null;
+    }
+    const rows = Array.from(document.querySelectorAll("#responders .responder"));
+    const compareBtn = document.getElementById("btn-to-compare");
+    compareBtn.disabled = true;
+    document.getElementById("stat-replied").textContent = easternDigits(0);
+    document.getElementById("stat-thinking").textContent = easternDigits(6);
+    document.getElementById("stat-asked").textContent = easternDigits(6);
+
+    rows.forEach((row) => {
+      row.classList.remove("is-in");
+      row.dataset.state = "thinking";
+      row.querySelector(".responder-state").textContent = "يفكر…";
+    });
+
+    // Stagger appear
+    rows.forEach((row, i) => {
+      const delay = reduceMotion ? 0 : i * 200;
+      setTimeout(() => row.classList.add("is-in"), delay);
+    });
+
+    // Replies arrive staggered
+    const replyOrder = [0, 1, 2];
+    replyOrder.forEach((idx, n) => {
+      const delay = reduceMotion ? 100 : 900 + n * 700;
+      setTimeout(() => {
+        const row = rows[idx];
+        row.dataset.state = "replied";
+        row.querySelector(".responder-state").textContent = "ردّ · عرض جاهز";
+        const replied = n + 1;
+        document.getElementById("stat-replied").textContent = easternDigits(replied);
+        document.getElementById("stat-thinking").textContent = easternDigits(6 - replied);
+        if (replied >= 1) compareBtn.disabled = false;
+      }, delay);
+    });
+
+    // Remaining stay thinking then asked/timeout feel
+    [3, 4, 5].forEach((idx, n) => {
+      const delay = reduceMotion ? 200 : 3200 + n * 400;
+      setTimeout(() => {
+        rows[idx].dataset.state = "asked";
+        rows[idx].querySelector(".responder-state").textContent = "ما رد بعد";
+      }, delay);
+    });
+  }
+
+  function animateBlister() {
+    const pills = document.querySelectorAll("#blister .blister-pill");
+    // Signature: briefly show one more empty after paint
+    pills.forEach((p) => p.classList.remove("just-used"));
+    if (reduceMotion) return;
+    const remaining = Array.from(pills).filter((p) => !p.classList.contains("is-empty"));
+    if (remaining.length > 1) {
+      // pulse the lowest remaining
+      remaining[0].style.transform = "scale(1.08)";
+      setTimeout(() => { remaining[0].style.transform = ""; }, 500);
+    }
+  }
+
+  // Navigation
+  document.addEventListener("click", (e) => {
+    const goto = e.target.closest("[data-goto]");
+    if (goto) {
+      e.preventDefault();
+      showScreen(goto.dataset.goto);
+      return;
+    }
+    const jump = e.target.closest("[data-jump]");
+    if (jump) {
+      showScreen(jump.dataset.jump);
+    }
+  });
+
+  modePatient.addEventListener("click", () => setMode("patient"));
+  modePharmacy.addEventListener("click", () => setMode("pharmacy"));
+
+  togOffline.addEventListener("click", () => {
+    const on = togOffline.getAttribute("aria-pressed") !== "true";
+    togOffline.setAttribute("aria-pressed", String(on));
+    phone.classList.toggle("is-offline", on);
+  });
+
+  togSafety.addEventListener("click", () => {
+    const on = togSafety.getAttribute("aria-pressed") !== "true";
+    togSafety.setAttribute("aria-pressed", String(on));
+    safety.classList.toggle("is-visible", on);
+  });
+
+  togQuiet.addEventListener("click", () => {
+    const on = togQuiet.getAttribute("aria-pressed") !== "true";
+    togQuiet.setAttribute("aria-pressed", String(on));
+    document.getElementById("today-busy").hidden = on;
+    document.getElementById("today-quiet").hidden = !on;
+    if (!on) showScreen("today");
+    else showScreen("today");
+  });
+
+  // Subject switcher
+  document.querySelectorAll(".subject-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      document.querySelectorAll(".subject-chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
+      chip.setAttribute("aria-pressed", "true");
+      const sub = document.getElementById("today-sub");
+      if (chip.dataset.subject === "self") {
+        sub.textContent = "أدويتك · المنصور";
+      } else {
+        sub.textContent = "أدوية والدتك · المنصور";
+      }
+    });
+  });
+
+  // Segmented controls (urgency, sort, ready, price)
+  document.querySelectorAll(".seg, .sort-row, .ready-seg, .answer-price").forEach((group) => {
+    group.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn || !group.contains(btn)) return;
+      group.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+      btn.setAttribute("aria-pressed", "true");
+    });
+  });
+
+  // Dose confirm
+  const doseBtn = document.getElementById("btn-dose");
+  if (doseBtn) {
+    doseBtn.addEventListener("click", () => {
+      doseBtn.classList.add("is-done");
+      doseBtn.textContent = "سُجّلت";
+      doseBtn.disabled = true;
+    });
+  }
+
+  // Simulate pharmacist ACK → pass (clock starts here)
+  document.getElementById("btn-simulate-ack").addEventListener("click", () => {
+    remainingSec = 2 * 3600;
+    tickCountdown();
+    showScreen("pass");
+  });
+
+  // Pharmacy send offer
+  document.getElementById("btn-send-offer").addEventListener("click", () => {
+    showScreen("rx-holds");
+  });
+  document.getElementById("btn-decline").addEventListener("click", () => {
+    showScreen("rx-inbox");
+  });
+
+  // Initial blister animation
+  animateBlister();
+})();
+</script>
+</body>
+</html>
