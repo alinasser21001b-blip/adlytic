@@ -1,565 +1,631 @@
-# Adlytic — Design Requirements Package
+# Dawai (دوائي) — Design Requirements Package
 
-**Audience:** UI/UX Designer producing Figma files for the Adlytic web application.
+**Audience:** UI/UX Designer producing the Figma design system and screens for Dawai.
 **Not the audience:** Engineers. This is not code documentation.
 
 **Purpose:** This document tells the designer exactly what must exist inside the Figma
-files before engineering can build from them. It intentionally contains **no colors,
-no typography choices, no layout decisions**. Every item below is something the
-engineering team needs from Design and currently has to guess if Design doesn't supply it.
+files before engineering can build from them without guessing. It contains **no new
+colors, no new typography, no new layouts of my own invention** — every requirement
+below is either (a) something the existing product blueprint already specifies and the
+designer must honor, (b) something the existing code already encodes as a contract and
+the designer must honor or formally supersede, or (c) an open gap where engineering
+would otherwise have to guess, flagged explicitly as a decision the designer must make.
 
-**How this document was produced:** Derived from the actual shipped application
-(`src/web/layout.ts`, `src/web/pages/*.ts`, `src/web/pages/dashboard/*`) — the real
-screens, states, and flows in production today. Nothing here is aspirational. Anywhere the
-current app hardcodes a visual value (colors, spacing, fonts), it is called out explicitly
-as **"current implementation — not a design decision, must be replaced by the design
-system"** so the designer knows it's a placeholder, not a constraint.
-
----
-
-## 0. Context the designer needs
-
-Adlytic is an **Arabic-first, RTL-first** performance-marketing dashboard for Meta Ads,
-built for merchants in Iraq/MENA (primary currency in the codebase is IQD; UI copy today
-is close to 100% Arabic). It has:
-
-- A **sidebar + topbar** authenticated app shell (desktop) that collapses to a **bottom
-  tab bar** (mobile).
-- Two dashboard density modes: **Pro** (dense, data-heavy) and **Beginner** (simplified,
-  fewer cards, larger touch targets) — same route, different rendering.
-- A **recommendation/review workflow** (approve/execute or dismiss AI-generated action
-  items) — this is the single most important interaction pattern in the product and needs
-  the most design rigor.
-- A **support ticket inbox** (three-pane admin tool) as a second review-style workflow.
-- An **AI chat assistant** screen.
-- A **separate, less-polished admin surface** (3 admin pages that currently do not share
-  the main design system at all — flagged below as a required unification).
-- Meta OAuth connect flow, manual token entry fallback, WhatsApp-based manual account
-  activation (not self-service signup).
-
-The designer is being asked to design **the actual token/component system this app will
-run on**, replacing everything currently hardcoded in code.
+**Correction note:** an earlier draft of this document was written against the wrong
+product (Adlytic, a marketing dashboard also present in this repo). This version is
+about **Dawai**, the pharmacy/medicine-discovery-and-reservation product.
 
 ---
 
-## 1. Design System & Tokens
+## 0. What already exists — read this before designing anything
 
-Deliver a documented token set in Figma (Variables/Styles), not just applied colors on
-screens. Required token categories:
+Dawai's repo contains **four layers of prior work at very different levels of
+authority**. The designer needs to know which layer wins when they disagree, because
+they currently do disagree with each other in several places.
 
-### 1.1 Color tokens
-- Background layers: base background, surface, surface-elevated/hover, at minimum 3
-  elevation levels (the app currently uses a base + 2 surface layers + hover state —
-  confirm whether 3 or 4 levels are needed for the busiest screen, the Pro dashboard).
-- Border tokens: default border, emphasized/hover border (currently 2 levels).
-- Text tokens: primary, secondary, tertiary/muted (currently 3 levels) — each must have a
-  documented minimum contrast ratio against every surface token it's used on (WCAG AA at
-  minimum; state which ratio you're targeting).
-- Primary/brand accent color, with at least 2 supporting tints/shades for hover/active
-  states and glow/emphasis effects (used today for primary CTAs, active nav state, the
-  logo, and a "focus card" border-beam effect — see §5).
-- Semantic/status colors: success, warning, error, and a **distinct "critical" tier above
-  error** (the app has 4 severity tiers: info/low, warning/medium, error/high,
-  critical — confirm this 4-tier system or collapse it, but pick one explicitly).
-- Each semantic color needs a paired "dim"/background variant for badges and banners
-  (e.g. a low-opacity fill to sit behind full-opacity text/icon of the same hue).
-- Chart/dataviz palette: a categorical palette (for multi-series charts) and confirmation
-  of colorblind-safe separation. Specify which brand/status colors chart lines/bars may
-  reuse vs. which are chart-only.
-- **All colors must be specified for RTL Arabic long-form text on dark or light
-  surfaces (declare which)** — current implementation is a dark theme only; confirm
-  whether light mode is in scope for v1 or explicitly out of scope (do not leave this
-  ambiguous — engineering will otherwise assume dark-only).
+1. **The written product specification** — `docs/product/DAWAI_PRODUCT_BLUEPRINT.md`
+   (v1) is explicitly marked superseded by `docs/product/v3/blueprint-v3.html` ("v3
+   wins where they disagree"). Both must be read by the designer. v1 contains the
+   product's terminology, personas, screen inventory (197 screens), flows, and a
+   product-level design-system chapter (§25–27) that predates and partially
+   contradicts the code-level tokens below. **The designer's first task is to read v3
+   and confirm with the product owner which chapters of v1's §25–27 design-system
+   language still apply** — do not silently take v1 as final.
 
-### 1.2 Typography tokens
-- Confirm the two typefaces in scope: one for Arabic body/UI text, one for Arabic
-  display/headings (current implementation uses two different Arabic-supporting
-  webfonts — designer must confirm whether to keep two families or standardize on one,
-  and must supply the actual font files/licenses for self-hosting — no Google Fonts CDN
-  calls are allowed, see §14 CSP constraint).
-- Full type scale: display, H1–H4, body-large, body, body-small, caption, label/overline,
-  numeric/tabular figures (KPI numbers need a distinct numeric style — tabular lining
-  figures, since large stat numbers appear throughout).
-- Each scale step needs: font-family, weight, size, line-height, letter-spacing —
-  specified for **both Arabic and Latin/numeral rendering** (numerals in this product
-  render LTR even inside RTL Arabic text — confirm this rule holds site-wide and specify
-  any exceptions).
-- Font weights available per family (current implementation loads 5 weights of one
-  family and 3 of another — confirm actual weights needed).
+2. **A code-enforced design-token and contract system** —
+   `platform/packages/design/src/{tokens/color.ts, tokens/type.ts, tokens/space.ts,
+   tokens/motion.ts, rtl.ts, a11y.ts, ux/contract.ts}`. This is real, tested,
+   type-checked TypeScript that already defines exact colors, a type scale, a spacing
+   scale, a motion catalogue, RTL rules, and a per-screen UX contract schema (see §1–§9
+   below — every value is quoted from this code, not invented). **This is the strongest
+   available source of truth for tokens** because it's the only layer that's
+   machine-verified (contrast checks, contract audits, tests). Treat it as the design
+   system's current canonical state, subject to the designer's revision — not as
+   something to ignore in favor of a nicer-looking mockup.
 
-### 1.3 Spacing, sizing, radius tokens
-- A spacing scale (e.g. 4/8-based) — must be a finite, documented set, not ad hoc values.
-- Border-radius scale: minimum small/default/large (current implementation uses 3 radius
-  steps).
-- Icon size scale (current implementation is single-size 24px outline icons everywhere —
-  confirm whether additional sizes are needed, e.g. 16px for inline/dense contexts, 32–40px
-  for empty-state/feature icons).
-- Fixed layout dimensions that must be specified exactly, since engineering hardcodes
-  them: sidebar width, topbar height, bottom-nav height, max content width for the main
-  content column, chat sidebar width, admin context-panel width.
+3. **Four mutually-inconsistent static HTML concept mockups** —
+   `dawai-ui-preview.html`, `dawai-developed.html` (repo root), plus further variants
+   in `dawai-site/` (`classic.html`, `dawai-ui-kit.html`, `index.html`/`next.html`).
+   These use *different color palettes, different fonts, and different information
+   architecture for the same screens* (e.g. two different "welcome" screens). They are
+   **design exploration artifacts, not an approved system** — do not treat any single
+   one of them as ground truth. The designer's job includes explicitly resolving which
+   ideas from which mockup (if any) carry forward, and retiring the rest.
 
-### 1.4 Elevation & shadow tokens
-- A documented shadow scale (current implementation has 5 undocumented ad hoc shadow
-  values including glow/accent-glow effects) — reduce to a deliberate, named scale:
-  resting, raised, overlay/modal, focus-glow.
+4. **A real, tested, substantially-complete full-stack app** — `dawai-platform/`
+   (Express server + Postgres + React SPA with 26 real routes across patient/pharmacy/
+   admin). Its actual rendered pages (`dawai-platform/src/pages/*.tsx`) have **not been
+   visually reconciled with any of the mockups in layer 3** — this app is currently
+   running on ad hoc styling, not a designed system. This is the app the design system
+   must ultimately be applied to.
 
-### 1.5 Motion tokens
-- Standard transition duration + easing curve for hover/click micro-interactions.
-- A second, slower/springier duration+easing for entrance animations (both exist in
-  current implementation — confirm both are wanted, and where each applies).
-- Explicit rule for `prefers-reduced-motion`: which animations must be disabled entirely
-  vs. shortened (current implementation disables a decorative animated border effect —
-  confirm the full list of motion that must respect this).
+**A packaging fact the designer must know:** `dawai-manifest.webmanifest`'s
+`start_url` currently points at `dawai-ui-preview.html` — the installable PWA opens a
+static mockup, not the real app. This is a product/engineering decision to fix, not a
+design one, but the designer should know that the "canonical-looking" file a
+stakeholder might open on their phone is not actually the product.
 
 ---
 
-## 2. Component Library (with every variant and state)
+## 1. Product Context the Designer Must Design Against
 
-For **every** component below, Figma must include all listed variants/states as actual
-component variants — not just one happy-path frame. "State" always includes at minimum:
-default, hover, focus (keyboard), active/pressed, disabled, loading (where applicable).
+*(Summarized from the blueprint — restated here because every design decision below
+depends on it. If v3 changes any of this, the designer must get the updated version
+before proceeding.)*
 
-### 2.1 Buttons
-Variants required: primary, secondary, danger/destructive, ghost/tertiary, success.
-Sizes: default and small (large exists in current code — confirm if still needed).
-States: default, hover, active, disabled, **loading (with inline spinner replacing
-label)**. Icon-only button variant. Icon+label button variant (icon before/after label,
-mirrored per RTL/LTR).
+- **One-line pitch:** Dawai tells you which nearby pharmacy has your medicine, and
+  holds it for you.
+- **What it is not** (do not design toward these, even if they seem like natural
+  extensions): a delivery service, a payment platform, a diagnosis tool, a dose
+  calculator, a pharmacy ERP, a telemedicine service, or a prescription issuer.
+- **The single most important distinction in the product**, which must be
+  visually distinct everywhere it appears: **an Offer commits nothing; a Reservation
+  starts a clock.** If a screen shows an offer and a reservation with the same visual
+  weight, that is a defect.
+- **Three user populations with three different design personas** (already named and
+  color-scoped in code — see §2): **Patient** ("calm"), **Pharmacy** ("fast, one-handed,
+  at speed, behind a counter"), **Owner/Admin** ("certain, neutral, tabular/dense-data").
+  These are not just role-based color themes — the blueprint states pharmacy users are
+  frequently operating one-handed at speed, and patient users are frequently elderly,
+  low-vision, or have a tremor. Every pharmacy-facing screen needs a distinctly larger
+  primary touch target than patient screens (see §6).
+- **Core terminology the designer must use verbatim in every screen/label/annotation**
+  (Arabic-first; do not invent alternate phrasing):
 
-### 2.2 Form inputs
-Text input, password input (with show/hide toggle), select/dropdown, checkbox, radio,
-textarea, search input (with icon + clear button). States: default, focus, filled,
-error (with inline error message placement specified), disabled, with-icon-prefix
-variant (used on every auth field today).
+  | Concept | Arabic | Note |
+  |---|---|---|
+  | Subject (whose medicine) | الشخص | |
+  | Medicine (catalogue entry) | الدواء | |
+  | Medication (a subject's specific med) | دوائي | |
+  | Schedule | المواعيد | |
+  | Dose event | الجرعة | |
+  | Request | الطلب | patient broadcasts a need |
+  | Offer | العرض | **commits nothing** |
+  | Reservation | الحجز | **starts a clock** |
+  | Pickup | الاستلام | |
+  | Movement (stock change) | حركة مخزون | |
+  | Count (physical recount) | جرد | |
+  | Grant (family access) | الوصول | |
 
-### 2.3 Badges / status pills
-Severity badges: info, success, warning, error, critical, neutral/gray — as used for
-issue severity, ticket status, activation status ("Active"/"Pending"), campaign
-effective-status, freshness ("FRESH"/cached data) indicators. Specify shape (pill vs.
-rounded-rect), whether they carry an icon, and text-only vs. icon-only variants.
-
-### 2.4 Cards
-- **Stat/KPI card**: label, value (large numeric), trend indicator (up/down/flat with
-  color), optional sparkline, optional info-tooltip trigger, optional colored
-  accent/icon per metric type. Needs a loading-skeleton variant (see §8) and a
-  no-data variant.
-- **Content card** (generic container used for sections across every page): header
-  (title + optional action), body, optional footer.
-- **Recommendation/action card**: this is the single most important card in the
-  product — see §5 for full spec.
-- **Chat message bubble**: user vs. assistant vs. system, with timestamp.
-
-### 2.5 Navigation
-- Sidebar (desktop): logo/brand, nav item list (icon + label), active-item indicator,
-  hover state, section grouping, user account footer (avatar, name, email, logout
-  affordance), collapse/expand behavior if any.
-- Topbar: page title, mode toggle (Pro/Beginner — needs on/off visual states),
-  workspace switcher control, settings entry point, notification/bell entry point,
-  logout/account entry point.
-- Bottom tab bar (mobile): exactly which items appear (current implementation
-  deliberately shows a subset of the sidebar items on mobile — designer must confirm the
-  final subset, don't assume it's "all items shrunk down"), active-tab indicator.
-- Breadcrumbs, if any are wanted anywhere (none currently exist — confirm in/out of
-  scope).
-
-### 2.6 Data display
-- **Table**: header row, sortable-column indicator, row hover state, row with
-  expand/detail affordance, empty table state, loading table state (skeleton rows,
-  not a spinner over blank space), pagination or infinite-scroll pattern (specify
-  which), zebra striping or not.
-- **Chart components**: line/trend chart, bar chart, at minimum. For each: axis label
-  style, gridlines, tooltip-on-hover design, legend placement, empty-state-inside-chart
-  design (a "no data" message rendered inside the chart canvas area — this exists
-  today and must be specified, not improvised), and the **RTL exception**: numeric
-  trend charts must be confirmed to render left-to-right even on an RTL page — the
-  designer must state this explicitly as a rule, since it contradicts the page's overall
-  mirroring.
-- **Timeline/activity feed**: event dot + connecting line, event type indicators
-  (sync/alert/critical/generic — current implementation has 4 event-dot colors),
-  timestamp placement, empty state.
-
-### 2.7 Feedback & overlays
-- **Modal/dialog**: header with close affordance, body, footer action row, backdrop
-  treatment, max-width/responsive behavior, and a confirm-action variant (used for
-  "mark recommendation as executed" with a checklist inside — see §5).
-- **Toast notification**: success/error/info/warning variants, position on screen,
-  auto-dismiss timing (specify duration), stacking behavior for multiple toasts.
-- **Inline alert/banner**: same 4 semantic variants, used for form errors and
-  page-level warnings (e.g. "Meta connection needs to be re-authorized" — a persistent,
-  dismissible-or-not sticky banner that can appear above the topbar on any authenticated
-  page; specify its exact placement and whether it pushes content down or overlays).
-- **Empty state**: icon/illustration + title + description + optional CTA — used
-  across at least 6 different screens today (no ad accounts found, no recommendations,
-  no team members, no accounts loaded, empty chart, empty support inbox filter).
-  Designer must produce **one flexible empty-state component**, not 6 bespoke ones, and
-  specify how the icon/illustration slot works (single icon style, or per-context
-  illustration — pick one).
-- **Loading states**: full-page spinner+text (used during auth/permission checks before
-  content is safe to reveal — see §9 "access gate" requirement), inline button spinner,
-  and full skeleton-screen loading for the dashboard (skeleton cards, skeleton hero,
-  skeleton chart, skeleton gauge — all currently exist as distinct skeleton shapes;
-  designer must supply skeleton versions of every card/chart type that can load
-  asynchronously).
-
-### 2.8 Miscellaneous
-- Avatar (initials-based fallback + image variant, used for user accounts).
-- Tooltip / info-popover (used to explain KPI metric definitions on click/hover — specify
-  trigger and placement rules).
-- Tabs (used for date-range switching, filter categories, and the admin console's
-  section tabs).
-- Chip/pill for quick-action shortcuts (a horizontally scrollable row of action chips on
-  the dashboard).
-- Progress bar (used for a gauge showing "% of API call volume used" on the internal
-  Meta-readiness screen).
-- Health/status ring or gauge (a circular health-score indicator referenced in code as
-  `.health-ring` — needs a real design, not an ad hoc CSS ring).
+- **Core loop the flagship interaction design must optimize for:** patient describes a
+  need → nearby pharmacies see a request (with limited PII per §4) → pharmacy sends an
+  offer → patient compares offers → patient reserves → hold timer starts only after
+  pharmacy acknowledgement → patient picks up.
+- **Explicit non-features** the designer must not accidentally introduce through
+  generic "best practice" UI patterns: no chat between patient and pharmacy, no star
+  ratings, no price comparison across the city as a first-class feature, no gamification/
+  streaks, no automatic substitution, no symptom checker, no editable stock-quantity
+  field (inventory is shown as a computed/derived signal, not a number a pharmacy types
+  in — see §10 Blister Strip component).
 
 ---
 
-## 3. Screen Specifications
+## 2. Color Tokens (current code state — designer to ratify or revise)
 
-Every screen below needs a full Figma frame set: **desktop, tablet, and mobile**, for
-**every state that screen can be in** (not just the happy path). List of screens and the
-states each one must cover, derived from what's actually implemented:
+`platform/packages/design/src/tokens/color.ts` defines **three persona palettes, each
+with light and dark variants**, using an identical semantic role set. This structure —
+three personas × two modes, same roles — is the contract the designer should either
+keep or explicitly replace; do not design a fourth ad hoc palette for a specific screen.
 
-| Screen | Route | Required states to design |
-|---|---|---|
-| Login | `/login` | default, validation error, submitting/loading |
-| Register | `/register` | default, validation error (password length etc.), submitting |
-| Pending Activation | `/pending-activation` | waiting-for-activation (with WhatsApp CTA), just-activated transition |
-| Welcome / Onboarding | `/welcome` | guest (logged out), authenticated-no-account, OAuth-error variants (must design one generic "connection failed" state that covers all error codes, not one frame per error code) |
-| Meta Account Picker | `/meta-connect` | loading, account list (1 vs many accounts — confirm if single-account should skip this screen visually or just logically), empty ("no ad accounts found") |
-| Dashboard — Pro mode | `/dashboard` | loading/skeleton, populated, stale-data warning, zero-data/new-account, error |
-| Dashboard — Beginner mode | `/dashboard` (mode) | same states, simplified layout |
-| Campaigns | `/campaigns` | loading, populated table, empty (no campaigns), campaign detail/inspector modal open |
-| Ad Analysis | `/ad-analysis` | loading, populated, empty |
-| Recommendations | `/recommendations` | loading, populated (grouped urgent/later), all-filters, empty ("account is healthy"), empty-for-filter, item in "done/dismissed" visual state, confirm-execution modal open |
-| Workspace | `/workspace` | populated, empty accounts, empty members, manual-connect modal open, invite-member modal open |
-| Settings | `/settings` | populated, empty |
-| Support (customer) | `/support` | ticket list, ticket thread, new ticket form, empty |
-| AI Chat | `/ai` | empty/first-message, active conversation, assistant-typing/loading, input-disabled-while-sending |
-| Admin Overview | `/admin` | populated (needs full redesign — see §11 unification requirement) |
-| Admin Inbox | `/admin/inbox` | ticket list w/ filters, thread view, internal-note compose mode, context panel open/closed, empty filter result |
-| Privacy / Data Deletion | static | single state each |
+**Semantic roles (same 15 for every palette):** `surface, surfaceRaised,
+surfaceSunken, line, ink, inkMuted, inkSubtle, accent, onAccent, success, onSuccess,
+warning, onWarning, alert, onAlert`.
 
-For each screen, the designer must annotate (via Figma dev-mode notes or a spec sheet,
-not left implicit): which elements are sticky/fixed on scroll, which are
-collapsible/expandable, and exact breakpoint behavior (see §6).
+Current values (for the designer's reference — confirm/replace, don't silently drift
+from whatever is finally chosen):
 
----
+- **Patient (persona: calm)** — light: surface `#FBFAF7`, surfaceRaised `#FFFFFF`,
+  surfaceSunken `#F2F1EC`, line `#DFDDD3`, ink `#16211D`, inkMuted `#42524C`, inkSubtle
+  `#5C6B64`, accent `#186047` (calm mint/green), warning `#7A4E0A`, alert `#8C2F1F`.
+  Dark: surface `#0F1513`, ink `#F1F6F4`, accent `#7BD6AC`, warning `#F0BE72`, alert
+  `#FF9C8A`.
+- **Pharmacy (persona: fast)** — dark-primary: surface `#0B1512`, surfaceRaised
+  `#132320`, accent `#A8E85C` (high-contrast lime, deliberately for speed/legibility at
+  a glance), onAccent `#0A1703`. Light: surface `#F7F9F7`, accent `#2F5E12`.
+- **Owner/Admin (persona: certain)** — light: surface `#FAFAFA`, ink `#151719`, accent
+  `#14497D` (functional blue). Dark: surface `#111315`, accent `#8CC2F5`.
 
-## 4. Component Variants Requiring Explicit Design Decisions
+A `CONTRACT_PAIRS` list in code enumerates every text/background combination that must
+pass automated contrast checking (14 pairs). **The designer must supply the full set of
+pairs for any new roles they add, and every pair must be verified against §9's contrast
+requirement before handoff — not eyeballed.**
 
-These are places the current code makes an implicit choice that a designer must now own
-explicitly, because engineering cannot infer them from a single static screen:
+**Known conflict the designer must resolve, not ignore:** the four static HTML mockups
+use a completely different, mutually-inconsistent palette from the above and from each
+other (`dawai-ui-preview.html`'s forest/mint/coral/amber/blue system; `dawai-developed.html`'s
+distinct "lantern" dusk/river/leaf/lantern/ember system; further variants in
+`dawai-site/`). **Pick one system.** If the code tokens above are being kept, the
+mockups' colors should be treated as discarded exploration, not blended in piecemeal.
 
-1. **Severity system**: is it 3-tier (low/medium/high) or 4-tier (+critical)? Must be
-   named and colored consistently everywhere it appears (recommendations, tickets,
-   campaign issues).
-2. **Mode toggle (Pro/Beginner)**: exact visual treatment of the on/off states, and
-   whether switching is instant or has a transition.
-3. **"Done/dismissed" state for a recommendation card**: currently just dimmed to ~45%
-   opacity — designer must decide the actual intended treatment (strike-through, moved to
-   a separate "completed" section, collapsed, etc.).
-4. **Freshness/cache indicators**: a small badge shown next to numbers that may be
-   "live" vs. "cached" data — needs a real design, not a text label.
-5. **RTL numeral exception**: confirm and document every place numerals/charts break the
-   RTL mirroring rule (see §7).
+One color-specific defect already flagged by an internal audit (`docs/dawai/
+BLUEPRINT_EXECUTION.md`) and worth the designer's attention: an amber/urgency color
+(`#a76614` in one mockup) measured at 4.08:1 contrast — **failing** the 4.5:1 body-text
+threshold — and was corrected to `#7a4a0f` (~5.6:1). Any warning/urgency color the
+designer proposes must be checked the same way before it's used for body text.
 
 ---
 
-## 5. Interaction Specification — Recommendation / Review Workflow
+## 3. Typography Tokens (current code state)
 
-This is the core value-delivery loop of the product and needs the deepest interaction
-spec, screen by screen, click by click:
+`platform/packages/design/src/tokens/type.ts` — a 5-step scale, each step marked
+whether it's allowed for clinical content (dosage, schedules, medicine names) or
+decorative-only:
 
-1. Recommendation card entry state (severity badge, title, "why this matters," "required
-   action," optional benchmark evidence block citing an external standard/source,
-   numbered action steps, "when to check back" expectation text).
-2. Primary action: mark as executed. Must specify: does clicking open a confirmation
-   modal with a checklist (current implementation does this), or act immediately?
-   Designer must decide and document the modal's exact content requirements (title, step
-   checklist, confirm/cancel buttons).
-3. Secondary action: dismiss/ignore. Specify whether this needs its own confirmation or
-   is a single click with an undo toast.
-4. Tertiary action: escalate to AI assistant with the recommendation's context prefilled
-   — specify the visual affordance (link vs. button) and any transition/animation between
-   screens.
-5. Filtering/sorting: tabs for severity + free-text search — specify combined-filter
-   empty state design (distinct copy from the "no recommendations at all" empty state).
-6. **A single most-important-action "hero" card** exists above the general list on the
-   Pro dashboard (a spotlighted single recommendation) — this needs its own distinct,
-   higher-emphasis design treatment separate from the list-item card design, including
-   any decorative motion/emphasis effect and its `prefers-reduced-motion` fallback.
+| Role | Size | Line-height | Letter-spacing | Weight | Clinical content allowed? |
+|---|---|---|---|---|---|
+| display | 34 | 1.25 | 0 | 700 | **No** — codes/countdowns/marketing only |
+| title | 22 | 1.40 | 0 | 700 | Yes |
+| headline | 17 | 1.50 | 0 | 600 | Yes |
+| body | 16 | 1.65 | 0 | 400 | Yes |
+| caption | 13 | 1.60 | 0 | 500 | **No** — never for clinical information |
 
----
+**Hard rule, already enforced in code (`assertClinicalRole`) and not negotiable without
+an explicit product decision:** dosage, schedule, and medication-identity text must
+never render in `display` or `caption` role. If the designer wants an exception,
+it must be raised as a product decision, not silently designed around.
 
-## 6. Responsive Rules
+**Letter-spacing is always zero, on every role, with no exceptions** — because Arabic
+is a connected script; positive/negative tracking breaks letterform joining. This
+single rule already caused two real defects (`docs/dawai/BLUEPRINT_EXECUTION.md`
+documents an h1 with `letter-spacing:-0.035em` and headings with line-height 1.42 that
+were corrected to the values in the table above). The designer must not reintroduce
+letter-spacing anywhere in Arabic text.
 
-- Declare the exact breakpoint set (current implementation uses 12+ ad hoc breakpoint
-  values — this must be consolidated to a small, documented set, e.g. mobile/tablet/
-  desktop/wide, with exact pixel values).
-- For the sidebar+topbar shell: exact behavior transition point where sidebar becomes
-  hidden/replaced by bottom nav.
-- For every multi-column layout (KPI grids, chart grids, ticket 3-pane view): exact
-  column-count-per-breakpoint, not just "it wraps."
-- Chat screen: sidebar-collapses-to-full-width-with-back-navigation, or a different
-  pattern — must be explicit.
-- Admin inbox 3-pane layout on tablet/mobile: which pane shows by default, how do you
-  navigate to the others (this is currently desktop-only in practice — designer must
-  decide if mobile admin support is in scope).
-- Touch target minimum size on mobile for all interactive elements (buttons, nav items,
-  table row actions) — state the number (44×44px is the common baseline; confirm or
-  override).
+**Font families — three separate, currently-conflicting answers exist; the designer
+must resolve to one:**
+- Code (`tokens/type.ts` `fontStack`) says: Arabic body/UI = **IBM Plex Sans Arabic**
+  (fallback Noto Sans Arabic), Latin runs = **IBM Plex Sans**, tabular/numeric/codes =
+  **IBM Plex Mono**.
+- `dawai-ui-preview.html` mockup uses IBM Plex Sans Arabic for body but **Noto Kufi
+  Arabic** for headings.
+- `dawai-developed.html` mockup uses IBM Plex Sans Arabic for body but **Cairo** for
+  headings.
+
+Pick one heading typeface and update all three sources to agree — do not let this stay
+a 3-way disagreement into implementation. Whatever is chosen must be self-hostable
+(see §14 in the Adlytic-style constraint that also applies here: no external font CDN
+in production, per the app's CSP posture — confirm this constraint with engineering,
+but design as if it applies).
 
 ---
 
-## 7. RTL Rules
+## 4. Spacing, Sizing, Radius, Elevation Tokens (current code state)
 
-The application is Arabic-first and RTL by default. This needs an explicit, written RTL
-rulebook, not "just mirror everything":
+From `platform/packages/design/src/tokens/space.ts` — quoted exactly, treat as the
+scale to keep or deliberately revise (not a value to drift from ad hoc):
 
-1. Confirm: is the entire product RTL-only for v1, or does it need a working LTR/English
-   mode? (Two screens today do live language switching; the rest are RTL-only.) State
-   this clearly — it changes how many frames need duplicating.
-2. **Explicit mirroring exceptions** that must be documented per-component: numeric
-   trend charts and sparklines render LTR even on an RTL page. Any icon that implies
-   directionality (chevrons, arrows, back/forward) must mirror; icons that don't imply
-   direction (checkmarks, bells, gears) must not.
-3. Numerals: do numbers within Arabic text stay in Western Arabic numeral form and
-   left-to-right internally (this is the current behavior) — confirm as a rule.
-4. Text alignment, padding/margin direction (start/end, not left/right), and
-   icon-before/after-label ordering must be specified using logical
-   (start/end) terms in the spec, not left/right, since engineering will implement with
-   logical CSS properties.
-5. Any bilingual screen (Welcome, Meta-readiness admin page) needs a specified language
-   toggle control design and a rule for what persists the choice.
+- **Spacing scale (4pt rhythm, 10 steps):** 0, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64.
+- **Radius scale:** sm 8, md 12, lg 16, xl 22, pill 999.
+- **Touch target minimums — three tiers, not one:** general minimum **44pt**,
+  patient-primary action **48pt**, **pharmacy-primary action 56pt**. This 56pt tier
+  exists specifically because pharmacy staff operate one-handed, at speed, behind a
+  counter — the designer must apply it to every primary pharmacy action (accept/decline
+  request, send offer, confirm reservation, mark ready), not just decoratively to one
+  screen.
+- **Elevation scale:** flat 0, raised 1, overlay 2, sheet 3, alert 4 — five named
+  levels, each needs a corresponding shadow/visual treatment defined by the designer.
 
 ---
 
-## 8. Loading, Empty, and Error States (consolidated requirement)
+## 5. Motion Tokens (current code state — designer must review, not just restyle)
 
-Do not treat these as edge cases — they are core deliverables. For **every screen in
-§3's table**, the design file must include:
-- A loading state (skeleton preferred over spinner-on-blank for content-heavy screens;
-  spinner acceptable for short/gate checks).
-- A true-empty state (zero data, not an error) with icon, message, and CTA where
-  applicable.
-- A filtered-empty state where distinct from true-empty (e.g. "no results for this
-  filter" vs. "no recommendations at all").
-- An error state (request failed, distinct from empty) — this does not exist consistently
-  in the current implementation and is a gap the designer must close: define one reusable
-  error-state pattern (icon/message/retry action) usable inside any card, table, or
-  chart slot.
-- A stale-data indicator pattern for the dashboard specifically (data that loaded but may
-  be outdated — currently a banner; confirm placement and dismissibility).
+`platform/packages/design/src/tokens/motion.ts` requires every motion entry to declare
+what it **teaches the user** — this is enforced by the type system, not just a
+comment convention, and the designer should follow the same discipline when proposing
+new motion: don't add an animation without being able to state what it communicates.
 
----
+| Motion | Duration | Easing | What it teaches |
+|---|---|---|---|
+| screenPush | 350ms | standard | where you are in the hierarchy |
+| sheetPresent | 300ms | spring | this is temporary, layered above |
+| sheetDrag | 0 (1:1 with finger) | standard | you are in control of it |
+| doseConfirmed | 250ms | decelerate | it was recorded |
+| skeletonToReal | 150ms | standard | the wait is over |
+| responderArrive | 200ms | decelerate | someone answered, just now |
+| undoDwell | 4000ms | standard | you still have time |
+| errorShake | 200ms | standard | that input, not another |
 
-## 9. Access-Gated / Permission-Gated Screens
+Blueprint rule: **nothing exceeds 500ms** except a small set of named "signature
+moments" (e.g. the Blister Strip depleting animation, ~500ms — see §10). The designer
+should treat any animation proposal over 500ms as requiring explicit product sign-off.
 
-Three admin-only screens currently show a full-screen spinner and hide all content until
-a client-side permission check resolves, to avoid flashing restricted UI to unauthorized
-users. The designer must supply:
-- The exact design of this gate/loading screen (must be identical across all
-  admin-only surfaces — currently it's copy-pasted per page with no shared design).
-- What renders if the permission check fails (currently unspecified/unbuilt) — an
-  "access denied" screen is required.
+`HAPTIC_EVENTS` in code currently ties haptic feedback to: doseConfirmed,
+reservationConfirmed, handoverComplete, errorShake — the designer should specify the
+haptic pattern (or confirm none) for each.
 
----
-
-## 10. Navigation Behavior
-
-Document precisely (a navigation graph/flow diagram is expected, not just a components
-list):
-- Full sitemap: every route, whether it's public, authenticated, or admin-only.
-- The auth/onboarding funnel order: Register → Pending Activation → Welcome →
-  Meta Connect (OAuth) or Workspace (manual) → Dashboard. Specify what happens on
-  refresh/direct-URL-visit at each intermediate step (e.g. a fully activated user who
-  navigates to `/pending-activation` directly — what do they see?).
-- Which nav items appear/disappear based on role (admin item) and mode (Beginner mode
-  hides sidebar/bottom-nav per current implementation — confirm this is the intended
-  final behavior, it's a significant UX decision to hand-wave).
-- Deep-link behavior: e.g. a recommendation card links into the AI chat screen with a
-  prefilled question — specify the transition (new screen vs. slide-over) and how "back"
-  behaves.
-- Logout: confirm whether this needs a confirmation step or is a single click.
+**`prefers-reduced-motion` is a hard requirement**, already respected in the existing
+mockups — the designer must specify, per animation in the table above, what the
+reduced-motion fallback is (typically: same state change, no transition), not leave it
+implied.
 
 ---
 
-## 11. Design System Unification Requirement
+## 6. RTL Rules (current code state — read literally, this is unusually strict)
 
-**This is a required deliverable, not optional cleanup.** Today, 4 of the ~20 screens
-(the three admin surfaces plus the support inbox) do not use the shared design system —
-they redefine their own copy of the color tokens inline and, in one case, load a
-different font delivery method than the rest of the app. The designer must produce these
-screens **using the exact same token set and component library as the rest of the
-product**. Do not treat "admin" as a visually separate sub-brand unless explicitly told
-to by the product owner — flag this decision back if there's ambiguity rather than
-silently keeping two systems.
+Dawai is **Arabic-only in Phase 0 by explicit product decision**, encoded as a literal
+constant in code (`APP_DIRECTION: Direction = "rtl"`, comment: *"the day Kurdish
+arrives there is one place to change"*). The designer should design Phase 0 as
+RTL-only — do not build a parallel LTR/English design track unless told the product
+decision has changed. (Blueprint §29 lists "Do we support Kurdish at launch?" as an
+**open, unresolved** product question — if it resolves during the design phase, this
+section needs revisiting.)
 
-Additionally: two admin overview screens currently both target the same route
-(`/admin`) with overlapping content (a metrics overview, and a tabbed console with an
-overview tab). The designer should design **one** unified admin overview, not two
-competing versions — flag this to the product owner if scope is unclear rather than
-designing both.
+Required RTL rules, already enforced or flagged in code and must be honored in every
+screen the designer produces:
 
----
-
-## 12. Iconography
-
-- All icons in the current implementation are a single-style outline icon set (24×24,
-  2px stroke, no fill). Designer must either continue this system or replace it
-  wholesale — **partial replacement (some hand-drawn, some from a library) is not
-  acceptable**, it produces visual inconsistency.
-- Deliver the full icon set required by the nav + component inventory above as one
-  Figma icon component set (sidebar nav icons ×9, topbar icons, action icons for
-  card actions, status/severity icons, empty-state icons, chevrons/arrows with
-  RTL-mirroring behavior specified).
-- Specify export format for engineering: SVG, optimized, with `currentColor` stroke so
-  icons inherit text color via CSS (this is how the current icon system works and should
-  be preserved unless there's a reason to change it).
-
----
-
-## 13. Images & Illustration
-
-- Logo: current implementation is a single custom mark (gradient ring). Designer must
-  deliver a finalized logo lockup: full lockup (mark + wordmark), mark-only (for
-  favicon/small contexts), and both light/dark-surface variants if a light mode is in
-  scope.
-- Empty-state / illustration style: decide once whether empty states use icons only, or
-  custom illustrations — and if illustrations, deliver a consistent illustration style
-  guide (line weight, color usage, subject matter per context) rather than one-off pieces.
-- Ad-creative thumbnail fallback: campaigns/ads sourced from Meta's CDN can fail to load.
-  Designer must specify the exact fallback visual (current implementation uses an
-  emoji-in-a-box placeholder plus a loading shimmer — decide the final version) and the
-  shimmer/skeleton loading treatment for images specifically.
-- PWA icons: app icon at required sizes (192px minimum currently referenced) plus a
-  maskable-safe-zone version.
+1. **Never-mirror icon list** (already enumerated in code, `NEVER_MIRROR`): play,
+   pause, media-controls, clock, timer-face, map-north, route-direction, checkmark,
+   logo. Every other directional icon (chevrons, back/forward arrows) must mirror.
+   The designer must classify every icon in the icon set (§12) against this rule
+   explicitly — don't leave any icon's mirroring behavior implicit.
+2. **Numeral system is a per-surface, deliberate choice — never mixed within one
+   comparison.** Code supports both Arabic-Indic digits (٠١٢…) and Western digits
+   (012) via a formal `formatDigits()` function. The designer must specify, per
+   context (prices, countdown timers, dosage numbers, dates), which numeral system
+   applies, and never let both appear side-by-side in a single comparative view (e.g.
+   two offer cards must use the same numeral system).
+3. **Bidirectional isolation is mandatory for every Latin/numeric run inside Arabic
+   text** — code has a `needsIsolation()` detector and an `isolate()` helper; the
+   existing mockups already wrap every drug name, price, and reference code in
+   `<bdi dir="ltr">`. The designer must flag, for every text element in a screen spec,
+   whether it contains a mixed Latin/Arabic run requiring isolation (medicine names
+   like "Augmentin 625 mg", prices, order codes like "DW-4821").
+4. **A specific, previously-real bug the designer must not reintroduce:** pairing a
+   *physical* CSS offset (e.g. `left:`) with a *physical* transform on the same
+   element broke centering twice in the prototype. Design specs must be expressed in
+   **logical terms (start/end, not left/right)** throughout, so engineering
+   implements with logical properties consistently.
+5. Countdown timers, prep-time minutes, and other "always LTR" numeric displays
+   (already implemented this way in the reservation screen) should keep rendering
+   left-to-right even inside the RTL page — confirm this as an explicit rule per
+   numeric-display component, the same exception pattern used elsewhere in
+   RTL products.
 
 ---
 
-## 14. Fonts & Export Constraints (hard technical requirement)
+## 7. The UX Contract System — what every screen spec must include
 
-- **No CDN font loading is allowed anywhere in the product** (Content-Security-Policy
-  requires self-hosted fonts). The designer must provide actual font files (WOFF2) with
-  proper licensing for self-hosting, for every weight used — not just reference a Google
-  Fonts name. One current screen violates this rule (loads via Google Fonts `<link>`) and
-  must be corrected as part of this design pass.
-- Confirm exact weights needed per family per the type scale in §1.2 — do not leave
-  "regular/bold" vague; specify numeric weights (400/500/700/etc.).
+`platform/packages/design/src/ux/contract.ts` defines a strict, code-enforced shape
+for what counts as a *complete* screen specification. The designer's screen specs
+(whether in Figma annotations or an accompanying spec sheet) must supply values for
+every field this contract requires, because engineering will literally fail a build
+if a screen is implemented without them. Required per screen:
 
----
+- **Location**: a title, and a declared destination in the navigation ({today, find,
+  me, inbox, holds, branch, modal, entry}).
+- **Back behaviour**: exactly one of pop / dismiss(returnsTo) / replace(with, why) /
+  none(why) — the designer must specify which, and for `replace`/`none`, the *why*.
+- **Primary action**: exactly one per screen — label, where it leads, and the number
+  of taps from screen-entry to outcome (`tapsToOutcome`). A screen with zero or more
+  than one primary action fails this contract; if a screen genuinely needs multiple
+  equally-weighted actions, that itself is a decision to flag back to product, not
+  something to design around silently.
+- **State treatments** — for every screen that can be in more than one state, the
+  designer must specify, per state:
+  - **Loading**
+  - **Empty** — must include *what this emptiness means* (`explains`) and *what the
+    user can do about it* (`action`), unless the empty state is itself a success
+    condition (e.g. "no active reservations" can be a good thing).
+  - **Error** — must include *what specifically failed* (`whatFailed`), whether *the
+    user's input/work is preserved* (`workPreserved`), and *what they can do next*
+    (`action`). A generic "something went wrong" is explicitly rejected by an
+    automated check in code (`auditContract` regex-matches and flags this exact
+    phrase) — the designer must never propose this copy pattern, and should design
+    real, specific error copy for every failure mode.
+  - **Offline**
+  - **Permission refused**
+  - **Success**
+- A screen's purpose statement (if the designer writes one per frame) should be one
+  sentence — `auditContract` rejects multi-sentence purposes as a smell that the
+  screen is doing too much.
+- No screen should carry more than 3 secondary actions (also code-enforced) — if a
+  screen wants more, that's a signal to split the screen or demote actions into a
+  secondary surface (menu, settings), and the designer should flag which.
 
-## 15. Accessibility Requirements
-
-- Minimum contrast ratio target stated explicitly (WCAG AA 4.5:1 for body text, 3:1 for
-  large text/UI components) — verify every token-on-surface combination in §1.1 against
-  this, not just visually eyeball it.
-- Focus states: every interactive component needs a visible keyboard-focus style,
-  distinct from hover (current implementation is inconsistent about this — treat as a
-  required deliverable, not a nice-to-have).
-- Color must never be the only signal for status/severity — every badge/status
-  indicator needs an accompanying icon or text label, not color alone (verify this holds
-  for the 4-tier severity system and freshness indicators).
-- Touch target minimums per §6.
-- Motion: full list of what must respect `prefers-reduced-motion` per §1.5.
-- Form errors: must be associated with their field both visually and for screen readers
-  (specify inline error placement so engineering can wire `aria-describedby` correctly).
-
----
-
-## 16. Grids & Layout Measurements
-
-- Base spacing unit and the full spacing scale (§1.3) applied consistently — designer
-  must show, for at least the Pro dashboard (the densest screen) and one table-heavy
-  screen (Campaigns), an annotated spacing/grid overlay so engineering can verify
-  implementation pixel-for-pixel.
-- Content column max-width for the main authenticated app area (currently ~1400px —
-  confirm final value).
-- Card internal padding, card-to-card gutter, section-to-section vertical rhythm — as
-  explicit token values, not implied by eyeballing a screenshot.
-
----
-
-## 17. Figma Organization Requirements
-
-- One **Foundations** page: all color, type, spacing, radius, shadow, motion tokens as
-  Figma Variables (not just styles), with light/dark mode variable collections if both
-  modes are in scope.
-- One **Components** page: every component in §2, structured as proper Figma components
-  with variant properties for size/state/type — not duplicated static frames per state.
-- One **Screens** page per major flow (Auth, Onboarding, Dashboard, Campaigns,
-  Recommendations, Workspace/Settings, Support, Admin) containing every state from §3 as
-  named frames in a consistent naming convention (see §18).
-- A **Flows** page: the navigation graph from §10 as an actual connected flow diagram
-  (Figma flow starting points + arrows), not prose.
-- Components must use auto-layout throughout so real content lengths (Arabic text runs
-  longer/shorter than English placeholder text) don't break the design when engineering
-  swaps in real copy.
+**Deliverable implication:** for every screen frame in Figma, attach (via dev-mode
+annotation or a linked spec sheet) the contract fields above. This is not optional
+documentation flavor — it is the literal shape engineering's own tooling checks
+screens against.
 
 ---
 
-## 18. Asset & Layer Naming Convention
+## 8. Product-Specific ("Native") Components
 
-- Frames: `[Flow]/[Screen]/[State]` e.g. `Recommendations/List/Empty`,
-  `Auth/Login/ValidationError`.
-- Components: `Component/[Name]/[Variant=..., State=...]` following Figma's component
-  property naming so variant switching in dev mode is unambiguous.
-- Exported icon assets: `icon-[name]-24.svg`, using the same `[name]` used as the nav/
-  route id in code where applicable (e.g. `icon-dashboard-24.svg`,
-  `icon-campaigns-24.svg`) so engineering can map 1:1 without a translation table.
-- No unnamed/"Frame 47"-style layers in delivered files — this is a hard QA gate before
-  handoff is accepted (see §20).
+The blueprint (§26) names components specific to this product that generic UI kits
+don't provide off the shelf. Each needs a full component spec (all variants/states) in
+Figma — do not substitute a generic equivalent without flagging the substitution:
+
+- **Safety layer** — a persistent/dismissible(?) layer surfacing clinical safety
+  information (interactions, allergy conflicts). An internal review already flagged
+  that in one implementation pass, "the severe safety layer has no dismiss and no
+  role can clear it" — the designer must make an explicit decision on dismissibility
+  per severity level, not leave it ambiguous.
+- **Subject switcher** — lets a user (e.g. Hussein, managing his mother's account)
+  switch whose medicine/record they're viewing. Blueprint calls this "a primary
+  control, not a setting" — it must be prominent, not buried in a settings menu.
+- **Blister strip** — supply/stock shown as a *depleting strip* visual metaphor
+  rather than a raw number, explicitly because there is no editable stock-quantity
+  field in the data model (inventory is derived from a movement ledger, not typed in
+  directly). Called out in the blueprint as **"the product's signature moment"** —
+  deserves real design craft and its own ~500ms depletion animation (see §5).
+- **Confidence marker** — a visual indicator of how reliable/fresh a piece of
+  information is (e.g. "last confirmed" freshness on an offer). An internal audit
+  flagged that a "sold since"/reliability score referenced in mockups is never
+  formally defined — the designer must specify exactly what data drives this marker
+  and how its visual states map to underlying confidence levels.
+- **Reservation pass** — the confirmed-hold view (shown to the patient at pickup) —
+  needs a design that reads clearly at a glance to both patient and pharmacist,
+  including any offline/no-signal fallback state.
+- **Live responders** — an indicator that pharmacies are actively viewing/responding
+  to a request in real time (seen in the mockup's "live matching radar" concept) —
+  needs states for zero responders, some responding, and a timeout/escalation state
+  (see the 4-step escalation ladder in §9).
+- **Answer bar** — the pharmacy-side quick-reply mechanism for a request (already
+  partially implemented in code as `PillBar` / the Attention/PillBar priority system:
+  `SEV_ALERT > ACTION_REQUIRED > IN_PROGRESS > SUGGESTION > IDLE`). The designer must
+  design all 5 priority states with distinct, unambiguous visual weight — this
+  ordering is load-bearing (a pharmacist scanning quickly must be able to tell
+  "must act now" from "nice to know" instantly).
+- **Count sheet** — the pharmacy-side physical-inventory-recount interface (جرد).
 
 ---
 
-## 19. Versioning
+## 9. Empty, Error, Escalation, and "Zero Offers" States
 
-- Every handoff must be a tagged Figma version (Figma's version history "Save to
-  version" with a descriptive name), not "the current state of the file."
-- Breaking changes to existing components (renamed variant, removed state, changed
-  token value) must be called out explicitly in the version name/description —
-  engineering will otherwise not know a component contract changed.
-- Maintain a changelog section at the top of the Foundations page listing token changes
-  by version.
+This product has an unusually well-specified empty-state ladder that must be designed
+exactly, not generically. The blueprint and the existing mockup both describe a
+**4-step escalation** when a patient's request gets no valid offers:
+
+1. Wait up to 5 minutes (soft empty state, not yet alarming).
+2. Automatically/optionally expand search radius to 5 km.
+3. Rarely, expand to 10 km — **requires explicit user consent**, not silent.
+4. End and offer to retry later.
+
+The designer must design each of these 4 steps as a distinct visual state of the same
+screen (not 4 separate unrelated empty-state illustrations), with clear, calm,
+non-alarming copy at each stage — an internal audit already flagged "the trust surface
+is too empty" as a critique of an earlier pass; this ladder is the opportunity to fix
+that rather than just showing a blank state with a spinner.
+
+Blueprint §17 additionally defines **4 distinct "medicine does not exist" cases** —
+the designer must confirm with product what these 4 cases are (not fully detailed in
+research covered here) and design a distinct state for each, since a single generic
+"not found" screen would under-serve this requirement.
+
+**Reservation expiry** must be designed as its own explicit state (not just the
+countdown reaching zero and freezing) — the existing mockup already implements a
+countdown timer with an "expired" state that swaps in re-send/home actions; the
+designer should formalize this rather than leave it as prototype-only.
 
 ---
 
-## 20. Design QA / Handoff / Acceptance Criteria
+## 10. Screens & Personas — What Must Be Designed
 
-A design is not "done" and ready for handoff until all of the following are true:
+Per the blueprint's screen inventory (§6), Dawai has **197 specified screens** across
+4 shared/entry, 81 patient, 46 pharmacy, and 56 owner/admin screens, each with a
+required-states column (E/L/X/O/P/S — empty/loading/error/offline/permission-refused/
+success, matching §7's contract). **Confirm with product whether all 197 are in scope
+for this design pass, or whether a subset (e.g. the Phase 0 core loop) is the actual
+near-term target** — designing 197 fully-stated screens is a large commitment and the
+designer should get explicit scope confirmation before starting, rather than assuming
+"all of them."
 
-1. Every screen in §3's table has every listed state as a named, organized frame.
-2. Every component in §2 exists as a real Figma component (with variants), and every
-   screen frame uses instances of it — no screen contains a one-off, un-componentized
-   copy of a button/card/badge.
-3. All text uses real or realistic Arabic content at actual expected lengths (not
-   Latin lorem ipsum) — RTL layouts break in ways that only show up with real-length
-   Arabic strings, so Latin placeholder text is not acceptable for sign-off.
-4. Every token in §1 is a Figma Variable, applied (not just referenced in a style guide
-   image) — engineering will pull literal values, so "close enough" hand-set colors on
-   screens that drift from the token are a QA failure.
-5. Contrast has been checked (not eyeballed) for every text/surface combination against
-   the ratio in §15.
-6. Every interactive component has a documented focus state (§15).
-7. RTL exceptions (§7) are called out explicitly per component where they apply — a
-   reviewer should not have to infer them from the mockup.
-8. Responsive behavior for every breakpoint in §6 is shown, not just described.
-9. The file has zero unnamed layers/frames per §18.
-10. A design walkthrough session with engineering has happened before final handoff, in
-    which the designer confirms answers to every open question flagged in this document
-    (§4, §6 admin-mobile scope, §7 LTR-mode scope, §11 unification, and the specific
-    "which admin overview screen wins" question).
+At minimum, the **Phase 0 core loop** (confirmed as implemented end-to-end in
+`dawai-platform/`, per its own MVP readiness report) must be fully designed with every
+state:
 
-**Pixel-perfect expectation:** engineering will implement directly from Figma dev-mode
-measurements — spacing, sizing, and color values in the shipped UI are expected to match
-the Figma file exactly, not "close in spirit." Any value that can't reasonably be pulled
-directly from the file (e.g. an animation curve, a hover transition timing) must be
-documented as a written spec note attached to that component/frame.
+**Patient side:**
+- Welcome/landing (role choice: patient vs. pharmacy)
+- Find/describe need (text entry, photo-of-package, prescription upload — 3 input
+  modes per the existing mockup)
+- Active request / waiting for offers (with live-responder indicator)
+- Zero-offers escalation ladder (§9, all 4 steps)
+- Offers comparison (sort by best-match/nearest/cheapest; each offer card shows
+  match-type badge EXACT/PARTIAL, trust chips, price/prep-time/freshness, and the
+  explicit "price is not a guess from a catalogue" disclaimer copy)
+- Reservation hold (pending-ACK state, active countdown, expired state)
+- Reservation pass / pickup instructions
+- History / My medicines
+- Family/subject switcher
+- Account & privacy screens
+- Notifications
 
-**Sign-off:** engineering will not begin implementing a new screen against this system
-until that screen's frames pass the checklist above. If a needed state or component is
-missing at implementation time, work stops and returns to Design rather than an engineer
-guessing the missing piece — that is the entire purpose of this document.
+**Pharmacy side:**
+- Pharmacy status toggle (accepting requests / not)
+- Request inbox (limited-PII request cards — explicit privacy statement that before a
+  pharmacy is chosen, only approximate area + medicine are shown, no name/phone/
+  prescription)
+- Quick decline with reason chips (OUT_OF_STOCK / NOT_CARRIED / CLOSED_NOW at minimum)
+- Offer composition (offer type EXACT/PARTIAL/ORDERABLE/ALTERNATIVE_REVIEW_REQUIRED/
+  UNAVAILABLE, price, quantity, prep time, pickup availability, note ≤200 chars,
+  required confirmation checkbox affirming price/quantity accuracy and that an offer
+  is not a stock reservation)
+- Reservations list / fulfillment
+- Inventory (Blister Strip component, §8 — never an editable raw quantity)
+- Branch/settings
+- Support
+
+**Owner/Admin side (currently implemented as an "Admin" route group, not a separate
+"Owner" app — confirm with product whether these are meant to be the same thing):**
+- Pharmacy verification queue (application intake — **flagged by internal review as
+  currently having zero designed screens despite being a required flow**; this is a
+  priority gap for the designer to close)
+- Pharmacy directory / management
+- Requests oversight
+- User management
+- Reports
+- Notifications/settings
+
+Every screen above needs, per §7's contract: desktop and mobile frames (mobile-first,
+since the product is phone-first per the blueprint's personas), and every applicable
+state (loading/empty/error/offline/permission-refused/success).
+
+---
+
+## 11. Known Gaps the Designer Should Prioritize
+
+An internal independent review (`docs/product/review/INDEPENDENT_REVIEW.md`) already
+flagged concrete, unresolved product/design gaps. The designer should treat the
+following as open work items requiring either a design or an explicit "raise this back
+to product" flag — not silently invented defaults:
+
+1. **No allergy-recording screen exists**, despite 4 roles being granted read-access
+   to allergy data in the permission matrix. Needs a screen or an explicit decision
+   that allergy data entry is out of scope for this phase.
+2. **Zero screens exist for pharmacy application/verification intake** — a pharmacy
+   currently has no way to apply. High-priority gap.
+3. **The safety layer has no dismiss affordance for the severe tier, for any role** —
+   confirm this is intentional (a hard safety stop) rather than an oversight, and
+   design it either way explicitly.
+4. **Guest state (an unauthenticated browsing state named in the nav map) is
+   currently unreachable** in the specified navigation — the designer should confirm
+   whether guest browsing is truly in scope and, if so, design the entry point that's
+   currently missing.
+5. **No screens exist for a family member invited before they have an account** —
+   needs an explicit invited-pending state.
+6. **Pharmacies are described as having a "support channel" with no actual screen** —
+   needs a real design or removal of the claim.
+7. **A "sold since"/freshness reliability score is referenced in mockups but never
+   formally defined** — the designer needs the underlying data definition from product
+   before designing its visual treatment (see Confidence marker, §8).
+8. **A filtered-out pharmacy is never notified and can be silently marked
+   inactive** — this is more a product/notification-strategy gap than a screen gap,
+   but if a "why was I filtered out" or status screen is warranted, flag it.
+9. Gendered-only Arabic copy was flagged in an earlier pass (no gender field in the
+   data model, but UI copy defaults to masculine grammatical forms) — the designer
+   should confirm the copy strategy for gender-neutral or gender-aware Arabic phrasing
+   with whoever owns Arabic content, since this is a language question as much as a
+   visual one but affects every screen's copy layout.
+
+The designer is not expected to resolve all of these alone — they are listed here so
+none of them get silently designed-around with a guess. Each should get either a real
+screen/state or an explicit "descoped, confirmed by product" note before final handoff.
+
+---
+
+## 12. Iconography, Imagery, Branding
+
+- **App icon**: already exists in two forms — `dawai-icon.svg` (rounded-square mark,
+  fill `#173c37`, two rotated lime/mint bars) and `dawai-icon-maskable.svg` (same mark,
+  full-bleed for maskable safe zone). The designer should treat this as the current
+  brand mark to refine or deliberately replace — not silently invent a new logo
+  alongside it without flagging the change.
+- **Icon style**: no icon library is currently in use; the mockups use emoji as
+  interim icons in several places (📷 🔔 🏪 👤 📎 ⏱ 🔍) — these are placeholders, not a
+  final icon direction. The designer must deliver a real, consistent icon set (single
+  style, single stroke weight) covering: all nav items across all 3 personas, all
+  request/offer/reservation state icons, all safety/alert icons, camera/upload/
+  prescription icons, and every icon must be classified per the never-mirror rule in
+  §6.1.
+- **Photography/illustration**: no photography direction currently exists anywhere in
+  the product. The designer should establish whether pharmacy/medicine photography,
+  illustration, or icon-only treatment is the direction for trust-building surfaces
+  (pharmacy profile, verification badges, empty states) — this is currently undefined
+  and affects perceived trust, which the blueprint explicitly treats as a core product
+  concern ("the trust surface is too empty" — existing critique).
+- **PWA/app-store assets**: `docs/dawai/APP_STORE_READINESS.md` already specifies a
+  launch-screen color (`#173c37`, solid) and drafted Arabic/English App Store copy —
+  the designer should confirm the launch screen and icon final versions align with
+  whatever palette decision comes out of §2.
+
+---
+
+## 13. Accessibility Requirements (already partly code-enforced)
+
+- `platform/packages/design/src/a11y.ts` implements exact WCAG 2.1 contrast math and
+  defines explicit thresholds: **body text 4.5:1, large text 3.0:1, UI-boundary
+  elements 3.0:1**. Every color pairing the designer proposes (§2's `CONTRACT_PAIRS`
+  and any new ones) must be checked against these exact numbers before handoff — this
+  is testable in code, so there's no ambiguity about whether a pairing passes.
+- Blueprint §25 states explicitly: the product must work at **200% text zoom**, with
+  full screen-reader support, respect for reduced-motion (§5), and support for
+  high-contrast mode — because "the target user is frequently elderly, low-vision, or
+  has a tremor — this is the median user, not an edge case." Design every screen with
+  this as the primary user, not an accessibility afterthought pass at the end.
+- Countdown timers (reservation hold) already implement `role="timer"` with polite
+  `aria-live` announcements at minute/30-second/10-second marks in the existing
+  mockup — the designer should preserve and formalize this pattern for any other
+  time-sensitive UI (e.g. offer-response windows).
+- Touch targets per §4 (44/48/56pt tiers) are themselves an accessibility requirement,
+  not just an ergonomic one, given the stated user base.
+- Color must never be the sole signal for a state (safety severity, offer match-type,
+  reservation status) — pair every color-coded state with an icon and/or text label.
+
+---
+
+## 14. Figma Organization, Naming, Versioning, Handoff (process requirements)
+
+These mirror standard practice but are stated explicitly because this product's
+complexity (3 personas × many states × a formal contract schema) makes an
+unstructured file unusable for engineering:
+
+1. **Foundations page**: color/type/space/motion/radius/elevation as Figma Variables,
+   with a **collection per persona** (Patient/Pharmacy/Owner) × light/dark mode, mapped
+   explicitly to the code token names in §2–§5 so engineering can trace 1:1 —
+   mismatched or renamed tokens between Figma and code are a handoff blocker.
+2. **Components page**: every component in §8, plus generic components (buttons,
+   inputs, badges, cards, modals, empty/error/loading states) as true Figma components
+   with variant properties — built with auto-layout so real Arabic text lengths don't
+   break them.
+3. **Screens organized by persona and flow**, one page per persona
+   (Patient/Pharmacy/Owner-Admin/Shared-Entry), frames named
+   `[Persona]/[Flow]/[Screen]/[State]`, e.g. `Patient/Offers/Compare/Empty-Radius5km`.
+4. **A contract-annotation layer**: for every screen frame, attach the §7 contract
+   fields (location, back-behaviour, primary action + tap count, per-state
+   explains/action/whatFailed/workPreserved text) as Figma dev-mode notes or a linked
+   spec sheet row — this is a hard requirement, not optional polish, because
+   engineering's own tooling checks for these fields.
+5. **RTL-only**: build every frame in RTL directly (not "design LTR then flip") — per
+   §6, this is a Phase-0 constant, not a mode to support both ways.
+6. **Real Arabic content, real lengths, in every frame** — no Latin lorem ipsum, and
+   no short placeholder Arabic (e.g. "دواء" alone) where real content would be a full
+   medicine name + dosage + Latin dosage units requiring bidi isolation (§6.3) — this
+   class of layout bug (RTL/Latin mixing) is exactly what broke the prototype twice
+   before and needs to be tested with real-length content in the design file itself.
+7. **Versioning**: tagged Figma versions with descriptive names; any token value
+   change, component-state addition/removal, or contract-field change must be called
+   out in the version description, since it changes what engineering's automated
+   checks expect.
+8. **Sign-off checklist before a screen is considered ready for implementation:**
+   - Every state in §7's list is present, or explicitly marked not-applicable with a
+     reason.
+   - Every color pairing used passes the §13 contrast thresholds (checked, not
+     eyeballed).
+   - Every icon's mirroring behavior is classified per §6.1.
+   - Every Latin/numeral run inside Arabic text is marked as needing bidi isolation
+     per §6.3.
+   - Primary action count is exactly 1, secondary actions ≤3 (§7), or an explicit
+     product exception is documented.
+   - The screen uses only components from the Components page — no one-off,
+     un-componentized elements.
+   - No unnamed layers/frames.
+
+**Pixel-perfect expectation**: engineering will implement directly from Figma
+dev-mode measurements. Any value that can't be pulled directly from the file (motion
+curves, haptic timing, the exact freshness/confidence-marker calculation) must be
+documented as a written spec note attached to the relevant frame.
+
+**Sign-off**: implementation of a given screen does not start until that screen
+passes the checklist above. If a required state, token, or contract field is missing
+at implementation time, the engineer stops and sends it back to Design rather than
+guessing — this is the entire purpose of this document.
