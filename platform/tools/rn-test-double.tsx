@@ -40,3 +40,60 @@ export const StyleSheet = {
 };
 
 export const Platform = { OS: "ios" as const, select: <T,>(o: { ios?: T; android?: T; default?: T }) => o.ios ?? o.default };
+
+/**
+ * Just enough of Animated for the RENDER-TREE tests.
+ *
+ * These tests assert structure, accessibility and style — not timing — so a
+ * value reports its current number and a driver is a no-op that completes
+ * immediately. The durations and curves themselves are proved directly against
+ * the tokens in packages/design, where they belong; nothing here decides
+ * motion, it only lets a motion-wrapped screen be rendered and audited.
+ */
+class AnimatedValue {
+  constructor(public value: number) {}
+  setValue(v: number) { this.value = v; }
+  interpolate({ inputRange, outputRange }: { inputRange: number[]; outputRange: number[] }) {
+    const i = Math.max(0, Math.min(inputRange.length - 1, inputRange.findIndex((x) => x >= this.value)));
+    return new AnimatedValue(outputRange[i] ?? outputRange[outputRange.length - 1] ?? 0);
+  }
+}
+/**
+ * A driver that SETTLES rather than does nothing.
+ *
+ * The first version returned a no-op, so an element that starts at opacity 0
+ * and animates to 1 was photographed at 0 — every offer row on R8 rendered
+ * invisible while still occupying its space. A static renderer must show the
+ * resting state, which is what a reader sees a moment after it lands, and
+ * "resting" means the animation's end value rather than its start.
+ */
+const settleTo = (value: unknown, to: unknown) => ({
+  start: (cb?: () => void) => {
+    if (value instanceof AnimatedValue && typeof to === "number") value.setValue(to);
+    cb?.();
+  },
+  stop: () => {},
+});
+const runAll = (runs: readonly { start: (cb?: () => void) => void }[]) => ({
+  start: (cb?: () => void) => { for (const r of runs) r.start(); cb?.(); },
+  stop: () => {},
+});
+
+export const Animated = {
+  Value: AnimatedValue,
+  View: host("View"),
+  Text: host("Text"),
+  timing: (v: unknown, c: { toValue?: unknown }) => settleTo(v, c?.toValue),
+  sequence: (runs: readonly { start: (cb?: () => void) => void }[]) => runAll(runs),
+  parallel: (runs: readonly { start: (cb?: () => void) => void }[]) => runAll(runs),
+  loop: (r: { start: (cb?: () => void) => void }) => r,
+  delay: () => ({ start: (cb?: () => void) => cb?.(), stop: () => {} }),
+};
+
+const bezier = () => (n: number) => n;
+export const Easing = { bezier, linear: (n: number) => n, ease: (n: number) => n, out: bezier, inOut: bezier };
+
+export const AccessibilityInfo = {
+  isReduceMotionEnabled: () => Promise.resolve(false),
+  addEventListener: () => ({ remove: () => {} }),
+};

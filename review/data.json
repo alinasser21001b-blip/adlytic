@@ -2946,6 +2946,35 @@
         "duration": 200,
         "easing": "standard",
         "teaches": "that input, not another"
+      },
+      "dwPulse": {
+        "duration": 1800,
+        "easing": "decelerate",
+        "teaches": "we are still asking",
+        "loop": true
+      },
+      "dwTick": {
+        "duration": 1600,
+        "easing": "standard",
+        "teaches": "this pharmacy is still deciding",
+        "loop": true
+      },
+      "dwSweep": {
+        "duration": 4500,
+        "easing": "standard",
+        "teaches": "the search is live",
+        "loop": true
+      },
+      "dwFloat": {
+        "duration": 3000,
+        "easing": "standard",
+        "teaches": "this is waiting, not stuck",
+        "loop": true
+      },
+      "offerArrival": {
+        "duration": 200,
+        "easing": "decelerate",
+        "teaches": "this one just came in"
       }
     },
     "contrast": [
@@ -3342,7 +3371,8 @@
         "apps/patient/src/screens/WhyNumberScreen.tsx",
         "apps/patient/src/screens/gallery.tsx",
         "apps/patient/src/ui/kit.tsx",
-        "apps/patient/src/ui/layout.tsx"
+        "apps/patient/src/ui/layout.tsx",
+        "apps/patient/src/ui/motion.tsx"
       ]
     },
     {

@@ -25,6 +25,7 @@ import { GRAPH } from "../app/store.js";
 import {
   Screen, Label, Primary, Secondary, Row, Section, Card, Note, InputField, ActionCard, Tag, Spacer,
 } from "../ui/kit.js";
+import { Shake } from "../ui/motion.jsx";
 import type { Theme } from "../ui/theme.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
@@ -77,9 +78,10 @@ export function PhoneEntryScreen(p: PhoneEntryProps) {
         </Label>
       </Section>
 
-      <InputField
-        t={t}
-        label="رقم الموبايل"
+      <Shake active={showError}>
+        <InputField
+          t={t}
+          label="رقم الموبايل"
         prefix={Onboarding.COUNTRY_CODE}
         placeholder="770 123 4567"
         tone="code"
@@ -96,8 +98,9 @@ export function PhoneEntryScreen(p: PhoneEntryProps) {
                 ? "لهسه ما وصلنا لهذا البلد — دواي يشتغل بالعراق بس"
                 : "الرقم يبدي بـ ٧٧ أو ٧٨ أو ٧٩ أو ٧٥ ويكون ١٠ أرقام",
             }
-          : {})}
-      />
+            : {})}
+        />
+      </Shake>
 
       {!p.online ? (
         <Note t={t} tone="caution">
@@ -173,15 +176,20 @@ export function CodeEntryScreen(p: CodeEntryProps) {
         </Label>
       </Section>
 
-      <InputField
-        t={t}
-        label="الرمز"
-        placeholder="——————"
-        tone="code"
-        value={p.typed}
-        onType={p.onType}
-        invalid={p.refusalCode !== null}
-      />
+      {/* §27 rule 5 — the shake is on the FIELD, so it says "that input, not
+          another". A screen-level shake tells a patient something is wrong and
+          leaves them to find out what. */}
+      <Shake active={p.refusalCode === "WRONG_CODE"}>
+        <InputField
+          t={t}
+          label="الرمز"
+          placeholder="——————"
+          tone="code"
+          value={p.typed}
+          onType={p.onType}
+          invalid={p.refusalCode !== null}
+        />
+      </Shake>
 
       {/* Every declared failure gets its own recovery, because they are not
           variations of one error: a wrong code means try again, an exhausted

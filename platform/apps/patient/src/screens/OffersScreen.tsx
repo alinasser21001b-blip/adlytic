@@ -27,6 +27,8 @@ import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
 import { Screen, Label, ActionCard, InfoCard, Row, Spacer, Tag, Section } from "../ui/kit.js";
+import { Enter } from "../ui/motion.jsx";
+import { motion } from "@dawai/design";
 import type { Theme } from "../ui/theme.js";
 
 const R8 = CORE_LOOP.find((c) => c.id === "R8")!;
@@ -68,8 +70,13 @@ export function OffersScreen(p: OffersProps) {
             </Label>
           </Section>
 
-          {ordered.map((s) => (
-            <OfferRow key={s.offer.offerId} t={t} s={s} requested={p.requestedLines} onOpen={p.onDetails} />
+          {ordered.map((s, i) => (
+            // Staggered: offers arrived one at a time from different
+            // pharmacies, and a list that materialises whole hides that. The
+            // delay is per row, from the delivered token.
+            <Enter key={s.offer.offerId} name="offerArrival" delay={i * motion.offerArrival.duration}>
+              <OfferRow t={t} s={s} requested={p.requestedLines} onOpen={p.onDetails} />
+            </Enter>
           ))}
 
           {/* The rule the rows depend on, stated where the taps are. Without it

@@ -168,7 +168,7 @@ flowchart TD
     space["space<br/>4pt scale, 11 steps"]
     radius["radius<br/>5 values"]
     tap["tap targets<br/>44 / 48 / 56pt"]
-    motion["motion<br/>8 tokens<br/>ALL UNAPPLIED"]
+    motion["motion<br/>13 tokens<br/>ALL UNAPPLIED"]
     elevation["elevation<br/>5 levels<br/>ALL UNSPECIFIED"]
   end
   theme["themeFor(scheme)<br/>resolves one persona"]
@@ -188,7 +188,7 @@ flowchart TD
 ```
 
 Two token families are declared and **never read by any component**: motion
-(8 tokens) and elevation (5 levels).
+(13 tokens) and elevation (5 levels).
 They are the two largest specification gaps.
 
 ---

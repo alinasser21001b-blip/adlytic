@@ -105,7 +105,18 @@ const LAYERS = [
       /^react$/,
       /^(vitest|react-test-renderer)$/,
     ],
-    banned: [],
+    banned: [
+      // Motion is a token or it is not motion. A duration typed at a call site
+      // is a ninth animation nobody approved, respecting nobody's reduced-motion
+      // setting and teaching nothing — §27 requires every movement to answer
+      // "what does this teach?", and a raw number answers nothing.
+      // Both forms, because they are the same mistake: `duration: 350` in a
+      // style object and `delay={200}` on a component. The first version of
+      // this rule caught only the object key and let the JSX prop through,
+      // which the negative test found immediately.
+      { re: /\b(duration|delay)\s*[:=]\s*\{?\s*\d/, why: "a raw animation duration — name a motion token instead (§27)" },
+      { re: /\bAnimated\./, why: "a hand-driven animation — compose ../ui/motion instead (§27)" },
+    ],
   },
   {
     // Navigation presents; it never decides. It may ask the domain for an

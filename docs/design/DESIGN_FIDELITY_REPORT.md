@@ -12,16 +12,16 @@
 
 ## Overall fidelity
 
-# 78%
+# 79%
 
 6 screens × 10 categories = 60 assessments.
 
 | Verdict | Count | Share |
 | --- | --- | --- |
-| Exact Match | 38 | 63% |
+| Exact Match | 39 | 65% |
 | Minor Deviation | 6 | 10% |
 | Intentional Deviation | 4 | 7% |
-| Missing | 6 | 10% |
+| Missing | 5 | 8% |
 | Blocked | 6 | 10% |
 
 Exact and Intentional both count 1.0 — an approved, recorded deviation is
@@ -33,7 +33,7 @@ Missing and Blocked count 0.
 | `V2` | Reservation (cached-first) | 78% |
 | `R7-queued` | Waiting · queued | 80% |
 | `R7-sent` | Waiting · sent | 78% |
-| `R8` | Offers | 75% |
+| `R8` | Offers | 85% |
 | `R9` | Substitution consent | 78% |
 | `E4` | Why we need your number | 78% |
 
@@ -98,7 +98,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | Spacing | Minor Deviation | Gutters and card padding land inside the delivered ranges, but the code panel's vertical padding is 32 (space 7) against a delivered 28 — the 4pt scale has no 28, and adding an off-scale value for one panel would cost more than the 4pt it buys. |
 | Colour | Intentional Deviation | Ground, card, sunken banner, line, ink, muted and accent all match, and the light code panel is applied. The panel caption ships at #63726B rather than the delivered #6B7A74 — see DEV-1. |
 | Component | Exact Match | `CodePanel`, `FactRow` and `Banner` are built and are what the screen composes. The banner is drawn by the frame from the declared offline treatment, so no screen can state «ما في اتصال» twice. |
-| Motion | Missing | No transition is implemented anywhere in the product. |
+| Motion | Missing | The motion system exists and is enforced, but V2 has no delivered movement of its own — the delivery specifies none for this screen. Nothing is missing that was designed. |
 | Icon | Blocked | No icon set exists. The back affordance is still the character ‹. |
 | Accessibility | Exact Match | 44pt floor, accessible labels and measured contrast all enforced on this screen every build. |
 | RTL | Exact Match | Direction-driven layout; no physical row reversal, banned at build time. |
@@ -134,7 +134,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | RTL | Exact Match | Enforced. |
 | Responsive | Exact Match | Measured at 320/360/390/430pt. All 1 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R8` — Offers · 75%
+### `R8` — Offers · 85%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
@@ -143,7 +143,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | Spacing | Exact Match | 14px card padding, 10px gaps — inside the delivered ranges. |
 | Colour | Exact Match | All rows identical: same card, same 1px line, no highlight. Matches the delivery's central requirement. |
 | Component | Exact Match | `Tag` is built and is what every caveat renders through, with one neutral treatment so no tag can be dressed up to favour a pharmacy. `ActionCard` gained an affordance choice rather than being forked. |
-| Motion | Missing | Offer arrival stagger (~200ms) unimplemented. |
+| Motion | Exact Match | The delivered `offerArrival` stagger is implemented: rows enter one after another, from the token, at the delivered duration. Reduced motion removes it. A screen cannot write a duration — the layer check rejects one, proved. |
 | Icon | Blocked | No icon set. |
 | Accessibility | Exact Match | Enforced. Row labels name the pharmacy and the ACT — «افتح عرض …», so a screen reader user is told the tap opens rather than reserves. The two new text-on-line pairs the tags introduced are now measured by the contrast gate (17 pairs, was 14). |
 | RTL | Exact Match | Enforced. |

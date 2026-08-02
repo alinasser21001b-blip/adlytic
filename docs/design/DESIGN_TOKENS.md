@@ -132,6 +132,11 @@ without adding a token.
 | `responderArrive` | 200ms | decelerate | someone answered, just now |
 | `undoDwell` | 4000ms | standard | you still have time |
 | `errorShake` | 200ms | standard | that input, not another |
+| `dwPulse` | 1800ms | decelerate | we are still asking |
+| `dwTick` | 1600ms | standard | this pharmacy is still deciding |
+| `dwSweep` | 4500ms | standard | the search is live |
+| `dwFloat` | 3000ms | standard | this is waiting, not stuck |
+| `offerArrival` | 200ms | decelerate | this one just came in |
 
 ## Elevation — declared, none specified
 

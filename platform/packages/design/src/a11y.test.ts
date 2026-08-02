@@ -10,10 +10,16 @@ import { palettes, CONTRACT_PAIRS, EXTRA_PAIRS, COLOR_ROLES, type Persona, type 
 import { contrastRatio, reportRatio, CONTRAST } from "./a11y.js";
 import { type as typeScale, TYPE_ROLES } from "./tokens/type.js";
 import { tap, space } from "./tokens/space.js";
-import { motion, SIGNATURE_EXEMPT, withReducedMotion } from "./tokens/motion.js";
+import { motion, tokenOf, SIGNATURE_EXEMPT, withReducedMotion, type MotionToken, type MotionName } from "./tokens/motion.js";
 
 const personas: Persona[] = ["patient", "pharmacy", "owner"];
 const schemes: Scheme[] = ["light", "dark"];
+
+/** The tokens as their DECLARED shape rather than as their literals: `as const`
+ *  narrows each entry, so an optional field is absent from the union members
+ *  that do not set it and there is no common `loop` to read. */
+const entries = (): readonly (readonly [string, MotionToken])[] =>
+  (Object.keys(motion) as MotionName[]).map((n) => [n, tokenOf(n)] as const);
 
 describe("§25 — every renderable colour pair is measured", () => {
   for (const persona of personas)
@@ -80,11 +86,31 @@ describe("§27 — motion teaches something or it is latency", () => {
     for (const [name, t] of Object.entries(motion))
       expect(t.teaches.trim(), `${name} teaches nothing`).not.toBe("");
   });
-  it("nothing exceeds 500ms except a declared exemption", () => {
-    for (const [name, t] of Object.entries(motion))
+  it("no TRANSITION exceeds 500ms except a declared exemption", () => {
+    // §27 rule 1 governs transitions: a change that takes longer than half a
+    // second stops reading as a change and starts reading as lag. A loop is
+    // not a transition — it reports that something is still happening, and a
+    // 1.8s heartbeat clamped to 500ms would read as agitation. Loops are held
+    // to a different rule below rather than let through unchecked.
+    for (const [name, t] of entries()) {
+      if (t.loop) continue;
       if (!(SIGNATURE_EXEMPT as readonly string[]).includes(name))
         expect(t.duration, `${name} is ${t.duration}ms`).toBeLessThanOrEqual(500);
+    }
   });
+  it("every loop is slow enough to read as a heartbeat and stops under reduced motion", () => {
+    for (const [name, t] of entries()) {
+      if (!t.loop) continue;
+      // Below about a second a loop reads as flicker rather than as breathing,
+      // and flicker on a screen a frightened person is watching is the worst
+      // possible version of "something is happening".
+      expect(t.duration, `${name} loops every ${t.duration}ms`).toBeGreaterThanOrEqual(1000);
+      // Clamping a loop short would make it worse, so reduced motion stops it.
+      expect(withReducedMotion(t, true).duration, `${name} under reduced motion`).toBe(0);
+      expect(withReducedMotion(t, true).loop, `${name} still loops under reduced motion`).toBe(false);
+    }
+  });
+
   it("reduced motion cross-fades rather than removing the feedback", () => {
     const reduced = withReducedMotion(motion.doseConfirmed, true);
     expect(reduced.duration).toBeGreaterThan(0);
