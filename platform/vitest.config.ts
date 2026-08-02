@@ -11,10 +11,16 @@ export default defineConfig({
       "@dawai/offline": new URL("./packages/offline/src/index.ts", import.meta.url).pathname,
       "@dawai/net": new URL("./packages/net/src/index.ts", import.meta.url).pathname,
       "@dawai/domain": new URL("./packages/domain/src/index.ts", import.meta.url).pathname,
+      "@dawai/observability": new URL("./packages/observability/src/index.ts", import.meta.url).pathname,
+      // React Native's entry point is Flow-typed source only Metro parses.
+      // The double maps each primitive onto a host element of the same name and
+      // passes every prop through, so a rendered tree still carries the real
+      // accessibility roles, labels and handlers.
+      "react-native": new URL("./tools/rn-test-double.tsx", import.meta.url).pathname,
     },
   },
   test: {
-    include: ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.ts"],
+    include: ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.{ts,tsx}"],
     // The domain is pure, so its tests need no environment, no server and no
     // database. That is the point of Rule 3, and it is why these run in
     // milliseconds and can be trusted in a pre-commit hook.

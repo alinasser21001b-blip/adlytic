@@ -59,8 +59,15 @@ const LAYERS = [
     dir: "apps",
     // observability is on the list because an app EMITS telemetry; it may name
     // an event from the closed set and may not invent one, which is the same
-    // reason the set is closed in the first place.
-    allowedImports: [/^\.{1,2}\//, /^@dawai\/(design|domain|navigation|session|offline|net|contracts|observability)$/],
+    // reason the set is closed in the first place. react and react-native are
+    // the app's rendering platform — and NOTHING else is, so a screen cannot
+    // reach for a state library that would let a rule live in a component.
+    allowedImports: [
+      /^\.{1,2}\//,
+      /^@dawai\/(design|domain|navigation|session|offline|net|contracts|observability)$/,
+      /^react$/, /^react-native$/,
+      /^(vitest|react-test-renderer)$/,
+    ],
     banned: [
       { re: /\bDate\.now\s*\(/, why: "the system clock inside a contract — presentation state comes from the domain" },
       { re: /\bMath\.random\s*\(/, why: "nondeterminism in a contract" },
@@ -132,7 +139,7 @@ const walk = (dir, out = []) => {
     if (name === "node_modules" || name === "dist") continue;
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.ts$/.test(name)) out.push(p);
+    else if (/\.tsx?$/.test(name)) out.push(p);
   }
   return out;
 };
@@ -145,7 +152,7 @@ for (const layer of LAYERS) {
   for (const file of files) {
     scanned += 1;
     const rel = relative(PLATFORM, file);
-    const isTest = /\.test\.ts$/.test(file);
+    const isTest = /\.test\.tsx?$/.test(file);
     const raw = readFileSync(file, "utf8");
     // Scan CODE, not prose. A comment saying "request window" is not the
     // browser global, and a checker that cannot tell the difference trains

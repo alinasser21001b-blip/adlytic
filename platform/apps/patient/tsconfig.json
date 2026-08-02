@@ -4,16 +4,37 @@
     "rootDir": "src",
     "outDir": "dist",
     "composite": true,
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*"
+  ],
   "references": [
-    { "path": "../../packages/design" },
-    { "path": "../../packages/navigation" },
-    { "path": "../../packages/domain" },
-    { "path": "../../packages/session" },
-    { "path": "../../packages/offline" },
-    { "path": "../../packages/net" },
-    { "path": "../../packages/observability" }
+    {
+      "path": "../../packages/design"
+    },
+    {
+      "path": "../../packages/navigation"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/session"
+    },
+    {
+      "path": "../../packages/offline"
+    },
+    {
+      "path": "../../packages/net"
+    },
+    {
+      "path": "../../packages/observability"
+    }
   ]
 }
