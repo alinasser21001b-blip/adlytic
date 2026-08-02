@@ -22,7 +22,7 @@ import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Primary, Choice, InfoCard, Row, Spacer, Grow, Card, Section } from "../ui/kit.js";
+import { Screen, Label, Bidi, Primary, Choice, InfoCard, Row, Spacer, Grow, Card, Section } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const R9 = CORE_LOOP.find((c) => c.id === "R9")!;
@@ -143,12 +143,23 @@ function SubstitutionChoice(
           <Card t={t} gap={1}>
             <Label t={t} role="caption" color="inkSubtle">طلبتِ</Label>
             <Label t={t} role="headline">{comparison.asked}</Label>
+            {/* The name on the box. A patient checking a swap against a
+                prescription, a package or another pharmacist reads this one,
+                and until the offer line carried it they had nothing to check
+                against. Absent rather than transliterated when unknown — a
+                guessed Latin name is worse than none on a medicine box. */}
+            {comparison.askedLatin
+              ? <Bidi t={t} text={comparison.askedLatin} role="caption" color="inkMuted" />
+              : null}
           </Card>
         </Grow>
         <Grow>
           <Card t={t} gap={1}>
             <Label t={t} role="caption" color="inkSubtle">يعرض</Label>
             <Label t={t} role="headline">{comparison.offered}</Label>
+            {comparison.offeredLatin
+              ? <Bidi t={t} text={comparison.offeredLatin} role="caption" color="inkMuted" />
+              : null}
             <Label t={t} role="caption" color="inkMuted">{Offers.formatPrice(comparison.priceMinor)}</Label>
           </Card>
         </Grow>
@@ -160,6 +171,15 @@ function SubstitutionChoice(
       <Card t={t} surface="sunken" border="none" gap={2}>
         <Label t={t} role="caption" color="inkSubtle">كلام الصيدلي — مثل ما كتبه، ما نلخّصه</Label>
         <Label t={t} role="body">{`«${comparison.note}»`}</Label>
+        {/* D19 — who said it, and on what authority. A clinical claim with no
+            author is one a patient cannot weigh. «صيدلي مُجاز» appears only
+            when the platform's registration record says so; an unverified
+            author is still named, because hiding them would be worse. */}
+        <Label t={t} role="caption" color="inkSubtle">
+          {comparison.proposedBy.licenceVerified
+            ? `${comparison.proposedBy.name} — صيدلي مُجاز، ${comparison.proposedBy.branchName}`
+            : `${comparison.proposedBy.name} — ${comparison.proposedBy.branchName}`}
+        </Label>
       </Card>
 
       {/* Two separate promises, and the patient needs both. The first is that

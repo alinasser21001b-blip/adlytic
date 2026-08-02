@@ -14,18 +14,47 @@
  */
 import { Marketplace, isErr, type Instant, type Refusal } from "@dawai/domain";
 
+/**
+ * Who proposed a substitution, and on what authority.
+ *
+ * D19 states that a substitution may only be proposed by a verified
+ * pharmacist. Until this existed, R9 showed a clinical claim with no author —
+ * a patient was asked to accept a different medicine on the word of nobody in
+ * particular, and had no way to weigh it.
+ *
+ * `licenceVerified` is the pharmacy's registration record as the platform holds
+ * it, never a self-description. A screen may only say «صيدلي مُجاز» when it is
+ * true; when it is false the note still shows, attributed and unqualified,
+ * because hiding an unverified author is worse than naming one.
+ */
+export type ProposedBy = {
+  readonly name: string;
+  readonly licenceVerified: boolean;
+  readonly branchName: string;
+};
+
+/** A medicine has two names, and a patient checking a substitute against a box,
+ *  a prescription or another pharmacist needs the Latin one. */
+export type Named = {
+  readonly itemName: string;
+  /** Empty when the catalogue holds no Latin name. Never fabricated from a
+   *  transliteration — a guessed name is worse than an absent one on a box. */
+  readonly latinName: string;
+};
+
 export type OfferLine =
-  | { readonly requestLineId: string; readonly itemName: string; readonly answer: Extract<Marketplace.OfferAnswer, { kind: "available" }> }
-  | { readonly requestLineId: string; readonly itemName: string; readonly answer: Extract<Marketplace.OfferAnswer, { kind: "unavailable" }> }
+  | { readonly requestLineId: string; readonly answer: Extract<Marketplace.OfferAnswer, { kind: "available" }> } & Named
+  | { readonly requestLineId: string; readonly answer: Extract<Marketplace.OfferAnswer, { kind: "unavailable" }> } & Named
   | {
       readonly requestLineId: string;
-      readonly itemName: string;
       readonly answer: Extract<Marketplace.OfferAnswer, { kind: "substitute" }>;
       /** What the substitute is CALLED. The domain carries an itemId and the
        *  pharmacist's note; a patient consenting to a different brand must read
        *  its name, and showing an id would be showing them nothing. */
       readonly substituteName: string;
-    };
+      readonly substituteLatinName: string;
+      readonly proposedBy: ProposedBy;
+    } & Named;
 
 export type Offer = {
   readonly offerId: string;
@@ -58,18 +87,26 @@ export const isSubstitute = (l: OfferLine): l is SubstituteLine => l.answer.kind
 export function substitutionsOf(offer: Offer): readonly {
   readonly requestLineId: string;
   readonly requestedName: string;
+  readonly requestedLatinName: string;
   readonly offeredName: string;
+  readonly offeredLatinName: string;
   readonly offeredItemId: string;
   readonly priceMinor: number;
   readonly pharmacistNote: string;
+  readonly proposedBy: ProposedBy;
 }[] {
   return offer.lines.filter(isSubstitute).map((l) => ({
     requestLineId: l.requestLineId,
     requestedName: l.itemName,
+    requestedLatinName: l.latinName,
     offeredName: l.substituteName,
+    offeredLatinName: l.substituteLatinName,
     offeredItemId: l.answer.itemId,
     priceMinor: l.answer.priceMinor,
     pharmacistNote: l.answer.note,
+    // D19 — carried through rather than dropped. The author is part of the
+    // clinical statement, not decoration around it.
+    proposedBy: l.proposedBy,
   }));
 }
 

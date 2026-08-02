@@ -5,10 +5,13 @@ import * as Prescription from "./prescription.js";
 const sub = (id: string, over: Partial<Consent.Substitution> = {}): Consent.Substitution => ({
   requestLineId: id,
   requestedName: "بانادول",
+  requestedLatinName: "Panadol",
   offeredName: "سيتامول",
+  offeredLatinName: "Cetamol",
   offeredItemId: "x1",
   priceMinor: 2_500,
   pharmacistNote: "نفس المادة الفعالة، إنتاج شركة ثانية",
+  proposedBy: { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" },
   ...over,
 });
 
@@ -85,7 +88,11 @@ describe("what the patient is shown to decide on", () => {
     const s = Consent.begin("o1", [sub("l1")]);
     expect(Consent.comparison(s, "l1")).toEqual({
       asked: "بانادول",
+      askedLatin: "Panadol",
       offered: "سيتامول",
+      offeredLatin: "Cetamol",
+      // D19 — the author travels with the claim.
+      proposedBy: { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" },
       note: "نفس المادة الفعالة، إنتاج شركة ثانية",
       priceMinor: 2_500,
       decision: "undecided",

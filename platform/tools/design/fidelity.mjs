@@ -168,11 +168,11 @@ export const SCREENS = {
   R9: {
     built: true,
     verdicts: {
-      Layout: ["minor", "Built to the delivery: «دواء غير اللي طلبته», the neutrality sentence, asked and offered side by side, the verbatim quote card, both consent statements, and two identical answers. The two comparison cards do not equalise height (DEV-14), and the answers sit inside the card rather than pinned at the bottom (DEV-15)."],
+      Layout: ["minor", "Built to the delivery in full: «دواء غير اللي طلبته», the neutrality sentence, asked and offered side by side with BOTH names in both scripts, the verbatim quote signed by its verified author, both consent statements, and two identical answers. The two comparison cards do not equalise height (DEV-14), and the answers sit inside the card rather than pinned at the bottom (DEV-15)."],
       Typography: ["exact", "Heading at the delivered 24/800, the quote at body scale, captions at 13. Prices read «د.ع»."],
       Spacing: ["exact", "Within the delivered ranges."],
       Colour: ["exact", "Both answers share the same #142720 fill and 2px #2ECF9A border — the delivery's non-negotiable."],
-      Component: ["exact", "Composed from Section, Row, Grow, Card and Choice — no screen-specific primitive. `Choice` gained a spoken label so shortening «أوافق على البديل» to «أوافق» did not strip the subject from a screen reader."],
+      Component: ["exact", "Composed from Section, Row, Grow, Card, Bidi and Choice — no screen-specific primitive. `Choice` gained a spoken label so shortening «أوافق على البديل» to «أوافق» did not strip the subject from a screen reader."],
       Motion: ["missing", "None implemented."],
       Icon: ["blocked", "No icon set."],
       Accessibility: ["exact", "Radio semantics with selection state, identical weight for both answers, and a spoken label naming the medicine each answer refers to. Both answers clear the 44pt floor at every measured width."],
@@ -207,24 +207,6 @@ export const DEVIATIONS = [
     designApproved: false,
     productApproved: false,
     debt: "None for E4. E5–E8 remain unbuilt and are tracked as TD-4.",
-  },
-  {
-    id: "DEV-12",
-    what: "R9 does not attribute the pharmacist's note to a named, licensed pharmacist.",
-    why: "The delivery signs the quote «د. أحمد — صيدلي مُجاز، صيدلية الرشيد». No such field exists on an offer line: the domain carries the note and nothing about who wrote it. Rendering a name and a licence claim the system does not hold would be fabricating a clinical credential on the screen where a patient decides whether to accept a different medicine. This is the one deviation on this screen that must not be closed by guessing.",
-    temporary: true,
-    designApproved: false,
-    productApproved: false,
-    debt: "Needs an attributed-author field on the offer line, sourced from the pharmacy's verified staff record — not free text.",
-  },
-  {
-    id: "DEV-13",
-    what: "The asked/offered cards show Arabic names only; the delivery also prints the Latin name under each.",
-    why: "`OfferLine` has no Latin name. The catalogue carries one for a search hit, but an offer comes from a pharmacy and nothing in the contract says a Latin name travels with it. The Latin name is how a patient checks a substitute against a box or a doctor, so this is a real loss rather than a cosmetic one — recorded as debt, not waved through.",
-    temporary: true,
-    designApproved: false,
-    productApproved: false,
-    debt: "Add a Latin name to the offer line contract, or resolve it from the catalogue by item id.",
   },
   {
     id: "DEV-14",

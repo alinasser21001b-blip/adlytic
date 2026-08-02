@@ -101,13 +101,25 @@ const DISTRICTS: readonly Onboarding.District[] = [
 /** Typed rather than cast: the cast that used to be here hid a missing
  *  substitute name, and the gallery would have rendered "undefined" as a
  *  medicine a patient was asked to consent to. */
-function oLine(id: string, name: string, answer: Offers.OfferLine["answer"], substituteName = ""): Offers.OfferLine {
-  if (answer.kind === "substitute")
-    return { requestLineId: id, itemName: name, answer, substituteName };
-  if (answer.kind === "available")
-    return { requestLineId: id, itemName: name, answer };
-  return { requestLineId: id, itemName: name, answer };
+function oLine(
+  id: string, name: string, answer: Offers.OfferLine["answer"],
+  sub?: { readonly name: string; readonly latinName: string; readonly by: Offers.ProposedBy },
+  latinName = "",
+): Offers.OfferLine {
+  if (answer.kind === "substitute") {
+    if (!sub) throw new Error("a substitute line needs its substitute and its author");
+    return {
+      requestLineId: id, itemName: name, latinName, answer,
+      substituteName: sub.name, substituteLatinName: sub.latinName, proposedBy: sub.by,
+    };
+  }
+  if (answer.kind === "available") return { requestLineId: id, itemName: name, latinName, answer };
+  return { requestLineId: id, itemName: name, latinName, answer };
 }
+
+/** D19 — a verified pharmacist, as the platform's registration record holds
+ *  them. Never a self-description. */
+const DR_AHMED: Offers.ProposedBy = { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" };
 
 const anOffer = (over: Partial<Offers.Offer> = {}): Offers.Offer => ({
   offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
@@ -134,7 +146,8 @@ const THREE_OFFERS: readonly Offers.Offer[] = [
   anOffer({
     offerId: "o3", branchName: "صيدلية بغداد", distanceM: 3_400, honoured: "needs_attention", openNow: false,
     lines: [
-      oLine("l1", "بانادول", { kind: "substitute", priceMinor: 2_500, itemId: "x", note: "نفس المادة الفعالة" }, "سيتامول"),
+      oLine("l1", "بانادول", { kind: "substitute", priceMinor: 2_500, itemId: "x", note: "نفس المادة الفعالة" },
+        { name: "سيتامول", latinName: "Cetamol", by: DR_AHMED }, "Panadol"),
       oLine("l2", "أموكسيسيلين", { kind: "available", priceMinor: 6_000 }),
     ],
   }),
@@ -175,16 +188,20 @@ const rxProps = (capture: Prescription.Capture) => ({
 const SUBS: readonly Consent.Substitution[] = [{
   requestLineId: "l1",
   requestedName: "بانادول",
+  requestedLatinName: "Panadol",
   offeredName: "سيتامول",
+  offeredLatinName: "Cetamol",
   offeredItemId: "x1",
   priceMinor: 2_500,
   pharmacistNote: "نفس المادة الفعالة (باراسيتامول ٥٠٠ ملغم)، إنتاج شركة ثانية",
+  proposedBy: DR_AHMED,
 }];
 
 const SUB_OFFER = anOffer({
   offerId: "sub", branchName: "صيدلية الرشيد",
   lines: [
-    oLine("l1", "بانادول", { kind: "substitute", priceMinor: 2_500, itemId: "x1", note: "نفس المادة الفعالة" }, "سيتامول"),
+    oLine("l1", "بانادول", { kind: "substitute", priceMinor: 2_500, itemId: "x1", note: "نفس المادة الفعالة" },
+      { name: "سيتامول", latinName: "Cetamol", by: DR_AHMED }, "Panadol"),
     oLine("l2", "أموكسيسيلين", { kind: "available", priceMinor: 5_000 }),
   ],
 });

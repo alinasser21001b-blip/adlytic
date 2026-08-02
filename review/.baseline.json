@@ -1,6 +1,15 @@
 {
   "hasBaseline": true,
-  "added": [
+  "added": [],
+  "removed": [],
+  "changed": [
+    "R9-agreed.png",
+    "R9-refused.png",
+    "R9-undecided.png"
+  ],
+  "unchanged": [
+    "E4-direct.png",
+    "E4-guarded.png",
     "E5-country.png",
     "E5-empty.png",
     "E5-malformed.png",
@@ -14,13 +23,7 @@
     "E7-typed.png",
     "E8-chosen.png",
     "E8-list.png",
-    "E8-nomatch.png"
-  ],
-  "removed": [],
-  "changed": [],
-  "unchanged": [
-    "E4-direct.png",
-    "E4-guarded.png",
+    "E8-nomatch.png",
     "F1-empty.png",
     "F2-empty.png",
     "F2-error.png",
@@ -41,9 +44,6 @@
     "R8-empty.png",
     "R8-offers.png",
     "R8-withdrawn.png",
-    "R9-agreed.png",
-    "R9-refused.png",
-    "R9-undecided.png",
     "V1-requesting.png",
     "V2-cached.png",
     "V2-held.png",

@@ -18,19 +18,27 @@
  * @implements consent/substitution
  */
 import type { Refusal } from "@dawai/domain";
+import type * as Offers from "./offers.js";
 
 export type Substitution = {
   readonly requestLineId: string;
   /** What the patient asked for. */
   readonly requestedName: string;
+  /** The Latin name on the box, so the swap can be checked against a
+   *  prescription, a package or another pharmacist. Empty when unknown. */
+  readonly requestedLatinName: string;
   /** What the pharmacy is proposing instead. */
   readonly offeredName: string;
+  readonly offeredLatinName: string;
   readonly offeredItemId: string;
   readonly priceMinor: number;
   /** D19 — a substitution may only be proposed by a verified pharmacist, and
    *  the note is theirs. Shown verbatim; the app never paraphrases a clinical
    *  statement. */
   readonly pharmacistNote: string;
+  /** D19 — who proposed it, and whether their licence is verified. A clinical
+   *  claim with no author is one a patient cannot weigh. */
+  readonly proposedBy: Offers.ProposedBy;
 };
 
 /** The patient's answer to one proposal. `undecided` is the only possible
@@ -106,8 +114,11 @@ export function gate(state: ConsentState): Refusal | null {
  *  words, never summarised. */
 export type Comparison = {
   readonly asked: string;
+  readonly askedLatin: string;
   readonly offered: string;
+  readonly offeredLatin: string;
   readonly note: string;
+  readonly proposedBy: Offers.ProposedBy;
   readonly priceMinor: number;
   readonly decision: Decision;
 };
@@ -117,7 +128,10 @@ export function comparison(state: ConsentState, requestLineId: string): Comparis
   if (!s) return null;
   return {
     asked: s.requestedName,
+    askedLatin: s.requestedLatinName,
     offered: s.offeredName,
+    offeredLatin: s.offeredLatinName,
+    proposedBy: s.proposedBy,
     note: s.pharmacistNote,
     priceMinor: s.priceMinor,
     decision: decisionFor(state, requestLineId),

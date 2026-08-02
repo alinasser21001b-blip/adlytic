@@ -31,9 +31,9 @@
 | `InfoCard` | 12 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 126 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Label` | 127 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
 | `Digits` | 4 | ConfirmScreen, DraftScreen, ReservationScreen |
-| `Bidi` | 3 | DraftScreen, FindScreen |
+| `Bidi` | 5 | DraftScreen, FindScreen, OfferDetailScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
 
 ---
@@ -430,7 +430,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (126 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (127 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |
@@ -462,7 +462,7 @@ Isolates a Latin run inside Arabic — drug names, codes, prices — so it does 
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, FindScreen (3 usages) |
+| **Used by** | DraftScreen, FindScreen, OfferDetailScreen (5 usages) |
 | **Required variants** | `body`, `headline`, `caption`, `title` |
 | **Required interactions** | none |
 | **Accessibility** | Correct reading order for screen readers. |

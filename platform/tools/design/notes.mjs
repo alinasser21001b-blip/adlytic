@@ -13,6 +13,60 @@
 
 /** Screens with an engineering contract. Keyed by Blueprint id. */
 export const SCREEN_NOTES = {
+  E5: {
+    goal: "Give a phone number to an app I have not decided to trust yet.",
+    emotion: "Reluctance. This is the first thing we take rather than give, and everything before it was free.",
+    fixed: [
+      "The rule the number must satisfy is stated, not just that it failed. «الرقم يبدي بـ ٧٧ أو ٧٨ أو ٧٩ أو ٧٥ ويكون ١٠ أرقام».",
+      "A number we cannot serve and a number typed wrong get DIFFERENT sentences. Telling someone their correct number is invalid blames them for our coverage.",
+      "Nothing is marked wrong until enough has been typed for it to be wrong.",
+      "Blocked, not queued, when offline: a verification SMS leaves now or not at all.",
+    ],
+    open: [
+      "Whether the field should mask or group digits as they are typed.",
+      "Whether the country prefix should ever be editable, given Phase 0 is Iraq only.",
+    ],
+  },
+  E6: {
+    goal: "Type six digits correctly, from a message that may not have arrived.",
+    emotion: "Impatience shading into doubt. Every second without the SMS is a second spent wondering whether the app works.",
+    fixed: [
+      "The number is shown back, so a patient who mistyped one digit finds it here rather than by failing five times.",
+      "Attempts remaining are stated. Someone who does not know how many are left will guess.",
+      "Four declared failures, four recoveries. An expired code is not a wrong answer and costs no attempt.",
+      "Resend is time-stated rather than silently throttled — a button that does nothing reads as a broken app.",
+    ],
+    open: [
+      "Whether the code field should be six separate boxes or one run, and whether it auto-advances.",
+      "Whether an SMS autofill affordance exists on either platform.",
+    ],
+  },
+  E7: {
+    goal: "Give a name a pharmacist can call out at a counter.",
+    emotion: "Mild exposure. A name is small, but it is the first personal thing we keep.",
+    fixed: [
+      "Why before what: the name exists so a pharmacist can hand a bag to the right person.",
+      "What the pharmacy will see is SHOWN before submission, keeping E4's promise where the patient can check it.",
+      "The name is trimmed and collapsed and nothing else. No transliteration, no capitalisation — a person's name is not the app's to tidy.",
+    ],
+    open: [
+      "Whether a family name is ever collected, and if so where.",
+      "How a name in Latin script should render on a screen otherwise set right-to-left.",
+    ],
+  },
+  E8: {
+    goal: "Say where I am, without handing over my location.",
+    emotion: "Wariness. A permission dialogue here would be the moment a cautious person stops.",
+    fixed: [
+      "Location is never requested. The bundled district list IS the route, not the consolation prize — «ما نحتاج موقعك».",
+      "An uncovered district says so on the row rather than after the tap (E12).",
+      "Search matches city as well as district, so someone who thinks in city names still finds theirs.",
+    ],
+    open: [
+      "Whether a map or a 'use my location' affordance should exist at all, and what E9's primer looks like if so.",
+      "How the list is ordered before a search — alphabetical, by city, or by coverage.",
+    ],
+  },
   S1: {
     goal: "Find out, in one glance, whether anything needs me today.",
     emotion: "Reassurance. Most days the honest answer is 'nothing', and the screen must make that feel like good news rather than an empty app.",
