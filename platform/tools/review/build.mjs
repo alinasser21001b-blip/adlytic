@@ -90,6 +90,10 @@ const gates = [
   gate("Screen contracts", "node tools/ux-check.mjs", firstMatch(/(\d+ with a declared UX contract)/)),
   gate("TypeScript", "npx tsc -b", () => "no errors, strict mode"),
   gate("Tests", "npx vitest run", firstMatch(/Tests\s+(\d+ passed[^\n]*)/)),
+  // A suite that fails to LOAD is already caught above — vitest exits non-zero.
+  // This catches the quieter one: a test file that stops being collected at
+  // all, so coverage falls while every gate stays green.
+  gate("Test reach", "node tools/test-reach-check.mjs", firstMatch(/(\d+ test file\(s\) on disk[^\n]*)/)),
   gate("Responsive layout", "node tools/review/shoot.mjs", firstMatch(/(\d+ screen state\(s\) photographed[^\n]*)/)),
 ];
 
