@@ -23,6 +23,9 @@ wrong until an approved Blueprint revision says otherwise.
 | 7 · Every feature independently testable | The domain is pure, so every rule is testable with no infrastructure |
 | UX · A screen answers where am I, what next, how back | `tools/ux-check.mjs` + `auditContract` — a contract must name a real Blueprint screen, cover every state the Blueprint declares for it, and leave no dead end |
 | UX · Contrast is measured, never eyeballed | `a11y.test.ts` measures all 84 renderable pairs across 3 personas × 2 schemes |
+| UX · No dead ends, no orphans, predictable back | `@dawai/navigation` derives the graph from the contracts; `unreachable`, `traps` and `danglingExits` are graph properties a test checks |
+| UX · Where am I, what came before, what next, how far | `progressAt` derives all four from a declared flow, so no screen hard-codes an answer |
+| Build hygiene · no stale build beside a source | `tools/layer-check.mjs` — an emitted `.js` next to its `.ts` resolves first and makes every test run against the previous build |
 
 ```bash
 npm install
@@ -35,7 +38,7 @@ npm run check      # trace + layers + ux + types + test
 |---|---|---|
 | 1 | Repository foundation, config, secrets, logging, telemetry, feature flags | **built** |
 | 2 | Shared design system | **built** |
-| 3 | Navigation, auth, session, offline, networking | not started |
+| 3 | Navigation, auth, session, offline, networking | **built** |
 | 4 | Domain layer — entities, state machines, rules, events | **built** |
 | 5 | Infrastructure — repositories, storage, sync, queues, notifications, audit | not started |
 | 6 | Patient app | UX contracts declared for the core loop; screens blocked on 3, 5 |

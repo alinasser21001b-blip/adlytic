@@ -85,4 +85,13 @@ jobs:
           expect_ux_fail "a contract for a screen the Blueprint does not contain"
           python3 -c "p='apps/patient/src/screens/core-loop.contract.ts';s=open(p).read();open(p,'w').write(s.replace('exits: [\"V2\", \"V4\", \"R8\"]','exits: [\"NOWHERE\"]',1))"
           expect_ux_fail "an exit to a screen that does not exist"
+
+          # Build output beside a source resolves FIRST in the test runner, so
+          # every test would silently run against the previous build.
+          touch apps/patient/src/screens/core-loop.contract.js
+          if npm run layers --silent > /dev/null 2>&1; then
+            echo "::error::layer check ACCEPTED build output beside a source"; rm -f apps/patient/src/screens/core-loop.contract.js; exit 1
+          fi
+          echo "  rejected as expected: build output beside a source file"
+          rm -f apps/patient/src/screens/core-loop.contract.js
           echo "All negative tests passed: the guards reject what they must."

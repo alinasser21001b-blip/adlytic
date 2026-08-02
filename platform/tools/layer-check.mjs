@@ -57,10 +57,51 @@ const LAYERS = [
     // declares WHAT a screen presents; it may not compute a rule.
     name: "apps",
     dir: "apps",
-    allowedImports: [/^\.{1,2}\//, /^@dawai\/(design|domain|contracts)$/],
+    allowedImports: [/^\.{1,2}\//, /^@dawai\/(design|domain|navigation|session|offline|net|contracts)$/],
     banned: [
       { re: /\bDate\.now\s*\(/, why: "the system clock inside a contract — presentation state comes from the domain" },
       { re: /\bMath\.random\s*\(/, why: "nondeterminism in a contract" },
+    ],
+  },
+  {
+    // Navigation presents; it never decides. It may ask the domain for an
+    // answer but may not compute a rule — Rule 4.
+    name: "navigation",
+    dir: "packages/navigation",
+    allowedImports: [/^\.{1,2}\//, /^@dawai\/(design|domain|contracts)$/],
+    banned: [
+      { re: /\bDate\.now\s*\(/, why: "the system clock — navigation is deterministic" },
+      { re: /\bMath\.random\s*\(/, why: "nondeterminism — a deep-linked stack must be identical every time" },
+    ],
+  },
+  {
+    // The outbox and the retry policy are pure state machines over time that
+    // the CALLER supplies, for the same reason the domain is: a retry schedule
+    // that reads a clock cannot be tested.
+    name: "offline",
+    dir: "packages/offline",
+    allowedImports: [/^\.{1,2}\//],
+    banned: [
+      { re: /\bDate\.now\s*\(/, why: "the system clock — queuedAt is supplied by the caller" },
+      { re: /\bfetch\s*\(/, why: "a network call — the outbox describes work, it does not send it" },
+    ],
+  },
+  {
+    name: "net",
+    dir: "packages/net",
+    allowedImports: [/^\.{1,2}\//],
+    banned: [
+      { re: /\bMath\.random\s*\(/, why: "nondeterminism — jitter takes an explicit random source" },
+      { re: /\bfetch\s*\(/, why: "a network call — this package is policy, not transport" },
+    ],
+  },
+  {
+    name: "session",
+    dir: "packages/session",
+    allowedImports: [/^\.{1,2}\//],
+    banned: [
+      { re: /\bDate\.now\s*\(/, why: "the system clock — startedAt is supplied by the caller" },
+      { re: /\blocalStorage\./, why: "storage — the session is a value; persisting it is infrastructure" },
     ],
   },
   {
@@ -131,6 +172,42 @@ for (const layer of LAYERS) {
     }
   }
 }
+
+/* Build output must never sit beside a source file. A stale emitted .js next
+ * to its .ts resolves FIRST in the test runner, so every test silently runs
+ * against the previous build — the tests pass while the code is wrong, which
+ * is the worst failure mode a suite can have. Found the hard way. */
+for (const dir of ["packages", "apps"]) {
+  for (const f of walk(join(PLATFORM, dir))) {
+    const rel = relative(PLATFORM, f);
+    if (!rel.includes("/src/")) continue;
+  }
+}
+const strays = [];
+(function findStrays(dir) {
+  let entries;
+  try { entries = readdirSync(dir); } catch { return; }
+  for (const name of entries) {
+    if (name === "node_modules" || name === "dist") continue;
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) findStrays(p);
+    else if (/\.(js|d\.ts|js\.map|d\.ts\.map)$/.test(name) && p.includes("/src/"))
+      strays.push(relative(PLATFORM, p));
+  }
+})(join(PLATFORM, "packages"));
+(function findStrays2(dir) {
+  let entries;
+  try { entries = readdirSync(dir); } catch { return; }
+  for (const name of entries) {
+    if (name === "node_modules" || name === "dist") continue;
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) findStrays2(p);
+    else if (/\.(js|d\.ts|js\.map|d\.ts\.map)$/.test(name) && p.includes("/src/"))
+      strays.push(relative(PLATFORM, p));
+  }
+})(join(PLATFORM, "apps"));
+for (const s of strays)
+  problems.push(`${s} — build output beside a source file; the test runner resolves it FIRST and every test runs against a stale build`);
 
 console.log(`\nRule 3 + Rule 4 — layer boundaries\n`);
 console.log(`  ${scanned} file(s) scanned across ${LAYERS.length} layer(s)\n`);

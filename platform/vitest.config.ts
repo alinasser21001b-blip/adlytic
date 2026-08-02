@@ -6,6 +6,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@dawai/design": new URL("./packages/design/src/index.ts", import.meta.url).pathname,
+      "@dawai/navigation": new URL("./packages/navigation/src/index.ts", import.meta.url).pathname,
+      "@dawai/session": new URL("./packages/session/src/index.ts", import.meta.url).pathname,
+      "@dawai/offline": new URL("./packages/offline/src/index.ts", import.meta.url).pathname,
+      "@dawai/net": new URL("./packages/net/src/index.ts", import.meta.url).pathname,
       "@dawai/domain": new URL("./packages/domain/src/index.ts", import.meta.url).pathname,
     },
   },

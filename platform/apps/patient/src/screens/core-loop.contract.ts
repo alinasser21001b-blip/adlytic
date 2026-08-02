@@ -1,7 +1,7 @@
 /**
  * UX contracts for the patient core loop.
  *
- * @blueprint S1 · F1 · F2 · R1 · R6 · R7 · R8 · R11 · R13 · V1 · V2 · V4
+ * @blueprint S1 · S2 · F1 · F2 · F3 · F4 · R1 · R2 · R3 · R4 · R5 · R6 · R7 · R8 · R9 · R11 · R13 · V1 · V2 · V4 · V5 · V7 · V8
  * @owner patient-app
  * @why Stage 6 builds screens; this declares what each one owes the user
  *      BEFORE any of them is built, so a screen cannot be called finished
@@ -164,6 +164,78 @@ export const CORE_LOOP: readonly ScreenContract[] = [
         action: { label: "شوف العروض الباقية", leadsTo: "R8" } },
     ],
     exits: ["R9", "V1", "R7"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R2",
+    location: { title: "صوّر الوصفة", destination: "modal" },
+    purpose: "Photograph the paper",
+    back: { kind: "pop" },
+    primary: { label: "صوّر", leadsTo: "R3", tapsToOutcome: 1 },
+    // Refusing the camera is never a wall — the patient types the name instead.
+    secondary: [{ label: "اكتب الاسم بدال الصورة", leadsTo: "R1" }],
+    states: [
+      { kind: "permissionRefused", stillUsable: true,
+        alternative: "تكدر تكتب اسم الدواء بدل الصورة" },
+      // The failure names the fixable condition, never the person (D37).
+      { kind: "error", whatFailed: "ما نكدر نقرأ الوصفة من هذي الصورة", workPreserved: true,
+        action: { label: "صوّر مرة ثانية بضوء أكثر", leadsTo: "R2" } },
+    ],
+    exits: ["R3", "R1"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R3",
+    location: { title: "شوف الصورة", destination: "modal" },
+    purpose: "Confirm the image is readable before it travels",
+    back: { kind: "pop" },
+    // The patient judges legibility, not an algorithm — Phase 0 does not read
+    // the prescription (D18), and pretending otherwise would be a false claim.
+    primary: { label: "واضحة — كمّل", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [{ label: "صوّر مرة ثانية", leadsTo: "R2" }],
+    states: [],
+    exits: ["R1", "R2"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R4",
+    location: { title: "لمن الدواء؟", destination: "modal" },
+    purpose: "Choose the subject",
+    back: { kind: "dismiss", returnsTo: "R1" },
+    primary: { label: "اختر", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [{ label: "ضيف شخص", leadsTo: "S3" }],
+    states: [],
+    exits: ["R1", "S3"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R5",
+    location: { title: "شكد مستعجل؟", destination: "modal" },
+    purpose: "Set the window honestly",
+    back: { kind: "dismiss", returnsTo: "R1" },
+    primary: { label: "اختر", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [],
+    states: [],
+    exits: ["R1"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R9",
+    location: { title: "تفاصيل العرض", destination: "modal" },
+    purpose: "One offer in full, line by line",
+    back: { kind: "pop" },
+    primary: { label: "احجز من هنا", leadsTo: "V1", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      { kind: "error", whatFailed: "هذا العرض انسحب", workPreserved: true,
+        action: { label: "ارجع للعروض", leadsTo: "R8" } },
+    ],
+    exits: ["V1", "R8", "R10"],
     telemetry: [],
     persona: "patient",
   },
