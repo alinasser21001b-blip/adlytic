@@ -4,21 +4,29 @@
  * @blueprint R8 · D06 · D08 · D11 · D12 · §8
  * @owner patient-app
  * @why This is the most consequential screen in the product: the patient is
- *      choosing where to walk with a sick child. Three things it must do that a
- *      price list would not. It shows coverage before price, because an offer
- *      that cannot supply the medicine is not cheaper. It never ranks — the
- *      order is coverage then price, both printed on the row, and the screen
- *      says so, because D12 forbids ranking, weighting and paid placement and a
- *      silent sort is a ranking the patient cannot audit. And it states
- *      reliability as a band (D11), because a decimal invites an argument about
- *      a number instead of about the behaviour.
+ *      choosing where to walk with a sick child. Four things it must do that a
+ *      price list would not.
+ *
+ *      It shows coverage before price, because an offer that cannot supply the
+ *      medicine is not cheaper. It never ranks — the order is coverage then
+ *      price, both printed on the row, and the screen says so, because D12
+ *      forbids ranking, weighting and paid placement and a silent sort is a
+ *      ranking the patient cannot audit. It states reliability as a band (D11),
+ *      because a decimal invites an argument about a number instead of about
+ *      the behaviour.
+ *
+ *      And a row OPENS the offer — it does not reserve. The first build made
+ *      the row tap commit the reservation behind a «+» affordance that reads as
+ *      "add to a list", so the most consequential tap in the product looked
+ *      like the least. The delivery states the rule outright: «الحجز ما يصير
+ *      قبل ما تأكد» — nothing is reserved before you confirm.
  */
 import { PATIENT_FLOWS } from "@dawai/navigation";
 import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Digits, ActionCard, InfoCard, Row } from "../ui/kit.js";
+import { Screen, Label, ActionCard, InfoCard, Row, Spacer, Tag, Section } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const R8 = CORE_LOOP.find((c) => c.id === "R8")!;
@@ -51,72 +59,81 @@ export function OffersScreen(p: OffersProps) {
     <Screen t={t} view={view} onBack={p.onBack} onAction={p.onAction}>
       {ordered.length > 0 ? (
         <>
-          {/* Said out loud, because a list a patient cannot audit is a ranking
-              whatever it is called. D12 forbids one. */}
-          <Label t={t} role="caption" color="inkSubtle">
-            مرتّبة حسب شنو تكدر توفره، وبعدين السعر — ما في ترتيب مدفوع
-          </Label>
+          <Section t={t}>
+            <Label t={t} role="title">{`العروض (${ordered.length})`}</Label>
+            {/* Said out loud, because a list a patient cannot audit is a
+                ranking whatever it is called. D12 forbids one. */}
+            <Label t={t} role="caption" color="inkSubtle">
+              مرتبة حسب التغطية ثم السعر — ما نرجّح صيدلية على صيدلية، وما في إعلانات
+            </Label>
+          </Section>
+
           {ordered.map((s) => (
-            <OfferRow key={s.offer.offerId} t={t} s={s} requested={p.requestedLines} onChoose={p.onChoose} />
+            <OfferRow key={s.offer.offerId} t={t} s={s} requested={p.requestedLines} onOpen={p.onDetails} />
           ))}
+
+          {/* The rule the rows depend on, stated where the taps are. Without it
+              a patient has to guess whether opening an offer commits them. */}
+          <Label t={t} role="caption" color="inkSubtle">
+            افتح أي عرض حتى تشوف تفاصيله — الحجز ما يصير قبل ما تأكد.
+          </Label>
         </>
       ) : null}
-
-      {/* R8 declares a "see offer details" secondary leading to R9. It is not
-          rendered here because at screen level it has no subject — it would
-          have to pick an offer for the patient. It belongs on the row, and it
-          arrives with R9. */}
     </Screen>
   );
 }
 
-function OfferRow({ t, s, requested, onChoose }: { t: Theme; s: Offers.OfferSummary; requested: number; onChoose: (id: string) => void }) {
+function OfferRow(
+  { t, s, requested, onOpen }:
+  { t: Theme; s: Offers.OfferSummary; requested: number; onOpen: (id: string) => void },
+) {
   const honoured = Offers.describeHonoured(s.offer.honoured);
   const body = (
     <>
+      {/* Name and price as peers on one baseline. The first build set the price
+          at title weight, which made the cheapest offer the loudest thing on
+          the screen — a ranking by typography on a screen that forbids one. */}
       <Row t={t} align="baseline">
         <Label t={t} role="headline">{s.offer.branchName}</Label>
-        <Label t={t} role="caption" color="inkSubtle">{Offers.describeDistance(s.offer.distanceM)}</Label>
+        <Spacer />
+        <Label t={t} role="headline">{Offers.formatPrice(s.totalMinor)}</Label>
       </Row>
 
       {/* Coverage first. The patient's question is "does it have my medicine",
           and answering with a price first answers a question they did not ask. */}
       <Row t={t} align="baseline">
-        {s.complete
-          ? <Label t={t} role="body" color="accent">عندها كل اللي طلبته</Label>
-          : (
-            <>
-              <Label t={t} role="body" color="warning">عندها</Label>
-              <Digits t={t} value={s.covers[0]} role="body" />
-              <Label t={t} role="body" color="warning">من</Label>
-              <Digits t={t} value={requested} role="body" />
-            </>
-          )}
+        <Label t={t} role="caption" color={s.complete ? "inkMuted" : "warning"}>
+          {`يغطي ${s.covers[0]} من ${requested}`}
+        </Label>
+        <Spacer />
+        <Label t={t} role="caption" color="inkMuted">{Offers.describeDistance(s.offer.distanceM)}</Label>
       </Row>
 
       {s.missing.length > 0
         // Which one is missing, not merely how many — that is always the
         // patient's next question, and making them tap for it is a wasted tap.
-        ? <Label t={t} role="caption" color="inkMuted">{`ناقص: ${s.missing.join("، ")}`}</Label>
+        ? <Label t={t} role="caption" color="warning">
+            {`ناقص: ${s.missing.join("، ")} — الباقي يصير طلب جديد بنفسه`}
+          </Label>
         : null}
 
-      <Row t={t} align="baseline">
-        <Label t={t} role="title">{Offers.formatPrice(s.totalMinor)}</Label>
-        {!s.complete ? <Label t={t} role="caption" color="inkSubtle">للأدوية المتوفرة</Label> : null}
-      </Row>
-
-      <Row t={t} gap={3} align="baseline" wrap>
-        <Label t={t} role="caption" color={honoured.tone === "caution" ? "warning" : "inkMuted"}>{honoured.says}</Label>
+      {/* Every caveat as its own tag. They used to run together on one line —
+          «أحياناً ما تلتزم بالحجز   فيها بديل — تحتاج موافقتك» read as a single
+          sentence, and two separate warnings became one unparseable one. */}
+      <Row t={t} wrap>
+        <Tag t={t}><Label t={t} role="caption" color="inkMuted">{honoured.says}</Label></Tag>
         {s.hasSubstitution
           // §4 R10 — a substitution is never automatic and never pre-ticked.
-          ? <Label t={t} role="caption" color="warning">فيها بديل — تحتاج موافقتك</Label>
+          ? <Tag t={t}><Label t={t} role="caption" color="warning">فيها بديل</Label></Tag>
           : null}
-        {!s.offer.openNow ? <Label t={t} role="caption" color="inkMuted">مسدودة هسه</Label> : null}
+        {!s.offer.openNow
+          ? <Tag t={t}><Label t={t} role="caption" color="inkMuted">مسدودة هسه</Label></Tag>
+          : null}
       </Row>
     </>
   );
 
   return Offers.choosable(s.offer)
-    ? <ActionCard t={t} label={`احجز من ${s.offer.branchName}`} onPress={() => onChoose(s.offer.offerId)}>{body}</ActionCard>
+    ? <ActionCard t={t} affordance="none" label={`افتح عرض ${s.offer.branchName}`} onPress={() => onOpen(s.offer.offerId)}>{body}</ActionCard>
     : <InfoCard t={t} muted>{body}<Label t={t} role="caption" color="inkMuted">هذا العرض ما عاد متاح</Label></InfoCard>;
 }

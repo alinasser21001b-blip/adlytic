@@ -76,7 +76,8 @@ describe("R8 — choosing where to walk", () => {
 
   it("says out loud that the order is not a ranking (D12)", () => {
     const root = render(<OffersScreen {...offersBase} offers={summarise([full], ["l1", "l2"])} requestedLines={2} />);
-    expect(texts(root)).toContain("ما في ترتيب مدفوع");
+    // The delivery's own wording: no pharmacy is favoured, and there are no ads.
+    expect(texts(root)).toContain("ما نرجّح صيدلية على صيدلية، وما في إعلانات");
   });
 
   it("reads the offer that covers more first, even when it costs more", () => {
@@ -98,25 +99,36 @@ describe("R8 — choosing where to walk", () => {
     expect(shown).not.toMatch(/\d+%/);
   });
 
-  it("flags a substitution as needing consent, never pre-accepted (§4 R10)", () => {
+  it("flags a substitution and never presents it as already accepted (§4 R10)", () => {
     const sub = offer({ lines: [line("l1", "بانادول", { kind: "substitute", priceMinor: 2_000, itemId: "x", note: "نفس المادة" })] });
-    expect(texts(render(<OffersScreen {...offersBase} offers={summarise([sub], ["l1"])} requestedLines={1} />)))
-      .toContain("تحتاج موافقتك");
+    const root = render(<OffersScreen {...offersBase} offers={summarise([sub], ["l1"])} requestedLines={1} />);
+    expect(texts(root)).toContain("فيها بديل");
+    // The consent itself lives on R9. What R8 must never do is let a tap here
+    // carry the patient past it — so the row opens the offer and says so.
+    expect(texts(root)).toContain("الحجز ما يصير قبل ما تأكد");
+    expect(pressables(root).every((x) => !String(x.props["accessibilityLabel"]).startsWith("احجز"))).toBe(true);
   });
 
   it("a withdrawn offer is shown as unavailable rather than as a tap that will fail", () => {
     const gone = offer({ state: "withdrawn" });
     const root = render(<OffersScreen {...offersBase} offers={summarise([gone], ["l1"])} requestedLines={1} />);
     expect(texts(root)).toContain("ما عاد متاح");
-    expect(pressables(root).some((p) => String(p.props["accessibilityLabel"]).startsWith("احجز"))).toBe(false);
+    expect(pressables(root).some((p) => String(p.props["accessibilityLabel"]).startsWith("افتح"))).toBe(false);
   });
 
-  it("choosing names the pharmacy, so a screen reader says which one", () => {
+  it("a row OPENS the offer and never reserves from the list", () => {
+    // The build this replaces reserved on this tap, behind a «+» that reads as
+    // "add". The delivery is explicit that nothing is reserved before the
+    // patient confirms, so the row must reach the detail screen and no further.
     const onChoose = vi.fn();
-    const root = render(<OffersScreen {...offersBase} offers={summarise([full], ["l1", "l2"])} requestedLines={2} onChoose={onChoose} />);
-    const choose = pressables(root).find((p) => p.props["accessibilityLabel"] === "احجز من صيدلية الرشيد")!;
-    choose.props["onPress"]();
-    expect(onChoose).toHaveBeenCalledWith("o1");
+    const onDetails = vi.fn();
+    const root = render(
+      <OffersScreen {...offersBase} offers={summarise([full], ["l1", "l2"])} requestedLines={2}
+        onChoose={onChoose} onDetails={onDetails} />);
+    const open = pressables(root).find((x) => x.props["accessibilityLabel"] === "افتح عرض صيدلية الرشيد")!;
+    open.props["onPress"]();
+    expect(onDetails).toHaveBeenCalledWith("o1");
+    expect(onChoose).not.toHaveBeenCalled();
   });
 
   it("no offers yet is an empty state that offers a way back to waiting", () => {
@@ -168,7 +180,7 @@ describe("V2 — the screen that must never fail", () => {
     // walk or hurry. Hours are how people hold time.
     expect(shown).toContain("ساعتين");
     expect(shown).toContain("صيدلية الرشيد");
-    expect(shown).toContain("٣٬٠٠٠ دينار");
+    expect(shown).toContain("٣٬٠٠٠ د.ع");
   });
 
   it("turns urgent near the end rather than staying calm to the last minute", () => {

@@ -49,7 +49,7 @@ function readableText(root: ReactTestInstance): string {
 /** Actions that repeat once per row by design. Their labels name the subject,
  *  so a screen reader can still tell them apart. */
 const isRowAction = (label: string) =>
-  ["أضف", "شيل", "زيادة", "تقليل", "احجز من"].some((p) => label.startsWith(p));
+  ["أضف", "شيل", "زيادة", "تقليل", "افتح عرض"].some((p) => label.startsWith(p));
 
 describe.each(SHOTS.map((s) => [s.id, s] as const))("%s", (_id, shot) => {
   const root = () => render(shot.element);

@@ -150,4 +150,8 @@ export const CONTRACT_PAIRS: readonly (readonly [ColorRole, ColorRole])[] = [
   ["onAccent", "accent"], ["onSuccess", "success"],
   ["onWarning", "warning"], ["onAlert", "alert"],
   ["accent", "surface"], ["alert", "surface"], ["warning", "surface"],
+  // `line` became a background the moment R8 got tags. It was a border-only
+  // role, so text on it was going unmeasured and the accessibility gate was
+  // passing without looking at two pairs the product actually renders.
+  ["inkMuted", "line"], ["warning", "line"], ["ink", "line"],
 ];

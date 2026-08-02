@@ -57,6 +57,9 @@ Floor: **4.5:1** body text, **3:1** large text, **3:1** UI boundaries.
 | `accent on surface` | 8.94 | 8.94 | pass |
 | `alert on surface` | 8.82 | 8.82 | pass |
 | `warning on surface` | 9.34 | 9.34 | pass |
+| `inkMuted on line` | 6.61 | 6.61 | pass |
+| `warning on line` | 6.47 | 6.47 | pass |
+| `ink on line` | 11.42 | 11.42 | pass |
 
 Any colour you change is re-measured on the next build. A failing pair comes
 back to you with its measured ratio, not an opinion.

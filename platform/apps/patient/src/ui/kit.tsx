@@ -22,7 +22,7 @@ import { Card, Note, Row, Spacer } from "./layout.js";
 
 // Re-exported so a screen has one import for the whole system rather than
 // having to know which file a primitive happens to live in.
-export { Row, Spacer, Grow, Actions, Card, Note, Section, Field } from "./layout.js";
+export { Row, Spacer, Grow, Actions, Card, Note, Section, Field, Tag } from "./layout.js";
 
 export type Press = () => void;
 
@@ -147,8 +147,19 @@ export function Primary({ t, label, onPress, disabled = false, busy = false }: {
  * actually needs.
  */
 export function ActionCard(
-  { t, label, onPress, children, muted = false }:
-  { t: Theme; label: string; onPress: Press; children: React.ReactNode; muted?: boolean },
+  { t, label, onPress, children, muted = false, affordance = "add" }:
+  {
+    t: Theme; label: string; onPress: Press; children: React.ReactNode; muted?: boolean;
+    /**
+     * What the tap DOES, drawn. "add" puts a medicine in a draft — reversible,
+     * and the glyph says so. "none" is for a row that opens something: on R8
+     * the «+» claimed the tap would add an item when it actually committed a
+     * reservation, which is the worst possible mismatch on the product's most
+     * consequential screen. The delivery draws no glyph there and states the
+     * rule in words beneath the list instead.
+     */
+    affordance?: "add" | "none";
+  },
 ) {
   return (
     <Pressable
@@ -167,12 +178,14 @@ export function ActionCard(
       <View style={{ flex: 1, gap: t.space[1] }}>{children}</View>
       {/* The affordance, not the action: it says the row is pressable without
           claiming the visual weight a primary button would. */}
-      <View style={{
-        width: t.space[7], height: t.space[7], borderRadius: t.radius.pill,
-        alignItems: "center", justifyContent: "center", backgroundColor: t.color.accent,
-      }}>
-        <Label t={t} role="headline" color="onAccent">+</Label>
-      </View>
+      {affordance === "add" ? (
+        <View style={{
+          width: t.space[7], height: t.space[7], borderRadius: t.radius.pill,
+          alignItems: "center", justifyContent: "center", backgroundColor: t.color.accent,
+        }}>
+          <Label t={t} role="headline" color="onAccent">+</Label>
+        </View>
+      ) : null}
     </Pressable>
   );
 }

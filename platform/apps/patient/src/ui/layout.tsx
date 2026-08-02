@@ -166,6 +166,28 @@ export function Note(
   );
 }
 
+/**
+ * A small, non-interactive fact about the thing it sits on — how reliably a
+ * pharmacy honours a hold, whether it is open.
+ *
+ * Not a control and never styled like one: a tag that looks pressable on the
+ * most consequential screen in the product invites a tap that does nothing,
+ * and on R8 every tap the patient makes is about where to walk with a sick
+ * child. One neutral treatment for every tag, so no tag can be dressed up to
+ * make one pharmacy look better than another — D12 forbids exactly that.
+ */
+export function Tag({ t, children }: { t: Theme; children: React.ReactNode }) {
+  return (
+    <View style={{
+      backgroundColor: t.color.line,
+      paddingVertical: t.space[1], paddingHorizontal: t.space[2],
+      borderRadius: t.radius.sm,
+    }}>
+      {children}
+    </View>
+  );
+}
+
 /* ── Grouping ─────────────────────────────────────────────────────────── */
 
 /**

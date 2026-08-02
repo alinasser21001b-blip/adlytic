@@ -180,7 +180,9 @@ export function accept(
  * ordering unverifiable, because two different totals printed identically.
  */
 export const formatPrice = (minor: number): string =>
-  `${minor.toLocaleString("en-US")} دينار`;
+  // «د.ع», not «دينار»: the delivery uses the short form on every screen that
+  // shows money, and a price is read at a glance rather than aloud.
+  `${minor.toLocaleString("en-US")} د.ع`;
 
 /** Rough distance, worded the way a person would say it rather than to the
  *  metre — a false precision on a district centroid would be a claim we cannot

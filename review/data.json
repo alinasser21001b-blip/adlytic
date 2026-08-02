@@ -568,12 +568,8 @@
       "back": {
         "kind": "pop"
       },
-      "primary": {
-        "label": "احجز من هنا",
-        "leadsTo": "V1",
-        "tapsToOutcome": 1
-      },
-      "noPrimaryBecause": null,
+      "primary": null,
+      "noPrimaryBecause": "Every offer is its own action; a screen-level primary would choose a pharmacy on the patient's behalf, which D12 forbids.",
       "secondary": [
         {
           "label": "شوف تفاصيل العرض",
@@ -2751,6 +2747,24 @@
         "pair": "warning on surface",
         "light": 9.34,
         "dark": 9.34,
+        "passes": true
+      },
+      {
+        "pair": "inkMuted on line",
+        "light": 6.61,
+        "dark": 6.61,
+        "passes": true
+      },
+      {
+        "pair": "warning on line",
+        "light": 6.47,
+        "dark": 6.47,
+        "passes": true
+      },
+      {
+        "pair": "ink on line",
+        "light": 11.42,
+        "dark": 11.42,
         "passes": true
       }
     ],

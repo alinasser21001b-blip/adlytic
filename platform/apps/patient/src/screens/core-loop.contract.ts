@@ -183,7 +183,12 @@ export const CORE_LOOP: readonly ScreenContract[] = [
     location: { title: "قارن العروض", destination: "modal" },
     purpose: "Choose, with the reasons visible",
     back: { kind: "pop" },
-    primary: { label: "احجز من هنا", leadsTo: "V1", tapsToOutcome: 1 },
+    // No screen-level primary: there are three offers and a single dominant
+    // button would have to pick one for the patient. Each row IS the action,
+    // labelled with its own pharmacy — which is also why the delivery draws no
+    // button here.
+    primary: null,
+    noPrimaryBecause: "Every offer is its own action; a screen-level primary would choose a pharmacy on the patient's behalf, which D12 forbids.",
     secondary: [{ label: "شوف تفاصيل العرض", leadsTo: "R9" }],
     states: [
       { kind: "loading", skeletonMatchesContent: true },

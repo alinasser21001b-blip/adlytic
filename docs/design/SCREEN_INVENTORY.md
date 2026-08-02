@@ -663,7 +663,7 @@ Blueprint declares: `empty · loading · error`. 3 state(s) rendered and photogr
 
 | Interaction | Detail |
 | --- | --- |
-| Primary action | **احجز من هنا** → `V1` (1 tap to outcome) |
+| Primary action | **none** — Every offer is its own action; a screen-level primary would choose a pharmacy on the patient's behalf, which D12 forbids. |
 | Secondary actions | شوف تفاصيل العرض → `R9` |
 | Back | `pop` |
 | Exits | `R9`, `V1`, `R7` |

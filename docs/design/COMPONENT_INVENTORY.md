@@ -10,13 +10,13 @@
 | `Banner` | 1 | — |
 | `CodePanel` | 1 | ReservationScreen |
 | `FactRow` | 3 | ReservationScreen |
-| `Row` | 22 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen |
-| `Spacer` | 6 | DraftScreen, OfferDetailScreen, WaitingScreen |
+| `Row` | 21 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen |
+| `Spacer` | 8 | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
 | `Grow` | 3 | ConfirmScreen, WaitingScreen |
 | `Actions` | 4 | DraftScreen, FindScreen, PrescriptionScreen |
 | `Card` | 7 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
 | `Note` | 4 | ConfirmScreen, DraftScreen |
-| `Section` | 4 | ConfirmScreen, WaitingScreen |
+| `Section` | 5 | ConfirmScreen, OffersScreen, WaitingScreen |
 | `Field` | 2 | OfferDetailScreen |
 | `Chip` | 1 | ConfirmScreen |
 | `StepButton` | 1 | DraftScreen |
@@ -31,8 +31,8 @@
 | `InfoCard` | 13 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 97 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
-| `Digits` | 6 | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen |
+| `Label` | 96 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Digits` | 4 | ConfirmScreen, DraftScreen, ReservationScreen |
 | `Bidi` | 3 | DraftScreen, FindScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
 
@@ -94,7 +94,7 @@ Things side by side. The single place `flexDirection` is written in the patient 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen (22 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen (21 usages) |
 | **Required variants** | `align baseline / center / stretch`, `justify center / space-between`, `any gap token` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -110,7 +110,7 @@ Pushes what follows to the far edge of a Row.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, OfferDetailScreen, WaitingScreen (6 usages) |
+| **Used by** | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen (8 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -190,7 +190,7 @@ A heading and the things it governs, as one unit.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, WaitingScreen (4 usages) |
+| **Used by** | ConfirmScreen, OffersScreen, WaitingScreen (5 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Provides no heading semantics — nothing in the product exposes a heading level yet. A real gap. |
@@ -430,7 +430,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (97 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (96 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |
@@ -446,7 +446,7 @@ Countdowns, prices, quantities, the reservation code.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen (6 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, ReservationScreen (4 usages) |
 | **Required variants** | `body`, `headline`, `title`, `display` |
 | **Required interactions** | none — but the reservation code should arguably be selectable |
 | **Accessibility** | Read as a number by screen readers; the reservation code is grouped in pairs so it can be read aloud. |

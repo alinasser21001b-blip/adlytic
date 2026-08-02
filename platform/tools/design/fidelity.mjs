@@ -154,14 +154,14 @@ export const SCREENS = {
   R8: {
     built: true,
     verdicts: {
-      Layout: ["minor", "Row content and order match the delivery — name, exact price, coverage as n-of-m, distance, band chips, readiness, amber missing-line. The build additionally renders a trailing add affordance the delivery does not have, and states the ordering rule above the list as delivered."],
-      Typography: ["minor", "Price is delivered at 19px mono 700 with an 11px currency suffix; the build renders one `title` run with no suffix scaling."],
+      Layout: ["minor", "Built to the delivery: «العروض (ن)» with the ordering rule beneath, then rows carrying name and price as baseline peers, coverage as n-of-m beside distance, the amber missing line, and the caveats as tags. The trailing add affordance is gone. Missing: the readiness chip (no such field exists — DEV-10) and the «وسّع البحث» footer link (not a Blueprint exit — DEV-11)."],
+      Typography: ["minor", "Name and price now sit at the same headline weight as delivered, and prices read «د.ع» across the product. The delivery sets the currency suffix at 11px, which is below the caption role and outside the type scale; it renders at caption size."],
       Spacing: ["exact", "14px card padding, 10px gaps — inside the delivered ranges."],
       Colour: ["exact", "All rows identical: same card, same 1px line, no highlight. Matches the delivery's central requirement."],
-      Component: ["minor", "Chips are not a component — they are inline Labels. The delivery uses them on every row."],
+      Component: ["exact", "`Tag` is built and is what every caveat renders through, with one neutral treatment so no tag can be dressed up to favour a pharmacy. `ActionCard` gained an affordance choice rather than being forked."],
       Motion: ["missing", "Offer arrival stagger (~200ms) unimplemented."],
       Icon: ["blocked", "No icon set."],
-      Accessibility: ["exact", "Enforced. Row labels name the pharmacy."],
+      Accessibility: ["exact", "Enforced. Row labels name the pharmacy and the ACT — «افتح عرض …», so a screen reader user is told the tap opens rather than reserves. The two new text-on-line pairs the tags introduced are now measured by the contrast gate (17 pairs, was 14)."],
       RTL: ["exact", "Enforced."],
     },
   },
@@ -199,6 +199,33 @@ export const SCREENS = {
 /* ── Deviations ─────────────────────────────────────────────────────────── */
 
 export const DEVIATIONS = [
+  {
+    id: "DEV-9",
+    what: "R8 states distance in bands — «قريبة منك» / «أقل من كيلومتر» / «حوالي ٣ كم» — where the delivery prints «١٫١ كم».",
+    why: "`distanceM` is measured from the district centroid, and the domain says so in as many words: presented as a rough distance, never as a live position, because Phase 0 does not track the patient. A decimal kilometre would claim a precision the number does not have, on the screen where the patient decides how far to walk with a sick child. The delivery's precision is a visual choice; the imprecision of the underlying figure is a fact.",
+    temporary: false,
+    designApproved: false,
+    productApproved: false,
+    debt: "None. Confirm with Design that banded distance is acceptable, or deliver real positioning first.",
+  },
+  {
+    id: "DEV-10",
+    what: "R8 rows carry no readiness chip («جاهز هسه» / «جاهز خلال ١٥ د»).",
+    why: "No readiness field exists on an Offer. The domain knows `openNow` — whether the branch is open — which is a different fact and is rendered as its own tag. Inventing a preparation time on the screen where a patient decides where to walk would be inventing an entity and a promise at once.",
+    temporary: true,
+    designApproved: false,
+    productApproved: false,
+    debt: "Needs a readiness field on Offer, and a pharmacy-side way to set it truthfully.",
+  },
+  {
+    id: "DEV-11",
+    what: "R8 has no «ما يعجبك شي؟ وسّع البحث» footer link.",
+    why: "Blueprint v3 gives R8 two exits — offer detail and reserving. Widening the search is neither, and adding an exit a screen is not declared to have would put a destination in the navigation graph that the Blueprint does not contain.",
+    temporary: true,
+    designApproved: false,
+    productApproved: false,
+    debt: "Needs a Blueprint revision adding the exit, or Design dropping the link.",
+  },
   {
     id: "DEV-6",
     what: "R7 queued lists outbox ENTRIES with their delivery state, not individual medicines with pack counts.",
@@ -320,21 +347,6 @@ export const CLARIFICATIONS = [
       "Nominate a different Arabic mono face that has both.",
     ],
     recommendation: "Option 1. Confirm IBM Plex Sans Arabic's Arabic-Indic figures are tabular (or supply a face that is), and scope IBM Plex Mono to Latin runs only. This keeps the delivery's numeral system and preserves the no-jitter guarantee.",
-  },
-  {
-    id: "CLR-3",
-    title: "R8 rows: does the delivery intend a tap affordance?",
-    context: "R8's rows are the action — there is no primary button, which both the delivery and the Blueprint require.",
-    screenshot: "review/screenshots/R8-offers.png",
-    current: "Each row carries a trailing 32pt mint circle as its affordance, introduced before the design landed.",
-    design: "Turn 4 R8 has no affordance on any row. The subtitle says «افتح أي عرض حتى تشوف تفاصيله».",
-    why: "Removing it makes the rows read as static text with no signal that they are tappable; keeping it adds a mint element the delivery does not have, on the one screen where visual equality between pharmacies is a hard requirement.",
-    options: [
-      "Remove the circle and rely on the subtitle plus a pressed state.",
-      "Replace it with a low-contrast chevron on every row — equal across rows, so neutrality holds.",
-      "Keep the mint circle.",
-    ],
-    recommendation: "Option 2, once an icon set exists. A chevron is the platform-conventional 'this row opens' signal, carries no emphasis, and is identical on every row so it cannot elevate one pharmacy. Until then, option 1 with a pressed state.",
   },
   {
     id: "CLR-4",

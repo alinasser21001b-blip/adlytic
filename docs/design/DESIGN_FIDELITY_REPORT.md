@@ -18,8 +18,8 @@
 
 | Verdict | Count | Share |
 | --- | --- | --- |
-| Exact Match | 30 | 50% |
-| Minor Deviation | 8 | 13% |
+| Exact Match | 31 | 52% |
+| Minor Deviation | 7 | 12% |
 | Intentional Deviation | 3 | 5% |
 | Missing | 13 | 22% |
 | Blocked | 6 | 10% |
@@ -33,7 +33,7 @@ Missing and Blocked count 0.
 | `V2` | Reservation (cached-first) | 78% |
 | `R7-queued` | Waiting · queued | 80% |
 | `R7-sent` | Waiting · sent | 78% |
-| `R8` | Offers | 73% |
+| `R8` | Offers | 75% |
 | `R9` | Substitution consent | 73% |
 | `E4` | Why we need your number | 10% |
 
@@ -134,18 +134,18 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | RTL | Exact Match | Enforced. |
 | Responsive | Exact Match | Measured at 320/360/390/430pt. All 1 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R8` — Offers · 73%
+### `R8` — Offers · 75%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
-| Layout | Minor Deviation | Row content and order match the delivery — name, exact price, coverage as n-of-m, distance, band chips, readiness, amber missing-line. The build additionally renders a trailing add affordance the delivery does not have, and states the ordering rule above the list as delivered. |
-| Typography | Minor Deviation | Price is delivered at 19px mono 700 with an 11px currency suffix; the build renders one `title` run with no suffix scaling. |
+| Layout | Minor Deviation | Built to the delivery: «العروض (ن)» with the ordering rule beneath, then rows carrying name and price as baseline peers, coverage as n-of-m beside distance, the amber missing line, and the caveats as tags. The trailing add affordance is gone. Missing: the readiness chip (no such field exists — DEV-10) and the «وسّع البحث» footer link (not a Blueprint exit — DEV-11). |
+| Typography | Minor Deviation | Name and price now sit at the same headline weight as delivered, and prices read «د.ع» across the product. The delivery sets the currency suffix at 11px, which is below the caption role and outside the type scale; it renders at caption size. |
 | Spacing | Exact Match | 14px card padding, 10px gaps — inside the delivered ranges. |
 | Colour | Exact Match | All rows identical: same card, same 1px line, no highlight. Matches the delivery's central requirement. |
-| Component | Minor Deviation | Chips are not a component — they are inline Labels. The delivery uses them on every row. |
+| Component | Exact Match | `Tag` is built and is what every caveat renders through, with one neutral treatment so no tag can be dressed up to favour a pharmacy. `ActionCard` gained an affordance choice rather than being forked. |
 | Motion | Missing | Offer arrival stagger (~200ms) unimplemented. |
 | Icon | Blocked | No icon set. |
-| Accessibility | Exact Match | Enforced. Row labels name the pharmacy. |
+| Accessibility | Exact Match | Enforced. Row labels name the pharmacy and the ACT — «افتح عرض …», so a screen reader user is told the tap opens rather than reserves. The two new text-on-line pairs the tags introduced are now measured by the contrast gate (17 pairs, was 14). |
 | RTL | Exact Match | Enforced. |
 | Responsive | Exact Match | Measured at 320/360/390/430pt. All 3 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
@@ -185,6 +185,39 @@ The 76px code and the 800 weight have no token. See CLR-4.
 ---
 
 ## Intentional deviations
+
+### DEV-9 — R8 states distance in bands — «قريبة منك» / «أقل من كيلومتر» / «حوالي ٣ كم» — where the delivery prints «١٫١ كم».
+
+**Why.** `distanceM` is measured from the district centroid, and the domain says so in as many words: presented as a rough distance, never as a live position, because Phase 0 does not track the patient. A decimal kilometre would claim a precision the number does not have, on the screen where the patient decides how far to walk with a sick child. The delivery's precision is a visual choice; the imprecision of the underlying figure is a fact.
+
+| | |
+| --- | --- |
+| Temporary | No — this is the rule now |
+| Design approval required | No |
+| Product approval required | No |
+| Tracked as debt | `None. Confirm with Design that banded distance is acceptable, or deliver real positioning first.` |
+
+### DEV-10 — R8 rows carry no readiness chip («جاهز هسه» / «جاهز خلال ١٥ د»).
+
+**Why.** No readiness field exists on an Offer. The domain knows `openNow` — whether the branch is open — which is a different fact and is rendered as its own tag. Inventing a preparation time on the screen where a patient decides where to walk would be inventing an entity and a promise at once.
+
+| | |
+| --- | --- |
+| Temporary | Yes — reverts when resolved |
+| Design approval required | No |
+| Product approval required | No |
+| Tracked as debt | `Needs a readiness field on Offer, and a pharmacy-side way to set it truthfully.` |
+
+### DEV-11 — R8 has no «ما يعجبك شي؟ وسّع البحث» footer link.
+
+**Why.** Blueprint v3 gives R8 two exits — offer detail and reserving. Widening the search is neither, and adding an exit a screen is not declared to have would put a destination in the navigation graph that the Blueprint does not contain.
+
+| | |
+| --- | --- |
+| Temporary | Yes — reverts when resolved |
+| Design approval required | No |
+| Product approval required | No |
+| Tracked as debt | `Needs a Blueprint revision adding the exit, or Design dropping the link.` |
 
 ### DEV-6 — R7 queued lists outbox ENTRIES with their delivery state, not individual medicines with pack counts.
 
@@ -279,7 +312,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 
 ## Design clarification requests
 
-7 ambiguities, collected into one report rather than
+6 ambiguities, collected into one report rather than
 asked one at a time. **Engineering has not guessed at any of them.**
 
 ### CLR-7 — undefined
@@ -338,25 +371,6 @@ asked one at a time. **Engineering has not guessed at any of them.**
 3. Nominate a different Arabic mono face that has both.
 
 **Engineering recommendation.** Option 1. Confirm IBM Plex Sans Arabic's Arabic-Indic figures are tabular (or supply a face that is), and scope IBM Plex Mono to Latin runs only. This keeps the delivery's numeral system and preserves the no-jitter guarantee.
-
-### CLR-3 — R8 rows: does the delivery intend a tap affordance?
-
-**Context.** R8's rows are the action — there is no primary button, which both the delivery and the Blueprint require.
-
-**Screenshot.** `review/screenshots/R8-offers.png`
-
-**Current implementation.** Each row carries a trailing 32pt mint circle as its affordance, introduced before the design landed.
-
-**Design reference.** Turn 4 R8 has no affordance on any row. The subtitle says «افتح أي عرض حتى تشوف تفاصيله».
-
-**Why Engineering cannot decide.** Removing it makes the rows read as static text with no signal that they are tappable; keeping it adds a mint element the delivery does not have, on the one screen where visual equality between pharmacies is a hard requirement.
-
-**Options.**
-1. Remove the circle and rely on the subtitle plus a pressed state.
-2. Replace it with a low-contrast chevron on every row — equal across rows, so neutrality holds.
-3. Keep the mint circle.
-
-**Engineering recommendation.** Option 2, once an icon set exists. A chevron is the platform-conventional 'this row opens' signal, carries no emphasis, and is identical on every row so it cannot elevate one pharmacy. Until then, option 1 with a pressed state.
 
 ### CLR-4 — Poster type (28px/800) and the 800 weight are outside the type scale.
 

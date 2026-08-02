@@ -137,8 +137,8 @@ describe("how facts are worded", () => {
   });
 
   it("money is exact — a rounded price is a price the patient will not be charged", () => {
-    expect(Offers.formatPrice(3_000)).toBe("3,000 دينار");
-    expect(Offers.formatPrice(8_500)).toBe("8,500 دينار");
+    expect(Offers.formatPrice(3_000)).toBe("3,000 د.ع");
+    expect(Offers.formatPrice(8_500)).toBe("8,500 د.ع");
     // Two different totals must never print identically on a screen whose
     // purpose is comparing them.
     expect(Offers.formatPrice(8_500)).not.toBe(Offers.formatPrice(9_000));
