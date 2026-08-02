@@ -16,21 +16,21 @@ writes a hex. Two schemes.
 
 | Role | Light | Dark | Used in code |
 | --- | --- | --- | --- |
-| `surface` | `#FBFAF7` | `#0F1513` | yes |
-| `surfaceRaised` | `#FFFFFF` | `#182220` | yes |
-| `surfaceSunken` | `#F2F1EC` | `#0A100E` | yes |
-| `line` | `#DFDDD3` | `#2C3A35` | yes |
-| `ink` | `#16211D` | `#F1F6F4` | yes |
-| `inkMuted` | `#42524C` | `#B6C5BF` | yes |
-| `inkSubtle` | `#5C6B64` | `#93A49E` | yes |
-| `accent` | `#186047` | `#7BD6AC` | yes |
-| `onAccent` | `#FFFFFF` | `#07130E` | yes |
-| `success` | `#186047` | `#7BD6AC` | **never — see R-5** |
-| `onSuccess` | `#FFFFFF` | `#07130E` | **never — see R-5** |
-| `warning` | `#7A4E0A` | `#F0BE72` | yes |
-| `onWarning` | `#FFFFFF` | `#1E1503` | **never — see R-5** |
-| `alert` | `#8C2F1F` | `#FF9C8A` | yes |
-| `onAlert` | `#FFFFFF` | `#260B06` | **never — see R-5** |
+| `surface` | `#0D1A15` | `#0D1A15` | yes |
+| `surfaceRaised` | `#142720` | `#142720` | yes |
+| `surfaceSunken` | `#1B2B22` | `#1B2B22` | yes |
+| `line` | `#1E3A2D` | `#1E3A2D` | yes |
+| `ink` | `#F3F7F2` | `#F3F7F2` | yes |
+| `inkMuted` | `#9FC6B6` | `#9FC6B6` | yes |
+| `inkSubtle` | `#8FA89C` | `#8FA89C` | yes |
+| `accent` | `#2ECF9A` | `#2ECF9A` | yes |
+| `onAccent` | `#0B241B` | `#0B241B` | yes |
+| `success` | `#2ECF9A` | `#2ECF9A` | **never — see R-5** |
+| `onSuccess` | `#0B241B` | `#0B241B` | **never — see R-5** |
+| `warning` | `#E8B34B` | `#E8B34B` | yes |
+| `onWarning` | `#2A2314` | `#2A2314` | **never — see R-5** |
+| `alert` | `#FF9C8A` | `#FF9C8A` | yes |
+| `onAlert` | `#7A150F` | `#7A150F` | **never — see R-5** |
 
 Two further personas exist in the design system and are **out of scope for this
 handoff**: `pharmacy` (dense, dark, high-contrast — the emotional target is
@@ -43,20 +43,20 @@ Floor: **4.5:1** body text, **3:1** large text, **3:1** UI boundaries.
 
 | Pair | Light | Dark | |
 | --- | --- | --- | --- |
-| `ink on surface` | 15.85 | 16.91 | pass |
-| `ink on surfaceRaised` | 16.54 | 14.92 | pass |
-| `ink on surfaceSunken` | 14.63 | 17.59 | pass |
-| `inkMuted on surface` | 7.91 | 10.31 | pass |
-| `inkMuted on surfaceRaised` | 8.26 | 9.1 | pass |
-| `inkSubtle on surface` | 5.38 | 7.08 | pass |
-| `inkSubtle on surfaceRaised` | 5.61 | 6.24 | pass |
-| `onAccent on accent` | 7.49 | 10.88 | pass |
-| `onSuccess on success` | 7.49 | 10.88 | pass |
-| `onWarning on warning` | 7.19 | 10.58 | pass |
-| `onAlert on alert` | 8.26 | 9.16 | pass |
-| `accent on surface` | 7.18 | 10.6 | pass |
-| `alert on surface` | 7.92 | 9.12 | pass |
-| `warning on surface` | 6.89 | 10.83 | pass |
+| `ink on surface` | 16.5 | 16.5 | pass |
+| `ink on surfaceRaised` | 14.47 | 14.47 | pass |
+| `ink on surfaceSunken` | 13.71 | 13.71 | pass |
+| `inkMuted on surface` | 9.55 | 9.55 | pass |
+| `inkMuted on surfaceRaised` | 8.37 | 8.37 | pass |
+| `inkSubtle on surface` | 7.02 | 7.02 | pass |
+| `inkSubtle on surfaceRaised` | 6.15 | 6.15 | pass |
+| `onAccent on accent` | 8.19 | 8.19 | pass |
+| `onSuccess on success` | 8.19 | 8.19 | pass |
+| `onWarning on warning` | 8.14 | 8.14 | pass |
+| `onAlert on alert` | 5.34 | 5.34 | pass |
+| `accent on surface` | 8.94 | 8.94 | pass |
+| `alert on surface` | 8.82 | 8.82 | pass |
+| `warning on surface` | 9.34 | 9.34 | pass |
 
 Any colour you change is re-measured on the next build. A failing pair comes
 back to you with its measured ratio, not an opinion.

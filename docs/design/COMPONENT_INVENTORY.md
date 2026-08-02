@@ -14,7 +14,7 @@
 | `InfoCard` | 14 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 95 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Label` | 98 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `Digits` | 7 | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen, WaitingScreen |
 | `Bidi` | 3 | DraftScreen, FindScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
@@ -141,7 +141,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (95 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (98 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |
