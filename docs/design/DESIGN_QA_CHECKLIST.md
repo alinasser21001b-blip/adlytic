@@ -1,5 +1,8 @@
 # Design QA Checklist
 
+> Read [README.md](README.md) first for how acceptance works. Items marked
+> **[BUILD]** are enforced by automated checks that run on every commit.
+
 The acceptance test for the handoff. Engineering runs this against the delivered
 Figma before implementation starts. **Anything unchecked is a question that will
 otherwise be answered by an engineer guessing** — which is the situation this

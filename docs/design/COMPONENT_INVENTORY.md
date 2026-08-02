@@ -1,194 +1,216 @@
 # Component Inventory
 
-Every reusable component that exists in the build today, what it is used for,
-how many times, which variants exist, and **what the designer must specify**.
+> **Generated — do not edit.** Usage counts and consumer lists are read from
+> the source tree; specifications come from `platform/tools/design/notes.mjs`.
 
-Source: `apps/patient/src/ui/kit.tsx`. Usage counts are from the patient app's
-screens as of this handoff.
+## Usage map
 
----
-
-## Summary
-
-| Component | Usages | Variants today | Design status |
-| --- | --- | --- | --- |
-| `Label` | 94 | 5 type roles × 7 colour roles | tokens exist; **no pressed/focus states needed** |
-| `InfoCard` | 14 | `default`, `muted` | **invented** — padding, radius, border |
-| `Primary` | 10 | `default`, `disabled`, `busy` | **invented** — no pressed state |
-| `Secondary` | 10 | `default`, with distinct spoken label | **invented** — no pressed state |
-| `Digits` | 7 | 4 type roles | needs a tabular font file |
-| `Screen` | 3 (every screen renders through it) | with/without sticky, with/without footer | **invented** — header, footer, safe area |
-| `Bidi` | 3 | 4 type roles | correct by construction |
-| `ActionCard` | 2 | `default`, `muted` | **invented** — the `+` affordance |
-| `Choice` | 2 | `selected`, `unselected` | **invented** — consent control |
-| `RedirectNote` | 2 | one | **invented** |
-| `StateBlock` | rendered by `Screen` | 6 treatments | **invented** — all six |
-
----
-
-## 1. `Screen` — the frame every screen renders through
-
-Every patient screen renders through this. It is the reason no screen can ship
-without answering "where am I" and "how do I go back".
-
-**Structure today:** header (back affordance + title + optional flow progress) →
-optional sticky slot → scrolling body (state block, then content) → optional
-footer.
-
-**Variants in use:**
-- header with back (`pop` / `replace`) vs without (`none` at a tab root)
-- with flow progress caption (`تختار الدواء · 1/6`) vs without
-- with sticky slot (F1/F2 pin the search field) vs without
-- with screen-supplied footer vs state-supplied footer vs no footer
-
-**Designer must specify**
-| Item | Why Engineering needs it | If missing |
+| Component | Usages | Rendered by |
 | --- | --- | --- |
-| Header height, title alignment, back hit-area | Currently 44pt square, invented | Every screen inherits a guess |
-| Flow progress treatment (`1/6`) | Currently a caption after a `·` | The journey indicator is punctuation |
-| Sticky-slot elevation/divider on scroll | No scroll state exists | Content slides under the search field with no boundary |
-| Footer: height, divider, background, safe-area inset | `16 + 24pt` bottom padding is a guessed approximation of a home indicator | Primary action sits under the home indicator on some devices |
-| Scroll behaviour of the header (collapse? pin?) | Undefined | Undefined stays undefined |
+| `Screen` | 11 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Primary` | 13 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen |
+| `Secondary` | 10 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `ActionCard` | 2 | FindScreen, OffersScreen |
+| `InfoCard` | 14 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
+| `Choice` | 2 | OfferDetailScreen |
+| `StateBlock` | 1 | (rendered by Screen, on every screen) |
+| `Label` | 95 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Digits` | 7 | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen, WaitingScreen |
+| `Bidi` | 3 | DraftScreen, FindScreen |
+| `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
 
 ---
 
-## 2. `Primary` — the one dominant action
+## Specifications
 
-48pt tall (above the 44pt floor, because §25 raises the patient primary). A
-screen may have **at most one**, counted from the rendered tree every build.
+### `Screen`
 
-**Variants:** `default`, `disabled`, `busy` (renders a spinner).
+The frame every screen renders through. It is the reason no screen can ship without answering 'where am I' and 'how do I go back'.
 
-**Designer must specify**
-- **Pressed state.** *None exists.* This is the most-tapped element in the
-  product and nothing happens on touch.
-- **Disabled treatment.** Currently `surfaceSunken` fill with `inkSubtle` text.
-  Note the rule the build enforces: a disabled primary must have a visible
-  explanation near it, so the disabled style and the explanation must be
-  designed **together**.
-- **Busy treatment.** Currently a bare `ActivityIndicator`. Does the label stay?
-  Does the width hold?
-- **Full-width vs inset**, and behaviour with a long Arabic label at 200% text.
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (11 usages) |
+| **Required variants** | `header with back (pop/replace)`, `header without back (tab root)`, `with flow progress`, `with sticky slot`, `with screen footer`, `with state footer`, `no footer` |
+| **Required interactions** | back press; scroll; sticky slot behaviour on scroll |
+| **Accessibility** | The title is the screen's accessible name. The back control has a 44pt hit area and an explicit label. |
+| **Motion** | screenPush 350ms on push; sheetPresent 300ms for modal destinations; sheetDrag follows the finger 1:1. |
+| **RTL** | Header runs right-to-left by direction, NOT by row-reverse — reversing inside an RTL container double-reverses and puts back on the wrong edge. This shipped once. |
+| **Responsive** | Title must truncate to one line. Progress caption must not wrap at 320pt. |
+| **Implementation constraints** | Footer padding is 16 + 24pt bottom, a guessed approximation of a home indicator, not a real safe-area inset. |
+
+
+### `Primary`
+
+The one dominant action. At most one per screen, counted from the rendered tree every build.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen (13 usages) |
+| **Required variants** | `default`, `disabled`, `busy` |
+| **Required interactions** | press; long-press (undefined); disabled press (no-op, but the reason must be visible) |
+| **Accessibility** | accessibilityState carries disabled and busy. A disabled primary MUST have a visible explanation near it — the build checks that something readable is on screen. |
+| **Motion** | No press animation exists. errorShake (200ms) is declared for validation failure and unused. |
+| **RTL** | Label centres; no directional content. |
+| **Responsive** | Full-width in the footer. Must hold a long Arabic label at 200% text without truncating — 'أرسله أول ما يرجع الاتصال' is the longest today. |
+| **Implementation constraints** | 48pt tall, above the 44pt floor, because §25 raises the patient primary specifically. |
+
+
+### `Secondary`
+
+Never competes with the primary: no fill, no accent background.
+
+| | |
+| --- | --- |
+| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (10 usages) |
+| **Required variants** | `default`, `with a distinct spoken label` |
+| **Required interactions** | press |
+| **Accessibility** | Supports a spoken label different from the visible text, so repeated row actions are distinguishable to a screen reader while the visible text stays short. |
+| **Motion** | None specified. |
+| **RTL** | Groups of secondaries lay out right-to-left. |
+| **Responsive** | Up to three appear in a row on R1 and must wrap legibly at 320pt. |
+| **Implementation constraints** | 44pt minimum. Adjacent secondaries need a specified minimum gap so two are not mistaken for one. |
+
+
+### `ActionCard`
+
+A whole card that is itself the action. Replaced a filled button per row, which put three competing primaries on one screen.
+
+| | |
+| --- | --- |
+| **Used by** | FindScreen, OffersScreen (2 usages) |
+| **Required variants** | `default`, `muted (unavailable)` |
+| **Required interactions** | press anywhere on the card |
+| **Accessibility** | The label names the subject — 'أضف بانادول للطلب', not 'أضف' — so a screen reader moving down a list says which row it is on. |
+| **Motion** | responderArrive 200ms when a new offer enters the list. Unimplemented. |
+| **RTL** | Content column leads; the affordance trails. |
+| **Responsive** | R8's row carries six facts. Verify at 320pt. |
+| **Implementation constraints** | The affordance is a '+' character in a 32pt accent circle. Both the glyph and the circle are inventions. |
+
+
+### `InfoCard`
+
+Information, not an action. A refused item renders as information rather than a control that would reject the tap.
+
+| | |
+| --- | --- |
+| **Used by** | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen (14 usages) |
+| **Required variants** | `default`, `muted` |
+| **Required interactions** | none — deliberately not pressable |
+| **Accessibility** | No role; content carries its own semantics. |
+| **Motion** | None. |
+| **RTL** | Inherits. |
+| **Responsive** | Nests one level (R9 puts the pharmacist's note inside the consent card). |
+| **Implementation constraints** | Most-used container: 14 usages. Padding, radius and 1px border are all invented. |
+
+
+### `Choice`
+
+One answer among two, where the choice itself is the point. Used only for substitution consent.
+
+| | |
+| --- | --- |
+| **Used by** | OfferDetailScreen (2 usages) |
+| **Required variants** | `selected`, `unselected` |
+| **Required interactions** | press; change after answering — allowed until the offer is accepted |
+| **Accessibility** | radio role with accessibilityState.selected. Without it a patient using TalkBack cannot tell which answer they gave. |
+| **Motion** | None specified. A selection change should not animate in a way that implies the app made the choice. |
+| **RTL** | Two side by side; the longer label ('لا، أريد اللي طلبته') must not force a different height. |
+| **Responsive** | Both labels must fit at 320pt without truncation — a truncated consent option is a consent defect. |
+| **Implementation constraints** | SAFETY-CRITICAL. Both options must remain visually equal in weight. Selection is currently a 2px accent border only, which is colour-alone. |
+
+
+### `StateBlock`
+
+Renders whichever treatment the screen's contract declared. It cannot fall through to a generic message.
+
+| | |
+| --- | --- |
+| **Used by** | (rendered by Screen, on every screen) (1 usages) |
+| **Required variants** | `loading`, `empty (teaching)`, `empty (quiet/success)`, `error`, `offline`, `permissionRefused`, `success (never used)` |
+| **Required interactions** | the treatment's single action, which moves to the footer when the screen has no footer of its own |
+| **Accessibility** | loading carries progressbar role. Errors must not rely on colour alone. |
+| **Motion** | skeletonToReal 150ms. Unimplemented, and the skeleton's shape does not match any real content. |
+| **RTL** | Inherits. |
+| **Responsive** | Fills the screen and centres; must not push its action out of thumb reach at 200% text. |
+| **Implementation constraints** | Six treatments, every dimension invented. The success treatment has never been rendered. |
+
+
+### `Label`
+
+All text. 5 type roles × 7 colour roles.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (95 usages) |
+| **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
+| **Required interactions** | none |
+| **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |
+| **Motion** | None. |
+| **RTL** | textAlign right, writingDirection rtl. Normalises Arabic-Indic digits to Western at render, so no call site can leak a second numeral system. |
+| **Responsive** | Must reflow at 200%. |
+| **Implementation constraints** | Letter-spacing is always 0. Arabic is connected and tracking breaks the joins. |
+
+
+### `Digits`
+
+Countdowns, prices, quantities, the reservation code.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen, WaitingScreen (7 usages) |
+| **Required variants** | `body`, `headline`, `title`, `display` |
+| **Required interactions** | none — but the reservation code should arguably be selectable |
+| **Accessibility** | Read as a number by screen readers; the reservation code is grouped in pairs so it can be read aloud. |
+| **Motion** | A ticking countdown must not reflow. |
+| **RTL** | Numbers run LTR inside RTL text. |
+| **Responsive** | The code is the largest element on V2 and must survive 200% text. |
+| **Implementation constraints** | Requires a TABULAR figures face. None is bundled, so digits currently change width as they tick. |
+
+
+### `Bidi`
+
+Isolates a Latin run inside Arabic — drug names, codes, prices — so it does not reorder.
+
+| | |
+| --- | --- |
+| **Used by** | DraftScreen, FindScreen (3 usages) |
+| **Required variants** | `body`, `headline`, `caption`, `title` |
+| **Required interactions** | none |
+| **Accessibility** | Correct reading order for screen readers. |
+| **Motion** | None. |
+| **RTL** | This IS the RTL component. Unisolated, a price beside Arabic reorders and the patient reads the wrong number. |
+| **Responsive** | Mixed-script lines wrap unpredictably; verify at 320pt. |
+| **Implementation constraints** | Correct by construction. Needs only the Arabic/Latin font pairing. |
+
+
+### `RedirectNote`
+
+Says why a guard sent the user here, so a screen never appears for no reason.
+
+| | |
+| --- | --- |
+| **Used by** | ConfirmScreen, DraftScreen (2 usages) |
+| **Required variants** | `one` |
+| **Required interactions** | none |
+| **Accessibility** | Should be announced on arrival — currently it is not. |
+| **Motion** | None. |
+| **RTL** | Inherits. |
+| **Responsive** | One or two lines. |
+| **Implementation constraints** | Entirely invented. |
+
 
 ---
 
-## 3. `Secondary` — never competes
+## Components that do not exist and are needed
 
-44pt minimum, no fill, no accent background, accent-coloured text. Carries an
-optional `spoken` label distinct from its visible text — this exists because
-naming the medicine in the visible label wrapped onto two lines and crowded the
-stepper, while a screen reader still needs to tell repeated rows apart.
-
-**Designer must specify:** pressed state; whether secondaries are ever grouped
-in a row (they are, up to 3 on R1) and how they wrap at 320pt; minimum spacing
-between adjacent secondaries so two are not mistaken for one.
-
----
-
-## 4. `ActionCard` — the whole card is the action
-
-Used on F2 (search results) and R8 (offers). Replaced a filled button on every
-row, which put three competing dominant controls on one screen.
-
-**Structure:** content column + a 32pt accent circle containing `+`.
-
-**Designer must specify**
-| Item | Why | If missing |
+| Component | Needed by | Consequence today |
 | --- | --- | --- |
-| The affordance itself | Currently a `+` character in a circle | The product's most repeated affordance is a text glyph |
-| Pressed state for a full-card target | None | A card tap gives no feedback |
-| `muted` variant (refused/unavailable item) | Currently `surfaceSunken` | A refused medicine and an available one differ only by background |
-| Row density at 320pt with 6 metadata lines | R8's row is the densest thing in the app | It wraps badly on the commonest device |
-
----
-
-## 5. `InfoCard` — information, not an action
-
-The most-used container (14 usages). Deliberately not pressable: a refused item
-renders as information rather than a control that would reject the tap.
-
-**Designer must specify:** padding, radius, border vs elevation, the `muted`
-variant, and how nested `InfoCard`s read — R9 nests one (the pharmacist's note)
-inside the consent card.
-
----
-
-## 6. `Choice` — the consent control (safety-critical)
-
-Two options, `radio` role, `accessibilityState.selected`. **Both options carry
-deliberately identical visual weight**: a filled "agree" beside an outlined
-"refuse" is a nudge, and a nudged consent is not consent (§4 R10).
-
-**Designer must specify**
-- Selected vs unselected, keeping the two answers visually equal in weight.
-- A **non-colour** selection signal (R-19): today selection is a 2px accent
-  border only.
-- Pressed state.
-- Layout at 320pt: the two labels are `أوافق على البديل` and
-  `لا، أريد اللي طلبته` — the second is longer and will wrap.
-
-**Why this one matters most:** it is the control through which a patient
-consents to receiving a different medicine than the one prescribed. Any visual
-asymmetry between the two answers is a clinical-consent defect, not a style
-preference.
-
----
-
-## 7. `StateBlock` — the six treatments
-
-Renders whichever treatment the screen's contract declared. It cannot fall
-through to a generic message; `ux-check` fails the build if a declared state has
-no treatment.
-
-| Treatment | Today | Must specify |
-| --- | --- | --- |
-| `loading` | 3 bars, 48pt tall, 12pt gap, centred, fills the screen | Skeleton per archetype, matching real content shape |
-| `empty` (teaching) | centred `title` text + footer action | Illustration or not; tone; spacing |
-| `empty` (success/quiet) | same component, muted colour, no action | How "all is well" differs from "nothing here" |
-| `error` | alert headline + "work preserved" caption + footer action | Icon? Colour band? Tone at 200% text |
-| `offline` | sunken panel, relative age ("آخر تحديث قبل 5 دقيقة") | How "stale" is signalled without alarming |
-| `permissionRefused` | centred headline naming the alternative | Never a wall — the alternative is the primary |
-| `success` | **never rendered, no usage** | Define it or remove it (R-5) |
-
----
-
-## 8. `Label`, `Bidi`, `Digits` — the text layer
-
-- **`Label`** — 5 type roles × 7 colour roles. Normalises numerals at render, so
-  no call site can leak a second numeral system.
-- **`Bidi`** — isolates a Latin run inside Arabic (drug names, codes, prices) so
-  it does not reorder. Correct by construction; nothing to design beyond the
-  font pairing.
-- **`Digits`** — tabular figures for countdowns, prices, quantities.
-  **Currently renders in a system fallback because no tabular font is bundled.**
-
-**Designer must specify:** the Arabic/Latin font pairing at every type role, and
-the tabular face. See R-2.
-
----
-
-## 9. Components that do NOT exist and are needed
-
-| Missing component | Needed by | Consequence today |
-| --- | --- | --- |
-| **Tab bar** | S1, F1 and every `destination` | No top-level navigation exists at all |
-| **Modal / sheet chrome** | R1, R4, R5, R7 (`destination: modal`) | Modals render as full screens |
-| **Toast / transient confirmation** | `undoDwell` (4000ms) token | The token has nothing to animate |
-| **Destructive confirmation** | V5, and the `two-step` state kind | The first destructive action invents its own pattern |
-| **Photo viewer** | R3 | A grey placeholder box |
-| **Badge / count** | `inbox` destination | Nothing shows pending work |
-| **Pull-to-refresh** | Every cached list | Not implemented, no spec |
-| **Focus ring** | Accessibility (R-17) | Assistive input hardware is unusable |
-| **Text input** — variants and states | F1/F2 search; every form in Entry and Account | One inline input exists, invented, with no error/focus/disabled state |
-
-**This last one is significant.** The Entry group (13 screens) and the Account
-group (15 screens) are almost entirely forms, and **no form input component has
-been designed** — only a single search field improvised on F1.
-
----
-
-## 10. Deprecation
-
-Nothing is deprecated. No component has been replaced; two were reshaped
-(`ActionCard` replaced per-row primaries; `Choice` replaced an improvised
-`Secondary` pair) and the old shapes were removed in the same commit.
+| **TabBar** | S1, F1 and all eight declared destinations | No top-level navigation exists. S1 and F1 declare 'root of a tab' and there are no tabs. |
+| **Sheet / modal chrome** | R1, R4, R5, R7 (destination: modal) | Modals render as full screens; the 'temporary and layered above' signal is absent. |
+| **TextField** | F1/F2 search, and 28 form screens in Entry and Account | One inline search field was improvised. No focus, error or disabled state exists. |
+| **PhotoViewer** | R3 | A grey placeholder box renders instead of the prescription. |
+| **DestructiveConfirm** | V5, and the 'two-step' Blueprint state kind | The first destructive action will invent its own pattern. |
+| **Toast / transient confirmation** | the undoDwell motion token (4000ms) | The token has nothing to animate. |
+| **Badge** | the inbox destination | Nothing can show pending work. |
+| **FocusRing** | accessibility | Assistive input hardware is unusable — nothing renders focus. |
+| **PullToRefresh** | every cached list | Not implemented, no specification. |

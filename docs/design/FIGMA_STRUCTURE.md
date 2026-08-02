@@ -1,5 +1,9 @@
 # Figma Structure
 
+> Scope, deliverables and acceptance are in [README.md](README.md). The one rule
+> here that is genuinely non-negotiable is frame naming (§2) — everything else
+> is a strong convention.
+
 How the file must be organised for Engineering to consume it without asking
 questions. The constraint driving all of this: **the code is organised by
 screen contract and screen state, and the review dashboard photographs exactly

@@ -83,6 +83,28 @@ Currently declared but not bundled: `IBM Plex Sans Arabic`, `IBM Plex Sans`,
 
 ---
 
+## 2b. Brand identity — status unknown, and this needs an answer
+
+**There is no logo, wordmark or brand palette in the repository.** The RTL rules
+already anticipate one — `logo` appears in the list of icons that must never
+mirror — but no asset exists and no brand guideline has been supplied to
+Engineering.
+
+Before anything else in this section can be produced, someone must answer:
+
+- **Does a Dawai brand identity already exist** (logo, wordmark, brand colours,
+  a defined tone)? If so it has not reached Engineering, and it must, because the
+  accent colour currently in the product (`#186047`) was chosen by an engineer.
+- **If not, is creating one in scope for this engagement?** It is not listed
+  anywhere in `DESIGN_HANDOFF_REQUIREMENTS.md` because Engineering does not know.
+
+*Why this blocks:* the app icon, the splash screen and the notification icon all
+derive from a brand identity. None can be produced without one.
+*If unanswered:* the app ships under a green an engineer picked, and the first
+brand review invalidates every screen.
+
+---
+
 ## 3. App identity — Priority 2 (blocks store submission)
 
 | Asset | Sizes | Notes |

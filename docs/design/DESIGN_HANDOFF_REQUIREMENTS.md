@@ -6,6 +6,11 @@
 
 ---
 
+> **Start with [README.md](README.md)** for the reading order, the deliverables,
+> the acceptance process and a glossary. If you are the designer rather than an
+> engineer, read [DESIGN_BRIEF_FOR_DESIGNER.md](DESIGN_BRIEF_FOR_DESIGNER.md)
+> first — this document is the requirements contract behind it.
+
 ## 0. What this document is, and what it is not
 
 This is not a design brief and it is not a style guide. It is the list of things
@@ -27,6 +32,13 @@ semantics and the clinical rules are product decisions already made and already
 implemented. The designer owns how all of it *looks and feels*. A design that
 changes what a screen *does* is a Blueprint amendment — raise it, don't absorb
 it. §8 lists the specific things that are frozen.
+
+**The Arabic copy is not part of the design surface.** Every string is Iraqi
+dialect written deliberately, and several are load-bearing — `بانتظار الاتصال`
+is the only phrase permitted for a queued request, because a friendlier word
+breaks D27. Design around the copy; do not rewrite it. Setting it well — line
+height, weight, the Arabic/Latin pairing for drug names — *is* yours. See
+README §"Who owns what".
 
 **The success condition:** after these deliverables land, Engineering never
 again invents a colour, a spacing value, a type size, an icon, a layout, an
@@ -478,6 +490,14 @@ implemented and machine-checked:
 | R-16 | New-offer arrival animation |
 | R-20 | Contrast for any newly introduced role |
 | Empty-state illustrations, if the answer is illustrations |  |
+
+### Unanswered — needed before P0 can start
+
+| Question | Why it blocks |
+| --- | --- |
+| **Does a Dawai brand identity exist?** No logo, wordmark or brand palette has reached Engineering. The accent green currently in the product was chosen by an engineer. | The app icon, splash and notification icon all derive from it, and a later brand review would invalidate every screen. See `ASSET_CHECKLIST.md` §2b. |
+| **Is illustration part of the visual language?** Every empty and error state is text today. | §22 calls the empty state the highest-attention moment in the product; the answer changes the state treatments, which are P1. |
+| **Light-only for Phase 0, or dark too?** | Determines whether every state needs two designs. |
 
 ---
 
