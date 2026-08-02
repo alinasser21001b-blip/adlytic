@@ -10,6 +10,40 @@
   "tapFloor": 44,
   "screens": [
     {
+      "name": "E4-direct",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E4-direct@320.png",
+        "360": "responsive/E4-direct@360.png",
+        "390": "responsive/E4-direct@390.png",
+        "430": "responsive/E4-direct@430.png"
+      }
+    },
+    {
+      "name": "E4-guarded",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/E4-guarded@320.png",
+        "360": "responsive/E4-guarded@360.png",
+        "390": "responsive/E4-guarded@390.png",
+        "430": "responsive/E4-guarded@430.png"
+      }
+    },
+    {
       "name": "F1-empty",
       "verdict": "pass",
       "issues": [],
@@ -508,7 +542,7 @@
       "Sticky slots are photographed at scroll position 0 only."
     ]
   ],
-  "pass": 28,
+  "pass": 30,
   "minor": 0,
   "fail": 0
 }

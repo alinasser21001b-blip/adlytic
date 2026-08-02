@@ -138,9 +138,25 @@ export const palettes: Readonly<Record<Persona, Readonly<Record<Scheme, Palette>
  * light card on a dark ground is not expressible as two roles from one palette,
  * so it is measured explicitly rather than not at all.
  */
+/**
+ * The one raised information strip in the entry flow — E4's «طلبك محفوظ» band.
+ *
+ * A delivered colour with no semantic role: it is not a card, not a warning and
+ * not the sunken plane. It says "the thing you were doing is still here", which
+ * is a category the role system does not have and should not grow one for on
+ * the strength of a single use. Its pairs are measured like any other.
+ */
+export const patientInfoStrip = {
+  surface: "#0F2A1E",
+  ink: "#F3F7F2",
+  inkMuted: "#9FC6B6",
+} as const;
+
 export const EXTRA_PAIRS: readonly (readonly [string, string, string])[] = [
   [patientCodePanel.ink, patientCodePanel.surface, "V2 code panel: ink on light panel"],
   [patientCodePanel.inkMuted, patientCodePanel.surface, "V2 code panel: caption on light panel"],
+  [patientInfoStrip.ink, patientInfoStrip.surface, "E4 info strip: the preserved request"],
+  [patientInfoStrip.inkMuted, patientInfoStrip.surface, "E4 info strip: surrounding sentence"],
 ];
 
 export const CONTRACT_PAIRS: readonly (readonly [ColorRole, ColorRole])[] = [

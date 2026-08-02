@@ -180,18 +180,18 @@ export const SCREENS = {
     },
   },
   E4: {
-    built: false,
+    built: true,
+    states: ["E4-guarded", "E4-direct"],
     verdicts: {
-      Layout: ["missing", "Contract exists; no pixels. The delivery specifies a preserved-request banner, poster-scale promise copy, and a phone field with LTR mono runs."],
-      Typography: ["missing", "28px/800 poster type is above the `title` role and has no token."],
-      Spacing: ["missing", "Not built."],
-      Colour: ["exact", "Palette available; the delivered info surface #0F2A1E has no role and is recorded as an extra."],
-      Component: ["missing", "No TextField component exists anywhere in the product."],
+      Layout: ["minor", "Built to the delivery: the preserved-request strip, the poster promise, the privacy sentence, then «أدخل رقمي» with «مو هسه — رجعني لطلبي» centred beneath it. The delivered phone field is absent — see DEV-16; Blueprint v3 puts phone entry on E5, so a field here would be either inert or a second place a number can be typed."],
+      Typography: ["exact", "The promise renders at the delivered 28/800 through the `poster` role, added while building V2 and used here for the first time."],
+      Spacing: ["exact", "Gutter and stack gaps inside the delivered ranges."],
+      Colour: ["exact", "Palette applied, and the delivered info surface #0F2A1E now exists as a token with both of its text pairs measured by the contrast gate."],
+      Component: ["intended", "Composed from Section, Row, Primary and Secondary plus one new piece, `InfoStrip`. No TextField is used because no field is drawn — DEV-16."],
       Motion: ["missing", "None implemented."],
       Icon: ["blocked", "No icon set."],
-      Accessibility: ["missing", "Not built."],
-      RTL: ["missing", "Not built."],
-      Responsive: ["missing", "Not built."],
+      Accessibility: ["exact", "The reason shown is the guard\'s own string, so what a screen reader announces is what the redirect said. Both controls clear the 44pt floor at every measured width, and the way out is a labelled control rather than only a chevron."],
+      RTL: ["exact", "Direction-driven; the strip mixes weights inside one run without splitting the sentence."],
     },
   },
 };
@@ -199,6 +199,15 @@ export const SCREENS = {
 /* ── Deviations ─────────────────────────────────────────────────────────── */
 
 export const DEVIATIONS = [
+  {
+    id: "DEV-16",
+    what: "E4 draws no phone field; the delivery shows «+964» beside a masked «77_ ___ ____».",
+    why: "Blueprint v3 separates the two: E4 explains («Explain before the one hard ask») and E5 takes the number («Phone entry»). Drawing a field on E4 gives one of two bad outcomes — a decoration that does nothing when tapped, which is the placeholder pattern this project forbids, or a second place in the product where a phone number can be entered. The primary keeps the contract\'s «أدخل رقمي» and leads to E5 rather than the delivery\'s «أرسل الرمز», which belongs to the merged screen the delivery drew.",
+    temporary: false,
+    designApproved: false,
+    productApproved: false,
+    debt: "None for E4. E5–E8 remain unbuilt and are tracked as TD-4.",
+  },
   {
     id: "DEV-12",
     what: "R9 does not attribute the pharmacist's note to a named, licensed pharmacist.",

@@ -12,16 +12,16 @@
 
 ## Overall fidelity
 
-# 66%
+# 78%
 
 6 screens × 10 categories = 60 assessments.
 
 | Verdict | Count | Share |
 | --- | --- | --- |
-| Exact Match | 33 | 55% |
-| Minor Deviation | 5 | 8% |
-| Intentional Deviation | 3 | 5% |
-| Missing | 13 | 22% |
+| Exact Match | 38 | 63% |
+| Minor Deviation | 6 | 10% |
+| Intentional Deviation | 4 | 7% |
+| Missing | 6 | 10% |
 | Blocked | 6 | 10% |
 
 Exact and Intentional both count 1.0 — an approved, recorded deviation is
@@ -35,10 +35,10 @@ Missing and Blocked count 0.
 | `R7-sent` | Waiting · sent | 78% |
 | `R8` | Offers | 75% |
 | `R9` | Substitution consent | 78% |
-| `E4` | Why we need your number | 10% |
+| `E4` | Why we need your number | 78% |
 
-- **Completed:** 5 of 6 built
-- **Not started:** `E4`
+- **Completed:** 6 of 6 built
+- **Not started:** none
 - **Blocked:** all 6 on Icon fidelity — no icon set exists, so that category cannot rise above Blocked on any screen
 
 ---
@@ -164,27 +164,36 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | RTL | Exact Match | Enforced. |
 | Responsive | Exact Match | Measured at 320/360/390/430pt. All 3 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `E4` — Why we need your number · 10%
-
-**NOT BUILT.** A contract exists; no pixels do.
+### `E4` — Why we need your number · 78%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
-| Layout | Missing | Contract exists; no pixels. The delivery specifies a preserved-request banner, poster-scale promise copy, and a phone field with LTR mono runs. |
-| Typography | Missing | 28px/800 poster type is above the `title` role and has no token. |
-| Spacing | Missing | Not built. |
-| Colour | Exact Match | Palette available; the delivered info surface #0F2A1E has no role and is recorded as an extra. |
-| Component | Missing | No TextField component exists anywhere in the product. |
+| Layout | Minor Deviation | Built to the delivery: the preserved-request strip, the poster promise, the privacy sentence, then «أدخل رقمي» with «مو هسه — رجعني لطلبي» centred beneath it. The delivered phone field is absent — see DEV-16; Blueprint v3 puts phone entry on E5, so a field here would be either inert or a second place a number can be typed. |
+| Typography | Exact Match | The promise renders at the delivered 28/800 through the `poster` role, added while building V2 and used here for the first time. |
+| Spacing | Exact Match | Gutter and stack gaps inside the delivered ranges. |
+| Colour | Exact Match | Palette applied, and the delivered info surface #0F2A1E now exists as a token with both of its text pairs measured by the contrast gate. |
+| Component | Intentional Deviation | Composed from Section, Row, Primary and Secondary plus one new piece, `InfoStrip`. No TextField is used because no field is drawn — DEV-16. |
 | Motion | Missing | None implemented. |
 | Icon | Blocked | No icon set. |
-| Accessibility | Missing | Not built. |
-| RTL | Missing | Not built. |
-| Responsive | Missing | Not built. |
+| Accessibility | Exact Match | The reason shown is the guard's own string, so what a screen reader announces is what the redirect said. Both controls clear the 44pt floor at every measured width, and the way out is a labelled control rather than only a chevron. |
+| RTL | Exact Match | Direction-driven; the strip mixes weights inside one run without splitting the sentence. |
+| Responsive | Exact Match | Measured at 320/360/390/430pt. All 2 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
 
 ---
 
 ## Intentional deviations
+
+### DEV-16 — E4 draws no phone field; the delivery shows «+964» beside a masked «77_ ___ ____».
+
+**Why.** Blueprint v3 separates the two: E4 explains («Explain before the one hard ask») and E5 takes the number («Phone entry»). Drawing a field on E4 gives one of two bad outcomes — a decoration that does nothing when tapped, which is the placeholder pattern this project forbids, or a second place in the product where a phone number can be entered. The primary keeps the contract's «أدخل رقمي» and leads to E5 rather than the delivery's «أرسل الرمز», which belongs to the merged screen the delivery drew.
+
+| | |
+| --- | --- |
+| Temporary | No — this is the rule now |
+| Design approval required | No |
+| Product approval required | No |
+| Tracked as debt | `None for E4. E5–E8 remain unbuilt and are tracked as TD-4.` |
 
 ### DEV-12 — R9 does not attribute the pharmacist's note to a named, licensed pharmacist.
 

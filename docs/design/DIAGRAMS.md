@@ -164,7 +164,7 @@ flowchart TD
   end
   theme["themeFor(scheme)<br/>resolves one persona"]
   kit["ui/kit.tsx<br/>28 components"]
-  screens["8 screen files"]
+  screens["9 screen files"]
   color --> theme
   type --> theme
   space --> theme

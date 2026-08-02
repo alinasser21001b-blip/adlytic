@@ -9,8 +9,8 @@
 | --- | --- |
 | Blueprint v3 Phase 0 screens | 133 |
 | With an engineering contract | 18 |
-| Rendered and photographed | 12 |
-| Distinct states rendered | 28 |
+| Rendered and photographed | 13 |
+| Distinct states rendered | 30 |
 | NOT IMPLEMENTED | 115 |
 | Exits declared but BLOCKED | 10 |
 
@@ -135,8 +135,12 @@ Not yet rendered. The contract exists; no pixels do. The designer is designing t
 | --- | --- | --- |
 | _none_ | This screen has a single default state. | — |
 
-Blueprint declares: `—`. **No state has been rendered — the designer works from this contract alone.**
+Blueprint declares: `—`. 2 state(s) rendered and photographed.
 
+**Rendered states** (see `review/index.html` for the screenshots):
+
+- `E4-guarded` — **ready**. §3.1 — the one hard ask, explained before it is made. The reason shown is the guard's own sentence, so the screen cannot state a different one than the redirect did, and D26's preserved request is named rather than merely promised.
+- `E4-direct` — **ready · no preserved action**. Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing.
 
 #### Required interactions
 

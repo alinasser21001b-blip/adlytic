@@ -8,7 +8,7 @@
  *      meaningful: it measures the pairs this file can produce, and a raw hex
  *      in a stylesheet would be a pair nobody measured.
  */
-import { palettes, patientCodePanel, space, frame, radius, tap, type as typeScale, fontStack, APP_DIRECTION, type Palette, type Scheme } from "@dawai/design";
+import { palettes, patientCodePanel, patientInfoStrip, space, frame, radius, tap, type as typeScale, fontStack, APP_DIRECTION, type Palette, type Scheme } from "@dawai/design";
 
 export type Theme = {
   readonly scheme: Scheme;
@@ -29,6 +29,8 @@ export type Theme = {
   /** The light panel that carries the reservation code — the one surface in the
    *  patient app that inverts. Its pairs are measured separately by the gate. */
   readonly codePanel: typeof patientCodePanel;
+  /** E4's preserved-request strip. A delivered colour with no role. */
+  readonly infoStrip: typeof patientInfoStrip;
 };
 
 export const themeFor = (scheme: Scheme): Theme => ({
@@ -39,6 +41,7 @@ export const themeFor = (scheme: Scheme): Theme => ({
   fontFamily: fontStack.arabic[0]!,
   tabularFamily: fontStack.tabular[0]!,
   codePanel: patientCodePanel,
+  infoStrip: patientInfoStrip,
 });
 
 /** A text style from a role. Line height is a multiplier in the token and an

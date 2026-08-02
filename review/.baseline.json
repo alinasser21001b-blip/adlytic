@@ -1,12 +1,11 @@
 {
   "hasBaseline": true,
-  "added": [],
-  "removed": [],
-  "changed": [
-    "R9-agreed.png",
-    "R9-refused.png",
-    "R9-undecided.png"
+  "added": [
+    "E4-direct.png",
+    "E4-guarded.png"
   ],
+  "removed": [],
+  "changed": [],
   "unchanged": [
     "F1-empty.png",
     "F2-empty.png",
@@ -28,6 +27,9 @@
     "R8-empty.png",
     "R8-offers.png",
     "R8-withdrawn.png",
+    "R9-agreed.png",
+    "R9-refused.png",
+    "R9-undecided.png",
     "V1-requesting.png",
     "V2-cached.png",
     "V2-held.png",

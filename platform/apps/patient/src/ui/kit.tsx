@@ -562,6 +562,36 @@ export function SearchField(
   );
 }
 
+/**
+ * The raised strip that names work still in progress — E4's «طلبك محفوظ».
+ *
+ * The subject is set in full ink against the muted sentence around it, because
+ * the whole point is that the patient recognises their own request in it. A
+ * uniformly muted strip reads as boilerplate and gets skipped, which defeats
+ * the reassurance it exists to give.
+ */
+export function InfoStrip(
+  { t, lead, subject, tail }: { t: Theme; lead: string; subject: string; tail: string },
+) {
+  return (
+    <View style={{
+      backgroundColor: t.infoStrip.surface,
+      borderRadius: t.radius.md,
+      paddingVertical: t.space[3], paddingHorizontal: t.space[4],
+    }}>
+      <Text style={{
+        fontFamily: t.fontFamily, fontSize: t.type.caption.size,
+        lineHeight: Math.round(t.type.caption.size * 1.6),
+        color: t.infoStrip.inkMuted, writingDirection: t.direction, textAlign: "right",
+      }}>
+        {`${lead} `}
+        <Text style={{ color: t.infoStrip.ink, fontWeight: "700" }}>{subject}</Text>
+        {` — ${tail}`}
+      </Text>
+    </View>
+  );
+}
+
 /* ── States ───────────────────────────────────────────────────────────── */
 
 /**

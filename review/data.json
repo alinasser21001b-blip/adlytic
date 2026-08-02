@@ -3,7 +3,7 @@
   "progress": {
     "blueprintScreens": 133,
     "contracted": 18,
-    "rendered": 12,
+    "rendered": 13,
     "remaining": 115,
     "percentContracted": 13.5
   },
@@ -124,7 +124,18 @@
       ],
       "telemetry": [],
       "guards": [],
-      "shots": []
+      "shots": [
+        {
+          "id": "E4-guarded",
+          "state": "ready",
+          "note": "§3.1 — the one hard ask, explained before it is made. The reason shown is the guard's own sentence, so the screen cannot state a different one than the redirect did, and D26's preserved request is named rather than merely promised."
+        },
+        {
+          "id": "E4-direct",
+          "state": "ready · no preserved action",
+          "note": "Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing."
+        }
+      ]
     },
     {
       "id": "F1",
@@ -2938,6 +2949,18 @@
       "note": "D39 — they confirmed and then could not. It names the situation rather than the pharmacist, and the request has already re-opened."
     },
     {
+      "id": "E4-guarded",
+      "screen": "E4",
+      "state": "ready",
+      "note": "§3.1 — the one hard ask, explained before it is made. The reason shown is the guard's own sentence, so the screen cannot state a different one than the redirect did, and D26's preserved request is named rather than merely promised."
+    },
+    {
+      "id": "E4-direct",
+      "screen": "E4",
+      "state": "ready · no preserved action",
+      "note": "Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing."
+    },
+    {
       "id": "R7-queued",
       "screen": "R7",
       "state": "offline · queued",
@@ -2958,6 +2981,7 @@
         "apps/patient/src/screens/PrescriptionScreen.tsx",
         "apps/patient/src/screens/ReservationScreen.tsx",
         "apps/patient/src/screens/WaitingScreen.tsx",
+        "apps/patient/src/screens/WhyNumberScreen.tsx",
         "apps/patient/src/screens/gallery.tsx",
         "apps/patient/src/ui/kit.tsx",
         "apps/patient/src/ui/layout.tsx"

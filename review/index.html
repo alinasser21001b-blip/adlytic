@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 18:58 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 19:05 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -69,7 +69,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <div class="panel"><div class="kpi">13.5%<small>of Blueprint screens contracted</small></div>
     <div class="bar"><i style="width:13.5%"></i></div></div>
   <div class="panel"><div class="kpi">18<small>screens contracted</small></div></div>
-  <div class="panel"><div class="kpi">12<small>screens rendered &amp; photographed</small></div></div>
+  <div class="panel"><div class="kpi">13<small>screens rendered &amp; photographed</small></div></div>
   <div class="panel"><div class="kpi">115<small>screens remaining</small></div></div>
 </div>
 <div class="panel" style="margin-top:14px">
@@ -242,6 +242,16 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <h3>V4 — ready</h3>
     <p class="note">D39 — they confirmed and then could not. It names the situation rather than the pharmacist, and the request has already re-opened.</p>
   </div></div><div class="shot">
+  <img src="screenshots/E4-guarded.png" alt="E4-guarded">
+  <div class="cap">
+    <h3>E4 — ready</h3>
+    <p class="note">§3.1 — the one hard ask, explained before it is made. The reason shown is the guard's own sentence, so the screen cannot state a different one than the redirect did, and D26's preserved request is named rather than merely promised.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E4-direct.png" alt="E4-direct">
+  <div class="cap">
+    <h3>E4 — ready · no preserved action</h3>
+    <p class="note">Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing.</p>
+  </div></div><div class="shot">
   <img src="screenshots/R7-queued.png" alt="R7-queued">
   <div class="cap">
     <h3>R7 — offline · queued</h3>
@@ -249,6 +259,24 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   </div></div></div>
 
 <h2>Screen contracts</h2><div class="grid g3"><div class="shot">
+    <img src="screenshots/E4-guarded.png" alt="ليش نحتاج رقمك">
+    <div class="cap">
+      <h3>E4 · ليش نحتاج رقمك</h3>
+      <p class="note">Explain before the one hard ask</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: dismiss</div>
+        <div class="tag ok">primary: أدخل رقمي → E5</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag bad">→ E5 (not built)</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
     <img src="screenshots/F1-empty.png" alt="ابحث">
     <div class="cap">
       <h3>F1 · ابحث</h3>
@@ -469,7 +497,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Contracted screens with no rendered state yet</h3>
   <p class="note">Declared, checked by ux-check, and part of a later slice's rendering work.</p>
   <table style="margin-top:10px"><thead><tr><th>Screen</th><th>Title</th><th>Purpose</th><th>States</th></tr></thead><tbody>
-  <tr><td class="mono">S1</td><td>اليوم</td><td class="note">What is happening right now</td><td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">empty</span><span class="tag">offline</span><span class="tag">error</span></td></tr><tr><td class="mono">E4</td><td>ليش نحتاج رقمك</td><td class="note">Explain before the one hard ask</td><td>—</td></tr><tr><td class="mono">R4</td><td>لمن الدواء؟</td><td class="note">Choose the subject</td><td>—</td></tr><tr><td class="mono">R5</td><td>شكد مستعجل؟</td><td class="note">Set the window honestly</td><td>—</td></tr><tr><td class="mono">R11</td><td>ما رد أحد</td><td class="note">The honest empty case</td><td>—</td></tr><tr><td class="mono">R13</td><td>بانتظار الإرسال</td><td class="note">Everything waiting to send</td><td><span class="tag">empty</span><span class="tag">error</span></td></tr>
+  <tr><td class="mono">S1</td><td>اليوم</td><td class="note">What is happening right now</td><td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">empty</span><span class="tag">offline</span><span class="tag">error</span></td></tr><tr><td class="mono">R4</td><td>لمن الدواء؟</td><td class="note">Choose the subject</td><td>—</td></tr><tr><td class="mono">R5</td><td>شكد مستعجل؟</td><td class="note">Set the window honestly</td><td>—</td></tr><tr><td class="mono">R11</td><td>ما رد أحد</td><td class="note">The honest empty case</td><td>—</td></tr><tr><td class="mono">R13</td><td>بانتظار الإرسال</td><td class="note">Everything waiting to send</td><td><span class="tag">empty</span><span class="tag">error</span></td></tr>
   </tbody></table></div>
 
 <h2>Component library</h2>
@@ -477,13 +505,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <table class="tbl"><thead><tr><th>Component</th><th>Uses</th><th>Screens</th><th>Purpose</th></tr></thead><tbody>
   <tr>
     <td class="mono">Label</td>
-    <td class="mono">75</td>
-    <td class="note">ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen</td>
+    <td class="mono">77</td>
+    <td class="note">ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
     <td class="note">All text. 5 type roles × 7 colour roles.</td>
   </tr><tr>
     <td class="mono">Row</td>
-    <td class="mono">18</td>
-    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen</td>
+    <td class="mono">19</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
     <td class="note">Things side by side. The single place `flexDirection` is written in the patient app.</td>
   </tr><tr>
     <td class="mono">InfoCard</td>
@@ -492,44 +520,44 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">Information, not an action. A refused item renders as information rather than a control that would reject the tap.</td>
   </tr><tr>
     <td class="mono">Primary</td>
-    <td class="mono">10</td>
-    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen</td>
+    <td class="mono">11</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
     <td class="note">The one dominant action. At most one per screen, counted from the rendered tree every build.</td>
+  </tr><tr>
+    <td class="mono">Secondary</td>
+    <td class="mono">10</td>
+    <td class="note">DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">Never competes with the primary: no fill, no accent background.</td>
+  </tr><tr>
+    <td class="mono">Banner</td>
+    <td class="mono">9</td>
+    <td class="note">(every screen, via the frame, when offline)</td>
+    <td class="note">A full-bleed strip under the header carrying a statement about the WHOLE screen — today, that the content came from the device rather than from a pharmacy.</td>
   </tr><tr>
     <td class="mono">Card</td>
     <td class="mono">9</td>
     <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen</td>
     <td class="note">A rectangle of content raised off the ground. The one card primitive.</td>
   </tr><tr>
-    <td class="mono">Secondary</td>
-    <td class="mono">9</td>
-    <td class="note">DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen</td>
-    <td class="note">Never competes with the primary: no fill, no accent background.</td>
-  </tr><tr>
-    <td class="mono">Banner</td>
-    <td class="mono">8</td>
-    <td class="note">(every screen, via the frame, when offline)</td>
-    <td class="note">A full-bleed strip under the header carrying a statement about the WHOLE screen — today, that the content came from the device rather than from a pharmacy.</td>
-  </tr><tr>
     <td class="mono">Screen</td>
-    <td class="mono">8</td>
+    <td class="mono">9</td>
     <td class="note">(every screen, via the frame)</td>
     <td class="note">The frame every screen renders through. It is the reason no screen can ship without answering 'where am I' and 'how do I go back'.</td>
   </tr><tr>
     <td class="mono">StateBlock</td>
-    <td class="mono">8</td>
+    <td class="mono">9</td>
     <td class="note">(every screen, via the frame)</td>
     <td class="note">Renders whichever treatment the screen's contract declared. It cannot fall through to a generic message.</td>
+  </tr><tr>
+    <td class="mono">Section</td>
+    <td class="mono">7</td>
+    <td class="note">ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">A heading and the things it governs, as one unit.</td>
   </tr><tr>
     <td class="mono">Spacer</td>
     <td class="mono">6</td>
     <td class="note">DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen</td>
     <td class="note">Pushes what follows to the far edge of a Row.</td>
-  </tr><tr>
-    <td class="mono">Section</td>
-    <td class="mono">6</td>
-    <td class="note">ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen</td>
-    <td class="note">A heading and the things it governs, as one unit.</td>
   </tr><tr>
     <td class="mono">Grow</td>
     <td class="mono">4</td>
@@ -617,7 +645,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">How far along something is, as a bar rather than a spinner.</td>
   </tr>
 </tbody></table>
-<p class="note" style="margin-top:12px">28 components · 202 render sites across 8 screens · 9 specified components not built.</p>
+<p class="note" style="margin-top:12px">28 components · 211 render sites across 9 screens · 9 specified components not built.</p>
 
 <div class="panel" style="margin-top:14px">
   <h3>Raw layout in screens</h3>
@@ -625,10 +653,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div>
 
 <h2>Responsive health</h2>
-<p class="note" style="margin-bottom:14px">Every screen state rendered at 320pt · 360pt · 390pt · 430pt and measured — 112 renders. No layout was changed to produce this; it is a measurement, taken before implementation begins. <strong>10 detectors</strong> are proved to fire against injected defects before any real page is measured, so a green row means "checked and clean", not "not checked".</p>
+<p class="note" style="margin-bottom:14px">Every screen state rendered at 320pt · 360pt · 390pt · 430pt and measured — 120 renders. No layout was changed to produce this; it is a measurement, taken before implementation begins. <strong>10 detectors</strong> are proved to fire against injected defects before any real page is measured, so a green row means "checked and clean", not "not checked".</p>
 
 <div class="grid g4" style="margin-bottom:14px">
-  <div class="panel"><h3>28</h3><p class="note">✓ pass</p></div>
+  <div class="panel"><h3>30</h3><p class="note">✓ pass</p></div>
   <div class="panel"><h3>0</h3><p class="note">⚠ minor</p></div>
   <div class="panel"><h3>0</h3><p class="note">✗ fail</p></div>
   <div class="panel"><h3>4</h3><p class="note">widths measured</p></div>
@@ -636,6 +664,16 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 
 <table class="tbl"><thead><tr><th>Screen state</th><th>Verdict</th><th>Findings</th><th>320pt</th><th>360pt</th><th>390pt</th><th>430pt</th></tr></thead><tbody>
   <tr>
+      <td class="mono">E4-direct</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E4-direct@320.png">320</a></td><td><a href="responsive/E4-direct@360.png">360</a></td><td><a href="responsive/E4-direct@390.png">390</a></td><td><a href="responsive/E4-direct@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E4-guarded</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E4-guarded@320.png">320</a></td><td><a href="responsive/E4-guarded@360.png">360</a></td><td><a href="responsive/E4-guarded@390.png">390</a></td><td><a href="responsive/E4-guarded@430.png">430</a></td>
+    </tr><tr>
       <td class="mono">F1-empty</td>
       <td><span class="tag ok">✓ Pass</span></td>
       <td class="note">—</td>
@@ -891,7 +929,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   
     <div style="margin-top:14px">
       <h3>UI <span class="note" style="font-weight:400">— renders a resolved view; decides nothing</span></h3>
-      <div style="margin-top:6px"><span class="tag">App.tsx</span><span class="tag">screens/ConfirmScreen.tsx</span><span class="tag">screens/DraftScreen.tsx</span><span class="tag">screens/FindScreen.tsx</span><span class="tag">screens/OfferDetailScreen.tsx</span><span class="tag">screens/OffersScreen.tsx</span><span class="tag">screens/PrescriptionScreen.tsx</span><span class="tag">screens/ReservationScreen.tsx</span><span class="tag">screens/WaitingScreen.tsx</span><span class="tag">screens/gallery.tsx</span><span class="tag">ui/kit.tsx</span><span class="tag">ui/layout.tsx</span></div>
+      <div style="margin-top:6px"><span class="tag">App.tsx</span><span class="tag">screens/ConfirmScreen.tsx</span><span class="tag">screens/DraftScreen.tsx</span><span class="tag">screens/FindScreen.tsx</span><span class="tag">screens/OfferDetailScreen.tsx</span><span class="tag">screens/OffersScreen.tsx</span><span class="tag">screens/PrescriptionScreen.tsx</span><span class="tag">screens/ReservationScreen.tsx</span><span class="tag">screens/WaitingScreen.tsx</span><span class="tag">screens/WhyNumberScreen.tsx</span><span class="tag">screens/gallery.tsx</span><span class="tag">ui/kit.tsx</span><span class="tag">ui/layout.tsx</span></div>
       <div class="note" style="margin-top:8px">↓</div>
     </div>
     <div style="margin-top:18px">
@@ -945,7 +983,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">103 file(s) scanned across 10 layer(s)</div></div>
+  <div class="note mono">105 file(s) scanned across 10 layer(s)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
@@ -957,15 +995,15 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">679 passed (679)</div></div>
+  <div class="note mono">695 passed (695)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Responsive layout</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">28 screen state(s) photographed at 390×844</div></div>
+  <div class="note mono">30 screen state(s) photographed at 390×844</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Responsive validation</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">28 pass · 0 minor · 0 fail across 320/360/390/430pt — 112 renders, 10 detectors proved</div></div>
+  <div class="note mono">30 pass · 0 minor · 0 fail across 320/360/390/430pt — 120 renders, 10 detectors proved</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Navigation — no unreachable screen</b> — <span class="tag ok">PASS</span>
@@ -1009,7 +1047,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Visual regression reviewed</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">25 unchanged · 3 changed · 0 new · 0 removed — all listed below</div></div>
+  <div class="note mono">28 unchanged · 0 changed · 2 new · 0 removed — all listed below</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
@@ -1039,7 +1077,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3 style="margin-top:20px">What is ready</h3>
   <ul>
     <li class="note">The patient core loop, end to end: search → request → wait → compare → consent → reserve → collect.</li>
-    <li class="note">18 screens contracted, 12 rendered, 28 states photographed and audited.</li>
+    <li class="note">18 screens contracted, 13 rendered, 30 states photographed and audited.</li>
     <li class="note">Every product rule enforced on every registered state — one primary, 44pt floor, readable labels, no repeated action, one numeral system, explained disabled states.</li>
     <li class="note">Contrast measured in both schemes; navigation proven free of traps and unreachable screens.</li>
   </ul>
@@ -1077,8 +1115,8 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag">—</span></td>
     <td><span class="tag">—</span></td>
     <td><span class="tag">—</span></td>
-    <td class="mono">0</td>
-    <td><span class="tag">not rendered</span></td>
+    <td class="mono">2</td>
+    <td><span class="tag ok">new</span></td>
   </tr><tr>
     <td class="mono">F1</td>
     <td class="note">Start anything new</td>
@@ -1188,7 +1226,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag">—</span></td>
     <td class="mono">3</td>
-    <td><span class="tag warn">changed</span></td>
+    <td><span class="tag">unchanged</span></td>
   </tr><tr>
     <td class="mono">R11</td>
     <td class="note">The honest empty case</td>
@@ -1247,14 +1285,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <p class="note">Byte-level PNG comparison against the screenshots in git HEAD, so the baseline is what was actually last reviewed rather than a file somebody remembered to update. It cannot say WHAT changed, only that something did — which is enough to guarantee nothing changes without being listed.</p>
   
   <div style="margin-top:12px">
-    <span class="tag ok">25 unchanged</span>
-    <span class="tag warn">3 changed</span>
-    <span class="tag">0 new</span>
+    <span class="tag ok">28 unchanged</span>
+    <span class="tag warn">0 changed</span>
+    <span class="tag">2 new</span>
     <span class="tag ">0 removed</span>
   </div>
-  <div style="margin-top:14px"><h3>Changed — each one looked at before this push</h3>
-    <div class="grid g3" style="margin-top:10px"><div class="shot"><img src="screenshots/R9-agreed.png" alt="R9-agreed.png"><div class="cap"><span class="mono">R9-agreed.png</span></div></div><div class="shot"><img src="screenshots/R9-refused.png" alt="R9-refused.png"><div class="cap"><span class="mono">R9-refused.png</span></div></div><div class="shot"><img src="screenshots/R9-undecided.png" alt="R9-undecided.png"><div class="cap"><span class="mono">R9-undecided.png</span></div></div></div></div>
   
+  <div style="margin-top:14px"><h3>New this slice</h3><div><span class="tag ok">E4-direct.png</span><span class="tag ok">E4-guarded.png</span></div></div>
   
   
 </div>
@@ -1263,10 +1300,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <div class="panel">
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
-    <div><div class="kpi">63<small>source files</small></div></div>
-    <div><div class="kpi">7,735<small>source lines</small></div></div>
+    <div><div class="kpi">64<small>source files</small></div></div>
+    <div><div class="kpi">7,898<small>source lines</small></div></div>
     <div><div class="kpi">0.4×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">3.42s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">3.57s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>

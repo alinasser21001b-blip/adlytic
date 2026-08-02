@@ -10,13 +10,13 @@
 | `Banner` | 1 | — |
 | `CodePanel` | 1 | ReservationScreen |
 | `FactRow` | 3 | ReservationScreen |
-| `Row` | 21 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen |
+| `Row` | 22 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
 | `Spacer` | 7 | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
 | `Grow` | 5 | ConfirmScreen, OfferDetailScreen, WaitingScreen |
 | `Actions` | 4 | DraftScreen, FindScreen, PrescriptionScreen |
 | `Card` | 10 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
 | `Note` | 4 | ConfirmScreen, DraftScreen |
-| `Section` | 6 | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
+| `Section` | 7 | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen |
 | `Field` | 0 | — |
 | `Chip` | 1 | ConfirmScreen |
 | `StepButton` | 1 | DraftScreen |
@@ -24,14 +24,14 @@
 | `ProgressBar` | 0 | — |
 | `PhotoFrame` | 1 | PrescriptionScreen |
 | `SearchField` | 1 | FindScreen |
-| `Screen` | 11 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
-| `Primary` | 14 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
-| `Secondary` | 9 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Screen` | 12 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Primary` | 15 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Secondary` | 10 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
 | `ActionCard` | 2 | FindScreen, OffersScreen |
 | `InfoCard` | 12 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 98 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Label` | 100 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
 | `Digits` | 4 | ConfirmScreen, DraftScreen, ReservationScreen |
 | `Bidi` | 3 | DraftScreen, FindScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
@@ -94,7 +94,7 @@ Things side by side. The single place `flexDirection` is written in the patient 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen (21 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (22 usages) |
 | **Required variants** | `align baseline / center / stretch`, `justify center / space-between`, `any gap token` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -190,7 +190,7 @@ A heading and the things it governs, as one unit.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen (6 usages) |
+| **Used by** | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen (7 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Provides no heading semantics — nothing in the product exposes a heading level yet. A real gap. |
@@ -318,7 +318,7 @@ The frame every screen renders through. It is the reason no screen can ship with
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (11 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (12 usages) |
 | **Required variants** | `header with back (pop/replace)`, `header without back (tab root)`, `with flow progress`, `with sticky slot`, `with screen footer`, `with state footer`, `no footer` |
 | **Required interactions** | back press; scroll; sticky slot behaviour on scroll |
 | **Accessibility** | The title is the screen's accessible name. The back control has a 44pt hit area and an explicit label. |
@@ -334,7 +334,7 @@ The one dominant action. At most one per screen, counted from the rendered tree 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (14 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (15 usages) |
 | **Required variants** | `default`, `disabled`, `busy` |
 | **Required interactions** | press; long-press (undefined); disabled press (no-op, but the reason must be visible) |
 | **Accessibility** | accessibilityState carries disabled and busy. A disabled primary MUST have a visible explanation near it — the build checks that something readable is on screen. |
@@ -350,7 +350,7 @@ Never competes with the primary: no fill, no accent background.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (9 usages) |
+| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (10 usages) |
 | **Required variants** | `default`, `with a distinct spoken label` |
 | **Required interactions** | press |
 | **Accessibility** | Supports a spoken label different from the visible text, so repeated row actions are distinguishable to a screen reader while the visible text stays short. |
@@ -430,7 +430,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (98 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (100 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |

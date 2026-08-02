@@ -26,6 +26,7 @@ import { send } from "../model/send.js";
 import { empty } from "@dawai/offline";
 import { instant } from "@dawai/domain";
 import { OffersScreen } from "./OffersScreen.jsx";
+import { WhyNumberScreen } from "./WhyNumberScreen.jsx";
 import { ReservationScreen } from "./ReservationScreen.jsx";
 import * as Offers from "../model/offers.js";
 import * as Reservation from "../model/reservation.js";
@@ -325,6 +326,34 @@ export const SHOTS: readonly Shot[] = [
     id: "V4-refused", screen: "V4", state: "ready",
     note: "D39 — they confirmed and then could not. It names the situation rather than the pharmacist, and the request has already re-opened.",
     element: <ReservationScreen {...resProps({ kind: "refused", branchName: "صيدلية الرشيد", reopened: true })} />,
+  },
+  {
+    id: "E4-guarded", screen: "E4", state: "ready",
+    note: "§3.1 — the one hard ask, explained before it is made. The reason shown is the guard's own sentence, so the screen cannot state a different one than the redirect did, and D26's preserved request is named rather than merely promised.",
+    element: (
+      <WhyNumberScreen
+        t={t}
+        preserved="أموكسيسيلين + باراسيتامول"
+        because="نحتاج رقمك حتى نخبرك عندما ترد الصيدليات"
+        history={["R1"]}
+        onBack={noop}
+        onAction={noop}
+      />
+    ),
+  },
+  {
+    id: "E4-direct", screen: "E4", state: "ready · no preserved action",
+    note: "Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing.",
+    element: (
+      <WhyNumberScreen
+        t={t}
+        preserved={null}
+        because="نحتاج رقمك حتى نخبرك عندما ترد الصيدليات"
+        history={[]}
+        onBack={noop}
+        onAction={noop}
+      />
+    ),
   },
   {
     id: "R7-queued", screen: "R7", state: "offline · queued",
