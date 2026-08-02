@@ -143,7 +143,8 @@ function LineRow({ t, line, onSetPacks, onRemove }: { t: Theme; line: DraftModel
   return (
     <View style={{ padding: t.space[4], gap: t.space[3], borderRadius: t.radius.lg, backgroundColor: t.color.surfaceRaised, borderWidth: 1, borderColor: t.color.line }}>
       <Label t={t} role="headline">{line.name}</Label>
-      <Bidi t={t} text={`${line.latinName} · ${line.strength} · ${line.form}`} role="caption" color="inkMuted" />
+      <Bidi t={t} text={line.latinName} role="caption" color="inkMuted" />
+      <Label t={t} role="caption" color="inkMuted">{`${line.strength} · ${line.form}`}</Label>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: t.space[3] }}>
         {step(1)}

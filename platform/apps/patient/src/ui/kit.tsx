@@ -46,17 +46,26 @@ export function Label(
  * One numeral system per surface, applied where text is rendered rather than
  * where it is produced.
  *
- * A reservation address arrived as «شارع ٦٢» while every price and countdown
- * beside it used Western digits — two systems in one glance, which §25 calls a
- * defect rather than a style. Server-supplied strings can carry either, so
- * asking every call site to remember is exactly the discipline this replaces.
+ * The system is **Arabic-Indic**, per the Night Mint delivery: «٤٧ ٢٩»,
+ * «٨٬٥٠٠ د.ع», «يغطي ٢ من ٢». The rule §25 states is "one system per surface",
+ * not which one — the code enforced Western before a designer had chosen, and
+ * the delivery chose. Normalising at render means no call site has to remember,
+ * and a server-supplied string carrying the other system is corrected rather
+ * than shown beside its opposite.
+ *
+ * `Bidi` deliberately does NOT pass through here: a Latin run — "Augmentin 625",
+ * "+964" — keeps Latin digits, because converting them would break the isolated
+ * run the drug name is printed in.
  */
 function normaliseNumerals(node: React.ReactNode): React.ReactNode {
-  if (typeof node === "string") return formatDigits(toWestern(node), "western");
+  // The thousands mark travels with the digits: «٣٬٠٠٠», not «٣,٠٠٠».
+  if (typeof node === "string") return formatDigits(toWestern(node), "arabic-indic").replace(/,/g, "٬");
   if (Array.isArray(node)) return node.map((n, i) => <React.Fragment key={i}>{normaliseNumerals(n)}</React.Fragment>);
   return node;
 }
 
+/** Fold either system to Western first, so the conversion below is total
+ *  regardless of which system a server string arrived in. */
 const toWestern = (s: string): string =>
   s.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
@@ -71,13 +80,27 @@ export function Bidi({ t, text, role = "body", color = "ink" }: { t: Theme; text
   return <Text style={{ writingDirection: run.dir }}><Label t={t} role={role} color={color}>{run.text}</Label></Text>;
 }
 
-/** Every quantity, price and countdown in the patient app, in one numeral
- *  system. Mixing two inside a comparison is a defect, not a style. */
-export const Digits = ({ t, value, role = "body" }: { t: Theme; value: number | string; role?: "body" | "headline" | "title" | "display" }) => (
-  <Text style={{ fontFamily: t.tabularFamily, fontSize: t.type[role].size, color: t.color.ink }}>
-    {formatDigits(value, "western")}
-  </Text>
-);
+/**
+ * Every quantity, price and countdown in the patient app, in one numeral
+ * system. Mixing two inside a comparison is a defect, not a style.
+ *
+ * A token containing Latin LETTERS is left entirely alone. Converting only its
+ * digits produced «٤K D٢ P٩» — a reservation code in two scripts, which is
+ * worse than either. A code is read aloud to a pharmacist and typed into their
+ * system; it must be one alphabet whichever alphabet that turns out to be.
+ */
+export const Digits = ({ t, value, role = "body" }: { t: Theme; value: number | string; role?: "body" | "headline" | "title" | "display" }) => {
+  const raw = String(value);
+  const alphanumeric = /[A-Za-z]/.test(raw);
+  return (
+    <Text style={{
+      fontFamily: t.tabularFamily, fontSize: t.type[role].size, color: t.color.ink,
+      ...(alphanumeric ? { writingDirection: "ltr" as const } : {}),
+    }}>
+      {alphanumeric ? raw : formatDigits(toWestern(raw), "arabic-indic")}
+    </Text>
+  );
+};
 
 /* ── Controls ─────────────────────────────────────────────────────────── */
 
@@ -351,7 +374,7 @@ export function Screen(
           <Label t={t} role="title" numberOfLines={1}>{view.title}</Label>
           {view.progress ? (
             <Label t={t} role="caption" color="inkMuted">
-              {`${view.progress.label} · ${formatDigits(view.progress.step, "western")}/${formatDigits(view.progress.of, "western")}`}
+              {`${view.progress.label} · ${formatDigits(view.progress.step, "arabic-indic")}/${formatDigits(view.progress.of, "arabic-indic")}`}
             </Label>
           ) : null}
         </View>

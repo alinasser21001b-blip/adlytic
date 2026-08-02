@@ -6,7 +6,7 @@
  *      that can actually appear, in all three personas, in both schemes.
  */
 import { describe, it, expect } from "vitest";
-import { palettes, CONTRACT_PAIRS, COLOR_ROLES, type Persona, type Scheme } from "./tokens/color.js";
+import { palettes, CONTRACT_PAIRS, EXTRA_PAIRS, COLOR_ROLES, type Persona, type Scheme } from "./tokens/color.js";
 import { contrastRatio, reportRatio, CONTRAST } from "./a11y.js";
 import { type as typeScale, TYPE_ROLES } from "./tokens/type.js";
 import { tap, space } from "./tokens/space.js";
@@ -98,4 +98,16 @@ describe("contrast maths is correct", () => {
   it("order does not matter", () => {
     expect(contrastRatio("#000000", "#FFFFFF")).toBeCloseTo(contrastRatio("#FFFFFF", "#000000"));
   });
+});
+
+describe("pairs that live outside a single palette", () => {
+  // A light card on a dark ground cannot be expressed as two roles from one
+  // palette, so the gate could not see the V2 code panel until Design
+  // delivered it. Measured explicitly rather than not at all.
+  for (const [fg, bg, label] of EXTRA_PAIRS) {
+    it(`${label} clears the body floor`, () => {
+      const ratio = contrastRatio(fg, bg);
+      expect(ratio, `${label} measures ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(CONTRAST.bodyText);
+    });
+  }
 });

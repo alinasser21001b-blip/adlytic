@@ -2516,38 +2516,38 @@
   "design": {
     "palette": {
       "light": {
-        "surface": "#FBFAF7",
-        "surfaceRaised": "#FFFFFF",
-        "surfaceSunken": "#F2F1EC",
-        "line": "#DFDDD3",
-        "ink": "#16211D",
-        "inkMuted": "#42524C",
-        "inkSubtle": "#5C6B64",
-        "accent": "#186047",
-        "onAccent": "#FFFFFF",
-        "success": "#186047",
-        "onSuccess": "#FFFFFF",
-        "warning": "#7A4E0A",
-        "onWarning": "#FFFFFF",
-        "alert": "#8C2F1F",
-        "onAlert": "#FFFFFF"
+        "surface": "#0D1A15",
+        "surfaceRaised": "#142720",
+        "surfaceSunken": "#1B2B22",
+        "line": "#1E3A2D",
+        "ink": "#F3F7F2",
+        "inkMuted": "#9FC6B6",
+        "inkSubtle": "#8FA89C",
+        "accent": "#2ECF9A",
+        "onAccent": "#0B241B",
+        "success": "#2ECF9A",
+        "onSuccess": "#0B241B",
+        "warning": "#E8B34B",
+        "onWarning": "#2A2314",
+        "alert": "#FF9C8A",
+        "onAlert": "#7A150F"
       },
       "dark": {
-        "surface": "#0F1513",
-        "surfaceRaised": "#182220",
-        "surfaceSunken": "#0A100E",
-        "line": "#2C3A35",
-        "ink": "#F1F6F4",
-        "inkMuted": "#B6C5BF",
-        "inkSubtle": "#93A49E",
-        "accent": "#7BD6AC",
-        "onAccent": "#07130E",
-        "success": "#7BD6AC",
-        "onSuccess": "#07130E",
-        "warning": "#F0BE72",
-        "onWarning": "#1E1503",
+        "surface": "#0D1A15",
+        "surfaceRaised": "#142720",
+        "surfaceSunken": "#1B2B22",
+        "line": "#1E3A2D",
+        "ink": "#F3F7F2",
+        "inkMuted": "#9FC6B6",
+        "inkSubtle": "#8FA89C",
+        "accent": "#2ECF9A",
+        "onAccent": "#0B241B",
+        "success": "#2ECF9A",
+        "onSuccess": "#0B241B",
+        "warning": "#E8B34B",
+        "onWarning": "#2A2314",
         "alert": "#FF9C8A",
-        "onAlert": "#260B06"
+        "onAlert": "#7A150F"
       }
     },
     "space": {
@@ -2657,86 +2657,86 @@
     "contrast": [
       {
         "pair": "ink on surface",
-        "light": 15.85,
-        "dark": 16.91,
+        "light": 16.5,
+        "dark": 16.5,
         "passes": true
       },
       {
         "pair": "ink on surfaceRaised",
-        "light": 16.54,
-        "dark": 14.92,
+        "light": 14.47,
+        "dark": 14.47,
         "passes": true
       },
       {
         "pair": "ink on surfaceSunken",
-        "light": 14.63,
-        "dark": 17.59,
+        "light": 13.71,
+        "dark": 13.71,
         "passes": true
       },
       {
         "pair": "inkMuted on surface",
-        "light": 7.91,
-        "dark": 10.31,
+        "light": 9.55,
+        "dark": 9.55,
         "passes": true
       },
       {
         "pair": "inkMuted on surfaceRaised",
-        "light": 8.26,
-        "dark": 9.1,
+        "light": 8.37,
+        "dark": 8.37,
         "passes": true
       },
       {
         "pair": "inkSubtle on surface",
-        "light": 5.38,
-        "dark": 7.08,
+        "light": 7.02,
+        "dark": 7.02,
         "passes": true
       },
       {
         "pair": "inkSubtle on surfaceRaised",
-        "light": 5.61,
-        "dark": 6.24,
+        "light": 6.15,
+        "dark": 6.15,
         "passes": true
       },
       {
         "pair": "onAccent on accent",
-        "light": 7.49,
-        "dark": 10.88,
+        "light": 8.19,
+        "dark": 8.19,
         "passes": true
       },
       {
         "pair": "onSuccess on success",
-        "light": 7.49,
-        "dark": 10.88,
+        "light": 8.19,
+        "dark": 8.19,
         "passes": true
       },
       {
         "pair": "onWarning on warning",
-        "light": 7.19,
-        "dark": 10.58,
+        "light": 8.14,
+        "dark": 8.14,
         "passes": true
       },
       {
         "pair": "onAlert on alert",
-        "light": 8.26,
-        "dark": 9.16,
+        "light": 5.34,
+        "dark": 5.34,
         "passes": true
       },
       {
         "pair": "accent on surface",
-        "light": 7.18,
-        "dark": 10.6,
+        "light": 8.94,
+        "dark": 8.94,
         "passes": true
       },
       {
         "pair": "alert on surface",
-        "light": 7.92,
-        "dark": 9.12,
+        "light": 8.82,
+        "dark": 8.82,
         "passes": true
       },
       {
         "pair": "warning on surface",
-        "light": 6.89,
-        "dark": 10.83,
+        "light": 9.34,
+        "dark": 9.34,
         "passes": true
       }
     ],

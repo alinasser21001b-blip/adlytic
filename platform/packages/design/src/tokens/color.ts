@@ -27,25 +27,59 @@ export type Persona = "patient" | "pharmacy" | "owner";
 export type Scheme = "light" | "dark";
 
 /**
- * Patient — warm, calm, generous. §25: the emotional target is calm, because
- * the user is frightened and speed only matters because waiting is frightening.
+ * Patient — "Night Mint" (ليل النعناع), as delivered by Design, turn 4.
+ *
+ * The delivery is dark-first: a deep green ground with mint as the ONLY signal
+ * colour, so a single accent carries every "this is the action" moment and
+ * nothing else competes. The light sibling palette is not yet designed and is
+ * registered as an open item — see TD-10.
+ *
+ * §25's emotional target is unchanged: calm, because the user is frightened and
+ * speed only matters because waiting is frightening.
  */
-const patientLight: Palette = {
-  surface: "#FBFAF7", surfaceRaised: "#FFFFFF", surfaceSunken: "#F2F1EC", line: "#DFDDD3",
-  ink: "#16211D", inkMuted: "#42524C", inkSubtle: "#5C6B64",
-  accent: "#186047", onAccent: "#FFFFFF",
-  success: "#186047", onSuccess: "#FFFFFF",
-  warning: "#7A4E0A", onWarning: "#FFFFFF",
-  alert: "#8C2F1F", onAlert: "#FFFFFF",
-};
 const patientDark: Palette = {
-  surface: "#0F1513", surfaceRaised: "#182220", surfaceSunken: "#0A100E", line: "#2C3A35",
-  ink: "#F1F6F4", inkMuted: "#B6C5BF", inkSubtle: "#93A49E",
-  accent: "#7BD6AC", onAccent: "#07130E",
-  success: "#7BD6AC", onSuccess: "#07130E",
-  warning: "#F0BE72", onWarning: "#1E1503",
-  alert: "#FF9C8A", onAlert: "#260B06",
+  surface: "#0D1A15",        // ground
+  surfaceRaised: "#142720",  // card
+  surfaceSunken: "#1B2B22",  // the cached/offline strip
+  line: "#1E3A2D",           // borders, dividers, chip fills
+  ink: "#F3F7F2",
+  inkMuted: "#9FC6B6",       // "muted-strong" — body-level secondary
+  inkSubtle: "#8FA89C",      // "muted" — captions and meta
+  accent: "#2ECF9A",
+  onAccent: "#0B241B",
+  // Design did not distinguish success from accent — R-5 remains unanswered,
+  // and the delivery uses the mint for "replied — offer arrived". Held equal
+  // rather than invented.
+  success: "#2ECF9A", onSuccess: "#0B241B",
+  warning: "#E8B34B", onWarning: "#2A2314",
+  // Design's alert is a GROUND for the safety world (#7A150F), not a text
+  // colour. The roles here are text-on-surface, so the ground becomes onAlert
+  // and the readable red becomes alert. Flagged — see the handoff notes.
+  alert: "#FF9C8A", onAlert: "#7A150F",
 };
+
+/**
+ * The light panel that carries the reservation code on V2 — a deliberately
+ * light card on the dark ground, so the code reads like something printed.
+ * It is the one surface in the patient app that inverts, which is why its
+ * pairs are measured separately below.
+ */
+export const patientCodePanel = {
+  surface: "#F7F4EE",
+  ink: "#16211D",
+  // DEVIATION, pending confirmation. Design specified #6B7A74, which measures
+  // 4.10:1 on #F7F4EE — below the 4.5 body floor, on the screen Blueprint v3
+  // says must never fail, for the line that tells the patient what to do with
+  // the code. Darkened to the nearest value in the same hue family that clears
+  // the floor: 4.61:1. Revert the moment Design confirms a replacement.
+  inkMuted: "#63726B",
+} as const;
+
+/** Light is NOT YET DESIGNED. The delivery is dark-first and its daylight
+ *  sibling is a known open item, so the patient app renders dark until one
+ *  arrives — showing an undesigned light scheme would ship something nobody
+ *  drew. Kept identical to dark so nothing silently renders half-designed. */
+const patientLight: Palette = patientDark;
 
 /** Pharmacy — dense, dark, high contrast. The emotional target is fast. */
 const pharmacyDark: Palette = {
@@ -98,6 +132,17 @@ export const palettes: Readonly<Record<Persona, Readonly<Record<Scheme, Palette>
  * lets the accessibility test measure EVERY combination that can actually
  * appear — an untested pair is a pair that fails in production.
  */
+/**
+ * Pairs that live outside the persona palettes and must still be measured.
+ * The V2 code panel was invisible to the gate until Design delivered it — a
+ * light card on a dark ground is not expressible as two roles from one palette,
+ * so it is measured explicitly rather than not at all.
+ */
+export const EXTRA_PAIRS: readonly (readonly [string, string, string])[] = [
+  [patientCodePanel.ink, patientCodePanel.surface, "V2 code panel: ink on light panel"],
+  [patientCodePanel.inkMuted, patientCodePanel.surface, "V2 code panel: caption on light panel"],
+];
+
 export const CONTRACT_PAIRS: readonly (readonly [ColorRole, ColorRole])[] = [
   ["ink", "surface"], ["ink", "surfaceRaised"], ["ink", "surfaceSunken"],
   ["inkMuted", "surface"], ["inkMuted", "surfaceRaised"],

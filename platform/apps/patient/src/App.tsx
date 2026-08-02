@@ -94,8 +94,12 @@ function perform(effect: Effect, rt: Runtime, send: (i: Intent) => void): void {
 const noop = () => {};
 
 export function App({ rt }: { rt: Runtime }) {
-  const scheme = useColorScheme();
-  const t = themeFor(scheme === "dark" ? "dark" : "light");
+  // The Night Mint delivery is dark-first and its daylight sibling is not yet
+  // designed. Rendering the device's light preference would ship a scheme
+  // nobody drew, so the patient app is dark until that palette arrives — see
+  // TD-10. `useColorScheme` stays wired for the day it does.
+  void useColorScheme();
+  const t = themeFor("dark");
   const { state, send } = usePatientApp(rt);
 
   const onBack = () => send({ kind: "back" });

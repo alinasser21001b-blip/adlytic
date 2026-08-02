@@ -99,7 +99,7 @@ describe("F2 — the results a patient reads", () => {
     const root = render(<FindScreen {...base} search={{ kind: "offline", query: "x", hits: [hit()], cachedAt: 10_000 - 5 * 60_000 }} />);
     const shown = texts(root);
     expect(shown).toContain("ما في اتصال");
-    expect(shown).toContain("5");
+    expect(shown).toContain("٥");
   });
 
   it("a failure names what failed and gives one thing to press (§23)", () => {
@@ -117,7 +117,7 @@ describe("R1 — the draft", () => {
     const root = render(<DraftScreen {...base} draft={draft()} />);
     const shown = texts(root);
     expect(shown).toContain("علبة");
-    expect(shown).toContain("7"); // 8 lines allowed, one used
+    expect(shown).toContain("٧"); // 8 lines allowed, one used
   });
 
   it("the stepper changes the quantity of the line it belongs to", () => {
@@ -166,8 +166,8 @@ describe("R6 — the last look", () => {
     const root = render(<ConfirmScreen {...base} draft={draft()} online />);
     const shown = texts(root);
     // One numeral system per surface — the copy reads the way it renders.
-    expect(shown).toContain("20 دقيقة");
-    expect(shown).toContain("4 ساعات");
+    expect(shown).toContain("٢٠ دقيقة");
+    expect(shown).toContain("٤ ساعات");
     expect(shown).toContain("يومين");
   });
 
@@ -206,7 +206,7 @@ describe("R7 — the wait", () => {
   it("a broadcast request shows how long is left", () => {
     const root = render(<WaitingScreen {...base} sent={sentWith(true)} now={1_000} />);
     const shown = texts(root);
-    expect(shown).toContain("20");
+    expect(shown).toContain("٢٠");
     expect(shown).toContain("دقيقة باقية");
     expect(shown).toContain("ننتظر أول رد");
   });

@@ -55,6 +55,24 @@ export const DEBT = [
   },
 
   {
+    id: "TD-10",
+    description: "The Night Mint delivery is dark-only. Its daylight sibling palette is not designed, so the patient app forces dark and ignores the device's light preference.",
+    impact: "Users who run their phone in light mode get a dark app. `patientLight` is currently an alias of `patientDark` so nothing renders half-designed, which means the contrast gate cannot catch a light-scheme regression either.",
+    priority: "high",
+    owner: "design",
+    slice: "When the daylight palette is delivered",
+    status: "open",
+  },
+  {
+    id: "TD-11",
+    description: "V2's code-panel caption ships at #63726B, not the delivered #6B7A74, because the designer's value measures 4.10:1 on #F7F4EE — below the 4.5 body floor.",
+    impact: "A one-value deviation from the delivery, on the screen Blueprint v3 says must never fail. Reverts the moment Design confirms a replacement.",
+    priority: "medium",
+    owner: "design",
+    slice: "Next design round",
+    status: "open",
+  },
+  {
     id: "TD-6",
     description: "V2's freshness is hard-coded live because nothing is cached yet.",
     impact: "The cached-countdown path is implemented and photographed but never exercised against real cache eviction.",

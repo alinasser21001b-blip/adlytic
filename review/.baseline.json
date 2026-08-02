@@ -1,38 +1,36 @@
 {
   "hasBaseline": true,
-  "added": [
-    "R2-camera.png",
-    "R2-refused.png",
-    "R3-failed.png",
-    "R3-review.png",
-    "R9-agreed.png",
-    "R9-refused.png",
-    "R9-undecided.png"
-  ],
+  "added": [],
   "removed": [],
   "changed": [
-    "R1-empty.png",
-    "R6-offline.png",
-    "R6-online.png",
-    "V2-cached.png",
-    "V2-held.png",
-    "V2-last.png"
-  ],
-  "unchanged": [
     "F1-empty.png",
     "F2-empty.png",
     "F2-error.png",
     "F2-loading.png",
     "F2-offline.png",
     "F2-results.png",
+    "R1-empty.png",
     "R1-lines.png",
     "R1-refused.png",
+    "R2-camera.png",
+    "R2-refused.png",
+    "R3-failed.png",
+    "R3-review.png",
+    "R6-offline.png",
+    "R6-online.png",
     "R7-queued.png",
     "R7-waiting.png",
     "R8-empty.png",
     "R8-offers.png",
     "R8-withdrawn.png",
+    "R9-agreed.png",
+    "R9-refused.png",
+    "R9-undecided.png",
     "V1-requesting.png",
+    "V2-cached.png",
+    "V2-held.png",
+    "V2-last.png",
     "V4-refused.png"
-  ]
+  ],
+  "unchanged": []
 }

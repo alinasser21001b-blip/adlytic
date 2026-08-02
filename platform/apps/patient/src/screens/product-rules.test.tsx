@@ -92,13 +92,23 @@ describe.each(SHOTS.map((s) => [s.id, s] as const))("%s", (_id, shot) => {
     expect(readableText(root()).trim().length, "a disabled control with no visible explanation").toBeGreaterThan(20);
   });
 
-  it("uses one numeral system", () => {
+  it("uses one numeral system in its Arabic text", () => {
     // §25 — mixing Arabic-Indic and Western digits in one glance is a defect,
     // not a style, and server-supplied strings carry either.
-    const shown = readableText(root());
-    const arabicIndic = /[٠-٩۰-۹]/.test(shown);
-    const western = /[0-9]/.test(shown);
-    expect(arabicIndic && western, `both numeral systems appear: ${shown.slice(0, 120)}`).toBe(false);
+    //
+    // Isolated Latin runs are exempt, and deliberately so: a drug name printed
+    // on the box is "Augmentin 625" and a reservation code is one alphabet
+    // whichever alphabet it is. The delivered design puts «أوجمنتين ٦٢٥» and
+    // "Augmentin 625" on adjacent lines for exactly this reason. What the rule
+    // forbids is two systems inside ARABIC text.
+    // Token-wise: any token containing a Latin letter is part of an isolated
+    // run — "Augmentin", "625", "4K", "D2". A regex anchored on the letter
+    // missed a code beginning with a digit.
+    const arabicOnly = readableText(root())
+      .split(/\s+/).filter((tok) => !/[A-Za-z]/.test(tok)).join(" ");
+    const arabicIndic = /[٠-٩۰-۹]/.test(arabicOnly);
+    const western = /[0-9]/.test(arabicOnly);
+    expect(arabicIndic && western, `both numeral systems in Arabic text: ${arabicOnly.slice(0, 120)}`).toBe(false);
   });
 
   it("says something — a screen that renders nothing readable is a blank screen", () => {

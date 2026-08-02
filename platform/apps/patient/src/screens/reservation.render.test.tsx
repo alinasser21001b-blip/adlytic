@@ -157,6 +157,8 @@ describe("V2 — the screen that must never fail", () => {
   const held = { kind: "held" as const, hold: hold() };
 
   it("shows the code grouped so it can be read aloud", () => {
+    // An alphanumeric code stays in one alphabet — converting only its digits
+    // produced «٤K D٢ P٩», a code in two scripts.
     expect(texts(render(<ReservationScreen {...resBase} view={held} />))).toContain("4K D2 P9");
   });
 
@@ -166,7 +168,7 @@ describe("V2 — the screen that must never fail", () => {
     // walk or hurry. Hours are how people hold time.
     expect(shown).toContain("ساعتين");
     expect(shown).toContain("صيدلية الرشيد");
-    expect(shown).toContain("3,000 دينار");
+    expect(shown).toContain("٣٬٠٠٠ دينار");
   });
 
   it("turns urgent near the end rather than staying calm to the last minute", () => {

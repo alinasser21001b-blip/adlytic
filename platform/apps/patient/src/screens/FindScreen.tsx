@@ -88,7 +88,7 @@ export function FindScreen({ t, search, history, now, onType, onAdd, onBack, onA
  */
 function HitRow({ t, hit, onAdd }: { t: Theme; hit: CatalogueHit; onAdd: (h: CatalogueHit) => void }) {
   const a = Search.availability(hit);
-  const detail = `${hit.latinName} · ${hit.strength} · ${hit.form}`;
+  const detail = `${hit.strength} · ${hit.form}`;
 
   // A refused item is information, not a control. Offering a tap that will be
   // rejected teaches the patient that the app's buttons cannot be trusted.
@@ -96,7 +96,8 @@ function HitRow({ t, hit, onAdd }: { t: Theme; hit: CatalogueHit; onAdd: (h: Cat
     return (
       <InfoCard t={t} muted>
         <Label t={t} role="headline" color="inkMuted">{hit.name}</Label>
-        <Bidi t={t} text={detail} role="caption" color="inkSubtle" />
+        <Bidi t={t} text={hit.latinName} role="caption" color="inkSubtle" />
+        <Label t={t} role="caption" color="inkSubtle">{detail}</Label>
         <Label t={t} role="caption" color="inkMuted">
           {a.refusal === "CONTROLLED_NOT_SUPPORTED"
             ? "ما ينطلب من التطبيق — لازم تروح للصيدلية"
@@ -111,7 +112,8 @@ function HitRow({ t, hit, onAdd }: { t: Theme; hit: CatalogueHit; onAdd: (h: Cat
     // "أضفه للطلب" cannot tell the patient which one they are on.
     <ActionCard t={t} label={`أضف ${hit.name} للطلب`} onPress={() => onAdd(hit)}>
       <Label t={t} role="headline">{hit.name}</Label>
-      <Bidi t={t} text={detail} role="caption" color="inkMuted" />
+      <Bidi t={t} text={hit.latinName} role="caption" color="inkMuted" />
+      <Label t={t} role="caption" color="inkMuted">{detail}</Label>
       {a.needsPrescription
         // D18 stated up front, so the photo is expected rather than sprung.
         ? <Label t={t} role="caption" color="warning">يحتاج وصفة — راح نطلب صورتها</Label>
