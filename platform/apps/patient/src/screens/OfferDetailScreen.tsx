@@ -22,7 +22,7 @@ import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { Screen, Label, Primary, Choice, InfoCard, Row, Spacer, Field, Card } from "../ui/kit.js";
+import { Screen, Label, Primary, Choice, InfoCard, Row, Spacer, Grow, Card, Section } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 
 const R9 = CORE_LOOP.find((c) => c.id === "R9")!;
@@ -76,6 +76,7 @@ export function OfferDetailScreen(p: OfferDetailProps) {
         <SubstitutionChoice
           key={s.requestLineId}
           t={t}
+          branchName={summary.offer.branchName}
           comparison={Consent.comparison(consent, s.requestLineId)!}
           onDecide={(d) => p.onDecide(s.requestLineId, d)}
         />
@@ -112,8 +113,8 @@ export function OfferDetailScreen(p: OfferDetailProps) {
 
 /** R10 — the acknowledgement itself. Never pre-ticked, never automatic. */
 function SubstitutionChoice(
-  { t, comparison, onDecide }:
-  { t: Theme; comparison: Consent.Comparison; onDecide: (d: "agreed" | "refused") => void },
+  { t, branchName, comparison, onDecide }:
+  { t: Theme; branchName: string; comparison: Consent.Comparison; onDecide: (d: "agreed" | "refused") => void },
 ) {
   const chosen = comparison.decision;
   // A role, not a hex: the card draws the colour, the screen names the state.
@@ -121,40 +122,66 @@ function SubstitutionChoice(
 
   return (
     <Card t={t} gap={3} border={border} borderWidth={2}>
-      <Label t={t} role="headline" color="warning">الصيدلية تعرض بديل</Label>
+      {/* Names the situation, not the offer. «الصيدلية تعرض بديل» reads as an
+          item of news; this reads as what it is — the medicine is not the one
+          that was asked for. */}
+      <Section t={t}>
+        <Label t={t} role="title">دواء غير اللي طلبته</Label>
+        {/* The anti-nudge, stated rather than implied. Without this sentence
+            the app's neutrality is something the patient has to infer from a
+            layout, and a patient who suspects the app prefers "yes" will
+            answer yes. */}
+        <Label t={t} role="body" color="inkMuted">
+          {`${branchName} تعرض بديلاً. القرار إلك — الجوابين عدنا سواء.`}
+        </Label>
+      </Section>
 
-      {/* Asked beside offered. A patient cannot consent to a swap they have to
-          reconstruct from two screens. */}
-      <Field t={t}>
-        <Label t={t} role="caption" color="inkMuted">إنت طلبت</Label>
-        <Label t={t} role="body">{comparison.asked}</Label>
-      </Field>
-      <Field t={t}>
-        <Label t={t} role="caption" color="inkMuted">هم عندهم</Label>
-        <Row t={t} align="baseline">
-          <Label t={t} role="body">{comparison.offered}</Label>
-          <Spacer />
-          <Label t={t} role="body" color="inkMuted">{Offers.formatPrice(comparison.priceMinor)}</Label>
-        </Row>
-      </Field>
+      {/* Asked beside offered, literally side by side. A patient cannot consent
+          to a swap they have to reconstruct from two paragraphs. */}
+      <Row t={t} gap={3} align="stretch">
+        <Grow>
+          <Card t={t} gap={1}>
+            <Label t={t} role="caption" color="inkSubtle">طلبتِ</Label>
+            <Label t={t} role="headline">{comparison.asked}</Label>
+          </Card>
+        </Grow>
+        <Grow>
+          <Card t={t} gap={1}>
+            <Label t={t} role="caption" color="inkSubtle">يعرض</Label>
+            <Label t={t} role="headline">{comparison.offered}</Label>
+            <Label t={t} role="caption" color="inkMuted">{Offers.formatPrice(comparison.priceMinor)}</Label>
+          </Card>
+        </Grow>
+      </Row>
 
-      {/* D19 — the pharmacist's own words, verbatim. The app never paraphrases
-          a clinical statement. */}
-      <InfoCard t={t} muted>
-        <Label t={t} role="caption" color="inkMuted">كلام الصيدلي</Label>
-        <Label t={t} role="body">{comparison.note}</Label>
-      </InfoCard>
+      {/* D19 — the pharmacist's own words, verbatim, and SAID to be verbatim.
+          A quote the patient does not know is unedited is a quote they have to
+          discount. */}
+      <Card t={t} surface="sunken" border="none" gap={2}>
+        <Label t={t} role="caption" color="inkSubtle">كلام الصيدلي — مثل ما كتبه، ما نلخّصه</Label>
+        <Label t={t} role="body">{`«${comparison.note}»`}</Label>
+      </Card>
 
-      {/* Refusing is stated as costing nothing, because it does not — a patient
-          who thinks "no" loses the order will say yes to a brand they did not
-          want, and that is consent in name only. */}
+      {/* Two separate promises, and the patient needs both. The first is that
+          refusing costs nothing — D06 sends a refused line to a child request
+          exactly as an out-of-stock line goes. The second is that this consent
+          does not generalise: agreeing once must not be understood as agreeing
+          to every future substitution, which is the difference between consent
+          and a standing permission nobody asked for. */}
       <Label t={t} role="caption" color="inkMuted">
         إذا ما توافق، هذا الدواء يروح لطلب جديد تلقائياً — الباقي يبقى محجوز.
       </Label>
+      <Label t={t} role="caption" color="inkMuted">
+        موافقتك على هذا الدواء بس — مو على كل بديل جاي.
+      </Label>
 
+      {/* Identical weight, and short enough not to wrap on a 320pt phone —
+          «أوافق على البديل» wrapped onto two lines there while «لا، أريد اللي
+          طلبته» wrapped onto two at 360 as well, so the two answers were
+          different heights and the longer one read as the heavier choice. */}
       <Row t={t}>
-        <Choice t={t} label="أوافق على البديل" selected={chosen === "agreed"} onPress={() => onDecide("agreed")} />
-        <Choice t={t} label="لا، أريد اللي طلبته" selected={chosen === "refused"} onPress={() => onDecide("refused")} />
+        <Choice t={t} label="أوافق" spoken={`أوافق على ${comparison.offered}`} selected={chosen === "agreed"} onPress={() => onDecide("agreed")} />
+        <Choice t={t} label="أرفض" spoken={`أرفض البديل، أريد ${comparison.asked}`} selected={chosen === "refused"} onPress={() => onDecide("refused")} />
       </Row>
     </Card>
   );

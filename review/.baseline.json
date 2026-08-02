@@ -3,14 +3,9 @@
   "added": [],
   "removed": [],
   "changed": [
-    "R8-offers.png",
-    "R8-withdrawn.png",
     "R9-agreed.png",
     "R9-refused.png",
-    "R9-undecided.png",
-    "V2-cached.png",
-    "V2-held.png",
-    "V2-last.png"
+    "R9-undecided.png"
   ],
   "unchanged": [
     "F1-empty.png",
@@ -31,7 +26,12 @@
     "R7-queued.png",
     "R7-waiting.png",
     "R8-empty.png",
+    "R8-offers.png",
+    "R8-withdrawn.png",
     "V1-requesting.png",
+    "V2-cached.png",
+    "V2-held.png",
+    "V2-last.png",
     "V4-refused.png"
   ]
 }

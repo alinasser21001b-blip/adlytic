@@ -168,14 +168,14 @@ export const SCREENS = {
   R9: {
     built: true,
     verdicts: {
-      Layout: ["minor", "Requested-vs-offered as two equal cards, verbatim pharmacist quote, scope note and two equal answers — all as delivered. The build orders them consent-first, then the price breakdown; the delivery has no price breakdown on this screen."],
-      Typography: ["minor", "The delivery shows the Arabic name and the Latin name as separate lines inside each card; the build does the same. Sizes differ (16px/12px delivered vs the 17px/13px roles)."],
+      Layout: ["minor", "Built to the delivery: «دواء غير اللي طلبته», the neutrality sentence, asked and offered side by side, the verbatim quote card, both consent statements, and two identical answers. The two comparison cards do not equalise height (DEV-14), and the answers sit inside the card rather than pinned at the bottom (DEV-15)."],
+      Typography: ["exact", "Heading at the delivered 24/800, the quote at body scale, captions at 13. Prices read «د.ع»."],
       Spacing: ["exact", "Within the delivered ranges."],
       Colour: ["exact", "Both answers share the same #142720 fill and 2px #2ECF9A border — the delivery's non-negotiable."],
-      Component: ["exact", "`Choice` already renders two visually identical answers with radio semantics."],
+      Component: ["exact", "Composed from Section, Row, Grow, Card and Choice — no screen-specific primitive. `Choice` gained a spoken label so shortening «أوافق على البديل» to «أوافق» did not strip the subject from a screen reader."],
       Motion: ["missing", "None implemented."],
       Icon: ["blocked", "No icon set."],
-      Accessibility: ["exact", "Radio role and selected state; both answers equal in weight, enforced by test."],
+      Accessibility: ["exact", "Radio semantics with selection state, identical weight for both answers, and a spoken label naming the medicine each answer refers to. Both answers clear the 44pt floor at every measured width."],
       RTL: ["exact", "Enforced."],
     },
   },
@@ -199,6 +199,42 @@ export const SCREENS = {
 /* ── Deviations ─────────────────────────────────────────────────────────── */
 
 export const DEVIATIONS = [
+  {
+    id: "DEV-12",
+    what: "R9 does not attribute the pharmacist's note to a named, licensed pharmacist.",
+    why: "The delivery signs the quote «د. أحمد — صيدلي مُجاز، صيدلية الرشيد». No such field exists on an offer line: the domain carries the note and nothing about who wrote it. Rendering a name and a licence claim the system does not hold would be fabricating a clinical credential on the screen where a patient decides whether to accept a different medicine. This is the one deviation on this screen that must not be closed by guessing.",
+    temporary: true,
+    designApproved: false,
+    productApproved: false,
+    debt: "Needs an attributed-author field on the offer line, sourced from the pharmacy's verified staff record — not free text.",
+  },
+  {
+    id: "DEV-13",
+    what: "The asked/offered cards show Arabic names only; the delivery also prints the Latin name under each.",
+    why: "`OfferLine` has no Latin name. The catalogue carries one for a search hit, but an offer comes from a pharmacy and nothing in the contract says a Latin name travels with it. The Latin name is how a patient checks a substitute against a box or a doctor, so this is a real loss rather than a cosmetic one — recorded as debt, not waved through.",
+    temporary: true,
+    designApproved: false,
+    productApproved: false,
+    debt: "Add a Latin name to the offer line contract, or resolve it from the catalogue by item id.",
+  },
+  {
+    id: "DEV-14",
+    what: "The asked and offered cards do not equalise their heights.",
+    why: "The offered card carries a price line and is therefore taller. Equalising needs a height-stretch escape hatch on `Card` that nothing else wants, and the two cards are a comparison of facts rather than two answers competing — the two ANSWERS are pixel-identical, which is the part §4 R10 governs.",
+    temporary: true,
+    designApproved: false,
+    productApproved: false,
+    debt: "Give Card an optional fill so a row of cards can equalise.",
+  },
+  {
+    id: "DEV-15",
+    what: "The two answers sit inside the substitution card rather than pinned at the bottom of the screen.",
+    why: "The delivery draws one substitution and pins one pair of buttons. R9 can carry several — an offer may substitute more than one line — and a single pinned pair cannot answer them all, nor say which one it is answering. Each substitution owns its own answers, directly beneath the comparison they refer to.",
+    temporary: false,
+    designApproved: false,
+    productApproved: false,
+    debt: "None. Confirm with Design that a multi-substitution offer keeps per-card answers.",
+  },
   {
     id: "DEV-9",
     what: "R8 states distance in bands — «قريبة منك» / «أقل من كيلومتر» / «حوالي ٣ كم» — where the delivery prints «١٫١ كم».",

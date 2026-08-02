@@ -351,27 +351,8 @@
     },
     {
       "name": "R9-agreed",
-      "verdict": "minor",
-      "issues": [
-        {
-          "severity": "minor",
-          "width": 320,
-          "kind": "wrapped button",
-          "says": "320pt: «أوافق على البديل» wraps onto 2 lines"
-        },
-        {
-          "severity": "minor",
-          "width": 320,
-          "kind": "wrapped button",
-          "says": "320pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
-        },
-        {
-          "severity": "minor",
-          "width": 360,
-          "kind": "wrapped button",
-          "says": "360pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
-        }
-      ],
+      "verdict": "pass",
+      "issues": [],
       "heights": {
         "320": 844,
         "360": 844,
@@ -387,27 +368,8 @@
     },
     {
       "name": "R9-refused",
-      "verdict": "minor",
-      "issues": [
-        {
-          "severity": "minor",
-          "width": 320,
-          "kind": "wrapped button",
-          "says": "320pt: «أوافق على البديل» wraps onto 2 lines"
-        },
-        {
-          "severity": "minor",
-          "width": 320,
-          "kind": "wrapped button",
-          "says": "320pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
-        },
-        {
-          "severity": "minor",
-          "width": 360,
-          "kind": "wrapped button",
-          "says": "360pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
-        }
-      ],
+      "verdict": "pass",
+      "issues": [],
       "heights": {
         "320": 844,
         "360": 844,
@@ -423,21 +385,8 @@
     },
     {
       "name": "R9-undecided",
-      "verdict": "minor",
-      "issues": [
-        {
-          "severity": "minor",
-          "width": 320,
-          "kind": "wrapped button",
-          "says": "320pt: «أوافق على البديل» wraps onto 2 lines"
-        },
-        {
-          "severity": "minor",
-          "width": 320,
-          "kind": "wrapped button",
-          "says": "320pt: «لا، أريد اللي طلبته» wraps onto 2 lines"
-        }
-      ],
+      "verdict": "pass",
+      "issues": [],
       "heights": {
         "320": 844,
         "360": 844,
@@ -559,7 +508,7 @@
       "Sticky slots are photographed at scroll position 0 only."
     ]
   ],
-  "pass": 25,
-  "minor": 3,
+  "pass": 28,
+  "minor": 0,
   "fail": 0
 }

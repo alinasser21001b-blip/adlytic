@@ -231,13 +231,17 @@ export function Secondary({ t, label, spoken, onPress }: { t: Theme; label: stri
  * which answer they gave.
  */
 export function Choice(
-  { t, label, selected, onPress }:
-  { t: Theme; label: string; selected: boolean; onPress: Press },
+  { t, label, spoken, selected, onPress }:
+  { t: Theme; label: string; spoken?: string; selected: boolean; onPress: Press },
 ) {
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityLabel={label}
+      // A consent answer must be unambiguous when heard as well as when read.
+      // «أوافق» alone is short enough not to wrap on a 320pt phone, but spoken
+      // without its subject it is a patient agreeing to something a screen
+      // reader never named.
+      accessibilityLabel={spoken ?? label}
       accessibilityState={{ selected }}
       onPress={onPress}
       style={{

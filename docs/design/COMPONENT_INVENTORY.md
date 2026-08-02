@@ -11,13 +11,13 @@
 | `CodePanel` | 1 | ReservationScreen |
 | `FactRow` | 3 | ReservationScreen |
 | `Row` | 21 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen |
-| `Spacer` | 8 | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
-| `Grow` | 3 | ConfirmScreen, WaitingScreen |
+| `Spacer` | 7 | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
+| `Grow` | 5 | ConfirmScreen, OfferDetailScreen, WaitingScreen |
 | `Actions` | 4 | DraftScreen, FindScreen, PrescriptionScreen |
-| `Card` | 7 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
+| `Card` | 10 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
 | `Note` | 4 | ConfirmScreen, DraftScreen |
-| `Section` | 5 | ConfirmScreen, OffersScreen, WaitingScreen |
-| `Field` | 2 | OfferDetailScreen |
+| `Section` | 6 | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
+| `Field` | 0 | — |
 | `Chip` | 1 | ConfirmScreen |
 | `StepButton` | 1 | DraftScreen |
 | `Dial` | 1 | WaitingScreen |
@@ -28,10 +28,10 @@
 | `Primary` | 14 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `Secondary` | 9 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `ActionCard` | 2 | FindScreen, OffersScreen |
-| `InfoCard` | 13 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
+| `InfoCard` | 12 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 96 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Label` | 98 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `Digits` | 4 | ConfirmScreen, DraftScreen, ReservationScreen |
 | `Bidi` | 3 | DraftScreen, FindScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
@@ -110,7 +110,7 @@ Pushes what follows to the far edge of a Row.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen (8 usages) |
+| **Used by** | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen (7 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -126,7 +126,7 @@ Takes whatever width is left in a Row, and carries content while doing it.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, WaitingScreen (3 usages) |
+| **Used by** | ConfirmScreen, OfferDetailScreen, WaitingScreen (5 usages) |
 | **Required variants** | `with children` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -158,7 +158,7 @@ A rectangle of content raised off the ground. The one card primitive.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (7 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (10 usages) |
 | **Required variants** | `raised / sunken`, `border line / accent / alert / warning / none`, `1pt or 2pt border`, `any pad and gap token` |
 | **Required interactions** | none — a card that is an action is ActionCard |
 | **Accessibility** | Transparent; grouping is conveyed by the content, not by the container. |
@@ -190,7 +190,7 @@ A heading and the things it governs, as one unit.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, OffersScreen, WaitingScreen (5 usages) |
+| **Used by** | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen (6 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Provides no heading semantics — nothing in the product exposes a heading level yet. A real gap. |
@@ -206,7 +206,7 @@ A quiet label above the value it names — the vertical sibling of FactRow.
 
 | | |
 | --- | --- |
-| **Used by** | OfferDetailScreen (2 usages) |
+| **Used by** | — (0 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Label and value adjacent in reading order. |
@@ -382,7 +382,7 @@ Information, not an action. A refused item renders as information rather than a 
 
 | | |
 | --- | --- |
-| **Used by** | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen (13 usages) |
+| **Used by** | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen (12 usages) |
 | **Required variants** | `default`, `muted` |
 | **Required interactions** | none — deliberately not pressable |
 | **Accessibility** | No role; content carries its own semantics. |
@@ -430,7 +430,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (96 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (98 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |
