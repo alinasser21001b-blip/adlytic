@@ -245,8 +245,10 @@
     background: var(--p-ground);
     border-radius: 28px;
     overflow: hidden;
-    min-height: 780px;
-    max-height: 860px;
+    /* Explicit height: flex:1 + absolute screens collapse to 0 when only min-height is set (Safari). */
+    height: min(820px, calc(100vh - 48px));
+    height: min(820px, calc(100dvh - 48px));
+    min-height: 640px;
     display: flex;
     flex-direction: column;
   }
@@ -302,18 +304,20 @@
   /* Severe: no dismiss control at all */
 
   .screens {
-    flex: 1;
+    flex: 1 1 auto;
     position: relative;
     overflow: hidden;
     min-height: 0;
+    height: 100%;
   }
   .screen {
     display: none;
     flex-direction: column;
-    height: 100%;
     overflow: hidden;
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
   }
   .screen.is-active {
     display: flex;
@@ -340,13 +344,13 @@
 
   .sticky-head {
     padding: var(--space-2) var(--space-4) var(--space-3);
-    background: color-mix(in srgb, var(--p-ground) 88%, transparent);
+    background: rgb(238 243 240 / 0.92);
     backdrop-filter: blur(10px);
     border-block-end: 1px solid transparent;
     flex-shrink: 0;
   }
   .phone-inner[data-mode="pharmacy"] .sticky-head {
-    background: color-mix(in srgb, var(--rx-ground) 88%, transparent);
+    background: rgb(11 22 20 / 0.92);
   }
   .screen-title {
     font-size: var(--type-title);
@@ -439,7 +443,7 @@
   /* Live reservation band */
   .live-card {
     background: linear-gradient(145deg, var(--p-reserve-bg), #fff);
-    border: 1.5px solid color-mix(in srgb, var(--p-reserve) 35%, var(--p-line));
+    border: 1.5px solid #9bb8d4;
   }
   .live-card .countdown {
     font-size: var(--type-display);
@@ -499,7 +503,7 @@
     height: 26px;
     border-radius: 6px;
     background: var(--p-accent-soft);
-    border: 1.5px solid color-mix(in srgb, var(--p-accent) 40%, var(--p-line));
+    border: 1.5px solid #8ab9a8;
     transition: background 500ms ease, border-color 500ms ease, opacity 500ms ease, transform 500ms ease;
   }
   .blister-pill.is-empty {
@@ -510,7 +514,7 @@
   }
   .blister-pill.is-low {
     background: var(--p-warning-bg);
-    border-color: color-mix(in srgb, var(--p-warning) 50%, var(--p-line));
+    border-color: #c4a06a;
   }
   .confidence {
     display: inline-flex;
@@ -634,7 +638,7 @@
     bottom: 0;
     height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: color-mix(in srgb, var(--p-surface) 92%, transparent);
+    background: rgb(247 250 248 / 0.94);
     backdrop-filter: blur(14px);
     border-block-start: 1px solid var(--p-line);
     display: grid;
@@ -642,7 +646,7 @@
     z-index: 4;
   }
   .phone-inner[data-mode="pharmacy"] .tabbar {
-    background: color-mix(in srgb, var(--rx-surface) 94%, transparent);
+    background: rgb(18 32 29 / 0.96);
     border-color: var(--rx-line);
   }
   .tab {
@@ -982,7 +986,7 @@
   }
   .error-box {
     background: var(--p-alert-bg);
-    border: 1px solid color-mix(in srgb, var(--p-alert) 30%, var(--p-line));
+    border: 1px solid #e0b0a6;
     border-radius: var(--r-md);
     padding: var(--space-4);
   }
@@ -1879,7 +1883,7 @@
   </div>
 
 <script>
-(function () {
+document.addEventListener("DOMContentLoaded", function () {
   const phone = document.getElementById("phone");
   const safety = document.getElementById("safety");
   const patientJumps = document.getElementById("jump-patient");
@@ -1889,6 +1893,10 @@
   const togOffline = document.getElementById("tog-offline");
   const togSafety = document.getElementById("tog-safety");
   const togQuiet = document.getElementById("tog-quiet");
+  if (!phone || !modePatient || !modePharmacy) {
+    console.error("Dawai blueprint UI: required elements missing");
+    return;
+  }
 
   const PATIENT_SCREENS = new Set([
     "today", "find", "confirm", "live", "compare", "asking", "pass",
@@ -2100,23 +2108,29 @@
   }
 
   // Simulate pharmacist ACK → pass (clock starts here)
-  document.getElementById("btn-simulate-ack").addEventListener("click", () => {
-    remainingSec = 2 * 3600;
-    tickCountdown();
-    showScreen("pass");
-  });
+  const ackBtn = document.getElementById("btn-simulate-ack");
+  if (ackBtn) {
+    ackBtn.addEventListener("click", () => {
+      remainingSec = 2 * 3600;
+      tickCountdown();
+      showScreen("pass");
+    });
+  }
 
   // Pharmacy send offer
-  document.getElementById("btn-send-offer").addEventListener("click", () => {
-    showScreen("rx-holds");
-  });
-  document.getElementById("btn-decline").addEventListener("click", () => {
-    showScreen("rx-inbox");
-  });
+  const sendOfferBtn = document.getElementById("btn-send-offer");
+  if (sendOfferBtn) {
+    sendOfferBtn.addEventListener("click", () => showScreen("rx-holds"));
+  }
+  const declineBtn = document.getElementById("btn-decline");
+  if (declineBtn) {
+    declineBtn.addEventListener("click", () => showScreen("rx-inbox"));
+  }
 
   // Initial blister animation
   animateBlister();
-})();
+  showScreen("today");
+});
 </script>
 </body>
 </html>
