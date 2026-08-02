@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 17:53 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-02 18:13 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -327,7 +327,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
       <p class="note">Make the wait legible</p>
       <div style="margin-top:10px">
         <div class="tag">back: dismiss</div>
-        <div class="tag ok">primary: شوف العروض → R8</div>
+        <div class="tag ok">primary: شوف العرض الواصل → R8</div>
         <div class="tag">guard: requireSession</div>
       </div>
       <div style="margin-top:8px">
@@ -477,12 +477,12 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <table class="tbl"><thead><tr><th>Component</th><th>Uses</th><th>Screens</th><th>Purpose</th></tr></thead><tbody>
   <tr>
     <td class="mono">Label</td>
-    <td class="mono">70</td>
+    <td class="mono">74</td>
     <td class="note">ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen</td>
     <td class="note">All text. 5 type roles × 7 colour roles.</td>
   </tr><tr>
     <td class="mono">Row</td>
-    <td class="mono">17</td>
+    <td class="mono">19</td>
     <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen</td>
     <td class="note">Things side by side. The single place `flexDirection` is written in the patient app.</td>
   </tr><tr>
@@ -492,8 +492,8 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">Information, not an action. A refused item renders as information rather than a control that would reject the tap.</td>
   </tr><tr>
     <td class="mono">Primary</td>
-    <td class="mono">9</td>
-    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen</td>
+    <td class="mono">10</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen</td>
     <td class="note">The one dominant action. At most one per screen, counted from the rendered tree every build.</td>
   </tr><tr>
     <td class="mono">Secondary</td>
@@ -516,25 +516,30 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">(every screen, via the frame)</td>
     <td class="note">Renders whichever treatment the screen's contract declared. It cannot fall through to a generic message.</td>
   </tr><tr>
-    <td class="mono">Digits</td>
-    <td class="mono">7</td>
-    <td class="note">ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen, WaitingScreen</td>
-    <td class="note">Countdowns, prices, quantities, the reservation code.</td>
-  </tr><tr>
-    <td class="mono">Actions</td>
-    <td class="mono">5</td>
-    <td class="note">DraftScreen, FindScreen, PrescriptionScreen, WaitingScreen</td>
-    <td class="note">A cluster of secondary actions under the content.</td>
-  </tr><tr>
     <td class="mono">Card</td>
-    <td class="mono">5</td>
+    <td class="mono">6</td>
     <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen</td>
     <td class="note">A rectangle of content raised off the ground. The one card primitive.</td>
   </tr><tr>
+    <td class="mono">Digits</td>
+    <td class="mono">6</td>
+    <td class="note">ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen</td>
+    <td class="note">Countdowns, prices, quantities, the reservation code.</td>
+  </tr><tr>
     <td class="mono">Spacer</td>
-    <td class="mono">4</td>
-    <td class="note">DraftScreen, OfferDetailScreen</td>
+    <td class="mono">5</td>
+    <td class="note">DraftScreen, OfferDetailScreen, WaitingScreen</td>
     <td class="note">Pushes what follows to the far edge of a Row.</td>
+  </tr><tr>
+    <td class="mono">Actions</td>
+    <td class="mono">4</td>
+    <td class="note">DraftScreen, FindScreen, PrescriptionScreen</td>
+    <td class="note">A cluster of secondary actions under the content.</td>
+  </tr><tr>
+    <td class="mono">Section</td>
+    <td class="mono">4</td>
+    <td class="note">ConfirmScreen, WaitingScreen</td>
+    <td class="note">A heading and the things it governs, as one unit.</td>
   </tr><tr>
     <td class="mono">FactRow</td>
     <td class="mono">3</td>
@@ -551,10 +556,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">DraftScreen, FindScreen</td>
     <td class="note">Isolates a Latin run inside Arabic — drug names, codes, prices — so it does not reorder.</td>
   </tr><tr>
-    <td class="mono">Section</td>
+    <td class="mono">Grow</td>
     <td class="mono">2</td>
-    <td class="note">ConfirmScreen</td>
-    <td class="note">A heading and the things it governs, as one unit.</td>
+    <td class="note">ConfirmScreen, WaitingScreen</td>
+    <td class="note">Takes whatever width is left in a Row, and carries content while doing it.</td>
   </tr><tr>
     <td class="mono">Field</td>
     <td class="mono">2</td>
@@ -581,11 +586,6 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">ReservationScreen</td>
     <td class="note">The reservation code, on the one light surface in the patient app. It reads as something printed and handed over rather than as another card in an app.</td>
   </tr><tr>
-    <td class="mono">Grow</td>
-    <td class="mono">1</td>
-    <td class="note">ConfirmScreen</td>
-    <td class="note">Takes whatever width is left in a Row, and carries content while doing it.</td>
-  </tr><tr>
     <td class="mono">Chip</td>
     <td class="mono">1</td>
     <td class="note">ConfirmScreen</td>
@@ -596,10 +596,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">DraftScreen</td>
     <td class="note">One step of a quantity, up or down.</td>
   </tr><tr>
-    <td class="mono">ProgressBar</td>
+    <td class="mono">Dial</td>
     <td class="mono">1</td>
     <td class="note">WaitingScreen</td>
-    <td class="note">How far along something is, as a bar rather than a spinner.</td>
+    <td class="note">A window of time, drawn as a ring with the remaining figure inside it.</td>
   </tr><tr>
     <td class="mono">PhotoFrame</td>
     <td class="mono">1</td>
@@ -610,9 +610,14 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="mono">1</td>
     <td class="note">FindScreen</td>
     <td class="note">The one text input in the patient app.</td>
+  </tr><tr>
+    <td class="mono">ProgressBar</td>
+    <td class="mono">0</td>
+    <td class="note">—</td>
+    <td class="note">How far along something is, as a bar rather than a spinner.</td>
   </tr>
 </tbody></table>
-<p class="note" style="margin-top:12px">27 components · 189 render sites across 8 screens · 9 specified components not built.</p>
+<p class="note" style="margin-top:12px">28 components · 199 render sites across 8 screens · 9 specified components not built.</p>
 
 <div class="panel" style="margin-top:14px">
   <h3>Raw layout in screens</h3>
@@ -973,7 +978,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">653 passed (653)</div></div>
+  <div class="note mono">660 passed (660)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Responsive layout</b> — <span class="tag ok">PASS</span>
@@ -1025,7 +1030,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Visual regression reviewed</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">28 unchanged · 0 changed · 0 new · 0 removed — all listed below</div></div>
+  <div class="note mono">15 unchanged · 13 changed · 0 new · 0 removed — all listed below</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
@@ -1124,7 +1129,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag ok">clinical.gate.refused</span></td>
     <td class="mono">3</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">R6</td>
     <td class="note">Final check before it goes</td>
@@ -1134,7 +1139,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag ok">request.broadcast</span></td>
     <td class="mono">2</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">R7</td>
     <td class="note">Make the wait legible</td>
@@ -1144,7 +1149,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag ok">request.answered</span><span class="tag ok">request.unanswered</span></td>
     <td class="mono">2</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">R8</td>
     <td class="note">Choose, with the reasons visible</td>
@@ -1154,7 +1159,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag">—</span></td>
     <td class="mono">3</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">R2</td>
     <td class="note">Photograph the paper</td>
@@ -1164,7 +1169,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag">—</span></td>
     <td class="mono">2</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">R3</td>
     <td class="note">Confirm the image is readable before it travels</td>
@@ -1234,7 +1239,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag">—</span></td>
     <td><span class="tag ok">reservation.confirmed</span><span class="tag ok">reservation.refused</span></td>
     <td class="mono">1</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">V2</td>
     <td class="note">The code, the clock, the address</td>
@@ -1263,12 +1268,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <p class="note">Byte-level PNG comparison against the screenshots in git HEAD, so the baseline is what was actually last reviewed rather than a file somebody remembered to update. It cannot say WHAT changed, only that something did — which is enough to guarantee nothing changes without being listed.</p>
   
   <div style="margin-top:12px">
-    <span class="tag ok">28 unchanged</span>
-    <span class="tag warn">0 changed</span>
+    <span class="tag ok">15 unchanged</span>
+    <span class="tag warn">13 changed</span>
     <span class="tag">0 new</span>
     <span class="tag ">0 removed</span>
   </div>
-  
+  <div style="margin-top:14px"><h3>Changed — each one looked at before this push</h3>
+    <div class="grid g3" style="margin-top:10px"><div class="shot"><img src="screenshots/R1-empty.png" alt="R1-empty.png"><div class="cap"><span class="mono">R1-empty.png</span></div></div><div class="shot"><img src="screenshots/R1-lines.png" alt="R1-lines.png"><div class="cap"><span class="mono">R1-lines.png</span></div></div><div class="shot"><img src="screenshots/R1-refused.png" alt="R1-refused.png"><div class="cap"><span class="mono">R1-refused.png</span></div></div><div class="shot"><img src="screenshots/R2-camera.png" alt="R2-camera.png"><div class="cap"><span class="mono">R2-camera.png</span></div></div><div class="shot"><img src="screenshots/R2-refused.png" alt="R2-refused.png"><div class="cap"><span class="mono">R2-refused.png</span></div></div><div class="shot"><img src="screenshots/R6-offline.png" alt="R6-offline.png"><div class="cap"><span class="mono">R6-offline.png</span></div></div><div class="shot"><img src="screenshots/R6-online.png" alt="R6-online.png"><div class="cap"><span class="mono">R6-online.png</span></div></div><div class="shot"><img src="screenshots/R7-queued.png" alt="R7-queued.png"><div class="cap"><span class="mono">R7-queued.png</span></div></div><div class="shot"><img src="screenshots/R7-waiting.png" alt="R7-waiting.png"><div class="cap"><span class="mono">R7-waiting.png</span></div></div><div class="shot"><img src="screenshots/R8-empty.png" alt="R8-empty.png"><div class="cap"><span class="mono">R8-empty.png</span></div></div><div class="shot"><img src="screenshots/R8-offers.png" alt="R8-offers.png"><div class="cap"><span class="mono">R8-offers.png</span></div></div><div class="shot"><img src="screenshots/R8-withdrawn.png" alt="R8-withdrawn.png"><div class="cap"><span class="mono">R8-withdrawn.png</span></div></div><div class="shot"><img src="screenshots/V1-requesting.png" alt="V1-requesting.png"><div class="cap"><span class="mono">V1-requesting.png</span></div></div></div></div>
   
   
   
@@ -1279,9 +1285,9 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
     <div><div class="kpi">63<small>source files</small></div></div>
-    <div><div class="kpi">7,425<small>source lines</small></div></div>
+    <div><div class="kpi">7,641<small>source lines</small></div></div>
     <div><div class="kpi">0.41×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">3.19s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">3.15s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1290,7 +1296,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Rendered weight per screen state</h3>
   <p class="note">View nodes each state produces, counted from the review renders. A screen that produces several hundred nodes is a screen that will scroll badly on a low-end Android — this is a real proxy, measured, not a runtime frame time.</p>
   <div class="scroll"><table style="margin-top:10px"><thead><tr><th>State</th><th>View nodes</th><th>Markup bytes</th></tr></thead><tbody>
-  <tr><td class="mono">R8-offers</td><td class="mono">57</td><td class="mono">11.0 KB</td></tr><tr><td class="mono">R1-lines</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-undecided</td><td class="mono">49</td><td class="mono">10.0 KB</td></tr><tr><td class="mono">R9-agreed</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R9-refused</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R1-refused</td><td class="mono">41</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">V2-cached</td><td class="mono">41</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">R8-withdrawn</td><td class="mono">40</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">V2-held</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">V2-last</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">R6-offline</td><td class="mono">36</td><td class="mono">7.6 KB</td></tr><tr><td class="mono">F2-results</td><td class="mono">34</td><td class="mono">7.2 KB</td></tr>
+  <tr><td class="mono">R8-offers</td><td class="mono">57</td><td class="mono">11.0 KB</td></tr><tr><td class="mono">R1-lines</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-undecided</td><td class="mono">49</td><td class="mono">10.0 KB</td></tr><tr><td class="mono">R9-agreed</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R9-refused</td><td class="mono">48</td><td class="mono">9.7 KB</td></tr><tr><td class="mono">R1-refused</td><td class="mono">41</td><td class="mono">8.4 KB</td></tr><tr><td class="mono">V2-cached</td><td class="mono">41</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">R8-withdrawn</td><td class="mono">40</td><td class="mono">7.8 KB</td></tr><tr><td class="mono">V2-held</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">V2-last</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">R6-offline</td><td class="mono">36</td><td class="mono">7.6 KB</td></tr><tr><td class="mono">F2-results</td><td class="mono">34</td><td class="mono">7.2 KB</td></tr>
   </tbody></table></div>
 </div>
 

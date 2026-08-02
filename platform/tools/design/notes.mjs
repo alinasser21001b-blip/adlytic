@@ -345,6 +345,16 @@ export const COMPONENT_NOTES = {
     responsive: "Fixed 44pt square at every size.",
     constraints: "44pt is the floor, not a decoration: this is pressed repeatedly, with a thumb, by someone in a hurry.",
   },
+  Dial: {
+    purpose: "A window of time, drawn as a ring with the remaining figure inside it.",
+    variants: ["any fraction 0..1, clamped"],
+    interactions: ["none"],
+    a11y: "progressbar role carrying the fraction as a percentage, so the arc is never the only thing conveying it. The figure inside is the remaining minutes.",
+    motion: "The arc does not animate; it redraws on each render. The delivery does not specify a sweep.",
+    rtl: "Direction-neutral. The arc sweeps from the top in both schemes.",
+    responsive: "Fixed 64pt at every width, as delivered.",
+    constraints: "The delivery draws this with a conic gradient, which React Native cannot express. Two clipped, rotated half-discs produce the same arc from platform primitives — no new dependency. A ring rather than a bar because nothing is being COMPLETED here: time is passing while several pharmacies decide.",
+  },
   ProgressBar: {
     purpose: "How far along something is, as a bar rather than a spinner.",
     variants: ["any fraction, clamped to 0..1"],

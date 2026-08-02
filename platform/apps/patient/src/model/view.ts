@@ -84,16 +84,27 @@ export function resolveView(
     break;
   }
 
+  const treatment = treatmentFor(c, phase);
+
   return {
     id: c.id,
     title: c.location.title,
     destination: c.location.destination,
     progress,
-    primary: c.primary,
+    // The state names the primary when it has an opinion; otherwise the
+    // screen's own. Resolved here so no screen chooses an action at render.
+    //
+    // Key PRESENCE, not truthiness: a state that declares `null` is saying it
+    // has nothing to offer, and `??` would read that as "no opinion" and fall
+    // back to the screen's primary — which is how R7 kept offering «شوف العرض
+    // الواصل» over zero offers after the contract said not to.
+    primary: treatment && c.primaryWhen && treatment.kind in c.primaryWhen
+      ? c.primaryWhen[treatment.kind] ?? null
+      : c.primary,
     secondary: c.secondary,
     back: resolveBack(graph, c.id, history),
     phase,
-    treatment: treatmentFor(c, phase),
+    treatment,
     telemetry: c.telemetry,
   };
 }

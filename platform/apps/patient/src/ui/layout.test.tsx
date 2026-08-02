@@ -17,6 +17,7 @@ import TestRenderer from "react-test-renderer";
 import { space } from "@dawai/design";
 import { themeFor } from "./theme.js";
 import { Row, Spacer, Grow, Actions, Card, Note, Section, Field } from "./layout.js";
+import { Dial } from "./kit.js";
 
 const t = themeFor("dark");
 const Leaf = () => null;
@@ -140,5 +141,48 @@ describe("alignment", () => {
 
   it("Actions wraps, because Arabic labels are long and a fixed row truncates", () => {
     expect(styleOf(<Actions t={t}><Leaf /></Actions>).flexWrap).toBe("wrap");
+  });
+});
+
+describe("the Dial draws the fraction it is given", () => {
+  // The delivery draws this with a conic gradient, which React Native cannot
+  // express. Two clipped, rotated half-discs produce the same arc — but only if
+  // the geometry is right, and an arc that is wrong is worse than no arc at
+  // all: it is a countdown lying about how much time is left.
+  const sweeps = (fraction: number): number[] =>
+    TestRenderer.create(<Dial t={t} fraction={fraction} value="٧" label="متبقي" />).root
+      .findAll((n) => typeof n.type === "string")
+      .flatMap((n) => {
+        const s = n.props.style;
+        const flat = Array.isArray(s) ? Object.assign({}, ...s) : s ?? {};
+        const rotate = (flat.transform ?? []).find((x: Record<string, string>) => "rotate" in x);
+        return rotate ? [parseFloat(rotate.rotate)] : [];
+      });
+
+  it("draws nothing at zero and a full turn at one", () => {
+    expect(sweeps(0)).toEqual([0, 0]);
+    expect(sweeps(1)).toEqual([180, 180]);
+  });
+
+  it("fills only the trailing half below the midpoint", () => {
+    // A quarter is 90° of the first half and none of the second. Getting this
+    // backwards draws a three-quarter ring for a quarter of the time left.
+    expect(sweeps(0.25)).toEqual([0, 90]);
+  });
+
+  it("holds the trailing half full once past the midpoint", () => {
+    expect(sweeps(0.75)).toEqual([90, 180]);
+  });
+
+  it("clamps rather than drawing an impossible arc", () => {
+    expect(sweeps(-1)).toEqual([0, 0]);
+    expect(sweeps(2)).toEqual([180, 180]);
+  });
+
+  it("carries the fraction as an accessible percentage, so the arc is never alone", () => {
+    const dial = TestRenderer.create(<Dial t={t} fraction={0.42} value="٧" label="متبقي" />).root
+      .find((n) => n.props.accessibilityRole === "progressbar");
+    expect(dial.props.accessibilityValue).toEqual({ now: 42, min: 0, max: 100 });
+    expect(dial.props.accessibilityLabel).toBe("متبقي");
   });
 });

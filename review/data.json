@@ -484,7 +484,7 @@
         "returnsTo": "S1"
       },
       "primary": {
-        "label": "شوف العروض",
+        "label": "شوف العرض الواصل",
         "leadsTo": "R8",
         "tapsToOutcome": 1
       },
@@ -502,7 +502,7 @@
         },
         {
           "kind": "empty",
-          "explains": "سألنا الصيدليات القريبة — ننتظر أول رد",
+          "explains": "ننتظر أول رد",
           "action": null,
           "isSuccess": true
         },

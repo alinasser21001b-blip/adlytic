@@ -122,11 +122,11 @@ export const SCREENS = {
   "R7-queued": {
     built: true,
     verdicts: {
-      Layout: ["minor", "The build has the right shape — title, explanation, no countdown — but lacks the delivered outbox card listing the queued lines and the dashed card that explains why there is no timer."],
+      Layout: ["exact", "Built to the delivery: «بانتظار الاتصال», the three-sentence explanation, the outbox card, the card explaining why there is deliberately no counter, then the primary «تمام — خبروني» with «إلغاء الطلب قبل الإرسال» centred beneath it at the bottom edge."],
       Typography: ["exact", "The `title` role now carries the delivered 24px/800, raised while building V2; this screen's heading picked it up with no screen-level change."],
       Spacing: ["exact", "20px gutter, matching the delivered range."],
       Colour: ["exact", "Palette applied."],
-      Component: ["missing", "The dashed explain card is a new component; the outbox line list is not built."],
+      Component: ["intended", "Composed entirely from the framework — Section, Card, Row, Spacer — with no screen-specific primitive. The delivery draws the explain card with a dashed border, which React Native cannot express on a rounded rectangle; it ships as a sunken card. See DEV-7."],
       Motion: ["missing", "None implemented."],
       Icon: ["blocked", "No icon set."],
       Accessibility: ["exact", "Enforced."],
@@ -140,14 +140,14 @@ export const SCREENS = {
     // inferred, because a prefix match silently reported it as unmeasured.
     states: ["R7-waiting"],
     verdicts: {
-      Layout: ["missing", "The delivery replaces the bar with a conic-gradient ring plus a per-pharmacy responder list (replied / thinking / declined). The build renders a linear progress bar and an offer count."],
-      Typography: ["minor", "Ring time is delivered as 15px mono tabular; the build uses the `display` role."],
+      Layout: ["minor", "Title, sub-line, the ring card and the bottom action pair are all built as delivered. The per-pharmacy responder list is absent — see CLR-6 and DEV-8; it is the delivery\'s main body, so the sent state is visibly thinner than the design."],
+      Typography: ["exact", "Title at the delivered 24/800; the ring figure in mono tabular at headline scale, as delivered."],
       Spacing: ["exact", "Within the delivered ranges."],
       Colour: ["exact", "Palette applied. The delivered declined-dot #5E7A6E has no role and is recorded as an extra."],
-      Component: ["missing", "Conic ring and responder row are both new components."],
+      Component: ["intended", "`Dial` is built and is the delivered ring, drawn with clipped rotated half-discs because React Native has no conic gradient — same arc, no new dependency, geometry proved by test. The responder row is not built: no responder entity exists in the domain (DEV-8)."],
       Motion: ["missing", "`dwTick` on thinking dots is specified and unimplemented — the screen's whole point is that something is happening."],
       Icon: ["blocked", "No icon set."],
-      Accessibility: ["minor", "The ring needs a text equivalent; a conic gradient conveys progress by shape alone."],
+      Accessibility: ["exact", "The dial carries the fraction as an accessible percentage plus a label, so the arc is never the only thing conveying it — tested."],
       RTL: ["exact", "Enforced."],
     },
   },
@@ -200,6 +200,33 @@ export const SCREENS = {
 
 export const DEVIATIONS = [
   {
+    id: "DEV-6",
+    what: "R7 queued lists outbox ENTRIES with their delivery state, not individual medicines with pack counts.",
+    why: "The delivery lists «أموكسيسيلين ٢٥٠/٥ شراب — علبة» per line. The outbox holds REQUESTS, and an outbox item's payload is opaque to the UI by design, so a per-medicine breakdown would mean either casting through the offline boundary or inventing lines. What ships is what the outbox actually knows: the entry's own label and its real delivery state.",
+    temporary: true,
+    designApproved: false,
+    productApproved: false,
+    debt: "Needs either a per-line outbox projection or Design accepting the entry-level list.",
+  },
+  {
+    id: "DEV-7",
+    what: "R7 queued draws the «no counter on purpose» card as a sunken card, not the delivered dashed outline.",
+    why: "React Native cannot draw a dashed border on a rounded rectangle. Sinking the card below the content plane carries the same meaning — this is a remark about the screen rather than content — using the Note/Card treatment already used everywhere else for exactly that.",
+    temporary: false,
+    designApproved: false,
+    productApproved: false,
+    debt: "None. Confirm the substitution with Design.",
+  },
+  {
+    id: "DEV-8",
+    what: "R7 sent does not render the per-pharmacy responder list.",
+    why: "Two independent blocks. CLR-6 is an open PRODUCT question — whether naming a pharmacy that declined may be disclosed before it chose to answer. And no responder entity exists in the domain: the model knows the window and the offer count, nothing per pharmacy. Building it would mean inventing an entity and answering a product question inside implementation, both forbidden. The sent state is visibly thinner than the delivery as a result, and that emptiness is the honest rendering of what is known.",
+    temporary: true,
+    designApproved: false,
+    productApproved: false,
+    debt: "Blocked on CLR-6, then on a responder projection in the Marketplace domain.",
+  },
+  {
     id: "DEV-1",
     what: "V2 code-panel caption ships at #63726B, not the delivered #6B7A74.",
     why: "The delivered value measures 4.10:1 on #F7F4EE — below the 4.5:1 body floor the build enforces. It is the line telling the patient what to do with the code, on the screen Blueprint v3 says must never fail. #63726B is the nearest value in the same hue family that clears, at 4.61:1.",
@@ -249,6 +276,21 @@ export const DEVIATIONS = [
 /* ── Clarification requests ─────────────────────────────────────────────── */
 
 export const CLARIFICATIONS = [
+  {
+    id: "CLR-7",
+    question: "Should a workflow screen show flow progress at all?",
+    context: "Every screen in the request flow renders «تنتظر الردود — الخطوة ٤ من ٦» beneath its title. The turn-4 delivery shows no progress row on any of the five screens — it shows a device status bar instead.",
+    screenshot: "review/screenshots/R7-waiting.png",
+    current: "Progress renders on R1, R2, R6, R7, R8 and V1, derived from the declared flow.",
+    design: "Turn 4 shows no progress indicator on V2, R7, R8, R9 or E4.",
+    whyBlocked: "The Blueprint requires every screen to answer «where am I», and the flow progress is how that is currently answered. Whether the delivery INTENDS to drop it, or simply did not draw chrome, is a question only Design can answer — removing it would weaken a Blueprint guarantee on a guess.",
+    options: [
+      "Keep the progress row as built.",
+      "Drop it on modal workflow screens, where the title already answers «where am I».",
+      "Replace it with a non-numeric form the delivery would accept.",
+    ],
+    recommendation: "Keep it until Design rules. The separator defect it had — a middle dot beside Arabic-Indic digits read as a numeral, so «٤/٦» rendered as «٤/٦٠» — is fixed independently; it now reads «الخطوة ٤ من ٦».",
+  },
   {
     id: "CLR-1",
     title: "Is the reservation code numeric or alphanumeric?",

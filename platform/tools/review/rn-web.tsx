@@ -38,6 +38,18 @@ function toCss(style: unknown): React.CSSProperties {
     if (k === "marginHorizontal") { out["marginLeft"] = px(v); out["marginRight"] = px(v); continue; }
     if (k === "marginVertical") { out["marginTop"] = px(v); out["marginBottom"] = px(v); continue; }
     if (k === "writingDirection") { out["direction"] = v; continue; }
+    // React Native expresses transforms as an ordered list of single-property
+    // objects; CSS wants one string, applied in the same order. Without this
+    // the array reaches CSS as "[object Object]" and every transform silently
+    // does nothing — which is worse than failing, because the review would
+    // photograph an untransformed element and call it the truth.
+    if (k === "transform" && Array.isArray(v)) {
+      out["transform"] = v.map((t) => {
+        const [fn, arg] = Object.entries(t as Record<string, unknown>)[0];
+        return `${fn}(${typeof arg === "number" && !/^rotate/.test(fn) ? `${arg}px` : arg})`;
+      }).join(" ");
+      continue;
+    }
     if (k === "borderColor") { out["borderColor"] = v; out["borderStyle"] = "solid"; continue; }
     if (k === "borderWidth" || k === "borderTopWidth" || k === "borderBottomWidth") { out[k] = px(v); out["borderStyle"] = "solid"; continue; }
     out[k] = NUMERIC_PX.has(k) && typeof v === "number" ? px(v) : v;

@@ -12,16 +12,16 @@
 
 ## Overall fidelity
 
-# 59%
+# 65%
 
 6 screens × 10 categories = 60 assessments.
 
 | Verdict | Count | Share |
 | --- | --- | --- |
-| Exact Match | 27 | 45% |
-| Minor Deviation | 10 | 17% |
-| Intentional Deviation | 1 | 2% |
-| Missing | 16 | 27% |
+| Exact Match | 30 | 50% |
+| Minor Deviation | 8 | 13% |
+| Intentional Deviation | 3 | 5% |
+| Missing | 13 | 22% |
 | Blocked | 6 | 10% |
 
 Exact and Intentional both count 1.0 — an approved, recorded deviation is
@@ -31,8 +31,8 @@ Missing and Blocked count 0.
 | Screen | | Fidelity |
 | --- | --- | --- |
 | `V2` | Reservation (cached-first) | 78% |
-| `R7-queued` | Waiting · queued | 68% |
-| `R7-sent` | Waiting · sent | 55% |
+| `R7-queued` | Waiting · queued | 80% |
+| `R7-sent` | Waiting · sent | 78% |
 | `R8` | Offers | 73% |
 | `R9` | Substitution consent | 73% |
 | `E4` | Why we need your number | 10% |
@@ -104,33 +104,33 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | RTL | Exact Match | Direction-driven layout; no physical row reversal, banned at build time. |
 | Responsive | Exact Match | Measured at 320/360/390/430pt. All 3 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R7-queued` — Waiting · queued · 68%
+### `R7-queued` — Waiting · queued · 80%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
-| Layout | Minor Deviation | The build has the right shape — title, explanation, no countdown — but lacks the delivered outbox card listing the queued lines and the dashed card that explains why there is no timer. |
+| Layout | Exact Match | Built to the delivery: «بانتظار الاتصال», the three-sentence explanation, the outbox card, the card explaining why there is deliberately no counter, then the primary «تمام — خبروني» with «إلغاء الطلب قبل الإرسال» centred beneath it at the bottom edge. |
 | Typography | Exact Match | The `title` role now carries the delivered 24px/800, raised while building V2; this screen's heading picked it up with no screen-level change. |
 | Spacing | Exact Match | 20px gutter, matching the delivered range. |
 | Colour | Exact Match | Palette applied. |
-| Component | Missing | The dashed explain card is a new component; the outbox line list is not built. |
+| Component | Intentional Deviation | Composed entirely from the framework — Section, Card, Row, Spacer — with no screen-specific primitive. The delivery draws the explain card with a dashed border, which React Native cannot express on a rounded rectangle; it ships as a sunken card. See DEV-7. |
 | Motion | Missing | None implemented. |
 | Icon | Blocked | No icon set. |
 | Accessibility | Exact Match | Enforced. |
 | RTL | Exact Match | Enforced. |
 | Responsive | Exact Match | Measured at 320/360/390/430pt. All 1 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
-### `R7-sent` — Waiting · sent · 55%
+### `R7-sent` — Waiting · sent · 78%
 
 | Category | Verdict | Detail |
 | --- | --- | --- |
-| Layout | Missing | The delivery replaces the bar with a conic-gradient ring plus a per-pharmacy responder list (replied / thinking / declined). The build renders a linear progress bar and an offer count. |
-| Typography | Minor Deviation | Ring time is delivered as 15px mono tabular; the build uses the `display` role. |
+| Layout | Minor Deviation | Title, sub-line, the ring card and the bottom action pair are all built as delivered. The per-pharmacy responder list is absent — see CLR-6 and DEV-8; it is the delivery's main body, so the sent state is visibly thinner than the design. |
+| Typography | Exact Match | Title at the delivered 24/800; the ring figure in mono tabular at headline scale, as delivered. |
 | Spacing | Exact Match | Within the delivered ranges. |
 | Colour | Exact Match | Palette applied. The delivered declined-dot #5E7A6E has no role and is recorded as an extra. |
-| Component | Missing | Conic ring and responder row are both new components. |
+| Component | Intentional Deviation | `Dial` is built and is the delivered ring, drawn with clipped rotated half-discs because React Native has no conic gradient — same arc, no new dependency, geometry proved by test. The responder row is not built: no responder entity exists in the domain (DEV-8). |
 | Motion | Missing | `dwTick` on thinking dots is specified and unimplemented — the screen's whole point is that something is happening. |
 | Icon | Blocked | No icon set. |
-| Accessibility | Minor Deviation | The ring needs a text equivalent; a conic gradient conveys progress by shape alone. |
+| Accessibility | Exact Match | The dial carries the fraction as an accessible percentage plus a label, so the arc is never the only thing conveying it — tested. |
 | RTL | Exact Match | Enforced. |
 | Responsive | Exact Match | Measured at 320/360/390/430pt. All 1 state(s) pass every detector: no overflow, no clipping, no cropped card, no target below the floor, no order change, no RTL regression. |
 
@@ -185,6 +185,39 @@ The 76px code and the 800 weight have no token. See CLR-4.
 ---
 
 ## Intentional deviations
+
+### DEV-6 — R7 queued lists outbox ENTRIES with their delivery state, not individual medicines with pack counts.
+
+**Why.** The delivery lists «أموكسيسيلين ٢٥٠/٥ شراب — علبة» per line. The outbox holds REQUESTS, and an outbox item's payload is opaque to the UI by design, so a per-medicine breakdown would mean either casting through the offline boundary or inventing lines. What ships is what the outbox actually knows: the entry's own label and its real delivery state.
+
+| | |
+| --- | --- |
+| Temporary | Yes — reverts when resolved |
+| Design approval required | No |
+| Product approval required | No |
+| Tracked as debt | `Needs either a per-line outbox projection or Design accepting the entry-level list.` |
+
+### DEV-7 — R7 queued draws the «no counter on purpose» card as a sunken card, not the delivered dashed outline.
+
+**Why.** React Native cannot draw a dashed border on a rounded rectangle. Sinking the card below the content plane carries the same meaning — this is a remark about the screen rather than content — using the Note/Card treatment already used everywhere else for exactly that.
+
+| | |
+| --- | --- |
+| Temporary | No — this is the rule now |
+| Design approval required | No |
+| Product approval required | No |
+| Tracked as debt | `None. Confirm the substitution with Design.` |
+
+### DEV-8 — R7 sent does not render the per-pharmacy responder list.
+
+**Why.** Two independent blocks. CLR-6 is an open PRODUCT question — whether naming a pharmacy that declined may be disclosed before it chose to answer. And no responder entity exists in the domain: the model knows the window and the offer count, nothing per pharmacy. Building it would mean inventing an entity and answering a product question inside implementation, both forbidden. The sent state is visibly thinner than the delivery as a result, and that emptiness is the honest rendering of what is known.
+
+| | |
+| --- | --- |
+| Temporary | Yes — reverts when resolved |
+| Design approval required | No |
+| Product approval required | No |
+| Tracked as debt | `Blocked on CLR-6, then on a responder projection in the Marketplace domain.` |
 
 ### DEV-1 — V2 code-panel caption ships at #63726B, not the delivered #6B7A74.
 
@@ -246,8 +279,27 @@ The 76px code and the 800 weight have no token. See CLR-4.
 
 ## Design clarification requests
 
-6 ambiguities, collected into one report rather than
+7 ambiguities, collected into one report rather than
 asked one at a time. **Engineering has not guessed at any of them.**
+
+### CLR-7 — undefined
+
+**Context.** Every screen in the request flow renders «تنتظر الردود — الخطوة ٤ من ٦» beneath its title. The turn-4 delivery shows no progress row on any of the five screens — it shows a device status bar instead.
+
+**Screenshot.** `review/screenshots/R7-waiting.png`
+
+**Current implementation.** Progress renders on R1, R2, R6, R7, R8 and V1, derived from the declared flow.
+
+**Design reference.** Turn 4 shows no progress indicator on V2, R7, R8, R9 or E4.
+
+**Why Engineering cannot decide.** undefined
+
+**Options.**
+1. Keep the progress row as built.
+2. Drop it on modal workflow screens, where the title already answers «where am I».
+3. Replace it with a non-numeric form the delivery would accept.
+
+**Engineering recommendation.** Keep it until Design rules. The separator defect it had — a middle dot beside Arabic-Indic digits read as a numeral, so «٤/٦» rendered as «٤/٦٠» — is fixed independently; it now reads «الخطوة ٤ من ٦».
 
 ### CLR-1 — Is the reservation code numeric or alphanumeric?
 

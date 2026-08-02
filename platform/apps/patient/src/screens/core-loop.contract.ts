@@ -150,12 +150,26 @@ export const CORE_LOOP: readonly ScreenContract[] = [
     // The request is live. Leaving is possible but it is not a back — it drops
     // to Today with the request still running, which the screen says.
     back: { kind: "dismiss", returnsTo: "S1" },
-    primary: { label: "شوف العروض", leadsTo: "R8", tapsToOutcome: 1 },
+    primary: { label: "شوف العرض الواصل", leadsTo: "R8", tapsToOutcome: 1 },
+    // D27 — a queued request has reached nobody, so «شوف العرض الواصل» would
+    // lead to an empty list and imply replies that cannot exist. The delivery
+    // gives this state its own answer: acknowledge, leave, be told.
+    primaryWhen: {
+      offline: { label: "تمام — خبروني", leadsTo: "S1", tapsToOutcome: 1 },
+      // Nothing has answered yet. «شوف العرض الواصل» over zero offers promises
+      // an offer that does not exist and leads to an empty list; the empty
+      // treatment already declares `action: null` for the same reason. The
+      // patient's only real option is to keep waiting, which needs no button.
+      empty: null,
+    },
     secondary: [{ label: "ألغِ الطلب", leadsTo: "S1" }],
     states: [
       { kind: "loading", skeletonMatchesContent: true },
-      { kind: "empty", explains: "سألنا الصيدليات القريبة — ننتظر أول رد",
-        action: null, isSuccess: true },
+      // Waiting with nothing yet is not an absence — the screen's whole content
+      // IS the wait, so this state carries no separate message. The old
+      // «سألنا الصيدليات القريبة — ننتظر أول رد» was printed twice, once as the
+      // state treatment filling the screen and once inside the countdown card.
+      { kind: "empty", explains: "ننتظر أول رد", action: null, isSuccess: true },
       { kind: "error", whatFailed: "انقطع الاتصال", workPreserved: true,
         action: { label: "أعد الاتصال", leadsTo: "R7" } },
       { kind: "offline", readOnly: true, showsAge: true },

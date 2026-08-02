@@ -207,15 +207,24 @@ describe("R7 — the wait", () => {
     const root = render(<WaitingScreen {...base} sent={sentWith(true)} now={1_000} />);
     const shown = texts(root);
     expect(shown).toContain("٢٠");
-    expect(shown).toContain("دقيقة باقية");
+    // The delivery replaces the bar and its unit word with a dial: the figure
+    // sits inside the ring and the unit is carried by the sentence beside it.
+    expect(shown).toContain("باقي على نافذة الردود");
     expect(shown).toContain("ننتظر أول رد");
+    // Nothing has replied, so nothing may claim one has. The screen offers the
+    // exit and no more — a primary here would lead to an empty list.
+    expect(shown).not.toContain("شوف العرض الواصل");
+    expect(shown).toContain("ألغِ الطلب");
   });
 
   it("a queued request shows NO countdown and says it has not been sent (D27)", () => {
     const root = render(<WaitingScreen {...base} sent={sentWith(false)} now={1_000} />);
     const shown = texts(root);
     expect(shown).toContain("بانتظار الاتصال");
-    expect(shown).toContain("ما وصل للصيدليات بعد");
+    expect(shown).toContain("ما انرسل لأي صيدلية بعد");
+    // D27's promise, in the delivery's words: the absent counter is explained
+    // rather than merely missing.
+    expect(shown).toContain("ما في عدّاد هنا عمداً");
     expect(shown).not.toContain("دقيقة باقية");
     expect(root.findAll((n) => n.props["accessibilityRole"] === "progressbar")).toHaveLength(0);
   });

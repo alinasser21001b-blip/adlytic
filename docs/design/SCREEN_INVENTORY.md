@@ -560,7 +560,7 @@ The urgency selector uses radio semantics. Exactly one filled control on the scr
 | State | What it owes the user | As implemented today |
 | --- | --- | --- |
 | `loading` | a skeleton whose shape matches the content that is coming | skeleton must match the real content |
-| `empty` | an explanation, and — for the teaching variant — exactly one action | `quiet / success` — “سألنا الصيدليات القريبة — ننتظر أول رد” · no action, deliberately |
+| `empty` | an explanation, and — for the teaching variant — exactly one action | `quiet / success` — “ننتظر أول رد” · no action, deliberately |
 | `error` | what failed, whether the user's work survived, and one thing to press | “انقطع الاتصال” · work preserved: yes · action: **أعد الاتصال** → R7 |
 | `offline` | whether the content is read-only, and how old it is | read-only: yes · shows age: yes |
 
@@ -575,7 +575,7 @@ Blueprint declares: `empty · loading · error · offline`. 2 state(s) rendered 
 
 | Interaction | Detail |
 | --- | --- |
-| Primary action | **شوف العروض** → `R8` (1 tap to outcome) |
+| Primary action | **شوف العرض الواصل** → `R8` (1 tap to outcome) |
 | Secondary actions | ألغِ الطلب → `S1` |
 | Back | `dismiss` → `S1` |
 | Exits | `R8`, `R11`, `S1` |

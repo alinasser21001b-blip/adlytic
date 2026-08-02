@@ -86,6 +86,19 @@ export type ScreenContract = {
    *  confirmation, a reference view. The checker requires a stated reason. */
   readonly primary: PrimaryAction | null;
   readonly noPrimaryBecause?: string;
+  /**
+   * A primary that depends on the state the screen is in, or `null` where that
+   * state has nothing to offer.
+   *
+   * Still exactly one primary at any moment — this names WHICH one, not how
+   * many. R7 is why it exists: waiting for a reply that has not been sent yet
+   * and waiting for one that has are the same screen with different answers to
+   * "what do I do next?", and «شوف العروض» on a request no pharmacy has
+   * received leads to an empty list. A screen without this either renders the
+   * wrong action in one state or splits into two screens the Blueprint does
+   * not have.
+   */
+  readonly primaryWhen?: Readonly<Partial<Record<StateTreatment["kind"], PrimaryAction | null>>>;
   readonly secondary: readonly SecondaryAction[];
   readonly states: readonly StateTreatment[];
   /** Every destination reachable from here. A screen with no exit is a trap. */
@@ -112,6 +125,24 @@ export function auditContract(c: ScreenContract): readonly string[] {
     p.push(`${c.id}: no primary action and no stated reason — "what do I do next?" is unanswerable`);
   if (c.primary && c.primary.tapsToOutcome < 1)
     p.push(`${c.id}: primary action claims fewer than one tap`);
+  for (const [kind, alt] of Object.entries(c.primaryWhen ?? {})) {
+    // `null` says this state offers nothing, which is a real answer: R7 while
+    // no pharmacy has replied has nothing for the patient to press, and a
+    // button labelled "see the offer" over zero offers is a lie.
+    if (alt === null) {
+      if (!c.states.some((s) => s.kind === kind))
+        p.push(`${c.id}: a primary is declared for the ${kind} state, which this screen does not declare`);
+      continue;
+    }
+    // A state-scoped primary is held to every rule the screen-wide one is: it
+    // is the primary while that state lasts.
+    if (alt.tapsToOutcome < 1)
+      p.push(`${c.id}: the ${kind} primary claims fewer than one tap`);
+    if (!c.exits.includes(alt.leadsTo))
+      p.push(`${c.id}: the ${kind} primary leads to ${alt.leadsTo}, which is not a declared exit`);
+    if (!c.states.some((s) => s.kind === kind))
+      p.push(`${c.id}: a primary is declared for the ${kind} state, which this screen does not declare`);
+  }
 
   // A dead end: nowhere to go and no way back.
   if (c.exits.length === 0 && c.back.kind === "none")

@@ -394,6 +394,76 @@ export function StepButton(
 }
 
 /**
+ * A window of time, drawn as a ring with the remaining figure inside it.
+ *
+ * The delivery draws this with a conic gradient, which React Native has no
+ * expression for. Two half-discs, each clipped to its own half and rotated
+ * about the ring's centre line, produce the same arc from primitives the
+ * platform actually has — no new dependency, and it renders identically in the
+ * review and on a device.
+ *
+ * A ring rather than a bar because nothing here is being COMPLETED. A bar reads
+ * as work progressing; this is time passing while several pharmacies decide,
+ * and the patient is not waiting for a task to finish.
+ *
+ * The fraction is on the accessible value as a percentage, so the arc is never
+ * the only thing carrying it.
+ */
+export function Dial(
+  { t, fraction, value, label }: { t: Theme; fraction: number; value: string; label: string },
+) {
+  const f = Math.min(1, Math.max(0, fraction));
+  const SIZE = 64, RING = 7;
+  const half = SIZE / 2;
+  // Each half sweeps its own 180°. The leading half is fully swept once the
+  // fraction passes the halfway mark, and the trailing half starts from zero.
+  const sweep = (from: number) => Math.min(180, Math.max(0, (f - from) * 360));
+
+  const Wedge = ({ deg, side }: { deg: number; side: "leading" | "trailing" }) => (
+    <View style={{ width: half, height: SIZE, overflow: "hidden" }}>
+      <View style={{
+        width: half, height: SIZE, backgroundColor: t.color.accent,
+        transform: [
+          // Rotate about the ring's centre rather than the wedge's own, by
+          // stepping to the centre line, turning, and stepping back.
+          { translateX: side === "leading" ? half / 2 : -half / 2 },
+          { rotate: `${side === "leading" ? deg : deg}deg` },
+          { translateX: side === "leading" ? -half / 2 : half / 2 },
+        ],
+      }} />
+    </View>
+  );
+
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      accessibilityValue={{ now: Math.round(f * 100), min: 0, max: 100 }}
+      style={{
+        width: SIZE, height: SIZE, borderRadius: t.radius.pill,
+        backgroundColor: t.color.line, overflow: "hidden",
+        flexDirection: "row", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <Wedge deg={sweep(0.5)} side="leading" />
+      <Wedge deg={sweep(0)} side="trailing" />
+      {/* The well, which turns the disc into a ring and holds the figure. */}
+      <View style={{
+        position: "absolute",
+        width: SIZE - RING * 2, height: SIZE - RING * 2, borderRadius: t.radius.pill,
+        backgroundColor: t.color.surfaceRaised,
+        alignItems: "center", justifyContent: "center",
+      }}>
+        <Text style={{
+          fontFamily: t.tabularFamily, fontSize: t.type.headline.size,
+          fontWeight: "700", color: t.color.ink,
+        }}>{formatDigits(value, "arabic-indic")}</Text>
+      </View>
+    </View>
+  );
+}
+
+/**
  * How far along something is, as a bar rather than a spinner.
  *
  * A spinner says "working" and tells a patient nothing about how much longer.
@@ -506,6 +576,13 @@ export function StateBlock(
       );
 
     case "empty":
+      // A SUCCESS empty is not an interruption of the content — it IS the
+      // content: "we asked and nobody has answered yet" is what the screen is
+      // about, not a failure to load it. Rendering it here as well as in place
+      // printed it twice on R7, once filling the screen and once inside the
+      // card below. The screen owns it, in the position the delivery gives it,
+      // and the render-tree test requires the declared words to appear.
+      if (treatment.isSuccess) return null;
       return (
         <View style={{ ...pad, ...fill }}>
           <Label t={t} role="title" color={treatment.isSuccess ? "inkMuted" : "ink"}>{treatment.explains}</Label>
@@ -628,7 +705,11 @@ export function Screen(
           <Label t={t} role="title" numberOfLines={1}>{view.title}</Label>
           {view.progress ? (
             <Label t={t} role="caption" color="inkMuted">
-              {`${view.progress.label} · ${formatDigits(view.progress.step, "arabic-indic")}/${formatDigits(view.progress.of, "arabic-indic")}`}
+              {/* «الخطوة ٤ من ٦», not «٤/٦». A middle dot beside Arabic-Indic
+                  digits is read as one of them — «تنتظر الردود · ٤/٦» rendered
+                  as «٤/٦٠», a step count that does not exist. Words carry the
+                  relation instead of punctuation. */}
+              {`${view.progress.label} — الخطوة ${formatDigits(view.progress.step, "arabic-indic")} من ${formatDigits(view.progress.of, "arabic-indic")}`}
             </Label>
           ) : null}
         </View>

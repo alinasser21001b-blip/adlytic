@@ -19,6 +19,7 @@ import * as React from "react";
 import TestRenderer, { type ReactTestInstance } from "react-test-renderer";
 import { themeFor } from "../ui/theme.js";
 import { SHOTS } from "./gallery.jsx";
+import { CORE_LOOP } from "./core-loop.contract.js";
 
 const t = themeFor("light");
 
@@ -113,6 +114,37 @@ describe.each(SHOTS.map((s) => [s.id, s] as const))("%s", (_id, shot) => {
 
   it("says something — a screen that renders nothing readable is a blank screen", () => {
     expect(readableText(root()).trim().length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A success empty — "we asked and nobody has answered yet" — is content rather
+ * than an interruption, so the frame does not draw it and the SCREEN must, in
+ * the place the delivery puts it.
+ *
+ * Without this rule those words could simply vanish: the contract would still
+ * declare the state, the dashboard gate that counts declared treatments would
+ * still pass, and the screen would say nothing at all. That is exactly the
+ * failure mode the gallery exists to make impossible.
+ */
+describe("a screen-owned success empty is actually said", () => {
+  // Screens with no photographed state are unbuilt — S1 and R13 today — and
+  // are tracked as documented gaps rather than failed here. This rule is about
+  // words disappearing from a screen that EXISTS.
+  const successEmpties = CORE_LOOP
+    .flatMap((c) => c.states
+      .filter((st) => st.kind === "empty" && st.isSuccess)
+      .map((st) => [c.id, (st as { explains: string }).explains] as const))
+    .filter(([id]) => SHOTS.some((s) => s.id === id || s.id.startsWith(`${id}-`)));
+
+  it("covers at least one built screen, or this rule is guarding nothing", () => {
+    expect(successEmpties.length).toBeGreaterThan(0);
+  });
+
+  it.each(successEmpties)("%s says «%s» in some photographed state", (id, explains) => {
+    const shots = SHOTS.filter((s) => s.id === id || s.id.startsWith(`${id}-`));
+    expect(shots.some((s) => readableText(render(s.element)).includes(explains)),
+      `no photographed state of ${id} says «${explains}»`).toBe(true);
   });
 });
 

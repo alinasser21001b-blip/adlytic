@@ -10,28 +10,29 @@
 | `Banner` | 1 | — |
 | `CodePanel` | 1 | ReservationScreen |
 | `FactRow` | 3 | ReservationScreen |
-| `Row` | 20 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen |
-| `Spacer` | 5 | DraftScreen, OfferDetailScreen |
-| `Grow` | 2 | ConfirmScreen |
-| `Actions` | 5 | DraftScreen, FindScreen, PrescriptionScreen, WaitingScreen |
-| `Card` | 6 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
+| `Row` | 22 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen |
+| `Spacer` | 6 | DraftScreen, OfferDetailScreen, WaitingScreen |
+| `Grow` | 3 | ConfirmScreen, WaitingScreen |
+| `Actions` | 4 | DraftScreen, FindScreen, PrescriptionScreen |
+| `Card` | 7 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
 | `Note` | 4 | ConfirmScreen, DraftScreen |
-| `Section` | 2 | ConfirmScreen |
+| `Section` | 4 | ConfirmScreen, WaitingScreen |
 | `Field` | 2 | OfferDetailScreen |
 | `Chip` | 1 | ConfirmScreen |
 | `StepButton` | 1 | DraftScreen |
-| `ProgressBar` | 1 | WaitingScreen |
+| `Dial` | 1 | WaitingScreen |
+| `ProgressBar` | 0 | — |
 | `PhotoFrame` | 1 | PrescriptionScreen |
 | `SearchField` | 1 | FindScreen |
 | `Screen` | 11 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
-| `Primary` | 13 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen |
+| `Primary` | 14 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `Secondary` | 9 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
 | `ActionCard` | 2 | FindScreen, OffersScreen |
 | `InfoCard` | 13 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 93 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
-| `Digits` | 7 | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen, WaitingScreen |
+| `Label` | 97 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen |
+| `Digits` | 6 | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen |
 | `Bidi` | 3 | DraftScreen, FindScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
 
@@ -93,7 +94,7 @@ Things side by side. The single place `flexDirection` is written in the patient 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen (20 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen (22 usages) |
 | **Required variants** | `align baseline / center / stretch`, `justify center / space-between`, `any gap token` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -109,7 +110,7 @@ Pushes what follows to the far edge of a Row.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, OfferDetailScreen (5 usages) |
+| **Used by** | DraftScreen, OfferDetailScreen, WaitingScreen (6 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -125,7 +126,7 @@ Takes whatever width is left in a Row, and carries content while doing it.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen (2 usages) |
+| **Used by** | ConfirmScreen, WaitingScreen (3 usages) |
 | **Required variants** | `with children` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -141,7 +142,7 @@ A cluster of secondary actions under the content.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, WaitingScreen (5 usages) |
+| **Used by** | DraftScreen, FindScreen, PrescriptionScreen (4 usages) |
 | **Required variants** | `one to three secondaries` |
 | **Required interactions** | press, per child |
 | **Accessibility** | Children carry their own labels; the cluster adds none. |
@@ -157,7 +158,7 @@ A rectangle of content raised off the ground. The one card primitive.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (6 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (7 usages) |
 | **Required variants** | `raised / sunken`, `border line / accent / alert / warning / none`, `1pt or 2pt border`, `any pad and gap token` |
 | **Required interactions** | none — a card that is an action is ActionCard |
 | **Accessibility** | Transparent; grouping is conveyed by the content, not by the container. |
@@ -189,7 +190,7 @@ A heading and the things it governs, as one unit.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen (2 usages) |
+| **Used by** | ConfirmScreen, WaitingScreen (4 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Provides no heading semantics — nothing in the product exposes a heading level yet. A real gap. |
@@ -247,13 +248,29 @@ One step of a quantity, up or down.
 | **Implementation constraints** | 44pt is the floor, not a decoration: this is pressed repeatedly, with a thumb, by someone in a hurry. |
 
 
+### `Dial`
+
+A window of time, drawn as a ring with the remaining figure inside it.
+
+| | |
+| --- | --- |
+| **Used by** | WaitingScreen (1 usages) |
+| **Required variants** | `any fraction 0..1, clamped` |
+| **Required interactions** | none |
+| **Accessibility** | progressbar role carrying the fraction as a percentage, so the arc is never the only thing conveying it. The figure inside is the remaining minutes. |
+| **Motion** | The arc does not animate; it redraws on each render. The delivery does not specify a sweep. |
+| **RTL** | Direction-neutral. The arc sweeps from the top in both schemes. |
+| **Responsive** | Fixed 64pt at every width, as delivered. |
+| **Implementation constraints** | The delivery draws this with a conic gradient, which React Native cannot express. Two clipped, rotated half-discs produce the same arc from platform primitives — no new dependency. A ring rather than a bar because nothing is being COMPLETED here: time is passing while several pharmacies decide. |
+
+
 ### `ProgressBar`
 
 How far along something is, as a bar rather than a spinner.
 
 | | |
 | --- | --- |
-| **Used by** | WaitingScreen (1 usages) |
+| **Used by** | — (0 usages) |
 | **Required variants** | `any fraction, clamped to 0..1` |
 | **Required interactions** | none |
 | **Accessibility** | progressbar role carrying a percentage, so the shape is never the only thing conveying the information. |
@@ -317,7 +334,7 @@ The one dominant action. At most one per screen, counted from the rendered tree 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen (13 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (14 usages) |
 | **Required variants** | `default`, `disabled`, `busy` |
 | **Required interactions** | press; long-press (undefined); disabled press (no-op, but the reason must be visible) |
 | **Accessibility** | accessibilityState carries disabled and busy. A disabled primary MUST have a visible explanation near it — the build checks that something readable is on screen. |
@@ -413,7 +430,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (93 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen (97 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |
@@ -429,7 +446,7 @@ Countdowns, prices, quantities, the reservation code.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen, WaitingScreen (7 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OffersScreen, ReservationScreen (6 usages) |
 | **Required variants** | `body`, `headline`, `title`, `display` |
 | **Required interactions** | none — but the reservation code should arguably be selectable |
 | **Accessibility** | Read as a number by screen readers; the reservation code is grouped in pairs so it can be read aloud. |
