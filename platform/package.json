@@ -1,0 +1,19 @@
+{
+  "name": "@dawai/platform",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "check": "npm run trace && npm run layers && npm run types && npm run test",
+    "trace": "node tools/trace-check.mjs",
+    "layers": "node tools/layer-check.mjs",
+    "types": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

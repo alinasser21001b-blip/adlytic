@@ -1,0 +1,68 @@
+# Stage 1 + Stage 4 gates. Every rule in the build directive that can be
+# machine-checked is checked here, including the negative tests that prove the
+# checkers reject what they must.
+name: Platform
+
+on:
+  pull_request:
+    paths: ["platform/**", "docs/product/v3/**", "docs/technical/**"]
+  push:
+    branches: ["**"]
+    paths: ["platform/**", "docs/product/v3/**", "docs/technical/**"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci || npm install
+
+      # Rule 1 — every module traces to Blueprint v3.
+      # Rule 2 — exactly one owner per module, one owner per concept.
+      - name: Traceability and ownership
+        run: npm run trace
+
+      # Rule 3 — no business logic outside the domain.
+      # Rule 4 — the domain is pure, so it cannot make an I/O decision.
+      - name: Layer boundaries
+        run: npm run layers
+
+      - name: Types
+        run: npm run types
+
+      # Rule 5 — state machines are audited for reachability and exits.
+      # Rule 7 — the domain is pure, so every rule tests without infrastructure.
+      - name: Tests
+        run: npm run test
+
+      # A guard that has never rejected anything is untested.
+      - name: Negative tests — the guards must reject known violations
+        run: |
+          set -u
+          mkdir -p packages/domain/src/_probe
+          cleanup() { rm -rf packages/domain/src/_probe; }
+          trap cleanup EXIT
+          expect_fail() {
+            if npm run "$2" --silent > /dev/null 2>&1; then
+              echo "::error::guard ACCEPTED a violation it must reject: $1"; exit 1
+            fi
+            echo "  rejected as expected: $1"
+          }
+          printf 'export const x = 1;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "a module with no docblock (Rule 1)" trace
+          printf '/**\n * @blueprint §99 nonsense\n * @owner nobody-service\n * @why probe\n */\nexport const x = 1;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "an unresolvable Blueprint reference (Rule 1)" trace
+          printf '/**\n * @blueprint §6\n * @owner marketplace-engine\n * @why probe\n * @implements marketplace/rules\n */\nexport const x = 1;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "duplicated ownership of a concept (Rule 2)" trace
+          printf '/**\n * @blueprint §6\n * @owner marketplace-engine\n * @why probe\n */\nexport const t = Date.now();\n' > packages/domain/src/_probe/p.ts
+          expect_fail "the domain reading the system clock (Rule 3, determinism)" layers
+          printf '/**\n * @blueprint §6\n * @owner marketplace-engine\n * @why probe\n */\nimport { readFileSync } from "node:fs";\nexport const t = readFileSync;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "the domain importing a Node built-in (Rule 3)" layers
+          echo "All negative tests passed: the guards reject what they must."
