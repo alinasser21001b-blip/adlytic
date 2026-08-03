@@ -45,9 +45,13 @@ function toCss(style: unknown): React.CSSProperties {
     // photograph an untransformed element and call it the truth.
     if (k === "transform" && Array.isArray(v)) {
       out["transform"] = v.map((t) => {
-        const [fn, arg] = Object.entries(t as Record<string, unknown>)[0];
+        // An empty transform entry would have crashed the renderer here.
+        // Skipping it is right: nothing to apply is not a transform.
+        const entry = Object.entries(t as Record<string, unknown>)[0];
+        if (!entry) return "";
+        const [fn, arg] = entry;
         return `${fn}(${typeof arg === "number" && !/^rotate/.test(fn) ? `${arg}px` : arg})`;
-      }).join(" ");
+      }).filter(Boolean).join(" ");
       continue;
     }
     if (k === "borderColor") { out["borderColor"] = v; out["borderStyle"] = "solid"; continue; }

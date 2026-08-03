@@ -62,7 +62,10 @@ new Function("window", readFileSync(resolve(REPO, "docs/product/v3/phase0.js"), 
 const PHASE0 = w["PHASE0"] as readonly Record<string, string>[];
 
 const byId = new Map(PHASE0.map((s) => [s["id"]!, s]));
-const built = CORE_LOOP.map((c) => c.id);
+/** Widened deliberately: this list is compared against Blueprint ids read from
+ *  JSON, which are plain strings. Keeping it as the ScreenId union would make
+ *  `includes` reject every one of them. */
+const built: readonly string[] = CORE_LOOP.map((c) => c.id);
 
 /** Measured, not asserted. The pairs a component can actually produce, run
  *  through the WCAG relative-luminance formula. */
@@ -97,7 +100,10 @@ const data = {
     blueprintStates: byId.get(c.id)?.["st"] ?? "—",
     back: c.back,
     primary: c.primary,
-    noPrimaryBecause: c.noPrimaryBecause ?? null,
+    // Optional in the contract, and CORE_LOOP is `as const`, so the members
+    // that do not declare it genuinely lack the key rather than holding
+    // undefined. Presence, not `??`.
+    noPrimaryBecause: "noPrimaryBecause" in c ? c.noPrimaryBecause : null,
     secondary: c.secondary,
     states: c.states,
     exits: c.exits.map((e) => ({ to: e, built: isBuilt(e) })),

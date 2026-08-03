@@ -1,0 +1,21 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../dist-tools",
+    "rootDir": "..",
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"],
+    "noEmit": false
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "references": [
+    { "path": "../packages/design" },
+    { "path": "../packages/domain" },
+    { "path": "../packages/navigation" },
+    { "path": "../packages/session" },
+    { "path": "../packages/offline" },
+    { "path": "../packages/net" },
+    { "path": "../apps/patient" }
+  ]
+}

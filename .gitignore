@@ -33,3 +33,8 @@ hub/.netlify/
 # Visual review — index.html and screenshots are the deliverable; the
 # intermediate render output is not.
 review/screens/
+
+# Type-check output for the review tooling. `tools/` is compiled so its five
+# .tsx files are checked like everything else; nothing consumes the emit —
+# vite-node runs the sources directly.
+platform/dist-tools/
