@@ -64,3 +64,50 @@ describe("D05 — deleting a guardian forces an explicit choice per dependent", 
     expect(isOk(r)).toBe(true);
   });
 });
+
+describe("D05 — a disposition list decides this guardian's subjects, exactly once each", () => {
+  it("a complete, well-formed list passes", () => {
+    const r = checkDispositions(["s1", "s2"], [
+      { subjectId: "s1", action: "transfer" },
+      { subjectId: "s2", action: "delete" },
+    ]);
+    expect(isOk(r)).toBe(true);
+  });
+
+  it("a subject this guardian does not manage is refused", () => {
+    // It used to be ACCEPTED and returned — an instruction to delete someone
+    // else's medical record, handed back to the caller as validated.
+    const r = checkDispositions(["s1"], [
+      { subjectId: "s1", action: "transfer" },
+      { subjectId: "not-mine", action: "delete" },
+    ]);
+    expect(isErr(r) && r.error.code).toBe("NOT_FOUND_OR_NOT_YOURS");
+  });
+
+  it("§5 rule 3 — a subject that does not exist fails the same way as one that is not yours", () => {
+    // Otherwise the refusal itself tells a caller which subject ids are real.
+    const notYours = checkDispositions(["s1"], [{ subjectId: "s2-belongs-to-someone", action: "delete" }]);
+    const notReal = checkDispositions(["s1"], [{ subjectId: "no-such-subject-anywhere", action: "delete" }]);
+    expect(isErr(notYours) && notYours.error.code).toBe(isErr(notReal) ? notReal.error.code : null);
+  });
+
+  it("one subject decided twice is refused — two choices is not one choice", () => {
+    // «transfer» and «delete» for the same person both passed, and nothing
+    // said which won.
+    const r = checkDispositions(["s1"], [
+      { subjectId: "s1", action: "transfer" },
+      { subjectId: "s1", action: "delete" },
+    ]);
+    expect(isErr(r)).toBe(true);
+  });
+
+  it("a subject left undecided is still refused, with how many", () => {
+    const r = checkDispositions(["s1", "s2"], [{ subjectId: "s1", action: "transfer" }]);
+    expect(isErr(r) && r.error.code).toBe("DEPENDENT_DISPOSITION_MISSING");
+    expect(isErr(r) && r.error.detail?.["count"]).toBe(1);
+  });
+
+  it("an empty list for a guardian with no managed subjects is fine", () => {
+    expect(isOk(checkDispositions([], []))).toBe(true);
+  });
+});

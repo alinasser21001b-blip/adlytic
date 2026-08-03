@@ -77,8 +77,40 @@ export function checkDispositions(
   managedSubjectIds: readonly string[],
   dispositions: readonly Disposition[],
 ): Result<readonly Disposition[], Refusal> {
-  const decided = new Set(dispositions.map((d) => d.subjectId));
-  const missing = managedSubjectIds.filter((id) => !decided.has(id));
+  const managed = new Set(managedSubjectIds);
+
+  /*
+   * Every subject in the list must be one this guardian actually manages.
+   *
+   * This checked only that every managed subject was DECIDED, and returned the
+   * list unchanged — so a disposition naming someone else's subject was
+   * accepted and handed back as an instruction to transfer or delete their
+   * record. `Marketplace.accept`, the same shape one module over, has always
+   * checked this direction and refuses with NOT_FOUND_OR_NOT_YOURS; this did
+   * not.
+   *
+   * §5 rule 3: a record that does not exist and a record that is not yours
+   * read identically, so no caller learns whether a subject id is real by
+   * being told which way it failed.
+   */
+  for (const d of dispositions)
+    if (!managed.has(d.subjectId))
+      return err(refuse(REFUSAL.NOT_FOUND_OR_NOT_YOURS, { subject: d.subjectId }));
+
+  /*
+   * And each is decided exactly once. Two entries for one subject — one
+   * "transfer", one "delete" — both passed, leaving the caller holding
+   * contradictory instructions about a person's medical record and no rule
+   * about which wins. D05 says the choice is explicit; two choices is not one.
+   */
+  const seen = new Set<string>();
+  for (const d of dispositions) {
+    if (seen.has(d.subjectId))
+      return err(refuse(REFUSAL.DEPENDENT_DISPOSITION_MISSING, { subject: d.subjectId, decidedTwice: true }));
+    seen.add(d.subjectId);
+  }
+
+  const missing = managedSubjectIds.filter((id) => !seen.has(id));
   if (missing.length)
     return err(refuse(REFUSAL.DEPENDENT_DISPOSITION_MISSING, { count: missing.length, first: missing[0]! }));
   return ok(dispositions);
