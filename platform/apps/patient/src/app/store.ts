@@ -146,7 +146,13 @@ export type Intent =
   /** The server's judgement of ONE challenge. The id travels with it because a
    *  verdict that cannot say which code it judged will be applied to whichever
    *  challenge happens to be current. */
-  | { readonly kind: "codeJudged"; readonly challengeId: string; readonly verdict: "correct" | "wrong" | "expired" | "exhausted"; readonly attemptsLeft?: number }
+  | { readonly kind: "codeJudged"; readonly challengeId: string; readonly verdict: "correct" | "expired" | "exhausted" }
+  /** A wrong code MUST carry the server's remaining count. It was optional, and
+   *  the reducer read a missing one as `?? 0` — which it treats as exhaustion,
+   *  so an omitted number told a patient their attempts were gone on the first
+   *  wrong digit. The count is the server's to state; a verdict that cannot
+   *  state it is not this verdict. */
+  | { readonly kind: "codeJudged"; readonly challengeId: string; readonly verdict: "wrong"; readonly attemptsLeft: number }
   /** The check never reached a verdict — the connection dropped, the server
    *  timed out, or it answered outside its own contract. NOT a verdict: the
    *  code has not been judged, so no attempt is spent and nothing is said
@@ -516,7 +522,7 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
           return { state: navigate(verified.state, "E7"), effects: verified.effects };
         }
         case "wrong": {
-          const left = intent.attemptsLeft ?? 0;
+          const left = intent.attemptsLeft;
           if (left <= 0) {
             const moved = move("attemptsExhausted");
             return done(isErr(moved) ? challenge : { ...challenge, state: moved.value, used: Verification.MAX_ATTEMPTS }, REFUSAL.ATTEMPTS_EXHAUSTED);
