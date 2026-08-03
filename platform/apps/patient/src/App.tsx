@@ -41,6 +41,20 @@ import type { Authority as _A } from "./app/store.js";
 export type Runtime = Ports & {
   readonly telemetry: TelemetrySink;
   readonly authority: () => Authority;
+  /**
+   * Where a failed effect goes.
+   *
+   * Required, not optional: an effect that rejects used to become an unhandled
+   * promise rejection — `void performEffect(...).then(...)` with no catch — so
+   * the one failure mode the runner is DESIGNED to produce, the exhaustiveness
+   * throw for an effect nobody wrote a runner for, arrived as a warning in a
+   * console nobody reads in production. Making it a required field means the
+   * entry point cannot be written without deciding where failures go.
+   *
+   * It takes the effect as well as the error, because "something threw" is not
+   * actionable and "verifyCode threw" is.
+   */
+  readonly onEffectFailed: (effect: Effect, cause: unknown) => void;
 };
 
 /**
@@ -112,7 +126,13 @@ const reduceRuntime = (rt: Runtime) => (prev: RuntimeState, action: RuntimeActio
  * loop is testable without React.
  */
 function perform(effect: Effect, rt: Runtime, send: (i: Intent) => void): void {
-  void performEffect(effect, rt).then((answer) => { if (answer) send(answer); });
+  void performEffect(effect, rt)
+    .then((answer) => { if (answer) send(answer); })
+    // A rejection here is a defect in the runner or a port, never a network
+    // condition — infra/http turns those into outcomes. Reporting it keeps the
+    // loop alive for every other effect: one broken runner must not stop the
+    // outbox flushing or a search resolving.
+    .catch((cause: unknown) => rt.onEffectFailed(effect, cause));
 }
 
 /** Platform intents this slice does not own. Wired when their slice lands;
