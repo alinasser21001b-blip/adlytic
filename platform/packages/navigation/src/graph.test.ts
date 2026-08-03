@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { buildGraph, unreachable, traps, danglingExits, resolveBack, stackFor, flowGaps, type NavScreen } from "./graph.js";
-import { PATIENT_FLOWS, auditFlow, progressAt } from "./flow.js";
+import { auditFlow, progressAt, type Flow } from "./flow.js";
 
 /** A fixture, not the app's contracts — a package must never import an app. */
 const screens: NavScreen[] = [
@@ -72,37 +72,78 @@ describe("a deep link resolves to a full stack, never a bare screen", () => {
   });
 });
 
+/**
+ * A flow of this package's own, not a persona's.
+ *
+ * These tests exercise the machinery — auditing, progress, skipped steps — and
+ * used the patient's real journey to do it. The patient's flows now live in the
+ * patient app, where their Arabic belongs, and the app asserts them against its
+ * own graph. Navigation keeps a fixture with the one shape that matters here:
+ * six steps, one of them optional.
+ */
+const FIXTURE: Flow = {
+  id: "fixture",
+  goal: "a journey with a stated goal",
+  bp: "§7",
+  steps: [
+    { screen: "A1", label: "first", optional: false },
+    { screen: "A2", label: "optional middle", optional: true },
+    { screen: "A3", label: "third", optional: false },
+    { screen: "A4", label: "fourth", optional: false },
+    { screen: "A5", label: "fifth", optional: false },
+    { screen: "A6", label: "last", optional: false },
+  ],
+  completesAt: "A7",
+  abandonsTo: "A0",
+};
+
 describe("flows complete inside the graph", () => {
-  it("every flow audits clean", () => {
-    for (const f of PATIENT_FLOWS) expect(auditFlow(f)).toEqual([]);
+  const screensFor = (ids: readonly string[]): NavScreen[] => ids.map((id) => ({
+    id, exits: [], back: { kind: "pop" }, destination: "today",
+  }));
+
+  it("a well-formed flow audits clean", () => {
+    expect(auditFlow(FIXTURE)).toEqual([]);
   });
-  it("no flow references a screen the graph does not have", () => {
-    expect(flowGaps(g, PATIENT_FLOWS)).toEqual([]);
+
+  it("a graph that renders every step reports no gap", () => {
+    // The terminals count too: a flow that completes or abandons onto a screen
+    // the graph lacks strands the user exactly where it matters most.
+    const full = buildGraph(screensFor([...FIXTURE.steps.map((s) => s.screen), "A7", "A0"]), ["A1"]);
+    expect(flowGaps(full, [FIXTURE])).toEqual([]);
+  });
+
+  it("a step the graph cannot render is reported — this is how R2 was caught", () => {
+    // The real defect this function exists for: the request flow declared a
+    // prescription-capture step the app could not render, which would have
+    // stranded every patient with a prescription-required line.
+    const missing = buildGraph(screensFor(["A1", "A2", "A3", "A4", "A5", "A7", "A0"]), ["A1"]);
+    expect(flowGaps(missing, [FIXTURE]).join(" ")).toContain("A6");
   });
 });
 
 describe("progress answers all four questions principle 2 asks", () => {
-  const flow = PATIENT_FLOWS[0]!;
+  const flow = FIXTURE;
   it("mid-flow: where, before, next, how far", () => {
-    const p = progressAt(flow, "R7", ["R2"]);
+    const p = progressAt(flow, "A4", ["A2"]);
     expect(p).not.toBeNull();
     expect(p!.stepIndex).toBe(3);
     expect(p!.totalSteps).toBe(5);
-    expect(p!.previous?.screen).toBe("R6");
-    expect(p!.next?.screen).toBe("R8");
-    expect(p!.goal).toMatch(/تحجزه/);
+    expect(p!.previous?.screen).toBe("A3");
+    expect(p!.next?.screen).toBe("A5");
+    expect(p!.goal).toBe(FIXTURE.goal);
   });
   it("a skipped optional step is not counted — the denominator is honest", () => {
-    const withPhoto = progressAt(flow, "R6", [])!;
-    const withoutPhoto = progressAt(flow, "R6", ["R2"])!;
-    expect(withPhoto.totalSteps).toBe(6);
-    expect(withoutPhoto.totalSteps).toBe(5);
-    expect(withoutPhoto.stepIndex).toBe(2);
+    const withOptional = progressAt(flow, "A3", [])!;
+    const withoutOptional = progressAt(flow, "A3", ["A2"])!;
+    expect(withOptional.totalSteps).toBe(6);
+    expect(withoutOptional.totalSteps).toBe(5);
+    expect(withoutOptional.stepIndex).toBe(2);
   });
   it("the last step has no next", () => {
-    expect(progressAt(flow, "V1", ["R2"])!.next).toBeNull();
+    expect(progressAt(flow, "A6", ["A2"])!.next).toBeNull();
   });
   it("a screen outside the flow reports no progress rather than a wrong one", () => {
-    expect(progressAt(flow, "S1")).toBeNull();
+    expect(progressAt(flow, "ZZ")).toBeNull();
   });
 });

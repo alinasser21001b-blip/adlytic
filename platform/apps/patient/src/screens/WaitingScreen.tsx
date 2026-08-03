@@ -17,7 +17,7 @@
  *      trusted. That sentence is the delivery's, not mine.
  */
 import { instant } from "@dawai/domain";
-import { PATIENT_FLOWS } from "@dawai/navigation";
+
 import { describe as describeItem, type OutboxItem } from "@dawai/offline";
 import { remaining, type Sent } from "../model/send.js";
 import { resolveView } from "../model/view.js";
@@ -27,6 +27,7 @@ import {
   Card, Dial, Grow, Label, Primary, Row, Screen, Secondary, Section, Spacer,
 } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const R7 = CORE_LOOP.find((c) => c.id === "R7")!;
 

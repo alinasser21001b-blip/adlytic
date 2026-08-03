@@ -8,8 +8,9 @@
  *      prescription-required line.
  */
 import { describe, it, expect } from "vitest";
-import { buildGraph, unreachable, traps, flowGaps, stackFor, resolveBack, guardDestinations, ROUTE_GUARDS, PATIENT_FLOWS, type NavScreen } from "@dawai/navigation";
+import { buildGraph, unreachable, traps, flowGaps, stackFor, resolveBack, guardDestinations, auditFlow, ROUTE_GUARDS, type NavScreen } from "@dawai/navigation";
 import { CORE_LOOP } from "./core-loop.contract.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const g = buildGraph(CORE_LOOP.map((c): NavScreen => ({
   id: c.id, exits: c.exits, back: c.back, destination: c.location.destination,
@@ -19,6 +20,11 @@ describe("the patient app's real graph", () => {
   it("has no unreachable screen", () => expect(unreachable(g)).toEqual([]));
   it("has no trap", () => expect(traps(g)).toEqual([]));
   it("renders every screen its flows declare", () => expect(flowGaps(g, PATIENT_FLOWS)).toEqual([]));
+  // The real journeys, audited where they now live. Navigation's own tests use
+  // a fixture; these are the ones a patient walks.
+  it("every patient flow audits clean", () => {
+    for (const f of PATIENT_FLOWS) expect(auditFlow(f), f.id).toEqual([]);
+  });
 });
 
 describe("arriving by notification never leaves the user with no way back", () => {

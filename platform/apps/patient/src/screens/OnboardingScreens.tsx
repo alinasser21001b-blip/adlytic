@@ -17,7 +17,7 @@
  *      worth it. Nothing here asks for more than the Blueprint names, and every
  *      failure says what to do next rather than what went wrong.
  */
-import { PATIENT_FLOWS } from "@dawai/navigation";
+
 import * as Onboarding from "../model/onboarding.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
@@ -27,6 +27,7 @@ import {
 } from "../ui/kit.js";
 import { Shake } from "../ui/motion.jsx";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 

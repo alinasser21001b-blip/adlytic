@@ -10,7 +10,7 @@
  *      word a refusal from the domain in place, keeping the rest of the draft.
  */
 import type { Refusal } from "@dawai/domain";
-import { PATIENT_FLOWS, type RedirectReason } from "@dawai/navigation";
+import { type RedirectReason } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
@@ -18,6 +18,7 @@ import { GRAPH, isBuilt } from "../app/store.js";
 import { Screen, Label, Bidi, Digits, Primary, Secondary, RedirectNote, Note, Actions, Row, Card, Spacer, StepButton } from "../ui/kit.js";
 import { word } from "../ui/refusal.js";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const R1 = CORE_LOOP.find((c) => c.id === "R1")!;
 

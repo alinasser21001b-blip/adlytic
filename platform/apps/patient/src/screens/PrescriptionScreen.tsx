@@ -10,13 +10,14 @@
  *      alternative is offered in the same breath, because a patient holding a
  *      prescription for a sick child should not have to go hunting in Settings.
  */
-import { PATIENT_FLOWS } from "@dawai/navigation";
+
 import * as Prescription from "../model/prescription.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
 import { Actions, InfoCard, Label, PhotoFrame, Primary, Screen, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 

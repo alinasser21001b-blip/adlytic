@@ -13,10 +13,11 @@ import * as Search from "../model/search.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
-import { PATIENT_FLOWS } from "@dawai/navigation";
+
 import { ActionCard, Actions, Bidi, InfoCard, Label, Screen, SearchField, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 import type { CatalogueHit } from "../ports.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 

@@ -16,7 +16,7 @@
  *      as an out-of-stock line goes, and a patient who believes refusing loses
  *      the order will agree to a brand they did not want.
  */
-import { PATIENT_FLOWS } from "@dawai/navigation";
+
 import * as Consent from "../model/consent.js";
 import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
@@ -24,6 +24,7 @@ import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
 import { Screen, Label, Bidi, Primary, Choice, InfoCard, Row, Spacer, Grow, Card, Section } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const R9 = CORE_LOOP.find((c) => c.id === "R9")!;
 

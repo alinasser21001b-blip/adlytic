@@ -12,7 +12,7 @@
  *      because nothing has been set aside yet.
  */
 import { instant } from "@dawai/domain";
-import { PATIENT_FLOWS } from "@dawai/navigation";
+
 import * as Reservation from "../model/reservation.js";
 import { formatPrice } from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
@@ -20,6 +20,7 @@ import { CORE_LOOP } from "./core-loop.contract.js";
 import { GRAPH } from "../app/store.js";
 import { Screen, Label, Digits, Primary, Secondary, InfoCard, CodePanel, FactRow, Row } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 

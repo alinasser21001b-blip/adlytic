@@ -11,7 +11,7 @@
  *      discovered after it (D27).
  */
 import { Marketplace, type Refusal } from "@dawai/domain";
-import { PATIENT_FLOWS, type RedirectReason } from "@dawai/navigation";
+import { type RedirectReason } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
@@ -19,6 +19,7 @@ import { GRAPH } from "../app/store.js";
 import { Card, Chip, Digits, Grow, Label, Note, Primary, RedirectNote, Row, Screen, Section } from "../ui/kit.js";
 import { word } from "../ui/refusal.js";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const R6 = CORE_LOOP.find((c) => c.id === "R6")!;
 

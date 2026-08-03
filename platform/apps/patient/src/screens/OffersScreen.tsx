@@ -21,7 +21,7 @@
  *      like the least. The delivery states the rule outright: «الحجز ما يصير
  *      قبل ما تأكد» — nothing is reserved before you confirm.
  */
-import { PATIENT_FLOWS } from "@dawai/navigation";
+
 import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
@@ -30,6 +30,7 @@ import { Screen, Label, ActionCard, InfoCard, Row, Spacer, Tag, Section } from "
 import { Enter } from "../ui/motion.jsx";
 import { motion } from "@dawai/design";
 import type { Theme } from "../ui/theme.js";
+import { PATIENT_FLOWS } from "./flows.js";
 
 const R8 = CORE_LOOP.find((c) => c.id === "R8")!;
 

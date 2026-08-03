@@ -6,7 +6,7 @@ import { dispatch, initial, GRAPH, NOT_YET_BUILT, type AppState, type Authority,
 import type { CatalogueHit, Environment } from "../ports.js";
 import { unreachable, traps, danglingExits, flowGaps, ROUTE_GUARDS } from "@dawai/navigation";
 import { sayRedirect } from "../ui/refusal.js";
-import { PATIENT_FLOWS } from "@dawai/navigation";
+import { PATIENT_FLOWS } from "../screens/flows.js";
 
 const env = (online = true): Environment => {
   let n = 0;

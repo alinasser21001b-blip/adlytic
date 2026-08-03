@@ -71,25 +71,6 @@ export function progressAt(
   };
 }
 
-/** Every flow a patient can be inside. Transcribed from Blueprint v3 §7. */
-export const PATIENT_FLOWS: readonly Flow[] = [
-  {
-    id: "request-medicine",
-    goal: "تطلب دواء وتحجزه من صيدلية قريبة",
-    bp: "§7.1 · §7.2 · §7.3",
-    steps: [
-      { screen: "R1", label: "تختار الدواء", optional: false },
-      { screen: "R2", label: "تصوّر الوصفة", optional: true },
-      { screen: "R6", label: "تأكيد وإرسال", optional: false },
-      { screen: "R7", label: "تنتظر الردود", optional: false },
-      { screen: "R8", label: "تختار العرض", optional: false },
-      { screen: "V1", label: "نحجز لك", optional: false },
-    ],
-    completesAt: "V2",
-    abandonsTo: "S1",
-  },
-];
-
 /**
  * Structural audit. A flow whose steps do not chain, or that lands nowhere,
  * would leave a user stranded mid-journey — which principle 2 forbids.

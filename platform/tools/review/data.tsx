@@ -14,7 +14,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 
 import { CORE_LOOP } from "../../apps/patient/src/screens/core-loop.contract.js";
 import { GRAPH, NOT_YET_BUILT, isBuilt } from "../../apps/patient/src/app/store.js";
-import { PATIENT_FLOWS, ROUTE_GUARDS, unreachable, traps, danglingExits, flowGaps } from "@dawai/navigation";
+import { ROUTE_GUARDS, unreachable, traps, danglingExits, flowGaps } from "@dawai/navigation";
+import { PATIENT_FLOWS } from "../../apps/patient/src/screens/flows.js";
 import { BUSINESS_EVENT } from "@dawai/observability";
 import { palettes, space, radius, tap, type as typeScale, CONTRACT_PAIRS, contrastRatio, CONTRAST, motion } from "@dawai/design";
 import { REFUSAL } from "@dawai/domain";
