@@ -32,7 +32,29 @@ export type FlushDeps = {
   /** Called after every state change so the store can persist and the UI can
    *  show R13 truthfully while the flush is still running. */
   readonly onChange: (outbox: Outbox) => void;
+  /**
+   * The live outbox, read back before each item is attempted.
+   *
+   * `onChange` only pushes OUT. Without a way back IN, a flush works from the
+   * private copy it started with, and a user who cancels a queued request on
+   * R13 mid-flush watches it send anyway — the code even claimed to re-read
+   * "the live outbox" while re-reading its own snapshot. Optional so a caller
+   * with no live store (the tests, a one-shot flush) is unaffected.
+   */
+  readonly current?: () => Outbox;
 };
+
+/**
+ * One flush at a time, per outbox.
+ *
+ * Two concurrent flushes both see an item as `queued`, both mark it sending,
+ * and both POST it. The idempotency key means the server keeps one write, but
+ * the second reply lands on an item the first already resolved and the later
+ * `onChange` snapshot overwrites the earlier — so the store's outbox goes
+ * backwards. A single lane is the only shape where "exactly once" is a
+ * property rather than a hope.
+ */
+let inFlight: Promise<Outbox> | null = null;
 
 /**
  * Deliver everything that is ready. Returns the final outbox.
@@ -41,7 +63,20 @@ export type FlushDeps = {
  * the outbox's ordering promise is per subject, and the simplest correct
  * implementation of "never overtake" is "one lane".
  */
-export async function flush(outbox: Outbox, deps: FlushDeps): Promise<Outbox> {
+export function flush(outbox: Outbox, deps: FlushDeps): Promise<Outbox> {
+  // Callers fire this on connectivity changes, app open and manual retry —
+  // all three can arrive together. Joining the run already in progress is
+  // right: its job is to deliver everything ready, which includes anything
+  // enqueued a moment ago.
+  if (inFlight) return inFlight;
+  inFlight = run(outbox, deps).finally(() => { inFlight = null; });
+  return inFlight;
+}
+
+/** Exposed for tests: a suite must be able to start from a known lane. */
+export const resetFlushLane = (): void => { inFlight = null; };
+
+async function run(outbox: Outbox, deps: FlushDeps): Promise<Outbox> {
   const policy = deps.policy ?? DEFAULT_POLICY;
   let current = outbox;
   /** Subjects whose head-of-line item gave up this run. Later items for the
@@ -50,8 +85,12 @@ export async function flush(outbox: Outbox, deps: FlushDeps): Promise<Outbox> {
 
   for (const head of readyToSend(current)) {
     if (blocked.has(head.subjectId)) continue;
-    // Re-read the item from the live outbox — onChange callers may have
-    // cancelled it between iterations.
+
+    // Read the LIVE outbox, not this run's copy. A cancellation that happened
+    // while the previous item was in flight has to be seen here or the user's
+    // "cancel" does nothing but move a label.
+    if (deps.current) current = merge(current, deps.current());
+
     const item = current.items.find((i) => i.id === head.id);
     if (!item || item.state !== "queued") continue;
 
@@ -64,6 +103,26 @@ export async function flush(outbox: Outbox, deps: FlushDeps): Promise<Outbox> {
     if (after && (after.state === "queued" || after.state === "rejected")) blocked.add(item.subjectId);
   }
   return current;
+}
+
+/**
+ * The live outbox wins on membership; this run wins on the item it is holding.
+ *
+ * Both statements matter. The store may have enqueued or cancelled since this
+ * run began, so its item set is authoritative — but the store has not seen the
+ * attempt counter this run just incremented, so for the item being delivered
+ * the in-flight copy is newer. Taking one side wholesale loses one or the
+ * other.
+ */
+function merge(mine: Outbox, live: Outbox): Outbox {
+  return {
+    items: live.items.map((theirs) => {
+      const ours = mine.items.find((i) => i.id === theirs.id);
+      // A terminal decision the store made — cancelled — always wins.
+      if (!ours || theirs.state === "cancelled") return theirs;
+      return ours.attempts > theirs.attempts ? ours : theirs;
+    }),
+  };
 }
 
 async function deliver(outbox: Outbox, item: OutboxItem, deps: FlushDeps, policy: RetryPolicy): Promise<Outbox> {

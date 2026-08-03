@@ -9,13 +9,13 @@
  *      answers exactly what the API contract declares and nothing else, so a
  *      port that guesses beyond the contract fails against it.
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { instant } from "@dawai/domain";
-import { empty, enqueue, type Outbox } from "@dawai/offline";
+import { empty, enqueue, cancel, type Outbox } from "@dawai/offline";
 import { makeHttp, type Fetch } from "./http.js";
 import { makeIdentity } from "./identity.js";
 import { makeCatalogue, type SearchCache } from "./catalogue.js";
-import { flush } from "./flush.js";
+import { flush, resetFlushLane } from "./flush.js";
 import { perform, type Ports } from "./perform.js";
 import { dispatch, initial, type AppState, type Authority } from "../app/store.js";
 import type { Environment } from "../ports.js";
@@ -113,6 +113,9 @@ describe("the catalogue port keeps F2's offline promise", () => {
 });
 
 describe("the flusher", () => {
+  // The delivery lane is module state, so a suite must start from a known one.
+  beforeEach(() => resetFlushLane());
+
   const queued = (): Outbox => enqueue(empty(), {
     id: "o-1", operation: "POST /v1/requests", label: "طلب بانادول",
     payload: { subjectId: "s1" }, idempotencyKey: "key-1", queuedAt: 1_000, subjectId: "s1",
@@ -151,6 +154,57 @@ describe("the flusher", () => {
     });
     expect(out.items[0]?.state).toBe("queued");
     expect(s.calls.length).toBe(6);
+  });
+
+  it("does NOT send an item the user cancelled while an earlier one was in flight", async () => {
+    // The defect this replaces: flush threaded a private copy and re-read
+    // ITSELF, so a cancel on R13 during a flush moved a label and the request
+    // went anyway. The cancel has to happen mid-run, because that is the only
+    // moment the two copies can disagree.
+    let box = enqueue(empty(), {
+      id: "o-1", operation: "POST /v1/requests", label: "أ",
+      payload: {}, idempotencyKey: "k-1", queuedAt: 1, subjectId: "s1",
+    });
+    box = enqueue(box, {
+      id: "o-2", operation: "POST /v1/requests", label: "ب",
+      payload: {}, idempotencyKey: "k-2", queuedAt: 2, subjectId: "s2",
+    });
+
+    let live = box;
+    // ONE response scripted. A second call means o-2 was delivered, and the
+    // scripted server throws rather than inventing an answer.
+    const s = server([{ status: 201, body: {} }]);
+    const out = await flush(box, {
+      http: makeHttp("https://api", s.fetchImpl),
+      random: () => 0, sleep: noSleep,
+      onChange: (o) => {
+        // The user presses cancel on o-2 while o-1 is being delivered.
+        live = cancel(o, "o-2");
+      },
+      current: () => live,
+    });
+
+    expect(s.calls.length, "the cancelled item was delivered anyway").toBe(1);
+    expect(out.items.find((i) => i.id === "o-2")?.state).toBe("cancelled");
+    expect(out.items.find((i) => i.id === "o-1")?.state).toBe("accepted");
+  });
+
+  it("runs one lane: a second flush joins the first rather than double-posting", async () => {
+    // Two concurrent flushes both saw an item as queued, both marked it
+    // sending, and both POSTed it — the server deduplicated on the key, but
+    // the later onChange snapshot dragged the store's outbox backwards.
+    let released: () => void = () => {};
+    const gate = new Promise<void>((r) => { released = r; });
+    let calls = 0;
+    const slow: Fetch = async (_u, _i) => { calls += 1; await gate; return { status: 201, text: async () => "{}" }; };
+
+    const a = flush(queued(), { http: makeHttp("https://api", slow), random: () => 0, sleep: noSleep, onChange: () => {} });
+    const b = flush(queued(), { http: makeHttp("https://api", slow), random: () => 0, sleep: noSleep, onChange: () => {} });
+    released();
+    const [ra, rb] = await Promise.all([a, b]);
+
+    expect(calls, "the same item was POSTed twice by concurrent flushes").toBe(1);
+    expect(rb).toBe(ra); // the second call joined the first, it did not start a run
   });
 
   it("never lets one subject's stuck item strand another subject's", async () => {
