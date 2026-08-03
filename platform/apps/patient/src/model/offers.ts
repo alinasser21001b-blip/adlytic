@@ -12,7 +12,7 @@
  *      patient cannot audit, and D11 already replaced a decimal reliability
  *      figure with a band for exactly that reason.
  */
-import { Marketplace, isErr, type Instant, type Refusal } from "@dawai/domain";
+import { Marketplace, isErr, type Refusal } from "@dawai/domain";
 
 /**
  * Who proposed a substitution, and on what authority.
@@ -240,6 +240,22 @@ export function describeHonoured(band: Marketplace.HonouredBand | null): { reado
   }
 }
 
-/** D09 — offers stop being choosable when the request window closes. */
-export const windowClosed = (windowEndsAt: Instant | null, now: Instant): boolean =>
-  windowEndsAt !== null && now >= windowEndsAt;
+/*
+ * D09 — "offers stop being choosable when the request window closes" — used to
+ * live here as `windowClosed(windowEndsAt, now)`. It is deleted rather than
+ * wired up, because the rule is already enforced and this was a second way to
+ * answer the same question.
+ *
+ * The server closes the window by moving each offer's own state: POST
+ * /v1/offers/{id}/accept declares 409 offer_withdrawn and 409 offer_expired and
+ * NO window error, so a closed window reaches the client as `expired` or
+ * `not_chosen`, and `refusalFor` above already refuses both. `accept()` calls
+ * it before anything else.
+ *
+ * Keeping a client-side copy would have been worse than useless. It compares a
+ * stored `windowEndsAt` against the DEVICE's clock, so a phone running a few
+ * minutes fast would decide an offer was closed while the server still held it
+ * open — the app refusing a reservation the pharmacy was willing to make, with
+ * no way for the patient to tell why. When two answers exist for one rule, the
+ * one the server did not give is the wrong one.
+ */

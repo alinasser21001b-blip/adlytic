@@ -144,3 +144,26 @@ describe("how facts are worded", () => {
     expect(Offers.formatPrice(8_500)).not.toBe(Offers.formatPrice(9_000));
   });
 });
+
+describe("D09 — a closed window reaches the client as the offer's own state", () => {
+  it("every non-`sent` state refuses, so a closed window cannot be accepted", () => {
+    // The server closes the window by moving each offer's state; the accept
+    // endpoint declares no window error. These four ARE the closed window.
+    for (const state of ["withdrawn", "expired", "not_chosen", "accepted"] as const)
+      expect(Offers.refusalFor(offer({ state })), state).not.toBeNull();
+    expect(Offers.refusalFor(offer({ state: "sent" }))).toBeNull();
+  });
+
+  it("accept refuses a closed offer before it looks at the lines", () => {
+    // Even a perfectly valid line selection cannot get past a stale offer.
+    const r = Offers.accept(offer({ state: "expired" }), ["l1"]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.refusal.code).toBe("OFFER_EXPIRED");
+  });
+
+  it("a not_chosen offer reads as expired to the patient, not as a rejection", () => {
+    // «انتهى وقت هذا العرض» — the window closed, which is not the same as the
+    // pharmacy having refused them.
+    expect(Offers.refusalFor(offer({ state: "not_chosen" }))?.code).toBe("OFFER_EXPIRED");
+  });
+});
