@@ -777,18 +777,20 @@ export function StateBlock(
       );
     default: {
       /**
-       * A new StateTreatment kind is a COMPILE error, not a blank space.
+       * What this adds, precisely — because the obvious claim is wrong.
        *
-       * The switch had no default at all. Its docstring said it "cannot fall
-       * through to a generic message", which was true and beside the point: it
-       * fell through to `undefined`, which React renders as nothing. A screen
-       * declaring a state the Blueprint added would have shown the patient an
-       * empty area where the treatment belongs — the quietest possible failure,
-       * on the states that exist precisely to explain what went wrong.
+       * A missing case was ALREADY a compile error: `noImplicitReturns` gives
+       * "TS7030: Not all code paths return a value" on this function. It never
+       * silently rendered a blank space, and saying so would be inventing a
+       * defect to justify a guard.
        *
-       * ux-check catches a screen that declares a state with no treatment. It
-       * cannot catch a treatment KIND that no renderer handles, because that is
-       * a fact about this file rather than about a contract.
+       * Two things it does add. The message names the kind that has no
+       * renderer, instead of pointing at the function and leaving the reader to
+       * find which branch is missing. And it holds at RUNTIME, where the type
+       * system is a promise rather than a proof: a treatment reaching this
+       * component from a cache written by an older build, or from a server
+       * response, is only a StateTreatment because something upstream said so.
+       * Everywhere else that boundary is now validated; here it throws.
        */
       const unhandled: never = treatment;
       throw new Error(`no treatment renderer for ${JSON.stringify(unhandled)}`);
