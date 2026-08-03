@@ -73,5 +73,16 @@ export default defineConfig({
     },
   },
   server: { port: 5173, strictPort: false, host: true },
-  build: { outDir: at("../../dist-web"), emptyOutDir: true },
+  /**
+   * The build needs the entry named outright. `appAtRoot` above answers the
+   * front door in DEVELOPMENT only — it is a `configureServer` middleware, and
+   * rollup never sees it — so with vite's root at the platform directory the
+   * build looked for `platform/index.html`, found nothing, and failed on every
+   * invocation. A build script that cannot build is worse than no script.
+   */
+  build: {
+    outDir: at("../../dist-web"),
+    emptyOutDir: true,
+    rollupOptions: { input: at("./web/index.html") },
+  },
 });
