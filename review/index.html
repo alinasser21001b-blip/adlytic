@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 16:59 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 17:09 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1207,7 +1207,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">1078 passed (1078)</div></div>
+  <div class="note mono">1081 passed (1081)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Test reach</b> — <span class="tag ok">PASS</span>
@@ -1561,9 +1561,9 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
     <div><div class="kpi">83<small>source files</small></div></div>
-    <div><div class="kpi">11,750<small>source lines</small></div></div>
+    <div><div class="kpi">11,806<small>source lines</small></div></div>
     <div><div class="kpi">0.55×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">5.47s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">5.61s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1611,8 +1611,8 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td class="note">Device build</td>
 </tr><tr>
   <td class="mono">TD-3</td>
-  <td>Motion tokens are declared but no transition is implemented. State changes are instant.</td>
-  <td class="note">The app reads as a series of jumps rather than a continuous surface — the single largest remaining gap against 'feels native'.</td>
+  <td>SCREEN transitions are not implemented; element-level motion is. This item used to say no transition existed at all, which was wrong and understated the code while overstating the gap: `Enter`, `Pulse` and `Shake` are real Animated components with native-driver and reduced-motion support, and they are used on eight call sites. What has no consumer is navigation. Measured: 13 motion tokens are declared and 2 are spent — `errorShake` and `offerArrival`. The other 11 include every one that describes moving between screens — screenPush, sheetPresent, sheetDrag — so the app root swaps a component per `state.screen` with nothing in between.</td>
+  <td class="note">Going from a request to the sign-in ask, or from the wait to the offers, is a cut rather than a movement, and §27 says each of those tokens TEACHES something — screenPush teaches where you are in the hierarchy, sheetPresent teaches that a thing is temporary and layered above. Losing that is losing the one cue that tells a patient whether they went deeper or sideways. Within a screen the product already moves: a field shakes when it is wrong, content enters, a countdown pulses.</td>
   <td><span class="tag warn">high</span></td>
   <td class="mono">patient-app</td>
   <td class="note">Next polish pass</td>
@@ -1625,11 +1625,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td class="note">Device build — push notifications</td>
 </tr><tr>
   <td class="mono">TD-20</td>
-  <td>R7's «ألغِ الطلب» does not cancel anything. The SCREEN contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: no intent, no call, no transition. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.</td>
-  <td class="note">A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. This item first said the behaviour was unstated and therefore blocked; that was wrong, and read only the screen contract. `POST /v1/requests/{id}/cancel` is declared in the API model (§4 R7 — 200 { request }, 404 not_found_or_not_yours, 409 already_accepted), so the client half is buildable against a route that already exists. What remains unstated is only what a pharmacy that already answered is told, which belongs to the notification service rather than to this control.</td>
+  <td>R7's «ألغِ الطلب» does not cancel anything: the screen contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else — no intent, no call, no transition. The request stays broadcast to every pharmacy that was asked. TWO CORRECTIONS to this item, both recorded rather than overwritten. It first said the behaviour was unstated and therefore blocked; that read only the screen contract and was wrong — `POST /v1/requests/{id}/cancel` is declared in the API model (§4 R7 — 200 { request }, 404 not_found_or_not_yours, 409 already_accepted). It then said the client half was buildable; that was wrong too, and this is the real finding: the API contract and the §6 state machine DISAGREE. A patient on R7 is in `broadcast` or `answered`, and the Request machine has no outgoing edge for a cancellation from either. Its only two are `cancelFromOutbox` (queued → draft, D27 — a request that never left the device) and `abandon` (unanswered or partially_filled → closed). The domain model agrees with the machine and not the endpoint: it lists eight Request states and the producer of each, and no state is produced by that route.</td>
+  <td class="note">A control that states an outcome and produces none, on a live request other people are working on — a patient who wants to stop a request believes they have. It cannot be built: calling the endpoint would return a request in a state the client has no edge to reach, and adding that edge is inventing a state transition, which Rule 5 and the forbidden list both refuse. This is not a gap in the Blueprint but a contradiction between two frozen documents, and it needs one of them to move: either §6 gains the transition, or §4 R7 loses the control.</td>
   <td><span class="tag warn">high</span></td>
   <td class="mono">marketplace-engine</td>
-  <td class="note">Next — the cancel contract exists</td>
+  <td class="note">Blocked — the API contract and the §6 machine disagree</td>
 </tr><tr>
   <td class="mono">TD-17</td>
   <td>The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.</td>

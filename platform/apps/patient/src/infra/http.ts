@@ -18,6 +18,17 @@
  */
 import { classify, type Outcome } from "@dawai/net";
 
+/**
+ * The reason a cancelled call carries.
+ *
+ * A constant rather than a literal because two modules have to agree on it and
+ * they are not next to each other: this one produces it, and a caller that
+ * supersedes its own request has to recognise it in order to tell "the patient
+ * moved on" apart from "the network failed". A string typed twice is a string
+ * that can be corrected once.
+ */
+export const CANCELLED = "cancelled";
+
 export type HttpResponse = {
   readonly status: number;
   readonly outcome: Outcome;
@@ -73,7 +84,7 @@ export function makeHttp(baseUrl: string, fetchImpl: Fetch, session?: () => stri
       // BEFORE the network case, because an AbortError is an Error like any
       // other and would otherwise read as a dropped connection.
       const aborted = signal?.aborted === true || (e instanceof Error && e.name === "AbortError");
-      if (aborted) return { status: 0, outcome: { kind: "permanent", reason: "cancelled" }, body: null };
+      if (aborted) return { status: 0, outcome: { kind: "permanent", reason: CANCELLED }, body: null };
 
       // No status at all: the request never completed. On this product's
       // networks that is Tuesday, and it is always worth retrying.

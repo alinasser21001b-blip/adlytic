@@ -421,3 +421,92 @@ describe("a row the clinical gate cannot judge is never offered", () => {
     expect(r.kind === "cached" && r.value.hits[0]!.itemId).toBe("i1");
   });
 });
+
+describe("a search supersedes the one before it", () => {
+  const memoryCache = (): SearchCache => {
+    const store = new Map<string, { value: never; at: number }>();
+    return {
+      read: async (q) => store.get(q) ?? null,
+      write: async (q, value, at) => { store.set(q, { value, at } as never); },
+    };
+  };
+
+  /** A fetch that never settles until told to, so two searches can genuinely
+   *  overlap rather than being racy by luck of the microtask queue. */
+  const heldFetch = () => {
+    const opened: { url: string; signal?: AbortSignal; settle: (body: unknown) => void }[] = [];
+    const fetchImpl = ((url: string, init: { signal?: AbortSignal }) =>
+      new Promise((resolve, reject) => {
+        const entry = {
+          url: String(url),
+          ...(init.signal === undefined ? {} : { signal: init.signal }),
+          settle: (body: unknown) => resolve({ status: 200, text: async () => JSON.stringify(body) }),
+        };
+        opened.push(entry);
+        init.signal?.addEventListener("abort", () => {
+          const err = new Error("aborted");
+          err.name = "AbortError";
+          reject(err);
+        });
+      })) as never;
+    return { opened, fetchImpl };
+  };
+
+  const hit = {
+    itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500",
+    requestable: true, requiresPrescription: false, isControlled: false,
+  };
+
+  it("typing another letter aborts the request for what came before", async () => {
+    // The store already refused to DISPLAY a late answer; nothing stopped it
+    // being asked for. Typing «بانادول» opened seven concurrent requests and
+    // threw six answers away — on the data plans this product is for.
+    const s = heldFetch();
+    const port = makeCatalogue(makeHttp("https://api", s.fetchImpl), memoryCache(), () => 5_000);
+
+    const first = port.search("بان");
+    const second = port.search("بانادول");
+    s.opened[1]!.settle({ hits: [hit], at: 1 });
+
+    const a = await first;
+    const b = await second;
+
+    expect(s.opened).toHaveLength(2);
+    expect(a.kind, "the superseded search should have been abandoned").toBe("failed");
+    expect(b.kind).toBe("fresh");
+  });
+
+  it("a cancelled search never falls back to the cache", async () => {
+    // The fallback exists because the network failed someone who is still
+    // waiting. Nobody is waiting for a query they have typed past, and an
+    // age-labelled cached answer to it would re-enter a race it had left.
+    const cache = memoryCache();
+    await cache.write("بان", { hits: [hit], at: 1 }, 1);
+
+    const s = heldFetch();
+    const port = makeCatalogue(makeHttp("https://api", s.fetchImpl), cache, () => 5_000);
+
+    const first = port.search("بان");
+    const second = port.search("بانادول");
+    s.opened[1]!.settle({ hits: [hit], at: 1 });
+
+    expect((await first).kind, "a cancelled search answered from cache").toBe("failed");
+    await second;
+  });
+
+  it("a caller with its own signal is left alone", async () => {
+    // Superseding is for the ordinary case, where the caller is a keystroke and
+    // has no opinion about the lifetime. A caller that brought a signal owns it.
+    const s = heldFetch();
+    const port = makeCatalogue(makeHttp("https://api", s.fetchImpl), memoryCache(), () => 5_000);
+
+    const mine = new AbortController();
+    const first = port.search("بان", mine.signal);
+    const second = port.search("بانادول", mine.signal);
+    s.opened[0]!.settle({ hits: [hit], at: 1 });
+    s.opened[1]!.settle({ hits: [hit], at: 1 });
+
+    expect((await first).kind).toBe("fresh");
+    expect((await second).kind).toBe("fresh");
+  });
+});

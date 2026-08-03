@@ -37,8 +37,8 @@ export const DEBT = [
   },
   {
     id: "TD-3",
-    description: "Motion tokens are declared but no transition is implemented. State changes are instant.",
-    impact: "The app reads as a series of jumps rather than a continuous surface — the single largest remaining gap against 'feels native'.",
+    description: "SCREEN transitions are not implemented; element-level motion is. This item used to say no transition existed at all, which was wrong and understated the code while overstating the gap: `Enter`, `Pulse` and `Shake` are real Animated components with native-driver and reduced-motion support, and they are used on eight call sites. What has no consumer is navigation. Measured: 13 motion tokens are declared and 2 are spent — `errorShake` and `offerArrival`. The other 11 include every one that describes moving between screens — screenPush, sheetPresent, sheetDrag — so the app root swaps a component per `state.screen` with nothing in between.",
+    impact: "Going from a request to the sign-in ask, or from the wait to the offers, is a cut rather than a movement, and §27 says each of those tokens TEACHES something — screenPush teaches where you are in the hierarchy, sheetPresent teaches that a thing is temporary and layered above. Losing that is losing the one cue that tells a patient whether they went deeper or sideways. Within a screen the product already moves: a field shakes when it is wrong, content enters, a countdown pulses.",
     priority: "high",
     owner: "patient-app",
     slice: "Next polish pass",
@@ -55,11 +55,11 @@ export const DEBT = [
   },
   {
     id: "TD-20",
-    description: "R7's «ألغِ الطلب» does not cancel anything. The SCREEN contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: no intent, no call, no transition. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.",
-    impact: "A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. This item first said the behaviour was unstated and therefore blocked; that was wrong, and read only the screen contract. `POST /v1/requests/{id}/cancel` is declared in the API model (§4 R7 — 200 { request }, 404 not_found_or_not_yours, 409 already_accepted), so the client half is buildable against a route that already exists. What remains unstated is only what a pharmacy that already answered is told, which belongs to the notification service rather than to this control.",
+    description: "R7's «ألغِ الطلب» does not cancel anything: the screen contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else — no intent, no call, no transition. The request stays broadcast to every pharmacy that was asked. TWO CORRECTIONS to this item, both recorded rather than overwritten. It first said the behaviour was unstated and therefore blocked; that read only the screen contract and was wrong — `POST /v1/requests/{id}/cancel` is declared in the API model (§4 R7 — 200 { request }, 404 not_found_or_not_yours, 409 already_accepted). It then said the client half was buildable; that was wrong too, and this is the real finding: the API contract and the §6 state machine DISAGREE. A patient on R7 is in `broadcast` or `answered`, and the Request machine has no outgoing edge for a cancellation from either. Its only two are `cancelFromOutbox` (queued → draft, D27 — a request that never left the device) and `abandon` (unanswered or partially_filled → closed). The domain model agrees with the machine and not the endpoint: it lists eight Request states and the producer of each, and no state is produced by that route.",
+    impact: "A control that states an outcome and produces none, on a live request other people are working on — a patient who wants to stop a request believes they have. It cannot be built: calling the endpoint would return a request in a state the client has no edge to reach, and adding that edge is inventing a state transition, which Rule 5 and the forbidden list both refuse. This is not a gap in the Blueprint but a contradiction between two frozen documents, and it needs one of them to move: either §6 gains the transition, or §4 R7 loses the control.",
     priority: "high",
     owner: "marketplace-engine",
-    slice: "Next — the cancel contract exists",
+    slice: "Blocked — the API contract and the §6 machine disagree",
     status: "open",
   },
   {

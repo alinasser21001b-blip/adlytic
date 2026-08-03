@@ -14,6 +14,7 @@
  *      encrypted cache to die with the session key — which only an injected
  *      store can honour.
  */
+import { CANCELLED } from "./http.js";
 import type { Http } from "./http.js";
 import type { CatalogueHit, CataloguePort, Fetched, SearchResponse } from "../ports.js";
 
@@ -65,9 +66,53 @@ const usableHits = (value: SearchResponse): SearchResponse =>
   ({ ...value, hits: value.hits.filter(isHit) });
 
 export function makeCatalogue(http: Http, cache: SearchCache, now: () => number): CataloguePort {
+  /**
+   * The search still in the air, if any.
+   *
+   * A search supersedes: the moment a patient types another letter, the answer
+   * to what they typed before is an answer to a question they have stopped
+   * asking. The store already refuses to DISPLAY a late one — `resolved` drops
+   * any response whose query is not the current one — but nothing stopped it
+   * being made. Typing «بانادول» opened seven concurrent requests and threw
+   * six answers away, on the networks and the data plans this product is for.
+   *
+   * `http` has always handled aborts with care — naming them separately from a
+   * dropped connection, because "the caller changed its mind" must not be
+   * retried — and nothing in the app had ever created an AbortController, so
+   * that path was unreachable code.
+   */
+  let inFlight: AbortController | null = null;
+
   return {
     async search(query, signal): Promise<Fetched<SearchResponse>> {
-      const res = await http.get(`/v1/catalogue/search?q=${encodeURIComponent(query)}`, signal);
+      // A caller with its own signal owns the lifetime; superseding is for the
+      // ordinary case, where the caller is a keystroke and has no opinion.
+      let own: AbortController | null = null;
+      if (signal === undefined) {
+        inFlight?.abort();
+        own = new AbortController();
+        inFlight = own;
+      }
+
+      const res = await http.get(
+        `/v1/catalogue/search?q=${encodeURIComponent(query)}`,
+        signal ?? own?.signal,
+      );
+      if (own !== null && inFlight === own) inFlight = null;
+
+      /**
+       * A cancelled search is not a failed one, and must not fall through to
+       * the cache.
+       *
+       * The fallback below exists because the network failed a patient who is
+       * still waiting. Nobody is waiting for this one — they typed something
+       * else — and answering it from the cache would put a stale, age-labelled
+       * result into a race it should have left. It reaches the store as a
+       * failure and the store drops it by query, which is the same outcome the
+       * request never having been made would have had.
+       */
+      if (res.outcome.kind === "permanent" && res.outcome.reason === CANCELLED)
+        return { kind: "failed", outcome: res.outcome };
 
       if (res.outcome.kind === "accepted") {
         const body = (res.body ?? {}) as Record<string, unknown>;
