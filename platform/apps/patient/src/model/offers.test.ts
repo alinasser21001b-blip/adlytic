@@ -167,3 +167,53 @@ describe("D09 — a closed window reaches the client as the offer's own state", 
     expect(Offers.refusalFor(offer({ state: "not_chosen" }))?.code).toBe("OFFER_EXPIRED");
   });
 });
+
+describe("D19 — a substitution carries its author across to consent", () => {
+  /** A real substitute line, not a cast: the type requires substituteName,
+   *  substituteLatinName and proposedBy, and a fixture that omits them tests a
+   *  shape the product cannot produce. */
+  const sub = (): Offers.OfferLine => ({
+    requestLineId: "l2", itemName: "بانادول", latinName: "Panadol",
+    answer: { kind: "substitute", priceMinor: 2_500, itemId: "x1", note: "نفس المادة الفعالة" },
+    substituteName: "سيتامول", substituteLatinName: "Cetamol",
+    proposedBy: { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" },
+  });
+
+  it("recognises a substitution through the nested discriminant", () => {
+    // Narrowing `l.answer.kind` inline stopped working the moment a second
+    // variant gained a field, which is why the guard exists.
+    expect(Offers.isSubstitute(sub())).toBe(true);
+    expect(Offers.isSubstitute(line("l1", "بانادول", { kind: "available", priceMinor: 3_000 }))).toBe(false);
+    expect(Offers.isSubstitute(line("l3", "دواء", { kind: "unavailable", reason: "out_of_stock" }))).toBe(false);
+  });
+
+  it("derives only the substituted lines, in the shape consent needs", () => {
+    const o = offer({ lines: [
+      line("l1", "بانادول", { kind: "available", priceMinor: 3_000 }),
+      sub(),
+      line("l3", "دواء", { kind: "unavailable", reason: "out_of_stock" }),
+    ] });
+    const subs = Offers.substitutionsOf(o);
+    expect(subs).toHaveLength(1);
+    expect(subs[0]!.requestLineId).toBe("l2");
+    expect(subs[0]!.requestedName).toBe("بانادول");
+    expect(subs[0]!.offeredName).toBe("سيتامول");
+  });
+
+  it("carries the pharmacist's note VERBATIM — the app never paraphrases a clinical statement", () => {
+    const subs = Offers.substitutionsOf(offer({ lines: [sub()] }));
+    expect(subs[0]!.pharmacistNote).toBe("نفس المادة الفعالة");
+  });
+
+  it("carries the author through — a clinical claim with no author cannot be weighed", () => {
+    // D19: the substitution is proposed by a named pharmacist whose licence
+    // status the patient can see. Dropping it here would strip the one thing
+    // R9 needs to show.
+    const subs = Offers.substitutionsOf(offer({ lines: [sub()] }));
+    expect(subs[0]!.proposedBy).toEqual({ name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" });
+  });
+
+  it("an offer with no substitution yields none", () => {
+    expect(Offers.substitutionsOf(offer())).toEqual([]);
+  });
+});
