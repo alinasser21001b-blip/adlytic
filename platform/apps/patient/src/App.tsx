@@ -41,26 +41,61 @@ export type Runtime = {
  * effect can never observe a state the user has not been shown.
  */
 export function usePatientApp(rt: Runtime) {
-  const [state, setState] = React.useState<AppState>(initial);
-  const pending = React.useRef<readonly Effect[]>([]);
+  /**
+   * State and its pending effects move together, in ONE reducer.
+   *
+   * The previous version pushed effects onto a ref from inside the `setState`
+   * updater. An updater must be pure: React re-invokes it — twice on every
+   * render under StrictMode, and again when a concurrent render is discarded
+   * and replayed — so every re-invocation appended the same effects again. The
+   * observable failure is a patient receiving two verification SMS for one tap
+   * and the outbox being flushed twice concurrently; the telemetry double-count
+   * is the harmless end of the same bug.
+   *
+   * Carrying effects IN the state makes the updater a pure function of its
+   * input, which is what React requires and what the store already was.
+   */
+  const [runtimeState, act] = React.useReducer(reduceRuntime(rt), INITIAL_RUNTIME);
 
-  const send = React.useCallback((intent: Intent) => {
-    setState((current) => {
-      const step = dispatch(current, intent, rt.env, rt.authority());
-      pending.current = [...pending.current, ...step.effects];
-      return step.state;
-    });
-  }, [rt]);
+  const send = React.useCallback((intent: Intent) => act({ kind: "intent", intent }), []);
 
   React.useEffect(() => {
-    const effects = pending.current;
+    const { effects } = runtimeState;
     if (!effects.length) return;
-    pending.current = [];
     for (const effect of effects) perform(effect, rt, send);
-  });
+    // Drained by identity, not by count: if another intent landed between the
+    // render and this effect, its effects are a DIFFERENT array and survive.
+    act({ kind: "drained", drained: effects });
+  }, [runtimeState.effects, rt, send]);
 
-  return { state, send };
+  return { state: runtimeState.state, send };
 }
+
+/**
+ * The runtime's own action type — deliberately not the store's `Intent`.
+ *
+ * Draining performed effects is a fact about this host, not a thing that
+ * happened to a patient, and putting it in the product's intent union would
+ * make the reducer answer a question the Blueprint never asked.
+ */
+type RuntimeAction =
+  | { readonly kind: "intent"; readonly intent: Intent }
+  | { readonly kind: "drained"; readonly drained: readonly Effect[] };
+
+type RuntimeState = { readonly state: AppState; readonly effects: readonly Effect[] };
+
+const INITIAL_RUNTIME: RuntimeState = { state: initial(), effects: [] };
+
+const reduceRuntime = (rt: Runtime) => (prev: RuntimeState, action: RuntimeAction): RuntimeState => {
+  if (action.kind === "drained") {
+    // Remove exactly what was performed. Clearing the whole queue would drop
+    // effects that arrived while these were in flight.
+    const done = new Set(action.drained);
+    return { ...prev, effects: prev.effects.filter((e) => !done.has(e)) };
+  }
+  const step = dispatch(prev.state, action.intent, rt.env, rt.authority());
+  return { state: step.state, effects: [...prev.effects, ...step.effects] };
+};
 
 function perform(effect: Effect, rt: Runtime, send: (i: Intent) => void): void {
   switch (effect.kind) {
