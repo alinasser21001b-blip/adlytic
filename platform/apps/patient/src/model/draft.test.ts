@@ -98,3 +98,36 @@ describe("the payload for POST /v1/requests", () => {
     expect(Draft.worthPreserving(Draft.add(base(), hit("a")).draft)).toBe(true);
   });
 });
+
+describe("the send-time gate asks the truth, not the caller", () => {
+  /** A line built WITHOUT going through `add` — restored from storage, or made
+   *  by a future slice. `add` refuses a controlled item, so this shape cannot
+   *  arise today; the point is that `validate` must not depend on that. */
+  const draftWith = (over: Partial<Draft.DraftLine>): Draft.Draft => ({
+    subjectId: "s1", districtId: "d1", urgency: "today",
+    lines: [{
+      itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500mg",
+      packs: 1, requestable: true, isControlled: false,
+      requiresPrescription: false, prescriptionImageId: null, ...over,
+    }],
+  });
+
+  it("a clean line sends", () => {
+    expect(Draft.validate(draftWith({}))).toBeNull();
+  });
+
+  it("a controlled line is refused at send, not assumed away (D42)", () => {
+    // `validate` used to pass `isControlled: false` as a literal, so this line
+    // sent. The gate was being asked a question with its answer supplied.
+    expect(Draft.validate(draftWith({ isControlled: true }))?.code).toBe("CONTROLLED_NOT_SUPPORTED");
+  });
+
+  it("a line that is not requestable is refused at send", () => {
+    expect(Draft.validate(draftWith({ requestable: false }))?.code).toBe("ITEM_NOT_REQUESTABLE");
+  });
+
+  it("a prescription line still needs its photo (D18)", () => {
+    expect(Draft.validate(draftWith({ requiresPrescription: true }))?.code).toBe("PRESCRIPTION_REQUIRED");
+    expect(Draft.validate(draftWith({ requiresPrescription: true, prescriptionImageId: "img-1" }))).toBeNull();
+  });
+});

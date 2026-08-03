@@ -21,6 +21,22 @@ export type DraftLine = {
   readonly form: string;
   readonly strength: string;
   readonly packs: number;
+  /**
+   * The three facts the clinical gate reads, carried rather than assumed.
+   *
+   * `validate` re-asks the gate before send — §5 rule 1, a disabled button is
+   * a courtesy and never a control — and it used to pass `requestable: true`
+   * and `isControlled: false` as literals, because `add` had already refused
+   * anything else. That was true and it was an assumption: the gate was being
+   * asked a question with two of its three answers supplied by the caller.
+   *
+   * Carrying them makes the second check a real check. It also survives a
+   * draft that did not come through `add` — restored from storage, or rebuilt
+   * by a future slice — which is exactly how a catalogue row missing
+   * `isControlled` reached the same gate and was answered ALLOWED.
+   */
+  readonly requestable: boolean;
+  readonly isControlled: boolean;
   readonly requiresPrescription: boolean;
   /** D18 — a prescription-required line cannot be sent without one. Null here
    *  is not an error while drafting; it is an error at send, and R1 says so
@@ -83,6 +99,7 @@ export function add(draft: Draft, hit: CatalogueHit, packs = 1): { draft: Draft;
       lines: [...draft.lines, {
         itemId: hit.itemId, name: hit.name, latinName: hit.latinName,
         form: hit.form, strength: hit.strength, packs: quantity.value,
+        requestable: hit.requestable, isControlled: hit.isControlled,
         requiresPrescription: hit.requiresPrescription, prescriptionImageId: null,
       }],
     },
@@ -139,7 +156,7 @@ export function validate(draft: Draft): Refusal | null {
   if (isErr(count)) return count.error;
   for (const line of draft.lines) {
     const gate = Clinical.gateRequestLine(
-      { requestable: true, requiresPrescription: line.requiresPrescription, isControlled: false },
+      { requestable: line.requestable, requiresPrescription: line.requiresPrescription, isControlled: line.isControlled },
       line.prescriptionImageId !== null,
     );
     if (isErr(gate)) return gate.error;
