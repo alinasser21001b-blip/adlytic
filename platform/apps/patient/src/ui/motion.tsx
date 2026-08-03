@@ -25,7 +25,7 @@
  */
 import * as React from "react";
 import { Animated, Easing, AccessibilityInfo } from "react-native";
-import { motion, withReducedMotion, type MotionName } from "@dawai/design";
+import { motion, withReducedMotion, CURVE as DesignCurve, type MotionName } from "@dawai/design";
 
 /**
  * The device's reduced-motion setting, read once and kept current.
@@ -54,11 +54,13 @@ export function useMotionToken(name: MotionName) {
   return withReducedMotion(motion[name], reduced);
 }
 
+/** The design curves, in the form React Native animates with. The numbers come
+ *  from @dawai/design — this file chooses no shape, it only spends one. */
 const CURVE = {
-  standard: Easing.bezier(0.2, 0, 0, 1),
-  decelerate: Easing.bezier(0, 0, 0, 1),
-  accelerate: Easing.bezier(0.3, 0, 1, 1),
-  spring: Easing.bezier(0.2, 0.9, 0.2, 1.1),
+  standard: Easing.bezier(...DesignCurve.standard),
+  decelerate: Easing.bezier(...DesignCurve.decelerate),
+  accelerate: Easing.bezier(...DesignCurve.accelerate),
+  spring: Easing.bezier(...DesignCurve.spring),
 } as const;
 
 /**

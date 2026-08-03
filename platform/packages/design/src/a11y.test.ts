@@ -10,7 +10,7 @@ import { palettes, CONTRACT_PAIRS, EXTRA_PAIRS, COLOR_ROLES, type Persona, type 
 import { contrastRatio, reportRatio, CONTRAST } from "./a11y.js";
 import { type as typeScale, TYPE_ROLES, tracking } from "./tokens/type.js";
 import { tap, space } from "./tokens/space.js";
-import { motion, tokenOf, SIGNATURE_EXEMPT, withReducedMotion, type MotionToken, type MotionName } from "./tokens/motion.js";
+import { motion, tokenOf, SIGNATURE_EXEMPT, withReducedMotion, CURVE, type MotionToken, type MotionName } from "./tokens/motion.js";
 
 const personas: Persona[] = ["patient", "pharmacy", "owner"];
 const schemes: Scheme[] = ["light", "dark"];
@@ -148,5 +148,31 @@ describe("§25 — tracking is zero, and its one exception is named", () => {
   it("the exception exists only for codes, and is non-zero", () => {
     expect(tracking.tabularCode).toBeGreaterThan(0);
     expect(Object.keys(tracking).sort()).toEqual(["arabic", "tabularCode"]);
+  });
+});
+
+describe("§27 — a curve is four numbers, defined once", () => {
+  it("every easing a motion token names has a curve", () => {
+    for (const name of Object.keys(motion) as MotionName[])
+      expect(CURVE[motion[name].easing], `${name} names an easing with no curve`).toBeDefined();
+  });
+
+  it("every curve is four control points in the unit time range", () => {
+    for (const [name, c] of Object.entries(CURVE)) {
+      expect(c, name).toHaveLength(4);
+      // x is time and must stay inside the duration; y is the value and may
+      // overshoot, which is what makes `spring` a spring.
+      expect(c[0], `${name} x1`).toBeGreaterThanOrEqual(0);
+      expect(c[0], `${name} x1`).toBeLessThanOrEqual(1);
+      expect(c[2], `${name} x2`).toBeGreaterThanOrEqual(0);
+      expect(c[2], `${name} x2`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("only spring overshoots — the other three settle without bouncing", () => {
+    for (const [name, c] of Object.entries(CURVE)) {
+      const overshoots = c[1] > 1 || c[3] > 1;
+      expect(overshoots, `${name} overshoots`).toBe(name === "spring");
+    }
   });
 });

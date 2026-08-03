@@ -58,14 +58,30 @@ export const tokenOf = (name: MotionName): MotionToken => motion[name];
  *  undo dwell is a dwell, not an animation, and is excluded by name. */
 export const SIGNATURE_EXEMPT: readonly MotionName[] = ["undoDwell"];
 
-/** The CSS timing functions the four named easings mean, in one place so a
- *  component never writes a curve. */
-export const EASING: Readonly<Record<MotionToken["easing"], string>> = {
-  standard: "cubic-bezier(0.2, 0, 0, 1)",
-  decelerate: "cubic-bezier(0, 0, 0, 1)",
-  accelerate: "cubic-bezier(0.3, 0, 1, 1)",
-  spring: "cubic-bezier(0.2, 0.9, 0.2, 1.1)",
+/** A cubic-bezier's two control points: x1, y1, x2, y2. */
+export type Curve = readonly [number, number, number, number];
+
+/**
+ * What the four named easings ARE — the numbers, once.
+ *
+ * The curve is the shape of the movement, and it was written twice: as CSS
+ * strings here (`EASING`) and as `Easing.bezier(...)` calls in the React Native
+ * renderer. Two hand-kept copies of four control points in two notations is a
+ * curve that can be adjusted in one place and not the other.
+ *
+ * The CSS copy had no consumers at all — the app animates through React Native
+ * and the review renderer photographs resting states — so it is gone rather
+ * than derived. A second notation kept alive for nobody is a second thing to
+ * keep right.
+ */
+export const CURVE: Readonly<Record<MotionToken["easing"], Curve>> = {
+  standard: [0.2, 0, 0, 1],
+  decelerate: [0, 0, 0, 1],
+  accelerate: [0.3, 0, 1, 1],
+  spring: [0.2, 0.9, 0.2, 1.1],
 };
+
+
 
 /**
  * §27 rule 4 and §25: reduced motion is respected by cross-fading rather than
