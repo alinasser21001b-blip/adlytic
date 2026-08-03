@@ -143,7 +143,10 @@ export type Intent =
    *  exactly that — it carried a boolean and a timestamp and faked the clock
    *  to make the domain agree, which is a lie in transit. `attemptsLeft` is
    *  the server's count, mirrored into the challenge so E6 states it. */
-  | { readonly kind: "codeJudged"; readonly verdict: "correct" | "wrong" | "expired" | "exhausted"; readonly attemptsLeft?: number }
+  /** The server's judgement of ONE challenge. The id travels with it because a
+   *  verdict that cannot say which code it judged will be applied to whichever
+   *  challenge happens to be current. */
+  | { readonly kind: "codeJudged"; readonly challengeId: string; readonly verdict: "correct" | "wrong" | "expired" | "exhausted"; readonly attemptsLeft?: number }
   | { readonly kind: "resendCode" }
   | { readonly kind: "typeName"; readonly raw: string }
   | { readonly kind: "submitName" }
@@ -472,6 +475,12 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
     case "codeJudged": {
       const { challenge } = state.onboarding;
       if (!challenge) return { state, effects: [] };
+      // A verdict for a challenge that is no longer current is not ours. It
+      // arrives whenever a patient presses resend while a submission is still
+      // in flight: the old challenge's «wrong» would land on the new one and
+      // spend an attempt the patient never made, and the sentence on E6 would
+      // count down attempts against a code that has not been judged at all.
+      if (intent.challengeId !== challenge.challengeId) return { state, effects: [] };
       const done = (c: Verification.Challenge, refusal: RefusalCode | null) => ({
         state: { ...state, onboarding: { ...state.onboarding, challenge: c, checking: false, codeRefusal: refusal } },
         effects: [] as Effect[],

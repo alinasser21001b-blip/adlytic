@@ -496,6 +496,25 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     expect(w.state.screen).toBe("E6");
   });
 
+  it("a verdict for a challenge that is no longer current is not ours", () => {
+    // A patient presses resend while a submission is still in flight. The old
+    // challenge's «wrong» used to land on the new one, spending an attempt
+    // nobody made and counting E6's sentence down against a code the server
+    // has not judged.
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
+    w.go({ kind: "codeIssued", challengeId: "ch-2", at: at(2_000) });
+
+    const before = w.state.onboarding.challenge;
+    expect(before?.challengeId).toBe("ch-2");
+    w.go({ kind: "codeJudged", challengeId: "ch-1", verdict: "wrong", attemptsLeft: 4 });
+
+    expect(w.state.onboarding.challenge).toEqual(before);
+    expect(w.state.onboarding.codeRefusal, "a stale verdict refused the live code").toBeNull();
+  });
+
   it("never mints its own challenge — the server's id is the one held", () => {
     const w = walk();
     w.go({ kind: "typePhone", raw: "07701234567" });
@@ -513,7 +532,7 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
     w.go({ kind: "typeCode", raw: "111111" });
     w.go({ kind: "submitCode", at: at(2_000) });
-    w.go({ kind: "codeJudged", verdict: "wrong", attemptsLeft: 4 });
+    w.go({ kind: "codeJudged", challengeId: "ch-1", verdict: "wrong", attemptsLeft: 4 });
 
     expect(w.state.onboarding.codeRefusal).toBe("WRONG_CODE");
     // The server said 4 attempts remain; the mirrored count must agree, so the
@@ -529,7 +548,7 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(0) });
     w.go({ kind: "typeCode", raw: "111111" });
     // The SERVER said the clock ran out — the client does not re-derive it.
-    w.go({ kind: "codeJudged", verdict: "expired" });
+    w.go({ kind: "codeJudged", challengeId: "ch-1", verdict: "expired" });
 
     expect(w.state.onboarding.codeRefusal).toBe("CODE_EXPIRED");
     expect(w.state.onboarding.challenge?.used, "the clock cost the patient an attempt").toBe(0);
@@ -555,7 +574,7 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     w.go({ kind: "submitPhone" });
     w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(0) });
     w.go({ kind: "typeCode", raw: "123456" });
-    w.go({ kind: "codeJudged", verdict: "correct" });
+    w.go({ kind: "codeJudged", challengeId: "ch-1", verdict: "correct" });
     expect(w.state.screen).toBe("E7");
 
     w.go({ kind: "submitName" });
@@ -593,7 +612,7 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     go({ kind: "submitPhone" });
     go({ kind: "codeIssued", challengeId: "ch-1", at: instant(0) });
     go({ kind: "typeCode", raw: "123456" });
-    go({ kind: "codeJudged", verdict: "correct" });
+    go({ kind: "codeJudged", challengeId: "ch-1", verdict: "correct" });
     go({ kind: "typeName", raw: "أم علي" });
     go({ kind: "submitName" });
 

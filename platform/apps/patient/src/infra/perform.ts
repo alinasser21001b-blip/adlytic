@@ -57,9 +57,9 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
         // challenge machine along the edge the server picked; nothing here or
         // there re-derives expiry or attempts.
         case "verified": return { kind: "authenticated", accountId: v.accountId, subjectId: v.subjectId };
-        case "wrongCode": return { kind: "codeJudged", verdict: "wrong", attemptsLeft: v.attemptsLeft };
-        case "expired": return { kind: "codeJudged", verdict: "expired" };
-        case "tooManyAttempts": return { kind: "codeJudged", verdict: "exhausted" };
+        case "wrongCode": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "wrong", attemptsLeft: v.attemptsLeft };
+        case "expired": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "expired" };
+        case "tooManyAttempts": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "exhausted" };
         case "suspended": return null; // E13's case — a separate slice owns that screen.
       }
       return null;
