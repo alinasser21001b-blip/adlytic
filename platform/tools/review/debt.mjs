@@ -109,6 +109,15 @@ export const DEBT = [
     slice: "Blocked — needs a spoken-content decision for composite cards",
     status: "open",
   },
+  {
+    id: "TD-11",
+    description: "Offline.cancel refuses silently while an item is in flight. It returns the outbox object unchanged (identical by reference) when state is \"sending\", so the reducer stores the same value, the screen re-renders identically, and the patient's cancel produces no signal of any kind. With DEFAULT_POLICY the retry loop holds an item in \"sending\" for roughly 30 seconds of backoff across six attempts, and flush only re-reads the live outbox BETWEEN items, never between retries.",
+    impact: "For up to half a minute after pressing send, R13's cancel does nothing and says nothing. The comment in flush.ts names this exact failure — 'the user\'s cancel does nothing but move a label' — and guards against it at the item boundary, which is not where the waiting happens. Whether a request already on the wire SHOULD be cancellable is a product decision (§21 · D27 · R13): a POST that may already have been accepted cannot simply be dropped, and the honest options — refuse visibly, or cancel and reconcile against the idempotency key — differ in what the patient is promised. The engineering half is unambiguous and unblocked: a function that can refuse must say so rather than returning its input.",
+    priority: "medium",
+    owner: "platform-foundation",
+    slice: "Blocked — needs a product answer on cancelling in-flight writes",
+    status: "open",
+  },
 ];
 
 /** Debt that has been paid. Kept, with how it was resolved, so the register
