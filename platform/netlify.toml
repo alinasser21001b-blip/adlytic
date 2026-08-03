@@ -14,7 +14,12 @@
 
 [build]
   publish = "dist-web"
-  command = "npm ci && npm run build:web"
+  # Build the app, then assemble the rest of the preview beside it: the design
+  # prototype at /design/ and the screen gallery at /review/. One URL carries
+  # everything this project has built — the app alone at the root looked like
+  # a single feature to the person reviewing it, and the rest of the work was
+  # invisible.
+  command = "npm ci && npm run build:web && node tools/assemble-preview.mjs"
   # The review build carries the mock API. Product asked for this directly: a
   # missing backend must not stop the workflow being reviewed. Unset it and the
   # module is never imported, so it never reaches the bundle.
