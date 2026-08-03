@@ -66,6 +66,15 @@ export function makeHttp(baseUrl: string, fetchImpl: Fetch, session?: () => stri
       try { parsed = JSON.parse(await res.text()); } catch { /* not JSON; the status still classifies */ }
       return { status: res.status, outcome: classify(res.status), body: parsed };
     } catch (e) {
+      // A cancellation is not a network failure. `transient` means "worth
+      // retrying", and retrying something the caller deliberately abandoned is
+      // the transport overruling it — on the outbox path that is a POST the
+      // patient cancelled being sent anyway. Aborts are named separately
+      // BEFORE the network case, because an AbortError is an Error like any
+      // other and would otherwise read as a dropped connection.
+      const aborted = signal?.aborted === true || (e instanceof Error && e.name === "AbortError");
+      if (aborted) return { status: 0, outcome: { kind: "permanent", reason: "cancelled" }, body: null };
+
       // No status at all: the request never completed. On this product's
       // networks that is Tuesday, and it is always worth retrying.
       return {

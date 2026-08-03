@@ -11,6 +11,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { instant } from "@dawai/domain";
+import { shouldRetry, DEFAULT_POLICY } from "@dawai/net";
 import { empty, enqueue, cancel, type Outbox } from "@dawai/offline";
 import { makeHttp, type Fetch } from "./http.js";
 import { makeIdentity } from "./identity.js";
@@ -43,6 +44,32 @@ describe("the transport", () => {
     const http = makeHttp("https://api", async () => { throw new Error("socket closed"); });
     const res = await http.get("/v1/districts");
     expect(res.outcome).toEqual({ kind: "transient", reason: "socket closed" });
+  });
+
+  it("a cancelled request is NOT worth retrying", async () => {
+    // `transient` means "worth retrying". An abort is the caller saying stop,
+    // and retrying it is the transport overruling them — on the outbox path
+    // that is a POST the patient cancelled being sent anyway.
+    const controller = new AbortController();
+    controller.abort();
+    const abortError = Object.assign(new Error("The operation was aborted"), { name: "AbortError" });
+    const http = makeHttp("https://api", async () => { throw abortError; });
+    const res = await http.get("/v1/districts", controller.signal);
+    expect(res.outcome.kind).toBe("permanent");
+    expect(shouldRetry(res.outcome, 1, DEFAULT_POLICY)).toBe(false);
+  });
+
+  it("an AbortError is recognised even without the signal in hand", async () => {
+    const abortError = Object.assign(new Error("aborted"), { name: "AbortError" });
+    const http = makeHttp("https://api", async () => { throw abortError; });
+    expect((await http.get("/v1/districts")).outcome.kind).toBe("permanent");
+  });
+
+  it("a dropped connection is still transient — the two are told apart", async () => {
+    const http = makeHttp("https://api", async () => { throw new Error("socket closed"); });
+    const res = await http.get("/v1/districts");
+    expect(res.outcome.kind).toBe("transient");
+    expect(shouldRetry(res.outcome, 1, DEFAULT_POLICY)).toBe(true);
   });
 
   it("sends the idempotency key on every attempt, unchanged", async () => {
