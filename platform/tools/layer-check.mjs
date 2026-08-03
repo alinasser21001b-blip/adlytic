@@ -90,6 +90,13 @@ const LAYERS = [
       // once a second by R7's countdown. Indented `const Name = (` with a
       // capital is the shape — module-level declarations start at column 0.
       { re: /\n[ \t]+const [A-Z][A-Za-z0-9]*\s*=\s*\(/, why: "a component declared inside another component — it is a new type every render, so React remounts the subtree and discards its state" },
+      // How far a movement moves is a design decision, exactly like how long
+      // it takes. Duration and easing were tokens while the magnitudes — the
+      // 8pt enter rise, the 0.35 pulse floor, the 6pt shake throw — were
+      // literals in an interpolation, with §27 rule 2 quoted beside one of
+      // them in a comment. A decision that lives in a comment beside a number
+      // cannot be changed in one place or checked in any.
+      { re: /outputRange:\s*\[\s*-?\d*\.?\d+\s*,\s*-?\d*\.?\d+\s*\]/, why: "a raw motion magnitude — name a MAGNITUDE token instead (§27 rule 2)" },
       { re: /letterSpacing:\s*[1-9]/, why: "a tracking literal — Arabic is connected and §25 fixes spacing at zero; the one exception is design's `tracking` token" },
     ],
   },

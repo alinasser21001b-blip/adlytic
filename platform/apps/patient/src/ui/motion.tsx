@@ -25,7 +25,7 @@
  */
 import * as React from "react";
 import { Animated, Easing, AccessibilityInfo } from "react-native";
-import { motion, withReducedMotion, CURVE as DesignCurve, type MotionName } from "@dawai/design";
+import { motion, withReducedMotion, CURVE as DesignCurve, MAGNITUDE, type MotionName } from "@dawai/design";
 
 /**
  * The device's reduced-motion setting, read once and kept current.
@@ -103,10 +103,7 @@ export function Enter(
   return (
     <Animated.View style={{
       opacity: progress,
-      // Eight points, not thirty: this says "this one is new", not "this one
-      // flew in from somewhere". §27 rule 2 — movement is the smallest that
-      // still reads.
-      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [MAGNITUDE.enterRise, 0] }) }],
     }}>
       {children}
     </Animated.View>
@@ -142,7 +139,7 @@ export function Pulse(
     <Animated.View style={{
       opacity: token.duration === 0
         ? 1
-        : progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] }),
+        : progress.interpolate({ inputRange: [0, 1], outputRange: [1, MAGNITUDE.pulseFloor] }),
     }}>
       {children}
     </Animated.View>
@@ -177,7 +174,7 @@ export function Shake(
 
   return (
     <Animated.View style={{
-      transform: [{ translateX: offset.interpolate({ inputRange: [-1, 1], outputRange: [-6, 6] }) }],
+      transform: [{ translateX: offset.interpolate({ inputRange: [-1, 1], outputRange: [-MAGNITUDE.shakeThrow, MAGNITUDE.shakeThrow] }) }],
     }}>
       {children}
     </Animated.View>

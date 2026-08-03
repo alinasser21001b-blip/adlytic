@@ -10,7 +10,7 @@ import { palettes, CONTRACT_PAIRS, EXTRA_PAIRS, COLOR_ROLES, type Persona, type 
 import { contrastRatio, reportRatio, CONTRAST } from "./a11y.js";
 import { type as typeScale, TYPE_ROLES, tracking } from "./tokens/type.js";
 import { tap, space } from "./tokens/space.js";
-import { motion, tokenOf, SIGNATURE_EXEMPT, withReducedMotion, CURVE, type MotionToken, type MotionName } from "./tokens/motion.js";
+import { motion, tokenOf, SIGNATURE_EXEMPT, withReducedMotion, CURVE, MAGNITUDE, type MotionToken, type MotionName } from "./tokens/motion.js";
 
 const personas: Persona[] = ["patient", "pharmacy", "owner"];
 const schemes: Scheme[] = ["light", "dark"];
@@ -174,5 +174,20 @@ describe("§27 — a curve is four numbers, defined once", () => {
       const overshoots = c[1] > 1 || c[3] > 1;
       expect(overshoots, `${name} overshoots`).toBe(name === "spring");
     }
+  });
+});
+
+describe("§27 rule 2 — the smallest movement that still reads, as a token", () => {
+  it("a rise is points, small enough to say \"new\" and not \"flew in\"", () => {
+    expect(MAGNITUDE.enterRise).toBeGreaterThan(0);
+    expect(MAGNITUDE.enterRise).toBeLessThanOrEqual(16);
+  });
+  it("a pulse dims without vanishing — a thing that waits stays present", () => {
+    expect(MAGNITUDE.pulseFloor).toBeGreaterThan(0);
+    expect(MAGNITUDE.pulseFloor).toBeLessThan(1);
+  });
+  it("a shake reads as refusal, not as breakage", () => {
+    expect(MAGNITUDE.shakeThrow).toBeGreaterThan(0);
+    expect(MAGNITUDE.shakeThrow).toBeLessThanOrEqual(12);
   });
 });

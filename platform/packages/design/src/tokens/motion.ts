@@ -58,6 +58,27 @@ export const tokenOf = (name: MotionName): MotionToken => motion[name];
  *  undo dwell is a dwell, not an animation, and is excluded by name. */
 export const SIGNATURE_EXEMPT: readonly MotionName[] = ["undoDwell"];
 
+/**
+ * How FAR a movement moves — the other half of a motion token.
+ *
+ * Duration and easing were tokens; the magnitudes were literals typed into the
+ * renderer, with §27 rule 2 quoted beside one of them in a comment. "The
+ * smallest movement that still reads" is a design decision, and a decision
+ * that lives in a comment beside a number is one nobody can change in one
+ * place or check in any place.
+ */
+export const MAGNITUDE = {
+  /** Eight points, not thirty: this says "this one is new", not "this one flew
+   *  in from somewhere" (§27 rule 2). */
+  enterRise: 8,
+  /** How far a pulse dims. Below this it reads as flicker; above it, the thing
+   *  stops looking present at all while it waits. */
+  pulseFloor: 0.35,
+  /** Six points either side. §27 rule 5 — enough to read as refusal on the
+   *  field itself, not enough to look like the screen is breaking. */
+  shakeThrow: 6,
+} as const;
+
 /** A cubic-bezier's two control points: x1, y1, x2, y2. */
 export type Curve = readonly [number, number, number, number];
 
