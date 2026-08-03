@@ -46,6 +46,20 @@ const CACHE_PREFIX = "dawai.search.";
  */
 const WATCH_INTERVAL_MS = 3_000;
 
+/**
+ * How often a screen showing a countdown is re-rendered.
+ *
+ * One second, because E6 counts in seconds — «تكدر تطلب رمز جديد بعد ٤٥
+ * ثانية» — and a countdown that lags its own unit reads as broken. The
+ * minute-granular ones (R7's window, V2's hold) cost a re-render they do not
+ * strictly need; one timer for the app is worth more than four that each know
+ * their own unit.
+ *
+ * It runs only while a screen that draws the clock is on top, so an app
+ * sitting on the search screen wakes for nothing.
+ */
+const TICK_MS = 1_000;
+
 /** The id the server minted for a request it accepted. Read defensively — this
  *  is a response body, and a field that is not a string is a field we do not
  *  have. Without an id there is nothing to watch, and saying so beats watching
@@ -278,6 +292,19 @@ export async function createRuntime(
     connect: (send) => {
       sink = send;
       return () => { if (sink === send) sink = null; };
+    },
+    ticks: (onTick) => {
+      // Driven by the host's sleep rather than a raw timer, for the same
+      // reason the clock is: this file is the one door those come through, and
+      // a test substitutes both together.
+      let live = true;
+      void (async () => {
+        while (live) {
+          await host.sleep(TICK_MS);
+          if (live) onTick();
+        }
+      })();
+      return () => { live = false; };
     },
     onVerified: (accountId, subjectId) => {
       verified = { account: asAccountId(accountId), subject: asSubjectId(subjectId) };

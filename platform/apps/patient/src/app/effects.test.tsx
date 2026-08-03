@@ -31,6 +31,7 @@ const runtime = (over: Partial<Runtime>): Runtime => {
   onEffectFailed: () => {},
     onVerified: () => {},
     connect: () => () => {},
+    ticks: () => () => {},
   };
   return { ...base, ...over };
 };

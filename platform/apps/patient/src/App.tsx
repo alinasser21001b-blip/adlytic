@@ -79,7 +79,49 @@ export type Runtime = Ports & {
    * Returns its own undo, so an unmounted app stops receiving.
    */
   readonly connect: (send: (intent: Intent) => void) => () => void;
+  /**
+   * A clock that makes a countdown count.
+   *
+   * `env.now()` is read during render, and nothing rendered again — so every
+   * time on screen was frozen at whatever the last dispatch left it. Measured
+   * in a browser: a six-minute hold still read «٦ دقائق» after two minutes,
+   * and E6's «تكدر تطلب رمز جديد بعد ٤٥ ثانية» stayed at forty-five seconds
+   * forever. That last one is a dead end on the way into the product — the
+   * resend appears only at zero, and a patient whose SMS never arrived has
+   * nothing to type that would push the clock along.
+   *
+   * Subscribing is the app's job because only the app knows which screen is
+   * on top, and a timer that fires for a search screen is a wakeup that
+   * teaches nobody anything. Returns its own undo.
+   */
+  readonly ticks: (onTick: () => void) => () => void;
 };
+
+/**
+ * Screens that draw the clock.
+ *
+ * Named rather than inferred, because "does this screen show time" is a fact
+ * about what each one renders and inferring it would mean guessing. E6 counts
+ * the resend down, R7 counts the reply window, V2 counts the hold, and F1/F2
+ * label how old a cached result is.
+ */
+const SHOWS_TIME: ReadonlySet<string> = new Set(["F1", "F2", "E6", "R7", "V2"]);
+
+/**
+ * The current time, kept current.
+ *
+ * Re-renders on the runtime's tick while a clock is on screen, and stops the
+ * moment one is not. The value still comes from `env.now()` — this only
+ * decides how often anybody asks.
+ */
+function useNow(rt: Runtime, active: boolean): number {
+  const [, bump] = React.useReducer((n: number) => n + 1, 0);
+  React.useEffect(() => {
+    if (!active) return undefined;
+    return rt.ticks(bump);
+  }, [rt, active]);
+  return rt.env.now();
+}
 
 /**
  * The store as a hook. `perform` runs after the state is committed, so an
@@ -204,6 +246,7 @@ export function App({ rt }: { rt: Runtime }) {
   void useColorScheme();
   const t = themeFor("dark");
   const { state, send } = usePatientApp(rt);
+  const now = useNow(rt, SHOWS_TIME.has(state.screen));
 
   const onBack = () => send({ kind: "back" });
   // A control whose destination this build does not contain is never rendered,
@@ -215,7 +258,7 @@ export function App({ rt }: { rt: Runtime }) {
     case "F2":
       return (
         <FindScreen
-          t={t} search={state.search} history={state.history} now={rt.env.now()}
+          t={t} search={state.search} history={state.history} now={now}
           onType={(raw) => send({ kind: "typed", raw })}
           onAdd={(hit) => send({ kind: "addItem", hit })}
           onBack={onBack} onAction={onAction}
@@ -283,7 +326,7 @@ export function App({ rt }: { rt: Runtime }) {
           /* Null until the server issues one, which is a real window and not
              an error: the request is in flight, or it failed and no challenge
              was invented to cover for it. */
-          status={challenge ? Onboarding.codeStatus(challenge, instant(rt.env.now())) : Onboarding.CODE_PENDING}
+          status={challenge ? Onboarding.codeStatus(challenge, instant(now)) : Onboarding.CODE_PENDING}
           checking={state.onboarding.checking}
           refusalCode={state.onboarding.codeRefusal}
           history={state.history} online={rt.env.online()}
@@ -340,7 +383,7 @@ export function App({ rt }: { rt: Runtime }) {
     case "R7":
       return state.sent ? (
         <WaitingScreen
-          t={t} sent={state.sent} history={state.history} now={rt.env.now()}
+          t={t} sent={state.sent} history={state.history} now={now}
           urgency={state.sent.submission.urgency}
           /* Was a hard-coded zero, written when nothing could produce an
              offer. R7's whole job is to make the wait legible and it was
@@ -408,7 +451,7 @@ export function App({ rt }: { rt: Runtime }) {
           // as dishonest as claiming "live" when it is not.
           freshness={{ kind: "live" }}
           history={state.history}
-          now={rt.env.now()}
+          now={now}
           // V5 is not in this build, so isBuilt drops it and the prop is
           // unused by the screen — see TD-14.
           onCancel={() => onAction("V5")}
@@ -427,7 +470,7 @@ export function App({ rt }: { rt: Runtime }) {
       // blank screen or a screen pretending to be Today.
       return (
         <FindScreen
-          t={t} search={state.search} history={state.history} now={rt.env.now()}
+          t={t} search={state.search} history={state.history} now={now}
           onType={(raw) => send({ kind: "typed", raw })}
           onAdd={(hit) => send({ kind: "addItem", hit })}
           onBack={onBack} onAction={onAction}

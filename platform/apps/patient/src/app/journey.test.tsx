@@ -25,6 +25,20 @@ import type { AcceptResult, CatalogueHit, Fetched } from "../ports.js";
 import type { Intent } from "./store.js";
 import type { Offer } from "../model/offers.js";
 
+/**
+ * A clock a test can move.
+ *
+ * The real one is the host's; this is the same shape — a `now` the app reads
+ * and a tick the app subscribes to — so a test can advance time the way time
+ * advances rather than by reaching into a screen.
+ */
+const CLOCK = {
+  at: 1_000,
+  listeners: new Set<() => void>(),
+  advance(ms: number) { this.at += ms; for (const l of this.listeners) l(); },
+  reset() { this.at = 1_000; this.listeners.clear(); },
+};
+
 const HIT: CatalogueHit = {
   itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500 ملغم",
   requestable: true, requiresPrescription: false, isControlled: false,
@@ -47,7 +61,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
     verify: async () => ({ kind: "fresh", value: { kind: "verified", accountId: "acc-1", subjectId: "sub-1" } }),
   },
     marketplace: { accept: async (): Promise<Fetched<AcceptResult>> => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
-  env: { now: () => 1_000, newId: () => "id-1", online: () => true },
+  env: { now: () => CLOCK.at, newId: () => "id-1", online: () => true },
   deviceId: "dev-1",
   startFlush: () => {},
   capture: () => {},
@@ -57,6 +71,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
   onEffectFailed: (_e, cause) => { throw cause; },
     onVerified: () => {},
     connect: () => () => {},
+    ticks: (onTick) => { CLOCK.listeners.add(onTick); return () => { CLOCK.listeners.delete(onTick); }; },
   };
   return { ...base, ...over };
 };
@@ -117,7 +132,12 @@ function open(rt: Runtime) {
     await settle();
   };
 
-  return { root, press, type, settle, deliver, said: () => texts(root()), unmount: () => act(() => { renderer.unmount(); }) };
+  const tick = async (ms: number) => {
+    await act(async () => { CLOCK.advance(ms); });
+    await settle();
+  };
+
+  return { root, press, type, settle, deliver, tick, said: () => texts(root()), unmount: () => act(() => { renderer.unmount(); }) };
 }
 
 describe("a guest is carried into sign-in rather than thrown back to search", () => {
@@ -352,6 +372,66 @@ describe("an offer that is gone by the time it is taken", () => {
     // V1 — still asking. Never V4, and never a code.
     expect(app.said()).toContain("نطلب من صيدلية الرشيد تحجزلك");
     expect(app.said()).not.toContain("ما كدرت الصيدلية");
+    app.unmount();
+  });
+});
+
+describe("a countdown counts", () => {
+  it("the resend becomes reachable for a patient whose SMS never arrived", async () => {
+    /**
+     * Measured in a browser before this existed: E6 said «تكدر تطلب رمز جديد
+     * بعد ٤٥ ثانية» at zero seconds and said exactly the same at fifty, with
+     * the resend never offered. `env.now()` is read during render and nothing
+     * rendered again, so the clock stood still — and the one recovery this
+     * screen has appears only when it reaches zero.
+     *
+     * A patient who mistyped a digit could type another and nudge it along by
+     * accident. A patient whose SMS never arrived has nothing to type, which
+     * is precisely the patient the resend exists for.
+     */
+    CLOCK.reset();
+    const app = open(runtime());
+    await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+    await app.press("كمّل");
+    await app.press("أدخل رقمي");
+    await app.type("07701234567");
+    await app.press("أرسل الرمز");
+
+    expect(app.said()).toContain("تكدر تطلب رمز جديد بعد");
+    expect(controls(app.root()).some((c) => c.props["accessibilityLabel"] === "أرسل رمز جديد")).toBe(false);
+
+    // Nothing typed, nothing tapped. Only time passing.
+    await app.tick(46_000);
+
+    expect(app.said()).not.toContain("تكدر تطلب رمز جديد بعد");
+    expect(controls(app.root()).some((c) => c.props["accessibilityLabel"] === "أرسل رمز جديد")).toBe(true);
+    app.unmount();
+  });
+
+  it("the wait counts DOWN rather than repeating itself", async () => {
+    CLOCK.reset();
+    const app = open(runtime());
+    await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+    await app.press("كمّل");
+    await app.press("أدخل رقمي");
+    await app.type("07701234567");
+    await app.press("أرسل الرمز");
+
+    const first = app.said();
+    await app.tick(20_000);
+    expect(app.said()).not.toBe(first);
+    app.unmount();
+  });
+
+  it("a screen with no clock on it does not subscribe to one", async () => {
+    // A timer that fires for the search screen is a wakeup that teaches
+    // nobody anything, on phones where that is a real cost.
+    CLOCK.reset();
+    const app = open(runtime());
+    await app.type("بانادول");
+    expect(CLOCK.listeners.size).toBe(0);
     app.unmount();
   });
 });
