@@ -84,6 +84,30 @@ function gate(name, command, extract) {
 
 const firstMatch = (re) => (out) => out.match(re)?.[1] ?? "passed";
 
+/**
+ * The screenshot step reports itself; the dashboard does not re-run it.
+ *
+ * Re-invoking shoot.mjs here cost a second full Playwright pass AND rewrote
+ * every PNG after regress.mjs had hashed them, so the review published images
+ * the regression gate had never compared. Reading the manifest reports the run
+ * that actually produced the artefacts on disk.
+ */
+function shotGate() {
+  const name = "Responsive layout";
+  const path = join(REVIEW, ".shot.json");
+  if (!existsSync(path))
+    return { name, command: "node tools/review/shoot.mjs", pass: false, detail: "no screenshot run recorded — run npm run review" };
+  const shot = JSON.parse(readFileSync(path, "utf8"));
+  return {
+    name,
+    command: "node tools/review/shoot.mjs",
+    pass: shot.problems.length === 0,
+    detail: shot.problems.length
+      ? shot.problems.slice(0, 4).join(" · ")
+      : `${shot.count} screen state(s) photographed at ${shot.viewport}`,
+  };
+}
+
 const gates = [
   gate("Traceability & ownership", "node tools/trace-check.mjs", firstMatch(/(\d+ source file\(s\) scanned)/)),
   gate("Layer boundaries", "node tools/layer-check.mjs", firstMatch(/(\d+ file\(s\) scanned across \d+ layer\(s\))/)),
@@ -97,7 +121,7 @@ const gates = [
   // A generated document that prints `undefined` is one nobody generated on
   // purpose. Three such holes had shipped before this gate existed.
   gate("Generated documents", "node tools/docs-check.mjs", firstMatch(/(\d+ document\(s\) scanned)/)),
-  gate("Responsive layout", "node tools/review/shoot.mjs", firstMatch(/(\d+ screen state\(s\) photographed[^\n]*)/)),
+  shotGate(),
 ];
 
 /* The responsive harness reports; it does not block. The layouts have not been

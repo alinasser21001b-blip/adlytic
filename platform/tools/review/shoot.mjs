@@ -8,7 +8,7 @@
  * been checked.
  */
 import { chromium } from "playwright";
-import { readdirSync, mkdirSync, existsSync } from "node:fs";
+import { readdirSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
@@ -50,6 +50,17 @@ for (const file of files) {
 }
 
 await browser.close();
+
+/* What was photographed, so the dashboard can REPORT this run rather than
+ * starting its own. It used to re-invoke this script as a gate, which took a
+ * second full Playwright pass and — worse — rewrote every PNG *after*
+ * regress.mjs had already hashed them. The images shipped in the review were
+ * therefore not the images the regression gate compared. */
+writeFileSync(join(REPO, "review/.shot.json"), `${JSON.stringify({
+  count: files.length,
+  viewport: "390×844",
+  problems,
+}, null, 2)}\n`);
 
 console.log(`\nVisual review — screenshots\n`);
 console.log(`  ${files.length} screen state(s) photographed at 390×844\n`);
