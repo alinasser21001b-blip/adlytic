@@ -25,7 +25,7 @@
 import * as Offers from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "../app/store.js";
+import { GRAPH } from "./graph.js";
 import { Screen, Label, ActionCard, InfoCard, Row, Spacer, Tag, Section } from "../ui/kit.js";
 import { Enter } from "../ui/motion.jsx";
 import { motion } from "@dawai/design";

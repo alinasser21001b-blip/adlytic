@@ -21,7 +21,7 @@
 import * as Onboarding from "../model/onboarding.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "../app/store.js";
+import { GRAPH } from "./graph.js";
 import {
   Screen, Label, Primary, Secondary, Row, Section, Card, Note, InputField, ActionCard, Tag, Spacer,
 } from "../ui/kit.js";

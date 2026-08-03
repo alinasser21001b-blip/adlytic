@@ -17,7 +17,7 @@ import * as Reservation from "../model/reservation.js";
 import { formatPrice } from "../model/offers.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "../app/store.js";
+import { GRAPH } from "./graph.js";
 import { Screen, Label, Digits, Primary, Secondary, InfoCard, CodePanel, FactRow, Row } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 import { PATIENT_FLOWS } from "./flows.js";

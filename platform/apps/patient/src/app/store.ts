@@ -17,9 +17,8 @@
  */
 import { type Instant, instant, type Refusal, type RefusalCode, REFUSAL, MarketplaceMachines, Verification, transition, isErr } from "@dawai/domain";
 import { empty as emptyOutbox, type Outbox } from "@dawai/offline";
-import { runGuards, ROUTE_GUARDS, guardDestinations, buildGraph, resolveBack, type NavGraph, type RedirectReason } from "@dawai/navigation";
+import { runGuards, ROUTE_GUARDS, resolveBack, type RedirectReason } from "@dawai/navigation";
 import { guest, interrupt, beginVerification, takePending, authenticate, type Session } from "@dawai/session";
-import type { ScreenContract } from "@dawai/design";
 import { BUSINESS_EVENT } from "@dawai/observability";
 import * as Search from "../model/search.js";
 import * as Offers from "../model/offers.js";
@@ -29,7 +28,8 @@ import * as Onboarding from "../model/onboarding.js";
 import * as Prescription from "../model/prescription.js";
 import * as DraftModel from "../model/draft.js";
 import { send, type Sent } from "../model/send.js";
-import { CORE_LOOP, type ScreenId } from "../screens/core-loop.contract.js";
+import { type ScreenId } from "../screens/core-loop.contract.js";
+import { GRAPH, isBuilt, contractFor } from "../screens/graph.js";
 import type { CatalogueHit, Environment, Fetched, SearchResponse } from "../ports.js";
 
 export type AppState = {
@@ -153,29 +153,11 @@ export type Intent =
 
 export type Step = { readonly state: AppState; readonly effects: readonly Effect[] };
 
-const CONTRACTS: ReadonlyMap<string, ScreenContract> = new Map(CORE_LOOP.map((c) => [c.id, c]));
-
-/** Built once from the contracts, so navigation is never hand-wired. */
-export const GRAPH: NavGraph = buildGraph(
-  CORE_LOOP.map((c) => ({ id: c.id, exits: c.exits, back: c.back, destination: c.location.destination })),
-  // A guard destination is arrived at without any screen exiting to it.
-  guardDestinations(ROUTE_GUARDS),
-);
-
-/** Whether a screen exists in this build. Blueprint v3 has 133 patient-side
- *  screens and this slice contracts 17 of them; the rest arrive with their
- *  slice. Nothing renders a control that leads to a screen that is not here —
- *  a button that does nothing is the defect this check exists to prevent, and
- *  the set shrinks to empty as the remaining slices land. */
-export const isBuilt = (screen: string): screen is ScreenId => CONTRACTS.has(screen);
-
-/** Every exit the contracts declare that this build cannot yet honour. Each
- *  one is a real Blueprint v3 screen — ux-check proves that — and each is
- *  owned by a later slice. Listed so the gap is countable rather than
- *  discovered by a user pressing something inert. */
-export const NOT_YET_BUILT: readonly string[] = [...new Set(
-  CORE_LOOP.flatMap((c) => c.exits).filter((e) => !CONTRACTS.has(e)),
-)].sort();
+/* The graph, the built-screen test and the unbuilt-exit list are properties of
+ * the CONTRACTS, not of the reducer. They live beside the contracts and are
+ * re-exported here for the app root and the review tooling, which have always
+ * asked the store for them. */
+export { GRAPH, isBuilt, NOT_YET_BUILT } from "../screens/graph.js";
 
 /** A cold start: a guest on Today, with nothing in flight. The district is not
  *  state — it arrives with `Authority` on every dispatch, because it is a fact
@@ -594,7 +576,7 @@ function redirect(state: AppState, to: string, because: RedirectReason): AppStat
 
 function navigate(state: AppState, screen: ScreenId): AppState {
   if (screen === state.screen) return state;
-  const contract = CONTRACTS.get(screen);
+  const contract = contractFor(screen);
   // A modal replaces rather than stacks when it is the root of its own
   // presentation; everything else pushes, so back has something to pop.
   const pushes = contract?.back.kind === "pop" || contract?.back.kind === "dismiss";

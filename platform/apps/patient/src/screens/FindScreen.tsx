@@ -12,7 +12,7 @@
 import * as Search from "../model/search.js";
 import { resolveView, type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "../app/store.js";
+import { GRAPH } from "./graph.js";
 
 import { ActionCard, Actions, Bidi, InfoCard, Label, Screen, SearchField, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";

@@ -24,7 +24,7 @@
 
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "../app/store.js";
+import { GRAPH } from "./graph.js";
 import { Screen, Label, Primary, Secondary, Row, Section, InfoStrip } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 import { PATIENT_FLOWS } from "./flows.js";

@@ -14,7 +14,7 @@ import { type RedirectReason } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH, isBuilt } from "../app/store.js";
+import { GRAPH, isBuilt } from "./graph.js";
 import { Screen, Label, Bidi, Digits, Primary, Secondary, RedirectNote, Note, Actions, Row, Card, Spacer, StepButton } from "../ui/kit.js";
 import { word } from "../ui/refusal.js";
 import type { Theme } from "../ui/theme.js";

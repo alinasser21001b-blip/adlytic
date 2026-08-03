@@ -113,6 +113,13 @@ const LAYERS = [
       /^(vitest|react-test-renderer)$/,
     ],
     banned: [
+      // A screen presents; the store dispatches. Screens used to import GRAPH
+      // and isBuilt from app/store.ts — the module that owns every intent, the
+      // effect list and the reducer — to answer a question about the CONTRACTS.
+      // Those answers live beside the contracts now, and this keeps the
+      // dependency running one way: the store may read the screens' contracts,
+      // the screens may not read the store.
+      { re: /from\s+["']\.\.\/app\/store/, why: "the composition root — a screen may not import the reducer; contract facts live in screens/graph.ts" },
       // Motion is a token or it is not motion. A duration typed at a call site
       // is a ninth animation nobody approved, respecting nobody's reduced-motion
       // setting and teaching nothing — §27 requires every movement to answer

@@ -22,7 +22,7 @@ import { describe as describeItem, type OutboxItem } from "@dawai/offline";
 import { remaining, type Sent } from "../model/send.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH, isBuilt } from "../app/store.js";
+import { GRAPH, isBuilt } from "./graph.js";
 import {
   Card, Dial, Grow, Label, Primary, Row, Screen, Secondary, Section, Spacer,
 } from "../ui/kit.js";
