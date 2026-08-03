@@ -100,6 +100,15 @@ export const DEBT = [
     slice: "Stage 5 — Infrastructure",
     status: "open",
   },
+  {
+    id: "TD-10",
+    description: "ActionCard sets accessibilityLabel on the Pressable, which makes the card ONE accessibility element on both platforms: the label is announced and the children are not. On R8 an offer card therefore reads as «افتح عرض صيدلية الرشيد» alone — the price, the coverage («يغطي ٢ من ٢»), the substitution flag, the distance and the honoured band are all rendered and none of them is spoken. On F2 a result reads as «أضف بانادول للطلب», dropping the strength, the form, the Latin name and the price.",
+    impact: "A patient using TalkBack or VoiceOver makes the most consequential decision in the product — which pharmacy to reserve from — without hearing anything the decision is based on. The visible card and the spoken card are different products. The engineering defect is clear; the fix is not, because what an offer card should announce, in which order, in Iraqi Arabic, is a content decision. §25 and the Blueprint state no spoken-content rule for a composite card, so implementation must not invent one. Blocked on a product/design answer, not on code.",
+    priority: "high",
+    owner: "patient-app",
+    slice: "Blocked — needs a spoken-content decision for composite cards",
+    status: "open",
+  },
 ];
 
 /** Debt that has been paid. Kept, with how it was resolved, so the register

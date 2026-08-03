@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 10:56 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 10:58 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1271,7 +1271,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">9 open · 1 critical · 4 resolved</div></div>
+  <div class="note mono">10 open · 1 critical · 4 resolved</div></div>
 </div></div>
 </div>
 
@@ -1563,7 +1563,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <div><div class="kpi">73<small>source files</small></div></div>
     <div><div class="kpi">9,987<small>source lines</small></div></div>
     <div><div class="kpi">0.4×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">3.79s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">3.47s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1658,6 +1658,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td><span class="tag warn">high</span></td>
   <td class="mono">marketplace-engine</td>
   <td class="note">Stage 5 — Infrastructure</td>
+</tr><tr>
+  <td class="mono">TD-10</td>
+  <td>ActionCard sets accessibilityLabel on the Pressable, which makes the card ONE accessibility element on both platforms: the label is announced and the children are not. On R8 an offer card therefore reads as «افتح عرض صيدلية الرشيد» alone — the price, the coverage («يغطي ٢ من ٢»), the substitution flag, the distance and the honoured band are all rendered and none of them is spoken. On F2 a result reads as «أضف بانادول للطلب», dropping the strength, the form, the Latin name and the price.</td>
+  <td class="note">A patient using TalkBack or VoiceOver makes the most consequential decision in the product — which pharmacy to reserve from — without hearing anything the decision is based on. The visible card and the spoken card are different products. The engineering defect is clear; the fix is not, because what an offer card should announce, in which order, in Iraqi Arabic, is a content decision. §25 and the Blueprint state no spoken-content rule for a composite card, so implementation must not invent one. Blocked on a product/design answer, not on code.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs a spoken-content decision for composite cards</td>
 </tr>
 </tbody></table>
 <h3 style="margin-top:20px">Resolved</h3>
