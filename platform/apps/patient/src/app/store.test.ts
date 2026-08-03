@@ -496,6 +496,52 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     expect(w.state.screen).toBe("E6");
   });
 
+  it("a check that never reached a verdict stops the spinner", () => {
+    // E6 sets `checking` when it submits, and only a verdict cleared it. A
+    // dropped connection mid-verification therefore left the screen loading
+    // forever, button disabled, with no sentence explaining it — on the screen
+    // between a patient and their account.
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
+    w.go({ kind: "typeCode", raw: "123456" });
+    w.go({ kind: "submitCode", at: at(1_500) });
+    expect(w.state.onboarding.checking).toBe(true);
+
+    w.go({ kind: "codeCheckFailed", challengeId: "ch-1" });
+    expect(w.state.onboarding.checking).toBe(false);
+  });
+
+  it("a failed check spends no attempt and says nothing about the code", () => {
+    // It is not a verdict. Treating it as one would tell a patient their code
+    // was wrong when nobody has judged it.
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
+    const before = w.state.onboarding.challenge;
+    w.go({ kind: "typeCode", raw: "123456" });
+    w.go({ kind: "submitCode", at: at(1_500) });
+    w.go({ kind: "codeCheckFailed", challengeId: "ch-1" });
+
+    expect(w.state.onboarding.challenge).toEqual(before);
+    expect(w.state.onboarding.codeRefusal).toBeNull();
+    expect(w.state.onboarding.codeTyped, "the code the patient typed was lost").toBe("123456");
+  });
+
+  it("a failure for a challenge that is no longer current is ignored", () => {
+    const w = walk();
+    w.go({ kind: "typePhone", raw: "07701234567" });
+    w.go({ kind: "submitPhone" });
+    w.go({ kind: "codeIssued", challengeId: "ch-1", at: at(1_000) });
+    w.go({ kind: "codeIssued", challengeId: "ch-2", at: at(2_000) });
+    w.go({ kind: "typeCode", raw: "123456" });
+    w.go({ kind: "submitCode", at: at(1_500) });
+    w.go({ kind: "codeCheckFailed", challengeId: "ch-1" });
+    expect(w.state.onboarding.checking, "a stale failure cleared the live check").toBe(true);
+  });
+
   it("a verdict for a challenge that is no longer current is not ours", () => {
     // A patient presses resend while a submission is still in flight. The old
     // challenge's «wrong» used to land on the new one, spending an attempt

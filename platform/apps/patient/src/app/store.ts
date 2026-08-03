@@ -147,6 +147,11 @@ export type Intent =
    *  verdict that cannot say which code it judged will be applied to whichever
    *  challenge happens to be current. */
   | { readonly kind: "codeJudged"; readonly challengeId: string; readonly verdict: "correct" | "wrong" | "expired" | "exhausted"; readonly attemptsLeft?: number }
+  /** The check never reached a verdict — the connection dropped, the server
+   *  timed out, or it answered outside its own contract. NOT a verdict: the
+   *  code has not been judged, so no attempt is spent and nothing is said
+   *  about whether it was right. */
+  | { readonly kind: "codeCheckFailed"; readonly challengeId: string }
   | { readonly kind: "resendCode" }
   | { readonly kind: "typeName"; readonly raw: string }
   | { readonly kind: "submitName" }
@@ -470,6 +475,21 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
         state: { ...state, onboarding: { ...state.onboarding, checking: true } },
         effects: [{ kind: "verifyCode", challengeId: challenge.challengeId, code: codeTyped }],
       };
+    }
+
+    case "codeCheckFailed": {
+      // Stop the spinner, and nothing else. E6 sets `checking` when it submits
+      // and only a verdict cleared it, so a submission that never produced one
+      // left the screen loading forever — on the screen between a patient and
+      // their account, with the button disabled and no sentence explaining it.
+      //
+      // No refusal is set: E6's declared error is «الرمز مو صحيح», which is
+      // true of exactly one of its four failures and is NOT true here. A
+      // patient offline sees the offline treatment the contract declares; a
+      // patient online sees a re-enabled button and can press it again.
+      const { challenge } = state.onboarding;
+      if (!challenge || intent.challengeId !== challenge.challengeId) return { state, effects: [] };
+      return { state: { ...state, onboarding: { ...state.onboarding, checking: false } }, effects: [] };
     }
 
     case "codeJudged": {

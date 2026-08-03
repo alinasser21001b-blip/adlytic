@@ -50,7 +50,9 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
 
     case "verifyCode": {
       const res = await ports.identity.verify(effect.challengeId, effect.code, ports.deviceId);
-      if (res.kind === "failed") return null;
+      // A failure is still an answer the screen needs. Returning null left E6
+      // spinning with no verdict and no way out.
+      if (res.kind === "failed") return { kind: "codeCheckFailed", challengeId: effect.challengeId };
       const v = res.value;
       switch (v.kind) {
         // The server's judgement travels AS a judgement. The store moves the

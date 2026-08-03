@@ -293,3 +293,40 @@ describe("the full round trip — store to server to store", () => {
     expect(s.calls[2]?.body).toEqual({ challengeId: "ch-1", code: "123456", deviceId: "dev-1" });
   });
 });
+
+describe("a verification that cannot reach a verdict still answers the screen", () => {
+  const ports = (fetchImpl: Fetch): Ports => ({
+    catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
+    identity: makeIdentity(makeHttp("https://api", fetchImpl)),
+    env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {},
+  });
+
+  it("a dropped connection mid-verify returns codeCheckFailed, not nothing", async () => {
+    // Returning null left E6's `checking` set with no verdict to clear it: a
+    // spinner that never stops, on the screen between a patient and their
+    // account.
+    const intent = await perform(
+      { kind: "verifyCode", challengeId: "ch-1", code: "123456" },
+      ports(async () => { throw new Error("socket closed"); }),
+    );
+    expect(intent).toEqual({ kind: "codeCheckFailed", challengeId: "ch-1" });
+  });
+
+  it("an out-of-contract status is a failed check, not a guessed verdict", async () => {
+    // 500 is not one of the five responses /v1/auth/verify declares. Guessing
+    // it into `wrongCode` would spend an attempt the server never judged.
+    const intent = await perform(
+      { kind: "verifyCode", challengeId: "ch-1", code: "123456" },
+      ports(async () => ({ status: 500, text: async () => "" })),
+    );
+    expect(intent).toEqual({ kind: "codeCheckFailed", challengeId: "ch-1" });
+  });
+
+  it("a declared verdict is still carried through untouched", async () => {
+    const intent = await perform(
+      { kind: "verifyCode", challengeId: "ch-1", code: "123456" },
+      ports(async () => ({ status: 400, text: async () => JSON.stringify({ attemptsLeft: 3 }) })),
+    );
+    expect(intent).toEqual({ kind: "codeJudged", challengeId: "ch-1", verdict: "wrong", attemptsLeft: 3 });
+  });
+});
