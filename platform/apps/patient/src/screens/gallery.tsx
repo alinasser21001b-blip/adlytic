@@ -445,17 +445,17 @@ export const SHOTS: readonly Shot[] = [
   {
     id: "E8-list", screen: "E8", state: "ready",
     note: "Location refused is not a failure path here because location is never asked for: the bundled list IS the route, and the screen says «ما نحتاج موقعك».",
-    element: <DistrictScreen t={t} districts={DISTRICTS} query="" chosen={null} history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+    element: <DistrictScreen t={t} busy={false} districts={DISTRICTS} query="" chosen={null} history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
   },
   {
     id: "E8-chosen", screen: "E8", state: "ready · chosen",
     note: "A choice made, and an uncovered district still visible and still honest about why it cannot be picked (E12).",
-    element: <DistrictScreen t={t} districts={DISTRICTS} query="" chosen="d1" history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+    element: <DistrictScreen t={t} busy={false} districts={DISTRICTS} query="" chosen="d1" history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
   },
   {
     id: "E8-nomatch", screen: "E8", state: "empty · no match",
     note: "A search with no result, which says what happened and nothing more — there is no action to offer that the patient is not already taking.",
-    element: <DistrictScreen t={t} districts={DISTRICTS} query="زززز" chosen={null} history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
+    element: <DistrictScreen t={t} busy={false} districts={DISTRICTS} query="زززز" chosen={null} history={["E7"]} onSearch={noop} onChoose={noop} onSubmit={noop} onBack={noop} onAction={noop} />,
   },
   {
     id: "R7-queued", screen: "R7", state: "offline · queued",

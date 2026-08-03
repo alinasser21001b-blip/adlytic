@@ -80,7 +80,13 @@ describe("guards decide what is shown, never what is allowed", () => {
     const interrupted = run(initial(), [{ kind: "open", screen: "R1" }]).state;
     expect(interrupted.session.pending?.screen).toBe("R1");
 
-    const resumed = run(interrupted, [{ kind: "authenticated", accountId: "a", subjectId: "s" }]).state;
+    // Verification alone no longer replays it — TD-18: the name and the
+    // district come first, and the preserved action is still preserved.
+    const verified = run(interrupted, [{ kind: "authenticated", accountId: "a", subjectId: "s" }]).state;
+    expect(verified.screen).toBe("E7");
+    expect(verified.session.pending?.screen).toBe("R1");
+
+    const resumed = run(verified, [{ kind: "profileSaved", name: "أم علي", districtId: "d1" }]).state;
     expect(resumed.screen).toBe("R1");
     // Taken exactly once, so a later sign-in does not replay it again.
     expect(resumed.session.pending).toBeNull();
@@ -329,9 +335,13 @@ describe("the second half of the loop", () => {
     // cleared behind them.
     const session = interrupt(guest(), { screen: "R99", draft: {}, startedAt: 0 });
     const before: AppState = { ...initial(), session };
-    const { state } = run(before, [{ kind: "authenticated", accountId: "acc-1", subjectId: "subj-1" }]);
-    expect(state.screen).toBe(before.screen);
-    expect(state.session.state).toBe("authenticated");
+    const verified = run(before, [{ kind: "authenticated", accountId: "acc-1", subjectId: "subj-1" }]).state;
+    expect(verified.session.state).toBe("authenticated");
+    // The replay happens at the END of onboarding now, so that is where the
+    // unrenderable screen has to be refused.
+    const { state } = run(verified, [{ kind: "profileSaved", name: "أم علي", districtId: "d1" }]);
+    expect(state.screen).toBe("E7");
+    expect(state.session.pending).toBeNull();
   });
 
   it("a hold event with no reservation in flight is not ours, and invents nothing", () => {
@@ -680,7 +690,17 @@ describe("E4–E8 — a guest completes the one hard ask", () => {
     // The interrupted work is still there, all the way through.
     expect(s.session.pending?.screen, "the request was lost during sign-in").toBe("R1");
 
+    // Verification authenticates and goes on to the NAME, not back to the
+    // request — product's answer to TD-18: E6 → E7 → E8, then the replay.
     go({ kind: "authenticated", accountId: "a1", subjectId: "s1" });
+    expect(s.screen, "verification should carry on into onboarding").toBe("E7");
+    expect(s.session.pending?.screen, "the request was dropped at verification").toBe("R1");
+
+    go({ kind: "typeName", raw: "أم علي" });
+    go({ kind: "submitName" });
+    go({ kind: "chooseDistrict", districtId: "d1" });
+    go({ kind: "submitDistrict", districts: [{ districtId: "d1", name: "الكرادة", city: "بغداد", covered: true }] });
+    go({ kind: "profileSaved", name: "أم علي", districtId: "d1" });
     expect(s.screen, "did not return the patient to what they were doing").toBe("R1");
     expect(s.session.pending, "the intent replayed more than once").toBeNull();
   });

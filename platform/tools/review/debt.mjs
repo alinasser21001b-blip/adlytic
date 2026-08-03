@@ -91,21 +91,21 @@ export const DEBT = [
     status: "open",
   },
   {
+    id: "TD-25",
+    description: "E8 has no declared treatment for a save that could not be MADE. Its Blueprint row declares `error` («ما اخترت منطقة») and `permissionRefused`, and its offline rule is that the district list is bundled — which is true of the list and not of the submit: finishing onboarding is a PATCH /v1/me, and that call can fail on a network rather than be refused by a server.",
+    impact: "Today the control returns from busy and says nothing, so a patient on a bad connection presses «خلص» and watches it do nothing twice. The alternative available without a decision is worse: the first version of this code answered a dropped connection with DISTRICT_REQUIRED, which words as «ما اخترت منطقة» — telling a patient who DID choose a district that they had not. Blaming someone for a network is the one thing this screen must not do, so it asserts nothing instead. Needs a sentence for «ما كدرنا نحفظ — جرّب مرة ثانية», which is copy and not engineering's to write.",
+    priority: "medium",
+    owner: "patient-app",
+    slice: "Blocked — needs a failure sentence for E8",
+    status: "open",
+  },
+  {
     id: "TD-17",
     description: "The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.",
     impact: "Nothing in the app hard-codes an id from the list and the real one replaces the file wholesale, so this cannot leak into logic. It does mean a patient in a district Dawai actually serves may not find it, and the coverage claim on each row is not yet a claim product has made. Needs the coverage list as a product input.",
     priority: "medium",
     owner: "patient-app",
     slice: "Blocked — needs the coverage list",
-    status: "open",
-  },
-  {
-    id: "TD-18",
-    description: "E7 (name) and E8 (district) cannot be reached in the running app. The store has two paths out of verification and only one of them runs: `perform` maps the declared 200 from POST /v1/auth/verify to the `authenticated` intent, which replays the action the guard interrupted (D26), while the path that navigates to E7 needs a `codeJudged` verdict of \"correct\" that nothing but a test produces. Both behaviours are declared — the Blueprint's screen graph draws E6 → E7 → E8 → S1, and D26 says the preserved action resumes — and the ORDER between them is not: Blueprint v3 does not say whether the name and district are collected before the interrupted action replays, nor whether a returning account is asked for them again. The domain model settles one related fact and not this one: an Account always owns exactly one self Subject, created atomically by POST /v1/auth/verify, so an empty subjects[] is not the signal for a first sign-in.",
-    impact: "A patient never states their name or their district. The name is what a pharmacist calls at a counter and E4 promises the pharmacy sees it, so the promise is currently made and not kept; the district is what a request searches from, and `newDraft` therefore builds one with `districtId: \"\"`. Both screens are built, reviewed and photographed. Guessing the order here would be inventing a navigation rule, which is why the wiring renders both screens and changes neither path.",
-    priority: "high",
-    owner: "patient-app",
-    slice: "Blocked — needs a Blueprint answer on when onboarding completes",
     status: "open",
   },
 
@@ -205,6 +205,10 @@ export const DEBT = [
 /** Debt that has been paid. Kept, with how it was resolved, so the register
  *  records a history rather than only a backlog. */
 export const RESOLVED = [
+  {
+    id: "TD-18",
+    description: "E7 (name) and E8 (district) could not be reached in the running app. `perform` mapped the declared 200 from POST /v1/auth/verify to the `authenticated` intent, which replayed the action the guard had interrupted (D26), while the path that navigates to E7 needed a `codeJudged` verdict of \"correct\" that nothing but a test produced. Both behaviours were declared — the Blueprint's screen graph draws E6 → E7 → E8 → S1, and D26 says the preserved action resumes — and the ORDER between them was not. Product answered: the name and the district first.",
+    resolvedBy: "Verification authenticates the session and carries on to E7; the replay waits for the end of onboarding. E8's submit sends both answers in ONE call over the declared PATCH /v1/me (§4 M2 — { name?, districtId? } → 200, 400 invalid_district), because an account with a name and no district is one that cannot make a request. `profileSaved` then applies the district to the draft the GUEST built — `newDraft` had been given a guest's authority, so every request left with `districtId: \"\"` and a real server would have refused it — tells the composition root through a new `onDistrict` port, and only then replays what D26 preserved. A district the server refuses keeps the patient on E8 with E12's sentence, and a dropped connection says nothing at all rather than borrowing «ما اخترت منطقة» and blaming them for a network (TD-25). Proved by a test that fails when the district is not applied, and walked in Chromium: E6 → E7 → E8 → back to the request → sent, with the dev server logging «profile: أم علي in d1»."  },
   {
     id: "TD-5",
     description: "A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.",

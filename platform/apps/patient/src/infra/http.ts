@@ -50,6 +50,13 @@ export type Http = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }): Promise<HttpResponse>;
+  /** PATCH is a partial update, and the API model uses it for exactly one
+   *  thing: §4 M2's `{ name?, districtId? }`. It carries an idempotency key
+   *  like every other state-changing call (the third API rule). */
+  patch(path: string, body: Readonly<Record<string, unknown>>, opts?: {
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }): Promise<HttpResponse>;
 };
 
 export function makeHttp(baseUrl: string, fetchImpl: Fetch, session?: () => string | null): Http {
@@ -99,5 +106,6 @@ export function makeHttp(baseUrl: string, fetchImpl: Fetch, session?: () => stri
   return {
     get: (path, signal) => call("GET", path, undefined, undefined, signal),
     post: (path, body, opts) => call("POST", path, body, opts?.idempotencyKey, opts?.signal),
+    patch: (path, body, opts) => call("PATCH", path, body, opts?.idempotencyKey, opts?.signal),
   };
 }

@@ -19,6 +19,7 @@ const runtime = (over: Partial<Runtime>): Runtime => {
   identity: {
     requestCode: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }),
     verify: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }),
+    updateMe: async () => ({ kind: "fresh", value: { kind: "saved" } }),
   },
     marketplace: { accept: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
   env: { now: () => 1_000, newId: () => "id-1", online: () => true },
@@ -30,6 +31,7 @@ const runtime = (over: Partial<Runtime>): Runtime => {
   authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" }),
   onEffectFailed: () => {},
     onVerified: () => {},
+    onDistrict: () => {},
     connect: () => () => {},
     ticks: () => () => {},
   };

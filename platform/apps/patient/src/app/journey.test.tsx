@@ -39,6 +39,10 @@ const CLOCK = {
   reset() { this.at = 1_000; this.listeners.clear(); },
 };
 
+/** The district the runtime has been told about, as a box a test can read —
+ *  the real one lives in the composition root behind `onDistrict`. */
+const DISTRICT = { at: "" };
+
 const HIT: CatalogueHit = {
   itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500 ملغم",
   requestable: true, requiresPrescription: false, isControlled: false,
@@ -59,6 +63,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
   identity: {
     requestCode: async () => ({ kind: "fresh", value: { challengeId: "ch-1", resendAfter: 45 } }),
     verify: async () => ({ kind: "fresh", value: { kind: "verified", accountId: "acc-1", subjectId: "sub-1" } }),
+    updateMe: async () => ({ kind: "fresh", value: { kind: "saved" } }),
   },
     marketplace: { accept: async (): Promise<Fetched<AcceptResult>> => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
   env: { now: () => CLOCK.at, newId: () => "id-1", online: () => true },
@@ -70,6 +75,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
   authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" }),
   onEffectFailed: (_e, cause) => { throw cause; },
     onVerified: () => {},
+    onDistrict: () => {},
     connect: () => () => {},
     ticks: (onTick) => { CLOCK.listeners.add(onTick); return () => { CLOCK.listeners.delete(onTick); }; },
   };
@@ -230,6 +236,10 @@ describe("the sign-in chain runs end to end from the app root", () => {
     await app.type("123456");
     await app.press("تأكيد");
 
+    // Verification carries on into the name and the district first (TD-18).
+    expect(app.said()).toContain("شنو نناديك؟");
+    await finishOnboarding(app);
+
     // D26 — back at R6, the screen they were refused, not at a root.
     expect(app.said()).toContain("تأكيد الطلب");
     app.unmount();
@@ -240,6 +250,7 @@ describe("the sign-in chain runs end to end from the app root", () => {
       identity: {
         requestCode: async () => ({ kind: "fresh", value: { challengeId: "ch-1", resendAfter: 45 } }),
         verify: async () => ({ kind: "fresh", value: { kind: "wrongCode", attemptsLeft: 3 } }),
+        updateMe: async () => ({ kind: "fresh", value: { kind: "saved" } }),
       },
     }));
     await app.type("بانادول");
@@ -263,6 +274,7 @@ describe("the sign-in chain runs end to end from the app root", () => {
       identity: {
         requestCode: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "no signal" } }),
         verify: async () => ({ kind: "fresh", value: { kind: "verified", accountId: "acc-1", subjectId: "sub-1" } }),
+        updateMe: async () => ({ kind: "fresh", value: { kind: "saved" } }),
       },
     }));
     await app.type("بانادول");
@@ -289,6 +301,20 @@ const OFFER = (over: Partial<Offer> = {}): Offer => ({
   ...over,
 });
 
+/**
+ * The rest of onboarding — the name and the district.
+ *
+ * TD-18's answer: verification carries on into E7 and E8, and D26's preserved
+ * action replays only once the profile is saved. Every walk that needs to get
+ * PAST sign-in goes through here, because a patient does.
+ */
+async function finishOnboarding(app: ReturnType<typeof open>) {
+  await app.type("أم علي");
+  await app.press("كمّل");
+  await app.press("اختر الكرادة");
+  await app.press("خلص");
+}
+
 /** Straight to R8 with offers in hand: the paths under test start at the tap,
  *  and walking the whole journey again for each would test the journey. */
 async function atOffers(rt: Runtime, offers: readonly Offer[]) {
@@ -301,6 +327,7 @@ async function atOffers(rt: Runtime, offers: readonly Offer[]) {
   await app.press("أرسل الرمز");
   await app.type("123456");
   await app.press("تأكيد");
+  await finishOnboarding(app);
   await app.press("أرسل الطلب");
   for (const offer of offers) await app.deliver({ kind: "offerArrived", offer });
   return app;
@@ -432,6 +459,118 @@ describe("a countdown counts", () => {
     const app = open(runtime());
     await app.type("بانادول");
     expect(CLOCK.listeners.size).toBe(0);
+    app.unmount();
+  });
+});
+
+describe("onboarding finishes before the request replays (TD-18)", () => {
+  it("the request a guest built goes out with the district they chose", async () => {
+    /**
+     * The defect product's answer closes. Verification used to replay the
+     * interrupted action immediately, so E7 and E8 were unreachable: a patient
+     * never gave their name — the name E4 promises the pharmacy will see — and
+     * `newDraft` had been given a guest's authority, so every request left with
+     * `districtId: ""`. A real server refuses that; the dev server did not,
+     * which is how it stayed invisible.
+     */
+    const sent: Record<string, unknown>[] = [];
+    const app = open(runtime({
+      startFlush: (outbox) => {
+        for (const item of outbox.items) if (item.state === "queued") sent.push(item.payload);
+      },
+      // The authority the store reads is the runtime's, and the runtime learns
+      // the district from `onDistrict`. This fixture is the runtime.
+      authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: DISTRICT.at }),
+      onDistrict: (districtId) => { DISTRICT.at = districtId; },
+    }));
+
+    DISTRICT.at = "";
+    await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+    await app.press("كمّل");
+    await app.press("أدخل رقمي");
+    await app.type("07701234567");
+    await app.press("أرسل الرمز");
+    await app.type("123456");
+    await app.press("تأكيد");
+
+    // E7, then E8 — neither of which a patient could reach before.
+    expect(app.said()).toContain("شنو نناديك؟");
+    await app.type("أم علي");
+    await app.press("كمّل");
+    expect(app.said()).toContain("من وين تدور؟");
+    await app.press("اختر الكرادة");
+    await app.press("خلص");
+
+    // ...and only now the request they were making comes back.
+    expect(app.said()).toContain("تأكيد الطلب");
+    await app.press("أرسل الطلب");
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!["districtId"], "the request went out with no district").toBe("d1");
+  });
+
+  it("a district the SERVER refuses keeps the patient on E8", async () => {
+    // §5 rule 1. The bundled list is not the server's coverage map (TD-17), so
+    // a district the client accepted can still be refused — and E12's sentence
+    // is the one the patient already understands.
+    const app = open(runtime({
+      identity: {
+        requestCode: async () => ({ kind: "fresh", value: { challengeId: "ch-1", resendAfter: 45 } }),
+        verify: async () => ({ kind: "fresh", value: { kind: "verified", accountId: "acc-1", subjectId: "sub-1" } }),
+        updateMe: async () => ({ kind: "fresh", value: { kind: "invalidDistrict" } }),
+      },
+    }));
+    await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+    await app.press("كمّل");
+    await app.press("أدخل رقمي");
+    await app.type("07701234567");
+    await app.press("أرسل الرمز");
+    await app.type("123456");
+    await app.press("تأكيد");
+    await app.type("أم علي");
+    await app.press("كمّل");
+    await app.press("اختر الكرادة");
+    await app.press("خلص");
+
+    // Still on E8, and the request is NOT replayed — it is one this account
+    // cannot yet make.
+    expect(app.said()).toContain("من وين تدور؟");
+    expect(app.said()).not.toContain("تأكيد الطلب");
+    app.unmount();
+  });
+
+  it("a dropped connection does not tell the patient they chose nothing", async () => {
+    // The first version answered a failed call with DISTRICT_REQUIRED, which
+    // words as «ما اخترت منطقة» — blaming someone for a network. E8 has no
+    // declared sentence for a save that could not be made (TD-25), so it says
+    // nothing rather than something false, and the control comes back.
+    const app = open(runtime({
+      identity: {
+        requestCode: async () => ({ kind: "fresh", value: { challengeId: "ch-1", resendAfter: 45 } }),
+        verify: async () => ({ kind: "fresh", value: { kind: "verified", accountId: "acc-1", subjectId: "sub-1" } }),
+        updateMe: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "no signal" } }),
+      },
+    }));
+    await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+    await app.press("كمّل");
+    await app.press("أدخل رقمي");
+    await app.type("07701234567");
+    await app.press("أرسل الرمز");
+    await app.type("123456");
+    await app.press("تأكيد");
+    await app.type("أم علي");
+    await app.press("كمّل");
+    await app.press("اختر الكرادة");
+    await app.press("خلص");
+
+    expect(app.said()).toContain("من وين تدور؟");
+    expect(app.said()).not.toContain("ما اخترت منطقة");
+    // Pressable again, rather than stuck busy.
+    expect(controls(app.root()).find((c) => c.props["accessibilityLabel"] === "خلص")!
+      .props["accessibilityState"].disabled).toBe(false);
     app.unmount();
   });
 });

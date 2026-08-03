@@ -311,6 +311,9 @@ export function NameScreen(p: NameProps) {
 
 export type DistrictProps = {
   readonly t: Theme;
+  /** E8's answer is in flight. Shown on the control, not as a screen-wide
+   *  spinner — the same treatment E6 gives its one round trip. */
+  readonly busy: boolean;
   readonly districts: readonly Onboarding.District[];
   readonly query: string;
   readonly chosen: string | null;
@@ -336,6 +339,7 @@ export function DistrictScreen(p: DistrictProps) {
           t={t}
           label={view.primary?.label ?? "خلص"}
           disabled={picked === null || !picked.covered}
+          busy={p.busy}
           onPress={p.onSubmit}
         />
       }

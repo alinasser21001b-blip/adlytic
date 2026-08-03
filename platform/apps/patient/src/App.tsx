@@ -363,6 +363,11 @@ export function App({ rt }: { rt: Runtime }) {
           /* The list travels with the intent because the domain check needs it
              and the store holds no catalogue of districts — a reducer that
              owned the list would be a second place the coverage map lives. */
+          /* The end of onboarding is a network call, so the control says so
+             and cannot be pressed twice — a second PATCH would be harmless,
+             but a patient pressing a button that does not respond assumes it
+             did not work. */
+          busy={state.savingProfile}
           onSubmit={() => send({ kind: "submitDistrict", districts: DISTRICTS })}
           onBack={onBack} onAction={onAction}
         />

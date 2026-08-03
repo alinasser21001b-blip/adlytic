@@ -59,6 +59,17 @@ export const newDraft = (subjectId: string, districtId: string): Draft => ({
 });
 
 /**
+ * The district this request searches from.
+ *
+ * A guest assembles a request before there is an account to attach one to, so
+ * `newDraft` is given whatever authority the app has at the time — which for a
+ * guest is nothing, and the draft carried `districtId: ""` all the way to the
+ * server. It is set once, when onboarding finally answers the question, on the
+ * same draft the patient built.
+ */
+export const setDistrict = (draft: Draft, districtId: string): Draft => ({ ...draft, districtId });
+
+/**
  * Add a line. Both gates are asked before the line exists, so a refused item
  * never reaches the draft — the alternative is a list the patient assembles
  * and then cannot send, which is the failure R1's error state exists to

@@ -60,6 +60,16 @@ await press("أرسل الرمز");
 await show("code");
 await type("123456");
 await press("تأكيد");
+
+// TD-18 — verification carries on into the name and the district, and only
+// then does D26 replay the request the guard interrupted.
+await show("name");
+await type("أم علي");
+await press("كمّل");
+await show("district");
+await press("اختر الكرادة");
+await press("خلص");
+
 await show("confirm");
 await press("أرسل الطلب");
 await show("waiting");

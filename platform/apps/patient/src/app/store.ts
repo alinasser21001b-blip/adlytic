@@ -66,6 +66,9 @@ export type AppState = {
    *  is the number E6 shows back, and the district chosen on E8 is the one the
    *  replayed request searches from. */
   readonly onboarding: OnboardingState;
+  /** E8's submit is in flight. The screen shows it on the control, because a
+   *  patient at the end of onboarding must not be able to send it twice. */
+  readonly savingProfile: boolean;
 };
 
 export type OnboardingState = {
@@ -131,7 +134,16 @@ export type Effect =
       readonly acceptedLineIds: readonly string[];
       readonly substitutionAcknowledged: boolean;
       readonly idempotencyKey: string;
-    };
+    }
+  /**
+   * The end of onboarding, sent as one call.
+   *
+   * PATCH /v1/me takes `{ name?, districtId? }` and this sends both together:
+   * two calls would leave an account with a name and no district if the second
+   * one failed, and the district is what every request this account makes will
+   * search from.
+   */
+  | { readonly kind: "saveProfile"; readonly name: string; readonly districtId: string };
 
 export type Intent =
   | { readonly kind: "open"; readonly screen: string }
@@ -165,6 +177,14 @@ export type Intent =
    *  rejected or requeued. The store owns the outbox, so a delivery attempt
    *  reports back rather than mutating it from outside. */
   | { readonly kind: "outboxChanged"; readonly outbox: Outbox }
+  /** The server accepted the name and district. Onboarding is over, and D26's
+   *  preserved action resumes from here rather than from verification. */
+  | { readonly kind: "profileSaved"; readonly name: string; readonly districtId: string }
+  /** It refused. `invalid_district` is the one declared error. */
+  | { readonly kind: "profileRefused"; readonly why: RefusalCode }
+  /** The call never completed. Distinct from a refusal because borrowing one
+   *  would blame a patient for a dropped connection — see TD-25. */
+  | { readonly kind: "profileSaveFailed" }
 
   /* E5–E8. Typing and submitting are separate intents because they are
      separate events: one is the patient composing, the other is them
@@ -218,6 +238,7 @@ export function initial(): AppState {
   return {
     session: guest(),
     onboarding: NO_ONBOARDING,
+    savingProfile: false,
     screen: "S1",
     history: [],
     search: Search.idle(),
@@ -360,16 +381,21 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
     case "send": return doSend(state, intent.at, env, authority);
 
     case "authenticated": {
-      const session = authenticate(state.session, intent.accountId, intent.subjectId);
-      // D26 — replay what they were doing, exactly once.
-      const [pending, cleared] = takePending(session);
-      const resumed: AppState = { ...state, session: cleared };
-      // A pending screen survives a reinstall and an app update, so it may name
-      // a screen this build no longer contracts. Landing there renders nothing
-      // and clears the history — a patient who signed in to finish something
-      // would be left on a blank page. Staying put is the honest outcome.
-      if (!pending || !isBuilt(pending.screen)) return { state: resumed, effects: [] };
-      return { state: navigate(resumed, pending.screen), effects: [] };
+      /**
+       * Verified — and not yet finished.
+       *
+       * The account exists from this moment (§9: the self Subject is created
+       * atomically with it), so the session authenticates here. What does NOT
+       * happen here any more is D26's replay. Blueprint v3 draws E6 → E7 → E8
+       * and D26 says the interrupted action resumes; which comes first was
+       * stated nowhere, and product answered: the name and the district first.
+       *
+       * That answer is why this used to be the end of sign-in. It replayed
+       * immediately, so E7 and E8 were unreachable, a patient never gave their
+       * name — the name E4 promises the pharmacy will see — and every request
+       * went out with `districtId: ""`.
+       */
+      return { state: navigate({ ...state, session: authenticate(state.session, intent.accountId, intent.subjectId) }, "E7"), effects: [] };
     }
 
     case "offerArrived": {
@@ -637,7 +663,15 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
     case "submitName": {
       const checked = Onboarding.checkName(state.onboarding.nameTyped);
       if (!checked.value) return { state: { ...state, refusal: checked.refusal }, effects: [] };
-      return { state: navigate({ ...state, refusal: null }, "E8"), effects: [] };
+      // The CLEANED name, kept — trimmed and collapsed and nothing else, which
+      // is what a pharmacist will read off a counter. It is sent with the
+      // district in one call, because PATCH /v1/me takes both and two calls
+      // would leave an account that has a name and no district if the second
+      // one failed.
+      return {
+        state: navigate({ ...state, refusal: null, onboarding: { ...state.onboarding, nameTyped: checked.value } }, "E8"),
+        effects: [],
+      };
     }
 
     case "searchDistrict":
@@ -651,8 +685,45 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       // OUTSIDE_COVERAGE is E12's case and is not the patient's mistake; the
       // screen says so. Either way nothing is authenticated on a bad district.
       if (!checked.value) return { state: { ...state, refusal: checked.refusal }, effects: [] };
-      return { state: { ...state, refusal: null }, effects: [] };
+      // The end of onboarding, and the only place both answers exist at once.
+      return {
+        state: { ...state, refusal: null, savingProfile: true },
+        effects: [{ kind: "saveProfile", name: state.onboarding.nameTyped, districtId: checked.value.districtId }],
+      };
     }
+
+    case "profileSaved": {
+      /**
+       * D26's replay, now that onboarding is done.
+       *
+       * The district reaches the DRAFT as well as the session: a guest builds
+       * a request before there is an account to attach one to, so `newDraft`
+       * gave it `districtId: ""` and nothing later corrected it. The request
+       * that replays here is that same draft.
+       */
+      const withDistrict = state.draft ? DraftModel.setDistrict(state.draft, intent.districtId) : null;
+      const [pending, cleared] = takePending(state.session);
+      const done: AppState = { ...state, session: cleared, draft: withDistrict, savingProfile: false };
+      // A pending screen survives a reinstall and an app update, so it may name
+      // a screen this build no longer contracts. Landing there renders nothing
+      // and clears the history — a patient who signed in to finish something
+      // would be left on a blank page. Staying put is the honest outcome.
+      if (!pending || !isBuilt(pending.screen)) return { state: done, effects: [] };
+      return { state: navigate(done, pending.screen), effects: [] };
+    }
+
+    case "profileSaveFailed":
+      // The control comes back from busy so it can be pressed again, and
+      // nothing false is said. E8 declares no treatment for a save that could
+      // not be made — TD-25 — so this asserts nothing rather than borrowing
+      // the sentence for a mistake the patient did not make.
+      return { state: { ...state, savingProfile: false }, effects: [] };
+
+    case "profileRefused":
+      // The server refused what the client had accepted — an invalid district
+      // is the one declared error. E8 says so and stays; nothing is replayed,
+      // because the request that replays is one this account cannot yet make.
+      return { state: { ...state, savingProfile: false, refusal: { code: intent.why } }, effects: [] };
 
     case "dismissRefusal":
       return { state: { ...state, refusal: null, staleOffer: null }, effects: [] };

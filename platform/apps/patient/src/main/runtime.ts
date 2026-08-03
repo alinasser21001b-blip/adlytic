@@ -215,6 +215,9 @@ export async function createRuntime(
    * hold. Closing the app signs out, honestly, until there is a token to keep.
    */
   let verified: { readonly account: AccountId; readonly subject: SubjectId } | null = null;
+  /** Where this account searches from. E8's answer, and null until it has one
+   *  — a guest has no district and the app must not pretend otherwise. */
+  let district: string | null = null;
 
   /**
    * The queue as this runtime last saw it.
@@ -336,10 +339,12 @@ export async function createRuntime(
     onVerified: (accountId, subjectId) => {
       verified = { account: asAccountId(accountId), subject: asSubjectId(subjectId) };
     },
+    onDistrict: (districtId) => { district = districtId; },
     authority: () => {
       const s = session();
+      const districtId = district ?? s.districtId;
       if (verified === null)
-        return authorityFrom(s.relationships, s.account, s.subject, s.memorialised, s.districtId);
+        return authorityFrom(s.relationships, s.account, s.subject, s.memorialised, districtId);
 
       /**
        * §9 — an Account always owns exactly one self Subject, created
@@ -364,7 +369,7 @@ export async function createRuntime(
         ...s.relationships,
         { kind: "self", account: verified.account, subject: verified.subject },
       ];
-      return authorityFrom(relationships, verified.account, verified.subject, s.memorialised, s.districtId);
+      return authorityFrom(relationships, verified.account, verified.subject, s.memorialised, districtId);
     },
     onEffectFailed: (effect: Effect, cause: unknown) => {
       host.log(JSON.stringify({

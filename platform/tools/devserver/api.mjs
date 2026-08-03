@@ -30,7 +30,12 @@ const BRANCHES = [
 ];
 
 /** Requests, offers and reservations for this dev session. Memory only. */
-const state = { requests: new Map(), offers: new Map(), reservations: new Map(), challenges: new Map() };
+const state = { requests: new Map(), offers: new Map(), reservations: new Map(), challenges: new Map(), profile: { name: "", districtId: "" } };
+
+/** The districts this dev server serves. Deliberately NOT every district the
+ *  app's bundled list offers — d4 is uncovered there and refused here, so the
+ *  declared `invalid_district` path is reachable rather than theoretical. */
+const COVERED = ["d1", "d2", "d3"];
 
 const norm = (s) => (s ?? "")
   .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
@@ -94,6 +99,21 @@ export async function handle(req, res) {
       account: { accountId: "acc-dev" },
       subjects: [{ subjectId: "subj-dev", name: "أم علي" }],
     });
+  }
+
+  /* ── Profile — PATCH /v1/me ────────────────────────────────────────── */
+  /* §4 M2 — { name?, districtId? } → 200 { account }, 400 invalid_district.
+     The coverage check is the SERVER's: the app ships a bundled district list
+     (TD-17) that is not this map, so a district the client accepted can still
+     be refused — which is the whole reason the declared error exists. */
+  if (path === "/v1/me" && req.method === "PATCH") {
+    const body = await readBody(req);
+    if (body.districtId !== undefined && !COVERED.includes(body.districtId))
+      return json(res, 400, { error: "invalid_district" });
+    if (typeof body.name === "string" && body.name !== "") state.profile.name = body.name;
+    if (typeof body.districtId === "string") state.profile.districtId = body.districtId;
+    console.log(`\n  [dev] profile: ${state.profile.name || "(no name)"} in ${state.profile.districtId || "(no district)"}\n`);
+    return json(res, 200, { account: { accountId: "acc-dev", ...state.profile } });
   }
 
   /* ── Requests — POST /v1/requests ──────────────────────────────────── */

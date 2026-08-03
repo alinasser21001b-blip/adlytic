@@ -159,11 +159,24 @@ export type VerifyResult =
   | { readonly kind: "tooManyAttempts" }
   | { readonly kind: "suspended" };
 
+/**
+ * What PATCH /v1/me can say about the name and district.
+ *
+ * `invalid_district` is the only declared refusal, and it is a real one: the
+ * bundled list this build ships (TD-17) is not the server's coverage map, so a
+ * district the client accepted can still be one the server does not serve.
+ */
+export type ProfileResult =
+  | { readonly kind: "saved" }
+  | { readonly kind: "invalidDistrict" };
+
 export interface IdentityPort {
   /** POST /v1/auth/phone */
   requestCode(e164: string, signal?: AbortSignal): Promise<Fetched<ChallengeIssued>>;
   /** POST /v1/auth/verify */
   verify(challengeId: string, code: string, deviceId: string, signal?: AbortSignal): Promise<Fetched<VerifyResult>>;
+  /** PATCH /v1/me — §4 M2, and the end of E7/E8. */
+  updateMe(name: string, districtId: string, signal?: AbortSignal): Promise<Fetched<ProfileResult>>;
 }
 
 /**

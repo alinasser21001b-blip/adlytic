@@ -16,7 +16,7 @@
  *      budget exists to prevent.
  */
 import type { Http } from "./http.js";
-import type { ChallengeIssued, Fetched, IdentityPort, VerifyResult } from "../ports.js";
+import type { ChallengeIssued, Fetched, IdentityPort, ProfileResult, VerifyResult } from "../ports.js";
 
 const num = (v: unknown, fallback: number): number => (typeof v === "number" ? v : fallback);
 /** A count the server must have sent. Absent is not zero — see the 400 branch. */
@@ -72,9 +72,28 @@ export function makeIdentity(http: Http): IdentityPort {
       if (res.status === 403) return { kind: "fresh", value: { kind: "suspended" } };
       return { kind: "failed", outcome: res.outcome };
     },
+
+    /**
+     * PATCH /v1/me — the end of E7 and E8, sent as one call.
+     *
+     * Both fields together, because the contract takes both and an account
+     * with a name and no district is one that cannot make a request. The
+     * declared refusal is `invalid_district`, and it is a real possibility
+     * rather than defensive coding: the district list this build ships is
+     * bundled (TD-17) and is not the server's coverage map, so a district the
+     * client accepted can still be one the server does not serve.
+     */
+    async updateMe(name, districtId, signal): Promise<Fetched<ProfileResult>> {
+      const res = await http.patch("/v1/me", { name, districtId }, signal === undefined ? {} : { signal });
+      if (res.outcome.kind === "accepted") return { kind: "fresh", value: { kind: "saved" } };
+      const body = (res.body ?? {}) as Record<string, unknown>;
+      if (res.status === 400 && body["error"] === "invalid_district")
+        return { kind: "fresh", value: { kind: "invalidDistrict" } };
+      return { kind: "failed", outcome: res.outcome };
+    },
   };
 }
 
 /** Narrow re-export so the store's effect runner can name the port's answer
  *  without knowing HTTP existed. */
-export type { ChallengeIssued, VerifyResult, Fetched };
+export type { ChallengeIssued, VerifyResult, ProfileResult, Fetched };

@@ -54,6 +54,15 @@ export type Ports = {
    * becoming a second reducer.
    */
   readonly onVerified: (accountId: string, subjectId: string) => void;
+  /**
+   * Where this account searches from, once E8 has answered.
+   *
+   * Same reason as `onVerified`: `authority()` is supplied from outside the
+   * store (§5 rule 2) and the composition root is the only thing positioned to
+   * answer it. Until E8 became reachable there was nothing to tell it, and
+   * every request went out with `districtId: ""`.
+   */
+  readonly onDistrict: (districtId: string) => void;
 };
 
 export async function perform(effect: Effect, ports: Ports): Promise<Intent | null> {
@@ -126,6 +135,26 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
         case "gone": return { kind: "offerGone", offerId: effect.offerId, why: REFUSAL.OFFER_WITHDRAWN };
       }
       return null;
+    }
+
+    case "saveProfile": {
+      const res = await ports.identity.updateMe(effect.name, effect.districtId);
+      // A failed call is not a refusal, and must not borrow one. The first
+      // version of this returned DISTRICT_REQUIRED, which words as «ما اخترت
+      // منطقة» — telling a patient who DID choose a district that they had
+      // not, because the network dropped. Its own intent clears the busy
+      // state and asserts nothing.
+      if (res.kind === "failed") return { kind: "profileSaveFailed" };
+      if (res.value.kind === "saved") {
+        // Told BEFORE the intent, so the authority the reducer reads on the
+        // very next dispatch — the replay of the interrupted request — already
+        // knows where this account searches from.
+        ports.onDistrict(effect.districtId);
+        return { kind: "profileSaved", name: effect.name, districtId: effect.districtId };
+      }
+      // §5 rule 1 — the server refuses a district the client accepted, and
+      // E12's sentence is the one the patient already understands.
+      return { kind: "profileRefused", why: REFUSAL.OUTSIDE_COVERAGE };
     }
 
     case "flushOutbox":
