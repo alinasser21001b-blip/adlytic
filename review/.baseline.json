@@ -2,11 +2,7 @@
   "hasBaseline": true,
   "added": [],
   "removed": [],
-  "changed": [
-    "R1-empty.png",
-    "R1-lines.png",
-    "R1-refused.png"
-  ],
+  "changed": [],
   "unchanged": [
     "E4-direct.png",
     "E4-guarded.png",
@@ -30,6 +26,9 @@
     "F2-loading.png",
     "F2-offline.png",
     "F2-results.png",
+    "R1-empty.png",
+    "R1-lines.png",
+    "R1-refused.png",
     "R2-camera.png",
     "R2-refused.png",
     "R3-failed.png",

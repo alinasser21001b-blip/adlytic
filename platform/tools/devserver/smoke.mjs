@@ -60,7 +60,14 @@ await press("أرسل الرمز");
 await show("code");
 await type("123456");
 await press("تأكيد");
-await show("after-verify");
+await show("confirm");
+await press("أرسل الطلب");
+await show("waiting");
+
+// The dev server answers on a timer, the way pharmacies do — the wait is the
+// point of R7 and skipping it would be testing a screen nobody sees.
+await page.waitForTimeout(8_000);
+await show("waited");
 
 console.log(`\nERRORS: ${errors.length === 0 ? "none" : ""}`);
 for (const e of errors) console.log(`  ${e}`);

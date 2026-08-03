@@ -45,15 +45,6 @@ export const DEBT = [
     status: "open",
   },
   {
-    id: "TD-4",
-    description: "E4–E8 are built and are now RENDERED by the app root, so a guest redirected by the session guard lands on the screen explaining the ask, can enter a number, receive a code and verify it. What is still missing is the other half of signing in: nothing grants the app any AUTHORITY once verification succeeds. `authority()` is supplied by the host from `Authority.authorise`, the host's session is a constant with no relationships, and R6 needs order scope — so a verified patient is redirected to E4 by the same guard they just satisfied.",
-    impact: "A guest can now sign in and is no longer thrown back to search without explanation, but cannot yet SEND a request. Walked in Chromium: search → draft → E4 → E5 → E6 → verified → back on R6 with the request intact, then «أرسل الطلب» answers «تحتاج صلاحية الطلب لهذا الشخص» and nothing is sent. `requireSession` is satisfied and `requireOrderScope` is not, because the domain refuses on an empty relationship set — correctly, since §5 rule 2 forbids the client from deriving the permission and no port has ever delivered one. The loop now closes at a missing grant rather than at a missing screen. Separately, E7 and E8 are unreachable in the running app — see TD-18.",
-    priority: "high",
-    owner: "identity-service",
-    slice: "Onboarding slice",
-    status: "open",
-  },
-  {
     id: "TD-20",
     description: "R7's «ألغِ الطلب» does not cancel anything. The contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: there is no cancel intent, no marketplace transition, no call. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.",
     impact: "A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. What cancelling a broadcast request DOES — whether it is a state on the request machine, what pharmacies that already answered are told, and whether it is even offered once an offer exists — is not in Blueprint v3, so implementing it here would be inventing a state transition and a notification at once.",
@@ -181,6 +172,11 @@ export const RESOLVED = [
     id: "TD-5",
     description: "A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.",
     resolvedBy: "R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.",
+  },
+  {
+    id: "TD-4",
+    description: "The sign-in chain E4 → E8 existed as screens and was wired to nothing: the app root rendered none of them, so a guest who touched an action needing an account was redirected by the guard and drawn the search screen instead. Signing in was then only half done — the store learned who had verified and the RUNTIME did not, so `authority()` still answered from an empty relationship set and the R6 guard refused a patient on the request they had verified in order to send.",
+    resolvedBy: "The root renders E4–E8, and a new `onVerified` port tells the composition root who signed in at the moment the server says so. Authority is then answered from §9's invariant — an Account always owns exactly one self Subject, created atomically by POST /v1/auth/verify — supplied to `Authority.authorise`, which still decides: a memorialised subject is refused exactly as before (D04), and a grant over someone else is NOT inferred, because grants[] comes from GET /v1/me and no port reads it yet. Walked in Chromium: search → sign in → «أرسل الطلب» → R7 «انرسل — ننتظر الردود». What remains is separate and registered: E7 and E8 are still unreachable (TD-18), so the request carries no district.",
   },
   {
     id: "TD-19",

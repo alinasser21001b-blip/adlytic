@@ -14,7 +14,7 @@
  *      somewhere, and this is the named door. tools/layer-check.mjs enforces
  *      that it is the only one.
  */
-import { Authority, isOk, type SubjectId, type AccountId } from "@dawai/domain";
+import { Authority, isOk, asAccountId, asSubjectId, type SubjectId, type AccountId } from "@dawai/domain";
 import { empty as emptyOutbox, type Outbox } from "@dawai/offline";
 import { BUSINESS_EVENT } from "@dawai/observability";
 import { makeHttp } from "../infra/http.js";
@@ -137,6 +137,17 @@ export async function createRuntime(
   const env: Environment = { now, newId: host.newId, online: host.online };
   const http = makeHttp(host.baseUrl, globalThis.fetch as never);
 
+  /**
+   * Who verified, for as long as the app is open.
+   *
+   * Deliberately not persisted. POST /v1/auth/verify answers with a `session`
+   * alongside the account, and nothing here models or stores that token yet
+   * (TD-1) — so writing an account id to disk and treating a later launch as
+   * signed in would be the app claiming an authenticated session it does not
+   * hold. Closing the app signs out, honestly, until there is a token to keep.
+   */
+  let verified: { readonly account: AccountId; readonly subject: SubjectId } | null = null;
+
   let outbox: Outbox = emptyOutbox();
   const runtime: Runtime = {
     catalogue: makeCatalogue(http, searchCache(host), now),
@@ -168,9 +179,38 @@ export async function createRuntime(
     // §8 — a record carries the event, when, a correlation id and dimensions.
     // Never content: a district id is a dimension, a medicine name is not.
     telemetry: { emit: (record) => host.log(JSON.stringify({ level: "info", ...record })) },
+    onVerified: (accountId, subjectId) => {
+      verified = { account: asAccountId(accountId), subject: asSubjectId(subjectId) };
+    },
     authority: () => {
       const s = session();
-      return authorityFrom(s.relationships, s.account, s.subject, s.memorialised, s.districtId);
+      if (verified === null)
+        return authorityFrom(s.relationships, s.account, s.subject, s.memorialised, s.districtId);
+
+      /**
+       * §9 — an Account always owns exactly one self Subject, created
+       * ATOMICALLY with it by POST /v1/auth/verify. That is a domain-model
+       * invariant, not a guess: the relationship exists the instant the
+       * account does, so a client that has just been handed both ids by that
+       * endpoint knows the self relationship holds.
+       *
+       * It is stated here rather than assumed anywhere else. The store never
+       * derives a permission (§5 rule 2) and the screens never ask; the
+       * relationship goes to `Authority.authorise`, which decides. If the
+       * domain refuses — a memorialised subject, for instance (D04) — the
+       * refusal stands, exactly as it would for a grant that came from a
+       * server. Nothing here bypasses the check; it supplies the fact the
+       * check needs.
+       *
+       * A GRANT over someone else's record is a different matter and is NOT
+       * inferred: GET /v1/me carries `grants[]` and no port reads it yet, so
+       * a guardian or a peer still has no order scope in this build.
+       */
+      const relationships: readonly Authority.Relationship[] = [
+        ...s.relationships,
+        { kind: "self", account: verified.account, subject: verified.subject },
+      ];
+      return authorityFrom(relationships, verified.account, verified.subject, s.memorialised, s.districtId);
     },
     onEffectFailed: (effect: Effect, cause: unknown) => {
       host.log(JSON.stringify({

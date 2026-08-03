@@ -34,7 +34,11 @@ const HIT: CatalogueHit = {
  * what the E4 redirect is about. The authority gap after verification is TD-4
  * and is deliberately not hidden by this fixture.
  */
-const runtime = (over: Partial<Runtime> = {}): Runtime => ({
+const runtime = (over: Partial<Runtime> = {}): Runtime => {
+  /** Declared as a Runtime rather than cast to one: the cast that used to be
+   *  here would have hidden `onVerified` going missing, which is the port that
+   *  decides whether a signed-in patient may order. */
+  const base: Runtime = {
   catalogue: { search: async () => ({ kind: "fresh", value: { hits: [HIT], at: 1_000 } }) },
   identity: {
     requestCode: async () => ({ kind: "fresh", value: { challengeId: "ch-1", resendAfter: 45 } }),
@@ -48,8 +52,10 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => ({
   telemetry: { emit: () => {} },
   authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" }),
   onEffectFailed: (_e, cause) => { throw cause; },
-  ...over,
-} as Runtime);
+    onVerified: () => {},
+  };
+  return { ...base, ...over };
+};
 
 /** Host elements only: a component and the host element it renders carry the
  *  same props, so counting both finds one control twice. */

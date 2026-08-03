@@ -256,7 +256,7 @@ describe("the full round trip — store to server to store", () => {
     catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
     env, deviceId: "dev-1",
-    startFlush: () => {}, emit: () => {}, capture: () => {},
+    startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {},
   });
 
   it("E5 to E7 against the declared responses, ending authenticated on the interrupted screen", async () => {
@@ -298,7 +298,7 @@ describe("a verification that cannot reach a verdict still answers the screen", 
   const ports = (fetchImpl: Fetch): Ports => ({
     catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
-    env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {},
+    env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {},
   });
 
   it("a dropped connection mid-verify returns codeCheckFailed, not nothing", async () => {
@@ -335,7 +335,7 @@ describe("attempts are the server's count, never the client's guess", () => {
   const ports = (fetchImpl: Fetch): Ports => ({
     catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
-    env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {},
+    env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {},
   });
   const verify = (status: number, body: unknown) => perform(
     { kind: "verifyCode", challengeId: "ch-1", code: "123456" },

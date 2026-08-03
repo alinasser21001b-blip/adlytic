@@ -29,6 +29,22 @@ export type Ports = {
   readonly startFlush: () => void;
   readonly emit: (event: string, attributes: Readonly<Record<string, string | number | boolean>>) => void;
   readonly capture: () => void;
+  /**
+   * Who the server says just signed in.
+   *
+   * The store gets the same fact as an `authenticated` intent, and that intent
+   * moves the SESSION. It cannot move the AUTHORITY: §5 rule 2 forbids the
+   * store from deriving a permission, so `authority()` is supplied from
+   * outside and the composition root is the only thing positioned to answer
+   * it. Without this the runtime never learned that anyone had signed in, and
+   * a patient who had just verified their number was refused order scope on
+   * the request they verified in order to send.
+   *
+   * It is a separate port rather than a second return value because an effect
+   * answers with at most one intent — that rule is what keeps this runner from
+   * becoming a second reducer.
+   */
+  readonly onVerified: (accountId: string, subjectId: string) => void;
 };
 
 export async function perform(effect: Effect, ports: Ports): Promise<Intent | null> {
@@ -58,7 +74,11 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
         // The server's judgement travels AS a judgement. The store moves the
         // challenge machine along the edge the server picked; nothing here or
         // there re-derives expiry or attempts.
-        case "verified": return { kind: "authenticated", accountId: v.accountId, subjectId: v.subjectId };
+        case "verified":
+          // Told BEFORE the intent is returned, so the authority the reducer
+          // reads on the very next dispatch already knows who signed in.
+          ports.onVerified(v.accountId, v.subjectId);
+          return { kind: "authenticated", accountId: v.accountId, subjectId: v.subjectId };
         case "wrongCode": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "wrong", attemptsLeft: v.attemptsLeft };
         case "expired": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "expired" };
         case "tooManyAttempts": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "exhausted" };

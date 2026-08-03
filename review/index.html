@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 16:22 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 16:28 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1207,7 +1207,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">1050 passed (1050)</div></div>
+  <div class="note mono">1053 passed (1053)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Test reach</b> — <span class="tag ok">PASS</span>
@@ -1267,11 +1267,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Visual regression reviewed</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">41 unchanged · 3 changed · 0 new · 0 removed — all listed below</div></div>
+  <div class="note mono">44 unchanged · 0 changed · 0 new · 0 removed — all listed below</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">17 open · 1 critical · 5 resolved</div></div>
+  <div class="note mono">16 open · 1 critical · 6 resolved</div></div>
 </div></div>
 </div>
 
@@ -1291,7 +1291,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 
   <h3 style="margin-top:20px">What blocks release</h3>
   <table style="margin-top:8px"><thead><tr><th>Blocker</th><th>Why it blocks</th><th>Owner</th></tr></thead><tbody>
-  <tr><td class="mono">TD-1</td><td>The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td><td class="mono">media-service</td></tr><tr><td class="mono">TD-4</td><td>A guest can now sign in and is no longer thrown back to search without explanation, but cannot yet SEND a request. Walked in Chromium: search → draft → E4 → E5 → E6 → verified → back on R6 with the request intact, then «أرسل الطلب» answers «تحتاج صلاحية الطلب لهذا الشخص» and nothing is sent. `requireSession` is satisfied and `requireOrderScope` is not, because the domain refuses on an empty relationship set — correctly, since §5 rule 2 forbids the client from deriving the permission and no port has ever delivered one. The loop now closes at a missing grant rather than at a missing screen. Separately, E7 and E8 are unreachable in the running app — see TD-18.</td><td class="mono">identity-service</td></tr>
+  <tr><td class="mono">TD-1</td><td>The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td><td class="mono">media-service</td></tr>
   </tbody></table>
 
   <h3 style="margin-top:20px">What is ready</h3>
@@ -1406,7 +1406,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag ok">clinical.gate.refused</span></td>
     <td class="mono">3</td>
-    <td><span class="tag warn">changed</span></td>
+    <td><span class="tag">unchanged</span></td>
   </tr><tr>
     <td class="mono">R6</td>
     <td class="note">Final check before it goes</td>
@@ -1545,13 +1545,12 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <p class="note">Byte-level PNG comparison against the screenshots in git HEAD, so the baseline is what was actually last reviewed rather than a file somebody remembered to update. It cannot say WHAT changed, only that something did — which is enough to guarantee nothing changes without being listed.</p>
   
   <div style="margin-top:12px">
-    <span class="tag ok">41 unchanged</span>
-    <span class="tag warn">3 changed</span>
+    <span class="tag ok">44 unchanged</span>
+    <span class="tag warn">0 changed</span>
     <span class="tag">0 new</span>
     <span class="tag ">0 removed</span>
   </div>
-  <div style="margin-top:14px"><h3>Changed — each one looked at before this push</h3>
-    <div class="grid g3" style="margin-top:10px"><div class="shot"><img src="screenshots/R1-empty.png" alt="R1-empty.png"><div class="cap"><span class="mono">R1-empty.png</span></div></div><div class="shot"><img src="screenshots/R1-lines.png" alt="R1-lines.png"><div class="cap"><span class="mono">R1-lines.png</span></div></div><div class="shot"><img src="screenshots/R1-refused.png" alt="R1-refused.png"><div class="cap"><span class="mono">R1-refused.png</span></div></div></div></div>
+  
   
   
   
@@ -1562,9 +1561,9 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
     <div><div class="kpi">81<small>source files</small></div></div>
-    <div><div class="kpi">11,092<small>source lines</small></div></div>
-    <div><div class="kpi">0.54×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">5.36s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">11,152<small>source lines</small></div></div>
+    <div><div class="kpi">0.55×<small>test lines per source line</small></div></div>
+    <div><div class="kpi">5.31s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1617,13 +1616,6 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td><span class="tag warn">high</span></td>
   <td class="mono">patient-app</td>
   <td class="note">Next polish pass</td>
-</tr><tr>
-  <td class="mono">TD-4</td>
-  <td>E4–E8 are built and are now RENDERED by the app root, so a guest redirected by the session guard lands on the screen explaining the ask, can enter a number, receive a code and verify it. What is still missing is the other half of signing in: nothing grants the app any AUTHORITY once verification succeeds. `authority()` is supplied by the host from `Authority.authorise`, the host's session is a constant with no relationships, and R6 needs order scope — so a verified patient is redirected to E4 by the same guard they just satisfied.</td>
-  <td class="note">A guest can now sign in and is no longer thrown back to search without explanation, but cannot yet SEND a request. Walked in Chromium: search → draft → E4 → E5 → E6 → verified → back on R6 with the request intact, then «أرسل الطلب» answers «تحتاج صلاحية الطلب لهذا الشخص» and nothing is sent. `requireSession` is satisfied and `requireOrderScope` is not, because the domain refuses on an empty relationship set — correctly, since §5 rule 2 forbids the client from deriving the permission and no port has ever delivered one. The loop now closes at a missing grant rather than at a missing screen. Separately, E7 and E8 are unreachable in the running app — see TD-18.</td>
-  <td><span class="tag warn">high</span></td>
-  <td class="mono">identity-service</td>
-  <td class="note">Onboarding slice</td>
 </tr><tr>
   <td class="mono">TD-20</td>
   <td>R7's «ألغِ الطلب» does not cancel anything. The contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: there is no cancel intent, no marketplace transition, no call. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.</td>
@@ -1719,7 +1711,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </tbody></table>
 <h3 style="margin-top:20px">Resolved</h3>
 <table style="margin-top:8px"><thead><tr><th>ID</th><th>Was</th><th>Resolved by</th></tr></thead><tbody>
-<tr><td class="mono">TD-5</td><td class="note">A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.</td><td class="note">R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.</td></tr><tr><td class="mono">TD-19</td><td class="note">`isBuilt` meant &quot;this screen has a CONTRACT&quot;, while its docstring promised what callers assumed: &quot;Nothing renders a control that leads to a screen that is not here.&quot; Four contracted screens have no component, so R1's «لمن؟» — the control for saying who the medicine is for — rendered, was tapped, navigated successfully, and landed on the root's `default`, which drew the SEARCH screen over the request the patient had just built. E4's «مو هسه — رجعني لطلبي» did the same by dismissing to S1, clearing the history on the way. The navigation gates could not see either: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of these passes that.</td><td class="note">`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means &quot;leave for Today&quot;, and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium.</td></tr><tr><td class="mono">TD-0a</td><td class="note">layer-check scanned only .ts, so the app layer stopped being checked when it became .tsx.</td><td class="note">Extended to .tsx and proven with a rejecting case.</td></tr><tr><td class="mono">TD-0b</td><td class="note">Build output emitted beside sources, so tests ran against a stale build.</td><td class="note">Project references corrected, stray output banned by layer-check, and .gitignore updated.</td></tr><tr><td class="mono">TD-0c</td><td class="note">Prices were rounded to the nearest thousand, displaying 8,500 as '9 ألف'.</td><td class="note">Exact formatting, with a test asserting two different totals never print identically.</td></tr>
+<tr><td class="mono">TD-5</td><td class="note">A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.</td><td class="note">R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.</td></tr><tr><td class="mono">TD-4</td><td class="note">The sign-in chain E4 → E8 existed as screens and was wired to nothing: the app root rendered none of them, so a guest who touched an action needing an account was redirected by the guard and drawn the search screen instead. Signing in was then only half done — the store learned who had verified and the RUNTIME did not, so `authority()` still answered from an empty relationship set and the R6 guard refused a patient on the request they had verified in order to send.</td><td class="note">The root renders E4–E8, and a new `onVerified` port tells the composition root who signed in at the moment the server says so. Authority is then answered from §9's invariant — an Account always owns exactly one self Subject, created atomically by POST /v1/auth/verify — supplied to `Authority.authorise`, which still decides: a memorialised subject is refused exactly as before (D04), and a grant over someone else is NOT inferred, because grants[] comes from GET /v1/me and no port reads it yet. Walked in Chromium: search → sign in → «أرسل الطلب» → R7 «انرسل — ننتظر الردود». What remains is separate and registered: E7 and E8 are still unreachable (TD-18), so the request carries no district.</td></tr><tr><td class="mono">TD-19</td><td class="note">`isBuilt` meant &quot;this screen has a CONTRACT&quot;, while its docstring promised what callers assumed: &quot;Nothing renders a control that leads to a screen that is not here.&quot; Four contracted screens have no component, so R1's «لمن؟» — the control for saying who the medicine is for — rendered, was tapped, navigated successfully, and landed on the root's `default`, which drew the SEARCH screen over the request the patient had just built. E4's «مو هسه — رجعني لطلبي» did the same by dismissing to S1, clearing the history on the way. The navigation gates could not see either: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of these passes that.</td><td class="note">`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means &quot;leave for Today&quot;, and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium.</td></tr><tr><td class="mono">TD-0a</td><td class="note">layer-check scanned only .ts, so the app layer stopped being checked when it became .tsx.</td><td class="note">Extended to .tsx and proven with a rejecting case.</td></tr><tr><td class="mono">TD-0b</td><td class="note">Build output emitted beside sources, so tests ran against a stale build.</td><td class="note">Project references corrected, stray output banned by layer-check, and .gitignore updated.</td></tr><tr><td class="mono">TD-0c</td><td class="note">Prices were rounded to the nearest thousand, displaying 8,500 as '9 ألف'.</td><td class="note">Exact formatting, with a test asserting two different totals never print identically.</td></tr>
 </tbody></table></div>
 
 <h2>Blueprint workflow progress</h2>

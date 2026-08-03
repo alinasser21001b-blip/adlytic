@@ -13,7 +13,8 @@ import TestRenderer, { act } from "react-test-renderer";
 import { usePatientApp, type Runtime } from "../App.js";
 import type { Intent } from "./store.js";
 
-const runtime = (over: Partial<Runtime>): Runtime => ({
+const runtime = (over: Partial<Runtime>): Runtime => {
+  const base: Runtime = {
   catalogue: { search: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
   identity: {
     requestCode: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }),
@@ -27,8 +28,10 @@ const runtime = (over: Partial<Runtime>): Runtime => ({
   telemetry: { emit: () => {} },
   authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" }),
   onEffectFailed: () => {},
-  ...over,
-} as Runtime);
+    onVerified: () => {},
+  };
+  return { ...base, ...over };
+};
 
 /** Drives the hook from a real render, because the loop lives in an effect. */
 function drive(rt: Runtime) {

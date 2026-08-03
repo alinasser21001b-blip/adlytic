@@ -13,6 +13,7 @@ import { usePatientApp } from "../App.js";
 import { createRuntime, deviceIdFrom, searchCache, authorityFrom, NO_SESSION } from "./runtime.js";
 import type { Host, Store } from "./host.js";
 import type { Intent } from "../app/store.js";
+import { asAccountId, asSubjectId } from "@dawai/domain";
 
 const memoryStore = (): Store & { seen: Map<string, string> } => {
   const seen = new Map<string, string>();
@@ -69,7 +70,7 @@ describe("TD-1 — the assembled application starts", () => {
 
   it("builds a runtime with every port the effect loop needs", async () => {
     const { runtime } = await createRuntime(testHost(), () => {});
-    for (const key of ["catalogue", "identity", "env", "deviceId", "startFlush", "emit", "capture", "telemetry", "authority", "onEffectFailed"] as const)
+    for (const key of ["catalogue", "identity", "env", "deviceId", "startFlush", "emit", "capture", "telemetry", "authority", "onEffectFailed", "onVerified"] as const)
       expect(runtime[key], key).toBeDefined();
   });
 
@@ -165,5 +166,47 @@ describe("the cache and the authority are the host's, not the app's", () => {
 
   it("no session means no scope — the store never derives a permission (§5 rule 2)", () => {
     expect(authorityFrom(NO_SESSION.relationships, null, null, false, "d1").hasOrderScope).toBe(false);
+  });
+});
+
+describe("verifying a number is what grants order scope", () => {
+  it("a verified account may order for itself, and could not before", async () => {
+    // The gap this closes: the store learned who signed in and the RUNTIME did
+    // not, so `authority()` still answered from an empty relationship set and
+    // the R6 guard refused a patient on the request they had just verified in
+    // order to send. §9 fixes the missing fact — an Account always owns exactly
+    // one self Subject, created atomically by POST /v1/auth/verify.
+    const { runtime } = await createRuntime(testHost(), () => {});
+    expect(runtime.authority().hasOrderScope).toBe(false);
+
+    runtime.onVerified("acc-1", "sub-1");
+
+    expect(runtime.authority().hasOrderScope).toBe(true);
+  });
+
+  it("and the domain still decides — a memorialised subject is refused (D04)", async () => {
+    // The relationship is supplied, never the verdict. If `authorise` refuses,
+    // the refusal stands exactly as it would for a grant from a server.
+    const { runtime } = await createRuntime(testHost(), () => {}, () => ({
+      ...NO_SESSION, memorialised: true,
+    }));
+    runtime.onVerified("acc-1", "sub-1");
+    expect(runtime.authority().hasOrderScope).toBe(false);
+    expect(runtime.authority().activeSubjectMemorialised).toBe(true);
+  });
+
+  it("a grant over SOMEONE ELSE is not inferred from signing in", async () => {
+    // GET /v1/me carries grants[] and no port reads it yet, so a guardian or a
+    // peer still has no order scope in this build. Only the self relationship
+    // is a domain-model invariant; anything wider would be an invented
+    // permission (§5 rule 2, and the forbidden list).
+    const { runtime } = await createRuntime(testHost(), () => {}, () => ({
+      ...NO_SESSION, subject: asSubjectId("someone-else"),
+    }));
+    runtime.onVerified("acc-1", "sub-1");
+    // The authority answers for the SELF subject the server named, not for the
+    // one the host was carrying.
+    expect(runtime.authority().hasOrderScope).toBe(true);
+    expect(authorityFrom([], asAccountId("acc-1"), asSubjectId("someone-else"), false, "").hasOrderScope).toBe(false);
   });
 });
