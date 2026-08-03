@@ -108,8 +108,17 @@ for (const [id, targets] of exits) {
   for (const t of targets)
     if (!byId.has(t) && !declared.has(t))
       problems.push(`screen "${id}" exits to "${t}", which is not a Blueprint v3 screen`);
+  // An `id:` in a *.contract.ts file that is not a declared screen used to
+  // crash here with a bare ERR_INVALID_ARG_TYPE from node:path — a stack trace
+  // instead of a sentence, on a gate whose whole job is to say what is wrong.
+  // A gate that dies is a gate nobody can act on, so it reports instead.
+  const file = declared.get(id);
+  if (!file) {
+    problems.push(`"${id}" is declared with an id: in a *.contract.ts file but is not a Blueprint v3 screen — if it is not a screen contract, do not name the file *.contract.ts`);
+    continue;
+  }
   const back = /back:\s*\{\s*kind:\s*"none"/.test(sliceContract(
-    readFileSync(join(PLATFORM, declared.get(id)), "utf8"), id));
+    readFileSync(join(PLATFORM, file), "utf8"), id));
   if (targets.length === 0 && back)
     problems.push(`screen "${id}" has no exit and no back — a navigation trap`);
 }
