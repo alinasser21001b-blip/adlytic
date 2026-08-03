@@ -81,3 +81,39 @@ jobs:
           echo "  rejected as expected: build output beside a source file"
           rm -f apps/patient/src/screens/core-loop.contract.js
           echo "All negative tests passed: the guards reject what they must."
+
+  # The review pipeline, which `npm run check` does not cover. Its gates were
+  # local-only: a change that altered every screen could be pushed with CI
+  # green, because nothing on a runner ever rendered a screen.
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci || npm install
+      - run: npx playwright install --with-deps chromium
+
+      # Render and photograph from the source in this commit, then ask git
+      # whether the result matches what the commit CLAIMS those screens look
+      # like. The screenshots are committed artefacts and the review publishes
+      # them as evidence; a commit whose images do not match its own code is
+      # publishing something that was true earlier.
+      - name: Screenshots are current with the code
+        run: |
+          npm run review:render
+          node tools/review/shoot.mjs
+          cd ..
+          if [ -n "$(git status --porcelain review/screenshots)" ]; then
+            echo "::error::the committed screenshots are not what this code renders — run npm run review and commit the result"
+            git status --porcelain review/screenshots
+            git diff --stat review/screenshots
+            exit 1
+          fi
+          echo "  every committed screenshot matches what this commit renders"
+
+      # 320/360/390/430pt across every screen state, with the ten detectors
+      # proving themselves before they are trusted.
+      - name: Responsive validation
+        run: node tools/review/responsive.mjs
+
