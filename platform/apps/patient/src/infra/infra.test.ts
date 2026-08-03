@@ -330,3 +330,34 @@ describe("a verification that cannot reach a verdict still answers the screen", 
     expect(intent).toEqual({ kind: "codeJudged", challengeId: "ch-1", verdict: "wrong", attemptsLeft: 3 });
   });
 });
+
+describe("attempts are the server's count, never the client's guess", () => {
+  const ports = (fetchImpl: Fetch): Ports => ({
+    catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
+    identity: makeIdentity(makeHttp("https://api", fetchImpl)),
+    env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {},
+  });
+  const verify = (status: number, body: unknown) => perform(
+    { kind: "verifyCode", challengeId: "ch-1", code: "123456" },
+    ports(async () => ({ status, text: async () => JSON.stringify(body) })),
+  );
+
+  it("a 400 WITHOUT attemptsLeft is a server defect, not zero attempts", async () => {
+    // It used to default to 0, and the store reads 0 as exhausted — so the
+    // patient's first wrong digit would have told them all five attempts were
+    // gone and spent the challenge.
+    expect(await verify(400, {})).toEqual({ kind: "codeCheckFailed", challengeId: "ch-1" });
+  });
+
+  it("a non-numeric attemptsLeft is refused the same way", async () => {
+    expect(await verify(400, { attemptsLeft: "three" })).toEqual({ kind: "codeCheckFailed", challengeId: "ch-1" });
+  });
+
+  it("a real zero from the server is still honoured — that IS exhaustion", async () => {
+    expect(await verify(400, { attemptsLeft: 0 })).toEqual({ kind: "codeJudged", challengeId: "ch-1", verdict: "wrong", attemptsLeft: 0 });
+  });
+
+  it("the count the server sent is carried through exactly", async () => {
+    expect(await verify(400, { attemptsLeft: 4 })).toMatchObject({ attemptsLeft: 4 });
+  });
+});

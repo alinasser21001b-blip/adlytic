@@ -19,6 +19,8 @@ import type { Http } from "./http.js";
 import type { ChallengeIssued, Fetched, IdentityPort, VerifyResult } from "../ports.js";
 
 const num = (v: unknown, fallback: number): number => (typeof v === "number" ? v : fallback);
+/** A count the server must have sent. Absent is not zero — see the 400 branch. */
+const count = (v: unknown): number | null => (typeof v === "number" && v >= 0 ? v : null);
 const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
 export function makeIdentity(http: Http): IdentityPort {
@@ -53,7 +55,18 @@ export function makeIdentity(http: Http): IdentityPort {
           return { kind: "failed", outcome: { kind: "permanent", reason: "200 without account/subject" } };
         return { kind: "fresh", value: { kind: "verified", accountId, subjectId } };
       }
-      if (res.status === 400) return { kind: "fresh", value: { kind: "wrongCode", attemptsLeft: num(body["attemptsLeft"], 0) } };
+      if (res.status === 400) {
+        // A 400 without attemptsLeft used to default to 0, and the store reads
+        // 0 as exhausted: a patient's FIRST wrong digit would have told them
+        // they had used all five attempts and spent the challenge. The field is
+        // declared on this response, so its absence is a server defect and is
+        // named like every other one here rather than guessed into the harshest
+        // possible meaning.
+        const attemptsLeft = count(body["attemptsLeft"]);
+        if (attemptsLeft === null)
+          return { kind: "failed", outcome: { kind: "permanent", reason: "400 without attemptsLeft" } };
+        return { kind: "fresh", value: { kind: "wrongCode", attemptsLeft } };
+      }
       if (res.status === 410) return { kind: "fresh", value: { kind: "expired" } };
       if (res.status === 429) return { kind: "fresh", value: { kind: "tooManyAttempts" } };
       if (res.status === 403) return { kind: "fresh", value: { kind: "suspended" } };
