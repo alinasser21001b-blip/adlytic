@@ -13,7 +13,7 @@
  */
 import type { ScreenContract } from "@dawai/design";
 
-export const CORE_LOOP: readonly ScreenContract[] = [
+export const CORE_LOOP = [
   {
     id: "S1",
     location: { title: "اليوم", destination: "today" },
@@ -442,4 +442,14 @@ export const CORE_LOOP: readonly ScreenContract[] = [
     telemetry: ["reservation.refused"],
     persona: "patient",
   },
-];
+] as const satisfies readonly ScreenContract[];
+
+/**
+ * Every screen this build contracts, as a type.
+ *
+ * Derived from the contracts rather than written beside them, so it cannot
+ * drift: adding a contract adds a member, and there is no second list to
+ * update. `navigate` takes this, which turns a mistyped destination from a
+ * blank screen at runtime into a compile error.
+ */
+export type ScreenId = (typeof CORE_LOOP)[number]["id"];

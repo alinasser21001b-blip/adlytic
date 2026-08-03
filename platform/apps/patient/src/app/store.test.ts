@@ -271,6 +271,29 @@ describe("the second half of the loop", () => {
     expect(effects.some((e) => e.kind === "emit" && e.event === "reservation.refused")).toBe(true);
   });
 
+  it("an intent naming a screen this build does not contract goes nowhere", () => {
+    // §4 has 133 patient screens; this slice contracts 22. Already true at the
+    // dispatch site; pinned so the type change that made `navigate` demand a
+    // ScreenId cannot be "fixed" later by widening it back.
+    const before = initial();
+    const { state, effects } = run(before, [{ kind: "open", screen: "R99" }]);
+    expect(state.screen).toBe(before.screen);
+    expect(state.history).toEqual(before.history);
+    expect(effects).toHaveLength(0);
+  });
+
+  it("D26 — a stored screen this build no longer contracts is not replayed onto a blank page", () => {
+    // Pending survives a reinstall and an app update, so it can name a screen
+    // that has since gone. This path navigated to it unchecked: the patient
+    // signed in to finish something and landed on nothing, with the history
+    // cleared behind them.
+    const session = interrupt(guest(), { screen: "R99", draft: {}, startedAt: 0 });
+    const before: AppState = { ...initial(), session };
+    const { state } = run(before, [{ kind: "authenticated", accountId: "acc-1", subjectId: "subj-1" }]);
+    expect(state.screen).toBe(before.screen);
+    expect(state.session.state).toBe("authenticated");
+  });
+
   it("a hold event with no reservation in flight is not ours, and invents nothing", () => {
     // Previously the reducer supplied a `?? "requested"` machine state here, so
     // a stray or replayed server event manufactured a held reservation and V2

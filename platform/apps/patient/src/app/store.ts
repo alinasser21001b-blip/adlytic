@@ -29,7 +29,7 @@ import * as Onboarding from "../model/onboarding.js";
 import * as Prescription from "../model/prescription.js";
 import * as DraftModel from "../model/draft.js";
 import { send, type Sent } from "../model/send.js";
-import { CORE_LOOP } from "../screens/core-loop.contract.js";
+import { CORE_LOOP, type ScreenId } from "../screens/core-loop.contract.js";
 import type { CatalogueHit, Environment, Fetched, SearchResponse } from "../ports.js";
 
 export type AppState = {
@@ -167,7 +167,7 @@ export const GRAPH: NavGraph = buildGraph(
  *  slice. Nothing renders a control that leads to a screen that is not here —
  *  a button that does nothing is the defect this check exists to prevent, and
  *  the set shrinks to empty as the remaining slices land. */
-export const isBuilt = (screen: string): boolean => CONTRACTS.has(screen);
+export const isBuilt = (screen: string): screen is ScreenId => CONTRACTS.has(screen);
 
 /** Every exit the contracts declare that this build cannot yet honour. Each
  *  one is a real Blueprint v3 screen — ux-check proves that — and each is
@@ -304,7 +304,11 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       // D26 — replay what they were doing, exactly once.
       const [pending, cleared] = takePending(session);
       const resumed: AppState = { ...state, session: cleared };
-      if (!pending) return { state: resumed, effects: [] };
+      // A pending screen survives a reinstall and an app update, so it may name
+      // a screen this build no longer contracts. Landing there renders nothing
+      // and clears the history — a patient who signed in to finish something
+      // would be left on a blank page. Staying put is the honest outcome.
+      if (!pending || !isBuilt(pending.screen)) return { state: resumed, effects: [] };
       return { state: navigate(resumed, pending.screen), effects: [] };
     }
 
@@ -588,7 +592,7 @@ function redirect(state: AppState, to: string, because: string): AppState {
     : { ...state, redirectBecause: because };
 }
 
-function navigate(state: AppState, screen: string): AppState {
+function navigate(state: AppState, screen: ScreenId): AppState {
   if (screen === state.screen) return state;
   const contract = CONTRACTS.get(screen);
   // A modal replaces rather than stacks when it is the root of its own
@@ -607,7 +611,11 @@ function navigate(state: AppState, screen: string): AppState {
  * the user lands somewhere real with the reason, and if the reason was a
  * missing account, what they were doing is stored first (D26).
  */
-function open(state: AppState, screen: string, authority: Authority): Step {
+function open(state: AppState, screen: ScreenId, authority: Authority): Step {
+  // §4 lists 133 patient screens and this slice contracts 22. An intent naming
+  // one of the other 111 — or a typo — used to set `screen` to an id no
+  // renderer knows and clear the history on the way, which is a blank screen
+  // with no way back rather than a missing feature.
   const guards = ROUTE_GUARDS[screen] ?? [];
   const verdict = runGuards(guards, guardShape(state, authority.hasOrderScope, authority.activeSubjectMemorialised));
   if (verdict.allow) return { state: navigate(state, screen), effects: [] };
