@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 13:30 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 13:33 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1271,7 +1271,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">13 open · 1 critical · 4 resolved</div></div>
+  <div class="note mono">14 open · 1 critical · 4 resolved</div></div>
 </div></div>
 </div>
 
@@ -1563,7 +1563,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <div><div class="kpi">75<small>source files</small></div></div>
     <div><div class="kpi">10,416<small>source lines</small></div></div>
     <div><div class="kpi">0.53×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">4.25s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">4.08s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1686,6 +1686,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td><span class="tag ">medium</span></td>
   <td class="mono">patient-app</td>
   <td class="note">Blocked — needs a product answer, and lands with S1</td>
+</tr><tr>
+  <td class="mono">TD-16</td>
+  <td>Nothing bounds the pack count on a request line. `Marketplace.packs` refuses zero, negatives and non-integers and accepts everything else — 1,000,000 packs is ACCEPTED, verified by probe. `draft.setPacks` and `draft.add` pass the value straight through, and DraftScreen's stepper increments without a ceiling, so a patient holding the + button sends whatever number they reach to every eligible pharmacy.</td>
+  <td class="note">§2 fixes the maximum LINES per request at 8 and the module's own docstring says the review's central finding was that v1 'left every load-bearing quantity undefined'. The quantity per line is such a quantity and Blueprint v3 does not state it, so there is nothing to implement: any ceiling chosen here would be an invented business rule, which Rule 3 and the forbidden list both refuse. The consequence is real but bounded — a pharmacy receives an absurd request and refuses it, which costs a pharmacist's attention rather than a patient's safety. Needs a number from product, after which it belongs beside MAX_REQUEST_LINES in marketplace/rules.ts.</td>
+  <td><span class="tag ">low</span></td>
+  <td class="mono">marketplace-engine</td>
+  <td class="note">Blocked — needs a Blueprint quantity</td>
 </tr>
 </tbody></table>
 <h3 style="margin-top:20px">Resolved</h3>

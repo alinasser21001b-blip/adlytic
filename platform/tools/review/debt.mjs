@@ -136,6 +136,15 @@ export const DEBT = [
     slice: "Blocked — needs a product answer, and lands with S1",
     status: "open",
   },
+  {
+    id: "TD-16",
+    description: "Nothing bounds the pack count on a request line. `Marketplace.packs` refuses zero, negatives and non-integers and accepts everything else — 1,000,000 packs is ACCEPTED, verified by probe. `draft.setPacks` and `draft.add` pass the value straight through, and DraftScreen's stepper increments without a ceiling, so a patient holding the + button sends whatever number they reach to every eligible pharmacy.",
+    impact: "§2 fixes the maximum LINES per request at 8 and the module's own docstring says the review's central finding was that v1 'left every load-bearing quantity undefined'. The quantity per line is such a quantity and Blueprint v3 does not state it, so there is nothing to implement: any ceiling chosen here would be an invented business rule, which Rule 3 and the forbidden list both refuse. The consequence is real but bounded — a pharmacy receives an absurd request and refuses it, which costs a pharmacist's attention rather than a patient's safety. Needs a number from product, after which it belongs beside MAX_REQUEST_LINES in marketplace/rules.ts.",
+    priority: "low",
+    owner: "marketplace-engine",
+    slice: "Blocked — needs a Blueprint quantity",
+    status: "open",
+  },
 ];
 
 /** Debt that has been paid. Kept, with how it was resolved, so the register
