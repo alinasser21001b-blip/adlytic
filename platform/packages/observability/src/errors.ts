@@ -10,7 +10,7 @@
  *      surface to answer.
  * @implements observability/errors
  */
-import type { Logger } from "./logger.js";
+import { redact, type Logger } from "./logger.js";
 
 export type Severity = "expected" | "unexpected" | "critical";
 
@@ -34,12 +34,35 @@ export interface ErrorSink { report(r: ErrorReport): void; }
  * info with their code; only unexpected failures reach the error sink.
  */
 export function createErrorReporter(sink: ErrorSink, log: Logger) {
+  /**
+   * The sink gets the same redaction the log does.
+   *
+   * `context` is arbitrary caller fields — exactly what `redact` exists for —
+   * and it was reaching the sink raw while the identical fields went through
+   * the redactor on their way to the log. An error sink is the path that
+   * leaves the device, so it was the weaker half of the two.
+   *
+   * `cause` is deliberately left intact: a stack is what makes a failure
+   * actionable, and this module's purpose is actionable failures. A sink
+   * implementation must treat it as untrusted content.
+   */
+  const safe = (r: Omit<ErrorReport, "severity">, severity: Severity): ErrorReport => ({
+    ...r, severity,
+    ...(r.context === undefined ? {} : { context: redact(r.context) }),
+  });
+
   return {
     refusal(operation: string, code: string, correlationId: string, context: Readonly<Record<string, unknown>> = {}): void {
-      log.info(`refused: ${operation}`, { code, correlationId, ...context });
+      // `refusalCode`, not `code`: "code" is on the never-log list because it
+      // means a patient's PICKUP code, and logging this under that name erased
+      // the single most useful field a refusal has. Two different things had
+      // the same name, and the redactor — correctly — could not tell them
+      // apart. A domain refusal code is a closed-set enum and carries no
+      // patient content.
+      log.info(`refused: ${operation}`, { refusalCode: code, correlationId, ...context });
     },
     unexpected(r: Omit<ErrorReport, "severity">): void {
-      const report: ErrorReport = { ...r, severity: "unexpected" };
+      const report = safe(r, "unexpected");
       log.error(`failed: ${r.operation}`, {
         correlationId: r.correlationId, workPreserved: r.workPreserved,
         cause: r.cause instanceof Error ? r.cause.message : String(r.cause),
@@ -48,7 +71,7 @@ export function createErrorReporter(sink: ErrorSink, log: Logger) {
       sink.report(report);
     },
     critical(r: Omit<ErrorReport, "severity">): void {
-      const report: ErrorReport = { ...r, severity: "critical" };
+      const report = safe(r, "critical");
       log.error(`CRITICAL: ${r.operation}`, {
         correlationId: r.correlationId, workPreserved: r.workPreserved,
         cause: r.cause instanceof Error ? r.cause.message : String(r.cause),
