@@ -72,6 +72,15 @@ export const DEBT = [
     status: "open",
   },
   {
+    id: "TD-23",
+    description: "R7 does not end. Its dial now counts down for real — before the clock ticked, nobody would have watched it reach zero — and at zero it shows «٠» beside «الوقت الباقي على نافذة الردود» and goes on saying «انرسل — ننتظر الردود» indefinitely. The screen's own copy promises the opposite: «إذا خلصت بدون رد، نكلّك الصدك ونقترح شنو تسوي». Nothing fires `windowElapsed`, so the request stays `broadcast` in state forever.",
+    impact: "The promise R7 makes about what happens when nobody answers is not kept, on the screen whose entire job is making a wait legible. The store half is declared and buildable — §6 has `broadcast --windowElapsed--> unanswered` and `request.unanswered` is a registered event — but the screen it leads to is R11, whose design package entry reads «OPEN to the designer: Everything. Not rendered.» Moving the request with nowhere to land would change the state and nothing a patient can see, so the state is left honest rather than moved into a screen that does not exist. The polling itself now stops at the window (it did not before), so this costs a patient a broken promise rather than a battery.",
+    priority: "high",
+    owner: "patient-app",
+    slice: "Blocked — R11 is undesigned",
+    status: "open",
+  },
+  {
     id: "TD-17",
     description: "The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.",
     impact: "Nothing in the app hard-codes an id from the list and the real one replaces the file wholesale, so this cannot leak into logic. It does mean a patient in a district Dawai actually serves may not find it, and the coverage claim on each row is not yet a claim product has made. Needs the coverage list as a product input.",

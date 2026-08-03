@@ -260,3 +260,73 @@ describe("a request the patient sends actually leaves the device", () => {
     }
   });
 });
+
+describe("watching a live request stops", () => {
+  /** A host whose clock and sleep a test drives, so a two-day window can pass
+   *  in a millisecond and the polling can be counted rather than waited out. */
+  const drivenHost = (start: number) => {
+    let at = start;
+    const sleeps: (() => void)[] = [];
+    const host = testHost({
+      clock: () => at,
+      sleep: () => new Promise<void>((resolve) => { sleeps.push(resolve); }),
+    });
+    return {
+      host,
+      /** Let one poll interval pass, moving the clock with it. */
+      async pass(ms: number) {
+        at += ms;
+        const waiting = sleeps.splice(0, sleeps.length);
+        for (const wake of waiting) wake();
+        for (let i = 0; i < 20; i += 1) await Promise.resolve();
+      },
+    };
+  };
+
+  const answering = (reads: { value: number }) => (async (url: string) => {
+    if (String(url).includes("/v1/requests/")) {
+      reads.value += 1;
+      // Two branches asked, one answered, one still thinking — the ordinary
+      // case, and the one that used to poll forever.
+      return { status: 200, text: async () => JSON.stringify({ responders: { asked: 2, replied: 1, thinking: 1 }, offers: [] }) };
+    }
+    return { status: 201, text: async () => JSON.stringify({ request: { requestId: "req-1" }, windowEndsAt: 10_000 + 20 * 60_000, branchesAsked: 2 }) };
+  }) as never;
+
+  it("stops when the window closes, not only when everyone has answered", async () => {
+    // A branch that is asked and never answers is ORDINARY — it is why D09 has
+    // a window and why R11 exists. Stopping only on `thinking === 0` polled
+    // every three seconds for as long as the app stayed open.
+    const reads = { value: 0 };
+    const original = globalThis.fetch;
+    globalThis.fetch = answering(reads);
+
+    try {
+      resetFlushLane();
+      const driven = drivenHost(10_000);
+      const { runtime } = await createRuntime(driven.host);
+
+      runtime.startFlush(enqueue(emptyOutbox(), {
+        id: "o-1", subjectId: "s-1", idempotencyKey: "k-1", queuedAt: 0,
+        operation: "POST /v1/requests", label: "طلب دواء",
+        payload: { subjectId: "s-1", urgency: "now", districtId: "d1", lines: [] },
+      }));
+      await settled();
+
+      await driven.pass(3_000);
+      await driven.pass(3_000);
+      const during = reads.value;
+      expect(during, "nothing was polled while the window was open").toBeGreaterThan(0);
+
+      // Past the window's end.
+      await driven.pass(21 * 60_000);
+      const atClose = reads.value;
+      await driven.pass(3_000);
+      await driven.pass(3_000);
+
+      expect(reads.value, "polling continued after the window closed").toBe(atClose);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

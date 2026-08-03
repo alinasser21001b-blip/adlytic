@@ -73,6 +73,20 @@ function requestIdOf(body: unknown): string | null {
 }
 
 /**
+ * When the reply window closes — the SERVER's answer, carried on the 201.
+ *
+ * D09 fixes three windows and only three, and the client does not compute
+ * which one applies: `POST /v1/requests` answers with `windowEndsAt` and this
+ * reads it. Absent means the watch has no end it can trust, which is handled
+ * where it is used rather than by inventing one here.
+ */
+function windowEndsAtOf(body: unknown): number | null {
+  if (typeof body !== "object" || body === null) return null;
+  const at = (body as Record<string, unknown>)["windowEndsAt"];
+  return typeof at === "number" && Number.isFinite(at) ? at : null;
+}
+
+/**
  * The device identity, minted once and kept.
  *
  * The verify contract binds a session to it, so a value that changes between
@@ -230,8 +244,21 @@ export async function createRuntime(
    * to learn and the loop is a battery cost with no result — which matters on
    * the phones this product is for.
    */
-  const watch = async (requestId: string): Promise<void> => {
+  const watch = async (requestId: string, windowEndsAt: number | null): Promise<void> => {
     for (;;) {
+      /**
+       * The window closes, and so does this.
+       *
+       * Stopping only when every branch has answered was wrong, and wrong in
+       * the direction that costs a patient something: a branch that is asked
+       * and never answers is ORDINARY — it is why D09 has a window at all and
+       * why R11 exists — so `thinking` stays above zero indefinitely and this
+       * polled every three seconds for as long as the app was open. On the
+       * longest window that is a request every three seconds for two days, on
+       * the phones and the data plans this product is for.
+       */
+      if (windowEndsAt !== null && host.clock() >= windowEndsAt) return;
+
       const seen = await requests.read(requestId);
       if (seen.kind === "failed") {
         // A dropped connection is not the end of the wait. The window is still
@@ -269,7 +296,7 @@ export async function createRuntime(
           // joins it, this stops being a match and starts being a switch.
           if (item.operation !== "POST /v1/requests") return;
           const id = requestIdOf(body);
-          if (id !== null) void watch(id);
+          if (id !== null) void watch(id, windowEndsAtOf(body));
         },
       });
     },
