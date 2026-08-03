@@ -27,15 +27,6 @@ export const DEBT = [
     status: "open",
   },
   {
-    id: "TD-26",
-    description: "A STATIC deploy of this app has no API. The v1 routes are served in development by a vite middleware (`devApi` in apps/patient/vite.config.ts) that is deliberately not in the production bundle, because no backend has been written. `platform/netlify.toml` now exists and builds correctly — 390 modules, 143 kB gzipped — but what it publishes is the app alone.",
-    impact: "Anyone opening the deployed URL sees the first screen and gets no further: no medicines, no sign-in, no offers, no reservation. Walked against a stand-in static host to find out what that actually looks like, and the first version of the config made it WORSE than nothing — the catch-all rewrite answered GET /v1/catalogue/search with the HTML document and a 200, the app read it as an empty result, and the screen said «ما لكيناه بقائمتنا»: it told the patient the medicine is not in our catalogue, which is false. A 404 rule for /v1/* now reaches the failure path that already exists, so it says «ما كدرنا نوصل للبحث — ما ضاع اللي كتبته» instead. That is honest, but it is still a build preview and must never be described as a working product.",
-    priority: "high",
-    owner: "patient-app",
-    slice: "When a backend exists",
-    status: "open",
-  },
-  {
     id: "TD-3",
     description: "SCREEN transitions are not implemented; element-level motion is. This item used to say no transition existed at all, which was wrong and understated the code while overstating the gap: `Enter`, `Pulse` and `Shake` are real Animated components with native-driver and reduced-motion support, and they are used on eight call sites. What has no consumer is navigation. Measured: 13 motion tokens are declared and 2 are spent — `errorShake` and `offerArrival`. The other 11 include every one that describes moving between screens — screenPush, sheetPresent, sheetDrag — so the app root swaps a component per `state.screen` with nothing in between.",
     impact: "Going from a request to the sign-in ask, or from the wait to the offers, is a cut rather than a movement, and §27 says each of those tokens TEACHES something — screenPush teaches where you are in the hierarchy, sheetPresent teaches that a thing is temporary and layered above. Losing that is losing the one cue that tells a patient whether they went deeper or sideways. Within a screen the product already moves: a field shakes when it is wrong, content enters, a countdown pulses.",
@@ -204,6 +195,11 @@ export const DEBT = [
 /** Debt that has been paid. Kept, with how it was resolved, so the register
  *  records a history rather than only a backlog. */
 export const RESOLVED = [
+  {
+    id: "TD-26",
+    description: "A deployed build had no API, so it showed the first screen and stopped: no medicines, no sign-in, no offers, no reservation. The v1 routes were served only by a vite middleware that is not in the production bundle. Worse, the first version of the routing made the failure DISHONEST — the catch-all rewrite answered GET /v1/catalogue/search with the HTML document and a 200, the app read that as an empty result, and the screen said «ما لكيناه بقائمتنا»: it told the patient the medicine is not in our catalogue. It is. The backend isn't.",
+    resolvedBy: "Product decided the review build carries the mock rather than let a missing backend stop the workflow being reviewed, so `apps/patient/web/mock.ts` installs THE SAME `handle` the dev server runs — tools/devserver/api.mjs, one implementation of the contracts, not a second one that would drift. That file imports nothing from node; it speaks req/res, so the only thing missing in a browser was those two objects. It is imported only when VITE_MOCK_API is set, and lands in its own 3.6 kB chunk, so a build without the flag never carries it and a real backend replaces it by absence. Walked on the STATIC BUILD served the way Netlify serves it — search → draft → sign in → name → district → send → offers arriving → compare → substitution consent → reserved with a pickup code, no console errors. Separately: every deploy on this branch had been CANCELLED, and the cause was the root netlify.toml's base of `dawai-site` — Netlify skips a build when nothing in the base directory changed, and that folder had not been touched in months, so the preview URL kept showing an old static site while the app was never built at all. The base now points at `platform`. What remains is TD-1: this is a mock, and the data resets on reload.",
+  },
   {
     id: "TD-9",
     description: "R2's shutter was SILENTLY inert — pressing «صوّر» left the screen, the controls and the state exactly as they were. No medicine that requires a prescription could be requested at all: D18 refuses the send without an image, the only way to attach one is a photograph, and none could be taken. The register called this a device problem for months, and that was wrong: a browser can take a photograph and `POST /v1/prescriptions` has been declared the entire time. The real obstacle was one line of this repository's own design — `Host.camera` returned an `imageId`, which a platform cannot know, because an id is minted by the media service. The interface was asking the host to do the app's job.",

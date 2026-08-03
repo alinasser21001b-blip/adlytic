@@ -38,3 +38,7 @@ review/screens/
 # .tsx files are checked like everything else; nothing consumes the emit —
 # vite-node runs the sources directly.
 platform/dist-tools/
+
+# Build output — Netlify builds this itself; committing it makes the repo
+# disagree with the deploy.
+platform/dist-web/

@@ -1,74 +1,12 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Netlify — the PATIENT APP, and only the patient app.
+# SUPERSEDED — deliberately empty.
 #
-# This file is read only by a site whose base directory is `platform`. The
-# netlify.toml at the repository root belongs to a different site and publishes
-# a different folder (dawai-site/); the two never meet, and nothing here
-# changes what that site deploys.
+# This file briefly configured a SECOND Netlify site for the patient app. It no
+# longer does: product asked that the EXISTING preview URL always show the
+# latest build rather than a new address, so the configuration moved to the
+# netlify.toml at the repository root, which the existing site already reads.
 #
-# WHAT THIS DEPLOYS, HONESTLY: the app alone. The v1 API is a vite middleware
-# (apps/patient/vite.config.ts — `devApi`) that exists in development and is
-# deliberately NOT in the build, because no backend has been written. So this
-# deployment renders the first screen and then fails on the first search: no
-# medicines, no sign-in, no offers, no reservation. It is a build preview, not
-# a working product, and it must not be described as one.
-# ─────────────────────────────────────────────────────────────────────────────
-
-[build]
-  base    = "platform"
-  publish = "dist-web"
-  command = "npm ci && npm run build:web"
-
-# Vite's root is the platform directory, so the entry is emitted at the path it
-# occupies in the source tree rather than at the publish root. The dev server
-# answers the front door with a middleware (`appAtRoot`); a static host cannot
-# run middleware, so it does the same thing with a rewrite. 200, not 301: the
-# address stays the one the visitor typed.
-[[redirects]]
-  from   = "/"
-  to     = "/apps/patient/web/index.html"
-  status = 200
-
-# The v1 routes must 404 rather than fall through to the catch-all below.
-# Walked in a browser first: with the catch-all alone, GET /v1/catalogue/search
-# answered 200 with the HTML document, the app could not tell a missing backend
-# from a reply, and the search box silently swallowed the patient's typing. A
-# 404 reaches the failure path that already exists and already has a sentence.
-[[redirects]]
-  from   = "/v1/*"
-  to     = "/v1/:splat"
-  status = 404
-
-# One page, one entry. Every other path is the same document — the app owns its
-# own navigation and reads nothing from the URL.
-[[redirects]]
-  from   = "/*"
-  to     = "/apps/patient/web/index.html"
-  status = 200
-
-# ── caching ──────────────────────────────────────────────────────────────────
-# The bundle carries a content hash, so it can be cached for a year; the
-# document names that bundle and must never be.
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/*.html"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-
-# ── security ─────────────────────────────────────────────────────────────────
-# Least privilege, with one exception that is the point of the app: R2 asks the
-# patient to photograph a prescription, and `camera=()` would refuse it in a
-# way no error message could explain. Geolocation stays denied because the
-# product deliberately does not use it — E8 asks the patient to pick a district
-# rather than reading where they are.
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy        = "strict-origin-when-cross-origin"
-    X-Frame-Options        = "SAMEORIGIN"
-    Permissions-Policy     = "camera=(self), geolocation=(), microphone=()"
+# It is kept as an empty file rather than removed so that a site whose base
+# directory is set to `platform` does not silently fall back to a stale copy of
+# the old settings. Everything that matters — base, publish, build command, the
+# VITE_MOCK_API flag, the routing rewrites, the caching and the permissions
+# policy — lives at the repository root. Edit it there.

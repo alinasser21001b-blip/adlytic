@@ -18,6 +18,16 @@ const host = browserHost(globalThis.location.origin);
 
 async function start() {
   /**
+   * A review build carries the mock; a build without the flag does not, and
+   * the module is never imported so it never reaches the bundle. Product asked
+   * for this so a missing backend cannot stop the workflow being reviewed.
+   */
+  if (import.meta.env["VITE_MOCK_API"] === "1") {
+    const { installMockApi } = await import("./mock.js");
+    installMockApi();
+  }
+
+  /**
    * Build, then mount. The app connects itself to the runtime once it is
    * rendered — this file deliberately holds no dispatcher of its own, because
    * the version that did had to call `usePatientApp` to get one and thereby
