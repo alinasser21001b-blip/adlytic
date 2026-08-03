@@ -135,14 +135,35 @@ export function describeRemaining(minutes: number): string {
 }
 
 /**
+ * Iraq's offset from UTC, in minutes.
+ *
+ * +03:00, and permanent: Iraq abolished daylight saving in 2008, so there is
+ * no second offset to switch between and no date on which this changes.
+ *
+ * Stated as a constant rather than taken from the device because §3 launches
+ * in Iraq only and D40 names a single launch district — the patient, the
+ * pharmacy and the hold are all in one zone, so the app does not need to
+ * guess which clock the reader is on. It also keeps this function pure and
+ * its tests independent of the machine they run on. If Phase 1 ever serves a
+ * second country, this becomes the caller's offset rather than a constant.
+ */
+const IRAQ_UTC_OFFSET_MINUTES = 3 * 60;
+
+/**
  * The expiry as a wall-clock time.
  *
  * The delivery states «صالح لحد ٧:٠٠ م» rather than a duration, because a
  * patient walking to a pharmacy thinks in clock time — a duration has to be
  * added to the current time before it means anything.
+ *
+ * In LOCAL time, which is the whole point. This read the UTC hour, so a hold
+ * expiring at 7pm in Baghdad was printed as «٤:٠٠ م» — three hours early, on
+ * the one line that tells a patient when their medicine stops being held. A
+ * clock time that is not the reader's clock is worse than a duration: it is
+ * confidently wrong rather than merely inconvenient.
  */
 export function clockTime(at: Instant): string {
-  const d = new Date(at);
+  const d = new Date(at + IRAQ_UTC_OFFSET_MINUTES * 60_000);
   const h24 = d.getUTCHours();
   const h = h24 % 12 === 0 ? 12 : h24 % 12;
   const m = String(d.getUTCMinutes()).padStart(2, "0");

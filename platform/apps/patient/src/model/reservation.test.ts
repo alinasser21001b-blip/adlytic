@@ -76,3 +76,50 @@ describe("cancelling", () => {
     expect(r).toHaveProperty("refusal");
   });
 });
+
+describe("V2 — the two ways a hold's time is stated", () => {
+  /** 2026-08-03T16:00:00Z is 7pm in Baghdad. */
+  const sevenPmBaghdad = instant(Date.UTC(2026, 7, 3, 16, 0));
+
+  it("the expiry is a LOCAL wall clock, not UTC", () => {
+    // Read in UTC this printed «٤:٠٠ م» — three hours early, on the one line
+    // that tells a patient when their medicine stops being held.
+    expect(Reservation.clockTime(sevenPmBaghdad)).toBe("7:00 م");
+  });
+
+  it("midnight and noon are named the way a clock names them", () => {
+    expect(Reservation.clockTime(instant(Date.UTC(2026, 7, 3, 21, 0)))).toBe("12:00 ص");
+    expect(Reservation.clockTime(instant(Date.UTC(2026, 7, 3, 9, 0)))).toBe("12:00 م");
+  });
+
+  it("morning and afternoon are told apart", () => {
+    expect(Reservation.clockTime(instant(Date.UTC(2026, 7, 3, 5, 30)))).toBe("8:30 ص");
+    expect(Reservation.clockTime(instant(Date.UTC(2026, 7, 3, 12, 5)))).toBe("3:05 م");
+  });
+
+  it("minutes are always two digits — 7:05, never 7:5", () => {
+    expect(Reservation.clockTime(instant(Date.UTC(2026, 7, 3, 16, 5)))).toBe("7:05 م");
+  });
+
+  it("does not depend on the machine the test runs on", () => {
+    // A device-local implementation would give a different answer on a CI box
+    // in another zone, and the failure would look like flakiness.
+    expect(Reservation.clockTime(sevenPmBaghdad)).toBe(Reservation.clockTime(sevenPmBaghdad));
+    expect(Reservation.clockTime(instant(0))).toBe("3:00 ص");
+  });
+
+  it("a duration is worded the way a person says it, in hours", () => {
+    // "120 دقيقة" is a hesitation moment: it has to be converted before a
+    // patient knows whether they can walk or must hurry.
+    expect(Reservation.describeRemaining(0)).toBe("انتهى الوقت");
+    expect(Reservation.describeRemaining(45)).toBe("45 دقيقة");
+    expect(Reservation.describeRemaining(60)).toBe("ساعة");
+    expect(Reservation.describeRemaining(120)).toBe("ساعتين");
+    expect(Reservation.describeRemaining(90)).toBe("ساعة و30 دقيقة");
+    expect(Reservation.describeRemaining(180)).toBe("3 ساعات");
+  });
+
+  it("the code is grouped so it can be read aloud without being misheard", () => {
+    expect(Reservation.readableCode("4KD2P9")).toBe("4K D2 P9");
+  });
+});
