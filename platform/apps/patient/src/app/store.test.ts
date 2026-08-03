@@ -271,6 +271,35 @@ describe("the second half of the loop", () => {
     expect(effects.some((e) => e.kind === "emit" && e.event === "reservation.refused")).toBe(true);
   });
 
+  it("a hold event with no reservation in flight is not ours, and invents nothing", () => {
+    // Previously the reducer supplied a `?? "requested"` machine state here, so
+    // a stray or replayed server event manufactured a held reservation and V2
+    // showed a pickup code for a request the patient never sent.
+    const before = sentRequest();
+    expect(before.reservationState).toBeNull();
+    const { state, effects } = run(before, [{
+      kind: "holdConfirmed",
+      hold: {
+        reservationId: "r-ghost", code: "9ZZ9ZZ", branchName: "صيدلية ما طلبناها", holderName: "أم علي",
+        branchPhone: "0770", address: "الكرادة",
+        confirmedAt: instant(2_000), expiresAt: instant(2_000 + 3_600_000),
+        totalMinor: 3_000, lines: [{ itemName: "بانادول", packs: 1, priceMinor: 3_000 }],
+      },
+    }]);
+    expect(state.reservationState).toBeNull();
+    expect(state.reservation).toBeNull();
+    expect(state.screen).toBe(before.screen);
+    expect(effects).toHaveLength(0);
+  });
+
+  it("a refusal with no reservation in flight is ignored the same way", () => {
+    const before = sentRequest();
+    const { state, effects } = run(before, [{ kind: "holdRefused", branchName: "صيدلية", reopened: true }]);
+    expect(state.reservationState).toBeNull();
+    expect(state.screen).toBe(before.screen);
+    expect(effects).toHaveLength(0);
+  });
+
   it("a hold cannot be confirmed twice — the published machine forbids it (Rule 5)", () => {
     let s = run(sentRequest(), [
       { kind: "offerArrived", offer: offer() },

@@ -362,7 +362,15 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
     }
 
     case "holdConfirmed": {
-      const moved = Reservation.confirmed(state.reservationState ?? "requested", intent.hold);
+      // No reservation in flight means this event belongs to nothing we hold.
+      // The previous `?? "requested"` INVENTED the machine state the transition
+      // needed, which let a stray or replayed server event manufacture a held
+      // reservation the patient never asked for — and V2 would then show a
+      // pickup code for it. A machine state is either known or the event is not
+      // ours; there is no third answer, and guessing one is inventing a state
+      // transition.
+      if (state.reservationState === null) return { state, effects: [] };
+      const moved = Reservation.confirmed(state.reservationState, intent.hold);
       if (!moved) return { state, effects: [] };
       return {
         state: navigate({ ...state, reservation: moved.view, reservationState: moved.state }, "V2"),
@@ -373,7 +381,8 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
     case "holdRefused": {
       // D39 — the request re-opens automatically, so this is not the end of
       // the journey and the screen it lands on says so.
-      const moved = Reservation.cannotHold(state.reservationState ?? "requested", intent.branchName, intent.reopened);
+      if (state.reservationState === null) return { state, effects: [] };
+      const moved = Reservation.cannotHold(state.reservationState, intent.branchName, intent.reopened);
       if (!moved) return { state, effects: [] };
       return {
         state: navigate({ ...state, reservation: moved.view, reservationState: moved.state }, "V4"),
