@@ -24,29 +24,15 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci || npm install
 
-      # Rule 1 — every module traces to Blueprint v3.
-      # Rule 2 — exactly one owner per module, one owner per concept.
-      - name: Traceability and ownership
-        run: npm run trace
-
-      # Rule 3 — no business logic outside the domain.
-      # Rule 4 — the domain is pure, so it cannot make an I/O decision.
-      - name: Layer boundaries
-        run: npm run layers
-
-      # UX is a first-class engineering responsibility: a contract must name a
-      # real Blueprint screen, cover every state the Blueprint declares for it,
-      # and leave no dead end.
-      - name: UX contracts
-        run: npm run ux
-
-      - name: Types
-        run: npm run types
-
-      # Rule 5 — state machines are audited for reachability and exits.
-      # Rule 7 — the domain is pure, so every rule tests without infrastructure.
-      - name: Tests
-        run: npm run test
+      # ONE step, deliberately. This job used to hand-enumerate the gates —
+      # trace, layers, ux, types, test — and `npm run check` grew a sixth
+      # (test-reach) that nobody added here, so a gate that passes locally
+      # never ran on a pull request. A list maintained in two places drifts;
+      # this one cannot, because there is only one list now and package.json
+      # owns it. Each tool still prints its own header, so a failure names
+      # itself in the log.
+      - name: Gates — npm run check
+        run: npm run check
 
       # A guard that has never rejected anything is untested.
       - name: Negative tests — the guards must reject known violations
