@@ -1,8 +1,36 @@
 import { describe, expect, it } from "vitest";
 import * as Offers from "./offers.js";
 
-const line = (id: string, name: string, answer: Offers.OfferLine["answer"]): Offers.OfferLine =>
-  ({ requestLineId: id, itemName: name, answer } as Offers.OfferLine);
+/**
+ * A line the product can actually produce.
+ *
+ * This used to end `as Offers.OfferLine`, and the cast was load-bearing in the
+ * wrong direction: it silenced the two fields the type requires and the
+ * fixtures did not set — `latinName` on every line, and substituteName /
+ * substituteLatinName / proposedBy on a substitute. Tests then exercised
+ * shapes no server response could produce, and anything reading those fields
+ * saw `undefined` while the suite stayed green.
+ */
+const line = (
+  id: string,
+  name: string,
+  answer: Extract<Offers.OfferLine["answer"], { kind: "available" | "unavailable" }>,
+): Offers.OfferLine => {
+  const named = { requestLineId: id, itemName: name, latinName: `${name}-latin` };
+  // Narrowed per branch rather than cast: each literal then matches one member
+  // of the union, and the compiler checks it instead of being told.
+  return answer.kind === "available" ? { ...named, answer } : { ...named, answer };
+};
+
+/** A substitute carries three more fields, all required: what it is called, so
+ *  a patient consenting to a different brand can read its name, and who
+ *  proposed it (D19). */
+const substituteLine = (id: string, name: string, note = "نفس المادة"): Offers.OfferLine => ({
+  requestLineId: id, itemName: name, latinName: `${name}-latin`,
+  answer: { kind: "substitute", priceMinor: 2_500, itemId: "x1", note },
+  substituteName: "سيتامول", substituteLatinName: "Cetamol",
+  proposedBy: { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" },
+});
 
 const offer = (over: Partial<Offers.Offer> = {}): Offers.Offer => ({
   offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
@@ -38,7 +66,7 @@ describe("what an offer covers", () => {
 
   it("a substitution counts as covered and is flagged, because it needs consent", () => {
     const s = Offers.summarise(offer({
-      lines: [line("l1", "بانادول", { kind: "substitute", priceMinor: 2_500, itemId: "x", note: "نفس المادة" })],
+      lines: [substituteLine("l1", "بانادول")],
     }), ["l1"]);
     expect(s.complete).toBe(true);
     expect(s.hasSubstitution).toBe(true);
@@ -169,15 +197,7 @@ describe("D09 — a closed window reaches the client as the offer's own state", 
 });
 
 describe("D19 — a substitution carries its author across to consent", () => {
-  /** A real substitute line, not a cast: the type requires substituteName,
-   *  substituteLatinName and proposedBy, and a fixture that omits them tests a
-   *  shape the product cannot produce. */
-  const sub = (): Offers.OfferLine => ({
-    requestLineId: "l2", itemName: "بانادول", latinName: "Panadol",
-    answer: { kind: "substitute", priceMinor: 2_500, itemId: "x1", note: "نفس المادة الفعالة" },
-    substituteName: "سيتامول", substituteLatinName: "Cetamol",
-    proposedBy: { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" },
-  });
+  const sub = (): Offers.OfferLine => substituteLine("l2", "بانادول", "نفس المادة الفعالة");
 
   it("recognises a substitution through the nested discriminant", () => {
     // Narrowing `l.answer.kind` inline stopped working the moment a second

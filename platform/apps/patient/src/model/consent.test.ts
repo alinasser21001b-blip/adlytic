@@ -148,8 +148,23 @@ describe("R2 and R3 — photographing the paper", () => {
 });
 
 describe("§4 R10 — acceptance is one rule, asked once", () => {
-  const line = (id: string, answer: Offers.OfferLine["answer"]): Offers.OfferLine =>
-    ({ requestLineId: id, itemName: "بانادول", answer } as Offers.OfferLine);
+  /** No cast: the type requires `latinName`, and a fixture that omits it tests
+   *  a shape the product cannot produce. */
+  const line = (
+    id: string,
+    answer: Extract<Offers.OfferLine["answer"], { kind: "available" | "unavailable" }>,
+  ): Offers.OfferLine => {
+    const named = { requestLineId: id, itemName: "بانادول", latinName: "Panadol" };
+    return answer.kind === "available" ? { ...named, answer } : { ...named, answer };
+  };
+
+  /** A substitute needs its name and its author (D19); the type says so. */
+  const substituteLine = (id: string): Offers.OfferLine => ({
+    requestLineId: id, itemName: "بانادول", latinName: "Panadol",
+    answer: { kind: "substitute", priceMinor: 2_500, itemId: "x", note: "نفس المادة" },
+    substituteName: "سيتامول", substituteLatinName: "Cetamol",
+    proposedBy: { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" },
+  });
   const offer = (over: Partial<Offers.Offer> = {}): Offers.Offer => ({
     offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
     distanceM: 800, honoured: "trusted", state: "sent", openNow: true,
@@ -159,7 +174,7 @@ describe("§4 R10 — acceptance is one rule, asked once", () => {
   const withSub = () => offer({
     lines: [
       line("l1", { kind: "available", priceMinor: 3_000 }),
-      line("l2", { kind: "substitute", priceMinor: 2_500, itemId: "x", note: "نفس المادة" }),
+      substituteLine("l2"),
     ],
   });
 

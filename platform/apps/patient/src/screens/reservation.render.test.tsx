@@ -43,8 +43,24 @@ function texts(root: ReactTestInstance): string {
 const flatten = (style: unknown): Record<string, unknown> =>
   Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : (style as Record<string, unknown>) ?? {};
 
-const line = (id: string, name: string, answer: Offers.OfferLine["answer"]): Offers.OfferLine =>
-  ({ requestLineId: id, itemName: name, answer } as Offers.OfferLine);
+/** No cast: `latinName` is required on every line, and a substitute needs its
+ *  name and its author too. A fixture that omits them renders a shape the
+ *  product cannot produce. */
+const line = (
+  id: string,
+  name: string,
+  answer: Extract<Offers.OfferLine["answer"], { kind: "available" | "unavailable" }>,
+): Offers.OfferLine => {
+  const named = { requestLineId: id, itemName: name, latinName: `${name}-latin` };
+  return answer.kind === "available" ? { ...named, answer } : { ...named, answer };
+};
+
+const substituteLine = (id: string, name: string): Offers.OfferLine => ({
+  requestLineId: id, itemName: name, latinName: `${name}-latin`,
+  answer: { kind: "substitute", priceMinor: 2_000, itemId: "x", note: "نفس المادة" },
+  substituteName: "سيتامول", substituteLatinName: "Cetamol",
+  proposedBy: { name: "د. أحمد", licenceVerified: true, branchName: "صيدلية الرشيد" },
+});
 
 const offer = (over: Partial<Offers.Offer> = {}): Offers.Offer => ({
   offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
@@ -100,7 +116,7 @@ describe("R8 — choosing where to walk", () => {
   });
 
   it("flags a substitution and never presents it as already accepted (§4 R10)", () => {
-    const sub = offer({ lines: [line("l1", "بانادول", { kind: "substitute", priceMinor: 2_000, itemId: "x", note: "نفس المادة" })] });
+    const sub = offer({ lines: [substituteLine("l1", "بانادول")] });
     const root = render(<OffersScreen {...offersBase} offers={summarise([sub], ["l1"])} requestedLines={1} />);
     expect(texts(root)).toContain("فيها بديل");
     // The consent itself lives on R9. What R8 must never do is let a tap here
