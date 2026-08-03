@@ -171,7 +171,7 @@ export type Step = { readonly state: AppState; readonly effects: readonly Effect
  * the CONTRACTS, not of the reducer. They live beside the contracts and are
  * re-exported here for the app root and the review tooling, which have always
  * asked the store for them. */
-export { GRAPH, isBuilt, NOT_YET_BUILT } from "../screens/graph.js";
+export { GRAPH, isBuilt, NOT_YET_BUILT, NOT_DRAWN } from "../screens/graph.js";
 
 /** A cold start: a guest on Today, with nothing in flight. The district is not
  *  state — it arrives with `Authority` on every dispatch, because it is a fact
@@ -227,8 +227,34 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       switch (result.kind) {
         case "pop":
           return { state: { ...state, screen: result.to, history: state.history.slice(0, -1), redirectBecause: null }, effects: [] };
-        case "replace":
+        case "replace": {
+          /**
+           * Leaving an INTERRUPTION returns you to what it interrupted.
+           *
+           * E4 states this in its own contract, in words, beside `back`:
+           * "Dismiss, not pop: the action the patient was taking is preserved
+           * (D26), so leaving returns them to it rather than unwinding a
+           * stack." A contract's `back` can only name one fixed screen, so
+           * `returnsTo` says S1 — and the control labelled «مو هسه — رجعني
+           * لطلبي» sent a patient to Today's stand-in instead of the request
+           * it had just named back to them.
+           *
+           * A preserved action is what distinguishes the two cases, and the
+           * guard put it there on the way in. R7 dismisses with nothing
+           * pending and still lands exactly where the graph says; E4 dismisses
+           * with a pending action and lands on the screen the patient was
+           * using when the guard stopped them.
+           *
+           * The pending intent itself is NOT the destination: it records the
+           * screen the guard REFUSED, which is where D26 replays them after
+           * they sign in. Sending them there now would push them forward into
+           * the refusal they just declined.
+           */
+          const from = state.history[state.history.length - 1];
+          if (state.session.pending !== null && from !== undefined)
+            return { state: { ...state, screen: from, history: state.history.slice(0, -1), redirectBecause: null }, effects: [] };
           return { state: { ...state, screen: result.to, history: [], redirectBecause: null }, effects: [] };
+        }
         // A trap is impossible by contract, and "stay" is the correct answer at
         // a tab root rather than a silent no-op that looks like a broken button.
         case "stay":

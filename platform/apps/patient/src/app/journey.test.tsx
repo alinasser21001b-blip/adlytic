@@ -121,17 +121,33 @@ describe("a guest is carried into sign-in rather than thrown back to search", ()
     app.unmount();
   });
 
-  it("E4 offers a way out at all", async () => {
-    // WHERE it leads is a separate defect and a separate fix: E4 dismisses to
-    // S1, S1 is contracted but has no component, and the root's `default` then
-    // draws the search screen — so this control currently does the opposite of
-    // what it says. That is TD-19, and it is not papered over here.
+  it("the way out of E4 returns to the request it named, not to a root", async () => {
+    // «مو هسه — رجعني لطلبي» used to land on the search screen: E4 dismisses to
+    // S1, S1 has no component, and the root's `default` drew F1 with the
+    // history cleared. The control said "take me back to my request" and
+    // replaced the request with a search box.
     const app = open(runtime());
     await app.type("بانادول");
     await app.press("أضف بانادول للطلب");
     await app.press("كمّل");
+    await app.press("مو هسه — رجعني لطلبي");
 
-    expect(controls(app.root()).some((c) => c.props["accessibilityLabel"] === "مو هسه — رجعني لطلبي")).toBe(true);
+    expect(app.said()).toContain("طلب جديد");
+    expect(app.said()).toContain("بانادول");
+    app.unmount();
+  });
+
+  it("R1 renders no control leading to a screen the root cannot draw", async () => {
+    // R1 declares a «لمن؟» secondary into R4, the subject switcher, which has
+    // a full contract and no component. It passed `isBuilt`, so the control
+    // rendered, the tap succeeded, and the root's `default` replaced the
+    // patient's request with the search screen.
+    const app = open(runtime());
+    await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+
+    expect(app.said()).toContain("طلب جديد");
+    expect(controls(app.root()).some((c) => c.props["accessibilityLabel"] === "لمن؟")).toBe(false);
     app.unmount();
   });
 });

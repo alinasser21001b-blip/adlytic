@@ -613,7 +613,7 @@
         },
         {
           "to": "R4",
-          "built": true
+          "built": false
         },
         {
           "to": "R6",
@@ -696,7 +696,7 @@
       "exits": [
         {
           "to": "R5",
-          "built": true
+          "built": false
         },
         {
           "to": "R7",
@@ -704,7 +704,7 @@
         },
         {
           "to": "R13",
-          "built": true
+          "built": false
         }
       ],
       "telemetry": [
@@ -793,7 +793,7 @@
         },
         {
           "to": "R11",
-          "built": true
+          "built": false
         },
         {
           "to": "S1",
@@ -2469,7 +2469,7 @@
       {
         "from": "R1",
         "to": "R4",
-        "built": true
+        "built": false
       },
       {
         "from": "R1",
@@ -2479,7 +2479,7 @@
       {
         "from": "R6",
         "to": "R5",
-        "built": true
+        "built": false
       },
       {
         "from": "R6",
@@ -2489,7 +2489,7 @@
       {
         "from": "R6",
         "to": "R13",
-        "built": true
+        "built": false
       },
       {
         "from": "R7",
@@ -2499,7 +2499,7 @@
       {
         "from": "R7",
         "to": "R11",
-        "built": true
+        "built": false
       },
       {
         "from": "R7",

@@ -30,12 +30,70 @@ export const GRAPH: NavGraph = buildGraph(
   guardDestinations(ROUTE_GUARDS),
 );
 
-/** Whether a screen exists in this build. Blueprint v3 has 133 patient-side
- *  screens and this slice contracts 22 of them; the rest arrive with their
- *  slice. Nothing renders a control that leads to a screen that is not here —
- *  a button that does nothing is the defect this check exists to prevent, and
- *  the set shrinks to empty as the remaining slices land. */
-export const isBuilt = (screen: string): screen is ScreenId => CONTRACTS.has(screen);
+/**
+ * Contracted, and with no component to draw it.
+ *
+ * A contract is not a screen. These five have a full contract — states,
+ * exits, guards, a primary — and nothing that renders them, so the app root
+ * falls through to `default` when a patient arrives. Each is here with the
+ * reason it cannot simply be built, because "not built yet" and "cannot be
+ * built yet" are different facts and only one of them is a scheduling
+ * question.
+ */
+const NO_COMPONENT: Readonly<Record<string, string>> = {
+  R4: "the subject switcher; arrives with the family slice",
+  R5: "urgency as a modal; R6 sets it inline today",
+  R11: "the honest empty case; arrives with the marketplace slice",
+  R13: "the outbox screen; arrives with the offline slice",
+};
+
+/**
+ * S1 is missing too, and is deliberately NOT in that list.
+ *
+ * Its visual is open to the designer — how a live reservation appears there,
+ * whether the quiet state is illustrated, how its two empty states differ —
+ * so drawing it would be inventing the most-seen screen in the product.
+ *
+ * But it is the only missing screen the root SUBSTITUTES for: every exit that
+ * names S1 means "leave this and go to Today", and the root answers with the
+ * entry to the one journey that is built. Removing those exits would take
+ * «تمام — خبروني» off R7's offline state and leave a live request with no
+ * acknowledged way out, which is a worse answer than a stand-in that the root
+ * documents. Listing it here would also make it un-navigable, and the app
+ * STARTS on it.
+ *
+ * The one exit that this stand-in does not serve is E4's «مو هسه — رجعني
+ * لطلبي», which names the patient's request rather than Today; the store
+ * answers that one from D26's preserved action instead of from the graph.
+ */
+
+/**
+ * Whether this build can actually SHOW a screen.
+ *
+ * Blueprint v3 has 133 patient-side screens and this slice contracts 22 of
+ * them; the rest arrive with their slice. Nothing renders a control that leads
+ * to a screen that is not here — a button that does nothing is the defect this
+ * check exists to prevent, and the set shrinks to empty as the slices land.
+ *
+ * It used to test only `CONTRACTS.has`, which made that promise false and
+ * produced the worst version of the defect it was written to prevent: the
+ * control rendered, the tap succeeded, `open` allowed it, and the root's
+ * `default` drew the SEARCH screen. R1's «لمن؟» — the control for saying who
+ * the medicine is for — replaced the request a patient had just built with a
+ * search box. The navigation gates could not see it: they prove the CONTRACT
+ * graph has no unreachable screen and no trap, and every one of these passes
+ * that.
+ *
+ * A contract this build cannot draw is now indistinguishable, to everything
+ * that asks, from a screen it does not contract at all — which is what
+ * callers were always assuming.
+ */
+export const isBuilt = (screen: string): screen is ScreenId =>
+  CONTRACTS.has(screen) && !(screen in NO_COMPONENT);
+
+/** The contracted screens with nothing to draw them, so the gap is countable
+ *  from outside this module rather than only readable inside it. */
+export const NOT_DRAWN: readonly string[] = Object.keys(NO_COMPONENT).sort();
 
 /** The contract for a screen this build has. */
 export const contractFor = (id: ScreenId): ScreenContract => CONTRACTS.get(id)!;

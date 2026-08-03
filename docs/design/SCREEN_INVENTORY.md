@@ -760,7 +760,7 @@ Blueprint declares: `empty · error`. 3 state(s) rendered and photographed.
 | Primary action | **كمّل** → `R6` (1 tap to outcome) |
 | Secondary actions | ضيف دواء ثاني → `F2`<br>صوّر الوصفة → `R2`<br>لمن؟ → `R4` |
 | Back | `dismiss` → `S1` |
-| Exits | `F2`, `R2`, `R4`, `R6` |
+| Exits | `F2`, `R2`, `R4` **(BLOCKED — target not built)**, `R6` |
 | Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
 
 #### Accessibility support required
@@ -848,7 +848,7 @@ Blueprint declares: `error · offline`. 2 state(s) rendered and photographed.
 | Primary action | **أرسل الطلب** → `R7` (1 tap to outcome) |
 | Secondary actions | غيّر الاستعجال → `R5` |
 | Back | `pop` |
-| Exits | `R5`, `R7`, `R13` |
+| Exits | `R5` **(BLOCKED — target not built)**, `R7`, `R13` **(BLOCKED — target not built)** |
 | Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
 
 #### Accessibility support required
@@ -934,7 +934,7 @@ Blueprint declares: `empty · loading · error · offline`. 2 state(s) rendered 
 | Primary action | **شوف العرض الواصل** → `R8` (1 tap to outcome) |
 | Secondary actions | ألغِ الطلب → `S1` |
 | Back | `dismiss` → `S1` |
-| Exits | `R8`, `R11`, `S1` |
+| Exits | `R8`, `R11` **(BLOCKED — target not built)**, `S1` |
 | Press feedback | **Not designed.** No pressed state exists anywhere in the product. |
 
 #### Accessibility support required

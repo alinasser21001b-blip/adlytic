@@ -54,12 +54,12 @@ export const DEBT = [
     status: "open",
   },
   {
-    id: "TD-19",
-    description: "`isBuilt` means \"this screen has a CONTRACT\", and its own docstring claims what it actually buys: \"Nothing renders a control that leads to a screen that is not here — a button that does nothing is the defect this check exists to prevent.\" That is false for five screens. The app root renders 17 of the 22 contracted screens; S1, R4, R5, R11 and R13 are contracted, pass `isBuilt`, are navigated to successfully, and land on the root's `default`, which draws the search screen. So R1's «لمن؟» — the control for choosing who the medicine is for — throws a patient to search, and E4's «مو هسه — رجعني لطلبي» dismisses to S1 and does the same, with the history cleared on the way. The navigation gates do not see it: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of the five passes that.",
-    impact: "Two live navigation dead ends on the core loop, both on controls whose labels promise the opposite. Neither is a missing feature the user can see coming: the control looks ordinary, the tap succeeds, and the app silently replaces the screen they were on. The fix is to make the predicate mean what it says — a screen the ROOT CAN DRAW — after which nothing renders a control leading to any of the five.",
+    id: "TD-20",
+    description: "R7's «ألغِ الطلب» does not cancel anything. The contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: there is no cancel intent, no marketplace transition, no call. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.",
+    impact: "A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. What cancelling a broadcast request DOES — whether it is a state on the request machine, what pharmacies that already answered are told, and whether it is even offered once an offer exists — is not in Blueprint v3, so implementing it here would be inventing a state transition and a notification at once.",
     priority: "high",
-    owner: "patient-app",
-    slice: "Next commit",
+    owner: "marketplace-engine",
+    slice: "Blocked — needs the cancellation rule",
     status: "open",
   },
   {
@@ -181,6 +181,11 @@ export const RESOLVED = [
     id: "TD-5",
     description: "A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.",
     resolvedBy: "R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.",
+  },
+  {
+    id: "TD-19",
+    description: "`isBuilt` meant \"this screen has a CONTRACT\", while its docstring promised what callers assumed: \"Nothing renders a control that leads to a screen that is not here.\" Four contracted screens have no component, so R1's «لمن؟» — the control for saying who the medicine is for — rendered, was tapped, navigated successfully, and landed on the root's `default`, which drew the SEARCH screen over the request the patient had just built. E4's «مو هسه — رجعني لطلبي» did the same by dismissing to S1, clearing the history on the way. The navigation gates could not see either: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of these passes that.",
+    resolvedBy: "`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means \"leave for Today\", and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium.",
   },
   {
     id: "TD-0a",

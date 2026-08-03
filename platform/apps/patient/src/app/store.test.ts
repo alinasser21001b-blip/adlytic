@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { instant } from "@dawai/domain";
 import { describe as describeItem } from "@dawai/offline";
 import { authenticate, guest, interrupt } from "@dawai/session";
-import { dispatch, initial, GRAPH, NOT_YET_BUILT, type AppState, type Authority, type Intent, type Effect } from "./store.js";
+import { dispatch, initial, GRAPH, NOT_YET_BUILT, NOT_DRAWN, type AppState, type Authority, type Intent, type Effect } from "./store.js";
 import type { CatalogueHit, Environment } from "../ports.js";
 import { unreachable, traps, danglingExits, flowGaps, ROUTE_GUARDS } from "@dawai/navigation";
 import { sayRedirect } from "../ui/refusal.js";
@@ -179,7 +179,11 @@ describe("the graph the app actually navigates", () => {
   });
 
   it("and no control can navigate to one of them", () => {
-    for (const screen of NOT_YET_BUILT) {
+    // Both kinds of gap: a screen with no contract at all, and a screen with a
+    // full contract and nothing to draw it. The second kind used to pass this
+    // check by being contracted — and then landed the patient on the root's
+    // `default`, which drew the search screen over whatever they were doing.
+    for (const screen of [...NOT_YET_BUILT, ...NOT_DRAWN]) {
       const before = signedIn();
       expect(run(before, [{ kind: "open", screen }]).state.screen).toBe(before.screen);
     }

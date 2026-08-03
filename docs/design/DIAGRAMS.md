@@ -84,13 +84,9 @@ flowchart TD
   F2 --> R1
   R1 --> F2
   R1 --> R2
-  R1 --> R4
   R1 --> R6
-  R6 --> R5
   R6 --> R7
-  R6 --> R13
   R7 --> R8
-  R7 --> R11
   R7 --> S1
   R8 --> R9
   R8 --> V1
@@ -116,6 +112,10 @@ flowchart TD
   S1 -.blocked.-> V8["V8<br/>NOT BUILT"]
   F1 -.blocked.-> F5["F5<br/>NOT BUILT"]
   F2 -.blocked.-> F3["F3<br/>NOT BUILT"]
+  R1 -.blocked.-> R4["R4<br/>NOT BUILT"]
+  R6 -.blocked.-> R5["R5<br/>NOT BUILT"]
+  R6 -.blocked.-> R13["R13<br/>NOT BUILT"]
+  R7 -.blocked.-> R11["R11<br/>NOT BUILT"]
   R4 -.blocked.-> S3["S3<br/>NOT BUILT"]
   R9 -.blocked.-> R10["R10<br/>NOT BUILT"]
   R11 -.blocked.-> R12["R12<br/>NOT BUILT"]
@@ -227,6 +227,9 @@ flowchart TD
   S1 -.needs.-> S2 & V8
   F1 -.needs.-> F5
   F2 -.needs.-> F3
+  R1 -.needs.-> R4
+  R6 -.needs.-> R5 & R13
+  R7 -.needs.-> R11
   R4 -.needs.-> S3
   R9 -.needs.-> R10
   R11 -.needs.-> R12
