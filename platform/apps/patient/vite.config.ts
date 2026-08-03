@@ -21,9 +21,30 @@ const devApi = (): Plugin => ({
   },
 });
 
+/**
+ * The app answers at `/`.
+ *
+ * Vite's root is the platform directory, because the aliases below point at
+ * package SOURCES that live above the app — so the page itself sat at
+ * `/apps/patient/web/index.html` and the obvious URL, the one anybody types,
+ * returned nothing at all. "It doesn't work" is the correct reading of a
+ * server that answers a five-segment path and 404s its own front door.
+ */
+const appAtRoot = (): Plugin => ({
+  name: "dawai-app-at-root",
+  configureServer(server) {
+    server.middlewares.use((req, _res, next) => {
+      if (req.url === "/" || req.url === "/index.html") req.url = APP_HTML;
+      next();
+    });
+  },
+});
+
+const APP_HTML = "/apps/patient/web/index.html";
+
 export default defineConfig({
   root: at("../.."),
-  plugins: [devApi()],
+  plugins: [devApi(), appAtRoot()],
   /**
    * react-native-web's Animated reads `global`, which exists in a React Native
    * runtime and not in a browser. Without this the app rendered, ran, and then

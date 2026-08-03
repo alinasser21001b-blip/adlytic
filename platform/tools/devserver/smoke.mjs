@@ -12,7 +12,7 @@
 import { chromium } from "playwright";
 import { writeFileSync } from "node:fs";
 
-const URL = process.env["SMOKE_URL"] ?? "http://localhost:5173/apps/patient/web/index.html";
+const URL = process.env["SMOKE_URL"] ?? "http://localhost:5173/";
 const SHOTS = process.env["SMOKE_SHOTS"] ?? null;
 
 /** The environment pins a Chromium that may not match the version this

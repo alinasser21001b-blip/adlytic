@@ -13,7 +13,7 @@
  */
 import { chromium } from "playwright";
 
-const URL = process.env["SMOKE_URL"] ?? "http://localhost:5173/apps/patient/web/index.html";
+const URL = process.env["SMOKE_URL"] ?? "http://localhost:5173/";
 const executablePath = process.env["SMOKE_CHROMIUM"] ?? undefined;
 
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
