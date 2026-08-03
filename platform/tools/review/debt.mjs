@@ -27,6 +27,15 @@ export const DEBT = [
     status: "open",
   },
   {
+    id: "TD-26",
+    description: "A STATIC deploy of this app has no API. The v1 routes are served in development by a vite middleware (`devApi` in apps/patient/vite.config.ts) that is deliberately not in the production bundle, because no backend has been written. `platform/netlify.toml` now exists and builds correctly — 390 modules, 143 kB gzipped — but what it publishes is the app alone.",
+    impact: "Anyone opening the deployed URL sees the first screen and gets no further: no medicines, no sign-in, no offers, no reservation. Walked against a stand-in static host to find out what that actually looks like, and the first version of the config made it WORSE than nothing — the catch-all rewrite answered GET /v1/catalogue/search with the HTML document and a 200, the app read it as an empty result, and the screen said «ما لكيناه بقائمتنا»: it told the patient the medicine is not in our catalogue, which is false. A 404 rule for /v1/* now reaches the failure path that already exists, so it says «ما كدرنا نوصل للبحث — ما ضاع اللي كتبته» instead. That is honest, but it is still a build preview and must never be described as a working product.",
+    priority: "high",
+    owner: "patient-app",
+    slice: "When a backend exists",
+    status: "open",
+  },
+  {
     id: "TD-3",
     description: "SCREEN transitions are not implemented; element-level motion is. This item used to say no transition existed at all, which was wrong and understated the code while overstating the gap: `Enter`, `Pulse` and `Shake` are real Animated components with native-driver and reduced-motion support, and they are used on eight call sites. What has no consumer is navigation. Measured: 13 motion tokens are declared and 2 are spent — `errorShake` and `offerArrival`. The other 11 include every one that describes moving between screens — screenPush, sheetPresent, sheetDrag — so the app root swaps a component per `state.screen` with nothing in between.",
     impact: "Going from a request to the sign-in ask, or from the wait to the offers, is a cut rather than a movement, and §27 says each of those tokens TEACHES something — screenPush teaches where you are in the hierarchy, sheetPresent teaches that a thing is temporary and layered above. Losing that is losing the one cue that tells a patient whether they went deeper or sideways. Within a screen the product already moves: a field shakes when it is wrong, content enters, a countdown pulses.",

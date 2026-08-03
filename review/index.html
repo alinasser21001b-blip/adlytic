@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 18:59 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 19:28 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1267,11 +1267,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Visual regression reviewed</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">43 unchanged · 1 changed · 0 new · 0 removed — all listed below</div></div>
+  <div class="note mono">44 unchanged · 0 changed · 0 new · 0 removed — all listed below</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">19 open · 1 critical · 8 resolved</div></div>
+  <div class="note mono">20 open · 1 critical · 8 resolved</div></div>
 </div></div>
 </div>
 
@@ -1456,7 +1456,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag">—</span></td>
     <td><span class="tag">—</span></td>
     <td class="mono">2</td>
-    <td><span class="tag warn">changed</span></td>
+    <td><span class="tag">unchanged</span></td>
   </tr><tr>
     <td class="mono">R4</td>
     <td class="note">Choose the subject</td>
@@ -1545,13 +1545,12 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <p class="note">Byte-level PNG comparison against the screenshots in git HEAD, so the baseline is what was actually last reviewed rather than a file somebody remembered to update. It cannot say WHAT changed, only that something did — which is enough to guarantee nothing changes without being listed.</p>
   
   <div style="margin-top:12px">
-    <span class="tag ok">43 unchanged</span>
-    <span class="tag warn">1 changed</span>
+    <span class="tag ok">44 unchanged</span>
+    <span class="tag warn">0 changed</span>
     <span class="tag">0 new</span>
     <span class="tag ">0 removed</span>
   </div>
-  <div style="margin-top:14px"><h3>Changed — each one looked at before this push</h3>
-    <div class="grid g3" style="margin-top:10px"><div class="shot"><img src="screenshots/R3-failed.png" alt="R3-failed.png"><div class="cap"><span class="mono">R3-failed.png</span></div></div></div></div>
+  
   
   
   
@@ -1562,9 +1561,9 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
     <div><div class="kpi">85<small>source files</small></div></div>
-    <div><div class="kpi">12,545<small>source lines</small></div></div>
+    <div><div class="kpi">12,556<small>source lines</small></div></div>
     <div><div class="kpi">0.57×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">6.23s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">6.39s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1603,6 +1602,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td><span class="tag warn">high</span></td>
   <td class="mono">patient-app</td>
   <td class="note">Whenever a device build first runs</td>
+</tr><tr>
+  <td class="mono">TD-26</td>
+  <td>A STATIC deploy of this app has no API. The v1 routes are served in development by a vite middleware (`devApi` in apps/patient/vite.config.ts) that is deliberately not in the production bundle, because no backend has been written. `platform/netlify.toml` now exists and builds correctly — 390 modules, 143 kB gzipped — but what it publishes is the app alone.</td>
+  <td class="note">Anyone opening the deployed URL sees the first screen and gets no further: no medicines, no sign-in, no offers, no reservation. Walked against a stand-in static host to find out what that actually looks like, and the first version of the config made it WORSE than nothing — the catch-all rewrite answered GET /v1/catalogue/search with the HTML document and a 200, the app read it as an empty result, and the screen said «ما لكيناه بقائمتنا»: it told the patient the medicine is not in our catalogue, which is false. A 404 rule for /v1/* now reaches the failure path that already exists, so it says «ما كدرنا نوصل للبحث — ما ضاع اللي كتبته» instead. That is honest, but it is still a build preview and must never be described as a working product.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">When a backend exists</td>
 </tr><tr>
   <td class="mono">TD-3</td>
   <td>SCREEN transitions are not implemented; element-level motion is. This item used to say no transition existed at all, which was wrong and understated the code while overstating the gap: `Enter`, `Pulse` and `Shake` are real Animated components with native-driver and reduced-motion support, and they are used on eight call sites. What has no consumer is navigation. Measured: 13 motion tokens are declared and 2 are spent — `errorShake` and `offerArrival`. The other 11 include every one that describes moving between screens — screenPush, sheetPresent, sheetDrag — so the app root swaps a component per `state.screen` with nothing in between.</td>
