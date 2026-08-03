@@ -10,7 +10,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "npm run trace && npm run layers && npm run ux && npm run types && npm run test && node tools/test-reach-check.mjs",
+    "check": "npm run trace && npm run layers && npm run ux && npm run types && npm run test && node tools/test-reach-check.mjs && node tools/docs-check.mjs",
     "trace": "node tools/trace-check.mjs",
     "layers": "node tools/layer-check.mjs",
     "ux": "node tools/ux-check.mjs",

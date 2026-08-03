@@ -285,8 +285,8 @@ export const DEVIATIONS = [
     what: "V2 code-panel caption ships at #63726B, not the delivered #6B7A74.",
     why: "The delivered value measures 4.10:1 on #F7F4EE — below the 4.5:1 body floor the build enforces. It is the line telling the patient what to do with the code, on the screen Blueprint v3 says must never fail. #63726B is the nearest value in the same hue family that clears, at 4.61:1.",
     temporary: true,
-    designApproval: true,
-    productApproval: false,
+    designApproved: true,
+    productApproved: false,
     debt: "TD-11",
   },
   {
@@ -294,8 +294,8 @@ export const DEVIATIONS = [
     what: "The patient app forces the dark scheme and ignores the device's light preference.",
     why: "The delivery is dark-only; its daylight sibling is a known open item in the handoff README. Rendering the device's light preference would ship a scheme nobody drew. `patientLight` aliases `patientDark` so nothing renders half-designed.",
     temporary: true,
-    designApproval: true,
-    productApproval: false,
+    designApproved: true,
+    productApproved: false,
     debt: "TD-10",
   },
   {
@@ -303,8 +303,8 @@ export const DEVIATIONS = [
     what: "An alphanumeric reservation code is left in Latin digits and marked LTR, rather than converted to Arabic-Indic like every other number.",
     why: "Converting only the digits of `4KD2P9` produced «٤K D٢ P٩» — one token in two scripts, worse than either system. A code is read aloud to a pharmacist and typed into their system, so it must be one alphabet. The delivery shows a purely numeric code («٤٧ ٢٩»), which would need no exemption — see CLR-1.",
     temporary: true,
-    designApproval: false,
-    productApproval: true,
+    designApproved: false,
+    productApproved: true,
     debt: null,
   },
   {
@@ -312,8 +312,8 @@ export const DEVIATIONS = [
     what: "The one-numeral-system rule now exempts isolated Latin runs.",
     why: "The delivery itself places «أوجمنتين ٦٢٥» and \"Augmentin 625\" on adjacent lines, so both systems legitimately appear on one screen. The rule was tightened to what §25 actually protects: two systems inside ARABIC text.",
     temporary: false,
-    designApproval: false,
-    productApproval: false,
+    designApproved: false,
+    productApproved: false,
     debt: null,
   },
   {
@@ -321,8 +321,8 @@ export const DEVIATIONS = [
     what: "Turn-3 screens (welcome, guest search, capture sheet, My medicines, quiet Today, safety layer) are not implemented.",
     why: "Out of scope for this pass, which takes turn 4 — the delivery. The handoff also flags that the safety layer may be cut by v3/D18 and says to confirm with Product before building it.",
     temporary: true,
-    designApproval: false,
-    productApproval: true,
+    designApproved: false,
+    productApproved: true,
     debt: null,
   },
 ];
@@ -332,12 +332,12 @@ export const DEVIATIONS = [
 export const CLARIFICATIONS = [
   {
     id: "CLR-7",
-    question: "Should a workflow screen show flow progress at all?",
+    title: "Should a workflow screen show flow progress at all?",
     context: "Every screen in the request flow renders «تنتظر الردود — الخطوة ٤ من ٦» beneath its title. The turn-4 delivery shows no progress row on any of the five screens — it shows a device status bar instead.",
     screenshot: "review/screenshots/R7-waiting.png",
     current: "Progress renders on R1, R2, R6, R7, R8 and V1, derived from the declared flow.",
     design: "Turn 4 shows no progress indicator on V2, R7, R8, R9 or E4.",
-    whyBlocked: "The Blueprint requires every screen to answer «where am I», and the flow progress is how that is currently answered. Whether the delivery INTENDS to drop it, or simply did not draw chrome, is a question only Design can answer — removing it would weaken a Blueprint guarantee on a guess.",
+    why: "The Blueprint requires every screen to answer «where am I», and the flow progress is how that is currently answered. Whether the delivery INTENDS to drop it, or simply did not draw chrome, is a question only Design can answer — removing it would weaken a Blueprint guarantee on a guess.",
     options: [
       "Keep the progress row as built.",
       "Drop it on modal workflow screens, where the title already answers «where am I».",

@@ -40,6 +40,42 @@ const weights = [...new Set(Object.values(data.design.type).map((t) => t.weight)
 const wantedMax = Math.max(...Object.values(DELIVERED.type).flat());
 const haveMax = Math.max(...sizes);
 
+/* ── The hand-authored records must be readable before they are rendered ── */
+
+/**
+ * A record whose key is misspelled renders as `undefined` in a shipped
+ * document. That happened: CLR-7 was written with `question`/`whyBlocked`
+ * while every other entry uses `title`/`why`, and the published report carried
+ * "### CLR-7 — undefined" for as long as nobody scrolled to it.
+ *
+ * The fields are judgement, so they are hand-written — but the SHAPE is not,
+ * and a generator that cannot read its input must say so rather than print the
+ * word undefined at a reader.
+ */
+const SHAPES = {
+  CLARIFICATIONS: ["id", "title", "context", "screenshot", "current", "design", "why", "options", "recommendation"],
+  DEVIATIONS: ["id", "what", "why", "temporary", "designApproved", "productApproved", "debt"],
+};
+
+function checkShape(name, records) {
+  const problems = [];
+  const allowed = new Set(SHAPES[name]);
+  for (const r of records) {
+    const id = r.id ?? "(no id)";
+    for (const k of SHAPES[name]) if (r[k] === undefined) problems.push(`${name} ${id}: missing "${k}"`);
+    for (const k of Object.keys(r)) if (!allowed.has(k)) problems.push(`${name} ${id}: unknown key "${k}" — a misspelling renders as undefined`);
+  }
+  return problems;
+}
+
+const shapeProblems = [...checkShape("CLARIFICATIONS", CLARIFICATIONS), ...checkShape("DEVIATIONS", DEVIATIONS)];
+if (shapeProblems.length) {
+  console.error("\nDesign fidelity — the records cannot be rendered\n");
+  for (const p of shapeProblems) console.error(`  FAIL  ${p}`);
+  console.error("\nA generator that prints `undefined` is worse than one that fails.\n");
+  process.exit(1);
+}
+
 /* ── Scoring ────────────────────────────────────────────────────────────── */
 
 const LABEL = {

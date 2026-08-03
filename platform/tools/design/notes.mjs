@@ -452,9 +452,9 @@ export const COMPONENT_NOTES = {
   Primary: {
     purpose: "The one dominant action. At most one per screen, counted from the rendered tree every build.",
     variants: ["default", "disabled", "busy"],
-    interactions: ["press", "long-press (undefined)", "disabled press (no-op, but the reason must be visible)"],
+    interactions: ["press", "long-press (not specified)", "disabled press (no-op, but the reason must be visible)"],
     a11y: "accessibilityState carries disabled and busy. A disabled primary MUST have a visible explanation near it — the build checks that something readable is on screen.",
-    motion: "No press animation exists. errorShake (200ms) is declared for validation failure and unused.",
+    motion: "No press animation exists. errorShake is implemented and drives the field-level Shake on E5 and E6; a primary itself does not move on press.",
     rtl: "Label centres; no directional content.",
     responsive: "Full-width in the footer. Must hold a long Arabic label at 200% text without truncating — 'أرسله أول ما يرجع الاتصال' is the longest today.",
     constraints: "48pt tall, above the 44pt floor, because §25 raises the patient primary specifically.",

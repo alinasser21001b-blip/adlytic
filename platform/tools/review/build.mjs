@@ -94,6 +94,9 @@ const gates = [
   // This catches the quieter one: a test file that stops being collected at
   // all, so coverage falls while every gate stays green.
   gate("Test reach", "node tools/test-reach-check.mjs", firstMatch(/(\d+ test file\(s\) on disk[^\n]*)/)),
+  // A generated document that prints `undefined` is one nobody generated on
+  // purpose. Three such holes had shipped before this gate existed.
+  gate("Generated documents", "node tools/docs-check.mjs", firstMatch(/(\d+ document\(s\) scanned)/)),
   gate("Responsive layout", "node tools/review/shoot.mjs", firstMatch(/(\d+ screen state\(s\) photographed[^\n]*)/)),
 ];
 

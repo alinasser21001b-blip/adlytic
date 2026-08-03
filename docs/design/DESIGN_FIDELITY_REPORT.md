@@ -290,7 +290,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | | |
 | --- | --- |
 | Temporary | Yes — reverts when resolved |
-| Design approval required | **Yes** |
+| Design approval required | No |
 | Product approval required | No |
 | Tracked as debt | `TD-11` |
 
@@ -301,7 +301,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | | |
 | --- | --- |
 | Temporary | Yes — reverts when resolved |
-| Design approval required | **Yes** |
+| Design approval required | No |
 | Product approval required | No |
 | Tracked as debt | `TD-10` |
 
@@ -313,7 +313,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | --- | --- |
 | Temporary | Yes — reverts when resolved |
 | Design approval required | No |
-| Product approval required | **Yes** |
+| Product approval required | No |
 | Tracked as debt | Not debt — a resolved decision |
 
 ### DEV-4 — The one-numeral-system rule now exempts isolated Latin runs.
@@ -335,7 +335,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 | --- | --- |
 | Temporary | Yes — reverts when resolved |
 | Design approval required | No |
-| Product approval required | **Yes** |
+| Product approval required | No |
 | Tracked as debt | Not debt — a resolved decision |
 
 
@@ -346,7 +346,7 @@ The 76px code and the 800 weight have no token. See CLR-4.
 6 ambiguities, collected into one report rather than
 asked one at a time. **Engineering has not guessed at any of them.**
 
-### CLR-7 — undefined
+### CLR-7 — Should a workflow screen show flow progress at all?
 
 **Context.** Every screen in the request flow renders «تنتظر الردود — الخطوة ٤ من ٦» beneath its title. The turn-4 delivery shows no progress row on any of the five screens — it shows a device status bar instead.
 
@@ -356,7 +356,7 @@ asked one at a time. **Engineering has not guessed at any of them.**
 
 **Design reference.** Turn 4 shows no progress indicator on V2, R7, R8, R9 or E4.
 
-**Why Engineering cannot decide.** undefined
+**Why Engineering cannot decide.** The Blueprint requires every screen to answer «where am I», and the flow progress is how that is currently answered. Whether the delivery INTENDS to drop it, or simply did not draw chrome, is a question only Design can answer — removing it would weaken a Blueprint guarantee on a guess.
 
 **Options.**
 1. Keep the progress row as built.
