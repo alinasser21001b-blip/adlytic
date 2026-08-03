@@ -11,7 +11,15 @@
  * @implements offline/outbox
  */
 
-export type OutboxState = "queued" | "sending" | "accepted" | "duplicate" | "rejected" | "cancelled";
+/**
+ * Note there is no "duplicate" state. A 409 means the server already has the
+ * item, which is success — `markDuplicate` resolves to `accepted` and says why.
+ * The state existed anyway: unreachable, so every exhaustive switch had to
+ * handle a case that could not occur, and `describe` did. It was also a latent
+ * leak — `pendingCount` did not count it and `prune` did not remove it, so an
+ * item that ever reached it would have sat in the outbox forever, invisible.
+ */
+export type OutboxState = "queued" | "sending" | "accepted" | "rejected" | "cancelled";
 
 export type OutboxItem = {
   readonly id: string;
@@ -108,6 +116,5 @@ export function describe(i: OutboxItem): string {
     case "rejected": return "ما وصل — تكدر تعيد المحاولة";
     case "cancelled": return "ملغى";
     case "accepted": return "تم الإرسال";
-    case "duplicate": return "تم الإرسال";
   }
 }

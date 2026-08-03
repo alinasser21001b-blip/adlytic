@@ -6,7 +6,7 @@
  *      clinical defect, so both get direct tests.
  */
 import { describe, it, expect } from "vitest";
-import { empty, enqueue, readyToSend, markSending, markAccepted, markDuplicate, markRejected, requeue, cancel, prune, pendingCount, describe as describeItem } from "./index.js";
+import { empty, enqueue, readyToSend, markSending, markAccepted, markDuplicate, markRejected, requeue, cancel, prune, pendingCount, describe as describeItem, type Outbox, type OutboxState } from "./index.js";
 
 const item = (id: string, subjectId: string, key: string, at: number) => ({
   id, operation: "createRequest", label: "طلب دواء", payload: {},
@@ -80,5 +80,50 @@ describe("nothing is dropped silently", () => {
     o = enqueue(o, item("2", "s2", "k2", 2));
     o = markAccepted(o, "1");
     expect(prune(o).items.map((i) => i.id)).toEqual(["2"]);
+  });
+});
+
+describe("every state an item can reach is accounted for", () => {
+  const seed = () => enqueue(empty(), {
+    id: "i1", operation: "POST /v1/requests", label: "طلب", payload: {},
+    idempotencyKey: "k1", queuedAt: 0, subjectId: "s1",
+  });
+  const stateOf = (o: Outbox): OutboxState => o.items[0]!.state;
+
+  it("a duplicate resolves to accepted — the server has it, which is success", () => {
+    expect(stateOf(markDuplicate(markSending(seed(), "i1"), "i1"))).toBe("accepted");
+  });
+
+  /** Every state the PUBLIC API can actually put an item in, driven rather
+   *  than listed — a list beside the type goes stale the first time the type
+   *  changes, which is how "duplicate" survived in the union after
+   *  markDuplicate stopped producing it. */
+  const reachable = (): ReadonlySet<OutboxState> => {
+    const sending = markSending(seed(), "i1");
+    return new Set<OutboxState>([
+      stateOf(seed()),
+      stateOf(sending),
+      stateOf(markAccepted(sending, "i1")),
+      stateOf(markDuplicate(sending, "i1")),
+      stateOf(markRejected(sending, "i1", "boom")),
+      stateOf(requeue(markRejected(sending, "i1", "boom"), "i1")),
+      stateOf(cancel(seed(), "i1")),
+    ]);
+  };
+
+  it("each one is either pruned or counted — nothing can sit in the outbox invisible", () => {
+    // A state that prune does not remove and pendingCount does not count is an
+    // item that stays forever and appears nowhere.
+    for (const state of reachable()) {
+      const o: Outbox = { items: [{ ...seed().items[0]!, state }] };
+      const pruned = prune(o).items.length === 0;
+      const counted = pendingCount(o) === 1;
+      expect(pruned || counted, `${state} is neither pruned nor counted`).toBe(true);
+    }
+  });
+
+  it("each one has wording a screen can show (D27)", () => {
+    for (const state of reachable())
+      expect(describeItem({ ...seed().items[0]!, state }), state).toBeTruthy();
   });
 });
