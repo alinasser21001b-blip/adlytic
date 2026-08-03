@@ -83,6 +83,13 @@ const LAYERS = [
       // 2` got into the code field. The exception is real (a code is LTR digits,
       // not Arabic text) but it is one token, `tracking.tabularCode`, so a reader
       // can tell the exception from a violation without measuring the render.
+      // A component declared inside another component's body is a new
+      // component TYPE on every render: React cannot match it to the previous
+      // tree, so it unmounts and remounts the whole subtree, discarding state
+      // and restarting animations. `Wedge` lived inside `Dial` and was rebuilt
+      // once a second by R7's countdown. Indented `const Name = (` with a
+      // capital is the shape — module-level declarations start at column 0.
+      { re: /\n[ \t]+const [A-Z][A-Za-z0-9]*\s*=\s*\(/, why: "a component declared inside another component — it is a new type every render, so React remounts the subtree and discards its state" },
       { re: /letterSpacing:\s*[1-9]/, why: "a tracking literal — Arabic is connected and §25 fixes spacing at zero; the one exception is design's `tracking` token" },
     ],
   },
