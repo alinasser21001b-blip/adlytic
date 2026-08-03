@@ -18,6 +18,7 @@ import type { StateTreatment } from "@dawai/design";
 import { formatDigits, isolate, needsIsolation, toWesternDigits, tracking } from "@dawai/design";
 import type { ScreenView } from "../model/view.js";
 import type { Theme } from "./theme.js";
+import { textStyle } from "./theme.js";
 import { Card, Note, Row, Spacer } from "./layout.js";
 
 // Re-exported so a screen has one import for the whole system rather than
@@ -32,15 +33,13 @@ export function Label(
   { t, role = "body", color = "ink", children, numberOfLines }:
   { t: Theme; role?: "code" | "display" | "poster" | "title" | "headline" | "body" | "caption"; color?: "ink" | "inkMuted" | "inkSubtle" | "accent" | "alert" | "onAccent" | "warning"; children: React.ReactNode; numberOfLines?: number },
 ) {
-  const s = t.type[role];
   return (
     <Text
       numberOfLines={numberOfLines}
-      style={{
-        fontFamily: t.fontFamily, fontSize: s.size, lineHeight: Math.round(s.size * s.lineHeight),
-        letterSpacing: s.letterSpacing, fontWeight: String(s.weight) as "400" | "500" | "600" | "700",
-        color: t.color[color], writingDirection: t.direction, textAlign: "right",
-      }}
+      // The role-to-style conversion is theme's, not this component's: line
+      // height is a multiplier in the token and an absolute number in React
+      // Native, and a second copy of that arithmetic is a second answer.
+      style={textStyle(t, role, color)}
     >
       {normaliseNumerals(children)}
     </Text>
