@@ -17,7 +17,8 @@ import TestRenderer from "react-test-renderer";
 import { space } from "@dawai/design";
 import { themeFor } from "./theme.js";
 import { Row, Spacer, Grow, Actions, Card, Note, Section, Field } from "./layout.js";
-import { Dial } from "./kit.js";
+import { Dial, Banner, StateBlock } from "./kit.js";
+import type { StateTreatment } from "@dawai/design";
 
 const t = themeFor("dark");
 const Leaf = () => null;
@@ -217,5 +218,42 @@ describe("WCAG 4.1.3 — a status message reaches someone who cannot see it", ()
     // a patient to ignore the announcements that matter.
     expect(liveRegionOf("neutral")).toBe("none");
     expect(liveRegionOf()).toBe("none");
+  });
+});
+
+describe("WCAG 4.1.3 — every surface that reports an outcome announces it", () => {
+  const t = themeFor("dark");
+  const noop = () => {};
+  const live = (node: React.ReactElement) => {
+    const tree = TestRenderer.create(node).toJSON();
+    return (tree as { props: Record<string, unknown> }).props["accessibilityLiveRegion"];
+  };
+  const block = (treatment: StateTreatment) =>
+    live(<StateBlock t={t} treatment={treatment} onAction={noop} />);
+
+  it("the offline banner announces — the connection dropping is the definition of a status message", () => {
+    expect(live(<Banner t={t} says="ما في اتصال" />)).toBe("polite");
+  });
+
+  it("an error announces what failed (§23)", () => {
+    expect(block({ kind: "error", whatFailed: "ما وصل", workPreserved: true, action: { label: "عيد", leadsTo: "R1" } })).toBe("polite");
+  });
+
+  it("a refused permission announces the way through", () => {
+    expect(block({ kind: "permissionRefused", stillUsable: true, alternative: "اكتب الاسم" })).toBe("polite");
+  });
+
+  it("a success announces it", () => {
+    expect(block({ kind: "success", nextStep: null })).toBe("polite");
+  });
+
+  it("a skeleton does not — there is no sentence to announce", () => {
+    // Loading renders a shape, not words. A live region on it would announce
+    // nothing, which is noise with no content.
+    expect(block({ kind: "loading", skeletonMatchesContent: true })).toBeUndefined();
+  });
+
+  it("an empty state does not — the screen arrived that way", () => {
+    expect(block({ kind: "empty", explains: "ما ضيّفت شي", action: null, isSuccess: false })).toBeUndefined();
   });
 });

@@ -270,7 +270,13 @@ export function Banner(
   { t, says, aside }: { t: Theme; says: string; aside?: string },
 ) {
   return (
-    <View style={{
+    <View
+      // WCAG 4.1.3. The connection dropping is the definition of a status
+      // message: nothing was navigated to, the sentence simply appears. Same
+      // `polite` as Note, for the same reason — this must not cut across a
+      // patient being read their own reservation.
+      accessibilityLiveRegion="polite"
+      style={{
       backgroundColor: t.color.surfaceSunken,
       paddingVertical: t.space[2], paddingHorizontal: t.frame.gutter,
     }}>
@@ -744,7 +750,7 @@ export function StateBlock(
 
     case "error":
       return (
-        <View style={pad}>
+        <View style={pad} accessibilityLiveRegion="polite">
           {/* §23 — what failed, whether the work survived, one thing to press. */}
           <Label t={t} role="headline" color="alert">{treatment.whatFailed}</Label>
           {treatment.workPreserved ? <Label t={t} role="caption" color="inkMuted">ما ضاع اللي كتبته</Label> : null}
@@ -762,16 +768,18 @@ export function StateBlock(
       return <OfflineBanner t={t} treatment={treatment} ageMs={ageMs} />;
 
     case "permissionRefused":
-      // Never a wall: the refusal names the other way through.
+      // Never a wall: the refusal names the other way through. Announced for
+      // the same reason as the others — the OS answered, and the answer
+      // appears without the patient going anywhere.
       return (
-        <View style={{ ...pad, ...fill }}>
+        <View style={{ ...pad, ...fill }} accessibilityLiveRegion="polite">
           <Label t={t} role="headline">{treatment.alternative}</Label>
         </View>
       );
 
     case "success":
       return (
-        <View style={pad}>
+        <View style={pad} accessibilityLiveRegion="polite">
           {treatment.nextStep ? <Primary t={t} label={treatment.nextStep.label} onPress={() => onAction(treatment.nextStep!.leadsTo)} /> : null}
         </View>
       );
