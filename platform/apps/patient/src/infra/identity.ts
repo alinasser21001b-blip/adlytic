@@ -72,7 +72,7 @@ export function makeIdentity(http: Http): IdentityPort {
       if (res.status === 403) return { kind: "fresh", value: { kind: "suspended" } };
       return { kind: "failed", outcome: res.outcome };
     },
-  } satisfies IdentityPort & Record<string, unknown> as IdentityPort;
+  };
 }
 
 /** Narrow re-export so the store's effect runner can name the port's answer
