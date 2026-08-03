@@ -296,6 +296,17 @@ describe("the second half of the loop", () => {
     }
   });
 
+  it("a screen CAN be opened without the state it needs — TD-15, pinned", () => {
+    // Not an assertion that this is right. `open` runs the guards and isBuilt,
+    // and neither knows that V2 without a reservation has nothing to draw, so
+    // the app lands on the Placeholder. Nothing rendered dispatches this today;
+    // S1's exit into V2 and D26's replay will. Pinned so the behaviour is
+    // stated rather than discovered when that slice lands.
+    const { state } = run(signedIn(), [{ kind: "open", screen: "V2" }]);
+    expect(state.screen).toBe("V2");
+    expect(state.reservation, "if this is no longer null the gap has been closed — update TD-15").toBeNull();
+  });
+
   it("an intent naming a screen this build does not contract goes nowhere", () => {
     // §4 has 133 patient screens; this slice contracts 22. Already true at the
     // dispatch site; pinned so the type change that made `navigate` demand a

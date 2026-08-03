@@ -284,9 +284,25 @@ export function App({ rt }: { rt: Runtime }) {
   }
 }
 
-/** Reached only if a screen is opened without the state it needs, which the
- *  reducer prevents. It says so rather than showing nothing, because a blank
- *  screen is the one failure a user cannot report usefully. */
+/**
+ * A screen was opened without the state it needs.
+ *
+ * The reducer does NOT prevent this, contrary to what this comment used to
+ * claim: `open` checks the guards and `isBuilt`, and neither knows that V2
+ * without a reservation has nothing to draw. Dispatching `{ kind: "open",
+ * screen: "V2" }` on a signed-in state with `reservation: null` navigates
+ * there and lands here.
+ *
+ * No control does that today — nothing rendered dispatches it, and the one
+ * declared exit into V2 belongs to S1, which this build does not contain. The
+ * paths that will reach it are S1 when its slice lands, and D26's replay of a
+ * pending screen. Registered as TD-15 rather than answered here: what a
+ * patient should see when a reservation is gone is a product decision, and
+ * inventing a redirect would be inventing navigation.
+ *
+ * It says so rather than showing nothing, because a blank screen is the one
+ * failure a user cannot report usefully.
+ */
 const Placeholder = ({ t }: { t: ReturnType<typeof themeFor> }) => (
   <View style={{ flex: 1, backgroundColor: t.color.surface, padding: t.space[6] }}>
     <Label t={t} role="headline">ما عدنا طلب مفتوح</Label>

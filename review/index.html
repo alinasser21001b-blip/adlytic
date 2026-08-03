@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 12:49 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 12:53 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1207,7 +1207,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">1010 passed (1010)</div></div>
+  <div class="note mono">1011 passed (1011)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Test reach</b> — <span class="tag ok">PASS</span>
@@ -1271,7 +1271,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">12 open · 1 critical · 4 resolved</div></div>
+  <div class="note mono">13 open · 1 critical · 4 resolved</div></div>
 </div></div>
 </div>
 
@@ -1561,9 +1561,9 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
     <div><div class="kpi">75<small>source files</small></div></div>
-    <div><div class="kpi">10,350<small>source lines</small></div></div>
+    <div><div class="kpi">10,366<small>source lines</small></div></div>
     <div><div class="kpi">0.53×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">4.37s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">4.44s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1679,6 +1679,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td><span class="tag warn">high</span></td>
   <td class="mono">patient-app</td>
   <td class="note">Blocked — needs a device build and a decision on inert declared controls</td>
+</tr><tr>
+  <td class="mono">TD-15</td>
+  <td>A screen can be opened without the state it needs. `open` runs the route guards and `isBuilt`, neither of which knows that V2 without a reservation, R9 without an offer, or R3 without a capture has nothing to draw. Dispatching { kind: &quot;open&quot;, screen: &quot;V2&quot; } on a signed-in state with reservation: null navigates there and renders the Placeholder. App.tsx claimed the reducer prevented this; it does not.</td>
+  <td class="note">Not reachable today: nothing rendered dispatches it, and the only declared exit into V2 belongs to S1, which this build does not contain. It becomes reachable the moment S1 lands, and through D26's replay of a pending screen — both of which are ordinary paths, not edge cases. What a patient should see when the reservation behind V2 is gone is a product decision (§4 V2 says the reservation lives on Today, but that is back behaviour, not a fallback), so no redirect was invented. The Placeholder is honest about the failure but is still a screen nobody designed.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs a product answer, and lands with S1</td>
 </tr>
 </tbody></table>
 <h3 style="margin-top:20px">Resolved</h3>

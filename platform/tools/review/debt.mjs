@@ -127,6 +127,15 @@ export const DEBT = [
     slice: "Blocked — needs a device build and a decision on inert declared controls",
     status: "open",
   },
+  {
+    id: "TD-15",
+    description: "A screen can be opened without the state it needs. `open` runs the route guards and `isBuilt`, neither of which knows that V2 without a reservation, R9 without an offer, or R3 without a capture has nothing to draw. Dispatching { kind: \"open\", screen: \"V2\" } on a signed-in state with reservation: null navigates there and renders the Placeholder. App.tsx claimed the reducer prevented this; it does not.",
+    impact: "Not reachable today: nothing rendered dispatches it, and the only declared exit into V2 belongs to S1, which this build does not contain. It becomes reachable the moment S1 lands, and through D26's replay of a pending screen — both of which are ordinary paths, not edge cases. What a patient should see when the reservation behind V2 is gone is a product decision (§4 V2 says the reservation lives on Today, but that is back behaviour, not a fallback), so no redirect was invented. The Placeholder is honest about the failure but is still a screen nobody designed.",
+    priority: "medium",
+    owner: "patient-app",
+    slice: "Blocked — needs a product answer, and lands with S1",
+    status: "open",
+  },
 ];
 
 /** Debt that has been paid. Kept, with how it was resolved, so the register
