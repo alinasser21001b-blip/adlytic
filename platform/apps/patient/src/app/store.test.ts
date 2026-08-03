@@ -4,7 +4,8 @@ import { describe as describeItem } from "@dawai/offline";
 import { authenticate, guest, interrupt } from "@dawai/session";
 import { dispatch, initial, GRAPH, NOT_YET_BUILT, type AppState, type Authority, type Intent, type Effect } from "./store.js";
 import type { CatalogueHit, Environment } from "../ports.js";
-import { unreachable, traps, danglingExits, flowGaps } from "@dawai/navigation";
+import { unreachable, traps, danglingExits, flowGaps, ROUTE_GUARDS } from "@dawai/navigation";
+import { sayRedirect } from "../ui/refusal.js";
 import { PATIENT_FLOWS } from "@dawai/navigation";
 
 const env = (online = true): Environment => {
@@ -69,7 +70,10 @@ describe("guards decide what is shown, never what is allowed", () => {
   it("a guest asking to request a medicine is sent to sign in with the reason", () => {
     const { state } = run(initial(), [{ kind: "open", screen: "R1" }]);
     expect(state.screen).toBe("E4");
-    expect(state.redirectBecause).toContain("رقمك");
+    // The guard returns a reason; the app words it. Both are asserted, so a
+    // reason that reaches a patient unworded fails here rather than on screen.
+    expect(state.redirectBecause).toBe("SESSION_REQUIRED");
+    expect(sayRedirect(state.redirectBecause!)).toContain("رقمك");
   });
 
   it("and what they were doing survives it (D26)", () => {
@@ -92,7 +96,8 @@ describe("guards decide what is shown, never what is allowed", () => {
     // S4 belongs to a later slice, so the patient stays where they are and
     // reads the reason rather than being sent to a screen that does not exist.
     expect(state.screen).toBe("R1");
-    expect(state.redirectBecause).toContain("صلاحية");
+    expect(state.redirectBecause).toBe("ORDER_SCOPE_REQUIRED");
+    expect(sayRedirect(state.redirectBecause!)).toContain("صلاحية");
   });
 
   it("a memorialised subject is read-only, and the redirect says so (D04)", () => {
@@ -100,7 +105,8 @@ describe("guards decide what is shown, never what is allowed", () => {
       ...permitted, activeSubjectMemorialised: true,
     });
     expect(state.screen).toBe("S1");
-    expect(state.redirectBecause).toContain("للقراءة فقط");
+    expect(state.redirectBecause).toBe("SUBJECT_MEMORIALISED");
+    expect(sayRedirect(state.redirectBecause!)).toContain("للقراءة فقط");
   });
 });
 
@@ -269,6 +275,25 @@ describe("the second half of the loop", () => {
     expect(state.reservationState).toBe("refused");
     expect(state.reservation).toMatchObject({ kind: "refused", reopened: true });
     expect(effects.some((e) => e.kind === "emit" && e.event === "reservation.refused")).toBe(true);
+  });
+
+  it("every redirect reason a guard can return has patient wording", () => {
+    // Derived from the guards themselves rather than from a list beside them:
+    // a guard added with a new reason and no wording fails here.
+    const denied = { authenticated: false, activeSubjectMemorialised: true, hasOrderScope: false };
+    const reasons = new Set<string>();
+    for (const guards of Object.values(ROUTE_GUARDS))
+      for (const g of guards) {
+        const v = g.evaluate(denied);
+        if (!v.allow) reasons.add(v.because);
+      }
+    expect(reasons.size).toBeGreaterThan(0);
+    for (const r of reasons) {
+      const said = sayRedirect(r as Parameters<typeof sayRedirect>[0]);
+      expect(said, r).toBeTruthy();
+      // Wording, not the code echoed back at a patient.
+      expect(said, r).not.toBe(r);
+    }
   });
 
   it("an intent naming a screen this build does not contract goes nowhere", () => {

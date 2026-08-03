@@ -11,6 +11,7 @@
  *      compile error rather than a raw enum shown to a patient.
  */
 import type { Refusal } from "@dawai/domain";
+import type { RedirectReason } from "@dawai/navigation";
 
 /** What the patient reads, and what they can do about it. `action` is null
  *  where there is genuinely nothing to press — §23 forbids inventing one. */
@@ -54,5 +55,31 @@ export function word(refusal: Refusal): Worded {
       // belong to flows this slice does not build, and inventing wording for a
       // refusal the patient cannot reach would be inventing behaviour.
       return { says: "ما كدرنا نكمّل هذي الخطوة", action: "أعد المحاولة" };
+  }
+}
+
+/**
+ * Wording a guard's redirect.
+ *
+ * Same division as above, one layer out: @dawai/navigation runs the patient,
+ * pharmacy and owner graphs, so a guard returns a reason and each app says it
+ * in its own voice. The sentences below are the ones the guards used to carry,
+ * moved here unchanged.
+ *
+ * The switch is exhaustive by type: a reason added to the closed set with no
+ * wording here fails to compile, rather than showing a patient a bare enum.
+ */
+export function sayRedirect(reason: RedirectReason): string {
+  switch (reason) {
+    // D26 — why we are asking, stated as what it buys them rather than as a
+    // demand. The number is for telling them the pharmacies answered.
+    case "SESSION_REQUIRED":
+      return "نحتاج رقمك حتى نخبرك عندما ترد الصيدليات";
+    case "ORDER_SCOPE_REQUIRED":
+      return "تحتاج صلاحية الطلب لهذا الشخص";
+    // D04 — worded exactly as the domain refusal of the same event, because a
+    // patient meeting it twice by two routes must not read two sentences.
+    case "SUBJECT_MEMORIALISED":
+      return word({ code: "SUBJECT_MEMORIALISED" }).says;
   }
 }

@@ -17,7 +17,7 @@
  */
 import { type Instant, instant, type Refusal, type RefusalCode, REFUSAL, MarketplaceMachines, Verification, transition, isErr } from "@dawai/domain";
 import { empty as emptyOutbox, type Outbox } from "@dawai/offline";
-import { runGuards, ROUTE_GUARDS, guardDestinations, buildGraph, resolveBack, type NavGraph } from "@dawai/navigation";
+import { runGuards, ROUTE_GUARDS, guardDestinations, buildGraph, resolveBack, type NavGraph, type RedirectReason } from "@dawai/navigation";
 import { guest, interrupt, beginVerification, takePending, authenticate, type Session } from "@dawai/session";
 import type { ScreenContract } from "@dawai/design";
 import { BUSINESS_EVENT } from "@dawai/observability";
@@ -61,7 +61,7 @@ export type AppState = {
   readonly refusal: Refusal | null;
   /** Set when a guard sent the user somewhere they did not ask to go, so the
    *  destination can say why rather than appearing for no reason. */
-  readonly redirectBecause: string | null;
+  readonly redirectBecause: RedirectReason | null;
   /** E5–E8. One object because it is one conversation: the number typed on E5
    *  is the number E6 shows back, and the district chosen on E8 is the one the
    *  replayed request searches from. */
@@ -586,7 +586,7 @@ function subjectOf(state: AppState): string {
  * with no contract would render nothing, which is worse than staying put with
  * an explanation.
  */
-function redirect(state: AppState, to: string, because: string): AppState {
+function redirect(state: AppState, to: string, because: RedirectReason): AppState {
   return isBuilt(to)
     ? { ...navigate(state, to), redirectBecause: because }
     : { ...state, redirectBecause: because };

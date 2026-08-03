@@ -10,11 +10,30 @@
  * @implements navigation/guards
  */
 
+/**
+ * Why a guard turned someone away — a code, not a sentence.
+ *
+ * Navigation is persona-agnostic: the pharmacy and owner apps run on the same
+ * graph. A guard that returns Arabic patient copy is a shared rule with an
+ * opinion about one app's screens, which is the same mistake domain refusals
+ * avoid by returning `REFUSAL.*` and letting the app do the wording. It also
+ * duplicated: «هذا السجل صار للقراءة فقط» was written here AND in the patient
+ * app's refusal wording, so the two could drift into saying different things
+ * about the same event.
+ *
+ * Closed on purpose. A new reason with no wording is a compile error in the
+ * app that must word it.
+ */
+export type RedirectReason =
+  | "SESSION_REQUIRED"
+  | "ORDER_SCOPE_REQUIRED"
+  | "SUBJECT_MEMORIALISED";
+
 export type GuardVerdict =
   | { readonly allow: true }
   /** Redirect, never a blank refusal: principle 2 says no dead ends, so a
    *  blocked route must land somewhere useful with a reason the user reads. */
-  | { readonly allow: false; readonly redirectTo: string; readonly because: string };
+  | { readonly allow: false; readonly redirectTo: string; readonly because: RedirectReason };
 
 export type SessionShape = {
   readonly authenticated: boolean;
@@ -40,7 +59,7 @@ export const requireSession: Guard = {
   bp: "D26 · §3.2",
   evaluate: (s) => s.authenticated
     ? { allow: true }
-    : { allow: false, redirectTo: "E4", because: "نحتاج رقمك حتى نخبرك عندما ترد الصيدليات" },
+    : { allow: false, redirectTo: "E4", because: "SESSION_REQUIRED" },
 };
 
 /** §5 — the client hides what the server would refuse. Convenience only. */
@@ -49,7 +68,7 @@ export const requireOrderScope: Guard = {
   bp: "§5 clinical matrix",
   evaluate: (s) => s.hasOrderScope
     ? { allow: true }
-    : { allow: false, redirectTo: "S4", because: "تحتاج صلاحية الطلب لهذا الشخص" },
+    : { allow: false, redirectTo: "S4", because: "ORDER_SCOPE_REQUIRED" },
 };
 
 /** D04 — a memorialised subject accepts no new activity, but stays readable. */
@@ -57,7 +76,7 @@ export const blockMemorialised: Guard = {
   name: "blockMemorialised",
   bp: "D04",
   evaluate: (s) => s.activeSubjectMemorialised
-    ? { allow: false, redirectTo: "S1", because: "هذا السجل صار للقراءة فقط" }
+    ? { allow: false, redirectTo: "S1", because: "SUBJECT_MEMORIALISED" }
     : { allow: true },
 };
 

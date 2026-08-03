@@ -10,7 +10,7 @@
  *      word a refusal from the domain in place, keeping the rest of the draft.
  */
 import type { Refusal } from "@dawai/domain";
-import { PATIENT_FLOWS } from "@dawai/navigation";
+import { PATIENT_FLOWS, type RedirectReason } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
@@ -26,7 +26,7 @@ export type DraftProps = {
   readonly draft: DraftModel.Draft | null;
   readonly history: readonly string[];
   readonly refusal: Refusal | null;
-  readonly redirectBecause: string | null;
+  readonly redirectBecause: RedirectReason | null;
   readonly onSetPacks: (itemId: string, packs: number) => void;
   readonly onRemove: (itemId: string) => void;
   readonly onContinue: () => void;

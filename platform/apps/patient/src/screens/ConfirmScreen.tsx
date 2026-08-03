@@ -11,7 +11,7 @@
  *      discovered after it (D27).
  */
 import { Marketplace, type Refusal } from "@dawai/domain";
-import { PATIENT_FLOWS } from "@dawai/navigation";
+import { PATIENT_FLOWS, type RedirectReason } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
 import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
@@ -36,7 +36,7 @@ export type ConfirmProps = {
   readonly history: readonly string[];
   readonly online: boolean;
   readonly refusal: Refusal | null;
-  readonly redirectBecause: string | null;
+  readonly redirectBecause: RedirectReason | null;
   readonly sending: boolean;
   readonly onSetUrgency: (u: Marketplace.Urgency) => void;
   readonly onSend: () => void;

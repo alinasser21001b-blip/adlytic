@@ -19,6 +19,8 @@ import { formatDigits, isolate, needsIsolation, toWesternDigits, tracking } from
 import type { ScreenView } from "../model/view.js";
 import type { Theme } from "./theme.js";
 import { textStyle } from "./theme.js";
+import { sayRedirect } from "./refusal.js";
+import type { RedirectReason } from "@dawai/navigation";
 import { Card, Note, Row, Spacer } from "./layout.js";
 
 // Re-exported so a screen has one import for the whole system rather than
@@ -899,7 +901,8 @@ export function Screen(
 /** A guard sent the user here. It says why, so the screen does not appear for
  *  no reason — the version of this without the sentence is the one that makes
  *  people think the app is broken. */
-export const RedirectNote = ({ t, because }: { t: Theme; because: string | null }) =>
+export const RedirectNote = ({ t, because }: { t: Theme; because: RedirectReason | null }) =>
   because ? (
-    <Note t={t}><Label t={t} role="body" color="inkMuted">{because}</Label></Note>
+    // The guard returns a reason; the wording is the app's, in one place.
+    <Note t={t}><Label t={t} role="body" color="inkMuted">{sayRedirect(because)}</Label></Note>
   ) : null;
