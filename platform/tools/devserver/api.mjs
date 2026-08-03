@@ -112,12 +112,25 @@ export async function handle(req, res) {
     });
   }
 
-  /* ── Offers — GET /v1/requests/{id}/offers ─────────────────────────── */
-  const offersMatch = path.match(/^\/v1\/requests\/([^/]+)\/offers$/);
-  if (offersMatch && req.method === "GET") {
-    const list = state.offers.get(offersMatch[1]);
-    if (!list) return json(res, 404, { error: "not_found_or_not_yours" });
-    return json(res, 200, { offers: list, at: Date.now() });
+  /* ── The request as it stands — GET /v1/requests/{id} ──────────────── */
+  /* The declared route, and the declared body: { request, responders:{asked,
+     replied, thinking}, offers[] }. An earlier version of this file served
+     `/v1/requests/{id}/offers`, which is a route no contract declares — this
+     file may invent data and may not invent behaviour, and a path is
+     behaviour. `thinking` is asked minus replied: a branch that was asked and
+     has not answered is still thinking, which is what R7 needs in order to
+     say how many are left rather than only how many came. */
+  const readMatch = path.match(/^\/v1\/requests\/([^/]+)$/);
+  if (readMatch && req.method === "GET") {
+    const request = state.requests.get(readMatch[1]);
+    const list = state.offers.get(readMatch[1]);
+    if (!request || !list) return json(res, 404, { error: "not_found_or_not_yours" });
+    const asked = BRANCHES.filter((b) => b.openNow).length;
+    return json(res, 200, {
+      request,
+      responders: { asked, replied: list.length, thinking: Math.max(0, asked - list.length) },
+      offers: list,
+    });
   }
 
   /* ── Accept — POST /v1/offers/{id}/accept ──────────────────────────── */

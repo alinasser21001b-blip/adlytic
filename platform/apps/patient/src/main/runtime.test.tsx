@@ -14,6 +14,12 @@ import { createRuntime, deviceIdFrom, searchCache, authorityFrom, NO_SESSION } f
 import type { Host, Store } from "./host.js";
 import type { Intent } from "../app/store.js";
 import { asAccountId, asSubjectId } from "@dawai/domain";
+import { empty as emptyOutbox, enqueue } from "@dawai/offline";
+import { resetFlushLane } from "../infra/flush.js";
+
+/** The flusher awaits real promises; this drains the microtask queue enough
+ *  times for a one-item delivery to finish. */
+const settled = async () => { for (let i = 0; i < 20; i += 1) await Promise.resolve(); };
 
 const memoryStore = (): Store & { seen: Map<string, string> } => {
   const seen = new Map<string, string>();
@@ -69,13 +75,13 @@ describe("TD-1 — the assembled application starts", () => {
   });
 
   it("builds a runtime with every port the effect loop needs", async () => {
-    const { runtime } = await createRuntime(testHost(), () => {});
+    const { runtime } = await createRuntime(testHost());
     for (const key of ["catalogue", "identity", "env", "deviceId", "startFlush", "emit", "capture", "telemetry", "authority", "onEffectFailed", "onVerified"] as const)
       expect(runtime[key], key).toBeDefined();
   });
 
   it("a guest has no order scope, so the first action needing one sends them to E4 (D26)", async () => {
-    const { runtime } = await createRuntime(testHost(), () => {});
+    const { runtime } = await createRuntime(testHost());
     expect(runtime.authority().hasOrderScope).toBe(false);
   });
 });
@@ -99,7 +105,7 @@ describe("F2 — a patient searches, through the composed app", () => {
   it("typing reaches the catalogue and the results come back", async () => {
     const host = testHost();
     globalThis.fetch = scriptFetch(() => ({ status: 200, body: { hits: [hit()], at: 1 } }));
-    const { runtime } = await createRuntime(host, () => {});
+    const { runtime } = await createRuntime(host);
     const app = mount(runtime);
 
     await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
@@ -112,7 +118,7 @@ describe("F2 — a patient searches, through the composed app", () => {
   it("the results are cached, so F2 can keep its offline promise (§21)", async () => {
     const host = testHost();
     globalThis.fetch = scriptFetch(() => ({ status: 200, body: { hits: [hit()], at: 1 } }));
-    const { runtime } = await createRuntime(host, () => {});
+    const { runtime } = await createRuntime(host);
     const app = mount(runtime);
     await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
     await settle();
@@ -124,7 +130,7 @@ describe("F2 — a patient searches, through the composed app", () => {
   it("with the network down, the cache answers and is labelled as cached", async () => {
     const host = testHost();
     globalThis.fetch = scriptFetch(() => ({ status: 200, body: { hits: [hit()], at: 1 } }));
-    const { runtime } = await createRuntime(host, () => {});
+    const { runtime } = await createRuntime(host);
     const app = mount(runtime);
     await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
     await settle();
@@ -132,7 +138,7 @@ describe("F2 — a patient searches, through the composed app", () => {
 
     // Same host, same store — a second launch with no network at all.
     globalThis.fetch = (async () => { throw new Error("no network"); }) as never;
-    const { runtime: offlineRt } = await createRuntime(host, () => {});
+    const { runtime: offlineRt } = await createRuntime(host);
     const app2 = mount(offlineRt);
     await act(async () => { app2.seen.send({ kind: "typed", raw: "بانادول" }); });
     await settle();
@@ -146,7 +152,7 @@ describe("F2 — a patient searches, through the composed app", () => {
     const host = testHost();
     await host.store.write("dawai.search.بانادول", "{ not json at all");
     globalThis.fetch = (async () => { throw new Error("no network"); }) as never;
-    const { runtime } = await createRuntime(host, () => {});
+    const { runtime } = await createRuntime(host);
     const app = mount(runtime);
     await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
     await settle();
@@ -176,7 +182,7 @@ describe("verifying a number is what grants order scope", () => {
     // the R6 guard refused a patient on the request they had just verified in
     // order to send. §9 fixes the missing fact — an Account always owns exactly
     // one self Subject, created atomically by POST /v1/auth/verify.
-    const { runtime } = await createRuntime(testHost(), () => {});
+    const { runtime } = await createRuntime(testHost());
     expect(runtime.authority().hasOrderScope).toBe(false);
 
     runtime.onVerified("acc-1", "sub-1");
@@ -187,7 +193,7 @@ describe("verifying a number is what grants order scope", () => {
   it("and the domain still decides — a memorialised subject is refused (D04)", async () => {
     // The relationship is supplied, never the verdict. If `authorise` refuses,
     // the refusal stands exactly as it would for a grant from a server.
-    const { runtime } = await createRuntime(testHost(), () => {}, () => ({
+    const { runtime } = await createRuntime(testHost(), () => ({
       ...NO_SESSION, memorialised: true,
     }));
     runtime.onVerified("acc-1", "sub-1");
@@ -200,7 +206,7 @@ describe("verifying a number is what grants order scope", () => {
     // peer still has no order scope in this build. Only the self relationship
     // is a domain-model invariant; anything wider would be an invented
     // permission (§5 rule 2, and the forbidden list).
-    const { runtime } = await createRuntime(testHost(), () => {}, () => ({
+    const { runtime } = await createRuntime(testHost(), () => ({
       ...NO_SESSION, subject: asSubjectId("someone-else"),
     }));
     runtime.onVerified("acc-1", "sub-1");
@@ -208,5 +214,49 @@ describe("verifying a number is what grants order scope", () => {
     // one the host was carrying.
     expect(runtime.authority().hasOrderScope).toBe(true);
     expect(authorityFrom([], asAccountId("acc-1"), asSubjectId("someone-else"), false, "").hasOrderScope).toBe(false);
+  });
+});
+
+describe("a request the patient sends actually leaves the device", () => {
+  it("the outbox the flusher delivers is the STORE's, and the reply comes back", async () => {
+    /**
+     * The defect this pins: `flushOutbox` said only "there is work", and the
+     * runtime answered by flushing an outbox of its own that the reducer had
+     * never touched. It was empty on every launch, so `readyToSend` returned
+     * nothing and no POST /v1/requests was ever made — while R7 said «انرسل»
+     * from the store's own optimistic state. Found by watching a browser's
+     * network panel, not by any test in this repository.
+     */
+    const posted: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: { method: string }) => {
+      if (init.method === "POST") posted.push(String(url).replace("https://api.test", ""));
+      return {
+        status: 201,
+        text: async () => JSON.stringify({ request: { requestId: "req-1" }, windowEndsAt: 0, branchesAsked: 2 }),
+      };
+    }) as never;
+
+    try {
+      resetFlushLane();
+      const { runtime } = await createRuntime(testHost());
+      const reported: Intent[] = [];
+      runtime.connect((i) => { reported.push(i); });
+
+      const queued = enqueue(emptyOutbox(), {
+        id: "o-1", subjectId: "s-1", idempotencyKey: "k-1", queuedAt: 0,
+        operation: "POST /v1/requests", label: "طلب دواء",
+        payload: { subjectId: "s-1", urgency: "today", districtId: "d1", lines: [] },
+      });
+
+      runtime.startFlush(queued);
+      await settled();
+
+      expect(posted).toEqual(["/v1/requests"]);
+      // And the delivery reports back, so the store — the owner — sees it.
+      expect(reported.some((i) => i.kind === "outboxChanged")).toBe(true);
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });

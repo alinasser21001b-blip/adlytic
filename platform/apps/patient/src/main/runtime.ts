@@ -20,6 +20,7 @@ import { BUSINESS_EVENT } from "@dawai/observability";
 import { makeHttp } from "../infra/http.js";
 import { makeCatalogue, type SearchCache } from "../infra/catalogue.js";
 import { makeIdentity } from "../infra/identity.js";
+import { makeRequests } from "../infra/requests.js";
 import { flush } from "../infra/flush.js";
 import type { Runtime } from "../App.js";
 import type { Environment, SearchResponse } from "../ports.js";
@@ -28,6 +29,33 @@ import type { Host } from "./host.js";
 
 const DEVICE_ID_KEY = "dawai.deviceId";
 const CACHE_PREFIX = "dawai.search.";
+
+/**
+ * How often a live request is re-read while pharmacies are still answering.
+ *
+ * R7 is a countdown a patient is watching, and D09's shortest window is twenty
+ * minutes — so an answer that takes half a minute to appear on a screen the
+ * patient is staring at reads as an app that has stopped working. Three
+ * seconds is short enough that an offer feels like it arrived and long enough
+ * that a twenty-minute window is hundreds of reads rather than thousands.
+ *
+ * It is a transport interval, not a product rule: nothing a patient sees is
+ * derived from it, and the loop ends when the answers do rather than after a
+ * number of tries.
+ */
+const WATCH_INTERVAL_MS = 3_000;
+
+/** The id the server minted for a request it accepted. Read defensively — this
+ *  is a response body, and a field that is not a string is a field we do not
+ *  have. Without an id there is nothing to watch, and saying so beats watching
+ *  `undefined`. */
+function requestIdOf(body: unknown): string | null {
+  if (typeof body !== "object" || body === null) return null;
+  const request = (body as Record<string, unknown>)["request"];
+  if (typeof request !== "object" || request === null) return null;
+  const id = (request as Record<string, unknown>)["requestId"];
+  return typeof id === "string" && id !== "" ? id : null;
+}
 
 /**
  * The device identity, minted once and kept.
@@ -120,10 +148,21 @@ export type Assembled = {
  */
 export async function createRuntime(
   host: Host,
-  onIntent: (intent: Intent) => void,
   session: () => Session = () => NO_SESSION,
 ): Promise<Assembled> {
   const deviceId = await deviceIdFrom(host);
+
+  /**
+   * Where the app is listening, once it has mounted.
+   *
+   * Null until then, and null again after it unmounts. Both are real states: a
+   * runtime is built BEFORE the app can be rendered, so anything that resolves
+   * in that window has nowhere to go, and dropping it is the honest outcome —
+   * an offer nobody is on screen to see is an offer the next read returns
+   * anyway.
+   */
+  let sink: ((intent: Intent) => void) | null = null;
+  const onIntent = (intent: Intent): void => { sink?.(intent); };
 
   /**
    * §21 — the clock is server-corrected, never the raw device clock, because a
@@ -148,19 +187,74 @@ export async function createRuntime(
    */
   let verified: { readonly account: AccountId; readonly subject: SubjectId } | null = null;
 
+  /**
+   * The queue as this runtime last saw it.
+   *
+   * NOT a second copy of the store's: `startFlush` is handed the store's
+   * outbox and every change is reported straight back as an intent, so the
+   * store stays the single owner. This holds it only for the duration of a
+   * delivery, because the flusher needs to re-read it between items — that is
+   * how a cancellation made mid-flight is seen instead of being sent anyway.
+   */
   let outbox: Outbox = emptyOutbox();
+  const requests = makeRequests(http);
+
+  /**
+   * Watch a live request until every pharmacy has answered.
+   *
+   * §8 says the patient is TOLD when pharmacies reply, and being told is a
+   * push notification — which a browser build does not have and a device build
+   * does not exist to receive (TD-1, TD-2). Reading the declared endpoint on
+   * an interval is the honest stand-in: it produces the same intents a push
+   * would, from the same contract, so the app above this line cannot tell the
+   * difference and does not need to. It is registered as TD-21 rather than
+   * left to look like the intended design.
+   *
+   * It stops when nobody is still thinking. A branch that has answered will
+   * not answer again, so once `thinking` reaches zero there is nothing further
+   * to learn and the loop is a battery cost with no result — which matters on
+   * the phones this product is for.
+   */
+  const watch = async (requestId: string): Promise<void> => {
+    for (;;) {
+      const seen = await requests.read(requestId);
+      if (seen.kind === "failed") {
+        // A dropped connection is not the end of the wait. The window is still
+        // open, the pharmacies are still answering, and the next read is the
+        // recovery — R7 keeps its countdown rather than claiming the request
+        // failed, which it has not.
+        await host.sleep(WATCH_INTERVAL_MS);
+        continue;
+      }
+      for (const offer of seen.value.offers) onIntent({ kind: "offerArrived", offer });
+      if (seen.value.responders.thinking === 0) return;
+      await host.sleep(WATCH_INTERVAL_MS);
+    }
+  };
   const runtime: Runtime = {
     catalogue: makeCatalogue(http, searchCache(host), now),
     identity: makeIdentity(http),
     env,
     deviceId,
-    startFlush: () => {
+    startFlush: (queued) => {
+      outbox = queued;
       void flush(outbox, {
         http,
         random: host.random,
         sleep: host.sleep,
         current: () => outbox,
-        onChange: (next) => { outbox = next; },
+        onChange: (next) => {
+          outbox = next;
+          onIntent({ kind: "outboxChanged", outbox: next });
+        },
+        onAccepted: (item, body) => {
+          // The only write this app makes today, named by the operation the
+          // outbox stored at enqueue rather than assumed. When a second write
+          // joins it, this stops being a match and starts being a switch.
+          if (item.operation !== "POST /v1/requests") return;
+          const id = requestIdOf(body);
+          if (id !== null) void watch(id);
+        },
       });
     },
     emit: (event, attributes) => {
@@ -179,6 +273,10 @@ export async function createRuntime(
     // §8 — a record carries the event, when, a correlation id and dimensions.
     // Never content: a district id is a dimension, a medicine name is not.
     telemetry: { emit: (record) => host.log(JSON.stringify({ level: "info", ...record })) },
+    connect: (send) => {
+      sink = send;
+      return () => { if (sink === send) sink = null; };
+    },
     onVerified: (accountId, subjectId) => {
       verified = { account: asAccountId(accountId), subject: asSubjectId(subjectId) };
     },

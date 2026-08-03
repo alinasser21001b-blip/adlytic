@@ -11,6 +11,7 @@
  *      supply fakes. Nothing in this file performs I/O.
  */
 import type { Outcome } from "@dawai/net";
+import type { Offer } from "./model/offers.js";
 
 /**
  * A catalogue row as the patient app needs it. The clinical flags are the
@@ -61,6 +62,37 @@ export type RequestSubmission = {
     readonly prescriptionImageId: string | null;
   }[];
 };
+
+/* ── The request, once it is live ─────────────────────────────────────── */
+
+/**
+ * What GET /v1/requests/{id} answers with.
+ *
+ * `responders` is the contract's own breakdown and R7 needs all three: a
+ * patient watching a countdown wants to know how many pharmacies are still
+ * thinking, not only how many have answered. A screen that shows «٢ ردّوا»
+ * without «٣ لسه يفكرون» reads as though the answers have stopped.
+ *
+ * The offers are typed as the app's own `Offer` rather than re-declared here.
+ * The catalogue's row is re-declared because a `CatalogueHit` becomes a
+ * different thing — a draft line — the moment it is used; an offer is read,
+ * compared and accepted in exactly the shape it arrives in, and a second
+ * declaration of it would be one more place for the two to disagree.
+ */
+export type RequestView = {
+  readonly requestId: string;
+  readonly responders: {
+    readonly asked: number;
+    readonly replied: number;
+    readonly thinking: number;
+  };
+  readonly offers: readonly Offer[];
+};
+
+export interface RequestsPort {
+  /** GET /v1/requests/{id} */
+  read(requestId: string, signal?: AbortSignal): Promise<Fetched<RequestView>>;
+}
 
 /* ── Identity — the declared auth contract, as a port ─────────────────── */
 

@@ -18,12 +18,13 @@ const host = browserHost(globalThis.location.origin);
 
 async function start() {
   /**
-   * The callback is how a host answers back with an intent — the camera uses
-   * it. A browser host has no camera (TD-9), so nothing calls it here, and
-   * wiring a second `usePatientApp` to capture `send` would have created a
-   * SECOND independent app state beside the one `App` owns.
+   * Build, then mount. The app connects itself to the runtime once it is
+   * rendered — this file deliberately holds no dispatcher of its own, because
+   * the version that did had to call `usePatientApp` to get one and thereby
+   * ran a SECOND independent copy of the application state beside the one
+   * `App` owns.
    */
-  const { runtime } = await createRuntime(host, () => {});
+  const { runtime } = await createRuntime(host);
   const container = globalThis.document.getElementById("root");
   if (!container) throw new Error("no #root to mount into");
   createRoot(container).render(createElement(App, { rt: runtime }));

@@ -53,6 +53,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
   authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" }),
   onEffectFailed: (_e, cause) => { throw cause; },
     onVerified: () => {},
+    connect: () => () => {},
   };
   return { ...base, ...over };
 };

@@ -60,6 +60,25 @@ export type Runtime = Ports & {
    * actionable and "verifyCode threw" is.
    */
   readonly onEffectFailed: (effect: Effect, cause: unknown) => void;
+  /**
+   * How the runtime speaks to the app.
+   *
+   * Everything else here is the app asking the outside for something. This is
+   * the other direction, and it exists because two things happen to a patient
+   * that nothing they did caused: a pharmacy answers, and a camera returns a
+   * photograph. Both arrive while the app is idle, and neither is the result
+   * of an effect the reducer asked for.
+   *
+   * The app registers the sink rather than the host supplying it, because the
+   * host cannot: the runtime has to be BUILT before the app can be mounted,
+   * and the app's dispatcher does not exist until it is. `web/main.tsx` filled
+   * that gap with a no-op — so an offer that arrived was read, validated and
+   * thrown away, and R7 counted zero forever no matter how many pharmacies
+   * replied.
+   *
+   * Returns its own undo, so an unmounted app stops receiving.
+   */
+  readonly connect: (send: (intent: Intent) => void) => () => void;
 };
 
 /**
@@ -84,6 +103,11 @@ export function usePatientApp(rt: Runtime) {
   const [runtimeState, act] = React.useReducer(reduceRuntime(rt), INITIAL_RUNTIME);
 
   const send = React.useCallback((intent: Intent) => act({ kind: "intent", intent }), []);
+
+  // Anything the runtime learns on its own — an offer arriving, a photograph
+  // coming back — reaches the reducer through here, and stops when the app
+  // does.
+  React.useEffect(() => rt.connect(send), [rt, send]);
 
   React.useEffect(() => {
     const { effects } = runtimeState;
@@ -317,7 +341,12 @@ export function App({ rt }: { rt: Runtime }) {
       return state.sent ? (
         <WaitingScreen
           t={t} sent={state.sent} history={state.history} now={rt.env.now()}
-          urgency={state.sent.submission.urgency} offerCount={0}
+          urgency={state.sent.submission.urgency}
+          /* Was a hard-coded zero, written when nothing could produce an
+             offer. R7's whole job is to make the wait legible and it was
+             telling every patient that nobody had answered, including the
+             ones whose offers were sitting in state waiting to be counted. */
+          offerCount={state.offers.length}
           onBack={onBack} onAction={onAction}
         />
       ) : <Placeholder t={t} />;

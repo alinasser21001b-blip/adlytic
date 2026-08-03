@@ -45,6 +45,15 @@ export const DEBT = [
     status: "open",
   },
   {
+    id: "TD-21",
+    description: "Offers reach the patient by POLLING, not by being told. §8 says the patient is notified when pharmacies reply; a notification needs push, which a browser build cannot receive and a device build does not exist to (TD-1, TD-2). The composition root therefore re-reads GET /v1/requests/{id} every three seconds while any branch is still thinking, and stops when none is.",
+    impact: "Behaviourally equivalent above the port — the same intents arrive from the same contract, so no screen and no reducer can tell the difference — and materially different below it. The app must be OPEN and on screen for an offer to arrive, so a patient who locks their phone during a four-hour window learns nothing until they look; and a twenty-minute window costs hundreds of requests and the battery to make them, on the phones and networks this product is for. It is a stand-in for the notification channel, not the design.",
+    priority: "high",
+    owner: "notification-service",
+    slice: "Device build — push notifications",
+    status: "open",
+  },
+  {
     id: "TD-20",
     description: "R7's «ألغِ الطلب» does not cancel anything. The contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: there is no cancel intent, no marketplace transition, no call. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.",
     impact: "A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. What cancelling a broadcast request DOES — whether it is a state on the request machine, what pharmacies that already answered are told, and whether it is even offered once an offer exists — is not in Blueprint v3, so implementing it here would be inventing a state transition and a notification at once.",

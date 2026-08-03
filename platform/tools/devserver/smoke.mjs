@@ -66,8 +66,11 @@ await show("waiting");
 
 // The dev server answers on a timer, the way pharmacies do — the wait is the
 // point of R7 and skipping it would be testing a screen nobody sees.
-await page.waitForTimeout(8_000);
+await page.waitForTimeout(12_000);
 await show("waited");
+
+await press("شوف العرض الواصل");
+await show("offers");
 
 console.log(`\nERRORS: ${errors.length === 0 ? "none" : ""}`);
 for (const e of errors) console.log(`  ${e}`);

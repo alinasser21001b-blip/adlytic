@@ -42,6 +42,26 @@ export type FlushDeps = {
    * with no live store (the tests, a one-shot flush) is unaffected.
    */
   readonly current?: () => Outbox;
+  /**
+   * What the server answered for an item it accepted.
+   *
+   * The outbox's own state — accepted, duplicate, rejected — is all the OUTBOX
+   * needs, and it was all this kept. But POST /v1/requests answers 201 with
+   * `{ request, windowEndsAt, branchesAsked }`, and the request id in there is
+   * the only handle the app will ever have on the thing it just created: every
+   * later call about it — reading offers, cancelling, accepting — is keyed by
+   * that id. Dropping the body meant the app sent a request and then had no
+   * way to ask about it, so R7 counted zero offers forever.
+   *
+   * The body is `unknown` and stays that way. This module delivers writes; it
+   * has no business knowing what a request looks like, and the caller that
+   * asked for the write is the one that knows what it asked for.
+   *
+   * Only for `accepted`. A duplicate means an earlier attempt landed and the
+   * server is not obliged to replay its body, so treating a 409's payload as
+   * an answer would be reading a field that may not be there.
+   */
+  readonly onAccepted?: (item: OutboxItem, body: unknown) => void;
 };
 
 /**
@@ -135,7 +155,10 @@ async function deliver(outbox: Outbox, item: OutboxItem, deps: FlushDeps, policy
   for (let attempt = 1; ; attempt += 1) {
     const res = await deps.http.post(path, item.payload, { idempotencyKey: item.idempotencyKey });
 
-    if (res.outcome.kind === "accepted") return markAccepted(outbox, item.id);
+    if (res.outcome.kind === "accepted") {
+      deps.onAccepted?.(item, res.body);
+      return markAccepted(outbox, item.id);
+    }
     // A duplicate IS success: the earlier attempt landed. Treating it as an
     // error is how a patient gets told their sent request failed.
     if (res.outcome.kind === "duplicate") return markDuplicate(outbox, item.id);

@@ -94,8 +94,17 @@ const NO_ONBOARDING: OnboardingState = {
 export type Effect =
   | { readonly kind: "search"; readonly query: string }
   | { readonly kind: "emit"; readonly event: string; readonly attributes: Readonly<Record<string, string | number | boolean>> }
-  /** The outbox has work. Delivery is infrastructure's job, not the store's. */
-  | { readonly kind: "flushOutbox" }
+  /**
+   * The outbox has work, and here it is.
+   *
+   * It CARRIES the outbox. Delivery is infrastructure's job and the queue is
+   * the store's, and the effect used to say only "there is work" — so the
+   * runtime flushed an outbox of its own that the reducer had never touched.
+   * It was always empty, so `readyToSend` returned nothing and every request a
+   * patient ever sent was delivered nowhere. R7 said «انرسل» on the store's
+   * own optimistic state and no POST was ever made.
+   */
+  | { readonly kind: "flushOutbox"; readonly outbox: Outbox }
   | { readonly kind: "capturePrescription" }
   /** Ask the identity service to send an SMS. Delivery is infrastructure's
    *  job; the store only says that it should happen. */
@@ -127,6 +136,10 @@ export type Intent =
   | { readonly kind: "openOffer"; readonly offerId: string }
   | { readonly kind: "decideSubstitution"; readonly requestLineId: string; readonly decision: "agreed" | "refused" }
   | { readonly kind: "dismissRefusal" }
+  /** What the flusher made of the queue: attempts spent, items accepted,
+   *  rejected or requeued. The store owns the outbox, so a delivery attempt
+   *  reports back rather than mutating it from outside. */
+  | { readonly kind: "outboxChanged"; readonly outbox: Outbox }
 
   /* E5–E8. Typing and submitting are separate intents because they are
      separate events: one is the patient composing, the other is them
@@ -378,7 +391,7 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
           reservation: Reservation.requesting(offer.branchName),
           reservationState: "requested",
         }, "V1"),
-        effects: [{ kind: "flushOutbox" }],
+        effects: [{ kind: "flushOutbox", outbox: state.outbox }],
       };
     }
 
@@ -604,6 +617,9 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
 
     case "dismissRefusal":
       return { state: { ...state, refusal: null, staleOffer: null }, effects: [] };
+
+    case "outboxChanged":
+      return { state: { ...state, outbox: intent.outbox }, effects: [] };
   }
 }
 
@@ -688,7 +704,7 @@ function doSend(state: AppState, at: Instant, env: Environment, authority: Autho
   if (!result.ok) return { state: { ...state, refusal: result.refusal }, effects: [] };
 
   const { sent } = result;
-  const effects: Effect[] = [{ kind: "flushOutbox" }];
+  const effects: Effect[] = [{ kind: "flushOutbox", outbox: sent.outbox }];
   // request.broadcast is emitted when it is broadcast — not when it is queued.
   // Counting a queued request as broadcast would inflate O12 fill rate with
   // requests no pharmacy has seen.

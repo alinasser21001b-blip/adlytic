@@ -15,6 +15,7 @@
  *      cannot become a second reducer.
  */
 import { instant } from "@dawai/domain";
+import type { Outbox } from "@dawai/offline";
 import type { Effect, Intent } from "../app/store.js";
 import type { CataloguePort, Environment, IdentityPort } from "../ports.js";
 
@@ -24,9 +25,16 @@ export type Ports = {
   readonly env: Environment;
   /** Stable per install. The verify contract requires it for device binding. */
   readonly deviceId: string;
-  /** flushOutbox is started here but owned by the caller: it mutates the
-   *  outbox over time and reports through the store, not through a return. */
-  readonly startFlush: () => void;
+  /**
+   * Deliver this outbox. It is passed IN because the store owns the queue —
+   * the runtime used to keep one of its own, which the reducer never touched
+   * and which was therefore always empty.
+   *
+   * It reports through the store rather than a return value, because delivery
+   * outlives the effect: attempts, backoff and requeues happen over seconds
+   * and each one is a fact the patient can see on R13.
+   */
+  readonly startFlush: (outbox: Outbox) => void;
   readonly emit: (event: string, attributes: Readonly<Record<string, string | number | boolean>>) => void;
   readonly capture: () => void;
   /**
@@ -88,7 +96,7 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
     }
 
     case "flushOutbox":
-      ports.startFlush();
+      ports.startFlush(effect.outbox);
       return null;
 
     case "emit":
