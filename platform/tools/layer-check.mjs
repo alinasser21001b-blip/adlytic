@@ -57,6 +57,22 @@ const LAYERS = [
     // declares WHAT a screen presents; it may not compute a rule.
     name: "apps",
     dir: "apps",
+    /**
+     * The host is not an app.
+     *
+     * Everything below this line is the rule that a CONTRACT may not read a
+     * clock, mint randomness or reach a rendering platform other than the one
+     * the design system is built on. A host is the opposite thing: it exists
+     * precisely to supply those, and `main/host.ts` declares the interface it
+     * must satisfy. Holding it to the contract rule would mean either no host
+     * can ever be written, or the rule gets quietly softened for everyone —
+     * and softening it is how a clock ends up in a screen.
+     *
+     * So the host is carved out here and given its OWN layer below, with its
+     * own boundary: it may touch the platform, and it may not touch a screen.
+     * That is a different rule, not a lighter one.
+     */
+    exclude: [/^apps\/[^/]+\/web\//, /^apps\/[^/]+\/vite\.config\.ts$/],
     // observability is on the list because an app EMITS telemetry; it may name
     // an event from the closed set and may not invent one, which is the same
     // reason the set is closed in the first place. react and react-native are
@@ -209,6 +225,40 @@ const LAYERS = [
       { re: /@dawai\/domain/, why: "the domain — telemetry observes, it never decides" },
     ],
   },
+  {
+    /**
+     * The platform boundary — and the one place allowed to BE a platform.
+     *
+     * A host implements `main/host.ts`: a clock, an id source, a connectivity
+     * answer, a store, a sleep, a random, a camera and a log. Every one of
+     * those is banned everywhere else in the app, which is the point — the
+     * ban is what forces them all to arrive through one interface that a test
+     * can substitute, and this directory is the far side of it.
+     *
+     * The rule that replaces them is narrower and sharper: a host may not
+     * import a screen, the design system, the domain or the store. Its whole
+     * job is to build a `Host`, hand it to `createRuntime`, and mount what
+     * comes back. A host that reaches past the composition root into a screen
+     * is a SECOND app root — one that renders a different tree than the one
+     * every gate in this repository measures — and that is exactly the
+     * failure the first version of `web/main.tsx` shipped: it called
+     * `usePatientApp` itself AND rendered `<App>`, so the browser ran two
+     * independent copies of the application state and the one on screen was
+     * not the one receiving effects.
+     */
+    name: "host",
+    dir: "apps/patient/web",
+    allowedImports: [
+      /^\.{1,2}\//,
+      /^react$/, /^react-dom\/client$/,
+    ],
+    banned: [
+      { re: /from\s+["'][^"']*\/screens\//, why: "a screen — a host mounts the app root and never a screen; two roots is two application states" },
+      { re: /from\s+["'][^"']*\/ui\//, why: "the design system — a host supplies a platform, it does not draw" },
+      { re: /@dawai\/(domain|design)/, why: "a rule or a token — a host has no opinion about either" },
+      { re: /from\s+["'][^"']*\/app\/store/, why: "the reducer — the app root owns the store; a host that dispatches is a second app" },
+    ],
+  },
 ];
 
 const walk = (dir, out = []) => {
@@ -229,8 +279,9 @@ let scanned = 0;
 for (const layer of LAYERS) {
   const files = walk(join(PLATFORM, layer.dir));
   for (const file of files) {
-    scanned += 1;
     const rel = relative(PLATFORM, file);
+    if (layer.exclude?.some((re) => re.test(rel))) continue;
+    scanned += 1;
     const isTest = /\.test\.tsx?$/.test(file);
     const raw = readFileSync(file, "utf8");
     // Scan CODE, not prose. A comment saying "request window" is not the

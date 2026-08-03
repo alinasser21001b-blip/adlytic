@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 15:30 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 16:10 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1195,7 +1195,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">134 file(s) scanned across 10 layer(s)</div></div>
+  <div class="note mono">136 file(s) scanned across 11 layer(s)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
@@ -1291,7 +1291,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 
   <h3 style="margin-top:20px">What blocks release</h3>
   <table style="margin-top:8px"><thead><tr><th>Blocker</th><th>Why it blocks</th><th>Owner</th></tr></thead><tbody>
-  <tr><td class="mono">TD-1</td><td>The composed app now starts and searches under test. What remains unexercised is everything a real platform brings: no host means no device or browser has ever run it, and no backend means real latency, pagination, token refresh, TLS and server-side authorization remain unexercised until a backend exists, and nothing has been observed on a device.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td><td class="mono">media-service</td></tr><tr><td class="mono">TD-4</td><td>A guest cannot complete any journey. The core loop is only reachable by an already-authenticated account.</td><td class="mono">identity-service</td></tr>
+  <tr><td class="mono">TD-1</td><td>The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td><td class="mono">media-service</td></tr><tr><td class="mono">TD-4</td><td>A guest cannot complete any journey. The core loop is only reachable by an already-authenticated account.</td><td class="mono">identity-service</td></tr>
   </tbody></table>
 
   <h3 style="margin-top:20px">What is ready</h3>
@@ -1560,10 +1560,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <div class="panel">
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
-    <div><div class="kpi">77<small>source files</small></div></div>
-    <div><div class="kpi">10,701<small>source lines</small></div></div>
+    <div><div class="kpi">80<small>source files</small></div></div>
+    <div><div class="kpi">10,823<small>source lines</small></div></div>
     <div><div class="kpi">0.54×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">5.49s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">5.78s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1590,8 +1590,8 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <table style="margin-top:12px"><thead><tr><th>ID</th><th>Description</th><th>Impact</th><th>Priority</th><th>Owner</th><th>Planned slice</th></tr></thead><tbody>
 <tr>
   <td class="mono">TD-1</td>
-  <td>The patient app has no HOST. The composition root now exists — `main/createRuntime` assembles the real ports, cache, outbox flusher, telemetry and authority from a `Host` interface, and a test drives a search end to end through it — so the application has been assembled and started. What is missing is a platform under it: nothing supplies a Host (no React Native project, no browser bundle), so nothing MOUNTS it on a device or in a page. Separately, the CLIENT half of the infrastructure exists: one HTTP transport classifying through @dawai/net, IdentityPort and CataloguePort over the declared contracts, the outbox flusher driving retry/backoff/idempotency, and an effect runner closing the store → server → store loop — all proved against a scripted fake server. What does not exist is a server: no backend has ever answered a real request, no session token is stored or refreshed, and deviceId/baseUrl have no production source.</td>
-  <td class="note">The composed app now starts and searches under test. What remains unexercised is everything a real platform brings: no host means no device or browser has ever run it, and no backend means real latency, pagination, token refresh, TLS and server-side authorization remain unexercised until a backend exists, and nothing has been observed on a device.</td>
+  <td>The patient app has no DEVICE build and no BACKEND. A host now exists: `apps/patient/web` implements the `Host` interface against browser globals — a clock, crypto ids, navigator.onLine, localStorage, setTimeout — and mounts the composition root through react-native-web, so the application has been started and used in a page for the first time. A dev server (`tools/devserver`) answers the declared v1 contracts beside it. Neither is production: react-native-web is not React Native, so no phone has run this, and the dev server invents DATA (nine catalogue rows, three branches) to exercise BEHAVIOUR the contracts already declare — it is not a backend. No session token is stored or refreshed, and deviceId/baseUrl still have no production source.</td>
+  <td class="note">The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td>
   <td><span class="tag bad">critical</span></td>
   <td class="mono">platform-foundation</td>
   <td class="note">Stage 5 — Infrastructure</td>
