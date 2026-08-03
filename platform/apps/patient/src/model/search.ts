@@ -12,7 +12,7 @@
  *      the one clinical question it asks — may this item be requested at all —
  *      it asks the domain.
  */
-import { Clinical, isErr } from "@dawai/domain";
+import { Clinical, isErr, type RefusalCode } from "@dawai/domain";
 import { toWesternDigits } from "@dawai/design";
 import type { CatalogueHit, Fetched, SearchResponse } from "../ports.js";
 
@@ -45,7 +45,7 @@ export function normaliseQuery(raw: string): string {
  */
 export type HitAvailability =
   | { readonly requestable: true; readonly needsPrescription: boolean }
-  | { readonly requestable: false; readonly refusal: string };
+  | { readonly requestable: false; readonly refusal: RefusalCode };
 
 /**
  * D42 and D18, asked of the clinical gate. The gate is asked with
