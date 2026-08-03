@@ -68,3 +68,28 @@ describe("D04 — a memorialised subject accepts no new activity, but stays read
     expect(isOk(authorise(rels, me, subj, "view", gone))).toBe(true);
   });
 });
+
+describe("§5 rule 3 holds even when the subject has died", () => {
+  it("a stranger learns nothing from a memorialised subject that a living one would not tell them", () => {
+    // The refusal order is load-bearing: `sufficient.length === 0` returns
+    // before the memorialisation check, so someone with no relationship gets
+    // NOT_FOUND_OR_NOT_YOURS either way. If SUBJECT_MEMORIALISED came first, a
+    // stranger probing subject ids would learn which are real AND that the
+    // person is dead — the v1 identity-oracle defect this module was written
+    // to close, with a worse disclosure attached.
+    const dead = authorise([], asAccountId("stranger"), asSubjectId("s1"), "order", { memorialised: true });
+    const living = authorise([], asAccountId("stranger"), asSubjectId("s2"), "order", { memorialised: false });
+    expect(isErr(dead) && dead.error.code).toBe("NOT_FOUND_OR_NOT_YOURS");
+    expect(isErr(living) && living.error.code).toBe("NOT_FOUND_OR_NOT_YOURS");
+    expect(isErr(dead) && dead.error.code).toBe(isErr(living) ? living.error.code : null);
+  });
+
+  it("someone who IS entitled is told the real reason", () => {
+    // Not an oracle for them: a grant holder is allowed to know.
+    const r = authorise(
+      [{ kind: "guardian", account: asAccountId("g1"), subject: asSubjectId("s1") }],
+      asAccountId("g1"), asSubjectId("s1"), "order", { memorialised: true },
+    );
+    expect(isErr(r) && r.error.code).toBe("SUBJECT_MEMORIALISED");
+  });
+});
