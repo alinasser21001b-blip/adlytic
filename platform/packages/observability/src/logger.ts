@@ -32,22 +32,43 @@ export interface LogSink { write(record: LogRecord): void; }
  * a phone number is a medical record in a text file.
  */
 const NEVER_LOG = new Set([
-  "phone", "phoneNumber", "phone_enc", "name", "patientName", "subjectName",
-  "code", "reservationCode", "pin", "pinHash", "token", "refreshToken",
-  "password", "secret", "authorization", "prescriptionImage", "imageBytes",
-  "medicine", "medicineName", "itemName", "note", "address",
-]);
+  "phone", "phonenumber", "phone_enc", "name", "patientname", "subjectname",
+  "code", "reservationcode", "pin", "pinhash", "token", "refreshtoken",
+  "password", "secret", "authorization", "prescriptionimage", "imagebytes",
+  "medicine", "medicinename", "itemname", "note", "address",
+].map((k) => k.toLowerCase()));
 
 /** Values longer than this are truncated — a log line is not a payload store. */
 const MAX_VALUE = 200;
 
+/**
+ * Names are matched case-insensitively. A field called `PatientName` is the
+ * same field as `patientName`, and a redactor that disagrees is one that
+ * depends on which service happened to name it.
+ */
+const forbidden = (key: string): boolean => NEVER_LOG.has(key.toLowerCase());
+
+/** One value, redacted — including inside arrays.
+ *
+ *  Arrays used to be skipped: the recursion tested `!Array.isArray(v)` and
+ *  assigned anything else through untouched. The request a patient submits is
+ *  `lines: [{ itemId, packs, ... }]`, and an offer is `lines: [{ itemName,
+ *  note, ... }]` — so the one shape in the product that actually carries
+ *  medicine names and a pharmacist's words was the one shape that walked past
+ *  the redactor into the log. §8 says the audit records that a read happened,
+ *  never what was read; a log line listing medicines is a medical record in a
+ *  text file. */
+function scrub(v: unknown): unknown {
+  if (typeof v === "string") return v.length > MAX_VALUE ? `${v.slice(0, MAX_VALUE)}…` : v;
+  if (Array.isArray(v)) return v.map(scrub);
+  if (v && typeof v === "object") return redact(v as LogFields);
+  return v;
+}
+
 export function redact(fields: LogFields): LogFields {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(fields)) {
-    if (NEVER_LOG.has(k)) { out[k] = "[redacted]"; continue; }
-    if (typeof v === "string" && v.length > MAX_VALUE) { out[k] = `${v.slice(0, MAX_VALUE)}…`; continue; }
-    if (v && typeof v === "object" && !Array.isArray(v)) { out[k] = redact(v as LogFields); continue; }
-    out[k] = v;
+    out[k] = forbidden(k) ? "[redacted]" : scrub(v);
   }
   return out;
 }
