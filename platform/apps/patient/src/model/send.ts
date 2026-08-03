@@ -66,7 +66,7 @@ export function send(
     // D27 — the words a screen may use come from the outbox's `describe`.
     // This label says what the item IS, not what happened to it.
     label: describeRequest(draft),
-    payload: built.value as unknown as Readonly<Record<string, unknown>>,
+    payload: built.value,
     idempotencyKey,
     queuedAt: env.now(),
     subjectId: draft.subjectId,

@@ -70,6 +70,12 @@ const LAYERS = [
     ],
     banned: [
       { re: /\bDate\.now\s*\(/, why: "the system clock inside a contract — presentation state comes from the domain" },
+      // The strongest possible defeat of the type system, and it is almost
+      // never load-bearing. The one in the codebase — the outbox payload in
+      // send.ts — compiled fine without it: someone had written `as unknown
+      // as` to silence an error that no longer existed, and it stayed,
+      // covering the one value in the product that leaves the device.
+      { re: /\bas unknown as\b/, why: "a double cast — it defeats the type system entirely; if a value genuinely needs reshaping, reshape it", testsMayUse: true },
       { re: /\bMath\.random\s*\(/, why: "nondeterminism in a contract" },
       // §25 names this hazard by name: a physical direction paired with an RTL
       // container double-reverses, and the back button ends up on the wrong
@@ -238,6 +244,9 @@ for (const layer of LAYERS) {
       // Tests may construct instants and use the runner's globals; the rules
       // themselves may not. The ban exists to keep the RULE deterministic.
       if (isTest && /Date|Math\.random|console/.test(b.re.source)) continue;
+      // Some bans are about production code only: a test may legitimately
+      // build a malformed value to prove the code rejects it.
+      if (isTest && b.testsMayUse) continue;
       const m = src.match(b.re);
       if (m) {
         const line = src.slice(0, m.index).split("\n").length;
