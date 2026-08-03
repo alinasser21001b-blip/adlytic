@@ -775,6 +775,24 @@ export function StateBlock(
           {treatment.nextStep ? <Primary t={t} label={treatment.nextStep.label} onPress={() => onAction(treatment.nextStep!.leadsTo)} /> : null}
         </View>
       );
+    default: {
+      /**
+       * A new StateTreatment kind is a COMPILE error, not a blank space.
+       *
+       * The switch had no default at all. Its docstring said it "cannot fall
+       * through to a generic message", which was true and beside the point: it
+       * fell through to `undefined`, which React renders as nothing. A screen
+       * declaring a state the Blueprint added would have shown the patient an
+       * empty area where the treatment belongs — the quietest possible failure,
+       * on the states that exist precisely to explain what went wrong.
+       *
+       * ux-check catches a screen that declares a state with no treatment. It
+       * cannot catch a treatment KIND that no renderer handles, because that is
+       * a fact about this file rather than about a contract.
+       */
+      const unhandled: never = treatment;
+      throw new Error(`no treatment renderer for ${JSON.stringify(unhandled)}`);
+    }
   }
 }
 
