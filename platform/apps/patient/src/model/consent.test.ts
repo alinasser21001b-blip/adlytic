@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as Consent from "./consent.js";
+import type * as Offers from "./offers.js";
 import * as Prescription from "./prescription.js";
 
 const sub = (id: string, over: Partial<Consent.Substitution> = {}): Consent.Substitution => ({
@@ -143,5 +144,58 @@ describe("R2 and R3 — photographing the paper", () => {
 
   it("tells the patient what 'clear' means rather than making them guess", () => {
     expect(Prescription.LEGIBILITY_CHECKS.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("§4 R10 — acceptance is one rule, asked once", () => {
+  const line = (id: string, answer: Offers.OfferLine["answer"]): Offers.OfferLine =>
+    ({ requestLineId: id, itemName: "بانادول", answer } as Offers.OfferLine);
+  const offer = (over: Partial<Offers.Offer> = {}): Offers.Offer => ({
+    offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
+    distanceM: 800, honoured: "trusted", state: "sent", openNow: true,
+    lines: [line("l1", { kind: "available", priceMinor: 3_000 })],
+    ...over,
+  });
+  const withSub = () => offer({
+    lines: [
+      line("l1", { kind: "available", priceMinor: 3_000 }),
+      line("l2", { kind: "substitute", priceMinor: 2_500, itemId: "x", note: "نفس المادة" }),
+    ],
+  });
+
+  it("an offer with no substitution is ready, with every filled line", () => {
+    const a = Consent.acceptance(offer({
+      lines: [line("l1", { kind: "available", priceMinor: 3_000 }),
+              line("l2", { kind: "unavailable", reason: "out_of_stock" })],
+    }), null);
+    expect(a).toEqual({ kind: "ready", lineIds: ["l1"] });
+  });
+
+  it("a substitution with no consent state at all is blocked, not silently taken", () => {
+    const a = Consent.acceptance(withSub(), null);
+    expect(a).toEqual({ kind: "blocked", refusal: { code: "SUBSTITUTION_NOT_ACKNOWLEDGED" } });
+  });
+
+  it("an undecided proposal is blocked — undecided is not agreement", () => {
+    const a = Consent.acceptance(withSub(), Consent.begin("o1", [sub("l2")]));
+    expect(a.kind).toBe("blocked");
+  });
+
+  it("consent belonging to a DIFFERENT offer is no consent", () => {
+    // Decisions are per proposal. Carrying them across offers would be the app
+    // agreeing to a substitution the patient never saw.
+    let other = Consent.begin("o2", [sub("l2")]);
+    other = Consent.decide(other, "l2", "agreed");
+    expect(Consent.acceptance(withSub(), other).kind).toBe("blocked");
+  });
+
+  it("agreed reserves the line; refused drops it and keeps the rest (D06)", () => {
+    let c = Consent.begin("o1", [sub("l2")]);
+    c = Consent.decide(c, "l2", "agreed");
+    expect(Consent.acceptance(withSub(), c)).toEqual({ kind: "ready", lineIds: ["l1", "l2"] });
+
+    let r = Consent.begin("o1", [sub("l2")]);
+    r = Consent.decide(r, "l2", "refused");
+    expect(Consent.acceptance(withSub(), r)).toEqual({ kind: "ready", lineIds: ["l1"] });
   });
 });

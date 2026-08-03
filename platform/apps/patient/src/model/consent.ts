@@ -109,6 +109,42 @@ export function gate(state: ConsentState): Refusal | null {
   return null;
 }
 
+/** The answer to "may this offer be accepted, and with which lines". */
+export type Acceptance =
+  /** §4 R10 is not satisfied. The decision lives on R10, so the screen sends
+   *  the patient there rather than refusing in place. */
+  | { readonly kind: "blocked"; readonly refusal: Refusal }
+  | { readonly kind: "ready"; readonly lineIds: readonly string[] };
+
+/**
+ * §4 R10, decided in one place.
+ *
+ * The reducer used to compose this rule out of four parts: whether the offer
+ * contains a substitution at all, whether the held consent belongs to THIS
+ * offer, whether `gate` passes, and which lines survive. That is a business
+ * rule assembled inside the UI layer (Rule 4) — and it was assembled twice in
+ * the same branch, so the "does this consent belong to this offer" test could
+ * have been tightened in one half and not the other. Consent lives here; the
+ * reducer asks and obeys.
+ *
+ * Consent for a DIFFERENT offer counts as no consent, deliberately: decisions
+ * are per proposal, and carrying them across offers would be the app agreeing
+ * to a substitution on the patient's behalf.
+ */
+export function acceptance(offer: Offers.Offer, held: ConsentState | null): Acceptance {
+  const filled = offer.lines.filter((l) => l.answer.kind !== "unavailable").map((l) => l.requestLineId);
+  const mine = held && held.offerId === offer.offerId ? held : null;
+
+  if (offer.lines.some((l) => l.answer.kind === "substitute")) {
+    // No consent state for an offer that needs one is exactly as unfinished as
+    // an undecided proposal, and reads to the patient the same way.
+    const refusal = mine ? gate(mine) : ({ code: "SUBSTITUTION_NOT_ACKNOWLEDGED" } as const);
+    if (refusal) return { kind: "blocked", refusal };
+  }
+
+  return { kind: "ready", lineIds: mine ? linesToReserve(mine, filled) : filled };
+}
+
 /** What the patient is being asked to compare, in the order they need it: what
  *  they asked for, what is offered instead, and why — the pharmacist's own
  *  words, never summarised. */

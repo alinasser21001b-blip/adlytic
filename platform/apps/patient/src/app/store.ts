@@ -330,19 +330,14 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       // §4 R10 — an offer containing a substitution cannot be accepted until
       // every proposal has an explicit answer. This is the gate TD-5 was open
       // on: R8 could show the flag and the offer could be taken regardless.
-      const hasSubstitution = offer.lines.some((l) => l.answer.kind === "substitute");
-      if (hasSubstitution) {
-        const consent = state.consent?.offerId === offer.offerId ? state.consent : null;
-        const blocked = consent ? Consent.gate(consent) : { code: "SUBSTITUTION_NOT_ACKNOWLEDGED" as const };
-        if (blocked)
-          // Not a refusal the patient must dismiss — the decision lives on R9,
-          // so send them to make it rather than telling them they cannot.
-          return { state: openOfferDetail(state, offer), effects: [] };
-      }
+      // The rule itself is Consent's; the reducer only routes its answer.
+      const consented = Consent.acceptance(offer, state.consent);
+      if (consented.kind === "blocked")
+        // Not a refusal the patient must dismiss — the decision lives on R9,
+        // so send them to make it rather than telling them they cannot.
+        return { state: openOfferDetail(state, offer), effects: [] };
 
-      const consentState = state.consent?.offerId === offer.offerId ? state.consent : null;
-      const filled = offer.lines.filter((l) => l.answer.kind !== "unavailable").map((l) => l.requestLineId);
-      const permitted = consentState ? Consent.linesToReserve(consentState, filled) : filled;
+      const permitted = consented.lineIds;
       const chosen = Offers.accept({ ...offer, lines: offer.lines.filter((l) => permitted.includes(l.requestLineId)) }, permitted);
       if (!chosen.ok)
         // An offer that left the list between render and tap is told plainly,
