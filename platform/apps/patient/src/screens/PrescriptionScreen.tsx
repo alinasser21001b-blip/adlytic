@@ -81,7 +81,7 @@ function ReviewShot(p: PrescriptionProps) {
   const failed = p.capture.kind === "failed";
   const view = viewOf(
     "R3",
-    failed ? { kind: "error", detail: "upload" } : { kind: "ready" },
+    failed ? { kind: "error" } : { kind: "ready" },
     p.history,
   );
 

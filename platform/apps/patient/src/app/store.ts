@@ -658,20 +658,43 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
       return { state: { ...state, refusal: null, staleOffer: null }, effects: [] };
 
     case "offerGone": {
-      // R8's declared error state, with the pharmacy named. The list stays —
-      // the other offers are still real, and the patient is one tap from them.
       // The pharmacy is named from the offer the app already holds. The runner
       // knows the offer id and nothing else, and passing an id where a name
       // belongs would print «off-req-3-b1» to a patient.
       const gone = state.offers.find((o) => o.offerId === intent.offerId);
       if (!gone) return { state, effects: [] };
-      const offers = state.offers.filter((o) => o.offerId !== intent.offerId);
+
+      /**
+       * The offer STAYS in the list, marked unavailable.
+       *
+       * R8-withdrawn is drawn, reviewed and photographed as exactly this: "an
+       * offer withdrawn between render and tap is shown as unavailable rather
+       * than as a control that will fail." The first version of this case
+       * removed it, so a patient who tapped a pharmacy watched it vanish and
+       * was told an offer had been withdrawn — with no way to tell which of
+       * the ones still listed it had been.
+       *
+       * It moves along an edge §6 declares (Rule 5), never by assignment: the
+       * server said withdrawn or expired and the machine says whether that is
+       * a move this offer could make. If it is not — a second answer for one
+       * already resolved — the list is left exactly as it is.
+       */
+      const on: MarketplaceMachines.OfferEvent =
+        intent.why === REFUSAL.OFFER_EXPIRED ? "windowElapsed" : "withdraw";
+      const moved = transition(MarketplaceMachines.OfferMachine, gone.state, on);
+      const next = !isErr(moved) && Offers.isDisplayable(moved.value) ? moved.value : null;
+      const offers = next === null
+        ? state.offers
+        : state.offers.map((o) => (o.offerId === intent.offerId ? { ...o, state: next } : o));
+
       return {
         state: navigate({
           ...state,
           offers,
+          // R8's declared error treatment fires on this. Which of the two
+          // happened is carried by the offer's own state, on the row, rather
+          // than by a second copy of the same fact in a refusal.
           staleOffer: gone.branchName,
-          refusal: { code: intent.why },
           reservation: null,
           reservationState: null,
         }, "R8"),

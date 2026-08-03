@@ -49,7 +49,7 @@ export type OffersProps = {
 export function OffersScreen(p: OffersProps) {
   const { t } = p;
   const phase: Phase =
-    p.staleOfferName ? { kind: "error", detail: p.staleOfferName }
+    p.staleOfferName ? { kind: "error" }
     : p.loading ? { kind: "loading" }
     : p.offers.length === 0 ? { kind: "empty", isSuccess: false }
     : { kind: "ready" };

@@ -22,7 +22,15 @@ export type Phase =
   /** `isSuccess` distinguishes S1's two empties — the new account that must be
    *  taught from the well-managed patient who is simply having a quiet day. */
   | { readonly kind: "empty"; readonly isSuccess: boolean }
-  | { readonly kind: "error"; readonly detail: string | null }
+  /**
+   * No payload. It carried a `detail` that seven screens filled in — a refusal
+   * code, a branch name, the literal "upload" — and that nothing anywhere ever
+   * read: the frame draws the contract's declared sentence and the screen adds
+   * whatever varies as its own line, which is the pattern E6 uses for the
+   * attempts remaining. A field the whole presentation layer feeds and no
+   * renderer consumes is a promise that something downstream is using it.
+   */
+  | { readonly kind: "error" }
   | { readonly kind: "offline"; readonly ageMs: number | null }
   | { readonly kind: "permissionRefused" };
 

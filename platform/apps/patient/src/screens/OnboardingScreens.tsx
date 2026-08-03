@@ -54,7 +54,7 @@ export function PhoneEntryScreen(p: PhoneEntryProps) {
   // mid-sentence.
   const showError = p.typed.length >= 7 && parsed.refusal !== null;
   const phase: Phase = !p.online ? { kind: "offline", ageMs: null }
-    : showError ? { kind: "error", detail: parsed.refusal!.code }
+    : showError ? { kind: "error" }
     : { kind: "ready" };
   const view = viewOf("E5", phase, p.history);
 
@@ -145,7 +145,7 @@ export function CodeEntryScreen(p: CodeEntryProps) {
   // labelling it as one would tell a patient they mistyped when they did not.
   const phase: Phase = !p.online ? { kind: "offline", ageMs: null }
     : p.checking ? { kind: "loading" }
-    : p.refusalCode === "WRONG_CODE" && !dead ? { kind: "error", detail: p.refusalCode }
+    : p.refusalCode === "WRONG_CODE" && !dead ? { kind: "error" }
     : { kind: "ready" };
   const view = viewOf("E6", phase, p.history);
 

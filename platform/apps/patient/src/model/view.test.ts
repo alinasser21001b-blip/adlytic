@@ -119,13 +119,13 @@ describe("renderability — the runtime half of the ux-check gate", () => {
   it("a phase with no declared treatment is named, not thrown", () => {
     // A patient holding a reservation code must not lose the screen because a
     // treatment was missing, so this returns a reason and lets the caller decide.
-    const problem = renderability(view(contract(), { kind: "error", detail: null }));
+    const problem = renderability(view(contract(), { kind: "error" }));
     expect(problem).toContain("X1");
     expect(problem).toContain("error");
   });
 
   it("a declared treatment makes the same phase renderable", () => {
     const c = contract({ states: [{ kind: "error", whatFailed: "الإرسال", workPreserved: true, action: { label: "عيد", leadsTo: "X1" } }] });
-    expect(renderability(view(c, { kind: "error", detail: null }))).toBeNull();
+    expect(renderability(view(c, { kind: "error" }))).toBeNull();
   });
 });

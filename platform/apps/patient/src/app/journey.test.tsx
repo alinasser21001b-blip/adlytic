@@ -21,7 +21,9 @@
 import { describe, expect, it } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { App, type Runtime } from "../App.js";
-import type { CatalogueHit } from "../ports.js";
+import type { AcceptResult, CatalogueHit, Fetched } from "../ports.js";
+import type { Intent } from "./store.js";
+import type { Offer } from "../model/offers.js";
 
 const HIT: CatalogueHit = {
   itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500 ملغم",
@@ -44,7 +46,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
     requestCode: async () => ({ kind: "fresh", value: { challengeId: "ch-1", resendAfter: 45 } }),
     verify: async () => ({ kind: "fresh", value: { kind: "verified", accountId: "acc-1", subjectId: "sub-1" } }),
   },
-    marketplace: { accept: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
+    marketplace: { accept: async (): Promise<Fetched<AcceptResult>> => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
   env: { now: () => 1_000, newId: () => "id-1", online: () => true },
   deviceId: "dev-1",
   startFlush: () => {},
@@ -78,8 +80,19 @@ function texts(root: ReactTestInstance): string {
 
 /** Drives the real root and lets a test act on it the way a finger does. */
 function open(rt: Runtime) {
+  /**
+   * Where the app registered itself. Things happen to a patient that nothing
+   * they did caused — a pharmacy answers — and this is the channel they arrive
+   * on, so a test can make one happen instead of mocking a screen into a state.
+   */
+  let sink: ((intent: Intent) => void) | null = null;
+  const wired: Runtime = {
+    ...rt,
+    connect: (send) => { sink = send; return () => { sink = null; }; },
+  };
+
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<App rt={rt} />); });
+  act(() => { renderer = TestRenderer.create(<App rt={wired} />); });
   const root = () => renderer.root;
 
   const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
@@ -98,7 +111,13 @@ function open(rt: Runtime) {
     await settle();
   };
 
-  return { root, press, type, settle, said: () => texts(root()), unmount: () => act(() => { renderer.unmount(); }) };
+  const deliver = async (intent: Intent) => {
+    if (!sink) throw new Error("the app never connected");
+    await act(async () => { sink!(intent); });
+    await settle();
+  };
+
+  return { root, press, type, settle, deliver, said: () => texts(root()), unmount: () => act(() => { renderer.unmount(); }) };
 }
 
 describe("a guest is carried into sign-in rather than thrown back to search", () => {
@@ -234,6 +253,105 @@ describe("the sign-in chain runs end to end from the app root", () => {
     await app.press("أرسل الرمز");
 
     expect(controls(app.root()).some((c) => c.props["accessibilityLabel"] === "أرسل رمز جديد")).toBe(true);
+    app.unmount();
+  });
+});
+
+/* ── The most consequential tap in the product, when it fails ─────────── */
+
+const OFFER = (over: Partial<Offer> = {}): Offer => ({
+  offerId: "o1", branchId: "b1", branchName: "صيدلية الرشيد", districtName: "الكرادة",
+  distanceM: 800, honoured: "trusted", state: "sent", openNow: true,
+  lines: [{
+    requestLineId: "l1", itemName: "بانادول", latinName: "Panadol",
+    answer: { kind: "available", priceMinor: 3_000 },
+  }],
+  ...over,
+});
+
+/** Straight to R8 with offers in hand: the paths under test start at the tap,
+ *  and walking the whole journey again for each would test the journey. */
+async function atOffers(rt: Runtime, offers: readonly Offer[]) {
+  const app = open(rt);
+  await app.type("بانادول");
+  await app.press("أضف بانادول للطلب");
+  await app.press("كمّل");
+  await app.press("أدخل رقمي");
+  await app.type("07701234567");
+  await app.press("أرسل الرمز");
+  await app.type("123456");
+  await app.press("تأكيد");
+  await app.press("أرسل الطلب");
+  for (const offer of offers) await app.deliver({ kind: "offerArrived", offer });
+  return app;
+}
+
+describe("an offer that is gone by the time it is taken", () => {
+  const heldRuntime = (accept: () => Promise<Fetched<AcceptResult>>) =>
+    runtime({ marketplace: { accept } });
+
+  it("a withdrawn offer names the pharmacy and keeps the others", async () => {
+    // R8's declared error state. The alternative — a spinner on V1 that never
+    // resolves — is what a patient got before the acceptance was performed at
+    // all, and a silent return to the list would be worse still: they would
+    // not know their pharmacy had gone.
+    const app = await atOffers(
+      heldRuntime(async () => ({ kind: "fresh", value: { kind: "withdrawn" } })),
+      [OFFER(), OFFER({ offerId: "o2", branchId: "b2", branchName: "صيدلية الكرادة" })],
+    );
+
+    await app.press("شوف العرض الواصل");
+    await app.press("افتح عرض صيدلية الرشيد");
+    await app.press("احجز من هنا");
+
+    // Back on the comparison, with the declared error treatment...
+    expect(app.said()).toContain("قارن العروض");
+    expect(app.said()).toContain("هذا العرض انسحب");
+    // ...the withdrawn offer still LISTED, because R8-withdrawn is drawn as
+    // "shown as unavailable rather than as a control that will fail"...
+    expect(app.said()).toContain("صيدلية الرشيد");
+    // ...and the one that is still real untouched beside it.
+    expect(app.said()).toContain("صيدلية الكرادة");
+    app.unmount();
+  });
+
+  it("an expired offer is not reported as a withdrawn one", async () => {
+    // Same status from the server, different events to the patient: a pharmacy
+    // took it back, or they took too long. A port that collapsed the two 409s
+    // would make R8 unable to say which.
+    const app = await atOffers(
+      heldRuntime(async () => ({ kind: "fresh", value: { kind: "expired" } })),
+      [OFFER()],
+    );
+
+    await app.press("شوف العرض الواصل");
+    await app.press("افتح عرض صيدلية الرشيد");
+    await app.press("احجز من هنا");
+
+    expect(app.said()).toContain("قارن العروض");
+    // The offer is marked unavailable, not deleted — and the row says which of
+    // the two happened, which a single shared error sentence cannot.
+    expect(app.said()).toContain("صيدلية الرشيد");
+    app.unmount();
+  });
+
+  it("a dropped connection is NOT reported as a refusal", async () => {
+    // D39's V4 is a pharmacy saying no. Telling a patient their pharmacy
+    // declined because a connection dropped would invent a rejection nobody
+    // made — and the idempotency key means a retry returns the original
+    // answer rather than a second reservation at a second pharmacy.
+    const app = await atOffers(
+      heldRuntime(async () => ({ kind: "failed", outcome: { kind: "transient", reason: "no signal" } })),
+      [OFFER()],
+    );
+
+    await app.press("شوف العرض الواصل");
+    await app.press("افتح عرض صيدلية الرشيد");
+    await app.press("احجز من هنا");
+
+    // V1 — still asking. Never V4, and never a code.
+    expect(app.said()).toContain("نطلب من صيدلية الرشيد تحجزلك");
+    expect(app.said()).not.toContain("ما كدرت الصيدلية");
     app.unmount();
   });
 });

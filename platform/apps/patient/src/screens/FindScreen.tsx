@@ -25,7 +25,7 @@ function phaseOf(s: Search.SearchState, now: number): Phase {
     case "idle": return { kind: "empty", isSuccess: false };
     case "loading": return { kind: "loading" };
     case "empty": return { kind: "empty", isSuccess: false };
-    case "error": return { kind: "error", detail: s.reason };
+    case "error": return { kind: "error" };
     case "offline": return { kind: "offline", ageMs: now - s.cachedAt };
     case "results": return { kind: "ready" };
   }

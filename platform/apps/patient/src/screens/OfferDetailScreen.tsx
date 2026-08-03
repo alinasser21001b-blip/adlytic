@@ -44,7 +44,7 @@ export type OfferDetailProps = {
 export function OfferDetailScreen(p: OfferDetailProps) {
   const { t, summary, consent } = p;
   const blocked = Consent.gate(consent);
-  const phase: Phase = p.withdrawn ? { kind: "error", detail: "withdrawn" } : { kind: "ready" };
+  const phase: Phase = p.withdrawn ? { kind: "error" } : { kind: "ready" };
   const view = viewOf(R9.id, phase, p.history);
   const outstanding = Consent.outstanding(consent);
 

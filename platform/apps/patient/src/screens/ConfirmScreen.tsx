@@ -48,7 +48,7 @@ export function ConfirmScreen(p: ConfirmProps) {
   const blocked = DraftModel.validate(draft);
   const view = viewOf(
     R6.id,
-    p.refusal ? { kind: "error", detail: p.refusal.code }
+    p.refusal ? { kind: "error" }
       : !p.online ? { kind: "offline", ageMs: null }
       : { kind: "ready" },
     p.history,

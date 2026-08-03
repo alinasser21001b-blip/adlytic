@@ -12,7 +12,7 @@
  *      patient cannot audit, and D11 already replaced a decimal reliability
  *      figure with a band for exactly that reason.
  */
-import { Marketplace, isErr, type Refusal } from "@dawai/domain";
+import { Marketplace, MarketplaceMachines, isErr, type Refusal } from "@dawai/domain";
 
 /**
  * Who proposed a substitution, and on what authority.
@@ -71,6 +71,20 @@ export type Offer = {
   readonly state: "sent" | "withdrawn" | "expired" | "not_chosen" | "accepted";
   readonly openNow: boolean;
 };
+
+/**
+ * Whether a state §6 defines is one an OFFER on this screen can be in.
+ *
+ * `OfferState` covers the pharmacy's whole lifecycle, including two the
+ * patient's app never sees: `composing`, before it is sent, and `abandoned`.
+ * `Offer["state"]` is the narrower set, and this is the guard that keeps a
+ * machine result inside it rather than a cast that would let either through
+ * to a screen with no treatment for it.
+ */
+const DISPLAYABLE: readonly Offer["state"][] = ["sent", "withdrawn", "expired", "not_chosen", "accepted"];
+
+export const isDisplayable = (s: MarketplaceMachines.OfferState): s is Offer["state"] =>
+  (DISPLAYABLE as readonly string[]).includes(s);
 
 export type SubstituteLine = Extract<OfferLine, { readonly substituteName: string }>;
 
