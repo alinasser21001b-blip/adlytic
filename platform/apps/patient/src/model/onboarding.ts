@@ -104,6 +104,31 @@ export type CodeStatus = {
   readonly canResendIn: number;
 };
 
+/**
+ * E6 before the server has issued anything.
+ *
+ * The store navigates to E6 the moment the number is submitted, so there is a
+ * real window — the SMS request's round trip — in which the screen is on
+ * display and no challenge exists. Every field here is about the ABSENCE of a
+ * challenge rather than a guess at one that has not been issued: nothing has
+ * expired or been spent because nothing was sent, and no attempt has been made
+ * against it.
+ *
+ * `canResendIn` is zero, which is the opposite of what it means once a code
+ * exists. The wait is there to stop a patient collecting three codes and
+ * finding only the last one works; with no code issued there is nothing to
+ * collect. It also matters when the request FAILED — `requestCode` answers a
+ * failure with no challenge at all, deliberately, so this window is where a
+ * patient whose SMS was never sent is sitting, and «أرسل رمز جديد» is their
+ * only way out of it.
+ */
+export const CODE_PENDING: CodeStatus = {
+  attemptsLeft: Verification.MAX_ATTEMPTS,
+  expired: false,
+  spent: false,
+  canResendIn: 0,
+};
+
 export function codeStatus(c: Verification.Challenge, now: Instant): CodeStatus {
   return {
     attemptsLeft: Verification.attemptsLeft(c),

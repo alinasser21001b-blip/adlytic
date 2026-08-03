@@ -22,6 +22,11 @@ import { OffersScreen } from "./screens/OffersScreen.jsx";
 import { ReservationScreen } from "./screens/ReservationScreen.jsx";
 import { PrescriptionScreen } from "./screens/PrescriptionScreen.jsx";
 import { OfferDetailScreen } from "./screens/OfferDetailScreen.jsx";
+import { WhyNumberScreen } from "./screens/WhyNumberScreen.jsx";
+import { PhoneEntryScreen, CodeEntryScreen, NameScreen, DistrictScreen } from "./screens/OnboardingScreens.jsx";
+import * as Onboarding from "./model/onboarding.js";
+import { DISTRICTS } from "./data/districts.js";
+import { sayRedirect } from "./ui/refusal.js";
 import * as Offers from "./model/offers.js";
 import { Label } from "./ui/kit.jsx";
 import { instant } from "@dawai/domain";
@@ -139,6 +144,34 @@ function perform(effect: Effect, rt: Runtime, send: (i: Intent) => void): void {
  *  nothing pretends they work in the meantime. */
 const noop = () => {};
 
+/**
+ * What the guard interrupted, named.
+ *
+ * D26 preserves the action and E4 SHOWS it, because "your request is saved"
+ * with nothing naming the request is a reassurance the patient has to take on
+ * faith at the exact moment they have least reason to. The draft is the only
+ * work this build can preserve, so an empty one means there is nothing to name
+ * and the strip is absent rather than reassuring about nothing.
+ */
+function preservedWork(state: AppState): string | null {
+  const lines = state.draft?.lines ?? [];
+  return lines.length > 0 ? lines.map((l) => l.name).join(" + ") : null;
+}
+
+/**
+ * The number E6 shows back, grouped the way it is read aloud.
+ *
+ * Derived from what the patient typed rather than stored a second time: E5 and
+ * E6 must show the same number, and two copies of it is one copy and one thing
+ * that can disagree. An unparseable string is echoed verbatim — E6 is only
+ * reachable through a parse that succeeded, and showing the raw text is the
+ * honest answer if that ever stops being true.
+ */
+function phoneAsShown(typed: string): string {
+  const parsed = Onboarding.parsePhone(typed);
+  return parsed.value ? Onboarding.displayPhone(parsed.value) : typed;
+}
+
 export function App({ rt }: { rt: Runtime }) {
   // The Night Mint delivery is dark-first and its daylight sibling is not yet
   // designed. Rendering the device's light preference would ship a scheme
@@ -174,6 +207,96 @@ export function App({ rt }: { rt: Runtime }) {
           onRemove={(itemId) => send({ kind: "removeLine", itemId })}
           onContinue={() => send({ kind: "open", screen: "R6" })}
           onDismissRefusal={() => send({ kind: "dismissRefusal" })}
+          onBack={onBack} onAction={onAction}
+        />
+      );
+
+    /* ── E4–E8 · the interruption ──────────────────────────────────────
+       These are not a side journey. They are what happens IN THE MIDDLE of
+       the core loop the moment a guest touches an action that needs an
+       account, and every one of them was built, reviewed and photographed
+       while the app root rendered none of them: `open` redirected a guest to
+       E4, the switch had no case for it, and `default` drew the search screen
+       — so tapping «كمّل» on a finished request threw the patient backwards
+       with no explanation at all. Ten built screens were unreachable this
+       way; these five are the ones that stand between a patient and every
+       other screen in the product. */
+
+    case "E4":
+      return (
+        <WhyNumberScreen
+          t={t}
+          preserved={preservedWork(state)}
+          /* The guard's own sentence, so this screen cannot state a different
+             reason than the redirect did. Reached deliberately rather than by
+             a guard there is no reason to quote, and the only thing E4 exists
+             to explain is the account — which is what SESSION_REQUIRED says. */
+          because={sayRedirect(state.redirectBecause ?? "SESSION_REQUIRED")}
+          history={state.history} onBack={onBack} onAction={onAction}
+        />
+      );
+
+    case "E5":
+      return (
+        <PhoneEntryScreen
+          t={t} typed={state.onboarding.phoneTyped} history={state.history}
+          online={rt.env.online()}
+          onType={(raw) => send({ kind: "typePhone", raw })}
+          onSubmit={() => send({ kind: "submitPhone" })}
+          onBack={onBack} onAction={onAction}
+        />
+      );
+
+    case "E6": {
+      const { challenge } = state.onboarding;
+      return (
+        <CodeEntryScreen
+          t={t}
+          /* The number as the patient reads it aloud, re-parsed from what they
+             typed rather than stored a second time — one number, one source. */
+          phone={phoneAsShown(state.onboarding.phoneTyped)}
+          typed={state.onboarding.codeTyped}
+          /* Null until the server issues one, which is a real window and not
+             an error: the request is in flight, or it failed and no challenge
+             was invented to cover for it. */
+          status={challenge ? Onboarding.codeStatus(challenge, instant(rt.env.now())) : Onboarding.CODE_PENDING}
+          checking={state.onboarding.checking}
+          refusalCode={state.onboarding.codeRefusal}
+          history={state.history} online={rt.env.online()}
+          onType={(raw) => send({ kind: "typeCode", raw })}
+          onSubmit={() => send({ kind: "submitCode", at: instant(rt.env.now()) })}
+          onResend={() => send({ kind: "resendCode" })}
+          onBack={onBack} onAction={onAction}
+        />
+      );
+    }
+
+    case "E7":
+      return (
+        <NameScreen
+          t={t} typed={state.onboarding.nameTyped} history={state.history}
+          onType={(raw) => send({ kind: "typeName", raw })}
+          onSubmit={() => send({ kind: "submitName" })}
+          onBack={onBack} onAction={onAction}
+        />
+      );
+
+    case "E8":
+      return (
+        <DistrictScreen
+          t={t}
+          /* Bundled, per E8's offline rule. The screen never asks for a
+             location and never needs a network to draw this. */
+          districts={DISTRICTS}
+          query={state.onboarding.districtQuery}
+          chosen={state.onboarding.districtChosen}
+          history={state.history}
+          onSearch={(raw) => send({ kind: "searchDistrict", raw })}
+          onChoose={(districtId) => send({ kind: "chooseDistrict", districtId })}
+          /* The list travels with the intent because the domain check needs it
+             and the store holds no catalogue of districts — a reducer that
+             owned the list would be a second place the coverage map lives. */
+          onSubmit={() => send({ kind: "submitDistrict", districts: DISTRICTS })}
           onBack={onBack} onAction={onAction}
         />
       );

@@ -29,6 +29,7 @@ import { OffersScreen } from "./OffersScreen.jsx";
 import { WhyNumberScreen } from "./WhyNumberScreen.jsx";
 import { PhoneEntryScreen, CodeEntryScreen, NameScreen, DistrictScreen } from "./OnboardingScreens.jsx";
 import * as Onboarding from "../model/onboarding.js";
+import { DISTRICTS } from "../data/districts.js";
 import { ReservationScreen } from "./ReservationScreen.jsx";
 import * as Offers from "../model/offers.js";
 import * as Reservation from "../model/reservation.js";
@@ -89,12 +90,9 @@ const codeStatus = (used: number, age: number): Onboarding.CodeStatus =>
     instant(age),
   );
 
-const DISTRICTS: readonly Onboarding.District[] = [
-  { districtId: "d1", name: "الكرادة", city: "بغداد", covered: true },
-  { districtId: "d2", name: "المنصور", city: "بغداد", covered: true },
-  { districtId: "d3", name: "زيونة", city: "بغداد", covered: true },
-  { districtId: "d4", name: "المشتل", city: "بغداد", covered: false },
-];
+/* The districts are the app's bundled list, not a fixture written for the
+   gallery. They used to be a copy declared here, which meant the E8 a reviewer
+   approved and the E8 a patient would see were reading different data. */
 
 /* ── The second half of the loop ──────────────────────────────────────── */
 
