@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 12:41 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 12:46 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1195,7 +1195,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">130 file(s) scanned across 10 layer(s)</div></div>
+  <div class="note mono">131 file(s) scanned across 10 layer(s)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
@@ -1207,11 +1207,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">1007 passed (1007)</div></div>
+  <div class="note mono">1010 passed (1010)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Test reach</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">37 test file(s) on disk · 37 reported by the runner</div></div>
+  <div class="note mono">38 test file(s) on disk · 38 reported by the runner</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Generated documents</b> — <span class="tag ok">PASS</span>
@@ -1271,7 +1271,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">11 open · 1 critical · 4 resolved</div></div>
+  <div class="note mono">12 open · 1 critical · 4 resolved</div></div>
 </div></div>
 </div>
 
@@ -1561,9 +1561,9 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
     <div><div class="kpi">75<small>source files</small></div></div>
-    <div><div class="kpi">10,325<small>source lines</small></div></div>
-    <div><div class="kpi">0.52×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">4.37s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">10,345<small>source lines</small></div></div>
+    <div><div class="kpi">0.53×<small>test lines per source line</small></div></div>
+    <div><div class="kpi">4.24s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1672,6 +1672,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td><span class="tag ">medium</span></td>
   <td class="mono">platform-foundation</td>
   <td class="note">Blocked — needs a product answer on cancelling in-flight writes</td>
+</tr><tr>
+  <td class="mono">TD-14</td>
+  <td>V2 renders two controls that do nothing. The contract declares a primary «الاتجاهات» and a secondary «اتصال بالصيدلية», ReservationScreen draws both, and App.tsx wires both to `noop` — there is no maps handoff and no dialer. The rendered review page V2-held.html contains both labels. A third declared secondary, «ألغِ الحجز» → V5, is not rendered at all: `onCancel` is passed from App.tsx as `() =&gt; onAction(&quot;V5&quot;)`, which `isBuilt` silently drops because V5 is not in this build, and ReservationScreen never uses the prop.</td>
+  <td class="note">§4 calls V2 the screen that must never fail, and it is the screen a patient stands in front of a pharmacy holding. Two of its three actions are inert: tapping «الاتجاهات» or «اتصال بالصيدلية» does nothing at all, with no message and no fallback — the exact defect the isBuilt filter exists to prevent, in the one category isBuilt cannot express, because a dialer and a map are device capabilities rather than screens. Whether to wire them, disable them with a stated reason, or drop them until a device build exists is a product and platform decision (§4 V2 · TD-1 · TD-2), so it is registered rather than answered here. The dead `onCancel` prop is separate and smaller: it makes the cancel path look wired when V5 does not exist.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs a device build and a decision on inert declared controls</td>
 </tr>
 </tbody></table>
 <h3 style="margin-top:20px">Resolved</h3>

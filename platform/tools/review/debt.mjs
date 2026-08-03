@@ -118,6 +118,15 @@ export const DEBT = [
     slice: "Blocked — needs a product answer on cancelling in-flight writes",
     status: "open",
   },
+  {
+    id: "TD-14",
+    description: "V2 renders two controls that do nothing. The contract declares a primary «الاتجاهات» and a secondary «اتصال بالصيدلية», ReservationScreen draws both, and App.tsx wires both to `noop` — there is no maps handoff and no dialer. The rendered review page V2-held.html contains both labels. A third declared secondary, «ألغِ الحجز» → V5, is not rendered at all: `onCancel` is passed from App.tsx as `() => onAction(\"V5\")`, which `isBuilt` silently drops because V5 is not in this build, and ReservationScreen never uses the prop.",
+    impact: "§4 calls V2 the screen that must never fail, and it is the screen a patient stands in front of a pharmacy holding. Two of its three actions are inert: tapping «الاتجاهات» or «اتصال بالصيدلية» does nothing at all, with no message and no fallback — the exact defect the isBuilt filter exists to prevent, in the one category isBuilt cannot express, because a dialer and a map are device capabilities rather than screens. Whether to wire them, disable them with a stated reason, or drop them until a device build exists is a product and platform decision (§4 V2 · TD-1 · TD-2), so it is registered rather than answered here. The dead `onCancel` prop is separate and smaller: it makes the cancel path look wired when V5 does not exist.",
+    priority: "high",
+    owner: "patient-app",
+    slice: "Blocked — needs a device build and a decision on inert declared controls",
+    status: "open",
+  },
 ];
 
 /** Debt that has been paid. Kept, with how it was resolved, so the register
