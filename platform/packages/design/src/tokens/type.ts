@@ -40,6 +40,30 @@ export const type: Readonly<Record<TypeRole, TypeStyle>> = {
   caption:  { size: 13, lineHeight: 1.60, letterSpacing: 0, weight: 500, clinicalAllowed: false },
 };
 
+/**
+ * Letter spacing, and its single exception.
+ *
+ * §25 fixes tracking at zero, and `TypeStyle.letterSpacing` is typed `0` so no
+ * role can carry anything else: Arabic is a connected script and tracking it
+ * pulls the joins apart. That rule is about ARABIC TEXT, and one thing in the
+ * product is not Arabic text — a verification code, six unrelated digits set
+ * LTR in the tabular family and read aloud one at a time. There, spacing is
+ * what separates a digit from its neighbour so a patient copying from an SMS
+ * does not lose their place.
+ *
+ * It is a token rather than a literal because a number typed at a call site is
+ * a second, unstated rule: nobody reading `letterSpacing: 2` in a component can
+ * tell whether it is the exception or a violation of the invariant. Here it can
+ * only be spent on what it is named for, and the layer gate refuses any other
+ * tracking literal in the app.
+ */
+export const tracking = {
+  /** Every Arabic role. §25, restated as a value so it can be asserted. */
+  arabic: 0,
+  /** Codes only — LTR, tabular family, digit-by-digit. */
+  tabularCode: 2,
+} as const;
+
 /** D34 — Phase 0 ships Arabic only. The Kurdish slot is reserved in the
  *  catalogue, not here; a font stack for a language we do not ship would be a
  *  claim we cannot honour. */

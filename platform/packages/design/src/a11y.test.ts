@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { palettes, CONTRACT_PAIRS, EXTRA_PAIRS, COLOR_ROLES, type Persona, type Scheme } from "./tokens/color.js";
 import { contrastRatio, reportRatio, CONTRAST } from "./a11y.js";
-import { type as typeScale, TYPE_ROLES } from "./tokens/type.js";
+import { type as typeScale, TYPE_ROLES, tracking } from "./tokens/type.js";
 import { tap, space } from "./tokens/space.js";
 import { motion, tokenOf, SIGNATURE_EXEMPT, withReducedMotion, type MotionToken, type MotionName } from "./tokens/motion.js";
 
@@ -136,4 +136,17 @@ describe("pairs that live outside a single palette", () => {
       expect(ratio, `${label} measures ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(CONTRAST.bodyText);
     });
   }
+});
+
+describe("§25 — tracking is zero, and its one exception is named", () => {
+  it("every type role carries the Arabic value", () => {
+    for (const role of TYPE_ROLES) expect(typeScale[role].letterSpacing).toBe(tracking.arabic);
+  });
+  it("the Arabic value is zero — a connected script is not tracked", () => {
+    expect(tracking.arabic).toBe(0);
+  });
+  it("the exception exists only for codes, and is non-zero", () => {
+    expect(tracking.tabularCode).toBeGreaterThan(0);
+    expect(Object.keys(tracking).sort()).toEqual(["arabic", "tabularCode"]);
+  });
 });

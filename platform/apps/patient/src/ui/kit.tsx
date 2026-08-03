@@ -15,7 +15,7 @@
 import * as React from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import type { StateTreatment } from "@dawai/design";
-import { formatDigits, isolate, needsIsolation, toWesternDigits } from "@dawai/design";
+import { formatDigits, isolate, needsIsolation, toWesternDigits, tracking } from "@dawai/design";
 import type { ScreenView } from "../model/view.js";
 import type { Theme } from "./theme.js";
 import { Card, Note, Row, Spacer } from "./layout.js";
@@ -580,7 +580,7 @@ export function InputField(
             fontSize: code ? t.type.title.size : t.type.body.size,
             color: t.color.ink,
             ...(code
-              ? { writingDirection: "ltr" as const, textAlign: "left" as const, letterSpacing: 2 }
+              ? { writingDirection: "ltr" as const, textAlign: "left" as const, letterSpacing: tracking.tabularCode }
               : { writingDirection: t.direction, textAlign: "right" as const }),
           }}
         />

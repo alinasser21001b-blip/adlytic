@@ -77,6 +77,13 @@ const LAYERS = [
       // header the first time it was rendered.
       { re: /row-reverse/, why: "a physical row direction — under RTL `row` already runs right-to-left, and reversing it flips the layout back (§25)" },
       { re: /(left|right):\s*\d/, why: "a physical edge — use start/end via resolveEdge (§25)" },
+      // §25 fixes tracking at zero because Arabic is connected, and TypeStyle
+      // types it `0` so no role can hold anything else. A literal at a call
+      // site goes around that type entirely — which is exactly how `letterSpacing:
+      // 2` got into the code field. The exception is real (a code is LTR digits,
+      // not Arabic text) but it is one token, `tracking.tabularCode`, so a reader
+      // can tell the exception from a violation without measuring the render.
+      { re: /letterSpacing:\s*[1-9]/, why: "a tracking literal — Arabic is connected and §25 fixes spacing at zero; the one exception is design's `tracking` token" },
     ],
   },
   {
