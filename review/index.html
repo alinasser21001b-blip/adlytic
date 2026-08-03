@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 18:19 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 18:27 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1271,7 +1271,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">19 open · 1 critical · 6 resolved</div></div>
+  <div class="note mono">20 open · 1 critical · 6 resolved</div></div>
 </div></div>
 </div>
 
@@ -1291,7 +1291,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 
   <h3 style="margin-top:20px">What blocks release</h3>
   <table style="margin-top:8px"><thead><tr><th>Blocker</th><th>Why it blocks</th><th>Owner</th></tr></thead><tbody>
-  <tr><td class="mono">TD-1</td><td>The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td><td class="mono">media-service</td></tr>
+  <tr><td class="mono">TD-1</td><td>The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td><td class="mono">platform-foundation</td></tr><tr><td class="mono">TD-9</td><td>No medicine that requires a prescription can be requested AT ALL. D18 refuses the send without an image, the only way to attach one is a photograph, and no photograph can be taken — so the class is closed, and in a real catalogue that class is antibiotics, inhalers and much else. The rest of the journey around it is correct and was verified in the browser: D42 refuses a controlled medicine on the row with no add control at all, a prescription row says «يحتاج وصفة — راح نطلب صورتها» before the tap, the draft line carries «يحتاج صورة الوصفة», and R2 offers «اكتب الاسم بدال الصورة» rather than being a wall. What is missing is the one step in the middle, and a control that does nothing without saying so is worse than the feature being absent.</td><td class="mono">media-service</td></tr>
   </tbody></table>
 
   <h3 style="margin-top:20px">What is ready</h3>
@@ -1563,7 +1563,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <div><div class="kpi">84<small>source files</small></div></div>
     <div><div class="kpi">12,112<small>source lines</small></div></div>
     <div><div class="kpi">0.57×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">5.96s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">5.90s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1604,8 +1604,8 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td class="note">Whenever a device build first runs</td>
 </tr><tr>
   <td class="mono">TD-9</td>
-  <td>The camera itself is not implemented. R2 dispatches a capture effect that the app root receives and does nothing with.</td>
-  <td class="note">The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.</td>
+  <td>The camera is not implemented, and R2's shutter is SILENTLY inert — walked in a browser: pressing «صوّر» leaves the screen, the controls and the state exactly as they were, with no message of any kind. `Host.camera` is null on the browser host and `runtime.capture` returns without doing anything. This item used to call R2 &quot;MOCKED&quot;, which overstates it: a mock returns something.</td>
+  <td class="note">No medicine that requires a prescription can be requested AT ALL. D18 refuses the send without an image, the only way to attach one is a photograph, and no photograph can be taken — so the class is closed, and in a real catalogue that class is antibiotics, inhalers and much else. The rest of the journey around it is correct and was verified in the browser: D42 refuses a controlled medicine on the row with no add control at all, a prescription row says «يحتاج وصفة — راح نطلب صورتها» before the tap, the draft line carries «يحتاج صورة الوصفة», and R2 offers «اكتب الاسم بدال الصورة» rather than being a wall. What is missing is the one step in the middle, and a control that does nothing without saying so is worse than the feature being absent.</td>
   <td><span class="tag warn">high</span></td>
   <td class="mono">media-service</td>
   <td class="note">Device build</td>
@@ -1644,6 +1644,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td><span class="tag warn">high</span></td>
   <td class="mono">patient-app</td>
   <td class="note">Blocked — R11 is undesigned</td>
+</tr><tr>
+  <td class="mono">TD-24</td>
+  <td>R1's declared guards and §3.1 contradict each other, and the implementation resolves it by walking around the guard. The Blueprint gives R1 the permission &quot;authenticated, subject with Order scope or self or guardian&quot; and the guard set `requireSession · requireOrderScope · blockMemorialised`. §3.1 forbids a sign-in wall and requests the account at the first action that NEEDS one, and D26 preserves the interrupted work — E4 is drawn showing «طلبك محفوظ: أموكسيسيلين + باراسيتامول», a draft that only a GUEST could have built. Both cannot hold: if R1 needs a session, no guest can assemble the request E4 promises to keep. Today `addItem` calls `navigate` rather than `open`, so it never asks the guards, and that bypass is the only reason the product works end to end.</td>
+  <td class="note">A guard that one path enforces and another does not is not a guard (§5 rule 1), and the same screen answers differently depending on how you arrive. It is visible: R2's «اكتب الاسم بدال الصورة» goes through the declared exit `leadsTo: R1`, `open` runs the guards, and a guest is sent to sign in by a control that offered to let them type instead — walked in a browser. Fixing the symptom would mean routing that control around the guard as well, which is weakening a rule to make code pass rather than resolving the contradiction. It needs one of the two documents to move: either R1 loses `requireSession`, or §3.1 and D26 say where a guest assembles a draft instead.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — R1's guards and §3.1 disagree</td>
 </tr><tr>
   <td class="mono">TD-17</td>
   <td>The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.</td>

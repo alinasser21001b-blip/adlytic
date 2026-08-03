@@ -28,8 +28,8 @@ export const DEBT = [
   },
   {
     id: "TD-9",
-    description: "The camera itself is not implemented. R2 dispatches a capture effect that the app root receives and does nothing with.",
-    impact: "The prescription journey is complete in state, navigation, consent and tests, but no photograph can actually be taken. R2 is MOCKED until a device build exists.",
+    description: "The camera is not implemented, and R2's shutter is SILENTLY inert — walked in a browser: pressing «صوّر» leaves the screen, the controls and the state exactly as they were, with no message of any kind. `Host.camera` is null on the browser host and `runtime.capture` returns without doing anything. This item used to call R2 \"MOCKED\", which overstates it: a mock returns something.",
+    impact: "No medicine that requires a prescription can be requested AT ALL. D18 refuses the send without an image, the only way to attach one is a photograph, and no photograph can be taken — so the class is closed, and in a real catalogue that class is antibiotics, inhalers and much else. The rest of the journey around it is correct and was verified in the browser: D42 refuses a controlled medicine on the row with no add control at all, a prescription row says «يحتاج وصفة — راح نطلب صورتها» before the tap, the draft line carries «يحتاج صورة الوصفة», and R2 offers «اكتب الاسم بدال الصورة» rather than being a wall. What is missing is the one step in the middle, and a control that does nothing without saying so is worse than the feature being absent.",
     priority: "high",
     owner: "media-service",
     slice: "Device build",
@@ -78,6 +78,15 @@ export const DEBT = [
     priority: "high",
     owner: "patient-app",
     slice: "Blocked — R11 is undesigned",
+    status: "open",
+  },
+  {
+    id: "TD-24",
+    description: "R1's declared guards and §3.1 contradict each other, and the implementation resolves it by walking around the guard. The Blueprint gives R1 the permission \"authenticated, subject with Order scope or self or guardian\" and the guard set `requireSession · requireOrderScope · blockMemorialised`. §3.1 forbids a sign-in wall and requests the account at the first action that NEEDS one, and D26 preserves the interrupted work — E4 is drawn showing «طلبك محفوظ: أموكسيسيلين + باراسيتامول», a draft that only a GUEST could have built. Both cannot hold: if R1 needs a session, no guest can assemble the request E4 promises to keep. Today `addItem` calls `navigate` rather than `open`, so it never asks the guards, and that bypass is the only reason the product works end to end.",
+    impact: "A guard that one path enforces and another does not is not a guard (§5 rule 1), and the same screen answers differently depending on how you arrive. It is visible: R2's «اكتب الاسم بدال الصورة» goes through the declared exit `leadsTo: R1`, `open` runs the guards, and a guest is sent to sign in by a control that offered to let them type instead — walked in a browser. Fixing the symptom would mean routing that control around the guard as well, which is weakening a rule to make code pass rather than resolving the contradiction. It needs one of the two documents to move: either R1 loses `requireSession`, or §3.1 and D26 say where a guest assembles a draft instead.",
+    priority: "high",
+    owner: "patient-app",
+    slice: "Blocked — R1's guards and §3.1 disagree",
     status: "open",
   },
   {
