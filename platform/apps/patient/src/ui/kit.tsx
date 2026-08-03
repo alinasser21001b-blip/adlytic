@@ -15,7 +15,7 @@
 import * as React from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import type { StateTreatment } from "@dawai/design";
-import { formatDigits, isolate, needsIsolation } from "@dawai/design";
+import { formatDigits, isolate, needsIsolation, toWesternDigits } from "@dawai/design";
 import type { ScreenView } from "../model/view.js";
 import type { Theme } from "./theme.js";
 import { Card, Note, Row, Spacer } from "./layout.js";
@@ -70,10 +70,9 @@ function normaliseNumerals(node: React.ReactNode): React.ReactNode {
 }
 
 /** Fold either system to Western first, so the conversion below is total
- *  regardless of which system a server string arrived in. */
-const toWestern = (s: string): string =>
-  s.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-   .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+ *  regardless of which system a server string arrived in. One implementation,
+ *  in @dawai/design, shared with the search normaliser and the phone parser. */
+const toWestern = toWesternDigits;
 
 /**
  * A Latin run inside Arabic text — a drug name, a price, a code. Unisolated,

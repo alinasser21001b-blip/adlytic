@@ -6,7 +6,7 @@
  *      price, and two numeral systems in one comparison.
  */
 import { describe, it, expect } from "vitest";
-import { resolveEdge, shouldMirror, formatDigits, isolate, needsIsolation, APP_DIRECTION } from "./rtl.js";
+import { resolveEdge, shouldMirror, formatDigits, isolate, needsIsolation, APP_DIRECTION, toWesternDigits } from "./rtl.js";
 
 describe("§25 — logical edges resolve, so no component names left or right", () => {
   it("start is right under RTL and left under LTR", () => {
@@ -52,4 +52,20 @@ describe("§25 — a Latin run inside Arabic must be isolated or it reorders", (
 
 describe("D34 — Phase 0 ships Arabic only", () => {
   it("the app direction is RTL", () => expect(APP_DIRECTION).toBe("rtl"));
+});
+
+describe("toWesternDigits — the one fold every parser needs", () => {
+  it("folds Arabic-Indic (U+0660) digits", () => {
+    expect(toWesternDigits("٠١٢٣٤٥٦٧٨٩")).toBe("0123456789");
+  });
+  it("folds Extended-Arabic (U+06F0) digits — the range hand-written copies forgot", () => {
+    expect(toWesternDigits("۰۱۲۳۴۵۶۷۸۹")).toBe("0123456789");
+  });
+  it("leaves everything that is not a digit alone", () => {
+    expect(toWesternDigits("٠٧٧٠-١٢٣ ٤٥٦٧")).toBe("0770-123 4567");
+    expect(toWesternDigits("بانادول")).toBe("بانادول");
+  });
+  it("is the inverse of formatDigits", () => {
+    expect(toWesternDigits(formatDigits("2026", "arabic-indic"))).toBe("2026");
+  });
 });

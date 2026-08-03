@@ -50,6 +50,22 @@ export type NumeralSystem = "arabic-indic" | "western";
 
 const ARABIC_INDIC = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"] as const;
 
+/**
+ * Fold any Arabic-Indic or Extended-Arabic digit to its Western equivalent.
+ *
+ * The inverse of `formatDigits`, and the thing every caller that ACCEPTS text
+ * needs before it can parse: a phone number pasted from a contacts app, a
+ * search query typed on an Arabic keyboard, a code read off an SMS. It lived
+ * as four copies of the same two `.replace` calls — in the search normaliser,
+ * twice in the onboarding parser, and in the render-time numeral pass — which
+ * is four places for the Extended-Arabic range to be forgotten in the fifth.
+ */
+export function toWesternDigits(text: string): string {
+  return text
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+}
+
 export function formatDigits(value: number | string, system: NumeralSystem): string {
   const s = String(value);
   if (system === "western") return s;

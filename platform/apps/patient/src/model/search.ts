@@ -13,6 +13,7 @@
  *      it asks the domain.
  */
 import { Clinical, isErr } from "@dawai/domain";
+import { toWesternDigits } from "@dawai/design";
 import type { CatalogueHit, Fetched, SearchResponse } from "../ports.js";
 
 /**
@@ -26,14 +27,14 @@ import type { CatalogueHit, Fetched, SearchResponse } from "../ports.js";
  * cheapest way to lose someone on their first search.
  */
 export function normaliseQuery(raw: string): string {
-  return raw
+  // Digits fold through @dawai/design so this normaliser and the render-time
+  // one cannot disagree about what «٥» is.
+  return toWesternDigits(raw)
     .replace(/[ـ]/g, "")                       // tatweel, a decoration
     .replace(/[أإآٱ]/g, "ا") // أ إ آ ٱ → ا
     .replace(/ى/g, "ي")                   // ى → ي
     .replace(/ة/g, "ه")                   // ة → ه
     .replace(/[ً-ْ]/g, "")                // harakat
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)) // ٠-٩ → 0-9
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0)) // ۰-۹ → 0-9
     .replace(/\s+/g, " ")
     .trim();
 }

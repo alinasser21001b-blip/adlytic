@@ -15,6 +15,7 @@
  *      could decide it had one more attempt could decide it had a hundred.
  */
 import { REFUSAL, refuse, type Refusal, type Instant, Verification } from "@dawai/domain";
+import { toWesternDigits } from "@dawai/design";
 
 /* ── E5 · the number ──────────────────────────────────────────────────── */
 
@@ -42,10 +43,7 @@ export type PhoneNumber = {
  * punctuation is the app refusing to do work the patient can see is trivial.
  */
 export function parsePhone(raw: string): { readonly value: PhoneNumber | null; readonly refusal: Refusal | null } {
-  const digits = raw
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-    .replace(/[^\d+]/g, "");
+  const digits = toWesternDigits(raw).replace(/[^\d+]/g, "");
 
   if (digits === "" || digits === "+") return { value: null, refusal: refuse(REFUSAL.MALFORMED_NUMBER) };
 
@@ -78,11 +76,7 @@ export const CODE_LENGTH = 6;
 
 /** Digits only, and never more than the code is long. */
 export const cleanCode = (raw: string): string =>
-  raw
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-    .replace(/\D/g, "")
-    .slice(0, CODE_LENGTH);
+  toWesternDigits(raw).replace(/\D/g, "").slice(0, CODE_LENGTH);
 
 export const codeComplete = (code: string): boolean => cleanCode(code).length === CODE_LENGTH;
 
