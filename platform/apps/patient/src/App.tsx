@@ -257,9 +257,14 @@ export function App({ rt }: { rt: Runtime }) {
           freshness={{ kind: "live" }}
           history={state.history}
           now={rt.env.now()}
+          // V5 is not in this build, so isBuilt drops it and the prop is
+          // unused by the screen — see TD-14.
           onCancel={() => onAction("V5")}
-          onCall={noop}
-          onDirections={noop}
+          // The contract declares both and the screen draws both, but there is
+          // no dialer and no maps handoff, so a patient can press either and
+          // nothing happens at all.
+          onCall={noop} /* TD-14 */
+          onDirections={noop} /* TD-14 */
           onBack={onBack} onAction={onAction}
         />
       ) : <Placeholder t={t} />;

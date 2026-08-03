@@ -56,6 +56,35 @@ for (const dir of ["apps", "packages"]) {
   }
 }
 
+/* ── 3. an inert control is registered ──────────────────────────────────── */
+/**
+ * A handler wired to `noop` in the composition root is a control the running
+ * app draws and does not honour. V2 shipped two — «الاتجاهات» and «اتصال
+ * بالصيدلية» — and nothing could see them: every screen-to-SCREEN dead end is
+ * machine-checked by the navigation graph, and a screen-to-DEVICE dead end is
+ * invisible to it, because a dialer and a map are not screens.
+ *
+ * The rule is not "never use noop" — it is "an inert control must be written
+ * down". A TD-N on the line or just above it ties the button to a register
+ * entry, and check 2 above already proves that entry exists.
+ *
+ * The gallery is excluded by name: it renders every screen statically for the
+ * review, so its handlers are inert BY DESIGN and none of them is a control a
+ * patient can reach.
+ */
+const ROOT = join(PLATFORM, "apps/patient/src");
+for (const file of walk(ROOT)) {
+  const rel = relative(PLATFORM, file);
+  if (/\.test\.|gallery\.tsx$/.test(rel)) continue;
+  const lines = readFileSync(file, "utf8").split("\n");
+  lines.forEach((text, i) => {
+    if (!/=\{noop\}/.test(text)) return;
+    const context = lines.slice(Math.max(0, i - 3), i + 1).join("\n");
+    if (!/\bTD-\d+/.test(context))
+      problems.push(`${rel}:${i + 1} renders an inert control (noop) with no TD-N naming it`);
+  });
+}
+
 console.log(`\nTechnical debt register — ids unique, references resolve\n`);
 console.log(`  ${seen.size} item(s) registered · ${scanned} source file(s) scanned\n`);
 
@@ -64,4 +93,4 @@ if (problems.length) {
   console.log(`\n${problems.length} problem(s). A pointer into the register must land on exactly one thing.\n`);
   process.exit(1);
 }
-console.log(`  PASS  every id is unique and every TD-N named in source exists\n`);
+console.log(`  PASS  ids unique · references resolve · every inert control named\n`);
